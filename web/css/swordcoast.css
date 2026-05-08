@@ -94,6 +94,27 @@
   transform: scale(1.25);
   z-index: 1000;
 }
+/* Custom-uploaded marker artwork — fills the pin's box completely so
+   small/large pins both show the icon at the right scale. The drop-
+   shadow filter on the parent .sc-pin still follows the image's alpha
+   channel just like it did for the emoji glyph, so attitudes glow
+   around the silhouette of the artwork. */
+.sc-pin-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+/* Emoji-glyph branch (no custom artwork uploaded). The glyph sizing
+   is inlined per-pin so font-size scales with size, but text-shadow
+   defaults live here. */
+.sc-pin-emoji {
+  display: inline-block;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
 
 /* Pin form — paired range + number input for marker size. */
 .sc-pin-size-row {

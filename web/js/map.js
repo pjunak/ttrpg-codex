@@ -92,6 +92,81 @@ export const WorldMap = (() => {
   // (map view preset) can carry rules like "hide pins of type X" or
   // "only show pins with attitude Y". When that lands, plug it in
   // here / `_pinsForCurrent` rather than re-introducing priority.
+  // ── Custom marker icon resolver ───────────────────────────────
+  // `settings.pinTypes[i].iconConfig` (optional) carries:
+  //   {
+  //     strategy: 'single' | 'random' | 'state',
+  //     files:    [{ id, url, stateId: string | null }, ...],
+  //   }
+  // Resolution rules:
+  //   • No iconConfig or empty files     → null (caller renders emoji).
+  //   • strategy 'single'                → default-slot file (stateId null).
+  //   • strategy 'random'                → deterministic hash on pin.id
+  //                                        across ALL files.
+  //   • strategy 'state' + known target  → exact stateId match wins,
+  //                                        else closest-severity match
+  //                                        among tagged files,
+  //                                        else default file.
+  //   • strategy 'state' + unknown state → default file.
+  //   • strategy 'state' + severity:null → default file (off-axis).
+  function _hashStr(s) {
+    let h = 2166136261;
+    const str = String(s || '');
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = (h * 16777619) >>> 0;
+    }
+    return h;
+  }
+
+  function _resolveIconUrl(pin) {
+    const types = (Store.getEnum && Store.getEnum('pinTypes')) || [];
+    const cfg   = types.find(t => t.id === pin.type)?.iconConfig;
+    if (!cfg || !Array.isArray(cfg.files) || !cfg.files.length) return null;
+
+    const files = cfg.files;
+    const defaultFile = files.find(f => f.stateId == null) || files[0];
+
+    if (cfg.strategy === 'single' || !cfg.strategy) {
+      return defaultFile.url;
+    }
+
+    if (cfg.strategy === 'random') {
+      const idx = _hashStr(pin.id || pin.locationId || '') % files.length;
+      return files[idx].url;
+    }
+
+    // strategy === 'state'
+    const status = pin.statusId || pin.locationStatus
+      || (pin.locationId ? Store.getLocation(pin.locationId)?.status : '');
+    if (!status) return defaultFile.url;
+
+    const statuses = Store.getEnum('locationStatuses') || [];
+    const target   = statuses.find(s => s.id === status);
+    if (!target || target.severity == null) return defaultFile.url;
+
+    const exact = files.find(f => f.stateId === status);
+    if (exact) return exact.url;
+
+    const tagged = files
+      .filter(f => f.stateId != null)
+      .map(f => {
+        const s = statuses.find(st => st.id === f.stateId);
+        return (s && s.severity != null) ? { url: f.url, severity: s.severity } : null;
+      })
+      .filter(Boolean);
+
+    if (!tagged.length) return defaultFile.url;
+
+    tagged.sort((a, b) => {
+      const da = Math.abs(a.severity - target.severity);
+      const db = Math.abs(b.severity - target.severity);
+      if (da !== db) return da - db;
+      return a.severity - b.severity;
+    });
+    return tagged[0].url;
+  }
+
   function _resolvePinSize(pin) {
     if (typeof pin.size === 'number' && pin.size > 0) {
       return Math.max(PIN_SIZE_MIN, Math.min(PIN_SIZE_MAX, pin.size));
@@ -158,6 +233,11 @@ export const WorldMap = (() => {
       // The marker fill uses the first listed attitude — enough signal
       // at pin size. The side-panel form exposes the full array.
       status:     firstId,
+      // The Location's physical state (locationStatuses id), used by
+      // the icon resolver for state-based variant selection. Distinct
+      // from `status` above (which carries the primary attitude id —
+      // legacy field name kept for the side-panel renderer).
+      locationStatus: l.status || '',
       attitudes,
       // Per-pin size override (px); _resolvePinSize falls back to
       // settings.pinTypes[type].size when this is missing.
@@ -532,19 +612,25 @@ export const WorldMap = (() => {
     // additively. Empty array = no filter (no glow).
     const glow = _attitudeGlowFilter(pin.attitudes || [], Math.max(5, Math.round(size * 0.22)));
     const filterAttr = glow ? `filter:${glow};` : '';
-    // Slightly larger emoji-to-box ratio (was 0.55) since there's no
-    // background plate eating the vertical space anymore.
-    const fontPx = Math.round(size * 0.85);
+
+    // Custom marker artwork — when the pin type has uploaded icons
+    // configured, the resolver returns a URL; otherwise null falls
+    // through to the emoji glyph branch below.
+    const iconUrl = _resolveIconUrl(pin);
+    const inner = iconUrl
+      ? `<img class="sc-pin-icon" src="${esc(iconUrl)}" alt="" draggable="false">`
+      // Slightly larger emoji-to-box ratio (was 0.55) since there's no
+      // background plate eating the vertical space anymore.
+      : `<span class="sc-pin-emoji" style="font-size:${Math.round(size * 0.85)}px;text-shadow:${textShadow};">${pt.icon}</span>`;
+
     return L.divIcon({
       className: '',
       iconSize:  [size, size],
       iconAnchor:[size/2, size/2],
       html: `<div class="sc-pin sc-pin-${pin.status}" style="
         width:${size}px;height:${size}px;
-        text-shadow:${textShadow};
-        font-size:${fontPx}px;
         ${filterAttr}
-      " title="${esc(pin.name)}">${pt.icon}</div>`,
+      " title="${esc(pin.name)}">${inner}</div>`,
     });
   }
 

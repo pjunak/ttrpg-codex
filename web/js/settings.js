@@ -28,7 +28,7 @@ export const Settings = (() => {
     { id: 'characterStatuses', label: 'Stavy postav',          icon: '●',
       fields: ['label', 'icon', 'color'] },
     { id: 'locationStatuses',  label: 'Stavy míst',            icon: '🏚',
-      fields: ['label', 'icon', 'color'] },
+      fields: ['label', 'icon', 'color', 'severity'] },
     { id: 'artifactStates',    label: 'Stavy artefaktů',       icon: '🗝',
       fields: ['label', 'icon', 'color'] },
     { id: 'eventPriorities',   label: 'Priority událostí',     icon: '⚑',
@@ -53,9 +53,13 @@ export const Settings = (() => {
     { id: 'backup',       label: 'Záloha',          icon: '💾' },
   ];
 
-  let _activeCat   = CATEGORIES[0].id;
-  let _editingId   = null;  // id being edited inline, or '__new__' for add form
-  let _snapshots   = [];    // populated by _loadSnapshots()
+  let _activeCat       = CATEGORIES[0].id;
+  let _editingId       = null;  // id being edited inline, or '__new__' for add form
+  let _snapshots       = [];    // populated by _loadSnapshots()
+  // pinTypeId whose marker-icon panel is currently expanded. Only one at
+  // a time — opening another collapses the previous so the layout stays
+  // tidy when there are many pin types.
+  let _iconPanelOpenFor = null;
 
   // ── Render ───────────────────────────────────────────────────
   function render() {
@@ -134,7 +138,14 @@ export const Settings = (() => {
     const usageCount = Store.findEnumUsages(_activeCat, item.id).length;
     const swatch = item.color
       ? `<span class="settings-swatch" style="background:${esc(item.color)}"></span>` : '';
-    return `
+    // Marker-icon panel toggle — pinTypes only. Opens an editor for
+    // strategy + uploaded image variants below the row.
+    const iconBtn = (cat.id === 'pinTypes')
+      ? `<button type="button" class="settings-btn-icons"
+            title="Vlastní ikony pro tuto značku"
+            ${dataAction('Settings.toggleIconPanel', item.id)}>🎨</button>`
+      : '';
+    const row = `
       <div class="settings-row">
         <span class="settings-row-icon">${esc(item.icon || item.label?.[0] || '·')}</span>
         <span class="settings-row-label">${esc(item.label || item.id)}</span>
@@ -142,12 +153,168 @@ export const Settings = (() => {
         <code class="settings-row-id">${esc(item.id)}</code>
         <span class="settings-row-usage" title="Použitích">${usageCount > 0 ? usageCount + '×' : '–'}</span>
         <div class="settings-row-actions">
+          ${iconBtn}
           <button type="button" class="settings-btn-edit"
             ${dataAction('Settings.startEdit', item.id)}>✏</button>
           <button type="button" class="settings-btn-del"
             ${dataAction('Settings.requestDelete', item.id)}>🗑</button>
         </div>
       </div>`;
+    if (cat.id === 'pinTypes' && _iconPanelOpenFor === item.id) {
+      return row + _iconPanelHtml(item);
+    }
+    return row;
+  }
+
+  // ── Marker icon panel ──────────────────────────────────────────
+  // Per-pinType editor for the optional `iconConfig` field. Lets
+  // the GM upload variants (svg/png/jpeg/webp), choose a strategy
+  // (single / random / state), and assign each file to a state.
+  // All operations auto-persist — uploads write the file AND save
+  // the iconConfig record in one logical save.
+  function _iconPanelHtml(pinType) {
+    const cfg = pinType.iconConfig || { strategy: 'single', files: [] };
+    const strategy = cfg.strategy || 'single';
+    const files    = Array.isArray(cfg.files) ? cfg.files : [];
+    const statuses = Store.getEnum('locationStatuses') || [];
+
+    const radio = (val, label, hint) => `
+      <label class="mit-strategy-opt">
+        <input type="radio" name="mit-strategy-${esc(pinType.id)}" value="${val}"
+          ${strategy === val ? 'checked' : ''}
+          ${dataOn('change', 'Settings.setIconStrategy', pinType.id, val)}>
+        <span class="mit-strategy-label">
+          <strong>${esc(label)}</strong>
+          <span class="settings-hint">${esc(hint)}</span>
+        </span>
+      </label>`;
+
+    const fileRows = files.map(f => {
+      const stateOpts = `
+        <option value="" ${f.stateId == null ? 'selected' : ''}>— Default —</option>
+        ${statuses.map(s =>
+          `<option value="${esc(s.id)}" ${f.stateId === s.id ? 'selected' : ''}>${esc(s.label || s.id)}</option>`
+        ).join('')}`;
+      return `
+        <div class="mit-file-row">
+          <div class="mit-thumb">
+            <img src="${esc(f.url)}" alt="" ${dataOn('error', 'hide', '$el')}>
+          </div>
+          <code class="mit-file-name">${esc(f.id)}</code>
+          <label class="settings-field" style="flex:0 0 auto;margin:0">
+            <span class="settings-field-label" style="font-size:0.7rem">Stav</span>
+            <select class="edit-select"
+              ${dataOn('change', 'Settings.setIconState', pinType.id, f.id, '$value')}>
+              ${stateOpts}
+            </select>
+          </label>
+          <button type="button" class="settings-btn-del"
+            title="Smazat tento soubor"
+            ${dataAction('Settings.deleteIconFile', pinType.id, f.id)}>🗑</button>
+        </div>`;
+    }).join('');
+
+    const empty = files.length ? '' : `
+      <div class="settings-empty" style="margin:0.5rem 0">
+        Zatím žádné soubory. Nahraj alespoň jeden — bez nahraných ikon
+        se použije emoji glyf z výchozího nastavení.
+      </div>`;
+
+    return `
+      <div class="mit-panel" id="mit-panel-${esc(pinType.id)}">
+        <div class="mit-strategy-row">
+          ${radio('single', 'Jeden soubor',     'Vždy se vykreslí výchozí (Default) soubor.')}
+          ${radio('random', 'Náhodná varianta', 'Pro každé místo se deterministicky vybere jedna z variant.')}
+          ${radio('state',  'Podle stavu',      'Použije se ikona odpovídající stavu místa, jinak nejbližší podle severity.')}
+        </div>
+        ${empty}
+        <div class="mit-files">${fileRows}</div>
+        <div class="mit-uploader">
+          <label class="inline-create-btn" style="cursor:pointer;display:inline-block">
+            📤 Nahrát soubory…
+            <input type="file" multiple accept=".svg,.png,.jpg,.jpeg,.webp,image/svg+xml,image/png,image/jpeg,image/webp"
+              style="display:none"
+              ${dataOn('change', 'Settings.uploadIconFiles', pinType.id, '$el')}>
+          </label>
+          <span class="settings-hint">SVG / PNG / JPG / WebP, max 2 MB / soubor, 16 současně.</span>
+        </div>
+      </div>`;
+  }
+
+  function toggleIconPanel(pinTypeId) {
+    _iconPanelOpenFor = (_iconPanelOpenFor === pinTypeId) ? null : pinTypeId;
+    if (_iconPanelOpenFor) _editingId = null;  // mutually exclusive with inline edit
+    render();
+  }
+
+  function _getPinType(id) {
+    return Store.getEnum('pinTypes').find(p => p.id === id) || null;
+  }
+  function _ensureIconConfig(pt) {
+    if (!pt.iconConfig || typeof pt.iconConfig !== 'object') {
+      pt.iconConfig = { strategy: 'single', files: [] };
+    }
+    if (!Array.isArray(pt.iconConfig.files)) pt.iconConfig.files = [];
+    if (typeof pt.iconConfig.strategy !== 'string') pt.iconConfig.strategy = 'single';
+    return pt.iconConfig;
+  }
+
+  function setIconStrategy(pinTypeId, strategy) {
+    const pt = _getPinType(pinTypeId);
+    if (!pt) return;
+    const cfg = _ensureIconConfig(pt);
+    cfg.strategy = strategy;
+    Store.saveEnumItem('pinTypes', pt);
+    render();
+  }
+
+  function setIconState(pinTypeId, fileId, stateId) {
+    const pt = _getPinType(pinTypeId);
+    if (!pt) return;
+    const cfg = _ensureIconConfig(pt);
+    const f = cfg.files.find(x => x.id === fileId);
+    if (!f) return;
+    f.stateId = (stateId === '' || stateId == null) ? null : stateId;
+    Store.saveEnumItem('pinTypes', pt);
+    // No re-render needed — the dropdown's own value already shows
+    // the new state. Skip the redraw to keep focus on the select.
+  }
+
+  function uploadIconFiles(pinTypeId, input) {
+    const pt = _getPinType(pinTypeId);
+    if (!pt) return;
+    const files = input?.files;
+    if (!files || !files.length) return;
+    _flash('Nahrávám…');
+    Store.uploadIcons(pinTypeId, files)
+      .then(j => {
+        const cfg = _ensureIconConfig(pt);
+        for (const f of (j.files || [])) {
+          // Skip duplicates by id (server returns the canonical name
+          // including any -2/-3 collision suffix, so this is rare).
+          if (cfg.files.some(x => x.id === f.id)) continue;
+          cfg.files.push({ id: f.id, url: f.url, stateId: null });
+        }
+        Store.saveEnumItem('pinTypes', pt);
+        render();
+        _flash('Nahráno ✓');
+      })
+      .catch(e => _flash(e?.message || 'Nahrávání selhalo', false))
+      .finally(() => { if (input) input.value = ''; });
+  }
+
+  function deleteIconFile(pinTypeId, fileId) {
+    const pt = _getPinType(pinTypeId);
+    if (!pt) return;
+    if (!confirm(`Smazat soubor "${fileId}"?`)) return;
+    Store.deleteIcon(pinTypeId, fileId).then(ok => {
+      if (!ok) { _flash('Smazání selhalo', false); return; }
+      const cfg = _ensureIconConfig(pt);
+      cfg.files = cfg.files.filter(x => x.id !== fileId);
+      Store.saveEnumItem('pinTypes', pt);
+      render();
+      _flash('Smazáno');
+    });
   }
 
   function _formHtml(cat, item, isNew) {
@@ -182,11 +349,26 @@ export const Settings = (() => {
           min="14" max="64" step="2"
           value="${Number(item.size) || 28}">
       </label>`;
+    // Numeric "decay axis" used by the marker icon resolver for
+    // closest-match fallback. Empty input = null (off-axis: place
+    // doesn't participate in the severity scale, e.g. "Tajné").
+    const severityField = () => {
+      const cur = (item.severity == null) ? '' : Number(item.severity);
+      return `
+      <label class="settings-field">
+        <span class="settings-field-label">Severita <span class="settings-hint" style="font-weight:normal">(0 = pristine, vyšší = horší stav; prázdné = mimo škálu)</span></span>
+        <input class="edit-input" type="number" id="sf-${uid}-severity"
+          min="0" max="10" step="1"
+          value="${esc(String(cur))}"
+          placeholder="(prázdné)">
+      </label>`;
+    };
 
     const inputs = (cat.fields || []).map(name => {
       if (name === 'color' || name === 'bg' || name === 'fg' || name === 'labelColor') return colorField(name);
       if (name === 'style')                                                            return styleField();
       if (name === 'size')                                                             return sizeField();
+      if (name === 'severity')                                                         return severityField();
       return field(name, name === 'icon' ? 'Emoji nebo znak' : 'Text');
     }).join('');
 
@@ -216,7 +398,7 @@ export const Settings = (() => {
   function _fieldLabel(name) {
     return {
       label: 'Název', icon: 'Ikona', color: 'Barva',
-      style: 'Styl', size: 'Velikost',
+      style: 'Styl', size: 'Velikost', severity: 'Severita',
       bg: 'Pozadí', fg: 'Popředí', labelColor: 'Barva textu',
     }[name] || name;
   }
@@ -269,7 +451,11 @@ export const Settings = (() => {
     const item = { ...(existing || {}), id, label };
     for (const f of cat.fields) {
       const v = getVal(f);
-      if (v !== '' && v != null) {
+      if (f === 'severity') {
+        // Empty severity is meaningful: it means "off the decay axis"
+        // (resolver skips this status for closest-match fallback).
+        item[f] = (v === '' || v == null) ? null : Number(v);
+      } else if (v !== '' && v != null) {
         item[f] = (f === 'size') ? Number(v) : v;
       }
     }
@@ -818,5 +1004,7 @@ export const Settings = (() => {
     toggleSidebarPage, showAllSidebarPages, applySidebarVisibility,
     refreshSnapshots, createSnapshot, restoreSnapshot,
     deleteSnapshot, revertLastN, uploadRestore,
+    toggleIconPanel, setIconStrategy, setIconState,
+    uploadIconFiles, deleteIconFile,
   };
 })();

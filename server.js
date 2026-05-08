@@ -33,6 +33,7 @@ const MAPS_DIR       = path.join(__dirname, 'data', 'maps');
 const LOCAL_MAPS_DIR = path.join(MAPS_DIR, 'local');
 const TILES_DIR      = path.join(MAPS_DIR, 'tiles');
 const SWORDCOAST_DIR = path.join(MAPS_DIR, 'swordcoast');
+const ICONS_DIR      = path.join(__dirname, 'data', 'icons');
 // Snapshots live OUTSIDE data/ so:
 //   - the data hash and the backup zip don't have to keep stepping
 //     around them (they used to be at data/snapshots/).
@@ -49,6 +50,7 @@ fs.mkdirSync(PORTRAITS_DIR,  { recursive: true });
 fs.mkdirSync(LOCAL_MAPS_DIR, { recursive: true });
 fs.mkdirSync(TILES_DIR,      { recursive: true });
 fs.mkdirSync(SWORDCOAST_DIR, { recursive: true });
+fs.mkdirSync(ICONS_DIR,      { recursive: true });
 fs.mkdirSync(SNAPSHOTS_DIR,  { recursive: true });
 
 // One-shot relocation: if a pre-A3 deployment left snapshots inside
@@ -104,6 +106,7 @@ const requireAuth = (req, res, next) => {
 
 app.use('/portraits', express.static(PORTRAITS_DIR));
 app.use('/maps',      express.static(MAPS_DIR));
+app.use('/icons',     express.static(ICONS_DIR, { maxAge: '7d', fallthrough: true }));
 app.use(express.static(WEB_DIR));
 
 function _imageFilter(_req, file, cb) {
@@ -138,6 +141,57 @@ const localMapStorage = multer.diskStorage({
   },
 });
 const uploadLocalMap = multer({ storage: localMapStorage, limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: _imageFilter });
+
+// ── Marker icon uploads ─────────────────────────────────────────
+// Custom marker artwork lives under data/icons/<pinTypeId>/<file>.
+// Per-pinType strategy + per-file state assignments are stored on
+// settings.pinTypes[i].iconConfig (in-band on the existing settings
+// PATCH path). Filenames are slugified before write so an upload of
+// "Castle Burning.png" lands at "castle_burning.png" and round-trips
+// cleanly through URLs without encoding hazards.
+function _iconMimeOk(_req, file, cb) {
+  const ok = file.mimetype === 'image/svg+xml'
+          || file.mimetype === 'image/png'
+          || file.mimetype === 'image/jpeg'
+          || file.mimetype === 'image/webp';
+  cb(null, ok);
+}
+function _slugifyIconName(name) {
+  const base = String(name || '').replace(/\.[^.]+$/, '');
+  const slug = base.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 40) || 'icon';
+  return slug;
+}
+const iconStorage = multer.diskStorage({
+  destination: (req, _file, cb) => {
+    const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
+    const dir = path.join(ICONS_DIR, pinTypeId);
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext  = (path.extname(file.originalname).toLowerCase().match(/^\.(svg|png|jpe?g|webp)$/) || ['.png'])[0];
+    const slug = _slugifyIconName(file.originalname);
+    const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
+    const dir = path.join(ICONS_DIR, pinTypeId);
+    // Resolve collisions deterministically: slug, slug-2, slug-3, …
+    let name = slug + ext;
+    let n = 2;
+    try {
+      const existing = new Set(fs.readdirSync(dir));
+      while (existing.has(name)) { name = `${slug}-${n++}${ext}`; }
+    } catch (_) {}
+    cb(null, name);
+  },
+});
+const uploadIcons = multer({
+  storage:    iconStorage,
+  limits:     { fileSize: 2 * 1024 * 1024, files: 16 },
+  fileFilter: _iconMimeOk,
+});
 
 // ── Write serialisation ─────────────────────────────────────────
 // Single-host single-process app, so a Promise-chain mutex is enough
@@ -719,6 +773,99 @@ app.post('/api/localmap/:locId', requireAuth, uploadLocalMap.single('localmap'),
 // data/maps/tiles/<mapId>/<z>/<x>/<y>.jpg; we expose them at the same
 // path under /maps/tiles. Includes a tiles.json manifest per mapId.
 app.use('/maps/tiles', express.static(TILES_DIR, { fallthrough: true, maxAge: '7d' }));
+
+// ── Marker icon endpoints ────────────────────────────────────────
+// Multipart upload (1..16 files, 2 MB each, svg/png/jpeg/webp). The
+// pinType id is validated against the live settings.pinTypes list
+// before any file lands on disk so a typo can't seed an orphan
+// folder. Upload runs inside withWriteLock so a concurrent settings
+// PATCH doesn't see partial state.
+async function _pinTypeExists(pinTypeId) {
+  try {
+    const raw = await fsp.readFile(getFile('settings'), 'utf8');
+    const settings = JSON.parse(raw);
+    const list = (settings && settings.pinTypes) || [];
+    return Array.isArray(list) && list.some(p => p && p.id === pinTypeId);
+  } catch (e) {
+    if (e.code === 'ENOENT') return false;
+    throw e;
+  }
+}
+
+app.post('/api/icons/:pinTypeId', requireAuth, uploadIcons.array('icons', 16), (req, res) => {
+  withWriteLock(async () => {
+    try {
+      const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
+      if (!pinTypeId) return res.status(400).json({ error: 'Invalid pinTypeId' });
+      if (!await _pinTypeExists(pinTypeId)) {
+        // Clean up files multer already wrote — we don't want orphans
+        // for a non-existent pin type.
+        for (const f of req.files || []) {
+          try { await fsp.unlink(f.path); } catch (_) {}
+        }
+        return res.status(400).json({ error: 'Unknown pinTypeId' });
+      }
+      if (!req.files || !req.files.length) return res.status(400).json({ error: 'No files received' });
+      const out = req.files.map(f => ({
+        id:   f.filename,
+        url:  `/icons/${pinTypeId}/${f.filename}`,
+        name: f.originalname,
+      }));
+      res.json({ files: out });
+    } catch (e) {
+      console.error('POST /api/icons:', e);
+      if (!res.headersSent) res.status(500).json({ error: 'Upload failed' });
+    }
+  });
+});
+
+app.delete('/api/icons/:pinTypeId/:filename', requireAuth, (req, res) => {
+  withWriteLock(async () => {
+    try {
+      const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
+      if (!pinTypeId) return res.status(400).json({ error: 'Invalid pinTypeId' });
+      const dir    = path.join(ICONS_DIR, pinTypeId);
+      const target = _safeJoinIn(dir, req.params.filename || '');
+      if (!target) return res.status(400).json({ error: 'Invalid filename' });
+      try {
+        const stat = await fsp.lstat(target);
+        if (stat.isSymbolicLink()) return res.status(400).json({ error: 'Symlinks not allowed' });
+        if (!stat.isFile()) return res.status(400).json({ error: 'Not a file' });
+        await fsp.unlink(target);
+      } catch (e) {
+        if (e.code === 'ENOENT') return res.json({ ok: true });
+        throw e;
+      }
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('DELETE /api/icons/:pinTypeId/:filename:', e);
+      if (!res.headersSent) res.status(500).json({ error: 'Delete failed' });
+    }
+  });
+});
+
+app.delete('/api/icons/:pinTypeId', requireAuth, (req, res) => {
+  withWriteLock(async () => {
+    try {
+      const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
+      if (!pinTypeId) return res.status(400).json({ error: 'Invalid pinTypeId' });
+      const target = _safeJoinIn(ICONS_DIR, pinTypeId);
+      if (!target) return res.status(400).json({ error: 'Invalid pinTypeId' });
+      try {
+        const stat = await fsp.lstat(target);
+        if (stat.isSymbolicLink()) return res.status(400).json({ error: 'Symlinks not allowed' });
+        if (stat.isDirectory()) await fsp.rm(target, { recursive: true, force: true });
+      } catch (e) {
+        if (e.code === 'ENOENT') return res.json({ ok: true });
+        throw e;
+      }
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('DELETE /api/icons/:pinTypeId:', e);
+      if (!res.headersSent) res.status(500).json({ error: 'Delete failed' });
+    }
+  });
+});
 
 app.delete('/api/portrait/:identifier', requireAuth, async (req, res) => {
   const identifier = (req.params.identifier || '').replace(/[^a-z0-9_\-\.]/gi, '_');

@@ -173,13 +173,21 @@ export const SETTINGS_DEFAULTS = {
   // this managed enum so the GM can recolor / reicon them in Settings,
   // and `_migrateLocationStatusToManaged` in store.js auto-imports any
   // pre-existing free-text values on first load.
+  //
+  // `severity` is a numeric "decay axis" (0 = pristine, larger = worse)
+  // used by the marker icon resolver in map.js: when a place's status
+  // doesn't have a directly assigned icon variant, the renderer picks
+  // the variant whose stateId has the smallest |severity − target|
+  // distance. `severity: null` opts out of that fallback (e.g. "Tajné"
+  // is orthogonal to physical decay) — places in such states fall back
+  // to the marker's default icon instead.
   locationStatuses: [
-    { id: 'aktivni',      label: 'Aktivní',      icon: '●',  color: '#4CAF50' },
-    { id: 'opustene',     label: 'Opuštěné',     icon: '🌫', color: '#9E9E9E' },
-    { id: 'polorozpadle', label: 'Polorozpadlé', icon: '🏚', color: '#FFA000' },
-    { id: 'v_plamenech',  label: 'V plamenech',  icon: '🔥', color: '#E64A19' },
-    { id: 'zniceno',      label: 'Zničeno',      icon: '⚰',  color: '#424242' },
-    { id: 'tajne',        label: 'Tajné',        icon: '🤫', color: '#6A1B9A' },
+    { id: 'aktivni',      label: 'Aktivní',      icon: '●',  color: '#4CAF50', severity: 0 },
+    { id: 'opustene',     label: 'Opuštěné',     icon: '🌫', color: '#9E9E9E', severity: 1 },
+    { id: 'polorozpadle', label: 'Polorozpadlé', icon: '🏚', color: '#FFA000', severity: 2 },
+    { id: 'v_plamenech',  label: 'V plamenech',  icon: '🔥', color: '#E64A19', severity: 3 },
+    { id: 'zniceno',      label: 'Zničeno',      icon: '⚰',  color: '#424242', severity: 4 },
+    { id: 'tajne',        label: 'Tajné',        icon: '🤫', color: '#6A1B9A', severity: null },
   ],
 
   // User-defined map view presets. Each entry captures the bounds

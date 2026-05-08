@@ -373,6 +373,121 @@
   box-shadow: 0 0 0 2px rgba(200,160,64,0.35);
 }
 
+/* ── Marker icon panel (pinTypes 🎨 toggle) ─────────────────── */
+.settings-btn-icons {
+  background: transparent;
+  border: 1px solid rgba(212,184,122,0.25);
+  border-radius: 4px;
+  color: var(--text-parchment);
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 0.15rem 0.45rem;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.settings-btn-icons:hover {
+  background: rgba(200,160,64,0.12);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+.mit-panel {
+  margin: -0.15rem 0 0.6rem 1.5rem;
+  padding: 0.85rem 1rem;
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(212,184,122,0.18);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.mit-strategy-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.2rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px dashed rgba(212,184,122,0.12);
+}
+.mit-strategy-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  cursor: pointer;
+  flex: 1 1 200px;
+  padding: 0.3rem 0.4rem;
+  border-radius: 4px;
+  transition: background 0.12s;
+}
+.mit-strategy-opt:hover { background: rgba(200,160,64,0.06); }
+.mit-strategy-opt input[type="radio"] {
+  margin-top: 0.25rem;
+  accent-color: var(--accent-gold);
+}
+.mit-strategy-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.86rem;
+  color: var(--text-parchment);
+}
+.mit-strategy-label .settings-hint {
+  font-weight: normal;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.mit-files {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.mit-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.4rem 0.55rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(212,184,122,0.1);
+  border-radius: 5px;
+}
+.mit-thumb {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(212,184,122,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.mit-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.mit-file-name {
+  flex: 1 1 auto;
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mit-file-row .edit-select {
+  font-size: 0.82rem;
+  padding: 0.25rem 0.4rem;
+}
+
+.mit-uploader {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  padding-top: 0.3rem;
+}
+
 /* ── Map-view preset groups ─────────────────────────────────── */
 .settings-mapviews-group { margin-bottom: 1.1rem; }
 .settings-mapviews-group-title {

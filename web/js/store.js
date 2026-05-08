@@ -382,6 +382,32 @@ export const Store = (() => {
     return { pinTypesTouched, touchedLocations: touched };
   }
 
+  // Seed numeric `severity` on `locationStatuses` items so the marker
+  // icon resolver can do closest-match fallback when a place's exact
+  // status has no assigned icon variant. Known seeded ids get their
+  // canonical severity (pristine 0 → destroyed 4, "tajné" off-axis =
+  // null). User-imported items (auto-migrated from free-text statuses)
+  // get severity:null — the GM can set a number in Settings later if
+  // they want them to participate in fallback. Idempotent.
+  //
+  // Returns true if any item was touched, so load() can sync the
+  // updated category once.
+  function _seedLocationStatusSeverity() {
+    if (!_data?.settings?.locationStatuses) return false;
+    const KNOWN = {
+      aktivni: 0, opustene: 1, polorozpadle: 2,
+      v_plamenech: 3, zniceno: 4, tajne: null,
+    };
+    let touched = false;
+    for (const s of _data.settings.locationStatuses) {
+      if (s.severity === undefined) {
+        s.severity = (s.id in KNOWN) ? KNOWN[s.id] : null;
+        touched = true;
+      }
+    }
+    return touched;
+  }
+
   // Promote location.status (free-text dropdown) to a managed enum.
   // Existing free-text values become `locationStatuses` items so
   // nothing the GM wrote is lost. Each touched location's `status` is
@@ -446,16 +472,19 @@ export const Store = (() => {
           const droppedUnknown  = _dropUnknownFromAttitudesEnum();
           const pinSize         = _migratePinPriorityToSize();
           const locStatus       = _migrateLocationStatusToManaged();
+          const severitySeeded  = _seedLocationStatusSeverity();
           for (const c of capturedTouched)            _sync('characters', 'save', c);
           for (const l of mapStatus.touchedLocations) _sync('locations', 'save', l);
           if (mapStatus.droppedSettingsCat)           _sync('settings', 'delete', { id: 'mapStatuses' });
           for (const c of attShape.characters)        _sync('characters', 'save', c);
           for (const l of attShape.locations)         _sync('locations',  'save', l);
           for (const { id, fac } of attShape.factions) _sync('factions',  'save', { id, data: fac });
-          if (droppedUnknown || locStatus.settingsTouched || pinSize.pinTypesTouched) {
+          if (droppedUnknown || locStatus.settingsTouched || pinSize.pinTypesTouched || severitySeeded) {
             // Push the post-migration settings category arrays.
             if (droppedUnknown)            _sync('settings', 'save', { id: 'attitudes',        data: _data.settings.attitudes });
-            if (locStatus.settingsTouched) _sync('settings', 'save', { id: 'locationStatuses', data: _data.settings.locationStatuses });
+            if (locStatus.settingsTouched || severitySeeded) {
+              _sync('settings', 'save', { id: 'locationStatuses', data: _data.settings.locationStatuses });
+            }
             if (pinSize.pinTypesTouched)   _sync('settings', 'save', { id: 'pinTypes',         data: _data.settings.pinTypes });
           }
           for (const l of pinSize.touchedLocations)   _sync('locations', 'save', l);
@@ -571,6 +600,58 @@ export const Store = (() => {
       throw new Error('Neznámé nebo chybějící heslo.');
     }
     throw new Error('Nahrání mapy selhalo.');
+  }
+
+  // ── Marker icon uploads ──────────────────────────────────────
+  // Per-pinType image variants live under /icons/<pinTypeId>/. The
+  // marker's strategy + per-file state assignments are stored on
+  // settings.pinTypes[i].iconConfig (an in-band field, not on disk
+  // metadata). These helpers just shuttle bytes; the editor in
+  // settings.js owns the iconConfig record.
+  async function uploadIcons(pinTypeId, files) {
+    if (!pinTypeId) throw new Error('uploadIcons: pinTypeId is required.');
+    if (!_serverAvailable) throw new Error('Server není dostupný — nelze nahrát ikony.');
+    if (!files || !files.length) return { files: [] };
+    const form = new FormData();
+    for (const f of files) form.append('icons', f);
+    const res = await fetch(`/api/icons/${encodeURIComponent(pinTypeId)}`, { method: 'POST', body: form });
+    if (res.ok) return res.json();
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent('store:auth-failed'));
+      throw new Error('Neznámé nebo chybějící heslo.');
+    }
+    let msg = 'Nahrání ikon selhalo.';
+    try { const j = await res.json(); if (j?.error) msg = j.error; } catch (_) {}
+    throw new Error(msg);
+  }
+
+  async function deleteIcon(pinTypeId, filename) {
+    if (!_serverAvailable || !pinTypeId || !filename) return false;
+    try {
+      const res = await fetch(
+        `/api/icons/${encodeURIComponent(pinTypeId)}/${encodeURIComponent(filename)}`,
+        { method: 'DELETE' },
+      );
+      if (res.status === 401) window.dispatchEvent(new CustomEvent('store:auth-failed'));
+      return res.ok;
+    } catch (e) {
+      console.warn('Store: deleteIcon failed.', e);
+      return false;
+    }
+  }
+
+  // Drop the entire icon folder for a pin type. Called when a pin type
+  // is deleted from settings so we don't leave orphan files on disk.
+  async function deleteIcons(pinTypeId) {
+    if (!_serverAvailable || !pinTypeId) return false;
+    try {
+      const res = await fetch(`/api/icons/${encodeURIComponent(pinTypeId)}`, { method: 'DELETE' });
+      if (res.status === 401) window.dispatchEvent(new CustomEvent('store:auth-failed'));
+      return res.ok;
+    } catch (e) {
+      console.warn('Store: deleteIcons failed.', e);
+      return false;
+    }
   }
 
   function deletePortrait(url) {
@@ -1109,6 +1190,9 @@ export const Store = (() => {
     _data.settings[cat] = arr.filter(x => x.id !== id);
     const wasDefault = (SETTINGS_DEFAULTS[cat] || []).some(d => d.id === id);
     if (wasDefault) _tombstone(`settings:${cat}:${id}`);
+    // Pin types own a folder of uploaded icon files — clean it up.
+    // Fire-and-forget; the orphan folder is harmless if the call fails.
+    if (cat === 'pinTypes') deleteIcons(id);
     // Sync: push the full post-delete category array plus persist
     // every touched record via the entity-level save path so each
     // gets its own PATCH (correct audit trail on the server).
@@ -1398,6 +1482,7 @@ export const Store = (() => {
   return {
     load, init,
     uploadPortrait, deletePortrait, uploadLocalMap,
+    uploadIcons, deleteIcon, deleteIcons,
     getCharacters, getRelationships, getLocations, getEvents, getMysteries,
     getFactions, getFaction, getStatusMap,
     getCharacter, getLocation, getEvent, getMystery,
