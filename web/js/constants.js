@@ -56,10 +56,10 @@ export function czPlural(n, one, few, many) {
  *  to apply the user's choice at runtime. */
 export const SIDEBAR_PAGES = [
   { route: '/',             label: 'Přehled',           icon: '🏠', section: 'Přehled' },
+  { route: '/mapa/svet',    label: 'Mapa',              icon: '🗺', section: 'Přehled' },
   { route: '/casova-osa',   label: 'Časová Osa',        icon: '⏳', section: 'Kampaň' },
   { route: '/zahady',       label: 'Záhady',            icon: '❓', section: 'Kampaň' },
   { route: '/mapa/palac',   label: 'Myšlenkový Palác',  icon: '☁',  section: 'Kampaň' },
-  { route: '/mapa/svet',    label: 'Pobřeží Meče',      icon: '🗺', section: 'Svět' },
   { route: '/mista',        label: 'Místa',             icon: '📍', section: 'Svět' },
   { route: '/postavy',      label: 'Postavy',           icon: '👤', section: 'Svět' },
   { route: '/frakce',       label: 'Frakce',            icon: '⬡',  section: 'Svět' },

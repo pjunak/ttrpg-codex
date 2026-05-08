@@ -301,7 +301,7 @@ export const WorldMap = (() => {
     const parent = _currentParentId ? Store.getLocation(_currentParentId) : null;
     const titleHtml = parent
       ? `🗺 ${esc(parent.name)} <span class="sc-breadcrumb">
-           · <a href="#/mapa/svet">↩ Pobřeží Meče</a>
+           · <a href="#/mapa/svet">↩ Mapa</a>
          </span>`
       : `🗺 Mapa světa`;
 
