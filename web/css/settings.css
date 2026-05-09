@@ -488,6 +488,35 @@
   padding-top: 0.3rem;
 }
 
+/* Bundled-default placeholder shown when a pin type has no user-
+   uploaded files but a built-in game-icons.net SVG is available. */
+.mit-bundled-default {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem 0.65rem;
+  background: rgba(200,160,64,0.06);
+  border: 1px dashed rgba(212,184,122,0.25);
+  border-radius: 5px;
+}
+.mit-bundled-default .mit-thumb {
+  /* SVGs ship in white-on-transparent — give them a dark backdrop
+     so they're visible inside the (light-edged) settings panel. */
+  background: rgba(0,0,0,0.55);
+}
+.mit-bundled-default-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.86rem;
+  color: var(--text-parchment);
+}
+.mit-bundled-default-text .settings-hint {
+  font-weight: normal;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
 /* ── Map-view preset groups ─────────────────────────────────── */
 .settings-mapviews-group { margin-bottom: 1.1rem; }
 .settings-mapviews-group-title {

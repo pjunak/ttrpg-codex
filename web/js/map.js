@@ -99,7 +99,10 @@ export const WorldMap = (() => {
   //     files:    [{ id, url, stateId: string | null }, ...],
   //   }
   // Resolution rules:
-  //   • No iconConfig or empty files     → null (caller renders emoji).
+  //   • No iconConfig or empty files     → bundled default for this
+  //                                        pin type (game-icons.net,
+  //                                        CC BY 3.0, see ATTRIBUTIONS.md);
+  //                                        null when none → emoji fallback.
   //   • strategy 'single'                → default-slot file (stateId null).
   //   • strategy 'random'                → deterministic hash on pin.id
   //                                        across ALL files.
@@ -109,6 +112,24 @@ export const WorldMap = (() => {
   //                                        else default file.
   //   • strategy 'state' + unknown state → default file.
   //   • strategy 'state' + severity:null → default file (off-axis).
+
+  // Pin type ids that have a bundled default SVG under
+  // `web/icons-defaults/<id>.svg`. Kept in sync with the files
+  // committed in that folder; user-created pin types fall through
+  // to the emoji glyph because they have no entry here.
+  const BUNDLED_DEFAULT_ICONS = Object.freeze(new Set([
+    'major_city','city','town','village','fortress','castle','tower',
+    'temple','shrine','tavern','market','academy','port','bridge','camp',
+    'dungeon','cave','ruin','graveyard','battlefield','landmark','forest',
+    'mountain','lake','curiosity','region','enemy','custom',
+  ]));
+  // Public for the Settings marker-icon panel — needs to know whether
+  // a given pin type has a bundled default to surface to the GM.
+  function bundledDefaultUrl(pinType) {
+    return BUNDLED_DEFAULT_ICONS.has(pinType) ? `/icons-defaults/${pinType}.svg` : null;
+  }
+  const _bundledDefaultUrl = bundledDefaultUrl;
+
   function _hashStr(s) {
     let h = 2166136261;
     const str = String(s || '');
@@ -120,9 +141,10 @@ export const WorldMap = (() => {
   }
 
   function _resolveIconUrl(pin) {
-    const types = (Store.getEnum && Store.getEnum('pinTypes')) || [];
-    const cfg   = types.find(t => t.id === pin.type)?.iconConfig;
-    if (!cfg || !Array.isArray(cfg.files) || !cfg.files.length) return null;
+    const types  = (Store.getEnum && Store.getEnum('pinTypes')) || [];
+    const cfg    = types.find(t => t.id === pin.type)?.iconConfig;
+    const bundled = _bundledDefaultUrl(pin.type);
+    if (!cfg || !Array.isArray(cfg.files) || !cfg.files.length) return bundled;
 
     const files = cfg.files;
     const defaultFile = files.find(f => f.stateId == null) || files[0];
@@ -611,12 +633,22 @@ export const WorldMap = (() => {
     // Glow halo — one colored drop-shadow per active attitude, blended
     // additively. Empty array = no filter (no glow).
     const glow = _attitudeGlowFilter(pin.attitudes || [], Math.max(5, Math.round(size * 0.22)));
-    const filterAttr = glow ? `filter:${glow};` : '';
 
     // Custom marker artwork — when the pin type has uploaded icons
-    // configured, the resolver returns a URL; otherwise null falls
-    // through to the emoji glyph branch below.
+    // configured, the resolver returns a URL; otherwise it falls through
+    // to the bundled default under /icons-defaults/. If neither exists,
+    // null falls through to the emoji glyph branch below.
     const iconUrl = _resolveIconUrl(pin);
+    // For SVG icons we add a stacked black drop-shadow as a 1 px outline
+    // so the (mostly-white) artwork stays legible on any tile colour —
+    // analogous to the multi-direction text-shadow stroke used on the
+    // emoji branch. Stacks on top of any attitude glow.
+    const svgOutline = `drop-shadow(0 0 1px rgba(0,0,0,0.95)) drop-shadow(0 0 1px rgba(0,0,0,0.95))`;
+    const filterParts = [];
+    if (iconUrl) filterParts.push(svgOutline);
+    if (glow)    filterParts.push(glow);
+    const filterAttr = filterParts.length ? `filter:${filterParts.join(' ')};` : '';
+
     const inner = iconUrl
       ? `<img class="sc-pin-icon" src="${esc(iconUrl)}" alt="" draggable="false">`
       // Slightly larger emoji-to-box ratio (was 0.55) since there's no
@@ -1372,5 +1404,6 @@ export const WorldMap = (() => {
     onSearchInput, jumpToFirstMatch, handleSearchKey, zoomToPin, showPin,
     openLocalMap, startPlacingPin,
     startPlacingEventPin, clearEventPin, showEventPin,
+    bundledDefaultUrl,
   };
 })();

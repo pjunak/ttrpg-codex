@@ -214,11 +214,24 @@ export const Settings = (() => {
         </div>`;
     }).join('');
 
-    const empty = files.length ? '' : `
+    // No user-uploaded files: surface the bundled game-icons default
+    // when one exists for this pin type so the GM sees what's actually
+    // rendering, plus a hint that uploading replaces it. Pin types
+    // created by the GM (no bundled default) get the original
+    // "no files / falls back to emoji" message instead.
+    const bundledUrl = WorldMap.bundledDefaultUrl(pinType.id);
+    const empty = files.length ? '' : (bundledUrl ? `
+      <div class="mit-bundled-default" title="Výchozí ikona z balíčku game-icons.net (CC BY 3.0).">
+        <div class="mit-thumb"><img src="${esc(bundledUrl)}" alt=""></div>
+        <div class="mit-bundled-default-text">
+          <strong>Výchozí ikona</strong>
+          <span class="settings-hint">game-icons.net (CC BY 3.0). Nahrátím vlastních souborů ji nahradíš.</span>
+        </div>
+      </div>` : `
       <div class="settings-empty" style="margin:0.5rem 0">
         Zatím žádné soubory. Nahraj alespoň jeden — bez nahraných ikon
         se použije emoji glyf z výchozího nastavení.
-      </div>`;
+      </div>`);
 
     return `
       <div class="mit-panel" id="mit-panel-${esc(pinType.id)}">
