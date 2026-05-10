@@ -725,6 +725,20 @@ export const WorldMap = (() => {
     _markers = {};
     _pinsForCurrent().forEach(_placePin);
 
+    // Stop slider/button drags inside the floating zoom panel from
+    // bubbling up to Leaflet's pan handler. Without this guard, a
+    // mousedown on the slider thumb starts a map pan AND the slider
+    // never receives the live drag events — so the map slides
+    // around while the slider thumb appears frozen until release.
+    // `disableClickPropagation` covers mouse + touch; `disableScrollPropagation`
+    // stops wheel scroll over the panel from zooming the map (so a
+    // wheel over the controls doesn't fight with a wheel over tiles).
+    const zoomPanel = document.getElementById('sc-zoom-panel');
+    if (zoomPanel && L && L.DomEvent) {
+      L.DomEvent.disableClickPropagation(zoomPanel);
+      L.DomEvent.disableScrollPropagation(zoomPanel);
+    }
+
     _syncZoomSliderBounds();
     _applyMarkerScale();
     _updateZoomReadout();
