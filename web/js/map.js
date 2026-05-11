@@ -1268,18 +1268,6 @@ export const WorldMap = (() => {
       </button>`;
     }).join('');
     const currentLabel = (PIN_TYPES[currentType] || PIN_TYPES.custom).label;
-    // Live SVG preview of the resolved marker artwork — what the pin
-    // will actually look like on the map. The native <select> below
-    // can only render emoji glyphs in <option>s, so this companion
-    // image gives the GM the real preview. Display size scales with
-    // the resolved marker size (clamped to [22, 40]) so a tavern and
-    // a major city read as visibly different even in the form.
-    const previewUrl = _resolveIconUrl(pin);
-    const previewSize = _previewSizeForPin(pin);
-    const previewStyle = ` style="--spf-preview-size:${previewSize}px"`;
-    const previewHtml = previewUrl
-      ? `<img id="spf-type-preview" class="spf-type-preview" src="${esc(previewUrl)}" alt="" draggable="false"${previewStyle}>`
-      : `<span id="spf-type-preview" class="spf-type-preview spf-type-preview-emoji"${previewStyle}>${(PIN_TYPES[pin.type]||PIN_TYPES.custom).icon}</span>`;
     // Pin form exposes the full attitudes array (with per-attitude
     // strength sliders) so multi-stance places can be edited from the
     // map without switching to the wiki editor. Same chip-row helper
@@ -1316,9 +1304,8 @@ export const WorldMap = (() => {
         <input class="sc-input" id="spf-name" type="text" value="${esc(pin.name||'')}" placeholder="Waterdeep...">
         <label class="sc-label">Typ</label>
         <div class="spf-type-row">
-          ${previewHtml}
-          <!-- Hidden input preserves the read contract: savePin and
-               refreshTypePreview both call document.getElementById('spf-type').value. -->
+          <!-- Hidden input preserves the read contract: savePin reads
+               document.getElementById('spf-type').value. -->
           <input type="hidden" id="spf-type" value="${esc(currentType)}">
           <div class="spf-type-picker">
             <button type="button" class="sc-input spf-type-trigger"
@@ -1408,7 +1395,6 @@ export const WorldMap = (() => {
     const next = menu.querySelector(`.spf-type-menu-item[data-spf-type="${typeId}"]`);
     if (next) next.classList.add('is-active');
     closeTypeMenu();
-    refreshTypePreview();
   }
   // Close the custom dropdown when the user clicks outside it. One
   // document-level listener wired at module init; safely no-ops when
@@ -1479,73 +1465,12 @@ export const WorldMap = (() => {
     _openPinPanel(loc.id);
   }
 
-  // Display size for the pin form's preview block. Tracks the
-  // resolved marker size but clamps to a sane visual range so very
-  // small (14px) or very large (64px) markers still read clearly in
-  // the side panel context. The preview is informative, not pixel-
-  // accurate.
-  const PREVIEW_SIZE_MIN = 22;
-  const PREVIEW_SIZE_MAX = 40;
-  function _previewSizeForPin(pin) {
-    const s = _resolvePinSize(pin || {});
-    if (!Number.isFinite(s)) return 32;
-    return Math.max(PREVIEW_SIZE_MIN, Math.min(PREVIEW_SIZE_MAX, s));
-  }
-
-  // Re-render the SVG/emoji preview block in the pin form when the
-  // user changes the Type dropdown. The form is otherwise static, so
-  // we patch the preview node in place rather than rebuilding the
-  // whole form.
-  function refreshTypePreview() {
-    const sel = document.getElementById('spf-type');
-    const cur = document.getElementById('spf-type-preview');
-    if (!sel || !cur) return;
-    const type = sel.value || 'custom';
-    // Synthetic pin shape: id taken from the live editor target so
-    // `random` strategy stays deterministic across retypes; status
-    // pulled from the location for `state` strategy.
-    const loc = _editPinId ? Store.getLocation(_editPinId) : null;
-    // Prefer the form's live size input over the saved value so the
-    // preview tracks the size slider in real time.
-    const sizeInput = document.getElementById('spf-size');
-    const liveSize  = sizeInput ? parseInt(sizeInput.value, 10) : NaN;
-    const fallback  = (loc && typeof loc.size === 'number') ? loc.size : undefined;
-    const synth = {
-      id:         _editPinId || '',
-      locationId: _editPinId || '',
-      type,
-      locationStatus: loc?.status || '',
-      size:       Number.isFinite(liveSize) && liveSize > 0 ? liveSize : fallback,
-    };
-    const url = _resolveIconUrl(synth);
-    const previewSize = _previewSizeForPin(synth);
-    let next;
-    if (url) {
-      next = document.createElement('img');
-      next.id = 'spf-type-preview';
-      next.className = 'spf-type-preview';
-      next.src = url;
-      next.alt = '';
-      next.draggable = false;
-    } else {
-      next = document.createElement('span');
-      next.id = 'spf-type-preview';
-      next.className = 'spf-type-preview spf-type-preview-emoji';
-      next.textContent = (PIN_TYPES[type] || PIN_TYPES.custom).icon;
-    }
-    next.style.setProperty('--spf-preview-size', previewSize + 'px');
-    cur.replaceWith(next);
-  }
-
   // Slider ↔ number-input mirrors for the pin form's size control.
-  // Each writes to the other so the visible value stays in sync, and
-  // both nudge the live preview block so the GM sees the size change
-  // before saving.
+  // Each writes to the other so the visible value stays in sync.
   function syncSizeFromRange() {
     const r = document.getElementById('spf-size-range');
     const n = document.getElementById('spf-size');
     if (r && n) n.value = r.value;
-    refreshTypePreview();
   }
   function syncSizeFromNumber() {
     const n = document.getElementById('spf-size');
@@ -1556,7 +1481,6 @@ export const WorldMap = (() => {
     if (v < PIN_SIZE_MIN) v = PIN_SIZE_MIN;
     if (v > PIN_SIZE_MAX) v = PIN_SIZE_MAX;
     r.value = v;
-    refreshTypePreview();
   }
 
   function openPinPanel(pinId) { _openPinPanel(pinId); }
@@ -2000,7 +1924,7 @@ export const WorldMap = (() => {
     toggleAddMode, closePanel,
     toggleEventPaths,
     openPinPanel, savePin, deletePin,
-    syncSizeFromRange, syncSizeFromNumber, refreshTypePreview,
+    syncSizeFromRange, syncSizeFromNumber,
     toggleTypeMenu, closeTypeMenu, selectPinType,
     showSettings, closeSettings, applySettings, handleMapFileUpload,
     zoomFitAll,

@@ -276,45 +276,13 @@
 }
 .sc-input:focus { outline: none; border-color: rgba(212,184,122,0.5); }
 
-/* Pin form Type row: live SVG preview next to the dropdown so the GM
-   sees the resolved marker artwork (the native <select> can only show
-   emoji glyphs in <option> elements). The preview's display size
-   tracks the resolved marker size — `--spf-preview-size` is set
-   inline by `_renderPinForm`/`refreshTypePreview` to a clamped value
-   in the [22, 40] range so a tavern (24px) and a major city (38px)
-   read as visibly different even before they hit the map. */
+/* Pin form Type row: wraps the custom dropdown. The menu items
+   themselves carry the SVG icon preview, so no standalone preview
+   block is needed in the row. */
 .spf-type-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-.spf-type-row .sc-input { flex: 1; }
-.spf-type-preview {
-  flex: 0 0 auto;
-  --spf-preview-size: 32px;
-  width: calc(var(--spf-preview-size) + 8px);   /* + padding allowance */
-  height: calc(var(--spf-preview-size) + 8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(212,184,122,0.06);
-  border: 1px solid rgba(212,184,122,0.18);
-  border-radius: 6px;
-  padding: 3px;
-  box-sizing: border-box;
-  /* Smooth size changes when the GM picks a different type. */
-  transition: width 0.15s ease, height 0.15s ease;
-}
-img.spf-type-preview {
-  /* The img branch carries the size + outline directly; the wrapping
-     emoji-span branch defers to font-size below. */
-  object-fit: contain;
-  filter: drop-shadow(0 0 1px rgba(0,0,0,0.95)) drop-shadow(0 0 1px rgba(0,0,0,0.95));
-}
-.spf-type-preview-emoji {
-  font-size: var(--spf-preview-size);
-  line-height: 1;
-  filter: none;
 }
 
 /* Custom pin-type dropdown — replaces the native <select> so the
@@ -370,6 +338,9 @@ img.spf-type-preview {
   flex-direction: column;
   gap: 1px;
 }
+/* Explicit `display: flex` above wins over the browser default
+   `[hidden] { display: none }`, so restore the hide behaviour. */
+.spf-type-menu[hidden] { display: none; }
 .spf-type-menu-item {
   display: flex;
   align-items: center;
