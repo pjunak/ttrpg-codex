@@ -1318,7 +1318,7 @@ export const WorldMap = (() => {
         <div class="spf-type-row">
           ${previewHtml}
           <!-- Hidden input preserves the read contract: savePin and
-               refreshTypePreview both call `document.getElementById('spf-type').value`. -->
+               refreshTypePreview both call document.getElementById('spf-type').value. -->
           <input type="hidden" id="spf-type" value="${esc(currentType)}">
           <div class="spf-type-picker">
             <button type="button" class="sc-input spf-type-trigger"
