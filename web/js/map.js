@@ -95,23 +95,17 @@ export const WorldMap = (() => {
   // ── Custom marker icon resolver ───────────────────────────────
   // `settings.pinTypes[i].iconConfig` (optional) carries:
   //   {
-  //     strategy: 'single' | 'random' | 'state',
-  //     files:    [{ id, url, stateId: string | null }, ...],
+  //     strategy: 'single' | 'random',
+  //     files:    [{ id, url }, ...],
   //   }
   // Resolution rules:
-  //   • No iconConfig or empty files     → bundled default for this
-  //                                        pin type (game-icons.net,
-  //                                        CC BY 3.0, see ATTRIBUTIONS.md);
-  //                                        null when none → emoji fallback.
-  //   • strategy 'single'                → default-slot file (stateId null).
-  //   • strategy 'random'                → deterministic hash on pin.id
-  //                                        across ALL files.
-  //   • strategy 'state' + known target  → exact stateId match wins,
-  //                                        else closest-severity match
-  //                                        among tagged files,
-  //                                        else default file.
-  //   • strategy 'state' + unknown state → default file.
-  //   • strategy 'state' + severity:null → default file (off-axis).
+  //   • No iconConfig or empty files → bundled default for this pin
+  //                                    type (game-icons.net, CC BY 3.0,
+  //                                    see ATTRIBUTIONS.md); null when
+  //                                    none → emoji fallback.
+  //   • strategy 'single' (default)  → files[0].
+  //   • strategy 'random'            → deterministic hash on pin.id
+  //                                    across ALL files.
 
   // Pin type ids that have a bundled default SVG under
   // `web/icons-defaults/<id>.svg`. Kept in sync with the files
@@ -142,10 +136,6 @@ export const WorldMap = (() => {
       id:         l.id,
       locationId: l.id,
       type:       l.pinType || 'custom',
-      // Resolver consults `pin.statusId || pin.locationStatus || lookup`
-      // — passing the location's status here covers the state-based
-      // strategy without having to round-trip through the map module.
-      locationStatus: l.status || '',
       attitudes:  l.attitudes,
     });
   }
@@ -167,46 +157,12 @@ export const WorldMap = (() => {
     if (!cfg || !Array.isArray(cfg.files) || !cfg.files.length) return bundled;
 
     const files = cfg.files;
-    const defaultFile = files.find(f => f.stateId == null) || files[0];
-
-    if (cfg.strategy === 'single' || !cfg.strategy) {
-      return defaultFile.url;
-    }
-
     if (cfg.strategy === 'random') {
       const idx = _hashStr(pin.id || pin.locationId || '') % files.length;
       return files[idx].url;
     }
-
-    // strategy === 'state'
-    const status = pin.statusId || pin.locationStatus
-      || (pin.locationId ? Store.getLocation(pin.locationId)?.status : '');
-    if (!status) return defaultFile.url;
-
-    const statuses = Store.getEnum('locationStatuses') || [];
-    const target   = statuses.find(s => s.id === status);
-    if (!target || target.severity == null) return defaultFile.url;
-
-    const exact = files.find(f => f.stateId === status);
-    if (exact) return exact.url;
-
-    const tagged = files
-      .filter(f => f.stateId != null)
-      .map(f => {
-        const s = statuses.find(st => st.id === f.stateId);
-        return (s && s.severity != null) ? { url: f.url, severity: s.severity } : null;
-      })
-      .filter(Boolean);
-
-    if (!tagged.length) return defaultFile.url;
-
-    tagged.sort((a, b) => {
-      const da = Math.abs(a.severity - target.severity);
-      const db = Math.abs(b.severity - target.severity);
-      if (da !== db) return da - db;
-      return a.severity - b.severity;
-    });
-    return tagged[0].url;
+    // 'single' (default) — first file wins.
+    return files[0].url;
   }
 
   function _resolvePinSize(pin) {
@@ -465,12 +421,9 @@ export const WorldMap = (() => {
       type:       l.pinType  || 'custom',
       // The marker fill uses the first listed attitude — enough signal
       // at pin size. The side-panel form exposes the full array.
+      // (`status` is a legacy field name on synthetic pins; the
+      // side-panel renderer reads it as the primary attitude id.)
       status:     firstId,
-      // The Location's physical state (locationStatuses id), used by
-      // the icon resolver for state-based variant selection. Distinct
-      // from `status` above (which carries the primary attitude id —
-      // legacy field name kept for the side-panel renderer).
-      locationStatus: l.status || '',
       attitudes,
       // Per-pin size override (px); _resolvePinSize falls back to
       // settings.pinTypes[type].size when this is missing.
@@ -1285,14 +1238,13 @@ export const WorldMap = (() => {
   // Resolve the representative icon URL for the type-picker menu. Uses
   // the default-slot file or first uploaded file when a pin type has
   // an iconConfig; otherwise falls through to the bundled game-icons
-  // default. Skips the random/state strategy logic since the menu
-  // wants ONE consistent icon per type, not a per-pin sample.
+  // default. Skips the random strategy logic since the menu wants
+  // ONE consistent icon per type, not a per-pin sample.
   function _typeMenuIconUrl(typeId) {
     const types  = (Store.getEnum && Store.getEnum('pinTypes')) || [];
     const cfg    = types.find(t => t.id === typeId)?.iconConfig;
-    if (cfg && Array.isArray(cfg.files) && cfg.files.length) {
-      const f = cfg.files.find(x => x.stateId == null) || cfg.files[0];
-      if (f && f.url) return f.url;
+    if (cfg && Array.isArray(cfg.files) && cfg.files.length && cfg.files[0].url) {
+      return cfg.files[0].url;
     }
     return _bundledDefaultUrl(typeId);
   }
@@ -1513,7 +1465,7 @@ export const WorldMap = (() => {
       if (existingId) loc = Store.getLocation(existingId);
       if (!loc) {
         const newId = 'loc_' + Store.generateId(name) + '_' + Date.now();
-        loc = { id: newId, name, type: '', status: '', description: '', notes: '' };
+        loc = { id: newId, name, type: '', description: '', notes: '' };
       }
       loc = { ...loc, name, x, y };
     } else {

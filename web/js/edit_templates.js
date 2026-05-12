@@ -330,7 +330,7 @@ export const EditTemplates = (() => {
   function renderLocationEditor(l) {
     const isNew = !l || !l.id;
     if (isNew) {
-      const defaults = { id:"", name:"", type:"", status:"", description:"", notes:"",
+      const defaults = { id:"", name:"", type:"", description:"", notes:"",
                          parentId:"", localMap:"" };
       l = { ...defaults, ...(l || {}) };
     }
@@ -361,16 +361,6 @@ export const EditTemplates = (() => {
       Object.entries(PIN_TYPES)
         .map(([k, v]) => `<option value="${esc(k)}" ${selectedPinType===k?'selected':''}>${v.icon} ${esc(v.label)}</option>`)
         .join('');
-
-    // Status dropdown: managed `locationStatuses` enum from settings.
-    // New entries are added via Settings → Stavy míst (the migration
-    // auto-imported any pre-existing free-text values, so nothing was
-    // lost when this moved from free-text to managed).
-    const locStatusEnum = Store.getEnum('locationStatuses') || [];
-    const statusOpts = `<option value="" ${!l.status?'selected':''}>— neurčeno —</option>` +
-      locStatusEnum.map(s =>
-        `<option value="${esc(s.id)}" ${l.status===s.id?'selected':''}>${esc(s.icon || '●')} ${esc(s.label)}</option>`
-      ).join('');
 
     // Subplace hierarchy: parent picker excludes self (and could exclude
     // descendants but a deep cycle check belongs in save).
@@ -430,10 +420,6 @@ export const EditTemplates = (() => {
               <label class="edit-label">Typ</label>
               <select class="edit-input" id="lf-type-${uid}">${typeOpts}</select>
             </div>
-          </div>
-          <div class="edit-field">
-            <label class="edit-label">Stav místa <span class="edit-hint" style="font-weight:normal;margin-left:0.5rem">— spravuje se v Nastavení → Stavy míst</span></label>
-            <select class="edit-input" id="lf-status-${uid}">${statusOpts}</select>
           </div>
           <div class="edit-field">
             <label class="edit-label">Postoje k partě <span class="edit-hint" style="font-weight:normal;margin-left:0.5rem">— víc postojů s nastavitelnou silou (např. 100% neutrální + 50% nebezpečný)</span></label>
@@ -807,12 +793,8 @@ export const EditTemplates = (() => {
   // ── Artifact editor ────────────────────────────────────────────
   function renderArtifactEditor(a) {
     const isNew = !a || !a.id;
-    if (isNew) a = { id:'', name:'', state:'ztraceny', ownerCharacterId:'', locationId:'', description:'', tags:[] };
+    if (isNew) a = { id:'', name:'', ownerCharacterId:'', locationId:'', description:'', tags:[] };
     const uid = a.id || 'new_art';
-
-    const states = Store.getArtifactStateMap();
-    const stateOpts = Object.entries(states).map(([k, v]) =>
-      `<option value="${k}" ${a.state===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
 
     const ownerMount = `<div class="cb-mount"
       data-cb-id="af-owner-${uid}"
@@ -843,15 +825,9 @@ export const EditTemplates = (() => {
           </div>
         </div>
         <div class="edit-form-split-fields">
-          <div class="edit-row-2">
-            <div class="edit-field">
-              <label class="edit-label">Název *</label>
-              <input class="edit-input" id="af-name-${uid}" value="${esc(a.name)}" placeholder="Název artefaktu">
-            </div>
-            <div class="edit-field">
-              <label class="edit-label">Stav</label>
-              <select class="edit-select" id="af-state-${uid}">${stateOpts}</select>
-            </div>
+          <div class="edit-field">
+            <label class="edit-label">Název *</label>
+            <input class="edit-input" id="af-name-${uid}" value="${esc(a.name)}" placeholder="Název artefaktu">
           </div>
           <div class="edit-row-2">
             <div class="edit-field">

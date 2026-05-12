@@ -857,7 +857,7 @@ export const Wiki = (() => {
     let locs = Store.getLocations();
     if (s.values && s.values.length) {
       locs = locs.filter(l => _matchAll(s.values,
-        `${l.name||''} ${l.type||''} ${l.region||''} ${(l.tags||[]).join(' ')} ${l.description||''} ${l.status||''}`));
+        `${l.name||''} ${l.type||''} ${l.region||''} ${(l.tags||[]).join(' ')} ${l.description||''}`));
     }
     if (s.attitude) {
       locs = locs.filter(l =>
@@ -867,9 +867,6 @@ export const Wiki = (() => {
     switch (s.sort) {
       case 'type':
         locs.sort((a, b) => _czCompare(a.type, b.type) || _czCompare(a.name, b.name));
-        break;
-      case 'status':
-        locs.sort((a, b) => _czCompare(a.status, b.status) || _czCompare(a.name, b.name));
         break;
       case 'knowledge':
         locs.sort((a, b) =>
@@ -1017,7 +1014,6 @@ export const Wiki = (() => {
       ${_listToolbar('mista', [
         ['type',      'Typ (seskupeno)'],
         ['name',      'Jméno (A→Z)'],
-        ['status',    'Stav'],
         ['knowledge', 'Znalost (nejvíc)'],
       ])}
       <div id="wl-mista-grid">${_mistaGridHtml()}</div>
@@ -1132,11 +1128,6 @@ export const Wiki = (() => {
     }
     const locGlow = _attitudeGlow(locEntries, locColors);
 
-    // Status — managed `locationStatuses` enum. Resolve id → label
-    // (synthetic orphan when the id was deleted from settings).
-    const statusDef = l.status ? Store.getEnumValue('locationStatuses', l.status) : null;
-    const statusLabel = statusDef ? statusDef.label : '';
-
     const events = Store.getEventsAtLocation(l.id) || [];
 
     // Prefer a real artwork SVG (user-uploaded or bundled default)
@@ -1148,7 +1139,7 @@ export const Wiki = (() => {
     return _articleShell({
       visual:   `<div class="ah-icon"${locGlow ? ` style="filter:${locGlow}"` : ''}>${articleIconInner}</div>`,
       title:    esc(l.name),
-      subtitle: `${esc(l.type || '')}${l.type && statusLabel ? ' · ' : ''}${esc(statusLabel)}`,
+      subtitle: esc(l.type || ''),
       chips,
       facts: [
         { label: 'Region',          value: l.region ? esc(l.region) : '' },
@@ -1757,12 +1748,6 @@ export const Wiki = (() => {
   }
 
   // ── Artifacts (Artefakty) ───────────────────────────────────────
-  function _artifactStateChip(stateId) {
-    const st = Store.getArtifactStateMap()[stateId];
-    if (!st) return '';
-    return `<span class="badge" style="background:${st.color}22;color:${st.color};border:1px solid ${st.color}66">${st.icon} ${esc(st.label)}</span>`;
-  }
-
   function renderArtifactList() {
     const items = Store.getArtifacts().slice()
       .sort((a, b) => _czCompare(a.name, b.name));
@@ -1784,7 +1769,6 @@ export const Wiki = (() => {
             <div class="loc-card-icon">🗝</div>
             <div class="loc-card-body">
               <div class="loc-card-name">${esc(a.name)}</div>
-              <div class="loc-card-type">${_artifactStateChip(a.state)}</div>
             </div>
           </a>`;
         }).join('');
@@ -1806,8 +1790,8 @@ export const Wiki = (() => {
     return _articleShell({
       visual: `<div class="ah-icon">🗝</div>`,
       title: esc(a.name),
-      subtitle: Store.getArtifactStateMap()[a.state]?.label || '',
-      chips: [_artifactStateChip(a.state)],
+      subtitle: '',
+      chips: [],
       facts: [
         { label: 'Držitel',   value: owner ? `<a class="relation-chip" href="#/postava/${owner.id}">🎒 ${esc(owner.name)}</a>` : '' },
         { label: 'Umístění',  value: loc   ? `<a class="relation-chip" href="#/misto/${loc.id}">📍 ${esc(loc.name)}</a>` : '' },

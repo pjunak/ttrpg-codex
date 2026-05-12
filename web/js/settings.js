@@ -27,10 +27,6 @@ export const Settings = (() => {
       fields: ['label', 'icon', 'color', 'size'] },
     { id: 'characterStatuses', label: 'Stavy postav',          icon: '●',
       fields: ['label', 'icon', 'color'] },
-    { id: 'locationStatuses',  label: 'Stavy míst',            icon: '🏚',
-      fields: ['label', 'icon', 'color', 'severity'] },
-    { id: 'artifactStates',    label: 'Stavy artefaktů',       icon: '🗝',
-      fields: ['label', 'icon', 'color'] },
     { id: 'eventPriorities',   label: 'Priority událostí',     icon: '⚑',
       fields: ['label', 'color'] },
     // "Postoje k partě" — unified palette used on character / location /
@@ -174,9 +170,8 @@ export const Settings = (() => {
       if (cat.id === 'pinTypes') {
         const cfg = item.iconConfig;
         let url = null;
-        if (cfg && Array.isArray(cfg.files) && cfg.files.length) {
-          const f = cfg.files.find(x => x.stateId == null) || cfg.files[0];
-          if (f && f.url) url = f.url;
+        if (cfg && Array.isArray(cfg.files) && cfg.files.length && cfg.files[0].url) {
+          url = cfg.files[0].url;
         }
         if (!url) url = WorldMap.bundledDefaultUrl(item.id);
         if (url) return `<img class="settings-row-icon-img" src="${esc(url)}" alt="" ${dataOn('error', 'hide', '$el')}>`;
@@ -205,16 +200,15 @@ export const Settings = (() => {
   }
 
   // ── Marker icon panel ──────────────────────────────────────────
-  // Per-pinType editor for the optional `iconConfig` field. Lets
-  // the GM upload variants (svg/png/jpeg/webp), choose a strategy
-  // (single / random / state), and assign each file to a state.
-  // All operations auto-persist — uploads write the file AND save
-  // the iconConfig record in one logical save.
+  // Per-pinType editor for the optional `iconConfig` field. Lets the
+  // GM upload variants (svg/png/jpeg/webp) and choose a strategy
+  // (single / random). `single` uses the first file; `random` picks
+  // deterministically per pin. All operations auto-persist — uploads
+  // write the file AND save the iconConfig record in one logical save.
   function _iconPanelHtml(pinType) {
     const cfg = pinType.iconConfig || { strategy: 'single', files: [] };
     const strategy = cfg.strategy || 'single';
     const files    = Array.isArray(cfg.files) ? cfg.files : [];
-    const statuses = Store.getEnum('locationStatuses') || [];
 
     const radio = (val, label, hint) => `
       <label class="mit-strategy-opt">
@@ -227,30 +221,16 @@ export const Settings = (() => {
         </span>
       </label>`;
 
-    const fileRows = files.map(f => {
-      const stateOpts = `
-        <option value="" ${f.stateId == null ? 'selected' : ''}>— Default —</option>
-        ${statuses.map(s =>
-          `<option value="${esc(s.id)}" ${f.stateId === s.id ? 'selected' : ''}>${esc(s.label || s.id)}</option>`
-        ).join('')}`;
-      return `
-        <div class="mit-file-row">
-          <div class="mit-thumb">
-            <img src="${esc(f.url)}" alt="" ${dataOn('error', 'hide', '$el')}>
-          </div>
-          <code class="mit-file-name">${esc(f.id)}</code>
-          <label class="settings-field" style="flex:0 0 auto;margin:0">
-            <span class="settings-field-label" style="font-size:0.7rem">Stav</span>
-            <select class="edit-select"
-              ${dataOn('change', 'Settings.setIconState', pinType.id, f.id, '$value')}>
-              ${stateOpts}
-            </select>
-          </label>
-          <button type="button" class="settings-btn-del"
-            title="Smazat tento soubor"
-            ${dataAction('Settings.deleteIconFile', pinType.id, f.id)}>🗑</button>
-        </div>`;
-    }).join('');
+    const fileRows = files.map(f => `
+      <div class="mit-file-row">
+        <div class="mit-thumb">
+          <img src="${esc(f.url)}" alt="" ${dataOn('error', 'hide', '$el')}>
+        </div>
+        <code class="mit-file-name">${esc(f.id)}</code>
+        <button type="button" class="settings-btn-del"
+          title="Smazat tento soubor"
+          ${dataAction('Settings.deleteIconFile', pinType.id, f.id)}>🗑</button>
+      </div>`).join('');
 
     // No user-uploaded files: surface the bundled game-icons default
     // when one exists for this pin type so the GM sees what's actually
@@ -274,9 +254,8 @@ export const Settings = (() => {
     return `
       <div class="mit-panel" id="mit-panel-${esc(pinType.id)}">
         <div class="mit-strategy-row">
-          ${radio('single', 'Jeden soubor',     'Vždy se vykreslí výchozí (Default) soubor.')}
+          ${radio('single', 'Jeden soubor',     'Vždy se vykreslí první nahraný soubor.')}
           ${radio('random', 'Náhodná varianta', 'Pro každé místo se deterministicky vybere jedna z variant.')}
-          ${radio('state',  'Podle stavu',      'Použije se ikona odpovídající stavu místa, jinak nejbližší podle severity.')}
         </div>
         ${empty}
         <div class="mit-files">${fileRows}</div>
@@ -319,18 +298,6 @@ export const Settings = (() => {
     render();
   }
 
-  function setIconState(pinTypeId, fileId, stateId) {
-    const pt = _getPinType(pinTypeId);
-    if (!pt) return;
-    const cfg = _ensureIconConfig(pt);
-    const f = cfg.files.find(x => x.id === fileId);
-    if (!f) return;
-    f.stateId = (stateId === '' || stateId == null) ? null : stateId;
-    Store.saveEnumItem('pinTypes', pt);
-    // No re-render needed — the dropdown's own value already shows
-    // the new state. Skip the redraw to keep focus on the select.
-  }
-
   function uploadIconFiles(pinTypeId, input) {
     const pt = _getPinType(pinTypeId);
     if (!pt) return;
@@ -344,7 +311,7 @@ export const Settings = (() => {
           // Skip duplicates by id (server returns the canonical name
           // including any -2/-3 collision suffix, so this is rare).
           if (cfg.files.some(x => x.id === f.id)) continue;
-          cfg.files.push({ id: f.id, url: f.url, stateId: null });
+          cfg.files.push({ id: f.id, url: f.url });
         }
         Store.saveEnumItem('pinTypes', pt);
         render();
@@ -400,20 +367,6 @@ export const Settings = (() => {
           min="14" max="64" step="2"
           value="${Number(item.size) || 28}">
       </label>`;
-    // Numeric "decay axis" used by the marker icon resolver for
-    // closest-match fallback. Empty input = null (off-axis: place
-    // doesn't participate in the severity scale, e.g. "Tajné").
-    const severityField = () => {
-      const cur = (item.severity == null) ? '' : Number(item.severity);
-      return `
-      <label class="settings-field">
-        <span class="settings-field-label">Severita <span class="settings-hint" style="font-weight:normal">(0 = pristine, vyšší = horší stav; prázdné = mimo škálu)</span></span>
-        <input class="edit-input" type="number" id="sf-${uid}-severity"
-          min="0" max="10" step="1"
-          value="${esc(String(cur))}"
-          placeholder="(prázdné)">
-      </label>`;
-    };
     // Glow intensity for this attitude — moved off the entity onto
     // the enum item so editing here updates every glow at once.
     // Range 0..1, percent readout next to the slider.
@@ -436,7 +389,6 @@ export const Settings = (() => {
       if (name === 'color' || name === 'bg' || name === 'fg' || name === 'labelColor') return colorField(name);
       if (name === 'style')                                                            return styleField();
       if (name === 'size')                                                             return sizeField();
-      if (name === 'severity')                                                         return severityField();
       if (name === 'strength')                                                         return strengthField();
       return field(name, name === 'icon' ? 'Emoji nebo znak' : 'Text');
     }).join('');
@@ -467,7 +419,7 @@ export const Settings = (() => {
   function _fieldLabel(name) {
     return {
       label: 'Název', icon: 'Ikona', color: 'Barva',
-      style: 'Styl', size: 'Velikost', severity: 'Severita',
+      style: 'Styl', size: 'Velikost',
       strength: 'Intenzita záře',
       bg: 'Pozadí', fg: 'Popředí', labelColor: 'Barva textu',
     }[name] || name;
@@ -532,11 +484,7 @@ export const Settings = (() => {
     const item = { ...(existing || {}), id, label };
     for (const f of cat.fields) {
       const v = getVal(f);
-      if (f === 'severity') {
-        // Empty severity is meaningful: it means "off the decay axis"
-        // (resolver skips this status for closest-match fallback).
-        item[f] = (v === '' || v == null) ? null : Number(v);
-      } else if (f === 'strength') {
+      if (f === 'strength') {
         // Range slider always has a value; default to 1.0 if missing.
         let n = (v === '' || v == null) ? 1.0 : Number(v);
         if (!isFinite(n)) n = 1.0;
@@ -1375,7 +1323,7 @@ export const Settings = (() => {
     toggleSidebarPage, showAllSidebarPages, applySidebarVisibility,
     refreshSnapshots, createSnapshot, restoreSnapshot,
     deleteSnapshot, revertLastN, uploadRestore,
-    toggleIconPanel, setIconStrategy, setIconState,
+    toggleIconPanel, setIconStrategy,
     uploadIconFiles, deleteIconFile,
     updateStrengthReadout,
     selectMap, uploadSubMap,

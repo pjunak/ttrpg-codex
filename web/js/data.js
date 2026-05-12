@@ -1,9 +1,8 @@
 export const FACTIONS = {};
 
-// STATUS and ARTIFACT_STATES previously lived here but are now owned by
-// SETTINGS_DEFAULTS (characterStatuses / artifactStates below). Consumers
-// should use Store.getStatusMap() / Store.getArtifactStateMap() which read
-// from user-editable settings with a defaults fallback.
+// STATUS previously lived here but is now owned by SETTINGS_DEFAULTS
+// (characterStatuses below). Consumers should use Store.getStatusMap()
+// which reads from user-editable settings with a defaults fallback.
 
 export const CHARACTERS        = [];
 export const LOCATIONS         = [];
@@ -134,15 +133,6 @@ export const SETTINGS_DEFAULTS = {
     { id: 'unknown', label: 'Neznámo', color: '#6A1B9A', icon: '?' },
   ],
 
-  artifactStates: [
-    { id: 'nalezen',   label: 'Nalezen',   color: '#2E7D32', icon: '✨' },
-    { id: 'u_postavy', label: 'U postavy', color: '#C9A14B', icon: '🎒' },
-    { id: 'strezeny',  label: 'Střežený',  color: '#1565C0', icon: '🛡' },
-    { id: 'skryty',    label: 'Skrytý',    color: '#6A1B9A', icon: '🕵' },
-    { id: 'ztraceny',  label: 'Ztracený',  color: '#795548', icon: '❓' },
-    { id: 'zniceny',   label: 'Zničený',   color: '#8B0000', icon: '💥' },
-  ],
-
   eventPriorities: [
     { id: 'kritická', label: 'Kritická', color: '#8B0000' },
     { id: 'vysoká',   label: 'Vysoká',   color: '#E65100' },
@@ -171,28 +161,6 @@ export const SETTINGS_DEFAULTS = {
     { id: 'party',   label: 'Parta',      bg: '#F5F0E4', fg: '#1a1410', labelColor: '#F0E6C8', strength: 1.0 },
   ],
 
-  // Physical state of a place — separate from `attitudes` (which is
-  // about the party's stance). Free-text dropdowns were promoted to
-  // this managed enum so the GM can recolor / reicon them in Settings,
-  // and `_migrateLocationStatusToManaged` in store.js auto-imports any
-  // pre-existing free-text values on first load.
-  //
-  // `severity` is a numeric "decay axis" (0 = pristine, larger = worse)
-  // used by the marker icon resolver in map.js: when a place's status
-  // doesn't have a directly assigned icon variant, the renderer picks
-  // the variant whose stateId has the smallest |severity − target|
-  // distance. `severity: null` opts out of that fallback (e.g. "Tajné"
-  // is orthogonal to physical decay) — places in such states fall back
-  // to the marker's default icon instead.
-  locationStatuses: [
-    { id: 'aktivni',      label: 'Aktivní',      icon: '●',  color: '#4CAF50', severity: 0 },
-    { id: 'opustene',     label: 'Opuštěné',     icon: '🌫', color: '#9E9E9E', severity: 1 },
-    { id: 'polorozpadle', label: 'Polorozpadlé', icon: '🏚', color: '#FFA000', severity: 2 },
-    { id: 'v_plamenech',  label: 'V plamenech',  icon: '🔥', color: '#E64A19', severity: 3 },
-    { id: 'zniceno',      label: 'Zničeno',      icon: '⚰',  color: '#424242', severity: 4 },
-    { id: 'tajne',        label: 'Tajné',        icon: '🤫', color: '#6A1B9A', severity: null },
-  ],
-
   // User-defined map view presets. Each entry captures the bounds
   // of a Leaflet view as fractions (0-1) of the image so the preset
   // stays valid across resizes. Shape:
@@ -215,9 +183,7 @@ export const SETTINGS_USAGE_MAP = {
   relationshipTypes: [{ collection: 'relationships', field: 'type' }],
   genders:           [{ collection: 'characters',    field: 'gender' }],
   pinTypes:          [{ collection: 'locations',     field: 'pinType' }],
-  artifactStates:    [{ collection: 'artifacts',     field: 'state' }],
   characterStatuses: [{ collection: 'characters',    field: 'status' }],
-  locationStatuses:  [{ collection: 'locations',     field: 'status' }],
   eventPriorities:   [{ collection: 'events',        field: 'priority' }],
   attitudes:         [
     { collection: 'characters', field: 'attitudes' },

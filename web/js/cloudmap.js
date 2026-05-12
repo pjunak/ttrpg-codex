@@ -130,23 +130,18 @@ export const CloudMap = (() => {
     </div>`;
   }
 
-  function _locationCloudH(loc) {
-    // strip + name + divider + optional status row + overhead
-    const rows = loc.status ? 1 : 0;
-    return _base() + rows * H_FACT + H_OVERHEAD;
+  function _locationCloudH(_loc) {
+    // strip + name + divider + overhead — no per-loc body rows
+    // anymore (status row was retired with the locationStatuses enum).
+    return _base() + H_OVERHEAD;
   }
 
   function _locationCloudHTML(loc) {
-    const status = loc.status || '';
-    let body = '';
-    if (status) body += `<div class="cm-fact cm-dim">${esc(status)}</div>`;
-
     return `<div class="cm-cloud cm-location" data-id="${loc.id}" data-type="location"
               style="--cc:#5D7A3A; --cw:${CW}px">
       <div class="cm-strip">📍 Místo</div>
       <div class="cm-name">${esc(loc.name)}</div>
       <div class="cm-divider"></div>
-      ${body}
     </div>`;
   }
 
@@ -434,7 +429,7 @@ export const CloudMap = (() => {
     if (type === 'location') {
       const l = Store.getLocation(id);
       if (!l) return '';
-      return [l.name, l.region, l.type, l.status, ...(l.tags || [])]
+      return [l.name, l.region, l.type, ...(l.tags || [])]
         .filter(Boolean).join(' ');
     }
     if (type === 'mystery') {

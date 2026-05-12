@@ -707,9 +707,6 @@ export const EditMode = (() => {
     const pinTypeDef = pinTypeKey ? PIN_TYPES[pinTypeKey] : null;
     const typeLabel  = pinTypeDef ? pinTypeDef.label : "";
 
-    // Status dropdown — managed `locationStatuses` enum. Empty = unset.
-    const statusVal = document.getElementById(`lf-status-${uid}`)?.value || "";
-
     // Attitude chips: multi-select with per-attitude strength.
     // Empty array = no own stance (rendered with no glow).
     const attitudes = _readAttitudeChipRow(`lf-attitudes-${uid}`);
@@ -734,7 +731,6 @@ export const EditMode = (() => {
       id: newId, name,
       pinType:     pinTypeKey || existing.pinType || undefined,
       type:        typeLabel,
-      status:      statusVal,
       attitudes,
       size,
       description: document.getElementById(`lf-desc-${uid}`)?.value.trim()   || "",
@@ -743,15 +739,15 @@ export const EditMode = (() => {
       localMap:    localMap || undefined,
     };
     if (size === undefined) delete next.size;
+    // The legacy `locationStatuses` enum is gone — strip any stale
+    // `status` carried over from `existing` so it doesn't get re-persisted.
+    delete next.status;
     Store.saveLocation(next);
     _runAfterSave('location', newId);
     _toast("✓ Místo uloženo");
     _markClean();
     _refreshTo(`#/misto/${newId}`);
   }
-
-  // (Legacy `onLocationStatusChange` removed — `location.status` is
-  // now a managed enum chosen via Settings → Stavy míst.)
 
   // ── Local map upload ──────────────────────────────────────────
   async function uploadLocalMap(locId, file, inputId) {
@@ -1174,14 +1170,17 @@ export const EditMode = (() => {
     if (!name) { _toast('Název je povinný', false); return; }
     const newId = originalId || Store.generateId(name);
     const existing = originalId ? (Store.getArtifact(originalId) || {}) : {};
-    Store.saveArtifact({
+    const next = {
       ...existing,
       id: newId, name,
-      state:            document.getElementById(`af-state-${uid}`)?.value           || 'ztraceny',
       ownerCharacterId: document.getElementById(`af-owner-${uid}`)?.value.trim()    || '',
       locationId:       document.getElementById(`af-loc-${uid}`)?.value.trim()      || '',
       description:      document.getElementById(`af-desc-${uid}`)?.value.trim()     || '',
-    });
+    };
+    // The legacy `artifactStates` enum is gone — strip any stale
+    // `state` carried over from `existing` so it doesn't get re-persisted.
+    delete next.state;
+    Store.saveArtifact(next);
     _toast('✓ Artefakt uložen');
     _markClean();
     _refreshTo(`#/artefakt/${newId}`);

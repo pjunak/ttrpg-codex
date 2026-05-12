@@ -451,74 +451,84 @@ export const Store = (() => {
     return touched;
   }
 
-  // Seed numeric `severity` on `locationStatuses` items so the marker
-  // icon resolver can do closest-match fallback when a place's exact
-  // status has no assigned icon variant. Known seeded ids get their
-  // canonical severity (pristine 0 → destroyed 4, "tajné" off-axis =
-  // null). User-imported items (auto-migrated from free-text statuses)
-  // get severity:null — the GM can set a number in Settings later if
-  // they want them to participate in fallback. Idempotent.
-  //
-  // Returns true if any item was touched, so load() can sync the
-  // updated category once.
-  function _seedLocationStatusSeverity() {
-    if (!_data?.settings?.locationStatuses) return false;
-    const KNOWN = {
-      aktivni: 0, opustene: 1, polorozpadle: 2,
-      v_plamenech: 3, zniceno: 4, tajne: null,
-    };
-    let touched = false;
-    for (const s of _data.settings.locationStatuses) {
-      if (s.severity === undefined) {
-        s.severity = (s.id in KNOWN) ? KNOWN[s.id] : null;
-        touched = true;
+  // Drop the retired `location.status` field. `locationStatuses` and
+  // its icon-variant strategy were removed because the feature was
+  // unused and the GM tracks place state in description text instead.
+  // Idempotent — returns the locations touched so load() syncs them.
+  function _migrateDropLocationStatus() {
+    if (!_data || !Array.isArray(_data.locations)) return [];
+    const touched = [];
+    for (const l of _data.locations) {
+      if (Object.prototype.hasOwnProperty.call(l, 'status')) {
+        delete l.status;
+        touched.push(l);
       }
     }
     return touched;
   }
 
-  // Promote location.status (free-text dropdown) to a managed enum.
-  // Existing free-text values become `locationStatuses` items so
-  // nothing the GM wrote is lost. Each touched location's `status` is
-  // rewritten to the new managed id. Idempotent.
-  //
-  // Returns `{ touchedLocations[], settingsTouched }` so load() can
-  // sync each location and the new settings category individually.
-  function _migrateLocationStatusToManaged() {
-    if (!_data) return { touchedLocations: [], settingsTouched: false };
-    if (!_data.settings) _data.settings = {};
-    if (!Array.isArray(_data.settings.locationStatuses)) _data.settings.locationStatuses = [];
-    const cat    = _data.settings.locationStatuses;
-    const byId   = new Map(cat.map(s => [s.id, s]));
-    // Match existing labels so seeded defaults catch legacy free-text
-    // (e.g. "Aktivní" lines up with the seeded `aktivni` id).
-    const byLabel = new Map(cat.map(s => [norm(s.label || ''), s.id]));
-
+  // Drop the retired `artifact.state` field. `artifactStates` was a
+  // purely cosmetic chip enum with no search/filter/icon hook, so it
+  // was removed alongside `locationStatuses`. Idempotent.
+  function _migrateDropArtifactState() {
+    if (!_data || !Array.isArray(_data.artifacts)) return [];
     const touched = [];
-    let settingsTouched = false;
-    const _slug = (s) => String(s).toLowerCase()
-      .normalize('NFD').replace(/[̀-ͯ]/g, '')
-      .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40) || 'status';
-
-    for (const l of _data.locations || []) {
-      const v = l.status;
-      if (!v || typeof v !== 'string') continue;
-      if (byId.has(v)) continue;                          // already managed
-      const matched = byLabel.get(norm(v));
-      if (matched) { l.status = matched; touched.push(l); continue; }
-      // Auto-create a managed item from the free-text value.
-      const baseId = _slug(v);
-      let unique = baseId, n = 2;
-      while (byId.has(unique)) unique = `${baseId}_${n++}`;
-      const item = { id: unique, label: v, icon: '●', color: '#9E9E9E' };
-      cat.push(item);
-      byId.set(unique, item);
-      byLabel.set(norm(v), unique);
-      settingsTouched = true;
-      l.status = unique;
-      touched.push(l);
+    for (const a of _data.artifacts) {
+      if (Object.prototype.hasOwnProperty.call(a, 'state')) {
+        delete a.state;
+        touched.push(a);
+      }
     }
-    return { touchedLocations: touched, settingsTouched };
+    return touched;
+  }
+
+  // Strip retired settings categories from `_data.settings`. Pure
+  // server-side cleanup — the client has no reader for these keys
+  // any more, but they'd otherwise linger in `data/settings.json`
+  // forever. Returns the list of category ids actually removed so
+  // load() can `_sync('settings', 'delete', { id })` for each.
+  // Idempotent.
+  function _migrateDropRetiredSettingsCategories() {
+    if (!_data?.settings) return [];
+    const RETIRED = ['locationStatuses', 'artifactStates'];
+    const dropped = [];
+    for (const cat of RETIRED) {
+      if (Object.prototype.hasOwnProperty.call(_data.settings, cat)) {
+        delete _data.settings[cat];
+        dropped.push(cat);
+      }
+    }
+    return dropped;
+  }
+
+  // Retire the `state` icon strategy on pinTypes. Any pinType whose
+  // iconConfig was on `state` collapses to `single` (uses the first
+  // file). Per-file `stateId` markers (used to flag the "default
+  // slot" for `single` and to key state matches for `state`) are
+  // dropped — without the state strategy, files[0] is the default,
+  // no metadata needed. Returns true if any pinType was touched so
+  // load() can persist the new settings category. Idempotent.
+  function _migrateRetirePinTypeStateStrategy() {
+    const types = _data?.settings?.pinTypes;
+    if (!Array.isArray(types)) return false;
+    let touched = false;
+    for (const t of types) {
+      const cfg = t.iconConfig;
+      if (!cfg || typeof cfg !== 'object') continue;
+      if (cfg.strategy === 'state') {
+        cfg.strategy = 'single';
+        touched = true;
+      }
+      if (Array.isArray(cfg.files)) {
+        for (const f of cfg.files) {
+          if (Object.prototype.hasOwnProperty.call(f, 'stateId')) {
+            delete f.stateId;
+            touched = true;
+          }
+        }
+      }
+    }
+    return touched;
   }
 
   async function load() {
@@ -540,8 +550,10 @@ export const Store = (() => {
           const attShape        = _migrateAttitudesToObjectShape();
           const droppedUnknown  = _dropUnknownFromAttitudesEnum();
           const pinSize         = _migratePinPriorityToSize();
-          const locStatus       = _migrateLocationStatusToManaged();
-          const severitySeeded  = _seedLocationStatusSeverity();
+          const droppedLocStat  = _migrateDropLocationStatus();
+          const droppedArtStat  = _migrateDropArtifactState();
+          const droppedSettingsCats = _migrateDropRetiredSettingsCategories();
+          const pinStrategyTouched = _migrateRetirePinTypeStateStrategy();
           const strengthMigrated = _migrateStrengthFromEntityToEnum();
           const strengthSeeded  = _seedAttitudeStrength();
           for (const c of capturedTouched)            _sync('characters', 'save', c);
@@ -550,21 +562,19 @@ export const Store = (() => {
           for (const c of attShape.characters)        _sync('characters', 'save', c);
           for (const l of attShape.locations)         _sync('locations',  'save', l);
           for (const { id, fac } of attShape.factions) _sync('factions',  'save', { id, data: fac });
-          if (droppedUnknown || locStatus.settingsTouched || pinSize.pinTypesTouched || severitySeeded || strengthSeeded) {
-            // Push the post-migration settings category arrays.
-            if (droppedUnknown || strengthSeeded) {
-              _sync('settings', 'save', { id: 'attitudes', data: _data.settings.attitudes });
-            }
-            if (locStatus.settingsTouched || severitySeeded) {
-              _sync('settings', 'save', { id: 'locationStatuses', data: _data.settings.locationStatuses });
-            }
-            if (pinSize.pinTypesTouched)   _sync('settings', 'save', { id: 'pinTypes',         data: _data.settings.pinTypes });
+          if (droppedUnknown || strengthSeeded) {
+            _sync('settings', 'save', { id: 'attitudes', data: _data.settings.attitudes });
+          }
+          if (pinSize.pinTypesTouched || pinStrategyTouched) {
+            _sync('settings', 'save', { id: 'pinTypes', data: _data.settings.pinTypes });
           }
           for (const c of strengthMigrated.characters) _sync('characters', 'save', c);
           for (const l of strengthMigrated.locations)  _sync('locations',  'save', l);
           for (const { id, fac } of strengthMigrated.factions) _sync('factions', 'save', { id, data: fac });
           for (const l of pinSize.touchedLocations)   _sync('locations', 'save', l);
-          for (const l of locStatus.touchedLocations) _sync('locations', 'save', l);
+          for (const l of droppedLocStat)             _sync('locations', 'save', l);
+          for (const a of droppedArtStat)             _sync('artifacts', 'save', a);
+          for (const cat of droppedSettingsCats)      _sync('settings', 'delete', { id: cat });
           _reindex();
           return;
         }
@@ -758,10 +768,6 @@ export const Store = (() => {
   function getSpeciesItem(id) { return getSpecies().find(s => s.id === id)  || null; }
   function getBuh(id)         { return getPantheon().find(g => g.id === id) || null; }
   function getArtifact(id)    { return getArtifacts().find(a => a.id === id) || null; }
-  function getArtifactStateMap() {
-    const arr = (_data?.settings?.artifactStates) || SETTINGS_DEFAULTS.artifactStates;
-    return Object.fromEntries(arr.map(s => [s.id, s]));
-  }
 
   // Locations with map coordinates set. `parentId=null` returns only
   // top-level places (on the world map). Pass a parentId to get the
@@ -1594,7 +1600,7 @@ export const Store = (() => {
     getFactions, getFaction, getStatusMap,
     getCharacter, getLocation, getEvent, getMystery,
     getSpecies, getPantheon, getArtifacts,
-    getSpeciesItem, getBuh, getArtifact, getArtifactStateMap,
+    getSpeciesItem, getBuh, getArtifact,
     getHistoricalEvents, getHistoricalEvent,
     getLocationsOnMap, getSubLocations, getAncestorLocations,
     getCharactersByFaction, getCharactersInLocation, getRelationshipsFor,
