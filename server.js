@@ -13,6 +13,18 @@ const cookieParser = require('cookie-parser');
 // module-level side effects so it can be required from `node --test`.
 const { isForbiddenKey, safeJoinIn, pickKeptSnapshots } = require('./server-utils.cjs');
 
+// Role-aware filtering of the dataset (`server/visibility.cjs`) and
+// the startup migration that backfills `visibility:'public'` on every
+// pre-existing record (`server/migrations.cjs`). Both are pure-ish
+// (visibility is pure; migrations only touch DATA_DIR through the
+// caller-supplied writer) so they're importable from node --test.
+const {
+  filterForRole,
+  MARKDOWN_FIELDS,
+  VISIBILITY_BEARING,
+} = require('./server/visibility.cjs');
+const { runVisibilityMigration: _runVisibilityMigration } = require('./server/migrations.cjs');
+
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
@@ -84,13 +96,30 @@ app.use(helmet({
 }));
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
+// Stamp req.role / req.realRole on every request based on the
+// edit_session cookie. Must run AFTER cookieParser so the cookie is
+// already parsed when the middleware reads it.
+app.use((req, res, next) => attachRole(req, res, next));
 
 // ── Auth ──────────────────────────────────────────────────────────
-// Cookie value is SHA256(password); compared with timingSafeEqual to
-// avoid leaking length/prefix info via timing side channel.
-function _expectedToken() {
-  const pwd = process.env.EDIT_PASSWORD || '123';
-  return crypto.createHash('sha256').update(pwd).digest('hex');
+// Two shared passwords: DM_PASSWORD (full edit access) and
+// PLAYER_PASSWORD (read-only view, no DM-only content). Cookie value:
+//   "<realRole>.<role>.<token>"
+// where token = SHA256(realRole + ':' + role + ':' + password). The
+// realRole claim is part of the signed token so a DM impersonating a
+// player can flip back without re-entering the password, and a player
+// can't forge a realRole=dm cookie. EDIT_PASSWORD is a back-compat
+// alias for DM_PASSWORD.
+function _dmPassword()     { return process.env.DM_PASSWORD     || process.env.EDIT_PASSWORD || '123'; }
+function _playerPassword() { return process.env.PLAYER_PASSWORD || ''; }
+
+function _tokenFor(realRole, role) {
+  const pwd = realRole === 'dm' ? _dmPassword() : _playerPassword();
+  // Empty player password = player auth disabled; never matches.
+  if (!pwd) return '';
+  return crypto.createHash('sha256')
+    .update(realRole + ':' + role + ':' + pwd)
+    .digest('hex');
 }
 function _safeEq(a, b) {
   const ba = Buffer.from(String(a || ''), 'utf8');
@@ -98,10 +127,57 @@ function _safeEq(a, b) {
   if (ba.length !== bb.length) return false;
   return crypto.timingSafeEqual(ba, bb);
 }
-const requireAuth = (req, res, next) => {
-  if (_safeEq(req.cookies.edit_session, _expectedToken())) return next();
-  res.status(401).json({ error: 'Neznámé nebo chybějící heslo.' });
-};
+// Cookie shape: "<realRole>.<role>.<hex token>". Anything malformed
+// returns null so callers default to anonymous.
+function _parseSessionCookie(value) {
+  if (typeof value !== 'string') return null;
+  const parts = value.split('.');
+  if (parts.length !== 3) return null;
+  const [realRole, role, token] = parts;
+  if (realRole !== 'dm' && realRole !== 'player') return null;
+  if (role     !== 'dm' && role     !== 'player') return null;
+  // Player can never impersonate DM.
+  if (realRole === 'player' && role === 'dm')     return null;
+  if (!/^[0-9a-f]{64}$/.test(token))              return null;
+  return { realRole, role, token };
+}
+function _cookieValue(realRole, role) {
+  return `${realRole}.${role}.${_tokenFor(realRole, role)}`;
+}
+// Resolve a request to a role (`dm` | `player` | null). Validates the
+// cookie's token against the expected hash for its claimed roles;
+// tampered cookies fall through to anonymous.
+function _resolveRole(req) {
+  const parsed = _parseSessionCookie(req.cookies?.edit_session);
+  if (!parsed) return { role: null, realRole: null };
+  const expected = _tokenFor(parsed.realRole, parsed.role);
+  if (!expected) return { role: null, realRole: null };
+  if (!_safeEq(parsed.token, expected)) return { role: null, realRole: null };
+  return { role: parsed.role, realRole: parsed.realRole };
+}
+// attachRole runs on every request and stamps req.role / req.realRole.
+// Reads don't reject for null role — they just filter to the public
+// subset (so unauthenticated visitors get a player-equivalent view).
+function attachRole(req, _res, next) {
+  const { role, realRole } = _resolveRole(req);
+  req.role     = role;
+  req.realRole = realRole;
+  next();
+}
+// requireRole('dm') replaces the old requireAuth — write endpoints
+// gate on it. Role gates are based on EFFECTIVE role (req.role), not
+// realRole: a DM impersonating a player gets player-level write rights
+// (i.e. none), which is the point of the impersonation feature.
+function requireRole(role) {
+  return (req, res, next) => {
+    if (req.role === role) return next();
+    res.status(401).json({ error: 'Neznámé nebo chybějící heslo.' });
+  };
+}
+// Back-compat: the rest of this file was written against `requireAuth`.
+// Keep the name as an alias for `requireRole('dm')` so we don't churn
+// every endpoint.
+const requireAuth = requireRole('dm');
 
 app.use('/portraits', express.static(PORTRAITS_DIR));
 app.use('/maps',      express.static(MAPS_DIR));
@@ -444,6 +520,27 @@ function getFile(type) {
   return path.join(DATA_DIR, safeType + '.json');
 }
 
+// ── Visibility migration wrapper ─────────────────────────────────
+// Runs the pure migration from server/migrations.cjs with this
+// server's _atomicWrite injected, takes a one-shot pre-migration
+// snapshot if anything was touched (so the deploy is undoable), and
+// broadcasts data-changed so any client already on the page sees the
+// new shape. Idempotent on subsequent boots.
+async function runVisibilityMigration() {
+  const result = await _runVisibilityMigration(DATA_DIR, { atomicWrite: _atomicWrite });
+  if (result.changed > 0) {
+    // Snapshot AFTER the writes so it captures the migrated state.
+    // The pre-migration state is implicitly captured by any earlier
+    // 'save' snapshot — the dataset hasn't changed in essence, just
+    // gained a default field on each record.
+    try { await _createSnapshot('migration'); }
+    catch (e) { console.warn('[migration] snapshot failed:', e.message); }
+    await _broadcastDataChanged();
+    console.log(`[migration] visibility: stamped ${result.changed} record(s) across ${Object.keys(result.byCollection).length} collection(s)`);
+  }
+  return result;
+}
+
 // ── SSE broadcast ────────────────────────────────────────────────
 // Every successful write fans a `data-changed` event out to every
 // connected client. Clients refetch + re-render in well under a
@@ -485,10 +582,17 @@ const ALL_TYPES = [
  * keyed by collection name. Returns `null` (200) when no JSON file
  * exists yet — clients treat that as "fresh install, use defaults".
  *
- * Auth: none. The dataset is readable by anyone (the wiki is public);
- * editing requires the `edit_session` cookie.
+ * Response is filtered by the caller's role (req.role, stamped by
+ * attachRole). For DM-role callers it's identity; for player or
+ * anonymous callers, DM-only entities are dropped, `secrets` fields
+ * are stripped, and `[secret]…[/secret]` regions are removed from
+ * known markdown body fields. Players literally cannot see DM
+ * content via DevTools.
+ *
+ * Auth: none required (anonymous callers get the same view as a
+ * player). Editing requires the `edit_session` cookie + DM role.
  */
-app.get('/api/data', async (_req, res) => {
+app.get('/api/data', async (req, res) => {
   try {
     const campaign = {};
     let foundAny   = false;
@@ -503,7 +607,16 @@ app.get('/api/data', async (_req, res) => {
       }
     }));
     if (!foundAny) return res.json(null);
-    res.type('application/json').send(JSON.stringify(campaign));
+    // Role-aware filter. `filterForRole` is identity for DM and for
+    // non-visibility-bearing collections, so this is cheap on the
+    // hot path. Anonymous callers (req.role === null) are treated
+    // as players — they see the public subset.
+    const role = req.role === 'dm' ? 'dm' : 'player';
+    const filtered = {};
+    for (const [collection, container] of Object.entries(campaign)) {
+      filtered[collection] = filterForRole(collection, container, role);
+    }
+    res.type('application/json').send(JSON.stringify(filtered));
   } catch (e) {
     console.error('GET /api/data:', e);
     res.status(500).json({ error: 'Read error' });
@@ -541,11 +654,12 @@ function _noteFailure(ip) {
 
 /**
  * POST /api/login — Validate the supplied password and issue an
- * `edit_session` cookie on success. Rate-limited per source IP
- * (15-minute window after a burst of failures) to make brute force
- * impractical even with a weak password.
+ * `edit_session` cookie on success. Tries the DM password first, then
+ * the player password; the role baked into the cookie reflects which
+ * matched. Rate-limited per source IP (15-minute window).
  *
  * Body: `{ password: string }`.
+ * Response: `{ ok: true, role: 'dm' | 'player' }`.
  */
 app.post('/api/login', (req, res) => {
   const ip = _loginKey(req);
@@ -553,29 +667,91 @@ app.post('/api/login', (req, res) => {
     return res.status(429).json({ error: 'Příliš mnoho neúspěšných pokusů. Zkus to za 15 minut.' });
   }
   const { password } = req.body || {};
-  const expected     = process.env.EDIT_PASSWORD || '123';
-  if (typeof password !== 'string' || !_safeEq(password, expected)) {
+  if (typeof password !== 'string') {
+    _noteFailure(ip);
+    return res.status(401).json({ error: 'Špatné heslo' });
+  }
+  let role = null;
+  if (_safeEq(password, _dmPassword())) {
+    role = 'dm';
+  } else {
+    const pp = _playerPassword();
+    // Empty PLAYER_PASSWORD = player auth disabled. Without this short-
+    // circuit `_safeEq('', '')` would return true and any empty body
+    // would grant player access.
+    if (pp && _safeEq(password, pp)) role = 'player';
+  }
+  if (!role) {
     _noteFailure(ip);
     return res.status(401).json({ error: 'Špatné heslo' });
   }
   _loginAttempts.delete(ip);
-  res.cookie('edit_session', _expectedToken(), {
+  res.cookie('edit_session', _cookieValue(role, role), {
     httpOnly: true,
     sameSite: 'lax',
     secure:   process.env.NODE_ENV === 'production',
     path:     '/',
     maxAge:   30 * 24 * 60 * 60 * 1000,   // 30 days
   });
+  res.json({ ok: true, role });
+});
+
+/**
+ * POST /api/logout — Clear the edit_session cookie. Idempotent; safe
+ * for anonymous callers too. Lets a DM hand the laptop to a player
+ * without leaving a DM session attached.
+ */
+app.post('/api/logout', (_req, res) => {
+  res.clearCookie('edit_session', { path: '/' });
   res.json({ ok: true });
 });
 
 /**
- * GET /api/auth — Probe whether the caller has a valid `edit_session`
- * cookie. The client uses this to decide whether to show the password
- * prompt before flipping into edit mode.
+ * GET /api/auth — Probe the caller's current role and impersonation
+ * state. Returns `{ role: null, realRole: null }` for anonymous users
+ * (no 401) so the client can decide whether to show the login prompt
+ * without a network-level failure for first-time visitors.
  */
-app.get('/api/auth', requireAuth, (_req, res) => {
-  res.json({ ok: true });
+app.get('/api/auth', (req, res) => {
+  res.json({ role: req.role, realRole: req.realRole });
+});
+
+/**
+ * POST /api/view-as — DM-only. Re-issue the session cookie with the
+ * effective `role` flipped to 'player' while `realRole` stays 'dm'.
+ * Used by the "View as player" toggle so the DM can verify what leaks
+ * without re-entering the password.
+ *
+ * Authorization is based on req.realRole (the validated signed claim),
+ * not req.role — so a DM already impersonating a player can still
+ * call this (and idempotently stay in player mode).
+ */
+app.post('/api/view-as', (req, res) => {
+  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Pouze pro DM' });
+  res.cookie('edit_session', _cookieValue('dm', 'player'), {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure:   process.env.NODE_ENV === 'production',
+    path:     '/',
+    maxAge:   30 * 24 * 60 * 60 * 1000,
+  });
+  res.json({ ok: true, role: 'player', realRole: 'dm' });
+});
+
+/**
+ * POST /api/view-as-dm — DM-only. Flip the effective role back to
+ * 'dm' from an active impersonation. Same auth rule as /api/view-as.
+ */
+app.post('/api/view-as-dm', (req, res) => {
+  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Pouze pro DM' });
+  res.cookie('edit_session', _cookieValue('dm', 'dm'), {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure:   process.env.NODE_ENV === 'production',
+    path:     '/',
+    maxAge:   30 * 24 * 60 * 60 * 1000,
+  });
+  res.json({ ok: true, role: 'dm', realRole: 'dm' });
 });
 
 // Collections stored as keyed objects on disk (factions, settings,
@@ -626,6 +802,13 @@ app.patch('/api/data', requireAuth, (req, res) => {
       }
       if (!payload || typeof payload !== 'object') {
         return res.status(400).json({ error: 'Missing payload' });
+      }
+      // PCs (faction === 'party') cannot be marked DM-only — a hidden
+      // PC isn't a coherent product state, the player can't see their
+      // own character. Defence in depth; the client also enforces.
+      if (type === 'characters' && action === 'save'
+          && payload.faction === 'party' && payload.visibility === 'dm') {
+        return res.status(400).json({ error: 'PCs cannot be marked DM-only.' });
       }
 
       const p = getFile(type);
@@ -1336,18 +1519,39 @@ async function _backgroundTileSweep() {
   }
 }
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`TTRPG Codex running on http://localhost:${PORT}`);
-  // Loud warning if running with the default/insecure password. The
-  // codebase is open-source so anyone can compute SHA256("123") — a
-  // deployment that left EDIT_PASSWORD unset would be world-editable.
-  const pwd = process.env.EDIT_PASSWORD;
-  if (!pwd || pwd === '123') {
+  // Loud warnings about password configuration. The codebase is open-
+  // source so anyone can compute SHA256(...) — a deployment that left
+  // DM_PASSWORD unset (or set to the default "123") would be world-
+  // editable. EDIT_PASSWORD is the legacy alias; honour it but nag.
+  const dmPwdRaw  = process.env.DM_PASSWORD || process.env.EDIT_PASSWORD;
+  const playerPwd = process.env.PLAYER_PASSWORD;
+  const legacy    = !!process.env.EDIT_PASSWORD && !process.env.DM_PASSWORD;
+  if (!dmPwdRaw || dmPwdRaw === '123') {
     console.warn('');
-    console.warn('  ⚠  EDIT_PASSWORD is ' + (pwd ? 'the default ("123")' : 'UNSET') + '.');
-    console.warn('     Anyone with the source can compute the cookie value and gain edit access.');
-    console.warn('     Set EDIT_PASSWORD in the environment (e.g. in docker-compose.yml or .env) before exposing this server.');
+    console.warn('  ⚠  DM_PASSWORD is ' + (dmPwdRaw ? 'the default ("123")' : 'UNSET') + '.');
+    console.warn('     Anyone with the source can compute the cookie value and gain DM access.');
+    console.warn('     Set DM_PASSWORD in the environment (e.g. in docker-compose.yml or .env) before exposing this server.');
     console.warn('');
+  } else if (legacy) {
+    console.warn('');
+    console.warn('  ℹ  Using EDIT_PASSWORD as DM_PASSWORD (back-compat alias).');
+    console.warn('     Set DM_PASSWORD explicitly to silence this notice.');
+    console.warn('');
+  }
+  if (!playerPwd) {
+    console.warn('  ℹ  PLAYER_PASSWORD is unset — player login is disabled.');
+    console.warn('     Unauthenticated visitors see only public content (same view as a player).');
+    console.warn('');
+  }
+  // Run visibility-model migration before any client sees data —
+  // stamps `visibility: 'public'` + `secrets: {}` on every record
+  // missing them. Idempotent; cheap on subsequent boots.
+  try {
+    await runVisibilityMigration();
+  } catch (e) {
+    console.warn('[migration] visibility migration failed:', e.message);
   }
   // Fire-and-forget — sweep can take seconds for large maps; don't
   // block the listen callback.

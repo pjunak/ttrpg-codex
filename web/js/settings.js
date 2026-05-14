@@ -707,12 +707,26 @@ export const Settings = (() => {
   }
 
   /** Hide/show sidebar `<li>` entries based on the current
-   *  `hiddenSidebarPages` setting. Also collapses a section heading
-   *  + its `<ul>` when every page in that group is hidden, so the
-   *  sidebar doesn't show empty sections. Safe to call repeatedly;
-   *  the static markup in index.html doesn't change. */
+   *  `hiddenSidebarPages` setting AND the caller's role. Also
+   *  collapses a section heading + its `<ul>` when every page in
+   *  that group is hidden, so the sidebar doesn't show empty
+   *  sections. Safe to call repeatedly; the static markup in
+   *  index.html doesn't change.
+   *
+   *  Role gating: SIDEBAR_PAGES entries marked `role: 'dm'` are
+   *  hidden for non-DM viewers. The body class `is-dm` already
+   *  handles this via CSS, but applySidebarVisibility enforces it
+   *  too so a future refactor of the body-class strategy doesn't
+   *  silently leak the DM links. */
   function applySidebarVisibility() {
     const hidden = new Set(Store.getHiddenSidebarPages());
+    // Role-restricted routes (from SIDEBAR_PAGES.role === 'dm') are
+    // hidden for non-DM users. Built once per call so we don't keep
+    // importing the role check on every link.
+    const isDM = (typeof document !== 'undefined') && document.body.classList.contains('is-dm');
+    const dmRestrictedRoutes = new Set(
+      SIDEBAR_PAGES.filter(p => p.role === 'dm').map(p => p.route)
+    );
     const lists = document.querySelectorAll('.sidebar .sidebar-nav');
     lists.forEach(ul => {
       const links = [...ul.querySelectorAll('a[data-route]')];
@@ -720,7 +734,7 @@ export const Settings = (() => {
       for (const a of links) {
         const r  = a.getAttribute('data-route');
         const li = a.closest('li');
-        const isHidden = hidden.has(r);
+        const isHidden = hidden.has(r) || (dmRestrictedRoutes.has(r) && !isDM);
         if (li) li.style.display = isHidden ? 'none' : '';
         if (!isHidden) visibleCount++;
       }

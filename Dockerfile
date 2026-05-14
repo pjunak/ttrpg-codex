@@ -7,6 +7,7 @@ RUN npm install --production
 COPY server.js .
 COPY server-utils.cjs .
 COPY tiler.js .
+COPY server ./server
 COPY web ./web
 
 RUN mkdir data && chown -R node:node /app

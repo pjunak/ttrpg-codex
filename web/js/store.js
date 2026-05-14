@@ -877,6 +877,24 @@ export const Store = (() => {
     return !!(c && c.faction === PARTY_FACTION_ID);
   }
 
+  /** Would `entity` be visible to a viewer with the given `role`?
+   *  Cosmetic-only — the client receives data the server already
+   *  filtered, so this only matters in editor previews (e.g. the
+   *  DM wants to know which entries are hidden from players without
+   *  flipping into view-as-player mode). Mirrors the entity-level
+   *  filter in `server/visibility.cjs`; per-field secrets and
+   *  inline markers aren't reconstructable from a filtered payload
+   *  so this is the entity-level question only.
+   *
+   *  @param {object} entity - Any record carrying `visibility`.
+   *  @param {'dm'|'player'} role - Effective viewer role.
+   *  @returns {boolean} True if the entity would appear in `role`'s payload. */
+  function isVisibleTo(entity, role) {
+    if (!entity || typeof entity !== 'object') return false;
+    if (role === 'dm') return true;
+    return entity.visibility !== 'dm';
+  }
+
   /** PCs only. Sorted by Czech locale to match dashboard / /parta. */
   function getPartyMembers() {
     return getCharacters()
@@ -1832,7 +1850,7 @@ export const Store = (() => {
     load, init,
     uploadPortrait, deletePortrait, uploadLocalMap,
     uploadIcons, deleteIcon, deleteIcons,
-    getCharacters, isPartyMember, getPartyMembers, getNPCs,
+    getCharacters, isPartyMember, isVisibleTo, getPartyMembers, getNPCs,
     getRelationships, getLocations, getEvents, getMysteries,
     getFactions, getFaction, getStatusMap,
     getCharacter, getLocation, getEvent, getMystery,

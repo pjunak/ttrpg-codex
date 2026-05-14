@@ -11,6 +11,7 @@ import { Widgets } from './widgets/widgets.js';
 import { PIN_TYPES, PIN_SIZE_MIN, PIN_SIZE_MAX, PIN_SIZE_DEFAULT } from './map.js';
 import { renderMarkdown } from './utils.js';
 import { PARTY_FACTION_ID } from './constants.js';
+import { Role } from './role.js';
 
 export const EditMode = (() => {
 
@@ -353,27 +354,38 @@ export const EditMode = (() => {
     }
 
     if (!_active) {
-      try {
-        const check = await fetch('/api/auth');
-        if (!check.ok) {
-           const pwd = await _passwordPrompt('Tato sekce je zabezpečena. Zadej heslo:');
-           if (pwd) {
-             const res = await fetch('/api/login', {
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json' },
-                 body: JSON.stringify({ password: pwd })
-             });
-             if (!res.ok) {
-                _toast("Špatné heslo", false);
-                return;
-             }
-             _toast("Přístup povolen ✓");
-           } else {
-             return;
-           }
+      // Edit mode is DM-only. Players and anonymous visitors are
+      // prompted for the DM password. The login endpoint accepts
+      // either the DM or player password; we route the result based
+      // on the returned role.
+      if (!Role.isDM()) {
+        const pwd = await _passwordPrompt('Editace je dostupná pouze DM. Zadej DM heslo:');
+        if (!pwd) return;
+        try {
+          const res = await fetch('/api/login', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ password: pwd }),
+            credentials: 'same-origin',
+          });
+          if (!res.ok) {
+            _toast('Špatné heslo', false);
+            return;
+          }
+          const data = await res.json().catch(() => ({}));
+          // Refresh the cached role so body.is-dm is set and the
+          // rest of the UI can branch correctly before re-render.
+          await Role.refresh();
+          if (data.role !== 'dm') {
+            _toast('Toto heslo neumožňuje úpravy', false);
+            return;
+          }
+          _toast('Přístup povolen ✓');
+        } catch (e) {
+          console.warn(e);
+          _toast('Chyba při přihlášení', false);
+          return;
         }
-      } catch(e) {
-         console.warn(e);
       }
     }
 
@@ -474,6 +486,15 @@ export const EditMode = (() => {
   // enum-item now; `Settings.updateStrengthReadout` drives the slider
   // in the Postoje k partě editor.
   const _readAttitudeChipRow = EditTemplates.readAttitudeChipRow;
+
+  /** Read the per-form Viditelnost section into `{ visibility, secrets }`.
+   *  Defaults to `'public'` / `{}` for forms that don't carry the section
+   *  (collections excluded from the visibility model, or stripped-down
+   *  editors). Each save handler spreads this onto the entity before
+   *  Store.saveXxx so the cookie / server sees both fields together. */
+  function _collectVisibility(uid) {
+    return EditTemplates.readVisibilitySection(uid);
+  }
 
   // ══════════════════════════════════════════════════════════════
   //  CHARACTER EDITOR
@@ -583,6 +604,12 @@ export const EditMode = (() => {
     // singular `attitude` field, scrub it out now that we always
     // write the array form.
     delete next.attitude;
+    // Visibility (DM mode). PCs are forced to 'public' as defence in
+    // depth — the editor disables the option, but a stale cached DOM
+    // could in theory submit 'dm'; the server rejects this too.
+    const vis = _collectVisibility(uid);
+    next.visibility = Store.isPartyMember(next) ? 'public' : vis.visibility;
+    next.secrets    = vis.secrets;
     const ok = Store.saveCharacter(next);
     if (ok === false) {
       _toast("⚠ Uložení selhalo – úložiště je plné.", false);
@@ -785,6 +812,9 @@ export const EditMode = (() => {
     // The legacy `locationStatuses` enum is gone — strip any stale
     // `status` carried over from `existing` so it doesn't get re-persisted.
     delete next.status;
+    // Visibility (DM mode). A DM-only location disappears from player
+    // payloads, including from the map.
+    Object.assign(next, _collectVisibility(uid));
     Store.saveLocation(next);
     _runAfterSave('location', newId);
     _toast("✓ Místo uloženo");
@@ -894,6 +924,7 @@ export const EditMode = (() => {
       description: document.getElementById(`evf-desc-${uid}`)?.value.trim()      || "",
       characters:  _checkVals(`evf-chars-${uid}`),
       locations:   _checkVals(`evf-locs-${uid}`),
+      ..._collectVisibility(uid),
     });
     _runAfterSave('event', newId);
     _toast("✓ Událost uložena");
@@ -947,6 +978,7 @@ export const EditMode = (() => {
       priority:    document.getElementById(`mf-pri-${uid}`)?.value         || "střední",
       description: document.getElementById(`mf-desc-${uid}`)?.value.trim() || "",
       characters:  _checkVals(`mf-chars-${uid}`),
+      ..._collectVisibility(uid),
     });
     _toast("✓ Záhada uložena");
     _markClean();
@@ -1015,7 +1047,11 @@ export const EditMode = (() => {
 
     // Preserve any fields not in the editor (e.g., if faction had extra properties)
     const existing = originalId ? (Store.getFaction(originalId) || {}) : {};
-    Store.saveFaction(newId, { ...existing, name, color, textColor, badge, description: desc, rankChains, attitudes });
+    Store.saveFaction(newId, {
+      ...existing, name, color, textColor, badge,
+      description: desc, rankChains, attitudes,
+      ..._collectVisibility(uid),
+    });
     _toast("✓ Frakce uložena");
     _markClean();
     _refreshTo(`#/frakce/${newId}`);
@@ -1077,6 +1113,26 @@ export const EditMode = (() => {
   // this, navigating between editor pages a few dozen times noticeably
   // slows the entire app because each leaked instance still receives
   // every captured-phase document event.
+  // Wrap the current CodeMirror selection in `[<name>]…[/<name>]`.
+  // If there's no selection, just insert the empty pair and place
+  // the caret between them so the user can start typing immediately.
+  // Used by the 🔒 secret / 👁 public-island toolbar buttons.
+  function _wrapSelectionWithMarker(mde, name) {
+    if (!mde || !mde.codemirror) return;
+    const cm = mde.codemirror;
+    const open  = `[${name}]`;
+    const close = `[/${name}]`;
+    const sel = cm.getSelection();
+    if (sel && sel.length > 0) {
+      cm.replaceSelection(`${open}${sel}${close}`);
+    } else {
+      const cur = cm.getCursor();
+      cm.replaceRange(`${open}${close}`, cur);
+      cm.setCursor({ line: cur.line, ch: cur.ch + open.length });
+    }
+    cm.focus();
+  }
+
   const _mountedEasyMDE = new Set();
   function _cleanupOrphanedEasyMDE() {
     for (const mde of _mountedEasyMDE) {
@@ -1125,6 +1181,21 @@ export const EditMode = (() => {
             'heading-1', 'heading-2', 'heading-3', '|',
             'quote', 'unordered-list', 'ordered-list', '|',
             'link', 'image', 'table', 'code', 'horizontal-rule', '|',
+            {
+              name:  'secret',
+              action: (e) => _wrapSelectionWithMarker(e, 'secret'),
+              className: 'fa fa-lock',
+              title: 'Označit jako jen pro DM (Ctrl+Shift+S)',
+              text:  '🔒',
+            },
+            {
+              name:  'public-island',
+              action: (e) => _wrapSelectionWithMarker(e, 'public'),
+              className: 'fa fa-eye',
+              title: 'Viditelné i pro hráče v DM-only záznamu',
+              text:  '👁',
+            },
+            '|',
             'preview', 'side-by-side', 'fullscreen', '|',
             'undo', 'redo', '|',
             'guide',
@@ -1172,6 +1243,7 @@ export const EditMode = (() => {
       ...existing,
       id: newId, name,
       description: document.getElementById(`sf-desc-${uid}`)?.value.trim() || '',
+      ..._collectVisibility(uid),
     });
     _toast('✓ Druh uložen');
     _markClean();
@@ -1212,6 +1284,7 @@ export const EditMode = (() => {
       domain:      document.getElementById(`gf-domain-${uid}`)?.value.trim()   || '',
       alignment:   document.getElementById(`gf-alignment-${uid}`)?.value.trim()|| '',
       description: document.getElementById(`gf-desc-${uid}`)?.value.trim()     || '',
+      ..._collectVisibility(uid),
     });
     _toast('✓ Božstvo uloženo');
     _markClean();
@@ -1251,6 +1324,7 @@ export const EditMode = (() => {
       ownerCharacterId: document.getElementById(`af-owner-${uid}`)?.value.trim()    || '',
       locationId:       document.getElementById(`af-loc-${uid}`)?.value.trim()      || '',
       description:      document.getElementById(`af-desc-${uid}`)?.value.trim()     || '',
+      ..._collectVisibility(uid),
     };
     // The legacy `artifactStates` enum is gone — strip any stale
     // `state` carried over from `existing` so it doesn't get re-persisted.
@@ -1293,6 +1367,7 @@ export const EditMode = (() => {
       .split(',').map(s => s.trim()).filter(Boolean);
     Store.saveHistoricalEvent({
       ...existing,
+      ..._collectVisibility(uid),
       id: newId, name,
       start:      document.getElementById(`he-start-${uid}`)?.value.trim()   || '',
       end:        document.getElementById(`he-end-${uid}`)?.value.trim()     || '',

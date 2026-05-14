@@ -107,6 +107,16 @@
       <li><a href="#/historie"    class="nav-link" data-route="/historie">
         <span class="nav-icon">📜</span> Historie</a></li>
     </ul>
+
+    <!-- DM section. Hidden for non-DM viewers via the body.is-dm
+         CSS gate (see edit.css "Role-aware UI"); applySidebarVisibility
+         also enforces this so a missing class doesn't leak the link. -->
+    <div class="sidebar-section sidebar-section-dm">DM</div>
+    <ul class="sidebar-nav sidebar-nav-dm">
+      <li><a href="#/dm" class="nav-link" data-route="/dm">
+        <span class="nav-icon">🛡</span> DM panel</a></li>
+    </ul>
+
     <script src="js/boot.js" defer></script>
 
     <!-- Edit mode toggle in sidebar footer. Záloha and mapa světa

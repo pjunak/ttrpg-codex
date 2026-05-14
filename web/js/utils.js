@@ -186,6 +186,28 @@ const _MD_CACHE_MAX = 50;
  */
 export function clearMarkdownCache() { _mdCache.clear(); }
 
+// ─ DM-side marker rendering ──────────────────────────────────────
+// When the server filtered the payload for the DM role, [secret]…
+// [/secret] regions remain in the markdown — the DM should see them
+// to know what's hidden. Wrap each region in a visible span before
+// marked parses, then run a similar pass for [public]…[/public] so
+// public islands inside DM-only entities are visually distinct.
+// Players never receive markers — server stripped them — so the
+// transformation is a no-op on player payloads (no markers to find).
+function _wrapMarkdownMarkers(text) {
+  // We replace LITERAL `[secret]X[/secret]` / `[public]X[/public]`
+  // with HTML spans, preserving the inner content. marked will see
+  // the spans as raw HTML, which DOMPurify then sanitises (it allows
+  // <span class="...">). Non-greedy match across newlines via
+  // [\s\S]*?. Mismatched markers stay as literal text.
+  let out = text;
+  out = out.replace(/\[secret\]([\s\S]*?)\[\/secret\]/g,
+    (_m, inner) => `<span class="md-secret">${inner}</span>`);
+  out = out.replace(/\[public\]([\s\S]*?)\[\/public\]/g,
+    (_m, inner) => `<span class="md-public-island">${inner}</span>`);
+  return out;
+}
+
 export function renderMarkdown(src) {
   const raw = String(src ?? '');
   if (!raw.trim()) return '';
@@ -197,9 +219,10 @@ export function renderMarkdown(src) {
     return v;
   }
   // Expand [[Name]] / [[Name|kind:id]] into real markdown links first,
-  // then let marked parse the rest. Anything that doesn't resolve
-  // stays as a visibly-broken span the GM can fix.
-  const text = expandWikiLinks(raw);
+  // wrap any surviving [secret]/[public] markers (DM payloads only;
+  // player payloads have the markers stripped server-side), then let
+  // marked parse the rest.
+  const text = _wrapMarkdownMarkers(expandWikiLinks(raw));
   const marked  = window.marked;
   const purify  = window.DOMPurify;
   if (!marked || !purify) {

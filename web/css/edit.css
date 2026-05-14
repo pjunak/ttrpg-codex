@@ -64,6 +64,248 @@ body.edit-mode::after {
 .edit-only-btn { display: none; }
 .edit-mode .edit-only-btn { display: block; }
 
+/* ── Role-aware UI ────────────────────────────────────────────── */
+/* Edit mode toggle is DM-only. Hidden for player + anonymous roles.
+   Role.refresh() stamps body.is-dm on boot so non-DM users never
+   see the toggle even before they try to click it. */
+body:not(.is-dm) .edit-mode-toggle { display: none; }
+/* The settings (⚙ Nastavení) link is only useful when you can edit
+   enums; hide for non-DM. */
+body:not(.is-dm) .sidebar-export-btn { display: none; }
+
+/* DM-only sidebar section — hidden for everyone but DM. */
+body:not(.is-dm) .sidebar-section-dm,
+body:not(.is-dm) .sidebar-nav-dm { display: none; }
+
+/* Sidebar role badge — sits above the existing footer buttons. */
+.role-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.role-badge-chip {
+  display: inline-block;
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--radius);
+  text-align: center;
+  font-weight: 500;
+}
+.role-badge-dm {
+  background: rgba(200,160,64,0.12);
+  border: 1px solid var(--accent-gold);
+  color: var(--accent-gold);
+}
+.role-badge-impersonating {
+  background: rgba(180,40,40,0.15);
+  border: 1px solid #c44;
+  color: #f88;
+}
+.role-badge-player {
+  background: rgba(60,140,200,0.12);
+  border: 1px solid #4a7fa8;
+  color: #8ab8e0;
+}
+.role-badge-anonymous {
+  background: var(--bg-raised);
+  border: 1px solid rgba(255,255,255,0.07);
+  color: var(--text-muted);
+}
+.role-badge-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius);
+  padding: 0.3rem 0.5rem;
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.role-badge-btn:hover {
+  border-color: rgba(200,160,64,0.4);
+  color: var(--accent-gold);
+}
+
+/* Top-of-page red banner while a DM is impersonating a player. The
+   construction stripe (body.edit-mode::after) sits at z-index 9998;
+   keep this above it so the warning is unmistakable. */
+.impersonation-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 9999;
+  background: #8B0000;
+  color: #fff;
+  font-size: 13px;
+  padding: 8px 16px;
+  font-family: system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.impersonation-banner button {
+  background: rgba(0,0,0,0.3);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.impersonation-banner button:hover {
+  background: rgba(255,255,255,0.15);
+  border-color: #fff;
+}
+/* Push main content down so it isn't hidden under the banner. */
+body.is-impersonating { padding-top: 36px; }
+
+/* ── Visibility editor section ────────────────────────────────── */
+.visibility-section {
+  border-left: 3px solid rgba(180,40,40,0.35);
+  padding-left: 1rem;
+  background: rgba(180,40,40,0.05);
+  border-radius: 4px;
+  margin: 1rem 0;
+}
+.visibility-section .edit-section-title {
+  color: #f88;
+}
+.secret-fields-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+.secret-field-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  background: rgba(0,0,0,0.15);
+}
+.secret-field-toggle:hover { border-color: rgba(180,40,40,0.5); }
+.secret-field-toggle input { margin: 0; }
+.secret-field-toggle input:checked + span { color: #f88; font-weight: 500; }
+
+/* ── DM panel ────────────────────────────────────────────────── */
+.dm-panel {
+  max-width: 1100px;
+  margin: 1.5rem auto;
+  padding: 0 1.5rem;
+}
+.dm-panel h1 {
+  font-family: var(--font-display, var(--font-ui));
+  color: var(--accent-gold);
+  margin: 0 0 0.5rem;
+}
+.dm-stub {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  max-width: 60ch;
+}
+.dm-section {
+  margin: 2rem 0;
+}
+.dm-section h2 {
+  font-size: 1.1rem;
+  margin: 0 0 0.5rem;
+  color: var(--text-light);
+}
+.dm-section-hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+.dm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+.dm-count-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--text-light);
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+.dm-count-card:hover {
+  border-color: var(--accent-gold);
+}
+.dm-count-card.has-dm {
+  border-color: rgba(180,40,40,0.5);
+}
+.dm-count-card.has-dm:hover {
+  border-color: #c44;
+}
+.dm-count-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.dm-count-numbers {
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+.dm-count-numbers strong {
+  color: var(--accent-gold);
+}
+.dm-count-card.has-dm .dm-count-numbers strong {
+  color: #f88;
+}
+.dm-count-meta {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.dm-stub-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.dm-stub-list li {
+  padding: 0.5rem 0.75rem;
+  border-left: 2px solid rgba(255,255,255,0.07);
+  margin-bottom: 0.3rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* ── Secret-content marker ────────────────────────────────────── */
+/* Players never see this — the server strips [secret]...[/secret]
+   regions from markdown body fields before they leave the wire.
+   For DM and DM-impersonating-player viewers, the renderer wraps
+   the inner content in this span so the DM can tell at a glance
+   what's hidden from players. */
+.md-secret {
+  background: rgba(180,40,40,0.10);
+  border-left: 3px solid rgba(180,40,40,0.6);
+  padding: 0.05em 0.4em;
+  margin: 0 0.1em;
+  border-radius: 2px;
+  color: inherit;
+}
+.md-secret::before {
+  content: '🔒 ';
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
 /* ── Bottom nav edit toggle ──────────────────────────────────── */
 .bottom-item.edit-mode-toggle {
   width: auto;

@@ -11,6 +11,8 @@ import { WorldMap } from './map.js';
 import { Settings } from './settings.js';
 import { Widgets } from './widgets/widgets.js';
 import { GlobalSearch } from './search.js';
+import { Role } from './role.js';
+import { DmDashboard } from './dm_dashboard.js';
 import { setWikiLinkResolver, norm } from './utils.js';
 
 // ── Action dispatcher (replaces inline `onclick="Module.method(...)"`) ──
@@ -23,7 +25,7 @@ import { setWikiLinkResolver, norm } from './utils.js';
 //   2. Lets the page run under `Content-Security-Policy: script-src 'self'`
 //      because no inline event-handler attributes survive.
 const ACTIONS = {
-  Store, EditMode, Wiki, CloudMap, Timeline, WorldMap, Settings, GlobalSearch,
+  Store, EditMode, Wiki, CloudMap, Timeline, WorldMap, Settings, GlobalSearch, Role, DmDashboard,
 };
 // Browser-built-in shortcuts that used to live inline (`history.back()`,
 // `document.getElementById(slug).scrollIntoView(…)`, etc.). Element- /
@@ -384,6 +386,11 @@ document.addEventListener('error',    (ev) => {
         Wiki.renderPage("historicka-udalost", sub); break;
       case "nastaveni":
         Settings.render(); break;
+      case "dm":
+        // DM-only section. The dashboard renderer short-circuits to
+        // a "jen pro DM" stub if Role.isDM() is false; the sidebar
+        // already hides the link for non-DM users.
+        DmDashboard.render(); break;
       default:
         Wiki.renderPage("dashboard");
     }
@@ -425,6 +432,7 @@ document.addEventListener('error',    (ev) => {
     if (hash !== null) _lastHash = hash;
     await Store.load();
     Settings.applySidebarVisibility();
+    _renderRoleBadge();
     // Self-originated SSE echoes (e.g. the Mapy zoom-scale slider's
     // own PATCH) shouldn't replace the entire Settings DOM —
     // doing so kills any in-flight slider drag. The Settings module
@@ -554,13 +562,105 @@ document.addEventListener('error',    (ev) => {
     _showServerBanner("⚠ Uložení na server selhalo — zkontrolujte připojení a znovu načtěte stránku.");
   });
 
+  // ── Role badge ──────────────────────────────────────────────
+  // Lives in the sidebar footer. Shows the effective role with a
+  // single-action chip:
+  //   - anonymous    → "Přihlásit" (opens edit-toggle which prompts)
+  //   - player       → "Odhlásit"
+  //   - DM (live)    → "Pohled hráče" (impersonation toggle)
+  //   - DM (impers.) → also shows a persistent red banner with a
+  //                    "← Zpět na DM" button
+  //
+  // Re-rendered after every Role state change (boot, login, view-as
+  // toggle, SSE refetch) so the UI stays in sync without per-page
+  // wiring. Cosmetic only — the server is the truth.
+  function _renderRoleBadge() {
+    let host = document.getElementById('role-badge');
+    if (!host) {
+      const footer = document.querySelector('.sidebar-footer');
+      if (!footer) return;
+      host = document.createElement('div');
+      host.id = 'role-badge';
+      host.className = 'role-badge';
+      footer.insertBefore(host, footer.firstChild);
+    }
+    const role     = Role.get();
+    const realRole = Role.getReal();
+    if (role === 'dm') {
+      host.innerHTML = `
+        <span class="role-badge-chip role-badge-dm" title="Přihlášen jako DM">🛡 DM</span>
+        <button type="button" class="role-badge-btn" data-action="Role.viewAsPlayer" title="Zobrazit web tak, jak ho vidí hráč">👁 Pohled hráče</button>
+      `;
+    } else if (role === 'player' && realRole === 'dm') {
+      host.innerHTML = `
+        <span class="role-badge-chip role-badge-impersonating" title="DM v pohledu hráče">👁 Pohled hráče</span>
+        <button type="button" class="role-badge-btn" data-action="Role.backToDM" title="Zpět do DM režimu">← Zpět na DM</button>
+      `;
+    } else if (role === 'player') {
+      host.innerHTML = `
+        <span class="role-badge-chip role-badge-player" title="Přihlášen jako hráč">👤 Hráč</span>
+        <button type="button" class="role-badge-btn" data-action="Role.logout" title="Odhlásit">↩ Odhlásit</button>
+      `;
+    } else {
+      host.innerHTML = `<span class="role-badge-chip role-badge-anonymous" title="Nepřihlášen — zobrazuje se veřejný obsah">👁 Veřejný pohled</span>`;
+    }
+    _renderImpersonationBanner();
+  }
+
+  function _renderImpersonationBanner() {
+    let banner = document.getElementById('impersonation-banner');
+    const impersonating = Role.isImpersonating();
+    if (!impersonating) {
+      if (banner) banner.remove();
+      return;
+    }
+    if (banner) return; // already shown
+    banner = document.createElement('div');
+    banner.id = 'impersonation-banner';
+    banner.className = 'impersonation-banner';
+    banner.innerHTML = `
+      <span>👁 Pohled hráče — DM obsah je skrytý. Tohle vidí hráči.</span>
+      <button type="button" data-action="Role.backToDM">← Zpět na DM</button>
+    `;
+    document.body.prepend(banner);
+  }
+
+  // Re-render the badge after Role.viewAsPlayer / Role.backToDM
+  // complete. Both methods are called from action-dispatcher buttons;
+  // they finish async and update the cached role, but don't repaint
+  // the badge themselves. Hook a window event for that.
+  // The simplest way: monkey-patch Role.viewAsPlayer / backToDM to
+  // refresh the badge on resolution. Done via a small wrapper here
+  // so role.js stays UI-free.
+  const _wrap = (orig) => async function (...args) {
+    const r = await orig.apply(this, args);
+    _renderRoleBadge();
+    // The dataset the client holds was fetched under the previous
+    // role. After a role flip we must refetch and re-render to apply
+    // the new server-side filter.
+    await Store.load();
+    navigate(getRoute());
+    return r;
+  };
+  Role.viewAsPlayer = _wrap(Role.viewAsPlayer);
+  Role.backToDM     = _wrap(Role.backToDM);
+  Role.logout       = _wrap(Role.logout);
+
   window.addEventListener("DOMContentLoaded", async () => {
-    // Load data from server before first render
+    // Resolve the caller's role first — Settings.applySidebarVisibility
+    // and various render paths branch on Role.isDM(), so body.is-dm
+    // must be stamped before the first paint.
+    await Role.refresh();
+    // Load data from server before first render. Whatever comes back
+    // is already filtered for the caller's role.
     await Store.load();
 
     // Apply user-configured sidebar visibility before first paint so
     // hidden pages don't flash on screen during boot.
     Settings.applySidebarVisibility();
+    // Render the role badge / view-as toggle in the sidebar footer
+    // once we know the role.
+    _renderRoleBadge();
 
     // Remove loading screen
     const loading = document.getElementById("loading");

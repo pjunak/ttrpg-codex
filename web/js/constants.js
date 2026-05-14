@@ -37,6 +37,7 @@ export const ROUTE = Object.freeze({
   MAPA_VZTAHY: '/mapa/vztahy',
   MAPA_ZAHADY: '/mapa/tajemstvi',
   SETTINGS:    '/nastaveni',
+  DM_DASH:     '/dm',
 });
 
 /** Centralised Czech pluralisation helper for count-based labels
@@ -53,7 +54,12 @@ export function czPlural(n, one, few, many) {
  *  static markup in index.html — keep in sync when adding/removing
  *  sidebar links. Used by Settings → Postranní panel to let the
  *  user hide individual pages, and by Settings.applySidebarVisibility
- *  to apply the user's choice at runtime. */
+ *  to apply the user's choice at runtime.
+ *
+ *  Optional `role: 'dm'` field hides the entry for non-DM viewers —
+ *  the route is still reachable by URL (defence-in-depth lives in
+ *  the renderer itself), but the link doesn't appear in the
+ *  sidebar. */
 export const SIDEBAR_PAGES = [
   { route: '/',             label: 'Přehled',           icon: '🏠', section: 'Přehled' },
   { route: '/mapa/svet',    label: 'Mapa',              icon: '🗺', section: 'Přehled' },
@@ -67,4 +73,5 @@ export const SIDEBAR_PAGES = [
   { route: '/panteon',      label: 'Panteon',           icon: '✨', section: 'Kompendium' },
   { route: '/artefakty',    label: 'Artefakty',         icon: '🗝', section: 'Kompendium' },
   { route: '/historie',     label: 'Historie',          icon: '📜', section: 'Kompendium' },
+  { route: '/dm',           label: 'DM panel',          icon: '🛡', section: 'DM',         role: 'dm' },
 ];

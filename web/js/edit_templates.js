@@ -43,6 +43,105 @@ export const EditTemplates = (() => {
     return `<div class="attitude-chip-row" id="${rowId}">${items}</div>`;
   }
 
+  // ─ Visibility section ────────────────────────────────────────
+  // Per-entity DM-mode controls: an overall `visibility` select
+  // (public / dm) and a per-field "skrýt hráčům" toggle row that
+  // mirrors the server's `secrets: { fieldName: true }` map.
+  //
+  // SECRETABLE_FIELDS is the curated allow-list of fields that can
+  // be marked secret. Scoped to long-form content fields (markdown
+  // body, summary, notes). Names match MARKDOWN_FIELDS in
+  // server/visibility.cjs — adding a field here without adding it
+  // server-side means the secrets flag would be silently ignored
+  // and the content would leak to players.
+  const SECRETABLE_FIELDS = {
+    characters:       [{ id: 'description', label: 'Popis' }],
+    locations:        [{ id: 'description', label: 'Popis' }, { id: 'notes', label: 'Poznámky GM' }],
+    events:           [{ id: 'description', label: 'Popis' }, { id: 'short', label: 'Krátký souhrn' }],
+    mysteries:        [{ id: 'description', label: 'Popis' }],
+    factions:         [{ id: 'description', label: 'Popis' }],
+    species:          [{ id: 'description', label: 'Popis' }],
+    pantheon:         [{ id: 'description', label: 'Popis' }],
+    artifacts:        [{ id: 'description', label: 'Popis' }],
+    historicalEvents: [{ id: 'summary', label: 'Souhrn' }, { id: 'body', label: 'Detailní popis' }],
+  };
+
+  /** Build the "Viditelnost" form section. Mounted on every
+   *  edit form that participates in the visibility model. The
+   *  whole-entity select disables the "Jen DM" option for PCs
+   *  (party-faction characters) — the server PATCH handler also
+   *  rejects this combination as defence in depth.
+   *
+   *  @param {string} uid          - The form's per-entity unique id.
+   *  @param {object} entity       - The current record (or new-record defaults).
+   *  @param {string} collection   - Collection name, e.g. 'characters'.
+   *  @param {{isPc?: boolean}} [opts] - Disable DM-only option (PCs).
+   *  @returns {string} HTML for the section, or '' when the
+   *           collection doesn't participate in visibility.
+   */
+  function _visibilitySection(uid, entity, collection, opts = {}) {
+    const secretables = SECRETABLE_FIELDS[collection] || [];
+    if (!Object.prototype.hasOwnProperty.call(SECRETABLE_FIELDS, collection)) return '';
+    const visibility = (entity && entity.visibility === 'dm') ? 'dm' : 'public';
+    const secrets    = (entity && entity.secrets && typeof entity.secrets === 'object') ? entity.secrets : {};
+    const isPc       = !!opts.isPc;
+    const dmDisabled = isPc ? 'disabled' : '';
+    const pcNote     = isPc
+      ? `<small class="edit-hint">Postavy ze strany hráčů jsou vždy veřejné — nelze označit jako "Jen DM".</small>`
+      : '';
+
+    const secretRow = secretables.length === 0 ? '' : `
+      <div class="edit-field">
+        <label class="edit-label">Skrýt jednotlivá pole hráčům</label>
+        <div class="secret-fields-row" id="vis-secrets-${esc(uid)}">
+          ${secretables.map(f => `
+            <label class="secret-field-toggle">
+              <input type="checkbox" data-secret-field="${esc(f.id)}"
+                     ${secrets[f.id] ? 'checked' : ''}>
+              <span>${esc(f.label)}</span>
+            </label>
+          `).join('')}
+        </div>
+        <small class="edit-hint">Označená pole se z odpovědi serveru hráčům vůbec neposílají. Pro jemnější skrytí použij <code>[secret]…[/secret]</code> v textu.</small>
+      </div>`;
+
+    return `
+      <div class="edit-section visibility-section" id="vis-section-${esc(uid)}">
+        <div class="edit-section-title">🛡 Viditelnost (DM)</div>
+        <div class="edit-field">
+          <label class="edit-label">Viditelnost záznamu</label>
+          <select class="edit-select" id="vis-${esc(uid)}">
+            <option value="public" ${visibility==='public'?'selected':''}>Veřejné — vidí všichni</option>
+            <option value="dm"     ${visibility==='dm'?'selected':''} ${dmDisabled}>Jen DM</option>
+          </select>
+          ${pcNote}
+        </div>
+        ${secretRow}
+      </div>`;
+  }
+
+  /** Read the visibility section's current state back out. Returns
+   *  `{ visibility, secrets }` with canonicalised values. Falls back
+   *  to safe defaults (`'public'`, `{}`) when the section isn't on
+   *  the page (collection without visibility support, or someone
+   *  rendered a stripped-down editor).
+   *
+   *  @param {string} uid - The form's per-entity unique id.
+   *  @returns {{visibility: 'public'|'dm', secrets: Object<string,true>}}
+   */
+  function _readVisibilitySection(uid) {
+    const sel = document.getElementById(`vis-${uid}`);
+    const visibility = (sel && sel.value === 'dm') ? 'dm' : 'public';
+    const secrets = {};
+    const wrap = document.getElementById(`vis-secrets-${uid}`);
+    if (wrap) {
+      wrap.querySelectorAll('input[data-secret-field]').forEach(cb => {
+        if (cb.checked) secrets[cb.getAttribute('data-secret-field')] = true;
+      });
+    }
+    return { visibility, secrets };
+  }
+
   /** Sort characters by faction order then alphabetically, with faction badge prefix.
    *  Returns the sorted array (does not mutate the original). */
   function _sortedChars(chars) {
@@ -323,6 +422,7 @@ export const EditTemplates = (() => {
               <div class="edit-section-title">Vazby</div>
               <p class="edit-hint">Uložte postavu nejprve, pak přidejte vazby.</p>
             </div>`}
+          ${_visibilitySection(uid, c, 'characters', { isPc: Store.isPartyMember(c) })}
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">
@@ -475,6 +575,7 @@ export const EditTemplates = (() => {
             <div class="edit-section-title">Přítomné postavy</div>
             ${charsPicker}
           </div>
+          ${_visibilitySection(uid, l, 'locations')}
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">
@@ -551,6 +652,7 @@ export const EditTemplates = (() => {
                   </div>`
                 : `<button type="button" class="inline-create-btn"${dataAction('WorldMap.startPlacingEventPin', e.id)}>📍 Umístit pin na mapu</button>`}
           </div>
+          ${_visibilitySection(uid, e, 'events')}
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">
@@ -600,6 +702,7 @@ export const EditTemplates = (() => {
             <div class="edit-section-title">Spojené postavy</div>
             ${charPicker}
           </div>
+          ${_visibilitySection(uid, m, 'mysteries')}
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">
@@ -701,6 +804,8 @@ export const EditTemplates = (() => {
             ${dataAction('EditMode.addRankChain', `chains-${uid}`, uid)}>+ Přidat řetězec</button>
         </div>
 
+        ${_visibilitySection(uid, f, 'factions')}
+
       </div>
     `;
   }
@@ -742,6 +847,7 @@ export const EditTemplates = (() => {
             <label class="edit-label">Název *</label>
             <input class="edit-input" id="sf-name-${uid}" value="${esc(s.name)}" placeholder="Člověk, Elf, Dračizeň…">
           </div>
+          ${_visibilitySection(uid, s, 'species')}
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">
@@ -788,6 +894,7 @@ export const EditTemplates = (() => {
               <input class="edit-input" id="gf-alignment-${uid}" value="${esc(g.alignment)}" placeholder="např. LG / CN / …">
             </div>
           </div>
+          ${_visibilitySection(uid, g, 'pantheon')}
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">
@@ -847,6 +954,7 @@ export const EditTemplates = (() => {
               ${locMount}
             </div>
           </div>
+          ${_visibilitySection(uid, a, 'artifacts')}
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">
@@ -921,6 +1029,7 @@ export const EditTemplates = (() => {
             <label class="edit-label">Štítky</label>
             <input class="edit-input" id="he-tags-${uid}" value="${esc((h.tags || []).join(', '))}" placeholder="válka, magie, říše">
           </div>
+          ${_visibilitySection(uid, h, 'historicalEvents')}
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field">
@@ -971,6 +1080,9 @@ export const EditTemplates = (() => {
     getMdTextareaHtml: _mdTextarea,
     attitudeChipRow:     _attitudeChipRow,
     readAttitudeChipRow: _readAttitudeChipRow,
+    visibilitySection:     _visibilitySection,
+    readVisibilitySection: _readVisibilitySection,
+    SECRETABLE_FIELDS,
   };
 
 })();
