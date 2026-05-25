@@ -609,15 +609,9 @@
 .sc-toolbar .edit-only-inline { display: none; }
 .sc-toolbar.is-editing .edit-only-inline { display: inline-block; }
 
-/* Per-page edit toggle. Distinct visual state when active matches the
-   other "is-active" toolbar buttons (📜 Trasy událostí), giving the
-   user an unambiguous "you are editing this map" cue without the old
-   construction-stripe border. */
-.sc-edit-toggle.is-active {
-  background: rgba(200,160,64,0.18);
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-}
+/* The per-page edit toggle uses the shared `.page-edit-toggle` class
+   defined in edit.css. The dedicated `.sc-edit-toggle.is-active`
+   rule set was retired with that migration. */
 
 /* ── Toolbar pin search + live results ─────────────────────────── */
 .sc-search {

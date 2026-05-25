@@ -51,6 +51,11 @@
   font-size: 0.7rem;
   color: var(--text-muted);
   padding-left: 0.5rem;
+  /* Push hint (and the trailing `.page-edit-toggle`) to the right
+     edge of the toolbar — matches the layout used by .sc-hint and
+     .tl-hint, so the edit toggle anchors top-right consistently
+     across modal pages. */
+  margin-left: auto;
 }
 #cy-container {
   flex: 1;
@@ -370,11 +375,9 @@
 .map-toolbar.is-editing .cm-save-pos {
   display: inline-flex;
 }
-.cm-edit-toggle.is-active {
-  background: rgba(200,160,64,0.18);
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-}
+/* The per-page edit toggle now uses the shared `.page-edit-toggle`
+   class from edit.css. The dedicated `.cm-edit-toggle` styles were
+   retired with that migration. */
 
 /* ═══════════════════════════════════════════════════════════════
    FILTER BAR — search / status / knowledge / edge-type / focus

@@ -43,6 +43,40 @@
 }
 .article-edit-btn:active { transform: translateY(1px); }
 
+/* ── Modal-page edit toggle ───────────────────────────────────
+   Shared pill used by the map, timeline and Myšlenkový palác
+   toolbars. Single source of truth for the look + behaviour of
+   the "✏ Editovat X" / "✓ Hotovo" affordance — emitted via
+   `utils.js → pageEditToggle()` so all three modules stay in sync.
+   Position: each toolbar pushes this button to the right via a
+   layout class on the previous sibling (e.g. `.tl-hint` or
+   `.sc-edit-spacer`) so the toggle anchors top-right of the
+   toolbar across pages. */
+.page-edit-toggle {
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  padding: 0.35rem 0.8rem;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: var(--radius);
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.page-edit-toggle:hover {
+  background: rgba(200,160,64,0.08);
+  border-color: rgba(200,160,64,0.5);
+  color: var(--accent-gold);
+}
+.page-edit-toggle.is-active {
+  background: rgba(200,160,64,0.18);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  font-weight: 500;
+}
+
 /* ── Sidebar footer button ────────────────────────────────────
    The global "✏ Úpravy" toggle and the construction-stripe were
    removed in the per-page edit migration. The footer now holds

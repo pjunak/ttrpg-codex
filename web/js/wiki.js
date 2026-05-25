@@ -1599,27 +1599,53 @@ export const Wiki = (() => {
     const root = document.getElementById('zahady-questions-list');
     if (root) root.innerHTML = _openQuestionsRowsHtml();
   }
+  // Per-source route prefix + display icon — used by the aggregate
+  // questions row template. Centralised so adding a third question
+  // source later (e.g. event open threads) is a one-place change.
+  const _OQ_SOURCES = {
+    mystery:   { route: 'zahada',  icon: '❓' },
+    character: { route: 'postava', icon: '👤' },
+  };
   function _openQuestionsRowsHtml() {
     const q = norm(_zahadyQuestionFilter);
     const rows = Store.getOpenQuestions()
       .map(item => ({
         ...item,
-        blob: norm((item.text || '') + ' ' + (item.mystery?.name || '')),
+        // Build the search blob over both fields so chip filters hit
+        // either the question text OR the parent entity's name.
+        blob: norm((item.text || '') + ' ' + (item.sourceEntity?.name || '')),
       }))
       .filter(item => !q || item.blob.includes(q));
     if (!rows.length) {
       return `<div class="list-empty">${_zahadyQuestionFilter
         ? 'Žádná otevřená otázka neodpovídá hledání.'
-        : 'Žádné otevřené otázky — všechny záhady jsou vyřešené.'}</div>`;
+        : 'Žádné otevřené otázky — vše vyřešené.'}</div>`;
     }
-    return rows.map(item => `
-      <div class="oq-row">
-        <div class="oq-text">${esc(item.text)}</div>
-        <a class="oq-mystery" href="#/zahada/${item.mystery.id}">
-          ❓ ${esc(item.mystery.name)}
-          ${item.mystery.priority ? `<span class="mystery-priority priority-${item.mystery.priority}">${esc(item.mystery.priority)}</span>` : ''}
-        </a>
-      </div>`).join('');
+    return rows.map(item => {
+      const cfg     = _OQ_SOURCES[item.source] || _OQ_SOURCES.mystery;
+      const entity  = item.sourceEntity || {};
+      const route   = `/${cfg.route}/${entity.id}`;
+      // Priority badge only applies to mystery-origin rows; characters
+      // have no priority field. Empty for characters.
+      const prioBadge = (item.source === 'mystery' && entity.priority)
+        ? `<span class="mystery-priority priority-${esc(entity.priority)}">${esc(entity.priority)}</span>`
+        : '';
+      // Per-row edit pencil — opens the source entity straight into
+      // its editor via the same affordance used by card pencils
+      // (Wiki.startEditingArticle handles anonymous → login modal).
+      const editBtn = `<button type="button" class="oq-edit"
+        title="Upravit ${item.source === 'character' ? 'postavu' : 'záhadu'}"
+        ${dataAction('Wiki.startEditingArticle', route)}>✏</button>`;
+      return `
+        <div class="oq-row" data-source="${esc(item.source)}">
+          <div class="oq-text">${esc(item.text)}</div>
+          <a class="oq-mystery" href="#${route}">
+            ${cfg.icon} ${esc(entity.name || entity.id || '—')}
+            ${prioBadge}
+          </a>
+          ${editBtn}
+        </div>`;
+    }).join('');
   }
   function _openQuestionsBlock() {
     const total = Store.getOpenQuestions().length;
@@ -1649,7 +1675,12 @@ export const Wiki = (() => {
   // questions" need without making the cards harder to scan.
   function renderMysteries() {
     const mysteries = Store.dedupeShadowTwins('mysteries', Store.getMysteries());
-    if (mysteries.length === 0) {
+    // If there are no mysteries AND no open character questions either,
+    // show the onboarding card. Open character questions alone should
+    // still surface the aggregate block so they're discoverable from
+    // /zahady (the user can navigate to the character to answer them).
+    const openQs = Store.getOpenQuestions();
+    if (mysteries.length === 0 && openQs.length === 0) {
       return `
         <div class="page-header"><h1>❓ Záhady</h1></div>
         ${_renderEmptyState({

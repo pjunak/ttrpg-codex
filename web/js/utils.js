@@ -330,3 +330,26 @@ export function dataOn(kind, method, ...args) {
   return ` data-on-${kind}="${esc(method)}"${argAttr}`;
 }
 
+/**
+ * Shared edit-toggle button for modal-interaction pages (map, timeline,
+ * cloudmap). Renders a unified pill that flips between "✏ Editovat X"
+ * and "✓ Hotovo" with the same colour scheme + position across pages.
+ *
+ * The button calls `${moduleName}.toggleEditing` with no args — each
+ * module's toggleEditing reads its own `_editing` flag and flips. This
+ * avoids the "stale data-args" bug where a setEditing(true) button can
+ * only ever be clicked once (the data-args=[true] never updates).
+ *
+ * @param {object} opts
+ * @param {string} opts.moduleName  - The ACTIONS-map key (e.g. 'WorldMap').
+ * @param {boolean} opts.isEditing  - Current edit state.
+ * @param {string} opts.label       - Localised noun for the page (e.g. 'mapu').
+ * @returns {string} HTML
+ */
+export function pageEditToggle({ moduleName, isEditing, label }) {
+  const cls = 'page-edit-toggle' + (isEditing ? ' is-active' : '');
+  const title = isEditing ? 'Vypnout úpravy' : `Zapnout úpravy — ${label}`;
+  const text  = isEditing ? '✓ Hotovo' : `✏ Editovat ${label}`;
+  return `<button type="button" class="${cls}"${dataAction(moduleName + '.toggleEditing')}
+    title="${esc(title)}">${esc(text)}</button>`;
+}

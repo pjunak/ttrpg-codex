@@ -1339,9 +1339,14 @@ export const Store = (() => {
     if (qs.length === 0) return false;
     return qs.every(isQuestionAnswered);
   }
-  /** Get every open question across every mystery, flattened. Each
-   *  entry: `{mystery, index, text}` so callers can render + link
-   *  back to the source. Filters out empty-text entries. */
+  /** Flat list of every open question across the whole campaign:
+   *  mysteries' `questions[]` AND characters' `unknown[]`. Each entry:
+   *  `{ source: 'mystery'|'character', sourceEntity, index, text }`.
+   *  Callers use `source` to build the right link target + icon.
+   *  `mystery` kept as an alias of `sourceEntity` for back-compat
+   *  with the existing /zahady aggregate template — drop once the
+   *  template uses `sourceEntity` directly. Filters out empty-text
+   *  entries from either side. */
   function getOpenQuestions() {
     const out = [];
     for (const m of getMysteries() || []) {
@@ -1350,7 +1355,27 @@ export const Store = (() => {
         if (isQuestionAnswered(q)) return;
         const text = (q && typeof q === 'object') ? (q.text || '') : String(q || '');
         if (!text.trim()) return;
-        out.push({ mystery: m, index: i, text });
+        out.push({
+          source: 'mystery',
+          sourceEntity: m,
+          mystery: m,   // back-compat alias; remove when callers migrate
+          index: i,
+          text,
+        });
+      });
+    }
+    for (const c of getCharacters() || []) {
+      const us = Array.isArray(c.unknown) ? c.unknown : [];
+      us.forEach((u, i) => {
+        if (isQuestionAnswered(u)) return;
+        const text = (u && typeof u === 'object') ? (u.text || '') : String(u || '');
+        if (!text.trim()) return;
+        out.push({
+          source: 'character',
+          sourceEntity: c,
+          index: i,
+          text,
+        });
       });
     }
     return out;

@@ -7,15 +7,21 @@
 
 import { Store } from './store.js';
 import { Role } from './role.js';
-import { norm, debounce, esc, dataAction, dataOn } from './utils.js';
+import { norm, debounce, esc, dataAction, dataOn, pageEditToggle } from './utils.js';
 import { REL_TYPES, getRelType } from './data.js';
 
 export const CloudMap = (() => {
 
-  // Per-page edit toggle (replaces the global `body.edit-mode` gate that
-  // used to surface the layout-action buttons). Toggled by the toolbar's
-  // ✏ Editovat palác button; persists across renders within the session.
+  // Per-page edit toggle. Surfaces the `.cm-save-pos` layout-action
+  // buttons (gated by `.map-toolbar.is-editing` in cloudmap.css).
+  // Anonymous click → login modal via the `auth:prompt-login` window
+  // event (editmode.js listens).
   let _editing = false;
+  function _renderEditToggleHtml() {
+    return pageEditToggle({
+      moduleName: 'CloudMap', isEditing: _editing, label: 'palác',
+    });
+  }
   function setEditing(on) {
     if (on && Role.isAnonymous()) {
       window.dispatchEvent(new CustomEvent('auth:prompt-login'));
@@ -24,12 +30,16 @@ export const CloudMap = (() => {
     _editing = !!on;
     const toolbar = document.querySelector('.map-toolbar');
     if (toolbar) toolbar.classList.toggle('is-editing', _editing);
-    const btn = document.getElementById('cm-edit-btn');
-    if (btn) {
-      btn.classList.toggle('is-active', _editing);
-      btn.textContent = _editing ? '✓ Hotovo' : '✏ Editovat palác';
-    }
+    // Replace the toggle button via the shared template — outerHTML
+    // keeps the in-DOM state aligned with what initial render emits.
+    // The "button only fires once" bug came from stamping the next
+    // state into data-args at render time; we now route through
+    // toggleEditing (no args) instead.
+    const btn = document.querySelector('.map-toolbar .page-edit-toggle');
+    if (btn) btn.outerHTML = _renderEditToggleHtml();
   }
+  /** No-arg public toggle. Wired to the shared `pageEditToggle` button. */
+  function toggleEditing() { setEditing(!_editing); }
 
   // ── Layout constants ────────────────────────────────────────
   const CW         = 168;          // cloud width  (graph px = screen px at zoom 1)
@@ -880,16 +890,11 @@ export const CloudMap = (() => {
 
     const container = document.getElementById('main-content');
     container.style.display = '';
-    // Per-page edit toggle in the toolbar — visible to everyone;
-    // anonymous click surfaces the login modal via setEditing's role
-    // check. When on, the `.cm-save-pos` layout-action buttons appear
-    // (gated by `.map-toolbar.is-editing` in cloudmap.css).
-    const editToggle = `
-      <button class="map-mode-btn cm-edit-toggle ${_editing ? 'is-active' : ''}"
-        id="cm-edit-btn"${dataAction('CloudMap.setEditing', !_editing)}
-        title="${_editing ? 'Vypnout úpravy paláce' : 'Zapnout úpravy paláce (rozložení, ukládání pozic)'}">
-        ${_editing ? '✓ Hotovo' : '✏ Editovat palác'}
-      </button>`;
+    // Per-page edit toggle via the shared template — same look +
+    // behaviour as /mapa/svet and /casova-osa. When on, the
+    // `.cm-save-pos` layout-action buttons appear (gated by
+    // `.map-toolbar.is-editing` in cloudmap.css).
+    const editToggle = _renderEditToggleHtml();
     container.innerHTML = `
       <div class="map-container">
         <div class="map-toolbar ${_editing ? 'is-editing' : ''}">
@@ -897,12 +902,12 @@ export const CloudMap = (() => {
           <a href="#/mapa/frakce"    class="map-mode-btn ${mode==='frakce'    ?'active':''}">Frakce</a>
           <a href="#/mapa/vztahy"    class="map-mode-btn ${mode==='vztahy'    ?'active':''}">Vztahy</a>
           <a href="#/mapa/tajemstvi" class="map-mode-btn ${mode==='tajemstvi' ?'active':''}">Záhady</a>
-          ${editToggle}
           <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.runAutoLayout')} title="Animovaně přeuspořádá uzly do matematicky ideálních pozic (Fruchterman–Reingold) — minimalizuje křížení vazeb a drží mapu kompaktní">✨ Auto rozložení</button>
           <button class="map-mode-btn cm-save-pos cm-undo-layout"${dataAction('CloudMap.undoLayout')} title="Vrátí poslední automatické přeuspořádání">↶ Zpět rozložení</button>
           <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.resetLayout')} title="Vymaže uložené pozice a znovu rozloží uzly automaticky">⟳ Rozložení</button>
-          <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.savePositions')} title="Uloží aktuální pozice uzlů">💾 Uložit pozice</button>
+          <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.savePositions')} title="Uloží aktuální pozice uzlů">💾 Uložit</button>
           <span class="map-hint">Klik = detail · Táhni = pohyb · Scroll = zoom</span>
+          ${editToggle}
         </div>
         ${_buildFilterBar(mode)}
         <div id="cy-container"></div>
@@ -2811,7 +2816,7 @@ export const CloudMap = (() => {
   }
 
   return {
-    render, resetLayout, setEditing,
+    render, resetLayout, setEditing, toggleEditing,
     savePositions:   _savePositions,
     runAutoLayout:   _runAutoLayout,
     undoLayout:      _undoLayout,

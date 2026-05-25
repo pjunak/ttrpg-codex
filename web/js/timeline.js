@@ -14,7 +14,7 @@
 import { Store } from './store.js';
 import { EditMode } from './editmode.js';
 import { Role } from './role.js';
-import { esc, dataAction } from './utils.js';
+import { esc, dataAction, pageEditToggle } from './utils.js';
 
 const STACK_THRESHOLD = 4;
 
@@ -40,6 +40,11 @@ export const Timeline = (() => {
     _editing = !!bool;
     render();
   }
+  /** No-arg public toggle wired to the shared `pageEditToggle` button.
+   *  Reading `_editing` here at click time (instead of stamping it
+   *  into the button's data-args at render time) keeps the button
+   *  working across multiple toggles. */
+  function toggleEditing() { setEditing(!_editing); }
 
   // Per-render id→entity Maps. Built fresh at the top of render() so
   // _cardHTML / _eventAccentColor do O(1) lookups instead of a linear
@@ -264,16 +269,12 @@ export const Timeline = (() => {
     );
     const editing = _editing;
 
-    // Edit toggle in the toolbar — visible to every viewer; anonymous
-    // click surfaces the login modal first (Timeline.setEditing's
-    // role check below). Acts as a local per-page mode — enables card
-    // drag-drop + the "+ Nová událost" footers.
-    const editToggle = `
-      <button class="tl-edit-toggle ${editing ? 'is-active' : ''}"
-        title="${editing ? 'Vypnout úpravy osy' : 'Zapnout úpravy osy (přesouvání karet, nové události)'}"
-        ${dataAction('Timeline.setEditing', !editing)}>
-        ${editing ? '✓ Hotovo' : '✏ Editovat osu'}
-      </button>`;
+    // Edit toggle via the shared template — same look + behaviour as
+    // /mapa/svet and /mapa/palac. Clicking calls Timeline.toggleEditing
+    // (no args) so the button keeps working across multiple toggles.
+    const editToggle = pageEditToggle({
+      moduleName: 'Timeline', isEditing: editing, label: 'osu',
+    });
 
     document.getElementById('main-content').style.display = '';
     document.getElementById('main-content').innerHTML = `
@@ -360,5 +361,5 @@ export const Timeline = (() => {
     board.appendChild(col);
   }
 
-  return { render, setEditing };
+  return { render, setEditing, toggleEditing };
 })();

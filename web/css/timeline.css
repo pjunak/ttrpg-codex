@@ -60,32 +60,10 @@
   border-color: var(--accent-gold);
 }
 
-/* Per-page edit toggle. Replaces the global ✏ Úpravy button for the
-   timeline. is-active state mirrors the global construction stripe of
-   the old design — a clear "you are editing" cue without bordering
-   the entire viewport. */
-.tl-edit-toggle {
-  font-family: var(--font-ui);
-  font-size: 0.75rem;
-  padding: 0.3rem 0.7rem;
-  background: transparent;
-  color: var(--text-muted);
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 4px;
-  cursor: pointer;
-  letter-spacing: 0.04em;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.tl-edit-toggle:hover {
-  background: rgba(200,160,64,0.08);
-  border-color: rgba(200,160,64,0.5);
-  color: var(--accent-gold);
-}
-.tl-edit-toggle.is-active {
-  background: rgba(200,160,64,0.18);
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-}
+/* The per-page edit toggle is now the shared `.page-edit-toggle`
+   class (defined in edit.css) — same look across timeline, map, and
+   Myšlenkový palác. The dedicated `.tl-edit-toggle` rule set lived
+   here briefly; deleted after the migration to the shared template. */
 
 /* Board: horizontally scrollable row of columns */
 .tl-board-viewport {

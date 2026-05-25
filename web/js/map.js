@@ -2,7 +2,7 @@ import { Store } from './store.js';
 import { Widgets } from './widgets/widgets.js';
 import { EditTemplates } from './edit_templates.js';
 import { Role } from './role.js';
-import { esc, dataAction, dataOn } from './utils.js';
+import { esc, dataAction, dataOn, pageEditToggle } from './utils.js';
 
 // `size` is the default marker pixel size for new places of this
 // type. Kept in sync with SETTINGS_DEFAULTS.pinTypes in data.js so
@@ -565,15 +565,11 @@ export const WorldMap = (() => {
     // "+ Přidat místo" / "✚ Uložit pohled" / "⚙ Mapa" are editor-only
     // actions — gated by the `.sc-shell.is-editing` class set by
     // `setEditing(bool)` (toggled via the `✏ Editovat mapu` button).
-    // The toggle is rendered for everyone — anonymous click surfaces
-    // the login modal via setEditing's role check below.
+    // Unified `pageEditToggle` helper keeps the look + behaviour in
+    // sync with /casova-osa and /mapa/palac. Positioned as the LAST
+    // toolbar item so it anchors top-right next to `.sc-hint`.
     const shellClass = _editing ? 'sc-shell is-editing' : 'sc-shell';
-    const editToggle = `
-      <button class="sc-btn sc-edit-toggle ${_editing ? 'is-active' : ''}"
-        id="sc-edit-btn"${dataAction('WorldMap.setEditing', !_editing)}
-        title="${_editing ? 'Vypnout úpravy mapy' : 'Zapnout úpravy mapy (přesouvání pinů, nová místa)'}">
-        ${_editing ? '✓ Hotovo' : '✏ Editovat mapu'}
-      </button>`;
+    const editToggle = _renderEditToggleHtml();
     document.getElementById('main-content').innerHTML = `
       <div class="${shellClass}">
         <div class="sc-toolbar ${_editing ? 'is-editing' : ''}">
@@ -583,7 +579,6 @@ export const WorldMap = (() => {
                  ${dataOn('input', 'WorldMap.onSearchInput', '$value')}
                  ${dataOn('keydown', 'WorldMap.handleSearchKey', '$ev')}>
           <div class="sc-search-results" id="sc-search-results" hidden></div>
-          ${editToggle}
           <button class="sc-btn edit-only-inline ${_addMode ? 'active' : ''}" id="sc-add-btn"${dataAction('WorldMap.toggleAddMode')}>
             ${_addMode ? '✕ Zrušit' : '+ Přidat místo'}
           </button>
@@ -600,6 +595,7 @@ export const WorldMap = (() => {
             ? 'Klikni na mapu pro přidání nového místa'
             : 'Klik = detail místa · Kolečko = zoom · Táhni = pohyb'
           }</span>
+          ${editToggle}
         </div>
         <div id="sc-map-container">
           <!-- Floating zoom panel (top-left). Replaces Leaflet's default
@@ -1650,44 +1646,46 @@ export const WorldMap = (() => {
     _setAddMode(!_addMode);
   }
 
-  /** Per-page edit toggle. Replaces what the old global `body.edit-mode`
-   *  class did for the map: it enables pin dragging, surfaces the
+  // Module-local helper so the toolbar's pageEditToggle args (module
+  // name + Czech noun) live in exactly ONE place — both the initial
+  // render above and setEditing's in-place refresh below call this.
+  function _renderEditToggleHtml() {
+    return pageEditToggle({
+      moduleName: 'WorldMap', isEditing: _editing, label: 'mapu',
+    });
+  }
+
+  /** Per-page edit toggle. Enables pin dragging, surfaces the
    *  `+ Přidat místo` / `✚ Uložit pohled` / `⚙ Mapa` toolbar buttons
    *  (via the `.sc-toolbar.is-editing` CSS gate), and switches pin
    *  clicks from "open detail panel" to "open editor form".
    *
-   *  Anonymous viewers can't reach this — the toolbar's `✏ Editovat
-   *  mapu` button is hidden for `Role.isAnonymous()`. Already-editing
-   *  add-mode is cleared on toggle-off so a stale crosshair doesn't
-   *  hang around. */
+   *  Anonymous viewers see the toggle and clicking it surfaces the
+   *  login modal — routed via the `auth:prompt-login` window event
+   *  because `editmode.js → map.js` is the established import direction
+   *  (PIN_TYPES etc.) and importing EditMode back would be a cycle. */
   function setEditing(on) {
-    // Anonymous users see the toggle button but clicking it surfaces
-    // the login modal first. After login they click again. Routed via
-    // a window event because `editmode.js → map.js` is the existing
-    // import direction (PIN_TYPES etc.) — importing EditMode back into
-    // map.js would be a cycle.
     if (on && Role.isAnonymous()) {
       window.dispatchEvent(new CustomEvent('auth:prompt-login'));
       return;
     }
     _editing = !!on;
-    // Toggle the toolbar class so .edit-only-inline buttons appear /
-    // disappear. The wrapping `.sc-shell.is-editing` (added by the
-    // body innerHTML below) is the single source of truth for CSS gates.
+    // Refresh the toolbar class gate and replace the toggle button via
+    // the shared template — outerHTML keeps the in-DOM state aligned
+    // with what initial render would emit (no stale data-args / text /
+    // is-active mismatch — the old bug where the toggle stopped firing
+    // after one click was a stale `data-args=[true]` on a setEditing
+    // call that never updated. Routing through `pageEditToggle` /
+    // `toggleEditing` removes the arg entirely.)
     const shell = document.querySelector('.sc-shell');
     if (shell) shell.classList.toggle('is-editing', _editing);
     const toolbar = document.querySelector('.sc-toolbar');
     if (toolbar) toolbar.classList.toggle('is-editing', _editing);
-    const editBtn = document.getElementById('sc-edit-btn');
-    if (editBtn) {
-      editBtn.classList.toggle('is-active', _editing);
-      editBtn.textContent = _editing ? '✓ Hotovo' : '✏ Editovat mapu';
-    }
-    // Enable / disable Leaflet drag on every mounted marker. Replaces
-    // the MutationObserver pattern — direct call is cleaner and avoids
-    // observer churn when the global `body.edit-mode` class flipped
-    // for unrelated reasons (it no longer flips at all after Phase 6,
-    // but this is the right shape regardless).
+    const editBtn = document.querySelector('.sc-toolbar .page-edit-toggle');
+    if (editBtn) editBtn.outerHTML = _renderEditToggleHtml();
+    // Enable / disable Leaflet drag on every mounted marker. Direct
+    // calls — no MutationObserver since there's no global edit-mode
+    // class to watch any more.
     Object.values(_markers).forEach(m => {
       if (m && m.dragging) _editing ? m.dragging.enable() : m.dragging.disable();
     });
@@ -1700,6 +1698,11 @@ export const WorldMap = (() => {
     }
     _renderLegend();
   }
+  /** No-arg public toggle wired to the shared `pageEditToggle` button.
+   *  Reading `_editing` here (instead of stamping it into the button's
+   *  data-args at render time) is what fixes the "button only works
+   *  once" bug. */
+  function toggleEditing() { setEditing(!_editing); }
 
   // Arm the map so the next click writes mapX/mapY onto the given event.
   // Used by the event editor's "📍 Umístit pin události" button so a
@@ -2028,7 +2031,7 @@ export const WorldMap = (() => {
 
   return {
     render,
-    setEditing,
+    setEditing, toggleEditing,
     toggleAddMode, closePanel,
     toggleEventPaths,
     openPinPanel, savePin, deletePin,
