@@ -354,6 +354,11 @@ export const EditMode = (() => {
    *
    * @returns {Promise<boolean>} true on successful login, false otherwise.
    */
+  // Window-event bridge: modules that can't import EditMode directly
+  // (map.js — would be a circular import) dispatch this to request the
+  // login modal. Single listener routes back to `promptLogin`.
+  window.addEventListener('auth:prompt-login', () => { promptLogin(); });
+
   async function promptLogin() {
     if (!Role.isAnonymous()) return true;
     const pwd = await _passwordPrompt('Pro editaci se přihlas (DM nebo hráčské heslo):');
@@ -389,6 +394,17 @@ export const EditMode = (() => {
     div.innerHTML = EditTemplates.getDynRowHtml("");
     list.appendChild(div.firstElementChild);
     list.lastElementChild?.querySelector("input")?.focus();
+  }
+  // Question + answer row. Used by the mystery editor (Otázky section)
+  // and the character editor (Otevřené otázky section). New row starts
+  // empty; user fills in question text and (optionally) answer.
+  function addQARow(wrapperId) {
+    const list = document.getElementById(wrapperId);
+    if (!list) return;
+    const div = document.createElement("div");
+    div.innerHTML = EditTemplates.qaRowHtml({ text: '', answer: '' });
+    list.appendChild(div.firstElementChild);
+    list.lastElementChild?.querySelector(".qa-q-text")?.focus();
   }
 
   // ── Helpers for the data-action dispatcher ─────────────────────
@@ -440,6 +456,18 @@ export const EditMode = (() => {
   }
 
   // ── Gather helpers ─────────────────────────────────────────────
+  // Read every {text, answer} pair from a `.qa-list` container.
+  // Drops rows whose question text is empty — answer-only rows are
+  // never persisted (would be orphan data).
+  function _qaVals(listId) {
+    const root = document.getElementById(listId);
+    if (!root) return [];
+    return [...root.querySelectorAll('.qa-row')].map(row => ({
+      text:   row.querySelector('.qa-q-text')?.value?.trim()   || '',
+      answer: row.querySelector('.qa-q-answer')?.value?.trim() || '',
+    })).filter(qa => qa.text);
+  }
+
   function _dynVals(id) {
     return Array.from(document.querySelectorAll(`#${id} .edit-input`))
       .map(i => i.value.trim()).filter(Boolean);
@@ -563,7 +591,10 @@ export const EditMode = (() => {
       description: document.getElementById(`ef-desc-${uid}`)?.value.trim()         || "",
       portrait,
       known:       _dynVals(`dyn-known-${uid}`),
-      unknown:     _dynVals(`dyn-unknown-${uid}`),
+      // unknown[] is now {text, answer} objects post-migration. The
+      // helper drops rows with empty text so dangling answer-only
+      // rows don't persist.
+      unknown:     _qaVals(`dyn-unknown-${uid}`),
     };
     // PCs always render with the `party` palette via the faction
     // shortcut in Store.getEffectiveAttitudes — their own attitudes[]
@@ -937,16 +968,21 @@ export const EditMode = (() => {
     const name = document.getElementById(`mf-name-${uid}`)?.value.trim();
     if (!name) { _toast("Název je povinný", false); return; }
     const newId = originalId || Store.generateId(name);
-    // Preserve fields that the inline editor doesn't expose (questions, clues, etc.)
+    // Preserve fields the editor doesn't expose (clues, etc. — clues
+    // are a future rework, see TODO/roadmap).
     const existing = originalId
       ? (Store.getMysteries().find(m => m.id === originalId) || {})
       : {};
+    // Questions: {text, answer} pairs from the QA list. The editor's
+    // _qaVals drops rows whose question text is empty.
+    const questions = _qaVals(`mf-questions-${uid}`);
     Store.saveMystery({
       ...existing,
       id: newId, name,
       priority:    document.getElementById(`mf-pri-${uid}`)?.value         || "střední",
       description: document.getElementById(`mf-desc-${uid}`)?.value.trim() || "",
       characters:  _checkVals(`mf-chars-${uid}`),
+      questions,
       ..._collectVisibility(uid),
     });
     _toast("✓ Záhada uložena");
@@ -1545,7 +1581,7 @@ export const EditMode = (() => {
   // ── Public API ─────────────────────────────────────────────────
   return {
     promptLogin, isDirty,
-    addDynRow, handlePortraitUpload,
+    addDynRow, addQARow, handlePortraitUpload,
     clearPortrait, updateKnowledgeLabel,
     handlePortraitChange, handleLocalMapChange,
     addRankChain, addRankRow,

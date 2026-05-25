@@ -582,7 +582,10 @@ body.twin-picker-open { overflow: hidden; }
 .mystery-card:hover .edit-card-overlay,
 .edit-card-overlay:hover { opacity: 1; background: rgba(200,160,64,0.20); }
 .edit-card-overlay:active { transform: translateY(1px); }
-body.is-anonymous .edit-card-overlay { display: none; }
+/* Anonymous viewers see the pencil too — clicking it surfaces the
+   login modal (Wiki.startEditingArticle → EditMode.promptLogin). The
+   discoverability of "you can edit this; click to start" beats hiding
+   the affordance behind a login wall. */
 
 /* The dashed `.char-card-new` (and friends `.loc-card-new` /
    `.dash-party-card-new` in wiki.css) trailing-grid cards were
@@ -636,6 +639,46 @@ body.is-anonymous .edit-card-overlay { display: none; }
    with `.edit-card-overlay` above — all entity-card pencils now share
    that style, so the dedicated `.list-edit-btn` rules are dead code
    and have been removed. */
+
+/* ── Question + answer rows (mystery editor + character editor) ──
+   Each row is a question (left, ~60%) + answer (right, ~40%) + trash.
+   Solved rows (answer non-empty) get a subtle green left border —
+   matches the qa-solved styling in the article view so the editor
+   and article share visual language. */
+.qa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0.4rem 0;
+}
+.qa-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+.qa-row .qa-q-text,
+.qa-row .qa-q-answer { width: 100%; }
+.qa-row.is-solved {
+  padding-left: 0.4rem;
+  border-left: 2px solid rgba(120,200,120,0.5);
+}
+.qa-row .qa-q-answer:focus,
+.qa-row .qa-q-answer:not(:placeholder-shown) {
+  background: rgba(120,200,120,0.06);
+}
+@media (max-width: 720px) {
+  .qa-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "text trash"
+      "answer answer";
+    row-gap: 0.3rem;
+  }
+  .qa-row .qa-q-text     { grid-area: text; }
+  .qa-row .qa-q-answer   { grid-area: answer; }
+  .qa-row .dyn-remove-btn { grid-area: trash; }
+}
 
 /* ══════════════════════════════════════════════════════════════
    EDIT FORM

@@ -72,9 +72,12 @@
 }
 /* Inline-edit affordance — each hero field shows a small pen on the
    right that flips contenteditable on for THAT field only. Replaces
-   the old global-edit-mode contenteditable behavior. */
+   the old global-edit-mode contenteditable behavior.
+   `display: flex` (NOT inline-flex) so the two rows stack vertically;
+   inline-flex would let them flow side-by-side on wide viewports,
+   which was the post-login layout glitch reported in testing. */
 .dash-hero-row {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 0.5rem;
   justify-content: center;
@@ -119,7 +122,8 @@
   color: rgba(200,160,64,0.4);
   font-style: italic;
 }
-body.is-anonymous .dash-hero-pen { display: none; }
+/* Anonymous viewers see the pen too; clicking it surfaces the login
+   modal via Wiki.startInlineEdit → EditMode.promptLogin. */
 
 /* "+ Přidat" button alongside the section action link. Same chip
    styling as `.dash-section-action` so the head row stays balanced. */
@@ -968,6 +972,115 @@ body.is-anonymous .dash-hero-pen { display: none; }
   color: #ce93d8;
 }
 .unknown-item::before { content: "?"; color: #9c4dcc; flex-shrink: 0; font-weight: bold; margin-top: 0.05em; }
+
+/* Solved Q+A pair — rendered when a `{text, answer}` entry has a
+   non-empty answer. The question is shown with a check + slight
+   muting; the answer drops below in a contrasting frame so it's
+   obvious which Q it belongs to. */
+.qa-solved {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.4rem 0.6rem;
+  background: rgba(120,200,120,0.05);
+  border-left: 2px solid rgba(120,200,120,0.45);
+  border-radius: 4px;
+}
+.qa-solved-q {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.qa-solved-a {
+  font-size: 0.92rem;
+  color: var(--text-parchment);
+}
+
+/* /zahady aggregate "all open questions" panel. Collapses via
+   `<details>` so it can sit above the mystery cards without dominating
+   the page; opens by default since investigating open questions is
+   what the page is for. */
+.oq-block {
+  background: var(--bg-raised);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius);
+  padding: 0.6rem 1rem;
+  margin-bottom: 1.5rem;
+}
+.oq-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  color: var(--accent-gold);
+  cursor: pointer;
+  list-style: none;
+}
+.oq-summary::-webkit-details-marker { display: none; }
+.oq-summary::before {
+  content: "▸";
+  display: inline-block;
+  transition: transform 0.15s;
+  color: var(--text-muted);
+}
+.oq-block[open] .oq-summary::before { transform: rotate(90deg); }
+.oq-summary-label { flex: 1; }
+.oq-summary-count {
+  background: rgba(200,160,64,0.18);
+  color: var(--accent-gold);
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+.oq-toolbar { margin: 0.75rem 0 0.5rem; }
+.oq-search  { width: 100%; }
+.oq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.oq-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 0.65rem;
+  background: rgba(0,0,0,0.18);
+  border-radius: 4px;
+  border-left: 2px solid #9c4dcc;
+}
+.oq-text {
+  flex: 1;
+  font-size: 0.88rem;
+  color: var(--text-parchment);
+}
+.oq-mystery {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.oq-mystery:hover { color: var(--accent-gold); }
+
+/* Mystery card open-questions count badge — shown next to PRIORITA. */
+.mystery-qcount {
+  margin-left: 0.6rem;
+  font-size: 0.7rem;
+  font-weight: normal;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.05);
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  text-transform: none;
+  letter-spacing: 0;
+}
 
 .relation-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .relation-chip {

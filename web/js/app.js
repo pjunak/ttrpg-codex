@@ -13,7 +13,7 @@ import { Widgets } from './widgets/widgets.js';
 import { GlobalSearch } from './search.js';
 import { Role } from './role.js';
 import { DmDashboard } from './dm_dashboard.js';
-import { setWikiLinkResolver, norm } from './utils.js';
+import { setWikiLinkResolver, norm, dataAction } from './utils.js';
 
 // ── Action dispatcher (replaces inline `onclick="Module.method(...)"`) ──
 // Buttons / anchors carry `data-action="Module.method"` plus an optional
@@ -332,6 +332,30 @@ document.addEventListener('error',    (ev) => {
     // belongs to. Without this, navigating away mid-edit and then back
     // would re-open the editor unexpectedly.
     Wiki.syncEditRoute(route);
+
+    // Anonymous route guard. The +Add buttons / pencils / inline-edit
+    // affordances are visible to everyone; clicking surfaces the login
+    // modal via the action handler. But "+ Nová" links jump straight to
+    // a /new entity-creation route bypassing those handlers, so we
+    // intercept the navigation here. Same for /nastaveni — the user
+    // explicitly asked that anonymous access prompt for login.
+    if (Role.isAnonymous() &&
+        (route === '/nastaveni' || route.endsWith('/new'))) {
+      EditMode.promptLogin();
+      const main = document.getElementById('main-content');
+      if (main) {
+        main.innerHTML = `
+          <div class="page-header"><h1>🔒 Vyžaduje přihlášení</h1></div>
+          <p style="color:var(--text-muted);max-width:540px;margin:1rem 0 1.4rem">
+            ${route === '/nastaveni'
+              ? 'Pro přístup k nastavení se prosím přihlas — DM nebo hráčským heslem.'
+              : 'Pro vytvoření nového záznamu se prosím přihlas — DM nebo hráčským heslem.'}
+          </p>
+          <button class="inline-create-btn" ${dataAction('EditMode.promptLogin')}>🔑 Přihlásit</button>
+          <button class="inline-create-btn" style="margin-left:0.5rem" ${dataAction('back')}>← Zpět</button>`;
+      }
+      return;
+    }
 
     // Mind-map sub-routes that all belong to Myšlenkový Palác
     const PALAC_ROUTES = new Set(["/mapa/palac", "/mapa/frakce", "/mapa/vztahy", "/mapa/tajemstvi"]);

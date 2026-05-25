@@ -328,7 +328,10 @@ export const EditTemplates = (() => {
     // blank for PCs.
     const attitudeChipRowHtml = _attitudeChipRow(`ef-attitudes-${c.id || 'new'}`, c.attitudes || []);
     const knownRows   = (c.known   || []).map(_dynRow).join("");
-    const unknownRows = (c.unknown || []).map(_dynRow).join("");
+    // `unknown[]` is now `{text, answer}` objects post-migration —
+    // `_qaRowHtml` handles both shapes defensively (legacy string
+    // entries render with answer:'').
+    const unknownRows = (c.unknown || []).map(_qaRowHtml).join("");
     // PCs (c.faction === 'party') fall back to the player party's
     // badge from settings, not the generic 👤, so the portrait
     // placeholder for a PC matches the rest of the party branding.
@@ -463,9 +466,12 @@ export const EditTemplates = (() => {
             <button class="dyn-add-btn"${dataAction('EditMode.addDynRow', `dyn-known-${uid}`)}>+ Přidat</button>
           </div>
           <div class="edit-section">
-            <div class="edit-section-title">Otevřené otázky</div>
-            <div class="dyn-list" id="dyn-unknown-${uid}">${unknownRows}</div>
-            <button class="dyn-add-btn"${dataAction('EditMode.addDynRow', `dyn-unknown-${uid}`)}>+ Přidat</button>
+            <div class="edit-section-title">
+              Otevřené otázky
+              <span class="settings-hint" style="font-weight:normal">vyplň odpověď → otázka je vyřešená</span>
+            </div>
+            <div class="qa-list" id="dyn-unknown-${uid}">${unknownRows}</div>
+            <button class="dyn-add-btn" type="button"${dataAction('EditMode.addQARow', `dyn-unknown-${uid}`)}>+ Přidat otázku</button>
           </div>
           ${!isNew ? _relSection(c.id) : `
             <div class="edit-section">
@@ -716,9 +722,29 @@ export const EditTemplates = (() => {
     `;
   }
 
+  // Build a single text+answer row used by mystery questions AND the
+  // character "Otevřené otázky" section. The two share the same shape
+  // (`{text, answer}`) post-migration so they can share the same HTML.
+  // `removeAncestor` strips this row when the trash button is clicked.
+  function _qaRowHtml(item) {
+    const text   = (item && typeof item === 'object') ? (item.text   || '') : String(item || '');
+    const answer = (item && typeof item === 'object') ? (item.answer || '') : '';
+    const solved = !!(answer && answer.trim());
+    return `
+      <div class="qa-row ${solved ? 'is-solved' : ''}">
+        <input class="edit-input qa-q-text" placeholder="Otázka" value="${esc(text)}">
+        <input class="edit-input qa-q-answer" placeholder="Odpověď (prázdné = otevřená)" value="${esc(answer)}">
+        <button type="button" class="dyn-remove-btn"
+          ${dataAction('removeAncestor', '$el', '.qa-row')} title="Odebrat otázku">×</button>
+      </div>`;
+  }
+  function _qaListHtml(items) {
+    return (items || []).map(_qaRowHtml).join('');
+  }
+
   function renderMysteryEditor(m) {
     const isNew = !m || !m.id;
-    if (isNew) m = { id:"", name:"", priority:"střední", description:"", characters:[] };
+    if (isNew) m = { id:"", name:"", priority:"střední", description:"", characters:[], questions:[] };
     const uid = m.id || "new_mys";
     const priOpts = ["kritická","vysoká","střední"].map(p =>
       `<option value="${p}" ${m.priority===p?"selected":""}>${p}</option>`).join("");
@@ -728,6 +754,7 @@ export const EditTemplates = (() => {
       data-ms-value="${esc(charsValue)}"
       data-ms-placeholder="Hledat postavu…"
       data-ms-on-create="character"></div>`;
+    const questionRows = _qaListHtml(m.questions || []);
 
     return `
       <div class="edit-form edit-form-split">
@@ -750,6 +777,15 @@ export const EditTemplates = (() => {
               <label class="edit-label">Priorita</label>
               <select class="edit-select" id="mf-pri-${uid}">${priOpts}</select>
             </div>
+          </div>
+          <div class="edit-section">
+            <div class="edit-section-title">
+              Otázky &amp; Odpovědi
+              <span class="settings-hint" style="font-weight:normal">vyplň odpověď → otázka je vyřešená; vyřešená záhada = všechny otázky mají odpověď</span>
+            </div>
+            <div class="qa-list" id="mf-questions-${uid}">${questionRows}</div>
+            <button type="button" class="dyn-add-btn" style="margin-top:0.4rem"
+              ${dataAction('EditMode.addQARow', `mf-questions-${uid}`)}>+ Přidat otázku</button>
           </div>
           <div class="edit-section">
             <div class="edit-section-title">Spojené postavy</div>
@@ -1130,6 +1166,8 @@ export const EditTemplates = (() => {
     renderArtifactEditor,
     renderHistoricalEventEditor,
     getDynRowHtml: _dynRow,
+    qaRowHtml: _qaRowHtml,
+    qaListHtml: _qaListHtml,
     getRelSectionHtml: _relSection,
     getDirOptsHtml: _dirOpts,
     getTargetMountHtml: _targetMount,

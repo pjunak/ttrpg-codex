@@ -32,6 +32,11 @@ export const Timeline = (() => {
   // state without logging in first.
   let _editing = false;
   function setEditing(bool) {
+    if (bool && Role.isAnonymous()) {
+      // Anonymous click on ✏ Editovat osu → login modal first.
+      window.dispatchEvent(new CustomEvent('auth:prompt-login'));
+      return;
+    }
     _editing = !!bool;
     render();
   }
@@ -259,11 +264,11 @@ export const Timeline = (() => {
     );
     const editing = _editing;
 
-    // Edit toggle in the toolbar. Hidden for anonymous viewers; visible
-    // (always) for any authed role. Acts as a local per-page mode —
-    // enables card drag-drop + the "+ Nová událost" footers without
-    // touching any global state.
-    const editToggle = Role.isAnonymous() ? '' : `
+    // Edit toggle in the toolbar — visible to every viewer; anonymous
+    // click surfaces the login modal first (Timeline.setEditing's
+    // role check below). Acts as a local per-page mode — enables card
+    // drag-drop + the "+ Nová událost" footers.
+    const editToggle = `
       <button class="tl-edit-toggle ${editing ? 'is-active' : ''}"
         title="${editing ? 'Vypnout úpravy osy' : 'Zapnout úpravy osy (přesouvání karet, nové události)'}"
         ${dataAction('Timeline.setEditing', !editing)}>

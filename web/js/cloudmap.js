@@ -17,6 +17,10 @@ export const CloudMap = (() => {
   // ✏ Editovat palác button; persists across renders within the session.
   let _editing = false;
   function setEditing(on) {
+    if (on && Role.isAnonymous()) {
+      window.dispatchEvent(new CustomEvent('auth:prompt-login'));
+      return;
+    }
     _editing = !!on;
     const toolbar = document.querySelector('.map-toolbar');
     if (toolbar) toolbar.classList.toggle('is-editing', _editing);
@@ -132,7 +136,10 @@ export const CloudMap = (() => {
   }
 
   function _mysteryCloudH(m) {
-    const q     = (m.questions || [])[0];
+    // `questions` is now `{text, answer}` objects (string fallback for
+    // legacy / mid-migration data).
+    const first = (m.questions || [])[0];
+    const q     = Store.questionText(first);
     const qRows = q ? Math.min(2, _wrap(q, FONT_FACT, IW).length) : 0;
     return _base() + (1 + qRows) * H_FACT + H_OVERHEAD;
   }
@@ -294,7 +301,7 @@ export const CloudMap = (() => {
     const priColor = m.priority === 'kritická' ? '#C62828'
                    : m.priority === 'vysoká'   ? '#E65100'
                    : '#8A5CC8';
-    const q = (m.questions || [])[0] || '';
+    const q = Store.questionText((m.questions || [])[0]);
     let qHTML = '';
     if (q) {
       const lines = _wrap(q, FONT_FACT, IW).slice(0, 2);
@@ -483,7 +490,14 @@ export const CloudMap = (() => {
     if (type === 'mystery') {
       const m = Store.getMystery(id);
       if (!m) return '';
-      return [m.name, m.priority, ...(m.questions || []), ...(m.clues || [])]
+      // questions are {text, answer} objects post-migration; flatten
+      // both into the search blob so the cloudmap filter can match on
+      // either side. Clues stay as strings (no rework yet).
+      const qBlob = (m.questions || []).flatMap(qa => [
+        Store.questionText(qa),
+        Store.questionAnswer(qa),
+      ]);
+      return [m.name, m.priority, ...qBlob, ...(m.clues || [])]
         .filter(Boolean).join(' ');
     }
     if (type === 'event') {
@@ -866,10 +880,11 @@ export const CloudMap = (() => {
 
     const container = document.getElementById('main-content');
     container.style.display = '';
-    // Per-page edit toggle in the toolbar. Hidden for anonymous viewers;
-    // when on, the .cm-save-pos layout-action buttons appear (gated by
-    // `.map-toolbar.is-editing` in cloudmap.css).
-    const editToggle = Role.isAnonymous() ? '' : `
+    // Per-page edit toggle in the toolbar — visible to everyone;
+    // anonymous click surfaces the login modal via setEditing's role
+    // check. When on, the `.cm-save-pos` layout-action buttons appear
+    // (gated by `.map-toolbar.is-editing` in cloudmap.css).
+    const editToggle = `
       <button class="map-mode-btn cm-edit-toggle ${_editing ? 'is-active' : ''}"
         id="cm-edit-btn"${dataAction('CloudMap.setEditing', !_editing)}
         title="${_editing ? 'Vypnout úpravy paláce' : 'Zapnout úpravy paláce (rozložení, ukládání pozic)'}">

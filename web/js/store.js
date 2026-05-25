@@ -653,6 +653,66 @@ export const Store = (() => {
    *
    * @returns {{enumChanged: boolean, characters: Array, locations: Array, factions: Array}}
    */
+  /**
+   * Promote `mystery.questions[]` and `character.unknown[]` from string
+   * arrays to arrays of `{text, answer}` objects so each question /
+   * unknown item can carry its own answer (and thus its own "solved"
+   * state). Mystery is considered solved iff every question has a
+   * non-empty `answer`.
+   *
+   * Idempotent: entries that are already objects with a `text` key are
+   * left alone. Entries with a non-string, non-object value (or null)
+   * get coerced into an empty `{text:'', answer:''}` so subsequent code
+   * can assume the canonical shape.
+   *
+   * @returns {{mysteries: Array, characters: Array}}
+   */
+  function _migrateQuestionsToObjects() {
+    if (!_data) return { mysteries: [], characters: [] };
+    const touchedM = [];
+    const touchedC = [];
+    const promote = (entry) => {
+      // Already in target shape — leave alone.
+      if (entry && typeof entry === 'object' && typeof entry.text === 'string') {
+        if (typeof entry.answer !== 'string') entry.answer = '';
+        return { entry, changed: typeof entry.answer === 'string' ? false : true };
+      }
+      // Promote a bare string to {text, answer:''}.
+      if (typeof entry === 'string') {
+        return { entry: { text: entry, answer: '' }, changed: true };
+      }
+      // Anything else (null, number, …) becomes an empty record.
+      return { entry: { text: '', answer: '' }, changed: true };
+    };
+    for (const m of _data.mysteries || []) {
+      if (!Array.isArray(m.questions)) continue;
+      let changed = false;
+      const next = m.questions.map(q => {
+        const r = promote(q);
+        if (r.changed) changed = true;
+        return r.entry;
+      });
+      if (changed) {
+        m.questions = next;
+        touchedM.push(m);
+      }
+    }
+    for (const c of _data.characters || []) {
+      if (!Array.isArray(c.unknown)) continue;
+      let changed = false;
+      const next = c.unknown.map(u => {
+        const r = promote(u);
+        if (r.changed) changed = true;
+        return r.entry;
+      });
+      if (changed) {
+        c.unknown = next;
+        touchedC.push(c);
+      }
+    }
+    return { mysteries: touchedM, characters: touchedC };
+  }
+
   function _migrateDropPartyFromAttitudesEnum() {
     const result = { enumChanged: false, characters: [], locations: [], factions: [] };
     if (!_data) return result;
@@ -738,6 +798,10 @@ export const Store = (() => {
           // loads after migration completed.
           const playerPartyMig = _migratePartyFactionToPlayerParty();
           const partyAttMig    = _migrateDropPartyFromAttitudesEnum();
+          // Mystery questions + character unknowns: strings → objects
+          // with an `answer` field. Each entry becomes "solved" when
+          // its answer is non-empty.
+          const questionsMig   = _migrateQuestionsToObjects();
           for (const c of capturedTouched)            _sync('characters', 'save', c);
           for (const l of mapStatus.touchedLocations) _sync('locations', 'save', l);
           if (mapStatus.droppedSettingsCat)           _sync('settings', 'delete', { id: 'mapStatuses' });
@@ -770,6 +834,8 @@ export const Store = (() => {
           for (const c of partyAttMig.characters) _sync('characters', 'save', c);
           for (const l of partyAttMig.locations)  _sync('locations',  'save', l);
           for (const { id, fac } of partyAttMig.factions) _sync('factions', 'save', { id, data: fac });
+          for (const m of questionsMig.mysteries)  _sync('mysteries',  'save', m);
+          for (const c of questionsMig.characters) _sync('characters', 'save', c);
           _reindex();
           return;
         }
@@ -1242,6 +1308,53 @@ export const Store = (() => {
   function getEvent(id)     { return getEvents().find(e => e.id === id) || null; }
   /** @param {string} id @returns {object|null} */
   function getMystery(id)   { return getMysteries().find(m => m.id === id) || null; }
+
+  /** A mystery question is "answered" iff its `answer` is a non-empty
+   *  string. Defensive against legacy string-shaped entries (treated
+   *  as unanswered). */
+  function isQuestionAnswered(q) {
+    if (!q) return false;
+    if (typeof q === 'string') return false;
+    return typeof q.answer === 'string' && q.answer.trim().length > 0;
+  }
+  /** Extract the question/unknown text regardless of entry shape. The
+   *  migration normalises everything to `{text, answer}` objects, but
+   *  this helper stays defensive so search-blob construction and the
+   *  dashboard preview survive pre-migration data. */
+  function questionText(q) {
+    if (q && typeof q === 'object') return q.text || '';
+    return String(q || '');
+  }
+  function questionAnswer(q) {
+    if (q && typeof q === 'object') return q.answer || '';
+    return '';
+  }
+  /** A mystery is "solved" iff (1) the legacy `solved:true` flag is set,
+   *  OR (2) it has at least one question and every question is answered.
+   *  No questions = not auto-solved (an empty mystery is "still open"). */
+  function isMysterySolved(m) {
+    if (!m) return false;
+    if (m.solved === true) return true;
+    const qs = Array.isArray(m.questions) ? m.questions : [];
+    if (qs.length === 0) return false;
+    return qs.every(isQuestionAnswered);
+  }
+  /** Get every open question across every mystery, flattened. Each
+   *  entry: `{mystery, index, text}` so callers can render + link
+   *  back to the source. Filters out empty-text entries. */
+  function getOpenQuestions() {
+    const out = [];
+    for (const m of getMysteries() || []) {
+      const qs = Array.isArray(m.questions) ? m.questions : [];
+      qs.forEach((q, i) => {
+        if (isQuestionAnswered(q)) return;
+        const text = (q && typeof q === 'object') ? (q.text || '') : String(q || '');
+        if (!text.trim()) return;
+        out.push({ mystery: m, index: i, text });
+      });
+    }
+    return out;
+  }
 
   // Stamp the entity with a last-modified timestamp. Used by the
   // dashboard activity feed and any "Naposledy upraveno" label.
@@ -1995,9 +2108,16 @@ export const Store = (() => {
     init();
     const q = norm(query);
     if (!q) return _data.mysteries.slice();
-    return _data.mysteries.filter(m =>
-      _match(m.name, q) || _match((m.questions || []).join(' '), q) || _match((m.tags || []).join(' '), q)
-    );
+    return _data.mysteries.filter(m => {
+      // questions are now {text, answer} objects — extract both so
+      // the user can find a mystery by the text in either field.
+      const qBlob = (m.questions || [])
+        .map(qa => questionText(qa) + ' ' + questionAnswer(qa))
+        .join(' ');
+      return _match(m.name, q)
+        || _match(qBlob, q)
+        || _match((m.tags || []).join(' '), q);
+    });
   }
   function searchSpecies(query) {
     init();
@@ -2160,6 +2280,8 @@ export const Store = (() => {
     getCharactersByFaction, getCharactersInLocation, getRelationshipsFor,
     getEventsWithCharacter, getEventsAtLocation, getMysteriesWithCharacter,
     getPinForLocation,
+    isQuestionAnswered, isMysterySolved, getOpenQuestions,
+    questionText, questionAnswer,
     searchCharacters, searchLocations, searchEvents, searchMysteries,
     searchSpecies, searchPantheon, searchArtifacts, searchHistoricalEvents,
     searchAll,

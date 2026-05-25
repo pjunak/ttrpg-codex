@@ -565,10 +565,10 @@ export const WorldMap = (() => {
     // "+ Přidat místo" / "✚ Uložit pohled" / "⚙ Mapa" are editor-only
     // actions — gated by the `.sc-shell.is-editing` class set by
     // `setEditing(bool)` (toggled via the `✏ Editovat mapu` button).
-    // Anonymous viewers don't see that toggle at all so they can't
-    // enter edit state from here.
+    // The toggle is rendered for everyone — anonymous click surfaces
+    // the login modal via setEditing's role check below.
     const shellClass = _editing ? 'sc-shell is-editing' : 'sc-shell';
-    const editToggle = Role.isAnonymous() ? '' : `
+    const editToggle = `
       <button class="sc-btn sc-edit-toggle ${_editing ? 'is-active' : ''}"
         id="sc-edit-btn"${dataAction('WorldMap.setEditing', !_editing)}
         title="${_editing ? 'Vypnout úpravy mapy' : 'Zapnout úpravy mapy (přesouvání pinů, nová místa)'}">
@@ -1661,6 +1661,15 @@ export const WorldMap = (() => {
    *  add-mode is cleared on toggle-off so a stale crosshair doesn't
    *  hang around. */
   function setEditing(on) {
+    // Anonymous users see the toggle button but clicking it surfaces
+    // the login modal first. After login they click again. Routed via
+    // a window event because `editmode.js → map.js` is the existing
+    // import direction (PIN_TYPES etc.) — importing EditMode back into
+    // map.js would be a cycle.
+    if (on && Role.isAnonymous()) {
+      window.dispatchEvent(new CustomEvent('auth:prompt-login'));
+      return;
+    }
     _editing = !!on;
     // Toggle the toolbar class so .edit-only-inline buttons appear /
     // disappear. The wrapping `.sc-shell.is-editing` (added by the
@@ -1765,6 +1774,12 @@ export const WorldMap = (() => {
    * @param {string} locId
    */
   function startPlacingPin(locId) {
+    // "📍 Umístit na mapu" is visible to anonymous viewers on the
+    // location article; clicking surfaces the login modal first.
+    if (Role.isAnonymous()) {
+      window.dispatchEvent(new CustomEvent('auth:prompt-login'));
+      return;
+    }
     const loc = Store.getLocation(locId);
     if (!loc) return;
     const targetParent = loc.parentId || null;

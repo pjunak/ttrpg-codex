@@ -123,12 +123,18 @@ export const Wiki = (() => {
   window.addEventListener('editmode:clean', () => {
     _editingArticle = null;
   });
-  /** Build the "✏ Upravit" button HTML for an article header. Returns
-   *  an empty string when the viewer can't edit (anonymous), so the
-   *  shell collapses the action bar gracefully. The route format must
-   *  match what startEditingArticle expects so the data-action round-trips. */
+  // QA-row shape helpers — used by mystery question rendering AND
+  // character "Otevřené otázky" rendering. Defensive against legacy
+  // string entries that haven't been migrated yet.
+  function _qaText(q)   { return (q && typeof q === 'object') ? (q.text   || '') : String(q || ''); }
+  function _qaAnswer(q) { return (q && typeof q === 'object') ? (q.answer || '') : ''; }
+
+  /** Build the "✏ Upravit" button HTML for an article header. Always
+   *  emits the button — clicking it as an anonymous viewer surfaces
+   *  the login modal via `Wiki.startEditingArticle` →
+   *  `EditMode.promptLogin`. The route format must match what
+   *  startEditingArticle expects so the data-action round-trips. */
   function _articleEditButton(collection, id) {
-    if (Role.isAnonymous()) return '';
     const prefix = _TWIN_LINK_ROUTE[collection];
     if (!prefix) return '';
     const route = '/' + prefix + '/' + id;
@@ -516,28 +522,29 @@ export const Wiki = (() => {
   function renderDashboard() {
     const campaign = Store.getCampaign();
     const party    = Store.getPartyMembers();
-    const canEdit  = !Role.isAnonymous();
-
+    // Edit affordances render unconditionally — clicking one as an
+    // anonymous viewer surfaces the login modal via EditMode.promptLogin
+    // (each action handler checks Role.isAnonymous itself). Hiding them
+    // would make the "you can edit this" affordance undiscoverable.
     return `
-      ${_dashHeroHtml(campaign, canEdit)}
-      ${_dashPartyHtml(party, canEdit)}
-      ${_dashLastSessionHtml(canEdit)}
+      ${_dashHeroHtml(campaign)}
+      ${_dashPartyHtml(party)}
+      ${_dashLastSessionHtml()}
       ${_dashMysteriesHtml()}
     `;
   }
 
-  function _dashHeroHtml(campaign, canEdit) {
+  function _dashHeroHtml(campaign) {
     // Per-field inline edit. Each hero line carries data-on-blur and
     // data-on-keydown wiring at all times — the handlers only fire when
     // the element becomes focusable, which happens only via
-    // Wiki.startInlineEdit (triggered by the small pencil next to each
-    // field). Anonymous viewers don't see the pencils.
+    // Wiki.startInlineEdit (which prompts login for anonymous viewers).
     const fieldAttrs = (field) => `
       ${dataOn('blur', 'Wiki.commitInlineEdit', field, '$text', '$el')}
       ${dataOn('keydown', 'Wiki.handleInlineEditKey', '$ev', '$el')}`;
-    const editPen = (elId, label) => canEdit ? `
+    const editPen = (elId, label) => `
       <button type="button" class="dash-hero-pen" title="${esc(label)}"
-        ${dataAction('Wiki.startInlineEdit', elId)}>✏</button>` : '';
+        ${dataAction('Wiki.startInlineEdit', elId)}>✏</button>`;
     return `
       <div class="dash-hero">
         <div class="dash-hero-row">
@@ -552,14 +559,15 @@ export const Wiki = (() => {
       </div>`;
   }
 
-  function _dashPartyHtml(party, canEdit) {
-    // Section header gets a "+ Přidat" button for authed viewers — the
-    // trailing dashed card on the party grid is gone (matches the
-    // pattern used on every list page now).
-    const addBtn = canEdit ? `
+  function _dashPartyHtml(party) {
+    // Section header gets a "+ Přidat" button always — clicking it as
+    // an anonymous viewer surfaces the login modal via
+    // EditMode.startNewCharacter → promptLogin. The trailing dashed
+    // card on the party grid is gone (matches the list-page pattern).
+    const addBtn = `
       <button class="dash-section-action dash-section-add"
         ${dataAction('EditMode.startNewCharacter', { faction: PARTY_FACTION_ID, knowledge: 4, status: 'alive' })}
-        title="Přidat novou postavu do party">＋ Přidat</button>` : '';
+        title="Přidat novou postavu do party">＋ Přidat</button>`;
     if (!party.length) {
       return `
         <div class="dash-section">
@@ -607,11 +615,14 @@ export const Wiki = (() => {
       </div>`;
   }
 
-  function _dashLastSessionHtml(canEdit) {
+  function _dashLastSessionHtml() {
     const events = Store.dedupeShadowTwins('events', Store.getEvents());
     const maxSitting = events.reduce((m, e) => Math.max(m, Number(e.sitting) || 0), 0);
     if (maxSitting === 0) {
-      if (canEdit) return `
+      // Empty-state nudge is rendered for everyone (the link target —
+      // the timeline — is a public page; we just lose the "you can
+      // add events here" nudge for anonymous, which is a fine trade).
+      if (!Role.isAnonymous()) return `
         <div class="dash-section">
           <div class="dash-section-head"><h2>🕯 Poslední sezení</h2></div>
           <div class="dash-empty">Zatím nejsou žádné události s přiřazeným sezením. Přidej událost v <a href="#/casova-osa">Časové ose</a>.</div>
@@ -658,8 +669,14 @@ export const Wiki = (() => {
       const prio = m.priority
         ? `<span class="mystery-priority priority-${esc(m.priority)}">${esc(m.priority.toUpperCase())}</span>`
         : '';
-      const questions = Array.isArray(m.questions) && m.questions.length
-        ? `<div class="dash-mystery-q">${esc(m.questions[0])}</div>` : '';
+      // Surface the first OPEN question (or fall back to the first
+      // entry if none are open, so a fully-solved mystery still shows
+      // a hint of what it was about).
+      const firstOpen = (Array.isArray(m.questions) ? m.questions : [])
+        .find(q => !Store.isQuestionAnswered(q));
+      const firstQ = firstOpen || (Array.isArray(m.questions) ? m.questions[0] : null);
+      const questions = firstQ
+        ? `<div class="dash-mystery-q">${esc(Store.questionText(firstQ))}</div>` : '';
       return `
         <a class="dash-mystery-row" href="#/zahada/${m.id}">
           <div class="dash-mystery-name">❓ ${esc(m.name)}</div>
@@ -701,15 +718,16 @@ export const Wiki = (() => {
   // `handleInlineEditKey`. Replaces the global-edit-mode-driven
   // "everything in the hero is contenteditable" pattern.
   /**
-   * Make the element with id `elId` editable + focus it. No-op for
-   * anonymous viewers — the pen icons aren't even rendered for them,
-   * but defence in depth means a stale console call from a former
-   * editor session won't surprise anything.
+   * Make the element with id `elId` editable + focus it. Anonymous
+   * viewers see the pen icon too — clicking it surfaces the login
+   * modal; after login the user clicks the pen again. Auto-resume
+   * isn't wired because the cost (threading "pending intent" through
+   * the login flow) outweighs one extra click.
    *
    * @param {string} elId
    */
   function startInlineEdit(elId) {
-    if (Role.isAnonymous()) return;
+    if (Role.isAnonymous()) { EditMode.promptLogin(); return; }
     const el = document.getElementById(elId);
     if (!el) return;
     // Stash the pre-edit text so Esc can revert without round-tripping
@@ -937,8 +955,11 @@ export const Wiki = (() => {
 
     const shown = _postavyApply(filterFaction);
 
-    const newBtn = !Role.isAnonymous() ? `
-      <a href="#/postava/new" class="list-item-new" style="text-decoration:none">＋ Nová postava</a>` : "";
+    // "+ Nová postava" is always rendered. Anonymous click → login modal
+    // via the renderer's short-circuit on `id === "new"` → editor save
+    // gating in the action handlers.
+    const newBtn = `
+      <a href="#/postava/new" class="list-item-new" style="text-decoration:none">＋ Nová postava</a>`;
 
     return `
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
@@ -1130,8 +1151,7 @@ export const Wiki = (() => {
         { title: 'Zmínky v Událostech', html: eventsInvolved.length ? _eventListHtml(eventsInvolved) : '' },
         { title: 'Co víme',             html: (c.knowledge >= 2 && (c.known||[]).length)
                                                 ? _factListHtml(c.known, 'fact-item')   : '' },
-        { title: 'Otevřené Otázky',     html: (c.unknown||[]).length
-                                                ? _factListHtml(c.unknown, 'unknown-item') : '' },
+        { title: 'Otevřené otázky',     html: _qaListHtmlSplit(c.unknown || []) },
       ],
       body,
       outlineSource: c.knowledge >= 2 ? c.description : '',
@@ -1160,6 +1180,29 @@ export const Wiki = (() => {
     return `<div class="fact-list">${items.map(it =>
       `<div class="${rowClass}">${esc(it)}</div>`
     ).join('')}</div>`;
+  }
+  // Render a {text, answer} list for character "Otevřené otázky" /
+  // mystery "Otázky" — splits the array into open vs answered and
+  // renders each segment with its own row style. Returns '' if both
+  // segments are empty (so the article-shell collapses the section).
+  function _qaListHtmlSplit(items) {
+    const arr = Array.isArray(items) ? items : [];
+    if (!arr.length) return '';
+    const open   = arr.filter(q => !Store.isQuestionAnswered(q));
+    const closed = arr.filter(Store.isQuestionAnswered);
+    if (!open.length && !closed.length) return '';
+    const openHtml = open.length
+      ? `<div class="fact-list">${open.map(q =>
+          `<div class="unknown-item">${esc(_qaText(q))}</div>`).join('')}</div>`
+      : '';
+    const closedHtml = closed.length
+      ? `<div class="fact-list">${closed.map(q => `
+          <div class="qa-solved">
+            <div class="qa-solved-q">✓ ${esc(_qaText(q))}</div>
+            <div class="qa-solved-a">${esc(_qaAnswer(q))}</div>
+          </div>`).join('')}</div>`
+      : '';
+    return openHtml + closedHtml;
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -1292,11 +1335,10 @@ export const Wiki = (() => {
           ctaLabel: 'Nové místo', ctaHref: '#/misto/new',
         })}`;
     }
-    // "+ Přidat" button in the list header — always visible to authed
-    // viewers; anonymous viewers don't see edit affordances at all.
-    // Clicking lands on /misto/new which short-circuits to the editor.
-    const newBtn = !Role.isAnonymous() ? `
-      <a href="#/misto/new" class="list-item-new" style="text-decoration:none">＋ Nové místo</a>` : "";
+    // "+ Nové místo" — always rendered (anonymous click prompts login
+    // via the editor's save handler).
+    const newBtn = `
+      <a href="#/misto/new" class="list-item-new" style="text-decoration:none">＋ Nové místo</a>`;
 
     // Attitude chip filter — same pattern as /postavy. Counts use
     // getEffectiveAttitudes so the filter agrees with what the cards
@@ -1403,7 +1445,9 @@ export const Wiki = (() => {
       mapButtons.push(
         `<button class="inline-create-btn"${dataAction('WorldMap.showPin', l.id)}>🧭 Najít na mapě</button>`
       );
-    } else if (!Role.isAnonymous()) {
+    } else {
+      // "📍 Umístit na mapu" — always rendered. WorldMap.startPlacingPin
+      // checks Role.isAnonymous and prompts login if needed.
       mapButtons.push(
         `<button class="inline-create-btn"${dataAction('WorldMap.startPlacingPin', l.id)}>📍 Umístit na mapu</button>`
       );
@@ -1420,16 +1464,15 @@ export const Wiki = (() => {
     const mapRow = mapButtons.length
       ? `<div class="inline-create-row">${mapButtons.join('')}</div>` : '';
 
-    // Inline create affordances on the location article — let the user
-    // spin up a character / event / sub-location pre-linked to this
-    // place without entering edit mode first. Hidden for anonymous;
-    // visible for any authed viewer (player or DM).
-    const inlineCreate = !Role.isAnonymous() ? `
+    // Inline create affordances on the location article — let any
+    // viewer spin up a character / event / sub-location pre-linked to
+    // this place. Anonymous click → login modal via the action handlers.
+    const inlineCreate = `
       <div class="inline-create-row">
         <button class="inline-create-btn"${dataAction('EditMode.startNewCharacterInLocation', l.id)}>＋ Postava zde</button>
         <button class="inline-create-btn"${dataAction('EditMode.startNewEvent', { locations: [l.id] })}>＋ Událost zde</button>
         <button class="inline-create-btn"${dataAction('EditMode.startNewLocation', { parentId: l.id })}>＋ Dílčí místo</button>
-      </div>` : "";
+      </div>`;
 
     const pt = PIN_TYPES[l.pinType] || PIN_TYPES.custom || { icon: '📍', label: l.type || '' };
     const chips = [];
@@ -1544,9 +1587,66 @@ export const Wiki = (() => {
     });
   }
 
+  // ── Aggregate "Všechny otevřené otázky" view ─────────────────
+  // Flat list of every open question across all mysteries. Live
+  // filtering on a plain input — diacritic-insensitive substring
+  // match on the question text OR the parent mystery's name. State
+  // is read at render time from `_zahadyQuestionFilter` so an SSE
+  // re-render preserves the user's filter.
+  let _zahadyQuestionFilter = '';
+  function setZahadyQuestionFilter(value) {
+    _zahadyQuestionFilter = String(value || '');
+    const root = document.getElementById('zahady-questions-list');
+    if (root) root.innerHTML = _openQuestionsRowsHtml();
+  }
+  function _openQuestionsRowsHtml() {
+    const q = norm(_zahadyQuestionFilter);
+    const rows = Store.getOpenQuestions()
+      .map(item => ({
+        ...item,
+        blob: norm((item.text || '') + ' ' + (item.mystery?.name || '')),
+      }))
+      .filter(item => !q || item.blob.includes(q));
+    if (!rows.length) {
+      return `<div class="list-empty">${_zahadyQuestionFilter
+        ? 'Žádná otevřená otázka neodpovídá hledání.'
+        : 'Žádné otevřené otázky — všechny záhady jsou vyřešené.'}</div>`;
+    }
+    return rows.map(item => `
+      <div class="oq-row">
+        <div class="oq-text">${esc(item.text)}</div>
+        <a class="oq-mystery" href="#/zahada/${item.mystery.id}">
+          ❓ ${esc(item.mystery.name)}
+          ${item.mystery.priority ? `<span class="mystery-priority priority-${item.mystery.priority}">${esc(item.mystery.priority)}</span>` : ''}
+        </a>
+      </div>`).join('');
+  }
+  function _openQuestionsBlock() {
+    const total = Store.getOpenQuestions().length;
+    if (total === 0) return '';
+    return `
+      <details class="oq-block" open>
+        <summary class="oq-summary">
+          <span class="oq-summary-label">📋 Všechny otevřené otázky</span>
+          <span class="oq-summary-count">${total}</span>
+        </summary>
+        <div class="oq-toolbar">
+          <input type="search" class="edit-input oq-search"
+            placeholder="🔍 Hledat v textu otázky nebo jménu záhady…"
+            value="${esc(_zahadyQuestionFilter)}"
+            ${dataOn('input', 'Wiki.setZahadyQuestionFilter', '$value')}>
+        </div>
+        <div class="oq-list" id="zahady-questions-list">${_openQuestionsRowsHtml()}</div>
+      </details>`;
+  }
+
   // ══════════════════════════════════════════════════════════════
-  //  MYSTERIES LIST
+  //  MYSTERIES LIST + ALL-OPEN-QUESTIONS view
   // ══════════════════════════════════════════════════════════════
+  // Listed first: every mystery card (existing layout). Then below,
+  // a flat list of every open question across all mysteries with
+  // TagFilter search — answers the user's "convenient search for all
+  // questions" need without making the cards harder to scan.
   function renderMysteries() {
     const mysteries = Store.dedupeShadowTwins('mysteries', Store.getMysteries());
     if (mysteries.length === 0) {
@@ -1563,27 +1663,39 @@ export const Wiki = (() => {
       const order = { kritická: 0, vysoká: 1, střední: 2 };
       return (order[a.priority] || 9) - (order[b.priority] || 9);
     });
+    const unsolvedCount = mysteries.filter(m => !Store.isMysterySolved(m)).length;
 
-    const newBtn = !Role.isAnonymous() ? `
-      <a href="#/zahada/new" class="list-item-new" style="text-decoration:none">＋ Nová záhada</a>` : "";
+    const newBtn = `
+      <a href="#/zahada/new" class="list-item-new" style="text-decoration:none">＋ Nová záhada</a>`;
 
     return `
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
         <div style="flex:1">
           <h1>❓ Záhady &amp; Otevřené Otázky</h1>
-          <div class="subtitle">${mysteries.length} nevyřešených záhad</div>
+          <div class="subtitle">${unsolvedCount} nevyřešených z ${mysteries.length}</div>
         </div>
         ${newBtn}
       </div>
       <div class="mystery-list">
+        ${_openQuestionsBlock()}
         ${sorted.map(m => {
           const editBtn = editOverlay(`#/zahada/${m.id}`);
+          const openCnt  = (m.questions || []).filter(q => !Store.isQuestionAnswered(q)).length;
+          const totalCnt = (m.questions || []).length;
+          const solved   = Store.isMysterySolved(m);
+          const qBadge   = totalCnt > 0
+            ? `<span class="mystery-qcount" title="Otevřené otázky / celkem">${openCnt}/${totalCnt} otázek</span>`
+            : '';
+          const solvedBadge = solved ? `<span class="profile-chip" style="margin-left:0.4rem">✓ Vyřešeno</span>` : '';
+          // Card body is a <div> (can't be an <a> because it nests
+          // relation-chips which are themselves <a>). Title becomes a
+          // wiki-link so the user can still click into the detail page.
           return `<div class="mystery-card">
-            <div class="mystery-name" style="display:flex;align-items:center;justify-content:space-between">
-              <span>❓ ${esc(m.name)} ${_twinCardMarker(m)}</span>
+            <div class="mystery-name" style="display:flex;align-items:center;justify-content:space-between;gap:0.4rem">
+              <a href="#/zahada/${m.id}" style="text-decoration:none;color:inherit">❓ ${esc(m.name)} ${_twinCardMarker(m)}${solvedBadge}</a>
               ${editBtn}
             </div>
-            <div class="mystery-priority priority-${m.priority}">PRIORITA: ${m.priority.toUpperCase()}</div>
+            <div class="mystery-priority priority-${m.priority}">PRIORITA: ${m.priority.toUpperCase()} ${qBadge}</div>
             <div class="mystery-desc md-view" style="margin-top:0.5rem">${renderMarkdown(m.description)}</div>
             ${(m.characters||[]).length ? `
               <div style="margin-top:0.75rem">
@@ -1615,6 +1727,27 @@ export const Wiki = (() => {
       return c ? `<a class="relation-chip" href="#/postava/${cid}">${esc(c.name)}</a>` : '';
     }).join('');
 
+    // Split questions into open vs answered. `_qaText` / `_qaAnswer`
+    // handle both the legacy string shape and the {text, answer}
+    // object shape; the migration on load normalises everything to
+    // objects, so legacy handling is defence-in-depth.
+    const allQs = Array.isArray(m.questions) ? m.questions : [];
+    const openQs    = allQs.filter(q => !Store.isQuestionAnswered(q));
+    const solvedQs  = allQs.filter(Store.isQuestionAnswered);
+    const solvedAll = Store.isMysterySolved(m);
+
+    const openQHtml = openQs.length
+      ? `<div class="fact-list">${openQs.map(q =>
+          `<div class="unknown-item">${esc(_qaText(q))}</div>`).join('')}</div>`
+      : '';
+    const solvedQHtml = solvedQs.length
+      ? `<div class="fact-list">${solvedQs.map(q => `
+          <div class="qa-solved">
+            <div class="qa-solved-q">✓ ${esc(_qaText(q))}</div>
+            <div class="qa-solved-a">${esc(_qaAnswer(q))}</div>
+          </div>`).join('')}</div>`
+      : '';
+
     _setCurrentArticle({ type: 'mysteries', id });
     return _articleShell({
       editButton: _articleEditButton('mysteries', id),
@@ -1623,15 +1756,15 @@ export const Wiki = (() => {
       subtitle: `Priorita: ${m.priority}`,
       chips: [
         `<span class="mystery-priority priority-${m.priority}">${m.priority.toUpperCase()}</span>`,
-        m.solved
+        solvedAll
           ? `<span class="profile-chip">✓ Vyřešeno</span>`
           : `<span class="profile-chip">⧗ Otevřená</span>`,
       ],
       facts: [_twinFactRow('mysteries', m)].filter(Boolean),
       sections: [
-        { title: 'Otázky', html: (m.questions||[]).length
-          ? `<div class="fact-list">${m.questions.map(q => `<div class="unknown-item">${esc(q)}</div>`).join('')}</div>` : '' },
-        { title: 'Stopy',  html: (m.clues||[]).length
+        { title: 'Otevřené otázky', html: openQHtml },
+        { title: 'Vyřešené otázky', html: solvedQHtml },
+        { title: 'Stopy',           html: (m.clues||[]).length
           ? `<div class="fact-list">${m.clues.map(c => `<div class="fact-item">${esc(c)}</div>`).join('')}</div>` : '' },
         { title: 'Spojené postavy', html: charChips ? `<div class="relation-chips">${charChips}</div>` : '' },
       ],
@@ -1734,7 +1867,7 @@ export const Wiki = (() => {
           <h1>⬡ Frakce</h1>
           <div class="subtitle">${shown} / ${total} frakcí</div>
         </div>
-        ${!Role.isAnonymous() ? `<a href="#/frakce/new" class="list-item-new" style="text-decoration:none">＋ Nová frakce</a>` : ""}
+        <a href="#/frakce/new" class="list-item-new" style="text-decoration:none">＋ Nová frakce</a>
       </div>
       ${_listToolbar('frakce', [
         ['default', 'Výchozí'],
@@ -1812,10 +1945,10 @@ export const Wiki = (() => {
       !c.rankChain || !(f.rankChains || []).find(ch => ch.id === c.rankChain)
     );
 
-    const inlineCreate = !Role.isAnonymous() ? `
+    const inlineCreate = `
       <div class="inline-create-row">
         <button class="inline-create-btn"${dataAction('EditMode.startNewCharacter', { faction: id })}>＋ Nová postava ve frakci</button>
-      </div>` : "";
+      </div>`;
 
     const rankCount = (f.rankChains || []).reduce((s, ch) => s + ch.ranks.length, 0);
     const chips = [
@@ -1896,9 +2029,9 @@ export const Wiki = (() => {
 
     const count = party.length;
     const countLabel = count === 1 ? 'člen' : (count >= 2 && count <= 4 ? 'členové' : 'členů');
-    const newBtn = !Role.isAnonymous() ? `
+    const newBtn = `
       <button class="list-item-new"
-        ${dataAction('EditMode.startNewCharacter', { faction: PARTY_FACTION_ID, knowledge: 4, status: 'alive' })}>＋ Nový člen party</button>` : '';
+        ${dataAction('EditMode.startNewCharacter', { faction: PARTY_FACTION_ID, knowledge: 4, status: 'alive' })}>＋ Nový člen party</button>`;
 
     return `
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
@@ -1968,7 +2101,7 @@ export const Wiki = (() => {
   //  SPECIES / PANTHEON / ARTIFACTS
   // ══════════════════════════════════════════════════════════════
   function _simpleListHeader(title, subtitle, newHref, newLabel) {
-    const newBtn = !Role.isAnonymous() && newHref
+    const newBtn = newHref
       ? `<a href="${newHref}" class="list-item-new" style="text-decoration:none">＋ ${newLabel}</a>` : '';
     return `
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
@@ -2302,6 +2435,8 @@ export const Wiki = (() => {
     // check for article view-vs-edit branching).
     startEditingArticle, stopEditingArticle, cancelEditingArticle,
     syncEditRoute,
+    // /zahady aggregate-questions live filter.
+    setZahadyQuestionFilter,
     // Dashboard hero per-field inline edit.
     startInlineEdit, commitInlineEdit, handleInlineEditKey,
     // Polarity-aware wiki-link tie-breaker uses this (in app.js):
