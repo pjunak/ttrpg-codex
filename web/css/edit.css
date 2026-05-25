@@ -1,23 +1,52 @@
 /* ═══════════════════════════════════════════════════════════════
-   EDIT MODE — construction stripe, controls, forms, overlays
+   EDIT AFFORDANCES — per-page edit toggles, per-card pencils,
+   inline editors, and shared form/overlay chrome.
+
+   The global "construction stripe" (body.edit-mode::after) is gone:
+   editing is per-page now (Wiki._editingArticle, WorldMap.setEditing,
+   Timeline.setEditing, CloudMap.setEditing, dashboard per-field pen).
+   Each context carries its own visual cue (article form vs. read
+   view, toolbar `.is-editing` chip, etc.).
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Edit mode active indicator — construction stripe on all edges ── */
-body.edit-mode::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  border: 7px solid transparent;
-  border-image: repeating-linear-gradient(
-    -45deg,
-    #f5a623 0px,  #f5a623 9px,
-    #1a1510 9px,  #1a1510 18px
-  ) 7;
-  pointer-events: none;
-  z-index: 9998;
+/* ── Article action bar (read view) ──────────────────────────
+   Sits above every entity article: back button on the left,
+   ✏ Upravit on the right (when the viewer can edit). Anonymous
+   visitors only see the back button — the edit button renderer
+   returns '' for them. */
+.article-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
 }
+.article-actions .back-btn { margin: 0; }
+.article-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  color: var(--accent-gold);
+  background: rgba(200,160,64,0.10);
+  border: 1px solid rgba(200,160,64,0.45);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.article-edit-btn:hover {
+  background: rgba(200,160,64,0.20);
+  border-color: var(--accent-gold);
+}
+.article-edit-btn:active { transform: translateY(1px); }
 
-/* ── Sidebar footer buttons ──────────────────────────────────── */
+/* ── Sidebar footer button ────────────────────────────────────
+   The global "✏ Úpravy" toggle and the construction-stripe were
+   removed in the per-page edit migration. The footer now holds
+   just the ⚙ Nastavení entry. */
 .sidebar-footer {
   margin-top: auto;
   padding: 0.75rem 0.75rem 1rem;
@@ -25,26 +54,6 @@ body.edit-mode::after {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-}
-.edit-mode-toggle {
-  width: 100%;
-  background: var(--bg-raised);
-  border: 1px solid rgba(200,160,64,0.25);
-  border-radius: var(--radius);
-  padding: 0.5rem 0.75rem;
-  font-family: var(--font-ui);
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  text-align: left;
-}
-.edit-mode-toggle:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
-.edit-mode-toggle.active {
-  background: rgba(200,160,64,0.12);
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-  font-weight: 500;
 }
 .sidebar-export-btn {
   background: none;
@@ -60,19 +69,12 @@ body.edit-mode::after {
 }
 .sidebar-export-btn:hover { border-color: rgba(200,160,64,0.3); color: var(--text-light); text-decoration: none; }
 
-/* Buttons only visible when edit mode is active */
-.edit-only-btn { display: none; }
-.edit-mode .edit-only-btn { display: block; }
-
 /* ── Role-aware UI ────────────────────────────────────────────── */
-/* Edit mode toggle is visible to everyone — DMs and players both
-   have edit access, and anonymous visitors get a login prompt when
-   they click it. Only specific DM tools below are role-gated.    */
-
-/* Settings (⚙ Nastavení) edits the shared enum vocabulary —
-   attitudes, pin types, character statuses, etc. — which affects
-   every map glow and chip globally. DM-only. */
-body:not(.is-dm) .sidebar-export-btn { display: none; }
+/* Edit affordances are per-page now. The sidebar Settings link is
+   visible to everyone — the page itself routes role-aware (Účet for
+   any role, Záloha read-only for players, enum tabs DM-only behind
+   the per-action gates inside `settings.js`). Anonymous viewers see
+   a login prompt on the Account tab.                              */
 
 /* DM-only visibility editor section inside every entity form. The
    per-form Viditelnost select + secret-field toggles are operating
@@ -124,11 +126,11 @@ body:not(.is-dm) .sidebar-nav-dm { display: none; }
 /* Top-right login chip — floats over the dashboard for anonymous
    visitors. Rendered/removed by `_renderTopbarLogin` in app.js based
    on Role.isAnonymous() AND route === '/' (or '/dashboard'). Clicking
-   it goes through EditMode.toggle which shows the existing password
-   modal; on successful login the chip vanishes and edit mode comes on.
-   Logout + role switching live in Settings → Účet — no persistent
-   chrome outside Přehled is by design (the user asked for "no clutter
-   outside the homescreen"). */
+   it goes through `EditMode.promptLogin` which shows the password
+   modal; on successful login the chip vanishes. Logout + role
+   switching live in Settings → Účet — no persistent chrome outside
+   Přehled is by design (the user asked for "no clutter outside the
+   homescreen"). */
 .topbar-login {
   position: fixed;
   top: 1rem;
@@ -166,9 +168,9 @@ body.is-impersonating .topbar-login { top: calc(1rem + 36px); }
   .topbar-login-label { display: none; }
 }
 
-/* Top-of-page red banner while a DM is impersonating a player. The
-   construction stripe (body.edit-mode::after) sits at z-index 9998;
-   keep this above it so the warning is unmistakable. */
+/* Top-of-page red banner while a DM is impersonating a player.
+   z-index 9999 puts it above any per-page edit chrome so the warning
+   is unmistakable. */
 .impersonation-banner {
   position: fixed;
   top: 0; left: 0; right: 0;
@@ -543,28 +545,17 @@ body.twin-picker-open { overflow: hidden; }
   color: #f88;
 }
 
-/* ── Bottom nav edit toggle ──────────────────────────────────── */
-.bottom-item.edit-mode-toggle {
-  width: auto;
-  border: none;
-  border-radius: 0;
-  padding: 0;
-  background: none;
-  font-size: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  color: var(--text-muted);
-  transition: color 0.15s;
-}
-.bottom-item.edit-mode-toggle.active { color: var(--accent-gold); }
-.bottom-item.edit-mode-toggle .bottom-icon  { font-size: 1.3rem; }
-.bottom-item.edit-mode-toggle .bottom-label { font-family: var(--font-ui); font-size: 0.6rem; letter-spacing: 0.03em; }
+/* Mobile bottom-nav edit toggle removed in the per-page edit
+   migration — the rule set is gone, kept this header as a tombstone
+   so anyone searching for the old `.bottom-item.edit-mode-toggle`
+   selector finds the explanation. */
 
-/* ── Edit overlay on character cards ─────────────────────────── */
+/* ── Edit overlay on entity cards ────────────────────────────
+   Clickable pencil that routes through Wiki.startEditingArticle.
+   Dimly visible at rest (so the affordance is discoverable without
+   shouting "you can edit this") and goes fully opaque on hover —
+   either hover over the parent card OR hover over the pencil itself.
+   Hidden for anonymous viewers who can't edit anyway. */
 .edit-card-overlay {
   position: absolute;
   top: 0.4rem;
@@ -579,42 +570,25 @@ body.twin-picker-open { overflow: hidden; }
   font-size: 0.7rem;
   color: var(--accent-gold);
   text-decoration: none;
-  opacity: 0;
-  transition: opacity 0.15s, background 0.15s;
+  opacity: 0.45;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s, transform 0.1s;
   z-index: 5;
   backdrop-filter: blur(2px);
 }
-.char-card:hover .edit-card-overlay { opacity: 1; }
-body.edit-mode .edit-card-overlay  { opacity: 0.8; }
+.char-card:hover    .edit-card-overlay,
+.loc-card:hover     .edit-card-overlay,
+.faction-card:hover .edit-card-overlay,
+.mystery-card:hover .edit-card-overlay,
+.edit-card-overlay:hover { opacity: 1; background: rgba(200,160,64,0.20); }
+.edit-card-overlay:active { transform: translateY(1px); }
+body.is-anonymous .edit-card-overlay { display: none; }
 
-/* ── New item card (character grid) ──────────────────────────── */
-.char-card-new {
-  background: transparent;
-  border: 2px dashed rgba(200,160,64,0.25) !important;
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  gap: 0.5rem;
-  cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
-}
-.char-card-new:hover {
-  border-color: rgba(200,160,64,0.5) !important;
-  background: rgba(200,160,64,0.04);
-}
-.char-card-new-icon {
-  font-size: 1.8rem;
-  color: var(--accent-gold-dim);
-  line-height: 1;
-}
-.char-card-new-label {
-  font-family: var(--font-ui);
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
+/* The dashed `.char-card-new` (and friends `.loc-card-new` /
+   `.dash-party-card-new` in wiki.css) trailing-grid cards were
+   removed in the per-page edit migration. The create affordance
+   moved to always-visible "+ Přidat" buttons in each list's
+   page-header toolbar. CSS rules deleted as dead code. */
 
 /* ── New item button on list pages ───────────────────────────── */
 .list-item-new {
@@ -657,19 +631,11 @@ body.edit-mode .edit-card-overlay  { opacity: 0.8; }
 }
 .inline-create-btn:hover { background: rgba(200,160,64,0.16); }
 
-/* ── Edit button on list items ───────────────────────────────── */
-.list-edit-btn {
-  font-size: 0.78rem;
-  padding: 0.2rem 0.5rem;
-  background: rgba(200,160,64,0.08);
-  border: 1px solid rgba(200,160,64,0.25);
-  border-radius: var(--radius);
-  color: var(--accent-gold-dim);
-  text-decoration: none;
-  transition: background 0.15s, color 0.15s;
-  flex-shrink: 0;
-}
-.list-edit-btn:hover { background: rgba(200,160,64,0.18); color: var(--accent-gold); }
+/* `.list-edit-btn` was the inline-styled pencil on list-page cards
+   (loc/mystery/species/pantheon/artifact/historicalEvent). Unified
+   with `.edit-card-overlay` above — all entity-card pencils now share
+   that style, so the dedicated `.list-edit-btn` rules are dead code
+   and have been removed. */
 
 /* ══════════════════════════════════════════════════════════════
    EDIT FORM

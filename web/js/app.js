@@ -328,6 +328,11 @@ document.addEventListener('error',    (ev) => {
     // without waiting for a role transition.
     _renderTopbarLogin();
 
+    // Clear any per-article edit state if we're leaving the article it
+    // belongs to. Without this, navigating away mid-edit and then back
+    // would re-open the editor unexpectedly.
+    Wiki.syncEditRoute(route);
+
     // Mind-map sub-routes that all belong to Myšlenkový Palác
     const PALAC_ROUTES = new Set(["/mapa/palac", "/mapa/frakce", "/mapa/vztahy", "/mapa/tajemstvi"]);
 
@@ -647,7 +652,7 @@ document.addEventListener('error',    (ev) => {
     chip.type = 'button';
     chip.className = 'topbar-login';
     chip.title = 'Přihlásit a začít editovat';
-    chip.setAttribute('data-action', 'EditMode.toggle');
+    chip.setAttribute('data-action', 'EditMode.promptLogin');
     chip.innerHTML = '<span class="topbar-login-icon">🔑</span> <span class="topbar-login-label">Přihlásit</span>';
     document.body.appendChild(chip);
   }

@@ -142,7 +142,7 @@ Templates emit click and form handlers as `data-action` attributes
 instead of inline `onclick`:
 
 ```html
-<button data-action="EditMode.toggle">✏ Úpravy</button>
+<button data-action="EditMode.promptLogin">🔑 Přihlásit</button>
 <button data-action="Store.deleteCharacter" data-args='["frulam_a7b3c9"]'>×</button>
 ```
 

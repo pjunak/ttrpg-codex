@@ -15,7 +15,11 @@ import { Role } from './role.js';
 
 export const EditMode = (() => {
 
-  let _active = false;
+  // Phase 6 of the edit-mode migration removed the global toggle. The
+  // `_active` flag / `isActive()` / `body.edit-mode` class are gone;
+  // editing is per-page (Wiki._editingArticle, WorldMap.setEditing,
+  // Timeline.setEditing, CloudMap.setEditing). The IIFE keeps just the
+  // login affordance (promptLogin below) and the dirty-state guard.
 
   // ── Prefill state for new-entity creation ──────────────────────
   // Set by startNewCharacter / startNewLocation / startNewEvent and
@@ -332,80 +336,49 @@ export const EditMode = (() => {
     });
   }
 
-  // ── State ──────────────────────────────────────────────────────
-
-  /** @returns {boolean} `true` when the edit overlay is currently on. */
-  function isActive() { return _active; }
-
+  // ── Login affordance ───────────────────────────────────────────
   /**
-   * Toggle edit mode on/off. When enabling, prompts for the edit
-   * password if no `edit_session` cookie is present. When disabling,
-   * confirms first if there are unsaved edits — toggling re-renders
-   * the page, which would silently discard them.
+   * Show the password modal and log the visitor in. No-op for users
+   * who are already authed. Triggered by:
+   *   - the top-right 🔑 Přihlásit chip on the dashboard,
+   *   - the Settings → Účet "🔑 Přihlásit" button,
+   *   - per-article ✏ Upravit (Wiki.startEditingArticle) when the
+   *     caller is anonymous.
    *
-   * @returns {Promise<void>}
+   * Replaces the old `EditMode.toggle()` which both prompted for a
+   * password AND flipped a global edit-mode flag. With per-page edit
+   * affordances, the toggle behavior is gone — this function just
+   * authenticates. The caller's intent (entering edit mode on the
+   * article they clicked from, etc.) is handled by the caller after
+   * `role:changed` fires.
+   *
+   * @returns {Promise<boolean>} true on successful login, false otherwise.
    */
-  async function toggle() {
-    // Toggling re-renders the page (synthetic hashchange below) which
-    // would silently lose any unsaved edits in the active form. Confirm
-    // first if dirty so the user can cancel and save.
-    if (_dirty && !confirm('Máš neuložené změny. Opravdu opustit režim úprav?')) {
-      return;
-    }
-
-    if (!_active) {
-      // Edit mode is available to both DMs and players. Anonymous
-      // visitors are prompted for a password; either the DM or the
-      // player password is accepted, and the role baked into the
-      // cookie reflects which matched. Already-authed users (DM or
-      // player) skip the prompt and just toggle.
-      if (Role.isAnonymous()) {
-        const pwd = await _passwordPrompt('Pro editaci se přihlas (DM nebo hráčské heslo):');
-        if (!pwd) return;
-        try {
-          const res = await fetch('/api/login', {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ password: pwd }),
-            credentials: 'same-origin',
-          });
-          if (!res.ok) {
-            _toast('Špatné heslo', false);
-            return;
-          }
-          // Refresh the cached role so body.is-dm / is-player are set
-          // and the rest of the UI can branch correctly before re-render.
-          await Role.refresh();
-          _toast(Role.isDM() ? 'DM přístup ✓' : 'Hráčský přístup ✓');
-        } catch (e) {
-          console.warn(e);
-          _toast('Chyba při přihlášení', false);
-          return;
-        }
+  async function promptLogin() {
+    if (!Role.isAnonymous()) return true;
+    const pwd = await _passwordPrompt('Pro editaci se přihlas (DM nebo hráčské heslo):');
+    if (!pwd) return false;
+    try {
+      const res = await fetch('/api/login', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ password: pwd }),
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        _toast('Špatné heslo', false);
+        return false;
       }
+      // Refresh the cached role so body.is-dm / is-player are set
+      // before any post-login render runs.
+      await Role.refresh();
+      _toast(Role.isDM() ? 'DM přístup ✓' : 'Hráčský přístup ✓');
+      return true;
+    } catch (e) {
+      console.warn(e);
+      _toast('Chyba při přihlášení', false);
+      return false;
     }
-
-    // Re-rendering replaces the form DOM, so dirty state is meaningless
-    // beyond this point. Clear without firing events (the user already
-    // confirmed; we don't want a "saved" indication).
-    _dirty = false;
-    _active = !_active;
-    document.body.classList.toggle("edit-mode", _active);
-    document.querySelectorAll(".edit-mode-toggle").forEach(btn => {
-      const isBtn = btn.tagName === "BUTTON";
-      if (isBtn) {
-        btn.textContent = _active ? "✓ Hotovo" : "✏ Úpravy";
-      } else {
-        // bottom-item with icon + label spans
-        const icon  = btn.querySelector(".bottom-icon");
-        const label = btn.querySelector(".bottom-label");
-        if (icon)  icon.textContent  = _active ? "✓" : "✏";
-        if (label) label.textContent = _active ? "Hotovo" : "Úpravy";
-      }
-      btn.classList.toggle("active", _active);
-    });
-    // Re-render current page
-    window.dispatchEvent(new Event("hashchange"));
   }
 
   // ── Dynamic fact rows ──────────────────────────────────────────
@@ -1571,7 +1544,7 @@ export const EditMode = (() => {
 
   // ── Public API ─────────────────────────────────────────────────
   return {
-    isActive, toggle, isDirty,
+    promptLogin, isDirty,
     addDynRow, handlePortraitUpload,
     clearPortrait, updateKnowledgeLabel,
     handlePortraitChange, handleLocalMapChange,

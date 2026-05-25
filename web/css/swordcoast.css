@@ -602,9 +602,22 @@
   color: rgba(255,255,255,0.6);
 }
 
-/* ── Edit-only toolbar controls — hidden unless body.edit-mode ── */
+/* ── Edit-only toolbar controls — hidden unless the toolbar itself
+   carries .is-editing (toggled by `WorldMap.setEditing(true)`). The
+   old `body.edit-mode` global gate is gone; each modal page owns its
+   own edit state now. */
 .sc-toolbar .edit-only-inline { display: none; }
-body.edit-mode .sc-toolbar .edit-only-inline { display: inline-block; }
+.sc-toolbar.is-editing .edit-only-inline { display: inline-block; }
+
+/* Per-page edit toggle. Distinct visual state when active matches the
+   other "is-active" toolbar buttons (📜 Trasy událostí), giving the
+   user an unambiguous "you are editing this map" cue without the old
+   construction-stripe border. */
+.sc-edit-toggle.is-active {
+  background: rgba(200,160,64,0.18);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
 
 /* ── Toolbar pin search + live results ─────────────────────────── */
 .sc-search {

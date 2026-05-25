@@ -367,7 +367,7 @@ export const EditTemplates = (() => {
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('back')}>← Zpět</button>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
           <h2 class="edit-form-title">${isNew ? "✦ Nová postava" : "✏ " + esc(c.name)}</h2>
           ${_twinHeaderRow(uid, c, 'characters')}
           <div class="edit-hdr-actions">
@@ -561,7 +561,7 @@ export const EditTemplates = (() => {
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('back')}>← Zpět</button>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
           <h2 class="edit-form-title">${isNew ? "✦ Nové místo" : "✏ " + esc(l.name)}</h2>
           ${_twinHeaderRow(uid, l, 'locations')}
           <div class="edit-hdr-actions">
@@ -662,7 +662,7 @@ export const EditTemplates = (() => {
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('back')}>← Zpět</button>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
           <h2 class="edit-form-title">${isNew ? "✦ Nová událost" : "✏ " + esc(e.name)}</h2>
           ${_twinHeaderRow(uid, e, 'events')}
           <div class="edit-hdr-actions">
@@ -732,7 +732,7 @@ export const EditTemplates = (() => {
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('back')}>← Zpět</button>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
           <h2 class="edit-form-title">${isNew ? "✦ Nová záhada" : "✏ " + esc(m.name)}</h2>
           ${_twinHeaderRow(uid, m, 'mysteries')}
           <div class="edit-hdr-actions">
@@ -799,7 +799,7 @@ export const EditTemplates = (() => {
     return `
       <div class="edit-form" style="max-width:760px">
         <div class="edit-form-header">
-          <button class="back-btn"${dataAction('back')}>← Zpět</button>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
           <h2 class="edit-form-title">${isNew ? "✦ Nová frakce" : "✏ " + esc(f.name)}</h2>
           ${_twinHeaderRow(uid, isNew ? null : { ...f, id: facId }, 'factions')}
           <div class="edit-hdr-actions">
@@ -889,7 +889,7 @@ export const EditTemplates = (() => {
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('back')}>← Zpět</button>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
           <h2 class="edit-form-title">${isNew ? "✦ Nový druh" : "✏ " + esc(s.name)}</h2>
           ${_twinHeaderRow(uid, s, 'species')}
           <div class="edit-hdr-actions">
@@ -921,7 +921,7 @@ export const EditTemplates = (() => {
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('back')}>← Zpět</button>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
           <h2 class="edit-form-title">${isNew ? "✦ Nový bůh / bohyně" : "✏ " + esc(g.name)}</h2>
           ${_twinHeaderRow(uid, g, 'pantheon')}
           <div class="edit-hdr-actions">
@@ -988,7 +988,7 @@ export const EditTemplates = (() => {
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('back')}>← Zpět</button>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
           <h2 class="edit-form-title">${isNew ? "✦ Nový artefakt" : "✏ " + esc(a.name)}</h2>
           ${_twinHeaderRow(uid, a, 'artifacts')}
           <div class="edit-hdr-actions">
@@ -1048,7 +1048,7 @@ export const EditTemplates = (() => {
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('back')}>← Zpět</button>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
           <h2 class="edit-form-title">${isNew ? "✦ Nová historická událost" : "✏ " + esc(h.name)}</h2>
           ${_twinHeaderRow(uid, h, 'historicalEvents')}
           <div class="edit-hdr-actions">

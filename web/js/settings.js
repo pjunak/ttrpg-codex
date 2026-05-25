@@ -1279,7 +1279,7 @@ export const Settings = (() => {
       ? `<button type="button" class="edit-delete-btn"
            ${dataAction('Settings.logout')}>↩ Odhlásit</button>`
       : `<button type="button" class="inline-create-btn"
-           ${dataAction('EditMode.toggle')}>🔑 Přihlásit</button>`;
+           ${dataAction('EditMode.promptLogin')}>🔑 Přihlásit</button>`;
     // View-as-player toggle. Moved here from the sidebar so non-DM
     // users see no role chrome outside Přehled. Only DMs (real or
     // impersonating) see these buttons — players never need them.

@@ -119,11 +119,12 @@
 
     <script src="js/boot.js" defer></script>
 
-    <!-- Edit mode toggle in sidebar footer. Záloha and mapa světa
-         moved to /nastaveni; kept as a single settings entry point. -->
+    <!-- Sidebar footer. Global "✏ Úpravy" toggle is gone — editing is
+         per-page now (pen on each article / list, ✏ Editovat on map /
+         timeline / palác). The single "⚙ Nastavení" link covers the
+         backup + account + enum-edit tabs. -->
     <div class="sidebar-footer">
-      <a class="sidebar-export-btn edit-only-btn" href="#/nastaveni" title="Číselníky, mapa světa, záloha…">⚙ Nastavení</a>
-      <button class="edit-mode-toggle" data-action="EditMode.toggle">✏ Úpravy</button>
+      <a class="sidebar-export-btn" href="#/nastaveni" title="Číselníky, mapa světa, záloha, účet…">⚙ Nastavení</a>
     </div>
   </nav>
 
@@ -154,11 +155,10 @@
       <span class="bottom-icon">☰</span>
       <span class="bottom-label">Menu</span>
     </button>
-    <!-- Edit mode toggle (mobile) -->
-    <button class="bottom-item edit-mode-toggle" data-action="EditMode.toggle">
-      <span class="bottom-icon">✏</span>
-      <span class="bottom-label">Úpravy</span>
-    </button>
+    <!-- Global "✏ Úpravy" mobile toggle removed in the per-page edit
+         migration. Editing is per-entity: tap the pencil on a card,
+         or use ✏ Editovat on map / timeline / palác. Anonymous users
+         get the login chip on the dashboard's top-right. -->
   </nav>
 
   <!-- Drawer backdrop — click dismisses the mobile sidebar. -->

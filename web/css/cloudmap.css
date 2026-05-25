@@ -360,12 +360,20 @@
   cursor: pointer;
 }
 
-/* ── Edit-mode-only buttons (save positions, reset layout) ── */
+/* ── Edit-mode-only buttons (save positions, reset layout) ──
+   Visibility gated on the local `.map-toolbar.is-editing` class
+   toggled by `CloudMap.setEditing(true)`. The old global
+   `.edit-mode` body class is gone. */
 .cm-save-pos {
   display: none;
 }
-.edit-mode .cm-save-pos {
+.map-toolbar.is-editing .cm-save-pos {
   display: inline-flex;
+}
+.cm-edit-toggle.is-active {
+  background: rgba(200,160,64,0.18);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
 }
 
 /* ═══════════════════════════════════════════════════════════════

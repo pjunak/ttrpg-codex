@@ -1,7 +1,12 @@
 // ═══════════════════════════════════════════════════════════════
-//  WIKI — renders character, location and event articles.
-//  Uses Store for all data. Checks EditMode.isActive() to switch
-//  between read-only view and inline edit forms.
+//  WIKI — renders entity articles + list/grid pages + dashboard.
+//
+//  Uses Store for all data. Edit affordances are per-page, not
+//  globally toggled: each article uses `_editingArticle` (set via
+//  the in-header ✏ Upravit button) to decide between read view and
+//  editor render. List pages surface clickable `.edit-card-overlay`
+//  pencils on each card + an always-visible "+ Přidat" button in
+//  the toolbar. Dashboard hero fields get per-field pens.
 // ═══════════════════════════════════════════════════════════════
 
 import { Store } from './store.js';
@@ -29,7 +34,9 @@ export const Wiki = (() => {
   function _getCurrentArticle() { return _currentArticle; }
 
   // Wiki route prefix per collection — used by the twin facts row
-  // to build the cross-jump link. Mirrors KIND_ROUTE in app.js.
+  // to build the cross-jump link AND by the per-article edit button
+  // to construct the route Wiki._editingArticle compares against.
+  // Mirrors KIND_ROUTE in app.js.
   const _TWIN_LINK_ROUTE = {
     characters:       'postava',
     locations:        'misto',
@@ -41,6 +48,94 @@ export const Wiki = (() => {
     artifacts:        'artefakt',
     historicalEvents: 'historicka-udalost',
   };
+
+  // ── Per-article edit state ─────────────────────────────────────
+  // Replaces the global EditMode.isActive() check that used to drive
+  // article-vs-editor render branching. `_editingArticle` holds the
+  // hash route currently in editor mode (e.g. '/postava/foo'), or
+  // null when nothing is being edited. The article shell and each
+  // renderXxxArticle test against this; navigate() in app.js clears
+  // it on route change via Wiki.syncEditRoute.
+  //
+  // No persistence — edit state is intentionally session-only and
+  // single-route. Toggling on for a route triggers a re-render.
+  let _editingArticle = null;
+  function _isCurrentArticleEditing() {
+    if (!_editingArticle) return false;
+    return ('#' + _editingArticle) === window.location.hash;
+  }
+  /** Enter edit state for `route` (e.g. `/postava/foo`) and re-render.
+   *  If the user is anonymous, defers to EditMode.promptLogin which
+   *  surfaces the login modal — after success the user can click ✏
+   *  again. (Auto-resuming the edit after login is a future polish;
+   *  the immediate UX is one extra click that's worth it for the
+   *  simplicity of not threading "pending intent" state through the
+   *  login flow.) */
+  function startEditingArticle(route) {
+    if (Role.isAnonymous()) {
+      EditMode.promptLogin();   // shows the password prompt; user retries after login
+      return;
+    }
+    _editingArticle = route;
+    const target = '#' + route;
+    if (window.location.hash === target) {
+      window.dispatchEvent(new Event('hashchange'));
+    } else {
+      window.location.hash = target;
+    }
+  }
+  /** Clear edit state without navigating. Called by editmode.saveXxx /
+   *  deleteXxx after a successful write so the post-save `_refreshTo`
+   *  lands on the article view (not the editor again). */
+  function stopEditingArticle() {
+    _editingArticle = null;
+  }
+  /** Cancel the in-flight edit and re-render the article view. Bound
+   *  to the editor header's `← Zrušit` button (replaces the bare
+   *  history.back() of the previous global-mode design). */
+  function cancelEditingArticle() {
+    if (EditMode.isDirty && EditMode.isDirty() &&
+        !confirm('Máš neuložené změny. Opravdu zrušit úpravy?')) return;
+    if (_editingArticle) {
+      _editingArticle = null;
+      window.dispatchEvent(new Event('hashchange'));
+    } else {
+      // No article-edit state (e.g. cancelling a "new" entity creation)
+      // — defer to the browser back behaviour the old "← Zpět" had.
+      history.back();
+    }
+  }
+  /** Called from app.js's navigate() on every route change. Clears
+   *  edit state when the user navigates AWAY from the edited article
+   *  so a stale `_editingArticle` doesn't surprise the next render. */
+  function syncEditRoute(route) {
+    if (_editingArticle && _editingArticle !== route) {
+      _editingArticle = null;
+    }
+  }
+  // EditMode fires `editmode:clean` after every successful save (in
+  // `_markClean`). That's our cue to exit edit state on whatever
+  // article we were on: the post-save `_refreshTo(...)` then lands on
+  // the same hash route and the renderer picks the article view
+  // because `_editingArticle` is now null. Decoupled via a window
+  // event so we don't introduce a wiki.js → editmode.js → wiki.js
+  // circular import.
+  window.addEventListener('editmode:clean', () => {
+    _editingArticle = null;
+  });
+  /** Build the "✏ Upravit" button HTML for an article header. Returns
+   *  an empty string when the viewer can't edit (anonymous), so the
+   *  shell collapses the action bar gracefully. The route format must
+   *  match what startEditingArticle expects so the data-action round-trips. */
+  function _articleEditButton(collection, id) {
+    if (Role.isAnonymous()) return '';
+    const prefix = _TWIN_LINK_ROUTE[collection];
+    if (!prefix) return '';
+    const route = '/' + prefix + '/' + id;
+    return `<button type="button" class="article-edit-btn"
+      title="Upravit tento záznam"
+      ${dataAction('Wiki.startEditingArticle', route)}>✏ Upravit</button>`;
+  }
 
   /** Build a `facts` row entry showing the linked twin, when present
    *  and the viewer is DM. Returns '' for non-DM or when no twin is
@@ -273,8 +368,19 @@ export const Wiki = (() => {
   }
 
   // ── Edit overlay on cards (only visible in edit mode) ─────────
+  // Pencil overlay on entity cards. Was decorative (no click handler —
+  // the parent `<a>` did all the navigation, and the overlay was hidden
+  // outside global edit mode). Now a real edit affordance: clicking
+  // routes through Wiki.startEditingArticle so the article opens
+  // straight into the editor. The dispatcher's preventDefault on
+  // non-anchor [data-action] elements stops the click from bubbling up
+  // to the parent `<a>` and triggering a read-view navigation, so the
+  // card body still navigates to read view (no preventDefault) and the
+  // pencil opens the editor — two distinct click targets in one card.
   function editOverlay(href) {
-    return `<span class="edit-card-overlay" title="Upravit">✏</span>`;
+    const route = String(href || '').replace(/^#/, '');
+    return `<span class="edit-card-overlay" title="Upravit" role="button"
+      ${dataAction('Wiki.startEditingArticle', route)}>✏</span>`;
   }
 
   // ── Empty-state onboarding card ───────────────────────────────
@@ -336,6 +442,7 @@ export const Wiki = (() => {
     chips = [], facts = [], sections = [], body = '',
     outlineSource = '',
     back = true,
+    editButton = '',
   }) {
     const chipsHtml = (chips || []).filter(Boolean).join('');
     const factsHtml = (facts || []).filter(f => f && f.value).map(f =>
@@ -374,8 +481,18 @@ export const Wiki = (() => {
         </ul>
       </nav>` : '';
 
+    // Action bar above the article: back on the left, ✏ Upravit on
+    // the right (when the renderer provided one). Empty bar still
+    // renders so the visual rhythm of the page header stays stable
+    // across articles regardless of whether the viewer can edit.
+    const actionBar = (back || editButton) ? `
+      <div class="article-actions">
+        ${back ? `<button type="button" class="back-btn"${dataAction('back')}>← Zpět</button>` : ''}
+        ${editButton || ''}
+      </div>` : '';
+
     return `
-      ${back ? `<button class="back-btn"${dataAction('back')}>← Zpět</button>` : ''}
+      ${actionBar}
       <div class="wiki-article">
         <aside class="wiki-side">
           ${sideCard}
@@ -397,57 +514,62 @@ export const Wiki = (() => {
   const PRIORITY_ORDER = { 'kritická': 0, 'vysoká': 1, 'střední': 2, 'nízká': 3 };
 
   function renderDashboard() {
-    const editing  = EditMode.isActive();
     const campaign = Store.getCampaign();
     const party    = Store.getPartyMembers();
+    const canEdit  = !Role.isAnonymous();
 
     return `
-      ${_dashHeroHtml(campaign, editing)}
-      ${_dashPartyHtml(party, editing)}
-      ${_dashLastSessionHtml(editing)}
+      ${_dashHeroHtml(campaign, canEdit)}
+      ${_dashPartyHtml(party, canEdit)}
+      ${_dashLastSessionHtml(canEdit)}
       ${_dashMysteriesHtml()}
     `;
   }
 
-  function _dashHeroHtml(campaign, editing) {
-    // In edit mode the name + tagline become plaintext-only
-    // contenteditable regions that commit on blur. Enter blurs (so the
-    // user can't accidentally insert a newline in the title).
-    const nameAttrs = editing
-      ? `contenteditable="plaintext-only"
-         ${dataOn('blur', 'Wiki.saveCampaignField', 'name', '$text')}
-         ${dataOn('keydown', 'enterBlurs', '$ev')}
-         title="Klikni pro úpravu"`
-      : '';
-    const taglineAttrs = editing
-      ? `contenteditable="plaintext-only"
-         ${dataOn('blur', 'Wiki.saveCampaignField', 'tagline', '$text')}
-         ${dataOn('keydown', 'enterBlurs', '$ev')}
-         title="Klikni pro úpravu"
-         data-placeholder="Podtitul kampaně — klikni pro úpravu"`
-      : '';
+  function _dashHeroHtml(campaign, canEdit) {
+    // Per-field inline edit. Each hero line carries data-on-blur and
+    // data-on-keydown wiring at all times — the handlers only fire when
+    // the element becomes focusable, which happens only via
+    // Wiki.startInlineEdit (triggered by the small pencil next to each
+    // field). Anonymous viewers don't see the pencils.
+    const fieldAttrs = (field) => `
+      ${dataOn('blur', 'Wiki.commitInlineEdit', field, '$text', '$el')}
+      ${dataOn('keydown', 'Wiki.handleInlineEditKey', '$ev', '$el')}`;
+    const editPen = (elId, label) => canEdit ? `
+      <button type="button" class="dash-hero-pen" title="${esc(label)}"
+        ${dataAction('Wiki.startInlineEdit', elId)}>✏</button>` : '';
     return `
-      <div class="dash-hero ${editing ? 'is-editing' : ''}">
-        <h1 class="dash-hero-name" ${nameAttrs}>${esc(campaign.name)}</h1>
-        <div class="dash-hero-tagline" ${taglineAttrs}>${esc(campaign.tagline || '')}</div>
+      <div class="dash-hero">
+        <div class="dash-hero-row">
+          <h1 class="dash-hero-name" id="dash-hero-name" ${fieldAttrs('name')}>${esc(campaign.name)}</h1>
+          ${editPen('dash-hero-name', 'Upravit jméno kampaně')}
+        </div>
+        <div class="dash-hero-row">
+          <div class="dash-hero-tagline" id="dash-hero-tagline"
+            data-placeholder="Podtitul kampaně" ${fieldAttrs('tagline')}>${esc(campaign.tagline || '')}</div>
+          ${editPen('dash-hero-tagline', 'Upravit podtitul')}
+        </div>
       </div>`;
   }
 
-  function _dashPartyHtml(party, editing) {
-    const addCard = editing ? `
-      <a class="dash-party-card dash-party-card-new" href="#/postava/new"
-         title="Přidat novou postavu">
-        <div class="dash-party-add">＋</div>
-        <div class="dash-party-name">Nová postava</div>
-      </a>` : '';
+  function _dashPartyHtml(party, canEdit) {
+    // Section header gets a "+ Přidat" button for authed viewers — the
+    // trailing dashed card on the party grid is gone (matches the
+    // pattern used on every list page now).
+    const addBtn = canEdit ? `
+      <button class="dash-section-action dash-section-add"
+        ${dataAction('EditMode.startNewCharacter', { faction: PARTY_FACTION_ID, knowledge: 4, status: 'alive' })}
+        title="Přidat novou postavu do party">＋ Přidat</button>` : '';
     if (!party.length) {
       return `
         <div class="dash-section">
-          <div class="dash-section-head"><h2>🛡 Naše parta</h2></div>
-          <div class="dash-empty">
-            Zatím tu není žádný PC. V režimu úprav přidej postavu a přiřaď jí frakci <em>Parta</em>.
+          <div class="dash-section-head">
+            <h2>🛡 Naše parta</h2>
+            ${addBtn}
           </div>
-          ${editing ? `<div class="dash-party-grid">${addCard}</div>` : ''}
+          <div class="dash-empty">
+            Zatím tu není žádný PC. Přidej postavu a přiřaď jí frakci <em>Parta</em>.
+          </div>
         </div>`;
     }
     const locNameOf = (id) => {
@@ -479,16 +601,17 @@ export const Wiki = (() => {
         <div class="dash-section-head">
           <h2>🛡 Naše parta</h2>
           <a class="dash-section-action" href="#/parta">Celá parta →</a>
+          ${addBtn}
         </div>
-        <div class="dash-party-grid">${cards}${addCard}</div>
+        <div class="dash-party-grid">${cards}</div>
       </div>`;
   }
 
-  function _dashLastSessionHtml(editing) {
+  function _dashLastSessionHtml(canEdit) {
     const events = Store.dedupeShadowTwins('events', Store.getEvents());
     const maxSitting = events.reduce((m, e) => Math.max(m, Number(e.sitting) || 0), 0);
     if (maxSitting === 0) {
-      if (editing) return `
+      if (canEdit) return `
         <div class="dash-section">
           <div class="dash-section-head"><h2>🕯 Poslední sezení</h2></div>
           <div class="dash-empty">Zatím nejsou žádné události s přiřazeným sezením. Přidej událost v <a href="#/casova-osa">Časové ose</a>.</div>
@@ -570,6 +693,68 @@ export const Wiki = (() => {
     Store.setCampaign(patch);
   }
 
+  // ── Inline-edit helpers (dashboard hero campaign name + tagline) ──
+  // Each editable field starts read-only. The pen icon next to it
+  // calls `Wiki.startInlineEdit(elId)` which flips `contenteditable`
+  // on and focuses. Blur commits via `commitInlineEdit` (wired through
+  // the standard data-on-blur dispatcher). Esc cancels via
+  // `handleInlineEditKey`. Replaces the global-edit-mode-driven
+  // "everything in the hero is contenteditable" pattern.
+  /**
+   * Make the element with id `elId` editable + focus it. No-op for
+   * anonymous viewers — the pen icons aren't even rendered for them,
+   * but defence in depth means a stale console call from a former
+   * editor session won't surprise anything.
+   *
+   * @param {string} elId
+   */
+  function startInlineEdit(elId) {
+    if (Role.isAnonymous()) return;
+    const el = document.getElementById(elId);
+    if (!el) return;
+    // Stash the pre-edit text so Esc can revert without round-tripping
+    // through Store.setCampaign.
+    el._inlineOriginal = el.textContent || '';
+    el.setAttribute('contenteditable', 'plaintext-only');
+    el.classList.add('is-editing-inline');
+    el.focus();
+    // Place caret at end of existing text (default focus selects all,
+    // which is annoying when you want to append).
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (_) {}
+  }
+  /** Persist the edited field and exit inline-edit state. Bound to each
+   *  field's `data-on-blur` handler so a click outside or Enter (which
+   *  blurs via `handleInlineEditKey`) commits. */
+  function commitInlineEdit(field, value, el) {
+    if (el && el.removeAttribute) {
+      el.removeAttribute('contenteditable');
+      el.classList.remove('is-editing-inline');
+    }
+    saveCampaignField(field, value);
+  }
+  /** Enter commits (by blurring), Escape reverts to the stashed
+   *  original and blurs. Bound to each editable field via data-on-keydown. */
+  function handleInlineEditKey(ev, el) {
+    if (!ev || !el) return;
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      el.blur();    // fires data-on-blur → commitInlineEdit
+    } else if (ev.key === 'Escape') {
+      ev.preventDefault();
+      el.textContent = el._inlineOriginal || '';
+      el.removeAttribute('contenteditable');
+      el.classList.remove('is-editing-inline');
+      el.blur();
+    }
+  }
+
   // Dashboard "Poslední úpravy" — top 5 most-recently edited entities
   // across every collection. Returns empty string if nothing has been
   // edited yet (i.e. fresh install with no updatedAt stamps anywhere).
@@ -649,11 +834,11 @@ export const Wiki = (() => {
   function _postavyGridHtml(filterFaction) {
     const chars = _postavyApply(filterFaction);
     const s = _listState.postavy;
-    const newCard = EditMode.isActive() ? `
-      <a class="char-card char-card-new" href="#/postava/new" style="text-decoration:none">
-        <div class="char-card-new-icon">＋</div>
-        <div class="char-card-new-label">Nová postava</div>
-      </a>` : "";
+    // The trailing dashed "+ Nová postava" card used to live here, gated
+    // by global edit mode. With per-page edit-mode removed, the create
+    // affordance moved to the page-header "+ Přidat postavu" button —
+    // visible to anyone who can edit (i.e. not anonymous).
+    const newCard = "";
     const emptyMsg = chars.length === 0
       ? `<div class="list-empty">Žádná postava neodpovídá hledání.</div>` : "";
 
@@ -752,10 +937,16 @@ export const Wiki = (() => {
 
     const shown = _postavyApply(filterFaction);
 
+    const newBtn = !Role.isAnonymous() ? `
+      <a href="#/postava/new" class="list-item-new" style="text-decoration:none">＋ Nová postava</a>` : "";
+
     return `
-      <div class="page-header">
-        <h1>Postavy</h1>
-        <div class="subtitle">${shown.length} / ${allChars.length} záznamů${filterFaction ? " · " + factions[filterFaction]?.name : ""}${activeAtt ? " · " + esc(attEnum.find(a=>a.id===activeAtt)?.label || activeAtt) : ""}</div>
+      <div class="page-header" style="display:flex;align-items:center;gap:1rem">
+        <div style="flex:1">
+          <h1>Postavy</h1>
+          <div class="subtitle">${shown.length} / ${allChars.length} záznamů${filterFaction ? " · " + factions[filterFaction]?.name : ""}${activeAtt ? " · " + esc(attEnum.find(a=>a.id===activeAtt)?.label || activeAtt) : ""}</div>
+        </div>
+        ${newBtn}
       </div>
       <div class="filter-bar">
         <button class="filter-btn ${!filterFaction ? "active" : ""}"${dataAction('Wiki.renderPage', 'postavy', 'all')}>Všechny</button>
@@ -815,7 +1006,11 @@ export const Wiki = (() => {
   }
 
   function renderCharacterCard(c) {
-    const overlay = EditMode.isActive() ? editOverlay(`#/postava/${c.id}`) : "";
+    // Always emit — the overlay is hidden for anonymous viewers via CSS
+    // (body.is-anonymous .edit-card-overlay { display: none }) and
+    // gently visible on hover for authed viewers. Click routes through
+    // Wiki.startEditingArticle to open the editor for this entity only.
+    const overlay = editOverlay(`#/postava/${c.id}`);
     const colors  = _attitudeColorMap();
     const entries = Store.getEffectiveAttitudes(c, 'character');
     const glow    = _attitudeGlow(entries, colors);
@@ -850,7 +1045,7 @@ export const Wiki = (() => {
     if (id === "new") return EditMode.renderCharacterEditor(null);
     const c = Store.getCharacter(id);
     if (!c) return `<p>Postava '${id}' nenalezena.</p>`;
-    if (EditMode.isActive()) return EditMode.renderCharacterEditor(c);
+    if (_isCurrentArticleEditing()) return EditMode.renderCharacterEditor(c);
 
     // ── View mode ────────────────────────────────────────────────
     const rels   = Store.getRelationships().filter(r => r.source === id || r.target === id);
@@ -918,6 +1113,7 @@ export const Wiki = (() => {
     const articleGlow = _attitudeGlow(articleEntries, _attitudeColorMap());
 
     return _articleShell({
+      editButton: _articleEditButton('characters', id),
       visual:   portraitWrap(c, '', articleGlow),
       title:    c.knowledge >= 1 ? esc(c.name) : 'Neznámá Postava',
       subtitle: c.knowledge >= 2 && c.title ? esc(c.title) : '',
@@ -1000,8 +1196,7 @@ export const Wiki = (() => {
     const pt = PIN_TYPES[l.pinType] || PIN_TYPES.custom || { icon: '📍', color: '#888' };
     const typeLabel = pt.label || l.type || '';
     const region = l.region ? `<div class="loc-card-sub">${esc(l.region)}</div>` : '';
-    const editBtn = EditMode.isActive()
-      ? `<span class="list-edit-btn" title="Upravit" style="position:absolute;top:0.4rem;right:0.4rem">✏</span>` : '';
+    const editBtn = editOverlay(`#/misto/${l.id}`);
     // Glow follows the icon silhouette — drop-shadow blurs the alpha
     // channel of `.loc-card-icon`'s content so thin strokes get the
     // same halo as the bulk. Multiple attitudes layer additively.
@@ -1031,11 +1226,12 @@ export const Wiki = (() => {
     const locs = _mistaApply();
     const s = _listState.mista;
     const colors = _attitudeColorMap();
-    const newCard = EditMode.isActive() ? `
-      <a class="loc-card loc-card-new" href="#/misto/new" style="text-decoration:none">
-        <div class="loc-card-new-icon">＋</div>
-        <div class="loc-card-new-label">Nové místo</div>
-      </a>` : "";
+    // Dashed "+ Nové místo" trailing card removed — the create
+    // affordance is now the always-visible "+ Nové místo" button in
+    // the page header (renderMistaList above). Kept the variable so
+    // the appended-grid-string templates below stay identical and
+    // we can collapse the markup in a follow-up pass.
+    const newCard = "";
 
     if (locs.length === 0) {
       return `<div class="loc-grid"><div class="list-empty">Žádné místo neodpovídá hledání.</div>${newCard}</div>`;
@@ -1096,7 +1292,10 @@ export const Wiki = (() => {
           ctaLabel: 'Nové místo', ctaHref: '#/misto/new',
         })}`;
     }
-    const newBtn = EditMode.isActive() ? `
+    // "+ Přidat" button in the list header — always visible to authed
+    // viewers; anonymous viewers don't see edit affordances at all.
+    // Clicking lands on /misto/new which short-circuits to the editor.
+    const newBtn = !Role.isAnonymous() ? `
       <a href="#/misto/new" class="list-item-new" style="text-decoration:none">＋ Nové místo</a>` : "";
 
     // Attitude chip filter — same pattern as /postavy. Counts use
@@ -1171,7 +1370,7 @@ export const Wiki = (() => {
     if (id === "new") return EditMode.renderLocationEditor(null);
     const l = Store.getLocation(id);
     if (!l) return `<p>Místo '${id}' nenalezeno.</p>`;
-    if (EditMode.isActive()) return EditMode.renderLocationEditor(l);
+    if (_isCurrentArticleEditing()) return EditMode.renderLocationEditor(l);
 
     const factions = Store.getFactions();
     const pp = Store.getPlayerParty();
@@ -1204,7 +1403,7 @@ export const Wiki = (() => {
       mapButtons.push(
         `<button class="inline-create-btn"${dataAction('WorldMap.showPin', l.id)}>🧭 Najít na mapě</button>`
       );
-    } else if (EditMode.isActive()) {
+    } else if (!Role.isAnonymous()) {
       mapButtons.push(
         `<button class="inline-create-btn"${dataAction('WorldMap.startPlacingPin', l.id)}>📍 Umístit na mapu</button>`
       );
@@ -1221,7 +1420,11 @@ export const Wiki = (() => {
     const mapRow = mapButtons.length
       ? `<div class="inline-create-row">${mapButtons.join('')}</div>` : '';
 
-    const inlineCreate = EditMode.isActive() ? `
+    // Inline create affordances on the location article — let the user
+    // spin up a character / event / sub-location pre-linked to this
+    // place without entering edit mode first. Hidden for anonymous;
+    // visible for any authed viewer (player or DM).
+    const inlineCreate = !Role.isAnonymous() ? `
       <div class="inline-create-row">
         <button class="inline-create-btn"${dataAction('EditMode.startNewCharacterInLocation', l.id)}>＋ Postava zde</button>
         <button class="inline-create-btn"${dataAction('EditMode.startNewEvent', { locations: [l.id] })}>＋ Událost zde</button>
@@ -1260,6 +1463,7 @@ export const Wiki = (() => {
       : esc(pt.icon);
     _setCurrentArticle({ type: 'locations', id });
     return _articleShell({
+      editButton: _articleEditButton('locations', id),
       visual:   `<div class="ah-icon"${locGlow ? ` style="filter:${locGlow}"` : ''}>${articleIconInner}</div>`,
       title:    esc(l.name),
       subtitle: esc(l.type || ''),
@@ -1298,7 +1502,7 @@ export const Wiki = (() => {
     if (id === "new") return EditMode.renderEventEditor(null);
     const e = Store.getEvent(id);
     if (!e) return `<p>Událost '${id}' nenalezena.</p>`;
-    if (EditMode.isActive()) return EditMode.renderEventEditor(e);
+    if (_isCurrentArticleEditing()) return EditMode.renderEventEditor(e);
 
     const chars = (e.characters || []).map(cid => {
       const c = Store.getCharacter(cid);
@@ -1319,6 +1523,7 @@ export const Wiki = (() => {
 
     _setCurrentArticle({ type: 'events', id });
     return _articleShell({
+      editButton: _articleEditButton('events', id),
       visual: null,
       title: esc(e.name),
       subtitle: sittingLabel,
@@ -1359,7 +1564,7 @@ export const Wiki = (() => {
       return (order[a.priority] || 9) - (order[b.priority] || 9);
     });
 
-    const newBtn = EditMode.isActive() ? `
+    const newBtn = !Role.isAnonymous() ? `
       <a href="#/zahada/new" class="list-item-new" style="text-decoration:none">＋ Nová záhada</a>` : "";
 
     return `
@@ -1372,8 +1577,7 @@ export const Wiki = (() => {
       </div>
       <div class="mystery-list">
         ${sorted.map(m => {
-          const editBtn = EditMode.isActive()
-            ? `<a class="list-edit-btn" href="#/zahada/${m.id}" title="Upravit" style="float:right;margin-left:0.5rem">✏</a>` : "";
+          const editBtn = editOverlay(`#/zahada/${m.id}`);
           return `<div class="mystery-card">
             <div class="mystery-name" style="display:flex;align-items:center;justify-content:space-between">
               <span>❓ ${esc(m.name)} ${_twinCardMarker(m)}</span>
@@ -1404,7 +1608,7 @@ export const Wiki = (() => {
     if (id === "new") return EditMode.renderMysteryEditor(null);
     const m = Store.getMystery(id);
     if (!m) return `<p>Záhada '${id}' nenalezena.</p>`;
-    if (EditMode.isActive()) return EditMode.renderMysteryEditor(m);
+    if (_isCurrentArticleEditing()) return EditMode.renderMysteryEditor(m);
 
     const charChips = (m.characters || []).map(cid => {
       const c = Store.getCharacter(cid);
@@ -1413,6 +1617,7 @@ export const Wiki = (() => {
 
     _setCurrentArticle({ type: 'mysteries', id });
     return _articleShell({
+      editButton: _articleEditButton('mysteries', id),
       visual: `<div class="ah-icon">❓</div>`,
       title: esc(m.name),
       subtitle: `Priorita: ${m.priority}`,
@@ -1493,7 +1698,7 @@ export const Wiki = (() => {
     }
     return entries.map(({ id, f, memberCount }) => {
       const rankCount = (f.rankChains || []).reduce((s, ch) => s + ch.ranks.length, 0);
-      const ovl = EditMode.isActive() ? editOverlay(`#/frakce/${id}`) : "";
+      const ovl = editOverlay(`#/frakce/${id}`);
       return `
         <a class="faction-card" href="#/frakce/${id}" style="text-decoration:none;position:relative;border-color:${f.color}55">
           ${ovl}
@@ -1529,7 +1734,7 @@ export const Wiki = (() => {
           <h1>⬡ Frakce</h1>
           <div class="subtitle">${shown} / ${total} frakcí</div>
         </div>
-        ${EditMode.isActive() ? `<a href="#/frakce/new" class="list-item-new" style="text-decoration:none">＋ Nová frakce</a>` : ""}
+        ${!Role.isAnonymous() ? `<a href="#/frakce/new" class="list-item-new" style="text-decoration:none">＋ Nová frakce</a>` : ""}
       </div>
       ${_listToolbar('frakce', [
         ['default', 'Výchozí'],
@@ -1579,7 +1784,7 @@ export const Wiki = (() => {
     const factions = Store.getFactions();
     const f = factions[id];
     if (!f) return `<p>Frakce '${id}' nenalezena.</p>`;
-    if (EditMode.isActive()) return EditMode.renderFactionEditor(f, id);
+    if (_isCurrentArticleEditing()) return EditMode.renderFactionEditor(f, id);
 
     const chars = Store.getCharacters().filter(c => c.faction === id);
 
@@ -1607,7 +1812,7 @@ export const Wiki = (() => {
       !c.rankChain || !(f.rankChains || []).find(ch => ch.id === c.rankChain)
     );
 
-    const inlineCreate = EditMode.isActive() ? `
+    const inlineCreate = !Role.isAnonymous() ? `
       <div class="inline-create-row">
         <button class="inline-create-btn"${dataAction('EditMode.startNewCharacter', { faction: id })}>＋ Nová postava ve frakci</button>
       </div>` : "";
@@ -1635,6 +1840,7 @@ export const Wiki = (() => {
 
     _setCurrentArticle({ type: 'factions', id });
     return _articleShell({
+      editButton: _articleEditButton('factions', id),
       visual: `<div class="ah-icon" style="${visualStyle}">${f.badge}</div>`,
       title: `<span style="color:${f.textColor}">${f.badge} ${esc(f.name)}</span>`,
       subtitle: '',
@@ -1683,30 +1889,28 @@ export const Wiki = (() => {
         })}`;
     }
 
-    const newCard = EditMode.isActive() ? `
-      <a class="char-card char-card-new"
-         href="#/postava/new"
-         ${dataAction('EditMode.startNewCharacter', { faction: 'party', knowledge: 4, status: 'alive' })}
-         style="text-decoration:none">
-        <div class="char-card-new-icon">＋</div>
-        <div class="char-card-new-label">Nový člen party</div>
-      </a>` : '';
-
+    // Trailing dashed card removed; the create affordance is a header
+    // button (always visible to authed viewers, hidden for anonymous).
     const empty = party.length === 0
       ? `<div class="list-empty">Parta je zatím prázdná. Přidej prvního člena.</div>` : '';
 
     const count = party.length;
     const countLabel = count === 1 ? 'člen' : (count >= 2 && count <= 4 ? 'členové' : 'členů');
+    const newBtn = !Role.isAnonymous() ? `
+      <button class="list-item-new"
+        ${dataAction('EditMode.startNewCharacter', { faction: PARTY_FACTION_ID, knowledge: 4, status: 'alive' })}>＋ Nový člen party</button>` : '';
 
     return `
-      <div class="page-header">
-        <h1>🛡 Parta</h1>
-        <div class="subtitle">${count} ${countLabel}</div>
+      <div class="page-header" style="display:flex;align-items:center;gap:1rem">
+        <div style="flex:1">
+          <h1>🛡 Parta</h1>
+          <div class="subtitle">${count} ${countLabel}</div>
+        </div>
+        ${newBtn}
       </div>
       <div class="char-grid">
         ${party.map(renderCharacterCard).join('')}
         ${empty}
-        ${newCard}
       </div>
     `;
   }
@@ -1764,7 +1968,7 @@ export const Wiki = (() => {
   //  SPECIES / PANTHEON / ARTIFACTS
   // ══════════════════════════════════════════════════════════════
   function _simpleListHeader(title, subtitle, newHref, newLabel) {
-    const newBtn = EditMode.isActive() && newHref
+    const newBtn = !Role.isAnonymous() && newHref
       ? `<a href="${newHref}" class="list-item-new" style="text-decoration:none">＋ ${newLabel}</a>` : '';
     return `
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
@@ -1798,8 +2002,7 @@ export const Wiki = (() => {
         })}`;
     }
     const grid = items.map(s => {
-          const editBtn = EditMode.isActive()
-            ? `<span class="list-edit-btn" title="Upravit" style="position:absolute;top:0.4rem;right:0.4rem">✏</span>` : '';
+          const editBtn = editOverlay(`#/druh/${s.id}`);
           return `<a class="loc-card" href="#/druh/${s.id}" style="text-decoration:none;position:relative">
             ${editBtn}
             ${_twinCardMarker(s)}
@@ -1820,7 +2023,7 @@ export const Wiki = (() => {
     if (id === 'new') return EditMode.renderSpeciesEditor(null);
     const s = Store.getSpeciesItem(id);
     if (!s) return `<p>Druh '${id}' nenalezen.</p>`;
-    if (EditMode.isActive()) return EditMode.renderSpeciesEditor(s);
+    if (_isCurrentArticleEditing()) return EditMode.renderSpeciesEditor(s);
 
     // Characters of this species.
     const chars = Store.getCharacters().filter(c =>
@@ -1833,6 +2036,7 @@ export const Wiki = (() => {
 
     _setCurrentArticle({ type: 'species', id });
     return _articleShell({
+      editButton: _articleEditButton('species', id),
       visual: `<div class="ah-icon">🧬</div>`,
       title: esc(s.name),
       chips: [`<span class="profile-chip">👤 ${chars.length}</span>`],
@@ -1860,8 +2064,7 @@ export const Wiki = (() => {
         })}`;
     }
     const grid = items.map(g => {
-          const editBtn = EditMode.isActive()
-            ? `<span class="list-edit-btn" title="Upravit" style="position:absolute;top:0.4rem;right:0.4rem">✏</span>` : '';
+          const editBtn = editOverlay(`#/buh/${g.id}`);
           const sub = [g.domain, g.alignment].filter(Boolean).map(esc).join(' · ');
           return `<a class="loc-card" href="#/buh/${g.id}" style="text-decoration:none;position:relative">
             ${editBtn}
@@ -1883,10 +2086,11 @@ export const Wiki = (() => {
     if (id === 'new') return EditMode.renderBuhEditor(null);
     const g = Store.getBuh(id);
     if (!g) return `<p>Božstvo '${id}' nenalezeno.</p>`;
-    if (EditMode.isActive()) return EditMode.renderBuhEditor(g);
+    if (_isCurrentArticleEditing()) return EditMode.renderBuhEditor(g);
 
     _setCurrentArticle({ type: 'pantheon', id });
     return _articleShell({
+      editButton: _articleEditButton('pantheon', id),
       visual: `<div class="ah-icon">${esc(g.symbol || '✨')}</div>`,
       title: esc(g.name),
       subtitle: [g.domain, g.alignment].filter(Boolean).map(esc).join(' · '),
@@ -1916,8 +2120,7 @@ export const Wiki = (() => {
         })}`;
     }
     const grid = items.map(a => {
-          const editBtn = EditMode.isActive()
-            ? `<span class="list-edit-btn" title="Upravit" style="position:absolute;top:0.4rem;right:0.4rem">✏</span>` : '';
+          const editBtn = editOverlay(`#/artefakt/${a.id}`);
           return `<a class="loc-card" href="#/artefakt/${a.id}" style="text-decoration:none;position:relative">
             ${editBtn}
             ${_twinCardMarker(a)}
@@ -1937,13 +2140,14 @@ export const Wiki = (() => {
     if (id === 'new') return EditMode.renderArtifactEditor(null);
     const a = Store.getArtifact(id);
     if (!a) return `<p>Artefakt '${id}' nenalezen.</p>`;
-    if (EditMode.isActive()) return EditMode.renderArtifactEditor(a);
+    if (_isCurrentArticleEditing()) return EditMode.renderArtifactEditor(a);
 
     const owner = a.ownerCharacterId ? Store.getCharacter(a.ownerCharacterId) : null;
     const loc   = a.locationId       ? Store.getLocation(a.locationId)        : null;
 
     _setCurrentArticle({ type: 'artifacts', id });
     return _articleShell({
+      editButton: _articleEditButton('artifacts', id),
       visual: `<div class="ah-icon">🗝</div>`,
       title: esc(a.name),
       subtitle: '',
@@ -1989,8 +2193,7 @@ export const Wiki = (() => {
         })}`;
     }
     const grid = items.map(h => {
-      const editBtn = EditMode.isActive()
-        ? `<span class="list-edit-btn" title="Upravit" style="position:absolute;top:0.4rem;right:0.4rem">✏</span>` : '';
+      const editBtn = editOverlay(`#/historicka-udalost/${h.id}`);
       const range = _historyRange(h);
       const sub = [range, _firstParagraph(h.summary)].filter(Boolean).join(' · ');
       return `<a class="loc-card" href="#/historicka-udalost/${h.id}" style="text-decoration:none;position:relative">
@@ -2012,7 +2215,7 @@ export const Wiki = (() => {
     if (id === 'new') return EditMode.renderHistoricalEventEditor(null);
     const h = Store.getHistoricalEvent(id);
     if (!h) return `<p>Historická událost '${id}' nenalezena.</p>`;
-    if (EditMode.isActive()) return EditMode.renderHistoricalEventEditor(h);
+    if (_isCurrentArticleEditing()) return EditMode.renderHistoricalEventEditor(h);
 
     const chars = (h.characters || []).map(cid => Store.getCharacter(cid)).filter(Boolean);
     const locs  = (h.locations  || []).map(lid => Store.getLocation(lid)).filter(Boolean);
@@ -2027,6 +2230,7 @@ export const Wiki = (() => {
 
     _setCurrentArticle({ type: 'historicalEvents', id });
     return _articleShell({
+      editButton: _articleEditButton('historicalEvents', id),
       visual: `<div class="ah-icon">📜</div>`,
       title:  esc(h.name),
       subtitle: _historyRange(h),
@@ -2094,6 +2298,12 @@ export const Wiki = (() => {
     setMistaSearch,   setMistaSort,   setMistaAttitude,
     setFrakceSearch,  setFrakceSort,
     saveCampaignField,
+    // Per-article edit state (replaces the global EditMode.isActive
+    // check for article view-vs-edit branching).
+    startEditingArticle, stopEditingArticle, cancelEditingArticle,
+    syncEditRoute,
+    // Dashboard hero per-field inline edit.
+    startInlineEdit, commitInlineEdit, handleInlineEditKey,
     // Polarity-aware wiki-link tie-breaker uses this (in app.js):
     getCurrentArticle: _getCurrentArticle,
   };

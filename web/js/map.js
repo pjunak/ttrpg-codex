@@ -1,6 +1,7 @@
 import { Store } from './store.js';
 import { Widgets } from './widgets/widgets.js';
 import { EditTemplates } from './edit_templates.js';
+import { Role } from './role.js';
 import { esc, dataAction, dataOn } from './utils.js';
 
 // `size` is the default marker pixel size for new places of this
@@ -363,6 +364,12 @@ export const WorldMap = (() => {
   let _markers   = {};
   let _addMode   = false;
   let _editPinId = null;
+  // Per-page edit toggle. Replaces the global EditMode.isActive() (and
+  // the MutationObserver on `body.edit-mode`) that used to gate pin
+  // draggability, the +Add toolbar button, etc. Toggled via the
+  // toolbar's ✏ Editovat mapu button; `setEditing(bool)` syncs marker
+  // dragging directly so no observer is needed.
+  let _editing   = false;
   // When set, the next map click in add-mode assigns x/y to this existing
   // location id instead of opening the new-pin form. Used by the wiki's
   // "📍 Umístit na mapu" button.
@@ -555,17 +562,28 @@ export const WorldMap = (() => {
          </span>`
       : `🗺 Mapa světa`;
 
-    // "+ Přidat místo" and "⚙ Mapa" are editor-only actions — hidden unless
-    // the body has .edit-mode set by EditMode.toggle().
+    // "+ Přidat místo" / "✚ Uložit pohled" / "⚙ Mapa" are editor-only
+    // actions — gated by the `.sc-shell.is-editing` class set by
+    // `setEditing(bool)` (toggled via the `✏ Editovat mapu` button).
+    // Anonymous viewers don't see that toggle at all so they can't
+    // enter edit state from here.
+    const shellClass = _editing ? 'sc-shell is-editing' : 'sc-shell';
+    const editToggle = Role.isAnonymous() ? '' : `
+      <button class="sc-btn sc-edit-toggle ${_editing ? 'is-active' : ''}"
+        id="sc-edit-btn"${dataAction('WorldMap.setEditing', !_editing)}
+        title="${_editing ? 'Vypnout úpravy mapy' : 'Zapnout úpravy mapy (přesouvání pinů, nová místa)'}">
+        ${_editing ? '✓ Hotovo' : '✏ Editovat mapu'}
+      </button>`;
     document.getElementById('main-content').innerHTML = `
-      <div class="sc-shell">
-        <div class="sc-toolbar">
+      <div class="${shellClass}">
+        <div class="sc-toolbar ${_editing ? 'is-editing' : ''}">
           <div class="sc-title">${titleHtml}</div>
           <input type="search" class="sc-search" id="sc-search"
                  placeholder="🔍 Najít místo…" autocomplete="off"
                  ${dataOn('input', 'WorldMap.onSearchInput', '$value')}
                  ${dataOn('keydown', 'WorldMap.handleSearchKey', '$ev')}>
           <div class="sc-search-results" id="sc-search-results" hidden></div>
+          ${editToggle}
           <button class="sc-btn edit-only-inline ${_addMode ? 'active' : ''}" id="sc-add-btn"${dataAction('WorldMap.toggleAddMode')}>
             ${_addMode ? '✕ Zrušit' : '+ Přidat místo'}
           </button>
@@ -870,14 +888,10 @@ export const WorldMap = (() => {
       _setAddMode(false);
     });
 
-    _modeObserver = new MutationObserver(() => {
-      const editable = document.body.classList.contains('edit-mode');
-      Object.values(_markers).forEach(m => {
-        if (m.dragging) editable ? m.dragging.enable() : m.dragging.disable();
-      });
-      _renderLegend();
-    });
-    _modeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    // No MutationObserver any more — the legacy global edit-mode toggle
+    // is gone. Marker draggability + toolbar state are kept in sync by
+    // `setEditing(bool)` calling directly into Leaflet (see below).
+    _modeObserver = null;
 
     if (_resizeObserver) _resizeObserver.disconnect();
     _resizeObserver = new ResizeObserver(() => {
@@ -1022,7 +1036,7 @@ export const WorldMap = (() => {
       draggable: true,
       title:     pin.name,
     }).addTo(_map);
-    if (!document.body.classList.contains('edit-mode')) m.dragging.disable();
+    if (!_editing) m.dragging.disable();
 
     m.on('click', () => _openPinPanel(pin.id));
     m.on('dragend', () => {
@@ -1152,7 +1166,7 @@ export const WorldMap = (() => {
   function _openPinPanel(pinId) {
     // Edit mode opens the edit form directly. Viewing opens a read-only
     // panel whose header links to the place page.
-    if (document.body.classList.contains('edit-mode')) {
+    if (_editing) {
       const pin = _pinsForCurrent().find(p => p.id === pinId) || {};
       _renderPinForm(pin, false);
       return;
@@ -1636,6 +1650,48 @@ export const WorldMap = (() => {
     _setAddMode(!_addMode);
   }
 
+  /** Per-page edit toggle. Replaces what the old global `body.edit-mode`
+   *  class did for the map: it enables pin dragging, surfaces the
+   *  `+ Přidat místo` / `✚ Uložit pohled` / `⚙ Mapa` toolbar buttons
+   *  (via the `.sc-toolbar.is-editing` CSS gate), and switches pin
+   *  clicks from "open detail panel" to "open editor form".
+   *
+   *  Anonymous viewers can't reach this — the toolbar's `✏ Editovat
+   *  mapu` button is hidden for `Role.isAnonymous()`. Already-editing
+   *  add-mode is cleared on toggle-off so a stale crosshair doesn't
+   *  hang around. */
+  function setEditing(on) {
+    _editing = !!on;
+    // Toggle the toolbar class so .edit-only-inline buttons appear /
+    // disappear. The wrapping `.sc-shell.is-editing` (added by the
+    // body innerHTML below) is the single source of truth for CSS gates.
+    const shell = document.querySelector('.sc-shell');
+    if (shell) shell.classList.toggle('is-editing', _editing);
+    const toolbar = document.querySelector('.sc-toolbar');
+    if (toolbar) toolbar.classList.toggle('is-editing', _editing);
+    const editBtn = document.getElementById('sc-edit-btn');
+    if (editBtn) {
+      editBtn.classList.toggle('is-active', _editing);
+      editBtn.textContent = _editing ? '✓ Hotovo' : '✏ Editovat mapu';
+    }
+    // Enable / disable Leaflet drag on every mounted marker. Replaces
+    // the MutationObserver pattern — direct call is cleaner and avoids
+    // observer churn when the global `body.edit-mode` class flipped
+    // for unrelated reasons (it no longer flips at all after Phase 6,
+    // but this is the right shape regardless).
+    Object.values(_markers).forEach(m => {
+      if (m && m.dragging) _editing ? m.dragging.enable() : m.dragging.disable();
+    });
+    // Leaving edit mode while in add-mode would leave a confusing
+    // crosshair + pending intent; cancel both.
+    if (!_editing && _addMode) {
+      _placeForLocId = null;
+      _placeForEventId = null;
+      _setAddMode(false);
+    }
+    _renderLegend();
+  }
+
   // Arm the map so the next click writes mapX/mapY onto the given event.
   // Used by the event editor's "📍 Umístit pin události" button so a
   // session can be pinned to a spot on the map without creating a Location.
@@ -1957,6 +2013,7 @@ export const WorldMap = (() => {
 
   return {
     render,
+    setEditing,
     toggleAddMode, closePanel,
     toggleEventPaths,
     openPinPanel, savePin, deletePin,

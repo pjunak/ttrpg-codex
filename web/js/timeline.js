@@ -13,6 +13,7 @@
 
 import { Store } from './store.js';
 import { EditMode } from './editmode.js';
+import { Role } from './role.js';
 import { esc, dataAction } from './utils.js';
 
 const STACK_THRESHOLD = 4;
@@ -22,6 +23,18 @@ const STACK_THRESHOLD = 4;
 let _draggingId = null;
 
 export const Timeline = (() => {
+
+  // Local per-page edit toggle. Was driven by EditMode.isActive() (the
+  // global edit mode); now lives here so editing the timeline doesn't
+  // require flipping a global state. Persists across renders within
+  // the session — `setEditing(bool)` flips and re-renders. Anonymous
+  // viewers never see the toolbar toggle, so they can't enter this
+  // state without logging in first.
+  let _editing = false;
+  function setEditing(bool) {
+    _editing = !!bool;
+    render();
+  }
 
   // Per-render id→entity Maps. Built fresh at the top of render() so
   // _cardHTML / _eventAccentColor do O(1) lookups instead of a linear
@@ -104,7 +117,7 @@ export const Timeline = (() => {
       if (ev.key === 'Enter' || ev.key === ' ') window.location.hash = `#/udalost/${e.id}`;
     });
 
-    if (EditMode.isActive()) {
+    if (_editing) {
       card.setAttribute('draggable', 'true');
       card.addEventListener('dragstart', ev => {
         _draggingId = e.id;
@@ -244,14 +257,26 @@ export const Timeline = (() => {
       1,
       events.reduce((m, e) => Math.max(m, e.sitting ?? 0), 0),
     );
-    const editing = EditMode.isActive();
+    const editing = _editing;
+
+    // Edit toggle in the toolbar. Hidden for anonymous viewers; visible
+    // (always) for any authed role. Acts as a local per-page mode —
+    // enables card drag-drop + the "+ Nová událost" footers without
+    // touching any global state.
+    const editToggle = Role.isAnonymous() ? '' : `
+      <button class="tl-edit-toggle ${editing ? 'is-active' : ''}"
+        title="${editing ? 'Vypnout úpravy osy' : 'Zapnout úpravy osy (přesouvání karet, nové události)'}"
+        ${dataAction('Timeline.setEditing', !editing)}>
+        ${editing ? '✓ Hotovo' : '✏ Editovat osu'}
+      </button>`;
 
     document.getElementById('main-content').style.display = '';
     document.getElementById('main-content').innerHTML = `
-      <div class="tl-shell">
+      <div class="tl-shell ${editing ? 'is-editing' : ''}">
         <div class="tl-toolbar">
           <div class="tl-title">⏳ Časová Osa</div>
           <span class="tl-hint">Klik na kartu = detail události${editing ? ' · Táhni kartu = přeskládat' : ''}</span>
+          ${editToggle}
           ${editing ? `<button class="tl-add-btn"${dataAction('EditMode.startNewEvent')}>＋ Nová událost</button>` : ''}
         </div>
         <div class="tl-board-viewport">
@@ -330,5 +355,5 @@ export const Timeline = (() => {
     board.appendChild(col);
   }
 
-  return { render };
+  return { render, setEditing };
 })();
