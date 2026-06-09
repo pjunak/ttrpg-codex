@@ -213,6 +213,20 @@ function _parseSessionCookie(value) {
 function _cookieValue(realRole, role) {
   return `${realRole}.${role}.${_tokenFor(realRole, role)}`;
 }
+// Session cookies live for 30 days; a single place to change the policy.
+const SESSION_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+// Issue (or re-issue) the edit_session cookie for the given roles. All
+// auth endpoints (login, view-as, view-as-dm, password rotation) route
+// through here so the cookie options stay identical in one spot.
+function _setSessionCookie(res, realRole, role) {
+  res.cookie('edit_session', _cookieValue(realRole, role), {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure:   process.env.NODE_ENV === 'production',
+    path:     '/',
+    maxAge:   SESSION_COOKIE_MAX_AGE_MS,
+  });
+}
 // Resolve a request to a role (`dm` | `player` | null). Validates the
 // cookie's token against the expected hash for its claimed roles;
 // tampered cookies fall through to anonymous.
@@ -777,13 +791,7 @@ app.post('/api/login', (req, res) => {
     return res.status(401).json({ error: 'Špatné heslo' });
   }
   _loginAttempts.delete(ip);
-  res.cookie('edit_session', _cookieValue(role, role), {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure:   process.env.NODE_ENV === 'production',
-    path:     '/',
-    maxAge:   30 * 24 * 60 * 60 * 1000,   // 30 days
-  });
+  _setSessionCookie(res, role, role);
   res.json({ ok: true, role });
 });
 
@@ -819,13 +827,7 @@ app.get('/api/auth', (req, res) => {
  */
 app.post('/api/view-as', (req, res) => {
   if (req.realRole !== 'dm') return res.status(403).json({ error: 'Pouze pro DM' });
-  res.cookie('edit_session', _cookieValue('dm', 'player'), {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure:   process.env.NODE_ENV === 'production',
-    path:     '/',
-    maxAge:   30 * 24 * 60 * 60 * 1000,
-  });
+  _setSessionCookie(res, 'dm', 'player');
   res.json({ ok: true, role: 'player', realRole: 'dm' });
 });
 
@@ -835,13 +837,7 @@ app.post('/api/view-as', (req, res) => {
  */
 app.post('/api/view-as-dm', (req, res) => {
   if (req.realRole !== 'dm') return res.status(403).json({ error: 'Pouze pro DM' });
-  res.cookie('edit_session', _cookieValue('dm', 'dm'), {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure:   process.env.NODE_ENV === 'production',
-    path:     '/',
-    maxAge:   30 * 24 * 60 * 60 * 1000,
-  });
+  _setSessionCookie(res, 'dm', 'dm');
   res.json({ ok: true, role: 'dm', realRole: 'dm' });
 });
 
@@ -934,13 +930,7 @@ app.post('/api/passwords', async (req, res) => {
   // every outstanding DM cookie — including ours. Re-issue so the
   // caller stays logged in without a manual re-login.
   if (role === 'dm') {
-    res.cookie('edit_session', _cookieValue('dm', req.role || 'dm'), {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure:   process.env.NODE_ENV === 'production',
-      path:     '/',
-      maxAge:   30 * 24 * 60 * 60 * 1000,
-    });
+    _setSessionCookie(res, 'dm', req.role === 'player' ? 'player' : 'dm');
   }
   res.json({ ok: true, role });
 });
@@ -1467,7 +1457,12 @@ app.get('/api/events', async (req, res) => {
   });
   res.flushHeaders?.();
   const hash = await _dataHash();
-  res.write(`event: hello\ndata: ${JSON.stringify({ hash, at: Date.now() })}\n\n`);
+  // Guard the handshake write: a client that disconnects between
+  // flushHeaders and here makes res.write throw. Bail rather than let
+  // the rejection escape the handler (the ping below is guarded too).
+  try {
+    res.write(`event: hello\ndata: ${JSON.stringify({ hash, at: Date.now() })}\n\n`);
+  } catch (_) { return; }
   _sseClients.add(res);
 
   const ping = setInterval(() => {

@@ -446,7 +446,7 @@ export const EditMode = (() => {
       const preview = document.getElementById("ep-preview-" + uid);
       const hidden  = document.getElementById("ep-data-" + uid);
       // Show with cache-buster, but store the clean URL (no ?v=) in data
-      if (preview) preview.innerHTML = `<img src="${url}?v=${Date.now()}" style="width:100%;height:100%;object-fit:cover;object-position:top">`;
+      if (preview) preview.innerHTML = `<img src="${esc(url)}?v=${Date.now()}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:top">`;
       if (hidden)  hidden.value = url;
       _toast("Obrázek nahrán ✓");
     } catch(e) {

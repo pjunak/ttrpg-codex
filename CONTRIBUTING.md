@@ -19,11 +19,13 @@ project's conventions, and the typical recipes you'll need.
 git clone https://github.com/pjunak/dnd-web-codex.git
 cd dnd-web-codex
 npm install
-EDIT_PASSWORD=test node server.js
+DM_PASSWORD=test node server.js
 ```
 
 Open <http://localhost:3000>. The dataset is empty on first run; click
-**✏ Úpravy** in the sidebar and enter `test` to start editing.
+any **✏** edit pencil (or the **🔑 Přihlásit** chip on the dashboard)
+and enter `test` to start editing as DM. Set `PLAYER_PASSWORD` too if
+you want to exercise the player role.
 
 Changes to JS / CSS / HTML are picked up by reloading the browser tab.
 There's no bundler, no transpiler, no hot-reload step — file → reload
@@ -32,7 +34,7 @@ is the entire dev loop.
 ### Running with Docker (matches production)
 
 ```bash
-echo "EDIT_PASSWORD=test" > .env
+echo "DM_PASSWORD=test" > .env
 docker compose up --build
 ```
 
@@ -47,14 +49,30 @@ delete them between experiments if you want a fresh state.
 npm test
 ```
 
-Smoke tests live under `test/` and use Node's built-in `--test` runner.
+Tests live under `test/` and use Node's built-in `--test` runner.
+There are two kinds:
+
+- **Unit tests** exercise pure functions directly (e.g.
+  `utils.test.mjs`, `server-utils.test.cjs`, `visibility.test.cjs`).
+- **Integration tests** (`integration-*.test.cjs`) boot the real
+  Express app in a child process against an isolated tempdir via
+  `test/helpers/server-process.cjs`, then drive it over HTTP — so they
+  cover auth, role filtering, migrations, and the snapshot/restore
+  endpoints exactly as they run in production.
+
 Two file extensions:
 
 - `*.test.mjs` — browser-side modules (`web/js/*`). The `web/js/`
   directory has its own `package.json` declaring `"type": "module"` so
   Node treats those imports as ES modules.
 - `*.test.cjs` — server-side modules (`server.js`, `server-utils.cjs`,
-  `tiler.js`).
+  `tiler.js`, and the integration suites).
+
+Run a single file while iterating:
+
+```bash
+node --test test/integration-snapshots.test.cjs
+```
 
 Add a new test as `test/<name>.test.{mjs|cjs}`. For server-side
 helpers worth testing, extract them into a separate CommonJS module

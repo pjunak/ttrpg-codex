@@ -14,7 +14,7 @@ already know your way around Compose + reverse proxies, skim to the
 | Disk | A few MB of code + however much your campaign grows; tile pyramids dominate (≈3-5× the source map image) |
 | Persistent volumes | `./data` and `./data-snapshots` |
 | Network | Listens on port 3000 inside the container |
-| Auth | Single shared password set via `EDIT_PASSWORD` env var |
+| Auth | DM password (full access) + optional player password (public content only). Set via env vars or rotated in-app — see [Passwords & roles](#passwords--roles) |
 | Required external services | None — JSON files on disk |
 
 ## 1. Install Docker
@@ -36,15 +36,49 @@ git clone https://github.com/pjunak/dnd-web-codex.git
 cd dnd-web-codex
 ```
 
-Create a `.env` file with a strong edit password — anyone with this
+Create a `.env` file with a strong **DM** password — anyone with this
 password can edit (or destroy) your campaign:
 
 ```bash
-echo "EDIT_PASSWORD=$(openssl rand -base64 24)" > .env
+echo "DM_PASSWORD=$(openssl rand -base64 24)" > .env
 ```
 
 Save the password somewhere — your password manager, a sealed
 envelope, whatever you trust.
+
+### Passwords & roles
+
+The app has three access levels:
+
+| Role | How to get it | Can do |
+|---|---|---|
+| **Anonymous** | no login | Read all public content |
+| **Player** | the player password | Read + edit **public** content; cannot see or edit DM-only lore |
+| **DM** | the DM password | Everything, including DM-only entities and Settings |
+
+Passwords come from two sources, checked in this order:
+
+1. **`data/auth.json`** — credentials set in-app from **Settings →
+   Účet** by a logged-in DM. These persist across restarts and take
+   priority over the environment.
+2. **Environment variables** — `DM_PASSWORD` and `PLAYER_PASSWORD`,
+   consulted only when the matching role has no stored credential.
+   `EDIT_PASSWORD` is a legacy alias for `DM_PASSWORD`.
+
+A few consequences worth knowing:
+
+- **A player password is optional.** Leave `PLAYER_PASSWORD` unset and
+  player login is simply disabled — anonymous visitors already get the
+  same public-only view.
+- **Rotate without redeploying.** Sign in as DM, open Settings → Účet,
+  and change either password. Changing the DM password rotates the
+  cookie secret (invalidating old sessions) but re-issues your own so
+  you stay logged in.
+- **Never run with the default.** If neither `DM_PASSWORD` nor a stored
+  credential is set, the DM password falls back to `"123"` and the
+  server logs a loud warning at boot — anyone reading the open-source
+  code could then compute a valid cookie. Set a real password before
+  exposing the app.
 
 ## 3. Start the container
 
@@ -64,8 +98,9 @@ You should see `TTRPG Codex running on http://localhost:3000`. Hit
 Ctrl-C to stop tailing the logs (the container keeps running).
 
 Open <http://localhost:3000>. The page loads with no campaign data.
-Click **✏ Úpravy** in the sidebar, paste the password from `.env`,
-and start filling in entities.
+Click any **✏** edit pencil (or the **🔑 Přihlásit** chip in the
+top-right of the dashboard), paste the password from `.env`, and start
+filling in entities.
 
 ## 4. Put it behind a reverse proxy (production)
 
@@ -191,8 +226,11 @@ Notable lines:
 - `[tiles] sharp not installed — tile generation disabled` — the
   optional `sharp` dep failed to load; the app still runs but uses
   the slower single-image overlay instead of a tile pyramid.
-- `⚠ EDIT_PASSWORD is unset or default; anyone can edit. Set a
-  strong value in .env.` — fix that immediately.
+- `⚠  DM password is UNSET` / `… is the default ("123")` — the
+  deployment is world-editable. Set `DM_PASSWORD` (or change it from
+  Settings → Účet) immediately.
+- `ℹ  Player password is unset — player login is disabled.` — benign;
+  set `PLAYER_PASSWORD` only if you want a separate player tier.
 
 ### Resource limits
 
@@ -214,9 +252,12 @@ sudo chown -R 1000:1000 ./data ./data-snapshots
 ## Troubleshooting
 
 **Page loads but the password is rejected.**
-Check the server logs for `EDIT_PASSWORD` warnings. The password lives
-in `.env`; make sure Compose loaded it (`docker compose config | grep
-EDIT_PASSWORD`).
+Check the server logs for the password warnings at boot. If you set the
+password in `.env`, make sure Compose loaded it (`docker compose config
+| grep -E 'DM_PASSWORD|PLAYER_PASSWORD|EDIT_PASSWORD'`). Note that a
+credential stored in-app (`data/auth.json`, set via Settings → Účet)
+**overrides** the env var — if you changed it there, the old `.env`
+value no longer applies.
 
 **Markers don't appear on the world map.**
 Open the browser console. A common cause is missing tile pyramids — if

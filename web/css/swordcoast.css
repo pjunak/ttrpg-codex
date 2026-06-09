@@ -47,7 +47,9 @@
   transition: background 0.15s, border-color 0.15s;
   white-space: nowrap;
 }
-.sc-btn:hover { background: var(--bg-card); border-color: rgba(212,184,122,0.5); }
+/* Subtle gold-tint lift on hover. Must NOT be var(--bg-card) — that's
+   parchment (#F5EDD8) and would flash a bright panel on the dark toolbar. */
+.sc-btn:hover { background: rgba(212,184,122,0.1); border-color: rgba(212,184,122,0.5); }
 .sc-btn.active { background: rgba(212,184,122,0.2); border-color: var(--accent-gold); color: var(--accent-gold); }
 .sc-btn.ok  { border-color: rgba(46,125,50,0.5); color: #a5d6a7; }
 .sc-btn.err { border-color: rgba(139,0,0,0.5);   color: #ef9a9a; }

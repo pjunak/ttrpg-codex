@@ -41,9 +41,12 @@ something other than Czech.
 - **Live sync** over Server-Sent Events. No polling, sub-second
   propagation, dirty-form guard so a teammate's edit can't stomp
   your in-progress changes.
-- **Auth** — read access is open; editing requires a single
-  password (`EDIT_PASSWORD`), stored as a SHA-256 cookie with
-  rate-limited login.
+- **Auth & roles** — read access is open. Editing requires a
+  password: a **DM** password unlocks everything (including DM-only
+  lore); an optional **player** password grants edit access to public
+  content only. Set them at deploy time (`DM_PASSWORD` /
+  `PLAYER_PASSWORD`) or rotate them later from Settings → Účet.
+  Sessions are signed, rate-limited cookies.
 
 ## Quick start (5 minutes)
 
@@ -55,14 +58,16 @@ That's it — no Node toolchain on the host, no build step.
 git clone https://github.com/pjunak/dnd-web-codex.git
 cd dnd-web-codex
 
-# Pick a strong password — anyone with it can edit your campaign.
-echo "EDIT_PASSWORD=$(openssl rand -base64 24)" > .env
+# Pick a strong DM password — anyone with it can edit everything.
+# (EDIT_PASSWORD is the legacy alias for DM_PASSWORD; both work.)
+echo "DM_PASSWORD=$(openssl rand -base64 24)" > .env
 
 docker compose up -d
 ```
 
-Open <http://localhost:3000>. The page loads empty — click ✏ Úpravy
-in the sidebar, paste the password from `.env`, and you're editing.
+Open <http://localhost:3000>. The page loads empty — click any ✏ edit
+pencil (or the 🔑 Přihlásit chip, top-right on the dashboard), paste
+the password from `.env`, and you're editing.
 
 For production deployment behind a reverse proxy (HTTPS, custom
 domain, etc.), see [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md).
@@ -80,8 +85,8 @@ web/
   index.html             SPA shell
   css/bundle.css         Single CSS entry point (@imports the rest)
   js/                    Vanilla ES6 modules — see ARCHITECTURE.md
-icons-defaults/          Bundled marker SVGs (game-icons.net, CC BY 3.0)
-test/                    node --test smoke tests
+  icons-defaults/        Bundled marker SVGs (game-icons.net, CC BY 3.0)
+test/                    node --test unit + integration tests
 ```
 
 ## Documentation

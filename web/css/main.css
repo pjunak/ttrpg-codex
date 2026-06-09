@@ -55,11 +55,81 @@
   --font-title: 'Cinzel', 'Georgia', serif;
   --font-body:  'Lora', 'Georgia', serif;
   --font-ui:    'Inter', 'Helvetica Neue', sans-serif;
+
+  /* ── Scales (added in the design-system cleanup) ──────────────
+     These are the canonical scales. New CSS should use these tokens;
+     legacy hardcoded values across the bundle should snap to the
+     nearest step over time (tracked in docs/ARCHITECTURE.md). The
+     numbers below match values already common in the codebase so
+     migration is 1:1, not a redesign. */
+
+  /* Muted-gold accent — the rgba(212,184,122,…) used ~80× for borders,
+     tints and rules. Channels-only so callers vary the alpha:
+     border: 1px solid rgba(var(--gold-muted), 0.25); */
+  --gold-muted: 212, 184, 122;
+
+  /* Spacing scale (4px rhythm) */
+  --space-1: 0.25rem;   /*  4px */
+  --space-2: 0.5rem;    /*  8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.5rem;    /* 24px */
+  --space-6: 2rem;      /* 32px */
+
+  /* Type scale */
+  --text-xs:   0.75rem;
+  --text-sm:   0.85rem;
+  --text-base: 1rem;
+  --text-lg:   1.2rem;
+  --text-xl:   1.5rem;
+  --text-2xl:  2rem;
+  --text-3xl:  2.6rem;
+
+  /* Radius — fills the 4px / pill gaps around the existing
+     --radius (6px) and --radius-lg (12px) */
+  --radius-sm:   4px;
+  --radius-pill: 999px;
+
+  /* Elevation shadows — match the ad-hoc drop-shadows already in use */
+  --shadow-sm: 0 2px 6px rgba(0,0,0,0.3);
+  --shadow-md: 0 6px 20px rgba(0,0,0,0.4);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.5);
+
+  /* Z-index scale — matches the existing layering tiers. Keep new
+     stacking contexts on these rungs instead of inventing numbers. */
+  --z-base:     1;
+  --z-sticky:   100;
+  --z-drawer:   200;
+  --z-dropdown: 1000;
+  --z-modal:    10000;
+  --z-toast:    10001;
+
+  /* Motion */
+  --ease-out:  cubic-bezier(0, 0, 0.25, 1);
+  --dur-fast:  0.12s;
+  --dur-base:  0.18s;
+  --dur-slow:  0.25s;
+
+  /* Canonical responsive breakpoints (CSS can't put these in @media
+     conditions without a build step — listed here as the agreed set
+     so every file uses the same values):
+       768px  — mobile / sidebar drawer threshold
+       1100px — wiki article two-column → single-column
+       1200px — split editor two-column → single-column */
 }
 
 /* ── Reset ──────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
+
+/* Global keyboard-focus ring. :focus-visible only triggers for
+   keyboard / assistive-tech navigation, never on mouse clicks, so this
+   adds a consistent on-brand focus indicator without affecting pointer
+   users. Components with bespoke focus styling override via specificity. */
+:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
 body {
   background-color: var(--bg-base);
   background-image:

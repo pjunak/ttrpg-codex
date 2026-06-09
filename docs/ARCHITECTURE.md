@@ -16,7 +16,7 @@ loop see [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 | Mind maps | Cytoscape.js + Dagre ([`web/js/cloudmap.js`](../web/js/cloudmap.js)) |
 | World map | Leaflet 1.9.4 + on-disk tile pyramid ([`web/js/map.js`](../web/js/map.js), [`tiler.js`](../tiler.js)) |
 | Markdown | marked + DOMPurify, edited via EasyMDE |
-| Auth | SHA-256 cookie (`edit_session`), single shared password |
+| Auth | Signed `edit_session` cookie; DM + optional player roles, role-aware visibility filter ([`server/visibility.cjs`](../server/visibility.cjs)) |
 | Uploads | multer, capped at 20 MB / file (40 MB for the world map) |
 | Backups | archiver (ZIP) + adm-zip (restore) |
 | Tests | Node built-in `node --test` runner |
@@ -46,6 +46,7 @@ web/js/
   store.js          In-memory state, server sync, secondary indices, trash
   data.js           Default seeds (FACTIONS, REL_TYPES, SETTINGS_DEFAULTS, …)
   constants.js      PARTY_FACTION_ID, ROUTE map, SIDEBAR_PAGES, czPlural
+  role.js           Role state (dm / player / anonymous) + view-as impersonation
   utils.js          esc, escapeRe, norm, debounce, slugify, extractOutline,
                     humanTime, renderMarkdown, expandWikiLinks, dataAction/On
 
@@ -53,10 +54,11 @@ web/js/
   cloudmap.js       Mind maps (Cytoscape + custom physics + crossing reduction)
   timeline.js       Kanban board for events
   map.js            Leaflet world map + sub-maps + pin types + zoom scaling
-  editmode.js       Edit toggle, auth, EasyMDE mount, draft recovery, dirty guard
+  editmode.js       Per-page edit affordances, auth, EasyMDE mount, draft recovery, dirty guard
   edit_templates.js HTML form templates for every edit overlay
   search.js         Ctrl+K global search palette
-  settings.js       /nastaveni page (enums + maps + sidebar + backup tabs)
+  settings.js       /nastaveni page (enums + maps + sidebar + backup + account tabs)
+  dm_dashboard.js   DM-only landing page at /dm (per-collection DM-entity counts)
   boot.js           Pre-boot script (CSP-compatible, restores Kompendium state)
 
   widgets/
@@ -345,10 +347,30 @@ that were tried and reverted (do not retry without reason).
 
 ## Security model
 
-- **Auth.** Read access is open (the wiki is public). Editing
-  requires the `edit_session` cookie, which is the SHA-256 of
-  `EDIT_PASSWORD`. Comparison uses `crypto.timingSafeEqual` to
-  avoid leaking length / prefix info via timing.
+- **Auth & roles.** Read access is open (the wiki is public, minus
+  DM-only entities — see *Visibility* below). Editing requires the
+  signed `edit_session` cookie. There are two write roles: **DM**
+  (full access) and **player** (public content only). The cookie
+  token is derived from the role's password hash — read from
+  `data/auth.json` if a credential was set in-app (Settings → Účet),
+  otherwise the `DM_PASSWORD` / `PLAYER_PASSWORD` env vars
+  (`EDIT_PASSWORD` is a legacy DM alias). Changing a password rotates
+  the secret and invalidates outstanding cookies for that role. Token
+  comparison uses `crypto.timingSafeEqual`. A DM can also "view as
+  player" — an impersonation that keeps the signed DM claim
+  (`realRole`) while flipping the effective `role`.
+- **Visibility (twin model).** Every content entity carries
+  `visibility: 'public' | 'dm'`. `GET /api/data` runs through
+  `filterForRole` ([`server/visibility.cjs`](../server/visibility.cjs)):
+  non-DM callers never receive `visibility:'dm'` records, and the
+  `linkedTwinId` field is stripped from their payloads. DM-only lore
+  is paired with a public "twin" via `linkedTwinId`; `POST /api/twin`
+  (DM-only) creates/links/unlinks the pair. Player writes pass through
+  `_sanitizePlayerEntity`, which forces `visibility:'public'` and
+  preserves `linkedTwinId`, so a player edit can neither escalate to
+  DM-only nor leak the existence of a DM twin. The startup
+  visibility-stamp migration lives in
+  [`server/migrations.cjs`](../server/migrations.cjs).
 - **Login rate limiting.** Failed POST `/api/login` attempts
   accumulate per source IP and trigger a 15-minute lockout after
   a burst. Brute force is impractical even with a weak password.
@@ -387,30 +409,35 @@ that were tried and reverted (do not retry without reason).
 ## API reference
 
 Detailed endpoint reference is in the JSDoc comments above each
-handler in [`server.js`](../server.js). Summary:
+handler in [`server.js`](../server.js). Auth legend: `—` open ·
+`any` any signed-in role · `dm` DM only.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET | `/api/data` | — | Full campaign JSON |
-| PATCH | `/api/data` | ✓ | Save or delete a single entity |
+| GET | `/api/data` | — | Full campaign JSON, role-filtered (DM-only entities dropped for non-DM) |
+| PATCH | `/api/data` | any | Save or delete one entity; player writes sanitised to public |
+| POST | `/api/twin` | dm | Create / link / unlink a public↔DM twin pair |
 | GET | `/api/events` | — | SSE stream of `data-changed` events |
 | GET | `/api/version` | — | Current dataset hash (health check) |
 | POST | `/api/login` | — | Validate password, set `edit_session` cookie |
-| GET | `/api/auth` | — | Probe whether the cookie is valid |
-| POST | `/api/portrait/:charId` | ✓ | Upload character portrait |
-| DELETE | `/api/portrait/:identifier` | ✓ | Delete portrait file or folder |
-| POST | `/api/localmap/:locId` | ✓ | Upload a location's sub-map image |
-| POST | `/api/worldmap` | ✓ | Replace the world-map backdrop |
-| POST | `/api/icons/:pinTypeId` | ✓ | Upload up to 16 marker variants |
-| DELETE | `/api/icons/:pinTypeId/:filename` | ✓ | Remove one variant |
-| DELETE | `/api/icons/:pinTypeId` | ✓ | Remove the whole folder |
-| GET | `/api/backup` | ✓ | Stream `data/` as a ZIP |
-| POST | `/api/restore` | ✓ | Replace `data/` from a ZIP or JSON upload |
-| GET | `/api/snapshots` | ✓ | List snapshots, newest first |
-| POST | `/api/snapshots` | ✓ | Take a manual snapshot |
-| POST | `/api/snapshots/:id/restore` | ✓ | Roll back to a specific snapshot |
-| POST | `/api/snapshots/revert-last/:n` | ✓ | Undo the last N changes |
-| DELETE | `/api/snapshots/:id` | ✓ | Delete one snapshot file |
+| POST | `/api/logout` | — | Clear the cookie (idempotent) |
+| GET | `/api/auth` | — | Probe current role + impersonation state |
+| POST | `/api/view-as` · `/api/view-as-dm` | dm | Toggle "view as player" impersonation |
+| GET · POST | `/api/passwords` | dm | Inspect / rotate stored DM + player credentials |
+| POST | `/api/portrait/:charId` | any | Upload character portrait |
+| DELETE | `/api/portrait/:identifier` | any | Delete portrait file or folder |
+| POST | `/api/localmap/:locId` | any | Upload a location's sub-map image |
+| POST | `/api/worldmap` | dm | Replace the world-map backdrop |
+| POST | `/api/icons/:pinTypeId` | dm | Upload up to 16 marker variants |
+| DELETE | `/api/icons/:pinTypeId/:filename` | dm | Remove one variant |
+| DELETE | `/api/icons/:pinTypeId` | dm | Remove the whole folder |
+| GET | `/api/backup` | dm | Stream `data/` as a ZIP |
+| POST | `/api/restore` | dm | Replace `data/` from a ZIP or JSON upload |
+| GET | `/api/snapshots` | any | List snapshots, newest first |
+| POST | `/api/snapshots` | any | Take a manual snapshot |
+| POST | `/api/snapshots/:id/restore` | dm | Roll back to a specific snapshot |
+| POST | `/api/snapshots/revert-last/:n` | dm | Undo the last N changes |
+| DELETE | `/api/snapshots/:id` | dm | Delete one snapshot file |
 
 ## Where to start reading
 

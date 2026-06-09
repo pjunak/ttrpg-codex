@@ -383,7 +383,7 @@ export const EditTemplates = (() => {
             <div class="edit-portrait-col">
               <div class="edit-portrait-preview" id="ep-preview-${uid}">
                 ${c.portrait
-                  ? `<img src="${c.portrait}" style="width:100%;height:100%;object-fit:cover;object-position:top">`
+                  ? `<img src="${esc(c.portrait)}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:top">`
                   : `<span style="font-size:2.5rem">${badge}</span>`}
               </div>
               <label class="edit-upload-btn">
