@@ -651,3 +651,25 @@
   border-bottom: 1px dashed rgba(212,184,122,0.2);
   letter-spacing: 0.03em;
 }
+
+/* ── Branding (logo) preview ────────────────────────────────── */
+.settings-branding-preview {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px dashed rgba(212,184,122,0.25);
+  border-radius: var(--radius, 10px);
+  background: rgba(0,0,0,0.18);
+}
+.settings-branding-logo {
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.settings-branding-meta {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}

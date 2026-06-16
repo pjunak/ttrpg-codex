@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Dračí oko">
+  <defs>
+    <linearGradient id="brandGold" x1="18" y1="6" x2="46" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F6DC8B"/>
+      <stop offset="0.5" stop-color="#D9A93F"/>
+      <stop offset="1" stop-color="#A66C22"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Medallion: dark coin so the gold mark reads on light AND dark tab bars -->
+  <circle cx="32" cy="32" r="30" fill="#16222F"/>
+  <circle cx="32" cy="32" r="30" fill="none" stroke="url(#brandGold)" stroke-width="2.6"/>
+  <circle cx="32" cy="32" r="25.5" fill="none" stroke="url(#brandGold)" stroke-width="0.8" opacity="0.4"/>
+
+  <!-- Dragon eye: almond + iris + vertical slit pupil + glint -->
+  <path d="M12 32 Q32 9 52 32 Q32 55 12 32 Z" fill="#0E1822"
+        stroke="url(#brandGold)" stroke-width="2.6" stroke-linejoin="round"/>
+  <circle cx="32" cy="32" r="10.5" fill="url(#brandGold)"/>
+  <path d="M32 22 Q35.5 32 32 42 Q28.5 32 32 22 Z" fill="#0E1822"/>
+  <circle cx="28.4" cy="28.4" r="1.7" fill="#FBEFC8"/>
+</svg>

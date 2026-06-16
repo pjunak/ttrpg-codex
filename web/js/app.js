@@ -516,6 +516,7 @@ document.addEventListener('error',    (ev) => {
     if (hash !== null) _lastHash = hash;
     await Store.load();
     Settings.applySidebarVisibility();
+    Settings.applyBranding();
     _renderTopbarLogin();
     _renderImpersonationBanner();
     // Self-originated SSE echoes (e.g. the Mapy zoom-scale slider's
@@ -718,6 +719,7 @@ document.addEventListener('error',    (ev) => {
       _renderImpersonationBanner();
       await Store.load();
       Settings.applySidebarVisibility();
+      Settings.applyBranding();
       navigate(getRoute());
     } finally {
       _roleChangeInflight = false;
@@ -740,6 +742,8 @@ document.addEventListener('error',    (ev) => {
     // Apply user-configured sidebar visibility before first paint so
     // hidden pages don't flash on screen during boot.
     Settings.applySidebarVisibility();
+    // Push the configured logo / wordmark / favicon onto the chrome.
+    Settings.applyBranding();
     // Render the top-right login chip (anonymous + dashboard only)
     // and any impersonation banner once we know the role. navigate()
     // re-runs _renderTopbarLogin on every route change too.

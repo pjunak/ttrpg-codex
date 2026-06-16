@@ -49,6 +49,7 @@ export const Settings = (() => {
   // panels (world-map upload, map-view presets, backup tools) instead
   // of the enum editor.
   const SPECIAL_TABS = [
+    { id: 'branding',     label: 'Logo a značka',   icon: '🐉' },
     { id: 'playerParty',  label: 'Naše parta',      icon: '🛡' },
     { id: 'worldmap',     label: 'Mapy',            icon: '🗺' },
     { id: 'mapViews',     label: 'Pohledy na mapě', icon: '📍' },
@@ -178,6 +179,7 @@ export const Settings = (() => {
     if (_activeCat === 'sidebarPages') return _sidebarPagesHtml();
     if (_activeCat === 'backup')       return _backupHtml();
     if (_activeCat === 'account')      return _accountHtml();
+    if (_activeCat === 'branding')     return _brandingHtml();
     if (_activeCat === 'playerParty')  return _playerPartyHtml();
     const cat = CATEGORIES.find(c => c.id === _activeCat);
     const items = Store.getEnum(_activeCat);
@@ -1293,6 +1295,137 @@ export const Settings = (() => {
     render();
   }
 
+  // ── Branding panel (logo + sidebar wordmark) ─────────────────
+  // The logo shows in the sidebar header, on the boot loading screen,
+  // and as the browser-tab favicon. `applyBranding()` pushes the
+  // current config onto that chrome; it's called from app.js at boot
+  // and after every SSE refetch so a DM's upload propagates live.
+  const DEFAULT_LOGO = '/branding/logo-default.svg';
+
+  /** Resolve the effective logo URL: the custom upload (cache-busted by
+   *  `updatedAt`) when set, else the bundled default. */
+  function _logoSrc(b) {
+    return b.logoUrl ? `${b.logoUrl}?v=${b.updatedAt || ''}` : DEFAULT_LOGO;
+  }
+
+  function _brandingHtml() {
+    const b = Store.getBranding();
+    const hasCustom = !!b.logoUrl;
+    return `
+      <div class="settings-editor-head">
+        <h2>🐉 Logo a značka</h2>
+      </div>
+      <div class="settings-panel">
+        <p class="settings-hint" style="margin-bottom:1rem">
+          Logo se zobrazuje v postranním panelu, na úvodní obrazovce a jako
+          ikona v záložce prohlížeče (favicon). Nahraj vlastní obrázek, nebo
+          se vrať k výchozímu draku.
+        </p>
+        <div class="settings-branding-preview">
+          <img src="${esc(_logoSrc(b))}" alt="Logo" class="settings-branding-logo"
+               ${dataOn('error', 'hide', '$el')}>
+          <div class="settings-branding-meta">
+            ${hasCustom ? 'Vlastní logo' : 'Výchozí logo (placeholder)'}
+          </div>
+        </div>
+        <div class="settings-form-actions" style="margin-top:1rem;gap:0.6rem;flex-wrap:wrap">
+          <label class="inline-create-btn" style="cursor:pointer;display:inline-block">
+            📂 Nahrát logo…
+            <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                   style="display:none" ${dataOn('change', 'Settings.uploadLogo', '$el')}>
+          </label>
+          ${hasCustom ? `<button type="button" class="inline-create-btn"
+              ${dataAction('Settings.deleteLogo')}>↺ Výchozí drak</button>` : ''}
+        </div>
+        <span class="settings-hint" style="display:block;margin-top:0.5rem">
+          Max 5 MB. Doporučeno čtvercové PNG / SVG / WebP s průhledným pozadím,
+          ideálně alespoň 256×256 px.
+        </span>
+
+        <hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.5rem 0">
+
+        <div class="settings-mapviews-group-title">Text značky (postranní panel)</div>
+        <div class="settings-form-row" style="margin-top:0.6rem">
+          <label class="settings-field">
+            <span class="settings-field-label">Název</span>
+            <input class="edit-input" id="brand-title" value="${esc(b.title)}"
+                   placeholder="TTRPG Codex">
+          </label>
+          <label class="settings-field">
+            <span class="settings-field-label">Podtitul</span>
+            <input class="edit-input" id="brand-subtitle" value="${esc(b.subtitle)}"
+                   placeholder="Wiki & World Atlas">
+          </label>
+        </div>
+        <div class="settings-form-actions" style="margin-top:1rem">
+          <button type="button" class="edit-save-btn"
+            ${dataAction('Settings.saveBranding')}>💾 Uložit text</button>
+        </div>
+      </div>`;
+  }
+
+  /** Handle a logo file pick: upload, persist the URL, push to chrome. */
+  function uploadLogo(input) {
+    const file = input?.files?.[0];
+    if (!file) return;
+    _flash('Nahrávám…');
+    Store.uploadLogo(file)
+      .then(url => {
+        Store.setBranding({ logoUrl: url });
+        applyBranding();
+        _flash('Logo nahráno');
+        render();
+      })
+      .catch(e => _flash(e?.error || 'Nahrávání selhalo', false))
+      .finally(() => { if (input) input.value = ''; });
+  }
+
+  /** Revert to the bundled default logo. */
+  function deleteLogo() {
+    Store.deleteLogo()
+      .then(() => {
+        Store.setBranding({ logoUrl: '' });
+        applyBranding();
+        _flash('Vráceno na výchozí logo');
+        render();
+      })
+      .catch(e => _flash(e?.error || 'Operace selhala', false));
+  }
+
+  /** Persist the wordmark text (title + subtitle) and push to chrome. */
+  function saveBranding() {
+    const title    = document.getElementById('brand-title')?.value?.trim() || 'TTRPG Codex';
+    const subtitle = document.getElementById('brand-subtitle')?.value?.trim() ?? '';
+    Store.setBranding({ title, subtitle });
+    applyBranding();
+    _flash('Značka uložena');
+    render();
+  }
+
+  /**
+   * Push the current branding onto the page chrome: the sidebar +
+   * loading-screen logo `<img>` (any `.js-brand-logo`), the sidebar
+   * wordmark text, the favicon, and the document title. Safe to call
+   * repeatedly and on any route — the targets are static markup in
+   * index.html, outside `#main-content`.
+   */
+  function applyBranding() {
+    if (typeof document === 'undefined') return;
+    let b;
+    try { b = Store.getBranding(); } catch (_) { return; }
+    const url = _logoSrc(b);
+    document.querySelectorAll('.js-brand-logo').forEach(img => {
+      if (img.getAttribute('src') !== url) img.setAttribute('src', url);
+    });
+    const titleEl = document.getElementById('sidebar-logo-title');
+    if (titleEl) titleEl.textContent = b.title;
+    const subEl = document.getElementById('sidebar-logo-sub');
+    if (subEl) subEl.textContent = b.subtitle;
+    const fav = document.getElementById('favicon');
+    if (fav) fav.setAttribute('href', url);
+    if (b.title) document.title = b.title;
+  }
+
   // ── Account panel ────────────────────────────────────────────
   // Two parts:
   //   1. Current role chip + login/logout button (anyone with a
@@ -1801,5 +1934,6 @@ export const Settings = (() => {
     changePassword,
     previewDefaultIcon,
     savePlayerParty,
+    uploadLogo, deleteLogo, saveBranding, applyBranding,
   };
 })();

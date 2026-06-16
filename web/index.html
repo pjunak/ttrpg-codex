@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>TTRPG Codex</title>
+  <!-- Favicon defaults to the bundled logo; Settings.applyBranding swaps
+       in a custom-uploaded logo at runtime when one is configured. -->
+  <link rel="icon" id="favicon" href="/branding/logo-default.svg">
+  <link rel="apple-touch-icon" href="/branding/logo-default.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Lora:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
@@ -49,10 +53,12 @@
   <!-- ── SIDEBAR (desktop) ──────────────────────────────────── -->
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-logo">
-      <div class="logo-dragon">🐉</div>
+      <div class="logo-dragon">
+        <img class="logo-img js-brand-logo" src="/branding/logo-default.svg" alt="Logo">
+      </div>
       <div class="logo-text">
-        <span class="logo-title">TTRPG Codex</span>
-        <span class="logo-sub">Wiki & World Atlas</span>
+        <span class="logo-title" id="sidebar-logo-title">TTRPG Codex</span>
+        <span class="logo-sub" id="sidebar-logo-sub">Wiki & World Atlas</span>
       </div>
     </div>
 
@@ -131,7 +137,9 @@
   <!-- ── MAIN CONTENT ──────────────────────────────────────── -->
   <main class="main-content" id="main-content">
     <div class="loading-screen" id="loading">
-      <div class="loading-dragon">🐉</div>
+      <div class="loading-dragon">
+        <img class="js-brand-logo" src="/branding/logo-default.svg" alt="">
+      </div>
       <div class="loading-text">Načítám kodex…</div>
     </div>
   </main>

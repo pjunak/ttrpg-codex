@@ -189,6 +189,22 @@ export const Store = (() => {
       };
     }
 
+    // Site branding (logo + sidebar wordmark) — single-object setting.
+    // Seeded once; never overwritten if present. Empty `logoUrl` means
+    // "use the bundled default" (web/branding/logo-default.svg). The
+    // condition only fires when the key is missing/invalid, so it's
+    // idempotent and never re-syncs on its own (avoids the settings
+    // re-render loop documented in CLAUDE.md).
+    if (!_data.settings.branding || typeof _data.settings.branding !== 'object'
+        || Array.isArray(_data.settings.branding)) {
+      _data.settings.branding = {
+        logoUrl:   '',
+        title:     'TTRPG Codex',
+        subtitle:  'Wiki & World Atlas',
+        updatedAt: 0,
+      };
+    }
+
     // Campaign metadata (name + tagline, shown on dashboard hero).
     // Keyed-object collection with a single 'main' record.
     if (!_data.campaign || typeof _data.campaign !== 'object' || Array.isArray(_data.campaign)) {
@@ -1747,6 +1763,73 @@ export const Store = (() => {
     return _sync('settings', 'save', { id: 'playerParty', data: next });
   }
 
+  // ── Site branding (logo + sidebar wordmark) ───────────────────
+  // Single-object setting under `settings.branding`. `logoUrl` is the
+  // server path of an uploaded logo, or '' to use the bundled default.
+  // Rides the same settings PATCH path as playerParty; DM-only writes
+  // are enforced server-side (settings is in DM_ONLY_WRITE_TYPES).
+  const BRANDING_DEFAULTS = {
+    logoUrl:   '',
+    title:     'TTRPG Codex',
+    subtitle:  'Wiki & World Atlas',
+    updatedAt: 0,
+  };
+
+  /**
+   * @returns {{logoUrl:string, title:string, subtitle:string,
+   *            updatedAt:number}} Branding config with defaults
+   *   substituted. Empty `logoUrl` means "render the bundled default".
+   *   `subtitle` may legitimately be '' (the user cleared it), so it's
+   *   only defaulted when the field is missing entirely.
+   */
+  function getBranding() {
+    init();
+    const b = (_data.settings && _data.settings.branding) || {};
+    return {
+      logoUrl:   typeof b.logoUrl  === 'string' ? b.logoUrl  : BRANDING_DEFAULTS.logoUrl,
+      title:     b.title || BRANDING_DEFAULTS.title,
+      subtitle:  typeof b.subtitle === 'string' ? b.subtitle : BRANDING_DEFAULTS.subtitle,
+      updatedAt: b.updatedAt || 0,
+    };
+  }
+
+  /**
+   * Merge `patch` into the branding record and persist. Stamps a fresh
+   * `updatedAt` so consumers can cache-bust the logo `<img>` (the file
+   * keeps the same path when an upload reuses the extension).
+   *
+   * @param {Partial<{logoUrl:string, title:string, subtitle:string}>} patch
+   */
+  function setBranding(patch) {
+    init();
+    if (!_data.settings) _data.settings = {};
+    const cur = _data.settings.branding || {};
+    const next = { ...cur, ...(patch || {}), updatedAt: Date.now() };
+    _data.settings.branding = next;
+    return _sync('settings', 'save', { id: 'branding', data: next });
+  }
+
+  /**
+   * Upload a new logo image. Resolves to the server URL of the stored
+   * file; the caller is expected to persist it via `setBranding`.
+   *
+   * @param {File} file
+   * @returns {Promise<string>} the new `/branding/logo.<ext>` URL
+   */
+  function uploadLogo(file) {
+    const fd = new FormData();
+    fd.append('logo', file);
+    return fetch('/api/logo', { method: 'POST', body: fd, credentials: 'same-origin' })
+      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+      .then(j => j.url);
+  }
+
+  /** Remove the custom logo on the server (revert to bundled default). */
+  function deleteLogo() {
+    return fetch('/api/logo', { method: 'DELETE', credentials: 'same-origin' })
+      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)));
+  }
+
   // ── Campaign metadata (dashboard hero) ────────────────────────
   // Keyed-object collection with a single `main` record (matches the
   // factions PATCH shape on the wire: `{type, action, payload:{id,data}}`).
@@ -2294,6 +2377,7 @@ export const Store = (() => {
     uploadIcons, deleteIcon, deleteIcons,
     linkTwin, getTwin, getCollection, dedupeShadowTwins,
     getPlayerParty, setPlayerParty,
+    getBranding, setBranding, uploadLogo, deleteLogo,
     getCharacters, isPartyMember, isVisibleTo, getPartyMembers, getNPCs,
     getRelationships, getLocations, getEvents, getMysteries,
     getFactions, getFaction, getStatusMap,

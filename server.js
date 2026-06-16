@@ -53,6 +53,10 @@ const LOCAL_MAPS_DIR = path.join(MAPS_DIR, 'local');
 const TILES_DIR      = path.join(MAPS_DIR, 'tiles');
 const SWORDCOAST_DIR = path.join(MAPS_DIR, 'swordcoast');
 const ICONS_DIR      = path.join(DATA_DIR, 'icons');
+// Site branding (custom logo). The uploaded file lives here as
+// `logo.<ext>`; the bundled placeholder ships in `web/branding/`
+// and is reached through fallthrough on the static mount below.
+const BRANDING_DIR   = path.join(DATA_DIR, 'branding');
 // Snapshots live OUTSIDE data/ so:
 //   - the data hash and the backup zip don't have to keep stepping
 //     around them (they used to be at data/snapshots/).
@@ -274,6 +278,10 @@ function requireAnyRole(req, res, next) {
 app.use('/portraits', express.static(PORTRAITS_DIR));
 app.use('/maps',      express.static(MAPS_DIR));
 app.use('/icons',     express.static(ICONS_DIR, { maxAge: '7d', fallthrough: true }));
+// Custom-uploaded logo. fallthrough: true so a request for the bundled
+// default (`/branding/logo-default.svg`) — which lives in WEB_DIR, not
+// here — passes through to the WEB_DIR static handler below.
+app.use('/branding',  express.static(BRANDING_DIR, { maxAge: '7d', fallthrough: true }));
 app.use(express.static(WEB_DIR));
 
 function _imageFilter(_req, file, cb) {
@@ -1804,6 +1812,56 @@ app.post('/api/worldmap', requireAuth, uploadWorldMap.single('worldmap'), async 
     });
   }
   res.json({ url });
+});
+
+// ── Site logo upload ─────────────────────────────────────────
+// Writes the uploaded image to `data/branding/logo.<ext>` (replacing
+// any previous logo of a different extension). The client stores the
+// returned URL in `settings.branding.logoUrl`; clearing that (or
+// DELETE below) falls back to the bundled `web/branding/logo-default.svg`.
+const brandingStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    fs.mkdirSync(BRANDING_DIR, { recursive: true });
+    cb(null, BRANDING_DIR);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.png';
+    cb(null, 'logo' + ext);
+  },
+});
+const uploadLogo = multer({
+  storage:    brandingStorage,
+  limits:     { fileSize: 5 * 1024 * 1024 },
+  fileFilter: _imageFilter,
+});
+
+/**
+ * POST /api/logo — Replace the site logo. Removes any previous logo
+ * file with a different extension so the newest upload always wins,
+ * returns the new URL. Capped at 5 MB. Auth: DM only (shared chrome).
+ */
+app.post('/api/logo', requireAuth, uploadLogo.single('logo'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image received' });
+  const newFile = req.file.filename;
+  try {
+    const list = await fsp.readdir(BRANDING_DIR);
+    await Promise.all(list.filter(f => f !== newFile && /^logo\./i.test(f))
+      .map(f => fsp.unlink(path.join(BRANDING_DIR, f)).catch(() => {})));
+  } catch (_) {}
+  res.json({ url: `/branding/${newFile}` });
+});
+
+/**
+ * DELETE /api/logo — Remove the custom logo so the bundled default
+ * takes over again. Idempotent. Auth: DM only.
+ */
+app.delete('/api/logo', requireAuth, async (_req, res) => {
+  try {
+    const list = await fsp.readdir(BRANDING_DIR).catch(() => []);
+    await Promise.all(list.filter(f => /^logo\./i.test(f))
+      .map(f => fsp.unlink(path.join(BRANDING_DIR, f)).catch(() => {})));
+  } catch (_) {}
+  res.json({ ok: true });
 });
 
 /**
