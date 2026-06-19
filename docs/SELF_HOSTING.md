@@ -32,8 +32,8 @@ If you don't already have it:
 ## 2. Clone and configure
 
 ```bash
-git clone https://github.com/pjunak/dnd-web-codex.git
-cd dnd-web-codex
+git clone https://github.com/pjunak/ttrpg-codex.git
+cd ttrpg-codex
 ```
 
 Create a `.env` file with a strong **DM** password — anyone with this

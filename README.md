@@ -55,8 +55,8 @@ You need [Docker](https://docs.docker.com/engine/install/) and
 That's it — no Node toolchain on the host, no build step.
 
 ```bash
-git clone https://github.com/pjunak/dnd-web-codex.git
-cd dnd-web-codex
+git clone https://github.com/pjunak/ttrpg-codex.git
+cd ttrpg-codex
 
 # Pick a strong DM password — anyone with it can edit everything.
 # (EDIT_PASSWORD is the legacy alias for DM_PASSWORD; both work.)

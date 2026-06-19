@@ -16,8 +16,8 @@ project's conventions, and the typical recipes you'll need.
 ## Local dev setup
 
 ```bash
-git clone https://github.com/pjunak/dnd-web-codex.git
-cd dnd-web-codex
+git clone https://github.com/pjunak/ttrpg-codex.git
+cd ttrpg-codex
 npm install
 DM_PASSWORD=test node server.js
 ```
@@ -226,7 +226,7 @@ a story about what happens when two migrations bounce off each other.
 
 ## Reporting bugs
 
-Open an issue at <https://github.com/pjunak/dnd-web-codex/issues>.
+Open an issue at <https://github.com/pjunak/ttrpg-codex/issues>.
 Include:
 
 - What you did (steps to reproduce).
