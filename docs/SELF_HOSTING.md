@@ -249,6 +249,53 @@ UID. If you run into permission errors:
 sudo chown -R 1000:1000 ./data ./data-snapshots
 ```
 
+## 8. Running multiple instances (separate campaigns)
+
+The image is stateless — every per-campaign thing lives in the two volumes and
+a handful of env vars — so you can run any number of independent codices side by
+side. They share the image and **never share data**; each instance needs only
+its own data directory, container name, and hostname.
+
+A second instance is just another Compose service (or another stack behind your
+reverse proxy):
+
+```yaml
+services:
+  asurai:
+    image: ghcr.io/pjunak/ttrpg-codex:latest   # same image as the first
+    container_name: asurai
+    restart: unless-stopped
+    env_file: .env                              # its own .env (separate password)
+    volumes:
+      - ./asurai-data:/app/data                 # separate data dir
+      - ./asurai-snapshots:/app/data-snapshots  # separate snapshot history
+    networks: [proxy]
+```
+
+Point a second hostname at it in your reverse proxy (Caddy:
+`asurai.example.com { reverse_proxy asurai:3000 }`). The `edit_session` cookie
+is **host-scoped** — no `domain=` is set — so logins never leak between
+hostnames even when the passwords match.
+
+### Per-instance feature flags
+
+Two optional env vars let instances diverge in behavior while sharing one image,
+so a campaign-specific addon can be enabled on one site without affecting the
+others:
+
+| Variable         | Purpose                                                                                                          |
+|------------------|------------------------------------------------------------------------------------------------------------------|
+| `CODEX_INSTANCE` | A label for the instance — logged at boot and returned by `GET /api/version`. Defaults to `default`.             |
+| `CODEX_FEATURES` | Space/comma-separated addon flags enabled for *this* instance only. Empty (the default) = baseline behavior.     |
+
+`GET /api/version` returns `{ hash, instance, features }`, so you can confirm
+which instance and feature set a running container serves:
+
+```bash
+curl -s https://asurai.example.com/api/version
+# {"hash":"…","instance":"asurai","features":[]}
+```
+
 ## Troubleshooting
 
 **Page loads but the password is rejected.**

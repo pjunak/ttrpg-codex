@@ -9,7 +9,11 @@ name: Build and dispatch
 # Required configuration in the app repo (Settings → Secrets and variables → Actions):
 #   Secret   INFRA_DISPATCH_TOKEN   fine-grained PAT for the infra repo
 #   Variable INFRA_REPO             owner/infra-repo (e.g. pjunak/junak.eu)
-#   Variable INFRA_SERVICE          stack directory name (e.g. tiamat)
+#   Variable INFRA_SERVICE          stack directory name (e.g. tiamat). May be a
+#                                   space/comma-separated LIST to deploy several
+#                                   stacks from one image push (e.g. "tiamat asurai")
+#                                   — useful when multiple instances share this
+#                                   image. Each becomes its own deploy dispatch.
 
 on:
   push:
@@ -57,12 +61,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  dispatch:
-    name: Dispatch deploy to infra repo
+  # INFRA_SERVICE may be one service or a list ("tiamat asurai"). Resolve it to
+  # a JSON array so the dispatch job can fan out one deploy per service — the
+  # infra deploy workflow takes a single service per event and serialises runs,
+  # so N events redeploy N stacks safely from one image push.
+  resolve-targets:
+    name: Resolve deploy targets
     needs: build
     runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.list.outputs.services }}
     steps:
-      - name: Verify dispatch config
+      - name: Parse INFRA_SERVICE into a JSON array
+        id: list
         env:
           TOKEN: ${{ secrets.INFRA_DISPATCH_TOKEN }}
           REPO: ${{ vars.INFRA_REPO }}
@@ -71,8 +82,25 @@ jobs:
           set -euo pipefail
           : "${TOKEN:?INFRA_DISPATCH_TOKEN secret is not set}"
           : "${REPO:?INFRA_REPO variable is not set (e.g. owner/infra-repo)}"
-          : "${SERVICE:?INFRA_SERVICE variable is not set (e.g. tiamat)}"
+          : "${SERVICE:?INFRA_SERVICE variable is not set (e.g. tiamat, or a list: tiamat asurai)}"
+          # Split on commas and/or any whitespace; drop empties.
+          services=$(printf '%s' "$SERVICE" | jq -Rsc 'split("[,\\s]+";"") | map(select(length > 0))')
+          if [[ "$services" == "[]" ]]; then
+            echo "::error::INFRA_SERVICE parsed to an empty list"
+            exit 1
+          fi
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+          echo "Deploy targets: $services"
 
+  dispatch:
+    name: Dispatch deploy (${{ matrix.service }})
+    needs: [build, resolve-targets]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.resolve-targets.outputs.services) }}
+    steps:
       - name: Trigger infra deploy
         uses: peter-evans/repository-dispatch@v3
         with:
@@ -81,6 +109,6 @@ jobs:
           event-type: deploy
           client-payload: |-
             {
-              "service": "${{ vars.INFRA_SERVICE }}",
+              "service": "${{ matrix.service }}",
               "sha": "${{ github.sha }}"
             }

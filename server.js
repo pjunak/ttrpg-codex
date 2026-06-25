@@ -31,6 +31,16 @@ const { runVisibilityMigration: _runVisibilityMigration } = require('./server/mi
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// Per-instance identity + addon flags. Multiple containers run the SAME
+// image off isolated data volumes (e.g. tiamat + asurai); these env vars let
+// one instance enable behavior the other doesn't, so a campaign-specific
+// addon on one site can't affect the other. `CODEX_INSTANCE` is a display
+// label (surfaced in logs + GET /api/version); `CODEX_FEATURES` is a
+// space/comma-separated flag list. Empty FEATURES = baseline behavior, so an
+// instance that sets neither is byte-for-byte the current app.
+const INSTANCE = process.env.CODEX_INSTANCE || 'default';
+const FEATURES = (process.env.CODEX_FEATURES || '').split(/[\s,]+/).filter(Boolean);
+
 // Trust the first reverse-proxy hop so req.ip / cookie `secure` work
 // correctly when deployed behind nginx/Caddy/Traefik (the standard
 // docker-compose layout uses an external `proxy` network).
@@ -1443,7 +1453,7 @@ app.patch('/api/data', (req, res) => {
  * historically for clients to poll for changes before SSE existed.
  */
 app.get('/api/version', async (_req, res) => {
-  res.json({ hash: await _dataHash() });
+  res.json({ hash: await _dataHash(), instance: INSTANCE, features: FEATURES });
 });
 
 /**
@@ -2126,6 +2136,10 @@ async function _bootstrap() {
   }
   app.listen(PORT, () => {
     console.log(`TTRPG Codex running on http://localhost:${PORT}`);
+    if (INSTANCE !== 'default' || FEATURES.length) {
+      console.log(`  instance: ${INSTANCE}` +
+        (FEATURES.length ? ` · features: ${FEATURES.join(', ')}` : ''));
+    }
     _backgroundTileSweep().catch(e => console.warn('[tiles] sweep failed:', e.message));
   });
 }
