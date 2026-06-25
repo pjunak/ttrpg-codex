@@ -68,64 +68,11 @@
       <span class="sidebar-search-kbd">Ctrl K</span>
     </button>
 
-    <div class="sidebar-section">Přehled</div>
-    <ul class="sidebar-nav">
-      <li><a href="#/" class="nav-link" data-route="/">
-        <span class="nav-icon">🏠</span> Přehled</a></li>
-      <li><a href="#/mapa/svet"   class="nav-link" data-route="/mapa/svet">
-        <span class="nav-icon">🗺</span> Mapa</a></li>
-    </ul>
-
-    <div class="sidebar-section sidebar-section-campaign">Kampaň</div>
-    <ul class="sidebar-nav">
-      <li><a href="#/casova-osa"  class="nav-link" data-route="/casova-osa">
-        <span class="nav-icon">⏳</span> Časová Osa</a></li>
-      <li><a href="#/zahady"      class="nav-link" data-route="/zahady">
-        <span class="nav-icon">❓</span> Záhady</a></li>
-      <li><a href="#/mapa/palac"  class="nav-link" data-route="/mapa/palac">
-        <span class="nav-icon">☁</span> Myšlenkový Palác</a></li>
-    </ul>
-
-    <div class="sidebar-section sidebar-section-world">Svět</div>
-    <ul class="sidebar-nav">
-      <li><a href="#/mista"       class="nav-link" data-route="/mista">
-        <span class="nav-icon">📍</span> Místa</a></li>
-      <li><a href="#/postavy"     class="nav-link" data-route="/postavy">
-        <span class="nav-icon">👤</span> Postavy</a></li>
-      <li><a href="#/frakce"      class="nav-link" data-route="/frakce">
-        <span class="nav-icon">⬡</span> Frakce</a></li>
-      <li><a href="#/mazlicci"    class="nav-link" data-route="/mazlicci">
-        <span class="nav-icon">🐾</span> Mazlíčci</a></li>
-    </ul>
-
-    <button class="sidebar-subsection" id="sidebar-kompendium-toggle"
-            type="button"
-            aria-expanded="false"
-            data-action="toggleKompendium">
-      <span class="sidebar-subsection-chevron">▸</span>
-      <span class="sidebar-subsection-label">Kompendium</span>
-    </button>
-    <ul class="sidebar-nav sidebar-subsection-list" id="sidebar-kompendium">
-      <li><a href="#/druhy"       class="nav-link" data-route="/druhy">
-        <span class="nav-icon">🧬</span> Druhy</a></li>
-      <li><a href="#/panteon"     class="nav-link" data-route="/panteon">
-        <span class="nav-icon">✨</span> Panteon</a></li>
-      <li><a href="#/artefakty"   class="nav-link" data-route="/artefakty">
-        <span class="nav-icon">🗝</span> Artefakty</a></li>
-      <li><a href="#/historie"    class="nav-link" data-route="/historie">
-        <span class="nav-icon">📜</span> Historie</a></li>
-    </ul>
-
-    <!-- DM section. Hidden for non-DM viewers via the body.is-dm
-         CSS gate (see edit.css "Role-aware UI"); applySidebarVisibility
-         also enforces this so a missing class doesn't leak the link. -->
-    <div class="sidebar-section sidebar-section-dm">DM</div>
-    <ul class="sidebar-nav sidebar-nav-dm">
-      <li><a href="#/dm" class="nav-link" data-route="/dm">
-        <span class="nav-icon">🛡</span> DM panel</a></li>
-    </ul>
-
-    <script src="js/boot.js" defer></script>
+    <!-- Sidebar nav — rendered from the DM-curated layout
+         (settings.sidebarLayout) by the Sidebar module. The wrapper is
+         display:contents (main.css) so its sections lay out as direct
+         children of .sidebar, exactly like the old static markup. -->
+    <div class="sidebar-nav-root" id="sidebar-nav-root"></div>
 
     <!-- Sidebar footer. Global "✏ Úpravy" toggle is gone — editing is
          per-page now (pen on each article / list, ✏ Editovat on map /

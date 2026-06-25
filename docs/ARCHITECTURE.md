@@ -59,7 +59,7 @@ web/js/
   search.js         Ctrl+K global search palette
   settings.js       /nastaveni page (enums + maps + sidebar + backup + account tabs)
   dm_dashboard.js   DM-only landing page at /dm (per-collection DM-entity counts)
-  boot.js           Pre-boot script (CSP-compatible, restores Kompendium state)
+  sidebar.js        Data-driven left nav (Sidebar.render) + DM drag-drop layout editor
 
   widgets/
     widgets.js      Self-mounting Combobox + MultiSelect placeholders
@@ -398,9 +398,11 @@ that were tried and reverted (do not retry without reason).
 - **CSP posture.** `helmet` is wired with sensible defaults but CSP
   is currently OFF — the UI uses inline `style="…"` attributes for
   several dynamic effects (attitude glow filters, marker scaling,
-  etc.) that strict CSP would block. Inline scripts have already
-  been moved into `boot.js` so re-enabling `script-src 'self'` is a
-  small change away when style attributes are eliminated.
+  etc.) that strict CSP would block. There are no inline `<script>`s —
+  all JS is external ES modules (the sidebar is rendered by the
+  `Sidebar` module, not pre-boot inline JS) — so re-enabling
+  `script-src 'self'` is a small change away once style attributes
+  are eliminated.
 - **CDN script integrity.** Every `<script>` and `<link>` pointing at
   a CDN in `web/index.html` carries a pinned `integrity="sha384-…"`
   hash. A CDN compromise can't silently inject code; the browser

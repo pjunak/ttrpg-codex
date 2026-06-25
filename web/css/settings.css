@@ -300,91 +300,6 @@
   padding-right: 0.2rem;
 }
 
-/* ── Sidebar pages (visibility toggle list) ──────────────────── */
-.settings-sidebar-row {
-  display: grid;
-  grid-template-columns: auto 1.6rem 1fr auto auto;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.5rem 0.7rem;
-  background: rgba(0,0,0,0.15);
-  border: 1px solid rgba(212,184,122,0.1);
-  border-radius: 6px;
-}
-.settings-sidebar-icon { font-size: 1.05rem; text-align: center; }
-.settings-sidebar-label {
-  font-size: 0.92rem;
-  color: var(--text-parchment);
-  transition: color 0.12s, opacity 0.12s;
-}
-.settings-sidebar-label.is-hidden {
-  color: var(--text-muted);
-  opacity: 0.65;
-  text-decoration: line-through;
-}
-.settings-sidebar-open {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  text-decoration: none;
-  padding: 0.25rem 0.55rem;
-  border: 1px solid rgba(200,160,64,0.25);
-  border-radius: 4px;
-  transition: color 0.12s, border-color 0.12s, background 0.12s;
-}
-.settings-sidebar-open:hover {
-  color: var(--accent-gold);
-  border-color: var(--accent-gold);
-  background: rgba(200,160,64,0.08);
-}
-
-/* iOS-style switch built around a checkbox */
-.settings-sidebar-toggle {
-  position: relative;
-  display: inline-block;
-  width: 38px;
-  height: 22px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.settings-sidebar-toggle input {
-  position: absolute;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  cursor: pointer;
-}
-.settings-sidebar-toggle-track {
-  position: absolute;
-  inset: 0;
-  background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(212,184,122,0.2);
-  border-radius: 11px;
-  transition: background 0.15s, border-color 0.15s;
-}
-.settings-sidebar-toggle-track::before {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  background: var(--text-muted);
-  border-radius: 50%;
-  transition: transform 0.15s, background 0.15s;
-}
-.settings-sidebar-toggle input:checked + .settings-sidebar-toggle-track {
-  background: rgba(200,160,64,0.35);
-  border-color: var(--accent-gold);
-}
-.settings-sidebar-toggle input:checked + .settings-sidebar-toggle-track::before {
-  transform: translateX(16px);
-  background: var(--accent-gold);
-}
-.settings-sidebar-toggle input:focus-visible + .settings-sidebar-toggle-track {
-  box-shadow: 0 0 0 2px rgba(200,160,64,0.35);
-}
-
 /* ── Attitude strength slider (Postoje k partě editor) ────── */
 .settings-strength-row {
   display: flex;
@@ -673,3 +588,150 @@
   color: var(--text-muted);
   font-size: 0.85rem;
 }
+
+/* ── Sidebar layout editor (Postranní panel tab) ─────────────── */
+.sb-editor { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.sb-sec {
+  background: var(--bg-raised);
+  border: 1px solid rgba(200,160,64,0.18);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.6rem 0.6rem;
+}
+.sb-sec.sb-hidden {
+  border-style: dashed;
+  border-color: rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.02);
+}
+.sb-sec.sb-dragging, .sb-page.sb-dragging { opacity: 0.4; }
+
+.sb-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.45rem;
+}
+.sb-grip {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  user-select: none;
+}
+.sb-grip:active { cursor: grabbing; }
+.sb-sec-grip { font-size: 1.1rem; }
+.sb-sec-label {
+  flex: 1 1 8rem;
+  min-width: 6rem;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(200,160,64,0.25);
+  border-radius: 6px;
+  color: var(--text-parchment);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.35rem 0.5rem;
+}
+.sb-sec-icon {
+  width: 2.6rem;
+  text-align: center;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(200,160,64,0.25);
+  border-radius: 6px;
+  color: var(--text-parchment);
+  padding: 0.35rem 0.3rem;
+}
+.sb-sec-label:focus, .sb-sec-icon:focus { outline: none; border-color: var(--accent-gold); }
+.sb-sec-label-static {
+  flex: 1;
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+.sb-sec-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sb-sec-del {
+  background: transparent;
+  border: 1px solid rgba(180,60,60,0.3);
+  border-radius: 6px;
+  color: #e8a0a0;
+  cursor: pointer;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.85rem;
+}
+.sb-sec-del:hover { background: rgba(180,60,60,0.15); }
+
+.sb-pages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-height: 1.6rem;
+}
+.sb-page {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-surface);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+}
+.sb-page-icon { font-size: 0.85rem; opacity: 0.85; width: 1.2rem; text-align: center; }
+.sb-page-label { flex: 1; font-family: var(--font-ui); font-size: 0.82rem; color: var(--text-light); }
+.sb-page-tag {
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  color: var(--accent-gold);
+  border: 1px solid rgba(200,160,64,0.4);
+  border-radius: 100px;
+  padding: 0.05rem 0.4rem;
+}
+.sb-page-btn {
+  background: transparent;
+  border: 1px solid rgba(200,160,64,0.25);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  padding: 0.2rem 0.45rem;
+  cursor: pointer;
+}
+.sb-page-btn:hover { color: var(--accent-gold); border-color: var(--accent-gold); }
+.sb-empty {
+  list-style: none;
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--text-muted);
+  padding: 0.3rem 0.5rem;
+  text-align: center;
+  border: 1px dashed rgba(255,255,255,0.1);
+  border-radius: 6px;
+}
+
+/* Gold drop line, matching the timeline's .tl-drop-indicator. */
+.sb-drop-indicator {
+  list-style: none;
+  height: 2px;
+  margin: 1px 2px;
+  background: var(--accent-gold);
+  border-radius: 1px;
+  box-shadow: 0 0 6px rgba(200,160,64,0.5);
+  pointer-events: none;
+}
+.sb-drop-indicator-sec { height: 3px; margin: 2px 0; }

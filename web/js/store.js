@@ -4,7 +4,7 @@ import {
   SETTINGS_DEFAULTS, SETTINGS_USAGE_MAP,
 } from './data.js';
 import { norm, clearMarkdownCache } from './utils.js';
-import { PARTY_FACTION_ID } from './constants.js';
+import { PARTY_FACTION_ID, SIDEBAR_PAGES, SIDEBAR_LAYOUT_DEFAULT } from './constants.js';
 
 export const Store = (() => {
   let _data            = null;
@@ -2105,24 +2105,90 @@ export const Store = (() => {
   }
 
   // ── Sidebar visibility ───────────────────────────────────────
-  // Stored under `settings.hiddenSidebarPages` as a flat array of
-  // route strings (e.g. `['/druhy', '/historie']`). Round-trips
-  // through the same `settings` keyed-object collection used by
-  // every other settings category — server just does
-  // `container[payload.id] = payload.data`, so the value can be a
-  // plain array of strings instead of the usual `{id,label,…}`
-  // items.
-  function getHiddenSidebarPages() {
+  // ── Sidebar layout (data-driven, DM-curated) ─────────────────
+  // The whole left sidebar is rendered from `settings.sidebarLayout`
+  // (see the Sidebar module). Shape:
+  //   { sections: [{ id, label, icon, collapsible, defaultOpen,
+  //                  role, pages: [route,…] }], hidden: [route,…] }
+  // Stored as a keyed-object settings value (DM-only write). Pages
+  // are referenced by route; label/icon/role come from SIDEBAR_PAGES.
+
+  /** Reconciled sidebar layout: saved config (else the default),
+   *  cleaned against the live page registry so it never goes stale —
+   *  dead routes dropped, brand-new code routes appended to their home
+   *  section (or `hidden`), every route placed exactly once. Read-only
+   *  (no persist), so it's cheap to call on every render. */
+  function getSidebarLayout() {
     init();
-    const arr = (_data.settings && _data.settings.hiddenSidebarPages) || [];
-    return Array.isArray(arr) ? arr.slice() : [];
+    const saved = _data.settings && _data.settings.sidebarLayout;
+    const base = (saved && Array.isArray(saved.sections))
+      ? JSON.parse(JSON.stringify(saved))
+      : JSON.parse(JSON.stringify(SIDEBAR_LAYOUT_DEFAULT));
+    if (!Array.isArray(base.sections)) base.sections = [];
+    if (!Array.isArray(base.hidden))   base.hidden = [];
+    // First run with no saved layout but a legacy hiddenSidebarPages
+    // list → fold those routes into the new `hidden` bucket.
+    if (!saved) {
+      const legacy = (_data.settings && _data.settings.hiddenSidebarPages) || [];
+      if (Array.isArray(legacy) && legacy.length) {
+        const hide = new Set(legacy);
+        for (const s of base.sections) s.pages = (s.pages || []).filter(r => !hide.has(r));
+        base.hidden = [...new Set([...base.hidden, ...legacy])];
+      }
+    }
+    // Reconcile against the registry: keep only known routes, once each.
+    const registry = new Set(SIDEBAR_PAGES.map(p => p.route));
+    const seen = new Set();
+    const keep = (r) => { if (!registry.has(r) || seen.has(r)) return false; seen.add(r); return true; };
+    for (const s of base.sections) s.pages = (Array.isArray(s.pages) ? s.pages : []).filter(keep);
+    base.hidden = (Array.isArray(base.hidden) ? base.hidden : []).filter(keep);
+    // Place any registry page not yet referenced → home section, else hidden.
+    for (const p of SIDEBAR_PAGES) {
+      if (seen.has(p.route)) continue;
+      const home = base.sections.find(s => s.id === p.section);
+      if (home) home.pages.push(p.route); else base.hidden.push(p.route);
+      seen.add(p.route);
+    }
+    return base;
   }
-  function setHiddenSidebarPages(arr) {
+
+  /** Persist a normalized sidebar layout. DM-only write (server gates
+   *  `settings` via DM_ONLY_WRITE_TYPES). */
+  function setSidebarLayout(layout) {
     init();
     if (!_data.settings) _data.settings = {};
-    const clean = Array.isArray(arr) ? [...new Set(arr.filter(Boolean))] : [];
-    _data.settings.hiddenSidebarPages = clean;
-    return _sync('settings', 'save', { id: 'hiddenSidebarPages', data: clean });
+    const clean = {
+      sections: (Array.isArray(layout && layout.sections) ? layout.sections : []).map(s => ({
+        id: s.id, label: s.label || '', icon: s.icon || '',
+        collapsible: !!s.collapsible, defaultOpen: s.defaultOpen !== false,
+        role: s.role === 'dm' ? 'dm' : '',
+        pages: Array.isArray(s.pages) ? s.pages.slice() : [],
+      })),
+      hidden: Array.isArray(layout && layout.hidden) ? layout.hidden.slice() : [],
+    };
+    _data.settings.sidebarLayout = clean;
+    return _sync('settings', 'save', { id: 'sidebarLayout', data: clean });
+  }
+
+  // Back-compat shims — visibility now == membership in the layout's
+  // `hidden` bucket. Kept so any stray caller keeps working.
+  function getHiddenSidebarPages() {
+    return getSidebarLayout().hidden.slice();
+  }
+  function setHiddenSidebarPages(arr) {
+    const layout = getSidebarLayout();
+    const hide = new Set((arr || []).filter(Boolean));
+    const wasHidden = new Set(layout.hidden);
+    for (const s of layout.sections) s.pages = s.pages.filter(r => !hide.has(r));
+    layout.hidden = [...hide].filter(r => SIDEBAR_PAGES.some(p => p.route === r));
+    // Routes that were hidden but aren't in the new list → back to home section.
+    for (const r of wasHidden) {
+      if (hide.has(r)) continue;
+      const page = SIDEBAR_PAGES.find(p => p.route === r);
+      const home = layout.sections.find(s => s.id === (page && page.section)) || layout.sections[0];
+      if (home && !home.pages.includes(r)) home.pages.push(r);
+    }
+    return setSidebarLayout(layout);
   }
 
   /** Re-seed a category from defaults (adds missing, leaves edits). */
@@ -2518,6 +2584,7 @@ export const Store = (() => {
     undelete,
     getSettings, getEnum, getEnumValue, getEffectiveAttitudes,
     saveEnumItem, deleteEnumItem, findEnumUsages, resetEnumCategory,
+    getSidebarLayout, setSidebarLayout,
     getHiddenSidebarPages, setHiddenSidebarPages,
     getMapConfig, setMapConfig,
     getCampaign, setCampaign,

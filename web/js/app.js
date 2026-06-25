@@ -13,6 +13,7 @@ import { Widgets } from './widgets/widgets.js';
 import { GlobalSearch } from './search.js';
 import { Role } from './role.js';
 import { DmDashboard } from './dm_dashboard.js';
+import { Sidebar } from './sidebar.js';
 import { setWikiLinkResolver, norm, dataAction } from './utils.js';
 
 // ── Action dispatcher (replaces inline `onclick="Module.method(...)"`) ──
@@ -25,7 +26,7 @@ import { setWikiLinkResolver, norm, dataAction } from './utils.js';
 //   2. Lets the page run under `Content-Security-Policy: script-src 'self'`
 //      because no inline event-handler attributes survive.
 const ACTIONS = {
-  Store, EditMode, Wiki, CloudMap, Timeline, WorldMap, Settings, GlobalSearch, Role, DmDashboard,
+  Store, EditMode, Wiki, CloudMap, Timeline, WorldMap, Settings, GlobalSearch, Role, DmDashboard, Sidebar,
 };
 // Browser-built-in shortcuts that used to live inline (`history.back()`,
 // `document.getElementById(slug).scrollIntoView(…)`, etc.). Element- /
@@ -61,18 +62,6 @@ const BUILTIN_ACTIONS = {
   // toggles in index.html used inline body.classList ops.
   bodyToggleClass: (cls) => document.body.classList.toggle(cls),
   bodyRemoveClass: (cls) => document.body.classList.remove(cls),
-  // Kompendium sidebar collapsible — multi-step (toggle button class,
-  // toggle list class, set aria, persist to localStorage). Was an inline
-  // multi-statement onclick; lifted here so the markup is clean.
-  toggleKompendium: () => {
-    const btn  = document.getElementById('sidebar-kompendium-toggle');
-    const list = document.getElementById('sidebar-kompendium');
-    if (!btn || !list) return;
-    const open = btn.classList.toggle('is-open');
-    list.classList.toggle('is-open');
-    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    try { localStorage.setItem('sidebar_kompendium_open', open ? '1' : '0'); } catch (_) {}
-  },
 };
 // Args may contain placeholder sentinels:
 //   `$el`      → the element that carries the data-action
@@ -517,7 +506,7 @@ document.addEventListener('error',    (ev) => {
     if (hash !== null && _lastHash !== null && hash === _lastHash) return;
     if (hash !== null) _lastHash = hash;
     await Store.load();
-    Settings.applySidebarVisibility();
+    Sidebar.render();
     Settings.applyBranding();
     _renderTopbarLogin();
     _renderImpersonationBanner();
@@ -532,6 +521,13 @@ document.addEventListener('error',    (ev) => {
     // missed re-render at worst — the next remote change re-renders
     // normally.
     if (getRoute() === '/nastaveni' && Settings.isPendingSelfCommit?.()) return;
+    // Don't wholesale-re-render (which rebuilds the settings page) while
+    // the DM is mid-edit in the sidebar layout editor — it would yank
+    // focus out of a label/icon input. The live sidebar already
+    // refreshed via Sidebar.render() above; the editor re-renders itself
+    // on each edit and on the next tab entry.
+    const _ae = document.activeElement;
+    if (_ae && _ae.closest && _ae.closest('#sidebar-layout-editor')) return;
     navigate(getRoute());
   }
 
@@ -720,7 +716,7 @@ document.addEventListener('error',    (ev) => {
       _renderTopbarLogin();
       _renderImpersonationBanner();
       await Store.load();
-      Settings.applySidebarVisibility();
+      Sidebar.render();
       Settings.applyBranding();
       navigate(getRoute());
     } finally {
@@ -733,17 +729,20 @@ document.addEventListener('error',    (ev) => {
   // call sites simple (`data-action="Role.viewAsPlayer"` just works).
 
   window.addEventListener("DOMContentLoaded", async () => {
-    // Resolve the caller's role first — Settings.applySidebarVisibility
-    // and various render paths branch on Role.isDM(), so body.is-dm
-    // must be stamped before the first paint.
+    // Paint the sidebar immediately from the default layout (a constant,
+    // needs no data) so there's no empty-sidebar flash; it re-renders
+    // below once role + settings have loaded.
+    Sidebar.render();
+    // Resolve the caller's role first — render paths branch on
+    // Role.isDM(), so body.is-dm must be stamped before the first paint.
     await Role.refresh();
     // Load data from server before first render. Whatever comes back
     // is already filtered for the caller's role.
     await Store.load();
 
-    // Apply user-configured sidebar visibility before first paint so
-    // hidden pages don't flash on screen during boot.
-    Settings.applySidebarVisibility();
+    // Re-render the data-driven sidebar now that role + settings are
+    // loaded (the early render above used the default layout).
+    Sidebar.render();
     // Push the configured logo / wordmark / favicon onto the chrome.
     Settings.applyBranding();
     // Render the top-right login chip (anonymous + dashboard only)

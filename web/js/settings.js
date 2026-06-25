@@ -11,7 +11,7 @@ import { EditMode } from './editmode.js';
 import { WorldMap, PIN_TYPES } from './map.js';
 import { Role } from './role.js';
 import { esc, dataAction, dataOn } from './utils.js';
-import { SIDEBAR_PAGES } from './constants.js';
+import { Sidebar } from './sidebar.js';
 
 export const Settings = (() => {
 
@@ -176,7 +176,7 @@ export const Settings = (() => {
   function _editorHtml() {
     if (_activeCat === 'worldmap')     return _worldmapHtml();
     if (_activeCat === 'mapViews')     return _mapViewsHtml();
-    if (_activeCat === 'sidebarPages') return _sidebarPagesHtml();
+    if (_activeCat === 'sidebarPages') return Sidebar.renderEditor();
     if (_activeCat === 'backup')       return _backupHtml();
     if (_activeCat === 'account')      return _accountHtml();
     if (_activeCat === 'branding')     return _brandingHtml();
@@ -750,125 +750,13 @@ export const Settings = (() => {
     try { WorldMap.refreshPresetButtons?.(); } catch (_) {}
   }
 
-  // ── Sidebar pages panel ──────────────────────────────────────
-  // Lists every page in the left sidebar (registry from
-  // `constants.js → SIDEBAR_PAGES`) grouped by section. A checkbox
-  // per row toggles whether that page appears in the sidebar; the
-  // page itself stays reachable via direct URL or wikilinks.
-  function _sidebarPagesHtml() {
-    const hidden = new Set(Store.getHiddenSidebarPages());
-    // Group pages by section, preserving registry order.
-    const groups = [];
-    const byKey = new Map();
-    for (const p of SIDEBAR_PAGES) {
-      if (!byKey.has(p.section)) {
-        const g = { section: p.section, pages: [] };
-        byKey.set(p.section, g);
-        groups.push(g);
-      }
-      byKey.get(p.section).pages.push(p);
-    }
-    const sections = groups.map(g => {
-      const rows = g.pages.map(p => {
-        const isHidden = hidden.has(p.route);
-        return `
-          <div class="settings-sidebar-row">
-            <label class="settings-sidebar-toggle" title="Zobrazovat v postranním panelu">
-              <input type="checkbox" ${isHidden ? '' : 'checked'}
-                ${dataOn('change', 'Settings.toggleSidebarPage', p.route, '$checked')}>
-              <span class="settings-sidebar-toggle-track"></span>
-            </label>
-            <span class="settings-sidebar-icon">${esc(p.icon)}</span>
-            <span class="settings-sidebar-label ${isHidden ? 'is-hidden' : ''}">${esc(p.label)}</span>
-            <code class="settings-row-id">${esc(p.route)}</code>
-            <a class="settings-sidebar-open" href="#${esc(p.route)}"
-               title="Otevřít stránku">Otevřít →</a>
-          </div>`;
-      }).join('');
-      return `
-        <div class="settings-mapviews-group">
-          <div class="settings-mapviews-group-title">${esc(g.section)}</div>
-          <div class="settings-rows">${rows}</div>
-        </div>`;
-    }).join('');
-    return `
-      <div class="settings-editor-head">
-        <h2>🧭 Postranní panel</h2>
-        <div class="settings-editor-actions">
-          <button type="button" class="inline-create-btn"
-            title="Znovu zobrazit všechny stránky"
-            ${dataAction('Settings.showAllSidebarPages')}>↺ Zobrazit vše</button>
-        </div>
-      </div>
-      <div class="settings-panel">
-        <p class="settings-hint" style="margin-bottom:0.8rem">
-          Vyber, které stránky se mají zobrazovat v postranním panelu.
-          Skryté stránky zůstávají dostupné přes přímý odkaz nebo
-          wiki-odkaz <code>[[Název]]</code> — jen se nevypisují v menu.
-        </p>
-        ${sections}
-      </div>`;
-  }
-
-  function toggleSidebarPage(route, visible) {
-    const cur = new Set(Store.getHiddenSidebarPages());
-    if (visible) cur.delete(route); else cur.add(route);
-    Store.setHiddenSidebarPages([...cur]);
-    applySidebarVisibility();
-    render();
-  }
-
-  function showAllSidebarPages() {
-    Store.setHiddenSidebarPages([]);
-    applySidebarVisibility();
-    render();
-    _flash('Všechny stránky znovu zobrazeny');
-  }
-
-  /** Hide/show sidebar `<li>` entries based on the current
-   *  `hiddenSidebarPages` setting AND the caller's role. Also
-   *  collapses a section heading + its `<ul>` when every page in
-   *  that group is hidden, so the sidebar doesn't show empty
-   *  sections. Safe to call repeatedly; the static markup in
-   *  index.html doesn't change.
-   *
-   *  Role gating: SIDEBAR_PAGES entries marked `role: 'dm'` are
-   *  hidden for non-DM viewers. The body class `is-dm` already
-   *  handles this via CSS, but applySidebarVisibility enforces it
-   *  too so a future refactor of the body-class strategy doesn't
-   *  silently leak the DM links. */
-  function applySidebarVisibility() {
-    const hidden = new Set(Store.getHiddenSidebarPages());
-    // Role-restricted routes (from SIDEBAR_PAGES.role === 'dm') are
-    // hidden for non-DM users. Built once per call so we don't keep
-    // importing the role check on every link.
-    const isDM = (typeof document !== 'undefined') && document.body.classList.contains('is-dm');
-    const dmRestrictedRoutes = new Set(
-      SIDEBAR_PAGES.filter(p => p.role === 'dm').map(p => p.route)
-    );
-    const lists = document.querySelectorAll('.sidebar .sidebar-nav');
-    lists.forEach(ul => {
-      const links = [...ul.querySelectorAll('a[data-route]')];
-      let visibleCount = 0;
-      for (const a of links) {
-        const r  = a.getAttribute('data-route');
-        const li = a.closest('li');
-        const isHidden = hidden.has(r) || (dmRestrictedRoutes.has(r) && !isDM);
-        if (li) li.style.display = isHidden ? 'none' : '';
-        if (!isHidden) visibleCount++;
-      }
-      if (!links.length) return;
-      const allHidden = visibleCount === 0;
-      ul.style.display = allHidden ? 'none' : '';
-      // Hide the preceding section heading or subsection toggle so
-      // the sidebar doesn't show a label with no content under it.
-      const prev = ul.previousElementSibling;
-      if (prev && (prev.classList.contains('sidebar-section') ||
-                   prev.classList.contains('sidebar-subsection'))) {
-        prev.style.display = allHidden ? 'none' : '';
-      }
-    });
-  }
+  // ── Sidebar layout ───────────────────────────────────────────
+  // The whole left sidebar is now data-driven (see the Sidebar module).
+  // The Postranní panel tab renders Sidebar's drag-drop layout editor
+  // (`_editorHtml` delegates to `Sidebar.renderEditor`). This alias
+  // keeps the old public name working for any external caller; the
+  // live sidebar re-render is `Sidebar.render`.
+  function applySidebarVisibility() { Sidebar.render(); }
 
   // ── Maps panel ───────────────────────────────────────────────
   // The "Mapy" tab covers both image upload AND per-map config
@@ -1921,7 +1809,7 @@ export const Settings = (() => {
     resetDefaults,
     uploadWorldMap,
     renameMapView, deleteMapView,
-    toggleSidebarPage, showAllSidebarPages, applySidebarVisibility,
+    applySidebarVisibility,
     refreshSnapshots, createSnapshot, restoreSnapshot,
     deleteSnapshot, revertLastN, uploadRestore,
     toggleIconPanel, setIconStrategy,
