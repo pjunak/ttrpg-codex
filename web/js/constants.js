@@ -38,6 +38,7 @@ export const SIDEBAR_PAGES = [
   { route: '/mista',        label: 'Místa',             icon: '📍', section: 'Svět' },
   { route: '/postavy',      label: 'Postavy',           icon: '👤', section: 'Svět' },
   { route: '/frakce',       label: 'Frakce',            icon: '⬡',  section: 'Svět' },
+  { route: '/mazlicci',     label: 'Mazlíčci',          icon: '🐾', section: 'Svět' },
   { route: '/druhy',        label: 'Druhy',             icon: '🧬', section: 'Kompendium' },
   { route: '/panteon',      label: 'Panteon',           icon: '✨', section: 'Kompendium' },
   { route: '/artefakty',    label: 'Artefakty',         icon: '🗝', section: 'Kompendium' },

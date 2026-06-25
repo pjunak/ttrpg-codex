@@ -16,6 +16,11 @@ export const RELATIONSHIPS     = [];
 export const MYSTERIES         = [];
 export const HISTORICAL_EVENTS = [];
 
+/** Pets / companions (Mazlíčci). Lightweight records owned by a
+ *  character, faction, the party, or nobody (unassigned). Empty by
+ *  default — nothing appears in the UI until the user adds one. */
+export const PETS              = [];
+
 /**
  * Generic D&D species seed. Users can delete or replace any entry; a
  * tombstone in `deletedDefaults` prevents the deleted id from re-seeding

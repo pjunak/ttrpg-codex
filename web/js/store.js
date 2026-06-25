@@ -1,6 +1,6 @@
 import {
   FACTIONS, CHARACTERS, LOCATIONS, EVENTS, RELATIONSHIPS, MYSTERIES,
-  SPECIES, PANTHEON, ARTIFACTS, HISTORICAL_EVENTS,
+  SPECIES, PANTHEON, ARTIFACTS, HISTORICAL_EVENTS, PETS,
   SETTINGS_DEFAULTS, SETTINGS_USAGE_MAP,
 } from './data.js';
 import { norm, clearMarkdownCache } from './utils.js';
@@ -110,6 +110,7 @@ export const Store = (() => {
       pantheon:         JSON.parse(JSON.stringify(PANTHEON)),
       artifacts:        JSON.parse(JSON.stringify(ARTIFACTS)),
       historicalEvents: JSON.parse(JSON.stringify(HISTORICAL_EVENTS)),
+      pets:             JSON.parse(JSON.stringify(PETS)),
       settings:         JSON.parse(JSON.stringify(SETTINGS_DEFAULTS)),
       // Campaign metadata stored as a keyed-object collection with a
       // single 'main' record so it round-trips through the existing
@@ -153,6 +154,7 @@ export const Store = (() => {
     if (!Array.isArray(_data.pantheon))         _data.pantheon         = [];
     if (!Array.isArray(_data.artifacts))        _data.artifacts        = [];
     if (!Array.isArray(_data.historicalEvents)) _data.historicalEvents = [];
+    if (!Array.isArray(_data.pets))             _data.pets             = [];
     const seedIds = new Set(_data.species.map(s => s.id));
     for (const s of SPECIES) {
       if (!seedIds.has(s.id) && !deleted.has(s.id)) {
@@ -1460,6 +1462,7 @@ export const Store = (() => {
       case 'artifacts':         saveArtifact(snap.entity);         break;
       case 'historicalEvents':  saveHistoricalEvent(snap.entity);  break;
       case 'relationships':     saveRelationship(snap.entity);     break;
+      case 'pets':              savePet(snap.entity);              break;
     }
     // Character delete cascade-stripped relationships — restore those.
     for (const r of snap.relationships || []) saveRelationship(r);
@@ -1516,6 +1519,7 @@ export const Store = (() => {
     _reindexRelationships();
     _reindexEvents();
     _reindexMysteries();
+    _orphanPetsOf('character', id);   // pets keep, just go unassigned
     return _sync('characters', 'delete', { id });
   }
 
@@ -2145,6 +2149,7 @@ export const Store = (() => {
     const f = _data.factions[id];
     if (f) _trash.set(_trashKey('factions', id), { kind:'factions', id, entity: JSON.parse(JSON.stringify(f)) });
     delete _data.factions[id];
+    _orphanPetsOf('faction', id);   // pets keep, just go unassigned
     return _sync('factions', 'delete', { id });
   }
 
@@ -2174,6 +2179,81 @@ export const Store = (() => {
     });
     _data.historicalEvents = (_data.historicalEvents || []).filter(x => x.id !== id);
     return _sync('historicalEvents', 'delete', { id });
+  }
+
+  // ── Pets / companions (Mazlíčci) ─────────────────────────────
+  // Lightweight records: {id, name, icon, portrait, species, note,
+  // ownerType:'none'|'party'|'character'|'faction', ownerId, updatedAt}.
+  // A plain public list collection (no visibility/twin wiring). Owner
+  // is polymorphic — 'none' is an unassigned pet prepared in advance.
+  function getPets() { init(); return _data.pets || []; }
+  function getPet(id) { return getPets().find(p => p.id === id) || null; }
+
+  /** Pets attached to a given owner. `ownerType:'none'` returns the
+   *  unassigned pile (also catches legacy records missing ownerType).
+   *  `'party'` ignores ownerId; 'character'/'faction' match on id. */
+  function getPetsForOwner(ownerType, ownerId) {
+    return getPets().filter(p => {
+      const ot = p.ownerType || 'none';
+      if (ot !== ownerType) return false;
+      if (ot === 'none' || ot === 'party') return true;
+      return p.ownerId === ownerId;
+    });
+  }
+
+  /** Resolve a pet's owner to a display descriptor `{label, icon, href}`.
+   *  `href` is null when there's nowhere to link (none / deleted owner). */
+  function getPetOwner(pet) {
+    const ot = (pet && pet.ownerType) || 'none';
+    if (ot === 'party') {
+      const pp = getPlayerParty();
+      return { label: pp.name || 'Naše parta', icon: pp.icon || pp.badge || '🛡', href: '#/parta' };
+    }
+    if (ot === 'character') {
+      const c = getCharacter(pet.ownerId);
+      if (c) return { label: c.name, icon: '👤', href: `#/postava/${c.id}` };
+    }
+    if (ot === 'faction') {
+      const f = getFaction(pet.ownerId);
+      if (f) return { label: f.name, icon: f.badge || '⬡', href: `#/frakce/${pet.ownerId}` };
+    }
+    return { label: 'Bez majitele', icon: '🏷', href: null };
+  }
+
+  function savePet(pet) {
+    init();
+    _stamp(pet);
+    // Normalise: ownerless / party-owned pets carry no ownerId.
+    if (!pet.ownerType) pet.ownerType = 'none';
+    if (pet.ownerType === 'none' || pet.ownerType === 'party') pet.ownerId = '';
+    const idx = _data.pets.findIndex(p => p.id === pet.id);
+    if (idx >= 0) _data.pets[idx] = pet; else _data.pets.push(pet);
+    return _sync('pets', 'save', pet);
+  }
+
+  function deletePet(id) {
+    init();
+    const pet = (_data.pets || []).find(p => p.id === id);
+    if (pet) {
+      if (pet.portrait) deletePortrait(pet.portrait);
+      _trash.set(_trashKey('pets', id), { kind: 'pets', entity: JSON.parse(JSON.stringify(pet)) });
+    }
+    _data.pets = (_data.pets || []).filter(p => p.id !== id);
+    return _sync('pets', 'delete', { id });
+  }
+
+  /** Reassign every pet owned by `(ownerType, ownerId)` back to the
+   *  unassigned pile — called when that owner is deleted so important
+   *  pets survive rather than dangle. Persists each touched pet. */
+  function _orphanPetsOf(ownerType, ownerId) {
+    for (const pet of (_data.pets || [])) {
+      if (pet.ownerType === ownerType && pet.ownerId === ownerId) {
+        pet.ownerType = 'none';
+        pet.ownerId = '';
+        _stamp(pet);
+        _sync('pets', 'save', pet);
+      }
+    }
   }
 
   // ── Indexed lookups ─────────────────────────────────────────
@@ -2394,6 +2474,7 @@ export const Store = (() => {
       pantheon:         _data.pantheon         || [],
       artifacts:        _data.artifacts        || [],
       historicalEvents: _data.historicalEvents || [],
+      pets:             _data.pets             || [],
       settings:         _data.settings         || {},
       deletedDefaults:  _data.deletedDefaults  || {},
     }, null, 2);
@@ -2433,6 +2514,7 @@ export const Store = (() => {
     saveBuh, deleteBuh,
     saveArtifact, deleteArtifact,
     saveHistoricalEvent, deleteHistoricalEvent,
+    getPets, getPet, getPetsForOwner, getPetOwner, savePet, deletePet,
     undelete,
     getSettings, getEnum, getEnumValue, getEffectiveAttitudes,
     saveEnumItem, deleteEnumItem, findEnumUsages, resetEnumCategory,

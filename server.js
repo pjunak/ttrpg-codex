@@ -709,13 +709,13 @@ const ALLOWED_TYPES = new Set([
   'characters', 'relationships', 'locations', 'events',
   'mysteries', 'factions', 'deletedDefaults',
   'species', 'pantheon', 'artifacts', 'settings',
-  'historicalEvents', 'campaign',
+  'historicalEvents', 'campaign', 'pets',
 ]);
 const ALL_TYPES = [
   'characters', 'relationships', 'locations', 'events',
   'mysteries', 'factions', 'deletedDefaults',
   'species', 'pantheon', 'artifacts', 'settings',
-  'historicalEvents', 'campaign',
+  'historicalEvents', 'campaign', 'pets',
 ];
 
 /**

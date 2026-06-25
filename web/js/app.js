@@ -444,6 +444,8 @@ document.addEventListener('error',    (ev) => {
         if (sub) Wiki.renderPage("frakce-id", sub);
         else     Wiki.renderPage("frakce");
         break;
+      case "mazlicci":
+        Wiki.renderPage("mazlicci"); break;
       case "druhy":
         Wiki.renderPage("druhy"); break;
       case "druh":

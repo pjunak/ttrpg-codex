@@ -15,7 +15,7 @@ import { Role } from './role.js';
 import { norm, esc, renderMarkdown, extractOutline, humanTime, dataAction, dataOn } from './utils.js';
 import { PIN_TYPES, WorldMap } from './map.js';
 import { relLabel } from './data.js';
-import { PARTY_FACTION_ID } from './constants.js';
+import { PARTY_FACTION_ID, czPlural } from './constants.js';
 
 export const Wiki = (() => {
 
@@ -513,6 +513,100 @@ export const Wiki = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════
+  //  PETS (Mazlíčci) — shared card + page + article section
+  // ══════════════════════════════════════════════════════════════
+  // A pet card is a button (pets have no detail page) that opens the
+  // editor modal. Anonymous clicks surface the login modal inside
+  // EditMode.openPetEditor, so the affordance stays discoverable.
+  function _petCardHtml(pet, opts = {}) {
+    const cls = opts.cls || 'pet-card';
+    const visual = pet.portrait
+      ? `<img class="pet-card-img" src="${esc(pet.portrait)}" alt="${esc(pet.name)}" loading="lazy">`
+      : `<span class="pet-card-emoji">${esc(pet.icon || '🐾')}</span>`;
+    const species = pet.species ? `<span class="pet-card-species">${esc(pet.species)}</span>` : '';
+    return `
+      <button type="button" class="${cls}" title="Upravit mazlíčka"
+        ${dataAction('EditMode.openPetEditor', pet.id)}>
+        <span class="pet-card-portrait">${visual}</span>
+        <span class="pet-card-name">${esc(pet.name)}</span>
+        ${species}
+      </button>`;
+  }
+
+  /** Article section `{title, html}` for a faction/character's pets, or
+   *  null when that owner has none — pages stay pristine until a pet is
+   *  assigned. When pets exist, authed viewers also get an inline
+   *  "＋ Mazlíček" to add another to the same owner. */
+  function _petsArticleSection(ownerType, ownerId) {
+    const pets = Store.getPetsForOwner(ownerType, ownerId);
+    if (!pets.length) return null;
+    const cards = pets.map(p => _petCardHtml(p, { cls: 'pet-card' })).join('');
+    const addBtn = !Role.isAnonymous()
+      ? `<div class="inline-create-row"><button class="inline-create-btn"
+           ${dataAction('EditMode.openPetEditor', null, { ownerType, ownerId })}>＋ Mazlíček</button></div>`
+      : '';
+    return { title: '🐾 Mazlíčci', html: `<div class="pet-grid">${cards}</div>${addBtn}` };
+  }
+
+  // The Mazlíčci hub — every pet grouped by owner. Creation lives here
+  // (and inline on owner pages); the sidebar link is toggleable via
+  // Settings → Postranní panel.
+  function renderPetsList() {
+    const pets = Store.getPets();
+    const addAttr = dataAction('EditMode.openPetEditor', null, { ownerType: 'none' });
+    if (!pets.length) {
+      return `
+        <div class="page-header" style="display:flex;align-items:center;gap:1rem">
+          <div style="flex:1"><h1>🐾 Mazlíčci</h1></div>
+          <button class="list-item-new" ${addAttr}>＋ Mazlíček</button>
+        </div>
+        ${_renderEmptyState({
+          icon: '🐾',
+          title: 'Zatím tu nejsou žádní mazlíčci',
+          description: 'Společníci party, frakcí i jednotlivých postav. Přidej prvního — můžeš ho nechat bez majitele a přiřadit ho později.',
+          ctaLabel: 'Nový mazlíček',
+          ctaActionAttr: addAttr,
+        })}`;
+    }
+    // Bucket every pet by owner, stable order: unassigned → party →
+    // factions → characters. A pet whose owner was deleted collapses
+    // into the unassigned bucket (defensive; deletes already reassign).
+    // The display label/icon comes from Store.getPetOwner.
+    const ORDER = { none: 0, party: 1, faction: 2, character: 3 };
+    const ownerKey = (pet) => {
+      const ot = pet.ownerType || 'none';
+      if (ot === 'party') return { key: 'party', order: ORDER.party };
+      if (ot === 'faction'   && Store.getFaction(pet.ownerId))   return { key: 'f:' + pet.ownerId, order: ORDER.faction };
+      if (ot === 'character' && Store.getCharacter(pet.ownerId)) return { key: 'c:' + pet.ownerId, order: ORDER.character };
+      return { key: 'none', order: ORDER.none };
+    };
+    const groupMap = new Map();
+    for (const pet of pets) {
+      const { key, order } = ownerKey(pet);
+      if (!groupMap.has(key)) {
+        const o = Store.getPetOwner(pet);
+        groupMap.set(key, { label: `${o.icon} ${o.label}`, order, pets: [] });
+      }
+      groupMap.get(key).pets.push(pet);
+    }
+    const groups = [...groupMap.values()].sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, 'cs'));
+    const groupsHtml = groups.map(g => `
+      <div class="pet-group">
+        <h2 class="pet-group-head">${esc(g.label)} <span class="pet-group-count">${g.pets.length}</span></h2>
+        <div class="pet-grid">${g.pets.map(p => _petCardHtml(p, { cls: 'pet-card' })).join('')}</div>
+      </div>`).join('');
+    return `
+      <div class="page-header" style="display:flex;align-items:center;gap:1rem">
+        <div style="flex:1">
+          <h1>🐾 Mazlíčci</h1>
+          <div class="subtitle">${pets.length} ${czPlural(pets.length, 'mazlíček', 'mazlíčci', 'mazlíčků')}</div>
+        </div>
+        <button class="list-item-new" ${addAttr}>＋ Mazlíček</button>
+      </div>
+      ${groupsHtml}`;
+  }
+
+  // ══════════════════════════════════════════════════════════════
   //  DASHBOARD
   //  Layout: Hero (editable campaign name + tagline) → Naše parta
   //  (responsive portrait grid) → Poslední sezení (events from the
@@ -605,6 +699,23 @@ export const Wiki = (() => {
           </div>
         </a>`;
     }).join('');
+    const grid = `<div class="dash-party-grid">${cards}</div>`;
+    // Party-owned pets flank the grid — first card on the right, then
+    // alternating left/right. Nothing renders when there are none, so
+    // the dashboard is byte-for-byte unchanged until a party pet exists.
+    const partyPets = Store.getPetsForOwner('party');
+    let partyBody = grid;
+    if (partyPets.length) {
+      const left = [], right = [];
+      partyPets.forEach((p, i) => (i % 2 === 0 ? right : left).push(p));
+      const col = (list) => list.map(p => _petCardHtml(p, { cls: 'dash-pet-card' })).join('');
+      partyBody = `
+        <div class="dash-party-flank">
+          <div class="dash-pets-col dash-pets-left">${col(left)}</div>
+          ${grid}
+          <div class="dash-pets-col dash-pets-right">${col(right)}</div>
+        </div>`;
+    }
     return `
       <div class="dash-section">
         <div class="dash-section-head">
@@ -612,7 +723,7 @@ export const Wiki = (() => {
           <a class="dash-section-action" href="#/parta">Celá parta →</a>
           ${addBtn}
         </div>
-        <div class="dash-party-grid">${cards}</div>
+        ${partyBody}
       </div>`;
   }
 
@@ -1155,6 +1266,7 @@ export const Wiki = (() => {
         { title: 'Co víme',             html: (c.knowledge >= 2 && (c.known||[]).length)
                                                 ? _factListHtml(c.known, 'fact-item')   : '' },
         { title: 'Otevřené otázky',     html: _qaListHtmlSplit(c.unknown || []) },
+        _petsArticleSection('character', id),
       ],
       body,
       outlineSource: c.knowledge >= 2 ? c.description : '',
@@ -2024,6 +2136,7 @@ export const Wiki = (() => {
         { title: 'Členové',           html: unchained.length
           ? `<div class="relation-chips">${unchained.map(c => `<a class="relation-chip" href="#/postava/${c.id}">${esc(c.name)}</a>`).join('')}</div>`
           : '' },
+        _petsArticleSection('faction', id),
       ],
       outlineSource: f.description || '',
       body: `
@@ -2443,6 +2556,7 @@ export const Wiki = (() => {
       case "zahada":     html = renderMysteryArticle(param); break;
       case "frakce":     html = renderFactionList(); break;
       case "frakce-id":  html = renderFactionArticle(param); break;
+      case "mazlicci":   html = renderPetsList(); break;
       case "druhy":      html = renderSpeciesList(); break;
       case "druh":       html = renderSpeciesArticle(param); break;
       case "panteon":    html = renderPantheonList(); break;

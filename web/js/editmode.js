@@ -1578,9 +1578,198 @@ export const EditMode = (() => {
     createTwin(_picker.collection, _picker.source.id);
   }
 
+  // ══════════════════════════════════════════════════════════════
+  //  PET EDITOR (Mazlíčci) — lightweight modal
+  // ══════════════════════════════════════════════════════════════
+  // Pets are a lightweight collection edited through a small modal
+  // overlay (no route / article shell), so they can be created and
+  // reassigned from anywhere — the Mazlíčci page, the dashboard, a
+  // faction or character article. Owner is polymorphic: none / party
+  // / a specific character / a faction. Image upload reuses the
+  // character portrait pipeline (Store.uploadPortrait keyed by the
+  // pet id) and is gated until the pet has been saved once.
+  let _petModalEl = null;
+
+  function _petModalKey(e) {
+    if (e.key === 'Escape') { e.stopPropagation(); _closePetModal(); }
+  }
+  function _closePetModal() {
+    if (_petModalEl) { _petModalEl.remove(); _petModalEl = null; }
+    document.removeEventListener('keydown', _petModalKey, true);
+  }
+
+  /** Open the pet create/edit modal. `petId` null → new pet (with an
+   *  optional `prefill`, e.g. {ownerType:'faction', ownerId} from a
+   *  faction page). Anonymous viewers get the login modal instead. */
+  function openPetEditor(petId, prefill) {
+    if (Role.isAnonymous()) { promptLogin(); return; }
+    if (_petModalEl) return;                  // one modal at a time
+    const existing = petId ? Store.getPet(petId) : null;
+    const pet = existing ? { ...existing } : {
+      id: '', name: '', icon: '🐾', portrait: '', species: '', note: '',
+      ownerType: 'none', ownerId: '', ...(prefill || {}),
+    };
+    const isNew = !pet.id;
+
+    const factions = Store.getFactions();
+    const facOpts = Object.entries(factions).map(([fid, f]) =>
+      `<option value="${esc(fid)}"${pet.ownerType === 'faction' && pet.ownerId === fid ? ' selected' : ''}>${esc((f.badge ? f.badge + ' ' : '') + f.name)}</option>`).join('');
+    const otOpt = (val, label) => `<option value="${val}"${pet.ownerType === val ? ' selected' : ''}>${label}</option>`;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'pet-modal';
+    overlay.innerHTML = `
+      <div class="pet-modal-backdrop"></div>
+      <form class="pet-modal-panel" autocomplete="off">
+        <div class="pet-modal-title">${isNew ? '🐾 Nový mazlíček' : '🐾 Upravit mazlíčka'}</div>
+
+        <div class="pet-modal-portrait">
+          <div id="pet-portrait-preview" class="pet-portrait-preview">
+            ${pet.portrait
+              ? `<img src="${esc(pet.portrait)}?v=${Date.now()}" alt="">`
+              : `<span class="pet-portrait-emoji">${esc(pet.icon || '🐾')}</span>`}
+          </div>
+          <input type="hidden" id="pet-portrait" value="${esc(pet.portrait || '')}">
+          ${isNew
+            ? `<div class="pet-modal-hint">Obrázek lze nahrát po prvním uložení.</div>`
+            : `<label class="pet-modal-upload">📤 Nahrát obrázek
+                 <input type="file" id="pet-portrait-file" accept="image/*" hidden></label>`}
+        </div>
+
+        <label class="pet-modal-row">
+          <span class="pet-modal-label">Jméno</span>
+          <input type="text" id="pet-name" class="pet-modal-input" value="${esc(pet.name || '')}" placeholder="Např. Rex">
+        </label>
+        <label class="pet-modal-row">
+          <span class="pet-modal-label">Emoji / ikona</span>
+          <input type="text" id="pet-emoji" class="pet-modal-input pet-modal-emoji" value="${esc(pet.icon || '🐾')}" maxlength="4">
+        </label>
+        <label class="pet-modal-row">
+          <span class="pet-modal-label">Druh</span>
+          <input type="text" id="pet-species" class="pet-modal-input" value="${esc(pet.species || '')}" placeholder="Např. Vlk">
+        </label>
+        <label class="pet-modal-row">
+          <span class="pet-modal-label">Majitel</span>
+          <select id="pet-owner-type" class="pet-modal-input">
+            ${otOpt('none', 'Bez majitele')}
+            ${otOpt('party', '🛡 Naše parta')}
+            ${otOpt('character', '👤 Postava')}
+            ${otOpt('faction', '⬡ Frakce')}
+          </select>
+        </label>
+        <div class="pet-modal-row" id="pet-owner-char-row">
+          <span class="pet-modal-label"></span>
+          <div class="cb-mount" data-cb-id="pet-owner-char" data-cb-source="character"
+               data-cb-value="${esc(pet.ownerType === 'character' ? (pet.ownerId || '') : '')}"
+               data-cb-placeholder="Vyber postavu…" data-cb-allow-empty="1"
+               data-cb-empty-label="— žádná —"></div>
+        </div>
+        <div class="pet-modal-row" id="pet-owner-faction-row">
+          <span class="pet-modal-label"></span>
+          <select id="pet-owner-faction" class="pet-modal-input">${facOpts}</select>
+        </div>
+        <label class="pet-modal-row">
+          <span class="pet-modal-label">Poznámka</span>
+          <input type="text" id="pet-note" class="pet-modal-input" value="${esc(pet.note || '')}" placeholder="Krátká poznámka">
+        </label>
+
+        <div class="pet-modal-actions">
+          ${!isNew ? `<button type="button" class="pet-modal-btn pet-modal-delete">🗑 Smazat</button>` : ''}
+          <span class="pet-modal-spacer"></span>
+          <button type="button" class="pet-modal-btn pet-modal-cancel">Zrušit</button>
+          <button type="submit" class="pet-modal-btn pet-modal-save">Uložit</button>
+        </div>
+      </form>`;
+    document.body.appendChild(overlay);
+    _petModalEl = overlay;
+    overlay.dataset.petId = pet.id || '';
+    Widgets.mountAll(overlay);
+
+    const sel     = overlay.querySelector('#pet-owner-type');
+    const charRow = overlay.querySelector('#pet-owner-char-row');
+    const facRow  = overlay.querySelector('#pet-owner-faction-row');
+    const syncRows = () => {
+      charRow.style.display = sel.value === 'character' ? '' : 'none';
+      facRow.style.display  = sel.value === 'faction'   ? '' : 'none';
+    };
+    sel.addEventListener('change', syncRows);
+    syncRows();
+
+    overlay.querySelector('.pet-modal-panel').addEventListener('submit', (e) => { e.preventDefault(); savePet(); });
+    overlay.querySelector('.pet-modal-cancel').addEventListener('click', _closePetModal);
+    overlay.querySelector('.pet-modal-backdrop').addEventListener('click', _closePetModal);
+    const delBtn = overlay.querySelector('.pet-modal-delete');
+    if (delBtn) delBtn.addEventListener('click', () => deletePet(overlay.dataset.petId));
+    const fileInput = overlay.querySelector('#pet-portrait-file');
+    if (fileInput) fileInput.addEventListener('change', () => _petPortraitUpload(fileInput, overlay.dataset.petId));
+
+    document.addEventListener('keydown', _petModalKey, true);
+    requestAnimationFrame(() => overlay.querySelector('#pet-name')?.focus());
+  }
+
+  async function _petPortraitUpload(input, petId) {
+    const file = input.files?.[0];
+    if (!file || !petId) return;
+    try {
+      _toast('Nahrávám obrázek…');
+      const url = await Store.uploadPortrait(file, petId);
+      const hidden  = document.getElementById('pet-portrait');
+      const preview = document.getElementById('pet-portrait-preview');
+      if (hidden)  hidden.value = url;
+      if (preview) preview.innerHTML = `<img src="${esc(url)}?v=${Date.now()}" alt="">`;
+      _toast('Obrázek nahrán ✓');
+    } catch (e) {
+      _toast('Chyba při nahrávání obrázku', false);
+      console.error(e);
+    }
+  }
+
+  function savePet() {
+    const get = (id) => document.getElementById(id);
+    const name = (get('pet-name')?.value || '').trim();
+    if (!name) { _toast('Zadej jméno mazlíčka', false); get('pet-name')?.focus(); return; }
+    const id = (_petModalEl?.dataset.petId) || Store.generateId(name);
+    let ownerType = get('pet-owner-type')?.value || 'none';
+    let ownerId = '';
+    if (ownerType === 'character')    ownerId = get('pet-owner-char')?.value || '';
+    else if (ownerType === 'faction') ownerId = get('pet-owner-faction')?.value || '';
+    // A typed owner with nothing actually selected falls back to unassigned.
+    if ((ownerType === 'character' || ownerType === 'faction') && !ownerId) ownerType = 'none';
+
+    const existing = id ? Store.getPet(id) : null;
+    const pet = {
+      ...(existing || {}),
+      id, name,
+      icon:     (get('pet-emoji')?.value || '🐾').trim() || '🐾',
+      portrait: get('pet-portrait')?.value || '',
+      species:  (get('pet-species')?.value || '').trim(),
+      note:     (get('pet-note')?.value || '').trim(),
+      ownerType, ownerId,
+    };
+    Store.savePet(pet);
+    _closePetModal();
+    _toast('Mazlíček uložen ✓');
+    _refreshTo(window.location.hash);
+  }
+
+  function deletePet(id) {
+    if (!id) { _closePetModal(); return; }
+    Store.deletePet(id);
+    _closePetModal();
+    _toast('Mazlíček smazán', true, {
+      action: { label: '↶ Vrátit', onClick: () => {
+        Store.undelete('pets', id);
+        _toast('Mazlíček obnoven');
+        _refreshTo(window.location.hash);
+      }},
+    });
+    _refreshTo(window.location.hash);
+  }
+
   // ── Public API ─────────────────────────────────────────────────
   return {
     promptLogin, isDirty,
+    openPetEditor, savePet, deletePet,
     addDynRow, addQARow, handlePortraitUpload,
     clearPortrait, updateKnowledgeLabel,
     handlePortraitChange, handleLocalMapChange,

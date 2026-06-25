@@ -1396,3 +1396,118 @@ body.twin-picker-open { overflow: hidden; }
   font-weight: 600;
 }
 .pw-ok:hover { filter: brightness(1.08); }
+
+/* ── Pet editor modal (Mazlíčci) ──────────────────────────────
+   Lightweight create/edit overlay, modeled on the password modal.
+   Built imperatively in editmode.js (openPetEditor). */
+.pet-modal {
+  position: fixed; inset: 0; z-index: 10001;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding-top: 8vh; overflow-y: auto;
+}
+.pet-modal-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(2px);
+}
+.pet-modal-panel {
+  position: relative;
+  width: min(440px, 94vw);
+  max-height: 85vh; overflow-y: auto;
+  background: var(--bg-raised);
+  border: 1px solid rgba(200,160,64,0.35);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+  padding: 1.25rem;
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
+.pet-modal-title {
+  font-family: var(--font-title);
+  font-size: 1.05rem;
+  color: var(--accent-gold);
+  text-align: center;
+}
+.pet-modal-portrait {
+  display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+}
+.pet-portrait-preview {
+  width: 84px; height: 84px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 2px rgba(240,230,200,0.2);
+  display: flex; align-items: center; justify-content: center;
+}
+.pet-portrait-preview img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.pet-portrait-emoji { font-size: 2.2rem; line-height: 1; }
+.pet-modal-upload {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  color: var(--text-parchment);
+  background: rgba(200,160,64,0.08);
+  border: 1px solid rgba(200,160,64,0.3);
+  border-radius: 6px;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+}
+.pet-modal-upload:hover { background: rgba(200,160,64,0.14); }
+.pet-modal-hint {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.pet-modal-row {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+}
+.pet-modal-label {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.pet-modal-input {
+  width: 100%;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(200,160,64,0.3);
+  border-radius: 6px;
+  color: var(--text-parchment);
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  padding: 0.5rem 0.6rem;
+  box-sizing: border-box;
+}
+.pet-modal-input:focus { border-color: var(--accent-gold); outline: none; }
+.pet-modal-emoji { width: 4.5rem; text-align: center; font-size: 1.2rem; }
+.pet-modal-actions {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+.pet-modal-spacer { flex: 1; }
+.pet-modal-btn {
+  background: rgba(200,160,64,0.08);
+  border: 1px solid rgba(200,160,64,0.3);
+  border-radius: 6px;
+  color: var(--text-parchment);
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  padding: 0.45rem 0.95rem;
+  cursor: pointer;
+}
+.pet-modal-btn:hover { background: rgba(200,160,64,0.14); }
+.pet-modal-save {
+  background: var(--accent-gold);
+  color: #1a1208;
+  border-color: var(--accent-gold);
+  font-weight: 600;
+}
+.pet-modal-save:hover { filter: brightness(1.08); }
+.pet-modal-delete {
+  background: rgba(180,60,60,0.12);
+  border-color: rgba(180,60,60,0.4);
+  color: #e8a0a0;
+}
+.pet-modal-delete:hover { background: rgba(180,60,60,0.2); }

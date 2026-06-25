@@ -270,6 +270,108 @@
    per-page edit migration — replaced by the "+ Přidat" button in
    the dash-section-head. */
 
+/* ── Party pets flank (dashboard) ──────────────────────────────
+   Party-owned pets sit in narrow columns either side of the party
+   grid (first card on the right). Rendered only when party pets
+   exist, so the dashboard is unchanged until one is added. */
+.dash-party-flank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+.dash-pets-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+/* Pet card — a <button> (pets have no detail page; click = edit).
+   Two sizes share one look: .dash-pet-card (flank) / .pet-card (page). */
+.dash-pet-card,
+.pet-card {
+  appearance: none;
+  font: inherit;
+  cursor: pointer;
+  background: var(--bg-raised);
+  border: 1px solid rgba(200,160,64,0.18);
+  border-radius: var(--radius-lg);
+  color: var(--text-parchment);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.4rem;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.2s;
+}
+.dash-pet-card:hover,
+.pet-card:hover {
+  border-color: var(--accent-gold);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+.dash-pet-card { width: 120px; padding: 0.6rem; }
+.pet-card      { width: 150px; padding: 0.75rem; }
+.pet-card-portrait {
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 0 0 2px rgba(240,230,200,0.2);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-surface);
+}
+.dash-pet-card .pet-card-portrait { width: 56px; height: 56px; }
+.pet-card .pet-card-portrait      { width: 72px; height: 72px; }
+.pet-card-img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.pet-card-emoji { font-size: 1.6rem; line-height: 1; }
+.pet-card .pet-card-emoji { font-size: 2rem; }
+.pet-card-name {
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  line-height: 1.15;
+}
+.dash-pet-card .pet-card-name { font-size: 0.78rem; }
+.pet-card-species {
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+/* ── Mazlíčci page (grouped by owner) ── */
+.pet-group { margin-bottom: 1.75rem; }
+.pet-group-head {
+  font-family: var(--font-title);
+  font-size: 1rem;
+  color: var(--accent-gold);
+  letter-spacing: 0.04em;
+  margin: 0 0 0.85rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  display: flex; align-items: baseline; gap: 0.5rem;
+}
+.pet-group-count {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.05);
+  padding: 0.1em 0.55em;
+  border-radius: 100px;
+}
+.pet-grid { display: flex; flex-wrap: wrap; gap: 0.85rem; }
+
+/* Stack the flank below the party on narrow screens so the party
+   grid keeps its width. */
+@media (max-width: 768px) {
+  .dash-party-flank { flex-direction: column; align-items: stretch; }
+  .dash-party-flank .dash-party-grid { order: 0; }
+  .dash-pets-col {
+    order: 1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
 /* Last session + mysteries rows share a similar look. */
 .dash-event-list, .dash-mystery-list {
   display: flex;
