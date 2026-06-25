@@ -1624,9 +1624,27 @@ export const Store = (() => {
       if (changed) { _stamp(l); touched.push(l); }
     }
 
+    // Characters reference locations by id: `location` is the canonical
+    // "where they are", plus secondary `locationRoles[]`. Clear those dead
+    // refs too — otherwise the deleted location lingers as a phantom on the
+    // character (a broken location chip / orphaned role). Each touched
+    // character is persisted individually, mirroring the peer-location sync.
+    const touchedChars = [];
+    for (const c of _data.characters || []) {
+      let cChanged = false;
+      if (c.location === id) { c.location = ''; cChanged = true; }
+      if (Array.isArray(c.locationRoles) && c.locationRoles.some(r => r?.locationId === id)) {
+        c.locationRoles = c.locationRoles.filter(r => r?.locationId !== id);
+        cChanged = true;
+      }
+      if (cChanged) { _stamp(c); touchedChars.push(c); }
+    }
+
     _reindexLocations();
+    if (touchedChars.length) _reindexCharacters();
     const ok = _sync('locations', 'delete', { id });
     for (const peer of touched) _sync('locations', 'save', peer);
+    for (const c of touchedChars) _sync('characters', 'save', c);
     return ok;
   }
 

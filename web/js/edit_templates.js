@@ -758,8 +758,17 @@ export const EditTemplates = (() => {
     const isNew = !m || !m.id;
     if (isNew) m = { id:"", name:"", priority:"střední", description:"", characters:[], questions:[] };
     const uid = m.id || "new_mys";
-    const priOpts = ["kritická","vysoká","střední"].map(p =>
-      `<option value="${p}" ${m.priority===p?"selected":""}>${p}</option>`).join("");
+    // Priority options come from the canonical `eventPriorities` enum (NOT a
+    // hardcoded subset) so all four levels are offered and Settings edits are
+    // reflected. The current value is always included even if it's an orphan
+    // (renamed/removed enum id) so saving never silently flips it — the same
+    // first-option-fallback trap the faction picker had.
+    const priEnum = Store.getEnum('eventPriorities') || [];
+    const priList = (m.priority && !priEnum.some(p => p.id === m.priority))
+      ? [{ id: m.priority, label: m.priority }, ...priEnum]
+      : priEnum;
+    const priOpts = priList.map(p =>
+      `<option value="${esc(p.id)}" ${m.priority===p.id?"selected":""}>${esc(p.label || p.id)}</option>`).join("");
     const charsValue = (m.characters || []).join(',');
     const charPicker = `<div id="mf-chars-${uid}" class="ms-mount"
       data-ms-source="character"

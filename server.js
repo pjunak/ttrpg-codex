@@ -41,6 +41,22 @@ const PORT = process.env.PORT || 3000;
 const INSTANCE = process.env.CODEX_INSTANCE || 'default';
 const FEATURES = (process.env.CODEX_FEATURES || '').split(/[\s,]+/).filter(Boolean);
 
+// Global safety net for the single-process server. Every mutating endpoint
+// already try/catches inside its `withWriteLock` callback, but those promises
+// are fire-and-forget — so a future uncaught throw on a write path would
+// otherwise terminate the process silently (Node ≥15 exits on an unhandled
+// rejection). Log loudly. We KEEP RUNNING on a stray rejection (a hobby
+// self-host shouldn't drop the wiki mid-session over one bad async path) but
+// EXIT on a truly uncaught exception (the process state is undefined) so the
+// container restart policy can recover cleanly.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+  process.exit(1);
+});
+
 // Trust the first reverse-proxy hop so req.ip / cookie `secure` work
 // correctly when deployed behind nginx/Caddy/Traefik (the standard
 // docker-compose layout uses an external `proxy` network).
@@ -1987,6 +2003,35 @@ app.post('/api/restore', requireAuth, restoreUpload.single('backup'), (req, res)
         }
 
         const entries  = zip.getEntries();
+
+        // Guard against zip bombs / pathological archives BEFORE extracting:
+        // too many entries, a single absurdly large file, or an absurd total
+        // uncompressed size. Realistic backups (JSON + already-compressed
+        // images + tile pyramids) stay far under these. `entry.header.size`
+        // is the uncompressed size, read from the central directory without
+        // decompressing anything.
+        const MAX_ENTRIES     = 50000;               // tile pyramids can be many files
+        const MAX_ENTRY_BYTES = 200 * 1024 * 1024;   // 200 MB per file
+        const MAX_TOTAL_BYTES = 1024 * 1024 * 1024;  // 1 GB uncompressed total
+        if (entries.length > MAX_ENTRIES) {
+          await cleanup();
+          return res.status(400).json({ error: `ZIP má příliš mnoho položek (> ${MAX_ENTRIES})` });
+        }
+        let _totalUncompressed = 0;
+        for (const entry of entries) {
+          if (entry.isDirectory) continue;
+          const sz = entry.header?.size || 0;
+          if (sz > MAX_ENTRY_BYTES) {
+            await cleanup();
+            return res.status(400).json({ error: 'ZIP obsahuje příliš velký soubor (možný zip bomb)' });
+          }
+          _totalUncompressed += sz;
+          if (_totalUncompressed > MAX_TOTAL_BYTES) {
+            await cleanup();
+            return res.status(400).json({ error: 'ZIP je po rozbalení příliš velký (možný zip bomb)' });
+          }
+        }
+
         const restored = [];
         const skipped  = [];
         for (const entry of entries) {
@@ -2034,7 +2079,20 @@ app.post('/api/restore', requireAuth, restoreUpload.single('backup'), (req, res)
         const restored = [];
         for (const t of ALL_TYPES) {
           if (parsed[t] === undefined) continue;
-          await _atomicWrite(getFile(t), JSON.stringify(parsed[t], null, 2));
+          // Validate each collection's shape before writing: keyed-object
+          // collections must be plain objects, everything else an array.
+          // Writing a wrong shape (e.g. characters as a string) would break
+          // every subsequent read of that file.
+          const val       = parsed[t];
+          const wantArray = !KEYED_OBJ_TYPES.has(t);
+          const okShape   = wantArray
+            ? Array.isArray(val)
+            : (val !== null && typeof val === 'object' && !Array.isArray(val));
+          if (!okShape) {
+            await cleanup();
+            return res.status(400).json({ error: `Neplatný tvar kolekce „${t}" v záloze` });
+          }
+          await _atomicWrite(getFile(t), JSON.stringify(val, null, 2));
           restored.push(`${t}.json`);
         }
         if (!restored.length) {
