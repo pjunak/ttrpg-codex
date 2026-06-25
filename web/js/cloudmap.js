@@ -903,6 +903,7 @@ export const CloudMap = (() => {
           <a href="#/mapa/vztahy"    class="map-mode-btn ${mode==='vztahy'    ?'active':''}">Vztahy</a>
           <a href="#/mapa/tajemstvi" class="map-mode-btn ${mode==='tajemstvi' ?'active':''}">Záhady</a>
           <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.runAutoLayout')} title="Animovaně přeuspořádá uzly do matematicky ideálních pozic (Fruchterman–Reingold) — minimalizuje křížení vazeb a drží mapu kompaktní">✨ Auto rozložení</button>
+          ${mode === 'frakce' ? `<button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.runDagreLayout')} title="Hierarchické rozložení (dagre): frakce nahoře, velení a místa pod nimi">⊞ Hierarchie</button>` : ''}
           <button class="map-mode-btn cm-save-pos cm-undo-layout"${dataAction('CloudMap.undoLayout')} title="Vrátí poslední automatické přeuspořádání">↶ Zpět rozložení</button>
           <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.resetLayout')} title="Vymaže uložené pozice a znovu rozloží uzly automaticky">⟳ Rozložení</button>
           <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.savePositions')} title="Uloží aktuální pozice uzlů">💾 Uložit</button>
@@ -979,6 +980,24 @@ export const CloudMap = (() => {
   function _initCy(elements, layout) {
     if (_cy) _cy.destroy();
 
+    // Defensive: drop any edge whose endpoints aren't both present as nodes.
+    // The mind-palace is built from arbitrary user data, so a relationship to
+    // a deleted character — or a location affiliated with a faction that has
+    // no hub node (e.g. 'party', which now lives in settings.playerParty) —
+    // would otherwise make cytoscape throw on construction and blank the
+    // entire map. Dropping the stray edge keeps the rest of the map alive.
+    const _nodeIds = new Set();
+    for (const el of elements) {
+      if (el.data && el.data.id !== undefined && el.data.source === undefined) _nodeIds.add(el.data.id);
+    }
+    elements = elements.filter(el => {
+      const d = el.data || {};
+      if (d.source === undefined) return true; // node — always keep
+      const ok = _nodeIds.has(d.source) && _nodeIds.has(d.target);
+      if (!ok) console.warn('[cloudmap] dropped edge with missing endpoint:', d.id, d.source, '→', d.target);
+      return ok;
+    });
+
     // If we have saved positions, use a preset layout instead of physics
     const savedPos = _loadPositions();
     if (savedPos) {
@@ -1022,7 +1041,6 @@ export const CloudMap = (() => {
             'width':         0,
             'opacity':       0,
             'line-opacity':  0,
-            'arrow-scale':   0,
             'overlay-opacity': 0,
           }
         },
@@ -1952,6 +1970,51 @@ export const CloudMap = (() => {
     if (_cy && _cy.nodes().nonempty()) _cy.animate({ fit: { padding: 80 } }, { duration: 450, easing: 'ease-out-cubic' });
   }
 
+  // Hierarchical (dagre) layout — wired for the `frakce` mode, where the
+  // faction-hub → command-chain → location structure is a natural top-down
+  // hierarchy. Dagre is registered globally in app.js (`cytoscape.use`) and
+  // bundled by cytoscape-dagre 4. Unlike FR (which runs through the physics
+  // integrator), dagre is a one-shot Cytoscape layout: it positions nodes,
+  // we adopt those positions as the physics rest + save them, so the
+  // arrangement persists and the integrator holds it until the user drags.
+  function _runDagreLayout() {
+    if (!_cy || _currentMode !== 'frakce' || _cy.nodes().empty()) return;
+    _physSnapshotForUndo();
+    // Rank on the STRUCTURAL hierarchy only: hub→member (`mbr_`), hub→location
+    // (`loc_`), and command chains (`*-commands`). Lateral cross-faction edges
+    // (ally / negotiates) still render as SVG but are excluded from the layout
+    // so they don't drag faction hubs out of the top rank. All nodes are
+    // included, so every edge endpoint resolves within the subset.
+    const hierEdges = _cy.edges().filter(function (e) {
+      var id = e.id();
+      return id.indexOf('mbr_') === 0 || id.indexOf('loc_') === 0 || /-commands$/.test(id);
+    });
+    const layout = _cy.layout({
+      name:      'dagre',
+      eles:      _cy.nodes().union(hierEdges),
+      rankDir:   'TB',   // faction hubs on top; members + locations descend
+      nodeSep:   55,
+      rankSep:   120,
+      edgeSep:   25,
+      animate:   false,  // snap into place — the viewport fit below animates
+      fit:       false,
+    });
+    layout.one('layoutstop', () => {
+      // Adopt dagre's arrangement as the new equilibrium so the integrator
+      // holds it (rather than springing nodes back to their old rest), and
+      // persist it via the same path as Auto rozložení.
+      _cy.nodes().forEach(n => {
+        const p = n.position();
+        _phys.nodeRest.set(n.id(), { x: p.x, y: p.y });
+        _phys.nodeVel.set(n.id(), { vx: 0, vy: 0 });
+      });
+      _savePositions();
+      _updateLayoutBtnStates();
+      if (_cy.nodes().nonempty()) _cy.animate({ fit: { padding: 80 } }, { duration: 450, easing: 'ease-out-cubic' });
+    });
+    layout.run();
+  }
+
   // ── Crossing-reduction post-pass ─────────────────────────────
   // Greedy hill-climbing on the **worst-offender** node. Each round:
   //   1. score every node by how many crossings its incident edges
@@ -2543,6 +2606,7 @@ export const CloudMap = (() => {
     // Hub → location edges (dotted, earthy green; skip factions without hubs)
     facLocMap.forEach((locSet, fId) => {
       if (HIDDEN_HUB_FACTIONS.has(fId)) return;
+      if (!factions[fId]) return;   // no hub node (e.g. 'party' lives in playerParty now)
       for (const locId of locSet) {
         if (!locations.find(l => l.id === locId)) continue;
         edges.push({
@@ -2819,6 +2883,7 @@ export const CloudMap = (() => {
     render, resetLayout, setEditing, toggleEditing,
     savePositions:   _savePositions,
     runAutoLayout:   _runAutoLayout,
+    runDagreLayout:  _runDagreLayout,
     undoLayout:      _undoLayout,
     toggleFaction:   _toggleFaction,
     setFilterValues: _setFilterValues,   // called by TagFilter via tf-change event
