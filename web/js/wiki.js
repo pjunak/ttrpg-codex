@@ -888,6 +888,8 @@ export const Wiki = (() => {
           label = `${f.badge || '⬡'} ${f.name}`;
         } else if (fid === '__nofac__') {
           label = 'Bez frakce';
+        } else if (fid === 'neutral') {
+          label = '👤 Neutrální';
         } else {
           label = fid;
         }

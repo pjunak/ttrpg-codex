@@ -316,9 +316,21 @@ export const EditTemplates = (() => {
     // party membership. Surfacing it here keeps the character
     // editor's faction picker as the single place to set PC status.
     const pp = Store.getPlayerParty();
+    const realFactions = Object.entries(factions).filter(([id]) => id !== 'party');
+    // A character is "neutral / unaligned" when it isn't a party PC and its
+    // faction id doesn't match a real faction — covers the default
+    // `faction:'neutral'`, an empty value, or a deleted faction. We MUST offer
+    // an explicit option for this: a <select> with no matching <option> falls
+    // back to its FIRST entry, and on a fresh instance (no factions yet) that
+    // first entry is "Naše parta" — silently turning every new NPC into a
+    // party PC and hiding it from /postavy. List it first so it's the default
+    // selection for new characters.
+    const isRealFaction = realFactions.some(([id]) => id === c.faction);
+    const neutralSelected = c.faction !== 'party' && !isRealFaction;
+    const neutralOption = `<option value="neutral" ${neutralSelected ? "selected" : ""}>👤 Bez frakce (neutrální)</option>`;
     const partyOption = `<option value="party" ${c.faction==='party'?"selected":""}>${esc(pp.badge || pp.icon || '🛡')} ${esc(pp.name || 'Naše parta')}</option>`;
-    const fOpts = partyOption + Object.entries(factions).filter(([id]) => id !== 'party').map(([id,f]) =>
-      `<option value="${id}" ${c.faction===id?"selected":""}>${f.badge} ${f.name}</option>`).join("");
+    const fOpts = neutralOption + partyOption + realFactions.map(([id,f]) =>
+      `<option value="${id}" ${c.faction===id?"selected":""}>${f.badge} ${esc(f.name)}</option>`).join("");
     const sOpts = Object.entries(statusMap).map(([id,s]) =>
       `<option value="${id}" ${c.status===id?"selected":""}>${s.icon} ${s.label}</option>`).join("");
     // Attitudes (multi-pick chip row + per-chip strength slider).
