@@ -2114,7 +2114,10 @@ app.post('/api/restore', requireAuth, restoreUpload.single('backup'), (req, res)
   });
 });
 
-app.get('*', (_req, res) => {
+// SPA fallback: serve index.html for any unmatched GET so client-side
+// hash routing works on a hard refresh / deep link. Express 5 (path-to-regexp
+// 8) rejects a bare '*' — the catch-all must be a named wildcard ('/*splat').
+app.get('/*splat', (_req, res) => {
   res.sendFile(path.join(WEB_DIR, 'index.html'));
 });
 

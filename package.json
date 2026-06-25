@@ -8,12 +8,12 @@
     "test": "node --test \"test/**/*.test.*js\""
   },
   "dependencies": {
-    "adm-zip": "^0.5.10",
-    "archiver": "^7.0.1",
-    "cookie-parser": "^1.4.6",
-    "express": "^4.21.0",
-    "helmet": "^7.1.0",
-    "multer": "^2.0.0",
-    "sharp": "^0.33.5"
+    "adm-zip": "^0.5.17",
+    "archiver": "^8.0.0",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.2.1",
+    "helmet": "^8.2.0",
+    "multer": "^2.2.0",
+    "sharp": "^0.35.2"
   }
 }

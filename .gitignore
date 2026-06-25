@@ -1,5 +1,6 @@
 # ── Runtime data (lives on the server, never in git) ──────────
 /data/
+/data-snapshots/
 
 # ── Dependencies ───────────────────────────────────────────────
 node_modules/
