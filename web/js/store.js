@@ -789,7 +789,17 @@ export const Store = (() => {
         _serverAvailable = true;
         const serverData = await res.json();
         if (serverData && serverData.characters) {
-          _data = serverData;
+          // Layer the server payload OVER the defaults rather than replacing
+          // wholesale. The server omits collections that have no file yet
+          // (e.g. a fresh instance where the user added characters but never
+          // a relationship → no relationships.json), so a bare `_data =
+          // serverData` leaves those keys `undefined`. Every getter that does
+          // `_data.X.filter(...)` (e.g. getRelationships in the character
+          // article) would then throw and the page can't render. Spreading
+          // _defaults() first guarantees every collection key exists as at
+          // least an empty array/object; present keys are overridden by the
+          // server (the source of truth).
+          _data = { ..._defaults(), ...serverData };
           _mergeDefaults();
           // Migrations run in a specific order — `mapStatus` must
           // precede the shape upgrade so the `unknown` ids it inserts
