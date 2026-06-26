@@ -1890,6 +1890,24 @@ export const Store = (() => {
     return _sync('campaign', 'save', { id: 'main', data: _data.campaign.main });
   }
 
+  // ── Appearance (visual theme) ─────────────────────────────────
+  // settings.appearance = { theme: '<id from THEMES>' }. DM-only write
+  // (settings ∈ DM_ONLY_WRITE_TYPES). Pushed onto <html data-theme> by
+  // Settings.applyTheme on boot + every SSE refetch. Default 'classic'
+  // (the bare :root token baseline — no override block needed).
+  function getAppearance() {
+    init();
+    const a = (_data.settings && _data.settings.appearance) || {};
+    return { theme: (typeof a.theme === 'string' && a.theme) ? a.theme : 'classic' };
+  }
+  function setAppearance(patch) {
+    init();
+    if (!_data.settings) _data.settings = {};
+    const next = { ...getAppearance(), ...(patch || {}) };
+    _data.settings.appearance = next;
+    return _sync('settings', 'save', { id: 'appearance', data: next });
+  }
+
   // ── Settings (user-editable enums) ────────────────────────────
   // Each category is an array of `{ id, label, ... }` items. See
   // SETTINGS_DEFAULTS in data.js for the shape and seed values.
@@ -2553,6 +2571,7 @@ export const Store = (() => {
     linkTwin, getTwin, getCollection, dedupeShadowTwins,
     getPlayerParty, setPlayerParty,
     getBranding, setBranding, uploadLogo, deleteLogo,
+    getAppearance, setAppearance,
     getCharacters, isPartyMember, isVisibleTo, getPartyMembers, getNPCs,
     getRelationships, getLocations, getEvents, getMysteries,
     getFactions, getFaction, getStatusMap,

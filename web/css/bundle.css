@@ -5,6 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 @import 'main.css';
+@import 'themes.css';
 @import 'wiki.css';
 @import 'cloudmap.css';
 @import 'edit.css';

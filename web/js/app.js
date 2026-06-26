@@ -512,6 +512,7 @@ document.addEventListener('error',    (ev) => {
     await Store.load();
     Sidebar.render();
     Settings.applyBranding();
+    Settings.applyTheme();
     _renderTopbarLogin();
     _renderImpersonationBanner();
     // Self-originated SSE echoes (e.g. the Mapy zoom-scale slider's
@@ -732,6 +733,7 @@ document.addEventListener('error',    (ev) => {
       await Store.load();
       Sidebar.render();
       Settings.applyBranding();
+      Settings.applyTheme();
       navigate(getRoute());
     } finally {
       _roleChangeInflight = false;
@@ -743,6 +745,11 @@ document.addEventListener('error',    (ev) => {
   // call sites simple (`data-action="Role.viewAsPlayer"` just works).
 
   window.addEventListener("DOMContentLoaded", async () => {
+    // Apply the cached visual theme to <html> as early as possible so a
+    // returning user on a non-default theme doesn't flash the default
+    // palette before settings load. Settings.applyTheme() below reconciles
+    // with the authoritative campaign setting once data is in.
+    try { document.documentElement.setAttribute('data-theme', localStorage.getItem('codex_theme') || 'classic'); } catch (_) {}
     // Paint the sidebar immediately from the default layout (a constant,
     // needs no data) so there's no empty-sidebar flash; it re-renders
     // below once role + settings have loaded.
@@ -769,6 +776,7 @@ document.addEventListener('error',    (ev) => {
     Sidebar.render();
     // Push the configured logo / wordmark / favicon onto the chrome.
     Settings.applyBranding();
+    Settings.applyTheme();
     // Render the top-right login chip (anonymous + dashboard only)
     // and any impersonation banner once we know the role. navigate()
     // re-runs _renderTopbarLogin on every route change too.

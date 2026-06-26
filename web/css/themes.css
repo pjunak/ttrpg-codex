@@ -1,0 +1,42 @@
+/* ═══════════════════════════════════════════════════════════════
+   O BARVÁCH DRAKŮ — Témata (visual themes)
+
+   A theme is a set of design-token overrides activated by the
+   `<html data-theme="<id>">` attribute (set by Settings.applyTheme).
+   The DEFAULT theme is `classic` and is simply the bare :root token
+   baseline defined in main.css — it needs NO override block here.
+
+   ── To add a new style ─────────────────────────────────────────
+     1. Add an entry to THEMES in web/js/constants.js, e.g.
+            { id: 'midnight', label: 'Půlnoční' }
+     2. Add a `[data-theme="<id>"]` block below, overriding ONLY the
+        tokens that differ from :root. Everything else inherits the
+        baseline automatically.
+     3. Done — Settings → Vzhled lists it and applyTheme() activates it.
+
+   Override TOKENS, never component rules. Every component reads its
+   colours / spacing from `var(--token)`, so redefining a token here
+   re-skins the whole app — built-in pages AND addons — with no
+   per-component edits. That is the whole point of the token layer.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* `classic` == the :root baseline (main.css). The empty block documents
+   that selecting it applies no overrides; it is not required for the
+   theme to work, but keeps every theme visible in one place. */
+[data-theme="classic"] { /* baseline — see :root in main.css */ }
+
+/* ── Example: a future dark-blue theme (commented template) ─────────
+   Uncomment, tweak, and register it in THEMES (constants.js) to enable.
+
+[data-theme="midnight"] {
+  --bg-deep:         #05060a;
+  --bg-base:         #0a0d16;
+  --bg-surface:      #11151f;
+  --bg-raised:       #1a2030;
+  --accent-gold:     #7aa2d6;
+  --accent-gold-rgb: 122, 162, 214;
+  --accent-gold-dim: #4a6fa0;
+  --text-light:      #c7d3e6;
+  --text-muted:      #7d8aa3;
+}
+*/

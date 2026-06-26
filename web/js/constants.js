@@ -64,3 +64,13 @@ export const SIDEBAR_LAYOUT_DEFAULT = {
   ],
   hidden: [],
 };
+
+/** Registry of selectable visual themes (Settings → Vzhled). Each theme
+ *  is a `[data-theme="<id>"]` block in `web/css/themes.css` that overrides
+ *  the `:root` design tokens; the default `classic` theme IS the `:root`
+ *  baseline, so it needs no override block. Adding a new style = one entry
+ *  here + one `[data-theme]` block in themes.css — nothing else. The
+ *  Settings dropdown and `Settings.applyTheme()` consume this list. */
+export const THEMES = [
+  { id: 'classic', label: 'Klasický — Barvy draků' },
+];

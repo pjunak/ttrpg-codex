@@ -12,6 +12,7 @@ import { WorldMap, PIN_TYPES } from './map.js';
 import { Role } from './role.js';
 import { esc, dataAction, dataOn } from './utils.js';
 import { Sidebar } from './sidebar.js';
+import { THEMES } from './constants.js';
 
 export const Settings = (() => {
 
@@ -49,6 +50,7 @@ export const Settings = (() => {
   // panels (world-map upload, map-view presets, backup tools) instead
   // of the enum editor.
   const SPECIAL_TABS = [
+    { id: 'appearance',   label: 'Vzhled',          icon: '🎨' },
     { id: 'branding',     label: 'Logo a značka',   icon: '🐉' },
     { id: 'playerParty',  label: 'Naše parta',      icon: '🛡' },
     { id: 'worldmap',     label: 'Mapy',            icon: '🗺' },
@@ -180,6 +182,7 @@ export const Settings = (() => {
     if (_activeCat === 'backup')       return _backupHtml();
     if (_activeCat === 'account')      return _accountHtml();
     if (_activeCat === 'branding')     return _brandingHtml();
+    if (_activeCat === 'appearance')   return _appearanceHtml();
     if (_activeCat === 'playerParty')  return _playerPartyHtml();
     const cat = CATEGORIES.find(c => c.id === _activeCat);
     const items = Store.getEnum(_activeCat);
@@ -1314,6 +1317,61 @@ export const Settings = (() => {
     if (b.title) document.title = b.title;
   }
 
+  // ── Appearance (visual theme) ────────────────────────────────
+  // A simple style switcher. Each THEMES entry maps to a
+  // `[data-theme="<id>"]` block in web/css/themes.css overriding the
+  // :root design tokens; 'classic' is the bare :root baseline. Stored
+  // campaign-wide in settings.appearance (DM-only write) and pushed onto
+  // <html data-theme> by applyTheme() — called at boot, on every SSE
+  // refetch, and right after a change here. Adding a new style needs only
+  // a THEMES entry + a themes.css block; this UI lists it automatically.
+  function _appearanceHtml() {
+    const cur = Store.getAppearance().theme;
+    const opts = THEMES.map(t =>
+      `<option value="${esc(t.id)}"${t.id === cur ? ' selected' : ''}>${esc(t.label)}</option>`
+    ).join('');
+    return `
+      <div class="settings-editor-head">
+        <h2>🎨 Vzhled</h2>
+      </div>
+      <div class="settings-panel">
+        <p class="settings-hint" style="margin-bottom:1rem">
+          Barevný styl celé aplikace. Výběr se uloží pro celou kampaň a
+          projeví se všem připojeným ihned.
+        </p>
+        <label class="settings-field" style="max-width:320px">
+          <span class="settings-field-label">Styl</span>
+          <select class="edit-input" id="theme-select"
+                  ${dataOn('change', 'Settings.changeTheme', '$value')}>${opts}</select>
+        </label>
+        <span class="settings-hint" style="display:block;margin-top:0.8rem">
+          Další styly přibydou v budoucnu — stačí přidat blok do
+          <code>themes.css</code> a položku do registru témat.
+        </span>
+      </div>`;
+  }
+
+  /** Persist + apply the picked theme. */
+  function changeTheme(id) {
+    Store.setAppearance({ theme: id });
+    applyTheme();
+    _flash('Vzhled uložen');
+    render();
+  }
+
+  /** Push the active theme onto <html data-theme> + cache it for a
+   *  flash-free next boot. Validates against THEMES, falling back to
+   *  'classic' for an unknown/removed id. Safe to call repeatedly and
+   *  on any route. */
+  function applyTheme() {
+    if (typeof document === 'undefined') return;
+    let id = 'classic';
+    try { id = Store.getAppearance().theme; } catch (_) {}
+    if (!THEMES.some(t => t.id === id)) id = 'classic';
+    document.documentElement.setAttribute('data-theme', id);
+    try { localStorage.setItem('codex_theme', id); } catch (_) {}
+  }
+
   // ── Account panel ────────────────────────────────────────────
   // Two parts:
   //   1. Current role chip + login/logout button (anyone with a
@@ -1823,5 +1881,6 @@ export const Settings = (() => {
     previewDefaultIcon,
     savePlayerParty,
     uploadLogo, deleteLogo, saveBranding, applyBranding,
+    changeTheme, applyTheme,
   };
 })();
