@@ -28,6 +28,11 @@ const {
 } = require('./server/visibility.cjs');
 const { runVisibilityMigration: _runVisibilityMigration } = require('./server/migrations.cjs');
 
+// Addon framework broker — pure/injectable helpers (manifest validation,
+// allowlist matching, content hashing, GitHub zipball fetch/extract).
+// See server/addons.cjs. No module-level side effects.
+const AddonBroker = require('./server/addons.cjs');
+
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
@@ -95,6 +100,15 @@ const SNAPSHOTS_DIR  = process.env.CODEX_SNAPSHOTS_DIR
 const LEGACY_SNAPSHOTS_DIR = path.join(DATA_DIR, 'snapshots');
 const WEB_DIR        = path.join(__dirname, 'web');
 
+// Addon framework: installed addon CODE is laid down content-addressed
+// under data/addons/<id>/<hash>/ and served same-origin from /addons.
+// Each addon's own runtime DATA lives isolated under data/addon-data/<id>/.
+// The registry (installed/enabled/permissions/allowlist) is the top-level
+// data/addons.json so it rides snapshots + the data hash like a collection.
+const ADDONS_DIR           = path.join(DATA_DIR, 'addons');
+const ADDON_DATA_DIR       = path.join(DATA_DIR, 'addon-data');
+const ADDONS_REGISTRY_FILE = path.join(DATA_DIR, 'addons.json');
+
 fs.mkdirSync(DATA_DIR,       { recursive: true });
 fs.mkdirSync(PORTRAITS_DIR,  { recursive: true });
 fs.mkdirSync(LOCAL_MAPS_DIR, { recursive: true });
@@ -102,6 +116,8 @@ fs.mkdirSync(TILES_DIR,      { recursive: true });
 fs.mkdirSync(SWORDCOAST_DIR, { recursive: true });
 fs.mkdirSync(ICONS_DIR,      { recursive: true });
 fs.mkdirSync(SNAPSHOTS_DIR,  { recursive: true });
+fs.mkdirSync(ADDONS_DIR,     { recursive: true });
+fs.mkdirSync(ADDON_DATA_DIR, { recursive: true });
 
 // Idempotent relocation: any leftover snapshots inside data/ get
 // moved to the new sibling directory.
@@ -308,6 +324,11 @@ app.use('/icons',     express.static(ICONS_DIR, { maxAge: '7d', fallthrough: tru
 // default (`/branding/logo-default.svg`) — which lives in WEB_DIR, not
 // here — passes through to the WEB_DIR static handler below.
 app.use('/branding',  express.static(BRANDING_DIR, { maxAge: '7d', fallthrough: true }));
+// Installed addon code, served same-origin (CSP-clean) at
+// /addons/<id>/<hash>/…. Content-addressed paths are immutable so a long
+// cache is safe; fallthrough:false → a missing addon file returns a clean
+// 404 rather than the SPA index.html.
+app.use('/addons',    express.static(ADDONS_DIR, { maxAge: '7d', fallthrough: false }));
 app.use(express.static(WEB_DIR));
 
 function _imageFilter(_req, file, cb) {
@@ -1470,6 +1491,182 @@ app.patch('/api/data', (req, res) => {
  */
 app.get('/api/version', async (_req, res) => {
   res.json({ hash: await _dataHash(), instance: INSTANCE, features: FEATURES });
+});
+
+// ── Addon framework ──────────────────────────────────────────────
+// The server is the addon broker (see server/addons.cjs). Install
+// fetches a GitHub repo at a pinned commit, validates + content-hashes
+// it, and lays the code down under data/addons/<id>/<hash>/; the client
+// imports it same-origin. Management ops are DM-only and gate on
+// realRole (the signed claim) so an impersonating DM can't manage
+// addons. Updates run through the wizard (later phase) — no auto-update.
+const ADDON_MAX_FILES     = 2000;
+const ADDON_MAX_BYTES     = 25 * 1024 * 1024;   // 25 MB extracted cap
+const ADDON_VERSIONS_KEEP = 5;                  // content-addressed history kept per addon
+
+async function _readAddonsRegistry() {
+  try {
+    const raw = await fsp.readFile(ADDONS_REGISTRY_FILE, 'utf8');
+    return AddonBroker.normalizeRegistry(JSON.parse(raw));
+  } catch (e) {
+    if (e.code !== 'ENOENT') console.warn('[addons] registry read failed, using empty:', e.message);
+    return AddonBroker.defaultRegistry();
+  }
+}
+async function _writeAddonsRegistry(reg) {
+  await _atomicWrite(ADDONS_REGISTRY_FILE, JSON.stringify(reg, null, 2));
+}
+
+// Shape the registry into the public list the client boot consumes.
+// Readable by anyone (boot is pre-login); exposes only enough to import
+// + show status, never the allowlist or grants.
+function _publicAddonList(reg) {
+  return reg.addons.map(a => ({
+    id:         a.id,
+    name:       a.name || a.id,
+    version:    a.version || '',
+    apiVersion: a.apiVersion,
+    enabled:    !!a.enabled,
+    state:      a.state || (a.enabled ? 'ok' : 'disabled'),
+    activeHash: a.activeHash || null,
+    entryUrl:   (a.enabled && a.activeHash && a.entry)
+                  ? `/addons/${a.id}/${a.activeHash}/${a.entry}`
+                  : null,
+  }));
+}
+
+// Fetch → validate → content-hash → stage → atomic-promote to
+// data/addons/<id>/<hash>/. Caller holds the write lock. Returns the
+// updated registry entry; throws (400-worthy) on any validation miss.
+async function _installAddon(repo, ref) {
+  const token = process.env.GITHUB_TOKEN || '';
+  const sha = await AddonBroker.resolveRefToSha(repo, ref, { fetch, token });
+  const buf = await AddonBroker.fetchZipball(repo, sha, { fetch, token });
+
+  const AdmZip  = require('adm-zip');
+  const fileMap = AddonBroker.extractZip(buf, AdmZip);
+  if (!fileMap.length) throw new Error('archiv je prázdný nebo neobsahuje platné soubory');
+  if (fileMap.length > ADDON_MAX_FILES) throw new Error(`příliš mnoho souborů (> ${ADDON_MAX_FILES})`);
+  const totalBytes = fileMap.reduce((n, f) => n + f.buffer.length, 0);
+  if (totalBytes > ADDON_MAX_BYTES) throw new Error('doplněk je příliš velký');
+
+  const mfEntry = fileMap.find(f => f.relpath === 'addon.json');
+  if (!mfEntry) throw new Error('addon.json chybí v kořeni repozitáře');
+  let manifest;
+  try { manifest = JSON.parse(mfEntry.buffer.toString('utf8')); }
+  catch { throw new Error('addon.json není platný JSON'); }
+  const v = AddonBroker.validateManifest(manifest);
+  if (!v.ok) throw new Error('neplatný addon.json: ' + v.errors.join('; '));
+
+  const id       = manifest.id;
+  const hash     = AddonBroker.contentHash(fileMap, crypto);
+  const idDir    = path.join(ADDONS_DIR, id);
+  const incoming = path.join(idDir, '.incoming');
+  const finalDir = path.join(idDir, hash);
+
+  // Stage into .incoming, then atomic-rename to the content-addressed dir
+  // (so the client never imports a half-extracted tree).
+  await fsp.rm(incoming, { recursive: true, force: true }).catch(() => {});
+  await fsp.mkdir(incoming, { recursive: true });
+  for (const f of fileMap) {
+    const dest = _safeJoinIn(incoming, f.relpath);
+    if (!dest) throw new Error('nebezpečná cesta v archivu: ' + f.relpath);
+    await fsp.mkdir(path.dirname(dest), { recursive: true });
+    await fsp.writeFile(dest, f.buffer);
+  }
+  await fsp.rm(finalDir, { recursive: true, force: true }).catch(() => {});
+  await fsp.rename(incoming, finalDir);
+
+  // Per-addon isolated data dir.
+  await fsp.mkdir(path.join(ADDON_DATA_DIR, id), { recursive: true }).catch(() => {});
+
+  // Update the registry (content-addressed: activeHash selects the live
+  // version, versions[] keeps the last K for rollback).
+  const reg = await _readAddonsRegistry();
+  const versionRec = { contentHash: hash, version: manifest.version, sha, installedAt: Date.now() };
+  let entry = reg.addons.find(a => a.id === id);
+  if (!entry) {
+    entry = {
+      id, repo, ref, sha,
+      name: manifest.name, version: manifest.version,
+      apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
+      entry: manifest.entry, server: manifest.server || null,
+      activeHash: hash, versions: [versionRec],
+      enabled: true, grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
+      schemaVersion: 0, installedAt: Date.now(),
+    };
+    reg.addons.push(entry);
+  } else {
+    Object.assign(entry, {
+      repo, ref, sha,
+      name: manifest.name, version: manifest.version,
+      apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
+      entry: manifest.entry, server: manifest.server || null,
+      activeHash: hash,
+    });
+    if (!Array.isArray(entry.versions)) entry.versions = [];
+    if (!entry.versions.some(x => x.contentHash === hash)) entry.versions.push(versionRec);
+    if (entry.versions.length > ADDON_VERSIONS_KEEP) entry.versions = entry.versions.slice(-ADDON_VERSIONS_KEEP);
+  }
+  await _writeAddonsRegistry(reg);
+  return entry;
+}
+
+// Public list — readable by any caller (boot happens pre-login).
+app.get('/api/addons', async (_req, res) => {
+  try {
+    const reg = await _readAddonsRegistry();
+    res.json({ apiVersion: AddonBroker.HOST_API_VERSION, instance: INSTANCE, addons: _publicAddonList(reg) });
+  } catch (e) {
+    console.error('GET /api/addons:', e);
+    res.status(500).json({ error: 'Read error' });
+  }
+});
+
+// DM-only (realRole) source-allowlist management — the trusted repos an
+// addon may be installed from. `action:'remove'` drops one.
+app.post('/api/addons/sources', async (req, res) => {
+  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může spravovat zdroje doplňků.' });
+  const { repo, action } = req.body || {};
+  if (typeof repo !== 'string' || !(AddonBroker.REPO_RE.test(repo) || /^[A-Za-z0-9_.-]{1,39}\/\*$/.test(repo))) {
+    return res.status(400).json({ error: 'Neplatný repozitář (očekávám owner/name nebo owner/*).' });
+  }
+  try {
+    const allow = await withWriteLock(async () => {
+      const reg = await _readAddonsRegistry();
+      const set = new Set(reg.sources.allow);
+      if (action === 'remove') set.delete(repo); else set.add(repo);
+      reg.sources.allow = [...set];
+      await _writeAddonsRegistry(reg);
+      return reg.sources.allow;
+    });
+    _broadcast('addons-changed', { at: Date.now() });
+    res.json({ ok: true, allow });
+  } catch (e) {
+    console.error('POST /api/addons/sources:', e);
+    res.status(500).json({ error: 'Write error' });
+  }
+});
+
+// DM-only (realRole) install from an allowlisted GitHub repo.
+app.post('/api/addons/install', async (req, res) => {
+  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může instalovat doplňky.' });
+  const { repo, ref } = req.body || {};
+  if (typeof repo !== 'string' || !AddonBroker.REPO_RE.test(repo)) {
+    return res.status(400).json({ error: 'Neplatný repozitář (očekávám owner/name).' });
+  }
+  const reg0 = await _readAddonsRegistry();
+  if (!AddonBroker.isAllowed(reg0, repo)) {
+    return res.status(403).json({ error: `Repozitář „${repo}" není v seznamu povolených zdrojů.` });
+  }
+  try {
+    const entry = await withWriteLock(() => _installAddon(repo, String(ref || 'HEAD')));
+    _broadcast('addons-changed', { at: Date.now() });
+    res.json({ ok: true, addon: { id: entry.id, version: entry.version, activeHash: entry.activeHash } });
+  } catch (e) {
+    console.error('POST /api/addons/install:', e.message);
+    res.status(400).json({ error: 'Instalace selhala: ' + e.message });
+  }
 });
 
 /**
