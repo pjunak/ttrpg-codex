@@ -25,7 +25,7 @@
   gap: 0.6rem;
   padding: 0.6rem 1rem;
   background: var(--bg-surface);
-  border-bottom: 1px solid rgba(200,160,64,0.18);
+  border-bottom: 1px solid rgba(var(--accent-gold-rgb), 0.18);
   flex-shrink: 0;
   flex-wrap: wrap;
   z-index: 10;
@@ -49,14 +49,14 @@
   padding: 0.3rem 0.7rem;
   background: transparent;
   color: var(--accent-gold);
-  border: 1px solid rgba(200,160,64,0.5);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.5);
   border-radius: 4px;
   cursor: pointer;
   letter-spacing: 0.04em;
   transition: background 0.15s, border-color 0.15s;
 }
 .tl-add-btn:hover {
-  background: rgba(200,160,64,0.12);
+  background: rgba(var(--accent-gold-rgb), 0.12);
   border-color: var(--accent-gold);
 }
 
@@ -71,10 +71,10 @@
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
-  scrollbar-color: rgba(200,160,64,0.3) transparent;
+  scrollbar-color: rgba(var(--accent-gold-rgb), 0.3) transparent;
 }
 .tl-board-viewport::-webkit-scrollbar { height: 8px; }
-.tl-board-viewport::-webkit-scrollbar-thumb { background: rgba(200,160,64,0.3); border-radius: 4px; }
+.tl-board-viewport::-webkit-scrollbar-thumb { background: rgba(var(--accent-gold-rgb), 0.3); border-radius: 4px; }
 
 .tl-board {
   display: flex;
@@ -92,24 +92,24 @@
   display: flex;
   flex-direction: column;
   background: rgba(28,20,8,0.55);
-  border: 1px solid rgba(200,160,64,0.14);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.14);
   border-radius: 8px;
   overflow: hidden;
   max-height: 100%;
   transition: border-color 0.15s, background 0.15s;
 }
 .tl-col:hover {
-  border-color: rgba(200,160,64,0.28);
+  border-color: rgba(var(--accent-gold-rgb), 0.28);
 }
 
 .tl-col-phantom {
   background: repeating-linear-gradient(
     135deg,
-    rgba(200,160,64,0.04) 0 8px,
+    rgba(var(--accent-gold-rgb), 0.04) 0 8px,
     transparent 8px 16px
   );
   border-style: dashed;
-  border-color: rgba(200,160,64,0.22);
+  border-color: rgba(var(--accent-gold-rgb), 0.22);
 }
 
 /* Column header */
@@ -118,7 +118,7 @@
   align-items: baseline;
   justify-content: space-between;
   padding: 10px 12px 8px;
-  border-bottom: 1px solid rgba(200,160,64,0.12);
+  border-bottom: 1px solid rgba(var(--accent-gold-rgb), 0.12);
   flex-shrink: 0;
 }
 .tl-col-title {
@@ -135,7 +135,7 @@
   color: var(--text-muted);
   padding: 1px 7px;
   border-radius: 10px;
-  background: rgba(200,160,64,0.1);
+  background: rgba(var(--accent-gold-rgb), 0.1);
   min-width: 1.2em;
   text-align: center;
 }
@@ -150,11 +150,11 @@
   flex-direction: column;
   gap: 8px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(200,160,64,0.25) transparent;
+  scrollbar-color: rgba(var(--accent-gold-rgb), 0.25) transparent;
   min-height: 40px;  /* drop target stays clickable when empty */
 }
 .tl-col-body::-webkit-scrollbar { width: 6px; }
-.tl-col-body::-webkit-scrollbar-thumb { background: rgba(200,160,64,0.25); border-radius: 3px; }
+.tl-col-body::-webkit-scrollbar-thumb { background: rgba(var(--accent-gold-rgb), 0.25); border-radius: 3px; }
 
 /* Add-event button in column footer */
 .tl-col-add {
@@ -163,7 +163,7 @@
   padding: 0.45rem;
   background: transparent;
   color: var(--text-muted);
-  border: 1px dashed rgba(200,160,64,0.3);
+  border: 1px dashed rgba(var(--accent-gold-rgb), 0.3);
   border-radius: 5px;
   font-family: var(--font-ui);
   font-size: 0.72rem;
@@ -174,7 +174,7 @@
 .tl-col-add:hover {
   color: var(--accent-gold);
   border-color: var(--accent-gold);
-  background: rgba(200,160,64,0.06);
+  background: rgba(var(--accent-gold-rgb), 0.06);
 }
 
 /* ── Card ─────────────────────────────────────────────────────── */
@@ -277,7 +277,7 @@
   margin: 0 4px;
   background: var(--accent-gold);
   border-radius: 1px;
-  box-shadow: 0 0 6px rgba(200,160,64,0.5);
+  box-shadow: 0 0 6px rgba(var(--accent-gold-rgb), 0.5);
   flex-shrink: 0;
   pointer-events: none;
 }

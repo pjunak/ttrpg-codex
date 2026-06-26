@@ -12,7 +12,7 @@
   padding: 0.45rem 0.75rem;
   width: calc(100% - 1.5rem);
   background: rgba(0,0,0,0.2);
-  border: 1px solid rgba(200,160,64,0.2);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.2);
   border-radius: var(--radius);
   color: var(--text-muted);
   font-family: var(--font-ui);
@@ -22,8 +22,8 @@
   transition: border-color 0.12s, background 0.12s, color 0.12s;
 }
 .sidebar-search-btn:hover {
-  border-color: rgba(200,160,64,0.55);
-  background: rgba(200,160,64,0.08);
+  border-color: rgba(var(--accent-gold-rgb), 0.55);
+  background: rgba(var(--accent-gold-rgb), 0.08);
   color: var(--accent-gold);
 }
 .sidebar-search-icon  { font-size: 0.95rem; }
@@ -60,7 +60,7 @@
   position: relative;
   width: min(640px, 90vw);
   background: var(--bg-raised);
-  border: 1px solid rgba(200,160,64,0.35);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.35);
   border-radius: 10px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.55);
   display: flex;
@@ -71,7 +71,7 @@
 .gs-input {
   appearance: none;
   border: none;
-  border-bottom: 1px solid rgba(200,160,64,0.2);
+  border-bottom: 1px solid rgba(var(--accent-gold-rgb), 0.2);
   background: transparent;
   color: var(--text-parchment);
   font-family: var(--font-body);
@@ -107,9 +107,9 @@
   border-left: 3px solid transparent;
   transition: background 0.1s, border-color 0.1s;
 }
-.gs-row:hover { background: rgba(200,160,64,0.06); }
+.gs-row:hover { background: rgba(var(--accent-gold-rgb), 0.06); }
 .gs-row.is-active {
-  background: rgba(200,160,64,0.14);
+  background: rgba(var(--accent-gold-rgb), 0.14);
   border-left-color: var(--accent-gold);
 }
 .gs-row-name {
@@ -122,7 +122,7 @@
   margin-top: 0.15rem;
 }
 .gs-hint {
-  border-top: 1px solid rgba(200,160,64,0.15);
+  border-top: 1px solid rgba(var(--accent-gold-rgb), 0.15);
   padding: 0.5rem 1.25rem;
   font-family: var(--font-ui);
   font-size: 0.72rem;

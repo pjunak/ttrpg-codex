@@ -23,6 +23,10 @@
   /* Accents */
   --accent-crimson: #8B2020;
   --accent-gold:    #C8A040;
+  /* Channels of --accent-gold (#C8A040 == 200,160,64) so callers can vary
+     the alpha: rgba(var(--accent-gold-rgb), 0.25). This is the single most
+     repeated colour in the bundle (~150 uses as borders / tints / glows). */
+  --accent-gold-rgb: 200, 160, 64;
   --accent-gold-dim:#8B6914;
   --accent-ember:   #C04020;
 
@@ -49,7 +53,7 @@
 
   /* Shadows */
   --shadow-card: 0 2px 12px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.4);
-  --shadow-glow-gold: 0 0 20px rgba(200,160,64,0.15);
+  --shadow-glow-gold: 0 0 20px rgba(var(--accent-gold-rgb), 0.15);
 
   /* Fonts */
   --font-title: 'Cinzel', 'Georgia', serif;
@@ -160,7 +164,7 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
   top: 0; left: 0; bottom: 0;
   width: var(--sidebar-width);
   background: var(--bg-surface);
-  border-right: 1px solid rgba(200,160,64,0.15);
+  border-right: 1px solid rgba(var(--accent-gold-rgb), 0.15);
   overflow-y: auto;
   z-index: 100;
   display: flex;
@@ -180,7 +184,7 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
   align-items: center;
   gap: 0.75rem;
   padding: 1.25rem 1rem 1rem;
-  border-bottom: 1px solid rgba(200,160,64,0.2);
+  border-bottom: 1px solid rgba(var(--accent-gold-rgb), 0.2);
   margin-bottom: 0.5rem;
 }
 /* Logo mark — hosts the brand <img> (custom upload or bundled default).
@@ -261,8 +265,8 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
   color: var(--text-light);
   transition: background 0.15s, color 0.15s;
 }
-.nav-link:hover { background: rgba(200,160,64,0.08); color: var(--accent-gold); }
-.nav-link.active { background: rgba(200,160,64,0.12); color: var(--accent-gold); }
+.nav-link:hover { background: rgba(var(--accent-gold-rgb), 0.08); color: var(--accent-gold); }
+.nav-link.active { background: rgba(var(--accent-gold-rgb), 0.12); color: var(--accent-gold); }
 .nav-icon { font-size: 0.75rem; opacity: 0.7; }
 
 /* ── Collapsible sub-section (Kompendium, under Svět) ────────
@@ -288,7 +292,7 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
   text-align: left;
   transition: background 0.12s, color 0.12s;
 }
-.sidebar-subsection:hover { background: rgba(200,160,64,0.06); color: var(--accent-gold); }
+.sidebar-subsection:hover { background: rgba(var(--accent-gold-rgb), 0.06); color: var(--accent-gold); }
 .sidebar-subsection-chevron {
   display: inline-block;
   font-size: 0.65rem;
@@ -362,7 +366,7 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
 /* ── Inline wiki links ───────────────────────────────────────── */
 .wiki-link {
   color: var(--accent-gold);
-  border-bottom: 1px dotted rgba(200,160,64,0.4);
+  border-bottom: 1px dotted rgba(var(--accent-gold-rgb), 0.4);
   cursor: pointer;
   transition: border-color 0.15s;
 }
@@ -393,7 +397,7 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
     bottom: 0; left: 0; right: 0;
     height: var(--bottom-nav-h);
     background: var(--bg-surface);
-    border-top: 1px solid rgba(200,160,64,0.15);
+    border-top: 1px solid rgba(var(--accent-gold-rgb), 0.15);
     z-index: 100;
     justify-content: space-around;
     align-items: stretch;
@@ -443,7 +447,7 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
   bottom: var(--bottom-nav-h);
   left: 0; right: 0;
   background: var(--bg-surface);
-  border-top: 1px solid rgba(200,160,64,0.2);
+  border-top: 1px solid rgba(var(--accent-gold-rgb), 0.2);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   z-index: 160;
   padding: 1.25rem;
@@ -466,13 +470,13 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
   margin-bottom: 0.5rem;
   transition: background 0.15s;
 }
-.map-sheet-item:hover { background: rgba(200,160,64,0.12); color: var(--accent-gold); }
+.map-sheet-item:hover { background: rgba(var(--accent-gold-rgb), 0.12); color: var(--accent-gold); }
 
 /* ── Scrollbar ───────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-deep); }
-::-webkit-scrollbar-thumb { background: rgba(200,160,64,0.25); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(200,160,64,0.4); }
+::-webkit-scrollbar-thumb { background: rgba(var(--accent-gold-rgb), 0.25); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--accent-gold-rgb), 0.4); }
 
 /* ── Utility ─────────────────────────────────────────────────── */
 .text-center { text-align: center; }

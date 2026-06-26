@@ -14,6 +14,7 @@ import { GlobalSearch } from './search.js';
 import { Role } from './role.js';
 import { DmDashboard } from './dm_dashboard.js';
 import { Sidebar } from './sidebar.js';
+import { Addons } from './addons.js';
 import { setWikiLinkResolver, norm, dataAction } from './utils.js';
 
 // ── Action dispatcher (replaces inline `onclick="Module.method(...)"`) ──
@@ -26,7 +27,7 @@ import { setWikiLinkResolver, norm, dataAction } from './utils.js';
 //   2. Lets the page run under `Content-Security-Policy: script-src 'self'`
 //      because no inline event-handler attributes survive.
 const ACTIONS = {
-  Store, EditMode, Wiki, CloudMap, Timeline, WorldMap, Settings, GlobalSearch, Role, DmDashboard, Sidebar,
+  Store, EditMode, Wiki, CloudMap, Timeline, WorldMap, Settings, GlobalSearch, Role, DmDashboard, Sidebar, Addons,
 };
 // Browser-built-in shortcuts that used to live inline (`history.back()`,
 // `document.getElementById(slug).scrollIntoView(…)`, etc.). Element- /
@@ -467,6 +468,9 @@ document.addEventListener('error',    (ev) => {
         // already hides the link for non-DM users.
         DmDashboard.render(); break;
       default:
+        // Addon-registered top-level routes (CodexHost). Falls back to
+        // the dashboard for genuinely unknown sections.
+        if (Addons.hasRoute(section)) { Addons.renderRoute(section, sub, parts); break; }
         Wiki.renderPage("dashboard");
     }
   }
@@ -592,6 +596,16 @@ document.addEventListener('error',    (ev) => {
         return;
       }
       _applyRemoteChange(hash);
+    });
+
+    // Addon lifecycle (install / enable / source change on another tab).
+    // Reconcile loads any newly-enabled addon, then re-render so its
+    // route + sidebar link appear without a manual refresh.
+    es.addEventListener('addons-changed', async () => {
+      try {
+        const changed = await Addons.reconcile();
+        if (changed) { Sidebar.render(); navigate(getRoute()); }
+      } catch (e) { console.warn('[addons] reconcile failed', e); }
     });
 
     es.onerror = () => {
@@ -739,6 +753,16 @@ document.addEventListener('error',    (ev) => {
     // Load data from server before first render. Whatever comes back
     // is already filtered for the caller's role.
     await Store.load();
+
+    // Load installed addons (CodexHost). Wire host services first so a
+    // throwing addon can toast and a live reconcile can re-render. Boot
+    // never throws — a broken addon is isolated, the others still load.
+    Addons.init({
+      toast:    (m) => { try { EditMode.toast(m); } catch (_) { console.log('[addon]', m); } },
+      rerender: () => { Sidebar.render(); navigate(getRoute()); },
+    });
+    try { await Addons.boot(); }
+    catch (e) { console.error('[addons] boot failed', e); }
 
     // Re-render the data-driven sidebar now that role + settings are
     // loaded (the early render above used the default layout).

@@ -30,15 +30,15 @@
   font-size: 0.85rem;
   letter-spacing: 0.02em;
   color: var(--accent-gold);
-  background: rgba(200,160,64,0.10);
-  border: 1px solid rgba(200,160,64,0.45);
+  background: rgba(var(--accent-gold-rgb), 0.10);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.45);
   border-radius: var(--radius);
   padding: 0.4rem 0.85rem;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
 }
 .article-edit-btn:hover {
-  background: rgba(200,160,64,0.20);
+  background: rgba(var(--accent-gold-rgb), 0.20);
   border-color: var(--accent-gold);
 }
 .article-edit-btn:active { transform: translateY(1px); }
@@ -66,12 +66,12 @@
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .page-edit-toggle:hover {
-  background: rgba(200,160,64,0.08);
-  border-color: rgba(200,160,64,0.5);
+  background: rgba(var(--accent-gold-rgb), 0.08);
+  border-color: rgba(var(--accent-gold-rgb), 0.5);
   color: var(--accent-gold);
 }
 .page-edit-toggle.is-active {
-  background: rgba(200,160,64,0.18);
+  background: rgba(var(--accent-gold-rgb), 0.18);
   border-color: var(--accent-gold);
   color: var(--accent-gold);
   font-weight: 500;
@@ -101,7 +101,7 @@
   transition: border-color 0.15s, color 0.15s;
   text-align: left;
 }
-.sidebar-export-btn:hover { border-color: rgba(200,160,64,0.3); color: var(--text-light); text-decoration: none; }
+.sidebar-export-btn:hover { border-color: rgba(var(--accent-gold-rgb), 0.3); color: var(--text-light); text-decoration: none; }
 
 /* ── Role-aware UI ────────────────────────────────────────────── */
 /* Edit affordances are per-page now. The sidebar Settings link is
@@ -137,7 +137,7 @@ body:not(.is-dm) .sidebar-nav-dm { display: none; }
   font-weight: 500;
 }
 .role-badge-dm {
-  background: rgba(200,160,64,0.12);
+  background: rgba(var(--accent-gold-rgb), 0.12);
   border: 1px solid var(--accent-gold);
   color: var(--accent-gold);
 }
@@ -173,7 +173,7 @@ body:not(.is-dm) .sidebar-nav-dm { display: none; }
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  background: rgba(200,160,64,0.14);
+  background: rgba(var(--accent-gold-rgb), 0.14);
   border: 1px solid var(--accent-gold);
   border-radius: var(--radius);
   padding: 0.5rem 0.85rem;
@@ -185,7 +185,7 @@ body:not(.is-dm) .sidebar-nav-dm { display: none; }
   box-shadow: 0 2px 12px rgba(0,0,0,0.35);
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
 }
-.topbar-login:hover { background: rgba(200,160,64,0.22); }
+.topbar-login:hover { background: rgba(var(--accent-gold-rgb), 0.22); }
 .topbar-login:active { transform: translateY(1px); }
 .topbar-login-icon { font-size: 1rem; }
 /* Sits above the impersonation banner (which only renders for
@@ -246,8 +246,8 @@ body.is-impersonating { padding-top: 36px; }
   display: inline-block;
   font-size: 0.72rem;
   color: var(--accent-gold-dim, #ad8a4b);
-  background: rgba(200,160,64,0.12);
-  border: 1px solid rgba(200,160,64,0.32);
+  background: rgba(var(--accent-gold-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.32);
   border-radius: 999px;
   padding: 0.05rem 0.4rem;
   line-height: 1.25;
@@ -404,13 +404,13 @@ body:not(.is-dm) .edit-hdr-twin { display: none; }
   color: var(--text-light);
 }
 .twin-picker-btn-create {
-  background: rgba(200,160,64,0.12);
+  background: rgba(var(--accent-gold-rgb), 0.12);
   border: 1px solid var(--accent-gold);
   color: var(--accent-gold);
   font-weight: 500;
 }
 .twin-picker-btn-create:hover {
-  background: rgba(200,160,64,0.22);
+  background: rgba(var(--accent-gold-rgb), 0.22);
 }
 .twin-picker-search-row {
   padding: 0.75rem 1rem;
@@ -461,8 +461,8 @@ body:not(.is-dm) .edit-hdr-twin { display: none; }
 }
 .twin-picker-row:hover,
 .twin-picker-row.is-highlighted {
-  background: rgba(200,160,64,0.10);
-  border-color: rgba(200,160,64,0.3);
+  background: rgba(var(--accent-gold-rgb), 0.10);
+  border-color: rgba(var(--accent-gold-rgb), 0.3);
 }
 .twin-picker-row-name {
   flex: 1;
@@ -596,7 +596,7 @@ body.twin-picker-open { overflow: hidden; }
   right: 0.4rem;
   width: 26px; height: 26px;
   background: rgba(14,10,5,0.75);
-  border: 1px solid rgba(200,160,64,0.4);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.4);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -614,7 +614,7 @@ body.twin-picker-open { overflow: hidden; }
 .loc-card:hover     .edit-card-overlay,
 .faction-card:hover .edit-card-overlay,
 .mystery-card:hover .edit-card-overlay,
-.edit-card-overlay:hover { opacity: 1; background: rgba(200,160,64,0.20); }
+.edit-card-overlay:hover { opacity: 1; background: rgba(var(--accent-gold-rgb), 0.20); }
 .edit-card-overlay:active { transform: translateY(1px); }
 /* Anonymous viewers see the pencil too — clicking it surfaces the
    login modal (Wiki.startEditingArticle → EditMode.promptLogin). The
@@ -633,8 +633,8 @@ body.twin-picker-open { overflow: hidden; }
   align-items: center;
   gap: 0.35rem;
   padding: 0.45rem 0.9rem;
-  background: rgba(200,160,64,0.08);
-  border: 1px solid rgba(200,160,64,0.3);
+  background: rgba(var(--accent-gold-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: var(--radius);
   font-family: var(--font-ui);
   font-size: 0.78rem;
@@ -642,7 +642,7 @@ body.twin-picker-open { overflow: hidden; }
   white-space: nowrap;
   transition: background 0.15s;
 }
-.list-item-new:hover { background: rgba(200,160,64,0.16); }
+.list-item-new:hover { background: rgba(var(--accent-gold-rgb), 0.16); }
 
 /* ── Inline contextual creation buttons (faction/location pages) ── */
 .inline-create-row {
@@ -656,8 +656,8 @@ body.twin-picker-open { overflow: hidden; }
   align-items: center;
   gap: 0.35rem;
   padding: 0.45rem 0.9rem;
-  background: rgba(200,160,64,0.08);
-  border: 1px solid rgba(200,160,64,0.3);
+  background: rgba(var(--accent-gold-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: var(--radius);
   font-family: var(--font-ui);
   font-size: 0.78rem;
@@ -666,7 +666,7 @@ body.twin-picker-open { overflow: hidden; }
   cursor: pointer;
   transition: background 0.15s;
 }
-.inline-create-btn:hover { background: rgba(200,160,64,0.16); }
+.inline-create-btn:hover { background: rgba(var(--accent-gold-rgb), 0.16); }
 
 /* `.list-edit-btn` was the inline-styled pencil on list-page cards
    (loc/mystery/species/pantheon/artifact/historicalEvent). Unified
@@ -728,7 +728,7 @@ body.twin-picker-open { overflow: hidden; }
   gap: 1rem;
   padding: 0.6rem 0.75rem;
   margin: -0.6rem -0.75rem 0.25rem;
-  border-bottom: 1px solid rgba(200,160,64,0.2);
+  border-bottom: 1px solid rgba(var(--accent-gold-rgb), 0.2);
   flex-wrap: wrap;
   position: sticky;
   top: 0;
@@ -790,7 +790,7 @@ body.twin-picker-open { overflow: hidden; }
   text-align: center;
   padding: 0.4rem 0.5rem;
   background: var(--bg-surface);
-  border: 1px dashed rgba(200,160,64,0.3);
+  border: 1px dashed rgba(var(--accent-gold-rgb), 0.3);
   border-radius: var(--radius);
   font-family: var(--font-ui);
   font-size: 0.72rem;
@@ -816,7 +816,7 @@ body.twin-picker-open { overflow: hidden; }
 .lf-localmap-preview {
   margin-top: 0.5rem;
   max-width: 320px;
-  border: 1px solid rgba(200,160,64,0.2);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.2);
   border-radius: var(--radius);
   overflow: hidden;
   background: var(--bg-surface);
@@ -869,7 +869,7 @@ body.twin-picker-open { overflow: hidden; }
 .edit-select:focus,
 .edit-textarea:focus {
   outline: none;
-  border-color: rgba(200,160,64,0.45);
+  border-color: rgba(var(--accent-gold-rgb), 0.45);
 }
 .edit-select option { background: var(--bg-raised); }
 .edit-textarea { resize: vertical; min-height: 72px; line-height: 1.5; }
@@ -942,7 +942,7 @@ body.twin-picker-open { overflow: hidden; }
   transition: border-color 0.12s, color 0.12s;
 }
 .edit-check input[type="checkbox"] { accent-color: var(--accent-gold); }
-.edit-check:has(input:checked) { border-color: rgba(200,160,64,0.4); color: var(--accent-gold); }
+.edit-check:has(input:checked) { border-color: rgba(var(--accent-gold-rgb), 0.4); color: var(--accent-gold); }
 
 /* ── Relationship edit rows ──────────────────────────────────── */
 .rel-edit-list {
@@ -994,8 +994,8 @@ body.twin-picker-open { overflow: hidden; }
   flex-wrap: wrap;
 }
 .edit-save-btn {
-  background: rgba(200,160,64,0.14);
-  border: 1px solid rgba(200,160,64,0.4);
+  background: rgba(var(--accent-gold-rgb), 0.14);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.4);
   color: var(--accent-gold);
   border-radius: var(--radius);
   padding: 0.45rem 1.1rem;
@@ -1005,10 +1005,10 @@ body.twin-picker-open { overflow: hidden; }
   cursor: pointer;
   transition: background 0.15s;
 }
-.edit-save-btn:hover { background: rgba(200,160,64,0.26); }
+.edit-save-btn:hover { background: rgba(var(--accent-gold-rgb), 0.26); }
 .edit-add-btn {
-  background: rgba(200,160,64,0.08);
-  border: 1px solid rgba(200,160,64,0.3);
+  background: rgba(var(--accent-gold-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   color: var(--accent-gold);
   border-radius: var(--radius);
   padding: 0.35rem 0.75rem;
@@ -1018,7 +1018,7 @@ body.twin-picker-open { overflow: hidden; }
   transition: background 0.15s;
   white-space: nowrap;
 }
-.edit-add-btn:hover { background: rgba(200,160,64,0.18); }
+.edit-add-btn:hover { background: rgba(var(--accent-gold-rgb), 0.18); }
 .edit-delete-btn {
   background: none;
   border: 1px solid rgba(139,0,0,0.35);
@@ -1039,7 +1039,7 @@ body.twin-picker-open { overflow: hidden; }
   left: 50%;
   transform: translateX(-50%) translateY(16px);
   background: var(--bg-raised);
-  border: 1px solid rgba(200,160,64,0.3);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: var(--radius);
   padding: 0.55rem 1.25rem;
   font-family: var(--font-ui);
@@ -1057,8 +1057,8 @@ body.twin-picker-open { overflow: hidden; }
 .edit-toast.err  { border-color: rgba(139,0,0,0.5);    color: #ef9a9a; }
 .edit-toast-msg { margin-right: 0.6rem; }
 .edit-toast-action {
-  background: rgba(200,160,64,0.15);
-  border: 1px solid rgba(200,160,64,0.55);
+  background: rgba(var(--accent-gold-rgb), 0.15);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.55);
   color: var(--accent-gold);
   font-family: var(--font-ui);
   font-size: 0.78rem;
@@ -1068,7 +1068,7 @@ body.twin-picker-open { overflow: hidden; }
   transition: background 0.12s, border-color 0.12s;
 }
 .edit-toast-action:hover {
-  background: rgba(200,160,64,0.3);
+  background: rgba(var(--accent-gold-rgb), 0.3);
   border-color: var(--accent-gold);
 }
 
@@ -1087,9 +1087,9 @@ body.twin-picker-open { overflow: hidden; }
 .md-edit-preview blockquote {
   margin: 0.75em 0;
   padding: 0.25em 0.9em;
-  border-left: 3px solid rgba(200,160,64,0.5);
+  border-left: 3px solid rgba(var(--accent-gold-rgb), 0.5);
   color: var(--text-muted);
-  background: rgba(200,160,64,0.06);
+  background: rgba(var(--accent-gold-rgb), 0.06);
 }
 .md-view code,
 .md-edit-preview code {
@@ -1174,8 +1174,8 @@ body.twin-picker-open { overflow: hidden; }
   gap: 0.6rem;
   padding: 0.55rem 0.8rem;
   margin: 0 0 0.5rem;
-  background: rgba(200,160,64,0.12);
-  border: 1px solid rgba(200,160,64,0.5);
+  background: rgba(var(--accent-gold-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.5);
   border-radius: 5px;
   font-family: var(--font-ui);
   font-size: 0.82rem;
@@ -1186,7 +1186,7 @@ body.twin-picker-open { overflow: hidden; }
 .md-draft-btn {
   padding: 0.3rem 0.65rem;
   border-radius: 4px;
-  border: 1px solid rgba(200,160,64,0.5);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.5);
   background: transparent;
   color: var(--accent-gold);
   font-size: 0.78rem;
@@ -1194,7 +1194,7 @@ body.twin-picker-open { overflow: hidden; }
   transition: background 0.12s, border-color 0.12s;
 }
 .md-draft-btn:hover {
-  background: rgba(200,160,64,0.18);
+  background: rgba(var(--accent-gold-rgb), 0.18);
   border-color: var(--accent-gold);
 }
 .md-draft-btn-discard {
@@ -1215,7 +1215,7 @@ body.twin-picker-open { overflow: hidden; }
 }
 .EasyMDEContainer .editor-toolbar {
   background: rgba(0,0,0,0.3);
-  border: 1px solid rgba(200,160,64,0.25);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.25);
   border-radius: var(--radius) var(--radius) 0 0;
   opacity: 1;
 }
@@ -1225,18 +1225,18 @@ body.twin-picker-open { overflow: hidden; }
 }
 .EasyMDEContainer .editor-toolbar button:hover,
 .EasyMDEContainer .editor-toolbar button.active {
-  background: rgba(200,160,64,0.15);
-  border-color: rgba(200,160,64,0.45);
+  background: rgba(var(--accent-gold-rgb), 0.15);
+  border-color: rgba(var(--accent-gold-rgb), 0.45);
   color: var(--accent-gold);
 }
 .EasyMDEContainer .editor-toolbar i.separator {
-  border-left: 1px solid rgba(200,160,64,0.18);
+  border-left: 1px solid rgba(var(--accent-gold-rgb), 0.18);
   border-right: 1px solid transparent;
 }
 .EasyMDEContainer .CodeMirror {
   background: var(--bg-raised);
   color: var(--text-parchment);
-  border: 1px solid rgba(200,160,64,0.25);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.25);
   border-top: none;
   border-radius: 0;
   min-height: 320px;
@@ -1246,7 +1246,7 @@ body.twin-picker-open { overflow: hidden; }
   line-height: 1.6;
 }
 .EasyMDEContainer .CodeMirror-cursor { border-left-color: var(--accent-gold); }
-.EasyMDEContainer .CodeMirror-selected { background: rgba(200,160,64,0.2); }
+.EasyMDEContainer .CodeMirror-selected { background: rgba(var(--accent-gold-rgb), 0.2); }
 /* Syntax colouring inside the editor — subtle hints, not loud. */
 .EasyMDEContainer .cm-header      { color: var(--accent-gold); font-weight: 700; }
 .EasyMDEContainer .cm-strong      { color: #ffd28a; }
@@ -1260,7 +1260,7 @@ body.twin-picker-open { overflow: hidden; }
 
 .EasyMDEContainer .editor-statusbar {
   color: var(--text-muted);
-  border: 1px solid rgba(200,160,64,0.2);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.2);
   border-top: none;
   background: rgba(0,0,0,0.15);
   border-radius: 0 0 var(--radius) var(--radius);
@@ -1272,7 +1272,7 @@ body.twin-picker-open { overflow: hidden; }
 .EasyMDEContainer .editor-preview-side {
   background: var(--bg-raised);
   color: var(--text-parchment);
-  border: 1px solid rgba(200,160,64,0.25);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.25);
   padding: 0.9rem 1.1rem;
   font-family: 'Lora', Georgia, serif;
   font-size: 0.98rem;
@@ -1288,9 +1288,9 @@ body.twin-picker-open { overflow: hidden; }
 .EasyMDEContainer .editor-preview-side a { color: #90caf9; }
 .EasyMDEContainer .editor-preview blockquote,
 .EasyMDEContainer .editor-preview-side blockquote {
-  border-left: 3px solid rgba(200,160,64,0.5);
+  border-left: 3px solid rgba(var(--accent-gold-rgb), 0.5);
   color: var(--text-muted);
-  background: rgba(200,160,64,0.06);
+  background: rgba(var(--accent-gold-rgb), 0.06);
   padding: 0.25em 0.9em;
   margin: 0.75em 0;
 }
@@ -1342,7 +1342,7 @@ body.twin-picker-open { overflow: hidden; }
   position: relative;
   width: min(420px, 92vw);
   background: var(--bg-raised);
-  border: 1px solid rgba(200,160,64,0.35);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.35);
   border-radius: 10px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.55);
   padding: 1.25rem;
@@ -1358,7 +1358,7 @@ body.twin-picker-open { overflow: hidden; }
 .pw-input {
   flex: 1;
   background: rgba(0,0,0,0.25);
-  border: 1px solid rgba(200,160,64,0.3);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: 6px;
   color: var(--text-parchment);
   font-family: var(--font-body);
@@ -1369,18 +1369,18 @@ body.twin-picker-open { overflow: hidden; }
 .pw-input:focus { border-color: var(--accent-gold); }
 .pw-toggle {
   background: transparent;
-  border: 1px solid rgba(200,160,64,0.3);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: 6px;
   color: var(--text-parchment);
   cursor: pointer;
   width: 2.4rem;
   font-size: 1rem;
 }
-.pw-toggle:hover { background: rgba(200,160,64,0.08); }
+.pw-toggle:hover { background: rgba(var(--accent-gold-rgb), 0.08); }
 .pw-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
 .pw-btn {
-  background: rgba(200,160,64,0.08);
-  border: 1px solid rgba(200,160,64,0.3);
+  background: rgba(var(--accent-gold-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: 6px;
   color: var(--text-parchment);
   font-family: var(--font-ui);
@@ -1388,7 +1388,7 @@ body.twin-picker-open { overflow: hidden; }
   padding: 0.45rem 0.95rem;
   cursor: pointer;
 }
-.pw-btn:hover { background: rgba(200,160,64,0.14); }
+.pw-btn:hover { background: rgba(var(--accent-gold-rgb), 0.14); }
 .pw-ok {
   background: var(--accent-gold);
   color: #1a1208;
@@ -1415,7 +1415,7 @@ body.twin-picker-open { overflow: hidden; }
   width: min(440px, 94vw);
   max-height: 85vh; overflow-y: auto;
   background: var(--bg-raised);
-  border: 1px solid rgba(200,160,64,0.35);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.35);
   border-radius: 10px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.55);
   padding: 1.25rem;
@@ -1444,13 +1444,13 @@ body.twin-picker-open { overflow: hidden; }
   font-family: var(--font-ui);
   font-size: 0.8rem;
   color: var(--text-parchment);
-  background: rgba(200,160,64,0.08);
-  border: 1px solid rgba(200,160,64,0.3);
+  background: rgba(var(--accent-gold-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: 6px;
   padding: 0.35rem 0.8rem;
   cursor: pointer;
 }
-.pet-modal-upload:hover { background: rgba(200,160,64,0.14); }
+.pet-modal-upload:hover { background: rgba(var(--accent-gold-rgb), 0.14); }
 .pet-modal-hint {
   font-family: var(--font-ui);
   font-size: 0.72rem;
@@ -1472,7 +1472,7 @@ body.twin-picker-open { overflow: hidden; }
 .pet-modal-input {
   width: 100%;
   background: rgba(0,0,0,0.25);
-  border: 1px solid rgba(200,160,64,0.3);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: 6px;
   color: var(--text-parchment);
   font-family: var(--font-body);
@@ -1488,8 +1488,8 @@ body.twin-picker-open { overflow: hidden; }
 }
 .pet-modal-spacer { flex: 1; }
 .pet-modal-btn {
-  background: rgba(200,160,64,0.08);
-  border: 1px solid rgba(200,160,64,0.3);
+  background: rgba(var(--accent-gold-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: 6px;
   color: var(--text-parchment);
   font-family: var(--font-ui);
@@ -1497,7 +1497,7 @@ body.twin-picker-open { overflow: hidden; }
   padding: 0.45rem 0.95rem;
   cursor: pointer;
 }
-.pet-modal-btn:hover { background: rgba(200,160,64,0.14); }
+.pet-modal-btn:hover { background: rgba(var(--accent-gold-rgb), 0.14); }
 .pet-modal-save {
   background: var(--accent-gold);
   color: #1a1208;

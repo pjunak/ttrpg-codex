@@ -13,7 +13,7 @@
 /* ── Faction card ───────────────────────────────────────────── */
 .faction-card {
   background: var(--bg-raised);
-  border: 1px solid rgba(212,184,122,0.15);
+  border: 1px solid rgba(var(--gold-muted), 0.15);
   border-radius: 8px;
   overflow: hidden;
   color: var(--text-parchment);
@@ -148,7 +148,7 @@
    so switching between read/edit isn't a visual jolt.              */
 .rank-chain-edit {
   background: var(--bg-raised);
-  border: 1px solid rgba(200,160,64,0.22);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.22);
   border-radius: 8px;
   padding: 0.85rem 1rem;
   margin-bottom: 0.75rem;
@@ -160,13 +160,13 @@
   gap: 0.5rem;
   margin-bottom: 0.6rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(200,160,64,0.18);
+  border-bottom: 1px solid rgba(var(--accent-gold-rgb), 0.18);
 }
 .rank-chain-edit-header input,
 .rank-chain-edit input {
   background: rgba(0,0,0,0.25);
   color: var(--text-parchment);
-  border: 1px solid rgba(200,160,64,0.2);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.2);
 }
 .rank-chain-edit input:focus {
   border-color: var(--accent-gold);

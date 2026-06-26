@@ -23,7 +23,7 @@
   flex-direction: column;
   gap: 0.25rem;
   background: var(--bg-raised);
-  border: 1px solid rgba(212,184,122,0.15);
+  border: 1px solid rgba(var(--gold-muted), 0.15);
   border-radius: 10px;
   padding: 0.5rem;
   position: sticky;
@@ -45,9 +45,9 @@
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
-.settings-tab:hover   { background: rgba(200,160,64,0.08); }
+.settings-tab:hover   { background: rgba(var(--accent-gold-rgb), 0.08); }
 .settings-tab.is-active {
-  background: rgba(200,160,64,0.18);
+  background: rgba(var(--accent-gold-rgb), 0.18);
   color: var(--accent-gold);
 }
 .settings-tab-icon  { font-size: 1rem; }
@@ -63,7 +63,7 @@
 /* ── Editor (right column) ────────────────────────────────────── */
 .settings-editor {
   background: var(--bg-raised);
-  border: 1px solid rgba(212,184,122,0.15);
+  border: 1px solid rgba(var(--gold-muted), 0.15);
   border-radius: 10px;
   padding: 1.25rem 1.5rem;
   min-width: 0;
@@ -73,7 +73,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid rgba(212,184,122,0.15);
+  border-bottom: 1px solid rgba(var(--gold-muted), 0.15);
   padding-bottom: 0.75rem;
   margin-bottom: 1rem;
 }
@@ -99,7 +99,7 @@
   gap: 0.6rem;
   padding: 0.5rem 0.6rem;
   background: rgba(0,0,0,0.15);
-  border: 1px solid rgba(212,184,122,0.1);
+  border: 1px solid rgba(var(--gold-muted), 0.1);
   border-radius: 6px;
 }
 .settings-row-icon  { font-size: 1.05rem; text-align: center; }
@@ -140,7 +140,7 @@
 .settings-btn-edit,
 .settings-btn-del {
   background: transparent;
-  border: 1px solid rgba(200,160,64,0.25);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.25);
   color: var(--text-muted);
   width: 28px;
   height: 26px;
@@ -166,8 +166,8 @@
 
 /* ── Inline add/edit form ─────────────────────────────────────── */
 .settings-form {
-  background: rgba(200,160,64,0.05);
-  border: 1px solid rgba(200,160,64,0.35);
+  background: rgba(var(--accent-gold-rgb), 0.05);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.35);
   border-radius: 8px;
   padding: 1rem;
   margin-bottom: 1rem;
@@ -221,7 +221,7 @@
   position: relative;
   width: min(540px, 90vw);
   background: var(--bg-raised);
-  border: 1px solid rgba(200,160,64,0.4);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.4);
   border-radius: 10px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.55);
   padding: 1.25rem 1.5rem;
@@ -259,7 +259,7 @@
 .settings-tabs-sep {
   height: 1px;
   margin: 0.5rem 0.2rem;
-  background: rgba(212,184,122,0.15);
+  background: rgba(var(--gold-muted), 0.15);
 }
 
 /* ── Special panels (worldmap, backup) ──────────────────────── */
@@ -268,7 +268,7 @@
 }
 .settings-worldmap-preview {
   margin-top: 0.75rem;
-  border: 1px solid rgba(212,184,122,0.2);
+  border: 1px solid rgba(var(--gold-muted), 0.2);
   border-radius: 6px;
   background: rgba(0,0,0,0.25);
   padding: 0.5rem;
@@ -286,8 +286,8 @@
   gap: 0.6rem;
   margin: 0.8rem 0 1rem;
   padding: 0.8rem;
-  background: rgba(200,160,64,0.05);
-  border: 1px solid rgba(200,160,64,0.2);
+  background: rgba(var(--accent-gold-rgb), 0.05);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.2);
   border-radius: 6px;
 }
 
@@ -322,7 +322,7 @@
 /* ── Marker icon panel (pinTypes 🎨 toggle) ─────────────────── */
 .settings-btn-icons {
   background: transparent;
-  border: 1px solid rgba(212,184,122,0.25);
+  border: 1px solid rgba(var(--gold-muted), 0.25);
   border-radius: 4px;
   color: var(--text-parchment);
   cursor: pointer;
@@ -331,7 +331,7 @@
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .settings-btn-icons:hover {
-  background: rgba(200,160,64,0.12);
+  background: rgba(var(--accent-gold-rgb), 0.12);
   border-color: var(--accent-gold);
   color: var(--accent-gold);
 }
@@ -340,7 +340,7 @@
   margin: -0.15rem 0 0.6rem 1.5rem;
   padding: 0.85rem 1rem;
   background: rgba(0,0,0,0.18);
-  border: 1px solid rgba(212,184,122,0.18);
+  border: 1px solid rgba(var(--gold-muted), 0.18);
   border-radius: 6px;
   display: flex;
   flex-direction: column;
@@ -351,7 +351,7 @@
   flex-wrap: wrap;
   gap: 0.5rem 1.2rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px dashed rgba(212,184,122,0.12);
+  border-bottom: 1px dashed rgba(var(--gold-muted), 0.12);
 }
 .mit-strategy-opt {
   display: flex;
@@ -363,7 +363,7 @@
   border-radius: 4px;
   transition: background 0.12s;
 }
-.mit-strategy-opt:hover { background: rgba(200,160,64,0.06); }
+.mit-strategy-opt:hover { background: rgba(var(--accent-gold-rgb), 0.06); }
 .mit-strategy-opt input[type="radio"] {
   margin-top: 0.25rem;
   accent-color: var(--accent-gold);
@@ -392,7 +392,7 @@
   gap: 0.65rem;
   padding: 0.4rem 0.55rem;
   background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(212,184,122,0.1);
+  border: 1px solid rgba(var(--gold-muted), 0.1);
   border-radius: 5px;
 }
 .mit-thumb {
@@ -401,7 +401,7 @@
   height: 48px;
   border-radius: 4px;
   background: rgba(0,0,0,0.35);
-  border: 1px solid rgba(212,184,122,0.15);
+  border: 1px solid rgba(var(--gold-muted), 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -441,8 +441,8 @@
   align-items: center;
   gap: 0.7rem;
   padding: 0.5rem 0.65rem;
-  background: rgba(200,160,64,0.06);
-  border: 1px dashed rgba(212,184,122,0.25);
+  background: rgba(var(--accent-gold-rgb), 0.06);
+  border: 1px dashed rgba(var(--gold-muted), 0.25);
   border-radius: 5px;
 }
 .mit-bundled-default .mit-thumb {
@@ -480,7 +480,7 @@
   gap: 0.15rem;
   padding: 0.5rem 0.4rem;
   background: rgba(0,0,0,0.18);
-  border: 1px solid rgba(212,184,122,0.15);
+  border: 1px solid rgba(var(--gold-muted), 0.15);
   border-radius: 6px;
   max-height: 60vh;
   overflow-y: auto;
@@ -507,11 +507,11 @@
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .settings-map-node:hover {
-  background: rgba(200,160,64,0.08);
-  border-color: rgba(212,184,122,0.25);
+  background: rgba(var(--accent-gold-rgb), 0.08);
+  border-color: rgba(var(--gold-muted), 0.25);
 }
 .settings-map-node.is-active {
-  background: rgba(200,160,64,0.18);
+  background: rgba(var(--accent-gold-rgb), 0.18);
   border-color: var(--accent-gold);
   color: var(--accent-gold);
 }
@@ -519,7 +519,7 @@
   display: inline-block;
   width: 0.85rem;
   font-family: monospace;
-  color: rgba(212,184,122,0.4);
+  color: rgba(var(--gold-muted), 0.4);
   flex-shrink: 0;
 }
 .settings-map-node-icon {
@@ -563,7 +563,7 @@
   color: var(--accent-gold);
   margin: 0.4rem 0 0.5rem;
   padding-bottom: 0.3rem;
-  border-bottom: 1px dashed rgba(212,184,122,0.2);
+  border-bottom: 1px dashed rgba(var(--gold-muted), 0.2);
   letter-spacing: 0.03em;
 }
 
@@ -573,7 +573,7 @@
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  border: 1px dashed rgba(212,184,122,0.25);
+  border: 1px dashed rgba(var(--gold-muted), 0.25);
   border-radius: var(--radius, 10px);
   background: rgba(0,0,0,0.18);
 }
@@ -594,7 +594,7 @@
 
 .sb-sec {
   background: var(--bg-raised);
-  border: 1px solid rgba(200,160,64,0.18);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.18);
   border-radius: var(--radius);
   padding: 0.5rem 0.6rem 0.6rem;
 }
@@ -625,7 +625,7 @@
   flex: 1 1 8rem;
   min-width: 6rem;
   background: rgba(0,0,0,0.25);
-  border: 1px solid rgba(200,160,64,0.25);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.25);
   border-radius: 6px;
   color: var(--text-parchment);
   font-family: var(--font-ui);
@@ -637,7 +637,7 @@
   width: 2.6rem;
   text-align: center;
   background: rgba(0,0,0,0.25);
-  border: 1px solid rgba(200,160,64,0.25);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.25);
   border-radius: 6px;
   color: var(--text-parchment);
   padding: 0.35rem 0.3rem;
@@ -697,13 +697,13 @@
   font-size: 0.6rem;
   letter-spacing: 0.06em;
   color: var(--accent-gold);
-  border: 1px solid rgba(200,160,64,0.4);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.4);
   border-radius: 100px;
   padding: 0.05rem 0.4rem;
 }
 .sb-page-btn {
   background: transparent;
-  border: 1px solid rgba(200,160,64,0.25);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.25);
   border-radius: 6px;
   color: var(--text-muted);
   font-family: var(--font-ui);
@@ -731,7 +731,7 @@
   margin: 1px 2px;
   background: var(--accent-gold);
   border-radius: 1px;
-  box-shadow: 0 0 6px rgba(200,160,64,0.5);
+  box-shadow: 0 0 6px rgba(var(--accent-gold-rgb), 0.5);
   pointer-events: none;
 }
 .sb-drop-indicator-sec { height: 3px; margin: 2px 0; }

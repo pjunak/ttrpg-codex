@@ -17,6 +17,7 @@
 import { Store } from './store.js';
 import { Role } from './role.js';
 import { SIDEBAR_PAGES, SIDEBAR_LAYOUT_DEFAULT } from './constants.js';
+import { Addons } from './addons.js';
 import { esc, dataAction, dataOn } from './utils.js';
 
 export const Sidebar = (() => {
@@ -74,6 +75,26 @@ export const Sidebar = (() => {
       <ul class="sidebar-nav">${lis}</ul>`;
   }
 
+  // Addon-registered sidebar links (CodexHost). Phase 1 groups them all
+  // under a single "Doplňky" section appended after the DM's layout;
+  // placement into the DM-configurable layout arrives in a later phase.
+  // Role-gated addon pages (spec.role === 'dm') never reach a non-DM DOM.
+  function _addonPageLi(spec) {
+    if (!spec || typeof spec.route !== 'string') return '';
+    if (spec.role === 'dm' && !_isDM()) return '';
+    return `<li><a href="#${esc(spec.route)}" class="nav-link" data-route="${esc(spec.route)}">` +
+      `<span class="nav-icon">${esc(spec.icon || '🧩')}</span> ${esc(spec.label || spec.route)}</a></li>`;
+  }
+  function _addonSectionHtml() {
+    let pages = [];
+    try { pages = Addons.sidebarPages ? Addons.sidebarPages() : []; } catch (_) {}
+    const lis = pages.map(_addonPageLi).filter(Boolean).join('');
+    if (!lis) return '';
+    return `
+      <div class="sidebar-section sidebar-section-doplnky">🧩 Doplňky</div>
+      <ul class="sidebar-nav">${lis}</ul>`;
+  }
+
   /** Rebuild the sidebar nav from the current layout. Idempotent and
    *  cheap — safe to call at boot, after Store.load, on role:changed,
    *  and after every SSE refetch. No-op until #sidebar-nav-root exists. */
@@ -81,7 +102,7 @@ export const Sidebar = (() => {
     const root = document.getElementById('sidebar-nav-root');
     if (!root) return;
     const layout = Store.getSidebarLayout();
-    root.innerHTML = (layout.sections || []).map(_sectionHtml).join('');
+    root.innerHTML = (layout.sections || []).map(_sectionHtml).join('') + _addonSectionHtml();
     _markActive();
   }
 
