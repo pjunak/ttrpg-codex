@@ -1,0 +1,11 @@
+{
+  "id": "rules",
+  "name": "Pravidla (Rulebook)",
+  "version": "0.1.0",
+  "apiVersion": 1,
+  "hostVersion": ">=1.0.0",
+  "entry": "entry.js",
+  "permissions": ["ui:route", "ui:sidebar", "wiki:kind", "data:own"],
+  "collections": [{ "name": "rules", "keyed": false }],
+  "summary": "Stránka domácích pravidel s vlastní kolekcí dat a [[odkazy|pravidlo]]."
+}

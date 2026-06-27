@@ -491,6 +491,7 @@ export const EditTemplates = (() => {
               <p class="edit-hint">Uložte postavu nejprve, pak přidejte vazby.</p>
             </div>`}
           ${_visibilitySection(uid, c, 'characters', { isPc: Store.isPartyMember(c) })}
+          <div class="addon-editor-fields" data-addon-kind="characters" data-addon-uid="${uid}"></div>
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">

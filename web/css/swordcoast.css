@@ -51,10 +51,10 @@
    parchment (#F5EDD8) and would flash a bright panel on the dark toolbar. */
 .sc-btn:hover { background: rgba(var(--gold-muted), 0.1); border-color: rgba(var(--gold-muted), 0.5); }
 .sc-btn.active { background: rgba(var(--gold-muted), 0.2); border-color: var(--accent-gold); color: var(--accent-gold); }
-.sc-btn.ok  { border-color: rgba(46,125,50,0.5); color: #a5d6a7; }
-.sc-btn.err { border-color: rgba(139,0,0,0.5);   color: #ef9a9a; }
+.sc-btn.ok  { border-color: rgba(var(--status-alive-rgb), 0.5); color: var(--color-success); }
+.sc-btn.err { border-color: rgba(var(--status-dead-rgb), 0.5);   color: var(--color-danger); }
 .sc-hint {
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   margin-left: auto;
 }
@@ -199,7 +199,7 @@
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: var(--text-base);
   line-height: 1;
 }
 .sc-panel-close:hover { color: var(--text-parchment); }
@@ -227,7 +227,7 @@
   color: var(--text-parchment);
   margin-bottom: 0.2rem;
 }
-.sc-pin-meta { font-size: 0.75rem; color: var(--text-muted); }
+.sc-pin-meta { font-size: var(--text-xs); color: var(--text-muted); }
 .sc-pin-notes {
   font-family: 'Lora', serif;
   font-size: 0.82rem;
@@ -260,7 +260,7 @@
 /* Form inputs inside panel */
 .sc-label {
   display: block;
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   margin-bottom: 0.25rem;
   margin-top: 0.6rem;
@@ -371,7 +371,7 @@
   border-radius: 4px;
   color: var(--text-parchment);
   font-family: var(--font-ui);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   text-align: left;
   cursor: pointer;
 }
@@ -530,7 +530,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted, #c8bea4);
   cursor: pointer;
 }
@@ -557,7 +557,7 @@
 }
 .sc-dialog-title {
   font-family: 'Cinzel', serif;
-  font-size: 1rem;
+  font-size: var(--text-base);
   color: var(--text-parchment);
   margin-bottom: 0.5rem;
 }
@@ -623,7 +623,7 @@
   border: 1px solid rgba(var(--gold-muted), 0.25);
   border-radius: 4px;
   color: var(--text-parchment);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   padding: 0.32rem 0.55rem;
   font-family: 'Inter', sans-serif;
 }
@@ -648,7 +648,7 @@
   display: flex; align-items: center; gap: 0.5rem;
   padding: 0.45rem 0.65rem;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-parchment);
   border-bottom: 1px solid rgba(var(--gold-muted), 0.08);
 }

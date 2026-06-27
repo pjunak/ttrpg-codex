@@ -1,0 +1,10 @@
+{
+  "id": "frame",
+  "name": "Rámeček (override demo)",
+  "version": "0.1.0",
+  "apiVersion": 1,
+  "hostVersion": ">=1.0.0",
+  "entry": "entry.js",
+  "permissions": ["ui:override"],
+  "summary": "Ukázka fragment-override API (Phase 6): obalí tělo článku postavy rámečkem pomocí bezpečné, skládatelné operace wrap."
+}

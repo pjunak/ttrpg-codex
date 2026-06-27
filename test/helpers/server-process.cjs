@@ -69,6 +69,16 @@ async function startServer(opts = {}) {
       await fsp.writeFile(path.join(dataDir, filename), JSON.stringify(content, null, 2), 'utf8');
     }
   }
+  // Seed arbitrary nested files (relative paths under the data dir) before
+  // boot — e.g. addon code at addons/<id>/<hash>/server/index.cjs. String
+  // values are written verbatim (code); objects are JSON-stringified.
+  if (opts.seedFiles) {
+    for (const [rel, content] of Object.entries(opts.seedFiles)) {
+      const p = path.join(dataDir, rel);
+      await fsp.mkdir(path.dirname(p), { recursive: true });
+      await fsp.writeFile(p, typeof content === 'string' ? content : JSON.stringify(content, null, 2), 'utf8');
+    }
+  }
 
   const port = await pickFreePort();
 

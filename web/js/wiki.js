@@ -14,6 +14,7 @@ import { EditMode } from './editmode.js';
 import { Role } from './role.js';
 import { norm, esc, renderMarkdown, extractOutline, humanTime, dataAction, dataOn } from './utils.js';
 import { PIN_TYPES, WorldMap } from './map.js';
+import { Addons } from './addons.js';
 import { relLabel } from './data.js';
 import { PARTY_FACTION_ID, czPlural } from './constants.js';
 
@@ -450,19 +451,36 @@ export const Wiki = (() => {
     outlineSource = '',
     back = true,
     editButton = '',
+    kind = '', entity = null,
   }) {
     const chipsHtml = (chips || []).filter(Boolean).join('');
     const factsHtml = (facts || []).filter(f => f && f.value).map(f =>
       `<div class="ah-fact"><span class="ah-fact-label">${esc(f.label)}</span>${f.value}</div>`
     ).join('');
-    const sectionsHtml = (sections || []).filter(Boolean).map(s => {
-      if (!s.html || !s.html.trim()) return '';
-      return `
-        <div class="char-section">
-          <div class="char-section-title">${esc(s.title)}</div>
-          ${s.html}
-        </div>`;
-    }).join('');
+    // Main column as an ordered, NAMED fragment list (Phase 6) so addons can
+    // replace / hide / wrap / insert individual pieces with conflict-safe
+    // arbitration. Core sections + addon-added sections (Phase 4a, additive) +
+    // the body each become a fragment with a stable id; `Addons.applyFragments`
+    // applies override claims before we join. Empty fragments collapse. With no
+    // override addons installed the pipeline is a pass-through (zero cost).
+    const _sectionBlock = (title, html) =>
+      `<div class="char-section"><div class="char-section-title">${esc(title)}</div>${html}</div>`;
+    const _frags = [];
+    (sections || []).filter(Boolean).forEach((s, i) => {
+      _frags.push({
+        id:   `${kind || 'x'}:section:${s.id || ('s' + i)}`,
+        html: (s.html && s.html.trim()) ? _sectionBlock(s.title, s.html) : '',
+      });
+    });
+    (kind ? Addons.articleSections(kind, entity) : []).forEach((s, i) => {
+      _frags.push({
+        id:   `${kind}:addon:${s.addonId}:${i}`,
+        html: (s.html && s.html.trim()) ? _sectionBlock(s.title, s.html) : '',
+      });
+    });
+    _frags.push({ id: `${kind || 'x'}:body`, html: body ? `<div class="article-body">${body}</div>` : '' });
+    const mainHtml = (kind ? Addons.applyFragments(kind, _frags, entity) : _frags)
+      .map(f => f.html).filter(Boolean).join('');
 
     const sideCard = `
       <div class="wiki-side-card">
@@ -506,8 +524,7 @@ export const Wiki = (() => {
           ${outlineHtml}
         </aside>
         <div class="wiki-main">
-          ${sectionsHtml}
-          ${body ? `<div class="article-body">${body}</div>` : ''}
+          ${mainHtml}
         </div>
       </div>`;
   }
@@ -1261,15 +1278,16 @@ export const Wiki = (() => {
       ].filter(Boolean),
       facts,
       sections: [
-        { title: 'Vazby',               html: rels.length          ? _relChipsHtml(rels, id, chars) : '' },
-        { title: 'Zmínky v Událostech', html: eventsInvolved.length ? _eventListHtml(eventsInvolved) : '' },
-        { title: 'Co víme',             html: (c.knowledge >= 2 && (c.known||[]).length)
+        { id: 'vazby',    title: 'Vazby',               html: rels.length          ? _relChipsHtml(rels, id, chars) : '' },
+        { id: 'udalosti', title: 'Zmínky v Událostech', html: eventsInvolved.length ? _eventListHtml(eventsInvolved) : '' },
+        { id: 'znalosti', title: 'Co víme',             html: (c.knowledge >= 2 && (c.known||[]).length)
                                                 ? _factListHtml(c.known, 'fact-item')   : '' },
-        { title: 'Otevřené otázky',     html: _qaListHtmlSplit(c.unknown || []) },
-        _petsArticleSection('character', id),
+        { id: 'otazky',   title: 'Otevřené otázky',     html: _qaListHtmlSplit(c.unknown || []) },
+        (() => { const ps = _petsArticleSection('character', id); return ps ? { id: 'mazlicci', ...ps } : null; })(),
       ],
       body,
       outlineSource: c.knowledge >= 2 ? c.description : '',
+      kind: 'characters', entity: c,
     });
   }
 
@@ -1650,6 +1668,7 @@ export const Wiki = (() => {
         ${l.notes ? `<div class="location-note md-view">${renderMarkdown(l.notes)}</div>` : ''}
       `,
       outlineSource: l.description || '',
+      kind: 'locations', entity: l,
     });
   }
 
@@ -1695,6 +1714,7 @@ export const Wiki = (() => {
         { title: 'Místa',              html: locs  ? `<div class="relation-chips">${locs}</div>`  : '' },
       ],
       outlineSource: e.description || '',
+      kind: 'events', entity: e,
       body: `
         ${e.short ? `<div class="location-note md-view">${esc(e.short)}</div>` : ''}
         <div class="md-view">${renderMarkdown(e.description)}</div>
@@ -1915,6 +1935,7 @@ export const Wiki = (() => {
         { title: 'Spojené postavy', html: charChips ? `<div class="relation-chips">${charChips}</div>` : '' },
       ],
       outlineSource: m.description || '',
+      kind: 'mysteries', entity: m,
       body: `
         <div class="md-view">${renderMarkdown(m.description)}</div>
         <div style="margin-top:1.5rem">
@@ -2139,6 +2160,7 @@ export const Wiki = (() => {
         _petsArticleSection('faction', id),
       ],
       outlineSource: f.description || '',
+      kind: 'factions', entity: f,
       body: `
         ${f.description ? `<div class="md-view">${renderMarkdown(f.description)}</div>` : ''}
         <div style="margin-top:1.5rem">
@@ -2565,7 +2587,8 @@ export const Wiki = (() => {
       case "artefakt":   html = renderArtifactArticle(param); break;
       case "historie":           html = renderHistoryList(); break;
       case "historicka-udalost": html = renderHistoryArticle(param); break;
-      default:           html = renderDashboard();
+      default:
+        html = Addons.hasPageRenderer(page) ? Addons.renderPage(page, param) : renderDashboard();
     }
     el.innerHTML = html;
     el.scrollTop = 0;

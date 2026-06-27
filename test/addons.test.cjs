@@ -6,8 +6,9 @@ const AdmZip    = require('adm-zip');
 const {
   HOST_API_VERSION,
   defaultRegistry, normalizeRegistry,
-  validateManifest, matchRepoRule, isAllowed,
+  validateManifest, matchRepoRule, isAllowed, parseRepoInput,
   contentHash, extractZip, _safeRel,
+  addonCollectionType, parseAddonType, normalizeCollections,
 } = require('../server/addons.cjs');
 
 // ── validateManifest ──────────────────────────────────────────────
@@ -47,10 +48,34 @@ test('validateManifest: rejects an unsafe / non-js entry', () => {
   assert.equal(validateManifest(goodManifest({ entry: 'sub/dir/entry.mjs' })).ok, true);
 });
 
-test('validateManifest: permissions must be an array; dependencies an object', () => {
+test('validateManifest: permissions must be an array of token strings; dependencies an object', () => {
   assert.equal(validateManifest(goodManifest({ permissions: 'nope' })).ok, false);
   assert.equal(validateManifest(goodManifest({ dependencies: [] })).ok, false);
-  assert.equal(validateManifest(goodManifest({ permissions: ['ui:route'], dependencies: {} })).ok, true);
+  assert.equal(validateManifest(goodManifest({ permissions: ['ui:route', 'data:read:characters'], dependencies: {} })).ok, true);
+  // Reject non-strings + non-token shapes (so a manifest can't inject forged
+  // labels into the DM review or break grants.includes()).
+  assert.equal(validateManifest(goodManifest({ permissions: [123] })).ok, false);
+  assert.equal(validateManifest(goodManifest({ permissions: ['UI:Route'] })).ok, false);     // uppercase
+  assert.equal(validateManifest(goodManifest({ permissions: ['has space'] })).ok, false);
+  assert.equal(validateManifest(goodManifest({ permissions: ['<script>'] })).ok, false);
+});
+
+test('validateManifest: server must be a relative .cjs/.js path; serverDeps an array of strings', () => {
+  assert.equal(validateManifest(goodManifest({ server: 'server/index.cjs' })).ok, true);
+  assert.equal(validateManifest(goodManifest({ server: '../escape.cjs' })).ok, false);
+  assert.equal(validateManifest(goodManifest({ server: 'server/index.txt' })).ok, false);
+  assert.equal(validateManifest(goodManifest({ serverDeps: ['multer', 'archiver'] })).ok, true);
+  assert.equal(validateManifest(goodManifest({ serverDeps: 'multer' })).ok, false);
+  assert.equal(validateManifest(goodManifest({ serverDeps: [1] })).ok, false);
+});
+
+test('validateManifest: tests must be { client?, server? } of relative paths', () => {
+  assert.equal(validateManifest(goodManifest({ tests: { server: 'tests/a.cjs' } })).ok, true);
+  assert.equal(validateManifest(goodManifest({ tests: { client: ['a.mjs', 'b.mjs'] } })).ok, true);
+  assert.equal(validateManifest(goodManifest({ tests: ['x'] })).ok, false);          // array, not object
+  assert.equal(validateManifest(goodManifest({ tests: { server: '../escape.cjs' } })).ok, false);
+  assert.equal(validateManifest(goodManifest({ tests: { server: 5 } })).ok, false);
+  assert.equal(validateManifest(goodManifest({ tests: { server: [] } })).ok, false); // empty
 });
 
 // ── _safeRel ──────────────────────────────────────────────────────
@@ -125,6 +150,13 @@ test('extractZip: leaves a flat (no-wrapper) zip untouched', () => {
   assert.deepEqual(names, ['addon.json', 'entry.js']);
 });
 
+test('extractZip: enforces maxBytes / maxFiles (zip-bomb guard)', () => {
+  const buf = zipOf({ 'a.txt': 'x'.repeat(2000), 'b.txt': 'y'.repeat(2000) });
+  assert.throws(() => extractZip(buf, AdmZip, { maxBytes: 100 }),  /too large/);
+  assert.throws(() => extractZip(buf, AdmZip, { maxFiles: 1 }),    /too many files/);
+  assert.equal(extractZip(buf, AdmZip, { maxBytes: 1e6, maxFiles: 100 }).length, 2);  // generous → fine
+});
+
 test('extractZip: every emitted path is relative-safe', () => {
   // Whatever the zip carries, nothing that escapes the addon dir may
   // survive (the per-entry _safeRel filter is the guard; server.js also
@@ -138,4 +170,59 @@ test('extractZip: every emitted path is relative-safe', () => {
     assert.ok(!f.relpath.startsWith('/'));
     assert.ok(!f.relpath.split('/').includes('..'));
   }
+});
+
+// ── parseRepoInput ────────────────────────────────────────────────
+test('parseRepoInput: accepts owner/name, GitHub URLs, ssh; extracts ref', () => {
+  assert.deepEqual(parseRepoInput('me/addon'), { repo: 'me/addon' });
+  assert.deepEqual(parseRepoInput('  me/addon  '), { repo: 'me/addon' });
+  assert.deepEqual(parseRepoInput('https://github.com/me/addon'), { repo: 'me/addon' });
+  assert.deepEqual(parseRepoInput('https://github.com/me/addon.git'), { repo: 'me/addon' });
+  assert.deepEqual(parseRepoInput('https://github.com/me/addon/'), { repo: 'me/addon' });
+  assert.deepEqual(parseRepoInput('http://github.com/me/addon?x=1#y'), { repo: 'me/addon' });
+  assert.deepEqual(parseRepoInput('https://github.com/me/addon/tree/dev'), { repo: 'me/addon', ref: 'dev' });
+  assert.deepEqual(parseRepoInput('git@github.com:me/addon.git'), { repo: 'me/addon' });
+});
+
+test('parseRepoInput: rejects non-GitHub / malformed input', () => {
+  for (const bad of ['', '   ', 'not-a-repo', 'https://gitlab.com/me/addon',
+                     'https://github.com/only', 42, null, 'me/addon/extra']) {
+    assert.equal(parseRepoInput(bad), null, `should reject ${JSON.stringify(bad)}`);
+  }
+});
+
+// ── addon-owned collections ───────────────────────────────────────
+test('normalizeCollections: keeps valid {name,keyed}, drops junk + dupes', () => {
+  const out = normalizeCollections([
+    { name: 'rules' },
+    { name: 'spells', keyed: true },
+    { name: 'rules' },              // duplicate → dropped
+    { name: 'Bad-Name' },           // hyphen / uppercase → dropped
+    { name: '' },                   // empty → dropped
+    'nope',                          // not an object → dropped
+    { keyed: true },                // no name → dropped
+  ]);
+  assert.deepEqual(out, [{ name: 'rules', keyed: false }, { name: 'spells', keyed: true }]);
+  assert.deepEqual(normalizeCollections(undefined), []);
+  assert.deepEqual(normalizeCollections('x'), []);
+});
+
+test('addonCollectionType / parseAddonType: round-trip + reject unsafe', () => {
+  assert.equal(addonCollectionType('dnd5e', 'rules'), 'addon:dnd5e:rules');
+  assert.deepEqual(parseAddonType('addon:dnd5e:rules'), { id: 'dnd5e', name: 'rules' });
+  assert.deepEqual(parseAddonType('addon:my-addon:spell_list'), { id: 'my-addon', name: 'spell_list' });
+  // Not addon types / unsafe shapes → null (so getFile falls back to DATA_DIR).
+  for (const t of ['characters', 'addon:bad', 'addon:x:..', 'addon:x:a/b',
+                   'addon::name', 'addon:UP:x', 'settings', '', null]) {
+    assert.equal(parseAddonType(t), null, `should not parse "${t}"`);
+  }
+});
+
+test('validateManifest: collections must be a well-formed array', () => {
+  assert.equal(validateManifest(goodManifest({ collections: [{ name: 'rules' }] })).ok, true);
+  assert.equal(validateManifest(goodManifest({ collections: [{ name: 'rules', keyed: true }] })).ok, true);
+  assert.equal(validateManifest(goodManifest({ collections: 'nope' })).ok, false);
+  assert.equal(validateManifest(goodManifest({ collections: [{ name: 'Bad-Name' }] })).ok, false);
+  assert.equal(validateManifest(goodManifest({ collections: [{ keyed: true }] })).ok, false);
+  assert.equal(validateManifest(goodManifest({ collections: [{ name: 'r' }, { name: 'r' }] })).ok, false);
 });

@@ -1048,7 +1048,15 @@ export const Store = (() => {
         // as array-collections. Return new objects to avoid mutating
         // the live store.
         return Object.entries(_data.factions || {}).map(([id, fac]) => ({ id, ...fac }));
-      default:                 return [];
+      default: {
+        // Addon-owned collections (`addon:<id>:<name>`) + any other present
+        // container. Return arrays as-is; stamp ids onto keyed objects so the
+        // shape matches array-collections (`{id, ...}`). Unknown → [].
+        const c = _data[name];
+        if (Array.isArray(c)) return c;
+        if (c && typeof c === 'object') return Object.entries(c).map(([id, v]) => ({ id, ...v }));
+        return [];
+      }
     }
   }
 
@@ -2535,6 +2543,181 @@ export const Store = (() => {
     return (base || 'e') + '_' + suffix;
   }
 
+  // \u2500\u2500 Addon-owned collections \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // Addons declare collections in their manifest; the server exposes each as
+  // the colon-namespaced wire type `addon:<id>:<name>` (file on disk:
+  // data/addon-data/<id>/<name>.json \u2014 isolated, removed with the addon).
+  // These back the host facade's scoped CRUD (host.store.collection(...)),
+  // gated client-side by the addon's `data:own` permission. They mirror the
+  // core saveX/deleteX shape: stamp updatedAt, fire _sync, bust the markdown
+  // cache (addon content can carry [[wiki-links]] too). `keyed` mirrors the
+  // manifest's `collections[].keyed` \u2014 keyed-object vs entity-list storage.
+  function _addonType(addonId, name) { return `addon:${addonId}:${name}`; }
+
+  /** Ensure a collection container exists locally so reads never throw, even
+   *  before the first server round-trip. Returns the container. */
+  function ensureCollection(name, keyed) {
+    init();
+    // Defence in depth: never write a prototype-chain key onto `_data` (the
+    // wire name is colon-namespaced so this can't happen in practice, but
+    // ensureCollection is also exported for direct use).
+    if (name === '__proto__' || name === 'constructor' || name === 'prototype') return keyed ? {} : [];
+    if (_data[name] == null) _data[name] = keyed ? {} : [];
+    return _data[name];
+  }
+
+  /** Read an addon's own collection: the live array (entity-list) or keyed
+   *  object. Callers must not mutate it directly \u2014 go through
+   *  saveAddonItem / deleteAddonItem so changes sync to the server. */
+  function getAddonCollection(addonId, name, keyed) {
+    return ensureCollection(_addonType(addonId, name), keyed);
+  }
+
+  /** Upsert an item into an addon's collection. Generates an id from
+   *  item.name (or the collection name) when missing, stamps updatedAt, and
+   *  syncs. Returns the stored record. */
+  function saveAddonItem(addonId, name, item, keyed) {
+    const type = _addonType(addonId, name);
+    const container = ensureCollection(type, keyed);
+    const rec = { ...item };
+    if (!rec.id) rec.id = generateId(rec.name || name);
+    rec.updatedAt = Date.now();
+    if (keyed) {
+      // Defence in depth \u2014 the server rejects these keys too, but never let a
+      // buggy addon pollute the local keyed-object prototype chain.
+      if (/^(__proto__|constructor|prototype)$/.test(rec.id)) {
+        console.warn('Store: refusing forbidden addon collection key', rec.id);
+        return rec;
+      }
+      container[rec.id] = rec;
+      _sync(type, 'save', { id: rec.id, data: rec });
+    } else {
+      const i = container.findIndex(x => x && x.id === rec.id);
+      if (i >= 0) container[i] = rec; else container.push(rec);
+      _sync(type, 'save', rec);
+    }
+    _bustMarkdownCache();
+    return rec;
+  }
+
+  /** Delete an item from an addon's collection by id. */
+  function deleteAddonItem(addonId, name, id, keyed) {
+    const type = _addonType(addonId, name);
+    const container = ensureCollection(type, keyed);
+    if (keyed) {
+      delete container[id];
+    } else {
+      const i = container.findIndex(x => x && x.id === id);
+      if (i >= 0) container.splice(i, 1);
+    }
+    _sync(type, 'delete', { id });
+    _bustMarkdownCache();
+  }
+
+  // ── Per-entity addonData (Phase 5) ────────────────────────────
+  // Each addon may stash a namespaced blob on a core entity under
+  // `entity.addonData[<addonId>]` — e.g. an active character sheet's HP/stats.
+  // The blob rides INSIDE the entity's JSON, so it's snapshotted and
+  // role-filtered with the entity (DM-secret sheet data belongs on the DM
+  // twin, not here). `patchAddonData` is a read-modify-write of ONE namespace
+  // on ONE entity; the host facade injects the calling addon's own id, so an
+  // addon can only ever touch its own namespace (gated by
+  // data:write:<collection>.addonData). Standard list-shaped entity
+  // collections only (factions' keyed signature is excluded for now).
+  const _ADDON_DATA_TARGETS = {
+    characters:       { get: getCharacter,       save: saveCharacter },
+    locations:        { get: getLocation,        save: saveLocation },
+    events:           { get: getEvent,           save: saveEvent },
+    mysteries:        { get: getMystery,         save: saveMystery },
+    species:          { get: getSpeciesItem,     save: saveSpecies },
+    pantheon:         { get: getBuh,             save: saveBuh },
+    artifacts:        { get: getArtifact,        save: saveArtifact },
+    historicalEvents: { get: getHistoricalEvent, save: saveHistoricalEvent },
+  };
+
+  /** Read-modify-write one addon's namespace on a core entity. `patchFn`
+   *  receives a shallow copy of the current namespace ({} if none) and returns
+   *  the next namespace (or mutates + returns nothing). Returns the saved
+   *  entity, or null if the collection / entity is unknown. */
+  function patchAddonData(collection, itemId, addonId, patchFn) {
+    init();
+    const tgt = _ADDON_DATA_TARGETS[collection];
+    if (!tgt) return null;
+    const entity = tgt.get(itemId);
+    if (!entity) return null;
+    const cur   = (entity.addonData && entity.addonData[addonId]) || {};
+    const draft = { ...cur };
+    const out   = (typeof patchFn === 'function') ? patchFn(draft) : draft;
+    const ns    = (out && typeof out === 'object') ? out : draft;
+    const next  = { ...entity, addonData: { ...(entity.addonData || {}), [addonId]: ns } };
+    tgt.save(next);
+    return next;
+  }
+
+  /** DM-only: resolve an addon fragment-override conflict. `winner` = an
+   *  addonId (that addon's op wins), `null` (force the built-in), or '' /
+   *  undefined (clear → back to auto). POSTs /api/addons/resolve; the
+   *  addons-changed SSE reconcile applies it across clients. */
+  async function resolveAddonConflict(target, winner) {
+    try {
+      const res = await fetch('/api/addons/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ target, winner }),
+      });
+      if (res.status === 401 || res.status === 403) {
+        window.dispatchEvent(new CustomEvent('store:auth-failed'));
+        return { ok: false, error: 'Tato akce vyžaduje DM přístup.' };
+      }
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
+      return { ok: true, resolutions: body.resolutions };
+    } catch (e) {
+      return { ok: false, error: e.message || 'Síťová chyba.' };
+    }
+  }
+
+  /** DM-only: on-demand addon update check (re-resolve each installed addon's
+   *  ref → latest SHA, diff vs installed). Pure read. Returns
+   *  `{ ok, updates: [{id, status, hasUpdate, repo, ...}] }`. */
+  async function checkAddonUpdates() {
+    try {
+      const res = await fetch('/api/addons/check-updates', { method: 'POST', credentials: 'same-origin' });
+      if (res.status === 401 || res.status === 403) {
+        window.dispatchEvent(new CustomEvent('store:auth-failed'));
+        return { ok: false, error: 'Tato akce vyžaduje DM přístup.' };
+      }
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
+      return { ok: true, updates: Array.isArray(body.updates) ? body.updates : [] };
+    } catch (e) {
+      return { ok: false, error: e.message || 'Síťová chyba.' };
+    }
+  }
+
+  /** DM-only: content-addressed rollback of an addon to a kept prior version
+   *  (flip activeHash). `hash` targets a specific version; omitted → the one
+   *  before the active. The addons-changed SSE reconcile live-loads it. */
+  async function rollbackAddon(id, hash) {
+    try {
+      const res = await fetch(`/api/addons/${encodeURIComponent(id)}/rollback`, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(hash ? { hash } : {}),
+      });
+      if (res.status === 401 || res.status === 403) {
+        window.dispatchEvent(new CustomEvent('store:auth-failed'));
+        return { ok: false, error: 'Tato akce vyžaduje DM přístup.' };
+      }
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
+      return { ok: true, version: body.version };
+    } catch (e) {
+      return { ok: false, error: e.message || 'Síťová chyba.' };
+    }
+  }
+
   /**
    * Serialise the entire dataset to a JSON string, suitable for
    * `/api/restore` upload or out-of-band backup. Includes every
@@ -2607,6 +2790,8 @@ export const Store = (() => {
     getHiddenSidebarPages, setHiddenSidebarPages,
     getMapConfig, setMapConfig,
     getCampaign, setCampaign,
+    ensureCollection, getAddonCollection, saveAddonItem, deleteAddonItem,
+    patchAddonData, resolveAddonConflict, checkAddonUpdates, rollbackAddon,
     generateId, exportJSON,
   };
 })();

@@ -1,0 +1,18 @@
+{
+  "id": "demo-sheet",
+  "name": "Demo list postavy",
+  "version": "0.1.0",
+  "apiVersion": 1,
+  "hostVersion": ">=1.0.0",
+  "entry": "entry.js",
+  "permissions": [
+    "ui:article-section:characters",
+    "ui:editor-fields:characters",
+    "ui:action",
+    "ui:settings-tab",
+    "data:read:characters",
+    "data:write:characters.addonData"
+  ],
+  "tests": { "client": "tests/sheet.addon-test.mjs" },
+  "summary": "Aktivní deník postavy (Phase 5): sekce s HP +/− na stránce postavy přes patchAddonData, pole v editoru postavy (registerEditorFields), namespacovaná akce a záložka v nastavení."
+}

@@ -103,6 +103,9 @@ function _resolveArgs(rawArgs, el, ev) {
  */
 function _runAction(actionStr, ...args) {
   if (!actionStr) return;
+  // Addon-namespaced actions (data-action="<addonId>:<name>") route to the
+  // CodexHost — no built-in action contains a ":".
+  if (actionStr.includes(':')) return Addons.runAction(actionStr, args);
   const dot = actionStr.indexOf('.');
   if (dot > 0) {
     const mod = ACTIONS[actionStr.slice(0, dot)];
@@ -271,6 +274,11 @@ document.addEventListener('error',    (ev) => {
         if (pick) return { kind: 'frakce', id: pick.id };
       }
     }
+    // Addon-registered wiki kinds ([[Label|scope]]) — additive fallthrough,
+    // tried only after every built-in collection misses. An addon's resolver
+    // returns its own route + id (e.g. {kind:'pravidla', id:'grappling'}).
+    const addonHit = Addons.resolveWikiLink ? Addons.resolveWikiLink(label, hint) : null;
+    if (addonHit) return addonHit;
     return null;
   });
 

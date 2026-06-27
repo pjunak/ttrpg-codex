@@ -35,7 +35,7 @@
   border-radius: var(--radius);
   padding: 0.35rem 0.75rem;
   font-family: var(--font-ui);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   color: var(--text-light);
   cursor: pointer;
   transition: all 0.15s;
@@ -201,7 +201,7 @@
   font-family: 'Lora', Georgia, serif;
   font-size: calc(11px * var(--cm-z, 1));
   line-height: 1.4;
-  color: var(--text-light, #C8B89A);
+  color: var(--text-light);
   margin-bottom: calc(2px * var(--cm-z, 1));
 }
 .cm-fact.cm-dim {
@@ -222,7 +222,7 @@
 .cm-status-row {
   font-family: var(--font-ui, 'Inter', sans-serif);
   font-size: calc(11px * var(--cm-z, 1));
-  color: var(--text-light, #C8B89A);
+  color: var(--text-light);
   margin-bottom: calc(3px * var(--cm-z, 1));
   display: flex;
   align-items: center;
@@ -293,7 +293,7 @@
   border-radius: calc(8px * var(--cm-z, 1));
   background: color-mix(in srgb, var(--cc) 22%, rgba(20,18,16,0.6));
   border: calc(1px * var(--cm-z, 1)) solid color-mix(in srgb, var(--cc) 50%, transparent);
-  color: #f0e6d2;
+  color: var(--text-cream);
   white-space: nowrap;
   max-width: 100%;
   overflow: hidden;
@@ -360,7 +360,7 @@
   user-select: none;
 }
 .legend-filter input[type="checkbox"] {
-  accent-color: var(--accent-gold, #C8A040);
+  accent-color: var(--accent-gold, var(--accent-gold));
   margin: 0 2px 0 0;
   cursor: pointer;
 }
@@ -398,7 +398,7 @@
 .cm-search {
   background: rgba(20,18,16,0.6);
   border: 1px solid rgba(var(--accent-gold-rgb), 0.25);
-  color: #f0e6d2;
+  color: var(--text-cream);
   padding: 0.32rem 0.6rem;
   border-radius: 4px;
   font: inherit;
@@ -407,7 +407,7 @@
   min-width: 200px;
   flex: 0 1 280px;
 }
-.cm-search:focus { border-color: var(--accent-gold, #C8A040); }
+.cm-search:focus { border-color: var(--accent-gold, var(--accent-gold)); }
 
 .cm-chip-group {
   display: flex;
@@ -421,7 +421,7 @@
   --chip-color: #888;
   background: rgba(20,18,16,0.5);
   border: 1px solid rgba(255,255,255,0.08);
-  color: var(--text-light, #C8B89A);
+  color: var(--text-light);
   padding: 0.22rem 0.5rem;
   border-radius: 12px;
   font-family: var(--font-ui);
@@ -441,7 +441,7 @@
 .cm-chip-edge {
   background: color-mix(in srgb, var(--chip-color) 18%, transparent);
   border-color: color-mix(in srgb, var(--chip-color) 55%, transparent);
-  color: #f0e6d2;
+  color: var(--text-cream);
 }
 .cm-chip-edge.is-off {
   background: rgba(20,18,16,0.4);
@@ -455,17 +455,17 @@
   align-items: center;
   gap: 0.35rem;
   font-size: 0.72rem;
-  color: var(--text-light, #C8B89A);
+  color: var(--text-light);
 }
 .cm-knowledge input[type=range] {
   width: 80px;
-  accent-color: var(--accent-gold, #C8A040);
+  accent-color: var(--accent-gold, var(--accent-gold));
 }
 .cm-knowledge-val {
   display: inline-block;
   min-width: 0.8em;
   text-align: center;
-  color: var(--accent-gold, #C8A040);
+  color: var(--accent-gold, var(--accent-gold));
   font-weight: 600;
 }
 
@@ -480,10 +480,10 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.cm-focus-toggle:hover { border-color: var(--accent-gold, #C8A040); }
+.cm-focus-toggle:hover { border-color: var(--accent-gold, var(--accent-gold)); }
 .cm-focus-toggle.is-on {
   background: rgba(var(--accent-gold-rgb), 0.18);
-  border-color: var(--accent-gold, #C8A040);
+  border-color: var(--accent-gold, var(--accent-gold));
   color: #ffe9a8;
 }
 .cm-focus-hops {
@@ -495,10 +495,10 @@
 }
 .cm-focus-hops input[type=range] {
   width: 64px;
-  accent-color: var(--accent-gold, #C8A040);
+  accent-color: var(--accent-gold, var(--accent-gold));
 }
 .cm-focus-hops-val {
-  color: var(--accent-gold, #C8A040);
+  color: var(--accent-gold, var(--accent-gold));
   font-weight: 600;
 }
 .cm-focus-hops[hidden] { display: none; }
@@ -511,13 +511,13 @@
   padding: 0.22rem 0.5rem;
   border-radius: 50%;
   width: 26px; height: 26px;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   line-height: 1;
   cursor: pointer;
 }
 .cm-clear-filters:hover {
   color: #ffb0b0;
-  border-color: #c44;
+  border-color: var(--color-danger-bd);
 }
 
 /* Visually-dim a cloud card when it doesn't match the active filters.
@@ -544,7 +544,7 @@
 .cm-ctx-item {
   background: transparent;
   border: none;
-  color: #f0e6d2;
+  color: var(--text-cream);
   text-align: left;
   padding: 0.42rem 0.7rem;
   font-size: 0.82rem;

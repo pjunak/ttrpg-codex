@@ -12,6 +12,7 @@ import { PIN_TYPES, PIN_SIZE_MIN, PIN_SIZE_MAX, PIN_SIZE_DEFAULT } from './map.j
 import { renderMarkdown, jaroWinkler, esc, norm } from './utils.js';
 import { PARTY_FACTION_ID } from './constants.js';
 import { Role } from './role.js';
+import { Addons } from './addons.js';
 
 export const EditMode = (() => {
 
@@ -610,6 +611,16 @@ export const EditMode = (() => {
     const vis = _collectVisibility(uid);
     next.visibility = Store.isPartyMember(next) ? 'public' : vis.visibility;
     next.secrets    = vis.secrets;
+    // Addon-contributed editor fields (registerEditorFields) → merge each
+    // addon's collected values into its addonData namespace. Namespaces an
+    // addon didn't touch already rode in via `...existing`, so they survive.
+    try {
+      const formRoot = document.getElementById(`ef-name-${uid}`)?.closest('.edit-form') || document;
+      const collected = Addons.collectEditorFields('characters', next, formRoot);
+      if (collected && Object.keys(collected).length) {
+        next.addonData = { ...(next.addonData || {}), ...collected };
+      }
+    } catch (e) { console.error('[addons] collectEditorFields failed', e); }
     const ok = Store.saveCharacter(next);
     if (ok === false) {
       _toast("⚠ Uložení selhalo – úložiště je plné.", false);
@@ -1144,8 +1155,32 @@ export const EditMode = (() => {
    *
    * @param {Element|Document} [root] - Subtree to scan for textareas.
    */
+  // Fill addon-contributed editor-field slots (registerEditorFields). The
+  // character editor template emits an empty `.addon-editor-fields` placeholder;
+  // we resolve the entity from its data-addon-uid, let the host render each
+  // addon's block, then mount widgets inside. Runs from mountEasyMDE (called on
+  // every navigate) BEFORE the EasyMDE walk, so any `.md-easy` an addon emits is
+  // picked up by that same walk.
+  function _mountAddonEditorFields(root) {
+    const scope = root || document;
+    const slots = scope.querySelectorAll('.addon-editor-fields:not([data-addon-mounted])');
+    slots.forEach(slot => {
+      slot.setAttribute('data-addon-mounted', '1');
+      const kind = slot.dataset.addonKind || '';
+      const uid  = slot.dataset.addonUid || '';
+      let entity = null;
+      if (kind === 'characters' && uid && uid !== 'new') entity = Store.getCharacter(uid);
+      let html = '';
+      try { html = Addons.editorFields(kind, entity) || ''; }
+      catch (e) { console.error('[addons] editorFields failed', e); }
+      slot.innerHTML = html;
+      if (html) { try { Widgets.mountAll(slot); } catch (_) {} }
+    });
+  }
+
   function mountEasyMDE(root) {
     _cleanupOrphanedEasyMDE();
+    _mountAddonEditorFields(root);
     const scope = root || document;
     if (typeof window.EasyMDE !== 'function') return;
     const tas = scope.querySelectorAll('textarea.md-easy:not([data-md-mounted])');

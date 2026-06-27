@@ -32,6 +32,7 @@ const { runVisibilityMigration: _runVisibilityMigration } = require('./server/mi
 // allowlist matching, content hashing, GitHub zipball fetch/extract).
 // See server/addons.cjs. No module-level side effects.
 const AddonBroker = require('./server/addons.cjs');
+const AddonTesting = require('./server/addon-testing.cjs');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -535,16 +536,11 @@ async function _createSnapshot(reason = 'save') {
   const now       = Date.now();
   const createdAt = new Date(now).toISOString();
   const files     = {};
-  try {
-    const list = await fsp.readdir(DATA_DIR);
-    for (const f of list) {
-      if (!f.endsWith('.json')) continue;
-      if (NON_DATA_JSON_FILES.has(f)) continue;
-      try {
-        files[f] = JSON.parse(await fsp.readFile(path.join(DATA_DIR, f), 'utf8'));
-      } catch (_) { /* skip corrupt file */ }
-    }
-  } catch (_) { /* data dir missing is OK */ }
+  for (const { key, abs } of await _trackedDataFiles()) {
+    try {
+      files[key] = JSON.parse(await fsp.readFile(abs, 'utf8'));
+    } catch (_) { /* skip corrupt / unreadable file */ }
+  }
   const snap = {
     id:        `snapshot-${createdAt.replace(/[:.]/g, '-')}.json`,
     createdAt,
@@ -595,25 +591,27 @@ async function _restoreSnapshot(id) {
   const snap = await _readSnapshot(id);
   if (!snap || !snap.files) return { ok: false, error: 'Snapshot nenalezen' };
   await _createSnapshot('pre-restore');
-  // Write every file in the snapshot.
-  for (const [name, content] of Object.entries(snap.files)) {
-    if (!/^[a-z0-9_]+\.json$/i.test(name)) continue;
-    await _atomicWrite(path.join(DATA_DIR, name), JSON.stringify(content, null, 2));
+  // Write every file in the snapshot. Keys are either a bare core filename
+  // (`characters.json`) or an addon-owned path (`addon-data/<id>/<name>.json`);
+  // both resolve safely inside DATA_DIR via _safeJoinIn (addon-data is a
+  // subdir of DATA_DIR). The mkdir recreates a per-addon dir the snapshot
+  // captured but that was removed (e.g. the addon was purged since).
+  for (const [key, content] of Object.entries(snap.files)) {
+    const isAddon = key.startsWith('addon-data/');
+    if (!isAddon && !/^[a-z0-9_]+\.json$/i.test(key)) continue;
+    const target = _safeJoinIn(DATA_DIR, key);
+    if (!target) continue;
+    if (isAddon) await fsp.mkdir(path.dirname(target), { recursive: true });
+    await _atomicWrite(target, JSON.stringify(content, null, 2));
   }
-  // Remove any JSON file not in the snapshot (e.g. a collection
-  // added after the snapshot that didn't exist then). Skip
-  // NON_DATA_JSON_FILES — those aren't tracked by snapshots, so
-  // missing-from-snapshot is the expected state, not a removal signal.
-  try {
-    const list = await fsp.readdir(DATA_DIR);
-    for (const f of list) {
-      if (!f.endsWith('.json')) continue;
-      if (NON_DATA_JSON_FILES.has(f)) continue;
-      if (!Object.prototype.hasOwnProperty.call(snap.files, f)) {
-        try { await fsp.unlink(path.join(DATA_DIR, f)); } catch (_) {}
-      }
+  // Remove any tracked data file (core OR addon-owned) not present in the
+  // snapshot — e.g. a collection added after the snapshot was taken.
+  // NON_DATA_JSON_FILES + addon CODE are already excluded by _trackedDataFiles.
+  for (const { key, abs } of await _trackedDataFiles()) {
+    if (!Object.prototype.hasOwnProperty.call(snap.files, key)) {
+      try { await fsp.unlink(abs); } catch (_) {}
     }
-  } catch (_) {}
+  }
   // Unlinks above bypassed _atomicWrite, and a fresh write set may
   // differ from the cached digest — bust unconditionally.
   _invalidateDataHash();
@@ -631,13 +629,56 @@ async function _restoreSnapshot(id) {
 // the cache when it rewrites a top-level data file, and
 // `_restoreSnapshot` clears it when it deletes one.
 let _cachedDataHash = null;
-const _DATA_DIR_RESOLVED      = path.resolve(DATA_DIR);
-const _SNAPSHOTS_DIR_RESOLVED = path.resolve(SNAPSHOTS_DIR);
+const _DATA_DIR_RESOLVED       = path.resolve(DATA_DIR);
+const _SNAPSHOTS_DIR_RESOLVED  = path.resolve(SNAPSHOTS_DIR);
+const _ADDON_DATA_DIR_RESOLVED = path.resolve(ADDON_DATA_DIR);
+
+// The set of JSON files that constitute "the data" — what snapshots
+// capture, what the data hash digests, and what a restore reconciles
+// against. Two roots: the top level of DATA_DIR (core collections) plus
+// every addon's isolated dir under ADDON_DATA_DIR (addon-owned
+// collections). `key` is the stable identity used as the snapshot-map
+// key (a bare filename for core, `addon-data/<id>/<name>.json` for
+// addons); `abs` is the on-disk path. Excludes NON_DATA_JSON_FILES,
+// snapshots (sibling dir), and addon CODE under ADDONS_DIR (content-
+// addressed, deliberately not snapshotted). Single source of truth so
+// the three consumers never disagree about what counts.
+async function _trackedDataFiles() {
+  const out = [];
+  try {
+    for (const f of await fsp.readdir(DATA_DIR)) {
+      if (!f.endsWith('.json') || NON_DATA_JSON_FILES.has(f)) continue;
+      out.push({ key: f, abs: path.join(DATA_DIR, f) });
+    }
+  } catch (_) { /* data dir missing is OK */ }
+  try {
+    for (const id of await fsp.readdir(ADDON_DATA_DIR)) {
+      const idDir = path.join(ADDON_DATA_DIR, id);
+      let st; try { st = await fsp.stat(idDir); } catch { continue; }
+      if (!st.isDirectory()) continue;
+      let names; try { names = await fsp.readdir(idDir); } catch { continue; }
+      for (const n of names) {
+        if (!n.endsWith('.json')) continue;
+        out.push({ key: `addon-data/${id}/${n}`, abs: path.join(idDir, n) });
+      }
+    }
+  } catch (_) { /* no addon-data yet is OK */ }
+  return out;
+}
 function _invalidateDataHash() { _cachedDataHash = null; }
 function _maybeBustDataHash(filePath) {
   try {
     if (!filePath.endsWith('.json')) return;
-    const dir = path.dirname(path.resolve(filePath));
+    const resolved = path.resolve(filePath);
+    // Addon-owned collections under data/addon-data/** contribute to the
+    // hash now, so a write there must bust the cache (else other clients
+    // dedupe the SSE event and never refetch the addon's change).
+    if (resolved === _ADDON_DATA_DIR_RESOLVED ||
+        resolved.startsWith(_ADDON_DATA_DIR_RESOLVED + path.sep)) {
+      _cachedDataHash = null;
+      return;
+    }
+    const dir = path.dirname(resolved);
     // Only the top level of DATA_DIR contributes to the hash; snapshots
     // and any other nested dir do not.
     if (dir !== _DATA_DIR_RESOLVED) return;
@@ -663,13 +704,15 @@ async function _dataHash() {
   if (_cachedDataHash !== null) return _cachedDataHash;
   try {
     const h = crypto.createHash('sha1');
-    const list = (await fsp.readdir(DATA_DIR))
-      .filter(f => f.endsWith('.json') && !NON_DATA_JSON_FILES.has(f))
-      .sort();
-    for (const f of list) {
-      h.update(f);
+    // Digest core + addon-owned data together, ordered by stable key. When
+    // no addon data exists the addon walk yields nothing, so the digest is
+    // byte-identical to the pre-addon behaviour (key === filename for core).
+    const list = (await _trackedDataFiles())
+      .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    for (const { key, abs } of list) {
+      h.update(key);
       h.update('\0');
-      h.update(await fsp.readFile(path.join(DATA_DIR, f)));
+      h.update(await fsp.readFile(abs));
       h.update('\0');
     }
     _cachedDataHash = h.digest('hex').slice(0, 16);
@@ -680,6 +723,15 @@ async function _dataHash() {
 }
 
 function getFile(type) {
+  // Addon-owned collections (`addon:<id>:<name>`) live isolated under the
+  // addon's own data dir so they travel + get removed with the addon. The
+  // id/name parts are regex-validated by parseAddonType (no traversal), and
+  // routed through _safeJoinIn as defence in depth.
+  const addon = AddonBroker.parseAddonType(type);
+  if (addon) {
+    const p = _safeJoinIn(ADDON_DATA_DIR, `${addon.id}/${addon.name}.json`);
+    if (p) return p;
+  }
   const safeType = (type || '').replace(/[^a-z0-9_]/gi, '');
   return path.join(DATA_DIR, safeType + '.json');
 }
@@ -1002,6 +1054,41 @@ const KEYED_OBJ_TYPES = new Set(['factions', 'settings', 'campaign', 'deletedDef
 // the enum vocabulary (which affects everyone instantly).
 const DM_ONLY_WRITE_TYPES = new Set(['settings', 'campaign']);
 
+// ── Addon-owned collections (dynamic type registration) ──────────
+// Enabled addons may declare their own collections in addon.json. Each
+// becomes a colon-namespaced wire type `addon:<id>:<name>` that rides the
+// generic GET/PATCH /api/data path (file on disk: data/addon-data/<id>/
+// <name>.json — isolated, removed with the addon). We track exactly which
+// types we added so re-applying after an install/enable/disable is a clean
+// swap, never an accumulation. Addon collections default to the same posture
+// as `pets`: public, non-visibility-bearing, writable by any authed role.
+const _addonCollTypes = new Set();
+function _applyAddonCollections(reg) {
+  // Drop everything we added last time.
+  for (const t of _addonCollTypes) {
+    ALLOWED_TYPES.delete(t);
+    KEYED_OBJ_TYPES.delete(t);
+    const i = ALL_TYPES.indexOf(t);
+    if (i >= 0) ALL_TYPES.splice(i, 1);
+  }
+  _addonCollTypes.clear();
+  if (!reg || !Array.isArray(reg.addons)) return;
+  for (const a of reg.addons) {
+    // Re-validate id + collection name from the PERSISTED registry (which could
+    // be legacy-shaped or hand-edited) so a corrupt entry can't inject a junk
+    // wire type into ALLOWED_TYPES / the data-hash walk.
+    if (!a || !a.enabled || !AddonBroker.ID_RE.test(a.id || '') || !Array.isArray(a.collections)) continue;
+    for (const c of a.collections) {
+      if (!c || !AddonBroker.COLLECTION_NAME_RE.test(c.name || '')) continue;
+      const t = AddonBroker.addonCollectionType(a.id, c.name);
+      ALLOWED_TYPES.add(t);
+      if (!ALL_TYPES.includes(t)) ALL_TYPES.push(t);
+      if (c.keyed) KEYED_OBJ_TYPES.add(t);
+      _addonCollTypes.add(t);
+    }
+  }
+}
+
 // Read a JSON collection file and return parsed contents, or `fallback`
 // if the file is missing. Used inside the PATCH handler.
 async function _readJsonOr(filePath, fallback) {
@@ -1049,6 +1136,17 @@ function _sanitizePlayerEntity(_type, payload, existing) {
   }
   // Legacy field — refuse to persist even if a stale client sends it.
   delete out.secrets;
+  // Per-entity addonData (Phase 5): shallow-merge the player's incoming
+  // namespaces OVER the existing ones, so a normal player edit (whose form
+  // doesn't surface every addon's fields) can't DROP an addon's data by
+  // omission. A player can still update a namespace they DO send (active
+  // sheets stay player-editable), but never wipe one. Object spread is
+  // prototype-safe (own-property assignment, no __proto__ walk). Per-field
+  // DM-locking of addon data would need ownership metadata — deferred.
+  const exAD = (existing && existing.addonData && typeof existing.addonData === 'object' && !Array.isArray(existing.addonData)) ? existing.addonData : null;
+  const inAD = (payload.addonData && typeof payload.addonData === 'object' && !Array.isArray(payload.addonData)) ? payload.addonData : null;
+  if (exAD || inAD) out.addonData = { ...(exAD || {}), ...(inAD || {}) };
+  else delete out.addonData;
   return out;
 }
 
@@ -1473,6 +1571,12 @@ app.patch('/api/data', (req, res) => {
         }
       }
 
+      // Addon collections live in a per-addon subdir that may not exist yet
+      // (purged, or first write after a restore) — _atomicWrite won't create
+      // parents, so ensure it here. Core types always land in DATA_DIR.
+      if (AddonBroker.parseAddonType(type)) {
+        await fsp.mkdir(path.dirname(p), { recursive: true });
+      }
       await _atomicWrite(p, JSON.stringify(container, null, 2));
       await _maybeSnapshot('save');
       await _broadcastDataChanged();
@@ -1509,7 +1613,14 @@ async function _readAddonsRegistry() {
     const raw = await fsp.readFile(ADDONS_REGISTRY_FILE, 'utf8');
     return AddonBroker.normalizeRegistry(JSON.parse(raw));
   } catch (e) {
-    if (e.code !== 'ENOENT') console.warn('[addons] registry read failed, using empty:', e.message);
+    if (e.code !== 'ENOENT') {
+      console.warn('[addons] registry read failed, using empty:', e.message);
+      // Preserve the unreadable file so the next write doesn't silently destroy
+      // a possibly-recoverable registry (a JSON syntax error would otherwise
+      // wipe every installed addon on the next install/enable).
+      try { await fsp.rename(ADDONS_REGISTRY_FILE, ADDONS_REGISTRY_FILE + '.corrupt-' + Date.now()); }
+      catch (_) { /* best-effort */ }
+    }
     return AddonBroker.defaultRegistry();
   }
 }
@@ -1529,22 +1640,232 @@ function _publicAddonList(reg) {
     enabled:    !!a.enabled,
     state:      a.state || (a.enabled ? 'ok' : 'disabled'),
     activeHash: a.activeHash || null,
+    // Granted permissions — the client needs these to build the addon's
+    // SCOPED host facade (not secret; they describe what the addon can do).
+    permissions: Array.isArray(a.grantedPermissions) ? a.grantedPermissions : [],
+    dependencies: (a.dependencies && typeof a.dependencies === 'object') ? a.dependencies : {},
+    // Declared addon-owned collections — the client host calls
+    // registerCollection against these to wire its scoped CRUD.
+    collections: Array.isArray(a.collections) ? a.collections : [],
+    // Server-side code (Phase 7): does it ship one, and its live load state.
+    server:      !!a.server,
+    serverState: _serverStateFor(a),
+    // Kept version history (Phase 9) — drives the rollback affordance. Trimmed
+    // (no sha) to what the Manager needs. activeHash marks the live one.
+    versions: Array.isArray(a.versions)
+      ? a.versions.map(v => ({ contentHash: v.contentHash, version: v.version, installedAt: v.installedAt }))
+      : [],
     entryUrl:   (a.enabled && a.activeHash && a.entry)
                   ? `/addons/${a.id}/${a.activeHash}/${a.entry}`
                   : null,
   }));
 }
 
+// ── Server-side addon code (Phase 7) ─────────────────────────────
+// An addon with a `server` entry + granted `server:code` may ship a Node
+// module the server loads IN-PROCESS (full trust — the permission is
+// transparency, not containment; install is DM-only + SHA-pinned). Its routes
+// live under the namespaced prefix `/api/addon/<id>/*` (singular — distinct
+// from the plural `/api/addons` management namespace, so they can never
+// collide). Loading happens at BOOT (restart-to-load v1); a runtime
+// enable/disable/install is surfaced as "restart needed" rather than hot-
+// swapping require()'d code into a live process.
+const _addonServers    = new Map();   // id -> { id, router, state, hash }   (live routers, request-time)
+const _serverLoadState = new Map();   // id -> { state, error }              (boot load outcome, for the Manager)
+
+// A data helper bound to the addon's isolated dir; a collection name maps to
+// data/addon-data/<id>/<name>.json. Tight name regex = the path-safety gate.
+function _addonDataPath(dataDir, name) {
+  if (typeof name !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,39}$/.test(name)) return null;
+  return _safeJoinIn(dataDir, name + '.json');
+}
+
+// Build the scoped facade handed to a server addon's init(host). Everything is
+// namespaced / permission-gated: routes only mount under the addon's prefix,
+// data reads/writes are confined to its own dir, core reads honour granted
+// `data:read:*`, and `lib()` only yields vetted host npm deps.
+function _makeServerHost(entry) {
+  const id      = entry.id;
+  const grants  = Array.isArray(entry.grantedPermissions) ? entry.grantedPermissions : [];
+  const dataDir = path.join(ADDON_DATA_DIR, id);
+  const router  = express.Router();
+  const host = {
+    id,
+    router,                                                   // raw Express Router, if the addon wants it
+    get:    (p, ...h) => router.get(p, ...h),
+    post:   (p, ...h) => router.post(p, ...h),
+    put:    (p, ...h) => router.put(p, ...h),
+    delete: (p, ...h) => router.delete(p, ...h),
+    data: {
+      dir: dataDir,
+      read: async (name) => {
+        const p = _addonDataPath(dataDir, name);
+        if (!p) throw new Error(`unsafe data name "${name}"`);
+        try { return JSON.parse(await fsp.readFile(p, 'utf8')); }
+        catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+      },
+      write: (name, obj) => withWriteLock(async () => {
+        const p = _addonDataPath(dataDir, name);
+        if (!p) throw new Error(`unsafe data name "${name}"`);
+        await fsp.mkdir(path.dirname(p), { recursive: true });
+        await _atomicWrite(p, JSON.stringify(obj, null, 2));
+      }),
+    },
+    // Read a CORE collection — gated by the granted data:read:<name> permission
+    // AND restricted to real, non-secret collections. Without the second check,
+    // `data:read:auth` would resolve to data/auth.json (password hashes) and
+    // `data:read:addons` to the registry; an addon also can't read another
+    // addon's `addon:*` collection this way (those go through host.data).
+    readCollection: async (name) => {
+      if (!grants.includes('data:read:' + name)) {
+        throw new Error(`addon "${id}" lacks permission data:read:${name}`);
+      }
+      if (typeof name !== 'string' || !ALLOWED_TYPES.has(name) || name.startsWith('addon:')) {
+        throw new Error(`addon "${id}" cannot read "${name}"`);
+      }
+      try { return JSON.parse(await fsp.readFile(getFile(name), 'utf8')); }
+      catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+    },
+    lib: (name) => {
+      if (!AddonBroker.HOST_SERVER_LIBS.has(name)) {
+        throw new Error(`addon "${id}" requested non-vetted server lib "${name}"`);
+      }
+      return require(name);
+    },
+    withLock: (fn) => withWriteLock(fn),
+    broadcastDataChanged: () => _broadcastDataChanged(),
+    log: (...args) => console.log(`[addon ${id}]`, ...args),
+  };
+  return { host, router };
+}
+
+// Load one addon's server module (require + init), fully isolated: a throw
+// NEVER crashes the server (mirrors the try{require('./tiler')}catch idiom).
+// Returns { state, error? }: 'loaded' | 'error' | 'blocked' | null(no server).
+async function _loadServerAddon(entry) {
+  const id = entry.id;
+  if (!entry.server) return { state: null };
+  if (!Array.isArray(entry.grantedPermissions) || !entry.grantedPermissions.includes('server:code')) {
+    return { state: 'blocked', error: 'chybí oprávnění server:code' };
+  }
+  const deps  = Array.isArray(entry.serverDeps) ? entry.serverDeps : [];
+  const unmet = deps.filter(d => !AddonBroker.HOST_SERVER_LIBS.has(d));
+  if (unmet.length) return { state: 'blocked', error: 'nedostupné serverové knihovny: ' + unmet.join(', ') };
+  const idDir   = path.join(ADDONS_DIR, id);
+  const codeDir = entry.activeHash ? _safeJoinIn(idDir, entry.activeHash) : null;
+  if (!codeDir) return { state: 'error', error: 'neplatný activeHash' };
+  const serverFile = _safeJoinIn(codeDir, entry.server);
+  if (!serverFile) return { state: 'error', error: 'nebezpečná cesta v poli server' };
+  try {
+    const mod  = require(serverFile);
+    const init = mod && (mod.init || mod.default);
+    if (typeof init !== 'function') return { state: 'error', error: 'serverový modul nemá init(host)' };
+    const { host, router } = _makeServerHost(entry);
+    await init(host);
+    _addonServers.set(id, { id, router, state: 'loaded', hash: entry.activeHash });
+    return { state: 'loaded' };
+  } catch (e) {
+    console.error(`[addon ${id}] server load failed:`, e);
+    return { state: 'error', error: e.message };
+  }
+}
+
+// Load every enabled server addon once at boot. Read the registry, attempt
+// each; record outcomes for the Manager. Called from _bootstrap before listen.
+async function _loadServerAddons() {
+  let reg;
+  try { reg = await _readAddonsRegistry(); } catch { return; }
+  for (const a of reg.addons) {
+    if (!a || !a.server) continue;
+    if (!a.enabled) { _serverLoadState.set(a.id, { state: 'disabled' }); continue; }
+    const r = await _loadServerAddon(a);
+    _serverLoadState.set(a.id, r);
+    if (r.state === 'loaded') console.log(`[addons] server loaded: ${a.id} (/api/addon/${a.id}/*)`);
+    else if (r.state) console.warn(`[addons] server ${a.id}: ${r.state}${r.error ? ' — ' + r.error : ''}`);
+  }
+}
+
+// The Manager-facing server state — authoritative on the LIVE router map (not
+// just the boot outcome), so a runtime disable→re-enable without a restart
+// reads honestly. 'pending-restart' = enabled but not actually serving
+// (installed / re-enabled since boot) — restart-to-load v1.
+function _serverStateFor(a) {
+  if (!a.server) return null;
+  if (!a.enabled) return 'disabled';
+  const live = _addonServers.get(a.id);
+  if (live && live.state === 'loaded') return 'loaded';   // actually serving
+  const ls = _serverLoadState.get(a.id);
+  if (ls && (ls.state === 'error' || ls.state === 'blocked')) return ls.state;
+  return 'pending-restart';                                 // enabled but not live
+}
+
+// A copy of the process env with secret-shaped keys removed — handed to any
+// child process that runs addon-controlled code (the install test gate) so an
+// addon's tests can't read GITHUB_TOKEN / *_PASSWORD / tokens. Keeps PATH etc.
+// so the runner still works.
+function _scrubbedChildEnv() {
+  const SENSITIVE = /(TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|PRIVATE|SESSION|APIKEY|API_KEY)/i;
+  const out = {};
+  for (const [k, val] of Object.entries(process.env)) {
+    if (SENSITIVE.test(k)) continue;
+    out[k] = val;
+  }
+  return out;
+}
+
+// Prune an addon's on-disk code dirs down to the versions the registry still
+// keeps (kept-K `versions[]` + activeHash) — old `<hash>/` dirs would otherwise
+// accumulate forever. Only content-hash-shaped dirs (16 hex) + a stale
+// `.incoming` staging dir are ever removed; anything else is left untouched
+// (defence). Rollback targets always live in `versions[]`, so this never
+// deletes a reachable rollback. Caller holds the write lock (install) or runs
+// pre-listen (boot sweep).
+async function _pruneAddonVersions(entry) {
+  if (!entry || !entry.id) return;
+  const idDir = path.join(ADDONS_DIR, entry.id);
+  let subs;
+  try { subs = await fsp.readdir(idDir); } catch { return; }
+  const keep = new Set();
+  if (entry.activeHash) keep.add(entry.activeHash);
+  for (const v of (Array.isArray(entry.versions) ? entry.versions : [])) {
+    if (v && v.contentHash) keep.add(v.contentHash);
+  }
+  for (const sub of subs) {
+    if (keep.has(sub)) continue;
+    if (sub === '.incoming' || /^[0-9a-f]{16}$/.test(sub)) {
+      const p = _safeJoinIn(idDir, sub);
+      if (p) await fsp.rm(p, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+}
+
+// Boot sweep: prune every installed addon's stale code dirs (cleans up
+// accumulation from before pruning existed). Best-effort.
+async function _pruneAllAddonCode() {
+  let reg;
+  try { reg = await _readAddonsRegistry(); } catch { return; }
+  for (const a of reg.addons) {
+    try { await _pruneAddonVersions(a); } catch (_) {}
+  }
+}
+
 // Fetch → validate → content-hash → stage → atomic-promote to
 // data/addons/<id>/<hash>/. Caller holds the write lock. Returns the
 // updated registry entry; throws (400-worthy) on any validation miss.
-async function _installAddon(repo, ref) {
-  const token = process.env.GITHUB_TOKEN || '';
-  const sha = await AddonBroker.resolveRefToSha(repo, ref, { fetch, token });
+async function _installAddon(repo, ref, pinnedSha) {
+  const token  = process.env.GITHUB_TOKEN || '';
+  const useRef = ref || 'HEAD';
+  // Pin to the exact reviewed commit when the wizard passes the previewed sha
+  // (so what installs == what the DM reviewed); otherwise resolve the ref now.
+  // The ORIGINAL ref is what we store, so check-updates can re-resolve it later.
+  const sha = (typeof pinnedSha === 'string' && /^[0-9a-f]{40}$/i.test(pinnedSha))
+    ? pinnedSha.toLowerCase()
+    : await AddonBroker.resolveRefToSha(repo, useRef, { fetch, token });
   const buf = await AddonBroker.fetchZipball(repo, sha, { fetch, token });
 
   const AdmZip  = require('adm-zip');
-  const fileMap = AddonBroker.extractZip(buf, AdmZip);
+  // Zip-bomb caps are enforced DURING extraction (before full decompression).
+  const fileMap = AddonBroker.extractZip(buf, AdmZip, { maxFiles: ADDON_MAX_FILES, maxBytes: ADDON_MAX_BYTES });
   if (!fileMap.length) throw new Error('archiv je prázdný nebo neobsahuje platné soubory');
   if (fileMap.length > ADDON_MAX_FILES) throw new Error(`příliš mnoho souborů (> ${ADDON_MAX_FILES})`);
   const totalBytes = fileMap.reduce((n, f) => n + f.buffer.length, 0);
@@ -1574,6 +1895,30 @@ async function _installAddon(repo, ref) {
     await fsp.mkdir(path.dirname(dest), { recursive: true });
     await fsp.writeFile(dest, f.buffer);
   }
+
+  // Tier-B green-gate (Phase 8): run the addon's declared SERVER self-tests
+  // against the STAGED tree before promoting. Red → discard staging, never
+  // activate (the existing stage→rename pipeline makes "revert" free).
+  //
+  // Running these tests EXECUTES addon code on the host, so we only do it when
+  // the addon is actually granted `server:code` (an addon without it never runs
+  // server code anyway, so there's nothing to gate) — and the spawned process
+  // gets a SCRUBBED env so the addon's tests can't read GITHUB_TOKEN / passwords
+  // / other secrets. Self-contained (no node_modules in staging), time-capped.
+  const serverTestDecl = manifest.tests && manifest.tests.server;
+  const grantsServerCode = Array.isArray(manifest.permissions) && manifest.permissions.includes('server:code');
+  if (serverTestDecl && grantsServerCode) {
+    const testPaths = (Array.isArray(serverTestDecl) ? serverTestDecl : [serverTestDecl])
+      .map(p => _safeJoinIn(incoming, p)).filter(Boolean);
+    const { spawn } = require('child_process');
+    const result = await AddonTesting.runNodeTests(incoming, testPaths, { spawn, timeoutMs: 30000, env: _scrubbedChildEnv() });
+    if (!result.ok) {
+      await fsp.rm(incoming, { recursive: true, force: true }).catch(() => {});
+      const why = result.timedOut ? 'překročen časový limit' : `selhaly (exit ${result.code})`;
+      throw new Error(`serverové testy doplňku ${why}`);
+    }
+  }
+
   await fsp.rm(finalDir, { recursive: true, force: true }).catch(() => {});
   await fsp.rename(incoming, finalDir);
 
@@ -1583,32 +1928,57 @@ async function _installAddon(repo, ref) {
   // Update the registry (content-addressed: activeHash selects the live
   // version, versions[] keeps the last K for rollback).
   const reg = await _readAddonsRegistry();
-  const versionRec = { contentHash: hash, version: manifest.version, sha, installedAt: Date.now() };
+  const _serverDeps   = Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [];
+  const _collections  = AddonBroker.normalizeCollections(manifest.collections);
+  const _dependencies = (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {};
+  // The version record snapshots the structural manifest fields too, so a
+  // rollback to this contentHash can restore the right entry/server/collections,
+  // not just flip the code dir.
+  const versionRec = {
+    contentHash: hash, version: manifest.version, sha, installedAt: Date.now(),
+    entry: manifest.entry, server: manifest.server || null,
+    serverDeps: _serverDeps, collections: _collections, dependencies: _dependencies,
+  };
   let entry = reg.addons.find(a => a.id === id);
   if (!entry) {
     entry = {
-      id, repo, ref, sha,
+      id, repo, ref: useRef, sha,
       name: manifest.name, version: manifest.version,
       apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
       entry: manifest.entry, server: manifest.server || null,
+      serverDeps: _serverDeps,
       activeHash: hash, versions: [versionRec],
       enabled: true, grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
+      dependencies: _dependencies,
+      collections: _collections,
       schemaVersion: 0, installedAt: Date.now(),
     };
     reg.addons.push(entry);
   } else {
     Object.assign(entry, {
-      repo, ref, sha,
+      repo, ref: useRef, sha,
       name: manifest.name, version: manifest.version,
       apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
       entry: manifest.entry, server: manifest.server || null,
+      serverDeps: _serverDeps,
+      dependencies: _dependencies,
+      collections: _collections,
       activeHash: hash,
     });
     if (!Array.isArray(entry.versions)) entry.versions = [];
     if (!entry.versions.some(x => x.contentHash === hash)) entry.versions.push(versionRec);
     if (entry.versions.length > ADDON_VERSIONS_KEEP) entry.versions = entry.versions.slice(-ADDON_VERSIONS_KEEP);
   }
+  // Record the source so the update path knows where to re-pull (explicit
+  // DM install is itself the trust gesture — no separate allowlist step).
+  if (!reg.sources.allow.includes(repo)) reg.sources.allow.push(repo);
   await _writeAddonsRegistry(reg);
+  // Make the addon's declared collections writable through /api/data now,
+  // without waiting for a restart (the SSE reconcile live-loads the client).
+  _applyAddonCollections(reg);
+  // Drop code dirs no longer in versions[] (keep-last-K). Best-effort — a
+  // failed prune never fails the install.
+  await _pruneAddonVersions(entry).catch(() => {});
   return entry;
 }
 
@@ -1616,10 +1986,143 @@ async function _installAddon(repo, ref) {
 app.get('/api/addons', async (_req, res) => {
   try {
     const reg = await _readAddonsRegistry();
-    res.json({ apiVersion: AddonBroker.HOST_API_VERSION, instance: INSTANCE, addons: _publicAddonList(reg) });
+    res.json({
+      apiVersion: AddonBroker.HOST_API_VERSION,
+      instance: INSTANCE,
+      addons: _publicAddonList(reg),
+      // Fragment-override conflict resolutions (target → winner addonId | null).
+      // The client host consults these so a DM-picked winner actually applies.
+      resolutions: (reg.resolutions && typeof reg.resolutions === 'object') ? reg.resolutions : {},
+    });
   } catch (e) {
     console.error('GET /api/addons:', e);
     res.status(500).json({ error: 'Read error' });
+  }
+});
+
+// DM-only (realRole) fragment-override conflict resolution. Body
+// `{ target, winner }`: winner = an addonId → that addon's op wins; `null` →
+// force the built-in; absent/empty → clear the resolution (back to auto, where
+// ≥2 exclusive claims fall back to the built-in until resolved). The client
+// reconciles via the addons-changed broadcast.
+app.post('/api/addons/resolve', async (req, res) => {
+  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může řešit konflikty doplňků.' });
+  const { target, winner } = req.body || {};
+  if (typeof target !== 'string' || !target || target.length > 200) {
+    return res.status(400).json({ error: 'Neplatný cíl konfliktu.' });
+  }
+  if (_isForbiddenKey(target)) {
+    return res.status(400).json({ error: `Forbidden target: ${target}` });
+  }
+  // winner: a non-empty string (addonId), or null (force built-in). Anything
+  // else (undefined / '') means "clear".
+  const clear = !(typeof winner === 'string' && winner) && winner !== null;
+  if (typeof winner === 'string' && winner && !AddonBroker.ID_RE.test(winner)) {
+    return res.status(400).json({ error: 'Neplatné id doplňku.' });
+  }
+  try {
+    const resolutions = await withWriteLock(async () => {
+      const reg = await _readAddonsRegistry();
+      if (clear) delete reg.resolutions[target];
+      else       reg.resolutions[target] = winner;   // addonId | null
+      await _writeAddonsRegistry(reg);
+      return reg.resolutions;
+    });
+    _broadcast('addons-changed', { at: Date.now() });
+    res.json({ ok: true, resolutions });
+  } catch (e) {
+    console.error('POST /api/addons/resolve:', e);
+    res.status(500).json({ error: 'Write error' });
+  }
+});
+
+// DM-only (realRole) ON-DEMAND update check (Phase 9). For each addon installed
+// from a real GitHub repo, re-resolve its stored ref → the latest commit SHA and
+// diff against the installed `sha`. PURE READ — resolves only, never downloads /
+// installs (applying an update opens the wizard). Per-addon failures are
+// isolated so one unreachable repo doesn't fail the whole check.
+app.post('/api/addons/check-updates', async (req, res) => {
+  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může kontrolovat aktualizace.' });
+  try {
+    const reg   = await _readAddonsRegistry();
+    const token = process.env.GITHUB_TOKEN || '';
+    const updates = [];
+    for (const a of reg.addons) {
+      if (!a || !a.repo || a.repo === 'local' || !AddonBroker.REPO_RE.test(a.repo)) {
+        updates.push({ id: a && a.id, status: 'local' });   // dev-installed / no real source
+        continue;
+      }
+      try {
+        const latest = await AddonBroker.resolveRefToSha(a.repo, a.ref || 'HEAD', { fetch, token });
+        updates.push({
+          id: a.id, status: 'ok', repo: a.repo, ref: a.ref || 'HEAD',
+          currentSha: a.sha || null, latestSha: latest,
+          hasUpdate: !!a.sha && latest !== a.sha,
+        });
+      } catch (e) {
+        updates.push({ id: a.id, status: 'error', error: e.message });
+      }
+    }
+    res.json({ checkedAt: Date.now(), updates });
+  } catch (e) {
+    console.error('POST /api/addons/check-updates:', e);
+    res.status(500).json({ error: 'Check failed' });
+  }
+});
+
+// DM-only (realRole) content-addressed ROLLBACK (Phase 9). Flip `activeHash` to
+// a kept prior version — instant + offline (no re-fetch), since every version's
+// code dir survives under data/addons/<id>/<hash>/. Restores that version's
+// structural manifest fields too (entry/server/serverDeps/collections/deps) so
+// the registry stays coherent, not just the code dir. Body `{ hash? }` targets a
+// specific kept version; omitted → the version immediately before the active one.
+app.post('/api/addons/:id/rollback', async (req, res) => {
+  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může vracet verze doplňků.' });
+  const id = String(req.params.id || '');
+  if (!AddonBroker.ID_RE.test(id)) return res.status(400).json({ error: 'Neplatné id doplňku.' });
+  const targetHash = (req.body && typeof req.body.hash === 'string') ? req.body.hash : null;
+  try {
+    const result = await withWriteLock(async () => {
+      const reg   = await _readAddonsRegistry();
+      const entry = reg.addons.find(a => a.id === id);
+      if (!entry) return { status: 404 };
+      const versions = Array.isArray(entry.versions) ? entry.versions : [];
+      if (versions.length < 2) return { status: 400, error: 'Žádná předchozí verze k obnovení.' };
+      let target;
+      if (targetHash) {
+        target = versions.find(v => v.contentHash === targetHash);
+      } else {
+        const idx = versions.findIndex(v => v.contentHash === entry.activeHash);
+        target = idx > 0 ? versions[idx - 1] : versions[versions.length - 2];   // the one before active
+      }
+      if (!target) return { status: 400, error: 'Cílová verze nenalezena.' };
+      // Verify the code dir still exists (defence — Phase 10 pruning keeps the
+      // kept-K dirs, but a manual delete could have removed it).
+      const codeDir = _safeJoinIn(path.join(ADDONS_DIR, id), target.contentHash);
+      const codeDirExists = codeDir ? await fsp.access(codeDir).then(() => true, () => false) : false;
+      if (!codeDirExists) return { status: 400, error: 'Kód cílové verze chybí (znovu nainstaluj).' };
+
+      entry.activeHash = target.contentHash;
+      entry.version    = target.version || entry.version;
+      entry.sha        = target.sha || entry.sha;
+      if (target.entry)                  entry.entry       = target.entry;
+      if (target.server !== undefined)   entry.server      = target.server;
+      if (Array.isArray(target.serverDeps))  entry.serverDeps  = target.serverDeps;
+      if (Array.isArray(target.collections)) entry.collections = target.collections;
+      if (target.dependencies)           entry.dependencies = target.dependencies;
+      await _writeAddonsRegistry(reg);
+      _applyAddonCollections(reg);
+      // Server code changed under it → drop the live router; restart reloads
+      // the rolled-back server module (restart-to-load v1).
+      if (entry.server) _addonServers.delete(id);
+      return { status: 200, version: entry.version, activeHash: entry.activeHash };
+    });
+    if (result.status !== 200) return res.status(result.status).json({ error: result.error || 'Doplněk nenalezen.' });
+    _broadcast('addons-changed', { at: Date.now() });
+    res.json({ ok: true, version: result.version, activeHash: result.activeHash });
+  } catch (e) {
+    console.error('POST /api/addons/:id/rollback:', e);
+    res.status(500).json({ error: 'Rollback failed' });
   }
 });
 
@@ -1648,24 +2151,134 @@ app.post('/api/addons/sources', async (req, res) => {
   }
 });
 
-// DM-only (realRole) install from an allowlisted GitHub repo.
+// DM-only (realRole) install from a pasted GitHub URL or owner/name — the
+// wizard's single input. Explicit DM install IS the trust gesture; the repo
+// is auto-recorded as a known source by _installAddon (no allowlist to curate).
 app.post('/api/addons/install', async (req, res) => {
   if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může instalovat doplňky.' });
-  const { repo, ref } = req.body || {};
-  if (typeof repo !== 'string' || !AddonBroker.REPO_RE.test(repo)) {
-    return res.status(400).json({ error: 'Neplatný repozitář (očekávám owner/name).' });
+  const parsed = AddonBroker.parseRepoInput(req.body && req.body.repo);
+  if (!parsed) {
+    return res.status(400).json({ error: 'Neplatná adresa (očekávám https://github.com/owner/name nebo owner/name).' });
   }
-  const reg0 = await _readAddonsRegistry();
-  if (!AddonBroker.isAllowed(reg0, repo)) {
-    return res.status(403).json({ error: `Repozitář „${repo}" není v seznamu povolených zdrojů.` });
-  }
+  const repo = parsed.repo;
+  const ref  = String((req.body && req.body.ref) || parsed.ref || 'HEAD');
+  // The wizard passes the reviewed `sha` to pin the exact previewed commit
+  // while `ref` (the branch/tag) is what we store for future update checks.
+  const pinnedSha = (req.body && typeof req.body.sha === 'string') ? req.body.sha : undefined;
   try {
-    const entry = await withWriteLock(() => _installAddon(repo, String(ref || 'HEAD')));
+    const entry = await withWriteLock(() => _installAddon(repo, ref, pinnedSha));
     _broadcast('addons-changed', { at: Date.now() });
     res.json({ ok: true, addon: { id: entry.id, version: entry.version, activeHash: entry.activeHash } });
   } catch (e) {
     console.error('POST /api/addons/install:', e.message);
     res.status(400).json({ error: 'Instalace selhala: ' + e.message });
+  }
+});
+
+// DM-only (realRole) preview: fetch + validate just addon.json so the
+// wizard can show the manifest + requested permissions for review BEFORE
+// anything is installed. Returns the manifest even when incompatible (with
+// `ok:false` + `errors`) so the DM sees why it can't be installed. The
+// resolved `sha` is fed back into install so the exact reviewed commit lands.
+app.post('/api/addons/preview', async (req, res) => {
+  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může instalovat doplňky.' });
+  const parsed = AddonBroker.parseRepoInput(req.body && req.body.repo);
+  if (!parsed) {
+    return res.status(400).json({ error: 'Neplatná adresa (očekávám https://github.com/owner/name nebo owner/name).' });
+  }
+  try {
+    const token = process.env.GITHUB_TOKEN || '';
+    const ref = String((req.body && req.body.ref) || parsed.ref || 'HEAD');
+    const { sha, manifest } = await AddonBroker.fetchManifest(parsed.repo, ref, { fetch, token });
+    const v = AddonBroker.validateManifest(manifest);
+    res.json({
+      repo: parsed.repo,
+      ref,                 // the original branch/tag — install stores it for update checks
+      sha,
+      ok: v.ok,
+      errors: v.errors,
+      manifest: {
+        id:          manifest.id,
+        name:        manifest.name,
+        version:     manifest.version,
+        apiVersion:  manifest.apiVersion,
+        hostVersion: manifest.hostVersion || '',
+        permissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
+        dependencies: (manifest.dependencies && typeof manifest.dependencies === 'object') ? manifest.dependencies : {},
+        summary:     manifest.summary || '',
+        server:      !!manifest.server,
+      },
+    });
+  } catch (e) {
+    console.error('POST /api/addons/preview:', e.message);
+    res.status(400).json({ error: 'Náhled selhal: ' + e.message });
+  }
+});
+
+// DM-only (realRole) enable / disable an installed addon (live-reconciled
+// by clients via the addons-changed SSE event).
+app.post('/api/addons/:id/enable',  (req, res) => _setAddonEnabled(req, res, true));
+app.post('/api/addons/:id/disable', (req, res) => _setAddonEnabled(req, res, false));
+async function _setAddonEnabled(req, res, enabled) {
+  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může spravovat doplňky.' });
+  const id = String(req.params.id || '');
+  if (!AddonBroker.ID_RE.test(id)) return res.status(400).json({ error: 'Neplatné id doplňku.' });
+  try {
+    const found = await withWriteLock(async () => {
+      const reg = await _readAddonsRegistry();
+      const entry = reg.addons.find(a => a.id === id);
+      if (!entry) return false;
+      entry.enabled = enabled;
+      await _writeAddonsRegistry(reg);
+      _applyAddonCollections(reg);   // enabling/disabling adds/removes its wire types
+      // A disabled addon must serve nothing — drop its live router immediately
+      // (re-enabling a server addon needs a restart to reload; restart-to-load v1).
+      if (!enabled) _addonServers.delete(id);
+      return true;
+    });
+    if (!found) return res.status(404).json({ error: 'Doplněk nenalezen.' });
+    _broadcast('addons-changed', { at: Date.now() });
+    res.json({ ok: true, id, enabled });
+  } catch (e) {
+    console.error('POST /api/addons/:id/enable:', e);
+    res.status(500).json({ error: 'Write error' });
+  }
+}
+
+// DM-only (realRole) remove an installed addon: drop it from the registry +
+// delete its code dir. Per-addon DATA (data/addon-data/<id>/) is KEPT unless
+// ?purge=1, so a re-install restores the addon's content.
+app.delete('/api/addons/:id', async (req, res) => {
+  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může spravovat doplňky.' });
+  const id = String(req.params.id || '');
+  if (!AddonBroker.ID_RE.test(id)) return res.status(400).json({ error: 'Neplatné id doplňku.' });
+  const purge = req.query.purge === '1' || req.query.purge === 'true';
+  try {
+    const found = await withWriteLock(async () => {
+      const reg = await _readAddonsRegistry();
+      const idx = reg.addons.findIndex(a => a.id === id);
+      if (idx === -1) return false;
+      reg.addons.splice(idx, 1);
+      for (const k of Object.keys(reg.resolutions || {})) {
+        if (reg.resolutions[k] === id) reg.resolutions[k] = null;
+      }
+      await _writeAddonsRegistry(reg);
+      if (_safeJoinIn(ADDONS_DIR, id)) {
+        await fsp.rm(path.join(ADDONS_DIR, id), { recursive: true, force: true }).catch(() => {});
+      }
+      if (purge && _safeJoinIn(ADDON_DATA_DIR, id)) {
+        await fsp.rm(path.join(ADDON_DATA_DIR, id), { recursive: true, force: true }).catch(() => {});
+      }
+      _applyAddonCollections(reg);   // removed addon's wire types go away
+      _addonServers.delete(id);      // stop serving its endpoints at once
+      return true;
+    });
+    if (!found) return res.status(404).json({ error: 'Doplněk nenalezen.' });
+    _broadcast('addons-changed', { at: Date.now() });
+    res.json({ ok: true, id, purged: purge });
+  } catch (e) {
+    console.error('DELETE /api/addons/:id:', e);
+    res.status(500).json({ error: 'Delete error' });
   }
 });
 
@@ -2104,7 +2717,12 @@ app.get('/api/backup', requireAuth, (_req, res) => {
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
-  const archive = archiver('zip', { zlib: { level: 9 } });
+  // archiver v8 (ESM) dropped the callable factory in favour of class exports
+  // (`new ZipArchive(opts)`); older v5/v6 export a `archiver('zip', opts)`
+  // factory. Support both so a version bump can't silently break backup again.
+  const archive = (typeof archiver === 'function')
+    ? archiver('zip', { zlib: { level: 9 } })
+    : new archiver.ZipArchive({ zlib: { level: 9 } });
   archive.on('error', err => {
     console.error('Backup archive error:', err);
     if (!res.headersSent) res.status(500).json({ error: 'Backup failed' });
@@ -2144,6 +2762,14 @@ function _safeJoinDataDir(rel) {
   // prevents the silent-overwrite class of attack.
   const snapRoot = path.resolve(SNAPSHOTS_DIR);
   if (resolved === snapRoot || resolved.startsWith(snapRoot + path.sep)) return null;
+  // Refuse to write addon CODE (data/addons/**) from a restore. Backups include
+  // it for inspection, but restoring it would let a crafted ZIP plant a
+  // server/index.cjs that boot require()s — RCE that bypasses the install
+  // (preview/SHA-pin/content-hash) trust path entirely. Addon code is recovered
+  // by re-installing from the registry's recorded repo+SHA; addon DATA
+  // (data/addon-data/**) restores fine.
+  const codeRoot = path.resolve(ADDONS_DIR);
+  if (resolved === codeRoot || resolved.startsWith(codeRoot + path.sep)) return null;
   return resolved;
 }
 
@@ -2311,6 +2937,32 @@ app.post('/api/restore', requireAuth, restoreUpload.single('backup'), (req, res)
   });
 });
 
+// Server-addon route dispatcher (Phase 7). A single stable mount, registered
+// BEFORE the SPA fallback, that delegates `/api/addon/<id>/*` to the addon's
+// live Express Router (populated at boot). Singular `/api/addon/` can't collide
+// with the plural `/api/addons` management routes above. `req.role`/`realRole`
+// are already stamped by attachRole, so addon routes can gate themselves; an
+// unmatched sub-path returns JSON 404 (never the SPA index). A disabled/absent
+// addon 404s here too — a disabled addon serves nothing.
+app.use('/api/addon/:addonId', (req, res, next) => {
+  const entry = _addonServers.get(req.params.addonId);
+  if (!entry || entry.state !== 'loaded' || !entry.router) {
+    return res.status(404).json({ error: 'Addon endpoint not available' });
+  }
+  // A SYNCHRONOUS throw inside the addon's router (Express routes async
+  // rejections itself, but not sync throws) must never crash the server — the
+  // "a server addon throw is isolated" invariant has to hold at request time too.
+  try {
+    entry.router(req, res, (err) => {
+      if (err) { console.error(`[addon ${req.params.addonId}] route error`, err); if (!res.headersSent) return res.status(500).json({ error: 'Addon route error' }); return; }
+      if (!res.headersSent) res.status(404).json({ error: 'Addon route not found' });
+    });
+  } catch (e) {
+    console.error(`[addon ${req.params.addonId}] route threw`, e);
+    if (!res.headersSent) res.status(500).json({ error: 'Addon route error' });
+  }
+});
+
 // SPA fallback: serve index.html for any unmatched GET so client-side
 // hash routing works on a hard refresh / deep link. Express 5 (path-to-regexp
 // 8) rejects a bare '*' — the catch-all must be a named wildcard ('/*splat').
@@ -2392,6 +3044,24 @@ async function _bootstrap() {
   } catch (e) {
     console.warn('[migration] visibility migration failed:', e.message);
   }
+  // Register enabled addons' declared collections into the type system so
+  // their data rides the generic GET/PATCH /api/data path from the first
+  // request (install/enable/disable re-apply this live afterwards).
+  try {
+    _applyAddonCollections(await _readAddonsRegistry());
+  } catch (e) {
+    console.warn('[addons] collection type seed failed:', e.message);
+  }
+  // Load enabled server-side addons (Phase 7) before listening so their
+  // /api/addon/<id>/* routes are ready. Each load is isolated — a throwing
+  // addon is recorded as `error`, never crashing boot.
+  try {
+    await _loadServerAddons();
+  } catch (e) {
+    console.warn('[addons] server load sweep failed:', e.message);
+  }
+  // Reclaim old addon version code dirs left from before pruning existed.
+  try { await _pruneAllAddonCode(); } catch (e) { console.warn('[addons] code prune failed:', e.message); }
   app.listen(PORT, () => {
     console.log(`TTRPG Codex running on http://localhost:${PORT}`);
     if (INSTANCE !== 'default' || FEATURES.length) {

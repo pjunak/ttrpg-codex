@@ -1,0 +1,11 @@
+{
+  "id": "dice",
+  "name": "Kostky (server)",
+  "version": "0.1.0",
+  "apiVersion": 1,
+  "hostVersion": ">=1.0.0",
+  "entry": "entry.js",
+  "server": "server/index.cjs",
+  "permissions": ["ui:route", "ui:sidebar", "ui:action", "server:code"],
+  "summary": "Ukázka serverové části doplňku (Phase 7): kostky se hází na serveru (/api/addon/dice/roll) a logují do izolovaných dat doplňku."
+}

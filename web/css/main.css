@@ -19,6 +19,7 @@
   --text-muted:     #9A8660;
   --text-ink:       #2B1A00;
   --text-ink-light: #5C3D14;
+  --text-cream:     #F0E6D2;   /* parchment text on the darkest panels (cards, widgets, inputs) */
 
   /* Accents */
   --accent-crimson: #8B2020;
@@ -44,6 +45,21 @@
   --status-dead:     #8B0000;
   --status-captured: #1565C0;
   --status-unknown:  #6A1B9A;
+  /* Channels of the status colours, for the 0.25 / 0.5-alpha badge +
+     toast backgrounds / borders: rgba(var(--status-alive-rgb), 0.25). */
+  --status-alive-rgb:    46, 125, 50;
+  --status-dead-rgb:     139, 0, 0;
+  --status-captured-rgb: 21, 101, 192;
+  --status-unknown-rgb:  106, 27, 154;
+
+  /* Feedback / status TEXT colours — lightened for legibility on dark
+     surfaces (toasts, status badges, form validation, editor syntax). */
+  --color-danger:        #EF9A9A;   /* error / dead / enemy   */
+  --color-danger-bright: #FF8888;   /* stronger error text    */
+  --color-danger-bd:     #CC4444;   /* danger border          */
+  --color-success:       #A5D6A7;   /* ok / alive / ally      */
+  --color-info:          #90CAF9;   /* info / link / captured */
+  --color-mystery:       #CE93D8;   /* mystery / unknown / DM */
 
   /* Layout */
   --sidebar-width: 240px;
@@ -153,7 +169,7 @@ img { max-width: 100%; display: block; }
 
 /* ── Typography ─────────────────────────────────────────────── */
 h1, h2, h3, h4 { font-family: var(--font-title); font-weight: 600; line-height: 1.2; }
-h1 { font-size: 2rem;   color: var(--text-parchment); letter-spacing: 0.04em; }
+h1 { font-size: var(--text-2xl);   color: var(--text-parchment); letter-spacing: 0.04em; }
 h2 { font-size: 1.4rem; color: var(--text-light);     letter-spacing: 0.03em; }
 h3 { font-size: 1.1rem; color: var(--text-muted);     letter-spacing: 0.02em; }
 p  { color: var(--text-parchment); margin-bottom: 0.75em; }
@@ -192,7 +208,7 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
 .logo-dragon {
   width: 2.4rem;
   height: 2.4rem;
-  font-size: 2rem;
+  font-size: var(--text-2xl);
   line-height: 1;
   display: flex;
   align-items: center;
@@ -208,7 +224,7 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
 .logo-text { display: flex; flex-direction: column; }
 .logo-title {
   font-family: var(--font-title);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   color: var(--accent-gold);
   letter-spacing: 0.05em;
@@ -250,7 +266,7 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
   font-weight: 700;
   letter-spacing: 0.16em;
 }
-.sidebar-section-kampan { color: #ce93d8; border-top-color: rgba(156,77,204,0.35); }
+.sidebar-section-kampan { color: var(--color-mystery); border-top-color: rgba(156,77,204,0.35); }
 .sidebar-section-svet   { color: #9cc69a; border-top-color: rgba(106,160,100,0.35); }
 .sidebar-nav { padding: 0 0.5rem; }
 .sidebar-nav li { margin: 2px 0; }
@@ -267,7 +283,7 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
 }
 .nav-link:hover { background: rgba(var(--accent-gold-rgb), 0.08); color: var(--accent-gold); }
 .nav-link.active { background: rgba(var(--accent-gold-rgb), 0.12); color: var(--accent-gold); }
-.nav-icon { font-size: 0.75rem; opacity: 0.7; }
+.nav-icon { font-size: var(--text-xs); opacity: 0.7; }
 
 /* ── Collapsible sub-section (Kompendium, under Svět) ────────
    Clickable header that toggles a child <ul>. Default closed so

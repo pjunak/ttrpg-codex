@@ -12,6 +12,7 @@ import { WorldMap, PIN_TYPES } from './map.js';
 import { Role } from './role.js';
 import { esc, dataAction, dataOn } from './utils.js';
 import { Sidebar } from './sidebar.js';
+import { Addons } from './addons.js';
 import { THEMES } from './constants.js';
 
 export const Settings = (() => {
@@ -56,6 +57,7 @@ export const Settings = (() => {
     { id: 'worldmap',     label: 'Mapy',            icon: '🗺' },
     { id: 'mapViews',     label: 'Pohledy na mapě', icon: '📍' },
     { id: 'sidebarPages', label: 'Postranní panel', icon: '🧭' },
+    { id: 'addons',       label: 'Doplňky',         icon: '🧩' },
     { id: 'backup',       label: 'Záloha',          icon: '💾' },
     { id: 'account',      label: 'Účet',            icon: '👤' },
   ];
@@ -127,8 +129,10 @@ export const Settings = (() => {
     return Role.isDM() ? CATEGORIES : [];
   }
   function _visibleSpecialTabs() {
-    if (Role.isDM()) return SPECIAL_TABS;
-    return SPECIAL_TABS.filter(t => t.id === 'account' || t.id === 'backup');
+    const addonTabs = (() => { try { return Addons.settingsTabs(); } catch { return []; } })()
+      .filter(t => Role.isDM() || t.role !== 'dm');
+    const base = Role.isDM() ? SPECIAL_TABS : SPECIAL_TABS.filter(t => t.id === 'account' || t.id === 'backup');
+    return [...base, ...addonTabs];
   }
 
   function _pageHtml() {
@@ -183,7 +187,10 @@ export const Settings = (() => {
     if (_activeCat === 'account')      return _accountHtml();
     if (_activeCat === 'branding')     return _brandingHtml();
     if (_activeCat === 'appearance')   return _appearanceHtml();
+    if (_activeCat === 'addons')       return _addonsHtml();
     if (_activeCat === 'playerParty')  return _playerPartyHtml();
+    const _at = Addons.settingsTab(_activeCat);
+    if (_at) { try { return _at.render(); } catch (e) { return `<div class="settings-panel" style="color:var(--color-danger)">Doplněk selhal: ${esc(e.message)}</div>`; } }
     const cat = CATEGORIES.find(c => c.id === _activeCat);
     const items = Store.getEnum(_activeCat);
     const rows = items.map(it => _rowHtml(cat, it)).join('');
@@ -566,6 +573,10 @@ export const Settings = (() => {
       _passwordStatus = null;
       render();
       if (Role.getReal() === 'dm') _loadPasswordStatus().then(render);
+    } else if (cat === 'addons') {
+      _addonsList = null;        // show "loading" until /api/addons resolves
+      render();
+      _loadAddons().then(render);
     } else {
       render();
     }
@@ -1860,6 +1871,407 @@ export const Settings = (() => {
     }
   }
 
+  // ── Addon manager (Settings → Doplňky) ───────────────────────
+  // DM-only tab (gated by _visibleSpecialTabs). Lists installed addons
+  // from /api/addons (lazy-loaded on tab entry like the account tab),
+  // with enable/disable/remove + an install wizard that takes a pasted
+  // GitHub URL. Built entirely on design-system tokens/classes.
+  let _addonsList     = null;   // cached /api/addons projection; null = loading
+  let _addonWizardEsc = null;   // keydown handler installed while the wizard is open
+  let _wizardPreview  = null;   // { repo, ref, sha } captured at the wizard's preview step
+  let _wizardMode     = 'install'; // 'install' | 'update' — wizard messaging
+  let _addonUpdates   = {};     // id -> { hasUpdate, repo, ... } from the last check-updates
+
+  function _loadAddons() {
+    return fetch('/api/addons', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { _addonsList = (j && Array.isArray(j.addons)) ? j.addons : []; })
+      .catch(() => { _addonsList = []; });
+  }
+
+  function _addonsHtml() {
+    // Overlay each installed addon with its live client load-state so a
+    // broken addon reads as an error rather than looking fine.
+    const loadStates = {};
+    try { for (const a of Addons.list()) loadStates[a.id] = a; } catch (_) {}
+    let body;
+    if (_addonsList === null) {
+      body = `<div class="settings-empty">Načítám…</div>`;
+    } else if (!_addonsList.length) {
+      body = `<div class="settings-empty">Zatím žádné doplňky — nainstaluj první z GitHubu.</div>`;
+    } else {
+      body = `<div class="addon-list">${_addonsList.map(a => _addonRow(a, loadStates[a.id])).join('')}</div>`;
+    }
+    return `
+      <div class="settings-editor-head">
+        <h2>🧩 Doplňky</h2>
+        <div class="settings-editor-actions">
+          ${(_addonsList && _addonsList.length) ? `<button type="button" class="inline-create-btn"
+            ${dataAction('Settings.checkAddonUpdates')}>🔄 Zkontrolovat aktualizace</button>` : ''}
+          <button type="button" class="edit-save-btn"
+            ${dataAction('Settings.openAddonWizard')}>＋ Instalovat z GitHubu</button>
+        </div>
+      </div>
+      <div class="settings-panel">
+        <p class="settings-hint" style="margin-bottom:1rem">
+          Doplňky rozšiřují aplikaci (pravidla, deníky postav…). Instalují se
+          z GitHubu vložením odkazu na repozitář a platí jen pro tuto kampaň.
+        </p>
+        ${_conflictsHtml()}
+        ${body}
+      </div>`;
+  }
+
+  // Fragment-override conflicts (Phase 6): ≥2 addons claiming an exclusive
+  // (replace/hide) op on the SAME built-in fragment. Until the DM picks a
+  // winner the built-in renders (never a silent clobber). Each card is a
+  // radio of claimants + a "built-in" option; picking writes the resolution.
+  // Map a raw fragment-target id (`characters:section:vazby`, `characters:body`)
+  // to a human label so a DM resolving a conflict doesn't have to read developer
+  // identifiers. Falls back to the raw id for anything unrecognised.
+  function _fragmentLabel(target) {
+    const KIND = { characters: 'Postava', locations: 'Místo', events: 'Událost', mysteries: 'Záhada', factions: 'Frakce' };
+    const SEC  = { vazby: 'Vazby', udalosti: 'Události', znalosti: 'Co víme', otazky: 'Otevřené otázky', mazlicci: 'Mazlíčci' };
+    const p = String(target || '').split(':');
+    const kind = KIND[p[0]] || p[0] || '?';
+    if (p[1] === 'body')    return `${kind} · tělo článku`;
+    if (p[1] === 'section') return `${kind} · sekce „${SEC[p[2]] || p[2] || '?'}"`;
+    if (p[1] === 'addon')   return `${kind} · sekce doplňku`;
+    return target;
+  }
+
+  function _conflictsHtml() {
+    let conflicts = [];
+    try { conflicts = Addons.conflicts() || []; } catch (_) {}
+    if (!conflicts.length) return '';
+    const opLabel = op => (op === 'hide' ? 'skrýt' : 'nahradit');
+    const cards = conflicts.map(c => {
+      const name = `conf-${c.target}`;
+      const opts = c.claimants.map(cl => `
+        <label class="addon-conflict-opt">
+          <input type="radio" name="${esc(name)}" ${c.resolved === cl.addonId ? 'checked' : ''}
+            ${dataOn('change', 'Settings.resolveAddonConflict', c.target, cl.addonId)}>
+          <span><strong>${esc(cl.addonId)}</strong> — ${opLabel(cl.op)}</span>
+        </label>`).join('');
+      const builtin = `
+        <label class="addon-conflict-opt">
+          <input type="radio" name="${esc(name)}" ${c.resolved === null ? 'checked' : ''}
+            ${dataOn('change', 'Settings.resolveAddonConflict', c.target, null)}>
+          <span>Vestavěné (žádný doplněk)</span>
+        </label>`;
+      const unresolved = c.resolved === undefined;
+      return `
+        <div class="addon-conflict${unresolved ? ' addon-conflict-open' : ''}">
+          <div class="addon-conflict-title">${unresolved ? '⚠' : '✓'} ${esc(_fragmentLabel(c.target))}
+            <code title="${esc(c.target)}">${esc(c.target)}</code></div>
+          <div class="addon-conflict-hint">${unresolved
+            ? 'Více doplňků chce změnit stejnou část. Vyber, který vyhraje — jinak se zobrazí vestavěný obsah.'
+            : 'Vyřešeno.'}</div>
+          <div class="addon-conflict-opts">${opts}${builtin}</div>
+        </div>`;
+    }).join('');
+    return `<div class="addon-conflicts"><h3 class="addon-conflicts-h">⚠ Konflikty</h3>${cards}</div>`;
+  }
+
+  function resolveAddonConflict(target, winner) {
+    if (!Role.isDM()) { try { EditMode.promptLogin(); } catch (_) {} return; }
+    Store.resolveAddonConflict(target, winner).then(r => {
+      if (r && r.ok) _flash('Volba uložena');
+      else _flash((r && r.error) || 'Nepodařilo se uložit volbu', false);
+      // The addons-changed SSE reconcile re-renders with the winner applied.
+    });
+  }
+
+  function _addonRow(a, loadState) {
+    const lstate     = loadState && loadState.state;
+    const upd        = _addonUpdates[a.id];
+    const smokeFails = loadState && Array.isArray(loadState.smoke) ? loadState.smoke : [];
+
+    // ── Status chips: ONE clustered group, a uniform dot+label vocabulary.
+    // The dot colour carries severity (so error vs render-warning no longer
+    // share a glyph); the label says what it is. Lifecycle first, then server,
+    // then update/warning.
+    const chip = (tone, label) => `<span class="addon-chip addon-chip-${tone}">${esc(label)}</span>`;
+    const chips = [];
+    if (lstate === 'error')        chips.push(chip('danger', 'chyba'));
+    else if (lstate === 'blocked') chips.push(chip('danger', 'blokováno'));
+    else if (a.enabled)            chips.push(chip('ok', 'aktivní'));
+    else                           chips.push(chip('off', 'vypnuto'));
+    if (a.server) {
+      const SS = { loaded: ['ok', 'server'], error: ['danger', 'server: chyba'],
+                   blocked: ['danger', 'server blokován'], 'pending-restart': ['warn', 'server: restart'] };
+      const s = SS[a.serverState];
+      if (s) chips.push(chip(s[0], s[1]));
+    }
+    if (upd && upd.hasUpdate) chips.push(chip('info', 'aktualizace'));
+    if (smokeFails.length)    chips.push(chip('warn', 'test vykreslení'));
+    const chipsHtml = `<span class="addon-row-chips">${chips.join('')}</span>`;
+
+    // ── Notes: detail that USED to be tooltip-only, now visible (and reachable
+    // by keyboard / touch / screen reader).
+    const notes = [];
+    if ((lstate === 'error' || lstate === 'blocked') && loadState.error)
+      notes.push(`<div class="addon-row-err">${esc(loadState.error)}</div>`);
+    if (smokeFails.length)
+      notes.push(`<div class="addon-row-warn">Test vykreslení nahlásil chybu: ${esc(smokeFails.map(f => `${f.kind} (${f.message})`).join(' · '))}</div>`);
+    if (a.server && a.serverState === 'pending-restart')
+      notes.push(`<div class="addon-row-warn">Restartuj server (kontejner), aby se serverová část (od)načetla.</div>`);
+    else if (a.server && (a.serverState === 'error' || a.serverState === 'blocked'))
+      notes.push(`<div class="addon-row-err">Serverová část doplňku: ${esc(a.serverState)}.</div>`);
+
+    // ── Permissions: collapsed to a count (the full review happened at install).
+    const perms = Array.isArray(a.permissions) ? a.permissions : [];
+    const permsLine = perms.length
+      ? `<details class="addon-row-perms"><summary>${perms.length} oprávnění</summary>
+           <div class="addon-perms-detail">${perms.map(p =>
+             `<span title="${esc(p)}">${esc(Addons.describePermission(p))}</span>`).join(' · ')}</div></details>`
+      : '';
+
+    // ── Actions, ranked: primary Update (when available), secondary toggle,
+    // rare actions (roll back / remove) behind an overflow menu.
+    const updateBtn = (upd && upd.hasUpdate)
+      ? `<button type="button" class="edit-save-btn" ${dataAction('Settings.updateAddon', a.id)}>⬆ Aktualizovat</button>`
+      : '';
+    const toggle = a.enabled
+      ? `<button type="button" class="inline-create-btn" ${dataAction('Settings.disableAddon', a.id)}>Vypnout</button>`
+      : `<button type="button" class="inline-create-btn" ${dataAction('Settings.enableAddon', a.id)}>Zapnout</button>`;
+    const rollbackItem = (Array.isArray(a.versions) && a.versions.length > 1)
+      ? `<button type="button" class="inline-create-btn" ${dataAction('Settings.rollbackAddon', a.id)}>↩ Vrátit verzi</button>`
+      : '';
+    const moreMenu = `
+      <details class="addon-actions-more">
+        <summary aria-label="Další akce" title="Další akce">⋯</summary>
+        <div class="addon-actions-menu">
+          ${rollbackItem}
+          <button type="button" class="edit-delete-btn" ${dataAction('Settings.removeAddon', a.id)}>🗑 Odebrat</button>
+        </div>
+      </details>`;
+
+    return `
+      <div class="addon-row">
+        <div class="addon-row-main">
+          <span class="addon-row-name">${esc(a.name || a.id)}</span>
+          <span class="addon-row-ver">v${esc(a.version || '?')}</span>
+          ${chipsHtml}
+        </div>
+        ${permsLine}
+        ${notes.join('')}
+        <div class="addon-row-actions">
+          ${updateBtn}${toggle}${moreMenu}
+        </div>
+      </div>`;
+  }
+
+  function _addonLifecycle(method, url, okMsg) {
+    return fetch(url, { method, credentials: 'same-origin' })
+      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+      .then(() => { _flash(okMsg); return _loadAddons().then(() => { if (_activeCat === 'addons') render(); }); })
+      .catch(e => _flash((e && e.error) || 'Operace selhala', false));
+  }
+  function enableAddon(id)  { _addonLifecycle('POST',   `/api/addons/${encodeURIComponent(id)}/enable`,  'Doplněk zapnut'); }
+  function disableAddon(id) { _addonLifecycle('POST',   `/api/addons/${encodeURIComponent(id)}/disable`, 'Doplněk vypnut'); }
+  function removeAddon(id) {
+    const a = (_addonsList || []).find(x => x.id === id);
+    const name = a ? (a.name || a.id) : id;
+    if (!confirm(`Odebrat doplněk „${name}"? Jeho data zůstanou zachována pro případnou reinstalaci.`)) return;
+    _addonLifecycle('DELETE', `/api/addons/${encodeURIComponent(id)}`, 'Doplněk odebrán');
+  }
+
+  // ── Update check + rollback (Phase 9) ─────────────────────────
+  function checkAddonUpdates() {
+    if (!Role.isDM()) { try { EditMode.promptLogin(); } catch (_) {} return; }
+    _flash('Kontroluji aktualizace…');
+    Store.checkAddonUpdates().then(r => {
+      if (!r.ok) { _flash(r.error || 'Kontrola selhala', false); return; }
+      _addonUpdates = {};
+      for (const u of r.updates) if (u && u.id) _addonUpdates[u.id] = u;
+      const n = r.updates.filter(u => u.hasUpdate).length;
+      _flash(n ? `${n} aktualizací k dispozici` : 'Vše je aktuální');
+      if (_activeCat === 'addons') render();
+    });
+  }
+
+  function updateAddon(id) {
+    if (!Role.isDM()) { try { EditMode.promptLogin(); } catch (_) {} return; }
+    const u = _addonUpdates[id];
+    if (!u || !u.repo) { _flash('Nejdřív zkontroluj aktualizace', false); return; }
+    openAddonWizard(u.repo, 'update');
+  }
+
+  function rollbackAddon(id) {
+    if (!Role.isDM()) { try { EditMode.promptLogin(); } catch (_) {} return; }
+    const a = (_addonsList || []).find(x => x.id === id);
+    if (!confirm(`Vrátit doplněk „${(a && (a.name || a.id)) || id}" na předchozí verzi?`)) return;
+    Store.rollbackAddon(id).then(r => {
+      if (r.ok) {
+        _flash(`Vráceno na v${r.version || '?'}` + ((a && a.server) ? ' — restartuj server pro serverovou část' : ''));
+        _addonUpdates = {};   // version changed → the cached update check is stale
+        _loadAddons().then(() => { if (_activeCat === 'addons') render(); });
+      } else _flash(r.error || 'Vrácení selhalo', false);
+    });
+  }
+
+  // ── Install wizard (paste URL → install → live-load) ─────────
+  // A focused modal appended to <body> (outside #main-content, so a
+  // settings re-render behind it doesn't tear it down). The backup /
+  // test / dependency steps arrive in a later phase.
+  function openAddonWizard(prefillRepo, mode) {
+    if (!Role.isDM()) { try { EditMode.promptLogin(); } catch (_) {} return; }
+    closeAddonWizard();
+    _wizardMode = (mode === 'update') ? 'update' : 'install';
+    const title = _wizardMode === 'update' ? '🔄 Aktualizovat doplněk' : '🧩 Instalovat doplněk';
+    const prefill = (typeof prefillRepo === 'string') ? prefillRepo : '';
+    const ov = document.createElement('div');
+    ov.id = 'addon-wizard-overlay';
+    ov.className = 'addon-wizard-overlay';
+    ov.innerHTML = `
+      <div class="addon-wizard" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+        <div class="addon-wizard-head">
+          <h3>${esc(title)}</h3>
+          <button type="button" class="addon-wizard-x" aria-label="Zavřít"
+            ${dataAction('Settings.closeAddonWizard')}>✕</button>
+        </div>
+        <div class="addon-wizard-body" id="addon-wizard-body">
+          <p class="settings-hint">Vlož odkaz na GitHub repozitář doplňku (nebo <code>owner/název</code>).</p>
+          <label class="settings-field" style="margin-top:.6rem">
+            <span class="settings-field-label">GitHub odkaz</span>
+            <input class="edit-input" id="addon-wizard-url" type="text" autocomplete="off"
+                   placeholder="https://github.com/owner/muj-doplnek" value="${esc(prefill)}"
+                   ${dataOn('keydown', 'Settings.addonWizardKey', '$ev')}>
+          </label>
+          <div class="addon-wizard-status" id="addon-wizard-status"></div>
+        </div>
+        <div class="addon-wizard-foot" id="addon-wizard-foot">
+          <button type="button" class="inline-create-btn"
+            ${dataAction('Settings.closeAddonWizard')}>Zrušit</button>
+          <button type="button" class="edit-save-btn" id="addon-wizard-go"
+            ${dataAction('Settings.previewAddon')}>Načíst</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('mousedown', e => { if (e.target === ov) closeAddonWizard(); });
+    _addonWizardEsc = (e) => { if (e.key === 'Escape') closeAddonWizard(); };
+    document.addEventListener('keydown', _addonWizardEsc);
+    // Update mode arrives with the repo pre-filled → resolve it straight away.
+    if (prefill) setTimeout(() => previewAddon(), 0);
+    else setTimeout(() => { const i = document.getElementById('addon-wizard-url'); if (i) i.focus(); }, 0);
+  }
+
+  function closeAddonWizard() {
+    const ov = document.getElementById('addon-wizard-overlay');
+    if (ov) ov.remove();
+    if (_addonWizardEsc) { document.removeEventListener('keydown', _addonWizardEsc); _addonWizardEsc = null; }
+    _wizardPreview = null;
+  }
+
+  function addonWizardKey(ev) {
+    if (ev && ev.key === 'Enter') { ev.preventDefault(); previewAddon(); }
+  }
+
+  function _wizardStatus(html) {
+    const el = document.getElementById('addon-wizard-status');
+    if (el) el.innerHTML = html || '';
+  }
+
+  // Step 1 — resolve addon.json for DM review (no download / install yet).
+  function previewAddon() {
+    const input = document.getElementById('addon-wizard-url');
+    const url = ((input && input.value) || '').trim();
+    if (!url) { _wizardStatus(`<span class="addon-wizard-err">Vlož odkaz na repozitář.</span>`); return; }
+    const go = document.getElementById('addon-wizard-go');
+    if (go)    go.disabled = true;
+    if (input) input.disabled = true;
+    _wizardStatus(`<span class="addon-wizard-busy">⏳ Načítám addon.json…</span>`);
+    fetch('/api/addons/preview', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repo: url }),
+    })
+      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+      .then(p => { _wizardPreview = { repo: p.repo, ref: p.ref, sha: p.sha }; _renderWizardPreview(p); })
+      .catch(e => {
+        if (go)    go.disabled = false;
+        if (input) input.disabled = false;
+        _wizardStatus(`<span class="addon-wizard-err">${esc((e && e.error) || 'Náhled selhal')}</span>`);
+      });
+  }
+
+  // Render the manifest + requested permissions for the DM to review.
+  function _renderWizardPreview(p) {
+    const m = p.manifest || {};
+    const body = document.getElementById('addon-wizard-body');
+    const foot = document.getElementById('addon-wizard-foot');
+    const perms = Array.isArray(m.permissions) ? m.permissions : [];
+    const permList = perms.length
+      ? `<ul class="addon-perm-list">${perms.map(pr =>
+          `<li><span>${esc(Addons.describePermission(pr))}</span> <code>${esc(pr)}</code></li>`).join('')}</ul>`
+      : `<p class="settings-hint">Žádná zvláštní oprávnění.</p>`;
+    const serverWarn = m.server
+      ? `<div class="addon-perm-server">⚠ Obsahuje serverový kód — poběží s plnými právy serveru.</div>` : '';
+    const errBox = p.ok ? ''
+      : `<div class="addon-wizard-err" style="margin-top:.6rem">⚠ Nelze nainstalovat: ${esc((p.errors || []).join('; '))}</div>`;
+    if (body) body.innerHTML = `
+      <div class="addon-preview">
+        <div class="addon-preview-name">${esc(m.name || m.id || '?')}
+          <span class="addon-row-ver">v${esc(m.version || '?')}</span></div>
+        ${m.summary ? `<p class="settings-hint" style="margin:.3rem 0 .6rem">${esc(m.summary)}</p>` : ''}
+        <div class="addon-perm-title">Doplněk žádá o tato oprávnění:</div>
+        ${permList}
+        ${serverWarn}
+        ${errBox}
+      </div>
+      <div class="addon-wizard-status" id="addon-wizard-status"></div>`;
+    const confirmLabel = _wizardMode === 'update' ? '🔄 Aktualizovat' : 'Instalovat a povolit';
+    if (foot) foot.innerHTML = `
+      <button type="button" class="inline-create-btn"
+        ${dataAction('Settings.closeAddonWizard')}>Zrušit</button>
+      ${p.ok ? `<button type="button" class="edit-save-btn" id="addon-wizard-confirm"
+        ${dataAction('Settings.confirmInstallAddon')}>${confirmLabel}</button>` : ''}`;
+  }
+
+  // Step 2 — backup → install/update the reviewed commit (sha-pinned; ref kept
+  // for future update checks). The server runs the addon's server self-tests as
+  // a green-gate during install (Phase 8) — a red set surfaces here as an error.
+  function confirmInstallAddon() {
+    if (!_wizardPreview) return;
+    const go = document.getElementById('addon-wizard-confirm');
+    if (go) go.disabled = true;
+    const verb = _wizardMode === 'update' ? 'Aktualizuji' : 'Instaluji';
+    _wizardStatus(`<span class="addon-wizard-busy">⏳ Vytvářím zálohu…</span>`);
+    // Backup step: snapshot the dataset (incl. the addon registry) BEFORE the
+    // change, so the install/update is one-click revertible from Záloha. Best-
+    // effort — a snapshot failure doesn't block the install.
+    fetch('/api/snapshots', { method: 'POST', credentials: 'same-origin' })
+      .then(r => r.ok ? r.json() : {}).catch(() => ({}))
+      .then(snap => {
+        const backupNote = (snap && snap.id) ? '✓ Záloha · ' : '';
+        _wizardStatus(`<span class="addon-wizard-busy">${backupNote}⏳ ${verb}…</span>`);
+        return fetch('/api/addons/install', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repo: _wizardPreview.repo, ref: _wizardPreview.ref, sha: _wizardPreview.sha }),
+        })
+          .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+          .then(j => ({ j, backupNote }));
+      })
+      .then(({ j, backupNote }) => {
+        const a = j.addon || {};
+        const done = _wizardMode === 'update' ? 'Aktualizováno' : 'Nainstalováno';
+        _wizardStatus(`<span class="addon-wizard-ok">${backupNote}✓ ${done}: <strong>${esc(a.id || '')}</strong> v${esc(a.version || '')}.</span>`);
+        const foot = document.getElementById('addon-wizard-foot');
+        if (foot) foot.innerHTML = `<button type="button" class="edit-save-btn" ${dataAction('Settings.closeAddonWizard')}>Hotovo</button>`;
+        _flash(_wizardMode === 'update' ? 'Doplněk aktualizován' : 'Doplněk nainstalován');
+        _addonUpdates = {};   // stale after a change — a fresh check is needed
+        // Refresh the list behind the modal; the addons-changed SSE event also
+        // live-loads/reconciles via Addons.reconcile() in app.js.
+        _loadAddons().then(() => { if (_activeCat === 'addons') render(); });
+      })
+      .catch(e => {
+        if (go) go.disabled = false;
+        _wizardStatus(`<span class="addon-wizard-err">${esc((e && e.error) || 'Instalace selhala')}</span>`);
+      });
+  }
+
   return {
     render,
     selectCategory, startNew, startEdit, cancelEdit,
@@ -1882,5 +2294,9 @@ export const Settings = (() => {
     savePlayerParty,
     uploadLogo, deleteLogo, saveBranding, applyBranding,
     changeTheme, applyTheme,
+    enableAddon, disableAddon, removeAddon, resolveAddonConflict,
+    checkAddonUpdates, updateAddon, rollbackAddon,
+    openAddonWizard, closeAddonWizard, addonWizardKey,
+    previewAddon, confirmInstallAddon,
   };
 })();

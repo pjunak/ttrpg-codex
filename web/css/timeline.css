@@ -45,7 +45,7 @@
 }
 .tl-add-btn {
   font-family: var(--font-ui);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   padding: 0.3rem 0.7rem;
   background: transparent;
   color: var(--accent-gold);

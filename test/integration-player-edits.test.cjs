@@ -160,6 +160,69 @@ test('player: edit of a twinned public entity preserves linkedTwinId verbatim', 
   } finally { await srv.kill(); }
 });
 
+// ── Per-entity addonData (Phase 5) ────────────────────────────────
+
+test('player: edit preserves an addonData namespace it did not send (no drop-by-omission)', async () => {
+  const srv = await startServer({
+    dmPassword: DM, playerPassword: PLAYER,
+    seedData: {
+      'characters.json': [{
+        id: 'p', name: 'Pip', faction: 'neutral', visibility: 'public',
+        addonData: { 'demo-sheet': { hp: 8, maxHp: 10 } },
+      }],
+    },
+  });
+  try {
+    await loginAs(srv, PLAYER);
+    // A normal player edit whose form doesn't surface addon fields → payload
+    // omits addonData. The server must keep the existing namespace.
+    const res = await srv.fetch('/api/data', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        type: 'characters', action: 'save',
+        payload: { id: 'p', name: 'Pip the Bold', faction: 'neutral', visibility: 'public' },
+      }),
+    });
+    assert.equal(res.status, 200);
+    const stored = await readEntity(srv, 'characters', 'p');
+    assert.equal(stored.name, 'Pip the Bold');
+    assert.ok(stored.addonData && stored.addonData['demo-sheet'], 'addonData namespace survived');
+    assert.equal(stored.addonData['demo-sheet'].hp, 8);
+  } finally { await srv.kill(); }
+});
+
+test('player: edit can UPDATE a namespace it sends, while others are preserved', async () => {
+  const srv = await startServer({
+    dmPassword: DM, playerPassword: PLAYER,
+    seedData: {
+      'characters.json': [{
+        id: 'q', name: 'Quill', faction: 'neutral', visibility: 'public',
+        addonData: { 'demo-sheet': { hp: 5, maxHp: 10 }, 'other': { note: 'keep' } },
+      }],
+    },
+  });
+  try {
+    await loginAs(srv, PLAYER);
+    // Active-sheet write (e.g. patchAddonData) sends ONLY the sheet namespace.
+    const res = await srv.fetch('/api/data', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        type: 'characters', action: 'save',
+        payload: {
+          id: 'q', name: 'Quill', faction: 'neutral', visibility: 'public',
+          addonData: { 'demo-sheet': { hp: 4, maxHp: 10 } },
+        },
+      }),
+    });
+    assert.equal(res.status, 200);
+    const stored = await readEntity(srv, 'characters', 'q');
+    assert.equal(stored.addonData['demo-sheet'].hp, 4, 'sent namespace updated');
+    assert.equal(stored.addonData['other'].note, 'keep', 'unsent namespace preserved');
+  } finally { await srv.kill(); }
+});
+
 // ── DM-only entity protection ─────────────────────────────────────
 
 test('player: cannot edit a DM-only entity (403)', async () => {

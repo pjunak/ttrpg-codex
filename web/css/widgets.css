@@ -7,14 +7,14 @@
 /* ── Shared toast (replaces per-module toasts) ──────────────── */
 .app-toast {
   position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(20px);
-  background: #1c1c1e; color: #f0e6d2; border: 1px solid rgba(var(--gold-muted), 0.35);
+  background: #1c1c1e; color: var(--text-cream); border: 1px solid rgba(var(--gold-muted), 0.35);
   padding: 0.7rem 1.2rem; border-radius: var(--radius); font-size: 0.92rem;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
   opacity: 0; pointer-events: none; transition: opacity 0.18s ease, transform 0.18s ease;
   z-index: 10001; max-width: 80vw; text-align: center;
 }
 .app-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-.app-toast.err  { border-color: #c44; color: #ffd7d7; }
+.app-toast.err  { border-color: var(--color-danger-bd); color: #ffd7d7; }
 
 /* ── Combobox ────────────────────────────────────────────────── */
 .w-cb {
@@ -63,7 +63,7 @@
   flex: 0 0 auto;
   background: rgba(0, 0, 0, 0.3);
   border: none; border-bottom: 1px solid rgba(var(--gold-muted), 0.2);
-  color: #f0e6d2; padding: 0.5rem 0.7rem; font: inherit; outline: none;
+  color: var(--text-cream); padding: 0.5rem 0.7rem; font: inherit; outline: none;
 }
 .w-cb-list { flex: 1 1 auto; overflow-y: auto; padding: 0.2rem 0; }
 .w-cb-item {
@@ -119,12 +119,12 @@
 .w-ms-chips {
   display: flex; flex-wrap: wrap; gap: 0.3rem; min-height: 1px;
 }
-.w-ms-chips-empty { color: rgba(232, 222, 196, 0.4); font-style: italic; font-size: 0.85rem; padding: 0.15rem 0.2rem; }
+.w-ms-chips-empty { color: rgba(232, 222, 196, 0.4); font-style: italic; font-size: var(--text-sm); padding: 0.15rem 0.2rem; }
 .w-ms-chip {
   display: inline-flex; align-items: center; gap: 0.25rem;
   background: rgba(var(--gold-muted), 0.18);
   border: 1px solid rgba(var(--gold-muted), 0.35);
-  color: #f0e6d2;
+  color: var(--text-cream);
   padding: 0.15rem 0.45rem;
   border-radius: var(--radius-lg);
   font-size: 0.84rem;
@@ -142,7 +142,7 @@
   flex: 1; min-width: 0;
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(var(--gold-muted), 0.18);
-  color: #f0e6d2;
+  color: var(--text-cream);
   padding: 0.35rem 0.5rem;
   border-radius: 3px;
   font: inherit;
@@ -195,7 +195,7 @@
   display: inline-flex; align-items: center; gap: 0.25rem;
   background: rgba(var(--gold-muted), 0.14);
   border: 1px solid rgba(var(--gold-muted), 0.35);
-  color: #f0e6d2;
+  color: var(--text-cream);
   padding: 0.12rem 0.35rem 0.12rem 0.5rem;
   border-radius: 10px;
   font-size: 0.8rem;
@@ -204,7 +204,7 @@
 }
 .w-tf-chip-x {
   background: none; border: none; color: rgba(232, 222, 196, 0.75);
-  font-size: 1rem; line-height: 1; cursor: pointer;
+  font-size: var(--text-base); line-height: 1; cursor: pointer;
   padding: 0 0.15rem; border-radius: 3px;
 }
 .w-tf-chip-x:hover { color: #fff; background: rgba(255, 120, 120, 0.3); }

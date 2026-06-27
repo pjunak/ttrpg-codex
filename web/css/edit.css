@@ -27,7 +27,7 @@
   align-items: center;
   gap: 0.4rem;
   font-family: var(--font-ui);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   letter-spacing: 0.02em;
   color: var(--accent-gold);
   background: rgba(var(--accent-gold-rgb), 0.10);
@@ -143,8 +143,8 @@ body:not(.is-dm) .sidebar-nav-dm { display: none; }
 }
 .role-badge-impersonating {
   background: rgba(180,40,40,0.15);
-  border: 1px solid #c44;
-  color: #f88;
+  border: 1px solid var(--color-danger-bd);
+  color: var(--color-danger-bright);
 }
 .role-badge-player {
   background: rgba(60,140,200,0.12);
@@ -178,7 +178,7 @@ body:not(.is-dm) .sidebar-nav-dm { display: none; }
   border-radius: var(--radius);
   padding: 0.5rem 0.85rem;
   font-family: var(--font-ui);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   letter-spacing: 0.03em;
   color: var(--accent-gold);
   cursor: pointer;
@@ -187,7 +187,7 @@ body:not(.is-dm) .sidebar-nav-dm { display: none; }
 }
 .topbar-login:hover { background: rgba(var(--accent-gold-rgb), 0.22); }
 .topbar-login:active { transform: translateY(1px); }
-.topbar-login-icon { font-size: 1rem; }
+.topbar-login-icon { font-size: var(--text-base); }
 /* Sits above the impersonation banner (which only renders for
    DM-in-player-view, mutually exclusive with anonymous so no overlap
    in practice — but the z-index ordering keeps things robust). */
@@ -245,7 +245,7 @@ body.is-impersonating { padding-top: 36px; }
 .card-twin-marker {
   display: inline-block;
   font-size: 0.72rem;
-  color: var(--accent-gold-dim, #ad8a4b);
+  color: var(--accent-gold-dim);
   background: rgba(var(--accent-gold-rgb), 0.12);
   border: 1px solid rgba(var(--accent-gold-rgb), 0.32);
   border-radius: 999px;
@@ -298,7 +298,7 @@ body:not(.is-dm) .edit-hdr-twin { display: none; }
   margin: 1rem 0;
 }
 .visibility-section .edit-section-title {
-  color: #f88;
+  color: var(--color-danger-bright);
 }
 .dm-twin-row {
   display: flex;
@@ -336,16 +336,16 @@ body:not(.is-dm) .edit-hdr-twin { display: none; }
 .dm-twin-btn {
   border-radius: 4px;
   padding: 0.3rem 0.7rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   font-family: var(--font-ui);
   background: rgba(180,40,40,0.12);
   border: 1px solid rgba(180,40,40,0.45);
-  color: #f88;
+  color: var(--color-danger-bright);
 }
 .dm-twin-btn:hover {
   background: rgba(180,40,40,0.22);
-  border-color: #c44;
+  border-color: var(--color-danger-bd);
 }
 /* "Připojit twin" — unlinked state. Red signals "needs attention". */
 .dm-twin-btn-link {
@@ -390,7 +390,7 @@ body:not(.is-dm) .edit-hdr-twin { display: none; }
 .twin-picker-btn {
   border-radius: 4px;
   padding: 0.4rem 0.8rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   font-family: var(--font-ui);
 }
@@ -509,7 +509,7 @@ body.twin-picker-open { overflow: hidden; }
 }
 .dm-section-hint {
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   margin: 0 0 1rem;
 }
 .dm-grid {
@@ -536,10 +536,10 @@ body.twin-picker-open { overflow: hidden; }
   border-color: rgba(180,40,40,0.5);
 }
 .dm-count-card.has-dm:hover {
-  border-color: #c44;
+  border-color: var(--color-danger-bd);
 }
 .dm-count-label {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .dm-count-numbers {
@@ -550,7 +550,7 @@ body.twin-picker-open { overflow: hidden; }
   color: var(--accent-gold);
 }
 .dm-count-card.has-dm .dm-count-numbers strong {
-  color: #f88;
+  color: var(--color-danger-bright);
 }
 .dm-count-meta {
   font-size: 0.7rem;
@@ -576,7 +576,7 @@ body.twin-picker-open { overflow: hidden; }
    when an entity has a linked twin. Players never get the field
    server-side so the row is naturally absent for them. */
 .wiki-side .wiki-facts a[href*="#/"][data-twin] {
-  color: #f88;
+  color: var(--color-danger-bright);
 }
 
 /* Mobile bottom-nav edit toggle removed in the per-page edit
@@ -743,11 +743,11 @@ body.twin-picker-open { overflow: hidden; }
     padding: 0.4rem 0.6rem;
     gap: 0.5rem;
   }
-  .edit-form-title { font-size: 1rem; }
+  .edit-form-title { font-size: var(--text-base); }
 }
 .edit-form-title {
   font-family: var(--font-title);
-  font-size: 1.2rem;
+  font-size: var(--text-lg);
   color: var(--accent-gold);
   flex: 1;
   margin: 0;
@@ -827,7 +827,7 @@ body.twin-picker-open { overflow: hidden; }
   border: none;
   font-family: var(--font-ui);
   font-size: 0.7rem;
-  color: #ef9a9a;
+  color: var(--color-danger);
   cursor: pointer;
   text-align: center;
   padding: 0.2rem;
@@ -860,7 +860,7 @@ body.twin-picker-open { overflow: hidden; }
   border-radius: var(--radius);
   padding: 0.5rem 0.65rem;
   font-family: var(--font-body);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-parchment);
   width: 100%;
   transition: border-color 0.15s;
@@ -911,6 +911,15 @@ body.twin-picker-open { overflow: hidden; }
   letter-spacing: 0.1em;
   text-transform: uppercase;
   margin-bottom: 0.15rem;
+}
+/* Addon-contributed editor fields (registerEditorFields). The host fills the
+   .addon-editor-fields slot with one .addon-editor-section per addon, each
+   usually wrapping an .edit-section. The empty slot collapses; a subtle gold
+   left rule marks the content as addon-provided. */
+.addon-editor-fields:empty { display: none; }
+.addon-editor-section > .edit-section {
+  border-left: 2px solid rgba(var(--accent-gold-rgb), 0.35);
+  padding-left: var(--space-3);
 }
 .edit-hint {
   font-family: var(--font-ui);
@@ -966,9 +975,9 @@ body.twin-picker-open { overflow: hidden; }
 .rel-delete-btn {
   background: none;
   border: none;
-  color: #ef9a9a;
+  color: var(--color-danger);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: var(--text-base);
   padding: 0 0.15rem;
   opacity: 0.5;
   transition: opacity 0.12s;
@@ -1021,8 +1030,8 @@ body.twin-picker-open { overflow: hidden; }
 .edit-add-btn:hover { background: rgba(var(--accent-gold-rgb), 0.18); }
 .edit-delete-btn {
   background: none;
-  border: 1px solid rgba(139,0,0,0.35);
-  color: #ef9a9a;
+  border: 1px solid rgba(var(--status-dead-rgb), 0.35);
+  color: var(--color-danger);
   border-radius: var(--radius);
   padding: 0.45rem 1rem;
   font-family: var(--font-ui);
@@ -1030,7 +1039,7 @@ body.twin-picker-open { overflow: hidden; }
   cursor: pointer;
   transition: background 0.15s;
 }
-.edit-delete-btn:hover { background: rgba(139,0,0,0.2); }
+.edit-delete-btn:hover { background: rgba(var(--status-dead-rgb), 0.2); }
 
 /* ── Edit toast ──────────────────────────────────────────────── */
 .edit-toast {
@@ -1053,8 +1062,8 @@ body.twin-picker-open { overflow: hidden; }
   transition: opacity 0.2s, transform 0.2s;
 }
 .edit-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
-.edit-toast.ok   { border-color: rgba(46,125,50,0.5);  color: #a5d6a7; }
-.edit-toast.err  { border-color: rgba(139,0,0,0.5);    color: #ef9a9a; }
+.edit-toast.ok   { border-color: rgba(var(--status-alive-rgb), 0.5);  color: var(--color-success); }
+.edit-toast.err  { border-color: rgba(var(--status-dead-rgb), 0.5);    color: var(--color-danger); }
 .edit-toast-msg { margin-right: 0.6rem; }
 .edit-toast-action {
   background: rgba(var(--accent-gold-rgb), 0.15);
@@ -1112,7 +1121,7 @@ body.twin-picker-open { overflow: hidden; }
 /* Broken `[[...]]` wiki-link — resolver found no match. Dashed red
    underline so the GM notices and can fix the reference. */
 .wlink-missing {
-  color: #ef9a9a;
+  color: var(--color-danger);
   text-decoration: underline dashed rgba(239,154,154,0.6);
   text-underline-offset: 3px;
   cursor: help;
@@ -1252,11 +1261,11 @@ body.twin-picker-open { overflow: hidden; }
 .EasyMDEContainer .cm-strong      { color: #ffd28a; }
 .EasyMDEContainer .cm-em          { color: #e6c787; font-style: italic; }
 .EasyMDEContainer .cm-link,
-.EasyMDEContainer .cm-url         { color: #90caf9; }
-.EasyMDEContainer .cm-quote       { color: #ce93d8; font-style: italic; }
+.EasyMDEContainer .cm-url         { color: var(--color-info); }
+.EasyMDEContainer .cm-quote       { color: var(--color-mystery); font-style: italic; }
 .EasyMDEContainer .cm-comment,
 .EasyMDEContainer .cm-formatting  { color: var(--text-muted); }
-.EasyMDEContainer .cm-variable-2  { color: #a5d6a7; }  /* list markers */
+.EasyMDEContainer .cm-variable-2  { color: var(--color-success); }  /* list markers */
 
 .EasyMDEContainer .editor-statusbar {
   color: var(--text-muted);
@@ -1285,7 +1294,7 @@ body.twin-picker-open { overflow: hidden; }
 .EasyMDEContainer .editor-preview-side h2,
 .EasyMDEContainer .editor-preview-side h3 { color: var(--accent-gold); }
 .EasyMDEContainer .editor-preview a,
-.EasyMDEContainer .editor-preview-side a { color: #90caf9; }
+.EasyMDEContainer .editor-preview-side a { color: var(--color-info); }
 .EasyMDEContainer .editor-preview blockquote,
 .EasyMDEContainer .editor-preview-side blockquote {
   border-left: 3px solid rgba(var(--accent-gold-rgb), 0.5);
@@ -1362,7 +1371,7 @@ body.twin-picker-open { overflow: hidden; }
   border-radius: 6px;
   color: var(--text-parchment);
   font-family: var(--font-body);
-  font-size: 1rem;
+  font-size: var(--text-base);
   padding: 0.55rem 0.75rem;
   outline: none;
 }
@@ -1374,7 +1383,7 @@ body.twin-picker-open { overflow: hidden; }
   color: var(--text-parchment);
   cursor: pointer;
   width: 2.4rem;
-  font-size: 1rem;
+  font-size: var(--text-base);
 }
 .pw-toggle:hover { background: rgba(var(--accent-gold-rgb), 0.08); }
 .pw-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
@@ -1384,7 +1393,7 @@ body.twin-picker-open { overflow: hidden; }
   border-radius: 6px;
   color: var(--text-parchment);
   font-family: var(--font-ui);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   padding: 0.45rem 0.95rem;
   cursor: pointer;
 }
@@ -1481,7 +1490,7 @@ body.twin-picker-open { overflow: hidden; }
   box-sizing: border-box;
 }
 .pet-modal-input:focus { border-color: var(--accent-gold); outline: none; }
-.pet-modal-emoji { width: 4.5rem; text-align: center; font-size: 1.2rem; }
+.pet-modal-emoji { width: 4.5rem; text-align: center; font-size: var(--text-lg); }
 .pet-modal-actions {
   display: flex; align-items: center; gap: 0.5rem;
   margin-top: 0.4rem;
@@ -1493,7 +1502,7 @@ body.twin-picker-open { overflow: hidden; }
   border-radius: 6px;
   color: var(--text-parchment);
   font-family: var(--font-ui);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   padding: 0.45rem 0.95rem;
   cursor: pointer;
 }

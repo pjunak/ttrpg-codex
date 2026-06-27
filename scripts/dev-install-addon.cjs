@@ -77,8 +77,11 @@ if (!entry) {
     name: manifest.name, version: manifest.version,
     apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
     entry: manifest.entry, server: manifest.server || null,
+    serverDeps: Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [],
     activeHash: hash, versions: [versionRec],
     enabled: true, grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
+    dependencies: (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {},
+    collections: Broker.normalizeCollections(manifest.collections),
     schemaVersion: 0, installedAt: Date.now(),
   };
   reg.addons.push(entry);
@@ -86,6 +89,9 @@ if (!entry) {
   Object.assign(entry, {
     name: manifest.name, version: manifest.version, apiVersion: manifest.apiVersion,
     entry: manifest.entry, server: manifest.server || null, activeHash: hash, enabled: true,
+    serverDeps: Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [],
+    dependencies: (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {},
+    collections: Broker.normalizeCollections(manifest.collections),
   });
   if (!Array.isArray(entry.versions)) entry.versions = [];
   if (!entry.versions.some(x => x.contentHash === hash)) entry.versions.push(versionRec);
