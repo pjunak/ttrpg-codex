@@ -5,8 +5,9 @@ project's conventions, and the typical recipes you'll need.
 
 ## Prerequisites
 
-- **Node.js 20+** ([install](https://nodejs.org/en/download)) for
-  running the server and the test suite without Docker.
+- **Node.js 24+** ([install](https://nodejs.org/en/download)) — 26 recommended
+  (the Docker image runs `node:26-slim`) — for running the server and the test
+  suite without Docker.
 - **Docker + Docker Compose** ([install](https://docs.docker.com/engine/install/),
   [compose docs](https://docs.docker.com/compose/)) for the deployment
   flow and to mirror what production runs.

@@ -9,7 +9,7 @@ already know your way around Compose + reverse proxies, skim to the
 
 | Topic | Value |
 |---|---|
-| Runtime | Node 20 inside a Docker container |
+| Runtime | Node 26 inside a Docker container |
 | Memory | ~256 MB / 0.5 CPU is plenty |
 | Disk | A few MB of code + however much your campaign grows; tile pyramids dominate (≈3-5× the source map image) |
 | Persistent volumes | `./data` and `./data-snapshots` |

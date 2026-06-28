@@ -9,7 +9,7 @@ loop see [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
 | Layer | Technology |
 |---|---|
-| HTTP server | Node.js 20 + Express 4 ([`server.js`](../server.js)) |
+| HTTP server | Node.js 26 + Express 5 ([`server.js`](../server.js)) |
 | Frontend | Vanilla ES6 modules — no bundler, no framework |
 | Storage | One JSON file per collection in `data/` |
 | Sync | Server-Sent Events (`/api/events`) |
