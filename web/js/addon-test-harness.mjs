@@ -64,19 +64,32 @@ export function createMockHost(meta = {}, opts = {}) {
   const fx  = opts.fixtures || {};
   const get = (k) => Array.isArray(fx[k]) ? fx[k] : [];
 
-  // Mirror the REAL scoped-CRUD shape (so author tests don't pass on the mock
-  // then break in production): get() filters by id, save() generates a missing
-  // id + stamps updatedAt and returns the stored record.
+  // A MUTABLE backing store for the scoped-CRUD mock, seeded from fixtures.
+  // save()/remove() actually mutate it (and getCollection reads it) so a
+  // "save then read back" author test behaves like production instead of
+  // silently passing on a no-op mock.
+  const _collStore = {};
+  const _coll = (name) => (_collStore[name] || (_collStore[name] = get('collection:' + name).slice()));
+
+  // Mirror the REAL scoped-CRUD shape: get() filters by id, save() generates a
+  // missing id + stamps updatedAt + upserts, remove() deletes by id.
   const collectionHandle = (name) => ({
-    list:   () => get('collection:' + name).slice(),
-    get:    (itemId) => get('collection:' + name).find(x => x && x.id === itemId) || null,
+    list:   () => _coll(name).slice(),
+    get:    (itemId) => _coll(name).find(x => x && x.id === itemId) || null,
     save:   (item) => {
-      const rec = { ...item };
-      if (!rec.id) rec.id = _slugify((item && item.name) || name) + '_mock';
-      rec.updatedAt = 0;
-      return rec;
+      const arr = _coll(name);
+      const r = { ...item };
+      if (!r.id) r.id = _slugify((item && item.name) || name) + '_mock';
+      r.updatedAt = 0;
+      const i = arr.findIndex(x => x && x.id === r.id);
+      if (i >= 0) arr[i] = r; else arr.push(r);
+      return r;
     },
-    remove: () => {},
+    remove: (itemId) => {
+      const arr = _coll(name);
+      const i = arr.findIndex(x => x && x.id === itemId);
+      if (i >= 0) arr.splice(i, 1);
+    },
   });
 
   const host = {
@@ -106,7 +119,7 @@ export function createMockHost(meta = {}, opts = {}) {
       getEvents:     () => get('events'),
       getMysteries:  () => get('mysteries'),
       getFactions:   () => fx.factions || {},
-      getCollection: (n) => get('collection:' + n),
+      getCollection: (n) => _coll(n).slice(),
       collection:    (n) => collectionHandle(n),
       // Real patchAddonData returns the SAVED ENTITY ({...entity, addonData}),
       // not the namespace — mirror that so a renderer reading `.addonData[id]`

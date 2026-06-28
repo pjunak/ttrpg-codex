@@ -1674,9 +1674,12 @@ const _addonServers    = new Map();   // id -> { id, router, state, hash }   (li
 const _serverLoadState = new Map();   // id -> { state, error }              (boot load outcome, for the Manager)
 
 // A data helper bound to the addon's isolated dir; a collection name maps to
-// data/addon-data/<id>/<name>.json. Tight name regex = the path-safety gate.
+// data/addon-data/<id>/<name>.json. Uses the SAME grammar as the client wire
+// type (AddonBroker.COLLECTION_NAME_RE, no hyphens) so server-side and
+// client-side addon collections can't drift into two namespaces; the tight
+// regex is also the path-safety gate.
 function _addonDataPath(dataDir, name) {
-  if (typeof name !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,39}$/.test(name)) return null;
+  if (typeof name !== 'string' || !AddonBroker.COLLECTION_NAME_RE.test(name)) return null;
   return _safeJoinIn(dataDir, name + '.json');
 }
 
@@ -1704,6 +1707,11 @@ function _makeServerHost(entry) {
         try { return JSON.parse(await fsp.readFile(p, 'utf8')); }
         catch (e) { if (e.code === 'ENOENT') return null; throw e; }
       },
+      // NB: write() already runs inside withWriteLock. The mutex is NOT
+      // reentrant — do NOT call host.data.write from inside host.withLock(...)
+      // or it deadlocks the whole write chain. To do several writes in one
+      // critical section, use host.withLock + host.data.dir + your own
+      // _atomicWrite, not nested host.data.write calls.
       write: (name, obj) => withWriteLock(async () => {
         const p = _addonDataPath(dataDir, name);
         if (!p) throw new Error(`unsafe data name "${name}"`);
@@ -1732,7 +1740,7 @@ function _makeServerHost(entry) {
       }
       return require(name);
     },
-    withLock: (fn) => withWriteLock(fn),
+    withLock: (fn) => withWriteLock(fn),   // serialize a critical section — NOT reentrant (don't nest host.data.write inside; it locks too)
     broadcastDataChanged: () => _broadcastDataChanged(),
     log: (...args) => console.log(`[addon ${id}]`, ...args),
   };
@@ -1849,10 +1857,12 @@ async function _pruneAllAddonCode() {
   }
 }
 
-// Fetch → validate → content-hash → stage → atomic-promote to
-// data/addons/<id>/<hash>/. Caller holds the write lock. Returns the
-// updated registry entry; throws (400-worthy) on any validation miss.
-async function _installAddon(repo, ref, pinnedSha) {
+// Phase 1 — staging (NO write lock): fetch → validate → content-hash → stage to
+// .incoming → run the server test green-gate. The network I/O and the (up to
+// 30 s) test run happen HERE, outside the lock, so installing an addon never
+// blocks other clients' saves/snapshots. Returns a staging descriptor for
+// _promoteAddon; throws (400-worthy) on any validation miss.
+async function _stageAddon(repo, ref, pinnedSha) {
   const token  = process.env.GITHUB_TOKEN || '';
   const useRef = ref || 'HEAD';
   // Pin to the exact reviewed commit when the wizard passes the previewed sha
@@ -1901,10 +1911,12 @@ async function _installAddon(repo, ref, pinnedSha) {
   // activate (the existing stage→rename pipeline makes "revert" free).
   //
   // Running these tests EXECUTES addon code on the host, so we only do it when
-  // the addon is actually granted `server:code` (an addon without it never runs
-  // server code anyway, so there's nothing to gate) — and the spawned process
-  // gets a SCRUBBED env so the addon's tests can't read GITHUB_TOKEN / passwords
-  // / other secrets. Self-contained (no node_modules in staging), time-capped.
+  // the addon will actually run server code — i.e. is granted `server:code`. At
+  // install the grant set == the manifest's requested permissions (all-or-
+  // nothing), so reading the manifest here IS reading the grant; if per-
+  // permission deny ever lands, gate this on the GRANTED set instead. The
+  // spawned process gets a SCRUBBED env so the addon's tests can't read
+  // GITHUB_TOKEN / passwords. Self-contained (no node_modules in staging), capped.
   const serverTestDecl = manifest.tests && manifest.tests.server;
   const grantsServerCode = Array.isArray(manifest.permissions) && manifest.permissions.includes('server:code');
   if (serverTestDecl && grantsServerCode) {
@@ -1918,6 +1930,16 @@ async function _installAddon(repo, ref, pinnedSha) {
       throw new Error(`serverové testy doplňku ${why}`);
     }
   }
+
+  return { repo, useRef, sha, manifest, id, hash, incoming, finalDir };
+}
+
+// Phase 2 — promote (caller HOLDS the write lock): atomic-rename the staged tree
+// into the content-addressed dir, then the registry read-modify-write + live
+// collection wiring + version prune. Only this fast, disk-local phase is
+// serialized. Returns the updated registry entry.
+async function _promoteAddon(staged) {
+  const { repo, useRef, sha, manifest, id, hash, incoming, finalDir } = staged;
 
   await fsp.rm(finalDir, { recursive: true, force: true }).catch(() => {});
   await fsp.rename(incoming, finalDir);
@@ -2021,15 +2043,22 @@ app.post('/api/addons/resolve', async (req, res) => {
     return res.status(400).json({ error: 'Neplatné id doplňku.' });
   }
   try {
-    const resolutions = await withWriteLock(async () => {
+    const result = await withWriteLock(async () => {
       const reg = await _readAddonsRegistry();
+      // A winner addonId must actually be installed — otherwise the conflict
+      // would "resolve" to a claim that doesn't exist (a silent no-op that
+      // still reads as resolved). Give the DM real feedback instead.
+      if (!clear && winner !== null && !reg.addons.some(a => a.id === winner)) {
+        return { ok: false, error: 'Vybraný doplněk není nainstalovaný.' };
+      }
       if (clear) delete reg.resolutions[target];
       else       reg.resolutions[target] = winner;   // addonId | null
       await _writeAddonsRegistry(reg);
-      return reg.resolutions;
+      return { ok: true, resolutions: reg.resolutions };
     });
+    if (!result.ok) return res.status(400).json({ error: result.error });
     _broadcast('addons-changed', { at: Date.now() });
-    res.json({ ok: true, resolutions });
+    res.json({ ok: true, resolutions: result.resolutions });
   } catch (e) {
     console.error('POST /api/addons/resolve:', e);
     res.status(500).json({ error: 'Write error' });
@@ -2102,6 +2131,9 @@ app.post('/api/addons/:id/rollback', async (req, res) => {
       const codeDirExists = codeDir ? await fsp.access(codeDir).then(() => true, () => false) : false;
       if (!codeDirExists) return { status: 400, error: 'Kód cílové verze chybí (znovu nainstaluj).' };
 
+      // Restore the structural fields from the kept version record. These were
+      // validated at THAT version's install; the runtime path-safety net is
+      // _loadServerAddon's _safeJoinIn on entry.server/entry.entry at (re)load.
       entry.activeHash = target.contentHash;
       entry.version    = target.version || entry.version;
       entry.sha        = target.sha || entry.sha;
@@ -2166,7 +2198,10 @@ app.post('/api/addons/install', async (req, res) => {
   // while `ref` (the branch/tag) is what we store for future update checks.
   const pinnedSha = (req.body && typeof req.body.sha === 'string') ? req.body.sha : undefined;
   try {
-    const entry = await withWriteLock(() => _installAddon(repo, ref, pinnedSha));
+    // Stage outside the lock (network + tests must not block other writers),
+    // then promote under it (fast, disk-local registry mutation).
+    const staged = await _stageAddon(repo, ref, pinnedSha);
+    const entry  = await withWriteLock(() => _promoteAddon(staged));
     _broadcast('addons-changed', { at: Date.now() });
     res.json({ ok: true, addon: { id: entry.id, version: entry.version, activeHash: entry.activeHash } });
   } catch (e) {
@@ -2263,11 +2298,14 @@ app.delete('/api/addons/:id', async (req, res) => {
         if (reg.resolutions[k] === id) reg.resolutions[k] = null;
       }
       await _writeAddonsRegistry(reg);
-      if (_safeJoinIn(ADDONS_DIR, id)) {
-        await fsp.rm(path.join(ADDONS_DIR, id), { recursive: true, force: true }).catch(() => {});
-      }
-      if (purge && _safeJoinIn(ADDON_DATA_DIR, id)) {
-        await fsp.rm(path.join(ADDON_DATA_DIR, id), { recursive: true, force: true }).catch(() => {});
+      // Remove with the VALIDATED joined path (the _safeJoinIn contract), not a
+      // freshly recomputed path.join — id is ID_RE-checked so they're equal here,
+      // but using the safe result is the intended pattern.
+      const codeDir = _safeJoinIn(ADDONS_DIR, id);
+      if (codeDir) await fsp.rm(codeDir, { recursive: true, force: true }).catch(() => {});
+      if (purge) {
+        const dataDir = _safeJoinIn(ADDON_DATA_DIR, id);
+        if (dataDir) await fsp.rm(dataDir, { recursive: true, force: true }).catch(() => {});
       }
       _applyAddonCollections(reg);   // removed addon's wire types go away
       _addonServers.delete(id);      // stop serving its endpoints at once
@@ -2954,7 +2992,11 @@ app.use('/api/addon/:addonId', (req, res, next) => {
   // "a server addon throw is isolated" invariant has to hold at request time too.
   try {
     entry.router(req, res, (err) => {
-      if (err) { console.error(`[addon ${req.params.addonId}] route error`, err); if (!res.headersSent) return res.status(500).json({ error: 'Addon route error' }); return; }
+      if (err) {
+        console.error(`[addon ${req.params.addonId}] route error`, err);
+        if (!res.headersSent) res.status(500).json({ error: 'Addon route error' });
+        return;
+      }
       if (!res.headersSent) res.status(404).json({ error: 'Addon route not found' });
     });
   } catch (e) {

@@ -20,6 +20,17 @@
 
 const MAX_OUTPUT = 200_000;   // keep the tail of noisy output, bounded
 
+// Env keys that must never reach a spawned addon test process. server.js passes
+// its own _scrubbedChildEnv(); but this helper runs UNTRUSTED addon code, so its
+// OWN default (when a caller omits `env`) must also be scrubbed — never a
+// verbatim process.env that would leak GITHUB_TOKEN / passwords / session keys.
+const SECRET_ENV_RE = /(TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|PRIVATE|SESSION|APIKEY|API_KEY)/i;
+function _scrubEnv(env) {
+  const out = {};
+  for (const k of Object.keys(env || {})) if (!SECRET_ENV_RE.test(k)) out[k] = env[k];
+  return out;
+}
+
 /**
  * Spawn `node --test <paths>` in `cwd`, capped by `timeoutMs`.
  *
@@ -42,7 +53,9 @@ function runNodeTests(cwd, paths, { spawn, timeoutMs = 30_000, execPath, env } =
     // a `node --test` run, a nested `node --test` would inherit that and run in
     // a degraded mode that skips AWAITING async tests (silently passing them).
     // Stripping it guarantees the gate actually runs the addon's tests.
-    const childEnv = { ...(env || process.env) };
+    // Caller-supplied env is taken as-is (server.js already scrubbed it);
+    // otherwise the default is a SCRUBBED process.env, not a verbatim one.
+    const childEnv = env ? { ...env } : _scrubEnv(process.env);
     delete childEnv.NODE_TEST_CONTEXT;
     let out = '';
     let timedOut = false;

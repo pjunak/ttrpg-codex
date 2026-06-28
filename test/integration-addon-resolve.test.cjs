@@ -9,7 +9,10 @@ const assert   = require('node:assert/strict');
 const { startServer } = require('./helpers/server-process.cjs');
 
 const DM = 'dm-pw', PLAYER = 'player-pw';
-const seed = () => ({ 'addons.json': { schema: 1, addons: [], resolutions: {}, sources: { allow: [] } } });
+// A 'sheet' addon is installed so it's a VALID resolution winner (the server
+// rejects a winner that isn't installed — see the dedicated test below).
+const sheetAddon = { id: 'sheet', name: 'Sheet', version: '0.1.0', apiVersion: 1, enabled: true, activeHash: 'h1', entry: 'entry.js', grantedPermissions: [] };
+const seed = () => ({ 'addons.json': { schema: 1, addons: [sheetAddon], resolutions: {}, sources: { allow: [] } } });
 
 async function login(srv, pw) {
   const r = await srv.fetch('/api/login', {
@@ -65,5 +68,18 @@ test('a forbidden target key is rejected (400)', async () => {
   try {
     await login(srv, DM);
     assert.equal((await resolve(srv, { target: '__proto__', winner: 'sheet' })).status, 400);
+  } finally { await srv.kill(); }
+});
+
+test('a winner that is not installed is rejected (400) — no silent no-op resolution', async () => {
+  const srv = await startServer({ dmPassword: DM, seedData: seed() });
+  try {
+    await login(srv, DM);
+    // 'ghost' isn't in the registry — resolving to it would otherwise read as
+    // resolved while applying nothing.
+    assert.equal((await resolve(srv, { target: 'characters:body', winner: 'ghost' })).status, 400);
+    assert.equal('characters:body' in (await getResolutions(srv)), false, 'nothing was written');
+    // but the real installed addon resolves fine:
+    assert.equal((await resolve(srv, { target: 'characters:body', winner: 'sheet' })).status, 200);
   } finally { await srv.kill(); }
 });

@@ -129,6 +129,48 @@ test('ctx (entity) is threaded into render with the fragment target added', () =
   assert.equal(seen.target, 'characters:body');
 });
 
+test('one addon claiming TWO exclusive ops on one target is NOT a conflict (its dup is a failure)', () => {
+  const claims = [
+    { addonId: 'a', target: 'characters:body', op: 'replace', render: () => 'A' },
+    { addonId: 'a', target: 'characters:body', op: 'hide' },   // same addon's 2nd exclusive claim
+  ];
+  const r = applyFragmentOps(frags(), claims, {});
+  assert.equal(r.fragments.find(f => f.id === 'characters:body').html, 'A', 'first exclusive applies, not a stalemate');
+  assert.equal(r.conflicts.length, 0, 'one addon can not conflict with itself');
+  assert.equal(r.failures.length, 1);
+  assert.equal(r.failures[0].addonId, 'a');
+  assert.equal(listConflicts(claims, {}).length, 0, 'and it is not a standing Manager conflict');
+});
+
+test('wrap: equal order falls back to a deterministic addonId tiebreak', () => {
+  // Registration order is reversed (z before a) to prove the OUTPUT order is by
+  // addonId, not by load/registration order.
+  const claims = [
+    { addonId: 'z', target: 'characters:body', op: 'wrap', order: 1, render: (h) => `z(${h})` },
+    { addonId: 'a', target: 'characters:body', op: 'wrap', order: 1, render: (h) => `a(${h})` },
+  ];
+  const r = applyFragmentOps(frags(), claims, {});
+  // addonId asc → a applies first (inner), z second (outer).
+  assert.equal(r.fragments.find(f => f.id === 'characters:body').html, 'z(a(<body>))');
+});
+
+test('insert: equal order falls back to a deterministic addonId tiebreak', () => {
+  const claims = [
+    { addonId: 'b', target: 'characters:body', op: 'insert', position: 'after', order: 1, render: () => 'B' },
+    { addonId: 'a', target: 'characters:body', op: 'insert', position: 'after', order: 1, render: () => 'A' },
+  ];
+  const r = applyFragmentOps(frags(), claims, {});
+  assert.deepEqual(r.fragments.map(f => f.html), ['<vazby>', '<otazky>', '<body>', 'A', 'B']);
+});
+
+test('insert with no render fn is reported as a failure, not silently dropped', () => {
+  const claims = [{ addonId: 'a', target: 'characters:body', op: 'insert', position: 'after' }];
+  const r = applyFragmentOps(frags(), claims, {});
+  assert.equal(r.failures.length, 1);
+  assert.equal(r.failures[0].op, 'insert');
+  assert.deepEqual(r.fragments.map(f => f.html), ['<vazby>', '<otazky>', '<body>'], 'nothing inserted');
+});
+
 // ── listConflicts (the Manager's eager source) ────────────────────
 test('listConflicts: only ≥2 exclusive claims on a target count', () => {
   const claims = [

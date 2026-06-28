@@ -17,14 +17,22 @@ export function depRange(spec) {
 }
 
 export function parseVer(v) {
+  // NOTE: a pre-release suffix is intentionally ignored — `1.2.0-alpha`
+  // parses to [1,2,0] and is treated as its release. Real semver excludes
+  // pre-releases from ranges that don't name one; we accept the
+  // simplification because this addon ecosystem is solo-authored and
+  // pre-release deps are vanishingly unlikely. Pinned by a test so it's a
+  // known choice, not an accident.
   const m = String(v == null ? '' : v).match(/(\d+)\.(\d+)\.(\d+)/);
   return m ? [+m[1], +m[2], +m[3]] : null;
 }
 function _cmp(a, b) { for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0; }
 
 /** Minimal semver-range check covering the common forms: "" / "*" (any),
- *  exact "x.y.z", ">=x.y.z", "^x.y.z" (same major, >=), "~x.y.z" (same
- *  major+minor, >=). Unknown forms / unparseable versions don't block. */
+ *  exact "x.y.z", comparators >= > <= < , "^x.y.z" (caret), "~x.y.z" (tilde),
+ *  and X-ranges "M.x" / "M.m.x" (also `*`). Compound forms we deliberately
+ *  DON'T parse — hyphen ranges ("1 - 2") and OR ("^1 || ^2") — fall through to
+ *  permissive `true` (documented; an unparseable version also doesn't block). */
 export function satisfies(version, range) {
   range = String(range || '').trim();
   if (!range || range === '*') return true;
@@ -32,6 +40,9 @@ export function satisfies(version, range) {
   if (!v) return true;
   let m;
   if ((m = range.match(/^>=\s*(\d+\.\d+\.\d+)$/)))      return _cmp(v, parseVer(m[1])) >= 0;
+  if ((m = range.match(/^>\s*(\d+\.\d+\.\d+)$/)))       return _cmp(v, parseVer(m[1])) > 0;
+  if ((m = range.match(/^<=\s*(\d+\.\d+\.\d+)$/)))      return _cmp(v, parseVer(m[1])) <= 0;
+  if ((m = range.match(/^<\s*(\d+\.\d+\.\d+)$/)))       return _cmp(v, parseVer(m[1])) < 0;
   if ((m = range.match(/^\^\s*(\d+)\.(\d+)\.(\d+)$/))) {
     // Caret: >= the floor AND within the leftmost-non-zero component. Crucially
     // for 0.x (every early addon): ^0.2.3 = >=0.2.3 <0.3.0 (lock MINOR), and
@@ -43,6 +54,8 @@ export function satisfies(version, range) {
     return v[0] === 0 && v[1] === 0 && v[2] === r[2];         // ^0.0.p → exact
   }
   if ((m = range.match(/^~\s*(\d+)\.(\d+)\.(\d+)$/)))   { const r = [+m[1], +m[2], +m[3]]; return v[0] === r[0] && v[1] === r[1] && v[2] >= r[2]; }
+  if ((m = range.match(/^(\d+)\.(\d+)\.[xX*]$/)))       return v[0] === +m[1] && v[1] === +m[2];   // X-range M.m.x → lock minor
+  if ((m = range.match(/^(\d+)\.[xX*]$/)))              return v[0] === +m[1];                     // X-range M.x   → lock major
   if ((m = range.match(/^(\d+\.\d+\.\d+)$/)))           return _cmp(v, parseVer(m[1])) === 0;
   return true;
 }
@@ -98,10 +111,29 @@ export function planLoadOrder(list) {
     orderIds.push(id);
     for (const dep of dependents.get(id)) { indeg.set(dep, indeg.get(dep) - 1); if (indeg.get(dep) === 0) queue.push(dep); }
   }
-  // 4. anything left among the survivors is in a cycle
+  // 4. Survivors Kahn couldn't place are either IN a cycle or merely DOWNSTREAM
+  //    of one (they depend on a cycle but nothing depends back on them). Tell
+  //    them apart so the DM gets an accurate reason: peel "sink" nodes (no
+  //    other unplaced node depends on them) — a true cycle member always has a
+  //    dependent within the cycle, so it never peels. A self-dependency is a
+  //    trivial cycle and is pinned in place.
   const placed = new Set(orderIds);
-  const cycles = active.filter(a => !placed.has(a.id)).map(a => a.id);
-  for (const id of cycles) blocked.set(id, 'cyklická závislost');
+  const unplacedIds = active.filter(a => !placed.has(a.id)).map(a => a.id);
+  const cycleSet = new Set(unplacedIds);
+  const selfLoops = id => deps(byId.get(id)).some(d => d.id === id);
+  let peeled = true;
+  while (peeled) {
+    peeled = false;
+    for (const id of [...cycleSet]) {
+      if (selfLoops(id)) continue;
+      const hasUnplacedDependent = [...cycleSet].some(o => o !== id && deps(byId.get(o)).some(d => d.id === id));
+      if (!hasUnplacedDependent) { cycleSet.delete(id); peeled = true; }
+    }
+  }
+  const cycles = [...cycleSet];
+  for (const id of unplacedIds) {
+    blocked.set(id, cycleSet.has(id) ? 'cyklická závislost' : 'závislost je v cyklu');
+  }
 
   return { order: orderIds.map(id => byId.get(id)), blocked, cycles };
 }

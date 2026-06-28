@@ -87,7 +87,9 @@ export const Addons = (() => {
   };
   const _COLL_LABELS = {
     characters: 'postavy', locations: 'místa', events: 'události',
-    mysteries: 'záhady', factions: 'frakce',
+    mysteries: 'záhady', factions: 'frakce', species: 'druhy',
+    pantheon: 'panteon', artifacts: 'artefakty',
+    historicalEvents: 'historické události', pets: 'mazlíčci',
   };
   /** Human-readable Czech description of a permission token, for the
    *  DM-facing review checklist. Falls back to the raw token. */
@@ -126,6 +128,14 @@ export const Addons = (() => {
     };
     const tx = { undo: [] };
 
+    // Undo helpers — every register* records a reverser so a thrown register()
+    // (or a later unload / rollback) cleanly removes the addon's partial state.
+    // Centralised so a new register method can't ship an inconsistent reverser.
+    const _undoOwnedMap = (map, key) => tx.undo.push(() => { const e = map.get(key); if (e && e.addonId === id) map.delete(key); });
+    const _undoMap      = (map, key) => tx.undo.push(() => { map.delete(key); });
+    const _undoArr      = (arr, entry) => tx.undo.push(() => { const i = arr.indexOf(entry); if (i >= 0) arr.splice(i, 1); });
+    const _undoKindArr  = (map, key, entry) => tx.undo.push(() => { const arr = map.get(key); const i = arr ? arr.indexOf(entry) : -1; if (i >= 0) arr.splice(i, 1); });
+
     /** Register a top-level hash route. Needs `ui:route`. */
     function registerRoute(segment, render) {
       if (!has('ui:route')) deny('ui:route', 'registerRoute');
@@ -135,7 +145,7 @@ export const Addons = (() => {
       const cur = _routes.get(segment);
       if (cur && cur.addonId !== id) throw new Error(`registerRoute: "${segment}" already registered by addon "${cur.addonId}"`);
       _routes.set(segment, { addonId: id, render });
-      tx.undo.push(() => { const e = _routes.get(segment); if (e && e.addonId === id) _routes.delete(segment); });
+      _undoOwnedMap(_routes, segment);
     }
 
     /** Add a left-sidebar link (rendered under "Doplňky"). Needs `ui:sidebar`. */
@@ -144,7 +154,7 @@ export const Addons = (() => {
       if (!spec || typeof spec.route !== 'string' || !spec.route) throw new Error('registerSidebarPage: spec.route required');
       const entry = { icon: '🧩', section: 'doplnky', role: '', ...spec, addonId: id };
       _sidebarPages.push(entry);
-      tx.undo.push(() => { const i = _sidebarPages.indexOf(entry); if (i >= 0) _sidebarPages.splice(i, 1); });
+      _undoArr(_sidebarPages, entry);
     }
 
     /** Provide a renderer for a `Wiki.renderPage(kind)` page. Needs `ui:route`. */
@@ -155,7 +165,7 @@ export const Addons = (() => {
       const cur = _pageRenderers.get(kind);
       if (cur && cur.addonId !== id) throw new Error(`registerPageRenderer: "${kind}" already registered by "${cur.addonId}"`);
       _pageRenderers.set(kind, { addonId: id, render });
-      tx.undo.push(() => { const e = _pageRenderers.get(kind); if (e && e.addonId === id) _pageRenderers.delete(kind); });
+      _undoOwnedMap(_pageRenderers, kind);
     }
 
     /** Contribute a section to an entity article. ADDITIVE — multiple addons
@@ -170,7 +180,7 @@ export const Addons = (() => {
       lst.push(entry);
       lst.sort((a, b) => a.order - b.order);
       _articleSections.set(kind, lst);
-      tx.undo.push(() => { const arr = _articleSections.get(kind); const i = arr ? arr.indexOf(entry) : -1; if (i >= 0) arr.splice(i, 1); });
+      _undoKindArr(_articleSections, kind, entry);
     }
 
     /** Add a Settings special tab. Needs `ui:settings-tab`. `spec.render()`
@@ -181,7 +191,7 @@ export const Addons = (() => {
       const tabId = id + ':' + (spec.id || 'tab');
       if (_settingsTabs.has(tabId)) throw new Error(`registerSettingsTab: "${tabId}" already registered`);
       _settingsTabs.set(tabId, { id: tabId, label: spec.label || id, icon: spec.icon || '🧩', role: spec.role || '', render: spec.render, addonId: id });
-      tx.undo.push(() => { _settingsTabs.delete(tabId); });
+      _undoMap(_settingsTabs, tabId);
     }
 
     /** Register a namespaced action callable from `data-action="<id>:<name>"`
@@ -193,7 +203,7 @@ export const Addons = (() => {
       const key = id + ':' + name;
       if (_actions.has(key)) throw new Error(`registerAction: "${key}" already registered`);
       _actions.set(key, { addonId: id, fn });
-      tx.undo.push(() => { _actions.delete(key); });
+      _undoMap(_actions, key);
     }
 
     /** Declare an addon-owned collection so its scoped CRUD (host.store
@@ -202,7 +212,7 @@ export const Addons = (() => {
      *  truth for the wire type + isolated file) — registering an undeclared
      *  one throws. `keyed` comes from the manifest, not the caller. Needs
      *  `data:own`. */
-    function registerCollection(name, opts) {
+    function registerCollection(name) {
       if (!has('data:own')) deny('data:own', 'registerCollection');
       if (typeof name !== 'string' || !name) throw new Error('registerCollection: name required');
       const decl = (Array.isArray(meta.collections) ? meta.collections : []).find(c => c && c.name === name);
@@ -213,8 +223,7 @@ export const Addons = (() => {
       _collections.set(key, { addonId: id, name, keyed });
       // Backfill the local container so reads work before the first write.
       safe(() => Store.ensureCollection('addon:' + id + ':' + name, keyed), null);
-      tx.undo.push(() => { _collections.delete(key); });
-      void opts;
+      _undoMap(_collections, key);
     }
 
     /** A scoped CRUD handle for one of THIS addon's own collections. The
@@ -254,7 +263,7 @@ export const Addons = (() => {
       const lst = _editorFields.get(kind) || [];
       lst.push(entry);
       _editorFields.set(kind, lst);
-      tx.undo.push(() => { const arr = _editorFields.get(kind); const i = arr ? arr.indexOf(entry) : -1; if (i >= 0) arr.splice(i, 1); });
+      _undoKindArr(_editorFields, kind, entry);
     }
 
     /** Claim a fragment-override op on a decomposed built-in surface (e.g.
@@ -283,7 +292,7 @@ export const Addons = (() => {
         position: op === 'insert' ? (spec.position === 'before' ? 'before' : 'after') : null,
       };
       _fragmentOps.push(claim);
-      tx.undo.push(() => { const i = _fragmentOps.indexOf(claim); if (i >= 0) _fragmentOps.splice(i, 1); });
+      _undoArr(_fragmentOps, claim);
     }
 
     /** Resolve `[[Label|<scope>]]` wiki-links for a custom kind. `resolve(label)`
@@ -297,7 +306,7 @@ export const Addons = (() => {
       const cur = _wikiKinds.get(scope);
       if (cur && cur.addonId !== id) throw new Error(`registerWikiKind: "${scope}" already registered by "${cur.addonId}"`);
       _wikiKinds.set(scope, { addonId: id, resolve });
-      tx.undo.push(() => { const e = _wikiKinds.get(scope); if (e && e.addonId === id) _wikiKinds.delete(scope); });
+      _undoOwnedMap(_wikiKinds, scope);
     }
 
     /** Expose an API for dependent addons (host.use). Stored under this id. */
@@ -379,9 +388,15 @@ export const Addons = (() => {
    *  the list endpoint just means "no addons this session". */
   async function boot() {
     if (_booted) return;
-    _booted = true;
     const reg = await _fetchList();
-    _resolutions = reg.resolutions;
+    // A failed FIRST fetch (network blip / server mid-restart) must not latch
+    // "no addons" for the whole session — leave _booted false so a later
+    // reconcile (or an explicit retry) re-runs boot. Mirrors reconcile's
+    // !reg.ok guard; without this, _booted=true + an empty list = addons never
+    // load until an unrelated addons-changed SSE happens to fire.
+    if (!reg.ok) return;
+    _booted = true;
+    _resolutions = { ...reg.resolutions };   // copy: never mutate the fetch payload
     _unmatched.clear();
     const list = reg.addons.filter(a => a.enabled && a.entryUrl);
     const plan = planLoadOrder(list);
@@ -401,7 +416,7 @@ export const Addons = (() => {
     // changes only `resolutions` — flag that as a change so the caller
     // re-renders and the new winner actually applies.
     const resChanged = JSON.stringify(_resolutions) !== JSON.stringify(reg.resolutions);
-    if (resChanged) _resolutions = reg.resolutions;
+    if (resChanged) _resolutions = { ...reg.resolutions };   // copy: never mutate the fetch payload
     const list = reg.addons.filter(a => a.enabled && a.entryUrl);
     const enabledIds = new Set(list.map(a => a.id));
     let changed = resChanged;
@@ -550,13 +565,7 @@ export const Addons = (() => {
       }
     } catch (e) {
       console.error(`[addon ${entry.addonId}] route render failed`, e);
-      if (main) {
-        main.innerHTML =
-          `<div class="page-header"><h1>⚠ Doplněk selhal</h1></div>` +
-          `<p style="color:var(--text-muted);max-width:560px;margin:1rem 0">` +
-          `Doplněk <strong>${esc(entry.addonId)}</strong> selhal při vykreslování stránky: ` +
-          `${esc(e.message)}</p>`;
-      }
+      if (main) main.innerHTML = _errorPane(entry.addonId, e);
     }
     return true;
   }
@@ -584,13 +593,21 @@ export const Addons = (() => {
     const lst = _articleSections.get(kind);
     if (!lst || !lst.length) return [];
     const out = [];
+    // `seq` is the section's ordinal WITHIN its own addon (incremented for every
+    // registered section, even ones that render null) — so the fragment id
+    // `<kind>:addon:<addonId>:<seq>` a cross-targeting override claims stays
+    // stable regardless of load order / other addons interleaving. A bare array
+    // index would shift and silently turn such a claim into `unmatched`.
+    const seqByAddon = new Map();
     for (const e of lst) {
+      const seq = seqByAddon.get(e.addonId) || 0;
+      seqByAddon.set(e.addonId, seq + 1);
       try {
         const sec = e.fn(entity);
-        if (sec && typeof sec.html === 'string') out.push({ addonId: e.addonId, title: sec.title || '', html: sec.html });
+        if (sec && typeof sec.html === 'string') out.push({ addonId: e.addonId, seq, title: sec.title || '', html: sec.html });
       } catch (err) {
         console.error(`[addon ${e.addonId}] article section failed`, err);
-        out.push({ addonId: e.addonId, title: '⚠ ' + e.addonId, html: `<div style="color:var(--color-danger)">Sekce doplňku „${esc(e.addonId)}" selhala: ${esc(err.message)}</div>` });
+        out.push({ addonId: e.addonId, seq, title: '⚠ ' + e.addonId, html: `<div style="color:var(--color-danger)">Sekce doplňku „${esc(e.addonId)}" selhala: ${esc(err.message)}</div>` });
       }
     }
     return out;

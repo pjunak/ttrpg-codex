@@ -89,7 +89,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `permissions` | — | Declared + **enforced** capability tokens (see §5). The DM reviews + grants them at install. |
 | `dependencies` | — | `{ "<otherAddonId>": { "range": ">=1.0.0", "repo": "owner/name" } }` (see §10). |
 | `collections` | — | `[{ "name": "rules", "keyed": false }]` — your own data collections (see §8). `name` is `^[a-z0-9][a-z0-9_]{0,39}$`. |
-| `tests` | — | `{ "server": "tests/*.cjs", "client": "tests/*.mjs" }` — self-tests (see §12). `tests.server` is a **green-gate run at install**. |
+| `tests` | — | `{ "server": "tests/srv.cjs", "client": "tests/cli.mjs" }` — an explicit file path or a `string[]` of them (**not** a glob — `node --test` doesn't expand `*`, so `tests/*.cjs` runs nothing). `tests.server` is a **green-gate run at install** (see §14). |
 | `summary` | — | One line shown in the install wizard. |
 
 > **Not supported:** manifest `styles[]`/`vendor[]` auto-loading. Style with the
@@ -287,7 +287,10 @@ A decomposed surface is an ordered list of **named fragments**. Today the
 character-article main column is finely decomposed:
 `characters:section:vazby` · `…:udalosti` · `…:znalosti` · `…:otazky` ·
 `…:mazlicci` · `characters:body` (other article kinds expose
-`<kind>:section:s<i>` + `<kind>:body`).
+`<kind>:section:s<i>` + `<kind>:body`). Sections added by an addon are
+targetable too, at `<kind>:addon:<that-addon-id>:<seq>` — `seq` is the section's
+index **within that addon** (stable across load order, so the id holds even if
+other addons load before it).
 
 ```js
 host.registerFragmentOp('characters:body', {
@@ -320,7 +323,15 @@ host.provide({ roll: (n) => 1 + Math.floor(Math.random() * n) });
 const dice = host.use('core-dice');   // throws (caught) if undeclared / not loaded
 ```
 Load order is topologically sorted (dependencies first). Missing / version-
-incompatible / cyclic deps → the addon loads to a visible `blocked` state.
+incompatible / cyclic deps → the addon loads to a visible `blocked` state (a
+node merely *downstream* of a cycle is blocked too, but reported as such, not as
+"cyclic").
+
+Supported `range` forms: empty / `*` (any), exact `x.y.z`, comparators
+`>= > <= <`, caret `^x.y.z`, tilde `~x.y.z`, X-ranges `1.x` / `1.2.x`. Compound
+ranges (hyphen `1 - 2`, OR `^1 || ^2`) are **not** parsed — they silently match
+anything, so don't rely on them to gate. A pre-release tag (`1.2.0-beta`) is
+treated as its release.
 
 ---
 
@@ -409,7 +420,11 @@ every release; widen `hostVersion` only when you've tested against newer hosts.
 
 ## For AI assistants
 
-You can author a correct addon from this section alone.
+You can author a correct addon from this section alone. For a **standalone,
+copy-into-the-addon-repo** version of these rules (so an agent working in the
+addon's own repo has them in context), use [`AGENTS.md`](AGENTS.md) — it carries
+the same invariants + template and is named so Claude Code / Cursor pick it up
+automatically.
 
 **Hard invariants (violating any of these breaks the addon):**
 1. `entry.js` **default-exports** `register(host)`. Server code **exports**

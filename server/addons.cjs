@@ -35,6 +35,12 @@ const HOST_SERVER_LIBS = new Set(['express', 'adm-zip', 'archiver', 'multer']);
 // On-disk registry schema version (data/addons.json).
 const REGISTRY_SCHEMA = 1;
 
+// Hard timeout on every GitHub call. A hung connection must not stall an
+// install indefinitely (and, since promote holds the write lock, must not
+// risk wedging it) — and check-updates iterates serially, so one slow repo
+// can't freeze the whole batch.
+const GH_FETCH_TIMEOUT_MS = 20000;
+
 // Addon id: lowercase, no underscores (so it can never collide with a
 // built-in `addon_*` collection name and is safe as an object key — the
 // `_`-free shape also rejects `__proto__`/`constructor`/`prototype`).
@@ -333,7 +339,7 @@ async function resolveRefToSha(repo, ref, { fetch, token } = {}) {
   const url = `https://api.github.com/repos/${repo}/commits/${encodeURIComponent(ref)}`;
   const headers = { Accept: 'application/vnd.github.sha', 'User-Agent': 'ttrpg-codex-addons' };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const r = await fetch(url, { headers });
+  const r = await fetch(url, { headers, signal: AbortSignal.timeout(GH_FETCH_TIMEOUT_MS) });
   if (!r.ok) throw new Error(`GitHub ref resolve failed (${r.status}) for ${repo}@${ref}`);
   const sha = (await r.text()).trim();
   if (!/^[0-9a-f]{40}$/i.test(sha)) throw new Error('GitHub returned an unexpected SHA');
@@ -352,7 +358,7 @@ async function fetchZipball(repo, sha, { fetch, token } = {}) {
   const url = `https://api.github.com/repos/${repo}/zipball/${sha}`;
   const headers = { 'User-Agent': 'ttrpg-codex-addons' };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const r = await fetch(url, { headers, redirect: 'follow' });
+  const r = await fetch(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(GH_FETCH_TIMEOUT_MS) });
   if (!r.ok) throw new Error(`GitHub zipball fetch failed (${r.status}) for ${repo}@${sha}`);
   const ab = await r.arrayBuffer();
   return Buffer.from(ab);
@@ -371,7 +377,7 @@ async function fetchManifest(repo, ref, { fetch, token } = {}) {
   const url = `https://api.github.com/repos/${repo}/contents/addon.json?ref=${encodeURIComponent(sha)}`;
   const headers = { Accept: 'application/vnd.github.raw', 'User-Agent': 'ttrpg-codex-addons' };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const r = await fetch(url, { headers });
+  const r = await fetch(url, { headers, signal: AbortSignal.timeout(GH_FETCH_TIMEOUT_MS) });
   if (!r.ok) throw new Error(`addon.json se nepodařilo načíst (${r.status})`);
   let manifest;
   try { manifest = JSON.parse(await r.text()); }

@@ -472,9 +472,11 @@ export const Wiki = (() => {
         html: (s.html && s.html.trim()) ? _sectionBlock(s.title, s.html) : '',
       });
     });
-    (kind ? Addons.articleSections(kind, entity) : []).forEach((s, i) => {
+    (kind ? Addons.articleSections(kind, entity) : []).forEach((s) => {
       _frags.push({
-        id:   `${kind}:addon:${s.addonId}:${i}`,
+        // `s.seq` is the section's ordinal within its own addon — stable across
+        // load order, so a cross-addon override claim on this fragment id holds.
+        id:   `${kind}:addon:${s.addonId}:${s.seq}`,
         html: (s.html && s.html.trim()) ? _sectionBlock(s.title, s.html) : '',
       });
     });

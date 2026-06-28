@@ -82,8 +82,22 @@ export function applyFragmentOps(fragments, claims, resolutions, ctx) {
   list = list.map(f => {
     const cs = byTarget.get(f.id);
     if (!cs) return f;
-    const exclusives = cs.filter(c => EXCLUSIVE.has(c.op));
-    const wraps      = cs.filter(c => c.op === 'wrap').slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+    // Collapse a SINGLE addon's multiple exclusive claims on one target — that's
+    // an authoring error (replace+hide on the same fragment), surfaced as a
+    // failure, NOT a cross-addon conflict ("addon a vs addon a" can't be
+    // resolved). After this, `exclusives` holds at most one claim per addon, so
+    // a genuine conflict means ≥2 DISTINCT addons.
+    const exByAddon = new Map();
+    for (const c of cs.filter(c => EXCLUSIVE.has(c.op))) {
+      if (exByAddon.has(c.addonId)) failures.push({ addonId: c.addonId, target: f.id, op: c.op, message: 'více výlučných operací na stejný fragment' });
+      else exByAddon.set(c.addonId, c);
+    }
+    const exclusives = [...exByAddon.values()];
+    // Wraps stack deterministically: by `order`, then addonId (matches inserts)
+    // so two addons wrapping at the same order get a stable, author-controllable
+    // nesting rather than one that depends on load order.
+    const wraps = cs.filter(c => c.op === 'wrap').slice()
+      .sort((a, b) => ((a.order || 0) - (b.order || 0)) || (a.addonId < b.addonId ? -1 : a.addonId > b.addonId ? 1 : 0));
     let html = f.html;
 
     if (exclusives.length) {
@@ -118,6 +132,12 @@ export function applyFragmentOps(fragments, claims, resolutions, ctx) {
     if (c.op !== 'insert' || !ids.has(c.target)) continue;
     const idx = list.findIndex(f => f.id === c.target);
     if (idx < 0) continue;
+    // An insert with no render fn is a malformed claim (nothing to add) —
+    // surface it rather than dropping it silently.
+    if (typeof c.render !== 'function') {
+      failures.push({ addonId: c.addonId, target: c.target, op: 'insert', message: 'insert bez render funkce' });
+      continue;
+    }
     const html = render(c, '', c.target);
     if (typeof html !== 'string' || html === '') continue;
     inserts.push({ at: c.position === 'before' ? idx : idx + 1, order: c.order || 0, addonId: c.addonId, frag: { id: `insert:${c.addonId}:${c.target}`, html } });
@@ -152,10 +172,14 @@ export function listConflicts(claims, resolutions) {
   }
   const out = [];
   for (const [target, cs] of byTarget) {
-    if (cs.length < 2) continue;
+    // Count DISTINCT addons — one addon's own duplicate exclusive claims aren't
+    // a conflict (applyFragmentOps surfaces those as a failure instead).
+    const byAddon = new Map();
+    for (const c of cs) if (!byAddon.has(c.addonId)) byAddon.set(c.addonId, c);
+    if (byAddon.size < 2) continue;
     out.push({
       target,
-      claimants: cs.map(c => ({ addonId: c.addonId, op: c.op })),
+      claimants: [...byAddon.values()].map(c => ({ addonId: c.addonId, op: c.op })),
       resolved: Object.prototype.hasOwnProperty.call(resolutions, target) ? resolutions[target] : undefined,
     });
   }

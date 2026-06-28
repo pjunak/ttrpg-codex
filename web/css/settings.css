@@ -755,10 +755,11 @@
    across severities). */
 .addon-row-chips { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .addon-chip {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; gap: var(--space-1);
   font-family: var(--font-ui); font-size: var(--text-xs); color: var(--text-light);
 }
 .addon-chip::before {
+  /* status dot — bespoke 7px (no spacing token is a circle diameter) */
   content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%;
   background: var(--chip-dot, var(--text-muted));
 }
@@ -783,14 +784,15 @@
 .addon-actions-more > summary {
   list-style: none; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 36px; height: 30px; padding: 0 var(--space-2);
+  /* bespoke control size — matches the map .sc-zoom-btn touch target (36px) */
+  min-width: 36px; height: 32px; padding: 0 var(--space-2);
   font-size: var(--text-lg); line-height: 1; color: var(--text-muted);
   background: var(--bg-raised); border: 1px solid rgba(var(--gold-muted), 0.2); border-radius: var(--radius-sm);
 }
 .addon-actions-more > summary::-webkit-details-marker { display: none; }
 .addon-actions-more > summary:hover { color: var(--accent-gold); }
 .addon-actions-menu {
-  position: absolute; right: 0; top: calc(100% + 4px); z-index: var(--z-dropdown);
+  position: absolute; right: 0; top: calc(100% + var(--space-1)); z-index: var(--z-dropdown);
   display: flex; flex-direction: column; gap: var(--space-1);
   min-width: 170px; padding: var(--space-1);
   background: var(--bg-surface); border: 1px solid rgba(var(--gold-muted), 0.25);
@@ -879,7 +881,7 @@
 .addon-row-perms { font-size: var(--text-xs); color: var(--text-muted); }
 .addon-row-perms > summary {
   cursor: pointer; color: var(--text-muted); list-style: none;
-  display: inline-flex; align-items: center; gap: 5px;
+  display: inline-flex; align-items: center; gap: var(--space-1);
 }
 .addon-row-perms > summary::-webkit-details-marker { display: none; }
 .addon-row-perms > summary::before {

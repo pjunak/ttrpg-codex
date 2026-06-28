@@ -1889,6 +1889,38 @@ export const Settings = (() => {
       .catch(() => { _addonsList = []; });
   }
 
+  /** DM gate for the addon lifecycle actions: prompts login for a non-DM and
+   *  returns false so the caller bails. Centralises the repeated guard. */
+  function _requireDM() {
+    if (Role.isDM()) return true;
+    try { EditMode.promptLogin(); } catch (_) {}
+    return false;
+  }
+
+  /** Re-fetch the addon list and re-render IF the Doplňky tab is showing — the
+   *  shared tail of every lifecycle mutation. */
+  function _reloadAddonsIfActive() {
+    return _loadAddons().then(() => { if (_activeCat === 'addons') render(); });
+  }
+
+  // Close the addon-row overflow / permissions <details> menus on an outside
+  // click, on a menu item firing, or on Esc — and keep only one open at a time.
+  // Native <details> does none of this, so without it a menu sticks open over a
+  // re-rendering list (or after a cancelled confirm). Bubble phase, so app.js's
+  // capture-phase action dispatcher runs the clicked item's action first.
+  // Registered once at module load.
+  const _ADDON_MENU_SEL = '.addon-actions-more[open], .addon-row-perms[open]';
+  document.addEventListener('click', (ev) => {
+    document.querySelectorAll(_ADDON_MENU_SEL).forEach(d => {
+      const sum = d.querySelector(':scope > summary');
+      if (sum && sum.contains(ev.target)) return;   // its own summary → native toggle owns it
+      d.open = false;                                // outside click, or a menu item (after its action fired)
+    });
+  });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') document.querySelectorAll(_ADDON_MENU_SEL).forEach(d => { d.open = false; });
+  });
+
   function _addonsHtml() {
     // Overlay each installed addon with its live client load-state so a
     // broken addon reads as an error rather than looking fine.
@@ -1974,7 +2006,7 @@ export const Settings = (() => {
   }
 
   function resolveAddonConflict(target, winner) {
-    if (!Role.isDM()) { try { EditMode.promptLogin(); } catch (_) {} return; }
+    if (!_requireDM()) return;
     Store.resolveAddonConflict(target, winner).then(r => {
       if (r && r.ok) _flash('Volba uložena');
       else _flash((r && r.error) || 'Nepodařilo se uložit volbu', false);
@@ -2003,8 +2035,8 @@ export const Settings = (() => {
       const s = SS[a.serverState];
       if (s) chips.push(chip(s[0], s[1]));
     }
-    if (upd && upd.hasUpdate) chips.push(chip('info', 'aktualizace'));
-    if (smokeFails.length)    chips.push(chip('warn', 'test vykreslení'));
+    if (a.enabled && upd && upd.hasUpdate) chips.push(chip('info', 'aktualizace'));
+    if (smokeFails.length)                 chips.push(chip('warn', 'test vykreslení'));
     const chipsHtml = `<span class="addon-row-chips">${chips.join('')}</span>`;
 
     // ── Notes: detail that USED to be tooltip-only, now visible (and reachable
@@ -2013,7 +2045,7 @@ export const Settings = (() => {
     if ((lstate === 'error' || lstate === 'blocked') && loadState.error)
       notes.push(`<div class="addon-row-err">${esc(loadState.error)}</div>`);
     if (smokeFails.length)
-      notes.push(`<div class="addon-row-warn">Test vykreslení nahlásil chybu: ${esc(smokeFails.map(f => `${f.kind} (${f.message})`).join(' · '))}</div>`);
+      notes.push(`<div class="addon-row-warn">Test vykreslení nahlásil chybu: ${esc(smokeFails.map(f => `${f.kind} (${f.message || '?'})`).join(' · '))}</div>`);
     if (a.server && a.serverState === 'pending-restart')
       notes.push(`<div class="addon-row-warn">Restartuj server (kontejner), aby se serverová část (od)načetla.</div>`);
     else if (a.server && (a.serverState === 'error' || a.serverState === 'blocked'))
@@ -2029,7 +2061,7 @@ export const Settings = (() => {
 
     // ── Actions, ranked: primary Update (when available), secondary toggle,
     // rare actions (roll back / remove) behind an overflow menu.
-    const updateBtn = (upd && upd.hasUpdate)
+    const updateBtn = (a.enabled && upd && upd.hasUpdate)
       ? `<button type="button" class="edit-save-btn" ${dataAction('Settings.updateAddon', a.id)}>⬆ Aktualizovat</button>`
       : '';
     const toggle = a.enabled
@@ -2065,21 +2097,22 @@ export const Settings = (() => {
   function _addonLifecycle(method, url, okMsg) {
     return fetch(url, { method, credentials: 'same-origin' })
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
-      .then(() => { _flash(okMsg); return _loadAddons().then(() => { if (_activeCat === 'addons') render(); }); })
+      .then(() => { _flash(okMsg); return _reloadAddonsIfActive(); })
       .catch(e => _flash((e && e.error) || 'Operace selhala', false));
   }
   function enableAddon(id)  { _addonLifecycle('POST',   `/api/addons/${encodeURIComponent(id)}/enable`,  'Doplněk zapnut'); }
-  function disableAddon(id) { _addonLifecycle('POST',   `/api/addons/${encodeURIComponent(id)}/disable`, 'Doplněk vypnut'); }
+  function disableAddon(id) { delete _addonUpdates[id]; _addonLifecycle('POST', `/api/addons/${encodeURIComponent(id)}/disable`, 'Doplněk vypnut'); }
   function removeAddon(id) {
     const a = (_addonsList || []).find(x => x.id === id);
     const name = a ? (a.name || a.id) : id;
     if (!confirm(`Odebrat doplněk „${name}"? Jeho data zůstanou zachována pro případnou reinstalaci.`)) return;
+    delete _addonUpdates[id];   // drop the stale update entry for the gone addon
     _addonLifecycle('DELETE', `/api/addons/${encodeURIComponent(id)}`, 'Doplněk odebrán');
   }
 
   // ── Update check + rollback (Phase 9) ─────────────────────────
   function checkAddonUpdates() {
-    if (!Role.isDM()) { try { EditMode.promptLogin(); } catch (_) {} return; }
+    if (!_requireDM()) return;
     _flash('Kontroluji aktualizace…');
     Store.checkAddonUpdates().then(r => {
       if (!r.ok) { _flash(r.error || 'Kontrola selhala', false); return; }
@@ -2092,21 +2125,21 @@ export const Settings = (() => {
   }
 
   function updateAddon(id) {
-    if (!Role.isDM()) { try { EditMode.promptLogin(); } catch (_) {} return; }
+    if (!_requireDM()) return;
     const u = _addonUpdates[id];
     if (!u || !u.repo) { _flash('Nejdřív zkontroluj aktualizace', false); return; }
     openAddonWizard(u.repo, 'update');
   }
 
   function rollbackAddon(id) {
-    if (!Role.isDM()) { try { EditMode.promptLogin(); } catch (_) {} return; }
+    if (!_requireDM()) return;
     const a = (_addonsList || []).find(x => x.id === id);
     if (!confirm(`Vrátit doplněk „${(a && (a.name || a.id)) || id}" na předchozí verzi?`)) return;
     Store.rollbackAddon(id).then(r => {
       if (r.ok) {
         _flash(`Vráceno na v${r.version || '?'}` + ((a && a.server) ? ' — restartuj server pro serverovou část' : ''));
         _addonUpdates = {};   // version changed → the cached update check is stale
-        _loadAddons().then(() => { if (_activeCat === 'addons') render(); });
+        _reloadAddonsIfActive();
       } else _flash(r.error || 'Vrácení selhalo', false);
     });
   }
@@ -2116,7 +2149,7 @@ export const Settings = (() => {
   // settings re-render behind it doesn't tear it down). The backup /
   // test / dependency steps arrive in a later phase.
   function openAddonWizard(prefillRepo, mode) {
-    if (!Role.isDM()) { try { EditMode.promptLogin(); } catch (_) {} return; }
+    if (!_requireDM()) return;
     closeAddonWizard();
     _wizardMode = (mode === 'update') ? 'update' : 'install';
     const title = _wizardMode === 'update' ? '🔄 Aktualizovat doplněk' : '🧩 Instalovat doplněk';
@@ -2264,7 +2297,7 @@ export const Settings = (() => {
         _addonUpdates = {};   // stale after a change — a fresh check is needed
         // Refresh the list behind the modal; the addons-changed SSE event also
         // live-loads/reconciles via Addons.reconcile() in app.js.
-        _loadAddons().then(() => { if (_activeCat === 'addons') render(); });
+        _reloadAddonsIfActive();
       })
       .catch(e => {
         if (go) go.disabled = false;

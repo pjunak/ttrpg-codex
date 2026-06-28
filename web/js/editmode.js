@@ -1163,6 +1163,12 @@ export const EditMode = (() => {
   // picked up by that same walk.
   function _mountAddonEditorFields(root) {
     const scope = root || document;
+    // One-shot per slot (data-addon-mounted): the slot is NAVIGATION-scoped, not
+    // reconcile-scoped. Enabling an editor-fields addon while an editor is open
+    // won't inject its fields into the already-mounted slot until the next
+    // navigate() rebuilds it (the addons-changed SSE handler re-navigates, so it
+    // self-heals on any route change) — acceptable since live install-while-editing
+    // is rare.
     const slots = scope.querySelectorAll('.addon-editor-fields:not([data-addon-mounted])');
     slots.forEach(slot => {
       slot.setAttribute('data-addon-mounted', '1');

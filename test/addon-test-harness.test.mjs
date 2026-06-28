@@ -38,6 +38,27 @@ test('store fixtures + role flags are honoured', () => {
   assert.equal(host.store.getCharacters().length, 1);
 });
 
+test('mock store.collection: save / read-back / remove actually mutate the backing store', () => {
+  const { host } = createMockHost({ id: 'rules-addon' }, { fixtures: { 'collection:rules': [{ id: 'seed', name: 'Seed' }] } });
+  const rules = host.store.collection('rules');
+  assert.equal(rules.list().length, 1, 'seeded from fixtures');
+
+  const saved = rules.save({ name: 'Grappling' });
+  assert.ok(saved.id, 'save generates a missing id');
+  assert.equal(rules.list().length, 2, 'save is visible on read-back (not a no-op mock)');
+  assert.equal(rules.get(saved.id).name, 'Grappling');
+  assert.equal(host.store.getCollection('rules').length, 2, 'getCollection sees it too');
+
+  // upsert by id, not a duplicate
+  rules.save({ id: saved.id, name: 'Grappling v2' });
+  assert.equal(rules.list().length, 2);
+  assert.equal(rules.get(saved.id).name, 'Grappling v2');
+
+  rules.remove('seed');
+  assert.equal(rules.list().length, 1);
+  assert.equal(rules.get('seed'), null);
+});
+
 test('dryRunRegister: ok for a clean register, captures registrations', () => {
   const register = (host) => { host.registerRoute('foo', () => 'ok'); };
   const r = dryRunRegister(register, { id: 'x' });
