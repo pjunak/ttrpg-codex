@@ -52,10 +52,13 @@ test('validateManifest: permissions must be an array of token strings; dependenc
   assert.equal(validateManifest(goodManifest({ permissions: 'nope' })).ok, false);
   assert.equal(validateManifest(goodManifest({ dependencies: [] })).ok, false);
   assert.equal(validateManifest(goodManifest({ permissions: ['ui:route', 'data:read:characters'], dependencies: {} })).ok, true);
+  // The per-entity write token carries a camelCase `.addonData` suffix the
+  // runtime itself emits (store.patchAddonData) — it MUST validate.
+  assert.equal(validateManifest(goodManifest({ permissions: ['data:write:characters.addonData'] })).ok, true);
   // Reject non-strings + non-token shapes (so a manifest can't inject forged
   // labels into the DM review or break grants.includes()).
   assert.equal(validateManifest(goodManifest({ permissions: [123] })).ok, false);
-  assert.equal(validateManifest(goodManifest({ permissions: ['UI:Route'] })).ok, false);     // uppercase
+  assert.equal(validateManifest(goodManifest({ permissions: ['UI:Route'] })).ok, false);     // uppercase LEADING char
   assert.equal(validateManifest(goodManifest({ permissions: ['has space'] })).ok, false);
   assert.equal(validateManifest(goodManifest({ permissions: ['<script>'] })).ok, false);
 });

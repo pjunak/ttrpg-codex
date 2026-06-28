@@ -158,11 +158,13 @@ function validateManifest(m) {
   if (m.permissions !== undefined) {
     if (!Array.isArray(m.permissions)) {
       errors.push('permissions must be an array');
-    } else if (m.permissions.some(p => typeof p !== 'string' || !/^[a-z][a-z0-9:_.-]{0,79}$/.test(p))) {
+    } else if (m.permissions.some(p => typeof p !== 'string' || !/^[a-z][a-zA-Z0-9:_.-]{0,79}$/.test(p))) {
       // Each permission is a capability TOKEN — reject non-strings + anything
       // that isn't token-shaped (so a manifest can't inject forged/garbage
       // labels into the DM's review checklist or break `grants.includes(...)`).
-      errors.push('each permission must be a lowercase token (^[a-z][a-z0-9:_.-]*$)');
+      // Must START lowercase, but uppercase is allowed afterward: the runtime
+      // emits the camelCase per-entity-write token `data:write:<coll>.addonData`.
+      errors.push('each permission must be a token starting lowercase (^[a-z][a-zA-Z0-9:_.-]*$)');
     }
   }
   if (m.dependencies !== undefined &&
