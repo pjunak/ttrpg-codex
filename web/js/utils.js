@@ -5,6 +5,10 @@
 //  Markdown rendering, and the [[wiki-link]] resolver hook.
 // ═══════════════════════════════════════════════════════════════
 
+// One-way edge: utils → i18n (i18n imports nothing app-side, so no
+// cycle). Used only by the humanTime shim below.
+import { I18n } from './i18n.js';
+
 /**
  * HTML-escape a value for safe interpolation into a template literal that
  * builds DOM. Handles `&`, `"`, `<`, `>` — use this for any user-supplied
@@ -127,30 +131,14 @@ export function debounce(fn, ms = 120) {
   };
 }
 
-/** Czech relative-time formatter. Input: timestamp ms (typically from
- *  `entity.updatedAt`). Output short, human strings for recent times,
- *  falling back to an absolute date for anything older than ~10 days.
- *
- *    just now (< 1 min)   → "teď"
- *    minutes  (< 60 min)  → "před N minutami"
- *    hours    (< 24 h)    → "před N hodinami"
- *    days     (< 10 d)    → "před N dny" / "včera"
- *    older                → "12. 3. 2026"                    */
+/** Locale-aware relative-time formatter (thin shim over
+ *  `I18n.relativeTime`, which uses native Intl.RelativeTimeFormat). Kept
+ *  here so the many `humanTime(ms)` call sites don't all change their
+ *  import. Input: timestamp ms (typically `entity.updatedAt`). Output:
+ *  "now"/"3 hours ago"/"yesterday" — or "před 3 hodinami"/"včera" etc.
+ *  in the active locale — with an absolute date past ~10 days. */
 export function humanTime(ms, now = Date.now()) {
-  if (!ms || typeof ms !== 'number') return '';
-  const diff = Math.max(0, now - ms);
-  const sec  = Math.floor(diff / 1000);
-  if (sec < 45) return 'teď';
-  const min  = Math.floor(sec / 60);
-  if (min < 60) return `před ${min} ${min === 1 ? 'minutou' : min < 5 ? 'minutami' : 'minutami'}`;
-  const hr   = Math.floor(min / 60);
-  if (hr < 24) return `před ${hr} ${hr === 1 ? 'hodinou' : hr < 5 ? 'hodinami' : 'hodinami'}`;
-  const day  = Math.floor(hr / 24);
-  if (day === 1) return 'včera';
-  if (day < 10) return `před ${day} dny`;
-  // Absolute date for anything older (Czech short form D. M. YYYY).
-  const d = new Date(ms);
-  return `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}`;
+  return I18n.relativeTime(ms, now);
 }
 
 /** Diacritic-insensitive slug. Used to build stable heading IDs for

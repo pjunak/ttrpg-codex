@@ -16,11 +16,21 @@ import { norm, esc, renderMarkdown, extractOutline, humanTime, dataAction, dataO
 import { PIN_TYPES, WorldMap } from './map.js';
 import { Addons } from './addons.js';
 import { relLabel } from './data.js';
-import { PARTY_FACTION_ID, czPlural } from './constants.js';
+import { PARTY_FACTION_ID } from './constants.js';
+import { I18n } from './i18n.js';
 
 export const Wiki = (() => {
 
-  const KNOWLEDGE_LABELS = ["Neznámý","Tušený","Základní","Dobře znám","Plně zmapován"];
+  // Knowledge-level labels are UI chrome (the 0–4 SVG sketch tiers).
+  // Built lazily at use time so a live language switch re-resolves them.
+  const KNOWLEDGE_LABEL_KEYS = [
+    'wiki.knowledge0', 'wiki.knowledge1', 'wiki.knowledge2',
+    'wiki.knowledge3', 'wiki.knowledge4',
+  ];
+  function _knowledgeLabel(lvl) {
+    const k = KNOWLEDGE_LABEL_KEYS[lvl];
+    return k ? I18n.t(k) : '?';
+  }
 
   // ── Current-article tracking (for the wiki-link resolver) ───────
   // Each renderXxxArticle calls _setCurrentArticle({type, id}) at the
@@ -97,7 +107,7 @@ export const Wiki = (() => {
    *  history.back() of the previous global-mode design). */
   function cancelEditingArticle() {
     if (EditMode.isDirty && EditMode.isDirty() &&
-        !confirm('Máš neuložené změny. Opravdu zrušit úpravy?')) return;
+        !confirm(I18n.t('wiki.discardChangesConfirm'))) return;
     if (_editingArticle) {
       _editingArticle = null;
       window.dispatchEvent(new Event('hashchange'));
@@ -141,8 +151,8 @@ export const Wiki = (() => {
     if (!prefix) return '';
     const route = '/' + prefix + '/' + id;
     return `<button type="button" class="article-edit-btn"
-      title="Upravit tento záznam"
-      ${dataAction('Wiki.startEditingArticle', route)}>✏ Upravit</button>`;
+      title="${esc(I18n.t('wiki.editThisRecord'))}"
+      ${dataAction('Wiki.startEditingArticle', route)}>✏ ${esc(I18n.t('action.edit'))}</button>`;
   }
 
   /** Build a `facts` row entry showing the linked twin, when present
@@ -162,10 +172,10 @@ export const Wiki = (() => {
     if (!route) return null;
     const twinName = twin ? twin.name : entity.linkedTwinId;
     const polarity = twin
-      ? (twin.visibility === 'dm' ? 'DM' : 'hráčský')
-      : (entity.visibility === 'dm' ? 'hráčský' : 'DM'); // best-guess if twin missing
+      ? (twin.visibility === 'dm' ? I18n.t('wiki.twinDm') : I18n.t('wiki.twinPlayer'))
+      : (entity.visibility === 'dm' ? I18n.t('wiki.twinPlayer') : I18n.t('wiki.twinDm')); // best-guess if twin missing
     return {
-      label: '🔗 Twin',
+      label: '🔗 ' + I18n.t('wiki.twin'),
       value: `<a href="#/${route}/${esc(entity.linkedTwinId)}" data-twin="${esc(polarity)}">${esc(twinName)} (${esc(polarity)}) →</a>`,
     };
   }
@@ -296,12 +306,12 @@ export const Wiki = (() => {
       <div class="list-toolbar">
         <div class="tf-mount list-search-tf"
              data-tf-id="wl-${kind}-tf"
-             data-tf-placeholder="🔍 Napiš a stiskni Enter…"
-             data-tf-hint="Jméno, tagy, typ — víc chipů = všechny musí sedět"
+             data-tf-placeholder="🔍 ${esc(I18n.t('wiki.searchPlaceholder'))}"
+             data-tf-hint="${esc(I18n.t('wiki.searchHint'))}"
              data-tf-value="${esc((s.values || []).join(','))}"
              data-wl-kind="${kind}"></div>
         <label class="list-sort">
-          <span class="list-sort-label">Řadit</span>
+          <span class="list-sort-label">${esc(I18n.t('wiki.sortLabel'))}</span>
           <select class="list-sort-select"${dataOn('change', `Wiki.set${Name}Sort`, '$value')}>
             ${opts}
           </select>
@@ -333,7 +343,7 @@ export const Wiki = (() => {
     const factions = Store.getFactions();
     const f = factions[factionId] || factions.neutral;
     if (!f) {
-      const label = factionId ? esc(factionId) : 'bez frakce';
+      const label = factionId ? esc(factionId) : esc(I18n.t('wiki.noFaction'));
       return `<span class="badge badge-faction" style="background:#55555522;color:#999;border:1px solid #55555555">⚐ ${label}</span>`;
     }
     return `<span class="badge badge-faction" style="background:${f.color}22;color:${f.textColor};border:1px solid ${f.color}55">
@@ -346,7 +356,7 @@ export const Wiki = (() => {
   }
 
   function knowledgeBadge(lvl) {
-    return `<span class="badge badge-knowledge">👁 ${KNOWLEDGE_LABELS[lvl] || "?"}</span>`;
+    return `<span class="badge badge-knowledge">👁 ${esc(_knowledgeLabel(lvl))}</span>`;
   }
 
   function relationLabel(type) { return relLabel(type); }
@@ -387,7 +397,7 @@ export const Wiki = (() => {
   // pencil opens the editor — two distinct click targets in one card.
   function editOverlay(href) {
     const route = String(href || '').replace(/^#/, '');
-    return `<span class="edit-card-overlay" title="Upravit" role="button"
+    return `<span class="edit-card-overlay" title="${esc(I18n.t('action.edit'))}" role="button"
       ${dataAction('Wiki.startEditingArticle', route)}>✏</span>`;
   }
 
@@ -399,11 +409,11 @@ export const Wiki = (() => {
   function _renderEmptyState({ icon, title, description, ctaLabel, ctaHref, ctaActionAttr }) {
     const actionAttr = ctaActionAttr || '';
     const cta = (ctaHref || actionAttr) ? `
-      <a class="empty-cta" href="${ctaHref || '#'}"${actionAttr}>＋ ${esc(ctaLabel || 'Vytvořit první')}</a>` : '';
+      <a class="empty-cta" href="${ctaHref || '#'}"${actionAttr}>＋ ${esc(ctaLabel || I18n.t('wiki.createFirst'))}</a>` : '';
     return `
       <div class="empty-state">
         <div class="empty-state-icon">${icon || '✦'}</div>
-        <div class="empty-state-title">${esc(title || 'Zatím prázdné')}</div>
+        <div class="empty-state-title">${esc(title || I18n.t('wiki.emptyDefault'))}</div>
         <div class="empty-state-desc">${esc(description || '')}</div>
         ${cta}
       </div>`;
@@ -499,8 +509,8 @@ export const Wiki = (() => {
     // Hidden when empty so short articles don't get a stub box.
     const outline = outlineSource ? extractOutline(outlineSource) : [];
     const outlineHtml = outline.length ? `
-      <nav class="wiki-outline" aria-label="Obsah článku">
-        <div class="wiki-outline-title">Obsah</div>
+      <nav class="wiki-outline" aria-label="${esc(I18n.t('wiki.outlineLabel'))}">
+        <div class="wiki-outline-title">${esc(I18n.t('wiki.outlineTitle'))}</div>
         <ul>
           ${outline.map(h =>
             `<li data-lvl="${h.level}"><a href="#${h.slug}"${dataAction('scrollTo', h.slug)}>${esc(h.text)}</a></li>`
@@ -514,7 +524,7 @@ export const Wiki = (() => {
     // across articles regardless of whether the viewer can edit.
     const actionBar = (back || editButton) ? `
       <div class="article-actions">
-        ${back ? `<button type="button" class="back-btn"${dataAction('back')}>← Zpět</button>` : ''}
+        ${back ? `<button type="button" class="back-btn"${dataAction('back')}>← ${esc(I18n.t('action.back'))}</button>` : ''}
         ${editButton || ''}
       </div>` : '';
 
@@ -544,7 +554,7 @@ export const Wiki = (() => {
       : `<span class="pet-card-emoji">${esc(pet.icon || '🐾')}</span>`;
     const species = pet.species ? `<span class="pet-card-species">${esc(pet.species)}</span>` : '';
     return `
-      <button type="button" class="${cls}" title="Upravit mazlíčka"
+      <button type="button" class="${cls}" title="${esc(I18n.t('wiki.petEdit'))}"
         ${dataAction('EditMode.openPetEditor', pet.id)}>
         <span class="pet-card-portrait">${visual}</span>
         <span class="pet-card-name">${esc(pet.name)}</span>
@@ -562,9 +572,9 @@ export const Wiki = (() => {
     const cards = pets.map(p => _petCardHtml(p, { cls: 'pet-card' })).join('');
     const addBtn = !Role.isAnonymous()
       ? `<div class="inline-create-row"><button class="inline-create-btn"
-           ${dataAction('EditMode.openPetEditor', null, { ownerType, ownerId })}>＋ Mazlíček</button></div>`
+           ${dataAction('EditMode.openPetEditor', null, { ownerType, ownerId })}>＋ ${esc(I18n.t('wiki.petAdd'))}</button></div>`
       : '';
-    return { title: '🐾 Mazlíčci', html: `<div class="pet-grid">${cards}</div>${addBtn}` };
+    return { title: '🐾 ' + I18n.t('nav.pets'), html: `<div class="pet-grid">${cards}</div>${addBtn}` };
   }
 
   // The Mazlíčci hub — every pet grouped by owner. Creation lives here
@@ -576,14 +586,14 @@ export const Wiki = (() => {
     if (!pets.length) {
       return `
         <div class="page-header" style="display:flex;align-items:center;gap:1rem">
-          <div style="flex:1"><h1>🐾 Mazlíčci</h1></div>
-          <button class="list-item-new" ${addAttr}>＋ Mazlíček</button>
+          <div style="flex:1"><h1>🐾 ${esc(I18n.t('nav.pets'))}</h1></div>
+          <button class="list-item-new" ${addAttr}>＋ ${esc(I18n.t('wiki.petAdd'))}</button>
         </div>
         ${_renderEmptyState({
           icon: '🐾',
-          title: 'Zatím tu nejsou žádní mazlíčci',
-          description: 'Společníci party, frakcí i jednotlivých postav. Přidej prvního — můžeš ho nechat bez majitele a přiřadit ho později.',
-          ctaLabel: 'Nový mazlíček',
+          title: I18n.t('wiki.petsEmptyTitle'),
+          description: I18n.t('wiki.petsEmptyDesc'),
+          ctaLabel: I18n.t('wiki.petNew'),
           ctaActionAttr: addAttr,
         })}`;
     }
@@ -617,10 +627,10 @@ export const Wiki = (() => {
     return `
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
         <div style="flex:1">
-          <h1>🐾 Mazlíčci</h1>
-          <div class="subtitle">${pets.length} ${czPlural(pets.length, 'mazlíček', 'mazlíčci', 'mazlíčků')}</div>
+          <h1>🐾 ${esc(I18n.t('nav.pets'))}</h1>
+          <div class="subtitle">${esc(I18n.plural('pets.count', pets.length))}</div>
         </div>
-        <button class="list-item-new" ${addAttr}>＋ Mazlíček</button>
+        <button class="list-item-new" ${addAttr}>＋ ${esc(I18n.t('wiki.petAdd'))}</button>
       </div>
       ${groupsHtml}`;
   }
@@ -663,12 +673,12 @@ export const Wiki = (() => {
       <div class="dash-hero">
         <div class="dash-hero-row">
           <h1 class="dash-hero-name" id="dash-hero-name" ${fieldAttrs('name')}>${esc(campaign.name)}</h1>
-          ${editPen('dash-hero-name', 'Upravit jméno kampaně')}
+          ${editPen('dash-hero-name', I18n.t('wiki.editCampaignName'))}
         </div>
         <div class="dash-hero-row">
           <div class="dash-hero-tagline" id="dash-hero-tagline"
-            data-placeholder="Podtitul kampaně" ${fieldAttrs('tagline')}>${esc(campaign.tagline || '')}</div>
-          ${editPen('dash-hero-tagline', 'Upravit podtitul')}
+            data-placeholder="${esc(I18n.t('wiki.campaignTaglinePlaceholder'))}" ${fieldAttrs('tagline')}>${esc(campaign.tagline || '')}</div>
+          ${editPen('dash-hero-tagline', I18n.t('wiki.editCampaignTagline'))}
         </div>
       </div>`;
   }
@@ -681,16 +691,16 @@ export const Wiki = (() => {
     const addBtn = `
       <button class="dash-section-action dash-section-add"
         ${dataAction('EditMode.startNewCharacter', { faction: PARTY_FACTION_ID, knowledge: 4, status: 'alive' })}
-        title="Přidat novou postavu do party">＋ Přidat</button>`;
+        title="${esc(I18n.t('wiki.addPartyCharacterTitle'))}">＋ ${esc(I18n.t('action.add'))}</button>`;
     if (!party.length) {
       return `
         <div class="dash-section">
           <div class="dash-section-head">
-            <h2>🛡 Naše parta</h2>
+            <h2>🛡 ${esc(I18n.t('wiki.ourParty'))}</h2>
             ${addBtn}
           </div>
           <div class="dash-empty">
-            Zatím tu není žádný PC. Přidej postavu a přiřaď jí frakci <em>Parta</em>.
+            ${I18n.t('wiki.partyEmptyDash')}
           </div>
         </div>`;
     }
@@ -703,7 +713,7 @@ export const Wiki = (() => {
     const cards = party.map(c => {
       const locName = locNameOf(c.location);
       const locChip = locName
-        ? `<div class="dash-party-loc" title="Aktuální pozice">📍 ${esc(locName)}</div>`
+        ? `<div class="dash-party-loc" title="${esc(I18n.t('wiki.currentPosition'))}">📍 ${esc(locName)}</div>`
         : '';
       const titleLine = c.title ? `<div class="dash-party-title">${esc(c.title)}</div>` : '';
       const statusDot = `<span class="dash-party-status" data-status="${esc(c.status||'alive')}"></span>`;
@@ -738,8 +748,8 @@ export const Wiki = (() => {
     return `
       <div class="dash-section">
         <div class="dash-section-head">
-          <h2>🛡 Naše parta</h2>
-          <a class="dash-section-action" href="#/parta">Celá parta →</a>
+          <h2>🛡 ${esc(I18n.t('wiki.ourParty'))}</h2>
+          <a class="dash-section-action" href="#/parta">${esc(I18n.t('wiki.wholeParty'))} →</a>
           ${addBtn}
         </div>
         ${partyBody}
@@ -755,8 +765,8 @@ export const Wiki = (() => {
       // add events here" nudge for anonymous, which is a fine trade).
       if (!Role.isAnonymous()) return `
         <div class="dash-section">
-          <div class="dash-section-head"><h2>🕯 Poslední sezení</h2></div>
-          <div class="dash-empty">Zatím nejsou žádné události s přiřazeným sezením. Přidej událost v <a href="#/casova-osa">Časové ose</a>.</div>
+          <div class="dash-section-head"><h2>🕯 ${esc(I18n.t('wiki.lastSession'))}</h2></div>
+          <div class="dash-empty">${I18n.t('wiki.lastSessionEmpty')}</div>
         </div>`;
       return '';
     }
@@ -781,8 +791,8 @@ export const Wiki = (() => {
     return `
       <div class="dash-section">
         <div class="dash-section-head">
-          <h2>🕯 Poslední sezení <span class="dash-session-badge">Sezení ${maxSitting}</span></h2>
-          <a class="dash-section-action" href="#/casova-osa">Celá časová osa →</a>
+          <h2>🕯 ${esc(I18n.t('wiki.lastSession'))} <span class="dash-session-badge">${esc(I18n.t('wiki.sessionBadge', { n: maxSitting }))}</span></h2>
+          <a class="dash-section-action" href="#/casova-osa">${esc(I18n.t('wiki.wholeTimeline'))} →</a>
         </div>
         <div class="dash-event-list">${items}</div>
       </div>`;
@@ -818,8 +828,8 @@ export const Wiki = (() => {
     return `
       <div class="dash-section">
         <div class="dash-section-head">
-          <h2>🗝 Otevřené záhady</h2>
-          <a class="dash-section-action" href="#/zahady">Všechny záhady →</a>
+          <h2>🗝 ${esc(I18n.t('wiki.openMysteries'))}</h2>
+          <a class="dash-section-action" href="#/zahady">${esc(I18n.t('wiki.allMysteries'))} →</a>
         </div>
         <div class="dash-mystery-list">${items}</div>
       </div>`;
@@ -921,7 +931,7 @@ export const Wiki = (() => {
         <span class="activity-time">${esc(humanTime(it.updatedAt))}</span>
       </a>`).join('');
     return `
-      <div class="dash-section-title" style="margin-top:2rem">Poslední úpravy</div>
+      <div class="dash-section-title" style="margin-top:2rem">${esc(I18n.t('wiki.recentEdits'))}</div>
       <div class="activity-list">${rows}</div>
     `;
   }
@@ -989,7 +999,7 @@ export const Wiki = (() => {
     // visible to anyone who can edit (i.e. not anonymous).
     const newCard = "";
     const emptyMsg = chars.length === 0
-      ? `<div class="list-empty">Žádná postava neodpovídá hledání.</div>` : "";
+      ? `<div class="list-empty">${esc(I18n.t('wiki.charNoMatch'))}</div>` : "";
 
     // Group by faction when the default grouped-sort is active and no
     // single-faction filter is pinned. All other sorts render a flat
@@ -1013,13 +1023,13 @@ export const Wiki = (() => {
         let label;
         if (fid === PARTY_FACTION_ID) {
           const pp = Store.getPlayerParty();
-          label = `${pp.badge || pp.icon || '🛡'} ${pp.name || 'Naše parta'}`;
+          label = `${pp.badge || pp.icon || '🛡'} ${pp.name || I18n.t('wiki.ourParty')}`;
         } else if (f) {
           label = `${f.badge || '⬡'} ${f.name}`;
         } else if (fid === '__nofac__') {
-          label = 'Bez frakce';
+          label = I18n.t('wiki.noFaction');
         } else if (fid === 'neutral') {
-          label = '👤 Neutrální';
+          label = '👤 ' + I18n.t('wiki.neutral');
         } else {
           label = fid;
         }
@@ -1050,12 +1060,12 @@ export const Wiki = (() => {
     // Truly-empty collection (not just filtered) → onboarding card.
     if (allChars.length === 0) {
       return `
-        <div class="page-header"><h1>Postavy</h1></div>
+        <div class="page-header"><h1>${esc(I18n.t('nav.characters'))}</h1></div>
         ${_renderEmptyState({
           icon: '👤',
-          title: 'Zatím žádné postavy',
-          description: 'PCs, spojenci a nepřátelé, které parta potkává. Přidej první postavu a začni budovat svět.',
-          ctaLabel: 'Nová postava', ctaHref: '#/postava/new',
+          title: I18n.t('wiki.charEmptyTitle'),
+          description: I18n.t('wiki.charEmptyDesc'),
+          ctaLabel: I18n.t('wiki.charNew'), ctaHref: '#/postava/new',
         })}`;
     }
 
@@ -1092,29 +1102,29 @@ export const Wiki = (() => {
     // via the renderer's short-circuit on `id === "new"` → editor save
     // gating in the action handlers.
     const newBtn = `
-      <a href="#/postava/new" class="list-item-new" style="text-decoration:none">＋ Nová postava</a>`;
+      <a href="#/postava/new" class="list-item-new" style="text-decoration:none">＋ ${esc(I18n.t('wiki.charNew'))}</a>`;
 
     return `
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
         <div style="flex:1">
-          <h1>Postavy</h1>
-          <div class="subtitle">${shown.length} / ${allChars.length} záznamů${filterFaction ? " · " + factions[filterFaction]?.name : ""}${activeAtt ? " · " + esc(attEnum.find(a=>a.id===activeAtt)?.label || activeAtt) : ""}</div>
+          <h1>${esc(I18n.t('nav.characters'))}</h1>
+          <div class="subtitle">${esc(I18n.t('wiki.recordsCount', { shown: shown.length, total: allChars.length }))}${filterFaction ? " · " + factions[filterFaction]?.name : ""}${activeAtt ? " · " + esc(attEnum.find(a=>a.id===activeAtt)?.label || activeAtt) : ""}</div>
         </div>
         ${newBtn}
       </div>
       <div class="filter-bar">
-        <button class="filter-btn ${!filterFaction ? "active" : ""}"${dataAction('Wiki.renderPage', 'postavy', 'all')}>Všechny</button>
+        <button class="filter-btn ${!filterFaction ? "active" : ""}"${dataAction('Wiki.renderPage', 'postavy', 'all')}>${esc(I18n.t('wiki.filterAll'))}</button>
         ${factionFilters}
       </div>
       ${attFilters ? `<div class="filter-bar filter-bar-attitudes">
-        <button class="filter-btn ${!activeAtt ? 'active' : ''}"${dataAction('Wiki.setPostavyAttitude', '')}>Libovolný postoj</button>
+        <button class="filter-btn ${!activeAtt ? 'active' : ''}"${dataAction('Wiki.setPostavyAttitude', '')}>${esc(I18n.t('wiki.attitudeAny'))}</button>
         ${attFilters}
       </div>` : ''}
       ${_listToolbar('postavy', [
-        ['faction',   'Frakce (seskupeno)'],
-        ['name',      'Jméno (A→Z)'],
-        ['status',    'Status'],
-        ['knowledge', 'Znalost (nejvíc)'],
+        ['faction',   I18n.t('wiki.sortFactionGrouped')],
+        ['name',      I18n.t('wiki.sortNameAsc')],
+        ['status',    I18n.t('wiki.sortStatus')],
+        ['knowledge', I18n.t('wiki.sortKnowledge')],
       ])}
       <div id="wl-postavy-grid">${_postavyGridHtml(filterFaction)}</div>
     `;
@@ -1156,7 +1166,7 @@ export const Wiki = (() => {
     if (!sub) return;
     const f = _listState.postavy.faction;
     const fLabel = f ? " · " + (Store.getFactions()[f]?.name || '') : "";
-    sub.textContent = `${shown} / ${total} záznamů${fLabel}`;
+    sub.textContent = `${I18n.t('wiki.recordsCount', { shown, total })}${fLabel}`;
   }
 
   function renderCharacterCard(c) {
@@ -1176,7 +1186,7 @@ export const Wiki = (() => {
         ${twinMark}
         <div class="char-card-info">
           <div class="char-card-name">${c.knowledge >= 1 ? esc(c.name) : "???"}</div>
-          <div class="char-card-title">${c.knowledge >= 2 ? esc(c.title) : "Neznámá"}</div>
+          <div class="char-card-title">${c.knowledge >= 2 ? esc(c.title) : esc(I18n.t('wiki.unknownTitle'))}</div>
           <div class="char-card-badges">${statusBadge(c.status)}</div>
         </div>
       </a>
@@ -1189,7 +1199,7 @@ export const Wiki = (() => {
    *  them (they only ever see the public half anyway). */
   function _twinCardMarker(entity) {
     if (!entity || !entity.linkedTwinId) return '';
-    return `<span class="card-twin-marker" title="Tato entita má twin">🔗</span>`;
+    return `<span class="card-twin-marker" title="${esc(I18n.t('wiki.twinMarkerTitle'))}">🔗</span>`;
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -1198,7 +1208,7 @@ export const Wiki = (() => {
   function renderCharacterArticle(id) {
     if (id === "new") return EditMode.renderCharacterEditor(null);
     const c = Store.getCharacter(id);
-    if (!c) return `<p>Postava '${id}' nenalezena.</p>`;
+    if (!c) return `<p>${esc(I18n.t('wiki.charNotFound', { id }))}</p>`;
     if (_isCurrentArticleEditing()) return EditMode.renderCharacterEditor(c);
 
     // ── View mode ────────────────────────────────────────────────
@@ -1234,9 +1244,9 @@ export const Wiki = (() => {
     })();
 
     const facts = [
-      { label: 'Místo',    value: locationLink || '' },
-      { label: 'Okolnosti',value: (c.knowledge >= 2 && c.circumstances) ? esc(c.circumstances) : '' },
-      { label: 'Hodnost',  value: rankInfo },
+      { label: I18n.t('wiki.factPlace'),         value: locationLink || '' },
+      { label: I18n.t('wiki.factCircumstances'), value: (c.knowledge >= 2 && c.circumstances) ? esc(c.circumstances) : '' },
+      { label: I18n.t('wiki.factRank'),          value: rankInfo },
       _twinFactRow('characters', c),
     ].filter(Boolean);
 
@@ -1244,7 +1254,7 @@ export const Wiki = (() => {
 
     const body = c.knowledge >= 2
       ? `<div class="md-view">${renderMarkdown(c.description)}</div>`
-      : `<em>O této postavě toho víme jen velmi málo.</em>`;
+      : `<em>${esc(I18n.t('wiki.charLittleKnown'))}</em>`;
 
     // Attitude chips: one per active attitude (own or inherited from
     // faction). Strength % is shown when ≠ 100%. Party PCs always
@@ -1269,7 +1279,7 @@ export const Wiki = (() => {
     return _articleShell({
       editButton: _articleEditButton('characters', id),
       visual:   portraitWrap(c, '', articleGlow),
-      title:    c.knowledge >= 1 ? esc(c.name) : 'Neznámá Postava',
+      title:    c.knowledge >= 1 ? esc(c.name) : esc(I18n.t('wiki.unknownCharacter')),
       subtitle: c.knowledge >= 2 && c.title ? esc(c.title) : '',
       chips:    [
         factionBadge(c.faction),
@@ -1280,11 +1290,11 @@ export const Wiki = (() => {
       ].filter(Boolean),
       facts,
       sections: [
-        { id: 'vazby',    title: 'Vazby',               html: rels.length          ? _relChipsHtml(rels, id, chars) : '' },
-        { id: 'udalosti', title: 'Zmínky v Událostech', html: eventsInvolved.length ? _eventListHtml(eventsInvolved) : '' },
-        { id: 'znalosti', title: 'Co víme',             html: (c.knowledge >= 2 && (c.known||[]).length)
+        { id: 'vazby',    title: I18n.t('wiki.sectionRelations'),     html: rels.length          ? _relChipsHtml(rels, id, chars) : '' },
+        { id: 'udalosti', title: I18n.t('wiki.sectionEventMentions'), html: eventsInvolved.length ? _eventListHtml(eventsInvolved) : '' },
+        { id: 'znalosti', title: I18n.t('wiki.sectionKnown'),         html: (c.knowledge >= 2 && (c.known||[]).length)
                                                 ? _factListHtml(c.known, 'fact-item')   : '' },
-        { id: 'otazky',   title: 'Otevřené otázky',     html: _qaListHtmlSplit(c.unknown || []) },
+        { id: 'otazky',   title: I18n.t('wiki.sectionOpenQuestions'), html: _qaListHtmlSplit(c.unknown || []) },
         (() => { const ps = _petsArticleSection('character', id); return ps ? { id: 'mazlicci', ...ps } : null; })(),
       ],
       body,
@@ -1412,7 +1422,7 @@ export const Wiki = (() => {
     const newCard = "";
 
     if (locs.length === 0) {
-      return `<div class="loc-grid"><div class="list-empty">Žádné místo neodpovídá hledání.</div>${newCard}</div>`;
+      return `<div class="loc-grid"><div class="list-empty">${esc(I18n.t('wiki.locNoMatch'))}</div>${newCard}</div>`;
     }
 
     // Group by pinType when the default grouped-sort is active.
@@ -1442,7 +1452,7 @@ export const Wiki = (() => {
       });
       const sections = keys.map(k => {
         const def = k === '__other__'
-          ? { icon: '📦', label: 'Ostatní' }
+          ? { icon: '📦', label: I18n.t('wiki.locGroupOther') }
           : (PIN_TYPES[k] || { icon: '📍', label: k });
         const list = byType.get(k);
         return `
@@ -1462,18 +1472,18 @@ export const Wiki = (() => {
     const shown = _mistaApply().length;
     if (total === 0) {
       return `
-        <div class="page-header"><h1>Místa</h1></div>
+        <div class="page-header"><h1>${esc(I18n.t('nav.locations'))}</h1></div>
         ${_renderEmptyState({
           icon: '📍',
-          title: 'Zatím žádná místa',
-          description: 'Lokace v kampani — města, dungeons, divočina, místa na mapě.',
-          ctaLabel: 'Nové místo', ctaHref: '#/misto/new',
+          title: I18n.t('wiki.locEmptyTitle'),
+          description: I18n.t('wiki.locEmptyDesc'),
+          ctaLabel: I18n.t('wiki.locNew'), ctaHref: '#/misto/new',
         })}`;
     }
     // "+ Nové místo" — always rendered (anonymous click prompts login
     // via the editor's save handler).
     const newBtn = `
-      <a href="#/misto/new" class="list-item-new" style="text-decoration:none">＋ Nové místo</a>`;
+      <a href="#/misto/new" class="list-item-new" style="text-decoration:none">＋ ${esc(I18n.t('wiki.locNew'))}</a>`;
 
     // Attitude chip filter — same pattern as /postavy. Counts use
     // getEffectiveAttitudes so the filter agrees with what the cards
@@ -1496,19 +1506,19 @@ export const Wiki = (() => {
     return `
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
         <div style="flex:1">
-          <h1>Místa</h1>
-          <div class="subtitle">${shown} / ${total} lokací${activeAtt ? " · " + esc(attEnum.find(a=>a.id===activeAtt)?.label || activeAtt) : ""}</div>
+          <h1>${esc(I18n.t('nav.locations'))}</h1>
+          <div class="subtitle">${esc(I18n.t('wiki.locationsCount', { shown, total }))}${activeAtt ? " · " + esc(attEnum.find(a=>a.id===activeAtt)?.label || activeAtt) : ""}</div>
         </div>
         ${newBtn}
       </div>
       ${attFilters ? `<div class="filter-bar filter-bar-attitudes">
-        <button class="filter-btn ${!activeAtt ? 'active' : ''}"${dataAction('Wiki.setMistaAttitude', '')}>Libovolný postoj</button>
+        <button class="filter-btn ${!activeAtt ? 'active' : ''}"${dataAction('Wiki.setMistaAttitude', '')}>${esc(I18n.t('wiki.attitudeAny'))}</button>
         ${attFilters}
       </div>` : ''}
       ${_listToolbar('mista', [
-        ['type',      'Typ (seskupeno)'],
-        ['name',      'Jméno (A→Z)'],
-        ['knowledge', 'Znalost (nejvíc)'],
+        ['type',      I18n.t('wiki.sortTypeGrouped')],
+        ['name',      I18n.t('wiki.sortNameAsc')],
+        ['knowledge', I18n.t('wiki.sortKnowledge')],
       ])}
       <div id="wl-mista-grid">${_mistaGridHtml()}</div>
     `;
@@ -1540,13 +1550,13 @@ export const Wiki = (() => {
     if (!sub) return;
     const total = Store.getLocations().length;
     const shown = _mistaApply().length;
-    sub.textContent = `${shown} / ${total} lokací`;
+    sub.textContent = I18n.t('wiki.locationsCount', { shown, total });
   }
 
   function renderLocationArticle(id) {
     if (id === "new") return EditMode.renderLocationEditor(null);
     const l = Store.getLocation(id);
-    if (!l) return `<p>Místo '${id}' nenalezeno.</p>`;
+    if (!l) return `<p>${esc(I18n.t('wiki.locNotFound', { id }))}</p>`;
     if (_isCurrentArticleEditing()) return EditMode.renderLocationEditor(l);
 
     const factions = Store.getFactions();
@@ -1578,13 +1588,13 @@ export const Wiki = (() => {
     const mapButtons = [];
     if (placed) {
       mapButtons.push(
-        `<button class="inline-create-btn"${dataAction('WorldMap.showPin', l.id)}>🧭 Najít na mapě</button>`
+        `<button class="inline-create-btn"${dataAction('WorldMap.showPin', l.id)}>🧭 ${esc(I18n.t('wiki.findOnMap'))}</button>`
       );
     } else {
       // "📍 Umístit na mapu" — always rendered. WorldMap.startPlacingPin
       // checks Role.isAnonymous and prompts login if needed.
       mapButtons.push(
-        `<button class="inline-create-btn"${dataAction('WorldMap.startPlacingPin', l.id)}>📍 Umístit na mapu</button>`
+        `<button class="inline-create-btn"${dataAction('WorldMap.startPlacingPin', l.id)}>📍 ${esc(I18n.t('wiki.placeOnMap'))}</button>`
       );
     }
     if (l.localMap) {
@@ -1593,7 +1603,7 @@ export const Wiki = (() => {
       // needed. Encoding parentId in the URL also keeps an edit-mode
       // toggle (synthetic hashchange) on the same sub-map.
       mapButtons.push(
-        `<a class="inline-create-btn" href="#/mapa/local/${encodeURIComponent(l.id)}">🗺 Otevřít místní mapu</a>`
+        `<a class="inline-create-btn" href="#/mapa/local/${encodeURIComponent(l.id)}">🗺 ${esc(I18n.t('wiki.openLocalMap'))}</a>`
       );
     }
     const mapRow = mapButtons.length
@@ -1604,15 +1614,15 @@ export const Wiki = (() => {
     // this place. Anonymous click → login modal via the action handlers.
     const inlineCreate = `
       <div class="inline-create-row">
-        <button class="inline-create-btn"${dataAction('EditMode.startNewCharacterInLocation', l.id)}>＋ Postava zde</button>
-        <button class="inline-create-btn"${dataAction('EditMode.startNewEvent', { locations: [l.id] })}>＋ Událost zde</button>
-        <button class="inline-create-btn"${dataAction('EditMode.startNewLocation', { parentId: l.id })}>＋ Dílčí místo</button>
+        <button class="inline-create-btn"${dataAction('EditMode.startNewCharacterInLocation', l.id)}>＋ ${esc(I18n.t('wiki.characterHere'))}</button>
+        <button class="inline-create-btn"${dataAction('EditMode.startNewEvent', { locations: [l.id] })}>＋ ${esc(I18n.t('wiki.eventHere'))}</button>
+        <button class="inline-create-btn"${dataAction('EditMode.startNewLocation', { parentId: l.id })}>＋ ${esc(I18n.t('wiki.subLocation'))}</button>
       </div>`;
 
     const pt = PIN_TYPES[l.pinType] || PIN_TYPES.custom || { icon: '📍', label: l.type || '' };
     const chips = [];
-    if (placed)     chips.push(`<span class="profile-chip">📍 Na mapě</span>`);
-    if (l.localMap) chips.push(`<span class="profile-chip">🗺 Místní mapa</span>`);
+    if (placed)     chips.push(`<span class="profile-chip">📍 ${esc(I18n.t('wiki.chipOnMap'))}</span>`);
+    if (l.localMap) chips.push(`<span class="profile-chip">🗺 ${esc(I18n.t('wiki.chipLocalMap'))}</span>`);
     if (typeof l.knowledge === 'number') chips.push(knowledgeBadge(l.knowledge));
 
     // Attitude chips on the location article — one per active attitude
@@ -1647,17 +1657,17 @@ export const Wiki = (() => {
       subtitle: esc(l.type || ''),
       chips,
       facts: [
-        { label: 'Region',          value: l.region ? esc(l.region) : '' },
-        { label: 'Nadřazené místo', value: ancestors.length
+        { label: I18n.t('wiki.factRegion'),       value: l.region ? esc(l.region) : '' },
+        { label: I18n.t('wiki.factParentPlace'),  value: ancestors.length
                                            ? ancestors.map(a => `<a href="#/misto/${a.id}">📍 ${esc(a.name)}</a>`).join(' › ')
                                            : '' },
         _twinFactRow('locations', l),
       ].filter(Boolean),
       sections: [
-        { title: 'Mapa',             html: mapRow },
-        { title: 'Dílčí místa',      html: subChips },
-        { title: 'Přítomné Postavy', html: chars ? `<div class="relation-chips">${chars}</div>` : '' },
-        { title: 'Události zde',     html: events.length
+        { title: I18n.t('wiki.sectionMap'),             html: mapRow },
+        { title: I18n.t('wiki.sectionSubLocations'),    html: subChips },
+        { title: I18n.t('wiki.sectionPresentChars'),    html: chars ? `<div class="relation-chips">${chars}</div>` : '' },
+        { title: I18n.t('wiki.sectionEventsHere'),      html: events.length
           ? `<div class="fact-list">${events.map(e =>
               `<div class="fact-item"><a class="wiki-link" href="#/udalost/${e.id}">${esc(e.name)}</a>${e.short ? ` — ${esc(e.short)}` : ''}</div>`
             ).join('')}</div>`
@@ -1680,7 +1690,7 @@ export const Wiki = (() => {
   function renderEventArticle(id) {
     if (id === "new") return EditMode.renderEventEditor(null);
     const e = Store.getEvent(id);
-    if (!e) return `<p>Událost '${id}' nenalezena.</p>`;
+    if (!e) return `<p>${esc(I18n.t('wiki.eventNotFound', { id }))}</p>`;
     if (_isCurrentArticleEditing()) return EditMode.renderEventEditor(e);
 
     const chars = (e.characters || []).map(cid => {
@@ -1693,7 +1703,7 @@ export const Wiki = (() => {
       return l ? `<a class="relation-chip" href="#/misto/${lid}">📍 ${esc(l.name)}</a>` : "";
     }).join("");
 
-    const sittingLabel = e.sitting ? `Sezení ${e.sitting}` : 'Dávná minulost';
+    const sittingLabel = e.sitting ? I18n.t('wiki.sessionBadge', { n: e.sitting }) : I18n.t('wiki.distantPast');
     const chips = [];
     if (e.priority) chips.push(`<span class="mystery-priority priority-${e.priority}">${e.priority.toUpperCase()}</span>`);
     if ((e.tags || []).length) {
@@ -1708,12 +1718,12 @@ export const Wiki = (() => {
       subtitle: sittingLabel,
       chips,
       facts: [
-        { label: 'Datum', value: e.date ? esc(e.date) : '' },
+        { label: I18n.t('wiki.factDate'), value: e.date ? esc(e.date) : '' },
         _twinFactRow('events', e),
       ].filter(Boolean),
       sections: [
-        { title: 'Zúčastněné postavy', html: chars ? `<div class="relation-chips">${chars}</div>` : '' },
-        { title: 'Místa',              html: locs  ? `<div class="relation-chips">${locs}</div>`  : '' },
+        { title: I18n.t('wiki.sectionInvolvedChars'), html: chars ? `<div class="relation-chips">${chars}</div>` : '' },
+        { title: I18n.t('nav.locations'),             html: locs  ? `<div class="relation-chips">${locs}</div>`  : '' },
       ],
       outlineSource: e.description || '',
       kind: 'events', entity: e,
@@ -1754,9 +1764,9 @@ export const Wiki = (() => {
       }))
       .filter(item => !q || item.blob.includes(q));
     if (!rows.length) {
-      return `<div class="list-empty">${_zahadyQuestionFilter
-        ? 'Žádná otevřená otázka neodpovídá hledání.'
-        : 'Žádné otevřené otázky — vše vyřešené.'}</div>`;
+      return `<div class="list-empty">${esc(_zahadyQuestionFilter
+        ? I18n.t('wiki.openQNoMatch')
+        : I18n.t('wiki.openQAllSolved'))}</div>`;
     }
     return rows.map(item => {
       const cfg     = _OQ_SOURCES[item.source] || _OQ_SOURCES.mystery;
@@ -1771,7 +1781,7 @@ export const Wiki = (() => {
       // its editor via the same affordance used by card pencils
       // (Wiki.startEditingArticle handles anonymous → login modal).
       const editBtn = `<button type="button" class="oq-edit"
-        title="Upravit ${item.source === 'character' ? 'postavu' : 'záhadu'}"
+        title="${esc(item.source === 'character' ? I18n.t('wiki.editCharacter') : I18n.t('wiki.editMystery'))}"
         ${dataAction('Wiki.startEditingArticle', route)}>✏</button>`;
       return `
         <div class="oq-row" data-source="${esc(item.source)}">
@@ -1790,12 +1800,12 @@ export const Wiki = (() => {
     return `
       <details class="oq-block" open>
         <summary class="oq-summary">
-          <span class="oq-summary-label">📋 Všechny otevřené otázky</span>
+          <span class="oq-summary-label">📋 ${esc(I18n.t('wiki.allOpenQuestions'))}</span>
           <span class="oq-summary-count">${total}</span>
         </summary>
         <div class="oq-toolbar">
           <input type="search" class="edit-input oq-search"
-            placeholder="🔍 Hledat v textu otázky nebo jménu záhady…"
+            placeholder="🔍 ${esc(I18n.t('wiki.openQSearchPlaceholder'))}"
             value="${esc(_zahadyQuestionFilter)}"
             ${dataOn('input', 'Wiki.setZahadyQuestionFilter', '$value')}>
         </div>
@@ -1819,12 +1829,12 @@ export const Wiki = (() => {
     const openQs = Store.getOpenQuestions();
     if (mysteries.length === 0 && openQs.length === 0) {
       return `
-        <div class="page-header"><h1>❓ Záhady</h1></div>
+        <div class="page-header"><h1>❓ ${esc(I18n.t('nav.mysteries'))}</h1></div>
         ${_renderEmptyState({
           icon: '❓',
-          title: 'Žádné záhady',
-          description: 'Otevřené otázky kampaně — co není známo, co je třeba odhalit, co parta zkoumá.',
-          ctaLabel: 'Nová záhada', ctaHref: '#/zahada/new',
+          title: I18n.t('wiki.mysteryEmptyTitle'),
+          description: I18n.t('wiki.mysteryEmptyDesc'),
+          ctaLabel: I18n.t('wiki.mysteryNew'), ctaHref: '#/zahada/new',
         })}`;
     }
     const sorted = [...mysteries].sort((a,b) => {
@@ -1834,13 +1844,13 @@ export const Wiki = (() => {
     const unsolvedCount = mysteries.filter(m => !Store.isMysterySolved(m)).length;
 
     const newBtn = `
-      <a href="#/zahada/new" class="list-item-new" style="text-decoration:none">＋ Nová záhada</a>`;
+      <a href="#/zahada/new" class="list-item-new" style="text-decoration:none">＋ ${esc(I18n.t('wiki.mysteryNew'))}</a>`;
 
     return `
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
         <div style="flex:1">
-          <h1>❓ Záhady &amp; Otevřené Otázky</h1>
-          <div class="subtitle">${unsolvedCount} nevyřešených z ${mysteries.length}</div>
+          <h1>❓ ${esc(I18n.t('wiki.mysteriesHeader'))}</h1>
+          <div class="subtitle">${esc(I18n.t('wiki.mysteriesUnsolvedCount', { unsolved: unsolvedCount, total: mysteries.length }))}</div>
         </div>
         ${newBtn}
       </div>
@@ -1852,9 +1862,9 @@ export const Wiki = (() => {
           const totalCnt = (m.questions || []).length;
           const solved   = Store.isMysterySolved(m);
           const qBadge   = totalCnt > 0
-            ? `<span class="mystery-qcount" title="Otevřené otázky / celkem">${openCnt}/${totalCnt} otázek</span>`
+            ? `<span class="mystery-qcount" title="${esc(I18n.t('wiki.openQuestionsOfTotal'))}">${esc(I18n.t('wiki.questionsCount', { open: openCnt, total: totalCnt }))}</span>`
             : '';
-          const solvedBadge = solved ? `<span class="profile-chip" style="margin-left:0.4rem">✓ Vyřešeno</span>` : '';
+          const solvedBadge = solved ? `<span class="profile-chip" style="margin-left:0.4rem">✓ ${esc(I18n.t('wiki.solved'))}</span>` : '';
           // Card body is a <div> (can't be an <a> because it nests
           // relation-chips which are themselves <a>). Title becomes a
           // wiki-link so the user can still click into the detail page.
@@ -1863,11 +1873,11 @@ export const Wiki = (() => {
               <a href="#/zahada/${m.id}" style="text-decoration:none;color:inherit">❓ ${esc(m.name)} ${_twinCardMarker(m)}${solvedBadge}</a>
               ${editBtn}
             </div>
-            <div class="mystery-priority priority-${m.priority}">PRIORITA: ${m.priority.toUpperCase()} ${qBadge}</div>
+            <div class="mystery-priority priority-${m.priority}">${esc(I18n.t('wiki.priorityLabel'))}: ${m.priority.toUpperCase()} ${qBadge}</div>
             <div class="mystery-desc md-view" style="margin-top:0.5rem">${renderMarkdown(m.description)}</div>
             ${(m.characters||[]).length ? `
               <div style="margin-top:0.75rem">
-                <div class="char-section-title" style="font-size:0.7rem;margin-bottom:0.4rem">SPOJENÉ POSTAVY</div>
+                <div class="char-section-title" style="font-size:0.7rem;margin-bottom:0.4rem">${esc(I18n.t('wiki.linkedCharsUpper'))}</div>
                 <div class="relation-chips">
                   ${m.characters.map(cid => {
                     const c = Store.getCharacter(cid);
@@ -1887,7 +1897,7 @@ export const Wiki = (() => {
   function renderMysteryArticle(id) {
     if (id === "new") return EditMode.renderMysteryEditor(null);
     const m = Store.getMystery(id);
-    if (!m) return `<p>Záhada '${id}' nenalezena.</p>`;
+    if (!m) return `<p>${esc(I18n.t('wiki.mysteryNotFound', { id }))}</p>`;
     if (_isCurrentArticleEditing()) return EditMode.renderMysteryEditor(m);
 
     const charChips = (m.characters || []).map(cid => {
@@ -1921,27 +1931,27 @@ export const Wiki = (() => {
       editButton: _articleEditButton('mysteries', id),
       visual: `<div class="ah-icon">❓</div>`,
       title: esc(m.name),
-      subtitle: `Priorita: ${m.priority}`,
+      subtitle: `${I18n.t('wiki.priorityLabelCap')}: ${m.priority}`,
       chips: [
         `<span class="mystery-priority priority-${m.priority}">${m.priority.toUpperCase()}</span>`,
         solvedAll
-          ? `<span class="profile-chip">✓ Vyřešeno</span>`
-          : `<span class="profile-chip">⧗ Otevřená</span>`,
+          ? `<span class="profile-chip">✓ ${esc(I18n.t('wiki.solved'))}</span>`
+          : `<span class="profile-chip">⧗ ${esc(I18n.t('wiki.open'))}</span>`,
       ],
       facts: [_twinFactRow('mysteries', m)].filter(Boolean),
       sections: [
-        { title: 'Otevřené otázky', html: openQHtml },
-        { title: 'Vyřešené otázky', html: solvedQHtml },
-        { title: 'Stopy',           html: (m.clues||[]).length
+        { title: I18n.t('wiki.sectionOpenQuestions'),   html: openQHtml },
+        { title: I18n.t('wiki.sectionSolvedQuestions'), html: solvedQHtml },
+        { title: I18n.t('wiki.sectionClues'),           html: (m.clues||[]).length
           ? `<div class="fact-list">${m.clues.map(c => `<div class="fact-item">${esc(c)}</div>`).join('')}</div>` : '' },
-        { title: 'Spojené postavy', html: charChips ? `<div class="relation-chips">${charChips}</div>` : '' },
+        { title: I18n.t('wiki.sectionLinkedChars'),     html: charChips ? `<div class="relation-chips">${charChips}</div>` : '' },
       ],
       outlineSource: m.description || '',
       kind: 'mysteries', entity: m,
       body: `
         <div class="md-view">${renderMarkdown(m.description)}</div>
         <div style="margin-top:1.5rem">
-          <a href="#/zahady" class="wiki-link">← Zpět na seznam záhad</a>
+          <a href="#/zahady" class="wiki-link">← ${esc(I18n.t('wiki.backToMysteries'))}</a>
         </div>
       `,
     });
@@ -1996,7 +2006,7 @@ export const Wiki = (() => {
   function _frakceGridHtml() {
     const entries = _frakceApply();
     if (entries.length === 0) {
-      return `<div class="list-empty">Žádná frakce neodpovídá hledání.</div>`;
+      return `<div class="list-empty">${esc(I18n.t('wiki.factionNoMatch'))}</div>`;
     }
     return entries.map(({ id, f, memberCount }) => {
       const rankCount = (f.rankChains || []).reduce((s, ch) => s + ch.ranks.length, 0);
@@ -2010,8 +2020,8 @@ export const Wiki = (() => {
             <span class="faction-card-name" style="color:${f.textColor}">${esc(f.name)}</span>
           </div>
           <div class="faction-card-meta">
-            <span>👤 ${memberCount} postav</span>
-            ${rankCount ? `<span>⚔ ${rankCount} hodností</span>` : ""}
+            <span>👤 ${esc(I18n.t('wiki.membersCount', { n: memberCount }))}</span>
+            ${rankCount ? `<span>⚔ ${esc(I18n.t('wiki.ranksCount', { n: rankCount }))}</span>` : ""}
           </div>
         </a>`;
     }).join("");
@@ -2022,26 +2032,26 @@ export const Wiki = (() => {
     const shown = _frakceApply().length;
     if (total === 0) {
       return `
-        <div class="page-header"><h1>⬡ Frakce</h1></div>
+        <div class="page-header"><h1>⬡ ${esc(I18n.t('nav.factions'))}</h1></div>
         ${_renderEmptyState({
           icon: '⬡',
-          title: 'Žádné frakce',
-          description: 'Organizace, spolky, armády — definují barvy, hodnosti a příslušnost postav. Povinné pro hodnostní řetězce.',
-          ctaLabel: 'Nová frakce', ctaHref: '#/frakce/new',
+          title: I18n.t('wiki.factionEmptyTitle'),
+          description: I18n.t('wiki.factionEmptyDesc'),
+          ctaLabel: I18n.t('wiki.factionNew'), ctaHref: '#/frakce/new',
         })}`;
     }
     return `
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
         <div style="flex:1">
-          <h1>⬡ Frakce</h1>
-          <div class="subtitle">${shown} / ${total} frakcí</div>
+          <h1>⬡ ${esc(I18n.t('nav.factions'))}</h1>
+          <div class="subtitle">${esc(I18n.t('wiki.factionsCount', { shown, total }))}</div>
         </div>
-        <a href="#/frakce/new" class="list-item-new" style="text-decoration:none">＋ Nová frakce</a>
+        <a href="#/frakce/new" class="list-item-new" style="text-decoration:none">＋ ${esc(I18n.t('wiki.factionNew'))}</a>
       </div>
       ${_listToolbar('frakce', [
-        ['default', 'Výchozí'],
-        ['name',    'Jméno (A→Z)'],
-        ['members', 'Počet postav'],
+        ['default', I18n.t('wiki.sortDefault')],
+        ['name',    I18n.t('wiki.sortNameAsc')],
+        ['members', I18n.t('wiki.sortMemberCount')],
       ])}
       <div class="faction-grid" id="wl-frakce-grid">${_frakceGridHtml()}</div>
     `;
@@ -2068,7 +2078,7 @@ export const Wiki = (() => {
     if (!sub) return;
     const total = Object.keys(Store.getFactions()).length;
     const shown = _frakceApply().length;
-    sub.textContent = `${shown} / ${total} frakcí`;
+    sub.textContent = I18n.t('wiki.factionsCount', { shown, total });
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -2079,13 +2089,13 @@ export const Wiki = (() => {
     // Party left the factions collection — point the user at Settings.
     if (id === PARTY_FACTION_ID) {
       return `
-        <div class="page-header"><h1>🛡 Naše parta</h1></div>
-        <p>Hráčská parta se nyní spravuje přes <a class="wiki-link" href="#/nastaveni">⚙ Nastavení → Naše parta</a> (vzhled) a v editoru jednotlivých postav (členství).</p>
-        <p><a class="wiki-link" href="#/parta">→ Otevřít seznam členů</a></p>`;
+        <div class="page-header"><h1>🛡 ${esc(I18n.t('wiki.ourParty'))}</h1></div>
+        <p>${I18n.t('wiki.partyManagedVia')}</p>
+        <p><a class="wiki-link" href="#/parta">→ ${esc(I18n.t('wiki.openMemberList'))}</a></p>`;
     }
     const factions = Store.getFactions();
     const f = factions[id];
-    if (!f) return `<p>Frakce '${id}' nenalezena.</p>`;
+    if (!f) return `<p>${esc(I18n.t('wiki.factionNotFound', { id }))}</p>`;
     if (_isCurrentArticleEditing()) return EditMode.renderFactionEditor(f, id);
 
     const chars = Store.getCharacters().filter(c => c.faction === id);
@@ -2099,7 +2109,7 @@ export const Wiki = (() => {
       }));
       const unrankedMembers = chainMembers.filter(c => !chain.ranks.includes(c.rank));
       const footer = unrankedMembers.length
-        ? { label: 'Neznámá hodnost', members: unrankedMembers.map(_charChip).join('') }
+        ? { label: I18n.t('wiki.unknownRank'), members: unrankedMembers.map(_charChip).join('') }
         : null;
       return renderRankChain({
         title:     chain.name,
@@ -2116,13 +2126,13 @@ export const Wiki = (() => {
 
     const inlineCreate = `
       <div class="inline-create-row">
-        <button class="inline-create-btn"${dataAction('EditMode.startNewCharacter', { faction: id })}>＋ Nová postava ve frakci</button>
+        <button class="inline-create-btn"${dataAction('EditMode.startNewCharacter', { faction: id })}>＋ ${esc(I18n.t('wiki.newCharacterInFaction'))}</button>
       </div>`;
 
     const rankCount = (f.rankChains || []).reduce((s, ch) => s + ch.ranks.length, 0);
     const chips = [
-      `<span class="profile-chip">👤 ${chars.length} postav</span>`,
-      ...(rankCount ? [`<span class="profile-chip">⚔ ${rankCount} hodností</span>`] : []),
+      `<span class="profile-chip">👤 ${esc(I18n.t('wiki.membersCount', { n: chars.length }))}</span>`,
+      ...(rankCount ? [`<span class="profile-chip">⚔ ${esc(I18n.t('wiki.ranksCount', { n: rankCount }))}</span>`] : []),
     ];
     // Faction-level attitude chips + glow on the badge.
     const facColors  = _attitudeColorMap();
@@ -2149,14 +2159,14 @@ export const Wiki = (() => {
       chips,
       facts: [
         (f.rankChains || []).length
-          ? { label: 'Řetězce', value: (f.rankChains || []).map(ch => esc(ch.name)).join(', ') }
+          ? { label: I18n.t('wiki.factChains'), value: (f.rankChains || []).map(ch => esc(ch.name)).join(', ') }
           : null,
         _twinFactRow('factions', f),
       ].filter(Boolean),
       sections: [
-        { title: '',                  html: inlineCreate },
-        { title: 'Hodnostní Řetězce', html: (f.rankChains || []).length ? chainSections : '' },
-        { title: 'Členové',           html: unchained.length
+        { title: '',                          html: inlineCreate },
+        { title: I18n.t('wiki.sectionRankChains'), html: (f.rankChains || []).length ? chainSections : '' },
+        { title: I18n.t('wiki.sectionMembers'),    html: unchained.length
           ? `<div class="relation-chips">${unchained.map(c => `<a class="relation-chip" href="#/postava/${c.id}">${esc(c.name)}</a>`).join('')}</div>`
           : '' },
         _petsArticleSection('faction', id),
@@ -2166,7 +2176,7 @@ export const Wiki = (() => {
       body: `
         ${f.description ? `<div class="md-view">${renderMarkdown(f.description)}</div>` : ''}
         <div style="margin-top:1.5rem">
-          <a href="#/frakce" class="wiki-link">← Zpět na frakce</a>
+          <a href="#/frakce" class="wiki-link">← ${esc(I18n.t('wiki.backToFactions'))}</a>
         </div>
       `,
     });
@@ -2183,12 +2193,12 @@ export const Wiki = (() => {
 
     if (party.length === 0) {
       return `
-        <div class="page-header"><h1>🛡 Parta</h1></div>
+        <div class="page-header"><h1>🛡 ${esc(I18n.t('nav.party'))}</h1></div>
         ${_renderEmptyState({
           icon: '🛡',
-          title: 'Parta je zatím prázdná',
-          description: 'Aktivní hráčské postavy v kampani. Přidej prvního člena — hráči, družina, PCs.',
-          ctaLabel: 'Nový člen party',
+          title: I18n.t('wiki.partyEmptyTitle'),
+          description: I18n.t('wiki.partyEmptyDesc'),
+          ctaLabel: I18n.t('wiki.partyNewMember'),
           ctaActionAttr: dataAction('EditMode.startNewCharacter', { faction: PARTY_FACTION_ID, knowledge: 4, status: 'alive' }),
         })}`;
     }
@@ -2196,19 +2206,18 @@ export const Wiki = (() => {
     // Trailing dashed card removed; the create affordance is a header
     // button (always visible to authed viewers, hidden for anonymous).
     const empty = party.length === 0
-      ? `<div class="list-empty">Parta je zatím prázdná. Přidej prvního člena.</div>` : '';
+      ? `<div class="list-empty">${esc(I18n.t('wiki.partyEmptyInline'))}</div>` : '';
 
     const count = party.length;
-    const countLabel = count === 1 ? 'člen' : (count >= 2 && count <= 4 ? 'členové' : 'členů');
     const newBtn = `
       <button class="list-item-new"
-        ${dataAction('EditMode.startNewCharacter', { faction: PARTY_FACTION_ID, knowledge: 4, status: 'alive' })}>＋ Nový člen party</button>`;
+        ${dataAction('EditMode.startNewCharacter', { faction: PARTY_FACTION_ID, knowledge: 4, status: 'alive' })}>＋ ${esc(I18n.t('wiki.partyNewMember'))}</button>`;
 
     return `
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
         <div style="flex:1">
-          <h1>🛡 Parta</h1>
-          <div class="subtitle">${count} ${countLabel}</div>
+          <h1>🛡 ${esc(I18n.t('nav.party'))}</h1>
+          <div class="subtitle">${esc(I18n.plural('wiki.memberCount', count))}</div>
         </div>
         ${newBtn}
       </div>
@@ -2250,7 +2259,7 @@ export const Wiki = (() => {
         <div class="rank-row-members">
           ${r.members && r.members.trim()
             ? r.members
-            : `<span class="rank-row-empty">Nikdo</span>`}
+            : `<span class="rank-row-empty">${esc(I18n.t('wiki.nobody'))}</span>`}
         </div>
       </div>`).join('');
     const footerHtml = footer ? `
@@ -2297,12 +2306,12 @@ export const Wiki = (() => {
       .sort((a, b) => _czCompare(a.name, b.name));
     if (items.length === 0) {
       return `
-        <div class="page-header"><h1>🧬 Druhy</h1></div>
+        <div class="page-header"><h1>🧬 ${esc(I18n.t('nav.species'))}</h1></div>
         ${_renderEmptyState({
           icon: '🧬',
-          title: 'Žádné druhy',
-          description: 'Rasy a druhy bytostí — Člověk, Elf, Dračizeň… Postavy odkazují na druh z této kolekce.',
-          ctaLabel: 'Nový druh', ctaHref: '#/druh/new',
+          title: I18n.t('wiki.speciesEmptyTitle'),
+          description: I18n.t('wiki.speciesEmptyDesc'),
+          ctaLabel: I18n.t('wiki.speciesNew'), ctaHref: '#/druh/new',
         })}`;
     }
     const grid = items.map(s => {
@@ -2318,7 +2327,7 @@ export const Wiki = (() => {
           </a>`;
         }).join('');
     return `
-      ${_simpleListHeader('🧬 Druhy', `${items.length} záznamů`, '#/druh/new', 'Nový druh')}
+      ${_simpleListHeader('🧬 ' + I18n.t('nav.species'), I18n.plural('wiki.recordCount', items.length), '#/druh/new', I18n.t('wiki.speciesNew'))}
       <div class="loc-grid">${grid}</div>
     `;
   }
@@ -2326,7 +2335,7 @@ export const Wiki = (() => {
   function renderSpeciesArticle(id) {
     if (id === 'new') return EditMode.renderSpeciesEditor(null);
     const s = Store.getSpeciesItem(id);
-    if (!s) return `<p>Druh '${id}' nenalezen.</p>`;
+    if (!s) return `<p>${esc(I18n.t('wiki.speciesNotFound', { id }))}</p>`;
     if (_isCurrentArticleEditing()) return EditMode.renderSpeciesEditor(s);
 
     // Characters of this species.
@@ -2346,7 +2355,7 @@ export const Wiki = (() => {
       chips: [`<span class="profile-chip">👤 ${chars.length}</span>`],
       facts: [_twinFactRow('species', s)].filter(Boolean),
       sections: [
-        { title: 'Postavy tohoto druhu', html: charChips },
+        { title: I18n.t('wiki.sectionCharsOfSpecies'), html: charChips },
       ],
       body: `<div class="md-view">${renderMarkdown(s.description)}</div>`,
       outlineSource: s.description || '',
@@ -2359,12 +2368,12 @@ export const Wiki = (() => {
       .sort((a, b) => _czCompare(a.name, b.name));
     if (items.length === 0) {
       return `
-        <div class="page-header"><h1>✨ Panteon</h1></div>
+        <div class="page-header"><h1>✨ ${esc(I18n.t('nav.pantheon'))}</h1></div>
         ${_renderEmptyState({
           icon: '✨',
-          title: 'Žádná božstva',
-          description: 'Bohové, jejich domény, rituály a kněží — panteon, ve který postavy věří nebo ne.',
-          ctaLabel: 'Nové božstvo', ctaHref: '#/buh/new',
+          title: I18n.t('wiki.pantheonEmptyTitle'),
+          description: I18n.t('wiki.pantheonEmptyDesc'),
+          ctaLabel: I18n.t('wiki.deityNew'), ctaHref: '#/buh/new',
         })}`;
     }
     const grid = items.map(g => {
@@ -2381,7 +2390,7 @@ export const Wiki = (() => {
           </a>`;
         }).join('');
     return `
-      ${_simpleListHeader('✨ Panteon', `${items.length} božstev`, '#/buh/new', 'Nové božstvo')}
+      ${_simpleListHeader('✨ ' + I18n.t('nav.pantheon'), I18n.plural('wiki.deityCount', items.length), '#/buh/new', I18n.t('wiki.deityNew'))}
       <div class="loc-grid">${grid}</div>
     `;
   }
@@ -2389,7 +2398,7 @@ export const Wiki = (() => {
   function renderBuhArticle(id) {
     if (id === 'new') return EditMode.renderBuhEditor(null);
     const g = Store.getBuh(id);
-    if (!g) return `<p>Božstvo '${id}' nenalezeno.</p>`;
+    if (!g) return `<p>${esc(I18n.t('wiki.deityNotFound', { id }))}</p>`;
     if (_isCurrentArticleEditing()) return EditMode.renderBuhEditor(g);
 
     _setCurrentArticle({ type: 'pantheon', id });
@@ -2400,8 +2409,8 @@ export const Wiki = (() => {
       subtitle: [g.domain, g.alignment].filter(Boolean).map(esc).join(' · '),
       chips: [],
       facts: [
-        { label: 'Doména',   value: g.domain    ? esc(g.domain)    : '' },
-        { label: 'Zaměření', value: g.alignment ? esc(g.alignment) : '' },
+        { label: I18n.t('wiki.factDomain'),    value: g.domain    ? esc(g.domain)    : '' },
+        { label: I18n.t('wiki.factAlignment'), value: g.alignment ? esc(g.alignment) : '' },
         _twinFactRow('pantheon', g),
       ].filter(Boolean),
       body: `<div class="md-view">${renderMarkdown(g.description)}</div>`,
@@ -2415,12 +2424,12 @@ export const Wiki = (() => {
       .sort((a, b) => _czCompare(a.name, b.name));
     if (items.length === 0) {
       return `
-        <div class="page-header"><h1>🗝 Artefakty</h1></div>
+        <div class="page-header"><h1>🗝 ${esc(I18n.t('nav.artifacts'))}</h1></div>
         ${_renderEmptyState({
           icon: '🗝',
-          title: 'Žádné artefakty',
-          description: 'Předměty moci — magické zbraně, prokleté šperky, ztracené relikvie.',
-          ctaLabel: 'Nový artefakt', ctaHref: '#/artefakt/new',
+          title: I18n.t('wiki.artifactEmptyTitle'),
+          description: I18n.t('wiki.artifactEmptyDesc'),
+          ctaLabel: I18n.t('wiki.artifactNew'), ctaHref: '#/artefakt/new',
         })}`;
     }
     const grid = items.map(a => {
@@ -2435,7 +2444,7 @@ export const Wiki = (() => {
           </a>`;
         }).join('');
     return `
-      ${_simpleListHeader('🗝 Artefakty', `${items.length} artefaktů`, '#/artefakt/new', 'Nový artefakt')}
+      ${_simpleListHeader('🗝 ' + I18n.t('nav.artifacts'), I18n.plural('wiki.artifactCount', items.length), '#/artefakt/new', I18n.t('wiki.artifactNew'))}
       <div class="loc-grid">${grid}</div>
     `;
   }
@@ -2443,7 +2452,7 @@ export const Wiki = (() => {
   function renderArtifactArticle(id) {
     if (id === 'new') return EditMode.renderArtifactEditor(null);
     const a = Store.getArtifact(id);
-    if (!a) return `<p>Artefakt '${id}' nenalezen.</p>`;
+    if (!a) return `<p>${esc(I18n.t('wiki.artifactNotFound', { id }))}</p>`;
     if (_isCurrentArticleEditing()) return EditMode.renderArtifactEditor(a);
 
     const owner = a.ownerCharacterId ? Store.getCharacter(a.ownerCharacterId) : null;
@@ -2457,8 +2466,8 @@ export const Wiki = (() => {
       subtitle: '',
       chips: [],
       facts: [
-        { label: 'Držitel',   value: owner ? `<a class="relation-chip" href="#/postava/${owner.id}">🎒 ${esc(owner.name)}</a>` : '' },
-        { label: 'Umístění',  value: loc   ? `<a class="relation-chip" href="#/misto/${loc.id}">📍 ${esc(loc.name)}</a>` : '' },
+        { label: I18n.t('wiki.factHolder'),   value: owner ? `<a class="relation-chip" href="#/postava/${owner.id}">🎒 ${esc(owner.name)}</a>` : '' },
+        { label: I18n.t('wiki.factLocation'), value: loc   ? `<a class="relation-chip" href="#/misto/${loc.id}">📍 ${esc(loc.name)}</a>` : '' },
         _twinFactRow('artifacts', a),
       ].filter(Boolean),
       body: `<div class="md-view">${renderMarkdown(a.description)}</div>`,
@@ -2488,12 +2497,12 @@ export const Wiki = (() => {
     });
     if (items.length === 0) {
       return `
-        <div class="page-header"><h1>📜 Historie</h1></div>
+        <div class="page-header"><h1>📜 ${esc(I18n.t('nav.history'))}</h1></div>
         ${_renderEmptyState({
           icon: '📜',
-          title: 'Žádné historické události',
-          description: 'Události dávných věků — války, pády říší, probuzení draků. Doplňují svět nezávisle na časové ose kampaně.',
-          ctaLabel: 'Nová událost', ctaHref: '#/historicka-udalost/new',
+          title: I18n.t('wiki.historyEmptyTitle'),
+          description: I18n.t('wiki.historyEmptyDesc'),
+          ctaLabel: I18n.t('wiki.historyNew'), ctaHref: '#/historicka-udalost/new',
         })}`;
     }
     const grid = items.map(h => {
@@ -2510,7 +2519,7 @@ export const Wiki = (() => {
       </a>`;
     }).join('');
     return `
-      ${_simpleListHeader('📜 Historie', `${items.length} událostí`, '#/historicka-udalost/new', 'Nová událost')}
+      ${_simpleListHeader('📜 ' + I18n.t('nav.history'), I18n.plural('wiki.eventCount', items.length), '#/historicka-udalost/new', I18n.t('wiki.historyNew'))}
       <div class="loc-grid">${grid}</div>
     `;
   }
@@ -2518,7 +2527,7 @@ export const Wiki = (() => {
   function renderHistoryArticle(id) {
     if (id === 'new') return EditMode.renderHistoricalEventEditor(null);
     const h = Store.getHistoricalEvent(id);
-    if (!h) return `<p>Historická událost '${id}' nenalezena.</p>`;
+    if (!h) return `<p>${esc(I18n.t('wiki.historyNotFound', { id }))}</p>`;
     if (_isCurrentArticleEditing()) return EditMode.renderHistoricalEventEditor(h);
 
     const chars = (h.characters || []).map(cid => Store.getCharacter(cid)).filter(Boolean);
@@ -2539,14 +2548,14 @@ export const Wiki = (() => {
       title:  esc(h.name),
       subtitle: _historyRange(h),
       facts: [
-        { label: 'Začátek', value: esc(h.start || '') },
-        { label: 'Konec',   value: esc(h.end   || '') },
+        { label: I18n.t('wiki.factStart'), value: esc(h.start || '') },
+        { label: I18n.t('wiki.factEnd'),   value: esc(h.end   || '') },
         _twinFactRow('historicalEvents', h),
       ].filter(Boolean),
       sections: [
-        h.summary ? { title: 'Shrnutí', html: `<div class="md-view">${renderMarkdown(h.summary)}</div>` } : null,
-        charChips ? { title: 'Postavy', html: charChips } : null,
-        locChips  ? { title: 'Místa',   html: locChips  } : null,
+        h.summary ? { title: I18n.t('wiki.sectionSummary'),    html: `<div class="md-view">${renderMarkdown(h.summary)}</div>` } : null,
+        charChips ? { title: I18n.t('nav.characters'),         html: charChips } : null,
+        locChips  ? { title: I18n.t('nav.locations'),          html: locChips  } : null,
       ].filter(Boolean),
       body: `<div class="md-view">${renderMarkdown(h.body)}</div>`,
       outlineSource: h.body || '',

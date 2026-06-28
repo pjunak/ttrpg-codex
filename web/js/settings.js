@@ -14,6 +14,7 @@ import { esc, dataAction, dataOn } from './utils.js';
 import { Sidebar } from './sidebar.js';
 import { Addons } from './addons.js';
 import { THEMES } from './constants.js';
+import { I18n } from './i18n.js';
 
 export const Settings = (() => {
 
@@ -22,20 +23,20 @@ export const Settings = (() => {
   // places of that type). `icon` / `color` are shown as side-by-side
   // inputs when declared.
   const CATEGORIES = [
-    { id: 'relationshipTypes', label: 'Vazby', icon: '🔗',
+    { id: 'relationshipTypes', labelKey: 'settings.catRelationshipTypes', icon: '🔗',
       fields: ['label', 'color', 'style'] },
-    { id: 'genders',           label: 'Pohlaví',              icon: '⚥',
+    { id: 'genders',           labelKey: 'settings.catGenders',           icon: '⚥',
       fields: ['label'] },
     // pinTypes: the emoji `icon` and `color` fields are deprecated
     // (color was never read by the renderer; the emoji is only a
     // last-resort fallback when no SVG resolves). The editable
     // fields are now: label, defaultIconId (pick from bundled SVGs),
     // size. Per-pin-type custom uploads live in the 🎨 panel.
-    { id: 'pinTypes',          label: 'Typy míst',             icon: '📍',
+    { id: 'pinTypes',          labelKey: 'settings.catPinTypes',          icon: '📍',
       fields: ['label', 'defaultIconId', 'size'] },
-    { id: 'characterStatuses', label: 'Stavy postav',          icon: '●',
+    { id: 'characterStatuses', labelKey: 'settings.catCharacterStatuses', icon: '●',
       fields: ['label', 'icon', 'color'] },
-    { id: 'eventPriorities',   label: 'Priority událostí',     icon: '⚑',
+    { id: 'eventPriorities',   labelKey: 'settings.catEventPriorities',   icon: '⚑',
       fields: ['label', 'color'] },
     // "Postoje k partě" — unified palette used on character / location /
     // faction glows. The intensity (`strength`) lives on each entity's
@@ -43,7 +44,7 @@ export const Settings = (() => {
     // colours + label. `bg` drives map-pin fill, `fg` is the icon contrast
     // on the pin, `labelColor` is the readable colour on dark UI (chip
     // text, glow, legend).
-    { id: 'attitudes',         label: 'Postoje k partě',       icon: '🤝',
+    { id: 'attitudes',         labelKey: 'settings.catAttitudes',         icon: '🤝',
       fields: ['label', 'bg', 'fg', 'labelColor', 'strength'] },
   ];
 
@@ -51,15 +52,15 @@ export const Settings = (() => {
   // panels (world-map upload, map-view presets, backup tools) instead
   // of the enum editor.
   const SPECIAL_TABS = [
-    { id: 'appearance',   label: 'Vzhled',          icon: '🎨' },
-    { id: 'branding',     label: 'Logo a značka',   icon: '🐉' },
-    { id: 'playerParty',  label: 'Naše parta',      icon: '🛡' },
-    { id: 'worldmap',     label: 'Mapy',            icon: '🗺' },
-    { id: 'mapViews',     label: 'Pohledy na mapě', icon: '📍' },
-    { id: 'sidebarPages', label: 'Postranní panel', icon: '🧭' },
-    { id: 'addons',       label: 'Doplňky',         icon: '🧩' },
-    { id: 'backup',       label: 'Záloha',          icon: '💾' },
-    { id: 'account',      label: 'Účet',            icon: '👤' },
+    { id: 'appearance',   labelKey: 'settings.tabAppearance',   icon: '🎨' },
+    { id: 'branding',     labelKey: 'settings.tabBranding',     icon: '🐉' },
+    { id: 'playerParty',  labelKey: 'settings.tabPlayerParty',  icon: '🛡' },
+    { id: 'worldmap',     labelKey: 'settings.tabMaps',         icon: '🗺' },
+    { id: 'mapViews',     labelKey: 'settings.tabMapViews',     icon: '📍' },
+    { id: 'sidebarPages', labelKey: 'settings.tabSidebar',      icon: '🧭' },
+    { id: 'addons',       labelKey: 'settings.tabAddons',       icon: '🧩' },
+    { id: 'backup',       labelKey: 'settings.tabBackup',       icon: '💾' },
+    { id: 'account',      labelKey: 'settings.tabAccount',      icon: '👤' },
   ];
 
   let _activeCat       = CATEGORIES[0].id;
@@ -135,6 +136,14 @@ export const Settings = (() => {
     return [...base, ...addonTabs];
   }
 
+  // Resolve a tab's display label. Built-in tabs (CATEGORIES /
+  // SPECIAL_TABS) carry a `labelKey` resolved through I18n; addon-
+  // provided settings tabs come from Addons with a literal `.label`
+  // (content the addon owns), so fall back to that.
+  function _tabLabel(t) {
+    return t.labelKey ? I18n.t(t.labelKey) : (t.label || t.id);
+  }
+
   function _pageHtml() {
     // Defensive: if `_activeCat` references a tab that's been hidden
     // by the current role (e.g. DM exits to player view while the
@@ -150,14 +159,14 @@ export const Settings = (() => {
       <button type="button" class="settings-tab ${c.id===_activeCat?'is-active':''}"
         ${dataAction('Settings.selectCategory', c.id)}>
         <span class="settings-tab-icon">${c.icon}</span>
-        <span class="settings-tab-label">${esc(c.label)}</span>
+        <span class="settings-tab-label">${esc(_tabLabel(c))}</span>
         <span class="settings-tab-count">${Store.getEnum(c.id).length}</span>
       </button>`).join('');
     const specialTabs = _visibleSpecialTabs().map(t => `
       <button type="button" class="settings-tab ${t.id===_activeCat?'is-active':''}"
         ${dataAction('Settings.selectCategory', t.id)}>
         <span class="settings-tab-icon">${t.icon}</span>
-        <span class="settings-tab-label">${esc(t.label)}</span>
+        <span class="settings-tab-label">${esc(_tabLabel(t))}</span>
       </button>`).join('');
     // Separator between enum tabs and special tabs renders only when
     // both groups are non-empty (DM viewers). Non-DM viewers see just
@@ -165,8 +174,8 @@ export const Settings = (() => {
     const tabsSep = (enumTabs && specialTabs) ? `<div class="settings-tabs-sep"></div>` : '';
     return `
       <div class="settings-page">
-        <div class="page-header"><h1>⚙ Nastavení</h1>
-          <div class="subtitle">${Role.isDM() ? 'Číselníky, svět, zálohy.' : 'Účet a zálohy.'}</div>
+        <div class="page-header"><h1>⚙ ${esc(I18n.t('settings.pageTitle'))}</h1>
+          <div class="subtitle">${esc(Role.isDM() ? I18n.t('settings.subtitleDM') : I18n.t('settings.subtitlePlayer'))}</div>
         </div>
         <div class="settings-shell">
           <nav class="settings-tabs">
@@ -190,7 +199,7 @@ export const Settings = (() => {
     if (_activeCat === 'addons')       return _addonsHtml();
     if (_activeCat === 'playerParty')  return _playerPartyHtml();
     const _at = Addons.settingsTab(_activeCat);
-    if (_at) { try { return _at.render(); } catch (e) { return `<div class="settings-panel" style="color:var(--color-danger)">Doplněk selhal: ${esc(e.message)}</div>`; } }
+    if (_at) { try { return _at.render(); } catch (e) { return `<div class="settings-panel" style="color:var(--color-danger)">${esc(I18n.t('settings.addonFailed'))}: ${esc(e.message)}</div>`; } }
     const cat = CATEGORIES.find(c => c.id === _activeCat);
     const items = Store.getEnum(_activeCat);
     const rows = items.map(it => _rowHtml(cat, it)).join('');
@@ -199,23 +208,21 @@ export const Settings = (() => {
       : '';
     return `
       <div class="settings-editor-head">
-        <h2>${cat.icon} ${esc(cat.label)}</h2>
+        <h2>${cat.icon} ${esc(_tabLabel(cat))}</h2>
         <div class="settings-editor-actions">
           <button type="button" class="inline-create-btn"
-            ${dataAction('Settings.startNew')}>＋ Přidat</button>
+            ${dataAction('Settings.startNew')}>＋ ${esc(I18n.t('action.add'))}</button>
           <button type="button" class="inline-create-btn"
-            title="Přidat zpět chybějící výchozí položky"
-            ${dataAction('Settings.resetDefaults')}>↺ Doplnit výchozí</button>
+            title="${esc(I18n.t('settings.resetDefaultsTitle'))}"
+            ${dataAction('Settings.resetDefaults')}>↺ ${esc(I18n.t('settings.resetDefaults'))}</button>
         </div>
       </div>
       ${addForm}
       <div class="settings-rows">
-        ${rows || '<div class="settings-empty">Tato kategorie je prázdná.</div>'}
+        ${rows || `<div class="settings-empty">${esc(I18n.t('settings.categoryEmpty'))}</div>`}
       </div>
       <p class="settings-hint">
-        Smazání položky, která je používaná, nabídne možnost nahradit ji
-        jinou položkou nebo odstranit i tak (chybějící odkazy se vykreslují
-        s ⚠ varováním, nic se nerozbije).
+        ${esc(I18n.t('settings.deleteUsageHint'))}
       </p>`;
   }
 
@@ -228,7 +235,7 @@ export const Settings = (() => {
     // strategy + uploaded image variants below the row.
     const iconBtn = (cat.id === 'pinTypes')
       ? `<button type="button" class="settings-btn-icons"
-            title="Vlastní ikony pro tuto značku"
+            title="${esc(I18n.t('settings.customIconsTitle'))}"
             ${dataAction('Settings.toggleIconPanel', item.id)}>🎨</button>`
       : '';
     // For pinTypes rows, prefer a real artwork preview (uploaded files
@@ -258,7 +265,7 @@ export const Settings = (() => {
         ${rowIconHtml}
         <span class="settings-row-label">${esc(item.label || item.id)}</span>
         ${swatch}
-        <span class="settings-row-usage" title="Použitích">${usageCount > 0 ? usageCount + '×' : '–'}</span>
+        <span class="settings-row-usage" title="${esc(I18n.t('settings.usageTitle'))}">${usageCount > 0 ? usageCount + '×' : '–'}</span>
         <div class="settings-row-actions">
           ${iconBtn}
           <button type="button" class="settings-btn-edit"
@@ -302,7 +309,7 @@ export const Settings = (() => {
         </div>
         <code class="mit-file-name">${esc(f.id)}</code>
         <button type="button" class="settings-btn-del"
-          title="Smazat tento soubor"
+          title="${esc(I18n.t('settings.deleteFileTitle'))}"
           ${dataAction('Settings.deleteIconFile', pinType.id, f.id)}>🗑</button>
       </div>`).join('');
 
@@ -313,34 +320,33 @@ export const Settings = (() => {
     // "no files / falls back to emoji" message instead.
     const bundledUrl = WorldMap.bundledDefaultUrl(pinType.id);
     const empty = files.length ? '' : (bundledUrl ? `
-      <div class="mit-bundled-default" title="Výchozí ikona z balíčku game-icons.net (CC BY 3.0).">
+      <div class="mit-bundled-default" title="${esc(I18n.t('settings.bundledIconTitle'))}">
         <div class="mit-thumb"><img src="${esc(bundledUrl)}" alt=""></div>
         <div class="mit-bundled-default-text">
-          <strong>Výchozí ikona</strong>
-          <span class="settings-hint">game-icons.net (CC BY 3.0). Nahrátím vlastních souborů ji nahradíš.</span>
+          <strong>${esc(I18n.t('settings.bundledIcon'))}</strong>
+          <span class="settings-hint">${esc(I18n.t('settings.bundledIconHint'))}</span>
         </div>
       </div>` : `
       <div class="settings-empty" style="margin:0.5rem 0">
-        Zatím žádné soubory. Nahraj alespoň jeden — bez nahraných ikon
-        se použije emoji glyf z výchozího nastavení.
+        ${esc(I18n.t('settings.noIconFiles'))}
       </div>`);
 
     return `
       <div class="mit-panel" id="mit-panel-${esc(pinType.id)}">
         <div class="mit-strategy-row">
-          ${radio('single', 'Jeden soubor',     'Vždy se vykreslí první nahraný soubor.')}
-          ${radio('random', 'Náhodná varianta', 'Pro každé místo se deterministicky vybere jedna z variant.')}
+          ${radio('single', I18n.t('settings.strategySingle'),  I18n.t('settings.strategySingleHint'))}
+          ${radio('random', I18n.t('settings.strategyRandom'),  I18n.t('settings.strategyRandomHint'))}
         </div>
         ${empty}
         <div class="mit-files">${fileRows}</div>
         <div class="mit-uploader">
           <label class="inline-create-btn" style="cursor:pointer;display:inline-block">
-            📤 Nahrát soubory…
+            📤 ${esc(I18n.t('settings.uploadFiles'))}
             <input type="file" multiple accept=".svg,.png,.jpg,.jpeg,.webp,image/svg+xml,image/png,image/jpeg,image/webp"
               style="display:none"
               ${dataOn('change', 'Settings.uploadIconFiles', pinType.id, '$el')}>
           </label>
-          <span class="settings-hint">SVG / PNG / JPG / WebP, max 2 MB / soubor, 16 současně.</span>
+          <span class="settings-hint">${esc(I18n.t('settings.iconUploadHint'))}</span>
         </div>
       </div>`;
   }
@@ -377,7 +383,7 @@ export const Settings = (() => {
     if (!pt) return;
     const files = input?.files;
     if (!files || !files.length) return;
-    _flash('Nahrávám…');
+    _flash(I18n.t('settings.uploading'));
     Store.uploadIcons(pinTypeId, files)
       .then(j => {
         const cfg = _ensureIconConfig(pt);
@@ -389,23 +395,23 @@ export const Settings = (() => {
         }
         Store.saveEnumItem('pinTypes', pt);
         render();
-        _flash('Nahráno ✓');
+        _flash(I18n.t('settings.uploaded'));
       })
-      .catch(e => _flash(e?.message || 'Nahrávání selhalo', false))
+      .catch(e => _flash(e?.message || I18n.t('settings.uploadFailed'), false))
       .finally(() => { if (input) input.value = ''; });
   }
 
   function deleteIconFile(pinTypeId, fileId) {
     const pt = _getPinType(pinTypeId);
     if (!pt) return;
-    if (!confirm(`Smazat soubor "${fileId}"?`)) return;
+    if (!confirm(I18n.t('settings.deleteFileQ', { name: fileId }))) return;
     Store.deleteIcon(pinTypeId, fileId).then(ok => {
-      if (!ok) { _flash('Smazání selhalo', false); return; }
+      if (!ok) { _flash(I18n.t('settings.deleteFailed'), false); return; }
       const cfg = _ensureIconConfig(pt);
       cfg.files = cfg.files.filter(x => x.id !== fileId);
       Store.saveEnumItem('pinTypes', pt);
       render();
-      _flash('Smazáno');
+      _flash(I18n.t('settings.deleted'));
     });
   }
 
@@ -428,7 +434,7 @@ export const Settings = (() => {
       </label>`;
     const styleField = () => `
       <label class="settings-field">
-        <span class="settings-field-label">Styl čáry</span>
+        <span class="settings-field-label">${esc(I18n.t('settings.lineStyle'))}</span>
         <select class="edit-select" id="sf-${uid}-style">
           ${['solid','dashed','dotted'].map(s =>
             `<option value="${s}" ${item.style===s?'selected':''}>${s}</option>`).join('')}
@@ -436,7 +442,7 @@ export const Settings = (() => {
       </label>`;
     const sizeField = () => `
       <label class="settings-field">
-        <span class="settings-field-label">Výchozí velikost (px)</span>
+        <span class="settings-field-label">${esc(I18n.t('settings.defaultSizePx'))}</span>
         <input class="edit-input" type="number" id="sf-${uid}-size"
           min="14" max="64" step="2"
           value="${Number(item.size) || 28}">
@@ -449,7 +455,7 @@ export const Settings = (() => {
     const defaultIconField = () => {
       const ids = (WorldMap.getBundledDefaultIconIds && WorldMap.getBundledDefaultIconIds()) || [];
       const current = item.defaultIconId || '';
-      const opts = ['<option value="">— výchozí pro tento typ —</option>',
+      const opts = [`<option value="">${esc(I18n.t('settings.defaultForType'))}</option>`,
         ...ids.map(id => {
           const label = (PIN_TYPES[id] && PIN_TYPES[id].label) || id;
           return `<option value="${esc(id)}" ${id===current?'selected':''}>${esc(label)}</option>`;
@@ -459,10 +465,10 @@ export const Settings = (() => {
         : (WorldMap.bundledDefaultUrl(item.id) || '');
       const previewHtml = previewUrl
         ? `<img src="${esc(previewUrl)}" alt="" style="width:32px;height:32px;object-fit:contain;background:rgba(0,0,0,0.55);border-radius:4px;padding:2px" ${dataOn('error', 'hide', '$el')}>`
-        : `<span class="settings-hint" style="align-self:center">(emoji fallback)</span>`;
+        : `<span class="settings-hint" style="align-self:center">${esc(I18n.t('settings.emojiFallback'))}</span>`;
       return `
         <label class="settings-field">
-          <span class="settings-field-label">Ikona</span>
+          <span class="settings-field-label">${esc(I18n.t('settings.fieldIcon'))}</span>
           <div style="display:flex;gap:0.5rem;align-items:center">
             ${previewHtml}
             <select class="edit-select" id="sf-${uid}-defaultIconId" style="flex:1"
@@ -478,7 +484,7 @@ export const Settings = (() => {
       const pct = Math.round(cur * 100);
       return `
       <label class="settings-field">
-        <span class="settings-field-label">Intenzita záře <span class="settings-hint" style="font-weight:normal">(0 % = žádná, 100 % = plná)</span></span>
+        <span class="settings-field-label">${esc(I18n.t('settings.glowIntensity'))} <span class="settings-hint" style="font-weight:normal">${esc(I18n.t('settings.glowIntensityHint'))}</span></span>
         <div class="settings-strength-row">
           <input type="range" id="sf-${uid}-strength"
             min="0" max="1" step="0.05" value="${cur}"
@@ -494,7 +500,7 @@ export const Settings = (() => {
       if (name === 'size')                                                             return sizeField();
       if (name === 'strength')                                                         return strengthField();
       if (name === 'defaultIconId')                                                    return defaultIconField();
-      return field(name, name === 'icon' ? 'Emoji nebo znak' : 'Text');
+      return field(name, name === 'icon' ? I18n.t('settings.emojiOrCharPh') : I18n.t('settings.textPh'));
     }).join('');
 
     return `
@@ -502,27 +508,28 @@ export const Settings = (() => {
         <div class="settings-form-row">
           ${isNew ? `
             <label class="settings-field">
-              <span class="settings-field-label">ID (volitelně, vygeneruje se z názvu)</span>
-              <input class="edit-input" id="sf-${uid}-id" placeholder="např. ally">
+              <span class="settings-field-label">${esc(I18n.t('settings.idFieldLabel'))}</span>
+              <input class="edit-input" id="sf-${uid}-id" placeholder="${esc(I18n.t('settings.idFieldPh'))}">
             </label>` : ``}
           ${inputs}
         </div>
         <div class="settings-form-actions">
           <button type="button" class="edit-save-btn"
-            ${dataAction('Settings.commit', uid, isNew)}>💾 Uložit</button>
+            ${dataAction('Settings.commit', uid, isNew)}>💾 ${esc(I18n.t('action.save'))}</button>
           <button type="button" class="inline-create-btn"
-            ${dataAction('Settings.cancelEdit')}>Zrušit</button>
+            ${dataAction('Settings.cancelEdit')}>${esc(I18n.t('action.cancel'))}</button>
         </div>
       </div>`;
   }
 
   function _fieldLabel(name) {
     return {
-      label: 'Název', icon: 'Ikona', color: 'Barva',
-      style: 'Styl', size: 'Velikost',
-      strength: 'Intenzita záře',
-      bg: 'Pozadí', fg: 'Popředí', labelColor: 'Barva textu',
-      defaultIconId: 'Ikona',
+      label: I18n.t('settings.fieldName'),       icon: I18n.t('settings.fieldIcon'),
+      color: I18n.t('settings.fieldColor'),      style: I18n.t('settings.fieldStyle'),
+      size:  I18n.t('settings.fieldSize'),       strength: I18n.t('settings.glowIntensity'),
+      bg:    I18n.t('settings.fieldBg'),         fg: I18n.t('settings.fieldFg'),
+      labelColor: I18n.t('settings.fieldTextColor'),
+      defaultIconId: I18n.t('settings.fieldIcon'),
     }[name] || name;
   }
 
@@ -616,11 +623,11 @@ export const Settings = (() => {
     };
     const existing = isNew ? null : Store.getEnum(_activeCat).find(x => x.id === uid);
     const label = getVal('label').trim();
-    if (!label) { _flash('Název je povinný', false); return; }
+    if (!label) { _flash(I18n.t('settings.nameRequired'), false); return; }
     let id = isNew ? (getVal('id').trim() || _slug(label)) : uid;
     if (!id) id = _slug(label);
     if (isNew && Store.getEnum(_activeCat).some(x => x.id === id)) {
-      _flash(`ID '${id}' už existuje — zvol jiné nebo nech vygenerovat`, false);
+      _flash(I18n.t('settings.idExists', { id }), false);
       return;
     }
     const item = { ...(existing || {}), id, label };
@@ -644,17 +651,17 @@ export const Settings = (() => {
     Store.saveEnumItem(_activeCat, item);
     _editingId = null;
     render();
-    _flash(isNew ? `Položka "${label}" vytvořena` : `Položka "${label}" upravena`);
+    _flash(isNew ? I18n.t('settings.itemCreated', { label }) : I18n.t('settings.itemUpdated', { label }));
   }
 
   function requestDelete(id) {
     const usages = Store.findEnumUsages(_activeCat, id);
     const item = Store.getEnum(_activeCat).find(x => x.id === id);
     if (!usages.length) {
-      if (!confirm(`Smazat "${item?.label || id}"?`)) return;
+      if (!confirm(I18n.t('settings.deleteItemQ', { name: item?.label || id }))) return;
       Store.deleteEnumItem(_activeCat, id);
       render();
-      _flash('Smazáno');
+      _flash(I18n.t('settings.deleted'));
       return;
     }
     _openDeleteModal(id, item, usages);
@@ -663,7 +670,7 @@ export const Settings = (() => {
   function resetDefaults() {
     Store.resetEnumCategory(_activeCat);
     render();
-    _flash('Výchozí položky doplněny');
+    _flash(I18n.t('settings.defaultsAdded'));
   }
 
   // ── Map-view presets panel ───────────────────────────────────
@@ -673,7 +680,7 @@ export const Settings = (() => {
   function _mapViewsHtml() {
     const views = Store.getEnum('mapViews') || [];
     if (!views.length) return `
-      <div class="settings-editor-head"><h2>📍 Pohledy na mapě</h2></div>
+      <div class="settings-editor-head"><h2>📍 ${esc(I18n.t('settings.tabMapViews'))}</h2></div>
       <div class="settings-panel">
         ${_renderEmptyPresets()}
       </div>`;
@@ -688,8 +695,8 @@ export const Settings = (() => {
     }
     const sections = [];
     for (const [pid, list] of groups) {
-      const parent   = pid ? (Store.getLocation(pid) || { name: '— neznámé místo —' }) : null;
-      const title    = parent ? `🗺 ${esc(parent.name)}` : '🌐 Mapa světa';
+      const parent   = pid ? (Store.getLocation(pid) || { name: I18n.t('settings.unknownPlace') }) : null;
+      const title    = parent ? `🗺 ${esc(parent.name)}` : `🌐 ${esc(I18n.t('settings.worldMap'))}`;
       const rowsHtml = list.map(_mapViewRow).join('');
       sections.push(`
         <div class="settings-mapviews-group">
@@ -700,12 +707,11 @@ export const Settings = (() => {
 
     return `
       <div class="settings-editor-head">
-        <h2>📍 Pohledy na mapě</h2>
+        <h2>📍 ${esc(I18n.t('settings.tabMapViews'))}</h2>
       </div>
       <div class="settings-panel">
         <p class="settings-hint" style="margin-bottom:0.8rem">
-          Nové pohledy vytvoř přímo na mapě: v režimu úprav přiblíž/oddalj
-          požadovaný výřez a klikni na ✚ Uložit pohled v nástrojové liště.
+          ${esc(I18n.t('settings.mapViewsHint'))}
         </p>
         ${sections.join('')}
       </div>`;
@@ -714,8 +720,7 @@ export const Settings = (() => {
   function _renderEmptyPresets() {
     return `
       <div class="settings-empty">
-        Zatím žádné pohledy. Na mapě světa přiblíž/oddalj výřez a klikni
-        na ✚ Uložit pohled (viditelné v režimu úprav).
+        ${esc(I18n.t('settings.mapViewsEmpty'))}
       </div>`;
   }
 
@@ -729,10 +734,10 @@ export const Settings = (() => {
         <span></span>
         <div class="settings-row-actions">
           <button type="button" class="settings-btn-edit"
-                  title="Přejmenovat nebo změnit ikonu"
+                  title="${esc(I18n.t('settings.renameOrIconTitle'))}"
                   ${dataAction('Settings.renameMapView', v.id)}>✏</button>
           <button type="button" class="settings-btn-del"
-                  title="Smazat pohled"
+                  title="${esc(I18n.t('settings.deleteViewTitle'))}"
                   ${dataAction('Settings.deleteMapView', v.id)}>🗑</button>
         </div>
       </div>`;
@@ -742,13 +747,13 @@ export const Settings = (() => {
     const views = Store.getEnum('mapViews') || [];
     const v = views.find(x => x.id === id);
     if (!v) return;
-    const label = prompt('Nový název pohledu:', v.label || '');
+    const label = prompt(I18n.t('settings.newViewNamePrompt'), v.label || '');
     if (label == null) return;
-    const icon = prompt('Ikona:', v.icon || '📍');
+    const icon = prompt(I18n.t('settings.iconPrompt'), v.icon || '📍');
     if (icon == null) return;
     Store.saveEnumItem('mapViews', { ...v, label: label.trim() || v.label, icon: icon.trim() || v.icon });
     render();
-    _flash('Pohled upraven');
+    _flash(I18n.t('settings.viewUpdated'));
     // Mirror the change onto the live map toolbar if it's visible.
     try { WorldMap.refreshPresetButtons?.(); } catch (_) {}
   }
@@ -757,10 +762,10 @@ export const Settings = (() => {
     const views = Store.getEnum('mapViews') || [];
     const v = views.find(x => x.id === id);
     if (!v) return;
-    if (!confirm(`Smazat pohled "${v.label || id}"?`)) return;
+    if (!confirm(I18n.t('settings.deleteViewQ', { name: v.label || id }))) return;
     Store.deleteEnumItem('mapViews', id, { force: true });
     render();
-    _flash('Pohled smazán');
+    _flash(I18n.t('settings.viewDeleted'));
     try { WorldMap.refreshPresetButtons?.(); } catch (_) {}
   }
 
@@ -793,7 +798,7 @@ export const Settings = (() => {
     if (!mapId || mapId === 'world') {
       return {
         id: 'world',
-        label: 'Mapa světa',
+        label: I18n.t('settings.worldMap'),
         icon: '🌐',
         isWorld: true,
         imgUrl: '/maps/swordcoast/sword_coast.jpg',
@@ -876,7 +881,7 @@ export const Settings = (() => {
 
     return {
       id:       'world',
-      label:    'Mapa světa',
+      label:    I18n.t('settings.worldMap'),
       icon:     '🌐',
       isWorld:  true,
       imgUrl:   '/maps/swordcoast/sword_coast.jpg',
@@ -888,7 +893,7 @@ export const Settings = (() => {
     const isActive = node.id === _activeMapId;
     const indent   = depth * 16;
     const ghostHtml = (node.ghosts && node.ghosts.length)
-      ? `<span class="settings-map-node-ghost" title="Předkové bez vlastní mapy">${node.ghosts.map(esc).join(' › ')} ›</span>`
+      ? `<span class="settings-map-node-ghost" title="${esc(I18n.t('settings.ancestorsNoMap'))}">${node.ghosts.map(esc).join(' › ')} ›</span>`
       : '';
     const guide = depth > 0
       ? `<span class="settings-map-node-guide">${isLast ? '└' : '├'}</span>`
@@ -926,8 +931,8 @@ export const Settings = (() => {
 
     const uploadAction  = current.isWorld ? 'Settings.uploadWorldMap' : 'Settings.uploadSubMap';
     const uploadHint    = current.isWorld
-      ? `Uloží se jako <code>/maps/swordcoast/sword_coast.&lt;ext&gt;</code> a server přegeneruje dlaždice na pozadí.`
-      : `Uloží se jako <code>/maps/local/${esc(current.locationId)}/map.&lt;ext&gt;</code> a server přegeneruje dlaždice na pozadí.`;
+      ? I18n.t('settings.uploadHintWorld', { path: '<code>/maps/swordcoast/sword_coast.&lt;ext&gt;</code>' })
+      : I18n.t('settings.uploadHintLocal', { path: `<code>/maps/local/${esc(current.locationId)}/map.&lt;ext&gt;</code>` });
     const uploadDataset = current.isWorld ? '' : ` data-loc-id="${esc(current.locationId)}"`;
 
     const previewSrc  = current.imgUrl ? `${current.imgUrl}?v=${_previewBustFor(_activeMapId)}` : '';
@@ -936,23 +941,22 @@ export const Settings = (() => {
            <img src="${esc(previewSrc)}" alt="" ${dataOn('error', 'hide', '$el')}>
          </div>`
       : `<div class="settings-empty" style="margin:0.5rem 0">
-           Tato mapa zatím nemá obrázek. Nahraj ho níže.
+           ${esc(I18n.t('settings.mapNoImage'))}
          </div>`;
 
     const headerLabel = current.isWorld
-      ? `🌐 Mapa světa`
+      ? `🌐 ${esc(I18n.t('settings.worldMap'))}`
       : `🗺 ${esc(current.label)}`;
 
     return `
       <div class="settings-editor-head">
-        <h2>🗺 Mapy</h2>
+        <h2>🗺 ${esc(I18n.t('settings.tabMaps'))}</h2>
       </div>
       <div class="settings-maps-shell">
         <aside class="settings-maps-tree" role="tree">
           ${treeHtml}
           <p class="settings-hint settings-maps-tree-hint">
-            Strom zrcadlí hierarchii míst — uvedené jsou pouze ta s nahranou mapou.
-            Pro přidání nové dílčí mapy otevři dané místo a nahraj obrázek v jeho editoru.
+            ${esc(I18n.t('settings.mapsTreeHint'))}
           </p>
         </aside>
         <section class="settings-maps-detail">
@@ -960,21 +964,21 @@ export const Settings = (() => {
           <p class="settings-hint" style="margin-bottom:0.8rem">${uploadHint}</p>
           ${previewHtml}
           <label class="inline-create-btn" style="cursor:pointer;display:inline-block;margin-top:0.8rem">
-            📂 Vybrat soubor…
+            📂 ${esc(I18n.t('settings.chooseFile'))}
             <input type="file" accept="image/*" style="display:none"${uploadDataset}
                    ${dataOn('change', uploadAction, '$el')}>
           </label>
           <span class="settings-hint" style="margin-left:0.8rem">
-            Max 40 MB. Doporučený formát JPG/PNG/WebP, min. šířka 2000 px.
+            ${esc(I18n.t('settings.mapUploadHint'))}
           </span>
 
           <hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.2rem 0">
 
-          <div class="settings-mapviews-group-title">Nastavení této mapy</div>
+          <div class="settings-mapviews-group-title">${esc(I18n.t('settings.thisMapSettings'))}</div>
           <label class="settings-field" style="margin-top:0.6rem">
-            <span class="settings-field-label">Zoom-scale značek
+            <span class="settings-field-label">${esc(I18n.t('settings.markerZoomScale'))}
               <span class="settings-hint" style="font-weight:normal">
-                (0 = ikony mají vždy stejnou velikost; 1 = rostou stejně rychle jako mapa)
+                ${esc(I18n.t('settings.markerZoomScaleHint'))}
               </span>
             </span>
             <div class="settings-strength-row">
@@ -1081,7 +1085,7 @@ export const Settings = (() => {
     if (!file) return;
     const fd = new FormData();
     fd.append('worldmap', file);
-    _flash('Nahrávám…');
+    _flash(I18n.t('settings.uploading'));
     fetch('/api/worldmap', { method: 'POST', body: fd, credentials: 'same-origin' })
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
       .then(() => {
@@ -1090,10 +1094,10 @@ export const Settings = (() => {
         // upload — the server copy is now the canonical image.
         try { localStorage.removeItem('world_map_image_url'); } catch (_) {}
         _bumpPreviewBust('world');
-        _flash('Mapa nahrána — přegenerovávám dlaždice na pozadí…');
+        _flash(I18n.t('settings.mapUploadedRebuilding'));
         render();
       })
-      .catch(e => _flash(e?.error || 'Nahrávání selhalo', false))
+      .catch(e => _flash(e?.error || I18n.t('settings.uploadFailed'), false))
       .finally(() => { if (input) input.value = ''; });
   }
 
@@ -1101,8 +1105,8 @@ export const Settings = (() => {
     const file = input?.files?.[0];
     if (!file) return;
     const locId = input?.dataset?.locId;
-    if (!locId) { _flash('Chybí ID místa', false); return; }
-    _flash('Nahrávám…');
+    if (!locId) { _flash(I18n.t('settings.missingPlaceId'), false); return; }
+    _flash(I18n.t('settings.uploading'));
     Store.uploadLocalMap(file, locId)
       .then(url => {
         // Refresh the location's record in memory so the preview
@@ -1110,10 +1114,10 @@ export const Settings = (() => {
         const loc = Store.getLocation(locId);
         if (loc) Store.saveLocation({ ...loc, localMap: url });
         _bumpPreviewBust(`local-${locId}`);
-        _flash('Mapa nahrána — přegenerovávám dlaždice na pozadí…');
+        _flash(I18n.t('settings.mapUploadedRebuilding'));
         render();
       })
-      .catch(e => _flash(e?.message || 'Nahrávání selhalo', false))
+      .catch(e => _flash(e?.message || I18n.t('settings.uploadFailed'), false))
       .finally(() => { if (input) input.value = ''; });
   }
 
@@ -1129,42 +1133,38 @@ export const Settings = (() => {
     const memberCount = Store.getPartyMembers().length;
     return `
       <div class="settings-editor-head">
-        <h2>🛡 Naše parta</h2>
+        <h2>🛡 ${esc(I18n.t('settings.tabPlayerParty'))}</h2>
       </div>
       <div class="settings-panel">
         <p class="settings-hint" style="margin-bottom:1rem">
-          Vizuální identita hráčské party — používá se v dropdownu frakce
-          v editoru postavy, na rozcestníku, v seznamu postav a pro záři
-          okolo portrétů PC. Členství v partě se řídí volbou
-          <em>Naše parta</em> ve frakci dané postavy.
+          ${I18n.t('settings.playerPartyIntro')}
         </p>
         <div class="settings-form-row">
           <label class="settings-field">
-            <span class="settings-field-label">Název</span>
-            <input class="edit-input" id="pp-name" value="${esc(pp.name)}" placeholder="Naše parta">
+            <span class="settings-field-label">${esc(I18n.t('settings.fieldName'))}</span>
+            <input class="edit-input" id="pp-name" value="${esc(pp.name)}" placeholder="Our Party">
           </label>
           <label class="settings-field">
-            <span class="settings-field-label">Ikona (emoji)</span>
+            <span class="settings-field-label">${esc(I18n.t('settings.fieldIconEmoji'))}</span>
             <input class="edit-input" id="pp-icon" value="${esc(pp.icon)}" placeholder="🛡">
           </label>
           <label class="settings-field">
-            <span class="settings-field-label">Barva (záře / chip)</span>
+            <span class="settings-field-label">${esc(I18n.t('settings.fieldColorGlowChip'))}</span>
             <input class="edit-input" type="color" id="pp-color" value="${esc(pp.color)}">
           </label>
           <label class="settings-field">
-            <span class="settings-field-label">Barva textu</span>
+            <span class="settings-field-label">${esc(I18n.t('settings.fieldTextColor'))}</span>
             <input class="edit-input" type="color" id="pp-textColor" value="${esc(pp.textColor)}">
           </label>
         </div>
         <div class="settings-form-actions" style="margin-top:1rem">
           <button type="button" class="edit-save-btn"
-            ${dataAction('Settings.savePlayerParty')}>💾 Uložit</button>
+            ${dataAction('Settings.savePlayerParty')}>💾 ${esc(I18n.t('action.save'))}</button>
         </div>
         <hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.5rem 0">
-        <div class="settings-mapviews-group-title">Členové party (${memberCount})</div>
+        <div class="settings-mapviews-group-title">${esc(I18n.t('settings.partyMembers', { count: memberCount }))}</div>
         <p class="settings-hint" style="margin-top:0.6rem">
-          Členství se nastavuje v editoru jednotlivých postav — v dropdownu
-          „Frakce“ vyber <em>Naše parta</em>. Pro úpravu klikni na postavu níže.
+          ${I18n.t('settings.partyMembersHint')}
         </p>
         <div class="settings-rows" style="margin-top:0.6rem">
           ${Store.getPartyMembers().map(c => `
@@ -1174,8 +1174,8 @@ export const Settings = (() => {
               <span></span>
               <span></span>
               <span></span>
-              <span style="color:var(--text-muted);font-size:0.78rem">otevřít →</span>
-            </a>`).join('') || '<div class="settings-empty">Zatím žádní členové.</div>'}
+              <span style="color:var(--text-muted);font-size:0.78rem">${esc(I18n.t('settings.openArrow'))}</span>
+            </a>`).join('') || `<div class="settings-empty">${esc(I18n.t('settings.noMembers'))}</div>`}
         </div>
       </div>`;
   }
@@ -1186,14 +1186,14 @@ export const Settings = (() => {
   function savePlayerParty() {
     const get = id => document.getElementById(id)?.value?.trim() || '';
     const patch = {
-      name:      get('pp-name')      || 'Naše parta',
+      name:      get('pp-name')      || 'Our Party',
       icon:      get('pp-icon')      || '🛡',
       badge:     get('pp-icon')      || '🛡',  // mirror so _charBadge resolves
       color:     get('pp-color')     || '#F5F0E4',
       textColor: get('pp-textColor') || '#1a1410',
     };
     Store.setPlayerParty(patch);
-    _flash('Naše parta uložena');
+    _flash(I18n.t('settings.playerPartySaved'));
     render();
   }
 
@@ -1215,53 +1215,50 @@ export const Settings = (() => {
     const hasCustom = !!b.logoUrl;
     return `
       <div class="settings-editor-head">
-        <h2>🐉 Logo a značka</h2>
+        <h2>🐉 ${esc(I18n.t('settings.tabBranding'))}</h2>
       </div>
       <div class="settings-panel">
         <p class="settings-hint" style="margin-bottom:1rem">
-          Logo se zobrazuje v postranním panelu, na úvodní obrazovce a jako
-          ikona v záložce prohlížeče (favicon). Nahraj vlastní obrázek, nebo
-          se vrať k výchozímu draku.
+          ${esc(I18n.t('settings.brandingIntro'))}
         </p>
         <div class="settings-branding-preview">
-          <img src="${esc(_logoSrc(b))}" alt="Logo" class="settings-branding-logo"
+          <img src="${esc(_logoSrc(b))}" alt="${esc(I18n.t('settings.logoAlt'))}" class="settings-branding-logo"
                ${dataOn('error', 'hide', '$el')}>
           <div class="settings-branding-meta">
-            ${hasCustom ? 'Vlastní logo' : 'Výchozí logo (placeholder)'}
+            ${esc(hasCustom ? I18n.t('settings.customLogo') : I18n.t('settings.defaultLogo'))}
           </div>
         </div>
         <div class="settings-form-actions" style="margin-top:1rem;gap:0.6rem;flex-wrap:wrap">
           <label class="inline-create-btn" style="cursor:pointer;display:inline-block">
-            📂 Nahrát logo…
+            📂 ${esc(I18n.t('settings.uploadLogoBtn'))}
             <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp"
                    style="display:none" ${dataOn('change', 'Settings.uploadLogo', '$el')}>
           </label>
           ${hasCustom ? `<button type="button" class="inline-create-btn"
-              ${dataAction('Settings.deleteLogo')}>↺ Výchozí drak</button>` : ''}
+              ${dataAction('Settings.deleteLogo')}>↺ ${esc(I18n.t('settings.defaultDragon'))}</button>` : ''}
         </div>
         <span class="settings-hint" style="display:block;margin-top:0.5rem">
-          Max 5 MB. Doporučeno čtvercové PNG / SVG / WebP s průhledným pozadím,
-          ideálně alespoň 256×256 px.
+          ${esc(I18n.t('settings.logoUploadHint'))}
         </span>
 
         <hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.5rem 0">
 
-        <div class="settings-mapviews-group-title">Text značky (postranní panel)</div>
+        <div class="settings-mapviews-group-title">${esc(I18n.t('settings.wordmarkText'))}</div>
         <div class="settings-form-row" style="margin-top:0.6rem">
           <label class="settings-field">
-            <span class="settings-field-label">Název</span>
+            <span class="settings-field-label">${esc(I18n.t('settings.fieldName'))}</span>
             <input class="edit-input" id="brand-title" value="${esc(b.title)}"
                    placeholder="TTRPG Codex">
           </label>
           <label class="settings-field">
-            <span class="settings-field-label">Podtitul</span>
+            <span class="settings-field-label">${esc(I18n.t('settings.fieldSubtitle'))}</span>
             <input class="edit-input" id="brand-subtitle" value="${esc(b.subtitle)}"
                    placeholder="Wiki & World Atlas">
           </label>
         </div>
         <div class="settings-form-actions" style="margin-top:1rem">
           <button type="button" class="edit-save-btn"
-            ${dataAction('Settings.saveBranding')}>💾 Uložit text</button>
+            ${dataAction('Settings.saveBranding')}>💾 ${esc(I18n.t('settings.saveText'))}</button>
         </div>
       </div>`;
   }
@@ -1270,15 +1267,15 @@ export const Settings = (() => {
   function uploadLogo(input) {
     const file = input?.files?.[0];
     if (!file) return;
-    _flash('Nahrávám…');
+    _flash(I18n.t('settings.uploading'));
     Store.uploadLogo(file)
       .then(url => {
         Store.setBranding({ logoUrl: url });
         applyBranding();
-        _flash('Logo nahráno');
+        _flash(I18n.t('settings.logoUploaded'));
         render();
       })
-      .catch(e => _flash(e?.error || 'Nahrávání selhalo', false))
+      .catch(e => _flash(e?.error || I18n.t('settings.uploadFailed'), false))
       .finally(() => { if (input) input.value = ''; });
   }
 
@@ -1288,10 +1285,10 @@ export const Settings = (() => {
       .then(() => {
         Store.setBranding({ logoUrl: '' });
         applyBranding();
-        _flash('Vráceno na výchozí logo');
+        _flash(I18n.t('settings.logoReverted'));
         render();
       })
-      .catch(e => _flash(e?.error || 'Operace selhala', false));
+      .catch(e => _flash(e?.error || I18n.t('settings.operationFailed'), false));
   }
 
   /** Persist the wordmark text (title + subtitle) and push to chrome. */
@@ -1300,7 +1297,7 @@ export const Settings = (() => {
     const subtitle = document.getElementById('brand-subtitle')?.value?.trim() ?? '';
     Store.setBranding({ title, subtitle });
     applyBranding();
-    _flash('Značka uložena');
+    _flash(I18n.t('settings.brandingSaved'));
     render();
   }
 
@@ -1343,21 +1340,19 @@ export const Settings = (() => {
     ).join('');
     return `
       <div class="settings-editor-head">
-        <h2>🎨 Vzhled</h2>
+        <h2>🎨 ${esc(I18n.t('settings.tabAppearance'))}</h2>
       </div>
       <div class="settings-panel">
         <p class="settings-hint" style="margin-bottom:1rem">
-          Barevný styl celé aplikace. Výběr se uloží pro celou kampaň a
-          projeví se všem připojeným ihned.
+          ${esc(I18n.t('settings.appearanceIntro'))}
         </p>
         <label class="settings-field" style="max-width:320px">
-          <span class="settings-field-label">Styl</span>
+          <span class="settings-field-label">${esc(I18n.t('settings.styleLabel'))}</span>
           <select class="edit-input" id="theme-select"
                   ${dataOn('change', 'Settings.changeTheme', '$value')}>${opts}</select>
         </label>
         <span class="settings-hint" style="display:block;margin-top:0.8rem">
-          Další styly přibydou v budoucnu — stačí přidat blok do
-          <code>themes.css</code> a položku do registru témat.
+          ${I18n.t('settings.appearanceMoreHint')}
         </span>
       </div>`;
   }
@@ -1366,7 +1361,7 @@ export const Settings = (() => {
   function changeTheme(id) {
     Store.setAppearance({ theme: id });
     applyTheme();
-    _flash('Vzhled uložen');
+    _flash(I18n.t('settings.appearanceSaved'));
     render();
   }
 
@@ -1403,15 +1398,15 @@ export const Settings = (() => {
     const realRole = Role.getReal();
     const roleChip = (() => {
       if (role === 'dm')                           return `<span class="role-badge-chip role-badge-dm">🛡 DM</span>`;
-      if (role === 'player' && realRole === 'dm')  return `<span class="role-badge-chip role-badge-impersonating">👁 Pohled hráče (DM)</span>`;
-      if (role === 'player')                       return `<span class="role-badge-chip role-badge-player">👤 Hráč</span>`;
-      return `<span class="role-badge-chip role-badge-anonymous">👁 Veřejný pohled</span>`;
+      if (role === 'player' && realRole === 'dm')  return `<span class="role-badge-chip role-badge-impersonating">👁 ${esc(I18n.t('settings.rolePlayerViewDM'))}</span>`;
+      if (role === 'player')                       return `<span class="role-badge-chip role-badge-player">👤 ${esc(I18n.t('settings.rolePlayer'))}</span>`;
+      return `<span class="role-badge-chip role-badge-anonymous">👁 ${esc(I18n.t('settings.rolePublic'))}</span>`;
     })();
     const logoutBtn = role
       ? `<button type="button" class="edit-delete-btn"
-           ${dataAction('Settings.logout')}>↩ Odhlásit</button>`
+           ${dataAction('Settings.logout')}>↩ ${esc(I18n.t('action.logout'))}</button>`
       : `<button type="button" class="inline-create-btn"
-           ${dataAction('EditMode.promptLogin')}>🔑 Přihlásit</button>`;
+           ${dataAction('EditMode.promptLogin')}>🔑 ${esc(I18n.t('action.login'))}</button>`;
     // View-as-player toggle. Moved here from the sidebar so non-DM
     // users see no role chrome outside Přehled. Only DMs (real or
     // impersonating) see these buttons — players never need them.
@@ -1420,12 +1415,12 @@ export const Settings = (() => {
       if (role === 'dm') {
         return `<button type="button" class="inline-create-btn"
                   ${dataAction('Role.viewAsPlayer')}
-                  title="Zobrazit web tak, jak ho vidí hráč">👁 Zobrazit jako hráč</button>`;
+                  title="${esc(I18n.t('settings.viewAsPlayerTitle'))}">👁 ${esc(I18n.t('settings.viewAsPlayer'))}</button>`;
       }
       // role === 'player' && realRole === 'dm' (impersonating)
       return `<button type="button" class="inline-create-btn"
                 ${dataAction('Role.backToDM')}
-                title="Zpět do DM režimu">← Zpět do DM režimu</button>`;
+                title="${esc(I18n.t('settings.backToDMTitle'))}">← ${esc(I18n.t('settings.backToDM'))}</button>`;
     })();
     // Password management section — DM-only. Guard on realRole so a
     // DM in "view as player" mode still sees the forms (they're the
@@ -1433,20 +1428,19 @@ export const Settings = (() => {
     const passwordSection = (realRole === 'dm')
       ? _passwordSectionHtml()
       : `<p class="settings-hint" style="margin-top:1rem;font-style:italic">
-           Změna hesla je dostupná pouze pro DM.
+           ${esc(I18n.t('settings.passwordDMOnly'))}
          </p>`;
     return `
       <div class="settings-editor-head">
-        <h2>👤 Účet</h2>
+        <h2>👤 ${esc(I18n.t('settings.tabAccount'))}</h2>
       </div>
       <div class="settings-panel">
         <div class="settings-field" style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1rem">
-          <span class="settings-field-label">Aktuální role</span>
+          <span class="settings-field-label">${esc(I18n.t('settings.currentRole'))}</span>
           <div>${roleChip}</div>
         </div>
         <p class="settings-hint" style="margin-bottom:0.8rem">
-          Odhlášení zruší relaci a vrátí stránku do veřejného režimu.
-          Pro další úpravy bude potřeba zadat heslo znovu.
+          ${esc(I18n.t('settings.logoutHint'))}
         </p>
         <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center">
           ${logoutBtn}
@@ -1463,44 +1457,41 @@ export const Settings = (() => {
     const st = _passwordStatus;
     if (!st) {
       return `<hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.5rem 0">
-        <div class="settings-mapviews-group-title">🔑 Hesla účtů</div>
-        <p class="settings-hint" style="margin-top:0.6rem">Načítám stav…</p>`;
+        <div class="settings-mapviews-group-title">🔑 ${esc(I18n.t('settings.accountPasswords'))}</div>
+        <p class="settings-hint" style="margin-top:0.6rem">${esc(I18n.t('settings.loadingStatus'))}</p>`;
     }
     return `
       <hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.5rem 0">
-      <div class="settings-mapviews-group-title">🔑 Hesla účtů</div>
+      <div class="settings-mapviews-group-title">🔑 ${esc(I18n.t('settings.accountPasswords'))}</div>
       <p class="settings-hint" style="margin-top:0.6rem;margin-bottom:1rem">
-        Nastav nebo změň heslo pro DM i hráče. Změna vyžaduje aktuální DM
-        heslo. Heslo se ukládá jako hash do <code>data/auth.json</code>
-        a přebije proměnnou prostředí. Nová hesla okamžitě odhlásí všechny
-        ostatní relace dané role.
+        ${I18n.t('settings.passwordsIntro')}
       </p>
-      ${_passwordFormHtml('dm', '🛡 DM heslo', st.dm)}
-      ${_passwordFormHtml('player', '👤 Hráčské heslo', st.player)}`;
+      ${_passwordFormHtml('dm', `🛡 ${I18n.t('settings.dmPassword')}`, st.dm)}
+      ${_passwordFormHtml('player', `👤 ${I18n.t('settings.playerPassword')}`, st.player)}`;
   }
 
   function _passwordFormHtml(role, title, info) {
     const statusLine = (() => {
       if (info.stored) {
         const when = info.updatedAt
-          ? ` (změněno ${_formatSnapshotDate(new Date(info.updatedAt).toISOString())})`
+          ? ` ${I18n.t('settings.pwdChangedAt', { when: _formatSnapshotDate(new Date(info.updatedAt).toISOString()) })}`
           : '';
-        return `<span style="color:var(--accent-gold)">● nastaveno${esc(when)}</span>`;
+        return `<span style="color:var(--accent-gold)">● ${esc(I18n.t('settings.pwdSet'))}${esc(when)}</span>`;
       }
       if (role === 'dm' && info.isDefault) {
-        return `<span style="color:#e88">⚠ výchozí ("123") — nastav vlastní</span>`;
+        return `<span style="color:#e88">⚠ ${esc(I18n.t('settings.pwdDefault'))}</span>`;
       }
       if (role === 'player' && info.disabled) {
-        return `<span style="color:var(--text-muted)">○ vypnuto (hráči se nepřihlásí)</span>`;
+        return `<span style="color:var(--text-muted)">○ ${esc(I18n.t('settings.pwdDisabled'))}</span>`;
       }
       if (info.envFallback) {
-        return `<span style="color:var(--text-muted)">○ z proměnné prostředí</span>`;
+        return `<span style="color:var(--text-muted)">○ ${esc(I18n.t('settings.pwdFromEnv'))}</span>`;
       }
-      return `<span style="color:var(--text-muted)">○ nenastaveno</span>`;
+      return `<span style="color:var(--text-muted)">○ ${esc(I18n.t('settings.pwdNotSet'))}</span>`;
     })();
     const placeholder = (role === 'player')
-      ? 'Nové heslo (prázdné = vypnout hráčský účet)'
-      : 'Nové heslo (min. 4 znaky)';
+      ? I18n.t('settings.pwdNewPlaceholderPlayer')
+      : I18n.t('settings.pwdNewPlaceholderDM');
     return `
       <div class="settings-panel" style="margin-bottom:1rem;background:rgba(0,0,0,0.18)">
         <div style="display:flex;justify-content:space-between;align-items:baseline;gap:1rem;margin-bottom:0.6rem">
@@ -1509,27 +1500,27 @@ export const Settings = (() => {
         </div>
         <div class="settings-form-row">
           <label class="settings-field">
-            <span class="settings-field-label">Aktuální DM heslo</span>
+            <span class="settings-field-label">${esc(I18n.t('settings.currentDMPassword'))}</span>
             <input class="edit-input" type="password" autocomplete="current-password"
                    id="pwd-${esc(role)}-current"
-                   placeholder="Pro potvrzení">
+                   placeholder="${esc(I18n.t('settings.forConfirmation'))}">
           </label>
           <label class="settings-field">
-            <span class="settings-field-label">Nové heslo</span>
+            <span class="settings-field-label">${esc(I18n.t('settings.newPassword'))}</span>
             <input class="edit-input" type="password" autocomplete="new-password"
                    id="pwd-${esc(role)}-new"
                    placeholder="${esc(placeholder)}">
           </label>
           <label class="settings-field">
-            <span class="settings-field-label">Potvrdit nové heslo</span>
+            <span class="settings-field-label">${esc(I18n.t('settings.confirmNewPassword'))}</span>
             <input class="edit-input" type="password" autocomplete="new-password"
                    id="pwd-${esc(role)}-confirm"
-                   placeholder="Zopakuj nové heslo">
+                   placeholder="${esc(I18n.t('settings.repeatNewPassword'))}">
           </label>
         </div>
         <div class="settings-form-actions" style="margin-top:0.8rem">
           <button type="button" class="edit-save-btn"
-            ${dataAction('Settings.changePassword', role)}>💾 ${role === 'player' && info.stored ? 'Změnit nebo vymazat heslo' : 'Uložit heslo'}</button>
+            ${dataAction('Settings.changePassword', role)}>💾 ${esc(role === 'player' && info.stored ? I18n.t('settings.changeOrClearPassword') : I18n.t('settings.savePassword'))}</button>
         </div>
       </div>`;
   }
@@ -1543,15 +1534,15 @@ export const Settings = (() => {
     const current = get(`pwd-${role}-current`);
     const next    = get(`pwd-${role}-new`);
     const confirm = get(`pwd-${role}-confirm`);
-    if (!current) { _flash('Zadej aktuální DM heslo', false); return; }
-    if (next !== confirm) { _flash('Nová hesla se neshodují', false); return; }
+    if (!current) { _flash(I18n.t('settings.enterCurrentDMPassword'), false); return; }
+    if (next !== confirm) { _flash(I18n.t('settings.passwordsMismatch'), false); return; }
     if (role === 'dm' && next.length < 4) {
-      _flash('DM heslo musí mít alespoň 4 znaky', false); return;
+      _flash(I18n.t('settings.dmPasswordTooShort'), false); return;
     }
     if (role === 'player' && next.length > 0 && next.length < 4) {
-      _flash('Hráčské heslo musí mít alespoň 4 znaky (nebo prázdné pro vypnutí)', false); return;
+      _flash(I18n.t('settings.playerPasswordTooShort'), false); return;
     }
-    if (next.length > 200) { _flash('Heslo je příliš dlouhé', false); return; }
+    if (next.length > 200) { _flash(I18n.t('settings.passwordTooLong'), false); return; }
 
     fetch('/api/passwords', {
       method:      'POST',
@@ -1562,13 +1553,13 @@ export const Settings = (() => {
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
       .then(() => {
         const msg = (role === 'player' && next === '')
-          ? 'Hráčský účet vypnut'
-          : `Heslo (${role === 'dm' ? 'DM' : 'hráč'}) změněno`;
+          ? I18n.t('settings.playerAccountDisabled')
+          : I18n.t('settings.passwordChanged', { role: role === 'dm' ? I18n.t('settings.roleDMShort') : I18n.t('settings.rolePlayerShort') });
         _flash(msg);
         // Re-fetch status so the rows reflect the new "nastaveno" timestamp.
         return _loadPasswordStatus().then(render);
       })
-      .catch(e => _flash(e?.error || 'Změna hesla selhala', false));
+      .catch(e => _flash(e?.error || I18n.t('settings.passwordChangeFailed'), false));
   }
 
   /** Fetch DM/player password status from the server. Stores into
@@ -1585,8 +1576,8 @@ export const Settings = (() => {
    *  event handler in app.js refetches data + re-renders, so we don't
    *  need to navigate ourselves. */
   function logout() {
-    if (!confirm('Odhlásit se? Pro další úpravy bude potřeba zadat heslo znovu.')) return;
-    Role.logout().then(() => _flash('Odhlášeno'));
+    if (!confirm(I18n.t('settings.logoutConfirm'))) return;
+    Role.logout().then(() => _flash(I18n.t('settings.loggedOut')));
   }
 
   // ── Backup / Snapshot panel ──────────────────────────────────
@@ -1601,14 +1592,14 @@ export const Settings = (() => {
   function _backupHtml() {
     const isDM = Role.isDM();
     const rows = _snapshots.length ? _snapshots.map(_snapshotRow).join('') : `
-      <div class="settings-empty">Zatím žádné body zálohy.</div>`;
+      <div class="settings-empty">${esc(I18n.t('settings.noSnapshots'))}</div>`;
     const downloadBtn = isDM ? `
           <a class="inline-create-btn" href="/api/backup"
-             title="Stáhne ZIP celé složky data/">📥 Stáhnout ZIP</a>` : '';
+             title="${esc(I18n.t('settings.downloadZipTitle'))}">📥 ${esc(I18n.t('settings.downloadZip'))}</a>` : '';
     const restoreBtn = isDM ? `
           <label class="inline-create-btn" style="cursor:pointer"
-             title="Nahraj ZIP ze Stáhnout ZIP nebo JSON exportu pro úplnou obnovu dat">
-            📤 Obnovit ze zálohy…
+             title="${esc(I18n.t('settings.restoreFromBackupTitle'))}">
+            📤 ${esc(I18n.t('settings.restoreFromBackup'))}
             <input type="file" accept=".zip,.json,application/zip,application/json"
                    style="display:none"
                    ${dataOn('change', 'Settings.uploadRestore', '$el')}>
@@ -1616,36 +1607,32 @@ export const Settings = (() => {
     const revertRow = isDM ? `
         <div class="settings-revert-row">
           <label class="settings-field" style="margin-right:0.6rem">
-            <span class="settings-field-label">Vrátit poslední X úprav</span>
+            <span class="settings-field-label">${esc(I18n.t('settings.revertLastN'))}</span>
             <input class="edit-input" type="number" min="1" max="50"
                    value="1" id="settings-revert-n" style="width:5rem">
           </label>
           <button type="button" class="edit-delete-btn"
-                  ${dataAction('Settings.revertLastN')}>↶ Vrátit</button>
+                  ${dataAction('Settings.revertLastN')}>↶ ${esc(I18n.t('action.undo'))}</button>
         </div>` : '';
     const playerHint = isDM ? '' : `
         <p class="settings-hint" style="margin-bottom:0.8rem;font-style:italic">
-          Stažení zálohy a obnova jsou dostupné pouze pro DM. Můžeš
-          ale vytvořit ruční bod zálohy — DM ho pak zvládne obnovit,
-          kdyby se něco pokazilo.
+          ${esc(I18n.t('settings.backupPlayerHint'))}
         </p>`;
     return `
       <div class="settings-editor-head">
-        <h2>💾 Záloha</h2>
+        <h2>💾 ${esc(I18n.t('settings.tabBackup'))}</h2>
         <div class="settings-editor-actions">
           ${downloadBtn}
           ${restoreBtn}
           <button type="button" class="inline-create-btn"
-                  ${dataAction('Settings.createSnapshot')}>＋ Vytvořit bod zálohy</button>
+                  ${dataAction('Settings.createSnapshot')}>＋ ${esc(I18n.t('settings.createSnapshot'))}</button>
           <button type="button" class="inline-create-btn"
-                  ${dataAction('Settings.refreshSnapshots')}>↻ Obnovit</button>
+                  ${dataAction('Settings.refreshSnapshots')}>↻ ${esc(I18n.t('action.restore'))}</button>
         </div>
       </div>
       <div class="settings-panel">
         <p class="settings-hint" style="margin-bottom:0.8rem">
-          Server automaticky vytvoří bod zálohy při každé úpravě
-          (sdružuje změny do 60 s). Udržuje posledních 50 bodů plus
-          jeden denní po dobu 14 dnů.${isDM ? ' Obnovit můžeš libovolný bod níže nebo nahrát celý ZIP / JSON přes <em>Obnovit ze zálohy…</em> výše — před nahrazením se vždy vytvoří bezpečnostní bod.' : ''}
+          ${esc(I18n.t('settings.backupIntro'))}${isDM ? ' ' + I18n.t('settings.backupIntroDM') : ''}
         </p>
         ${playerHint}
         ${revertRow}
@@ -1656,17 +1643,17 @@ export const Settings = (() => {
   function _snapshotRow(s) {
     const when = _formatSnapshotDate(s.createdAt);
     const kb   = Math.max(1, Math.round((s.size || 0) / 1024));
-    const tag  = s.reason === 'manual' ? '✦ ruční' :
-                 s.reason === 'pre-restore' ? '⚠ před obnovou' : '✎ úprava';
+    const tag  = s.reason === 'manual' ? `✦ ${I18n.t('settings.snapshotManual')}` :
+                 s.reason === 'pre-restore' ? `⚠ ${I18n.t('settings.snapshotPreRestore')}` : `✎ ${I18n.t('settings.snapshotEdit')}`;
     // Restore + delete are DM-only; players see the row without
     // action buttons so they can review history but not roll it back.
     const actions = Role.isDM() ? `
         <div class="settings-row-actions">
           <button type="button" class="settings-btn-edit"
-                  title="Obnovit tento stav"
+                  title="${esc(I18n.t('settings.restoreThisStateTitle'))}"
                   ${dataAction('Settings.restoreSnapshot', s.id)}>↶</button>
           <button type="button" class="settings-btn-del"
-                  title="Smazat bod zálohy"
+                  title="${esc(I18n.t('settings.deleteSnapshotTitle'))}"
                   ${dataAction('Settings.deleteSnapshot', s.id)}>🗑</button>
         </div>` : '';
     return `
@@ -1674,19 +1661,16 @@ export const Settings = (() => {
         <span class="settings-row-icon">🕒</span>
         <span class="settings-row-label">${esc(when)}</span>
         <code class="settings-row-id">${esc(tag)}</code>
-        <span class="settings-row-usage" title="Velikost">${kb} kB</span>
+        <span class="settings-row-usage" title="${esc(I18n.t('settings.sizeTitle'))}">${kb} kB</span>
         ${actions}
       </div>`;
   }
 
   function _formatSnapshotDate(iso) {
-    try {
-      const d = new Date(iso);
-      return d.toLocaleString('cs-CZ', {
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-      });
-    } catch { return String(iso || ''); }
+    return I18n.formatDate(iso, {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
   }
 
   function _loadSnapshots() {
@@ -1701,57 +1685,57 @@ export const Settings = (() => {
   }
 
   function createSnapshot() {
-    _flash('Vytvářím bod zálohy…');
+    _flash(I18n.t('settings.creatingSnapshot'));
     fetch('/api/snapshots', { method: 'POST', credentials: 'same-origin' })
       .then(r => r.ok ? r.json() : Promise.reject(r))
-      .then(() => _loadSnapshots().then(render).then(() => _flash('Bod zálohy vytvořen ✓')))
-      .catch(() => _flash('Vytvoření bodu zálohy selhalo', false));
+      .then(() => _loadSnapshots().then(render).then(() => _flash(I18n.t('settings.snapshotCreated'))))
+      .catch(() => _flash(I18n.t('settings.snapshotCreateFailed'), false));
   }
 
   function restoreSnapshot(id) {
     const s = _snapshots.find(x => x.id === id);
     const when = s ? _formatSnapshotDate(s.createdAt) : id;
-    if (!confirm(`Obnovit stav z ${when}? Aktuální data budou přepsána, ale před obnovou se automaticky vytvoří bezpečnostní bod zálohy.`)) return;
-    _flash('Obnovuji…');
+    if (!confirm(I18n.t('settings.restoreSnapshotQ', { when }))) return;
+    _flash(I18n.t('settings.restoring'));
     fetch(`/api/snapshots/${encodeURIComponent(id)}/restore`, {
       method: 'POST', credentials: 'same-origin',
     })
       .then(r => r.ok ? r.json() : Promise.reject(r))
       .then(() => {
-        _flash('Obnoveno ✓');
+        _flash(I18n.t('settings.restored'));
         // Force the client to reload fresh data; SSE should fire too,
         // but re-fetch to be certain the new state is in the tab.
         Store.load().then(() => _loadSnapshots().then(render));
       })
-      .catch(() => _flash('Obnova selhala', false));
+      .catch(() => _flash(I18n.t('settings.restoreFailed'), false));
   }
 
   function deleteSnapshot(id) {
     const s = _snapshots.find(x => x.id === id);
     const when = s ? _formatSnapshotDate(s.createdAt) : id;
-    if (!confirm(`Smazat bod zálohy z ${when}?`)) return;
+    if (!confirm(I18n.t('settings.deleteSnapshotQ', { when }))) return;
     fetch(`/api/snapshots/${encodeURIComponent(id)}`, {
       method: 'DELETE', credentials: 'same-origin',
     })
       .then(r => r.ok ? r.json() : Promise.reject(r))
-      .then(() => _loadSnapshots().then(render).then(() => _flash('Smazáno')))
-      .catch(() => _flash('Smazání selhalo', false));
+      .then(() => _loadSnapshots().then(render).then(() => _flash(I18n.t('settings.deleted'))))
+      .catch(() => _flash(I18n.t('settings.deleteFailed'), false));
   }
 
   function revertLastN() {
     const input = document.getElementById('settings-revert-n');
     const n = Math.max(1, Math.min(50, Number(input?.value) || 1));
-    if (!confirm(`Vrátit posledních ${n} úprav? Před obnovou se automaticky vytvoří bezpečnostní bod zálohy.`)) return;
-    _flash(`Vracím posledních ${n} úprav…`);
+    if (!confirm(I18n.plural('settings.revertLastNQ', n))) return;
+    _flash(I18n.plural('settings.revertingLastN', n));
     fetch(`/api/snapshots/revert-last/${n}`, {
       method: 'POST', credentials: 'same-origin',
     })
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
       .then(() => {
-        _flash('Obnoveno ✓');
+        _flash(I18n.t('settings.restored'));
         Store.load().then(() => _loadSnapshots().then(render));
       })
-      .catch(e => _flash(e?.error || 'Vrácení změn selhalo', false));
+      .catch(e => _flash(e?.error || I18n.t('settings.revertFailed'), false));
   }
 
   // Restore from an uploaded ZIP (full data/ tree from /api/backup)
@@ -1761,22 +1745,22 @@ export const Settings = (() => {
   function uploadRestore(input) {
     const file = input?.files?.[0];
     if (!file) return;
-    if (!confirm(`Obnovit data ze souboru "${file.name}"?\n\nAktuální data budou přepsána. Před obnovou se automaticky vytvoří bezpečnostní bod zálohy, takže akci lze vrátit zpět.`)) {
+    if (!confirm(I18n.t('settings.restoreFromFileQ', { name: file.name }))) {
       input.value = '';
       return;
     }
     const fd = new FormData();
     fd.append('backup', file);
-    _flash('Nahrávám a obnovuji…');
+    _flash(I18n.t('settings.uploadingRestoring'));
     fetch('/api/restore', { method: 'POST', body: fd, credentials: 'same-origin' })
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
       .then(j => {
         const fmt = j.format === 'zip' ? 'ZIP' : 'JSON';
-        _flash(`Obnoveno z ${fmt} (${j.restored} souborů) ✓`);
+        _flash(I18n.t('settings.restoredFromFmt', { fmt, count: j.restored }));
         // Refresh local store + snapshot list to reflect the new state.
         Store.load().then(() => _loadSnapshots().then(render));
       })
-      .catch(e => _flash(e?.error || 'Obnova selhala', false))
+      .catch(e => _flash(e?.error || I18n.t('settings.restoreFailed'), false))
       .finally(() => { if (input) input.value = ''; });
   }
 
@@ -1786,7 +1770,7 @@ export const Settings = (() => {
     const others = Store.getEnum(cat).filter(x => x.id !== id);
     const usageLinks = usages.slice(0, 20).map(u => `
       <li><a href="#/${_routeForCollection(u.collection)}/${u.id}">${esc(u.name)}</a></li>`).join('');
-    const overflow = usages.length > 20 ? `<li>…a dalších ${usages.length - 20}</li>` : '';
+    const overflow = usages.length > 20 ? `<li>${esc(I18n.t('settings.andMore', { count: usages.length - 20 }))}</li>` : '';
 
     let root = document.getElementById('settings-del-modal');
     if (root) root.remove();
@@ -1796,15 +1780,15 @@ export const Settings = (() => {
     root.innerHTML = `
       <div class="settings-modal-backdrop" data-dismiss></div>
       <div class="settings-modal-panel" role="dialog" aria-modal="true">
-        <div class="settings-modal-title">Smazat "${esc(item?.label || id)}"?</div>
+        <div class="settings-modal-title">${esc(I18n.t('settings.deleteModalTitle', { name: item?.label || id }))}</div>
         <div class="settings-modal-body">
-          <p>Tento záznam je používán <strong>${usages.length}×</strong>:</p>
+          <p>${I18n.t('settings.deleteModalUsedBy', { count: `<strong>${usages.length}×</strong>` })}</p>
           <ul class="settings-modal-usages">${usageLinks}${overflow}</ul>
           <div class="settings-modal-choice">
             <label class="settings-field">
-              <span class="settings-field-label">Nahradit za…</span>
+              <span class="settings-field-label">${esc(I18n.t('settings.replaceWith'))}</span>
               <select class="edit-select" id="sdm-replace">
-                <option value="">— nevybráno —</option>
+                <option value="">${esc(I18n.t('settings.notSelected'))}</option>
                 ${others.map(o => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join('')}
               </select>
             </label>
@@ -1812,11 +1796,11 @@ export const Settings = (() => {
         </div>
         <div class="settings-modal-actions">
           <button type="button" class="edit-save-btn"
-            ${dataAction('Settings.commitDelete', id, 'replace')}>Nahradit &amp; smazat</button>
+            ${dataAction('Settings.commitDelete', id, 'replace')}>${esc(I18n.t('settings.replaceAndDelete'))}</button>
           <button type="button" class="edit-delete-btn"
-            ${dataAction('Settings.commitDelete', id, 'force')}>Smazat i tak</button>
+            ${dataAction('Settings.commitDelete', id, 'force')}>${esc(I18n.t('settings.deleteAnyway'))}</button>
           <button type="button" class="inline-create-btn"
-            ${dataAction('Settings.closeModal')}>Zrušit</button>
+            ${dataAction('Settings.closeModal')}>${esc(I18n.t('action.cancel'))}</button>
         </div>
       </div>`;
     document.body.appendChild(root);
@@ -1827,16 +1811,16 @@ export const Settings = (() => {
   function commitDelete(id, mode) {
     if (mode === 'replace') {
       const replaceWith = document.getElementById('sdm-replace')?.value || '';
-      if (!replaceWith) { _flash('Vyber, za co nahradit', false); return; }
+      if (!replaceWith) { _flash(I18n.t('settings.pickReplacement'), false); return; }
       const res = Store.deleteEnumItem(_activeCat, id, { replaceWith });
       closeModal();
       render();
-      _flash(`Nahrazeno v ${res.usages.length} záznamech a smazáno`);
+      _flash(I18n.t('settings.replacedAndDeleted', { count: res.usages.length }));
     } else if (mode === 'force') {
       const res = Store.deleteEnumItem(_activeCat, id, { force: true });
       closeModal();
       render();
-      _flash(`Smazáno (${res.usages.length} odkazů zůstalo jako siroty)`);
+      _flash(I18n.t('settings.deletedOrphaned', { count: res.usages.length }));
     }
   }
 
@@ -1928,26 +1912,25 @@ export const Settings = (() => {
     try { for (const a of Addons.list()) loadStates[a.id] = a; } catch (_) {}
     let body;
     if (_addonsList === null) {
-      body = `<div class="settings-empty">Načítám…</div>`;
+      body = `<div class="settings-empty">${esc(I18n.t('settings.loading'))}</div>`;
     } else if (!_addonsList.length) {
-      body = `<div class="settings-empty">Zatím žádné doplňky — nainstaluj první z GitHubu.</div>`;
+      body = `<div class="settings-empty">${esc(I18n.t('settings.noAddons'))}</div>`;
     } else {
       body = `<div class="addon-list">${_addonsList.map(a => _addonRow(a, loadStates[a.id])).join('')}</div>`;
     }
     return `
       <div class="settings-editor-head">
-        <h2>🧩 Doplňky</h2>
+        <h2>🧩 ${esc(I18n.t('settings.tabAddons'))}</h2>
         <div class="settings-editor-actions">
           ${(_addonsList && _addonsList.length) ? `<button type="button" class="inline-create-btn"
-            ${dataAction('Settings.checkAddonUpdates')}>🔄 Zkontrolovat aktualizace</button>` : ''}
+            ${dataAction('Settings.checkAddonUpdates')}>🔄 ${esc(I18n.t('settings.checkUpdates'))}</button>` : ''}
           <button type="button" class="edit-save-btn"
-            ${dataAction('Settings.openAddonWizard')}>＋ Instalovat z GitHubu</button>
+            ${dataAction('Settings.openAddonWizard')}>＋ ${esc(I18n.t('settings.installFromGitHub'))}</button>
         </div>
       </div>
       <div class="settings-panel">
         <p class="settings-hint" style="margin-bottom:1rem">
-          Doplňky rozšiřují aplikaci (pravidla, deníky postav…). Instalují se
-          z GitHubu vložením odkazu na repozitář a platí jen pro tuto kampaň.
+          ${esc(I18n.t('settings.addonsIntro'))}
         </p>
         ${_conflictsHtml()}
         ${body}
@@ -1962,13 +1945,21 @@ export const Settings = (() => {
   // to a human label so a DM resolving a conflict doesn't have to read developer
   // identifiers. Falls back to the raw id for anything unrecognised.
   function _fragmentLabel(target) {
-    const KIND = { characters: 'Postava', locations: 'Místo', events: 'Událost', mysteries: 'Záhada', factions: 'Frakce' };
-    const SEC  = { vazby: 'Vazby', udalosti: 'Události', znalosti: 'Co víme', otazky: 'Otevřené otázky', mazlicci: 'Mazlíčci' };
+    const KIND = {
+      characters: I18n.t('settings.fragKindCharacter'), locations: I18n.t('settings.fragKindLocation'),
+      events: I18n.t('settings.fragKindEvent'), mysteries: I18n.t('settings.fragKindMystery'),
+      factions: I18n.t('settings.fragKindFaction'),
+    };
+    const SEC  = {
+      vazby: I18n.t('settings.fragSecVazby'), udalosti: I18n.t('settings.fragSecUdalosti'),
+      znalosti: I18n.t('settings.fragSecZnalosti'), otazky: I18n.t('settings.fragSecOtazky'),
+      mazlicci: I18n.t('settings.fragSecMazlicci'),
+    };
     const p = String(target || '').split(':');
     const kind = KIND[p[0]] || p[0] || '?';
-    if (p[1] === 'body')    return `${kind} · tělo článku`;
-    if (p[1] === 'section') return `${kind} · sekce „${SEC[p[2]] || p[2] || '?'}"`;
-    if (p[1] === 'addon')   return `${kind} · sekce doplňku`;
+    if (p[1] === 'body')    return I18n.t('settings.fragBody', { kind });
+    if (p[1] === 'section') return I18n.t('settings.fragSection', { kind, section: SEC[p[2]] || p[2] || '?' });
+    if (p[1] === 'addon')   return I18n.t('settings.fragAddonSection', { kind });
     return target;
   }
 
@@ -1976,7 +1967,7 @@ export const Settings = (() => {
     let conflicts = [];
     try { conflicts = Addons.conflicts() || []; } catch (_) {}
     if (!conflicts.length) return '';
-    const opLabel = op => (op === 'hide' ? 'skrýt' : 'nahradit');
+    const opLabel = op => (op === 'hide' ? I18n.t('settings.opHide') : I18n.t('settings.opReplace'));
     const cards = conflicts.map(c => {
       const name = `conf-${c.target}`;
       const opts = c.claimants.map(cl => `
@@ -1989,27 +1980,27 @@ export const Settings = (() => {
         <label class="addon-conflict-opt">
           <input type="radio" name="${esc(name)}" ${c.resolved === null ? 'checked' : ''}
             ${dataOn('change', 'Settings.resolveAddonConflict', c.target, null)}>
-          <span>Vestavěné (žádný doplněk)</span>
+          <span>${esc(I18n.t('settings.builtinNoAddon'))}</span>
         </label>`;
       const unresolved = c.resolved === undefined;
       return `
         <div class="addon-conflict${unresolved ? ' addon-conflict-open' : ''}">
           <div class="addon-conflict-title">${unresolved ? '⚠' : '✓'} ${esc(_fragmentLabel(c.target))}
             <code title="${esc(c.target)}">${esc(c.target)}</code></div>
-          <div class="addon-conflict-hint">${unresolved
-            ? 'Více doplňků chce změnit stejnou část. Vyber, který vyhraje — jinak se zobrazí vestavěný obsah.'
-            : 'Vyřešeno.'}</div>
+          <div class="addon-conflict-hint">${esc(unresolved
+            ? I18n.t('settings.conflictHint')
+            : I18n.t('settings.conflictResolved'))}</div>
           <div class="addon-conflict-opts">${opts}${builtin}</div>
         </div>`;
     }).join('');
-    return `<div class="addon-conflicts"><h3 class="addon-conflicts-h">⚠ Konflikty</h3>${cards}</div>`;
+    return `<div class="addon-conflicts"><h3 class="addon-conflicts-h">⚠ ${esc(I18n.t('settings.conflicts'))}</h3>${cards}</div>`;
   }
 
   function resolveAddonConflict(target, winner) {
     if (!_requireDM()) return;
     Store.resolveAddonConflict(target, winner).then(r => {
-      if (r && r.ok) _flash('Volba uložena');
-      else _flash((r && r.error) || 'Nepodařilo se uložit volbu', false);
+      if (r && r.ok) _flash(I18n.t('settings.choiceSaved'));
+      else _flash((r && r.error) || I18n.t('settings.choiceSaveFailed'), false);
       // The addons-changed SSE reconcile re-renders with the winner applied.
     });
   }
@@ -2025,18 +2016,18 @@ export const Settings = (() => {
     // then update/warning.
     const chip = (tone, label) => `<span class="addon-chip addon-chip-${tone}">${esc(label)}</span>`;
     const chips = [];
-    if (lstate === 'error')        chips.push(chip('danger', 'chyba'));
-    else if (lstate === 'blocked') chips.push(chip('danger', 'blokováno'));
-    else if (a.enabled)            chips.push(chip('ok', 'aktivní'));
-    else                           chips.push(chip('off', 'vypnuto'));
+    if (lstate === 'error')        chips.push(chip('danger', I18n.t('settings.chipError')));
+    else if (lstate === 'blocked') chips.push(chip('danger', I18n.t('settings.chipBlocked')));
+    else if (a.enabled)            chips.push(chip('ok', I18n.t('settings.chipActive')));
+    else                           chips.push(chip('off', I18n.t('settings.chipDisabled')));
     if (a.server) {
-      const SS = { loaded: ['ok', 'server'], error: ['danger', 'server: chyba'],
-                   blocked: ['danger', 'server blokován'], 'pending-restart': ['warn', 'server: restart'] };
+      const SS = { loaded: ['ok', I18n.t('settings.chipServer')], error: ['danger', I18n.t('settings.chipServerError')],
+                   blocked: ['danger', I18n.t('settings.chipServerBlocked')], 'pending-restart': ['warn', I18n.t('settings.chipServerRestart')] };
       const s = SS[a.serverState];
       if (s) chips.push(chip(s[0], s[1]));
     }
-    if (a.enabled && upd && upd.hasUpdate) chips.push(chip('info', 'aktualizace'));
-    if (smokeFails.length)                 chips.push(chip('warn', 'test vykreslení'));
+    if (a.enabled && upd && upd.hasUpdate) chips.push(chip('info', I18n.t('settings.chipUpdate')));
+    if (smokeFails.length)                 chips.push(chip('warn', I18n.t('settings.chipRenderTest')));
     const chipsHtml = `<span class="addon-row-chips">${chips.join('')}</span>`;
 
     // ── Notes: detail that USED to be tooltip-only, now visible (and reachable
@@ -2045,16 +2036,16 @@ export const Settings = (() => {
     if ((lstate === 'error' || lstate === 'blocked') && loadState.error)
       notes.push(`<div class="addon-row-err">${esc(loadState.error)}</div>`);
     if (smokeFails.length)
-      notes.push(`<div class="addon-row-warn">Test vykreslení nahlásil chybu: ${esc(smokeFails.map(f => `${f.kind} (${f.message || '?'})`).join(' · '))}</div>`);
+      notes.push(`<div class="addon-row-warn">${esc(I18n.t('settings.renderTestReported', { detail: smokeFails.map(f => `${f.kind} (${f.message || '?'})`).join(' · ') }))}</div>`);
     if (a.server && a.serverState === 'pending-restart')
-      notes.push(`<div class="addon-row-warn">Restartuj server (kontejner), aby se serverová část (od)načetla.</div>`);
+      notes.push(`<div class="addon-row-warn">${esc(I18n.t('settings.serverRestartNote'))}</div>`);
     else if (a.server && (a.serverState === 'error' || a.serverState === 'blocked'))
-      notes.push(`<div class="addon-row-err">Serverová část doplňku: ${esc(a.serverState)}.</div>`);
+      notes.push(`<div class="addon-row-err">${esc(I18n.t('settings.serverPartNote', { state: a.serverState }))}</div>`);
 
     // ── Permissions: collapsed to a count (the full review happened at install).
     const perms = Array.isArray(a.permissions) ? a.permissions : [];
     const permsLine = perms.length
-      ? `<details class="addon-row-perms"><summary>${perms.length} oprávnění</summary>
+      ? `<details class="addon-row-perms"><summary>${esc(I18n.plural('settings.permissionsCount', perms.length))}</summary>
            <div class="addon-perms-detail">${perms.map(p =>
              `<span title="${esc(p)}">${esc(Addons.describePermission(p))}</span>`).join(' · ')}</div></details>`
       : '';
@@ -2062,20 +2053,20 @@ export const Settings = (() => {
     // ── Actions, ranked: primary Update (when available), secondary toggle,
     // rare actions (roll back / remove) behind an overflow menu.
     const updateBtn = (a.enabled && upd && upd.hasUpdate)
-      ? `<button type="button" class="edit-save-btn" ${dataAction('Settings.updateAddon', a.id)}>⬆ Aktualizovat</button>`
+      ? `<button type="button" class="edit-save-btn" ${dataAction('Settings.updateAddon', a.id)}>⬆ ${esc(I18n.t('settings.update'))}</button>`
       : '';
     const toggle = a.enabled
-      ? `<button type="button" class="inline-create-btn" ${dataAction('Settings.disableAddon', a.id)}>Vypnout</button>`
-      : `<button type="button" class="inline-create-btn" ${dataAction('Settings.enableAddon', a.id)}>Zapnout</button>`;
+      ? `<button type="button" class="inline-create-btn" ${dataAction('Settings.disableAddon', a.id)}>${esc(I18n.t('settings.disable'))}</button>`
+      : `<button type="button" class="inline-create-btn" ${dataAction('Settings.enableAddon', a.id)}>${esc(I18n.t('settings.enable'))}</button>`;
     const rollbackItem = (Array.isArray(a.versions) && a.versions.length > 1)
-      ? `<button type="button" class="inline-create-btn" ${dataAction('Settings.rollbackAddon', a.id)}>↩ Vrátit verzi</button>`
+      ? `<button type="button" class="inline-create-btn" ${dataAction('Settings.rollbackAddon', a.id)}>↩ ${esc(I18n.t('settings.rollbackVersion'))}</button>`
       : '';
     const moreMenu = `
       <details class="addon-actions-more">
-        <summary aria-label="Další akce" title="Další akce">⋯</summary>
+        <summary aria-label="${esc(I18n.t('settings.moreActions'))}" title="${esc(I18n.t('settings.moreActions'))}">⋯</summary>
         <div class="addon-actions-menu">
           ${rollbackItem}
-          <button type="button" class="edit-delete-btn" ${dataAction('Settings.removeAddon', a.id)}>🗑 Odebrat</button>
+          <button type="button" class="edit-delete-btn" ${dataAction('Settings.removeAddon', a.id)}>🗑 ${esc(I18n.t('action.remove'))}</button>
         </div>
       </details>`;
 
@@ -2098,28 +2089,28 @@ export const Settings = (() => {
     return fetch(url, { method, credentials: 'same-origin' })
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
       .then(() => { _flash(okMsg); return _reloadAddonsIfActive(); })
-      .catch(e => _flash((e && e.error) || 'Operace selhala', false));
+      .catch(e => _flash((e && e.error) || I18n.t('settings.operationFailed'), false));
   }
-  function enableAddon(id)  { _addonLifecycle('POST',   `/api/addons/${encodeURIComponent(id)}/enable`,  'Doplněk zapnut'); }
-  function disableAddon(id) { delete _addonUpdates[id]; _addonLifecycle('POST', `/api/addons/${encodeURIComponent(id)}/disable`, 'Doplněk vypnut'); }
+  function enableAddon(id)  { _addonLifecycle('POST',   `/api/addons/${encodeURIComponent(id)}/enable`,  I18n.t('settings.addonEnabled')); }
+  function disableAddon(id) { delete _addonUpdates[id]; _addonLifecycle('POST', `/api/addons/${encodeURIComponent(id)}/disable`, I18n.t('settings.addonDisabled')); }
   function removeAddon(id) {
     const a = (_addonsList || []).find(x => x.id === id);
     const name = a ? (a.name || a.id) : id;
-    if (!confirm(`Odebrat doplněk „${name}"? Jeho data zůstanou zachována pro případnou reinstalaci.`)) return;
+    if (!confirm(I18n.t('settings.removeAddonQ', { name }))) return;
     delete _addonUpdates[id];   // drop the stale update entry for the gone addon
-    _addonLifecycle('DELETE', `/api/addons/${encodeURIComponent(id)}`, 'Doplněk odebrán');
+    _addonLifecycle('DELETE', `/api/addons/${encodeURIComponent(id)}`, I18n.t('settings.addonRemoved'));
   }
 
   // ── Update check + rollback (Phase 9) ─────────────────────────
   function checkAddonUpdates() {
     if (!_requireDM()) return;
-    _flash('Kontroluji aktualizace…');
+    _flash(I18n.t('settings.checkingUpdates'));
     Store.checkAddonUpdates().then(r => {
-      if (!r.ok) { _flash(r.error || 'Kontrola selhala', false); return; }
+      if (!r.ok) { _flash(r.error || I18n.t('settings.checkFailed'), false); return; }
       _addonUpdates = {};
       for (const u of r.updates) if (u && u.id) _addonUpdates[u.id] = u;
       const n = r.updates.filter(u => u.hasUpdate).length;
-      _flash(n ? `${n} aktualizací k dispozici` : 'Vše je aktuální');
+      _flash(n ? I18n.plural('settings.updatesAvailable', n) : I18n.t('settings.allUpToDate'));
       if (_activeCat === 'addons') render();
     });
   }
@@ -2127,20 +2118,20 @@ export const Settings = (() => {
   function updateAddon(id) {
     if (!_requireDM()) return;
     const u = _addonUpdates[id];
-    if (!u || !u.repo) { _flash('Nejdřív zkontroluj aktualizace', false); return; }
+    if (!u || !u.repo) { _flash(I18n.t('settings.checkUpdatesFirst'), false); return; }
     openAddonWizard(u.repo, 'update');
   }
 
   function rollbackAddon(id) {
     if (!_requireDM()) return;
     const a = (_addonsList || []).find(x => x.id === id);
-    if (!confirm(`Vrátit doplněk „${(a && (a.name || a.id)) || id}" na předchozí verzi?`)) return;
+    if (!confirm(I18n.t('settings.rollbackAddonQ', { name: (a && (a.name || a.id)) || id }))) return;
     Store.rollbackAddon(id).then(r => {
       if (r.ok) {
-        _flash(`Vráceno na v${r.version || '?'}` + ((a && a.server) ? ' — restartuj server pro serverovou část' : ''));
+        _flash(I18n.t('settings.rolledBackTo', { version: r.version || '?' }) + ((a && a.server) ? I18n.t('settings.rollbackServerSuffix') : ''));
         _addonUpdates = {};   // version changed → the cached update check is stale
         _reloadAddonsIfActive();
-      } else _flash(r.error || 'Vrácení selhalo', false);
+      } else _flash(r.error || I18n.t('settings.rollbackFailed'), false);
     });
   }
 
@@ -2152,7 +2143,7 @@ export const Settings = (() => {
     if (!_requireDM()) return;
     closeAddonWizard();
     _wizardMode = (mode === 'update') ? 'update' : 'install';
-    const title = _wizardMode === 'update' ? '🔄 Aktualizovat doplněk' : '🧩 Instalovat doplněk';
+    const title = _wizardMode === 'update' ? `🔄 ${I18n.t('settings.wizardUpdateTitle')}` : `🧩 ${I18n.t('settings.wizardInstallTitle')}`;
     const prefill = (typeof prefillRepo === 'string') ? prefillRepo : '';
     const ov = document.createElement('div');
     ov.id = 'addon-wizard-overlay';
@@ -2161,13 +2152,13 @@ export const Settings = (() => {
       <div class="addon-wizard" role="dialog" aria-modal="true" aria-label="${esc(title)}">
         <div class="addon-wizard-head">
           <h3>${esc(title)}</h3>
-          <button type="button" class="addon-wizard-x" aria-label="Zavřít"
+          <button type="button" class="addon-wizard-x" aria-label="${esc(I18n.t('action.close'))}"
             ${dataAction('Settings.closeAddonWizard')}>✕</button>
         </div>
         <div class="addon-wizard-body" id="addon-wizard-body">
-          <p class="settings-hint">Vlož odkaz na GitHub repozitář doplňku (nebo <code>owner/název</code>).</p>
+          <p class="settings-hint">${I18n.t('settings.wizardPasteHint')}</p>
           <label class="settings-field" style="margin-top:.6rem">
-            <span class="settings-field-label">GitHub odkaz</span>
+            <span class="settings-field-label">${esc(I18n.t('settings.githubUrl'))}</span>
             <input class="edit-input" id="addon-wizard-url" type="text" autocomplete="off"
                    placeholder="https://github.com/owner/muj-doplnek" value="${esc(prefill)}"
                    ${dataOn('keydown', 'Settings.addonWizardKey', '$ev')}>
@@ -2176,9 +2167,9 @@ export const Settings = (() => {
         </div>
         <div class="addon-wizard-foot" id="addon-wizard-foot">
           <button type="button" class="inline-create-btn"
-            ${dataAction('Settings.closeAddonWizard')}>Zrušit</button>
+            ${dataAction('Settings.closeAddonWizard')}>${esc(I18n.t('action.cancel'))}</button>
           <button type="button" class="edit-save-btn" id="addon-wizard-go"
-            ${dataAction('Settings.previewAddon')}>Načíst</button>
+            ${dataAction('Settings.previewAddon')}>${esc(I18n.t('settings.wizardLoad'))}</button>
         </div>
       </div>`;
     document.body.appendChild(ov);
@@ -2210,11 +2201,11 @@ export const Settings = (() => {
   function previewAddon() {
     const input = document.getElementById('addon-wizard-url');
     const url = ((input && input.value) || '').trim();
-    if (!url) { _wizardStatus(`<span class="addon-wizard-err">Vlož odkaz na repozitář.</span>`); return; }
+    if (!url) { _wizardStatus(`<span class="addon-wizard-err">${esc(I18n.t('settings.wizardPasteRepo'))}</span>`); return; }
     const go = document.getElementById('addon-wizard-go');
     if (go)    go.disabled = true;
     if (input) input.disabled = true;
-    _wizardStatus(`<span class="addon-wizard-busy">⏳ Načítám addon.json…</span>`);
+    _wizardStatus(`<span class="addon-wizard-busy">⏳ ${esc(I18n.t('settings.wizardLoadingManifest'))}</span>`);
     fetch('/api/addons/preview', {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
@@ -2225,7 +2216,7 @@ export const Settings = (() => {
       .catch(e => {
         if (go)    go.disabled = false;
         if (input) input.disabled = false;
-        _wizardStatus(`<span class="addon-wizard-err">${esc((e && e.error) || 'Náhled selhal')}</span>`);
+        _wizardStatus(`<span class="addon-wizard-err">${esc((e && e.error) || I18n.t('settings.previewFailed'))}</span>`);
       });
   }
 
@@ -2238,28 +2229,28 @@ export const Settings = (() => {
     const permList = perms.length
       ? `<ul class="addon-perm-list">${perms.map(pr =>
           `<li><span>${esc(Addons.describePermission(pr))}</span> <code>${esc(pr)}</code></li>`).join('')}</ul>`
-      : `<p class="settings-hint">Žádná zvláštní oprávnění.</p>`;
+      : `<p class="settings-hint">${esc(I18n.t('settings.noSpecialPermissions'))}</p>`;
     const serverWarn = m.server
-      ? `<div class="addon-perm-server">⚠ Obsahuje serverový kód — poběží s plnými právy serveru.</div>` : '';
+      ? `<div class="addon-perm-server">⚠ ${esc(I18n.t('settings.serverCodeWarn'))}</div>` : '';
     const errBox = p.ok ? ''
-      : `<div class="addon-wizard-err" style="margin-top:.6rem">⚠ Nelze nainstalovat: ${esc((p.errors || []).join('; '))}</div>`;
+      : `<div class="addon-wizard-err" style="margin-top:.6rem">⚠ ${esc(I18n.t('settings.cannotInstall'))}: ${esc((p.errors || []).join('; '))}</div>`;
     if (body) body.innerHTML = `
       <div class="addon-preview">
         <div class="addon-preview-name">${esc(m.name || m.id || '?')}
           <span class="addon-row-ver">v${esc(m.version || '?')}</span></div>
         ${m.summary ? `<p class="settings-hint" style="margin:.3rem 0 .6rem">${esc(m.summary)}</p>` : ''}
-        <div class="addon-perm-title">Doplněk žádá o tato oprávnění:</div>
+        <div class="addon-perm-title">${esc(I18n.t('settings.addonRequestsPermissions'))}</div>
         ${permList}
         ${serverWarn}
         ${errBox}
       </div>
       <div class="addon-wizard-status" id="addon-wizard-status"></div>`;
-    const confirmLabel = _wizardMode === 'update' ? '🔄 Aktualizovat' : 'Instalovat a povolit';
+    const confirmLabel = _wizardMode === 'update' ? `🔄 ${I18n.t('settings.update')}` : I18n.t('settings.installAndEnable');
     if (foot) foot.innerHTML = `
       <button type="button" class="inline-create-btn"
-        ${dataAction('Settings.closeAddonWizard')}>Zrušit</button>
+        ${dataAction('Settings.closeAddonWizard')}>${esc(I18n.t('action.cancel'))}</button>
       ${p.ok ? `<button type="button" class="edit-save-btn" id="addon-wizard-confirm"
-        ${dataAction('Settings.confirmInstallAddon')}>${confirmLabel}</button>` : ''}`;
+        ${dataAction('Settings.confirmInstallAddon')}>${esc(confirmLabel)}</button>` : ''}`;
   }
 
   // Step 2 — backup → install/update the reviewed commit (sha-pinned; ref kept
@@ -2269,16 +2260,16 @@ export const Settings = (() => {
     if (!_wizardPreview) return;
     const go = document.getElementById('addon-wizard-confirm');
     if (go) go.disabled = true;
-    const verb = _wizardMode === 'update' ? 'Aktualizuji' : 'Instaluji';
-    _wizardStatus(`<span class="addon-wizard-busy">⏳ Vytvářím zálohu…</span>`);
+    const verb = _wizardMode === 'update' ? I18n.t('settings.wizardUpdating') : I18n.t('settings.wizardInstalling');
+    _wizardStatus(`<span class="addon-wizard-busy">⏳ ${esc(I18n.t('settings.wizardCreatingBackup'))}</span>`);
     // Backup step: snapshot the dataset (incl. the addon registry) BEFORE the
     // change, so the install/update is one-click revertible from Záloha. Best-
     // effort — a snapshot failure doesn't block the install.
     fetch('/api/snapshots', { method: 'POST', credentials: 'same-origin' })
       .then(r => r.ok ? r.json() : {}).catch(() => ({}))
       .then(snap => {
-        const backupNote = (snap && snap.id) ? '✓ Záloha · ' : '';
-        _wizardStatus(`<span class="addon-wizard-busy">${backupNote}⏳ ${verb}…</span>`);
+        const backupNote = (snap && snap.id) ? `✓ ${I18n.t('settings.wizardBackupNote')} · ` : '';
+        _wizardStatus(`<span class="addon-wizard-busy">${esc(backupNote)}⏳ ${esc(verb)}…</span>`);
         return fetch('/api/addons/install', {
           method: 'POST', credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
@@ -2289,11 +2280,11 @@ export const Settings = (() => {
       })
       .then(({ j, backupNote }) => {
         const a = j.addon || {};
-        const done = _wizardMode === 'update' ? 'Aktualizováno' : 'Nainstalováno';
-        _wizardStatus(`<span class="addon-wizard-ok">${backupNote}✓ ${done}: <strong>${esc(a.id || '')}</strong> v${esc(a.version || '')}.</span>`);
+        const done = _wizardMode === 'update' ? I18n.t('settings.wizardUpdated') : I18n.t('settings.wizardInstalled');
+        _wizardStatus(`<span class="addon-wizard-ok">${esc(backupNote)}✓ ${esc(done)}: <strong>${esc(a.id || '')}</strong> v${esc(a.version || '')}.</span>`);
         const foot = document.getElementById('addon-wizard-foot');
-        if (foot) foot.innerHTML = `<button type="button" class="edit-save-btn" ${dataAction('Settings.closeAddonWizard')}>Hotovo</button>`;
-        _flash(_wizardMode === 'update' ? 'Doplněk aktualizován' : 'Doplněk nainstalován');
+        if (foot) foot.innerHTML = `<button type="button" class="edit-save-btn" ${dataAction('Settings.closeAddonWizard')}>${esc(I18n.t('settings.done'))}</button>`;
+        _flash(_wizardMode === 'update' ? I18n.t('settings.addonUpdated') : I18n.t('settings.addonInstalled'));
         _addonUpdates = {};   // stale after a change — a fresh check is needed
         // Refresh the list behind the modal; the addons-changed SSE event also
         // live-loads/reconciles via Addons.reconcile() in app.js.
@@ -2301,7 +2292,7 @@ export const Settings = (() => {
       })
       .catch(e => {
         if (go) go.disabled = false;
-        _wizardStatus(`<span class="addon-wizard-err">${esc((e && e.error) || 'Instalace selhala')}</span>`);
+        _wizardStatus(`<span class="addon-wizard-err">${esc((e && e.error) || I18n.t('settings.installFailed'))}</span>`);
       });
   }
 

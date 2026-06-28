@@ -19,10 +19,22 @@ import { Role } from './role.js';
 import { SIDEBAR_PAGES, SIDEBAR_LAYOUT_DEFAULT } from './constants.js';
 import { Addons } from './addons.js';
 import { esc, dataAction, dataOn } from './utils.js';
+import { I18n } from './i18n.js';
 
 export const Sidebar = (() => {
   const _pageByRoute = new Map(SIDEBAR_PAGES.map(p => [p.route, p]));
   const COLLAPSE_KEY = (id) => `sidebar_section_open:${id}`;
+
+  // Translated link label for a registry page. Pure UI chrome → goes
+  // through I18n; `label` is the dev-facing default fallback (also used
+  // if a catalog is missing, so the nav never shows a raw dotted key).
+  function _label(p) {
+    if (!p) return '';
+    if (p.key) {
+      try { const v = I18n.t(p.key); if (v && v !== p.key) return v; } catch (_) {}
+    }
+    return p.label || p.route || '';
+  }
 
   // Mind-map sub-routes that all light up the Myšlenkový Palác link
   // (mirrors app.js navigate()'s active-link logic).
@@ -48,7 +60,7 @@ export const Sidebar = (() => {
     if (!p) return '';
     if (p.role === 'dm' && !_isDM()) return '';
     return `<li><a href="#${esc(route)}" class="nav-link" data-route="${esc(route)}">` +
-      `<span class="nav-icon">${esc(p.icon || '')}</span> ${esc(p.label || route)}</a></li>`;
+      `<span class="nav-icon">${esc(p.icon || '')}</span> ${esc(_label(p))}</a></li>`;
   }
 
   // A section heading + its <ul>; '' when the whole section is DM-only
@@ -91,7 +103,7 @@ export const Sidebar = (() => {
     const lis = pages.map(_addonPageLi).filter(Boolean).join('');
     if (!lis) return '';
     return `
-      <div class="sidebar-section sidebar-section-doplnky">🧩 Doplňky</div>
+      <div class="sidebar-section sidebar-section-doplnky">🧩 ${esc(I18n.t('sidebar.addonsHeader'))}</div>
       <ul class="sidebar-nav">${lis}</ul>`;
   }
 
@@ -148,13 +160,13 @@ export const Sidebar = (() => {
     const p = _pageByRoute.get(route);
     if (!p) return '';
     const move = secId === HIDDEN_ID
-      ? `<button type="button" class="sb-page-btn" ${dataAction('Sidebar.showPage', route)} title="Zobrazit v panelu">← zobrazit</button>`
-      : `<button type="button" class="sb-page-btn" ${dataAction('Sidebar.hidePage', route)} title="Skrýt z panelu">skrýt →</button>`;
+      ? `<button type="button" class="sb-page-btn" ${dataAction('Sidebar.showPage', route)} title="${esc(I18n.t('sidebar.showInPanelTitle'))}">← ${esc(I18n.t('sidebar.showAction'))}</button>`
+      : `<button type="button" class="sb-page-btn" ${dataAction('Sidebar.hidePage', route)} title="${esc(I18n.t('sidebar.hideFromPanelTitle'))}">${esc(I18n.t('sidebar.hideAction'))} →</button>`;
     return `
       <li class="sb-page" data-route="${esc(route)}" data-sec-id="${esc(secId)}">
-        <span class="sb-grip" draggable="true" title="Přetáhni" aria-hidden="true">⠿</span>
+        <span class="sb-grip" draggable="true" title="${esc(I18n.t('sidebar.dragTitle'))}" aria-hidden="true">⠿</span>
         <span class="sb-page-icon">${esc(p.icon || '')}</span>
-        <span class="sb-page-label">${esc(p.label || route)}</span>
+        <span class="sb-page-label">${esc(_label(p))}</span>
         ${p.role === 'dm' ? '<span class="sb-page-tag">DM</span>' : ''}
         ${move}
       </li>`;
@@ -165,20 +177,20 @@ export const Sidebar = (() => {
     return `
       <div class="sb-sec" data-sec-id="${esc(sec.id)}">
         <div class="sb-sec-head">
-          <span class="sb-grip sb-sec-grip" draggable="true" title="Přetáhni sekci" aria-hidden="true">⠿</span>
-          <input class="sb-sec-label" type="text" value="${esc(sec.label || '')}" placeholder="Název sekce"
+          <span class="sb-grip sb-sec-grip" draggable="true" title="${esc(I18n.t('sidebar.dragSectionTitle'))}" aria-hidden="true">⠿</span>
+          <input class="sb-sec-label" type="text" value="${esc(sec.label || '')}" placeholder="${esc(I18n.t('sidebar.sectionNamePh'))}"
                  ${dataOn('change', 'Sidebar.setSectionLabel', sec.id, '$value')}>
           <input class="sb-sec-icon" type="text" maxlength="3" value="${esc(sec.icon || '')}" placeholder="🙂"
-                 title="Ikona sekce (volitelné)" ${dataOn('change', 'Sidebar.setSectionIcon', sec.id, '$value')}>
-          <label class="sb-sec-flag" title="Sbalitelná sekce (jako Kompendium)">
+                 title="${esc(I18n.t('sidebar.sectionIconTitle'))}" ${dataOn('change', 'Sidebar.setSectionIcon', sec.id, '$value')}>
+          <label class="sb-sec-flag" title="${esc(I18n.t('sidebar.collapsibleTitle'))}">
             <input type="checkbox" ${sec.collapsible ? 'checked' : ''}
-              ${dataOn('change', 'Sidebar.setSectionFlag', sec.id, 'collapsible', '$checked')}> Sbalitelná</label>
-          <label class="sb-sec-flag" title="Zobrazovat jen DM">
+              ${dataOn('change', 'Sidebar.setSectionFlag', sec.id, 'collapsible', '$checked')}> ${esc(I18n.t('sidebar.collapsibleLabel'))}</label>
+          <label class="sb-sec-flag" title="${esc(I18n.t('sidebar.dmOnlyTitle'))}">
             <input type="checkbox" ${sec.role === 'dm' ? 'checked' : ''}
-              ${dataOn('change', 'Sidebar.setSectionFlag', sec.id, 'role', '$checked')}> Jen DM</label>
-          <button type="button" class="sb-sec-del" ${dataAction('Sidebar.deleteSection', sec.id)} title="Smazat sekci">🗑</button>
+              ${dataOn('change', 'Sidebar.setSectionFlag', sec.id, 'role', '$checked')}> ${esc(I18n.t('sidebar.dmOnlyLabel'))}</label>
+          <button type="button" class="sb-sec-del" ${dataAction('Sidebar.deleteSection', sec.id)} title="${esc(I18n.t('sidebar.delSectionTitle'))}">🗑</button>
         </div>
-        <ul class="sb-pages" data-sec-id="${esc(sec.id)}">${rows || '<li class="sb-empty">— sem přetáhni stránku —</li>'}</ul>
+        <ul class="sb-pages" data-sec-id="${esc(sec.id)}">${rows || `<li class="sb-empty">— ${esc(I18n.t('sidebar.dropPageHere'))} —</li>`}</ul>
       </div>`;
   }
 
@@ -186,8 +198,8 @@ export const Sidebar = (() => {
     const rows = (hidden || []).map(r => _pageRowHtml(r, HIDDEN_ID)).join('');
     return `
       <div class="sb-sec sb-hidden" data-sec-id="${HIDDEN_ID}">
-        <div class="sb-sec-head"><span class="sb-sec-label-static">🗂 Skryté / nezařazené</span></div>
-        <ul class="sb-pages" data-sec-id="${HIDDEN_ID}">${rows || '<li class="sb-empty">— prázdné —</li>'}</ul>
+        <div class="sb-sec-head"><span class="sb-sec-label-static">🗂 ${esc(I18n.t('sidebar.hiddenBucket'))}</span></div>
+        <ul class="sb-pages" data-sec-id="${HIDDEN_ID}">${rows || `<li class="sb-empty">— ${esc(I18n.t('sidebar.empty'))} —</li>`}</ul>
       </div>`;
   }
 
@@ -199,19 +211,16 @@ export const Sidebar = (() => {
   function renderEditor() {
     return `
       <div class="settings-editor-head">
-        <h2>🧭 Postranní panel</h2>
+        <h2>🧭 ${esc(I18n.t('sidebar.editorTitle'))}</h2>
         <div class="settings-editor-actions">
-          <button type="button" class="inline-create-btn" ${dataAction('Sidebar.addSection')}>＋ Sekce</button>
-          <button type="button" class="inline-create-btn" title="Obnovit výchozí rozložení"
-            ${dataAction('Sidebar.resetLayout')}>↺ Výchozí</button>
+          <button type="button" class="inline-create-btn" ${dataAction('Sidebar.addSection')}>＋ ${esc(I18n.t('sidebar.addSection'))}</button>
+          <button type="button" class="inline-create-btn" title="${esc(I18n.t('sidebar.resetLayoutTitle'))}"
+            ${dataAction('Sidebar.resetLayout')}>↺ ${esc(I18n.t('sidebar.resetLayout'))}</button>
         </div>
       </div>
       <div class="settings-panel">
         <p class="settings-hint" style="margin-bottom:0.8rem">
-          Uspořádej levý panel: přetáhni stránky mezi sekcemi nebo do <em>Skryté</em>,
-          přetáhni sekci za úchyt <span class="sb-grip">⠿</span> pro změnu pořadí.
-          Sekci lze přejmenovat, dát jí ikonu, označit jako sbalitelnou nebo jen pro
-          DM. Změny se projeví okamžitě a sdílí se všem.
+          ${I18n.t('sidebar.editorHint', { grip: '<span class="sb-grip">⠿</span>', hidden: `<em>${esc(I18n.t('sidebar.hiddenWord'))}</em>` })}
         </p>
         <div id="sidebar-layout-editor" class="sb-editor">${_editorBodyHtml(Store.getSidebarLayout())}</div>
       </div>`;
@@ -251,7 +260,7 @@ export const Sidebar = (() => {
   // Structural edits re-render the editor + the live sidebar.
   function addSection() {
     const layout = Store.getSidebarLayout();
-    layout.sections.push({ id: Store.generateId('sekce'), label: 'Nová sekce', icon: '', collapsible: false, defaultOpen: true, role: '', pages: [] });
+    layout.sections.push({ id: Store.generateId('sekce'), label: I18n.t('sidebar.newSectionLabel'), icon: '', collapsible: false, defaultOpen: true, role: '', pages: [] });
     Store.setSidebarLayout(layout); _rerenderEditor();
   }
   function deleteSection(id) {

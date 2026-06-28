@@ -27,18 +27,18 @@ export const PETS              = [];
  * after a restart. Treat this list as a starter palette, not a contract.
  */
 export const SPECIES = [
-  { id: "human",      name: "Člověk",       description: "" },
+  { id: "human",      name: "Human",        description: "" },
   { id: "elf",        name: "Elf",          description: "" },
-  { id: "half_elf",   name: "Půlelf",       description: "" },
-  { id: "dwarf",      name: "Trpaslík",     description: "" },
-  { id: "halfling",   name: "Hobit",        description: "" },
-  { id: "gnome",      name: "Gnóm",         description: "" },
+  { id: "half_elf",   name: "Half-Elf",     description: "" },
+  { id: "dwarf",      name: "Dwarf",        description: "" },
+  { id: "halfling",   name: "Halfling",     description: "" },
+  { id: "gnome",      name: "Gnome",        description: "" },
   { id: "tiefling",   name: "Tiefling",     description: "" },
-  { id: "dragonborn", name: "Dračizeň",     description: "" },
-  { id: "half_orc",   name: "Půlork",       description: "" },
-  { id: "orc",        name: "Ork",          description: "" },
-  { id: "goliath",    name: "Goliáš",       description: "" },
-  { id: "half_dragon",name: "Půldrak",      description: "" },
+  { id: "dragonborn", name: "Dragonborn",   description: "" },
+  { id: "half_orc",   name: "Half-Orc",     description: "" },
+  { id: "orc",        name: "Orc",          description: "" },
+  { id: "goliath",    name: "Goliath",      description: "" },
+  { id: "half_dragon",name: "Half-Dragon",  description: "" },
   { id: "aasimar",    name: "Aasimar",      description: "" },
   { id: "genasi",     name: "Genasi",       description: "" },
   { id: "firbolg",    name: "Firbolg",      description: "" },
@@ -56,7 +56,8 @@ export const ARTIFACTS = [];
  *
  * Field reference:
  * - `id`     — stable key persisted on relationship records.
- * - `label`  — Czech-facing chip / tooltip / legend text.
+ * - `label`  — display chip / tooltip / legend text (English seed,
+ *              user-editable in Settings → Vazby).
  * - `dirs`   — which directionality choices the editor offers
  *              (`'from'` = A→B, `'to'` = B→A, `'both'` = undirected).
  * - `color`  — Cytoscape `line-color` for the cloudmap edge.
@@ -68,15 +69,15 @@ export const ARTIFACTS = [];
  * extend the list at runtime; this constant remains the seed source.
  */
 export const REL_TYPES = [
-  { id:'commands',    label:'velí',           dirs:['from','to'],        color:'#C9A14B', style:'solid',  target:'character' },
-  { id:'ally',        label:'spojenec/kyně', dirs:['from','to','both'], color:'#2E7D32', style:'solid',  target:'character' },
-  { id:'enemy',       label:'nepřítel',       dirs:['from','to','both'], color:'#8B0000', style:'solid',  target:'character' },
-  { id:'mission',     label:'mise',           dirs:['from'],             color:'#E65100', style:'dashed', target:'location'  },
-  { id:'mystery',     label:'záhada',         dirs:['from','to','both'], color:'#6A1B9A', style:'dotted', target:'character' },
-  { id:'captured_by', label:'zajat/a',        dirs:['from','to'],        color:'#0D47A1', style:'solid',  target:'character' },
-  { id:'history',     label:'historie',       dirs:['from','to','both'], color:'#795548', style:'dashed', target:'character' },
-  { id:'uncertain',   label:'nejasná vazba',  dirs:['from','to','both'], color:'#888',    style:'dotted', target:'character' },
-  { id:'negotiates',  label:'vyjednává',      dirs:['from','to','both'], color:'#F9A825', style:'dashed', target:'character' },
+  { id:'commands',    label:'commands',       dirs:['from','to'],        color:'#C9A14B', style:'solid',  target:'character' },
+  { id:'ally',        label:'ally',           dirs:['from','to','both'], color:'#2E7D32', style:'solid',  target:'character' },
+  { id:'enemy',       label:'enemy',          dirs:['from','to','both'], color:'#8B0000', style:'solid',  target:'character' },
+  { id:'mission',     label:'mission',        dirs:['from'],             color:'#E65100', style:'dashed', target:'location'  },
+  { id:'mystery',     label:'mystery',        dirs:['from','to','both'], color:'#6A1B9A', style:'dotted', target:'character' },
+  { id:'captured_by', label:'captured by',    dirs:['from','to'],        color:'#0D47A1', style:'solid',  target:'character' },
+  { id:'history',     label:'history',        dirs:['from','to','both'], color:'#795548', style:'dashed', target:'character' },
+  { id:'uncertain',   label:'uncertain bond', dirs:['from','to','both'], color:'#888',    style:'dotted', target:'character' },
+  { id:'negotiates',  label:'negotiates',     dirs:['from','to','both'], color:'#F9A825', style:'dashed', target:'character' },
 ];
 
 /** Lookup a relationship type by id. Returns a synthetic orphan entry
@@ -101,8 +102,8 @@ export const SETTINGS_DEFAULTS = {
   // Gender options shown in the character editor. Users can extend this
   // list freely; `character.gender` stores the id.
   genders: [
-    { id: 'muz',   label: 'Muž' },
-    { id: 'zena',  label: 'Žena' },
+    { id: 'male',   label: 'Male' },
+    { id: 'female', label: 'Female' },
   ],
 
   // Place / pin types on the world map and local maps. `size` is the
@@ -111,50 +112,55 @@ export const SETTINGS_DEFAULTS = {
   // `location.size`. Tier sizing reflects map prominence, not zoom
   // visibility — visibility rules will be per-Pohled (see roadmap).
   pinTypes: [
-    { id:'major_city',  icon:'🏙',  label:'Velké město',  color:'#D4A017', size:38 },
-    { id:'city',        icon:'🏛',  label:'Město',         color:'#C0A060', size:32 },
-    { id:'town',        icon:'🏘',  label:'Městečko',      color:'#A0B080', size:28 },
-    { id:'village',     icon:'🏠',  label:'Vesnice',       color:'#80A070', size:26 },
-    { id:'fortress',    icon:'🏰',  label:'Pevnost',       color:'#9090A0', size:36 },
-    { id:'castle',      icon:'🏯',  label:'Hrad',          color:'#9A9AA8', size:36 },
-    { id:'tower',       icon:'🗼',  label:'Věž',           color:'#A8A098', size:26 },
-    { id:'temple',      icon:'🛕',  label:'Chrám',         color:'#C0A088', size:28 },
-    { id:'shrine',      icon:'⛩',  label:'Svatyně',       color:'#80A0B0', size:26 },
-    { id:'tavern',      icon:'🍺',  label:'Hospoda',       color:'#C89050', size:24 },
-    { id:'market',      icon:'🏪',  label:'Trh',           color:'#C8A050', size:24 },
-    { id:'academy',     icon:'🎓',  label:'Akademie',      color:'#A890C0', size:30 },
-    { id:'port',        icon:'⚓',  label:'Přístav',       color:'#6090A0', size:30 },
-    { id:'bridge',      icon:'🌉',  label:'Most',          color:'#909090', size:24 },
-    { id:'camp',        icon:'⛺',  label:'Tábor',         color:'#B88040', size:24 },
+    { id:'major_city',  icon:'🏙',  label:'Major city',   color:'#D4A017', size:38 },
+    { id:'city',        icon:'🏛',  label:'City',          color:'#C0A060', size:32 },
+    { id:'town',        icon:'🏘',  label:'Town',          color:'#A0B080', size:28 },
+    { id:'village',     icon:'🏠',  label:'Village',       color:'#80A070', size:26 },
+    { id:'fortress',    icon:'🏰',  label:'Fortress',      color:'#9090A0', size:36 },
+    { id:'castle',      icon:'🏯',  label:'Castle',        color:'#9A9AA8', size:36 },
+    { id:'tower',       icon:'🗼',  label:'Tower',         color:'#A8A098', size:26 },
+    { id:'temple',      icon:'🛕',  label:'Temple',        color:'#C0A088', size:28 },
+    { id:'shrine',      icon:'⛩',  label:'Shrine',        color:'#80A0B0', size:26 },
+    { id:'tavern',      icon:'🍺',  label:'Tavern',        color:'#C89050', size:24 },
+    { id:'market',      icon:'🏪',  label:'Market',        color:'#C8A050', size:24 },
+    { id:'academy',     icon:'🎓',  label:'Academy',       color:'#A890C0', size:30 },
+    { id:'port',        icon:'⚓',  label:'Port',          color:'#6090A0', size:30 },
+    { id:'bridge',      icon:'🌉',  label:'Bridge',        color:'#909090', size:24 },
+    { id:'camp',        icon:'⛺',  label:'Camp',          color:'#B88040', size:24 },
     { id:'dungeon',     icon:'⚠',   label:'Dungeon',       color:'#A06040', size:28 },
-    { id:'cave',        icon:'🕳',  label:'Jeskyně',       color:'#706050', size:24 },
-    { id:'ruin',        icon:'🏚',  label:'Ruina',         color:'#888070', size:26 },
-    { id:'graveyard',   icon:'🪦',  label:'Hřbitov',       color:'#808080', size:24 },
-    { id:'battlefield', icon:'⚔',   label:'Bojiště',       color:'#A04040', size:28 },
-    { id:'landmark',    icon:'🗿',  label:'Bod zájmu',     color:'#80A0B0', size:26 },
-    { id:'forest',      icon:'🌲',  label:'Les',           color:'#4A7A4A', size:26 },
-    { id:'mountain',    icon:'⛰',   label:'Hora',          color:'#8A7A6A', size:30 },
-    { id:'lake',        icon:'🏞',  label:'Jezero',        color:'#5A90B0', size:28 },
-    { id:'curiosity',   icon:'✨',  label:'Zajímavost',    color:'#C8A040', size:24 },
-    { id:'region',      icon:'🗺',  label:'Oblast',        color:'#708090', size:32 },
-    { id:'enemy',       icon:'💀',  label:'Nepřátelské',   color:'#B04040', size:28 },
-    { id:'custom',      icon:'📌',  label:'Vlastní',       color:'#8A5CC8', size:26 },
+    { id:'cave',        icon:'🕳',  label:'Cave',          color:'#706050', size:24 },
+    { id:'ruin',        icon:'🏚',  label:'Ruin',          color:'#888070', size:26 },
+    { id:'graveyard',   icon:'🪦',  label:'Graveyard',     color:'#808080', size:24 },
+    { id:'battlefield', icon:'⚔',   label:'Battlefield',   color:'#A04040', size:28 },
+    { id:'landmark',    icon:'🗿',  label:'Landmark',      color:'#80A0B0', size:26 },
+    { id:'forest',      icon:'🌲',  label:'Forest',        color:'#4A7A4A', size:26 },
+    { id:'mountain',    icon:'⛰',   label:'Mountain',      color:'#8A7A6A', size:30 },
+    { id:'lake',        icon:'🏞',  label:'Lake',          color:'#5A90B0', size:28 },
+    { id:'curiosity',   icon:'✨',  label:'Curiosity',     color:'#C8A040', size:24 },
+    { id:'region',      icon:'🗺',  label:'Region',        color:'#708090', size:32 },
+    { id:'enemy',       icon:'💀',  label:'Hostile',       color:'#B04040', size:28 },
+    { id:'custom',      icon:'📌',  label:'Custom',        color:'#8A5CC8', size:26 },
   ],
 
   // Character life-state. The `circumstances` free-text field on each
   // character covers richer states like "captured" or "missing" without
   // bloating this enum.
   characterStatuses: [
-    { id: 'alive',   label: 'Naživu',   color: '#2E7D32', icon: '●' },
-    { id: 'dead',    label: 'Mrtvý/á', color: '#8B0000', icon: '✦' },
-    { id: 'unknown', label: 'Neznámo', color: '#6A1B9A', icon: '?' },
+    { id: 'alive',   label: 'Alive',   color: '#2E7D32', icon: '●' },
+    { id: 'dead',    label: 'Dead',    color: '#8B0000', icon: '✦' },
+    { id: 'unknown', label: 'Unknown', color: '#6A1B9A', icon: '?' },
   ],
 
+  // ⚠ The priority IDS stay as the original Czech words on purpose:
+  // they're persisted on `event.priority` and hardcoded in code
+  // (wiki.js `PRIORITY_ORDER`, cloudmap.js colour logic, new-entity
+  // defaults). Only the display LABELS are English. Changing the ids
+  // would require migrating existing event data + every reference.
   eventPriorities: [
-    { id: 'kritická', label: 'Kritická', color: '#8B0000' },
-    { id: 'vysoká',   label: 'Vysoká',   color: '#E65100' },
-    { id: 'střední',  label: 'Střední',  color: '#FFA000' },
-    { id: 'nízká',    label: 'Nízká',    color: '#689F38' },
+    { id: 'kritická', label: 'Critical', color: '#8B0000' },
+    { id: 'vysoká',   label: 'High',     color: '#E65100' },
+    { id: 'střední',  label: 'Medium',   color: '#FFA000' },
+    { id: 'nízká',    label: 'Low',      color: '#689F38' },
   ],
 
   // Unified "Postoje k partě" palette — shared by characters,
@@ -174,10 +180,10 @@ export const SETTINGS_DEFAULTS = {
   // the fly when a PC carries the implicit `{id:'party'}` from
   // Store.getEffectiveAttitudes.
   attitudes: [
-    { id: 'ally',    label: 'Spojenec',   bg: '#2E7D32', fg: '#ffffff', labelColor: '#4CAF50', strength: 1.0 },
-    { id: 'enemy',   label: 'Nepřítel',   bg: '#C62828', fg: '#ffffff', labelColor: '#EF5350', strength: 1.0 },
-    { id: 'hostile', label: 'Nebezpečný', bg: '#7E1F1F', fg: '#ffffff', labelColor: '#FF7043', strength: 0.7 },
-    { id: 'neutral', label: 'Neutrální',  bg: '#1565C0', fg: '#ffffff', labelColor: '#64B5F6', strength: 0.7 },
+    { id: 'ally',    label: 'Ally',    bg: '#2E7D32', fg: '#ffffff', labelColor: '#4CAF50', strength: 1.0 },
+    { id: 'enemy',   label: 'Enemy',   bg: '#C62828', fg: '#ffffff', labelColor: '#EF5350', strength: 1.0 },
+    { id: 'hostile', label: 'Hostile', bg: '#7E1F1F', fg: '#ffffff', labelColor: '#FF7043', strength: 0.7 },
+    { id: 'neutral', label: 'Neutral', bg: '#1565C0', fg: '#ffffff', labelColor: '#64B5F6', strength: 0.7 },
   ],
 
   // User-defined map view presets. Each entry captures the bounds

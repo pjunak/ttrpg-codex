@@ -5,6 +5,7 @@ import {
 } from './data.js';
 import { norm, clearMarkdownCache } from './utils.js';
 import { PARTY_FACTION_ID, SIDEBAR_PAGES, SIDEBAR_LAYOUT_DEFAULT } from './constants.js';
+import { I18n } from './i18n.js';
 
 export const Store = (() => {
   let _data            = null;
@@ -183,7 +184,7 @@ export const Store = (() => {
     if (!_data.settings.playerParty || typeof _data.settings.playerParty !== 'object'
         || Array.isArray(_data.settings.playerParty)) {
       _data.settings.playerParty = {
-        name:      'Naše parta',
+        name:      'Our Party',
         icon:      '🛡',
         badge:     '🛡',
         color:     '#F5F0E4',
@@ -648,7 +649,7 @@ export const Store = (() => {
     // is gone so subsequent loads short-circuit at the !fac guard.
     if (!_data.settings) _data.settings = {};
     _data.settings.playerParty = {
-      name:      fac.name      || 'Naše parta',
+      name:      fac.name      || 'Our Party',
       icon:      fac.badge     || '🛡',
       badge:     fac.badge     || '🛡',
       color:     fac.color     || '#F5F0E4',
@@ -981,7 +982,7 @@ export const Store = (() => {
    * @returns {Promise<{ok: boolean, twinId?: string, error?: string}>}
    */
   async function linkTwin(action, type, sourceId, targetId) {
-    if (!_serverAvailable) return { ok: false, error: 'Server není dostupný.' };
+    if (!_serverAvailable) return { ok: false, error: I18n.t('store.serverUnavailable') };
     try {
       const payload = { action, type, sourceId };
       if (action === 'link') payload.targetId = targetId;
@@ -993,13 +994,13 @@ export const Store = (() => {
       });
       if (res.status === 401 || res.status === 403) {
         window.dispatchEvent(new CustomEvent('store:auth-failed'));
-        return { ok: false, error: 'Tato akce vyžaduje DM přístup.' };
+        return { ok: false, error: I18n.t('store.dmRequired') };
       }
       const body = await res.json().catch(() => ({}));
       if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
       return { ok: true, twinId: body.twinId };
     } catch (e) {
-      return { ok: false, error: e.message || 'Síťová chyba.' };
+      return { ok: false, error: e.message || I18n.t('store.networkError') };
     }
   }
 
@@ -1107,7 +1108,7 @@ export const Store = (() => {
    */
   async function uploadPortrait(file, charId) {
     if (!charId) throw new Error('uploadPortrait: charId is required.');
-    if (!_serverAvailable) throw new Error('Server není dostupný — nelze nahrát obrázek.');
+    if (!_serverAvailable) throw new Error(I18n.t('store.serverUnavailablePortrait'));
     const form     = new FormData();
     form.append('portrait', file);
     const endpoint = `/api/portrait/${encodeURIComponent(charId)}`;
@@ -1115,9 +1116,9 @@ export const Store = (() => {
     if (res.ok) return (await res.json()).url;
     if (res.status === 401) {
       window.dispatchEvent(new CustomEvent('store:auth-failed'));
-      throw new Error('Neznámé nebo chybějící heslo.');
+      throw new Error(I18n.t('store.unknownPassword'));
     }
-    throw new Error('Nahrání portrétu selhalo.');
+    throw new Error(I18n.t('store.portraitUploadFailed'));
   }
 
   /**
@@ -1131,16 +1132,16 @@ export const Store = (() => {
    */
   async function uploadLocalMap(file, locId) {
     if (!locId) throw new Error('uploadLocalMap: locId is required.');
-    if (!_serverAvailable) throw new Error('Server není dostupný — nelze nahrát mapu.');
+    if (!_serverAvailable) throw new Error(I18n.t('store.serverUnavailableMap'));
     const form = new FormData();
     form.append('localmap', file);
     const res = await fetch(`/api/localmap/${encodeURIComponent(locId)}`, { method: 'POST', body: form });
     if (res.ok) return (await res.json()).url;
     if (res.status === 401) {
       window.dispatchEvent(new CustomEvent('store:auth-failed'));
-      throw new Error('Neznámé nebo chybějící heslo.');
+      throw new Error(I18n.t('store.unknownPassword'));
     }
-    throw new Error('Nahrání mapy selhalo.');
+    throw new Error(I18n.t('store.mapUploadFailed'));
   }
 
   // ── Marker icon uploads ──────────────────────────────────────
@@ -1160,7 +1161,7 @@ export const Store = (() => {
    */
   async function uploadIcons(pinTypeId, files) {
     if (!pinTypeId) throw new Error('uploadIcons: pinTypeId is required.');
-    if (!_serverAvailable) throw new Error('Server není dostupný — nelze nahrát ikony.');
+    if (!_serverAvailable) throw new Error(I18n.t('store.serverUnavailableIcons'));
     if (!files || !files.length) return { files: [] };
     const form = new FormData();
     for (const f of files) form.append('icons', f);
@@ -1168,9 +1169,9 @@ export const Store = (() => {
     if (res.ok) return res.json();
     if (res.status === 401) {
       window.dispatchEvent(new CustomEvent('store:auth-failed'));
-      throw new Error('Neznámé nebo chybějící heslo.');
+      throw new Error(I18n.t('store.unknownPassword'));
     }
-    let msg = 'Nahrání ikon selhalo.';
+    let msg = I18n.t('store.iconUploadFailed');
     try { const j = await res.json(); if (j?.error) msg = j.error; } catch (_) {}
     throw new Error(msg);
   }
@@ -1762,7 +1763,7 @@ export const Store = (() => {
   // identified by `character.faction === PARTY_FACTION_ID` — no
   // duplicate roster on this object.
   const PLAYER_PARTY_DEFAULTS = {
-    name:      'Naše parta',
+    name:      'Our Party',
     icon:      '🛡',
     badge:     '🛡',
     color:     '#F5F0E4',
@@ -2299,7 +2300,7 @@ export const Store = (() => {
     const ot = (pet && pet.ownerType) || 'none';
     if (ot === 'party') {
       const pp = getPlayerParty();
-      return { label: pp.name || 'Naše parta', icon: pp.icon || pp.badge || '🛡', href: '#/parta' };
+      return { label: pp.name || 'Our Party', icon: pp.icon || pp.badge || '🛡', href: '#/parta' };
     }
     if (ot === 'character') {
       const c = getCharacter(pet.ownerId);
@@ -2668,13 +2669,13 @@ export const Store = (() => {
       });
       if (res.status === 401 || res.status === 403) {
         window.dispatchEvent(new CustomEvent('store:auth-failed'));
-        return { ok: false, error: 'Tato akce vyžaduje DM přístup.' };
+        return { ok: false, error: I18n.t('store.dmRequired') };
       }
       const body = await res.json().catch(() => ({}));
       if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
       return { ok: true, resolutions: body.resolutions };
     } catch (e) {
-      return { ok: false, error: e.message || 'Síťová chyba.' };
+      return { ok: false, error: e.message || I18n.t('store.networkError') };
     }
   }
 
@@ -2686,13 +2687,13 @@ export const Store = (() => {
       const res = await fetch('/api/addons/check-updates', { method: 'POST', credentials: 'same-origin' });
       if (res.status === 401 || res.status === 403) {
         window.dispatchEvent(new CustomEvent('store:auth-failed'));
-        return { ok: false, error: 'Tato akce vyžaduje DM přístup.' };
+        return { ok: false, error: I18n.t('store.dmRequired') };
       }
       const body = await res.json().catch(() => ({}));
       if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
       return { ok: true, updates: Array.isArray(body.updates) ? body.updates : [] };
     } catch (e) {
-      return { ok: false, error: e.message || 'Síťová chyba.' };
+      return { ok: false, error: e.message || I18n.t('store.networkError') };
     }
   }
 
@@ -2708,13 +2709,13 @@ export const Store = (() => {
       });
       if (res.status === 401 || res.status === 403) {
         window.dispatchEvent(new CustomEvent('store:auth-failed'));
-        return { ok: false, error: 'Tato akce vyžaduje DM přístup.' };
+        return { ok: false, error: I18n.t('store.dmRequired') };
       }
       const body = await res.json().catch(() => ({}));
       if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
       return { ok: true, version: body.version };
     } catch (e) {
-      return { ok: false, error: e.message || 'Síťová chyba.' };
+      return { ok: false, error: e.message || I18n.t('store.networkError') };
     }
   }
 
@@ -2727,7 +2728,7 @@ export const Store = (() => {
    */
   function exportJSON() {
     init();
-    const ts = new Date().toLocaleString('cs-CZ');
+    const ts = I18n.formatDate(Date.now(), { dateStyle: 'medium', timeStyle: 'medium' });
     return JSON.stringify({
       _version:         5,
       _exported:        ts,

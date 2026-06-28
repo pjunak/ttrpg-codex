@@ -3,6 +3,7 @@ import { Widgets } from './widgets/widgets.js';
 import { EditTemplates } from './edit_templates.js';
 import { Role } from './role.js';
 import { esc, dataAction, dataOn, pageEditToggle } from './utils.js';
+import { I18n } from './i18n.js';
 
 // `size` is the default marker pixel size for new places of this
 // type. Kept in sync with SETTINGS_DEFAULTS.pinTypes in data.js so
@@ -76,7 +77,7 @@ export const WorldMap = (() => {
     }
     // `unknown` is the safe default when a location carries no attitudes.
     if (!map.unknown) {
-      map.unknown = { label: 'Neznámé', bg: '#37474F', fg: '#E8E0C4', labelColor: '#90A4AE' };
+      map.unknown = { label: I18n.t('map.attitudeUnknown'), bg: '#37474F', fg: '#E8E0C4', labelColor: '#90A4AE' };
     }
     return map;
   }
@@ -558,9 +559,9 @@ export const WorldMap = (() => {
     const parent = _currentParentId ? Store.getLocation(_currentParentId) : null;
     const titleHtml = parent
       ? `🗺 ${esc(parent.name)} <span class="sc-breadcrumb">
-           · <a href="#/mapa/svet">↩ Mapa</a>
+           · <a href="#/mapa/svet">↩ ${esc(I18n.t('map.breadcrumbBack'))}</a>
          </span>`
-      : `🗺 Mapa světa`;
+      : `🗺 ${esc(I18n.t('map.worldTitle'))}`;
 
     // "+ Přidat místo" / "✚ Uložit pohled" / "⚙ Mapa" are editor-only
     // actions — gated by the `.sc-shell.is-editing` class set by
@@ -575,25 +576,25 @@ export const WorldMap = (() => {
         <div class="sc-toolbar ${_editing ? 'is-editing' : ''}">
           <div class="sc-title">${titleHtml}</div>
           <input type="search" class="sc-search" id="sc-search"
-                 placeholder="🔍 Najít místo…" autocomplete="off"
+                 placeholder="🔍 ${esc(I18n.t('map.searchPlaceholder'))}" autocomplete="off"
                  ${dataOn('input', 'WorldMap.onSearchInput', '$value')}
                  ${dataOn('keydown', 'WorldMap.handleSearchKey', '$ev')}>
           <div class="sc-search-results" id="sc-search-results" hidden></div>
           <button class="sc-btn edit-only-inline ${_addMode ? 'active' : ''}" id="sc-add-btn"${dataAction('WorldMap.toggleAddMode')}>
-            ${_addMode ? '✕ Zrušit' : '+ Přidat místo'}
+            ${_addMode ? '✕ ' + esc(I18n.t('map.cancel')) : '+ ' + esc(I18n.t('map.addPlace'))}
           </button>
-          <button class="sc-btn ${_eventPathsVisible ? 'active' : ''}" id="sc-event-btn"${dataAction('WorldMap.toggleEventPaths')} title="Zobraz trasy událostí a přiblíž k aktuálnímu dění">
-            📜 Trasy událostí
+          <button class="sc-btn ${_eventPathsVisible ? 'active' : ''}" id="sc-event-btn"${dataAction('WorldMap.toggleEventPaths')} title="${esc(I18n.t('map.eventPathsTitle'))}">
+            📜 ${esc(I18n.t('map.eventPaths'))}
           </button>
           <span class="sc-zoom-presets" id="sc-zoom-presets">
-            <button class="sc-btn"${dataAction('WorldMap.zoomFitAll')} title="Oddálit na celou mapu">🌐 Celá</button>
+            <button class="sc-btn"${dataAction('WorldMap.zoomFitAll')} title="${esc(I18n.t('map.zoomFitAllTitle'))}">🌐 ${esc(I18n.t('map.zoomFitAll'))}</button>
             ${_presetButtonsHtml()}
-            <button class="sc-btn edit-only-inline"${dataAction('WorldMap.captureCurrentView')} title="Uložit aktuální pohled jako předvolbu">✚ Uložit pohled</button>
+            <button class="sc-btn edit-only-inline"${dataAction('WorldMap.captureCurrentView')} title="${esc(I18n.t('map.saveViewTitle'))}">✚ ${esc(I18n.t('map.saveView'))}</button>
           </span>
-          <button class="sc-btn edit-only-inline"${dataAction('WorldMap.showSettings')}>⚙ Mapa</button>
+          <button class="sc-btn edit-only-inline"${dataAction('WorldMap.showSettings')}>⚙ ${esc(I18n.t('map.mapSettings'))}</button>
           <span class="sc-hint">${_addMode
-            ? 'Klikni na mapu pro přidání nového místa'
-            : 'Klik = detail místa · Kolečko = zoom · Táhni = pohyb'
+            ? esc(I18n.t('map.hintAddMode'))
+            : esc(I18n.t('map.hintDefault'))
           }</span>
           ${editToggle}
         </div>
@@ -602,23 +603,23 @@ export const WorldMap = (() => {
                +/- control plus the toolbar slider that was there before.
                Vertical slider so the +/− anchors line up naturally with
                zoom-in (top) and zoom-out (bottom). -->
-          <div class="sc-zoom-panel" id="sc-zoom-panel" title="Zoom — 1.0× = skutečné rozlišení">
-            <button class="sc-zoom-btn" type="button"${dataAction('WorldMap.zoomStep', 1)} title="Přiblížit" aria-label="Přiblížit">+</button>
+          <div class="sc-zoom-panel" id="sc-zoom-panel" title="${esc(I18n.t('map.zoomPanelTitle'))}">
+            <button class="sc-zoom-btn" type="button"${dataAction('WorldMap.zoomStep', 1)} title="${esc(I18n.t('map.zoomIn'))}" aria-label="${esc(I18n.t('map.zoomIn'))}">+</button>
             <input type="range" id="sc-zoom-slider"
               class="sc-zoom-slider-vertical"
               orient="vertical"
               min="-8" max="2" step="0.25" value="0"
-              aria-label="Plynulý zoom"
+              aria-label="${esc(I18n.t('map.zoomSliderLabel'))}"
               ${dataOn('input', 'WorldMap.zoomSliderInput', '$value')}>
-            <button class="sc-zoom-btn" type="button"${dataAction('WorldMap.zoomStep', -1)} title="Oddálit" aria-label="Oddálit">−</button>
+            <button class="sc-zoom-btn" type="button"${dataAction('WorldMap.zoomStep', -1)} title="${esc(I18n.t('map.zoomOut'))}" aria-label="${esc(I18n.t('map.zoomOut'))}">−</button>
             <!-- Live readout doubles as the 1× reset button: shows current
                  zoom (e.g. "1.50×"), click to snap back to 1.00×. Combines
                  two prior elements into one to keep the panel compact. -->
             <button class="sc-zoom-btn sc-zoom-readout-btn" type="button"
               id="sc-zoom-readout"
               ${dataAction('WorldMap.zoomReset')}
-              title="Klikni pro reset na 1.0× (skutečné rozlišení)"
-              aria-label="Aktuální zoom — klikni pro reset">1.00×</button>
+              title="${esc(I18n.t('map.zoomResetTitle'))}"
+              aria-label="${esc(I18n.t('map.zoomResetLabel'))}">1.00×</button>
           </div>
         </div>
         <div class="sc-legend" id="sc-legend"></div>
@@ -633,22 +634,22 @@ export const WorldMap = (() => {
       <!-- Settings dialog -->
       <div class="sc-overlay" id="sc-overlay" hidden>
         <div class="sc-dialog">
-          <div class="sc-dialog-title">⚙ Nastavení mapy</div>
+          <div class="sc-dialog-title">⚙ ${esc(I18n.t('map.settingsTitle'))}</div>
           <p class="sc-dialog-hint">
-            <strong>Možnost 1 – nahrát obrázek:</strong> Vyber soubor ze svého počítače (doporučeno).<br>
-            <strong>Možnost 2 – URL:</strong> Vlož přímý odkaz na obrázek mapy.<br>
-            <strong>Možnost 3 – server:</strong> Ulož obrázek jako <code>data/maps/swordcoast/sword_coast.jpg</code> na serveru.
+            <strong>${esc(I18n.t('map.settingsOpt1Label'))}</strong> ${esc(I18n.t('map.settingsOpt1Text'))}<br>
+            <strong>${esc(I18n.t('map.settingsOpt2Label'))}</strong> ${esc(I18n.t('map.settingsOpt2Text'))}<br>
+            <strong>${esc(I18n.t('map.settingsOpt3Label'))}</strong> ${esc(I18n.t('map.settingsOpt3TextPre'))} <code>data/maps/swordcoast/sword_coast.jpg</code> ${esc(I18n.t('map.settingsOpt3TextPost'))}
           </p>
-          <label class="sc-label">Nahrát ze souboru</label>
+          <label class="sc-label">${esc(I18n.t('map.settingsUploadLabel'))}</label>
           <label class="sc-btn" style="cursor:pointer;display:inline-block;margin-bottom:0.8rem">
-            📂 Vybrat soubor…
+            📂 ${esc(I18n.t('map.settingsChooseFile'))}
             <input type="file" accept="image/*" style="display:none"${dataOn('change', 'WorldMap.handleMapFileUpload', '$el')}>
           </label>
-          <label class="sc-label">— nebo zadat URL obrázku —</label>
+          <label class="sc-label">${esc(I18n.t('map.settingsOrUrl'))}</label>
           <input class="sc-input" id="sc-img-url" type="text" value="${esc(_getImgUrl().startsWith('data:') ? '' : _getImgUrl())}">
           <div class="sc-dialog-actions">
-            <button class="sc-btn ok"${dataAction('WorldMap.applySettings')}>✓ Použít URL</button>
-            <button class="sc-btn"${dataAction('WorldMap.closeSettings')}>Zrušit</button>
+            <button class="sc-btn ok"${dataAction('WorldMap.applySettings')}>✓ ${esc(I18n.t('map.settingsApplyUrl'))}</button>
+            <button class="sc-btn"${dataAction('WorldMap.closeSettings')}>${esc(I18n.t('map.cancel'))}</button>
           </div>
         </div>
       </div>
@@ -921,7 +922,7 @@ export const WorldMap = (() => {
       if (!loc) { _placeForLocId = null; return; }
       _setAddMode(true);
       const hint = document.querySelector('.sc-hint');
-      if (hint) hint.textContent = `Klikni na mapu pro umístění: ${loc.name}`;
+      if (hint) hint.textContent = I18n.t('map.hintPlaceLocation', { name: loc.name });
       return;
     }
     if (_placeForEventId) {
@@ -929,7 +930,7 @@ export const WorldMap = (() => {
       if (!ev) { _placeForEventId = null; return; }
       _setAddMode(true);
       const hint = document.querySelector('.sc-hint');
-      if (hint) hint.textContent = `Klikni na mapu pro umístění události: ${ev.name}`;
+      if (hint) hint.textContent = I18n.t('map.hintPlaceEvent', { name: ev.name });
     }
   }
 
@@ -937,12 +938,12 @@ export const WorldMap = (() => {
     container.innerHTML = `
       <div class="sc-img-error">
         <div style="font-size:2rem;margin-bottom:1rem">🗺</div>
-        <div style="font-size:1.1rem;margin-bottom:0.5rem"><strong>Mapa se nenačetla</strong></div>
+        <div style="font-size:1.1rem;margin-bottom:0.5rem"><strong>${esc(I18n.t('map.errorTitle'))}</strong></div>
         <div style="font-size:0.88rem;line-height:1.6;max-width:420px">
-          Nahraj obrázek mapy přes <strong>⚙ Mapa → Vybrat soubor</strong>, nebo ho ulož na server jako
+          ${esc(I18n.t('map.errorTextPre'))} <strong>⚙ ${esc(I18n.t('map.errorTextMenu'))}</strong> ${esc(I18n.t('map.errorTextMid'))}
           <code>data/maps/swordcoast/sword_coast.jpg</code>.
         </div>
-        <button class="sc-btn" style="margin-top:1.2rem"${dataAction('WorldMap.showSettings')}>⚙ Otevřít nastavení</button>
+        <button class="sc-btn" style="margin-top:1.2rem"${dataAction('WorldMap.showSettings')}>⚙ ${esc(I18n.t('map.errorOpenSettings'))}</button>
       </div>`;
   }
 
@@ -1109,9 +1110,9 @@ export const WorldMap = (() => {
     if (!host) return;
     // Rebuild just the preset buttons between "Celá" and "Uložit pohled".
     host.innerHTML = `
-      <button class="sc-btn"${dataAction('WorldMap.zoomFitAll')} title="Oddálit na celou mapu">🌐 Celá</button>
+      <button class="sc-btn"${dataAction('WorldMap.zoomFitAll')} title="${esc(I18n.t('map.zoomFitAllTitle'))}">🌐 ${esc(I18n.t('map.zoomFitAll'))}</button>
       ${_presetButtonsHtml()}
-      <button class="sc-btn edit-only-inline"${dataAction('WorldMap.captureCurrentView')} title="Uložit aktuální pohled jako předvolbu">✚ Uložit pohled</button>
+      <button class="sc-btn edit-only-inline"${dataAction('WorldMap.captureCurrentView')} title="${esc(I18n.t('map.saveViewTitle'))}">✚ ${esc(I18n.t('map.saveView'))}</button>
     `;
   }
 
@@ -1127,9 +1128,9 @@ export const WorldMap = (() => {
 
   function captureCurrentView() {
     if (!_map) return;
-    const label = prompt('Název pohledu:');
+    const label = prompt(I18n.t('map.promptViewName'));
     if (!label || !label.trim()) return;
-    const icon = (prompt('Ikona (volitelně, např. 🏙 nebo 🏰):') || '📍').trim() || '📍';
+    const icon = (prompt(I18n.t('map.promptViewIcon')) || '📍').trim() || '📍';
     const ll = _map.getBounds();
     const sw = _toFrac(ll.getSouthWest());
     const ne = _toFrac(ll.getNorthEast());
@@ -1178,10 +1179,10 @@ export const WorldMap = (() => {
     const subCount = loc ? Store.getSubLocations(loc.id).length : 0;
     const hasLocalMap = !!(loc && loc.localMap);
     const localMapBtn = hasLocalMap
-      ? `<button class="sc-btn ok"${dataAction('WorldMap.openLocalMap', loc.id)}>🗺 Místní mapa</button>`
+      ? `<button class="sc-btn ok"${dataAction('WorldMap.openLocalMap', loc.id)}>🗺 ${esc(I18n.t('map.localMap'))}</button>`
       : '';
     const subInfo = subCount
-      ? `<div class="sc-pin-meta" style="margin-top:0.4rem">⛬ ${subCount} dílčí ${subCount === 1 ? 'místo' : 'míst(a)'}</div>`
+      ? `<div class="sc-pin-meta" style="margin-top:0.4rem">⛬ ${esc(I18n.plural('map.subLocationCount', subCount))}</div>`
       : '';
 
     // Show every attitude label (comma-joined) so mixed-stance places
@@ -1293,22 +1294,22 @@ export const WorldMap = (() => {
     // location onto the map (sets x/y on it). Otherwise a fresh place is
     // created. For existing pins, this picker is hidden.
     const linkPicker = isNew ? `
-      <label class="sc-label">Použít existující místo (volitelné)</label>
+      <label class="sc-label">${esc(I18n.t('map.useExistingLocation'))}</label>
       <div class="cb-mount"
         data-cb-id="spf-existing"
         data-cb-source="location"
         data-cb-value=""
         data-cb-allow-empty="1"
-        data-cb-empty-label="— vytvořit nové —"
-        data-cb-placeholder="Hledat existující…"></div>` : '';
+        data-cb-empty-label="${esc(I18n.t('map.createNewOption'))}"
+        data-cb-placeholder="${esc(I18n.t('map.searchExistingPlaceholder'))}"></div>` : '';
 
     document.getElementById('sc-panel-content').innerHTML = `
       <div class="sc-pin-form">
-        <div class="sc-pin-form-title">${isNew ? 'Nové místo' : 'Upravit místo'}</div>
+        <div class="sc-pin-form-title">${isNew ? esc(I18n.t('map.formTitleNew')) : esc(I18n.t('map.formTitleEdit'))}</div>
         ${linkPicker}
-        <label class="sc-label">Název *</label>
+        <label class="sc-label">${esc(I18n.t('map.fieldName'))} *</label>
         <input class="sc-input" id="spf-name" type="text" value="${esc(pin.name||'')}" placeholder="Waterdeep...">
-        <label class="sc-label">Typ</label>
+        <label class="sc-label">${esc(I18n.t('map.fieldType'))}</label>
         <div class="spf-type-row">
           <!-- Hidden input preserves the read contract: savePin reads
                document.getElementById('spf-type').value. -->
@@ -1328,9 +1329,9 @@ export const WorldMap = (() => {
             </div>
           </div>
         </div>
-        <label class="sc-label">Postoje k partě <span class="sc-hint">(víc postojů s nastavitelnou silou)</span></label>
+        <label class="sc-label">${esc(I18n.t('map.fieldAttitudes'))} <span class="sc-hint">${esc(I18n.t('map.fieldAttitudesHint'))}</span></label>
         ${attChipRowHtml}
-        <label class="sc-label">Velikost značky <span class="sc-hint">${inheritsSize ? '(výchozí podle typu)' : '(vlastní)'}</span></label>
+        <label class="sc-label">${esc(I18n.t('map.fieldSize'))} <span class="sc-hint">${inheritsSize ? esc(I18n.t('map.fieldSizeInherited')) : esc(I18n.t('map.fieldSizeCustom'))}</span></label>
         <div class="sc-pin-size-row">
           <input type="range" id="spf-size-range" min="${PIN_SIZE_MIN}" max="${PIN_SIZE_MAX}" step="2" value="${currentSize}"
             ${dataOn('input', 'WorldMap.syncSizeFromRange')}>
@@ -1338,12 +1339,12 @@ export const WorldMap = (() => {
             ${dataOn('input', 'WorldMap.syncSizeFromNumber')}>
           <span class="sc-hint">px</span>
         </div>
-        <label class="sc-label">Popis / Poznámky na mapě</label>
-        <textarea class="sc-input" id="spf-notes" rows="3" placeholder="Krátký popis...">${esc(pin.notes||'')}</textarea>
+        <label class="sc-label">${esc(I18n.t('map.fieldNotes'))}</label>
+        <textarea class="sc-input" id="spf-notes" rows="3" placeholder="${esc(I18n.t('map.fieldNotesPlaceholder'))}">${esc(pin.notes||'')}</textarea>
         <div class="sc-pin-actions">
-          <button class="sc-btn ok"${dataAction('WorldMap.savePin', isNew, pin.x||0, pin.y||0)}>💾 Uložit</button>
-          ${!isNew ? `<a class="sc-btn" href="#/misto/${pin.locationId}">📖 Otevřít místo</a>` : ''}
-          ${!isNew ? `<button class="sc-btn err"${dataAction('WorldMap.deletePin', pin.id)}>🗑 Odebrat z mapy</button>` : ''}
+          <button class="sc-btn ok"${dataAction('WorldMap.savePin', isNew, pin.x||0, pin.y||0)}>💾 ${esc(I18n.t('map.save'))}</button>
+          ${!isNew ? `<a class="sc-btn" href="#/misto/${pin.locationId}">📖 ${esc(I18n.t('map.openPlace'))}</a>` : ''}
+          ${!isNew ? `<button class="sc-btn err"${dataAction('WorldMap.deletePin', pin.id)}>🗑 ${esc(I18n.t('map.removeFromMap'))}</button>` : ''}
         </div>
       </div>
     `;
@@ -1443,7 +1444,7 @@ export const WorldMap = (() => {
   // the location currently being edited, or a freshly-created place.
   function savePin(isNew, x, y) {
     const name = document.getElementById('spf-name')?.value.trim();
-    if (!name) { alert('Název je povinný.'); return; }
+    if (!name) { alert(I18n.t('map.nameRequired')); return; }
     const pinType  = document.getElementById('spf-type')?.value   || 'custom';
     const mapNotes = document.getElementById('spf-notes')?.value  || '';
     // Multi-attitude with per-attitude strength sliders. Empty array
@@ -1517,7 +1518,7 @@ export const WorldMap = (() => {
   function deletePin(pinId) {
     const loc = Store.getLocation(pinId);
     if (!loc) return;
-    if (!confirm(`Odebrat „${loc.name}" z mapy?\n(Stránka místa zůstane zachována.)`)) return;
+    if (!confirm(I18n.t('map.removePinConfirm', { name: loc.name }))) return;
     const cleaned = { ...loc };
     delete cleaned.x; delete cleaned.y;
     delete cleaned.size;
@@ -1587,7 +1588,7 @@ export const WorldMap = (() => {
     }
 
     eventPoints.forEach(({ event: e, ll }) => {
-      const sittingLabel = e.sitting ? `S${e.sitting}` : '✦';
+      const sittingLabel = e.sitting ? I18n.t('map.sittingShort', { n: e.sitting }) : '✦';
       const bgColor      = e.sitting ? '#8B6914' : '#5A3A5A';
       const icon = L.divIcon({
         className: '',
@@ -1630,11 +1631,11 @@ export const WorldMap = (() => {
     _addMode = on;
     const btn = document.getElementById('sc-add-btn');
     const hint = document.querySelector('.sc-hint');
-    if (btn)  btn.textContent = on ? '✕ Zrušit' : '+ Přidat místo';
+    if (btn)  btn.textContent = on ? '✕ ' + I18n.t('map.cancel') : '+ ' + I18n.t('map.addPlace');
     if (btn)  btn.classList.toggle('active', on);
     if (hint) hint.textContent = on
-      ? 'Klikni na mapu pro přidání nového místa'
-      : 'Klik = detail místa · Kolečko = zoom · Táhni = pohyb';
+      ? I18n.t('map.hintAddMode')
+      : I18n.t('map.hintDefault');
     if (_map) _map.getContainer().style.cursor = on ? 'crosshair' : '';
   }
 
@@ -1651,7 +1652,7 @@ export const WorldMap = (() => {
   // render above and setEditing's in-place refresh below call this.
   function _renderEditToggleHtml() {
     return pageEditToggle({
-      moduleName: 'WorldMap', isEditing: _editing, label: 'mapu',
+      moduleName: 'WorldMap', isEditing: _editing, label: I18n.t('map.editToggleLabel'),
     });
   }
 
@@ -1823,7 +1824,7 @@ export const WorldMap = (() => {
     const reader = new FileReader();
     reader.onload = e => {
       try { localStorage.setItem(LS_IMG_KEY, e.target.result); } catch (err) {
-        alert('Soubor je příliš velký pro uložení v prohlížeči. Zkus menší obrázek nebo ho ulož na server jako data/maps/swordcoast/sword_coast.jpg.');
+        alert(I18n.t('map.fileTooLarge'));
         return;
       }
       closeSettings();
@@ -1845,23 +1846,23 @@ export const WorldMap = (() => {
     const leg = document.getElementById('sc-legend');
     if (!leg) return;
     leg.innerHTML = `
-      <div class="legend-title">Postoj k partě</div>
+      <div class="legend-title">${esc(I18n.t('map.legendAttitude'))}</div>
       ${(Store.getEnum('attitudes') || []).map(v =>
         `<div class="legend-item">
           <div class="legend-dot" style="background:${v.labelColor || v.bg};box-shadow:0 0 0 1px rgba(0,0,0,0.4)"></div>
-          ${v.label}
+          ${esc(v.label)}
         </div>`
       ).join('')}
       ${_eventPathsVisible ? `
-        <div class="legend-title" style="margin-top:0.8rem">Trasy událostí</div>
+        <div class="legend-title" style="margin-top:0.8rem">${esc(I18n.t('map.eventPaths'))}</div>
         <div class="legend-item">
-          <div class="legend-line" style="border-top:2px dashed #C8A040"></div> Cesta příběhu
+          <div class="legend-line" style="border-top:2px dashed #C8A040"></div> ${esc(I18n.t('map.legendStoryPath'))}
         </div>
         <div class="legend-item">
-          <div class="sc-event-marker-tiny" style="background:#8B6914">S#</div> V sezení
+          <div class="sc-event-marker-tiny" style="background:#8B6914">S#</div> ${esc(I18n.t('map.legendInSitting'))}
         </div>
         <div class="legend-item">
-          <div class="sc-event-marker-tiny" style="background:#5A3A5A">✦</div> Minulost
+          <div class="sc-event-marker-tiny" style="background:#5A3A5A">✦</div> ${esc(I18n.t('map.legendPast'))}
         </div>` : ''}
     `;
   }
@@ -2015,7 +2016,7 @@ export const WorldMap = (() => {
   function openLocalMap(parentId) {
     const parent = Store.getLocation(parentId);
     if (!parent || !parent.localMap) {
-      alert('Toto místo nemá vlastní mapu. Otevři jeho stránku a nahraj obrázek mapy.');
+      alert(I18n.t('map.noLocalMap'));
       return;
     }
     closePanel();

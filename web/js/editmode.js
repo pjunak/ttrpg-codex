@@ -13,6 +13,7 @@ import { renderMarkdown, jaroWinkler, esc, norm } from './utils.js';
 import { PARTY_FACTION_ID } from './constants.js';
 import { Role } from './role.js';
 import { Addons } from './addons.js';
+import { I18n } from './i18n.js';
 
 export const EditMode = (() => {
 
@@ -76,7 +77,7 @@ export const EditMode = (() => {
       const btn = document.createElement('button');
       btn.className = 'edit-toast-action';
       btn.type = 'button';
-      btn.textContent = opts.action.label || '↶ Vrátit';
+      btn.textContent = opts.action.label || ('↶ ' + I18n.t('action.undo'));
       btn.addEventListener('click', () => {
         try { opts.action.onClick(); } finally { t.classList.remove('show'); }
       });
@@ -176,7 +177,7 @@ export const EditMode = (() => {
     // attached to this specific editor (multi-editor forms possible).
     const host = textarea.closest('.EasyMDEContainer')?.parentElement || textarea.parentElement;
     if (!host || host.querySelector(`.md-draft-banner[data-for="${textarea.id}"]`)) return;
-    const when = new Date(draft.savedAt || Date.now()).toLocaleString('cs-CZ', {
+    const when = I18n.formatDate(draft.savedAt || Date.now(), {
       day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
     });
     const banner = document.createElement('div');
@@ -184,9 +185,9 @@ export const EditMode = (() => {
     banner.setAttribute('data-for', textarea.id);
     banner.innerHTML = `
       <span class="md-draft-banner-icon">💾</span>
-      <span class="md-draft-banner-text">Nalezen nedokončený koncept z ${when}. Obnovit?</span>
-      <button type="button" class="md-draft-btn md-draft-btn-restore">Obnovit</button>
-      <button type="button" class="md-draft-btn md-draft-btn-discard">Zahodit</button>
+      <span class="md-draft-banner-text">${esc(I18n.t('editmode.draftFound', { when }))}</span>
+      <button type="button" class="md-draft-btn md-draft-btn-restore">${esc(I18n.t('editmode.draftRestore'))}</button>
+      <button type="button" class="md-draft-btn md-draft-btn-discard">${esc(I18n.t('editmode.draftDiscard'))}</button>
     `;
     banner.querySelector('.md-draft-btn-restore').addEventListener('click', () => {
       if (mde && typeof mde.value === 'function') mde.value(draft.content);
@@ -252,7 +253,7 @@ export const EditMode = (() => {
     if (!_dirty) return;
     const a = e.target && e.target.closest ? e.target.closest('a[href^="#/"]') : null;
     if (!a) return;
-    if (!confirm('Máš neuložené změny. Opravdu opustit stránku?')) {
+    if (!confirm(I18n.t('editmode.unsavedLeaveQ'))) {
       e.preventDefault();
       e.stopPropagation();
     } else {
@@ -291,16 +292,16 @@ export const EditMode = (() => {
       overlay.innerHTML = `
         <div class="pw-backdrop"></div>
         <form class="pw-panel" autocomplete="on">
-          <div class="pw-title">${message || 'Tato sekce je zabezpečena. Zadej heslo:'}</div>
+          <div class="pw-title">${esc(message || I18n.t('editmode.passwordPrompt'))}</div>
           <div class="pw-row">
             <input class="pw-input" type="password" name="password"
                    autocomplete="current-password" autofocus
                    spellcheck="false" autocapitalize="off">
-            <button type="button" class="pw-toggle" aria-label="Zobrazit heslo">👁</button>
+            <button type="button" class="pw-toggle" aria-label="${esc(I18n.t('editmode.showPassword'))}">👁</button>
           </div>
           <div class="pw-actions">
-            <button type="button" class="pw-btn pw-cancel">Zrušit</button>
-            <button type="submit" class="pw-btn pw-ok">Odemknout</button>
+            <button type="button" class="pw-btn pw-cancel">${esc(I18n.t('action.cancel'))}</button>
+            <button type="submit" class="pw-btn pw-ok">${esc(I18n.t('editmode.unlock'))}</button>
           </div>
         </form>
       `;
@@ -328,7 +329,7 @@ export const EditMode = (() => {
       tog.addEventListener('click', () => {
         const isPwd = input.type === 'password';
         input.type = isPwd ? 'text' : 'password';
-        tog.setAttribute('aria-label', isPwd ? 'Skrýt heslo' : 'Zobrazit heslo');
+        tog.setAttribute('aria-label', isPwd ? I18n.t('editmode.hidePassword') : I18n.t('editmode.showPassword'));
         input.focus();
       });
       document.addEventListener('keydown', onKey, true);
@@ -362,7 +363,7 @@ export const EditMode = (() => {
 
   async function promptLogin() {
     if (!Role.isAnonymous()) return true;
-    const pwd = await _passwordPrompt('Pro editaci se přihlas (DM nebo hráčské heslo):');
+    const pwd = await _passwordPrompt(I18n.t('editmode.loginPrompt'));
     if (!pwd) return false;
     try {
       const res = await fetch('/api/login', {
@@ -372,17 +373,17 @@ export const EditMode = (() => {
         credentials: 'same-origin',
       });
       if (!res.ok) {
-        _toast('Špatné heslo', false);
+        _toast(I18n.t('editmode.wrongPassword'), false);
         return false;
       }
       // Refresh the cached role so body.is-dm / is-player are set
       // before any post-login render runs.
       await Role.refresh();
-      _toast(Role.isDM() ? 'DM přístup ✓' : 'Hráčský přístup ✓');
+      _toast(Role.isDM() ? I18n.t('editmode.dmAccess') : I18n.t('editmode.playerAccess'));
       return true;
     } catch (e) {
       console.warn(e);
-      _toast('Chyba při přihlášení', false);
+      _toast(I18n.t('editmode.loginError'), false);
       return false;
     }
   }
@@ -419,12 +420,16 @@ export const EditMode = (() => {
     if (hidden)  hidden.value = '';
   }
   function updateKnowledgeLabel(uid) {
-    const KNAMES = ["Neznámý","Tušený","Základní","Dobře znám","Plně zmapován"];
+    const KNAMES = [
+      I18n.t('editmode.knowledge0'), I18n.t('editmode.knowledge1'),
+      I18n.t('editmode.knowledge2'), I18n.t('editmode.knowledge3'),
+      I18n.t('editmode.knowledge4'),
+    ];
     const range = document.getElementById('ef-knowledge-' + uid);
     const label = document.getElementById('ef-kl-' + uid);
     if (!range || !label) return;
     const v = +range.value;
-    label.textContent = `Znalost (${v}/4) — ${KNAMES[v]}`;
+    label.textContent = I18n.t('editmode.knowledgeLabel', { v, name: KNAMES[v] });
   }
   function handlePortraitChange(uid, el) {
     if (el?.files?.[0]) handlePortraitUpload(el, uid);
@@ -438,7 +443,7 @@ export const EditMode = (() => {
     const file = input.files[0];
     if (!file) return;
     try {
-      _toast("Nahrávám obrázek…");
+      _toast(I18n.t('editmode.uploadingImage'));
       // Always upload to a subfolder: data/portraits/{charId}/portrait.ext
       // New characters use "_new" as a temporary charId; the server migrates
       // the file to the real subfolder when the character is first saved.
@@ -449,9 +454,9 @@ export const EditMode = (() => {
       // Show with cache-buster, but store the clean URL (no ?v=) in data
       if (preview) preview.innerHTML = `<img src="${esc(url)}?v=${Date.now()}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:top">`;
       if (hidden)  hidden.value = url;
-      _toast("Obrázek nahrán ✓");
+      _toast(I18n.t('editmode.imageUploaded'));
     } catch(e) {
-      _toast("Chyba při nahrávání obrázku", false);
+      _toast(I18n.t('editmode.imageUploadError'), false);
       console.error(e);
     }
   }
@@ -537,7 +542,7 @@ export const EditMode = (() => {
   function saveCharacter(originalId) {
     const uid  = originalId || "new";
     const name = document.getElementById(`ef-name-${uid}`)?.value.trim();
-    if (!name) { _toast("Jméno je povinné", false); return; }
+    if (!name) { _toast(I18n.t('editmode.nameRequired'), false); return; }
 
     const newId   = originalId || Store.generateId(name);
     // Preserve fields that the inline editor doesn't expose
@@ -623,11 +628,11 @@ export const EditMode = (() => {
     } catch (e) { console.error('[addons] collectEditorFields failed', e); }
     const ok = Store.saveCharacter(next);
     if (ok === false) {
-      _toast("⚠ Uložení selhalo – úložiště je plné.", false);
+      _toast(I18n.t('editmode.saveFailedStorageFull'), false);
       return;
     }
     _runAfterSave('character', newId);
-    _toast("✓ Postava uložena");
+    _toast(I18n.t('editmode.characterSaved'));
     _markClean();
     _refreshTo(`#/postava/${newId}`);
   }
@@ -641,10 +646,10 @@ export const EditMode = (() => {
    */
   function deleteCharacter(id) {
     Store.deleteCharacter(id); // store cascades into relationships + snapshots for undo
-    _toast("Postava smazána", true, {
-      action: { label: '↶ Vrátit', onClick: () => {
+    _toast(I18n.t('editmode.characterDeleted'), true, {
+      action: { label: '↶ ' + I18n.t('action.undo'), onClick: () => {
         Store.undelete('characters', id);
-        _toast('Postava obnovena');
+        _toast(I18n.t('editmode.characterRestored'));
       }},
     });
     window.location.hash = "#/postavy";
@@ -679,11 +684,11 @@ export const EditMode = (() => {
   function addRelationship(charId) {
     const prefix = `rf-new-${charId}`;
     const { type, dir, target, label } = _readRelRow(prefix);
-    if (!target) { _toast('Vyber cíl', false); return; }
+    if (!target) { _toast(I18n.t('editmode.pickTarget'), false); return; }
 
     const rels = _relFromDir(charId, dir, target, type, label);
     rels.forEach(r => Store.saveRelationship(r));
-    _toast('✓ Vazba přidána');
+    _toast(I18n.t('editmode.relationAdded'));
     _refreshRelSection(charId);
   }
 
@@ -695,14 +700,14 @@ export const EditMode = (() => {
 
     const prefix = `rf-${idx}-${charId}`;
     const { type, dir, target, label } = _readRelRow(prefix);
-    if (!target) { _toast('Vyber cíl', false); return; }
+    if (!target) { _toast(I18n.t('editmode.pickTarget'), false); return; }
 
     // Delete old
     Store.deleteRelationship(original.source, original.target, original.type);
     // Save new
     const rels = _relFromDir(charId, dir, target, type, label);
     rels.forEach(r => Store.saveRelationship(r));
-    _toast('✓ Vazba upravena');
+    _toast(I18n.t('editmode.relationUpdated'));
     _refreshRelSection(charId);
   }
 
@@ -735,7 +740,7 @@ export const EditMode = (() => {
 
   function deleteRelationship(source, target, type, charId) {
     Store.deleteRelationship(source, target, type);
-    _toast('Vazba odebrána');
+    _toast(I18n.t('editmode.relationRemoved'));
     _refreshRelSection(charId);
   }
 
@@ -771,7 +776,7 @@ export const EditMode = (() => {
   function saveLocation(originalId) {
     const uid  = originalId || "new_loc";
     const name = document.getElementById(`lf-name-${uid}`)?.value.trim();
-    if (!name) { _toast("Název je povinný", false); return; }
+    if (!name) { _toast(I18n.t('editmode.titleRequired'), false); return; }
     const newId = originalId || Store.generateId(name);
     // Preserve map-only fields (x, y, pinType, mapNotes) that this
     // form doesn't expose. Attitudes, status, and size ARE exposed in
@@ -828,7 +833,7 @@ export const EditMode = (() => {
     Object.assign(next, _collectVisibility(uid));
     Store.saveLocation(next);
     _runAfterSave('location', newId);
-    _toast("✓ Místo uloženo");
+    _toast(I18n.t('editmode.locationSaved'));
     _markClean();
     _refreshTo(`#/misto/${newId}`);
   }
@@ -837,13 +842,13 @@ export const EditMode = (() => {
   async function uploadLocalMap(locId, file, inputId) {
     if (!file || !locId) return;
     try {
-      _toast("Nahrávám mapu…");
+      _toast(I18n.t('editmode.uploadingMap'));
       const url = await Store.uploadLocalMap(file, locId);
       const input = document.getElementById(inputId);
       if (input) input.value = url;
-      _toast("Mapa nahrána ✓");
+      _toast(I18n.t('editmode.mapUploaded'));
     } catch (e) {
-      _toast("Chyba při nahrávání mapy", false);
+      _toast(I18n.t('editmode.mapUploadError'), false);
       console.error(e);
     }
   }
@@ -879,10 +884,10 @@ export const EditMode = (() => {
 
   function deleteLocation(id) {
     Store.deleteLocation(id);
-    _toast("Místo smazáno", true, {
-      action: { label: '↶ Vrátit', onClick: () => {
+    _toast(I18n.t('editmode.locationDeleted'), true, {
+      action: { label: '↶ ' + I18n.t('action.undo'), onClick: () => {
         Store.undelete('locations', id);
-        _toast('Místo obnoveno');
+        _toast(I18n.t('editmode.locationRestored'));
       }},
     });
     window.location.hash = "#/mista";
@@ -907,7 +912,7 @@ export const EditMode = (() => {
   function saveEvent(originalId) {
     const uid  = originalId || "new_ev";
     const name = document.getElementById(`evf-name-${uid}`)?.value.trim();
-    if (!name) { _toast("Název je povinný", false); return; }
+    if (!name) { _toast(I18n.t('editmode.titleRequired'), false); return; }
     const newId = originalId || Store.generateId(name);
     const sittingRaw = document.getElementById(`evf-sitting-${uid}`)?.value.trim();
     const sitting    = sittingRaw ? (parseInt(sittingRaw) || null) : null;
@@ -938,17 +943,17 @@ export const EditMode = (() => {
       ..._collectVisibility(uid),
     });
     _runAfterSave('event', newId);
-    _toast("✓ Událost uložena");
+    _toast(I18n.t('editmode.eventSaved'));
     _markClean();
     _refreshTo(`#/udalost/${newId}`);
   }
 
   function deleteEvent(id) {
     Store.deleteEvent(id);
-    _toast("Událost smazána", true, {
-      action: { label: '↶ Vrátit', onClick: () => {
+    _toast(I18n.t('editmode.eventDeleted'), true, {
+      action: { label: '↶ ' + I18n.t('action.undo'), onClick: () => {
         Store.undelete('events', id);
-        _toast('Událost obnovena');
+        _toast(I18n.t('editmode.eventRestored'));
       }},
     });
     window.location.hash = "#/casova-osa";
@@ -957,14 +962,14 @@ export const EditMode = (() => {
   // Merge all player-party characters into the given MultiSelect mount.
   function addPartyToEvent(mountId) {
     const el = document.getElementById(mountId);
-    if (!el || !el._multiselect) { _toast("Widget nepřipraven", false); return; }
+    if (!el || !el._multiselect) { _toast(I18n.t('editmode.widgetNotReady'), false); return; }
     const partyIds = Store.getPartyMembers().map(c => c.id);
-    if (!partyIds.length) { _toast("Parta je prázdná", false); return; }
+    if (!partyIds.length) { _toast(I18n.t('editmode.partyEmpty'), false); return; }
     const current = el._multiselect.getValue();
     const merged  = Array.from(new Set([...current, ...partyIds]));
     const added   = merged.length - current.length;
     el._multiselect.setValue(merged);
-    _toast(added ? `+ ${added} postav` : "Všichni už jsou přidáni");
+    _toast(added ? I18n.plural('editmode.addedChars', added) : I18n.t('editmode.allAlreadyAdded'));
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -977,7 +982,7 @@ export const EditMode = (() => {
   function saveMystery(originalId) {
     const uid  = originalId || "new_mys";
     const name = document.getElementById(`mf-name-${uid}`)?.value.trim();
-    if (!name) { _toast("Název je povinný", false); return; }
+    if (!name) { _toast(I18n.t('editmode.titleRequired'), false); return; }
     const newId = originalId || Store.generateId(name);
     // Preserve fields the editor doesn't expose (clues, etc. — clues
     // are a future rework, see TODO/roadmap).
@@ -996,17 +1001,17 @@ export const EditMode = (() => {
       questions,
       ..._collectVisibility(uid),
     });
-    _toast("✓ Záhada uložena");
+    _toast(I18n.t('editmode.mysterySaved'));
     _markClean();
     _refreshTo(`#/zahada/${newId}`);
   }
 
   function deleteMystery(id) {
     Store.deleteMystery(id);
-    _toast("Záhada smazána", true, {
-      action: { label: '↶ Vrátit', onClick: () => {
+    _toast(I18n.t('editmode.mysteryDeleted'), true, {
+      action: { label: '↶ ' + I18n.t('action.undo'), onClick: () => {
         Store.undelete('mysteries', id);
-        _toast('Záhada obnovena');
+        _toast(I18n.t('editmode.mysteryRestored'));
       }},
     });
     window.location.hash = "#/zahady";
@@ -1041,7 +1046,7 @@ export const EditMode = (() => {
   function saveFaction(originalId) {
     const uid  = (originalId || "new_fac").replace(/[^a-z0-9_]/gi, "_");
     const name = document.getElementById(`ff-name-${uid}`)?.value.trim();
-    if (!name) { _toast("Název je povinný", false); return; }
+    if (!name) { _toast(I18n.t('editmode.titleRequired'), false); return; }
     const newId     = originalId || Store.generateId(name);
     const color     = document.getElementById(`ff-color-text-${uid}`)?.value.trim() || "#555555";
     const textColor = document.getElementById(`ff-textcolor-text-${uid}`)?.value.trim() || "#E0E0E0";
@@ -1050,7 +1055,7 @@ export const EditMode = (() => {
 
     const chainEls  = document.querySelectorAll(`#chains-${uid} .rank-chain-edit`);
     const rankChains = Array.from(chainEls).map(el => {
-      const chainName = el.querySelector('input[placeholder="Název řetězce"]')?.value.trim() || "";
+      const chainName = el.querySelector('.rank-chain-name')?.value.trim() || "";
       const chainId   = el.dataset.chainId || Store.generateId(chainName) || ("chain_" + Date.now());
       const rankInputs = el.querySelectorAll('.rank-ranks-list .edit-input');
       const ranks = Array.from(rankInputs).map(i => i.value.trim()).filter(Boolean);
@@ -1068,17 +1073,17 @@ export const EditMode = (() => {
       description: desc, rankChains, attitudes,
       ..._collectVisibility(uid),
     });
-    _toast("✓ Frakce uložena");
+    _toast(I18n.t('editmode.factionSaved'));
     _markClean();
     _refreshTo(`#/frakce/${newId}`);
   }
 
   function deleteFaction(id) {
     Store.deleteFaction(id);
-    _toast("Frakce smazána (postavy mají id zachované)", true, {
-      action: { label: '↶ Vrátit', onClick: () => {
+    _toast(I18n.t('editmode.factionDeleted'), true, {
+      action: { label: '↶ ' + I18n.t('action.undo'), onClick: () => {
         Store.undelete('factions', id);
-        _toast('Frakce obnovena');
+        _toast(I18n.t('editmode.factionRestored'));
       }},
     });
     window.location.hash = "#/frakce";
@@ -1247,7 +1252,7 @@ export const EditMode = (() => {
   function saveSpecies(originalId) {
     const uid  = originalId || 'new_sp';
     const name = document.getElementById(`sf-name-${uid}`)?.value.trim();
-    if (!name) { _toast('Název je povinný', false); return; }
+    if (!name) { _toast(I18n.t('editmode.titleRequired'), false); return; }
     const newId = originalId || Store.generateId(name);
     const existing = originalId ? (Store.getSpeciesItem(originalId) || {}) : {};
     Store.saveSpecies({
@@ -1256,16 +1261,16 @@ export const EditMode = (() => {
       description: document.getElementById(`sf-desc-${uid}`)?.value.trim() || '',
       ..._collectVisibility(uid),
     });
-    _toast('✓ Druh uložen');
+    _toast(I18n.t('editmode.speciesSaved'));
     _markClean();
     _refreshTo(`#/druh/${newId}`);
   }
   function deleteSpecies(id) {
     Store.deleteSpecies(id);
-    _toast('Druh smazán', true, {
-      action: { label: '↶ Vrátit', onClick: () => {
+    _toast(I18n.t('editmode.speciesDeleted'), true, {
+      action: { label: '↶ ' + I18n.t('action.undo'), onClick: () => {
         Store.undelete('species', id);
-        _toast('Druh obnoven');
+        _toast(I18n.t('editmode.speciesRestored'));
       }},
     });
     window.location.hash = '#/druhy';
@@ -1285,7 +1290,7 @@ export const EditMode = (() => {
   function saveBuh(originalId) {
     const uid  = originalId || 'new_god';
     const name = document.getElementById(`gf-name-${uid}`)?.value.trim();
-    if (!name) { _toast('Jméno je povinné', false); return; }
+    if (!name) { _toast(I18n.t('editmode.nameRequired'), false); return; }
     const newId = originalId || Store.generateId(name);
     const existing = originalId ? (Store.getBuh(originalId) || {}) : {};
     Store.saveBuh({
@@ -1297,16 +1302,16 @@ export const EditMode = (() => {
       description: document.getElementById(`gf-desc-${uid}`)?.value.trim()     || '',
       ..._collectVisibility(uid),
     });
-    _toast('✓ Božstvo uloženo');
+    _toast(I18n.t('editmode.deitySaved'));
     _markClean();
     _refreshTo(`#/buh/${newId}`);
   }
   function deleteBuh(id) {
     Store.deleteBuh(id);
-    _toast('Božstvo smazáno', true, {
-      action: { label: '↶ Vrátit', onClick: () => {
+    _toast(I18n.t('editmode.deityDeleted'), true, {
+      action: { label: '↶ ' + I18n.t('action.undo'), onClick: () => {
         Store.undelete('pantheon', id);
-        _toast('Božstvo obnoveno');
+        _toast(I18n.t('editmode.deityRestored'));
       }},
     });
     window.location.hash = '#/panteon';
@@ -1326,7 +1331,7 @@ export const EditMode = (() => {
   function saveArtifact(originalId) {
     const uid  = originalId || 'new_art';
     const name = document.getElementById(`af-name-${uid}`)?.value.trim();
-    if (!name) { _toast('Název je povinný', false); return; }
+    if (!name) { _toast(I18n.t('editmode.titleRequired'), false); return; }
     const newId = originalId || Store.generateId(name);
     const existing = originalId ? (Store.getArtifact(originalId) || {}) : {};
     const next = {
@@ -1341,16 +1346,16 @@ export const EditMode = (() => {
     // `state` carried over from `existing` so it doesn't get re-persisted.
     delete next.state;
     Store.saveArtifact(next);
-    _toast('✓ Artefakt uložen');
+    _toast(I18n.t('editmode.artifactSaved'));
     _markClean();
     _refreshTo(`#/artefakt/${newId}`);
   }
   function deleteArtifact(id) {
     Store.deleteArtifact(id);
-    _toast('Artefakt smazán', true, {
-      action: { label: '↶ Vrátit', onClick: () => {
+    _toast(I18n.t('editmode.artifactDeleted'), true, {
+      action: { label: '↶ ' + I18n.t('action.undo'), onClick: () => {
         Store.undelete('artifacts', id);
-        _toast('Artefakt obnoven');
+        _toast(I18n.t('editmode.artifactRestored'));
       }},
     });
     window.location.hash = '#/artefakty';
@@ -1371,7 +1376,7 @@ export const EditMode = (() => {
   function saveHistoricalEvent(originalId) {
     const uid  = originalId || 'new_hist';
     const name = document.getElementById(`he-name-${uid}`)?.value.trim();
-    if (!name) { _toast('Název je povinný', false); return; }
+    if (!name) { _toast(I18n.t('editmode.titleRequired'), false); return; }
     const newId    = originalId || Store.generateId(name);
     const existing = originalId ? (Store.getHistoricalEvent(originalId) || {}) : {};
     const tags = (document.getElementById(`he-tags-${uid}`)?.value || '')
@@ -1388,16 +1393,16 @@ export const EditMode = (() => {
       locations:  _checkVals(`he-locs-${uid}`),
       tags,
     });
-    _toast('✓ Historická událost uložena');
+    _toast(I18n.t('editmode.historicalEventSaved'));
     _markClean();
     _refreshTo(`#/historicka-udalost/${newId}`);
   }
   function deleteHistoricalEvent(id) {
     Store.deleteHistoricalEvent(id);
-    _toast('Historická událost smazána', true, {
-      action: { label: '↶ Vrátit', onClick: () => {
+    _toast(I18n.t('editmode.historicalEventDeleted'), true, {
+      action: { label: '↶ ' + I18n.t('action.undo'), onClick: () => {
         Store.undelete('historicalEvents', id);
-        _toast('Historická událost obnovena');
+        _toast(I18n.t('editmode.historicalEventRestored'));
       }},
     });
     window.location.hash = '#/historie';
@@ -1422,27 +1427,27 @@ export const EditMode = (() => {
     historicalEvents: 'historicka-udalost',
   };
   async function createTwin(collection, sourceId) {
-    if (_dirty && !confirm('Máš neuložené změny v editoru. Pokračovat?')) return;
+    if (_dirty && !confirm(I18n.t('editmode.unsavedEditorContinueQ'))) return;
     _closeTwinPicker();
     const r = await Store.linkTwin('create', collection, sourceId);
-    if (!r.ok) { _toast(r.error || 'Vytvoření twinu selhalo', false); return; }
-    _toast('✓ Twin vytvořen');
+    if (!r.ok) { _toast(r.error || I18n.t('editmode.twinCreateFailed'), false); return; }
+    _toast(I18n.t('editmode.twinCreated'));
     const route = _TWIN_ROUTE[collection];
     if (route && r.twinId) _refreshTo(`#/${route}/${r.twinId}`);
   }
   async function unlinkTwin(collection, sourceId) {
-    if (!confirm('Opravdu odpárovat twin? Obě entity zůstanou, jen se zruší jejich propojení.')) return;
+    if (!confirm(I18n.t('editmode.twinUnlinkQ'))) return;
     const r = await Store.linkTwin('unlink', collection, sourceId);
-    if (!r.ok) { _toast(r.error || 'Odpárování selhalo', false); return; }
-    _toast('Twin odpárován');
+    if (!r.ok) { _toast(r.error || I18n.t('editmode.twinUnlinkFailed'), false); return; }
+    _toast(I18n.t('editmode.twinUnlinked'));
     // Stay on current entity; the SSE refresh re-renders it.
     window.dispatchEvent(new Event('hashchange'));
   }
   async function linkExistingTwin(collection, sourceId, targetId) {
     const r = await Store.linkTwin('link', collection, sourceId, targetId);
-    if (!r.ok) { _toast(r.error || 'Propojení selhalo', false); return; }
+    if (!r.ok) { _toast(r.error || I18n.t('editmode.twinLinkFailed'), false); return; }
     _closeTwinPicker();
-    _toast('✓ Twin propojen');
+    _toast(I18n.t('editmode.twinLinked'));
     window.dispatchEvent(new Event('hashchange'));
   }
 
@@ -1464,13 +1469,13 @@ export const EditMode = (() => {
     overlay.className = 'twin-picker-overlay';
     overlay.hidden = true;
     overlay.innerHTML = `
-      <div class="twin-picker-card" role="dialog" aria-label="Připojit twin">
+      <div class="twin-picker-card" role="dialog" aria-label="${esc(I18n.t('editmode.twinPickerTitle'))}">
         <div class="twin-picker-actions">
-          <button type="button" class="twin-picker-btn twin-picker-btn-cancel" data-action="EditMode.cancelTwinPicker">✕ Zrušit</button>
-          <button type="button" class="twin-picker-btn twin-picker-btn-create" data-action="EditMode.createTwinFromPicker">✨ Vytvořit nový twin</button>
+          <button type="button" class="twin-picker-btn twin-picker-btn-cancel" data-action="EditMode.cancelTwinPicker">✕ ${esc(I18n.t('action.cancel'))}</button>
+          <button type="button" class="twin-picker-btn twin-picker-btn-create" data-action="EditMode.createTwinFromPicker">✨ ${esc(I18n.t('editmode.twinCreateNew'))}</button>
         </div>
         <div class="twin-picker-search-row">
-          <input type="text" class="twin-picker-search" placeholder="Hledat podle jména…" autocomplete="off">
+          <input type="text" class="twin-picker-search" placeholder="${esc(I18n.t('editmode.searchByName'))}" autocomplete="off">
         </div>
         <div class="twin-picker-list" role="listbox"></div>
       </div>
@@ -1505,10 +1510,10 @@ export const EditMode = (() => {
   }
 
   function openTwinPicker(collection, sourceId) {
-    if (!Role.isDM()) { _toast('Pouze pro DM', false); return; }
+    if (!Role.isDM()) { _toast(I18n.t('editmode.dmOnly'), false); return; }
     const source = Store.getCollection(collection).find(e => e && e.id === sourceId);
-    if (!source) { _toast('Entita nenalezena', false); return; }
-    if (source.linkedTwinId) { _toast('Entita už má twin', false); return; }
+    if (!source) { _toast(I18n.t('editmode.entityNotFound'), false); return; }
+    if (source.linkedTwinId) { _toast(I18n.t('editmode.entityAlreadyHasTwin'), false); return; }
 
     const p = _ensurePickerDom();
     p.collection = collection;
@@ -1555,7 +1560,7 @@ export const EditMode = (() => {
       .sort((a, b) => b.score - a.score);
 
     if (ranked.length === 0) {
-      p.list.innerHTML = `<div class="twin-picker-empty">Žádné odpovídající entity.</div>`;
+      p.list.innerHTML = `<div class="twin-picker-empty">${esc(I18n.t('editmode.noMatchingEntities'))}</div>`;
       p.highlighted = -1;
       return;
     }
@@ -1571,7 +1576,7 @@ export const EditMode = (() => {
       const colorClass = pct >= 80 ? 'twin-picker-score-high'
                         : pct >= 50 ? 'twin-picker-score-mid'
                                     : 'twin-picker-score-low';
-      const visBadge = r.entity.visibility === 'dm' ? '🛡 DM' : '👤 hráč';
+      const visBadge = r.entity.visibility === 'dm' ? '🛡 DM' : ('👤 ' + esc(I18n.t('editmode.playerBadge')));
       return `
         <button type="button" class="twin-picker-row${idx === 0 ? ' is-highlighted' : ''}"
                 role="option" data-idx="${idx}"
@@ -1580,7 +1585,7 @@ export const EditMode = (() => {
           <span class="twin-picker-row-name">${esc(r.entity.name || r.entity.id)}</span>
           <span class="twin-picker-row-meta">
             <span class="twin-picker-row-vis">${visBadge}</span>
-            <span class="twin-picker-row-score ${colorClass}">${pct}% shoda</span>
+            <span class="twin-picker-row-score ${colorClass}">${esc(I18n.t('editmode.matchPercent', { pct }))}</span>
           </span>
         </button>`;
     }).join('');
@@ -1662,7 +1667,7 @@ export const EditMode = (() => {
     overlay.innerHTML = `
       <div class="pet-modal-backdrop"></div>
       <form class="pet-modal-panel" autocomplete="off">
-        <div class="pet-modal-title">${isNew ? '🐾 Nový mazlíček' : '🐾 Upravit mazlíčka'}</div>
+        <div class="pet-modal-title">${isNew ? '🐾 ' + esc(I18n.t('editmode.petNew')) : '🐾 ' + esc(I18n.t('editmode.petEdit'))}</div>
 
         <div class="pet-modal-portrait">
           <div id="pet-portrait-preview" class="pet-portrait-preview">
@@ -1672,53 +1677,53 @@ export const EditMode = (() => {
           </div>
           <input type="hidden" id="pet-portrait" value="${esc(pet.portrait || '')}">
           ${isNew
-            ? `<div class="pet-modal-hint">Obrázek lze nahrát po prvním uložení.</div>`
-            : `<label class="pet-modal-upload">📤 Nahrát obrázek
+            ? `<div class="pet-modal-hint">${esc(I18n.t('editmode.petImageAfterSave'))}</div>`
+            : `<label class="pet-modal-upload">📤 ${esc(I18n.t('editmode.uploadImage'))}
                  <input type="file" id="pet-portrait-file" accept="image/*" hidden></label>`}
         </div>
 
         <label class="pet-modal-row">
-          <span class="pet-modal-label">Jméno</span>
-          <input type="text" id="pet-name" class="pet-modal-input" value="${esc(pet.name || '')}" placeholder="Např. Rex">
+          <span class="pet-modal-label">${esc(I18n.t('editmode.petName'))}</span>
+          <input type="text" id="pet-name" class="pet-modal-input" value="${esc(pet.name || '')}" placeholder="${esc(I18n.t('editmode.petNamePlaceholder'))}">
         </label>
         <label class="pet-modal-row">
-          <span class="pet-modal-label">Emoji / ikona</span>
+          <span class="pet-modal-label">${esc(I18n.t('editmode.petEmoji'))}</span>
           <input type="text" id="pet-emoji" class="pet-modal-input pet-modal-emoji" value="${esc(pet.icon || '🐾')}" maxlength="4">
         </label>
         <label class="pet-modal-row">
-          <span class="pet-modal-label">Druh</span>
-          <input type="text" id="pet-species" class="pet-modal-input" value="${esc(pet.species || '')}" placeholder="Např. Vlk">
+          <span class="pet-modal-label">${esc(I18n.t('editmode.petSpecies'))}</span>
+          <input type="text" id="pet-species" class="pet-modal-input" value="${esc(pet.species || '')}" placeholder="${esc(I18n.t('editmode.petSpeciesPlaceholder'))}">
         </label>
         <label class="pet-modal-row">
-          <span class="pet-modal-label">Majitel</span>
+          <span class="pet-modal-label">${esc(I18n.t('editmode.petOwner'))}</span>
           <select id="pet-owner-type" class="pet-modal-input">
-            ${otOpt('none', 'Bez majitele')}
-            ${otOpt('party', '🛡 Naše parta')}
-            ${otOpt('character', '👤 Postava')}
-            ${otOpt('faction', '⬡ Frakce')}
+            ${otOpt('none', esc(I18n.t('editmode.petOwnerNone')))}
+            ${otOpt('party', '🛡 ' + esc(I18n.t('editmode.petOwnerParty')))}
+            ${otOpt('character', '👤 ' + esc(I18n.t('editmode.petOwnerCharacter')))}
+            ${otOpt('faction', '⬡ ' + esc(I18n.t('editmode.petOwnerFaction')))}
           </select>
         </label>
         <div class="pet-modal-row" id="pet-owner-char-row">
           <span class="pet-modal-label"></span>
           <div class="cb-mount" data-cb-id="pet-owner-char" data-cb-source="character"
                data-cb-value="${esc(pet.ownerType === 'character' ? (pet.ownerId || '') : '')}"
-               data-cb-placeholder="Vyber postavu…" data-cb-allow-empty="1"
-               data-cb-empty-label="— žádná —"></div>
+               data-cb-placeholder="${esc(I18n.t('editmode.petPickCharacter'))}" data-cb-allow-empty="1"
+               data-cb-empty-label="${esc(I18n.t('editmode.petNoneOption'))}"></div>
         </div>
         <div class="pet-modal-row" id="pet-owner-faction-row">
           <span class="pet-modal-label"></span>
           <select id="pet-owner-faction" class="pet-modal-input">${facOpts}</select>
         </div>
         <label class="pet-modal-row">
-          <span class="pet-modal-label">Poznámka</span>
-          <input type="text" id="pet-note" class="pet-modal-input" value="${esc(pet.note || '')}" placeholder="Krátká poznámka">
+          <span class="pet-modal-label">${esc(I18n.t('editmode.petNote'))}</span>
+          <input type="text" id="pet-note" class="pet-modal-input" value="${esc(pet.note || '')}" placeholder="${esc(I18n.t('editmode.petNotePlaceholder'))}">
         </label>
 
         <div class="pet-modal-actions">
-          ${!isNew ? `<button type="button" class="pet-modal-btn pet-modal-delete">🗑 Smazat</button>` : ''}
+          ${!isNew ? `<button type="button" class="pet-modal-btn pet-modal-delete">🗑 ${esc(I18n.t('action.delete'))}</button>` : ''}
           <span class="pet-modal-spacer"></span>
-          <button type="button" class="pet-modal-btn pet-modal-cancel">Zrušit</button>
-          <button type="submit" class="pet-modal-btn pet-modal-save">Uložit</button>
+          <button type="button" class="pet-modal-btn pet-modal-cancel">${esc(I18n.t('action.cancel'))}</button>
+          <button type="submit" class="pet-modal-btn pet-modal-save">${esc(I18n.t('action.save'))}</button>
         </div>
       </form>`;
     document.body.appendChild(overlay);
@@ -1752,15 +1757,15 @@ export const EditMode = (() => {
     const file = input.files?.[0];
     if (!file || !petId) return;
     try {
-      _toast('Nahrávám obrázek…');
+      _toast(I18n.t('editmode.uploadingImage'));
       const url = await Store.uploadPortrait(file, petId);
       const hidden  = document.getElementById('pet-portrait');
       const preview = document.getElementById('pet-portrait-preview');
       if (hidden)  hidden.value = url;
       if (preview) preview.innerHTML = `<img src="${esc(url)}?v=${Date.now()}" alt="">`;
-      _toast('Obrázek nahrán ✓');
+      _toast(I18n.t('editmode.imageUploaded'));
     } catch (e) {
-      _toast('Chyba při nahrávání obrázku', false);
+      _toast(I18n.t('editmode.imageUploadError'), false);
       console.error(e);
     }
   }
@@ -1768,7 +1773,7 @@ export const EditMode = (() => {
   function savePet() {
     const get = (id) => document.getElementById(id);
     const name = (get('pet-name')?.value || '').trim();
-    if (!name) { _toast('Zadej jméno mazlíčka', false); get('pet-name')?.focus(); return; }
+    if (!name) { _toast(I18n.t('editmode.petNameRequired'), false); get('pet-name')?.focus(); return; }
     const id = (_petModalEl?.dataset.petId) || Store.generateId(name);
     let ownerType = get('pet-owner-type')?.value || 'none';
     let ownerId = '';
@@ -1789,7 +1794,7 @@ export const EditMode = (() => {
     };
     Store.savePet(pet);
     _closePetModal();
-    _toast('Mazlíček uložen ✓');
+    _toast(I18n.t('editmode.petSaved'));
     _refreshTo(window.location.hash);
   }
 
@@ -1797,10 +1802,10 @@ export const EditMode = (() => {
     if (!id) { _closePetModal(); return; }
     Store.deletePet(id);
     _closePetModal();
-    _toast('Mazlíček smazán', true, {
-      action: { label: '↶ Vrátit', onClick: () => {
+    _toast(I18n.t('editmode.petDeleted'), true, {
+      action: { label: '↶ ' + I18n.t('action.undo'), onClick: () => {
         Store.undelete('pets', id);
-        _toast('Mazlíček obnoven');
+        _toast(I18n.t('editmode.petRestored'));
         _refreshTo(window.location.hash);
       }},
     });

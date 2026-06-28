@@ -16,6 +16,7 @@
 import { Store } from './store.js';
 import { Role } from './role.js';
 import { esc } from './utils.js';
+import { I18n } from './i18n.js';
 
 export const DmDashboard = (() => {
 
@@ -25,8 +26,8 @@ export const DmDashboard = (() => {
     if (!Role.isDM()) {
       main.innerHTML = `
         <div class="dm-panel">
-          <h1>🛡 DM panel</h1>
-          <p class="dm-stub">Tato sekce je dostupná pouze DM. Přihlas se DM heslem nahoře v postranním panelu.</p>
+          <h1>🛡 ${esc(I18n.t('nav.dmPanel'))}</h1>
+          <p class="dm-stub">${esc(I18n.t('dm.refusal'))}</p>
         </div>
       `;
       return;
@@ -35,19 +36,15 @@ export const DmDashboard = (() => {
     const totalDm = counts.reduce((acc, c) => acc + c.dmOnly, 0);
     main.innerHTML = `
       <div class="dm-panel">
-        <h1>🛡 DM panel</h1>
-        <p class="dm-stub">
-          Tady se v budoucnu objeví zápletky, zápisky ze sezení, encounter prep
-          a další DM-only nástroje. Zatím tu najdeš jen přehled toho, co je
-          aktuálně skryté hráčům.
-        </p>
+        <h1>🛡 ${esc(I18n.t('nav.dmPanel'))}</h1>
+        <p class="dm-stub">${esc(I18n.t('dm.intro'))}</p>
 
         <section class="dm-section">
-          <h2>Skrytý obsah</h2>
+          <h2>${esc(I18n.t('dm.hiddenContent'))}</h2>
           <p class="dm-section-hint">
             ${totalDm === 0
-              ? 'Aktuálně není označený jako "Jen DM" žádný záznam. Označit ho můžeš v editoru každé entity.'
-              : `Záznamů s viditelností <strong>Jen DM</strong>: ${totalDm}.`}
+              ? esc(I18n.t('dm.hiddenContentEmpty'))
+              : esc(I18n.plural('dm.hiddenContentCount', totalDm))}
           </p>
           <div class="dm-grid">
             ${counts.map(_renderCountCard).join('')}
@@ -55,12 +52,12 @@ export const DmDashboard = (() => {
         </section>
 
         <section class="dm-section">
-          <h2>Budoucí nástroje</h2>
+          <h2>${esc(I18n.t('dm.futureTools'))}</h2>
           <ul class="dm-stub-list">
-            <li>📓 Zápisky ze sezení + akce hráčů</li>
-            <li>📋 Tracker zápletek</li>
-            <li>🗺 DM mapová vrstva</li>
-            <li>📚 Balíčky obsahu (5e SRD, atd.)</li>
+            <li>📓 ${esc(I18n.t('dm.toolSessionNotes'))}</li>
+            <li>📋 ${esc(I18n.t('dm.toolPlotTracker'))}</li>
+            <li>🗺 ${esc(I18n.t('dm.toolMapLayer'))}</li>
+            <li>📚 ${esc(I18n.t('dm.toolContentPacks'))}</li>
           </ul>
         </section>
       </div>
@@ -74,14 +71,14 @@ export const DmDashboard = (() => {
   function _dmOnlyCounts() {
     const out = [];
     const lists = [
-      { key: 'characters',       label: 'Postavy',          route: '#/postavy',  getter: Store.getCharacters       },
-      { key: 'locations',        label: 'Místa',            route: '#/mista',    getter: Store.getLocations        },
-      { key: 'events',           label: 'Události',         route: '#/casova-osa', getter: Store.getEvents          },
-      { key: 'mysteries',        label: 'Záhady',           route: '#/zahady',   getter: Store.getMysteries        },
-      { key: 'species',          label: 'Druhy',            route: '#/druhy',    getter: Store.getSpecies          },
-      { key: 'pantheon',         label: 'Panteon',          route: '#/panteon',  getter: Store.getPantheon         },
-      { key: 'artifacts',        label: 'Artefakty',        route: '#/artefakty', getter: Store.getArtifacts        },
-      { key: 'historicalEvents', label: 'Historické události', route: '#/historie', getter: Store.getHistoricalEvents },
+      { key: 'characters',       label: I18n.t('nav.characters'),  route: '#/postavy',  getter: Store.getCharacters       },
+      { key: 'locations',        label: I18n.t('nav.locations'),   route: '#/mista',    getter: Store.getLocations        },
+      { key: 'events',           label: I18n.t('dm.collEvents'),   route: '#/casova-osa', getter: Store.getEvents          },
+      { key: 'mysteries',        label: I18n.t('nav.mysteries'),   route: '#/zahady',   getter: Store.getMysteries        },
+      { key: 'species',          label: I18n.t('nav.species'),     route: '#/druhy',    getter: Store.getSpecies          },
+      { key: 'pantheon',         label: I18n.t('nav.pantheon'),    route: '#/panteon',  getter: Store.getPantheon         },
+      { key: 'artifacts',        label: I18n.t('nav.artifacts'),   route: '#/artefakty', getter: Store.getArtifacts        },
+      { key: 'historicalEvents', label: I18n.t('dm.collHistoricalEvents'), route: '#/historie', getter: Store.getHistoricalEvents },
     ];
     for (const c of lists) {
       let total = 0, dmOnly = 0;
@@ -99,7 +96,7 @@ export const DmDashboard = (() => {
       fTotal++;
       if (f && f.visibility === 'dm') fDm++;
     }
-    out.push({ key: 'factions', label: 'Frakce', route: '#/frakce', total: fTotal, dmOnly: fDm });
+    out.push({ key: 'factions', label: I18n.t('nav.factions'), route: '#/frakce', total: fTotal, dmOnly: fDm });
     return out;
   }
 
@@ -111,7 +108,7 @@ export const DmDashboard = (() => {
         <span class="dm-count-numbers">
           <strong>${c.dmOnly}</strong> / ${c.total}
         </span>
-        <span class="dm-count-meta">jen DM</span>
+        <span class="dm-count-meta">${esc(I18n.t('dm.onlyDmMeta'))}</span>
       </a>
     `;
   }

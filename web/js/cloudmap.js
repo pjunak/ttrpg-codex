@@ -9,6 +9,7 @@ import { Store } from './store.js';
 import { Role } from './role.js';
 import { norm, debounce, esc, dataAction, dataOn, pageEditToggle } from './utils.js';
 import { REL_TYPES, getRelType } from './data.js';
+import { I18n } from './i18n.js';
 
 export const CloudMap = (() => {
 
@@ -19,7 +20,7 @@ export const CloudMap = (() => {
   let _editing = false;
   function _renderEditToggleHtml() {
     return pageEditToggle({
-      moduleName: 'CloudMap', isEditing: _editing, label: 'palác',
+      moduleName: 'CloudMap', isEditing: _editing, label: I18n.t('cloudmap.editToggleLabel'),
     });
   }
   function setEditing(on) {
@@ -173,10 +174,10 @@ export const CloudMap = (() => {
   }
 
   function _factionHubCloudHTML(fId, faction, count) {
-    let body = `<div class="cm-fact">${count} ${count === 1 ? 'postava' : count < 5 ? 'postavy' : 'postav'}</div>`;
+    let body = `<div class="cm-fact">${esc(I18n.plural('cloudmap.characters', count))}</div>`;
     return `<div class="cm-cloud cm-faction-hub" data-id="hub_${fId}" data-type="faction"
               style="--cc:${faction.color}; --cw:${CW_HUB}px">
-      <div class="cm-strip">${esc(faction.badge)} FRAKCE</div>
+      <div class="cm-strip">${esc(faction.badge)} ${esc(I18n.t('cloudmap.factionStrip'))}</div>
       <div class="cm-name">${esc(faction.name)}</div>
       <div class="cm-divider"></div>
       ${body}
@@ -192,7 +193,7 @@ export const CloudMap = (() => {
   function _locationCloudHTML(loc) {
     return `<div class="cm-cloud cm-location" data-id="${loc.id}" data-type="location"
               style="--cc:#5D7A3A; --cw:${CW}px">
-      <div class="cm-strip">📍 Místo</div>
+      <div class="cm-strip">📍 ${esc(I18n.t('cloudmap.placeStrip'))}</div>
       <div class="cm-name">${esc(loc.name)}</div>
       <div class="cm-divider"></div>
     </div>`;
@@ -224,7 +225,7 @@ export const CloudMap = (() => {
     return Store.getFactions()[id]?.badge || '';
   }
   function _factionName(id) {
-    if (id === 'party') return Store.getPlayerParty().name || 'Naše parta';
+    if (id === 'party') return Store.getPlayerParty().name || 'Our Party';
     return Store.getFactions()[id]?.name || id;
   }
   function _statusIcon(s)    { return Store.getStatusMap()[s]?.icon   || '?';   }
@@ -251,13 +252,13 @@ export const CloudMap = (() => {
       const cmdOut = rels.filter(r => r.source === c.id && r.type === 'commands');
       const cmdIn  = rels.filter(r => r.target === c.id && r.type === 'commands');
       if (cmdOut.length) {
-        body += `<div class="cm-fact cm-dim">Velí ${cmdOut.length} ${cmdOut.length === 1 ? 'osobě' : cmdOut.length < 5 ? 'osobám' : 'osobám'}</div>`;
+        body += `<div class="cm-fact cm-dim">${esc(I18n.plural('cloudmap.commandsCount', cmdOut.length))}</div>`;
       }
       if (cmdIn.length) {
         const boss = Store.getCharacter(cmdIn[0].source);
-        if (boss) body += `<div class="cm-fact cm-dim">Pod velením: ${esc(boss.name)}</div>`;
+        if (boss) body += `<div class="cm-fact cm-dim">${I18n.t('cloudmap.underCommand', { name: esc(boss.name) })}</div>`;
       }
-      if (!body) body = `<div class="cm-fact cm-dim">Bez vazeb velení</div>`;
+      if (!body) body = `<div class="cm-fact cm-dim">${esc(I18n.t('cloudmap.noCommandLinks'))}</div>`;
 
     } else if (mode === 'vztahy') {
       const sIcon  = _statusIcon(c.status);
@@ -265,7 +266,7 @@ export const CloudMap = (() => {
       const sColor = _statusColor(c.status);
       body += `<div class="cm-status-row"><span style="color:${sColor}">${sIcon}</span> ${esc(sLabel)}</div>`;
       const rels = Store.getRelationships().filter(r => r.source === c.id || r.target === c.id);
-      body += `<div class="cm-fact cm-dim">${rels.length} ${rels.length === 1 ? 'vazba' : rels.length < 5 ? 'vazby' : 'vazeb'}</div>`;
+      body += `<div class="cm-fact cm-dim">${esc(I18n.plural('cloudmap.relationships', rels.length))}</div>`;
       if (rels.length) {
         const counts = {};
         rels.forEach(r => { counts[r.type] = (counts[r.type] || 0) + 1; });
@@ -277,7 +278,7 @@ export const CloudMap = (() => {
     } else if (mode === 'tajemstvi') {
       const mysteries = Store.getMysteries().filter(m => (m.characters || []).includes(c.id));
       const cnt = mysteries.length;
-      body += `<div class="cm-fact cm-dim">${cnt} ${cnt === 1 ? 'záhada' : cnt < 5 ? 'záhady' : 'záhad'}</div>`;
+      body += `<div class="cm-fact cm-dim">${esc(I18n.plural('cloudmap.mysteries', cnt))}</div>`;
       if (mysteries.length) {
         const q = (mysteries[0].questions || [])[0] || mysteries[0].name;
         const lines = _wrap(q, FONT_FACT, IW).slice(0, 2);
@@ -290,7 +291,7 @@ export const CloudMap = (() => {
         .filter(e => (e.characters || []).includes(c.id))
         .sort((a,b) => a.order - b.order);
       const cnt = events.length;
-      body += `<div class="cm-fact cm-dim">${cnt} ${cnt === 1 ? 'událost' : cnt < 5 ? 'události' : 'událostí'}</div>`;
+      body += `<div class="cm-fact cm-dim">${esc(I18n.plural('cloudmap.events', cnt))}</div>`;
       if (events.length) {
         const lines = _wrap(events[0].name, FONT_FACT, IW).slice(0, 1);
         body += `<div class="cm-fact">${esc(lines[0])}${_wrap(events[0].name, FONT_FACT, IW).length > 1 ? '…' : ''}</div>`;
@@ -320,10 +321,10 @@ export const CloudMap = (() => {
     }
     return `<div class="cm-cloud cm-mystery" data-id="${m.id}" data-type="mystery"
               style="--cc:#6A1B9A; --cw:${CW}px">
-      <div class="cm-strip">❓ Záhada</div>
+      <div class="cm-strip">❓ ${esc(I18n.t('cloudmap.mysteryStrip'))}</div>
       <div class="cm-name">${esc(m.name)}</div>
       <div class="cm-divider"></div>
-      <div class="cm-fact cm-fact-priority" style="color:${priColor}">⚑ ${esc(m.priority || 'střední')}</div>
+      <div class="cm-fact cm-fact-priority" style="color:${priColor}">⚑ ${esc(m.priority || I18n.t('cloudmap.priorityMedium'))}</div>
       ${qHTML}
     </div>`;
   }
@@ -334,7 +335,7 @@ export const CloudMap = (() => {
     const snippet = lines.join(' ') + (lines.length < _wrap(desc, FONT_FACT, IW).length ? '…' : '');
     return `<div class="cm-cloud cm-event" data-id="${e.id}" data-type="event"
               style="--cc:#8B6914; --cw:${CW}px">
-      <div class="cm-strip">📜 ${e.sitting ? `Sezení ${e.sitting}` : 'Minulost'}</div>
+      <div class="cm-strip">📜 ${e.sitting ? esc(I18n.t('cloudmap.sitting', { n: e.sitting })) : esc(I18n.t('cloudmap.past'))}</div>
       <div class="cm-name">${esc(e.name)}</div>
       <div class="cm-divider"></div>
       <div class="cm-fact cm-dim">${esc(snippet)}</div>
@@ -898,16 +899,16 @@ export const CloudMap = (() => {
     container.innerHTML = `
       <div class="map-container">
         <div class="map-toolbar ${_editing ? 'is-editing' : ''}">
-          <div class="map-title">☁ Myšlenkový Palác</div>
-          <a href="#/mapa/frakce"    class="map-mode-btn ${mode==='frakce'    ?'active':''}">Frakce</a>
-          <a href="#/mapa/vztahy"    class="map-mode-btn ${mode==='vztahy'    ?'active':''}">Vztahy</a>
-          <a href="#/mapa/tajemstvi" class="map-mode-btn ${mode==='tajemstvi' ?'active':''}">Záhady</a>
-          <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.runAutoLayout')} title="Animovaně přeuspořádá uzly do matematicky ideálních pozic (Fruchterman–Reingold) — minimalizuje křížení vazeb a drží mapu kompaktní">✨ Auto rozložení</button>
-          ${mode === 'frakce' ? `<button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.runDagreLayout')} title="Hierarchické rozložení (dagre): frakce nahoře, velení a místa pod nimi">⊞ Hierarchie</button>` : ''}
-          <button class="map-mode-btn cm-save-pos cm-undo-layout"${dataAction('CloudMap.undoLayout')} title="Vrátí poslední automatické přeuspořádání">↶ Zpět rozložení</button>
-          <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.resetLayout')} title="Vymaže uložené pozice a znovu rozloží uzly automaticky">⟳ Rozložení</button>
-          <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.savePositions')} title="Uloží aktuální pozice uzlů">💾 Uložit</button>
-          <span class="map-hint">Klik = detail · Táhni = pohyb · Scroll = zoom</span>
+          <div class="map-title">☁ ${esc(I18n.t('cloudmap.title'))}</div>
+          <a href="#/mapa/frakce"    class="map-mode-btn ${mode==='frakce'    ?'active':''}">${esc(I18n.t('cloudmap.modeFactions'))}</a>
+          <a href="#/mapa/vztahy"    class="map-mode-btn ${mode==='vztahy'    ?'active':''}">${esc(I18n.t('cloudmap.modeRelations'))}</a>
+          <a href="#/mapa/tajemstvi" class="map-mode-btn ${mode==='tajemstvi' ?'active':''}">${esc(I18n.t('cloudmap.modeMysteries'))}</a>
+          <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.runAutoLayout')} title="${esc(I18n.t('cloudmap.autoLayoutTitle'))}">✨ ${esc(I18n.t('cloudmap.autoLayout'))}</button>
+          ${mode === 'frakce' ? `<button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.runDagreLayout')} title="${esc(I18n.t('cloudmap.hierarchyTitle'))}">⊞ ${esc(I18n.t('cloudmap.hierarchy'))}</button>` : ''}
+          <button class="map-mode-btn cm-save-pos cm-undo-layout"${dataAction('CloudMap.undoLayout')} title="${esc(I18n.t('cloudmap.undoLayoutTitle'))}">↶ ${esc(I18n.t('cloudmap.undoLayout'))}</button>
+          <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.resetLayout')} title="${esc(I18n.t('cloudmap.resetLayoutTitle'))}">⟳ ${esc(I18n.t('cloudmap.resetLayout'))}</button>
+          <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.savePositions')} title="${esc(I18n.t('cloudmap.savePositionsTitle'))}">💾 ${esc(I18n.t('cloudmap.savePositions'))}</button>
+          <span class="map-hint">${esc(I18n.t('cloudmap.toolbarHint'))}</span>
           ${editToggle}
         </div>
         ${_buildFilterBar(mode)}
@@ -939,17 +940,17 @@ export const CloudMap = (() => {
     };
     if (mode === 'vztahy') {
       edgeChips = [
-        ['commands','velí',EDGE_COLORS.commands], ['ally','spojenec',EDGE_COLORS.ally],
-        ['enemy','nepřítel',EDGE_COLORS.enemy], ['mission','mise',EDGE_COLORS.mission],
-        ['mystery','záhada',EDGE_COLORS.mystery], ['negotiates','jednání',EDGE_COLORS.negotiates],
-        ['captured_by','zajat',EDGE_COLORS.captured_by], ['history','minulost',EDGE_COLORS.history],
-        ['uncertain','nejistota',EDGE_COLORS.uncertain],
+        ['commands',I18n.t('cloudmap.edgeCommands'),EDGE_COLORS.commands], ['ally',I18n.t('cloudmap.edgeAlly'),EDGE_COLORS.ally],
+        ['enemy',I18n.t('cloudmap.edgeEnemy'),EDGE_COLORS.enemy], ['mission',I18n.t('cloudmap.edgeMission'),EDGE_COLORS.mission],
+        ['mystery',I18n.t('cloudmap.edgeMystery'),EDGE_COLORS.mystery], ['negotiates',I18n.t('cloudmap.edgeNegotiates'),EDGE_COLORS.negotiates],
+        ['captured_by',I18n.t('cloudmap.edgeCaptured'),EDGE_COLORS.captured_by], ['history',I18n.t('cloudmap.edgeHistory'),EDGE_COLORS.history],
+        ['uncertain',I18n.t('cloudmap.edgeUncertain'),EDGE_COLORS.uncertain],
       ].map(([t,l,c]) => buildEdgeChip(t,l,c)).join('');
     } else if (mode === 'frakce') {
       edgeChips = [
-        ['member','frakce','#888'], ['located_at','lokace','#5D7A3A'],
-        ['commands','velí',EDGE_COLORS.commands], ['negotiates','jednání',EDGE_COLORS.negotiates],
-        ['ally','spojenec',EDGE_COLORS.ally],
+        ['member',I18n.t('cloudmap.edgeMember'),'#888'], ['located_at',I18n.t('cloudmap.edgeLocation'),'#5D7A3A'],
+        ['commands',I18n.t('cloudmap.edgeCommands'),EDGE_COLORS.commands], ['negotiates',I18n.t('cloudmap.edgeNegotiates'),EDGE_COLORS.negotiates],
+        ['ally',I18n.t('cloudmap.edgeAlly'),EDGE_COLORS.ally],
       ].map(([t,l,c]) => buildEdgeChip(t,l,c)).join('');
     }
 
@@ -959,20 +960,20 @@ export const CloudMap = (() => {
       <div class="map-filterbar">
         <div class="tf-mount cm-filter-mount"
              data-tf-id="cm-filter"
-             data-tf-placeholder="🔍 Filtr — napiš a Enter (stav, druh, tag, místo…)"
-             data-tf-hint="Víc chipů = AND. Např. „naživu“ + „elf“ → živí elfové."
+             data-tf-placeholder="${esc(I18n.t('cloudmap.filterPlaceholder'))}"
+             data-tf-hint="${esc(I18n.t('cloudmap.filterHint'))}"
              data-tf-value="${esc(tfValue)}"></div>
-        ${edgeChips ? `<div class="cm-chip-group cm-chip-group-edge" title="Skrýt typy vazeb">${edgeChips}</div>` : ''}
+        ${edgeChips ? `<div class="cm-chip-group cm-chip-group-edge" title="${esc(I18n.t('cloudmap.hideEdgeTypes'))}">${edgeChips}</div>` : ''}
         <button type="button" class="cm-focus-toggle${focusOn}"
                 ${dataAction('CloudMap.toggleFocusMode')}
-                title="Klik na uzel zaměří jeho okolí místo otevření detailu">🎯 Fokus</button>
+                title="${esc(I18n.t('cloudmap.focusTitle'))}">🎯 ${esc(I18n.t('cloudmap.focus'))}</button>
         <span class="cm-focus-hops" ${_focusMode ? '' : 'hidden'}>
           <input type="range" min="1" max="4" step="1" value="${_filters.focusHops}"
                  ${dataOn('input', 'CloudMap.setFocusHops', '$value')}>
-          <span class="cm-focus-hops-val">${_filters.focusHops}</span> hop
+          <span class="cm-focus-hops-val">${_filters.focusHops}</span> ${esc(I18n.t('cloudmap.hop'))}
         </span>
         <button type="button" class="cm-clear-filters"${dataAction('CloudMap.clearFilters')}
-                title="Vymazat všechny filtry">⨯</button>
+                title="${esc(I18n.t('cloudmap.clearFilters'))}">⨯</button>
       </div>`;
   }
 
@@ -2308,16 +2309,16 @@ export const CloudMap = (() => {
 
     const items = [];
     const hash = _detailHashFor(d);
-    if (hash) items.push({ label: '↗ Otevřít detail', action: () => { window.location.hash = hash; } });
+    if (hash) items.push({ label: '↗ ' + I18n.t('cloudmap.openDetail'), action: () => { window.location.hash = hash; } });
 
     if (isFocused) {
-      items.push({ label: '⨯ Zrušit fokus', action: () => {
+      items.push({ label: '⨯ ' + I18n.t('cloudmap.clearFocus'), action: () => {
         _filters.focusId = null;
         _saveVFilter();
         _applyVisualFilter();
       }});
     } else {
-      items.push({ label: '🎯 Zaměřit okolí', action: () => {
+      items.push({ label: '🎯 ' + I18n.t('cloudmap.focusNeighborhood'), action: () => {
         _focusMode = true;
         _filters.focusId = node.id();
         _saveVFilter();
@@ -2331,12 +2332,12 @@ export const CloudMap = (() => {
     }
 
     if (d.type === 'character' && _currentMode !== 'vztahy') {
-      items.push({ label: '🔗 Zobrazit vazby', action: () => {
+      items.push({ label: '🔗 ' + I18n.t('cloudmap.showRelations'), action: () => {
         window.location.hash = '#/mapa/vztahy';
       }});
     }
     if (d.type === 'character') {
-      items.push({ label: '➕ Přidat vazbu odsud', action: () => {
+      items.push({ label: '➕ ' + I18n.t('cloudmap.addRelationHere'), action: () => {
         // Land on the character page; in edit mode the relationship form
         // is rendered inline and pre-focused on the new-row.
         window.location.hash = `#/postava/${d.id}`;
@@ -2669,23 +2670,23 @@ export const CloudMap = (() => {
     const leg = document.getElementById('map-legend');
     if (leg) {
       leg.innerHTML = `
-        <div class="legend-title">Frakce</div>
+        <div class="legend-title">${esc(I18n.t('cloudmap.legendFactions'))}</div>
         ${_buildFactionFilterLegend(factions, HIDDEN_HUB_FACTIONS)}
         <div class="legend-item">
           <div class="legend-dot" style="background:#5D7A3A"></div>
-          📍 Místo
+          📍 ${esc(I18n.t('cloudmap.placeStrip'))}
         </div>
         <div class="legend-item" style="margin-top:0.4rem;opacity:0.55">
           <div class="legend-dot" style="background:#666;border:1px dashed #888"></div>
-          Mrtvý
+          ${esc(I18n.t('cloudmap.legendDead'))}
         </div>
         <div style="margin-top:0.5rem">
-          <div class="legend-title">Vazby</div>
-          <div class="legend-item"><div class="legend-line" style="border-top:1.5px dashed #888"></div> Člen frakce</div>
-          <div class="legend-item"><div class="legend-line" style="border-top:3px solid #8B0000"></div> Velení</div>
-          <div class="legend-item"><div class="legend-line" style="border-top:2px dashed #1565C0"></div> Jednání</div>
-          <div class="legend-item"><div class="legend-line" style="border-top:2px solid #2E7D32"></div> Spojenec</div>
-          <div class="legend-item"><div class="legend-line" style="border-top:2px dotted #5D7A3A"></div> Lokace</div>
+          <div class="legend-title">${esc(I18n.t('cloudmap.legendRelations'))}</div>
+          <div class="legend-item"><div class="legend-line" style="border-top:1.5px dashed #888"></div> ${esc(I18n.t('cloudmap.legendFactionMember'))}</div>
+          <div class="legend-item"><div class="legend-line" style="border-top:3px solid #8B0000"></div> ${esc(I18n.t('cloudmap.legendCommand'))}</div>
+          <div class="legend-item"><div class="legend-line" style="border-top:2px dashed #1565C0"></div> ${esc(I18n.t('cloudmap.legendNegotiation'))}</div>
+          <div class="legend-item"><div class="legend-line" style="border-top:2px solid #2E7D32"></div> ${esc(I18n.t('cloudmap.legendAlly'))}</div>
+          <div class="legend-item"><div class="legend-line" style="border-top:2px dotted #5D7A3A"></div> ${esc(I18n.t('cloudmap.legendLocation'))}</div>
         </div>`;
 
       if (_hiddenFactions.size) _applyFactionFilter();
@@ -2716,23 +2717,23 @@ export const CloudMap = (() => {
     _bind();
 
     const typeRows = [
-      ['commands','Velení'], ['ally','Spojenec'], ['enemy','Nepřítel'],
-      ['mission','Mise'],    ['mystery','Záhada'], ['history','Minulost'],
+      ['commands',I18n.t('cloudmap.legendCommand')], ['ally',I18n.t('cloudmap.legendAlly')], ['enemy',I18n.t('cloudmap.legendEnemy')],
+      ['mission',I18n.t('cloudmap.legendMission')],    ['mystery',I18n.t('cloudmap.legendMystery')], ['history',I18n.t('cloudmap.legendPast')],
     ].map(([t, l]) => {
       const es = EDGE_STYLES[t] || {};
       const c  = EDGE_COLORS[t] || '#666';
       const d  = es['line-style'] || 'solid';
       return `<div class="legend-item">
-        <div class="legend-line" style="border-top:2px ${d} ${c}"></div>${l}
+        <div class="legend-line" style="border-top:2px ${d} ${c}"></div>${esc(l)}
       </div>`;
     }).join('');
 
     const leg = document.getElementById('map-legend');
     if (leg) {
       leg.innerHTML = `
-        <div class="legend-title">Typy vazeb</div>
+        <div class="legend-title">${esc(I18n.t('cloudmap.legendRelationTypes'))}</div>
         ${typeRows}
-        <div class="legend-title" style="margin-top:0.5rem">Frakce</div>
+        <div class="legend-title" style="margin-top:0.5rem">${esc(I18n.t('cloudmap.legendFactions'))}</div>
         ${_buildFactionFilterLegend(factions)}`;
       if (_hiddenFactions.size) _applyFactionFilter();
     }
@@ -2778,10 +2779,10 @@ export const CloudMap = (() => {
     const leg = document.getElementById('map-legend');
     if (leg) {
       leg.innerHTML = `
-        <div class="legend-title">Záhady</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#6A1B9A"></div> Záhada</div>
-        <div class="legend-item"><div class="legend-dot"></div> Zapojená postava</div>
-        <div class="legend-title" style="margin-top:0.5rem">Frakce</div>
+        <div class="legend-title">${esc(I18n.t('cloudmap.legendMysteries'))}</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#6A1B9A"></div> ${esc(I18n.t('cloudmap.legendMystery'))}</div>
+        <div class="legend-item"><div class="legend-dot"></div> ${esc(I18n.t('cloudmap.legendInvolvedCharacter'))}</div>
+        <div class="legend-title" style="margin-top:0.5rem">${esc(I18n.t('cloudmap.legendFactions'))}</div>
         ${_buildFactionFilterLegend(factions)}`;
       if (_hiddenFactions.size) _applyFactionFilter();
     }
@@ -2836,13 +2837,13 @@ export const CloudMap = (() => {
     const leg = document.getElementById('map-legend');
     if (leg) {
       leg.innerHTML = `
-        <div class="legend-title">Časová Osa</div>
+        <div class="legend-title">${esc(I18n.t('cloudmap.legendTimeline'))}</div>
         <div class="legend-item">
-          <div class="legend-line" style="border-top:2px solid #C8A040"></div> Sled událostí
+          <div class="legend-line" style="border-top:2px solid #C8A040"></div> ${esc(I18n.t('cloudmap.legendEventSequence'))}
         </div>
-        <div class="legend-item"><div class="legend-dot" style="background:#8B6914"></div> Událost</div>
-        <div class="legend-item"><div class="legend-dot"></div> Postava</div>
-        <div class="legend-title" style="margin-top:0.5rem">Frakce</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#8B6914"></div> ${esc(I18n.t('cloudmap.legendEvent'))}</div>
+        <div class="legend-item"><div class="legend-dot"></div> ${esc(I18n.t('cloudmap.legendCharacter'))}</div>
+        <div class="legend-title" style="margin-top:0.5rem">${esc(I18n.t('cloudmap.legendFactions'))}</div>
         ${_buildFactionFilterLegend(factions)}`;
       if (_hiddenFactions.size) _applyFactionFilter();
     }

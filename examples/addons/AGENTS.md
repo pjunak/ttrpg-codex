@@ -44,6 +44,9 @@ reach the app through the `host` facade — there are no globals.
 9. **Addon-owned collections are declared in `addon.json` `collections[]`
    before `registerCollection`.** Wiki-kind resolvers look targets up **by name
    → real id** (ids carry a random suffix; never assume the slug).
+10. **Write the whole addon — UI strings included — in English.** The app's
+   language switcher is a visual layer over the *core* UI only; it doesn't reach
+   addon code, and there is no addon translation API.
 
 ---
 
@@ -166,7 +169,7 @@ the addon loads at boot. Iterate, re-run to reinstall.
 ```jsonc
 // addon.json
 {
-  "id": "notes", "name": "Poznámky", "version": "0.1.0",
+  "id": "notes", "name": "Notes", "version": "0.1.0",
   "apiVersion": 1, "hostVersion": ">=1.0.0", "entry": "entry.js",
   "permissions": ["ui:route", "ui:sidebar", "ui:action", "data:own"],
   "collections": [{ "name": "notes", "keyed": false }],
@@ -179,32 +182,32 @@ export default function register(host) {
   const { esc, dataAction, dataOn } = host.h;
   host.registerCollection('notes');
   const notes = () => host.store.collection('notes');
-  host.registerSidebarPage({ route: '/poznamky', label: 'Poznámky', icon: '📝' });
+  host.registerSidebarPage({ route: '/notes', label: 'Notes', icon: '📝' });
 
   function add() {
     const el = document.getElementById('note-input');
     const text = (el?.value || '').trim();
     if (!text) return;
     notes().save({ text });            // upsert; id generated if missing
-    host.ui.toast('Přidáno');
+    host.ui.toast('Added');
     host.ui.rerender();
   }
   host.registerAction('add', add);
   host.registerAction('addOnEnter', (ev) => { if (ev?.key === 'Enter') { ev.preventDefault(); add(); } });
   host.registerAction('del', (id) => { notes().remove(id); host.ui.rerender(); });
 
-  host.registerRoute('poznamky', () => {
+  host.registerRoute('notes', () => {
     const items = notes().list();
     const rows = items.length
       ? items.map(n => `<li>${esc(n.text)} <button class="inline-create-btn"${dataAction(host.action('del'), n.id)}>×</button></li>`).join('')
-      : `<li style="color:var(--text-muted)">Zatím nic.</li>`;
+      : `<li style="color:var(--text-muted)">Nothing yet.</li>`;
     const canEdit = !host.role.isAnonymous();
     return `
-      <div class="page-header"><h1>📝 Poznámky</h1></div>
+      <div class="page-header"><h1>📝 Notes</h1></div>
       <ul style="line-height:1.9;margin-top:var(--space-3)">${rows}</ul>
       ${canEdit ? `<div style="display:flex;gap:var(--space-2);margin-top:var(--space-3);max-width:32rem">
-        <input id="note-input" class="edit-input" style="flex:1" placeholder="Nová poznámka"${dataOn('keydown', host.action('addOnEnter'), '$ev')}>
-        <button class="inline-create-btn"${dataAction(host.action('add'))}>＋ Přidat</button>
+        <input id="note-input" class="edit-input" style="flex:1" placeholder="New note"${dataOn('keydown', host.action('addOnEnter'), '$ev')}>
+        <button class="inline-create-btn"${dataAction(host.action('add'))}>＋ Add</button>
       </div>` : ''}`;
   });
 }

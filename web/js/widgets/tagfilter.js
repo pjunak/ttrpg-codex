@@ -10,6 +10,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { esc, norm } from '../utils.js';
+import { I18n } from '../i18n.js';
 
 function _emitChange(el, values) {
   const hid = el.querySelector('input[type="hidden"]');
@@ -25,7 +26,7 @@ function _mount(el) {
   el.dataset.mounted = '1';
 
   const hiddenId   = el.dataset.tfId || ('tf_' + Math.random().toString(36).slice(2));
-  const placeholder = el.dataset.tfPlaceholder || '🔍 Napiš a stiskni Enter…';
+  const placeholder = el.dataset.tfPlaceholder || I18n.t('widget.tagfilterPlaceholder');
   const hintText   = el.dataset.tfHint || '';
   const initial    = (el.dataset.tfValue || '')
     .split(',').map(s => s.trim()).filter(Boolean);

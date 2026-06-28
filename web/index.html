@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="cs" data-theme="classic">
+<html lang="en" data-theme="classic">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
@@ -62,9 +62,9 @@
       </div>
     </div>
 
-    <button class="sidebar-search-btn" type="button" data-action="GlobalSearch.open" title="Globální vyhledávání (Ctrl+K)">
+    <button class="sidebar-search-btn" type="button" data-action="GlobalSearch.open" title="Global search (Ctrl+K)" data-i18n-title="search.tooltip">
       <span class="sidebar-search-icon">🔍</span>
-      <span class="sidebar-search-label">Hledat…</span>
+      <span class="sidebar-search-label" data-i18n="search.placeholder">Search…</span>
       <span class="sidebar-search-kbd">Ctrl K</span>
     </button>
 
@@ -79,7 +79,7 @@
          timeline / palác). The single "⚙ Nastavení" link covers the
          backup + account + enum-edit tabs. -->
     <div class="sidebar-footer">
-      <a class="sidebar-export-btn" href="#/nastaveni" title="Číselníky, mapa světa, záloha, účet…">⚙ Nastavení</a>
+      <a class="sidebar-export-btn" href="#/nastaveni" title="Enums, world map, backup, account…" data-i18n-title="nav.settingsTooltip">⚙ <span data-i18n="nav.settings">Settings</span></a>
     </div>
   </nav>
 
@@ -89,7 +89,7 @@
       <div class="loading-dragon">
         <img class="js-brand-logo" src="/branding/logo-default.svg" alt="">
       </div>
-      <div class="loading-text">Načítám kodex…</div>
+      <div class="loading-text" data-i18n="loading.text">Loading codex…</div>
     </div>
   </main>
 
@@ -97,20 +97,20 @@
   <nav class="bottom-nav" id="bottom-nav">
     <a href="#/" class="bottom-item" data-route="/">
       <span class="bottom-icon">🏠</span>
-      <span class="bottom-label">Přehled</span>
+      <span class="bottom-label" data-i18n="nav.overview">Overview</span>
     </a>
     <a href="#/parta" class="bottom-item" data-route="/parta">
       <span class="bottom-icon">🛡</span>
-      <span class="bottom-label">Parta</span>
+      <span class="bottom-label" data-i18n="nav.party">Party</span>
     </a>
     <a href="#/casova-osa" class="bottom-item" data-route="/casova-osa">
       <span class="bottom-icon">⏳</span>
-      <span class="bottom-label">Časová Osa</span>
+      <span class="bottom-label" data-i18n="nav.timeline">Timeline</span>
     </a>
     <button class="bottom-item" id="mobile-menu-btn" type="button"
             data-action="bodyToggleClass" data-args='["mobile-nav-open"]'>
       <span class="bottom-icon">☰</span>
-      <span class="bottom-label">Menu</span>
+      <span class="bottom-label" data-i18n="nav.menu">Menu</span>
     </button>
     <!-- Global "✏ Úpravy" mobile toggle removed in the per-page edit
          migration. Editing is per-entity: tap the pencil on a card,
@@ -125,10 +125,10 @@
   <!-- ── MAP MODE SHEET (mobile) ───────────────────────────── -->
   <div class="map-sheet" id="map-sheet" hidden>
     <div class="map-sheet-inner">
-      <div class="map-sheet-title">Vybrat Mapu</div>
-      <a href="#/mapa/svet"  class="map-sheet-item">🗺 Mapa</a>
-      <a href="#/mapa/palac" class="map-sheet-item">☁ Myšlenkový Palác</a>
-      <a href="#/casova-osa" class="map-sheet-item">⏳ Časová Osa</a>
+      <div class="map-sheet-title" data-i18n="mapSheet.title">Choose Map</div>
+      <a href="#/mapa/svet"  class="map-sheet-item">🗺 <span data-i18n="nav.map">Map</span></a>
+      <a href="#/mapa/palac" class="map-sheet-item">☁ <span data-i18n="nav.mindPalace">Mind Palace</span></a>
+      <a href="#/casova-osa" class="map-sheet-item">⏳ <span data-i18n="nav.timeline">Timeline</span></a>
     </div>
   </div>
   <div class="map-sheet-backdrop" id="map-backdrop" hidden></div>

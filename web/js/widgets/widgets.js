@@ -20,6 +20,7 @@
 import { Store } from '../store.js';
 import { esc, norm, debounce } from '../utils.js';
 import { TagFilter } from './tagfilter.js';
+import { I18n } from '../i18n.js';
 
 // ── Outside-click tracking ──────────────────────────────────────
 // Every Combobox/MultiSelect needs to close when the user clicks
@@ -120,10 +121,12 @@ function _createInline(source, name) {
   return null;
 }
 
+// Returns the i18n key for the entity-kind noun used in the inline
+// "Create {kind} «typed»" option (resolved via I18n.t at render time).
 function _createKindLabel(source) {
-  if (source === 'location') return 'místo';
-  if (source === 'species')  return 'druh';
-  return 'postavu';
+  if (source === 'location') return 'widget.kindLocation';
+  if (source === 'species')  return 'widget.kindSpecies';
+  return 'widget.kindCharacter';
 }
 
 // ── Combobox (single-select, searchable) ────────────────────────
@@ -134,9 +137,9 @@ function _mountCombobox(el) {
   const hiddenId  = el.dataset.cbId || ('cb_' + Math.random().toString(36).slice(2));
   const source    = el.dataset.cbSource || 'character';
   const excludeId = el.dataset.cbExclude || '';
-  const placeholder = el.dataset.cbPlaceholder || 'Vyber…';
+  const placeholder = el.dataset.cbPlaceholder || I18n.t('widget.selectPlaceholder');
   const allowEmpty  = el.dataset.cbAllowEmpty === '1';
-  const emptyLabel  = el.dataset.cbEmptyLabel || '— žádné —';
+  const emptyLabel  = el.dataset.cbEmptyLabel || I18n.t('widget.emptyOption');
   const onCreate  = el.dataset.cbOnCreate || ''; // 'character' | 'location' | ''
 
   let options = _resolveOptions(source, excludeId);
@@ -191,14 +194,14 @@ function _mountCombobox(el) {
     if (exact) return '';
     const kind = _createKindLabel(onCreate);
     return `<div class="w-cb-create" data-create="${esc(typed)}" role="option">
-      ✦ Vytvořit ${esc(kind)} «${esc(typed)}»
+      ${esc(I18n.t('widget.createOption', { kind: I18n.t(kind), typed }))}
     </div>`;
   }
   function _renderList() {
     const items = _filtered();
     const createRow = _createRowHtml();
     if (!items.length && !createRow) {
-      listEl.innerHTML = `<div class="w-cb-empty-row">Žádné výsledky</div>`;
+      listEl.innerHTML = `<div class="w-cb-empty-row">${esc(I18n.t('widget.noResults'))}</div>`;
       return;
     }
     listEl.innerHTML = items.map((o, i) => {
@@ -313,7 +316,7 @@ function _mountMultiSelect(el) {
   el.dataset.mounted = '1';
 
   const source      = el.dataset.msSource || 'character';
-  const placeholder = el.dataset.msPlaceholder || 'Hledat…';
+  const placeholder = el.dataset.msPlaceholder || I18n.t('search.placeholder');
   const onCreate    = el.dataset.msOnCreate || ''; // 'character' | 'location' | ''
   const initial     = (el.dataset.msValue || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -378,14 +381,14 @@ function _mountMultiSelect(el) {
     if (exact) return '';
     const kind = _createKindLabel(onCreate);
     return `<div class="w-ms-create" data-create="${esc(typed)}" role="option">
-      ✦ Vytvořit ${esc(kind)} «${esc(typed)}»
+      ${esc(I18n.t('widget.createOption', { kind: I18n.t(kind), typed }))}
     </div>`;
   }
   function _renderList() {
     const items = _filtered();
     const createRow = _createRowHtml();
     if (!items.length && !createRow) {
-      listEl.innerHTML = `<div class="w-ms-empty-row">Žádné výsledky</div>`;
+      listEl.innerHTML = `<div class="w-ms-empty-row">${esc(I18n.t('widget.noResults'))}</div>`;
       return;
     }
     listEl.innerHTML = items.map((o, i) => {

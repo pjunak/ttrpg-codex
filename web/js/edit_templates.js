@@ -2,6 +2,7 @@ import { Store } from './store.js';
 import { PIN_TYPES, PIN_SIZE_MIN, PIN_SIZE_MAX } from './map.js';
 import { REL_TYPES } from './data.js';
 import { esc, dataAction, dataOn } from './utils.js';
+import { I18n } from './i18n.js';
 
 export const EditTemplates = (() => {
 
@@ -87,25 +88,25 @@ export const EditTemplates = (() => {
     if (linkedId) {
       const route   = TWIN_ROUTE_PREFIX[collection];
       const twinNm  = twin ? twin.name : linkedId;
-      const twinVis = twin && twin.visibility === 'dm' ? 'DM' : 'hráčský';
+      const twinVis = twin && twin.visibility === 'dm' ? I18n.t('editform.twinVisDm') : I18n.t('editform.twinVisPlayer');
       return `
         <div class="edit-hdr-twin">
           <a class="dm-twin-badge dm-twin-badge-linked"
              href="#/${route}/${esc(linkedId)}"
-             title="Otevřít twin">
+             title="${esc(I18n.t('editform.twinOpen'))}">
             ✓ ${esc(twinNm)} <span class="dm-twin-badge-vis">(${esc(twinVis)})</span> →
           </a>
-          <button type="button" class="dm-twin-btn dm-twin-btn-unlink" title="Odpárovat twin"
-            ${dataAction('EditMode.unlinkTwin', collection, entity.id)}>🔗 Odpárovat</button>
+          <button type="button" class="dm-twin-btn dm-twin-btn-unlink" title="${esc(I18n.t('editform.twinUnlink'))}"
+            ${dataAction('EditMode.unlinkTwin', collection, entity.id)}>🔗 ${esc(I18n.t('editform.twinUnlink'))}</button>
         </div>`;
     }
     const visibility    = entity.visibility === 'dm' ? 'dm' : 'public';
-    const oppositeLabel = visibility === 'dm' ? 'hráčský' : 'DM';
+    const oppositeLabel = visibility === 'dm' ? I18n.t('editform.twinVisPlayer') : I18n.t('editform.twinVisDm');
     return `
       <div class="edit-hdr-twin">
         <button type="button" class="dm-twin-btn dm-twin-btn-link"
           ${dataAction('EditMode.openTwinPicker', collection, entity.id)}>
-          🔗 Připojit ${oppositeLabel} twin
+          🔗 ${esc(I18n.t('editform.twinLink', { label: oppositeLabel }))}
         </button>
       </div>`;
   }
@@ -134,19 +135,19 @@ export const EditTemplates = (() => {
     // when the entity is a PC (server-pinned public).
     const visDisabled = (linkedId || isPc) ? 'disabled' : '';
     const visNote = isPc
-      ? `<small class="edit-hint">PC postavy jsou vždy veřejné.</small>`
+      ? `<small class="edit-hint">${esc(I18n.t('editform.visNotePc'))}</small>`
       : linkedId
-        ? `<small class="edit-hint">Tato entita má spárovaný twin — odpárujte ho v hlavičce před změnou viditelnosti.</small>`
+        ? `<small class="edit-hint">${esc(I18n.t('editform.visNoteTwin'))}</small>`
         : '';
 
     return `
       <div class="edit-section visibility-section" id="vis-section-${esc(uid)}">
-        <div class="edit-section-title">🛡 Viditelnost (DM)</div>
+        <div class="edit-section-title">🛡 ${esc(I18n.t('editform.visTitle'))}</div>
         <div class="edit-field">
-          <label class="edit-label">Viditelnost záznamu</label>
+          <label class="edit-label">${esc(I18n.t('editform.visLabel'))}</label>
           <select class="edit-select" id="vis-${esc(uid)}" ${visDisabled}>
-            <option value="public" ${visibility==='public'?'selected':''}>Veřejné — vidí všichni</option>
-            <option value="dm"     ${visibility==='dm'?'selected':''}>Jen DM</option>
+            <option value="public" ${visibility==='public'?'selected':''}>${esc(I18n.t('editform.visPublic'))}</option>
+            <option value="dm"     ${visibility==='dm'?'selected':''}>${esc(I18n.t('editform.visDmOnly'))}</option>
           </select>
           ${visNote}
         </div>
@@ -205,11 +206,14 @@ export const EditTemplates = (() => {
   const REL_CONFIG = Object.fromEntries(REL_TYPES.map(t => [t.id, t]));
   const REL_LABELS = Object.fromEntries(REL_TYPES.map(t => [t.id, t.label]));
 
-  const DIR_LABELS = {
-    from: 'Tato postava →',
-    to:   '← Na tuto postavu',
-    both: '↔ Oboustranná',
-  };
+  // Direction labels read lazily (per-render) so a language switch is
+  // reflected — a module-level frozen object would capture boot-time text.
+  function _dirLabel(d) {
+    if (d === 'from') return I18n.t('editform.dirFrom');
+    if (d === 'to')   return I18n.t('editform.dirTo');
+    if (d === 'both') return I18n.t('editform.dirBoth');
+    return d;
+  }
 
   /** Build a Combobox placeholder for the relationship target picker.
    *  Replaces the legacy <select> + <option> list — values are still readable
@@ -219,13 +223,13 @@ export const EditTemplates = (() => {
     const cfg     = REL_CONFIG[type] || REL_CONFIG.commands;
     const source  = cfg.target === 'location' ? 'location' : 'character';
     const exclude = cfg.target === 'character' ? charId : '';
-    const placeholder = cfg.target === 'location' ? 'Vyber místo…' : 'Vyber postavu…';
+    const placeholder = cfg.target === 'location' ? I18n.t('editform.pickLocation') : I18n.t('editform.pickCharacter');
     return `<div class="cb-mount rel-target-cb"
               data-cb-id="${prefix}-target"
               data-cb-source="${source}"
               data-cb-exclude="${esc(exclude)}"
               data-cb-value="${esc(selectedId || '')}"
-              data-cb-placeholder="${placeholder}"
+              data-cb-placeholder="${esc(placeholder)}"
               data-cb-on-create="${source}"></div>`;
   }
 
@@ -233,7 +237,7 @@ export const EditTemplates = (() => {
   function _dirOpts(type, selectedDir) {
     const cfg = REL_CONFIG[type] || REL_CONFIG.commands;
     return cfg.dirs.map(d =>
-      `<option value="${d}" ${d===selectedDir?'selected':''}>${DIR_LABELS[d]}</option>`
+      `<option value="${d}" ${d===selectedDir?'selected':''}>${esc(_dirLabel(d))}</option>`
     ).join('');
   }
 
@@ -261,10 +265,10 @@ export const EditTemplates = (() => {
       ? dataAction('EditMode.addRelationship', charId)
       : dataAction('EditMode.updateRelationship', charId, idx);
     const deleteBtn  = isNew ? '' :
-      `<button class="rel-delete-btn" title="Smazat"
+      `<button class="rel-delete-btn" title="${esc(I18n.t('action.delete'))}"
          ${dataAction('EditMode.deleteRelationship', r.source, r.target, r.type, charId)}>×</button>`;
-    const saveLabel  = isNew ? '+ Přidat' : '💾';
-    const saveTitle  = isNew ? 'Přidat vazbu' : 'Uložit změny';
+    const saveLabel  = isNew ? '+ ' + I18n.t('action.add') : '💾';
+    const saveTitle  = isNew ? I18n.t('editform.addRelationship') : I18n.t('editform.saveChanges');
 
     return `<div class="rel-edit-row" data-idx="${idx}">
       <select class="edit-select edit-select-sm" id="${prefix}-type"
@@ -273,7 +277,7 @@ export const EditTemplates = (() => {
       <div class="rel-target-wrap">${tgtMount}</div>
       <input class="edit-input edit-input-sm" id="${prefix}-label" value="${esc(label)}"
         placeholder="${esc(REL_CONFIG[type].label)}">
-      <button class="edit-add-btn"${saveAttr} title="${saveTitle}">${saveLabel}</button>
+      <button class="edit-add-btn"${saveAttr} title="${esc(saveTitle)}">${esc(saveLabel)}</button>
       ${deleteBtn}
     </div>`;
   }
@@ -286,9 +290,9 @@ export const EditTemplates = (() => {
 
     return `
       <div class="edit-section" id="rel-section-${charId}">
-        <div class="edit-section-title">Vazby</div>
+        <div class="edit-section-title">${esc(I18n.t('editform.relationships'))}</div>
         <div class="rel-edit-list" id="rel-list-${charId}">
-          ${existingRows || `<span class="edit-hint">Žádné vazby</span>`}
+          ${existingRows || `<span class="edit-hint">${esc(I18n.t('editform.noRelationships'))}</span>`}
         </div>
         <div class="rel-add-form">${newRow}</div>
       </div>`;
@@ -307,7 +311,10 @@ export const EditTemplates = (() => {
     const uid = c.id || "new";
     const factions  = Store.getFactions();
     const statusMap = Store.getStatusMap();
-    const KNAMES = ["Neznámý","Tušený","Základní","Dobře znám","Plně zmapován"];
+    const KNAMES = [
+      I18n.t('editform.know0'), I18n.t('editform.know1'), I18n.t('editform.know2'),
+      I18n.t('editform.know3'), I18n.t('editform.know4'),
+    ];
 
     // Synthetic "Naše parta" option at the top — the player party
     // moved out of the factions collection (it lives in
@@ -327,8 +334,8 @@ export const EditTemplates = (() => {
     // selection for new characters.
     const isRealFaction = realFactions.some(([id]) => id === c.faction);
     const neutralSelected = c.faction !== 'party' && !isRealFaction;
-    const neutralOption = `<option value="neutral" ${neutralSelected ? "selected" : ""}>👤 Bez frakce (neutrální)</option>`;
-    const partyOption = `<option value="party" ${c.faction==='party'?"selected":""}>${esc(pp.badge || pp.icon || '🛡')} ${esc(pp.name || 'Naše parta')}</option>`;
+    const neutralOption = `<option value="neutral" ${neutralSelected ? "selected" : ""}>👤 ${esc(I18n.t('editform.noFaction'))}</option>`;
+    const partyOption = `<option value="party" ${c.faction==='party'?"selected":""}>${esc(pp.badge || pp.icon || '🛡')} ${esc(pp.name || I18n.t('editform.ourParty'))}</option>`;
     const fOpts = neutralOption + partyOption + realFactions.map(([id,f]) =>
       `<option value="${id}" ${c.faction===id?"selected":""}>${f.badge} ${esc(f.name)}</option>`).join("");
     const sOpts = Object.entries(statusMap).map(([id,s]) =>
@@ -361,11 +368,11 @@ export const EditTemplates = (() => {
     const isOtherGender = !!(currentGender && !matchedGender);
     const genderSelectValue = !currentGender ? '' : (isOtherGender ? '__other__' : (matchedGender?.id || ''));
     const genderOpts = [
-      `<option value="" ${genderSelectValue===''?'selected':''}>— nezadáno —</option>`,
+      `<option value="" ${genderSelectValue===''?'selected':''}>${esc(I18n.t('editform.notSpecified'))}</option>`,
       ...genderList.map(g =>
         `<option value="${esc(g.id)}" ${genderSelectValue===g.id?'selected':''}>${esc(g.label)}</option>`
       ),
-      `<option value="__other__" ${genderSelectValue==='__other__'?'selected':''}>Ostatní (specifikuj)</option>`,
+      `<option value="__other__" ${genderSelectValue==='__other__'?'selected':''}>${esc(I18n.t('editform.otherSpecify'))}</option>`,
     ].join('');
 
     // Species: Combobox over the Druhy collection. Inline-create lets the
@@ -375,19 +382,19 @@ export const EditTemplates = (() => {
       data-cb-source="species"
       data-cb-value="${esc(c.species || '')}"
       data-cb-allow-empty="1"
-      data-cb-empty-label="— neurčeno —"
-      data-cb-placeholder="Vyber druh…"
+      data-cb-empty-label="${esc(I18n.t('editform.undetermined'))}"
+      data-cb-placeholder="${esc(I18n.t('editform.pickSpecies'))}"
       data-cb-on-create="species"></div>`;
 
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
-          <h2 class="edit-form-title">${isNew ? "✦ Nová postava" : "✏ " + esc(c.name)}</h2>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← ${esc(I18n.t('action.cancel'))}</button>
+          <h2 class="edit-form-title">${isNew ? "✦ " + esc(I18n.t('editform.newCharacter')) : "✏ " + esc(c.name)}</h2>
           ${_twinHeaderRow(uid, c, 'characters')}
           <div class="edit-hdr-actions">
-            <button class="edit-save-btn"${dataAction('EditMode.saveCharacter', c.id)}>💾 Uložit</button>
-            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteCharacter', c.id)}>🗑 Smazat</button>` : ""}
+            <button class="edit-save-btn"${dataAction('EditMode.saveCharacter', c.id)}>💾 ${esc(I18n.t('action.save'))}</button>
+            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteCharacter', c.id)}>🗑 ${esc(I18n.t('action.delete'))}</button>` : ""}
           </div>
         </div>
         <div class="edit-form-split-fields">
@@ -399,35 +406,35 @@ export const EditTemplates = (() => {
                   : `<span style="font-size:2.5rem">${badge}</span>`}
               </div>
               <label class="edit-upload-btn">
-                📷 Nahrát portrét
+                📷 ${esc(I18n.t('editform.uploadPortrait'))}
                 <input type="file" accept="image/*" style="display:none"
                   ${dataOn('change', 'EditMode.handlePortraitChange', uid, '$el')}>
               </label>
               ${c.portrait ? `<button class="edit-remove-portrait-btn"
                 ${dataAction('EditMode.clearPortrait', uid, badge)}>
-                × Odebrat
+                × ${esc(I18n.t('action.remove'))}
               </button>` : ""}
               <input type="hidden" id="ep-data-${uid}" value="${esc(c.portrait)}">
             </div>
             <div class="edit-fields-col">
               <div class="edit-row-2">
                 <div class="edit-field">
-                  <label class="edit-label">Jméno *</label>
-                  <input class="edit-input" id="ef-name-${uid}" value="${esc(c.name)}" placeholder="Jméno postavy">
+                  <label class="edit-label">${esc(I18n.t('editform.nameRequired'))}</label>
+                  <input class="edit-input" id="ef-name-${uid}" value="${esc(c.name)}" placeholder="${esc(I18n.t('editform.charNamePh'))}">
                 </div>
                 <div class="edit-field">
-                  <label class="edit-label">Titul / Krátký popis</label>
-                  <input class="edit-input" id="ef-title-${uid}" value="${esc(c.title)}" placeholder="Titul nebo profese">
+                  <label class="edit-label">${esc(I18n.t('editform.titleShortDesc'))}</label>
+                  <input class="edit-input" id="ef-title-${uid}" value="${esc(c.title)}" placeholder="${esc(I18n.t('editform.titlePh'))}">
                 </div>
               </div>
               <div class="edit-row-2">
                 <div class="edit-field">
-                  <label class="edit-label">Frakce</label>
+                  <label class="edit-label">${esc(I18n.t('editform.faction'))}</label>
                   <select class="edit-select" id="ef-faction-${uid}"
                     ${dataOn('change', 'EditMode.onCharacterFactionChange', uid, '$value')}>${fOpts}</select>
                 </div>
                 <div class="edit-field">
-                  <label class="edit-label">Status</label>
+                  <label class="edit-label">${esc(I18n.t('editform.status'))}</label>
                   <select class="edit-select" id="ef-status-${uid}">${sOpts}</select>
                 </div>
               </div>
@@ -437,66 +444,66 @@ export const EditTemplates = (() => {
                    this wrapper so they participate in the same toggle. -->
               <div id="ef-npc-only-${uid}" style="${Store.isPartyMember(c) ? 'display:none' : ''}">
                 <div class="edit-field">
-                  <label class="edit-label" title="Jak se postava staví k partě a s jakou intenzitou">Postoje k partě <span class="edit-hint" style="font-weight:normal;margin-left:0.5rem">— prázdné = převezme od frakce</span></label>
+                  <label class="edit-label" title="${esc(I18n.t('editform.attitudesHelp'))}">${esc(I18n.t('editform.attitudes'))} <span class="edit-hint" style="font-weight:normal;margin-left:0.5rem">${esc(I18n.t('editform.attitudesInheritHint'))}</span></label>
                   ${attitudeChipRowHtml}
                 </div>
               </div>
               <div class="edit-row-3">
                 <div class="edit-field">
-                  <label class="edit-label">Druh</label>
+                  <label class="edit-label">${esc(I18n.t('editform.species'))}</label>
                   ${speciesMount}
                 </div>
                 <div class="edit-field">
-                  <label class="edit-label">Pohlaví</label>
+                  <label class="edit-label">${esc(I18n.t('editform.gender'))}</label>
                   <select class="edit-select" id="ef-gender-${uid}"
                     ${dataOn('change', 'EditMode.onGenderChange', uid)}>${genderOpts}</select>
                   <input class="edit-input" id="ef-gender-other-${uid}" type="text"
-                    placeholder="Specifikuj…"
+                    placeholder="${esc(I18n.t('editform.specifyPh'))}"
                     value="${isOtherGender ? esc(c.gender) : ''}"
                     style="margin-top:0.4rem;display:${isOtherGender ? '' : 'none'}">
                 </div>
                 <div class="edit-field">
-                  <label class="edit-label">Věk</label>
-                  <input class="edit-input" id="ef-age-${uid}" value="${esc(c.age)}" placeholder="neznámý">
+                  <label class="edit-label">${esc(I18n.t('editform.age'))}</label>
+                  <input class="edit-input" id="ef-age-${uid}" value="${esc(c.age)}" placeholder="${esc(I18n.t('editform.agePh'))}">
                 </div>
               </div>
               <div class="edit-field">
-                <label class="edit-label">Okolnosti (např. zajat, na útěku, v kómatu…)</label>
-                <input class="edit-input" id="ef-circumstances-${uid}" value="${esc(c.circumstances || '')}" placeholder="Volný text — zvláštní situace postavy">
+                <label class="edit-label">${esc(I18n.t('editform.circumstances'))}</label>
+                <input class="edit-input" id="ef-circumstances-${uid}" value="${esc(c.circumstances || '')}" placeholder="${esc(I18n.t('editform.circumstancesPh'))}">
               </div>
               <div class="edit-field">
-                <label class="edit-label" id="ef-kl-${uid}">Znalost (${c.knowledge}/4) — ${KNAMES[c.knowledge]}</label>
+                <label class="edit-label" id="ef-kl-${uid}">${esc(I18n.t('editform.knowledge'))} (${c.knowledge}/4) — ${esc(KNAMES[c.knowledge])}</label>
                 <input type="range" class="edit-range" id="ef-knowledge-${uid}" min="0" max="4" value="${c.knowledge}"
                   ${dataOn('input', 'EditMode.updateKnowledgeLabel', uid)}>
-                <div class="edit-range-labels"><span>Neznámý</span><span>Plně zmapován</span></div>
+                <div class="edit-range-labels"><span>${esc(I18n.t('editform.know0'))}</span><span>${esc(I18n.t('editform.know4'))}</span></div>
               </div>
             </div>
           </div>
           <div class="edit-section">
-            <div class="edit-section-title">Co víme</div>
+            <div class="edit-section-title">${esc(I18n.t('editform.whatWeKnow'))}</div>
             <div class="dyn-list" id="dyn-known-${uid}">${knownRows}</div>
-            <button class="dyn-add-btn"${dataAction('EditMode.addDynRow', `dyn-known-${uid}`)}>+ Přidat</button>
+            <button class="dyn-add-btn"${dataAction('EditMode.addDynRow', `dyn-known-${uid}`)}>+ ${esc(I18n.t('action.add'))}</button>
           </div>
           <div class="edit-section">
             <div class="edit-section-title">
-              Otevřené otázky
-              <span class="settings-hint" style="font-weight:normal">vyplň odpověď → otázka je vyřešená</span>
+              ${esc(I18n.t('editform.openQuestions'))}
+              <span class="settings-hint" style="font-weight:normal">${esc(I18n.t('editform.questionAnswerHint'))}</span>
             </div>
             <div class="qa-list" id="dyn-unknown-${uid}">${unknownRows}</div>
-            <button class="dyn-add-btn" type="button"${dataAction('EditMode.addQARow', `dyn-unknown-${uid}`)}>+ Přidat otázku</button>
+            <button class="dyn-add-btn" type="button"${dataAction('EditMode.addQARow', `dyn-unknown-${uid}`)}>+ ${esc(I18n.t('editform.addQuestion'))}</button>
           </div>
           ${!isNew ? _relSection(c.id) : `
             <div class="edit-section">
-              <div class="edit-section-title">Vazby</div>
-              <p class="edit-hint">Uložte postavu nejprve, pak přidejte vazby.</p>
+              <div class="edit-section-title">${esc(I18n.t('editform.relationships'))}</div>
+              <p class="edit-hint">${esc(I18n.t('editform.saveCharFirst'))}</p>
             </div>`}
           ${_visibilitySection(uid, c, 'characters', { isPc: Store.isPartyMember(c) })}
           <div class="addon-editor-fields" data-addon-kind="characters" data-addon-uid="${uid}"></div>
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">
-            <label class="edit-label">Popis — článek o postavě</label>
-            ${_mdTextarea(`ef-desc-${uid}`, c.description, 30, 'Detailní popis postavy — podporuje Markdown')}
+            <label class="edit-label">${esc(I18n.t('editform.descCharacter'))}</label>
+            ${_mdTextarea(`ef-desc-${uid}`, c.description, 30, I18n.t('editform.descCharacterPh'))}
           </div>
         </div>
       </div>
@@ -519,11 +526,11 @@ export const EditTemplates = (() => {
       id="lf-chars-${uid}"
       data-ms-source="character"
       data-ms-value="${esc(presentIds)}"
-      data-ms-placeholder="Hledej postavu a přidej…"
+      data-ms-placeholder="${esc(I18n.t('editform.searchAddCharacter'))}"
       data-ms-on-create="character"
       data-loc-id="${esc(l.id)}"></div>
-      <div class="edit-hint" style="margin-top:0.25rem">Postava může být vždy jen na jednom místě — přidání sem ji odebere z předchozího místa.</div>`
-      : `<div class="edit-hint">Uložte místo, pak přidejte přítomné postavy.</div>`;
+      <div class="edit-hint" style="margin-top:0.25rem">${esc(I18n.t('editform.onePlaceHint'))}</div>`
+      : `<div class="edit-hint">${esc(I18n.t('editform.saveLocFirstChars'))}</div>`;
 
     // Typ dropdown: PIN_TYPES entries with their icons, plus "custom"
     // fallback. The id-based `pinType` field wins; if a record only
@@ -534,7 +541,7 @@ export const EditTemplates = (() => {
       const match = Object.entries(PIN_TYPES).find(([, v]) => v.label === l.type);
       if (match) selectedPinType = match[0];
     }
-    const typeOpts = `<option value="" ${!selectedPinType?'selected':''}>— neurčeno —</option>` +
+    const typeOpts = `<option value="" ${!selectedPinType?'selected':''}>${esc(I18n.t('editform.undetermined'))}</option>` +
       Object.entries(PIN_TYPES)
         .map(([k, v]) => `<option value="${esc(k)}" ${selectedPinType===k?'selected':''}>${v.icon} ${esc(v.label)}</option>`)
         .join('');
@@ -547,8 +554,8 @@ export const EditTemplates = (() => {
       data-cb-value="${esc(l.parentId || '')}"
       data-cb-exclude="${esc(l.id || '')}"
       data-cb-allow-empty="1"
-      data-cb-empty-label="— žádné (samostatné místo) —"
-      data-cb-placeholder="Vyber rodičovské místo…"></div>`;
+      data-cb-empty-label="${esc(I18n.t('editform.noneStandalone'))}"
+      data-cb-placeholder="${esc(I18n.t('editform.pickParentLocation'))}"></div>`;
 
     // Attitudes toward the party (multi-select with per-attitude
     // strength). A place can hold a mixed stance — "Chrám je z 80%
@@ -558,19 +565,19 @@ export const EditTemplates = (() => {
 
     const onMap = (typeof l.x === 'number' && typeof l.y === 'number');
     const mapBadge = onMap
-      ? `<span class="badge" style="background:rgba(46,125,50,0.18);color:#a5d6a7">📍 Na mapě</span>`
-      : `<span class="badge" style="background:rgba(255,255,255,0.07);color:var(--text-muted)">Není na mapě</span>`;
+      ? `<span class="badge" style="background:rgba(46,125,50,0.18);color:#a5d6a7">📍 ${esc(I18n.t('editform.onMap'))}</span>`
+      : `<span class="badge" style="background:rgba(255,255,255,0.07);color:var(--text-muted)">${esc(I18n.t('editform.notOnMap'))}</span>`;
 
     const mapControls = isNew
-      ? `<div class="edit-hint">Pin lze umístit po prvním uložení místa.</div>`
+      ? `<div class="edit-hint">${esc(I18n.t('editform.pinAfterSaveLoc'))}</div>`
       : onMap
         ? `<div class="inline-create-row">
-             <button type="button" class="inline-create-btn"${dataAction('WorldMap.showPin', l.id)}>🧭 Zobrazit na mapě</button>
-             <button type="button" class="inline-create-btn"${dataAction('WorldMap.startPlacingPin', l.id)}>📍 Přemístit</button>
-             <button type="button" class="edit-delete-btn"${dataAction('WorldMap.deletePin', l.id)}>🗑 Odebrat z mapy</button>
+             <button type="button" class="inline-create-btn"${dataAction('WorldMap.showPin', l.id)}>🧭 ${esc(I18n.t('editform.showOnMap'))}</button>
+             <button type="button" class="inline-create-btn"${dataAction('WorldMap.startPlacingPin', l.id)}>📍 ${esc(I18n.t('editform.relocate'))}</button>
+             <button type="button" class="edit-delete-btn"${dataAction('WorldMap.deletePin', l.id)}>🗑 ${esc(I18n.t('editform.removeFromMap'))}</button>
            </div>`
         : `<div class="inline-create-row">
-             <button type="button" class="inline-create-btn"${dataAction('WorldMap.startPlacingPin', l.id)}>📍 Umístit na mapu</button>
+             <button type="button" class="inline-create-btn"${dataAction('WorldMap.startPlacingPin', l.id)}>📍 ${esc(I18n.t('editform.placeOnMap'))}</button>
            </div>`;
 
     const localMapPreview = l.localMap
@@ -580,77 +587,77 @@ export const EditTemplates = (() => {
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
-          <h2 class="edit-form-title">${isNew ? "✦ Nové místo" : "✏ " + esc(l.name)}</h2>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← ${esc(I18n.t('action.cancel'))}</button>
+          <h2 class="edit-form-title">${isNew ? "✦ " + esc(I18n.t('editform.newLocation')) : "✏ " + esc(l.name)}</h2>
           ${_twinHeaderRow(uid, l, 'locations')}
           <div class="edit-hdr-actions">
-            <button class="edit-save-btn"${dataAction('EditMode.saveLocation', l.id)}>💾 Uložit</button>
-            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteLocation', l.id)}>🗑 Smazat</button>` : ""}
+            <button class="edit-save-btn"${dataAction('EditMode.saveLocation', l.id)}>💾 ${esc(I18n.t('action.save'))}</button>
+            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteLocation', l.id)}>🗑 ${esc(I18n.t('action.delete'))}</button>` : ""}
           </div>
         </div>
         <div class="edit-form-split-fields">
           <div class="edit-row-2">
             <div class="edit-field">
-              <label class="edit-label">Název *</label>
-              <input class="edit-input" id="lf-name-${uid}" value="${esc(l.name)}" placeholder="Název místa">
+              <label class="edit-label">${esc(I18n.t('editform.titleRequired'))}</label>
+              <input class="edit-input" id="lf-name-${uid}" value="${esc(l.name)}" placeholder="${esc(I18n.t('editform.locNamePh'))}">
             </div>
             <div class="edit-field">
-              <label class="edit-label">Typ</label>
+              <label class="edit-label">${esc(I18n.t('editform.type'))}</label>
               <select class="edit-input" id="lf-type-${uid}">${typeOpts}</select>
             </div>
           </div>
           <div class="edit-field">
-            <label class="edit-label">Postoje k partě <span class="edit-hint" style="font-weight:normal;margin-left:0.5rem">— víc postojů s nastavitelnou silou (např. 100% neutrální + 50% nebezpečný)</span></label>
+            <label class="edit-label">${esc(I18n.t('editform.attitudes'))} <span class="edit-hint" style="font-weight:normal;margin-left:0.5rem">${esc(I18n.t('editform.attitudesStrengthHint'))}</span></label>
             ${attitudeChipRowHtml}
           </div>
           <div class="edit-field">
-            <label class="edit-label">Záhadné poznámky</label>
-            ${_mdTextarea(`lf-notes-${uid}`, l.notes || '', 3, 'Poznámky pro GM')}
+            <label class="edit-label">${esc(I18n.t('editform.secretNotes'))}</label>
+            ${_mdTextarea(`lf-notes-${uid}`, l.notes || '', 3, I18n.t('editform.gmNotesPh'))}
           </div>
 
           <div class="edit-section">
-            <div class="edit-section-title">Hierarchie a mapa <span class="edit-hint" style="font-weight:normal;margin-left:0.5rem">${mapBadge}</span></div>
+            <div class="edit-section-title">${esc(I18n.t('editform.hierarchyAndMap'))} <span class="edit-hint" style="font-weight:normal;margin-left:0.5rem">${mapBadge}</span></div>
             <div class="edit-field">
-              <label class="edit-label">Pin na mapě</label>
+              <label class="edit-label">${esc(I18n.t('editform.pinOnMap'))}</label>
               ${mapControls}
             </div>
             <div class="edit-field">
-              <label class="edit-label">Velikost značky <span class="edit-hint" style="font-weight:normal;margin-left:0.5rem">— prázdné = výchozí podle typu místa (${PIN_SIZE_MIN}–${PIN_SIZE_MAX} px)</span></label>
+              <label class="edit-label">${esc(I18n.t('editform.markerSize'))} <span class="edit-hint" style="font-weight:normal;margin-left:0.5rem">${esc(I18n.t('editform.markerSizeHint', { min: PIN_SIZE_MIN, max: PIN_SIZE_MAX }))}</span></label>
               <input class="edit-input" type="number" id="lf-size-${uid}"
                 min="${PIN_SIZE_MIN}" max="${PIN_SIZE_MAX}" step="2"
                 value="${typeof l.size === 'number' ? l.size : ''}"
-                placeholder="(výchozí podle typu)">
+                placeholder="${esc(I18n.t('editform.defaultByType'))}">
             </div>
             <div class="edit-field">
-              <label class="edit-label">Rodičovské místo (volitelné — pro dílčí mapy)</label>
+              <label class="edit-label">${esc(I18n.t('editform.parentLocation'))}</label>
               ${parentMount}
-              <div class="edit-hint" style="margin-top:0.25rem">Např. dungeon uvnitř města. Toto místo se objeví na mapě rodiče.</div>
+              <div class="edit-hint" style="margin-top:0.25rem">${esc(I18n.t('editform.parentLocationHint'))}</div>
             </div>
             <div class="edit-field">
-              <label class="edit-label">Vlastní mapa (volitelné — pro dílčí mapu tohoto místa)</label>
+              <label class="edit-label">${esc(I18n.t('editform.customMap'))}</label>
               <div class="lf-localmap-row">
-                <input class="edit-input" id="lf-localmap-${uid}" value="${esc(l.localMap||'')}" placeholder="/maps/local/... nebo nahraj obrázek →">
-                ${!isNew ? `<label class="edit-upload-btn" title="Nahrát obrázek">
-                  📤 Nahrát
+                <input class="edit-input" id="lf-localmap-${uid}" value="${esc(l.localMap||'')}" placeholder="${esc(I18n.t('editform.localMapPh'))}">
+                ${!isNew ? `<label class="edit-upload-btn" title="${esc(I18n.t('editform.uploadImage'))}">
+                  📤 ${esc(I18n.t('action.upload'))}
                   <input type="file" accept="image/*" style="display:none"
                     ${dataOn('change', 'EditMode.handleLocalMapChange', l.id, `lf-localmap-${uid}`, '$el')}>
-                </label>` : `<span class="edit-hint" style="align-self:center">(uložte místo, pak nahrajte)</span>`}
+                </label>` : `<span class="edit-hint" style="align-self:center">${esc(I18n.t('editform.saveLocThenUpload'))}</span>`}
               </div>
               ${localMapPreview}
-              <div class="edit-hint" style="margin-top:0.25rem">Když je vyplněno, na stránce místa se objeví tlačítko 🗺 Místní mapa, kde se zobrazí podřízená místa.</div>
+              <div class="edit-hint" style="margin-top:0.25rem">${esc(I18n.t('editform.customMapHint'))}</div>
             </div>
           </div>
 
           <div class="edit-section">
-            <div class="edit-section-title">Přítomné postavy</div>
+            <div class="edit-section-title">${esc(I18n.t('editform.presentCharacters'))}</div>
             ${charsPicker}
           </div>
           ${_visibilitySection(uid, l, 'locations')}
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">
-            <label class="edit-label">Popis</label>
-            ${_mdTextarea(`lf-desc-${uid}`, l.description, 20, 'Popis místa — podporuje Markdown')}
+            <label class="edit-label">${esc(I18n.t('editform.description'))}</label>
+            ${_mdTextarea(`lf-desc-${uid}`, l.description, 20, I18n.t('editform.descLocationPh'))}
           </div>
         </div>
       </div>
@@ -670,65 +677,65 @@ export const EditTemplates = (() => {
     const charPicker = `<div id="evf-chars-${uid}" class="ms-mount"
       data-ms-source="character"
       data-ms-value="${esc(charsValue)}"
-      data-ms-placeholder="Hledat postavu…"
+      data-ms-placeholder="${esc(I18n.t('editform.searchCharacter'))}"
       data-ms-on-create="character"></div>`;
     const locPicker  = `<div id="evf-locs-${uid}" class="ms-mount"
       data-ms-source="location"
       data-ms-value="${esc(locsValue)}"
-      data-ms-placeholder="Hledat místo…"
+      data-ms-placeholder="${esc(I18n.t('editform.searchLocation'))}"
       data-ms-on-create="location"></div>`;
 
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
-          <h2 class="edit-form-title">${isNew ? "✦ Nová událost" : "✏ " + esc(e.name)}</h2>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← ${esc(I18n.t('action.cancel'))}</button>
+          <h2 class="edit-form-title">${isNew ? "✦ " + esc(I18n.t('editform.newEvent')) : "✏ " + esc(e.name)}</h2>
           ${_twinHeaderRow(uid, e, 'events')}
           <div class="edit-hdr-actions">
-            <button class="edit-save-btn"${dataAction('EditMode.saveEvent', e.id)}>💾 Uložit</button>
-            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteEvent', e.id)}>🗑 Smazat</button>` : ""}
+            <button class="edit-save-btn"${dataAction('EditMode.saveEvent', e.id)}>💾 ${esc(I18n.t('action.save'))}</button>
+            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteEvent', e.id)}>🗑 ${esc(I18n.t('action.delete'))}</button>` : ""}
           </div>
         </div>
         <div class="edit-form-split-fields">
           <div class="edit-field">
-            <label class="edit-label">Název *</label>
-            <input class="edit-input" id="evf-name-${uid}" value="${esc(e.name)}" placeholder="Název události">
-            <div class="edit-hint" style="margin-top:0.25rem">Zařazení do sezení a pořadí se nastavuje přetažením kartičky na Časové ose.</div>
+            <label class="edit-label">${esc(I18n.t('editform.titleRequired'))}</label>
+            <input class="edit-input" id="evf-name-${uid}" value="${esc(e.name)}" placeholder="${esc(I18n.t('editform.eventNamePh'))}">
+            <div class="edit-hint" style="margin-top:0.25rem">${esc(I18n.t('editform.eventSittingHint'))}</div>
           </div>
           <input type="hidden" id="evf-sitting-${uid}" value="${e.sitting ?? ''}">
           <div class="edit-field">
-            <label class="edit-label">Krátký popis</label>
-            <input class="edit-input" id="evf-short-${uid}" value="${esc(e.short)}" placeholder="Jedna věta">
+            <label class="edit-label">${esc(I18n.t('editform.shortDescription'))}</label>
+            <input class="edit-input" id="evf-short-${uid}" value="${esc(e.short)}" placeholder="${esc(I18n.t('editform.oneSentencePh'))}">
           </div>
           <div class="edit-section" style="margin-top:0">
-            <div class="edit-section-title">Zúčastněné postavy
+            <div class="edit-section-title">${esc(I18n.t('editform.involvedCharacters'))}
               <button type="button" class="inline-create-btn" style="margin-left:.5rem"
-                ${dataAction('EditMode.addPartyToEvent', `evf-chars-${uid}`)}>🛡 + Naše parta</button>
+                ${dataAction('EditMode.addPartyToEvent', `evf-chars-${uid}`)}>🛡 + ${esc(I18n.t('editform.ourParty'))}</button>
             </div>
             ${charPicker}
           </div>
           <div class="edit-section">
-            <div class="edit-section-title">Místa</div>
+            <div class="edit-section-title">${esc(I18n.t('editform.locations'))}</div>
             ${locPicker}
           </div>
           <div class="edit-field">
-            <label class="edit-label">Pin události na mapě</label>
+            <label class="edit-label">${esc(I18n.t('editform.eventPinOnMap'))}</label>
             ${isNew
-              ? `<div class="edit-hint">Pin lze umístit po prvním uložení události.</div>`
+              ? `<div class="edit-hint">${esc(I18n.t('editform.pinAfterSaveEvent'))}</div>`
               : (typeof e.mapX === 'number' && typeof e.mapY === 'number')
                 ? `<div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
-                    <button type="button" class="inline-create-btn"${dataAction('WorldMap.showEventPin', e.id)}>🧭 Zobrazit pin</button>
-                    <button type="button" class="inline-create-btn"${dataAction('WorldMap.startPlacingEventPin', e.id)}>📍 Přemístit</button>
-                    <button type="button" class="edit-delete-btn"${dataAction('WorldMap.clearEventPin', e.id)}>🗑 Odebrat pin</button>
+                    <button type="button" class="inline-create-btn"${dataAction('WorldMap.showEventPin', e.id)}>🧭 ${esc(I18n.t('editform.showPin'))}</button>
+                    <button type="button" class="inline-create-btn"${dataAction('WorldMap.startPlacingEventPin', e.id)}>📍 ${esc(I18n.t('editform.relocate'))}</button>
+                    <button type="button" class="edit-delete-btn"${dataAction('WorldMap.clearEventPin', e.id)}>🗑 ${esc(I18n.t('editform.removePin'))}</button>
                   </div>`
-                : `<button type="button" class="inline-create-btn"${dataAction('WorldMap.startPlacingEventPin', e.id)}>📍 Umístit pin na mapu</button>`}
+                : `<button type="button" class="inline-create-btn"${dataAction('WorldMap.startPlacingEventPin', e.id)}>📍 ${esc(I18n.t('editform.placePinOnMap'))}</button>`}
           </div>
           ${_visibilitySection(uid, e, 'events')}
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">
-            <label class="edit-label">Podrobný popis</label>
-            ${_mdTextarea(`evf-desc-${uid}`, e.description, 20, 'Co se přesně stalo — podporuje Markdown')}
+            <label class="edit-label">${esc(I18n.t('editform.detailedDescription'))}</label>
+            ${_mdTextarea(`evf-desc-${uid}`, e.description, 20, I18n.t('editform.descEventPh'))}
           </div>
         </div>
       </div>
@@ -745,10 +752,10 @@ export const EditTemplates = (() => {
     const solved = !!(answer && answer.trim());
     return `
       <div class="qa-row ${solved ? 'is-solved' : ''}">
-        <input class="edit-input qa-q-text" placeholder="Otázka" value="${esc(text)}">
-        <input class="edit-input qa-q-answer" placeholder="Odpověď (prázdné = otevřená)" value="${esc(answer)}">
+        <input class="edit-input qa-q-text" placeholder="${esc(I18n.t('editform.questionPh'))}" value="${esc(text)}">
+        <input class="edit-input qa-q-answer" placeholder="${esc(I18n.t('editform.answerPh'))}" value="${esc(answer)}">
         <button type="button" class="dyn-remove-btn"
-          ${dataAction('removeAncestor', '$el', '.qa-row')} title="Odebrat otázku">×</button>
+          ${dataAction('removeAncestor', '$el', '.qa-row')} title="${esc(I18n.t('editform.removeQuestion'))}">×</button>
       </div>`;
   }
   function _qaListHtml(items) {
@@ -774,51 +781,51 @@ export const EditTemplates = (() => {
     const charPicker = `<div id="mf-chars-${uid}" class="ms-mount"
       data-ms-source="character"
       data-ms-value="${esc(charsValue)}"
-      data-ms-placeholder="Hledat postavu…"
+      data-ms-placeholder="${esc(I18n.t('editform.searchCharacter'))}"
       data-ms-on-create="character"></div>`;
     const questionRows = _qaListHtml(m.questions || []);
 
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
-          <h2 class="edit-form-title">${isNew ? "✦ Nová záhada" : "✏ " + esc(m.name)}</h2>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← ${esc(I18n.t('action.cancel'))}</button>
+          <h2 class="edit-form-title">${isNew ? "✦ " + esc(I18n.t('editform.newMystery')) : "✏ " + esc(m.name)}</h2>
           ${_twinHeaderRow(uid, m, 'mysteries')}
           <div class="edit-hdr-actions">
-            <button class="edit-save-btn"${dataAction('EditMode.saveMystery', m.id)}>💾 Uložit</button>
-            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteMystery', m.id)}>🗑 Smazat</button>` : ""}
+            <button class="edit-save-btn"${dataAction('EditMode.saveMystery', m.id)}>💾 ${esc(I18n.t('action.save'))}</button>
+            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteMystery', m.id)}>🗑 ${esc(I18n.t('action.delete'))}</button>` : ""}
           </div>
         </div>
         <div class="edit-form-split-fields">
           <div class="edit-row-2">
             <div class="edit-field">
-              <label class="edit-label">Název záhady *</label>
-              <input class="edit-input" id="mf-name-${uid}" value="${esc(m.name)}" placeholder="Co je záhadou?">
+              <label class="edit-label">${esc(I18n.t('editform.mysteryNameRequired'))}</label>
+              <input class="edit-input" id="mf-name-${uid}" value="${esc(m.name)}" placeholder="${esc(I18n.t('editform.mysteryNamePh'))}">
             </div>
             <div class="edit-field">
-              <label class="edit-label">Priorita</label>
+              <label class="edit-label">${esc(I18n.t('editform.priority'))}</label>
               <select class="edit-select" id="mf-pri-${uid}">${priOpts}</select>
             </div>
           </div>
           <div class="edit-section">
             <div class="edit-section-title">
-              Otázky &amp; Odpovědi
-              <span class="settings-hint" style="font-weight:normal">vyplň odpověď → otázka je vyřešená; vyřešená záhada = všechny otázky mají odpověď</span>
+              ${esc(I18n.t('editform.questionsAnswers'))}
+              <span class="settings-hint" style="font-weight:normal">${esc(I18n.t('editform.mysterySolvedHint'))}</span>
             </div>
             <div class="qa-list" id="mf-questions-${uid}">${questionRows}</div>
             <button type="button" class="dyn-add-btn" style="margin-top:0.4rem"
-              ${dataAction('EditMode.addQARow', `mf-questions-${uid}`)}>+ Přidat otázku</button>
+              ${dataAction('EditMode.addQARow', `mf-questions-${uid}`)}>+ ${esc(I18n.t('editform.addQuestion'))}</button>
           </div>
           <div class="edit-section">
-            <div class="edit-section-title">Spojené postavy</div>
+            <div class="edit-section-title">${esc(I18n.t('editform.linkedCharacters'))}</div>
             ${charPicker}
           </div>
           ${_visibilitySection(uid, m, 'mysteries')}
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">
-            <label class="edit-label">Popis / Co víme</label>
-            ${_mdTextarea(`mf-desc-${uid}`, m.description, 20, 'Co o záhadě víme a co tušíme — Markdown')}
+            <label class="edit-label">${esc(I18n.t('editform.descWhatWeKnow'))}</label>
+            ${_mdTextarea(`mf-desc-${uid}`, m.description, 20, I18n.t('editform.descMysteryPh'))}
           </div>
         </div>
       </div>
@@ -828,20 +835,20 @@ export const EditTemplates = (() => {
   function _chainEditHtml(chain, uid, ci) {
     const ranksHtml = (chain.ranks || []).map(r => `
       <div class="dyn-item">
-        <input class="edit-input" value="${esc(r)}" placeholder="Hodnost">
+        <input class="edit-input" value="${esc(r)}" placeholder="${esc(I18n.t('editform.rankPh'))}">
         <button class="dyn-remove-btn"${dataAction('removeAncestor', '$el')}>×</button>
       </div>`).join("");
     return `
       <div class="rank-chain-edit" data-chain-id="${esc(chain.id || '')}">
         <div class="rank-chain-edit-header">
-          <input class="edit-input edit-input-sm" placeholder="Název řetězce" value="${esc(chain.name || '')}" style="flex:1">
-          <button class="dyn-remove-btn" title="Odebrat řetězec"${dataAction('removeAncestor', '$el', '.rank-chain-edit')}>✕</button>
+          <input class="edit-input edit-input-sm rank-chain-name" placeholder="${esc(I18n.t('editform.chainNamePh'))}" value="${esc(chain.name || '')}" style="flex:1">
+          <button class="dyn-remove-btn" title="${esc(I18n.t('editform.removeChain'))}"${dataAction('removeAncestor', '$el', '.rank-chain-edit')}>✕</button>
         </div>
         <div class="dyn-list rank-ranks-list" id="ranks-${uid}-${ci}">
           ${ranksHtml}
         </div>
         <button class="dyn-add-btn" style="margin-top:0.3rem"
-          ${dataAction('EditMode.addRankRow', `ranks-${uid}-${ci}`)}>+ Přidat hodnost</button>
+          ${dataAction('EditMode.addRankRow', `ranks-${uid}-${ci}`)}>+ ${esc(I18n.t('editform.addRank'))}</button>
       </div>`;
   }
 
@@ -857,28 +864,28 @@ export const EditTemplates = (() => {
     return `
       <div class="edit-form" style="max-width:760px">
         <div class="edit-form-header">
-          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
-          <h2 class="edit-form-title">${isNew ? "✦ Nová frakce" : "✏ " + esc(f.name)}</h2>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← ${esc(I18n.t('action.cancel'))}</button>
+          <h2 class="edit-form-title">${isNew ? "✦ " + esc(I18n.t('editform.newFaction')) : "✏ " + esc(f.name)}</h2>
           ${_twinHeaderRow(uid, isNew ? null : { ...f, id: facId }, 'factions')}
           <div class="edit-hdr-actions">
-            <button class="edit-save-btn"${dataAction('EditMode.saveFaction', isNew ? "" : facId)}>💾 Uložit</button>
-            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteFaction', facId)}>🗑 Smazat</button>` : ""}
+            <button class="edit-save-btn"${dataAction('EditMode.saveFaction', isNew ? "" : facId)}>💾 ${esc(I18n.t('action.save'))}</button>
+            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteFaction', facId)}>🗑 ${esc(I18n.t('action.delete'))}</button>` : ""}
           </div>
         </div>
 
         <div class="edit-row-2">
           <div class="edit-field">
-            <label class="edit-label">Název *</label>
-            <input class="edit-input" id="ff-name-${uid}" value="${esc(f.name)}" placeholder="Název frakce">
+            <label class="edit-label">${esc(I18n.t('editform.nameRequired'))}</label>
+            <input class="edit-input" id="ff-name-${uid}" value="${esc(f.name)}" placeholder="${esc(I18n.t('editform.factionNamePh'))}">
           </div>
           <div class="edit-field">
-            <label class="edit-label">Odznak</label>
+            <label class="edit-label">${esc(I18n.t('editform.badge'))}</label>
             <input class="edit-input" id="ff-badge-${uid}" value="${esc(f.badge)}" placeholder="🐉" style="font-size:1.4rem">
           </div>
         </div>
         <div class="edit-row-2">
           <div class="edit-field">
-            <label class="edit-label">Barva pozadí</label>
+            <label class="edit-label">${esc(I18n.t('editform.backgroundColor'))}</label>
             <div style="display:flex;gap:0.5rem;align-items:center">
               <input type="color" id="ff-color-${uid}" value="${esc(f.color)}"
                 style="width:44px;height:34px;padding:2px;cursor:pointer;background:none;border:1px solid rgba(212,184,122,0.2);border-radius:4px"
@@ -888,7 +895,7 @@ export const EditTemplates = (() => {
             </div>
           </div>
           <div class="edit-field">
-            <label class="edit-label">Barva textu</label>
+            <label class="edit-label">${esc(I18n.t('editform.textColor'))}</label>
             <div style="display:flex;gap:0.5rem;align-items:center">
               <input type="color" id="ff-textcolor-${uid}" value="${esc(f.textColor)}"
                 style="width:44px;height:34px;padding:2px;cursor:pointer;background:none;border:1px solid rgba(212,184,122,0.2);border-radius:4px"
@@ -899,21 +906,21 @@ export const EditTemplates = (() => {
           </div>
         </div>
         <div class="edit-field">
-          <label class="edit-label">Popis frakce (volitelný)</label>
-          ${_mdTextarea(`ff-desc-${uid}`, f.description || '', 6, 'Historie, cíle, struktura — Markdown')}
+          <label class="edit-label">${esc(I18n.t('editform.factionDescription'))}</label>
+          ${_mdTextarea(`ff-desc-${uid}`, f.description || '', 6, I18n.t('editform.factionDescriptionPh'))}
         </div>
         <div class="edit-field">
-          <label class="edit-label">Postoje k partě <span class="edit-hint" style="font-weight:normal;margin-left:0.5rem">— členové bez vlastních postojů zdědí tyhle</span></label>
+          <label class="edit-label">${esc(I18n.t('editform.attitudes'))} <span class="edit-hint" style="font-weight:normal;margin-left:0.5rem">${esc(I18n.t('editform.attitudesFactionHint'))}</span></label>
           ${factionAttRowHtml}
         </div>
 
         <div class="edit-section">
-          <div class="edit-section-title">Hodnostní Řetězce
-            <span class="edit-hint" style="font-weight:normal;margin-left:0.5rem">od nejvyšší po nejnižší</span>
+          <div class="edit-section-title">${esc(I18n.t('editform.rankChains'))}
+            <span class="edit-hint" style="font-weight:normal;margin-left:0.5rem">${esc(I18n.t('editform.highestToLowest'))}</span>
           </div>
           <div id="chains-${uid}">${chainsHtml}</div>
           <button class="dyn-add-btn" style="margin-top:0.5rem"
-            ${dataAction('EditMode.addRankChain', `chains-${uid}`, uid)}>+ Přidat řetězec</button>
+            ${dataAction('EditMode.addRankChain', `chains-${uid}`, uid)}>+ ${esc(I18n.t('editform.addChain'))}</button>
         </div>
 
         ${_visibilitySection(uid, f, 'factions')}
@@ -947,25 +954,25 @@ export const EditTemplates = (() => {
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
-          <h2 class="edit-form-title">${isNew ? "✦ Nový druh" : "✏ " + esc(s.name)}</h2>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← ${esc(I18n.t('action.cancel'))}</button>
+          <h2 class="edit-form-title">${isNew ? "✦ " + esc(I18n.t('editform.newSpecies')) : "✏ " + esc(s.name)}</h2>
           ${_twinHeaderRow(uid, s, 'species')}
           <div class="edit-hdr-actions">
-            <button class="edit-save-btn"${dataAction('EditMode.saveSpecies', s.id)}>💾 Uložit</button>
-            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteSpecies', s.id)}>🗑 Smazat</button>` : ""}
+            <button class="edit-save-btn"${dataAction('EditMode.saveSpecies', s.id)}>💾 ${esc(I18n.t('action.save'))}</button>
+            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteSpecies', s.id)}>🗑 ${esc(I18n.t('action.delete'))}</button>` : ""}
           </div>
         </div>
         <div class="edit-form-split-fields">
           <div class="edit-field">
-            <label class="edit-label">Název *</label>
-            <input class="edit-input" id="sf-name-${uid}" value="${esc(s.name)}" placeholder="Člověk, Elf, Dračizeň…">
+            <label class="edit-label">${esc(I18n.t('editform.titleRequired'))}</label>
+            <input class="edit-input" id="sf-name-${uid}" value="${esc(s.name)}" placeholder="${esc(I18n.t('editform.speciesNamePh'))}">
           </div>
           ${_visibilitySection(uid, s, 'species')}
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">
-            <label class="edit-label">Popis</label>
-            ${_mdTextarea(`sf-desc-${uid}`, s.description, 20, 'Charakteristika druhu, schopnosti, kultura…')}
+            <label class="edit-label">${esc(I18n.t('editform.description'))}</label>
+            ${_mdTextarea(`sf-desc-${uid}`, s.description, 20, I18n.t('editform.descSpeciesPh'))}
           </div>
         </div>
       </div>`;
@@ -979,41 +986,41 @@ export const EditTemplates = (() => {
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
-          <h2 class="edit-form-title">${isNew ? "✦ Nový bůh / bohyně" : "✏ " + esc(g.name)}</h2>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← ${esc(I18n.t('action.cancel'))}</button>
+          <h2 class="edit-form-title">${isNew ? "✦ " + esc(I18n.t('editform.newDeity')) : "✏ " + esc(g.name)}</h2>
           ${_twinHeaderRow(uid, g, 'pantheon')}
           <div class="edit-hdr-actions">
-            <button class="edit-save-btn"${dataAction('EditMode.saveBuh', g.id)}>💾 Uložit</button>
-            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteBuh', g.id)}>🗑 Smazat</button>` : ""}
+            <button class="edit-save-btn"${dataAction('EditMode.saveBuh', g.id)}>💾 ${esc(I18n.t('action.save'))}</button>
+            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteBuh', g.id)}>🗑 ${esc(I18n.t('action.delete'))}</button>` : ""}
           </div>
         </div>
         <div class="edit-form-split-fields">
           <div class="edit-row-2">
             <div class="edit-field">
-              <label class="edit-label">Jméno *</label>
-              <input class="edit-input" id="gf-name-${uid}" value="${esc(g.name)}" placeholder="Jméno božstva">
+              <label class="edit-label">${esc(I18n.t('editform.nameRequired'))}</label>
+              <input class="edit-input" id="gf-name-${uid}" value="${esc(g.name)}" placeholder="${esc(I18n.t('editform.deityNamePh'))}">
             </div>
             <div class="edit-field">
-              <label class="edit-label">Symbol</label>
+              <label class="edit-label">${esc(I18n.t('editform.symbol'))}</label>
               <input class="edit-input" id="gf-symbol-${uid}" value="${esc(g.symbol)}" placeholder="☀ / 🌙 / ⚔">
             </div>
           </div>
           <div class="edit-row-2">
             <div class="edit-field">
-              <label class="edit-label">Doména</label>
-              <input class="edit-input" id="gf-domain-${uid}" value="${esc(g.domain)}" placeholder="Světlo, Smrt, Moře…">
+              <label class="edit-label">${esc(I18n.t('editform.domain'))}</label>
+              <input class="edit-input" id="gf-domain-${uid}" value="${esc(g.domain)}" placeholder="${esc(I18n.t('editform.domainPh'))}">
             </div>
             <div class="edit-field">
-              <label class="edit-label">Zaměření</label>
-              <input class="edit-input" id="gf-alignment-${uid}" value="${esc(g.alignment)}" placeholder="např. LG / CN / …">
+              <label class="edit-label">${esc(I18n.t('editform.alignment'))}</label>
+              <input class="edit-input" id="gf-alignment-${uid}" value="${esc(g.alignment)}" placeholder="${esc(I18n.t('editform.alignmentPh'))}">
             </div>
           </div>
           ${_visibilitySection(uid, g, 'pantheon')}
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">
-            <label class="edit-label">Popis</label>
-            ${_mdTextarea(`gf-desc-${uid}`, g.description, 20, 'Mýty, kult, rituály, kněží…')}
+            <label class="edit-label">${esc(I18n.t('editform.description'))}</label>
+            ${_mdTextarea(`gf-desc-${uid}`, g.description, 20, I18n.t('editform.descDeityPh'))}
           </div>
         </div>
       </div>`;
@@ -1030,8 +1037,8 @@ export const EditTemplates = (() => {
       data-cb-source="character"
       data-cb-value="${esc(a.ownerCharacterId || '')}"
       data-cb-allow-empty="1"
-      data-cb-empty-label="— nikdo —"
-      data-cb-placeholder="Vyber postavu…"
+      data-cb-empty-label="${esc(I18n.t('editform.nobody'))}"
+      data-cb-placeholder="${esc(I18n.t('editform.pickCharacter'))}"
       data-cb-on-create="character"></div>`;
 
     const locMount = `<div class="cb-mount"
@@ -1039,33 +1046,33 @@ export const EditTemplates = (() => {
       data-cb-source="location"
       data-cb-value="${esc(a.locationId || '')}"
       data-cb-allow-empty="1"
-      data-cb-empty-label="— neurčeno —"
-      data-cb-placeholder="Vyber místo…"
+      data-cb-empty-label="${esc(I18n.t('editform.undetermined'))}"
+      data-cb-placeholder="${esc(I18n.t('editform.pickLocation'))}"
       data-cb-on-create="location"></div>`;
 
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
-          <h2 class="edit-form-title">${isNew ? "✦ Nový artefakt" : "✏ " + esc(a.name)}</h2>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← ${esc(I18n.t('action.cancel'))}</button>
+          <h2 class="edit-form-title">${isNew ? "✦ " + esc(I18n.t('editform.newArtifact')) : "✏ " + esc(a.name)}</h2>
           ${_twinHeaderRow(uid, a, 'artifacts')}
           <div class="edit-hdr-actions">
-            <button class="edit-save-btn"${dataAction('EditMode.saveArtifact', a.id)}>💾 Uložit</button>
-            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteArtifact', a.id)}>🗑 Smazat</button>` : ""}
+            <button class="edit-save-btn"${dataAction('EditMode.saveArtifact', a.id)}>💾 ${esc(I18n.t('action.save'))}</button>
+            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteArtifact', a.id)}>🗑 ${esc(I18n.t('action.delete'))}</button>` : ""}
           </div>
         </div>
         <div class="edit-form-split-fields">
           <div class="edit-field">
-            <label class="edit-label">Název *</label>
-            <input class="edit-input" id="af-name-${uid}" value="${esc(a.name)}" placeholder="Název artefaktu">
+            <label class="edit-label">${esc(I18n.t('editform.titleRequired'))}</label>
+            <input class="edit-input" id="af-name-${uid}" value="${esc(a.name)}" placeholder="${esc(I18n.t('editform.artifactNamePh'))}">
           </div>
           <div class="edit-row-2">
             <div class="edit-field">
-              <label class="edit-label">Držitel (postava)</label>
+              <label class="edit-label">${esc(I18n.t('editform.holder'))}</label>
               ${ownerMount}
             </div>
             <div class="edit-field">
-              <label class="edit-label">Umístění (místo)</label>
+              <label class="edit-label">${esc(I18n.t('editform.placement'))}</label>
               ${locMount}
             </div>
           </div>
@@ -1073,8 +1080,8 @@ export const EditTemplates = (() => {
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field edit-field-full">
-            <label class="edit-label">Popis</label>
-            ${_mdTextarea(`af-desc-${uid}`, a.description, 20, 'Původ, schopnosti, prokletí, historie…')}
+            <label class="edit-label">${esc(I18n.t('editform.description'))}</label>
+            ${_mdTextarea(`af-desc-${uid}`, a.description, 20, I18n.t('editform.descArtifactPh'))}
           </div>
         </div>
       </div>`;
@@ -1093,64 +1100,64 @@ export const EditTemplates = (() => {
       id="he-chars-${uid}"
       data-ms-source="character"
       data-ms-value="${esc((h.characters || []).join(','))}"
-      data-ms-placeholder="Vyber postavy…"
+      data-ms-placeholder="${esc(I18n.t('editform.pickCharacters'))}"
       data-ms-on-create="character"></div>`;
 
     const locsMount = `<div class="ms-mount"
       id="he-locs-${uid}"
       data-ms-source="location"
       data-ms-value="${esc((h.locations || []).join(','))}"
-      data-ms-placeholder="Vyber místa…"
+      data-ms-placeholder="${esc(I18n.t('editform.pickLocations'))}"
       data-ms-on-create="location"></div>`;
 
     return `
       <div class="edit-form edit-form-split">
         <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← Zrušit</button>
-          <h2 class="edit-form-title">${isNew ? "✦ Nová historická událost" : "✏ " + esc(h.name)}</h2>
+          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← ${esc(I18n.t('action.cancel'))}</button>
+          <h2 class="edit-form-title">${isNew ? "✦ " + esc(I18n.t('editform.newHistoricalEvent')) : "✏ " + esc(h.name)}</h2>
           ${_twinHeaderRow(uid, h, 'historicalEvents')}
           <div class="edit-hdr-actions">
-            <button class="edit-save-btn"${dataAction('EditMode.saveHistoricalEvent', h.id)}>💾 Uložit</button>
-            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteHistoricalEvent', h.id)}>🗑 Smazat</button>` : ""}
+            <button class="edit-save-btn"${dataAction('EditMode.saveHistoricalEvent', h.id)}>💾 ${esc(I18n.t('action.save'))}</button>
+            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteHistoricalEvent', h.id)}>🗑 ${esc(I18n.t('action.delete'))}</button>` : ""}
           </div>
         </div>
         <div class="edit-form-split-fields">
           <div class="edit-field">
-            <label class="edit-label">Název *</label>
-            <input class="edit-input" id="he-name-${uid}" value="${esc(h.name)}" placeholder="Např. Pád Netheril">
+            <label class="edit-label">${esc(I18n.t('editform.titleRequired'))}</label>
+            <input class="edit-input" id="he-name-${uid}" value="${esc(h.name)}" placeholder="${esc(I18n.t('editform.histNamePh'))}">
           </div>
           <div class="edit-row-2">
             <div class="edit-field">
-              <label class="edit-label">Začátek</label>
+              <label class="edit-label">${esc(I18n.t('editform.start'))}</label>
               <input class="edit-input" id="he-start-${uid}" value="${esc(h.start)}" placeholder="−339 DR">
             </div>
             <div class="edit-field">
-              <label class="edit-label">Konec</label>
+              <label class="edit-label">${esc(I18n.t('editform.end'))}</label>
               <input class="edit-input" id="he-end-${uid}" value="${esc(h.end)}" placeholder="−180 DR">
             </div>
           </div>
           <div class="edit-field">
-            <label class="edit-label">Shrnutí</label>
-            <textarea class="edit-textarea" id="he-summary-${uid}" rows="4" placeholder="Krátký výtah — jedna věta nebo odstavec.">${esc(h.summary)}</textarea>
+            <label class="edit-label">${esc(I18n.t('editform.summary'))}</label>
+            <textarea class="edit-textarea" id="he-summary-${uid}" rows="4" placeholder="${esc(I18n.t('editform.summaryPh'))}">${esc(h.summary)}</textarea>
           </div>
           <div class="edit-field">
-            <label class="edit-label">Postavy</label>
+            <label class="edit-label">${esc(I18n.t('editform.characters'))}</label>
             ${charsMount}
           </div>
           <div class="edit-field">
-            <label class="edit-label">Místa</label>
+            <label class="edit-label">${esc(I18n.t('editform.locations'))}</label>
             ${locsMount}
           </div>
           <div class="edit-field">
-            <label class="edit-label">Štítky</label>
-            <input class="edit-input" id="he-tags-${uid}" value="${esc((h.tags || []).join(', '))}" placeholder="válka, magie, říše">
+            <label class="edit-label">${esc(I18n.t('editform.tags'))}</label>
+            <input class="edit-input" id="he-tags-${uid}" value="${esc((h.tags || []).join(', '))}" placeholder="${esc(I18n.t('editform.tagsPh'))}">
           </div>
           ${_visibilitySection(uid, h, 'historicalEvents')}
         </div>
         <div class="edit-form-split-article">
           <div class="edit-field">
-            <label class="edit-label">Text</label>
-            ${_mdTextarea(`he-body-${uid}`, h.body, 20, 'Podrobný popis události, příčiny, dopady…')}
+            <label class="edit-label">${esc(I18n.t('editform.text'))}</label>
+            ${_mdTextarea(`he-body-${uid}`, h.body, 20, I18n.t('editform.descHistEventPh'))}
           </div>
         </div>
       </div>`;

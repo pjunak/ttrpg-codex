@@ -24,6 +24,7 @@
 import { Store } from './store.js';
 import { Role } from './role.js';
 import { esc, dataAction, dataOn, renderMarkdown, slugify } from './utils.js';
+import { I18n } from './i18n.js';
 import { planLoadOrder } from './addon-deps.js';
 import { applyFragmentOps, listConflicts } from './addon-fragments.js';
 import { smokeRegistrations } from './addon-test-harness.mjs';
@@ -73,36 +74,41 @@ export const Addons = (() => {
   }
 
   // ── Permission catalogue (human-readable, for the install wizard) ──
-  const PERMISSION_LABELS = {
-    'ui:route':        'Přidat vlastní stránku',
-    'ui:sidebar':      'Přidat odkaz do panelu',
-    'ui:settings-tab': 'Přidat záložku v nastavení',
-    'ui:action':       'Reagovat na kliknutí',
-    'ui:override':     'Měnit vestavěný obsah',
-    'wiki:kind':       'Rozšířit [[odkazy]]',
-    'data:own':        'Ukládat vlastní data doplňku',
-    'net:external':    'Přístup k internetu',
-    'server:code':     'Spustit kód na serveru',
-    'server:endpoint': 'Vlastní serverové API',
+  // Maps a permission token → its i18n key suffix (resolved lazily so the
+  // label follows the user's active language).
+  const PERMISSION_LABEL_KEYS = {
+    'ui:route':        'permUiRoute',
+    'ui:sidebar':      'permUiSidebar',
+    'ui:settings-tab': 'permUiSettingsTab',
+    'ui:action':       'permUiAction',
+    'ui:override':     'permUiOverride',
+    'wiki:kind':       'permWikiKind',
+    'data:own':        'permDataOwn',
+    'net:external':    'permNetExternal',
+    'server:code':     'permServerCode',
+    'server:endpoint': 'permServerEndpoint',
   };
-  const _COLL_LABELS = {
-    characters: 'postavy', locations: 'místa', events: 'události',
-    mysteries: 'záhady', factions: 'frakce', species: 'druhy',
-    pantheon: 'panteon', artifacts: 'artefakty',
-    historicalEvents: 'historické události', pets: 'mazlíčci',
+  // Collection token → i18n key suffix for its localized name (used inside
+  // describePermission's dynamic branches).
+  const _COLL_LABEL_KEYS = {
+    characters: 'collCharacters', locations: 'collLocations', events: 'collEvents',
+    mysteries: 'collMysteries', factions: 'collFactions', species: 'collSpecies',
+    pantheon: 'collPantheon', artifacts: 'collArtifacts',
+    historicalEvents: 'collHistoricalEvents', pets: 'collPets',
   };
-  /** Human-readable Czech description of a permission token, for the
-   *  DM-facing review checklist. Falls back to the raw token. */
+  const _collLabel = (name) => (_COLL_LABEL_KEYS[name] ? I18n.t('addons.' + _COLL_LABEL_KEYS[name]) : name);
+  /** Human-readable description of a permission token, for the DM-facing
+   *  review checklist. Falls back to the raw token. */
   function describePermission(perm) {
-    if (PERMISSION_LABELS[perm]) return PERMISSION_LABELS[perm];
+    if (PERMISSION_LABEL_KEYS[perm]) return I18n.t('addons.' + PERMISSION_LABEL_KEYS[perm]);
     let m = perm.match(/^data:read:(.+)$/);
-    if (m) return 'Číst: ' + (_COLL_LABELS[m[1]] || m[1]);
+    if (m) return I18n.t('addons.permRead', { coll: _collLabel(m[1]) });
     m = perm.match(/^data:write:(.+?)(\.addonData)?$/);
-    if (m) return (m[2] ? 'Ukládat vlastní data k: ' : 'Měnit: ') + (_COLL_LABELS[m[1]] || m[1]);
+    if (m) return I18n.t(m[2] ? 'addons.permWriteAddonData' : 'addons.permWrite', { coll: _collLabel(m[1]) });
     m = perm.match(/^ui:article-section:(.+)$/);
-    if (m) return 'Sekce v článku: ' + (_COLL_LABELS[m[1]] || m[1]);
+    if (m) return I18n.t('addons.permArticleSection', { coll: _collLabel(m[1]) });
     m = perm.match(/^ui:editor-fields:(.+)$/);
-    if (m) return 'Pole v editoru: ' + (_COLL_LABELS[m[1]] || m[1]);
+    if (m) return I18n.t('addons.permEditorFields', { coll: _collLabel(m[1]) });
     return perm;
   }
 
@@ -571,9 +577,10 @@ export const Addons = (() => {
   }
 
   function _errorPane(addonId, e) {
-    return `<div class="page-header"><h1>⚠ Doplněk selhal</h1></div>` +
-      `<p style="color:var(--text-muted);max-width:560px;margin:1rem 0">Doplněk ` +
-      `<strong>${esc(addonId)}</strong> selhal: ${esc(e.message)}</p>`;
+    return `<div class="page-header"><h1>⚠ ${esc(I18n.t('addons.addonFailedTitle'))}</h1></div>` +
+      `<p style="color:var(--text-muted);max-width:560px;margin:1rem 0">` +
+      I18n.t('addons.addonFailedBody', { name: `<strong>${esc(addonId)}</strong>`, msg: esc(e.message) }) +
+      `</p>`;
   }
 
   function hasPageRenderer(kind) { return _pageRenderers.has(kind); }
@@ -607,7 +614,7 @@ export const Addons = (() => {
         if (sec && typeof sec.html === 'string') out.push({ addonId: e.addonId, seq, title: sec.title || '', html: sec.html });
       } catch (err) {
         console.error(`[addon ${e.addonId}] article section failed`, err);
-        out.push({ addonId: e.addonId, seq, title: '⚠ ' + e.addonId, html: `<div style="color:var(--color-danger)">Sekce doplňku „${esc(e.addonId)}" selhala: ${esc(err.message)}</div>` });
+        out.push({ addonId: e.addonId, seq, title: '⚠ ' + e.addonId, html: `<div style="color:var(--color-danger)">${esc(I18n.t('addons.sectionFailed', { name: e.addonId, msg: err.message }))}</div>` });
       }
     }
     return out;
@@ -656,7 +663,7 @@ export const Addons = (() => {
         }
       } catch (err) {
         console.error(`[addon ${e.addonId}] editor fields failed`, err);
-        html += `<div class="addon-editor-section" style="color:var(--color-danger)">Pole doplňku „${esc(e.addonId)}" selhala: ${esc(err.message)}</div>`;
+        html += `<div class="addon-editor-section" style="color:var(--color-danger)">${esc(I18n.t('addons.editorFieldsFailed', { name: e.addonId, msg: err.message }))}</div>`;
       }
     }
     return html;
@@ -701,7 +708,7 @@ export const Addons = (() => {
     const entry = _actions.get(actionStr);
     if (!entry) { console.warn('Unknown addon action:', actionStr); return; }
     try { return entry.fn(...(Array.isArray(args) ? args : [])); }
-    catch (e) { console.error(`[addon ${entry.addonId}] action "${actionStr}" failed`, e); try { _services.toast(`Doplněk selhal: ${e.message}`); } catch (_) {} }
+    catch (e) { console.error(`[addon ${entry.addonId}] action "${actionStr}" failed`, e); try { _services.toast(I18n.t('addons.actionFailed', { msg: e.message })); } catch (_) {} }
   }
 
   /** Snapshot of registered addon sidebar pages (for sidebar.js). */

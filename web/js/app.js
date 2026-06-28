@@ -15,7 +15,8 @@ import { Role } from './role.js';
 import { DmDashboard } from './dm_dashboard.js';
 import { Sidebar } from './sidebar.js';
 import { Addons } from './addons.js';
-import { setWikiLinkResolver, norm, dataAction } from './utils.js';
+import { I18n } from './i18n.js';
+import { setWikiLinkResolver, norm, dataAction, dataOn, esc } from './utils.js';
 
 // ── Action dispatcher (replaces inline `onclick="Module.method(...)"`) ──
 // Buttons / anchors carry `data-action="Module.method"` plus an optional
@@ -27,7 +28,7 @@ import { setWikiLinkResolver, norm, dataAction } from './utils.js';
 //   2. Lets the page run under `Content-Security-Policy: script-src 'self'`
 //      because no inline event-handler attributes survive.
 const ACTIONS = {
-  Store, EditMode, Wiki, CloudMap, Timeline, WorldMap, Settings, GlobalSearch, Role, DmDashboard, Sidebar, Addons,
+  Store, EditMode, Wiki, CloudMap, Timeline, WorldMap, Settings, GlobalSearch, Role, DmDashboard, Sidebar, Addons, I18n,
 };
 // Browser-built-in shortcuts that used to live inline (`history.back()`,
 // `document.getElementById(slug).scrollIntoView(…)`, etc.). Element- /
@@ -323,8 +324,10 @@ document.addEventListener('error',    (ev) => {
 
     // Top-right login chip visibility is route-dependent (dashboard only).
     // Render here so leaving / returning to Přehled hides / re-shows the chip
-    // without waiting for a role transition.
+    // without waiting for a role transition. The language chip follows the
+    // same route gating.
     _renderTopbarLogin();
+    _renderLangChip();
 
     // Clear any per-article edit state if we're leaving the article it
     // belongs to. Without this, navigating away mid-edit and then back
@@ -343,14 +346,12 @@ document.addEventListener('error',    (ev) => {
       const main = document.getElementById('main-content');
       if (main) {
         main.innerHTML = `
-          <div class="page-header"><h1>🔒 Vyžaduje přihlášení</h1></div>
+          <div class="page-header"><h1>🔒 ${esc(I18n.t('app.loginRequiredTitle'))}</h1></div>
           <p style="color:var(--text-muted);max-width:540px;margin:1rem 0 1.4rem">
-            ${route === '/nastaveni'
-              ? 'Pro přístup k nastavení se prosím přihlas — DM nebo hráčským heslem.'
-              : 'Pro vytvoření nového záznamu se prosím přihlas — DM nebo hráčským heslem.'}
+            ${esc(I18n.t(route === '/nastaveni' ? 'app.loginForSettings' : 'app.loginForNew'))}
           </p>
-          <button class="inline-create-btn" ${dataAction('EditMode.promptLogin')}>🔑 Přihlásit</button>
-          <button class="inline-create-btn" style="margin-left:0.5rem" ${dataAction('back')}>← Zpět</button>`;
+          <button class="inline-create-btn" ${dataAction('EditMode.promptLogin')}>🔑 ${esc(I18n.t('action.login'))}</button>
+          <button class="inline-create-btn" style="margin-left:0.5rem" ${dataAction('back')}>← ${esc(I18n.t('action.back'))}</button>`;
       }
       return;
     }
@@ -495,6 +496,7 @@ document.addEventListener('error',    (ev) => {
   // fires `editmode:clean`) or they can dismiss/refresh on demand.
   let _lastHash    = null;
   let _pendingHash = null;   // latest hash seen while dirty; null = nothing pending
+  let _pendingLangRerender = false;  // language switched mid-edit; full re-render deferred to save
   let _es          = null;
   let _esRetryMs   = 1000;
 
@@ -557,14 +559,14 @@ document.addEventListener('error',    (ev) => {
       'display:flex', 'align-items:center', 'justify-content:center', 'gap:12px',
     ].join(';');
     banner.innerHTML = `
-      <span>📡 Někdo jiný upravil data. Tvoje rozepsané změny zatím nejsou ztracené.</span>
+      <span>📡 ${esc(I18n.t('app.remoteChanged'))}</span>
       <button type="button" id="remote-change-banner-refresh"
               style="background:#1a2738;color:#fff;border:1px solid #5a7090;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px">
-        Načíst (zahodit moje změny)
+        ${esc(I18n.t('app.remoteReload'))}
       </button>
       <button type="button" id="remote-change-banner-dismiss"
               style="background:transparent;color:#fff;border:1px solid #5a7090;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px">
-        Zavřít
+        ${esc(I18n.t('action.close'))}
       </button>
     `;
     document.body.prepend(banner);
@@ -634,6 +636,12 @@ document.addEventListener('error',    (ev) => {
   // someone else just edited — no manual refresh needed.
   window.addEventListener('editmode:clean', () => {
     _hideRemoteBanner();
+    // A language switch made mid-edit deferred its full re-render so the
+    // live editor wasn't torn out from under the user — apply it now.
+    if (_pendingLangRerender) {
+      _pendingLangRerender = false;
+      _fullChromeRerender();
+    }
     if (_pendingHash !== null) {
       const h = _pendingHash;
       _pendingHash = null;
@@ -663,10 +671,10 @@ document.addEventListener('error',    (ev) => {
   }
 
   window.addEventListener("store:server-unavailable", () => {
-    _showServerBanner("⚠ Server není dostupný — zobrazují se výchozí data. Změny nebudou uloženy.");
+    _showServerBanner(I18n.t('app.serverUnavailable'));
   });
   window.addEventListener("store:save-failed", () => {
-    _showServerBanner("⚠ Uložení na server selhalo — zkontrolujte připojení a znovu načtěte stránku.");
+    _showServerBanner(I18n.t('app.saveFailed'));
   });
 
   // ── Top-right login chip ────────────────────────────────────
@@ -697,10 +705,55 @@ document.addEventListener('error',    (ev) => {
     chip.id   = 'topbar-login';
     chip.type = 'button';
     chip.className = 'topbar-login';
-    chip.title = 'Přihlásit a začít editovat';
+    chip.title = I18n.t('app.loginChipTitle');
     chip.setAttribute('data-action', 'EditMode.promptLogin');
-    chip.innerHTML = '<span class="topbar-login-icon">🔑</span> <span class="topbar-login-label">Přihlásit</span>';
+    chip.innerHTML = `<span class="topbar-login-icon">🔑</span> <span class="topbar-login-label">${esc(I18n.t('action.login'))}</span>`;
     document.body.appendChild(chip);
+  }
+
+  // ── Top-right language switcher chip ────────────────────────
+  // Per-user UI language (localStorage 'codex_lang', not campaign-wide).
+  // Floats top-right of the dashboard for EVERY viewer — anonymous
+  // included, since language is a pre-auth choice. The `has-lang-chip`
+  // body class lets edit.css stack the anonymous login chip below it so
+  // the two never overlap. The <select> dispatches I18n.setLocale via
+  // the global change listener. Route-gated render/remove like the login
+  // chip; rebuilt on every navigate() so the active option stays in sync.
+  function _renderLangChip() {
+    const route  = getRoute();
+    const onDash = (route === '/' || route === '/dashboard');
+    document.body.classList.toggle('has-lang-chip', onDash);
+    let chip = document.getElementById('topbar-lang');
+    if (!onDash) { if (chip) chip.remove(); return; }
+    const cur  = I18n.getLocale();
+    const opts = I18n.availableLocales().map(l =>
+      `<option value="${esc(l.id)}"${l.id === cur ? ' selected' : ''}>${esc(l.endonym)}</option>`
+    ).join('');
+    if (!chip) {
+      chip = document.createElement('div');
+      chip.id = 'topbar-lang';
+      chip.className = 'topbar-lang';
+      document.body.appendChild(chip);
+    }
+    chip.innerHTML =
+      `<select class="topbar-lang-select" aria-label="Language / Jazyk"` +
+      `${dataOn('change', 'I18n.setLocale', '$value')}>${opts}</select>`;
+  }
+
+  // Re-render after a language switch. Mirrors the SSE _applyRemoteChange
+  // fan-out but skips Store.load() (data is locale-agnostic) and re-
+  // hydrates the static index.html chrome. Injected into I18n via
+  // setRerender at boot; also drained from editmode:clean when a switch
+  // was deferred mid-edit.
+  function _fullChromeRerender() {
+    I18n.hydrate(document);
+    Sidebar.render();
+    Settings.applyBranding();
+    Settings.applyTheme();
+    _renderTopbarLogin();
+    _renderImpersonationBanner();
+    _renderLangChip();
+    navigate(getRoute());
   }
 
   function _renderImpersonationBanner() {
@@ -715,8 +768,8 @@ document.addEventListener('error',    (ev) => {
     banner.id = 'impersonation-banner';
     banner.className = 'impersonation-banner';
     banner.innerHTML = `
-      <span>👁 Pohled hráče — DM obsah je skrytý. Tohle vidí hráči.</span>
-      <button type="button" data-action="Role.backToDM">← Zpět na DM</button>
+      <span>👁 ${esc(I18n.t('app.impersonating'))}</span>
+      <button type="button" data-action="Role.backToDM">← ${esc(I18n.t('app.backToDM'))}</button>
     `;
     document.body.prepend(banner);
   }
@@ -758,6 +811,28 @@ document.addEventListener('error',    (ev) => {
     // palette before settings load. Settings.applyTheme() below reconciles
     // with the authoritative campaign setting once data is in.
     try { document.documentElement.setAttribute('data-theme', localStorage.getItem('codex_theme') || 'classic'); } catch (_) {}
+    // Per-user UI language. Resolve + load the active catalog and set
+    // <html lang> + translate the static index.html chrome BEFORE the
+    // first render, so there's no flash of the wrong language. Stored
+    // per-browser (localStorage), never campaign-wide / server-synced.
+    await I18n.load();
+    I18n.hydrate(document);
+    // Closure that re-renders the live UI when the user switches language.
+    // Mid-edit (EditMode.isDirty) we must NOT navigate() — that rebuilds
+    // #main-content and destroys the live EasyMDE/CodeMirror editor with
+    // its unsaved text. So flip only the editor-free chrome, toast a
+    // notice, and defer the full re-render until editmode:clean fires.
+    I18n.setRerender(() => {
+      if (EditMode.isDirty()) {
+        I18n.hydrate(document);
+        Sidebar.render();
+        _renderLangChip();
+        _pendingLangRerender = true;
+        try { EditMode.toast(I18n.t('lang.appliesAfterSave')); } catch (_) {}
+        return;
+      }
+      _fullChromeRerender();
+    });
     // Paint the sidebar immediately from the default layout (a constant,
     // needs no data) so there's no empty-sidebar flash; it re-renders
     // below once role + settings have loaded.
@@ -789,6 +864,7 @@ document.addEventListener('error',    (ev) => {
     // and any impersonation banner once we know the role. navigate()
     // re-runs _renderTopbarLogin on every route change too.
     _renderTopbarLogin();
+    _renderLangChip();
     _renderImpersonationBanner();
 
     // Remove loading screen

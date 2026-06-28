@@ -202,6 +202,49 @@ body.is-impersonating .topbar-login { top: calc(1rem + 36px); }
   .topbar-login-label { display: none; }
 }
 
+/* Top-right language switcher chip — per-user UI language (localStorage
+   'codex_lang', NOT campaign-wide). Rendered by `_renderLangChip` in
+   app.js on the dashboard route for EVERY viewer (anonymous included —
+   language is a pre-auth choice). When present it sets the
+   `body.has-lang-chip` class, which stacks the anonymous login chip
+   below it (offset rules below) so the two never collide regardless of
+   width. Mirrors the .topbar-login visual language. */
+.topbar-lang {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 100;
+}
+.topbar-lang-select {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(var(--accent-gold-rgb), 0.14);
+  border: 1px solid var(--accent-gold);
+  border-radius: var(--radius);
+  padding: 0.45rem 0.7rem;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  letter-spacing: 0.03em;
+  color: var(--accent-gold);
+  cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+  transition: background 0.15s, border-color 0.15s;
+}
+.topbar-lang-select:hover { background: rgba(var(--accent-gold-rgb), 0.22); }
+.topbar-lang-select:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
+/* Stack the anonymous login chip below the language chip (both pinned
+   top-right). Height-based offset is robust to the chips' widths. */
+body.has-lang-chip .topbar-login { top: calc(1rem + 46px); }
+/* The impersonation banner (~36px) pushes both chips down. */
+body.is-impersonating .topbar-lang { top: calc(1rem + 36px); }
+body.is-impersonating.has-lang-chip .topbar-login { top: calc(1rem + 36px + 46px); }
+@media (max-width: 600px) {
+  .topbar-lang { top: 0.5rem; right: 0.5rem; }
+  .topbar-lang-select { padding: 0.35rem 0.55rem; font-size: 0.78rem; }
+  body.has-lang-chip .topbar-login { top: calc(0.5rem + 44px); }
+  body.is-impersonating.has-lang-chip .topbar-login { top: calc(0.5rem + 36px + 44px); }
+}
+
 /* Top-of-page red banner while a DM is impersonating a player.
    z-index 9999 puts it above any per-page edit chrome so the warning
    is unmistakable. */

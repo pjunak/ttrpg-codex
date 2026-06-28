@@ -141,6 +141,11 @@ host.store.collection(name)             // your OWN collection (data:own) → { 
 host.store.patchAddonData(coll, id, fn) // needs data:write:<coll>.addonData (§6)
 ```
 
+> **Language.** The app's language switcher is a **visual layer over the core
+> UI only** — it does not reach into addon code. Write your addon entirely in
+> **English** (UI strings included), same as the rest of the codebase. There is
+> no addon translation API.
+
 ---
 
 ## 5. Permission catalogue
@@ -447,13 +452,16 @@ automatically.
    before `registerCollection`. Wiki-kind targets resolve **by name → real id**.
 9. Keep `register()` side-effect-free except for `register*` calls. Do data work
    in actions/renderers, not at register time.
+10. **Write the whole addon — UI strings included — in English.** The app's
+   language switcher is a visual layer over the *core* UI only; it doesn't reach
+   addon code, and there is no addon translation API.
 
 **Complete minimal template** (route + sidebar + action + data, all rules
 satisfied):
 ```jsonc
 // addon.json
 {
-  "id": "notes", "name": "Poznámky", "version": "0.1.0",
+  "id": "notes", "name": "Notes", "version": "0.1.0",
   "apiVersion": 1, "hostVersion": ">=1.0.0", "entry": "entry.js",
   "permissions": ["ui:route", "ui:sidebar", "ui:action", "data:own"],
   "collections": [{ "name": "notes", "keyed": false }],
@@ -467,7 +475,7 @@ export default function register(host) {
   host.registerCollection('notes');
   const notes = () => host.store.collection('notes');
 
-  host.registerSidebarPage({ route: '/poznamky', label: 'Poznámky', icon: '📝' });
+  host.registerSidebarPage({ route: '/notes', label: 'Notes', icon: '📝' });
 
   // Factor shared logic into a local function — the host facade has no way to
   // call one action from another, so don't try; just reuse the function.
@@ -476,27 +484,27 @@ export default function register(host) {
     const text = (input?.value || '').trim();
     if (!text) return;
     notes().save({ text });
-    host.ui.toast('Přidáno');
+    host.ui.toast('Added');
     host.ui.rerender();
   }
   host.registerAction('add', doAdd);
   host.registerAction('addOnEnter', (ev) => { if (ev?.key === 'Enter') { ev.preventDefault(); doAdd(); } });
   host.registerAction('del', (id) => { notes().remove(id); host.ui.rerender(); });
 
-  host.registerRoute('poznamky', () => {
+  host.registerRoute('notes', () => {
     const items = notes().list();
     const rows = items.length
       ? items.map(n => `<li>${esc(n.text)}
           <button class="inline-create-btn"${dataAction(host.action('del'), n.id)}>×</button></li>`).join('')
-      : `<li style="color:var(--text-muted)">Zatím nic.</li>`;
+      : `<li style="color:var(--text-muted)">Nothing yet.</li>`;
     const canEdit = !host.role.isAnonymous();
     return `
-      <div class="page-header"><h1>📝 Poznámky</h1></div>
+      <div class="page-header"><h1>📝 Notes</h1></div>
       <ul style="line-height:1.9;margin-top:var(--space-3)">${rows}</ul>
       ${canEdit ? `<div style="display:flex;gap:var(--space-2);margin-top:var(--space-3);max-width:32rem">
-        <input id="note-input" class="edit-input" style="flex:1" placeholder="Nová poznámka"
+        <input id="note-input" class="edit-input" style="flex:1" placeholder="New note"
                ${dataOn('keydown', host.action('addOnEnter'), '$ev')}>
-        <button class="inline-create-btn"${dataAction(host.action('add'))}>＋ Přidat</button>
+        <button class="inline-create-btn"${dataAction(host.action('add'))}>＋ Add</button>
       </div>` : ''}`;
   });
 }

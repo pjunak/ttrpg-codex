@@ -15,6 +15,7 @@ import { Store } from './store.js';
 import { EditMode } from './editmode.js';
 import { Role } from './role.js';
 import { esc, dataAction, pageEditToggle } from './utils.js';
+import { I18n } from './i18n.js';
 
 const STACK_THRESHOLD = 4;
 
@@ -273,17 +274,17 @@ export const Timeline = (() => {
     // /mapa/svet and /mapa/palac. Clicking calls Timeline.toggleEditing
     // (no args) so the button keeps working across multiple toggles.
     const editToggle = pageEditToggle({
-      moduleName: 'Timeline', isEditing: editing, label: 'osu',
+      moduleName: 'Timeline', isEditing: editing, label: I18n.t('timeline.editToggleLabel'),
     });
 
     document.getElementById('main-content').style.display = '';
     document.getElementById('main-content').innerHTML = `
       <div class="tl-shell ${editing ? 'is-editing' : ''}">
         <div class="tl-toolbar">
-          <div class="tl-title">⏳ Časová Osa</div>
-          <span class="tl-hint">Klik na kartu = detail události${editing ? ' · Táhni kartu = přeskládat' : ''}</span>
+          <div class="tl-title">⏳ ${esc(I18n.t('timeline.title'))}</div>
+          <span class="tl-hint">${esc(I18n.t('timeline.hintBase'))}${editing ? ` · ${esc(I18n.t('timeline.hintDrag'))}` : ''}</span>
           ${editToggle}
-          ${editing ? `<button class="tl-add-btn"${dataAction('EditMode.startNewEvent')}>＋ Nová událost</button>` : ''}
+          ${editing ? `<button class="tl-add-btn"${dataAction('EditMode.startNewEvent')}>＋ ${esc(I18n.t('timeline.newEvent'))}</button>` : ''}
         </div>
         <div class="tl-board-viewport">
           <div class="tl-board" id="tl-board"></div>
@@ -297,7 +298,7 @@ export const Timeline = (() => {
     for (let s = 1; s <= maxSitting; s++) {
       _renderColumn(board, {
         sitting: s,
-        label:   `Sezení ${s}`,
+        label:   I18n.t('timeline.session', { n: s }),
         events:  byCol.get(s) || [],
         editing,
         variant: 'sitting',
@@ -309,7 +310,7 @@ export const Timeline = (() => {
     if (editing) {
       _renderColumn(board, {
         sitting: maxSitting + 1,
-        label:   `Nové sezení ${maxSitting + 1}`,
+        label:   I18n.t('timeline.newSession', { n: maxSitting + 1 }),
         events:  [],
         editing,
         variant: 'phantom',
@@ -331,7 +332,7 @@ export const Timeline = (() => {
         <div class="tl-col-count">${events.length || ''}</div>
       </div>
       <div class="tl-col-body"></div>
-      ${editing ? `<button class="tl-col-add" data-sitting="${sitting}">＋ Nová událost</button>` : ''}
+      ${editing ? `<button class="tl-col-add" data-sitting="${sitting}">＋ ${esc(I18n.t('timeline.newEvent'))}</button>` : ''}
     `;
 
     const body = col.querySelector('.tl-col-body');

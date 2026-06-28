@@ -9,15 +9,8 @@
  *  showing party PCs so relationships/events can still reference them. */
 export const PARTY_FACTION_ID = 'party';
 
-/** Centralised Czech pluralisation helper for count-based labels
- *  like "3 postavy" / "1 postava" / "5 postav". Returns the right
- *  form by the small-number / standard-plural rules of Czech. */
-export function czPlural(n, one, few, many) {
-  const i = Math.abs(n);
-  if (i === 1) return one;
-  if (i >= 2 && i <= 4) return few;
-  return many;
-}
+// Pluralisation now lives in I18n.plural (native Intl.PluralRules) —
+// see web/js/i18n.js. The hand-rolled Czech-only czPlural was removed.
 
 /** Canonical **registry** of pages the left sidebar can show. The
  *  actual sidebar structure (section grouping + order) is data-driven
@@ -29,22 +22,27 @@ export function czPlural(n, one, few, many) {
  *
  *  Optional `role: 'dm'` hides the entry for non-DM viewers — the route
  *  is still reachable by URL (defence-in-depth lives in the renderer),
- *  but the link doesn't appear in the sidebar. */
+ *  but the link doesn't appear in the sidebar.
+ *
+ *  `key` is the i18n catalog key for the link label (web/i18n/*.json).
+ *  The Sidebar renders `I18n.t(key)`; `label` is the dev-facing default
+ *  fallback only. (Section labels in `SIDEBAR_LAYOUT_DEFAULT` are
+ *  DM-editable content and are NOT translated — see CLAUDE.md i18n.) */
 export const SIDEBAR_PAGES = [
-  { route: '/',             label: 'Přehled',           icon: '🏠', section: 'prehled' },
-  { route: '/mapa/svet',    label: 'Mapa',              icon: '🗺', section: 'prehled' },
-  { route: '/casova-osa',   label: 'Časová Osa',        icon: '⏳', section: 'kampan' },
-  { route: '/zahady',       label: 'Záhady',            icon: '❓', section: 'kampan' },
-  { route: '/mapa/palac',   label: 'Myšlenkový Palác',  icon: '☁',  section: 'kampan' },
-  { route: '/mista',        label: 'Místa',             icon: '📍', section: 'svet' },
-  { route: '/postavy',      label: 'Postavy',           icon: '👤', section: 'svet' },
-  { route: '/frakce',       label: 'Frakce',            icon: '⬡',  section: 'svet' },
-  { route: '/mazlicci',     label: 'Mazlíčci',          icon: '🐾', section: 'svet' },
-  { route: '/druhy',        label: 'Druhy',             icon: '🧬', section: 'kompendium' },
-  { route: '/panteon',      label: 'Panteon',           icon: '✨', section: 'kompendium' },
-  { route: '/artefakty',    label: 'Artefakty',         icon: '🗝', section: 'kompendium' },
-  { route: '/historie',     label: 'Historie',          icon: '📜', section: 'kompendium' },
-  { route: '/dm',           label: 'DM panel',          icon: '🛡', section: 'dm', role: 'dm' },
+  { route: '/',             label: 'Přehled',           key: 'nav.overview',   icon: '🏠', section: 'prehled' },
+  { route: '/mapa/svet',    label: 'Mapa',              key: 'nav.map',        icon: '🗺', section: 'prehled' },
+  { route: '/casova-osa',   label: 'Časová Osa',        key: 'nav.timeline',   icon: '⏳', section: 'kampan' },
+  { route: '/zahady',       label: 'Záhady',            key: 'nav.mysteries',  icon: '❓', section: 'kampan' },
+  { route: '/mapa/palac',   label: 'Myšlenkový Palác',  key: 'nav.mindPalace', icon: '☁',  section: 'kampan' },
+  { route: '/mista',        label: 'Místa',             key: 'nav.locations',  icon: '📍', section: 'svet' },
+  { route: '/postavy',      label: 'Postavy',           key: 'nav.characters', icon: '👤', section: 'svet' },
+  { route: '/frakce',       label: 'Frakce',            key: 'nav.factions',   icon: '⬡',  section: 'svet' },
+  { route: '/mazlicci',     label: 'Mazlíčci',          key: 'nav.pets',       icon: '🐾', section: 'svet' },
+  { route: '/druhy',        label: 'Druhy',             key: 'nav.species',    icon: '🧬', section: 'kompendium' },
+  { route: '/panteon',      label: 'Panteon',           key: 'nav.pantheon',   icon: '✨', section: 'kompendium' },
+  { route: '/artefakty',    label: 'Artefakty',         key: 'nav.artifacts',  icon: '🗝', section: 'kompendium' },
+  { route: '/historie',     label: 'Historie',          key: 'nav.history',    icon: '📜', section: 'kompendium' },
+  { route: '/dm',           label: 'DM panel',          key: 'nav.dmPanel',    icon: '🛡', section: 'dm', role: 'dm' },
 ];
 
 /** Default sidebar layout — mirrors the historical hardcoded markup.

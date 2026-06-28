@@ -7,6 +7,7 @@
 
 import { Store } from './store.js';
 import { esc, norm, debounce } from './utils.js';
+import { I18n } from './i18n.js';
 
 export const GlobalSearch = (() => {
 
@@ -16,15 +17,17 @@ export const GlobalSearch = (() => {
   let _items    = [];       // flattened { kind, id, name, subtitle, route }
   let _idx      = 0;        // keyboard selection index
 
+  // `labelKey` is resolved through I18n.t() at render time (in
+  // _renderResults) so a language switch relabels group headers live.
   const KIND_META = {
-    postava:  { icon: '👤', label: 'Postavy'   },
-    misto:    { icon: '📍', label: 'Místa'     },
-    udalost:  { icon: '⏳', label: 'Události'  },
-    zahada:   { icon: '❓', label: 'Záhady'    },
-    frakce:   { icon: '⬡',  label: 'Frakce'    },
-    druh:     { icon: '🧬', label: 'Druhy'     },
-    buh:      { icon: '✨', label: 'Panteon'   },
-    artefakt: { icon: '🗝', label: 'Artefakty' },
+    postava:  { icon: '👤', labelKey: 'nav.characters' },
+    misto:    { icon: '📍', labelKey: 'nav.locations'  },
+    udalost:  { icon: '⏳', labelKey: 'search.events'   },
+    zahada:   { icon: '❓', labelKey: 'nav.mysteries'  },
+    frakce:   { icon: '⬡',  labelKey: 'nav.factions'   },
+    druh:     { icon: '🧬', labelKey: 'nav.species'    },
+    buh:      { icon: '✨', labelKey: 'nav.pantheon'   },
+    artefakt: { icon: '🗝', labelKey: 'nav.artifacts'  },
   };
 
   function _build() {
@@ -34,10 +37,10 @@ export const GlobalSearch = (() => {
     _root.hidden = true;
     _root.innerHTML = `
       <div class="gs-backdrop" data-dismiss></div>
-      <div class="gs-panel" role="dialog" aria-modal="true" aria-label="Globální vyhledávání">
-        <input class="gs-input" type="text" placeholder="Hledat ve všem…" autocomplete="off" spellcheck="false">
+      <div class="gs-panel" role="dialog" aria-modal="true" aria-label="${esc(I18n.t('search.dialogLabel'))}">
+        <input class="gs-input" type="text" placeholder="${esc(I18n.t('search.placeholderAll'))}" autocomplete="off" spellcheck="false">
         <div class="gs-results" role="listbox"></div>
-        <div class="gs-hint">↑↓ procházet · ↵ otevřít · Esc zavřít</div>
+        <div class="gs-hint">${esc(I18n.t('search.hint'))}</div>
       </div>`;
     document.body.appendChild(_root);
     _input   = _root.querySelector('.gs-input');
@@ -91,8 +94,8 @@ export const GlobalSearch = (() => {
     };
     pushKind('postava',  'postava',  all.characters, e => e.title ? esc(e.title) : '');
     pushKind('misto',    'misto',    all.locations,  e => [e.type, e.region].filter(Boolean).map(esc).join(' · '));
-    pushKind('udalost',  'udalost',  all.events,     e => e.sitting ? `Sezení ${e.sitting}` : '');
-    pushKind('zahada',   'zahada',   all.mysteries,  e => e.priority ? `Priorita: ${e.priority}` : '');
+    pushKind('udalost',  'udalost',  all.events,     e => e.sitting ? esc(I18n.t('search.sitting', { n: e.sitting })) : '');
+    pushKind('zahada',   'zahada',   all.mysteries,  e => e.priority ? esc(I18n.t('search.priority', { priority: e.priority })) : '');
     pushKind('druh',     'druh',     all.species);
     pushKind('buh',      'buh',      all.pantheon,   e => e.domain ? esc(e.domain) : '');
     pushKind('artefakt', 'artefakt', all.artifacts);
@@ -113,7 +116,7 @@ export const GlobalSearch = (() => {
     if (!Store.getRecentActivity) return [];
     return Store.getRecentActivity(8).map(e => ({
       kind: e.kind, id: e.id, name: e.name,
-      subtitle: 'Nedávno upraveno',
+      subtitle: esc(I18n.t('search.recentlyEdited')),
       route: e.route === '#/frakce' ? `${e.route}/${e.id}` : `${e.route}/${e.id}`,
     }));
   }
@@ -121,8 +124,8 @@ export const GlobalSearch = (() => {
   function _renderResults(query) {
     if (!_items.length) {
       _results.innerHTML = query
-        ? `<div class="gs-empty">Nic nenalezeno</div>`
-        : `<div class="gs-empty">Začni psát — nebo vyber z nedávných úprav…</div>`;
+        ? `<div class="gs-empty">${esc(I18n.t('search.noResults'))}</div>`
+        : `<div class="gs-empty">${esc(I18n.t('search.emptyHint'))}</div>`;
       return;
     }
     // Group by kind, preserving order of first appearance.
@@ -133,8 +136,10 @@ export const GlobalSearch = (() => {
     });
     let html = '';
     for (const [kind, list] of groups) {
-      const meta = KIND_META[kind] || { icon: '•', label: kind };
-      html += `<div class="gs-group"><div class="gs-group-title">${meta.icon} ${esc(meta.label)}</div>`;
+      const meta = KIND_META[kind];
+      const icon = meta ? meta.icon : '•';
+      const label = meta ? I18n.t(meta.labelKey) : kind;
+      html += `<div class="gs-group"><div class="gs-group-title">${icon} ${esc(label)}</div>`;
       for (const it of list) {
         const active = it.i === _idx ? ' is-active' : '';
         html += `
