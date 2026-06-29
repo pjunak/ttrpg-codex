@@ -106,7 +106,7 @@ test('filterForRole: does not mutate the input container or its entities', () =>
 test('VISIBILITY_BEARING: covers every collection that has DM-relevant content', () => {
   const expected = [
     'characters', 'relationships', 'locations', 'events',
-    'mysteries', 'factions', 'species', 'pantheon', 'artifacts',
+    'mysteries', 'factions', 'pantheon', 'artifacts',
     'historicalEvents',
   ];
   for (const c of expected) {

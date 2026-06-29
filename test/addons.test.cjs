@@ -63,6 +63,14 @@ test('validateManifest: permissions must be an array of token strings; dependenc
   assert.equal(validateManifest(goodManifest({ permissions: ['<script>'] })).ok, false);
 });
 
+test('validateManifest: optionalDependencies must be an object when set', () => {
+  assert.equal(validateManifest(goodManifest({ optionalDependencies: {} })).ok, true);
+  assert.equal(validateManifest(goodManifest({ optionalDependencies: { 'dnd55e-core-rules': '>=0.1.0' } })).ok, true);
+  assert.equal(validateManifest(goodManifest({ optionalDependencies: [] })).ok, false);
+  assert.equal(validateManifest(goodManifest({ optionalDependencies: 'rules' })).ok, false);
+  assert.equal(validateManifest(goodManifest({ optionalDependencies: null })).ok, false);
+});
+
 test('validateManifest: server must be a relative .cjs/.js path; serverDeps an array of strings', () => {
   assert.equal(validateManifest(goodManifest({ server: 'server/index.cjs' })).ok, true);
   assert.equal(validateManifest(goodManifest({ server: '../escape.cjs' })).ok, false);

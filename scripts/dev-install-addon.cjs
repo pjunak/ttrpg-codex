@@ -81,6 +81,7 @@ if (!entry) {
     activeHash: hash, versions: [versionRec],
     enabled: true, grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
     dependencies: (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {},
+    optionalDependencies: (manifest.optionalDependencies && typeof manifest.optionalDependencies === 'object' && !Array.isArray(manifest.optionalDependencies)) ? manifest.optionalDependencies : {},
     collections: Broker.normalizeCollections(manifest.collections),
     schemaVersion: 0, installedAt: Date.now(),
   };
@@ -91,6 +92,7 @@ if (!entry) {
     entry: manifest.entry, server: manifest.server || null, activeHash: hash, enabled: true,
     serverDeps: Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [],
     dependencies: (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {},
+    optionalDependencies: (manifest.optionalDependencies && typeof manifest.optionalDependencies === 'object' && !Array.isArray(manifest.optionalDependencies)) ? manifest.optionalDependencies : {},
     collections: Broker.normalizeCollections(manifest.collections),
   });
   if (!Array.isArray(entry.versions)) entry.versions = [];

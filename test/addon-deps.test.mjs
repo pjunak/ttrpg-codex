@@ -163,3 +163,77 @@ test('planLoadOrder: a diamond loads the root first, leaf last', () => {
   const pos = Object.fromEntries(order.map((a, i) => [a.id, i]));
   assert.ok(pos.a < pos.b && pos.a < pos.c && pos.b < pos.d && pos.c < pos.d);
 });
+
+// ── planLoadOrder: optionalDependencies (soft, ordering-only) ──────
+test('planLoadOrder: present optional dep orders the dependent AFTER it', () => {
+  const { order, blocked } = planLoadOrder([
+    { id: 'sheet', version: '1.0.0', optionalDependencies: { rules: '>=1.0.0' } },
+    { id: 'rules', version: '1.2.0' },
+  ]);
+  assert.equal(blocked.size, 0);
+  assert.deepEqual(order.map(a => a.id), ['rules', 'sheet']);
+});
+
+test('planLoadOrder: absent optional dep does NOT block — dependent loads standalone', () => {
+  const { order, blocked } = planLoadOrder([
+    { id: 'sheet', version: '1.0.0', optionalDependencies: { rules: '*' } },
+  ]);
+  assert.equal(blocked.size, 0);
+  assert.deepEqual(order.map(a => a.id), ['sheet']);
+});
+
+test('planLoadOrder: version-incompatible optional dep is ignored, never blocks', () => {
+  const { order, blocked } = planLoadOrder([
+    { id: 'sheet', version: '1.0.0', optionalDependencies: { rules: '>=2.0.0' } },
+    { id: 'rules', version: '1.0.0' },
+  ]);
+  assert.equal(blocked.size, 0, 'an incompatible OPTIONAL dep must not block');
+  // No ordering edge is created (treated as absent), so both just load.
+  assert.equal(order.length, 2);
+});
+
+test('planLoadOrder: a blocked optional dep leaves the dependent loadable standalone', () => {
+  // rules hard-needs a missing compendium → rules is blocked; sheet only
+  // OPTIONALLY needs rules, so sheet must still load (no transitive block).
+  const { order, blocked } = planLoadOrder([
+    { id: 'sheet', version: '1.0.0', optionalDependencies: { rules: '*' } },
+    { id: 'rules', version: '1.0.0', dependencies: { compendium: '*' } },
+  ]);
+  assert.ok(blocked.has('rules'));
+  assert.ok(!blocked.has('sheet'), 'sheet only soft-uses rules → not transitively blocked');
+  assert.deepEqual(order.map(a => a.id), ['sheet']);
+});
+
+test('planLoadOrder: an optional-edge cycle is broken (both load), not blocked', () => {
+  const { order, blocked, cycles } = planLoadOrder([
+    { id: 'a', version: '1.0.0', optionalDependencies: { b: '*' } },
+    { id: 'b', version: '1.0.0', optionalDependencies: { a: '*' } },
+  ]);
+  assert.equal(blocked.size, 0, 'optional ordering must never block');
+  assert.equal(cycles.length, 0);
+  assert.equal(order.length, 2);
+});
+
+test('planLoadOrder: the sheets→core-rules→compendium chain orders correctly', () => {
+  // sheet OPTIONALLY uses core-rules; core-rules HARD-needs compendium.
+  const { order, blocked } = planLoadOrder([
+    { id: 'dnd55e-sheets', version: '0.1.0', optionalDependencies: { 'dnd55e-core-rules': '>=0.1.0' } },
+    { id: 'dnd55e-core-rules', version: '0.1.0', dependencies: { 'dnd55e-compendium': '>=0.1.0' } },
+    { id: 'dnd55e-compendium', version: '0.1.0' },
+  ]);
+  assert.equal(blocked.size, 0);
+  const pos = Object.fromEntries(order.map((a, i) => [a.id, i]));
+  assert.ok(pos['dnd55e-compendium'] < pos['dnd55e-core-rules'], 'compendium before core-rules');
+  assert.ok(pos['dnd55e-core-rules'] < pos['dnd55e-sheets'], 'core-rules before sheets');
+});
+
+test('planLoadOrder: a HARD dep still blocks even when an optional dep is also present', () => {
+  // Regression guard: adding optionalDependencies handling must not weaken
+  // hard-dep blocking.
+  const { blocked } = planLoadOrder([
+    { id: 'sheet', version: '1.0.0', dependencies: { missing: '*' }, optionalDependencies: { rules: '*' } },
+    { id: 'rules', version: '1.0.0' },
+  ]);
+  assert.ok(blocked.has('sheet'));
+  assert.match(blocked.get('sheet'), /chybí/);
+});

@@ -54,7 +54,6 @@ export const Wiki = (() => {
     events:           'udalost',
     mysteries:        'zahada',
     factions:         'frakce',
-    species:          'druh',
     pantheon:         'buh',
     artifacts:        'artefakt',
     historicalEvents: 'historicka-udalost',
@@ -438,7 +437,7 @@ export const Wiki = (() => {
   // wiki convention: facts up front, prose at the bottom.
   /**
    * Shared two-column layout used by every entity article (character,
-   * location, event, mystery, faction, species, deity, artifact,
+   * location, event, mystery, faction, deity, artifact,
    * historical event). Renders a sticky left side-card with the
    * portrait + title + chips + facts + auto-generated outline, and a
    * main column holding `sections` followed by the markdown body.
@@ -922,7 +921,7 @@ export const Wiki = (() => {
     if (!items.length) return '';
     const ICONS = {
       postava:'👤', misto:'📍', udalost:'⏳', zahada:'❓',
-      druh:'🧬', buh:'✨', artefakt:'🗝', frakce:'⬡',
+      buh:'✨', artefakt:'🗝', frakce:'⬡',
     };
     const rows = items.map(it => `
       <a class="activity-row" href="${it.route === '#/frakce' ? '#/frakce/' + it.id : it.route + '/' + it.id}">
@@ -1222,9 +1221,7 @@ export const Wiki = (() => {
     // viewer knows enough about the character to see physical details.
     const profileBits = [];
     if (c.knowledge >= 2 && c.species) {
-      const sp = Store.getSpeciesItem(c.species);
-      const label = sp ? sp.name : c.species;
-      profileBits.push(`<span class="profile-chip">🧬 ${esc(label)}</span>`);
+      profileBits.push(`<span class="profile-chip">🧬 ${esc(c.species)}</span>`);
     }
     if (c.knowledge >= 2 && c.gender) profileBits.push(`<span class="profile-chip">⚥ ${esc(c.gender)}</span>`);
     if (c.knowledge >= 2 && c.age)    profileBits.push(`<span class="profile-chip">⌛ ${esc(c.age)}</span>`);
@@ -2278,7 +2275,7 @@ export const Wiki = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════
-  //  SPECIES / PANTHEON / ARTIFACTS
+  //  PANTHEON / ARTIFACTS
   // ══════════════════════════════════════════════════════════════
   function _simpleListHeader(title, subtitle, newHref, newLabel) {
     const newBtn = newHref
@@ -2298,68 +2295,6 @@ export const Wiki = (() => {
     if (!txt) return '';
     const line = txt.split(/\n\s*\n/)[0];
     return esc(line.length > 180 ? line.slice(0, 180) + '…' : line);
-  }
-
-  // ── Species (Druhy) ─────────────────────────────────────────────
-  function renderSpeciesList() {
-    const items = Store.dedupeShadowTwins('species', Store.getSpecies()).slice()
-      .sort((a, b) => _czCompare(a.name, b.name));
-    if (items.length === 0) {
-      return `
-        <div class="page-header"><h1>🧬 ${esc(I18n.t('nav.species'))}</h1></div>
-        ${_renderEmptyState({
-          icon: '🧬',
-          title: I18n.t('wiki.speciesEmptyTitle'),
-          description: I18n.t('wiki.speciesEmptyDesc'),
-          ctaLabel: I18n.t('wiki.speciesNew'), ctaHref: '#/druh/new',
-        })}`;
-    }
-    const grid = items.map(s => {
-          const editBtn = editOverlay(`#/druh/${s.id}`);
-          return `<a class="loc-card" href="#/druh/${s.id}" style="text-decoration:none;position:relative">
-            ${editBtn}
-            ${_twinCardMarker(s)}
-            <div class="loc-card-icon">🧬</div>
-            <div class="loc-card-body">
-              <div class="loc-card-name">${esc(s.name)}</div>
-              <div class="loc-card-type">${_firstParagraph(s.description)}</div>
-            </div>
-          </a>`;
-        }).join('');
-    return `
-      ${_simpleListHeader('🧬 ' + I18n.t('nav.species'), I18n.plural('wiki.recordCount', items.length), '#/druh/new', I18n.t('wiki.speciesNew'))}
-      <div class="loc-grid">${grid}</div>
-    `;
-  }
-
-  function renderSpeciesArticle(id) {
-    if (id === 'new') return EditMode.renderSpeciesEditor(null);
-    const s = Store.getSpeciesItem(id);
-    if (!s) return `<p>${esc(I18n.t('wiki.speciesNotFound', { id }))}</p>`;
-    if (_isCurrentArticleEditing()) return EditMode.renderSpeciesEditor(s);
-
-    // Characters of this species.
-    const chars = Store.getCharacters().filter(c =>
-      c.species === id || c.species === s.name
-    );
-    const charChips = chars.length
-      ? `<div class="relation-chips">${chars.map(c =>
-          `<a class="relation-chip" href="#/postava/${c.id}">${esc(c.name)}</a>`
-        ).join('')}</div>` : '';
-
-    _setCurrentArticle({ type: 'species', id });
-    return _articleShell({
-      editButton: _articleEditButton('species', id),
-      visual: `<div class="ah-icon">🧬</div>`,
-      title: esc(s.name),
-      chips: [`<span class="profile-chip">👤 ${chars.length}</span>`],
-      facts: [_twinFactRow('species', s)].filter(Boolean),
-      sections: [
-        { title: I18n.t('wiki.sectionCharsOfSpecies'), html: charChips },
-      ],
-      body: `<div class="md-view">${renderMarkdown(s.description)}</div>`,
-      outlineSource: s.description || '',
-    });
   }
 
   // ── Pantheon (Panteon) ──────────────────────────────────────────
@@ -2590,8 +2525,6 @@ export const Wiki = (() => {
       case "frakce":     html = renderFactionList(); break;
       case "frakce-id":  html = renderFactionArticle(param); break;
       case "mazlicci":   html = renderPetsList(); break;
-      case "druhy":      html = renderSpeciesList(); break;
-      case "druh":       html = renderSpeciesArticle(param); break;
       case "panteon":    html = renderPantheonList(); break;
       case "buh":        html = renderBuhArticle(param); break;
       case "artefakty":  html = renderArtifactList(); break;

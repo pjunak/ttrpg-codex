@@ -28,7 +28,6 @@ data/
 ├── events.json
 ├── mysteries.json
 ├── factions.json
-├── species.json
 ├── pantheon.json
 ├── artifacts.json
 ├── historicalEvents.json

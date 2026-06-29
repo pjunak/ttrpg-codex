@@ -29,7 +29,7 @@ export const EditMode = (() => {
   // "+ Nová postava ve frakci" (and similar) pre-fill context fields
   // instead of sending the user to a blank form.
   let _prefill = { character: null, location: null, event: null,
-                   species: null, buh: null, artifact: null,
+                   buh: null, artifact: null,
                    historicalEvent: null };
   function _consumePrefill(kind) {
     const p = _prefill[kind];
@@ -1236,46 +1236,8 @@ export const EditMode = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════
-  //  SPECIES / PANTHEON / ARTIFACT editors
+  //  PANTHEON / ARTIFACT editors
   // ══════════════════════════════════════════════════════════════
-  function renderSpeciesEditor(s) {
-    if (!s || !s.id) {
-      const pf = _consumePrefill('species');
-      if (pf) return EditTemplates.renderSpeciesEditor(pf);
-    }
-    return EditTemplates.renderSpeciesEditor(s);
-  }
-  function startNewSpecies(prefill) {
-    _prefill.species = prefill || {};
-    _refreshTo('#/druh/new');
-  }
-  function saveSpecies(originalId) {
-    const uid  = originalId || 'new_sp';
-    const name = document.getElementById(`sf-name-${uid}`)?.value.trim();
-    if (!name) { _toast(I18n.t('editmode.titleRequired'), false); return; }
-    const newId = originalId || Store.generateId(name);
-    const existing = originalId ? (Store.getSpeciesItem(originalId) || {}) : {};
-    Store.saveSpecies({
-      ...existing,
-      id: newId, name,
-      description: document.getElementById(`sf-desc-${uid}`)?.value.trim() || '',
-      ..._collectVisibility(uid),
-    });
-    _toast(I18n.t('editmode.speciesSaved'));
-    _markClean();
-    _refreshTo(`#/druh/${newId}`);
-  }
-  function deleteSpecies(id) {
-    Store.deleteSpecies(id);
-    _toast(I18n.t('editmode.speciesDeleted'), true, {
-      action: { label: '↶ ' + I18n.t('action.undo'), onClick: () => {
-        Store.undelete('species', id);
-        _toast(I18n.t('editmode.speciesRestored'));
-      }},
-    });
-    window.location.hash = '#/druhy';
-  }
-
   function renderBuhEditor(g) {
     if (!g || !g.id) {
       const pf = _consumePrefill('buh');
@@ -1421,7 +1383,6 @@ export const EditMode = (() => {
     events:           'udalost',
     mysteries:        'zahada',
     factions:         'frakce',
-    species:          'druh',
     pantheon:         'buh',
     artifacts:        'artefakt',
     historicalEvents: 'historicka-udalost',
@@ -1826,7 +1787,6 @@ export const EditMode = (() => {
     saveEvent, deleteEvent, addPartyToEvent,
     saveMystery, deleteMystery,
     saveFaction, deleteFaction,
-    saveSpecies, deleteSpecies,
     saveBuh, deleteBuh,
     saveArtifact, deleteArtifact,
     saveHistoricalEvent, deleteHistoricalEvent,
@@ -1839,12 +1799,11 @@ export const EditMode = (() => {
     renderEventEditor,
     renderMysteryEditor,
     renderFactionEditor,
-    renderSpeciesEditor,
     renderBuhEditor,
     renderArtifactEditor,
     renderHistoricalEventEditor,
     startNewCharacter, startNewLocation, startNewEvent,
-    startNewSpecies, startNewBuh, startNewArtifact,
+    startNewBuh, startNewArtifact,
     startNewHistoricalEvent,
     startNewCharacterInLocation,
   };

@@ -49,7 +49,7 @@ test('searchAll: returns the expected collection keys on empty data', () => {
   const out = Store.searchAll('');
   for (const k of [
     'characters', 'locations', 'events', 'mysteries',
-    'species', 'pantheon', 'artifacts', 'historicalEvents',
+    'pantheon', 'artifacts', 'historicalEvents',
   ]) {
     assert.equal(Array.isArray(out[k]), true, `searchAll missing array for ${k}`);
   }

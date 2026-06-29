@@ -95,7 +95,7 @@ re-seeding of removed entries.
 | `relationships` | `{ source, target, type, … }` | Undirected types (`ally`, `mystery`, …) and directed types (`commands`, `mission`). |
 | `mysteries` | `{ id, name, questions[], clues[], characters[], locations[], priority, solved }` | |
 | `factions` | Keyed object: `{ "<id>": { name, color, badge, attitudes[], rankChains[], … } }` | |
-| `species`, `pantheon`, `artifacts` | Standard entity arrays. | Reference / world-building collections. |
+| `pantheon`, `artifacts` | Standard entity arrays. | Reference / world-building collections. (Species was removed from the base app — D&D 2024 species ship in the dnd55e-compendium addon; `character.species` is now a free-text string.) |
 | `historicalEvents` | `{ id, name, start, end, summary, body, characters[], locations[], … }` | Separate from campaign `events` so the timeline stays campaign-only. |
 | `settings` | Keyed-by-category: `{ relationshipTypes: [], genders: [], pinTypes: [], characterStatuses: [], eventPriorities: [], attitudes: [], mapViews: [], mapConfigs: {}, hiddenSidebarPages: [] }` | User-editable enums. |
 | `campaign` | Keyed object with one `main` record: `{ name, tagline }` | Dashboard hero text. |
@@ -124,7 +124,6 @@ Hash-based SPA routing. All logic in `app.js:navigate()`.
 | `/udalost/:id` | Event article (timeline owns the list) |
 | `/zahady`, `/zahada/:id` | Mystery list + article |
 | `/frakce`, `/frakce/:id` | Faction list + article |
-| `/druhy`, `/druh/:id` | Species list + article |
 | `/panteon`, `/buh/:id` | Pantheon list + article |
 | `/artefakty`, `/artefakt/:id` | Artifact list + article |
 | `/historie`, `/historicka-udalost/:id` | Historical-event list + article |

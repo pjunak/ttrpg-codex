@@ -1,6 +1,6 @@
 import {
   FACTIONS, CHARACTERS, LOCATIONS, EVENTS, RELATIONSHIPS, MYSTERIES,
-  SPECIES, PANTHEON, ARTIFACTS, HISTORICAL_EVENTS, PETS,
+  PANTHEON, ARTIFACTS, HISTORICAL_EVENTS, PETS,
   SETTINGS_DEFAULTS, SETTINGS_USAGE_MAP,
 } from './data.js';
 import { norm, clearMarkdownCache } from './utils.js';
@@ -107,7 +107,6 @@ export const Store = (() => {
       events:           JSON.parse(JSON.stringify(EVENTS)),
       mysteries:        JSON.parse(JSON.stringify(MYSTERIES)),
       factions:         JSON.parse(JSON.stringify(FACTIONS)),
-      species:          JSON.parse(JSON.stringify(SPECIES)),
       pantheon:         JSON.parse(JSON.stringify(PANTHEON)),
       artifacts:        JSON.parse(JSON.stringify(ARTIFACTS)),
       historicalEvents: JSON.parse(JSON.stringify(HISTORICAL_EVENTS)),
@@ -150,18 +149,11 @@ export const Store = (() => {
         if (!_data.factions[id]) _data.factions[id] = JSON.parse(JSON.stringify(fac));
       }
     }
-    // Seed species/pantheon/artifacts/historicalEvents for fresh installs.
-    if (!Array.isArray(_data.species))          _data.species          = [];
+    // Seed pantheon/artifacts/historicalEvents for fresh installs.
     if (!Array.isArray(_data.pantheon))         _data.pantheon         = [];
     if (!Array.isArray(_data.artifacts))        _data.artifacts        = [];
     if (!Array.isArray(_data.historicalEvents)) _data.historicalEvents = [];
     if (!Array.isArray(_data.pets))             _data.pets             = [];
-    const seedIds = new Set(_data.species.map(s => s.id));
-    for (const s of SPECIES) {
-      if (!seedIds.has(s.id) && !deleted.has(s.id)) {
-        _data.species.push(JSON.parse(JSON.stringify(s)));
-      }
-    }
     // Seed/merge settings enums. For each category in SETTINGS_DEFAULTS,
     // start with an empty array if missing, then add defaults whose ids
     // aren't yet present and aren't tombstoned. User-edited entries are
@@ -1017,7 +1009,6 @@ export const Store = (() => {
       case 'events':           return getEvent(tid);
       case 'mysteries':        return getMystery(tid);
       case 'factions':         return getFaction(tid);
-      case 'species':          return getSpeciesItem(tid);
       case 'pantheon':         return getBuh(tid);
       case 'artifacts':        return getArtifact(tid);
       case 'historicalEvents': return getHistoricalEvent(tid);
@@ -1038,7 +1029,6 @@ export const Store = (() => {
       case 'locations':        return _data.locations        || [];
       case 'events':           return _data.events           || [];
       case 'mysteries':        return _data.mysteries        || [];
-      case 'species':          return _data.species          || [];
       case 'pantheon':         return _data.pantheon         || [];
       case 'artifacts':        return _data.artifacts        || [];
       case 'historicalEvents': return _data.historicalEvents || [];
@@ -1280,10 +1270,8 @@ export const Store = (() => {
     const arr = (_data?.settings?.characterStatuses) || SETTINGS_DEFAULTS.characterStatuses;
     return Object.fromEntries(arr.map(s => [s.id, s]));
   }
-  function getSpecies()       { init(); return _data.species  || []; }
   function getPantheon()      { init(); return _data.pantheon || []; }
   function getArtifacts()     { init(); return _data.artifacts || []; }
-  function getSpeciesItem(id) { return getSpecies().find(s => s.id === id)  || null; }
   function getBuh(id)         { return getPantheon().find(g => g.id === id) || null; }
   function getArtifact(id)    { return getArtifacts().find(a => a.id === id) || null; }
 
@@ -1466,7 +1454,6 @@ export const Store = (() => {
       case 'events':        saveEvent(snap.entity);          break;
       case 'mysteries':     saveMystery(snap.entity);        break;
       case 'factions':      saveFaction(snap.id, snap.entity); break;
-      case 'species':       saveSpecies(snap.entity);        break;
       case 'pantheon':      saveBuh(snap.entity);            break;
       case 'artifacts':         saveArtifact(snap.entity);         break;
       case 'historicalEvents':  saveHistoricalEvent(snap.entity);  break;
@@ -1705,23 +1692,6 @@ export const Store = (() => {
     _data.mysteries = _data.mysteries.filter(m => m.id !== id);
     _reindexMysteries();
     return _sync('mysteries', 'delete', { id });
-  }
-
-  function saveSpecies(sp) {
-    init();
-    _stamp(sp);
-    if (!Array.isArray(_data.species)) _data.species = [];
-    const idx = _data.species.findIndex(s => s.id === sp.id);
-    if (idx >= 0) _data.species[idx] = sp; else _data.species.push(sp);
-    return _sync('species', 'save', sp);
-  }
-  function deleteSpecies(id) {
-    init();
-    const s = (_data.species || []).find(x => x.id === id);
-    if (s) _trash.set(_trashKey('species', id), { kind:'species', entity: JSON.parse(JSON.stringify(s)) });
-    if (SPECIES.some(s => s.id === id)) _tombstone(id);
-    _data.species = (_data.species || []).filter(s => s.id !== id);
-    return _sync('species', 'delete', { id });
   }
 
   function saveBuh(g) {
@@ -2428,14 +2398,6 @@ export const Store = (() => {
         || _match((m.tags || []).join(' '), q);
     });
   }
-  function searchSpecies(query) {
-    init();
-    const q = norm(query);
-    if (!q) return (_data.species || []).slice();
-    return (_data.species || []).filter(s =>
-      _match(s.name, q) || _match(s.description, q)
-    );
-  }
   function searchPantheon(query) {
     init();
     const q = norm(query);
@@ -2470,7 +2432,6 @@ export const Store = (() => {
       locations:        dedupeShadowTwins('locations',        searchLocations(query)),
       events:           dedupeShadowTwins('events',           searchEvents(query)),
       mysteries:        dedupeShadowTwins('mysteries',        searchMysteries(query)),
-      species:          dedupeShadowTwins('species',          searchSpecies(query)),
       pantheon:         dedupeShadowTwins('pantheon',         searchPantheon(query)),
       artifacts:        dedupeShadowTwins('artifacts',        searchArtifacts(query)),
       historicalEvents: dedupeShadowTwins('historicalEvents', searchHistoricalEvents(query)),
@@ -2505,7 +2466,6 @@ export const Store = (() => {
     collect('misto',              '#/misto',              _data.locations,        e => e.name);
     collect('udalost',            '#/udalost',            _data.events,           e => e.name);
     collect('zahada',             '#/zahada',             _data.mysteries,        e => e.name);
-    collect('druh',               '#/druh',               _data.species,          e => e.name);
     collect('buh',                '#/buh',                _data.pantheon,         e => e.name);
     collect('artefakt',           '#/artefakt',           _data.artifacts,        e => e.name);
     collect('historicka-udalost', '#/historicka-udalost', _data.historicalEvents, e => e.name);
@@ -2630,7 +2590,6 @@ export const Store = (() => {
     locations:        { get: getLocation,        save: saveLocation },
     events:           { get: getEvent,           save: saveEvent },
     mysteries:        { get: getMystery,         save: saveMystery },
-    species:          { get: getSpeciesItem,     save: saveSpecies },
     pantheon:         { get: getBuh,             save: saveBuh },
     artifacts:        { get: getArtifact,        save: saveArtifact },
     historicalEvents: { get: getHistoricalEvent, save: saveHistoricalEvent },
@@ -2738,7 +2697,6 @@ export const Store = (() => {
       locations:        _data.locations,
       events:           _data.events,
       mysteries:        _data.mysteries,
-      species:          _data.species          || [],
       pantheon:         _data.pantheon         || [],
       artifacts:        _data.artifacts        || [],
       historicalEvents: _data.historicalEvents || [],
@@ -2760,8 +2718,8 @@ export const Store = (() => {
     getRelationships, getLocations, getEvents, getMysteries,
     getFactions, getFaction, getStatusMap,
     getCharacter, getLocation, getEvent, getMystery,
-    getSpecies, getPantheon, getArtifacts,
-    getSpeciesItem, getBuh, getArtifact,
+    getPantheon, getArtifacts,
+    getBuh, getArtifact,
     getHistoricalEvents, getHistoricalEvent,
     getLocationsOnMap, getSubLocations, getAncestorLocations,
     getCharactersByFaction, getCharactersInLocation, getRelationshipsFor,
@@ -2770,7 +2728,7 @@ export const Store = (() => {
     isQuestionAnswered, isMysterySolved, getOpenQuestions,
     questionText, questionAnswer,
     searchCharacters, searchLocations, searchEvents, searchMysteries,
-    searchSpecies, searchPantheon, searchArtifacts, searchHistoricalEvents,
+    searchPantheon, searchArtifacts, searchHistoricalEvents,
     searchAll,
     getRecentActivity,
     saveCharacter, deleteCharacter,
@@ -2779,7 +2737,6 @@ export const Store = (() => {
     saveEvent, deleteEvent,
     saveMystery, deleteMystery,
     saveFaction, deleteFaction,
-    saveSpecies, deleteSpecies,
     saveBuh, deleteBuh,
     saveArtifact, deleteArtifact,
     saveHistoricalEvent, deleteHistoricalEvent,

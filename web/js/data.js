@@ -21,29 +21,6 @@ export const HISTORICAL_EVENTS = [];
  *  default — nothing appears in the UI until the user adds one. */
 export const PETS              = [];
 
-/**
- * Generic D&D species seed. Users can delete or replace any entry; a
- * tombstone in `deletedDefaults` prevents the deleted id from re-seeding
- * after a restart. Treat this list as a starter palette, not a contract.
- */
-export const SPECIES = [
-  { id: "human",      name: "Human",        description: "" },
-  { id: "elf",        name: "Elf",          description: "" },
-  { id: "half_elf",   name: "Half-Elf",     description: "" },
-  { id: "dwarf",      name: "Dwarf",        description: "" },
-  { id: "halfling",   name: "Halfling",     description: "" },
-  { id: "gnome",      name: "Gnome",        description: "" },
-  { id: "tiefling",   name: "Tiefling",     description: "" },
-  { id: "dragonborn", name: "Dragonborn",   description: "" },
-  { id: "half_orc",   name: "Half-Orc",     description: "" },
-  { id: "orc",        name: "Orc",          description: "" },
-  { id: "goliath",    name: "Goliath",      description: "" },
-  { id: "half_dragon",name: "Half-Dragon",  description: "" },
-  { id: "aasimar",    name: "Aasimar",      description: "" },
-  { id: "genasi",     name: "Genasi",       description: "" },
-  { id: "firbolg",    name: "Firbolg",      description: "" },
-];
-
 /** Empty default for the `pantheon` collection. */
 export const PANTHEON  = [];
 

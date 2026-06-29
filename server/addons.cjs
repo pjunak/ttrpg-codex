@@ -171,6 +171,10 @@ function validateManifest(m) {
       (typeof m.dependencies !== 'object' || Array.isArray(m.dependencies) || m.dependencies === null)) {
     errors.push('dependencies must be an object');
   }
+  if (m.optionalDependencies !== undefined &&
+      (typeof m.optionalDependencies !== 'object' || Array.isArray(m.optionalDependencies) || m.optionalDependencies === null)) {
+    errors.push('optionalDependencies must be an object');
+  }
   if (m.collections !== undefined) {
     if (!Array.isArray(m.collections)) {
       errors.push('collections must be an array');

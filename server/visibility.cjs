@@ -31,7 +31,7 @@
 // and bypasses filterForRole.
 const VISIBILITY_BEARING = new Set([
   'characters', 'relationships', 'locations', 'events',
-  'mysteries', 'factions', 'species', 'pantheon', 'artifacts',
+  'mysteries', 'factions', 'pantheon', 'artifacts',
   'historicalEvents',
 ]);
 

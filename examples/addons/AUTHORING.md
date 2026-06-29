@@ -87,7 +87,8 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
 | `serverDeps` | — | `string[]` of vetted host npm libs your server module needs via `serverHost.lib(...)`. Allowed: `express`, `adm-zip`, `archiver`, `multer`. Anything else → the addon loads `blocked`. |
 | `permissions` | — | Declared + **enforced** capability tokens (see §5). The DM reviews + grants them at install. |
-| `dependencies` | — | `{ "<otherAddonId>": { "range": ">=1.0.0", "repo": "owner/name" } }` (see §10). |
+| `dependencies` | — | HARD deps: `{ "<otherAddonId>": { "range": ">=1.0.0", "repo": "owner/name" } }`. A missing/incompatible one **blocks** your addon (see §12). |
+| `optionalDependencies` | — | SOFT deps, same shape — **ordering-only**: the provider loads first WHEN present, but your addon still installs/loads standalone when it's absent. Lets you `host.use()` it behind a try/catch (see §12). |
 | `collections` | — | `[{ "name": "rules", "keyed": false }]` — your own data collections (see §8). `name` is `^[a-z0-9][a-z0-9_]{0,39}$`. |
 | `tests` | — | `{ "server": "tests/srv.cjs", "client": "tests/cli.mjs" }` — an explicit file path or a `string[]` of them (**not** a glob — `node --test` doesn't expand `*`, so `tests/*.cjs` runs nothing). `tests.server` is a **green-gate run at install** (see §14). |
 | `summary` | — | One line shown in the install wizard. |
@@ -282,6 +283,15 @@ host.registerAction('save', (id) => { /* … */ host.ui.rerender(); });
 host.h.dataAction(host.action('save'), id)           // → data-action="myid:save" data-args='["…"]'
 // change/input/keydown/submit/blur (value resolved for you):
 host.h.dataOn('change', host.action('pick'), '$value')
+
+// Drag-and-drop (dragstart / drop; dragover is auto-allowed on a data-on-drop
+// element, and drop is preventDefaulted for you). Mark the source draggable and
+// stash the dragged id; read it on drop. Pair with a click handler as a
+// non-pointer fallback.
+host.h.dataOn('dragstart', host.action('dragStart'), '$ev', ref)   // on draggable="true"
+host.h.dataOn('drop',      host.action('dropHere'), targetId)      // on the drop zone
+// host.registerAction('dragStart',(ev,ref)=>{ _drag=ref; ev.dataTransfer?.setData('text/plain',ref); });
+// host.registerAction('dropHere',(targetId)=>{ if(_drag){ /* place _drag */ _drag=null; host.ui.rerender(); }});
 ```
 
 ---
@@ -319,18 +329,40 @@ host.registerFragmentOp('characters:body', {
 
 ```jsonc
 // addon.json
-"dependencies": { "core-dice": { "range": ">=1.0.0", "repo": "owner/core-dice" } }
+"dependencies":         { "core-dice":  { "range": ">=1.0.0", "repo": "owner/core-dice" } },
+"optionalDependencies": { "core-rules": { "range": ">=1.0.0", "repo": "owner/core-rules" } }
 ```
 ```js
 // provider addon:
-host.provide({ roll: (n) => 1 + Math.floor(Math.random() * n) });
-// consumer addon (must DECLARE the dependency):
+host.provide({ apiVersion: 1, roll: (n) => 1 + Math.floor(Math.random() * n) });
+// consumer addon (must DECLARE the dep — as hard `dependencies` OR `optionalDependencies`):
 const dice = host.use('core-dice');   // throws (caught) if undeclared / not loaded
 ```
 Load order is topologically sorted (dependencies first). Missing / version-
-incompatible / cyclic deps → the addon loads to a visible `blocked` state (a
-node merely *downstream* of a cycle is blocked too, but reported as such, not as
-"cyclic").
+incompatible / cyclic **hard** deps → the addon loads to a visible `blocked`
+state (a node merely *downstream* of a cycle is blocked too, but reported as
+such, not as "cyclic").
+
+**Soft-use via `optionalDependencies` (the standalone-but-enhanced pattern).**
+A hard `dependencies` entry makes the host *block* your addon when the provider
+is absent — wrong if you want to run standalone and merely *light up extra*
+behaviour when another addon is present. Declare it under `optionalDependencies`
+instead: it's **ordering-only** (the provider, when installed, loads before you
+so `host.use()` works during `register`/render; when it's absent, blocked, or
+version-incompatible the host simply doesn't load it and never blocks you).
+Probe it **lazily, per render/action, try/caught** — never at module top-level —
+and carry an `apiVersion` integer inside the provided API for the soft
+compatibility check (the manifest `range` isn't enforced for an optional edge):
+
+```js
+function getProvider() {
+  try { const p = host.use('core-rules'); return (p && p.apiVersion >= 1) ? p : null; }
+  catch { return null; }            // absent / not loaded → run standalone
+}
+// in a renderer:
+const rules = getProvider();
+return rules ? renderEnhanced(rules) : renderStandalone();
+```
 
 Supported `range` forms: empty / `*` (any), exact `x.y.z`, comparators
 `>= > <= <`, caret `^x.y.z`, tilde `~x.y.z`, X-ranges `1.x` / `1.2.x`. Compound

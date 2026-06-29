@@ -67,7 +67,6 @@ export const EditTemplates = (() => {
     events:           'udalost',
     mysteries:        'zahada',
     factions:         'frakce',
-    species:          'druh',
     pantheon:         'buh',
     artifacts:        'artefakt',
     historicalEvents: 'historicka-udalost',
@@ -375,16 +374,13 @@ export const EditTemplates = (() => {
       `<option value="__other__" ${genderSelectValue==='__other__'?'selected':''}>${esc(I18n.t('editform.otherSpecify'))}</option>`,
     ].join('');
 
-    // Species: Combobox over the Druhy collection. Inline-create lets the
-    // GM spawn a new species page from this picker.
-    const speciesMount = `<div class="cb-mount"
-      data-cb-id="ef-species-${uid}"
-      data-cb-source="species"
-      data-cb-value="${esc(c.species || '')}"
-      data-cb-allow-empty="1"
-      data-cb-empty-label="${esc(I18n.t('editform.undetermined'))}"
-      data-cb-placeholder="${esc(I18n.t('editform.pickSpecies'))}"
-      data-cb-on-create="species"></div>`;
+    // Species: free-text input (the species wiki collection was removed —
+    // D&D species now live in a separate addon). `character.species` is a
+    // plain string; keep the same id so the save-collect code is unchanged.
+    const speciesMount = `<input class="edit-input"
+      id="ef-species-${uid}"
+      value="${esc(c.species || '')}"
+      placeholder="${esc(I18n.t('editform.pickSpecies'))}">`;
 
     return `
       <div class="edit-form edit-form-split">
@@ -946,38 +942,6 @@ export const EditTemplates = (() => {
         placeholder="${esc(placeholder)}">${esc(v)}</textarea>`;
   }
 
-  // ── Species editor ─────────────────────────────────────────────
-  function renderSpeciesEditor(s) {
-    const isNew = !s || !s.id;
-    if (isNew) s = { id:'', name:'', description:'' };
-    const uid = s.id || 'new_sp';
-    return `
-      <div class="edit-form edit-form-split">
-        <div class="edit-form-header edit-form-split-header">
-          <button class="back-btn"${dataAction('Wiki.cancelEditingArticle')}>← ${esc(I18n.t('action.cancel'))}</button>
-          <h2 class="edit-form-title">${isNew ? "✦ " + esc(I18n.t('editform.newSpecies')) : "✏ " + esc(s.name)}</h2>
-          ${_twinHeaderRow(uid, s, 'species')}
-          <div class="edit-hdr-actions">
-            <button class="edit-save-btn"${dataAction('EditMode.saveSpecies', s.id)}>💾 ${esc(I18n.t('action.save'))}</button>
-            ${!isNew ? `<button class="edit-delete-btn"${dataAction('EditMode.deleteSpecies', s.id)}>🗑 ${esc(I18n.t('action.delete'))}</button>` : ""}
-          </div>
-        </div>
-        <div class="edit-form-split-fields">
-          <div class="edit-field">
-            <label class="edit-label">${esc(I18n.t('editform.titleRequired'))}</label>
-            <input class="edit-input" id="sf-name-${uid}" value="${esc(s.name)}" placeholder="${esc(I18n.t('editform.speciesNamePh'))}">
-          </div>
-          ${_visibilitySection(uid, s, 'species')}
-        </div>
-        <div class="edit-form-split-article">
-          <div class="edit-field edit-field-full">
-            <label class="edit-label">${esc(I18n.t('editform.description'))}</label>
-            ${_mdTextarea(`sf-desc-${uid}`, s.description, 20, I18n.t('editform.descSpeciesPh'))}
-          </div>
-        </div>
-      </div>`;
-  }
-
   // ── Pantheon (deity) editor ────────────────────────────────────
   function renderBuhEditor(g) {
     const isNew = !g || !g.id;
@@ -1190,7 +1154,6 @@ export const EditTemplates = (() => {
     renderEventEditor,
     renderMysteryEditor,
     renderFactionEditor,
-    renderSpeciesEditor,
     renderBuhEditor,
     renderArtifactEditor,
     renderHistoricalEventEditor,

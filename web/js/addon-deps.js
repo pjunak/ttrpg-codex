@@ -62,20 +62,30 @@ export function satisfies(version, range) {
 
 /**
  * Topo-sort enabled addons so each loads after its dependencies, and flag
- * addons whose deps are missing / version-incompatible / (transitively)
+ * addons whose HARD deps are missing / version-incompatible / (transitively)
  * blocked / cyclic.
  *
- * @param {Array<{id:string, version:string, dependencies?:object}>} list
+ * `optionalDependencies` are ORDERING-ONLY: when the optional dep is present
+ * (enabled) and version-compatible, the dependent is ordered AFTER it (so it
+ * can host.use() it during register). When the optional dep is absent, blocked,
+ * or version-incompatible it is simply ignored — it NEVER blocks the dependent,
+ * and an optional-edge cycle is broken (optional ordering dropped) rather than
+ * blocking anyone. This is what lets an addon SOFT-use another (e.g. a sheet
+ * that auto-fills from a rules engine when present, hand-fills when not) while
+ * still installing standalone.
+ *
+ * @param {Array<{id:string, version:string, dependencies?:object, optionalDependencies?:object}>} list
  * @returns {{ order: Array, blocked: Map<string,string>, cycles: string[] }}
  *   `order` is the load order of loadable addons; `blocked` maps an
- *   un-loadable addon id to a human reason; `cycles` lists ids in cycles.
+ *   un-loadable addon id to a human reason; `cycles` lists ids in HARD cycles.
  */
 export function planLoadOrder(list) {
   const byId = new Map(list.map(a => [a.id, a]));
-  const deps = (a) => Object.entries((a && a.dependencies) || {}).map(([id, spec]) => ({ id, range: depRange(spec) }));
+  const deps    = (a) => Object.entries((a && a.dependencies) || {}).map(([id, spec]) => ({ id, range: depRange(spec) }));
+  const optDeps = (a) => Object.entries((a && a.optionalDependencies) || {}).map(([id, spec]) => ({ id, range: depRange(spec) }));
   const blocked = new Map();
 
-  // 1. direct missing / version-incompatible dependencies
+  // 1. direct missing / version-incompatible HARD dependencies
   for (const a of list) {
     for (const d of deps(a)) {
       const dep = byId.get(d.id);
@@ -83,7 +93,7 @@ export function planLoadOrder(list) {
       if (!satisfies(dep.version, d.range)) { blocked.set(a.id, `„${d.id}" ${dep.version || '?'} nesplňuje ${d.range}`); break; }
     }
   }
-  // 2. transitively block anything depending on a blocked addon
+  // 2. transitively block anything depending (HARD) on a blocked addon
   let changed = true;
   while (changed) {
     changed = false;
@@ -94,30 +104,43 @@ export function planLoadOrder(list) {
       }
     }
   }
-  // 3. Kahn topo-sort of the survivors (dependency → dependent edges)
+
   const active = list.filter(a => !blocked.has(a.id));
   const activeIds = new Set(active.map(a => a.id));
-  const indeg = new Map(active.map(a => [a.id, 0]));
-  const dependents = new Map(active.map(a => [a.id, []]));
-  for (const a of active) {
-    for (const d of deps(a)) {
-      if (activeIds.has(d.id)) { dependents.get(d.id).push(a.id); indeg.set(a.id, indeg.get(a.id) + 1); }
+
+  // Kahn topo-sort over a node-id set + directed edges [from, to] (`from` must
+  // load before `to`). Returns the ids it could place — all of them unless the
+  // edge set contains a cycle, in which case the cycle members are omitted.
+  const kahn = (nodeIds, edges) => {
+    const idset = new Set(nodeIds);
+    const indeg = new Map(nodeIds.map(id => [id, 0]));
+    const outs = new Map(nodeIds.map(id => [id, []]));
+    for (const [from, to] of edges) {
+      if (idset.has(from) && idset.has(to)) { outs.get(from).push(to); indeg.set(to, indeg.get(to) + 1); }
     }
-  }
-  const queue = active.filter(a => indeg.get(a.id) === 0).map(a => a.id);
-  const orderIds = [];
-  while (queue.length) {
-    const id = queue.shift();
-    orderIds.push(id);
-    for (const dep of dependents.get(id)) { indeg.set(dep, indeg.get(dep) - 1); if (indeg.get(dep) === 0) queue.push(dep); }
-  }
+    const queue = nodeIds.filter(id => indeg.get(id) === 0);
+    const out = [];
+    while (queue.length) {
+      const id = queue.shift();
+      out.push(id);
+      for (const to of outs.get(id)) { indeg.set(to, indeg.get(to) - 1); if (indeg.get(to) === 0) queue.push(to); }
+    }
+    return out;
+  };
+
+  // 3. HARD-dependency ordering + cycle detection. Optional edges are excluded
+  //    here so they can NEVER cause a block. Edge: dependency → dependent.
+  const hardEdges = [];
+  for (const a of active) for (const d of deps(a)) if (activeIds.has(d.id)) hardEdges.push([d.id, a.id]);
+  const hardOrderIds = kahn(active.map(a => a.id), hardEdges);
+
   // 4. Survivors Kahn couldn't place are either IN a cycle or merely DOWNSTREAM
   //    of one (they depend on a cycle but nothing depends back on them). Tell
   //    them apart so the DM gets an accurate reason: peel "sink" nodes (no
   //    other unplaced node depends on them) — a true cycle member always has a
   //    dependent within the cycle, so it never peels. A self-dependency is a
   //    trivial cycle and is pinned in place.
-  const placed = new Set(orderIds);
+  const placed = new Set(hardOrderIds);
   const unplacedIds = active.filter(a => !placed.has(a.id)).map(a => a.id);
   const cycleSet = new Set(unplacedIds);
   const selfLoops = id => deps(byId.get(id)).some(d => d.id === id);
@@ -135,5 +158,30 @@ export function planLoadOrder(list) {
     blocked.set(id, cycleSet.has(id) ? 'cyklická závislost' : 'závislost je v cyklu');
   }
 
-  return { order: orderIds.map(id => byId.get(id)), blocked, cycles };
+  // 5. Final order over the (hard-acyclic) survivors, REFINED by optional-dep
+  //    ordering edges where they're satisfiable. If the optional edges would
+  //    introduce a cycle, drop them wholesale and keep the hard order — optional
+  //    ordering is best-effort and must never block a survivor. When no optional
+  //    edges apply, the hard order is returned verbatim (zero behaviour change).
+  const survivorIds = hardOrderIds;
+  const survSet = new Set(survivorIds);
+  const combinedEdges = hardEdges.filter(([from, to]) => survSet.has(from) && survSet.has(to));
+  let optAdded = false;
+  for (const a of active) {
+    if (!survSet.has(a.id)) continue;
+    for (const d of optDeps(a)) {
+      const dep = byId.get(d.id);
+      if (dep && survSet.has(d.id) && !blocked.has(d.id) && satisfies(dep.version, d.range)) {
+        combinedEdges.push([d.id, a.id]);
+        optAdded = true;
+      }
+    }
+  }
+  let finalIds = survivorIds;
+  if (optAdded) {
+    const refined = kahn(survivorIds, combinedEdges);
+    finalIds = refined.length < survivorIds.length ? survivorIds : refined;   // optional cycle → keep hard order
+  }
+
+  return { order: finalIds.map(id => byId.get(id)), blocked, cycles };
 }

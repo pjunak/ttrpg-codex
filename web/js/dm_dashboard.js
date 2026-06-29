@@ -75,7 +75,6 @@ export const DmDashboard = (() => {
       { key: 'locations',        label: I18n.t('nav.locations'),   route: '#/mista',    getter: Store.getLocations        },
       { key: 'events',           label: I18n.t('dm.collEvents'),   route: '#/casova-osa', getter: Store.getEvents          },
       { key: 'mysteries',        label: I18n.t('nav.mysteries'),   route: '#/zahady',   getter: Store.getMysteries        },
-      { key: 'species',          label: I18n.t('nav.species'),     route: '#/druhy',    getter: Store.getSpecies          },
       { key: 'pantheon',         label: I18n.t('nav.pantheon'),    route: '#/panteon',  getter: Store.getPantheon         },
       { key: 'artifacts',        label: I18n.t('nav.artifacts'),   route: '#/artefakty', getter: Store.getArtifacts        },
       { key: 'historicalEvents', label: I18n.t('dm.collHistoricalEvents'), route: '#/historie', getter: Store.getHistoricalEvents },

@@ -39,7 +39,7 @@ export const Addons = (() => {
   const BUILTIN_SECTIONS = new Set([
     '', 'dashboard', 'parta', 'postavy', 'postava', 'mista', 'misto',
     'udalosti', 'udalost', 'zahady', 'zahada', 'frakce', 'mazlicci',
-    'druhy', 'druh', 'panteon', 'buh', 'artefakty', 'artefakt',
+    'panteon', 'buh', 'artefakty', 'artefakt',
     'historie', 'historicka-udalost', 'nastaveni', 'dm', 'mapa', 'casova-osa',
   ]);
 
@@ -92,7 +92,7 @@ export const Addons = (() => {
   // describePermission's dynamic branches).
   const _COLL_LABEL_KEYS = {
     characters: 'collCharacters', locations: 'collLocations', events: 'collEvents',
-    mysteries: 'collMysteries', factions: 'collFactions', species: 'collSpecies',
+    mysteries: 'collMysteries', factions: 'collFactions',
     pantheon: 'collPantheon', artifacts: 'collArtifacts',
     historicalEvents: 'collHistoricalEvents', pets: 'collPets',
   };
@@ -321,10 +321,14 @@ export const Addons = (() => {
       tx.undo.push(() => { if (_addonApis.get(id) === api) _addonApis.delete(id); });
     }
     /** Consume a DECLARED dependency's provided API. Throws (caught) if the
-     *  dependency wasn't declared in the manifest or isn't loaded — load
-     *  order guarantees declared deps are loaded first. */
+     *  dependency wasn't declared (as either a hard `dependencies` or a soft
+     *  `optionalDependencies`) or isn't loaded. Load order guarantees a present
+     *  declared dep loads first; an OPTIONAL dep that's absent/blocked simply
+     *  isn't loaded, so `use()` throws and the caller falls back (the soft-use
+     *  pattern: probe lazily per render, try/caught). */
     function use(depId) {
-      const declared = meta.dependencies && Object.prototype.hasOwnProperty.call(meta.dependencies, depId);
+      const has_ = (o) => o && Object.prototype.hasOwnProperty.call(o, depId);
+      const declared = has_(meta.dependencies) || has_(meta.optionalDependencies);
       if (!declared) throw new Error(`Doplněk „${id}" nedeklaroval závislost „${depId}" (host.use).`);
       const api = _addonApis.get(depId);
       if (api == null) throw new Error(`Závislost „${depId}" není načtená (host.use).`);

@@ -25,7 +25,6 @@ export const GlobalSearch = (() => {
     udalost:  { icon: '⏳', labelKey: 'search.events'   },
     zahada:   { icon: '❓', labelKey: 'nav.mysteries'  },
     frakce:   { icon: '⬡',  labelKey: 'nav.factions'   },
-    druh:     { icon: '🧬', labelKey: 'nav.species'    },
     buh:      { icon: '✨', labelKey: 'nav.pantheon'   },
     artefakt: { icon: '🗝', labelKey: 'nav.artifacts'  },
   };
@@ -96,7 +95,6 @@ export const GlobalSearch = (() => {
     pushKind('misto',    'misto',    all.locations,  e => [e.type, e.region].filter(Boolean).map(esc).join(' · '));
     pushKind('udalost',  'udalost',  all.events,     e => e.sitting ? esc(I18n.t('search.sitting', { n: e.sitting })) : '');
     pushKind('zahada',   'zahada',   all.mysteries,  e => e.priority ? esc(I18n.t('search.priority', { priority: e.priority })) : '');
-    pushKind('druh',     'druh',     all.species);
     pushKind('buh',      'buh',      all.pantheon,   e => e.domain ? esc(e.domain) : '');
     pushKind('artefakt', 'artefakt', all.artifacts);
     // Factions aren't in searchAll — scan manually.

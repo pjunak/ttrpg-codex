@@ -781,13 +781,13 @@ async function _broadcastDataChanged() {
 const ALLOWED_TYPES = new Set([
   'characters', 'relationships', 'locations', 'events',
   'mysteries', 'factions', 'deletedDefaults',
-  'species', 'pantheon', 'artifacts', 'settings',
+  'pantheon', 'artifacts', 'settings',
   'historicalEvents', 'campaign', 'pets',
 ]);
 const ALL_TYPES = [
   'characters', 'relationships', 'locations', 'events',
   'mysteries', 'factions', 'deletedDefaults',
-  'species', 'pantheon', 'artifacts', 'settings',
+  'pantheon', 'artifacts', 'settings',
   'historicalEvents', 'campaign', 'pets',
 ];
 
@@ -1644,6 +1644,9 @@ function _publicAddonList(reg) {
     // SCOPED host facade (not secret; they describe what the addon can do).
     permissions: Array.isArray(a.grantedPermissions) ? a.grantedPermissions : [],
     dependencies: (a.dependencies && typeof a.dependencies === 'object') ? a.dependencies : {},
+    // Soft deps — ordering-only (load after, if present); never block. The
+    // client needs these so host.use() permits them and planLoadOrder orders.
+    optionalDependencies: (a.optionalDependencies && typeof a.optionalDependencies === 'object') ? a.optionalDependencies : {},
     // Declared addon-owned collections — the client host calls
     // registerCollection against these to wire its scoped CRUD.
     collections: Array.isArray(a.collections) ? a.collections : [],
@@ -1953,13 +1956,15 @@ async function _promoteAddon(staged) {
   const _serverDeps   = Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [];
   const _collections  = AddonBroker.normalizeCollections(manifest.collections);
   const _dependencies = (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {};
+  const _optionalDependencies = (manifest.optionalDependencies && typeof manifest.optionalDependencies === 'object' && !Array.isArray(manifest.optionalDependencies)) ? manifest.optionalDependencies : {};
   // The version record snapshots the structural manifest fields too, so a
   // rollback to this contentHash can restore the right entry/server/collections,
   // not just flip the code dir.
   const versionRec = {
     contentHash: hash, version: manifest.version, sha, installedAt: Date.now(),
     entry: manifest.entry, server: manifest.server || null,
-    serverDeps: _serverDeps, collections: _collections, dependencies: _dependencies,
+    serverDeps: _serverDeps, collections: _collections,
+    dependencies: _dependencies, optionalDependencies: _optionalDependencies,
   };
   let entry = reg.addons.find(a => a.id === id);
   if (!entry) {
@@ -1972,6 +1977,7 @@ async function _promoteAddon(staged) {
       activeHash: hash, versions: [versionRec],
       enabled: true, grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
       dependencies: _dependencies,
+      optionalDependencies: _optionalDependencies,
       collections: _collections,
       schemaVersion: 0, installedAt: Date.now(),
     };
@@ -1984,6 +1990,7 @@ async function _promoteAddon(staged) {
       entry: manifest.entry, server: manifest.server || null,
       serverDeps: _serverDeps,
       dependencies: _dependencies,
+      optionalDependencies: _optionalDependencies,
       collections: _collections,
       activeHash: hash,
     });
@@ -2142,6 +2149,7 @@ app.post('/api/addons/:id/rollback', async (req, res) => {
       if (Array.isArray(target.serverDeps))  entry.serverDeps  = target.serverDeps;
       if (Array.isArray(target.collections)) entry.collections = target.collections;
       if (target.dependencies)           entry.dependencies = target.dependencies;
+      if (target.optionalDependencies)   entry.optionalDependencies = target.optionalDependencies;
       await _writeAddonsRegistry(reg);
       _applyAddonCollections(reg);
       // Server code changed under it → drop the live router; restart reloads
@@ -2240,6 +2248,7 @@ app.post('/api/addons/preview', async (req, res) => {
         hostVersion: manifest.hostVersion || '',
         permissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
         dependencies: (manifest.dependencies && typeof manifest.dependencies === 'object') ? manifest.dependencies : {},
+        optionalDependencies: (manifest.optionalDependencies && typeof manifest.optionalDependencies === 'object') ? manifest.optionalDependencies : {},
         summary:     manifest.summary || '',
         server:      !!manifest.server,
       },

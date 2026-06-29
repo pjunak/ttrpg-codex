@@ -188,6 +188,29 @@ document.addEventListener('error',    (ev) => {
   if (el?.dataset?.onError) _dispatch(el, ev, 'onError', 'errorArgs');
 }, true);
 
+// Drag-and-drop. HTML5 DnD requires the drop target to preventDefault on
+// `dragover` for a `drop` to fire at all — so any element declaring a drop
+// handler (`data-on-drop`) gets dragover auto-allowed here, and `drop` itself
+// always preventDefaults (no navigation/file-open). `dragstart`/`dragend` fire
+// their handlers as-is (a handler typically stashes the dragged ref + sets
+// `ev.dataTransfer` via the `$ev` sentinel). Scoped to the data-on-* attributes,
+// so the host's own native DnD (timeline / sidebar editor) is untouched.
+document.addEventListener('dragstart', (ev) => {
+  const el = ev.target.closest('[data-on-dragstart]');
+  if (el) _dispatch(el, ev, 'onDragstart', 'dragstartArgs');
+}, true);
+document.addEventListener('dragover',  (ev) => {
+  if (ev.target.closest('[data-on-drop]')) ev.preventDefault();   // allow the drop
+}, true);
+document.addEventListener('drop',      (ev) => {
+  const el = ev.target.closest('[data-on-drop]');
+  if (el) { ev.preventDefault(); _dispatch(el, ev, 'onDrop', 'dropArgs'); }
+}, true);
+document.addEventListener('dragend',   (ev) => {
+  const el = ev.target.closest('[data-on-dragend]');
+  if (el) _dispatch(el, ev, 'onDragend', 'dragendArgs');
+}, true);
+
 
 (function () {
 
@@ -204,7 +227,7 @@ document.addEventListener('error',    (ev) => {
   //     [[Frulam|postava]]                     (scope search)
   const KIND_ROUTE = {
     characters:'postava', locations:'misto',      events:'udalost',
-    mysteries: 'zahada',  species:'druh',         pantheon:'buh',
+    mysteries: 'zahada',  pantheon:'buh',
     artifacts:'artefakt', historicalEvents:'historicka-udalost',
   };
   // Polarity-aware tie-breaker for the twin model. When DM and
@@ -231,7 +254,6 @@ document.addEventListener('error',    (ev) => {
     locations:        (id) => Store.getLocation?.(id),
     events:           (id) => Store.getEvent?.(id),
     mysteries:        (id) => Store.getMystery?.(id),
-    species:          (id) => Store.getSpeciesItem?.(id),
     pantheon:         (id) => Store.getBuh?.(id),
     artifacts:        (id) => Store.getArtifact?.(id),
     historicalEvents: (id) => Store.getHistoricalEvent?.(id),
@@ -249,7 +271,7 @@ document.addEventListener('error',    (ev) => {
     const all = Store.searchAll ? Store.searchAll(label) : null;
     if (!all) return null;
     const targetN = norm(label);
-    const order = ['characters','locations','events','mysteries','species','pantheon','artifacts','historicalEvents'];
+    const order = ['characters','locations','events','mysteries','pantheon','artifacts','historicalEvents'];
     // Current-article polarity for the tie-breaker.
     const ctx = (typeof Wiki?.getCurrentArticle === 'function') ? Wiki.getCurrentArticle() : null;
     for (const k of order) {
@@ -445,10 +467,6 @@ document.addEventListener('error',    (ev) => {
         break;
       case "mazlicci":
         Wiki.renderPage("mazlicci"); break;
-      case "druhy":
-        Wiki.renderPage("druhy"); break;
-      case "druh":
-        Wiki.renderPage("druh", sub); break;
       case "panteon":
         Wiki.renderPage("panteon"); break;
       case "buh":

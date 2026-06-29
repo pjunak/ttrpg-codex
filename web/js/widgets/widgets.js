@@ -72,19 +72,12 @@ function _locOption(l) {
   return { value: l.id, label: l.name || l.id, sublabel: l.type || '' };
 }
 
-function _speciesOption(s) {
-  return { value: s.id, label: s.name || s.id, sublabel: '' };
-}
-
 const SOURCES = {
   character: (excludeId) => {
     const all = Store.getCharacters().filter(c => !excludeId || c.id !== excludeId);
     return _sortChars(all).map(_charOption);
   },
   location: () => Store.getLocations().map(_locOption),
-  species:  () => [...Store.getSpecies()]
-    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'cs'))
-    .map(_speciesOption),
 };
 
 function _resolveOptions(source, excludeId) {
@@ -114,10 +107,6 @@ function _createInline(source, name) {
     });
     return id;
   }
-  if (source === 'species') {
-    Store.saveSpecies({ id, name: trimmed, description: '' });
-    return id;
-  }
   return null;
 }
 
@@ -125,7 +114,6 @@ function _createInline(source, name) {
 // "Create {kind} «typed»" option (resolved via I18n.t at render time).
 function _createKindLabel(source) {
   if (source === 'location') return 'widget.kindLocation';
-  if (source === 'species')  return 'widget.kindSpecies';
   return 'widget.kindCharacter';
 }
 
