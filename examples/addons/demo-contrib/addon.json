@@ -5,7 +5,7 @@
   "apiVersion": 1,
   "hostVersion": ">=1.0.0",
   "entry": "entry.js",
-  "permissions": ["ui:slot:timeline", "kinds:connections", "kinds:graph", "graph:contribute"],
+  "permissions": ["ui:slot:timeline", "kinds:connections", "kinds:statuses", "kinds:graph", "graph:contribute"],
   "tests": { "client": "tests/demo-contrib.addon-test.mjs" },
-  "summary": "Demonstrates every data-driven contribution seam: timeline session-card + column content slots (ui:slot:timeline), a custom mind-map connection kind (kinds:connections), and a custom mind-map NODE kind injected into the relationships view (kinds:graph + graph:contribute). A template for injecting addon content/kinds INTO existing core surfaces."
+  "summary": "Demonstrates every data-driven contribution seam: timeline session-card + column content slots (ui:slot:timeline), a custom mind-map connection kind (kinds:connections), a custom character status kind via the generic registerKind (kinds:statuses), and a custom mind-map NODE kind injected into the relationships view (kinds:graph + graph:contribute). A template for injecting addon content/kinds INTO existing core surfaces."
 }

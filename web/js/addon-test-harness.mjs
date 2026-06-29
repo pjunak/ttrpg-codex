@@ -45,7 +45,7 @@ function _emptyRec() {
     routes: [], pages: [], sidebar: [], settingsTabs: [], actions: [],
     collections: [], wikiKinds: [], editorFields: [], fragmentOps: [],
     articleSections: [], slots: [],
-    connectionKinds: [], nodeKinds: [], graphViews: [], graphContributors: [],
+    kinds: [], connectionKinds: [], nodeKinds: [], graphViews: [], graphContributors: [],
     provided: undefined, toasts: [], rerenders: 0,
   };
 }
@@ -111,6 +111,7 @@ export function createMockHost(meta = {}, opts = {}) {
     registerEditorFields: (kind, spec)        => { rec.editorFields.push({ kind, spec }); },
     registerFragmentOp:   (target, spec)      => { rec.fragmentOps.push({ target, spec }); },
     registerSlot:         (slotId, render, o) => { rec.slots.push({ slotId, render, opts: o }); },
+    registerKind:         (domain, def)       => { rec.kinds.push({ domain, def }); },
     registerConnectionKind:   (def)           => { rec.connectionKinds.push(def); },
     registerNodeKind:     (def)               => { rec.nodeKinds.push(def); },
     registerGraphView:    (def)               => { rec.graphViews.push(def); },

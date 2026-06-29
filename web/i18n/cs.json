@@ -37,6 +37,7 @@
   "addons.permServerCode": "Spustit kód na serveru",
   "addons.permServerEndpoint": "Vlastní serverové API",
   "addons.permSlot": "Přidávat obsah do plochy {surface}",
+  "addons.permKinds": "Přidávat typy: {domain}",
   "addons.permKindsConnections": "Přidávat typy vazeb",
   "addons.permKindsGraph": "Přidávat typy uzlů a pohledy myšlenkové mapy",
   "addons.permGraphContribute": "Přidávat obsah do myšlenkových map",

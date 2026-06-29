@@ -62,7 +62,12 @@ export const Addons = (() => {
   // ── Contribution registries (data-driven content + kinds) ─────
   // Mirror the register→readback→tx.undo shape of _articleSections.
   const _slots             = new Map();  // slotId  -> [{ addonId, render, order }]  (additive content slots, ANY surface)
-  const _connectionKinds   = new Map();  // "<id>:<kind>" -> { addonId, def }        (DATA kind; merged via Store.getKinds('connections'))
+  // Generic DATA-kind registry: domain -> Map<"<addonId>:<defId>", {addonId, def}>.
+  // Every pure-data enum domain (connections / statuses / priorities / attitudes
+  // / genders / pinTypes) lands here; merged into the matching settings category
+  // by Store.getKinds(domain). `graph-node` / `graph-view` carry render fns and
+  // keep their own maps below (they're behaviour, not data).
+  const _dataKinds         = new Map();  // domain  -> Map<"<id>:<defId>", { addonId, def }>
   const _nodeKinds         = new Map();  // "<id>:<kind>" -> { addonId, def }        (graph node descriptor — carries render fns)
   const _graphViews        = new Map();  // "<id>:<view>" -> { addonId, def }        (graph view descriptor)
   const _graphContributors = new Map();  // viewId  -> [{ addonId, fn }]             (inject nodes/edges into an EXISTING view)
@@ -122,6 +127,10 @@ export const Addons = (() => {
     if (m) return I18n.t('addons.permEditorFields', { coll: _collLabel(m[1]) });
     m = perm.match(/^ui:slot:(.+)$/);
     if (m) return I18n.t('addons.permSlot', { surface: m[1] });
+    // Generic kinds:<domain> (the specific connections/graph labels above win
+    // for nicer text; this covers statuses/priorities/attitudes/genders/…).
+    m = perm.match(/^kinds:(.+)$/);
+    if (m) return I18n.t('addons.permKinds', { domain: m[1] });
     return perm;
   }
 
@@ -333,19 +342,29 @@ export const Addons = (() => {
       _undoKindArr(_slots, slotId, entry);
     }
 
-    /** Register a DATA connection (relationship/edge) kind merged into
-     *  `Store.getKinds('connections')`. `def` is pure data
-     *  `{id, label, color, style, dirs?, target?}` (NO functions) — the id is
-     *  namespaced `<addonId>:<id>` so it can't shadow a base/DM kind. Needs
-     *  `kinds:connections`. */
-    function registerConnectionKind(def) {
-      if (!has('kinds:connections')) deny('kinds:connections', 'registerConnectionKind');
-      if (!def || typeof def.id !== 'string' || !def.id) throw new Error('registerConnectionKind: def.id required');
+    /** Register a pure-DATA kind in `domain` — merged into
+     *  `Store.getKinds(domain)` (which unions it over the matching settings
+     *  category). `def` is pure data `{id, label, color, …}` (NO functions);
+     *  the id is namespaced `<addonId>:<id>` so it can never shadow a base/DM
+     *  kind. Needs `kinds:<domain>`. Domains: connections / statuses /
+     *  priorities / attitudes / genders / pinTypes (graph node/view kinds use
+     *  the dedicated register* below — they carry render fns). */
+    function registerKind(domain, def) {
+      if (typeof domain !== 'string' || !domain) throw new Error('registerKind: domain required');
+      const perm = 'kinds:' + domain;
+      if (!has(perm)) deny(perm, 'registerKind');
+      if (!def || typeof def.id !== 'string' || !def.id) throw new Error('registerKind: def.id required');
       const key = id + ':' + def.id;
-      if (_connectionKinds.has(key)) throw new Error(`registerConnectionKind: "${def.id}" already registered`);
-      _connectionKinds.set(key, { addonId: id, def: { ...def, id: key, _addonId: id } });
-      _undoMap(_connectionKinds, key);
+      const map = _dataKinds.get(domain) || new Map();
+      if (map.has(key)) throw new Error(`registerKind: "${def.id}" already registered in "${domain}"`);
+      map.set(key, { addonId: id, def: { ...def, id: key, _addonId: id } });
+      _dataKinds.set(domain, map);
+      tx.undo.push(() => { const m = _dataKinds.get(domain); if (m) m.delete(key); });
     }
+
+    /** Back-compat alias: `registerConnectionKind(def)` ===
+     *  `registerKind('connections', def)`. Needs `kinds:connections`. */
+    function registerConnectionKind(def) { return registerKind('connections', def); }
 
     /** Register a graph NODE kind for the mind map — a descriptor carrying
      *  render fns `{id, cardHTML(node), height?, searchText?, shape?, route?,
@@ -452,7 +471,7 @@ export const Addons = (() => {
       registerCollection, registerWikiKind, registerEditorFields,
       registerFragmentOp,
       registerSlot,
-      registerConnectionKind, registerNodeKind, registerGraphView, registerGraphContributor,
+      registerKind, registerConnectionKind, registerNodeKind, registerGraphView, registerGraphContributor,
       provide, use,
       store,
       role: {
@@ -814,9 +833,12 @@ export const Addons = (() => {
     return out;
   }
   /** Addon-registered DATA kinds by domain — merged into Store.getKinds via
-   *  Store.setAddonKindProvider (wired in app.js). `connections` is data;
-   *  `graph-node` / `graph-view` carry render fns the cloudmap consumes. */
-  function connectionKinds() { return [..._connectionKinds.values()].map(e => e.def); }
+   *  Store.setAddonKindProvider (wired in app.js). Pure-data domains
+   *  (connections / statuses / priorities / attitudes / genders / pinTypes)
+   *  live in `_dataKinds`; `graph-node` / `graph-view` carry render fns the
+   *  cloudmap consumes and keep their own maps. */
+  function dataKinds(domain) { return [...(_dataKinds.get(domain)?.values() ?? [])].map(e => e.def); }
+  function connectionKinds() { return kindsForDomain('connections'); }
   function nodeKinds()       { return [..._nodeKinds.values()].map(e => e.def); }
   function graphViews()      { return [..._graphViews.values()].map(e => e.def); }
   function graphContributors(viewId) {
@@ -824,10 +846,9 @@ export const Addons = (() => {
     return lst ? lst.map(e => ({ addonId: e.addonId, fn: e.fn })) : [];
   }
   function kindsForDomain(domain) {
-    if (domain === 'connections') return connectionKinds();
     if (domain === 'graph-node')  return nodeKinds();
     if (domain === 'graph-view')  return graphViews();
-    return [];
+    return dataKinds(domain);
   }
 
   /** Dispatch a namespaced addon action (data-action containing ":"). A

@@ -240,7 +240,7 @@ export const Wiki = (() => {
   const GLOW_BLUR_PX = 10;
   function _attitudeColorMap() {
     const map = {};
-    for (const a of Store.getEnum('attitudes') || []) {
+    for (const a of Store.getKinds('attitudes') || []) {
       map[a.id] = a.labelColor || a.bg || '#888';
     }
     // Synthetic 'party' entry — sourced from settings.playerParty so
@@ -273,7 +273,7 @@ export const Wiki = (() => {
   // `_migrateStrengthFromEntityToEnum` in store.js.
   function _attitudeGlow(entries, colors, blurPx = GLOW_BLUR_PX) {
     if (!Array.isArray(entries) || !entries.length) return '';
-    const enums = Store.getEnum('attitudes') || [];
+    const enums = Store.getKinds('attitudes') || [];
     const strengthByEnum = Object.fromEntries(
       enums.map(a => [a.id, (typeof a.strength === 'number') ? a.strength : 1.0])
     );
@@ -649,11 +649,17 @@ export const Wiki = (() => {
     // anonymous viewer surfaces the login modal via EditMode.promptLogin
     // (each action handler checks Role.isAnonymous itself). Hiding them
     // would make the "you can edit this" affordance undiscoverable.
+    // Additive addon content slot — appended after the built-in sections.
+    // Zero-cost without addons (slotContent returns []). Each item is wrapped
+    // in its own data-addon-id div, mirroring the timeline slot convention.
+    const addonExtra = Addons.slotContent('dashboard:section', { role: { isDM: Role.isDM() } })
+      .map(c => `<div class="dash-addon-section" data-addon-id="${esc(c.addonId)}">${c.html}</div>`).join('');
     return `
       ${_dashHeroHtml(campaign)}
       ${_dashPartyHtml(party)}
       ${_dashLastSessionHtml()}
       ${_dashMysteriesHtml()}
+      ${addonExtra}
     `;
   }
 

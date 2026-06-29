@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { dryRunRegister, smokeRegistrations } from '../../../../web/js/addon-test-harness.mjs';
 import register from '../entry.js';
 
-const META = { id: 'demo-contrib', permissions: ['ui:slot:timeline', 'kinds:connections', 'kinds:graph', 'graph:contribute'] };
+const META = { id: 'demo-contrib', permissions: ['ui:slot:timeline', 'kinds:connections', 'kinds:statuses', 'kinds:graph', 'graph:contribute'] };
 
 test('demo-contrib: register is clean + wires the expected surface', () => {
   const { ok, rec, error } = dryRunRegister(register, META);
@@ -16,6 +16,7 @@ test('demo-contrib: register is clean + wires the expected surface', () => {
   assert.ok(rec.slots.some(s => s.slotId === 'timeline:card:extra'),    'a timeline card slot');
   assert.ok(rec.slots.some(s => s.slotId === 'timeline:column:footer'), 'a timeline column slot');
   assert.ok(rec.connectionKinds.some(k => k.id === 'rivalry'),          'a custom connection kind');
+  assert.ok(rec.kinds.some(k => k.domain === 'statuses' && k.def.id === 'petrified'), 'a custom status kind via registerKind');
   assert.ok(rec.nodeKinds.some(k => k.id === 'marker'),                 'a custom mind-map node kind');
   assert.ok(rec.graphContributors.some(c => c.viewId === 'vztahy'),     'a graph contributor on vztahy');
 });

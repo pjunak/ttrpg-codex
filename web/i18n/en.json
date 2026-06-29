@@ -37,6 +37,7 @@
   "addons.permServerCode": "Run code on the server",
   "addons.permServerEndpoint": "Custom server API",
   "addons.permSlot": "Add content to the {surface} view",
+  "addons.permKinds": "Add {domain} kinds",
   "addons.permKindsConnections": "Add connection types",
   "addons.permKindsGraph": "Add mind-map node types & views",
   "addons.permGraphContribute": "Add content to mind maps",

@@ -4,6 +4,7 @@ import { EditTemplates } from './edit_templates.js';
 import { Role } from './role.js';
 import { esc, dataAction, dataOn, pageEditToggle } from './utils.js';
 import { I18n } from './i18n.js';
+import { Addons } from './addons.js';
 
 // `size` is the default marker pixel size for new places of this
 // type. Kept in sync with SETTINGS_DEFAULTS.pinTypes in data.js so
@@ -67,7 +68,7 @@ export const WorldMap = (() => {
   // A default fallback handles locations with no attitudes set.
   function _pinStatuses() {
     const map = {};
-    for (const a of Store.getEnum('attitudes') || []) {
+    for (const a of Store.getKinds('attitudes') || []) {
       map[a.id] = {
         label:      a.label || a.id,
         bg:         a.bg         || '#37474F',
@@ -463,7 +464,7 @@ export const WorldMap = (() => {
   // paths in `_pinIcon`.
   function _resolveAttitudeStripes(entries) {
     if (!Array.isArray(entries) || !entries.length) return [];
-    const enums  = Store.getEnum('attitudes') || [];
+    const enums  = Store.getKinds('attitudes') || [];
     const byId   = Object.fromEntries(enums.map(a => [a.id, a]));
     // Synthetic 'party' meta — pulled from settings.playerParty so
     // PC markers + party-faction pins still glow with the right
@@ -1192,7 +1193,7 @@ export const WorldMap = (() => {
     const attEntries = (pin.attitudes && pin.attitudes.length)
       ? pin.attitudes
       : (pin.status ? [{ id: pin.status }] : []);
-    const attEnum = Store.getEnum('attitudes') || [];
+    const attEnum = Store.getKinds('attitudes') || [];
     const attLabels = attEntries.map(e => {
       const id = (typeof e === 'string') ? e : e.id;
       const s = statuses[id];
@@ -1217,11 +1218,17 @@ export const WorldMap = (() => {
       ? `<a class="sc-pin-header sc-pin-header-link" href="#/misto/${loc.id}"${dataAction('WorldMap.closePanel')}>${headerInner}</a>`
       : `<div class="sc-pin-header">${headerInner}</div>`;
 
+    // Additive addon content slot for the pin/location side panel. Zero-cost
+    // without addons; each contribution wrapped in its own data-addon-id div.
+    const addonExtra = Addons.slotContent('map:pin:panel', {
+      location: loc, pin, role: { isDM: Role.isDM() },
+    }).map(c => `<div class="sc-pin-addon" data-addon-id="${esc(c.addonId)}">${c.html}</div>`).join('');
     document.getElementById('sc-panel-content').innerHTML = `
       <div class="sc-pin-view">
         ${header}
         ${pin.notes ? `<div class="sc-pin-notes">${esc(pin.notes)}</div>` : ''}
         ${localMapBtn ? `<div class="sc-pin-actions">${localMapBtn}</div>` : ''}
+        ${addonExtra}
       </div>
     `;
     document.getElementById('sc-panel').removeAttribute('hidden');

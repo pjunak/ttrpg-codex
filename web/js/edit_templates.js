@@ -366,7 +366,7 @@ export const EditTemplates = (() => {
     // (specifikuj)" reveal for free-text values. Existing records may
     // hold either an id or a label — match both when picking the
     // currently-selected option so neither shape gets dropped on save.
-    const genderList = Store.getEnum('genders');
+    const genderList = Store.getKinds('genders');
     const currentGender = c.gender || '';
     const matchedGender = genderList.find(g => g.id === currentGender || g.label === currentGender);
     const isOtherGender = !!(currentGender && !matchedGender);
@@ -772,7 +772,7 @@ export const EditTemplates = (() => {
     // reflected. The current value is always included even if it's an orphan
     // (renamed/removed enum id) so saving never silently flips it — the same
     // first-option-fallback trap the faction picker had.
-    const priEnum = Store.getEnum('eventPriorities') || [];
+    const priEnum = Store.getKinds('priorities') || [];
     const priList = (m.priority && !priEnum.some(p => p.id === m.priority))
       ? [{ id: m.priority, label: m.priority }, ...priEnum]
       : priEnum;

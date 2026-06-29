@@ -52,6 +52,15 @@ export default function register(host) {
     dirs: ['from', 'to', 'both'], target: 'character',
   });
 
+  // ── A custom character STATUS kind via the generic registerKind ───
+  // (perm: kinds:statuses). registerKind(domain, def) is the unified seam
+  // for every pure-DATA enum domain (connections/statuses/priorities/
+  // attitudes/genders/pinTypes). The host namespaces the id to
+  // `demo-contrib:petrified`; it merges into Store.getKinds('statuses') →
+  // Store.getStatusMap(), so it renders wherever a status label/colour does
+  // (cloudmap / wiki / map) — no core code changed.
+  host.registerKind('statuses', { id: 'petrified', label: 'Petrified', color: '#78909C', icon: '🗿' });
+
   // ── A mind-map NODE kind + a contributor that injects it (3b/3c) ──
   // (perms: kinds:graph, graph:contribute). The node kind is a descriptor
   // carrying render fns; the host namespaces its id to `<addonId>:marker`.

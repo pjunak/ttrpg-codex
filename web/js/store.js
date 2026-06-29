@@ -1262,12 +1262,17 @@ export const Store = (() => {
   function getFaction(id)     { return getFactions()[id] || null; }
 
   /**
-   * @returns {Object<string, object>} Status id → record map, sourced
-   *   live from `settings.characterStatuses` with a defaults fallback
-   *   for the brief window before settings have loaded.
+   * @returns {Object<string, object>} Status id → record map. Built from
+   *   the merged kind registry (`getKinds('statuses')` = settings
+   *   `characterStatuses` base/DM list + any addon status kinds), with a
+   *   defaults fallback for the brief window before settings have loaded.
+   *   This is the single central status resolver, so addon statuses render
+   *   everywhere (cloudmap / wiki / map) for free.
    */
   function getStatusMap() {
-    const arr = (_data?.settings?.characterStatuses) || SETTINGS_DEFAULTS.characterStatuses;
+    const arr = (_data?.settings?.characterStatuses)
+      ? getKinds('statuses')
+      : SETTINGS_DEFAULTS.characterStatuses;
     return Object.fromEntries(arr.map(s => [s.id, s]));
   }
   function getPantheon()      { init(); return _data.pantheon || []; }
@@ -1912,7 +1917,14 @@ export const Store = (() => {
   // `setWikiLinkResolver`, so store.js never imports addons.js). Addon kind
   // ids are namespaced (`<addonId>:<id>`) so they can never shadow a base/DM
   // kind — base wins on any id collision.
-  const _KIND_DOMAIN_CATEGORY = { connections: 'relationshipTypes' };
+  const _KIND_DOMAIN_CATEGORY = {
+    connections: 'relationshipTypes',
+    statuses:    'characterStatuses',
+    priorities:  'eventPriorities',
+    attitudes:   'attitudes',
+    genders:     'genders',
+    pinTypes:    'pinTypes',
+  };
   let _addonKindProvider = null;
   function setAddonKindProvider(fn) { _addonKindProvider = (typeof fn === 'function') ? fn : null; }
   function getKinds(domain) {

@@ -130,8 +130,9 @@ host.ui            // { toast(msg), rerender() }  — rerender re-renders the cu
 | `registerCollection(name)` | `data:own` | Wire your manifest-declared collection's scoped CRUD (§8). |
 | `registerWikiKind(scope, resolve)` | `wiki:kind` | Resolve `[[Label\|scope]]` links. `resolve(label) → {kind, id} \| null` (§7). |
 | `registerFragmentOp(target, spec)` | `ui:override` | Override a built-in fragment (replace/hide/wrap/insert) (§11). |
-| `registerSlot(slotId, render, opts?)` | `ui:slot:<surface>` | Inject content into a named slot on ANY surface (`<surface>` = slotId's first `:`-segment). `render(ctx) → {html} \| string \| null`. ADDITIVE, ordered by `opts.order`. Live slots: `timeline:card:extra`, `timeline:column:header\|footer`, `timeline:toolbar`. |
-| `registerConnectionKind(def)` | `kinds:connections` | Add a relationship/edge type (DATA only): `def = {id, label, color, style, dirs?, target?}`. Shows in the rel editor + as a mind-map edge. Id namespaced `<addonId>:<def.id>`. |
+| `registerSlot(slotId, render, opts?)` | `ui:slot:<surface>` | Inject content into a named slot on ANY surface (`<surface>` = slotId's first `:`-segment). `render(ctx) → {html} \| string \| null`. ADDITIVE, ordered by `opts.order`. Live slots: `dashboard:section` (ctx `{role}`), `map:pin:panel` (ctx `{location, pin, role}`), `timeline:card:extra`, `timeline:column:header\|footer`, `timeline:toolbar`. |
+| `registerKind(domain, def)` | `kinds:<domain>` | Add a pure-DATA enum kind in `domain` — merged into `Store.getKinds(domain)`. Domains: `connections`, `statuses`, `priorities`, `attitudes`, `genders`, `pinTypes`. `def = {id, label, color?, …}` (NO functions). Id namespaced `<addonId>:<def.id>`. Renders wherever that kind's label/colour does (e.g. a `statuses` kind shows up via `getStatusMap` on cloudmap/wiki/map). NOT an editable row in Settings. |
+| `registerConnectionKind(def)` | `kinds:connections` | Back-compat alias for `registerKind('connections', def)`. `def = {id, label, color, style, dirs?, target?}`. Shows in the rel editor + as a mind-map edge. |
 | `registerNodeKind(def)` | `kinds:graph` | Add a mind-map node type: `def = {id, shape?, cardHTML(node)→html, height?(node)→px, searchText?, detailHash?(d)}`. `cardHTML` must emit a `.cm-cloud` card. |
 | `registerGraphView(def)` | `kinds:graph` | Add a mind-map "mode": `def = {id, label, build()→{nodes,edges}}`. Reachable at `#/mapa/<addonId>:<def.id>`. |
 | `registerGraphContributor(viewId, fn)` | `graph:contribute` | Inject nodes/edges into an EXISTING view (`'vztahy'`, `'frakce'`, `'tajemstvi'`, `'casova-osa'`). `fn() → {nodes:[{id,type,…}], edges:[{source,target,type?}]}`. |
@@ -172,6 +173,8 @@ Request the **least** you need. The DM sees friendly labels at install.
 | `data:read:<collection>` | Read a core collection. |
 | `data:write:<collection>` | (reserved — most writes go through `addonData` or your own collections) |
 | `data:write:<collection>.addonData` | Patch your namespace on a core entity (§6). |
+| `kinds:<domain>` | Add pure-DATA enum kinds via `registerKind(domain, def)`. Domains: `connections`, `statuses`, `priorities`, `attitudes`, `genders`, `pinTypes`. (`kinds:connections` is also what `registerConnectionKind` needs; `kinds:graph` covers `registerNodeKind`/`registerGraphView`.) |
+| `graph:contribute` | Inject nodes/edges into an existing mind-map view (`registerGraphContributor`). |
 | `net:external` | (declared transparency; the host can't actually stop `fetch`) |
 | `server:code` | Run your `server/index.cjs` in-process (§13). |
 | `server:endpoint` | (declared transparency for server routes) |
