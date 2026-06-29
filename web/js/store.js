@@ -1903,6 +1903,42 @@ export const Store = (() => {
     return { id: id || '', label: id || '—', _orphan: true, color: '#555', icon: '?' };
   }
 
+  // ── Data-driven "kinds" registry (base/DM settings + addon layer) ──
+  // A "kind" is a DATA-only descriptor (id/label/color/style/…). Behavior
+  // kinds that carry render fns (graph node/view descriptors) live in the
+  // consumer/addon code registry, not here. `getKinds(domain)` merges the
+  // settings-backed base/DM list with the addon layer (provided by addons.js
+  // via `setAddonKindProvider`, wired in app.js — same late-binding seam as
+  // `setWikiLinkResolver`, so store.js never imports addons.js). Addon kind
+  // ids are namespaced (`<addonId>:<id>`) so they can never shadow a base/DM
+  // kind — base wins on any id collision.
+  const _KIND_DOMAIN_CATEGORY = { connections: 'relationshipTypes' };
+  let _addonKindProvider = null;
+  function setAddonKindProvider(fn) { _addonKindProvider = (typeof fn === 'function') ? fn : null; }
+  function getKinds(domain) {
+    init();
+    const cat = _KIND_DOMAIN_CATEGORY[domain];
+    const base = cat ? getEnum(cat) : [];
+    let addon = [];
+    if (_addonKindProvider) {
+      try { const a = _addonKindProvider(domain); if (Array.isArray(a)) addon = a; } catch (_) { /* addon layer is best-effort */ }
+    }
+    if (!addon.length) return base.slice();
+    const seen = new Set(base.map(x => x && x.id));
+    return base.concat(addon.filter(x => x && x.id && !seen.has(x.id)));
+  }
+  /** Resolve one kind by id across base/DM + addon layers. Orphan-safe:
+   *  returns a synthetic placeholder (domain-shaped for `connections`, so it
+   *  carries the rel-type fields cloudmap needs) when the id is unknown. */
+  function getKind(domain, id) {
+    const found = getKinds(domain).find(x => x && x.id === id);
+    if (found) return found;
+    if (domain === 'connections') {
+      return { id: id || '', label: id || '?', dirs: ['from', 'to'], color: '#555', style: 'dashed', target: 'character', _orphan: true };
+    }
+    return { id: id || '', label: id || '—', _orphan: true };
+  }
+
   /** Resolve the attitudes that should drive an entity's glow.
    *  Returns `[{id, strength}]`. Rules:
    *    1. Party PCs (`faction === PARTY_FACTION_ID`) always render with
@@ -2744,6 +2780,7 @@ export const Store = (() => {
     undelete,
     getSettings, getEnum, getEnumValue, getEffectiveAttitudes,
     saveEnumItem, deleteEnumItem, findEnumUsages, resetEnumCategory,
+    getKinds, getKind, setAddonKindProvider,
     getSidebarLayout, setSidebarLayout,
     getHiddenSidebarPages, setHiddenSidebarPages,
     getMapConfig, setMapConfig,

@@ -8,8 +8,10 @@
 import { Store } from './store.js';
 import { Role } from './role.js';
 import { norm, debounce, esc, dataAction, dataOn, pageEditToggle } from './utils.js';
-import { REL_TYPES, getRelType } from './data.js';
+// Connection kinds (relationship types) come from the data-driven registry
+// Store.getKinds('connections') — settings (seeded from REL_TYPES) + addon kinds.
 import { I18n } from './i18n.js';
+import { Addons } from './addons.js';
 
 export const CloudMap = (() => {
 
@@ -271,7 +273,7 @@ export const CloudMap = (() => {
         const counts = {};
         rels.forEach(r => { counts[r.type] = (counts[r.type] || 0) + 1; });
         const top = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 2)
-          .map(([t,n]) => `${getRelType(t).label}×${n}`).join(', ');
+          .map(([t,n]) => `${Store.getKind('connections', t).label}×${n}`).join(', ');
         body += `<div class="cm-fact cm-dim">${top}</div>`;
       }
 
@@ -343,21 +345,28 @@ export const CloudMap = (() => {
   }
 
   // ── Edge definitions ────────────────────────────────────────
-  // Most edge visuals come from the canonical REL_TYPES. Extra
-  // non-relationship edge kinds used only here (member, located_at)
-  // are declared separately and merged in at the bottom.
-  const EDGE_COLORS      = Object.fromEntries(REL_TYPES.map(t => [t.id, t.color]));
-  const EDGE_TYPE_LABELS = Object.fromEntries(REL_TYPES.map(t => [t.id, t.label]));
-  const EDGE_STYLES = Object.fromEntries(REL_TYPES.map(t => {
-    // Stronger weight for command edges; keep REL_TYPES single
-    // width control out of the shared record.
-    const width = t.id === 'commands' ? 3 : (t.style === 'dashed' || t.style === 'dotted') && t.id !== 'negotiates' ? 1 : 2;
-    return [t.id, { 'line-style': t.style, width }];
-  }));
-  // Cloudmap-only edge kinds (not real relationships).
-  EDGE_COLORS.located_at = '#5D7A3A';
-  EDGE_STYLES.member     = { 'line-style': 'dashed', width: 1.5 };
-  EDGE_STYLES.located_at = { 'line-style': 'dotted', width: 2   };
+  // Edge visuals come from the data-driven CONNECTION KINDS registry
+  // (Store.getKinds('connections') — settings, seeded from REL_TYPES, plus any
+  // addon-registered kinds). Rebuilt per render via _rebuildEdgeMeta() so a
+  // DM/addon edit to a connection kind shows without a reload. Two cloudmap-only
+  // synthetic edge kinds (member, located_at — not real relationships) merge in.
+  let EDGE_COLORS      = {};
+  let EDGE_TYPE_LABELS = {};
+  let EDGE_STYLES      = {};
+  function _rebuildEdgeMeta() {
+    EDGE_COLORS = {}; EDGE_TYPE_LABELS = {}; EDGE_STYLES = {};
+    for (const t of Store.getKinds('connections')) {
+      EDGE_COLORS[t.id]      = t.color;
+      EDGE_TYPE_LABELS[t.id] = t.label;
+      // Stronger weight for command edges; thin dashed/dotted (except negotiates).
+      const width = t.id === 'commands' ? 3 : (t.style === 'dashed' || t.style === 'dotted') && t.id !== 'negotiates' ? 1 : 2;
+      EDGE_STYLES[t.id] = { 'line-style': t.style, width };
+    }
+    // Cloudmap-only edge kinds (not real relationships).
+    EDGE_COLORS.located_at = '#5D7A3A';
+    EDGE_STYLES.member     = { 'line-style': 'dashed', width: 1.5 };
+    EDGE_STYLES.located_at = { 'line-style': 'dotted', width: 2   };
+  }
 
   function _relEdge(r) {
     const es = EDGE_STYLES[r.type] || {};
@@ -475,55 +484,77 @@ export const CloudMap = (() => {
     } catch (e) {}
   }
 
-  // Returns concatenated searchable text for a node (diacritic-insensitive match).
-  // Covers all fields a chip filter might want to match: names, titles, tags,
-  // status/knowledge labels, species/gender, faction name, location type/region.
+  // ── Node-kind registry ──────────────────────────────────────
+  // Built-in node kinds as descriptors; addon kinds (Addons.nodeKinds(), perm
+  // kinds:graph) merge on top via _nodeKind(). Each descriptor carries the
+  // generic per-node behaviour the rest of the module routes through — `shape`
+  // (hit-test), `detailHash` (tap / context-menu nav), `searchText(id)` (chip
+  // filter) — plus `cardHTML(entity, mode)` / `height(entity, mode)` the view
+  // builders render with. Built-ins DELEGATE to the existing render fns, so
+  // behaviour is identical with zero addons installed.
+  const KNOWLEDGE_NAMES = ['Neznámý','Tušený','Základní','Dobře znám','Plně zmapován'];
+  const NODE_KINDS = new Map([
+    ['character', {
+      id: 'character', shape: 'rect', cardHTML: _charCloudHTML, height: _charCloudH,
+      detailHash: (d) => `#/postava/${d.id}`,
+      searchText: (id) => {
+        const c = Store.getCharacter(id); if (!c) return '';
+        const f = Store.getFactions()[c.faction] || {};
+        const s = Store.getStatusMap()[c.status] || {};
+        return [c.name, c.title, c.species, c.gender, c.age, s.label, f.name,
+          KNOWLEDGE_NAMES[c.knowledge || 0], ...(c.tags || [])].filter(Boolean).join(' ');
+      },
+    }],
+    ['location', {
+      id: 'location', shape: 'rect', cardHTML: _locationCloudHTML, height: _locationCloudH,
+      detailHash: (d) => `#/misto/${d.id}`,
+      searchText: (id) => {
+        const l = Store.getLocation(id); if (!l) return '';
+        return [l.name, l.region, l.type, ...(l.tags || [])].filter(Boolean).join(' ');
+      },
+    }],
+    ['mystery', {
+      id: 'mystery', shape: 'rect', cardHTML: _mysteryCloudHTML, height: _mysteryCloudH,
+      detailHash: (d) => `#/zahada/${d.id}`,
+      searchText: (id) => {
+        const m = Store.getMystery(id); if (!m) return '';
+        const qBlob = (m.questions || []).flatMap(qa => [Store.questionText(qa), Store.questionAnswer(qa)]);
+        return [m.name, m.priority, ...qBlob, ...(m.clues || [])].filter(Boolean).join(' ');
+      },
+    }],
+    ['event', {
+      id: 'event', shape: 'rect', cardHTML: _eventCloudHTML, height: _eventCloudH,
+      detailHash: (d) => `#/udalost/${d.id}`,
+      searchText: (id) => {
+        const e = Store.getEvent(id); if (!e) return '';
+        return [e.name, e.short, e.description, e.priority,
+          e.sitting ? `sezeni ${e.sitting}` : 'minulost', ...(e.tags || [])].filter(Boolean).join(' ');
+      },
+    }],
+    ['faction', {
+      id: 'faction', shape: 'pill', cardHTML: _factionHubCloudHTML, height: _factionHubCloudH,
+      detailHash: (d) => `#/frakce/${d.id.replace('hub_', '')}`,
+      searchText: (id) => {
+        const fId = id.replace(/^hub_/, '');
+        const f = Store.getFactions()[fId];
+        return f ? [f.name, f.badge, f.description].filter(Boolean).join(' ') : '';
+      },
+    }],
+  ]);
+  /** Resolve a node kind (built-in OR addon-registered) by type id, else null.
+   *  Built-ins short-circuit (the hot path — _nodeIntersect runs during
+   *  physics), so the addon scan only happens for unknown types. */
+  function _nodeKind(type) {
+    if (NODE_KINDS.has(type)) return NODE_KINDS.get(type);
+    for (const def of Addons.nodeKinds()) if (def && def.id === type) return def;
+    return null;
+  }
+
+  // Concatenated searchable text for a node (diacritic-insensitive chip match),
+  // delegated to the node kind's searchText (built-in or addon).
   function _nodeSearchText(node) {
-    const id = node.id(), type = node.data('type');
-    if (type === 'character') {
-      const c = Store.getCharacter(id);
-      if (!c) return '';
-      const f = Store.getFactions()[c.faction] || {};
-      const s = Store.getStatusMap()[c.status] || {};
-      const kNames = ['Neznámý','Tušený','Základní','Dobře znám','Plně zmapován'];
-      return [
-        c.name, c.title, c.species, c.gender, c.age,
-        s.label, f.name, kNames[c.knowledge || 0],
-        ...(c.tags || []),
-      ].filter(Boolean).join(' ');
-    }
-    if (type === 'location') {
-      const l = Store.getLocation(id);
-      if (!l) return '';
-      return [l.name, l.region, l.type, ...(l.tags || [])]
-        .filter(Boolean).join(' ');
-    }
-    if (type === 'mystery') {
-      const m = Store.getMystery(id);
-      if (!m) return '';
-      // questions are {text, answer} objects post-migration; flatten
-      // both into the search blob so the cloudmap filter can match on
-      // either side. Clues stay as strings (no rework yet).
-      const qBlob = (m.questions || []).flatMap(qa => [
-        Store.questionText(qa),
-        Store.questionAnswer(qa),
-      ]);
-      return [m.name, m.priority, ...qBlob, ...(m.clues || [])]
-        .filter(Boolean).join(' ');
-    }
-    if (type === 'event') {
-      const e = Store.getEvent(id);
-      if (!e) return '';
-      return [e.name, e.short, e.description, e.priority,
-              e.sitting ? `sezeni ${e.sitting}` : 'minulost',
-              ...(e.tags || [])].filter(Boolean).join(' ');
-    }
-    if (type === 'faction') {
-      const fId = id.replace(/^hub_/, '');
-      const f = Store.getFactions()[fId];
-      return f ? [f.name, f.badge, f.description].filter(Boolean).join(' ') : '';
-    }
-    return '';
+    const kind = _nodeKind(node.data('type'));
+    return (kind && typeof kind.searchText === 'function') ? (kind.searchText(node.id(), node) || '') : '';
   }
 
   // Best-effort: resolve a Cytoscape edge to a relationship-type string for
@@ -1281,7 +1312,8 @@ export const CloudMap = (() => {
 
   // Choose intersection function based on node type
   function _nodeIntersect(node, cx, cy, hw, hh, udx, udy) {
-    if (node.data('type') === 'faction') return _pillIntersect(cx, cy, hw, hh, udx, udy);
+    const kind = _nodeKind(node.data('type'));
+    if (kind && kind.shape === 'pill') return _pillIntersect(cx, cy, hw, hh, udx, udy);
     return _rectIntersect(cx, cy, hw, hh, udx, udy);
   }
 
@@ -2276,11 +2308,8 @@ export const CloudMap = (() => {
     // Navigate to the item's detail page (after a short delay so highlight shows)
     const d = node.data();
     setTimeout(() => {
-      if (d.type === 'character') window.location.hash = `#/postava/${d.id}`;
-      if (d.type === 'mystery')   window.location.hash = `#/zahada/${d.id}`;
-      if (d.type === 'event')     window.location.hash = `#/udalost/${d.id}`;
-      if (d.type === 'faction')   window.location.hash = `#/frakce/${d.id.replace('hub_', '')}`;
-      if (d.type === 'location')  window.location.hash = `#/misto/${d.id}`;
+      const hash = _detailHashFor(d);
+      if (hash) window.location.hash = hash;
     }, 120);
   }
 
@@ -2293,12 +2322,8 @@ export const CloudMap = (() => {
   }
 
   function _detailHashFor(d) {
-    if (d.type === 'character') return `#/postava/${d.id}`;
-    if (d.type === 'mystery')   return `#/zahada/${d.id}`;
-    if (d.type === 'event')     return `#/udalost/${d.id}`;
-    if (d.type === 'faction')   return `#/frakce/${d.id.replace('hub_','')}`;
-    if (d.type === 'location')  return `#/misto/${d.id}`;
-    return null;
+    const kind = _nodeKind(d.type);
+    return (kind && typeof kind.detailHash === 'function') ? kind.detailHash(d) : null;
   }
 
   function _onCtxNode(evt) {
@@ -2626,7 +2651,8 @@ export const CloudMap = (() => {
     edges.push(...relEdges);
 
     // — Layout —
-    _initCy([...hubNodes, ...charNodes, ...locNodes, ...edges], {
+    const _c = _graphContrib('frakce');
+    _initCy([...hubNodes, ...charNodes, ...locNodes, ...edges, ..._c.proxies, ..._c.edges], {
       name: 'cose', animate: true, animationDuration: 700,
       nodeRepulsion: 24000, gravity: 0.12, idealEdgeLength: 200,
       padding: 90, randomize: false, numIter: 3000,
@@ -2662,6 +2688,7 @@ export const CloudMap = (() => {
       const loc = locations.find(l => l.id === locId);
       if (loc) _addCloud(_locationCloudHTML(loc), loc.id);
     }
+    _c.render();
 
     _bind();
     _addEdgeLabels();
@@ -2707,13 +2734,15 @@ export const CloudMap = (() => {
     );
     const edges = rels.map(_relEdge);
 
-    _initCy([...nodes, ...edges], {
+    const _c = _graphContrib('vztahy');
+    _initCy([...nodes, ..._c.proxies, ...edges, ..._c.edges], {
       name: 'cose', animate: true, animationDuration: 900,
       nodeRepulsion: 22000, gravity: 0.07, idealEdgeLength: 220,
       padding: 90, randomize: false, numIter: 3000,
     });
 
     chars.forEach(c => _addCloud(_charCloudHTML(c, 'vztahy'), c.id));
+    _c.render();
     _bind();
 
     const typeRows = [
@@ -2765,7 +2794,8 @@ export const CloudMap = (() => {
       }))
     );
 
-    _initCy([...mNodes, ...cNodes, ...edges], {
+    const _c = _graphContrib('tajemstvi');
+    _initCy([...mNodes, ...cNodes, ...edges, ..._c.proxies, ..._c.edges], {
       name: 'cose', animate: true, animationDuration: 700,
       nodeRepulsion: 16000, gravity: 0.22, idealEdgeLength: 180,
       padding: 65,
@@ -2773,6 +2803,7 @@ export const CloudMap = (() => {
 
     mysteries.forEach(m => _addCloud(_mysteryCloudHTML(m), m.id));
     involved.forEach(c  => _addCloud(_charCloudHTML(c, 'tajemstvi'), c.id));
+    _c.render();
     _bind();
     _addEdgeLabels();
 
@@ -2823,7 +2854,8 @@ export const CloudMap = (() => {
       }))
     );
 
-    _initCy([...eNodes, ...cNodes, ...chainEdges, ...partEdges], {
+    const _c = _graphContrib('casova-osa');
+    _initCy([...eNodes, ...cNodes, ...chainEdges, ...partEdges, ..._c.proxies, ..._c.edges], {
       name: 'cose', animate: true, animationDuration: 800,
       nodeRepulsion: 14000, gravity: 0.18, idealEdgeLength: 190,
       padding: 65,
@@ -2831,6 +2863,7 @@ export const CloudMap = (() => {
 
     events.forEach(e  => _addCloud(_eventCloudHTML(e), e.id));
     involved.forEach(c => _addCloud(_charCloudHTML(c, 'casova-osa'), c.id));
+    _c.render();
     _bind();
     _addEdgeLabels();
 
@@ -2849,6 +2882,91 @@ export const CloudMap = (() => {
     }
   }
 
+  // ── Graph view registry + addon contributions ───────────────
+  // Built-in views (mind-map "modes") as descriptors; addon views
+  // (Addons.graphViews(), perm kinds:graph) merge via _view(). render(mode)
+  // dispatches through this, so built-ins + addon views share one path.
+  const VIEWS = new Map([
+    ['frakce',     { id: 'frakce',     build: _renderFrakce }],
+    ['vztahy',     { id: 'vztahy',     build: _renderVztahy }],
+    ['tajemstvi',  { id: 'tajemstvi',  build: _renderTajemstvi }],
+    ['casova-osa', { id: 'casova-osa', build: _renderCasovaOsa }],
+  ]);
+  function _view(mode) {
+    if (VIEWS.has(mode)) return VIEWS.get(mode);
+    for (const def of Addons.graphViews()) if (def && def.id === mode) return def;
+    return null;
+  }
+
+  function _safeNum(fn, fb) { try { const v = fn(); return Number.isFinite(v) ? v : fb; } catch { return fb; } }
+
+  // Gather addon graph contributions for a view (perm graph:contribute): proxy
+  // nodes (rendered via their node-kind descriptor's cardHTML/height) + edges
+  // (built like relationships through _relEdge). Zero-cost with no contributors.
+  // `.render()` is DEFERRED so clouds are added AFTER _initCy mounts the proxy
+  // nodes — exactly like the built-in _addCloud loops.
+  function _graphContrib(viewId) {
+    const proxies = [], edges = [], clouds = [];
+    for (const c of Addons.graphContributors(viewId)) {
+      let r;
+      try { r = c.fn({ viewId }); }
+      catch (e) { console.error(`[addon ${c.addonId}] graph contributor "${viewId}" failed`, e); continue; }
+      if (!r) continue;
+      for (const n of (r.nodes || [])) {
+        if (!n || !n.id || !n.type) continue;
+        const kind = _nodeKind(n.type);
+        const h = (kind && typeof kind.height === 'function') ? _safeNum(() => kind.height(n.entity || n, viewId), 120) : 120;
+        proxies.push(_proxy(n.id, n.type, CW, h));
+        clouds.push(n);
+      }
+      for (const e of (r.edges || [])) {
+        if (e && e.source && e.target) edges.push(_relEdge({ type: 'uncertain', ...e }));
+      }
+    }
+    return {
+      proxies, edges,
+      render() {
+        for (const n of clouds) {
+          const kind = _nodeKind(n.type);
+          if (kind && typeof kind.cardHTML === 'function') {
+            try { _addCloud(kind.cardHTML(n.entity || n, viewId), n.id); }
+            catch (e) { console.error(`[addon] node "${n.type}" cardHTML failed`, e); }
+          }
+        }
+      },
+    };
+  }
+
+  // Generic renderer for an ADDON-authored declarative view (host.registerGraphView,
+  // `build()` → {nodes,edges}). Built-in views keep their bespoke builders above;
+  // this covers addon views with no cloudmap internals exposed.
+  function _renderAddonView(def) {
+    _buildUI(def.id);
+    let r;
+    try { r = def.build ? def.build({ store: Store, viewId: def.id }) : null; }
+    catch (e) { console.error(`[addon] graph view "${def.id}" build failed`, e); r = null; }
+    const list  = r || { nodes: [], edges: [] };
+    const valid = (list.nodes || []).filter(n => n && n.id && n.type);
+    const nodes = valid.map(n => {
+      const kind = _nodeKind(n.type);
+      const h = (kind && typeof kind.height === 'function') ? _safeNum(() => kind.height(n.entity || n, def.id), 120) : 120;
+      return _proxy(n.id, n.type, CW, h);
+    });
+    const edges = (list.edges || []).filter(e => e && e.source && e.target).map(e => _relEdge({ type: 'uncertain', ...e }));
+    _initCy([...nodes, ...edges], {
+      name: 'cose', animate: true, animationDuration: 700,
+      nodeRepulsion: 20000, gravity: 0.1, idealEdgeLength: 200, padding: 80, randomize: false, numIter: 2500,
+    });
+    valid.forEach(n => {
+      const kind = _nodeKind(n.type);
+      if (kind && typeof kind.cardHTML === 'function') {
+        try { _addCloud(kind.cardHTML(n.entity || n, def.id), n.id); } catch (e) { console.error(e); }
+      }
+    });
+    _bind();
+    _addEdgeLabels();
+  }
+
   // ── Public ────────────────────────────────────────────────
 
   /**
@@ -2861,13 +2979,12 @@ export const CloudMap = (() => {
    */
   function render(mode) {
     _destroy();
-    switch (mode) {
-      case 'frakce':     _renderFrakce();     break;
-      case 'vztahy':     _renderVztahy();     break;
-      case 'tajemstvi':  _renderTajemstvi();  break;
-      case 'casova-osa': _renderCasovaOsa();  break;
-      default:           _renderFrakce();
-    }
+    _rebuildEdgeMeta();   // refresh connection-kind visuals from the registry
+    const view = _view(mode) || VIEWS.get('frakce');
+    try {
+      if (VIEWS.has(view.id)) view.build();      // built-in bespoke builder
+      else                    _renderAddonView(view);   // addon declarative view
+    } catch (e) { console.error(`[cloudmap] view "${view.id}" failed`, e); }
   }
 
   /**

@@ -130,6 +130,11 @@ host.ui            // { toast(msg), rerender() }  — rerender re-renders the cu
 | `registerCollection(name)` | `data:own` | Wire your manifest-declared collection's scoped CRUD (§8). |
 | `registerWikiKind(scope, resolve)` | `wiki:kind` | Resolve `[[Label\|scope]]` links. `resolve(label) → {kind, id} \| null` (§7). |
 | `registerFragmentOp(target, spec)` | `ui:override` | Override a built-in fragment (replace/hide/wrap/insert) (§11). |
+| `registerSlot(slotId, render, opts?)` | `ui:slot:<surface>` | Inject content into a named slot on ANY surface (`<surface>` = slotId's first `:`-segment). `render(ctx) → {html} \| string \| null`. ADDITIVE, ordered by `opts.order`. Live slots: `timeline:card:extra`, `timeline:column:header\|footer`, `timeline:toolbar`. |
+| `registerConnectionKind(def)` | `kinds:connections` | Add a relationship/edge type (DATA only): `def = {id, label, color, style, dirs?, target?}`. Shows in the rel editor + as a mind-map edge. Id namespaced `<addonId>:<def.id>`. |
+| `registerNodeKind(def)` | `kinds:graph` | Add a mind-map node type: `def = {id, shape?, cardHTML(node)→html, height?(node)→px, searchText?, detailHash?(d)}`. `cardHTML` must emit a `.cm-cloud` card. |
+| `registerGraphView(def)` | `kinds:graph` | Add a mind-map "mode": `def = {id, label, build()→{nodes,edges}}`. Reachable at `#/mapa/<addonId>:<def.id>`. |
+| `registerGraphContributor(viewId, fn)` | `graph:contribute` | Inject nodes/edges into an EXISTING view (`'vztahy'`, `'frakce'`, `'tajemstvi'`, `'casova-osa'`). `fn() → {nodes:[{id,type,…}], edges:[{source,target,type?}]}`. |
 | `provide(api)` / `use(depId)` | — | Inter-addon API channel (§10). |
 
 ### Data access (`host.store`)

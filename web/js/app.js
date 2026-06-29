@@ -429,6 +429,8 @@ document.addEventListener('dragend',   (ev) => {
         WorldMap.render(locId || null);
       } else if (sub === "palac" || sub === "frakce" || sub === "vztahy" || sub === "tajemstvi") {
         CloudMap.render(sub === "palac" ? "frakce" : sub);
+      } else if (sub && Addons.graphViews().some(v => v && v.id === sub)) {
+        CloudMap.render(sub);   // addon-registered mind-map view
       } else {
         CloudMap.render("frakce");
       }
@@ -869,6 +871,10 @@ document.addEventListener('dragend',   (ev) => {
       toast:    (m) => { try { EditMode.toast(m); } catch (_) { console.log('[addon]', m); } },
       rerender: () => { Sidebar.render(); navigate(getRoute()); },
     });
+    // Let Store.getKinds(domain) see the addon-registered kind layer
+    // (connection kinds, graph node/view kinds) without store.js importing
+    // addons.js — same late-binding seam as setWikiLinkResolver.
+    Store.setAddonKindProvider((domain) => Addons.kindsForDomain(domain));
     try { await Addons.boot(); }
     catch (e) { console.error('[addons] boot failed', e); }
 

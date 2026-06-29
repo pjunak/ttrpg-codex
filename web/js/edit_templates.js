@@ -1,6 +1,6 @@
 import { Store } from './store.js';
 import { PIN_TYPES, PIN_SIZE_MIN, PIN_SIZE_MAX } from './map.js';
-import { REL_TYPES } from './data.js';
+// Relationship/connection kinds come from Store.getKinds('connections').
 import { esc, dataAction, dataOn } from './utils.js';
 import { I18n } from './i18n.js';
 
@@ -198,12 +198,13 @@ export const EditTemplates = (() => {
     return f ? f.badge + ' ' : '';
   }
 
-  // Relationship type config is the canonical REL_TYPES array from
-  // data.js. REL_IDS / REL_CONFIG / REL_LABELS are local views for
-  // backwards compatibility with the rest of this file's helpers.
-  const REL_IDS    = REL_TYPES.map(t => t.id);
-  const REL_CONFIG = Object.fromEntries(REL_TYPES.map(t => [t.id, t]));
-  const REL_LABELS = Object.fromEntries(REL_TYPES.map(t => [t.id, t.label]));
+  // Relationship/connection types come from the data-driven CONNECTION KINDS
+  // registry (Store.getKinds('connections') — settings, seeded from REL_TYPES,
+  // plus any addon-registered kinds). Resolved PER CALL so DM/addon edits + a
+  // language switch show without a reload.
+  const _relKinds  = () => Store.getKinds('connections');
+  const _relIds    = () => _relKinds().map(t => t.id);
+  const _relConfig = () => Object.fromEntries(_relKinds().map(t => [t.id, t]));
 
   // Direction labels read lazily (per-render) so a language switch is
   // reflected — a module-level frozen object would capture boot-time text.
@@ -219,7 +220,8 @@ export const EditTemplates = (() => {
    *  via document.getElementById(`${prefix}-target`).value because the
    *  Combobox renders a hidden <input type="hidden"> with that id. */
   function _targetMount(type, charId, selectedId, prefix) {
-    const cfg     = REL_CONFIG[type] || REL_CONFIG.commands;
+    const all     = _relConfig();
+    const cfg     = all[type] || all.commands || { target: 'character' };
     const source  = cfg.target === 'location' ? 'location' : 'character';
     const exclude = cfg.target === 'character' ? charId : '';
     const placeholder = cfg.target === 'location' ? I18n.t('editform.pickLocation') : I18n.t('editform.pickCharacter');
@@ -234,8 +236,10 @@ export const EditTemplates = (() => {
 
   /** Build <option> list for directions based on type config */
   function _dirOpts(type, selectedDir) {
-    const cfg = REL_CONFIG[type] || REL_CONFIG.commands;
-    return cfg.dirs.map(d =>
+    const all = _relConfig();
+    const cfg = all[type] || all.commands || {};
+    const dirs = Array.isArray(cfg.dirs) ? cfg.dirs : ['from', 'to'];
+    return dirs.map(d =>
       `<option value="${d}" ${d===selectedDir?'selected':''}>${esc(_dirLabel(d))}</option>`
     ).join('');
   }
@@ -244,7 +248,8 @@ export const EditTemplates = (() => {
   function _relRow(charId, r, idx) {
     const isNew    = idx === 'new';
     const prefix   = isNew ? `rf-new-${charId}` : `rf-${idx}-${charId}`;
-    const type     = r ? r.type : REL_IDS[0];
+    const _cfg     = _relConfig();
+    const type     = r ? r.type : (_relIds()[0] || 'commands');
     const label    = r ? (r.label || '') : '';
 
     // Determine current direction and other end from existing relationship
@@ -254,8 +259,8 @@ export const EditTemplates = (() => {
       else if (r.target === charId) { dir = 'to';   targetId = r.source; }
     }
 
-    const typeOpts   = REL_IDS.map(id =>
-      `<option value="${id}" ${id===type?'selected':''}>${REL_CONFIG[id].label}</option>`
+    const typeOpts   = _relIds().map(rid =>
+      `<option value="${rid}" ${rid===type?'selected':''}>${esc((_cfg[rid] && _cfg[rid].label) || rid)}</option>`
     ).join('');
     const dirOptions = _dirOpts(type, dir);
     const tgtMount   = _targetMount(type, charId, targetId, prefix);
@@ -275,7 +280,7 @@ export const EditTemplates = (() => {
       <select class="edit-select edit-select-sm" id="${prefix}-dir">${dirOptions}</select>
       <div class="rel-target-wrap">${tgtMount}</div>
       <input class="edit-input edit-input-sm" id="${prefix}-label" value="${esc(label)}"
-        placeholder="${esc(REL_CONFIG[type].label)}">
+        placeholder="${esc((_cfg[type] && _cfg[type].label) || type)}">
       <button class="edit-add-btn"${saveAttr} title="${esc(saveTitle)}">${esc(saveLabel)}</button>
       ${deleteBtn}
     </div>`;
@@ -1163,7 +1168,7 @@ export const EditTemplates = (() => {
     getRelSectionHtml: _relSection,
     getDirOptsHtml: _dirOpts,
     getTargetMountHtml: _targetMount,
-    getRelConfig: () => REL_CONFIG,
+    getRelConfig: () => _relConfig(),
     getChainEditHtml: _chainEditHtml,
     getMdTextareaHtml: _mdTextarea,
     attitudeChipRow:     _attitudeChipRow,

@@ -59,6 +59,14 @@ export const Addons = (() => {
   const _unmatched       = new Map();  // "<id>::<target>" -> {addonId,target,op}      (claims whose fragment is absent; best-effort, reset on (re)boot)
   const _addons          = new Map();  // id       -> { id, state, error, meta }
 
+  // ── Contribution registries (data-driven content + kinds) ─────
+  // Mirror the register→readback→tx.undo shape of _articleSections.
+  const _slots             = new Map();  // slotId  -> [{ addonId, render, order }]  (additive content slots, ANY surface)
+  const _connectionKinds   = new Map();  // "<id>:<kind>" -> { addonId, def }        (DATA kind; merged via Store.getKinds('connections'))
+  const _nodeKinds         = new Map();  // "<id>:<kind>" -> { addonId, def }        (graph node descriptor — carries render fns)
+  const _graphViews        = new Map();  // "<id>:<view>" -> { addonId, def }        (graph view descriptor)
+  const _graphContributors = new Map();  // viewId  -> [{ addonId, fn }]             (inject nodes/edges into an EXISTING view)
+
   // Injected by app.js so this module never has to import EditMode /
   // Sidebar (avoids import cycles): a toast fn + a "re-render current
   // route" fn used after a live reconcile.
@@ -87,6 +95,9 @@ export const Addons = (() => {
     'net:external':    'permNetExternal',
     'server:code':     'permServerCode',
     'server:endpoint': 'permServerEndpoint',
+    'kinds:connections': 'permKindsConnections',
+    'kinds:graph':       'permKindsGraph',
+    'graph:contribute':  'permGraphContribute',
   };
   // Collection token → i18n key suffix for its localized name (used inside
   // describePermission's dynamic branches).
@@ -109,6 +120,8 @@ export const Addons = (() => {
     if (m) return I18n.t('addons.permArticleSection', { coll: _collLabel(m[1]) });
     m = perm.match(/^ui:editor-fields:(.+)$/);
     if (m) return I18n.t('addons.permEditorFields', { coll: _collLabel(m[1]) });
+    m = perm.match(/^ui:slot:(.+)$/);
+    if (m) return I18n.t('addons.permSlot', { surface: m[1] });
     return perm;
   }
 
@@ -301,6 +314,77 @@ export const Addons = (() => {
       _undoArr(_fragmentOps, claim);
     }
 
+    /** Register an additive content slot on a named surface. `slotId` is
+     *  `<surface>:<…>` (e.g. `timeline:card:extra`); the surface segment gates
+     *  the permission `ui:slot:<surface>`. `render(ctx)` → `{html}` |
+     *  html-string | null (errors isolated → skipped). ADDITIVE, ordered by
+     *  `opts.order`. The open-ended `slotId` is what lets a NEW surface adopt
+     *  the seam with no new host API — just a `slotContent(...)` call-site. */
+    function registerSlot(slotId, render, opts) {
+      if (typeof slotId !== 'string' || !slotId) throw new Error('registerSlot: slotId required');
+      const perm = 'ui:slot:' + slotId.split(':')[0];
+      if (!has(perm)) deny(perm, 'registerSlot');
+      if (typeof render !== 'function') throw new Error('registerSlot: render must be a function');
+      const lst = _slots.get(slotId) || [];
+      const entry = { addonId: id, render, order: Number.isFinite(opts && opts.order) ? opts.order : 0 };
+      lst.push(entry);
+      lst.sort((a, b) => a.order - b.order);
+      _slots.set(slotId, lst);
+      _undoKindArr(_slots, slotId, entry);
+    }
+
+    /** Register a DATA connection (relationship/edge) kind merged into
+     *  `Store.getKinds('connections')`. `def` is pure data
+     *  `{id, label, color, style, dirs?, target?}` (NO functions) — the id is
+     *  namespaced `<addonId>:<id>` so it can't shadow a base/DM kind. Needs
+     *  `kinds:connections`. */
+    function registerConnectionKind(def) {
+      if (!has('kinds:connections')) deny('kinds:connections', 'registerConnectionKind');
+      if (!def || typeof def.id !== 'string' || !def.id) throw new Error('registerConnectionKind: def.id required');
+      const key = id + ':' + def.id;
+      if (_connectionKinds.has(key)) throw new Error(`registerConnectionKind: "${def.id}" already registered`);
+      _connectionKinds.set(key, { addonId: id, def: { ...def, id: key, _addonId: id } });
+      _undoMap(_connectionKinds, key);
+    }
+
+    /** Register a graph NODE kind for the mind map — a descriptor carrying
+     *  render fns `{id, cardHTML(node), height?, searchText?, shape?, route?,
+     *  legend?}`. Id namespaced `<addonId>:<id>`. Needs `kinds:graph`. */
+    function registerNodeKind(def) {
+      if (!has('kinds:graph')) deny('kinds:graph', 'registerNodeKind');
+      if (!def || typeof def.id !== 'string' || !def.id) throw new Error('registerNodeKind: def.id required');
+      const key = id + ':' + def.id;
+      if (_nodeKinds.has(key)) throw new Error(`registerNodeKind: "${def.id}" already registered`);
+      _nodeKinds.set(key, { addonId: id, def: { ...def, id: key, _addonId: id } });
+      _undoMap(_nodeKinds, key);
+    }
+
+    /** Register a graph VIEW (a mind-map "mode"). `def` `{id, label, build}`
+     *  — id namespaced `<addonId>:<id>`. Needs `kinds:graph`. */
+    function registerGraphView(def) {
+      if (!has('kinds:graph')) deny('kinds:graph', 'registerGraphView');
+      if (!def || typeof def.id !== 'string' || !def.id) throw new Error('registerGraphView: def.id required');
+      const key = id + ':' + def.id;
+      if (_graphViews.has(key)) throw new Error(`registerGraphView: "${def.id}" already registered`);
+      _graphViews.set(key, { addonId: id, def: { ...def, id: key, _addonId: id } });
+      _undoMap(_graphViews, key);
+    }
+
+    /** Inject nodes/edges into an EXISTING graph view (built-in like `vztahy`
+     *  or another addon's). `viewId` is the target view's PUBLIC id (NOT
+     *  namespaced — it references something that already exists). `fn(api)` →
+     *  `{nodes?, edges?}`. ADDITIVE. Needs `graph:contribute`. */
+    function registerGraphContributor(viewId, fn) {
+      if (!has('graph:contribute')) deny('graph:contribute', 'registerGraphContributor');
+      if (typeof viewId !== 'string' || !viewId) throw new Error('registerGraphContributor: viewId required');
+      if (typeof fn !== 'function') throw new Error('registerGraphContributor: fn must be a function');
+      const lst = _graphContributors.get(viewId) || [];
+      const entry = { addonId: id, fn };
+      lst.push(entry);
+      _graphContributors.set(viewId, lst);
+      _undoKindArr(_graphContributors, viewId, entry);
+    }
+
     /** Resolve `[[Label|<scope>]]` wiki-links for a custom kind. `resolve(label)`
      *  returns `{kind, id}` (a route + id, e.g. `{kind:'pravidla', id:'grappling'}`)
      *  or null. The scope token can't shadow a built-in. Needs `wiki:kind`. */
@@ -367,6 +451,8 @@ export const Addons = (() => {
       registerArticleSection, registerSettingsTab, registerAction,
       registerCollection, registerWikiKind, registerEditorFields,
       registerFragmentOp,
+      registerSlot,
+      registerConnectionKind, registerNodeKind, registerGraphView, registerGraphContributor,
       provide, use,
       store,
       role: {
@@ -500,8 +586,10 @@ export const Addons = (() => {
    *  tabs, wiki kinds, editor fields, fragment ops). Authors get the FULL smoke
    *  (incl. routes/pages) via the published harness's `smokeRegistrations`. */
   function _recForAddon(addonId) {
-    const r = { routes: [], pages: [], articleSections: [], settingsTabs: [], wikiKinds: [], editorFields: [], fragmentOps: [] };
+    const r = { routes: [], pages: [], articleSections: [], settingsTabs: [], wikiKinds: [], editorFields: [], fragmentOps: [], slots: [], nodeKinds: [] };
     for (const [kind, lst] of _articleSections) for (const e of lst) if (e.addonId === addonId) r.articleSections.push({ kind, fn: e.fn });
+    for (const [slotId, lst] of _slots) for (const e of lst) if (e.addonId === addonId) r.slots.push({ slotId, render: e.render });
+    for (const e of _nodeKinds.values()) if (e.addonId === addonId) r.nodeKinds.push(e.def);
     for (const t of _settingsTabs.values())    if (t.addonId === addonId) r.settingsTabs.push({ id: t.id, render: t.render });
     for (const [scope, e] of _wikiKinds)       if (e.addonId === addonId) r.wikiKinds.push({ scope, resolve: e.resolve });
     for (const [kind, lst] of _editorFields)   for (const e of lst) if (e.addonId === addonId) r.editorFields.push({ kind, spec: { fields: e.fields } });
@@ -706,6 +794,42 @@ export const Addons = (() => {
   /** The full tab record (incl. render) for a given tab id, or null. */
   function settingsTab(tabId) { return _settingsTabs.get(tabId) || null; }
 
+  /** Additive content-slot contributions for a named slot (ANY surface).
+   *  Each throwing render is skipped (never injects broken HTML into an
+   *  arbitrary surface). Returns ordered [{addonId, html}]. Zero cost when
+   *  no addon registered the slot. */
+  function slotContent(slotId, ctx) {
+    const lst = _slots.get(slotId);
+    if (!lst || !lst.length) return [];
+    const out = [];
+    for (const e of lst) {
+      try {
+        const r = e.render(ctx);
+        const html = (r && typeof r === 'object') ? r.html : r;
+        if (typeof html === 'string' && html) out.push({ addonId: e.addonId, html });
+      } catch (err) {
+        console.error(`[addon ${e.addonId}] slot "${slotId}" render failed`, err);
+      }
+    }
+    return out;
+  }
+  /** Addon-registered DATA kinds by domain — merged into Store.getKinds via
+   *  Store.setAddonKindProvider (wired in app.js). `connections` is data;
+   *  `graph-node` / `graph-view` carry render fns the cloudmap consumes. */
+  function connectionKinds() { return [..._connectionKinds.values()].map(e => e.def); }
+  function nodeKinds()       { return [..._nodeKinds.values()].map(e => e.def); }
+  function graphViews()      { return [..._graphViews.values()].map(e => e.def); }
+  function graphContributors(viewId) {
+    const lst = _graphContributors.get(viewId);
+    return lst ? lst.map(e => ({ addonId: e.addonId, fn: e.fn })) : [];
+  }
+  function kindsForDomain(domain) {
+    if (domain === 'connections') return connectionKinds();
+    if (domain === 'graph-node')  return nodeKinds();
+    if (domain === 'graph-view')  return graphViews();
+    return [];
+  }
+
   /** Dispatch a namespaced addon action (data-action containing ":"). A
    *  throwing action toasts + logs, never crashing the dispatcher. */
   function runAction(actionStr, args) {
@@ -762,6 +886,8 @@ export const Addons = (() => {
     applyFragments, conflicts, unmatchedClaims,
     settingsTabs, settingsTab, runAction,
     resolveWikiLink,
+    slotContent,
+    connectionKinds, nodeKinds, graphViews, graphContributors, kindsForDomain,
     describePermission,
   };
 })();

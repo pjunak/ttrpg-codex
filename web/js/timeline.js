@@ -16,6 +16,7 @@ import { EditMode } from './editmode.js';
 import { Role } from './role.js';
 import { esc, dataAction, pageEditToggle } from './utils.js';
 import { I18n } from './i18n.js';
+import { Addons } from './addons.js';
 
 const STACK_THRESHOLD = 4;
 
@@ -97,13 +98,25 @@ export const Timeline = (() => {
       return l ? esc(l.name) : esc(id);
     });
 
-    return `
-      <div class="tl-card-name">${esc(e.name)}</div>
-      ${e.short ? `<div class="tl-card-desc">${esc(e.short)}</div>` : ''}
+    // Decomposed into NAMED fragments so addons can replace/hide/wrap/insert
+    // the built-in pieces (Addons.applyFragments) AND append their own content
+    // via the additive `timeline:card:extra` slot. Both are zero-cost when no
+    // addon is installed (applyFragments returns the list unchanged; slotContent
+    // returns []). The card stays exactly as before in a vanilla install.
+    const frags = [
+      { id: 'timeline:card:title', html: `<div class="tl-card-name">${esc(e.name)}</div>` },
+      { id: 'timeline:card:body',  html: e.short ? `<div class="tl-card-desc">${esc(e.short)}</div>` : '' },
+      { id: 'timeline:card:meta',  html: `
       <div class="tl-card-meta">
         ${charNames.length ? `<div class="tl-card-chars">👤 ${charNames.join(', ')}${charMore}</div>` : ''}
         ${locNames.length  ? `<div class="tl-card-loc">📍 ${locNames.join(' → ')}</div>` : ''}
-      </div>`;
+      </div>` },
+    ];
+    const ctx = { event: e, sitting: e.sitting, role: { isDM: Role.isDM() } };
+    for (const c of Addons.slotContent('timeline:card:extra', ctx)) {
+      frags.push({ id: `timeline:card:addon:${c.addonId}`, html: `<div class="tl-card-addon" data-addon-id="${esc(c.addonId)}">${c.html}</div>` });
+    }
+    return Addons.applyFragments('timeline:card', frags, e).map(f => f.html).join('');
   }
 
   // Build one card element with drag handlers wired in edit mode.
@@ -276,6 +289,10 @@ export const Timeline = (() => {
     const editToggle = pageEditToggle({
       moduleName: 'Timeline', isEditing: editing, label: I18n.t('timeline.editToggleLabel'),
     });
+    // Addon toolbar contributions (e.g. a filter chip / counter). Zero-cost
+    // without addons.
+    const toolbarExtra = Addons.slotContent('timeline:toolbar', { editing, role: { isDM: Role.isDM() } })
+      .map(c => `<span class="tl-toolbar-addon" data-addon-id="${esc(c.addonId)}">${c.html}</span>`).join('');
 
     document.getElementById('main-content').style.display = '';
     document.getElementById('main-content').innerHTML = `
@@ -283,7 +300,7 @@ export const Timeline = (() => {
         <div class="tl-toolbar">
           <div class="tl-title">⏳ ${esc(I18n.t('timeline.title'))}</div>
           <span class="tl-hint">${esc(I18n.t('timeline.hintBase'))}${editing ? ` · ${esc(I18n.t('timeline.hintDrag'))}` : ''}</span>
-          ${editToggle}
+          ${editToggle}${toolbarExtra}
           ${editing ? `<button class="tl-add-btn"${dataAction('EditMode.startNewEvent')}>＋ ${esc(I18n.t('timeline.newEvent'))}</button>` : ''}
         </div>
         <div class="tl-board-viewport">
@@ -325,13 +342,22 @@ export const Timeline = (() => {
     col.dataset.sitting = String(sitting);
     if (events.length > STACK_THRESHOLD) col.classList.add('tl-col-stacked');
 
-    // Header
+    // Header + optional addon column slots (header/footer). Zero-cost without addons.
+    const colCtx = { sitting, events, label, role: { isDM: Role.isDM() } };
+    const _slotBlock = (slotId, cls) => {
+      const items = Addons.slotContent(slotId, colCtx);
+      return items.length
+        ? `<div class="${cls}">${items.map(c => `<div class="tl-col-addon" data-addon-id="${esc(c.addonId)}">${c.html}</div>`).join('')}</div>`
+        : '';
+    };
     col.innerHTML = `
       <div class="tl-col-header">
         <div class="tl-col-title">${esc(label)}</div>
         <div class="tl-col-count">${events.length || ''}</div>
       </div>
+      ${_slotBlock('timeline:column:header', 'tl-col-header-extra')}
       <div class="tl-col-body"></div>
+      ${_slotBlock('timeline:column:footer', 'tl-col-footer-extra')}
       ${editing ? `<button class="tl-col-add" data-sitting="${sitting}">＋ ${esc(I18n.t('timeline.newEvent'))}</button>` : ''}
     `;
 

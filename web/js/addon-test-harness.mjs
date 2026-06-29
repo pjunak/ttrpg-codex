@@ -44,7 +44,9 @@ function _emptyRec() {
   return {
     routes: [], pages: [], sidebar: [], settingsTabs: [], actions: [],
     collections: [], wikiKinds: [], editorFields: [], fragmentOps: [],
-    articleSections: [], provided: undefined, toasts: [], rerenders: 0,
+    articleSections: [], slots: [],
+    connectionKinds: [], nodeKinds: [], graphViews: [], graphContributors: [],
+    provided: undefined, toasts: [], rerenders: 0,
   };
 }
 
@@ -108,6 +110,11 @@ export function createMockHost(meta = {}, opts = {}) {
     registerWikiKind:     (scope, resolve)    => { rec.wikiKinds.push({ scope, resolve }); },
     registerEditorFields: (kind, spec)        => { rec.editorFields.push({ kind, spec }); },
     registerFragmentOp:   (target, spec)      => { rec.fragmentOps.push({ target, spec }); },
+    registerSlot:         (slotId, render, o) => { rec.slots.push({ slotId, render, opts: o }); },
+    registerConnectionKind:   (def)           => { rec.connectionKinds.push(def); },
+    registerNodeKind:     (def)               => { rec.nodeKinds.push(def); },
+    registerGraphView:    (def)               => { rec.graphViews.push(def); },
+    registerGraphContributor: (viewId, fn)    => { rec.graphContributors.push({ viewId, fn }); },
 
     provide: (api)   => { rec.provided = api; },
     use:     (depId) => (opts.deps ? opts.deps[depId] : undefined),
@@ -195,5 +202,12 @@ export function smokeRegistrations(rec, opts = {}) {
       guard('fragmentOp', f.target, () => f.spec.render(html, ctx));
     }
   }
+  // Content slots — pass a superset ctx (card/column/generic) so a slot
+  // renderer that reads event/sitting/role is exercised either way.
+  const slotCtx = { entity, event: entity, sitting: 1, column: { sitting: 1, events: [entity] },
+                    role: { isDM: () => false, isAnonymous: () => false } };
+  for (const s of (rec.slots || []))     guard('slot', s.slotId, () => s.render(slotCtx));
+  // Graph node-kind descriptors — exercise the cardHTML renderer on a sample node.
+  for (const n of (rec.nodeKinds || [])) guard('nodeKind', n.id, () => { if (typeof n.cardHTML === 'function') n.cardHTML({ id: '_smoke', type: n.id, entity }); });
   return { ok: failures.length === 0, failures };
 }

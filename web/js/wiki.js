@@ -15,7 +15,7 @@ import { Role } from './role.js';
 import { norm, esc, renderMarkdown, extractOutline, humanTime, dataAction, dataOn } from './utils.js';
 import { PIN_TYPES, WorldMap } from './map.js';
 import { Addons } from './addons.js';
-import { relLabel } from './data.js';
+// Connection-kind labels come from Store.getKind('connections', id).label.
 import { PARTY_FACTION_ID } from './constants.js';
 import { I18n } from './i18n.js';
 
@@ -358,7 +358,7 @@ export const Wiki = (() => {
     return `<span class="badge badge-knowledge">👁 ${esc(_knowledgeLabel(lvl))}</span>`;
   }
 
-  function relationLabel(type) { return relLabel(type); }
+  function relationLabel(type) { return Store.getKind('connections', type).label; }
 
   // ── Portrait wrapper (knowledge + dead overlay + attitude glow) ─
   // The optional `glowFilter` is a CSS `filter:` value built by
