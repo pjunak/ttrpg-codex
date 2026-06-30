@@ -83,20 +83,15 @@
   justify-content: center;
   max-width: 100%;
 }
+/* Geometry (size · round · flex-centre · cursor · flex-shrink) comes
+   from the shared `.icon-btn-round` base in main.css. */
 .dash-hero-pen {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px; height: 26px;
   background: transparent;
   border: 1px solid rgba(var(--accent-gold-rgb), 0.25);
-  border-radius: 50%;
   color: var(--accent-gold-dim);
   font-size: var(--text-xs);
-  cursor: pointer;
   opacity: 0.45;
   transition: opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s;
-  flex-shrink: 0;
 }
 .dash-hero-row:hover .dash-hero-pen,
 .dash-hero-pen:hover,
@@ -151,7 +146,7 @@
   gap: 1rem;
   margin-bottom: 1rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .dash-section-head h2 {
   font-family: var(--font-title);
@@ -246,9 +241,9 @@
   display: inline-block;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
 }
-.dash-party-status[data-status="alive"]    { background: #4CAF50; }
-.dash-party-status[data-status="dead"]     { background: #8B0000; }
-.dash-party-status[data-status="unknown"]  { background: #9575CD; }
+.dash-party-status[data-status="alive"]    { background: var(--status-alive); }
+.dash-party-status[data-status="dead"]     { background: var(--status-dead); }
+.dash-party-status[data-status="unknown"]  { background: var(--status-unknown); }
 .dash-party-title {
   font-family: var(--font-ui);
   font-size: 0.72rem;
@@ -259,11 +254,11 @@
   margin-top: 0.4rem;
   font-family: var(--font-ui);
   font-size: 0.7rem;
-  color: rgba(120,200,120,0.85);
+  color: var(--color-success);
   padding: 0.2rem 0.5rem;
   border-radius: 100px;
-  background: rgba(120,200,120,0.08);
-  border: 1px solid rgba(120,200,120,0.2);
+  background: rgba(var(--status-alive-rgb), 0.12);
+  border: 1px solid rgba(var(--status-alive-rgb), 0.28);
 }
 /* `.dash-party-card-new` / `.dash-party-add` were the dashed
    "trailing card" affordance for adding a PC. Removed in the
@@ -346,7 +341,7 @@
   letter-spacing: 0.04em;
   margin: 0 0 0.85rem;
   padding-bottom: 0.4rem;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+  border-bottom: 1px solid var(--border-subtle);
   display: flex; align-items: baseline; gap: 0.5rem;
 }
 .pet-group-count {
@@ -382,7 +377,7 @@
   display: block;
   padding: 0.75rem 1rem;
   background: var(--bg-raised);
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   text-decoration: none;
   transition: border-color 0.12s, background 0.12s;
@@ -483,7 +478,7 @@
   text-transform: uppercase;
   margin-bottom: 1rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 /* ── Character List / Grid ──────────────────────────────────── */
@@ -494,7 +489,7 @@
 }
 .char-card {
   background: var(--bg-raised);
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
@@ -530,7 +525,7 @@
 }
 .loc-card {
   background: var(--bg-raised);
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
@@ -717,7 +712,7 @@
   background: rgba(255,255,255,0.08);
   color: var(--text-light);
 }
-.badge-status-alive    { background: rgba(var(--status-alive-rgb), 0.25);  color: #81c784; }
+.badge-status-alive    { background: rgba(var(--status-alive-rgb), 0.25);  color: var(--color-success); }
 .badge-status-dead     { background: rgba(var(--status-dead-rgb), 0.25);    color: var(--color-danger); }
 .badge-status-captured { background: rgba(var(--status-captured-rgb), 0.25); color: var(--color-info); }
 .badge-status-unknown  { background: rgba(var(--status-unknown-rgb), 0.25); color: var(--color-mystery); }
@@ -1073,7 +1068,7 @@
   font-size: 0.9rem;
   color: var(--color-mystery);
 }
-.unknown-item::before { content: "?"; color: #9c4dcc; flex-shrink: 0; font-weight: bold; margin-top: 0.05em; }
+.unknown-item::before { content: "?"; color: var(--color-mystery); flex-shrink: 0; font-weight: bold; margin-top: 0.05em; }
 
 /* Solved Q+A pair — rendered when a `{text, answer}` entry has a
    non-empty answer. The question is shown with a check + slight
@@ -1084,9 +1079,9 @@
   flex-direction: column;
   gap: 0.2rem;
   padding: 0.4rem 0.6rem;
-  background: rgba(120,200,120,0.05);
-  border-left: 2px solid rgba(120,200,120,0.45);
-  border-radius: 4px;
+  background: rgba(var(--status-alive-rgb), 0.08);
+  border-left: 2px solid rgba(var(--status-alive-rgb), 0.5);
+  border-radius: var(--radius-sm);
 }
 .qa-solved-q {
   font-size: 0.88rem;
@@ -1104,7 +1099,7 @@
    what the page is for. */
 .oq-block {
   background: var(--bg-raised);
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   padding: 0.6rem 1rem;
   margin-bottom: 1.5rem;
@@ -1151,8 +1146,8 @@
   gap: 1rem;
   padding: 0.45rem 0.65rem;
   background: rgba(0,0,0,0.18);
-  border-radius: 4px;
-  border-left: 2px solid #9c4dcc;
+  border-radius: var(--radius-sm);
+  border-left: 2px solid var(--color-mystery);
 }
 /* Differentiate the source visually: mystery rows keep the purple
    accent (matches /zahady's existing palette); character rows get a
@@ -1177,15 +1172,14 @@
 /* Per-row "✏" — opens the source entity (mystery or character) in
    its editor. Pulled into the same hover pattern as `.edit-card-overlay`
    so the affordance reads as the same kind of action. */
+/* Geometry comes from the shared `.icon-btn-round` base (main.css);
+   this previously had no explicit `display`, so flex-centring the
+   glyph is a small visual improvement, not a regression. */
 .oq-edit {
-  flex-shrink: 0;
-  width: 26px; height: 26px;
   background: transparent;
   border: 1px solid rgba(var(--accent-gold-rgb), 0.25);
-  border-radius: 50%;
   color: var(--accent-gold-dim);
   font-size: var(--text-xs);
-  cursor: pointer;
   opacity: 0.55;
   transition: opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s;
 }
@@ -1233,7 +1227,7 @@
 .list-items { display: flex; flex-direction: column; gap: 0.75rem; }
 .list-item {
   background: var(--bg-raised);
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: 1rem 1.25rem;
   cursor: pointer;
@@ -1348,7 +1342,7 @@
 }
 .location-note {
   background: rgba(var(--status-unknown-rgb), 0.15);
-  border: 1px solid rgba(156,77,204,0.3);
+  border: 1px solid rgba(var(--status-unknown-rgb), 0.3);
   border-radius: var(--radius);
   padding: 0.75rem 1rem;
   font-size: var(--text-sm);
@@ -1393,7 +1387,7 @@
 }
 .timeline-content {
   background: var(--bg-raised);
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: 1rem 1.25rem;
   cursor: pointer;
@@ -1483,7 +1477,7 @@
   font-size: var(--text-xs);
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .filter-btn:hover { border-color: rgba(var(--accent-gold-rgb), 0.3); color: var(--text-light); }
 .filter-btn.active { border-color: var(--accent-gold); color: var(--accent-gold); background: rgba(var(--accent-gold-rgb), 0.1); }
@@ -1492,7 +1486,7 @@
 .mystery-list { display: flex; flex-direction: column; gap: 1rem; }
 .mystery-card {
   background: rgba(var(--status-unknown-rgb), 0.08);
-  border: 1px solid rgba(156,77,204,0.25);
+  border: 1px solid rgba(var(--status-unknown-rgb), 0.3);
   border-radius: var(--radius-lg);
   padding: 1.25rem;
 }
@@ -1509,9 +1503,9 @@
   letter-spacing: 0.08em;
   margin-bottom: 0.5rem;
 }
-.priority-kritická { color: #ef5350; }
-.priority-vysoká   { color: #ff9800; }
-.priority-střední  { color: #ffd54f; }
+.priority-kritická { color: var(--priority-critical); }
+.priority-vysoká   { color: var(--priority-high); }
+.priority-střední  { color: var(--priority-medium); }
 .mystery-desc { font-size: 0.88rem; color: var(--text-parchment); }
 
 /* ── Rank display & location roles ─────────────────────────── */

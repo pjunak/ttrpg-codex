@@ -318,6 +318,19 @@ function requireAnyRole(req, res, next) {
   return res.status(401).json({ error: 'Neznámé nebo chybějící heslo.' });
 }
 
+// Real-DM gate for the privileged endpoints (addon install/manage, twin
+// ops, password rotation, view-as). These gate on the SIGNED realRole
+// claim — not the effective role — so a DM impersonating a player still
+// can't run them. Factory so the existing per-route Czech message text is
+// preserved exactly (`msg`, defaulting to the most common one). Centralising
+// the check means a new privileged endpoint can't silently ship ungated.
+function requireRealDM(msg = 'Pouze pro DM') {
+  return (req, res, next) => {
+    if (req.realRole !== 'dm') return res.status(403).json({ error: msg });
+    next();
+  };
+}
+
 app.use('/portraits', express.static(PORTRAITS_DIR));
 app.use('/maps',      express.static(MAPS_DIR));
 app.use('/icons',     express.static(ICONS_DIR, { maxAge: '7d', fallthrough: true }));
@@ -386,30 +399,17 @@ function _slugifyIconName(name) {
     .slice(0, 40) || 'icon';
   return slug;
 }
-const iconStorage = multer.diskStorage({
-  destination: (req, _file, cb) => {
-    const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
-    const dir = path.join(ICONS_DIR, pinTypeId);
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const ext  = (path.extname(file.originalname).toLowerCase().match(/^\.(svg|png|jpe?g|webp)$/) || ['.png'])[0];
-    const slug = _slugifyIconName(file.originalname);
-    const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
-    const dir = path.join(ICONS_DIR, pinTypeId);
-    // Resolve collisions deterministically: slug, slug-2, slug-3, …
-    let name = slug + ext;
-    let n = 2;
-    try {
-      const existing = new Set(fs.readdirSync(dir));
-      while (existing.has(name)) { name = `${slug}-${n++}${ext}`; }
-    } catch (_) {}
-    cb(null, name);
-  },
-});
+// The accepted extension for an upload's original name (defaults to .png).
+function _iconExt(originalname) {
+  return (path.extname(originalname || '').toLowerCase().match(/^\.(svg|png|jpe?g|webp)$/) || ['.png'])[0];
+}
+// Icons use IN-MEMORY storage (not diskStorage) so nothing lands on disk
+// during the multer PARSE phase, which runs OUTSIDE withWriteLock. The route
+// body validates the pin type and writes each buffer to disk INSIDE the lock,
+// so a concurrent settings PATCH that deletes the pin type can't race a file
+// onto disk after the existence check. 2 MB/file, 16 files.
 const uploadIcons = multer({
-  storage:    iconStorage,
+  storage:    multer.memoryStorage(),
   limits:     { fileSize: 2 * 1024 * 1024, files: 16 },
   fileFilter: _iconMimeOk,
 });
@@ -846,6 +846,12 @@ app.get('/api/data', async (req, res) => {
 const _loginAttempts = new Map();   // ip → { count, firstMs }
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX       = 10;
+// Cap on tracked IPs. A failed-login spray from many distinct source IPs
+// would otherwise grow _loginAttempts without bound (entries only clear on a
+// successful login or the next attempt from that same IP). When the map
+// exceeds this, _noteFailure lazily evicts entries whose window has already
+// expired — cheap, and enough to keep memory bounded under a spray.
+const LOGIN_ATTEMPTS_MAX = 5000;
 function _loginKey(req) {
   // `app.set('trust proxy', 1)` (above) makes req.ip honour X-Forwarded-For
   // from the immediate reverse proxy, so we don't need the deprecated
@@ -860,6 +866,14 @@ function _isBlocked(ip) {
 }
 function _noteFailure(ip) {
   const now = Date.now();
+  // Lazy sweep: if the map has grown past the cap (a many-IP spray), drop
+  // every entry whose window has already expired before recording this one.
+  // No timer needed — the work piggybacks on the spray that caused it.
+  if (_loginAttempts.size > LOGIN_ATTEMPTS_MAX) {
+    for (const [k, v] of _loginAttempts) {
+      if (now - v.firstMs > LOGIN_WINDOW_MS) _loginAttempts.delete(k);
+    }
+  }
   const rec = _loginAttempts.get(ip);
   if (!rec || now - rec.firstMs > LOGIN_WINDOW_MS) {
     _loginAttempts.set(ip, { count: 1, firstMs: now });
@@ -932,8 +946,7 @@ app.get('/api/auth', (req, res) => {
  * not req.role — so a DM already impersonating a player can still
  * call this (and idempotently stay in player mode).
  */
-app.post('/api/view-as', (req, res) => {
-  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Pouze pro DM' });
+app.post('/api/view-as', requireRealDM(), (req, res) => {
   _setSessionCookie(res, 'dm', 'player');
   res.json({ ok: true, role: 'player', realRole: 'dm' });
 });
@@ -942,8 +955,7 @@ app.post('/api/view-as', (req, res) => {
  * POST /api/view-as-dm — DM-only. Flip the effective role back to
  * 'dm' from an active impersonation. Same auth rule as /api/view-as.
  */
-app.post('/api/view-as-dm', (req, res) => {
-  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Pouze pro DM' });
+app.post('/api/view-as-dm', requireRealDM(), (req, res) => {
   _setSessionCookie(res, 'dm', 'dm');
   res.json({ ok: true, role: 'dm', realRole: 'dm' });
 });
@@ -955,8 +967,7 @@ app.post('/api/view-as-dm', (req, res) => {
  *
  * Never reveals the hash or salt — only presence flags.
  */
-app.get('/api/passwords', (req, res) => {
-  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Pouze pro DM' });
+app.get('/api/passwords', requireRealDM(), (req, res) => {
   const dm     = _storedCredentialFor('dm');
   const player = _storedCredentialFor('player');
   res.json({
@@ -995,8 +1006,7 @@ app.get('/api/passwords', (req, res) => {
  *     cookie if they changed their own (DM) password — otherwise
  *     their session would be invalidated by the secret rotation.
  */
-app.post('/api/passwords', async (req, res) => {
-  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Pouze pro DM' });
+app.post('/api/passwords', requireRealDM(), async (req, res) => {
   const { role, newPassword, currentPassword } = req.body || {};
   if (role !== 'dm' && role !== 'player') {
     return res.status(400).json({ error: 'Neznámá role' });
@@ -1150,6 +1160,61 @@ function _sanitizePlayerEntity(_type, payload, existing) {
   return out;
 }
 
+// ─ Portrait path migration ───────────────────────────────────────
+// On a character save, move a portrait that isn't already at the
+// canonical per-character path (`/portraits/<charId>/portrait.<ext>`)
+// into that subfolder and return the canonical URL. Both the source URL
+// fragment AND the destination char id come from the (authenticated)
+// client, so each is run through `_safeJoinIn` before any filesystem
+// operation. The helper refuses traversal (`..`), absolute paths, null
+// bytes, and (via realpath on each existing prefix) symlink escapes —
+// without it, an authed editor could send a portrait URL like
+// `/portraits/../../etc/passwd` or a crafted charId of `../foo` and have
+// us rename arbitrary files into a controlled location. Auth is the
+// first line of defence; this is the second.
+//
+// Returns the canonical URL on a successful move, else the cleaned
+// (query-stripped) URL unchanged. Never throws — a migration miss just
+// leaves the portrait pointing where it was.
+async function _migratePortraitPath(charId, portraitUrl) {
+  const cleanUrl       = String(portraitUrl).split('?')[0];
+  const expectedPrefix = `/portraits/${charId}/portrait.`;
+  if (cleanUrl.startsWith(expectedPrefix)) return cleanUrl;
+
+  const relPath = cleanUrl.replace(/^\/portraits\//, '');
+  const srcFile = _safeJoinIn(PORTRAITS_DIR, relPath);
+  const destDir = _safeJoinIn(PORTRAITS_DIR, charId);
+  if (srcFile && destDir) {
+    try {
+      const srcStat = await fsp.lstat(srcFile);
+      if (srcStat.isFile()) {
+        const ext      = path.extname(srcFile).toLowerCase() || '.jpg';
+        const destFile = path.join(destDir, `portrait${ext}`);
+        await fsp.mkdir(destDir, { recursive: true });
+        try {
+          const existingFiles = await fsp.readdir(destDir);
+          await Promise.all(existingFiles.filter(f => /^portrait\./i.test(f))
+            .map(f => fsp.unlink(path.join(destDir, f)).catch(() => {})));
+        } catch (_) {}
+        await fsp.rename(srcFile, destFile);
+        const srcDir = path.dirname(srcFile);
+        if (srcDir !== PORTRAITS_DIR) {
+          try {
+            const remaining = await fsp.readdir(srcDir);
+            if (remaining.length === 0) await fsp.rmdir(srcDir);
+          } catch (_) {}
+        }
+        return `/portraits/${charId}/portrait${ext}`;
+      }
+    } catch (e) {
+      if (e.code !== 'ENOENT') {
+        console.warn(`[portrait] Migration failed for ${charId}:`, e.message);
+      }
+    }
+  }
+  return cleanUrl;
+}
+
 // Player gate for PATCH /api/data. Authed = either role. Settings /
 // campaign reserved for DM. DM-only entity edits (visibility:'dm' on
 // disk) are also off-limits to players — they can't see the entity,
@@ -1218,8 +1283,7 @@ function _createTwin(source) {
  * intermediate state where one side has linkedTwinId but the other
  * doesn't. Broadcasts `data-changed` once at the end.
  */
-app.post('/api/twin', (req, res) => {
-  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Pouze pro DM' });
+app.post('/api/twin', requireRealDM(), (req, res) => {
   withWriteLock(async () => {
     try {
       const { action, type, sourceId, targetId } = req.body || {};
@@ -1450,58 +1514,9 @@ app.patch('/api/data', (req, res) => {
       }
 
       // Auto-migrate portrait to the canonical per-character subfolder
-      // on save. Both the source URL fragment AND the destination char
-      // id come from the (authenticated) client, so each is run through
-      // `_safeJoinIn` before any filesystem operation. The helper
-      // refuses traversal (`..`), absolute paths, null bytes, and (via
-      // realpath on each existing prefix) symlink escapes — without
-      // it, an authed editor could send a portrait URL like
-      // `/portraits/../../etc/passwd` or a crafted `payload.id` of
-      // `../foo` and have us rename arbitrary files into a controlled
-      // location. Auth is the first line of defence; this is the
-      // second.
+      // on save. The path-safety reasoning lives in _migratePortraitPath.
       if (type === 'characters' && action === 'save' && payload?.id && payload?.portrait) {
-        const charId         = payload.id;
-        const cleanUrl       = payload.portrait.split('?')[0];
-        const expectedPrefix = `/portraits/${charId}/portrait.`;
-        if (!cleanUrl.startsWith(expectedPrefix)) {
-          const relPath = cleanUrl.replace(/^\/portraits\//, '');
-          const srcFile = _safeJoinIn(PORTRAITS_DIR, relPath);
-          const destDir = _safeJoinIn(PORTRAITS_DIR, charId);
-          let migrated = false;
-          if (srcFile && destDir) {
-            try {
-              const srcStat = await fsp.lstat(srcFile);
-              if (srcStat.isFile()) {
-                const ext      = path.extname(srcFile).toLowerCase() || '.jpg';
-                const destFile = path.join(destDir, `portrait${ext}`);
-                await fsp.mkdir(destDir, { recursive: true });
-                try {
-                  const existing = await fsp.readdir(destDir);
-                  await Promise.all(existing.filter(f => /^portrait\./i.test(f))
-                    .map(f => fsp.unlink(path.join(destDir, f)).catch(() => {})));
-                } catch (_) {}
-                await fsp.rename(srcFile, destFile);
-                const srcDir = path.dirname(srcFile);
-                if (srcDir !== PORTRAITS_DIR) {
-                  try {
-                    const remaining = await fsp.readdir(srcDir);
-                    if (remaining.length === 0) await fsp.rmdir(srcDir);
-                  } catch (_) {}
-                }
-                payload.portrait = `/portraits/${charId}/portrait${ext}`;
-                migrated = true;
-              }
-            } catch (e) {
-              if (e.code !== 'ENOENT') {
-                console.warn(`[portrait] Migration failed for ${charId}:`, e.message);
-              }
-            }
-          }
-          if (!migrated) payload.portrait = cleanUrl;
-        } else {
-          payload.portrait = cleanUrl;
-        }
+        payload.portrait = await _migratePortraitPath(payload.id, payload.portrait);
       }
 
       if (action === 'save') {
@@ -1899,39 +1914,48 @@ async function _stageAddon(repo, ref, pinnedSha) {
   const finalDir = path.join(idDir, hash);
 
   // Stage into .incoming, then atomic-rename to the content-addressed dir
-  // (so the client never imports a half-extracted tree).
+  // (so the client never imports a half-extracted tree). Everything from the
+  // mkdir to the return is wrapped so ANY throw — an unsafe archive path, a
+  // failed write, or a red test gate — removes the partially-written
+  // `.incoming` before propagating, rather than leaking it to disk.
   await fsp.rm(incoming, { recursive: true, force: true }).catch(() => {});
   await fsp.mkdir(incoming, { recursive: true });
-  for (const f of fileMap) {
-    const dest = _safeJoinIn(incoming, f.relpath);
-    if (!dest) throw new Error('nebezpečná cesta v archivu: ' + f.relpath);
-    await fsp.mkdir(path.dirname(dest), { recursive: true });
-    await fsp.writeFile(dest, f.buffer);
-  }
-
-  // Tier-B green-gate (Phase 8): run the addon's declared SERVER self-tests
-  // against the STAGED tree before promoting. Red → discard staging, never
-  // activate (the existing stage→rename pipeline makes "revert" free).
-  //
-  // Running these tests EXECUTES addon code on the host, so we only do it when
-  // the addon will actually run server code — i.e. is granted `server:code`. At
-  // install the grant set == the manifest's requested permissions (all-or-
-  // nothing), so reading the manifest here IS reading the grant; if per-
-  // permission deny ever lands, gate this on the GRANTED set instead. The
-  // spawned process gets a SCRUBBED env so the addon's tests can't read
-  // GITHUB_TOKEN / passwords. Self-contained (no node_modules in staging), capped.
-  const serverTestDecl = manifest.tests && manifest.tests.server;
-  const grantsServerCode = Array.isArray(manifest.permissions) && manifest.permissions.includes('server:code');
-  if (serverTestDecl && grantsServerCode) {
-    const testPaths = (Array.isArray(serverTestDecl) ? serverTestDecl : [serverTestDecl])
-      .map(p => _safeJoinIn(incoming, p)).filter(Boolean);
-    const { spawn } = require('child_process');
-    const result = await AddonTesting.runNodeTests(incoming, testPaths, { spawn, timeoutMs: 30000, env: _scrubbedChildEnv() });
-    if (!result.ok) {
-      await fsp.rm(incoming, { recursive: true, force: true }).catch(() => {});
-      const why = result.timedOut ? 'překročen časový limit' : `selhaly (exit ${result.code})`;
-      throw new Error(`serverové testy doplňku ${why}`);
+  try {
+    for (const f of fileMap) {
+      const dest = _safeJoinIn(incoming, f.relpath);
+      if (!dest) throw new Error('nebezpečná cesta v archivu: ' + f.relpath);
+      await fsp.mkdir(path.dirname(dest), { recursive: true });
+      await fsp.writeFile(dest, f.buffer);
     }
+
+    // Tier-B green-gate (Phase 8): run the addon's declared SERVER self-tests
+    // against the STAGED tree before promoting. Red → discard staging, never
+    // activate (the existing stage→rename pipeline makes "revert" free).
+    //
+    // Running these tests EXECUTES addon code on the host, so we only do it when
+    // the addon will actually run server code — i.e. is granted `server:code`. At
+    // install the grant set == the manifest's requested permissions (all-or-
+    // nothing), so reading the manifest here IS reading the grant; if per-
+    // permission deny ever lands, gate this on the GRANTED set instead. The
+    // spawned process gets a SCRUBBED env so the addon's tests can't read
+    // GITHUB_TOKEN / passwords. Self-contained (no node_modules in staging), capped.
+    const serverTestDecl = manifest.tests && manifest.tests.server;
+    const grantsServerCode = Array.isArray(manifest.permissions) && manifest.permissions.includes('server:code');
+    if (serverTestDecl && grantsServerCode) {
+      const testPaths = (Array.isArray(serverTestDecl) ? serverTestDecl : [serverTestDecl])
+        .map(p => _safeJoinIn(incoming, p)).filter(Boolean);
+      const { spawn } = require('child_process');
+      const result = await AddonTesting.runNodeTests(incoming, testPaths, { spawn, timeoutMs: 30000, env: _scrubbedChildEnv() });
+      if (!result.ok) {
+        const why = result.timedOut ? 'překročen časový limit' : `selhaly (exit ${result.code})`;
+        throw new Error(`serverové testy doplňku ${why}`);
+      }
+    }
+  } catch (e) {
+    // Discard the half-staged tree so a failed/aborted install never leaks
+    // `.incoming`. Best-effort; the original error is what the caller sees.
+    await fsp.rm(incoming, { recursive: true, force: true }).catch(() => {});
+    throw e;
   }
 
   return { repo, useRef, sha, manifest, id, hash, incoming, finalDir };
@@ -2034,8 +2058,7 @@ app.get('/api/addons', async (_req, res) => {
 // force the built-in; absent/empty → clear the resolution (back to auto, where
 // ≥2 exclusive claims fall back to the built-in until resolved). The client
 // reconciles via the addons-changed broadcast.
-app.post('/api/addons/resolve', async (req, res) => {
-  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může řešit konflikty doplňků.' });
+app.post('/api/addons/resolve', requireRealDM('Jen DM může řešit konflikty doplňků.'), async (req, res) => {
   const { target, winner } = req.body || {};
   if (typeof target !== 'string' || !target || target.length > 200) {
     return res.status(400).json({ error: 'Neplatný cíl konfliktu.' });
@@ -2077,8 +2100,7 @@ app.post('/api/addons/resolve', async (req, res) => {
 // diff against the installed `sha`. PURE READ — resolves only, never downloads /
 // installs (applying an update opens the wizard). Per-addon failures are
 // isolated so one unreachable repo doesn't fail the whole check.
-app.post('/api/addons/check-updates', async (req, res) => {
-  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může kontrolovat aktualizace.' });
+app.post('/api/addons/check-updates', requireRealDM('Jen DM může kontrolovat aktualizace.'), async (req, res) => {
   try {
     const reg   = await _readAddonsRegistry();
     const token = process.env.GITHUB_TOKEN || '';
@@ -2112,8 +2134,7 @@ app.post('/api/addons/check-updates', async (req, res) => {
 // structural manifest fields too (entry/server/serverDeps/collections/deps) so
 // the registry stays coherent, not just the code dir. Body `{ hash? }` targets a
 // specific kept version; omitted → the version immediately before the active one.
-app.post('/api/addons/:id/rollback', async (req, res) => {
-  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může vracet verze doplňků.' });
+app.post('/api/addons/:id/rollback', requireRealDM('Jen DM může vracet verze doplňků.'), async (req, res) => {
   const id = String(req.params.id || '');
   if (!AddonBroker.ID_RE.test(id)) return res.status(400).json({ error: 'Neplatné id doplňku.' });
   const targetHash = (req.body && typeof req.body.hash === 'string') ? req.body.hash : null;
@@ -2168,8 +2189,7 @@ app.post('/api/addons/:id/rollback', async (req, res) => {
 
 // DM-only (realRole) source-allowlist management — the trusted repos an
 // addon may be installed from. `action:'remove'` drops one.
-app.post('/api/addons/sources', async (req, res) => {
-  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může spravovat zdroje doplňků.' });
+app.post('/api/addons/sources', requireRealDM('Jen DM může spravovat zdroje doplňků.'), async (req, res) => {
   const { repo, action } = req.body || {};
   if (typeof repo !== 'string' || !(AddonBroker.REPO_RE.test(repo) || /^[A-Za-z0-9_.-]{1,39}\/\*$/.test(repo))) {
     return res.status(400).json({ error: 'Neplatný repozitář (očekávám owner/name nebo owner/*).' });
@@ -2194,8 +2214,7 @@ app.post('/api/addons/sources', async (req, res) => {
 // DM-only (realRole) install from a pasted GitHub URL or owner/name — the
 // wizard's single input. Explicit DM install IS the trust gesture; the repo
 // is auto-recorded as a known source by _installAddon (no allowlist to curate).
-app.post('/api/addons/install', async (req, res) => {
-  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může instalovat doplňky.' });
+app.post('/api/addons/install', requireRealDM('Jen DM může instalovat doplňky.'), async (req, res) => {
   const parsed = AddonBroker.parseRepoInput(req.body && req.body.repo);
   if (!parsed) {
     return res.status(400).json({ error: 'Neplatná adresa (očekávám https://github.com/owner/name nebo owner/name).' });
@@ -2223,8 +2242,7 @@ app.post('/api/addons/install', async (req, res) => {
 // anything is installed. Returns the manifest even when incompatible (with
 // `ok:false` + `errors`) so the DM sees why it can't be installed. The
 // resolved `sha` is fed back into install so the exact reviewed commit lands.
-app.post('/api/addons/preview', async (req, res) => {
-  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může instalovat doplňky.' });
+app.post('/api/addons/preview', requireRealDM('Jen DM může instalovat doplňky.'), async (req, res) => {
   const parsed = AddonBroker.parseRepoInput(req.body && req.body.repo);
   if (!parsed) {
     return res.status(400).json({ error: 'Neplatná adresa (očekávám https://github.com/owner/name nebo owner/name).' });
@@ -2261,10 +2279,9 @@ app.post('/api/addons/preview', async (req, res) => {
 
 // DM-only (realRole) enable / disable an installed addon (live-reconciled
 // by clients via the addons-changed SSE event).
-app.post('/api/addons/:id/enable',  (req, res) => _setAddonEnabled(req, res, true));
-app.post('/api/addons/:id/disable', (req, res) => _setAddonEnabled(req, res, false));
+app.post('/api/addons/:id/enable',  requireRealDM('Jen DM může spravovat doplňky.'), (req, res) => _setAddonEnabled(req, res, true));
+app.post('/api/addons/:id/disable', requireRealDM('Jen DM může spravovat doplňky.'), (req, res) => _setAddonEnabled(req, res, false));
 async function _setAddonEnabled(req, res, enabled) {
-  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může spravovat doplňky.' });
   const id = String(req.params.id || '');
   if (!AddonBroker.ID_RE.test(id)) return res.status(400).json({ error: 'Neplatné id doplňku.' });
   try {
@@ -2292,8 +2309,7 @@ async function _setAddonEnabled(req, res, enabled) {
 // DM-only (realRole) remove an installed addon: drop it from the registry +
 // delete its code dir. Per-addon DATA (data/addon-data/<id>/) is KEPT unless
 // ?purge=1, so a re-install restores the addon's content.
-app.delete('/api/addons/:id', async (req, res) => {
-  if (req.realRole !== 'dm') return res.status(403).json({ error: 'Jen DM může spravovat doplňky.' });
+app.delete('/api/addons/:id', requireRealDM('Jen DM může spravovat doplňky.'), async (req, res) => {
   const id = String(req.params.id || '');
   if (!AddonBroker.ID_RE.test(id)) return res.status(400).json({ error: 'Neplatné id doplňku.' });
   const purge = req.query.purge === '1' || req.query.purge === 'true';
@@ -2428,11 +2444,12 @@ app.post('/api/localmap/:locId', requireAnyRole, uploadLocalMap.single('localmap
 app.use('/maps/tiles', express.static(TILES_DIR, { fallthrough: true, maxAge: '7d' }));
 
 // ── Marker icon endpoints ────────────────────────────────────────
-// Multipart upload (1..16 files, 2 MB each, svg/png/jpeg/webp). The
-// pinType id is validated against the live settings.pinTypes list
-// before any file lands on disk so a typo can't seed an orphan
-// folder. Upload runs inside withWriteLock so a concurrent settings
-// PATCH doesn't see partial state.
+// Multipart upload (1..16 files, 2 MB each, svg/png/jpeg/webp). Files
+// are buffered IN MEMORY by multer (memoryStorage), so nothing touches
+// disk during parse; the route validates the pinType id against the live
+// settings.pinTypes list and only THEN writes the buffers — all inside
+// withWriteLock, so a concurrent settings PATCH that deletes the pin type
+// can't race a file onto disk after the existence check.
 async function _pinTypeExists(pinTypeId) {
   try {
     const raw = await fsp.readFile(getFile('settings'), 'utf8');
@@ -2448,29 +2465,43 @@ async function _pinTypeExists(pinTypeId) {
 /**
  * POST /api/icons/:pinTypeId — Upload up to 16 marker-icon variants
  * for a pin type (SVG/PNG/JPEG/WEBP, 2 MB each). Validates the
- * `pinTypeId` against the live `settings.pinTypes` list before
- * accepting the files; rejects + cleans up uploads for unknown ids.
- * Auth: required.
+ * `pinTypeId` against the live `settings.pinTypes` list BEFORE writing
+ * anything to disk; an unknown id is rejected with no disk side-effect
+ * (files are still in memory). Auth: required.
  */
 app.post('/api/icons/:pinTypeId', requireAuth, uploadIcons.array('icons', 16), (req, res) => {
   withWriteLock(async () => {
     try {
       const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
       if (!pinTypeId) return res.status(400).json({ error: 'Invalid pinTypeId' });
+      // Unknown pin type: nothing was written (memoryStorage), so there's
+      // no orphan to clean up — just reject.
       if (!await _pinTypeExists(pinTypeId)) {
-        // Clean up files multer already wrote — we don't want orphans
-        // for a non-existent pin type.
-        for (const f of req.files || []) {
-          try { await fsp.unlink(f.path); } catch (_) {}
-        }
         return res.status(400).json({ error: 'Unknown pinTypeId' });
       }
       if (!req.files || !req.files.length) return res.status(400).json({ error: 'No files received' });
-      const out = req.files.map(f => ({
-        id:   f.filename,
-        url:  `/icons/${pinTypeId}/${f.filename}`,
-        name: f.originalname,
-      }));
+
+      const dir = path.join(ICONS_DIR, pinTypeId);
+      await fsp.mkdir(dir, { recursive: true });
+      // Resolve filename collisions deterministically (slug, slug-2, …)
+      // against both the existing dir AND names already taken earlier in
+      // THIS batch, so two identically-named uploads in one request don't
+      // clobber each other.
+      const taken = new Set();
+      try { for (const f of await fsp.readdir(dir)) taken.add(f); } catch (_) {}
+      const out = [];
+      for (const f of req.files) {
+        const ext  = _iconExt(f.originalname);
+        const slug = _slugifyIconName(f.originalname);
+        let name = slug + ext;
+        let n = 2;
+        while (taken.has(name)) name = `${slug}-${n++}${ext}`;
+        taken.add(name);
+        const dest = _safeJoinIn(dir, name);
+        if (!dest) continue;   // slug is sanitised; defensive guard only
+        await fsp.writeFile(dest, f.buffer);
+        out.push({ id: name, url: `/icons/${pinTypeId}/${name}`, name: f.originalname });
+      }
       res.json({ files: out });
     } catch (e) {
       console.error('POST /api/icons:', e);
@@ -3014,11 +3045,51 @@ app.use('/api/addon/:addonId', (req, res, next) => {
   }
 });
 
+// Unmatched API paths return JSON 404, not the SPA index. Registered AFTER
+// every real /api route + the /api/addon dispatcher above (so it shadows
+// none of them) and BEFORE the SPA fallback (so a wrong/renamed /api/* path
+// gives an honest JSON 404 instead of 200 + index.html, which would mislead
+// a fetch caller into parsing HTML as JSON). Covers every method.
+app.use('/api', (_req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
 // SPA fallback: serve index.html for any unmatched GET so client-side
 // hash routing works on a hard refresh / deep link. Express 5 (path-to-regexp
 // 8) rejects a bare '*' — the catch-all must be a named wildcard ('/*splat').
 app.get('/*splat', (_req, res) => {
   res.sendFile(path.join(WEB_DIR, 'index.html'));
+});
+
+// ── Terminal error handler ───────────────────────────────────────
+// Last middleware in the chain (4-arg signature = Express error handler).
+// Anything passed to next(err) — most importantly multer upload errors
+// (LIMIT_FILE_SIZE / LIMIT_FILE_COUNT on the portrait/localmap/icons/
+// worldmap/logo/restore uploads, surfaced BEFORE our route bodies run),
+// an oversized express.json body (`entity.too.large`), and a malformed
+// JSON body (`entity.parse.failed`) — lands here and returns clean JSON
+// instead of Express's default HTML 500. Multer disk-storage uploads
+// that may have partially written a file before erroring are cleaned up
+// best-effort.
+app.use((err, req, res, _next) => {
+  if (err instanceof multer.MulterError) {
+    // multer may have already written one or more files to disk before the
+    // limit tripped (e.g. LIMIT_FILE_COUNT on a multi-file upload). Best-
+    // effort unlink so a rejected upload doesn't leave orphans.
+    const files = req.files || (req.file ? [req.file] : []);
+    for (const f of files) {
+      if (f && f.path) fsp.unlink(f.path).catch(() => {});
+    }
+    return res.status(400).json({ error: `Upload error: ${err.code}` });
+  }
+  if (err && err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Payload too large' });
+  }
+  if (err && (err.type === 'entity.parse.failed' || err instanceof SyntaxError)) {
+    return res.status(400).json({ error: 'Malformed JSON' });
+  }
+  console.error('[unhandled]', err);
+  if (!res.headersSent) res.status(500).json({ error: 'Server error' });
 });
 
 // ── Bootstrap: ensure tiles exist for any map already on disk ─────

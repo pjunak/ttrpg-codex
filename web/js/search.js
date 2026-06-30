@@ -6,7 +6,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { Store } from './store.js';
-import { esc, norm, debounce } from './utils.js';
+import { esc, norm, debounce, trapFocus } from './utils.js';
 import { I18n } from './i18n.js';
 
 export const GlobalSearch = (() => {
@@ -16,6 +16,7 @@ export const GlobalSearch = (() => {
   let _results  = null;
   let _items    = [];       // flattened { kind, id, name, subtitle, route }
   let _idx      = 0;        // keyboard selection index
+  let _releaseTrap = null;  // focus-trap teardown while the palette is open
 
   // `labelKey` is resolved through I18n.t() at render time (in
   // _renderResults) so a language switch relabels group headers live.
@@ -91,11 +92,14 @@ export const GlobalSearch = (() => {
         });
       }
     };
-    pushKind('postava',  'postava',  all.characters, e => e.title ? esc(e.title) : '');
-    pushKind('misto',    'misto',    all.locations,  e => [e.type, e.region].filter(Boolean).map(esc).join(' · '));
-    pushKind('udalost',  'udalost',  all.events,     e => e.sitting ? esc(I18n.t('search.sitting', { n: e.sitting })) : '');
-    pushKind('zahada',   'zahada',   all.mysteries,  e => e.priority ? esc(I18n.t('search.priority', { priority: e.priority })) : '');
-    pushKind('buh',      'buh',      all.pantheon,   e => e.domain ? esc(e.domain) : '');
+    // Subtitles are PLAIN text — escaped once at the render site
+    // (_renderResults), mirroring the `name` field. Producers must not
+    // pre-escape (would double-encode `&` etc).
+    pushKind('postava',  'postava',  all.characters, e => e.title || '');
+    pushKind('misto',    'misto',    all.locations,  e => [e.type, e.region].filter(Boolean).join(' · '));
+    pushKind('udalost',  'udalost',  all.events,     e => e.sitting ? I18n.t('search.sitting', { n: e.sitting }) : '');
+    pushKind('zahada',   'zahada',   all.mysteries,  e => e.priority ? I18n.t('search.priority', { priority: e.priority }) : '');
+    pushKind('buh',      'buh',      all.pantheon,   e => e.domain || '');
     pushKind('artefakt', 'artefakt', all.artifacts);
     // Factions aren't in searchAll — scan manually.
     const qn = norm(query);
@@ -114,8 +118,8 @@ export const GlobalSearch = (() => {
     if (!Store.getRecentActivity) return [];
     return Store.getRecentActivity(8).map(e => ({
       kind: e.kind, id: e.id, name: e.name,
-      subtitle: esc(I18n.t('search.recentlyEdited')),
-      route: e.route === '#/frakce' ? `${e.route}/${e.id}` : `${e.route}/${e.id}`,
+      subtitle: I18n.t('search.recentlyEdited'),
+      route: `${e.route}/${e.id}`,
     }));
   }
 
@@ -143,7 +147,7 @@ export const GlobalSearch = (() => {
         html += `
           <div class="gs-row${active}" role="option" data-i="${it.i}">
             <div class="gs-row-name">${esc(it.name)}</div>
-            ${it.subtitle ? `<div class="gs-row-sub">${it.subtitle}</div>` : ''}
+            ${it.subtitle ? `<div class="gs-row-sub">${esc(it.subtitle)}</div>` : ''}
           </div>`;
       }
       html += `</div>`;
@@ -163,6 +167,8 @@ export const GlobalSearch = (() => {
     _items = _recentSuggestions();
     _idx = 0;
     _renderResults('');
+    if (_releaseTrap) _releaseTrap();
+    _releaseTrap = trapFocus(_root.querySelector('.gs-panel'));
     setTimeout(() => _input.focus(), 0);
   }
 
@@ -171,6 +177,7 @@ export const GlobalSearch = (() => {
   function close() {
     if (!_root) return;
     _root.hidden = true;
+    if (_releaseTrap) { _releaseTrap(); _releaseTrap = null; }
   }
 
   /** @returns {boolean} `true` while the palette is mounted and visible. */

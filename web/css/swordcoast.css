@@ -68,9 +68,10 @@
   z-index: 0;
 }
 
-/* Leaflet overrides for dark theme */
+/* Leaflet overrides for dark theme. `!important` keeps these winning
+   over Leaflet's own injected styles. */
 .leaflet-container {
-  background: #1a1410 !important;
+  background: var(--bg-surface) !important;
   font-family: 'Inter', sans-serif;
 }
 .leaflet-control-zoom a {
@@ -500,11 +501,22 @@
   .sc-zoom-btn { width: 40px; height: 40px; }
   .sc-zoom-slider-vertical { width: 32px; height: 120px; }
 }
-/* Vertical slider: `orient="vertical"` covers Firefox; the WebKit
-   declaration covers Chrome/Edge/Safari. Track length comes from the
-   wrapper height. Slider is intentionally tall enough for precision
-   but short enough to keep the panel compact (~210px total). */
+/* Vertical slider, layered for cross-engine coverage:
+   - `writing-mode: vertical-lr` — the MODERN way (Chromium 121+ /
+     Safari 17.4+ removed `appearance: slider-vertical`; this replaces it).
+   - `-webkit-appearance: slider-vertical` + `appearance: slider-vertical`
+     — legacy fallback for older Blink/WebKit that predates writing-mode
+     support for range inputs.
+   - the `orient="vertical"` attribute (set in JS) covers Firefox.
+   Track length comes from the wrapper height. Slider is intentionally
+   tall enough for precision but short enough to keep the panel compact
+   (~210px total). */
 .sc-zoom-slider-vertical {
+  writing-mode: vertical-lr;
+  /* `direction: rtl` puts the MAX (zoomed-in) at the TOP, matching the
+     legacy `slider-vertical` orientation so the JS value mapping reads
+     the same way it always did. */
+  direction: rtl;
   -webkit-appearance: slider-vertical;
   appearance: slider-vertical;
   width: 28px;
@@ -519,22 +531,9 @@
   border-radius: 4px;
 }
 
-/* ── Pin priority radio row in edit form ─────────────────────── */
-.sc-pri-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin-bottom: 0.6rem;
-}
-.sc-pri-opt {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: var(--text-sm);
-  color: var(--text-muted, #c8bea4);
-  cursor: pointer;
-}
-.sc-pri-opt input[type="radio"] { accent-color: #d4b87a; }
+/* (The `.sc-pri-row` / `.sc-pri-opt` pin-priority radio rules were
+   removed as DEAD CSS — the pin-priority system was retired (pins now
+   use `size`), and no JS / template emits those classes anymore.) */
 
 /* Settings overlay */
 .sc-overlay {

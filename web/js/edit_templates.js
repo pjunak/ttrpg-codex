@@ -341,7 +341,7 @@ export const EditTemplates = (() => {
     const neutralOption = `<option value="neutral" ${neutralSelected ? "selected" : ""}>👤 ${esc(I18n.t('editform.noFaction'))}</option>`;
     const partyOption = `<option value="party" ${c.faction==='party'?"selected":""}>${esc(pp.badge || pp.icon || '🛡')} ${esc(pp.name || I18n.t('editform.ourParty'))}</option>`;
     const fOpts = neutralOption + partyOption + realFactions.map(([id,f]) =>
-      `<option value="${id}" ${c.faction===id?"selected":""}>${f.badge} ${esc(f.name)}</option>`).join("");
+      `<option value="${esc(id)}" ${c.faction===id?"selected":""}>${esc(f.badge || '⬡')} ${esc(f.name)}</option>`).join("");
     const sOpts = Object.entries(statusMap).map(([id,s]) =>
       `<option value="${id}" ${c.status===id?"selected":""}>${s.icon} ${s.label}</option>`).join("");
     // Attitudes (multi-pick chip row + per-chip strength slider).
@@ -404,7 +404,7 @@ export const EditTemplates = (() => {
               <div class="edit-portrait-preview" id="ep-preview-${uid}">
                 ${c.portrait
                   ? `<img src="${esc(c.portrait)}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:top">`
-                  : `<span style="font-size:2.5rem">${badge}</span>`}
+                  : `<span style="font-size:2.5rem">${esc(badge)}</span>`}
               </div>
               <label class="edit-upload-btn">
                 📷 ${esc(I18n.t('editform.uploadPortrait'))}

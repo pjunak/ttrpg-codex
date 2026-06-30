@@ -38,7 +38,7 @@
   font-size: var(--text-xs);
   color: var(--text-light);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   text-decoration: none;
 }
 .map-mode-btn:hover, .map-mode-btn.active {
@@ -360,7 +360,7 @@
   user-select: none;
 }
 .legend-filter input[type="checkbox"] {
-  accent-color: var(--accent-gold, var(--accent-gold));
+  accent-color: var(--accent-gold);
   margin: 0 2px 0 0;
   cursor: pointer;
 }
@@ -407,7 +407,7 @@
   min-width: 200px;
   flex: 0 1 280px;
 }
-.cm-search:focus { border-color: var(--accent-gold, var(--accent-gold)); }
+.cm-search:focus { border-color: var(--accent-gold); }
 
 .cm-chip-group {
   display: flex;
@@ -459,13 +459,13 @@
 }
 .cm-knowledge input[type=range] {
   width: 80px;
-  accent-color: var(--accent-gold, var(--accent-gold));
+  accent-color: var(--accent-gold);
 }
 .cm-knowledge-val {
   display: inline-block;
   min-width: 0.8em;
   text-align: center;
-  color: var(--accent-gold, var(--accent-gold));
+  color: var(--accent-gold);
   font-weight: 600;
 }
 
@@ -480,10 +480,10 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.cm-focus-toggle:hover { border-color: var(--accent-gold, var(--accent-gold)); }
+.cm-focus-toggle:hover { border-color: var(--accent-gold); }
 .cm-focus-toggle.is-on {
   background: rgba(var(--accent-gold-rgb), 0.18);
-  border-color: var(--accent-gold, var(--accent-gold));
+  border-color: var(--accent-gold);
   color: #ffe9a8;
 }
 .cm-focus-hops {
@@ -495,10 +495,10 @@
 }
 .cm-focus-hops input[type=range] {
   width: 64px;
-  accent-color: var(--accent-gold, var(--accent-gold));
+  accent-color: var(--accent-gold);
 }
 .cm-focus-hops-val {
-  color: var(--accent-gold, var(--accent-gold));
+  color: var(--accent-gold);
   font-weight: 600;
 }
 .cm-focus-hops[hidden] { display: none; }
@@ -531,7 +531,7 @@
 .cm-ctx-menu {
   position: fixed;
   z-index: 10002;
-  background: #1a1714;
+  background: var(--bg-surface);
   border: 1px solid rgba(var(--accent-gold-rgb), 0.45);
   border-radius: 5px;
   box-shadow: 0 10px 26px rgba(0,0,0,0.6);

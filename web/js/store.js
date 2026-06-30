@@ -1464,10 +1464,23 @@ export const Store = (() => {
       case 'historicalEvents':  saveHistoricalEvent(snap.entity);  break;
       case 'relationships':     saveRelationship(snap.entity);     break;
       case 'pets':              savePet(snap.entity);              break;
+      default:
+        console.warn('[Store.undelete] unknown kind:', snap.kind);
+        return false;
     }
     // Character delete cascade-stripped relationships — restore those.
     for (const r of snap.relationships || []) saveRelationship(r);
     return true;
+  }
+
+  /** Upsert `item` into a list by id: replace the existing record with
+   *  the same id, or push when new. The single source of truth for the
+   *  ~10 hand-rolled findIndex/replace-or-push blocks in the saveX
+   *  functions below. Returns `arr` for chaining. */
+  function _upsertById(arr, item) {
+    const idx = arr.findIndex(x => x && x.id === item.id);
+    if (idx >= 0) arr[idx] = item; else arr.push(item);
+    return arr;
   }
 
   /**
@@ -1481,8 +1494,7 @@ export const Store = (() => {
   function saveCharacter(char) {
     init();
     _stamp(char);
-    const idx = _data.characters.findIndex(c => c.id === char.id);
-    if (idx >= 0) _data.characters[idx] = char; else _data.characters.push(char);
+    _upsertById(_data.characters, char);
     _reindexCharacters();
     return _sync('characters', 'save', char);
   }
@@ -1514,14 +1526,37 @@ export const Store = (() => {
     if (CHARACTERS.some(c => c.id === id)) _tombstone(id);
     _data.characters    = _data.characters.filter(c => c.id !== id);
     _data.relationships = _data.relationships.filter(r => r.source !== id && r.target !== id);
-    _data.events        = (_data.events    || []).map(e => ({ ...e, characters: (e.characters    || []).filter(cid => cid !== id) }));
-    _data.mysteries     = (_data.mysteries || []).map(m => ({ ...m, characters: (m.characters    || []).filter(cid => cid !== id) }));
+
+    // Strip the dead id from every event/mystery that actually listed
+    // it — and persist ONLY those (mirrors deleteLocation's touched-peer
+    // pattern). The previous `.map(...)` rebuilt the whole array in
+    // memory but only synced the character delete, so the server never
+    // learned the character was removed from those events/mysteries —
+    // the next page load re-introduced the dangling reference.
+    const touchedEvents = [];
+    for (const e of _data.events || []) {
+      if (Array.isArray(e.characters) && e.characters.includes(id)) {
+        e.characters = e.characters.filter(cid => cid !== id);
+        _stamp(e); touchedEvents.push(e);
+      }
+    }
+    const touchedMysteries = [];
+    for (const m of _data.mysteries || []) {
+      if (Array.isArray(m.characters) && m.characters.includes(id)) {
+        m.characters = m.characters.filter(cid => cid !== id);
+        _stamp(m); touchedMysteries.push(m);
+      }
+    }
+
     _reindexCharacters();
     _reindexRelationships();
-    _reindexEvents();
-    _reindexMysteries();
+    if (touchedEvents.length)    _reindexEvents();
+    if (touchedMysteries.length) _reindexMysteries();
     _orphanPetsOf('character', id);   // pets keep, just go unassigned
-    return _sync('characters', 'delete', { id });
+    const ok = _sync('characters', 'delete', { id });
+    for (const e of touchedEvents)    _sync('events', 'save', e);
+    for (const m of touchedMysteries) _sync('mysteries', 'save', m);
+    return ok;
   }
 
   function saveRelationship(rel) {
@@ -1666,8 +1701,7 @@ export const Store = (() => {
   function saveEvent(evt) {
     init();
     _stamp(evt);
-    const idx = _data.events.findIndex(e => e.id === evt.id);
-    if (idx >= 0) _data.events[idx] = evt; else _data.events.push(evt);
+    _upsertById(_data.events, evt);
     _reindexEvents();
     return _sync('events', 'save', evt);
   }
@@ -1684,8 +1718,7 @@ export const Store = (() => {
   function saveMystery(mys) {
     init();
     _stamp(mys);
-    const idx = _data.mysteries.findIndex(m => m.id === mys.id);
-    if (idx >= 0) _data.mysteries[idx] = mys; else _data.mysteries.push(mys);
+    _upsertById(_data.mysteries, mys);
     _reindexMysteries();
     return _sync('mysteries', 'save', mys);
   }
@@ -1703,8 +1736,7 @@ export const Store = (() => {
     init();
     _stamp(g);
     if (!Array.isArray(_data.pantheon)) _data.pantheon = [];
-    const idx = _data.pantheon.findIndex(x => x.id === g.id);
-    if (idx >= 0) _data.pantheon[idx] = g; else _data.pantheon.push(g);
+    _upsertById(_data.pantheon, g);
     return _sync('pantheon', 'save', g);
   }
   function deleteBuh(id) {
@@ -1719,8 +1751,7 @@ export const Store = (() => {
     init();
     _stamp(a);
     if (!Array.isArray(_data.artifacts)) _data.artifacts = [];
-    const idx = _data.artifacts.findIndex(x => x.id === a.id);
-    if (idx >= 0) _data.artifacts[idx] = a; else _data.artifacts.push(a);
+    _upsertById(_data.artifacts, a);
     return _sync('artifacts', 'save', a);
   }
   function deleteArtifact(id) {
@@ -1965,7 +1996,11 @@ export const Store = (() => {
   function getEffectiveAttitudes(entity, kind) {
     if (!entity) return [];
     if (kind === 'character' && isPartyMember(entity)) {
-      return [{ id: 'party', strength: 1.0 }];
+      // Strength is sourced from the `attitudes` enum (editable in
+      // Settings → updates every glow at once), not hardcoded — falls
+      // back to 1.0 when the enum has no `party` row (the default).
+      const partyStrength = getEnumValue('attitudes', 'party')?.strength;
+      return [{ id: 'party', strength: (typeof partyStrength === 'number') ? partyStrength : 1.0 }];
     }
     const own = Array.isArray(entity.attitudes) ? entity.attitudes : [];
     if (own.length) return own;
@@ -2278,8 +2313,7 @@ export const Store = (() => {
     init();
     _stamp(h);
     if (!Array.isArray(_data.historicalEvents)) _data.historicalEvents = [];
-    const idx = _data.historicalEvents.findIndex(x => x.id === h.id);
-    if (idx >= 0) _data.historicalEvents[idx] = h; else _data.historicalEvents.push(h);
+    _upsertById(_data.historicalEvents, h);
     return _sync('historicalEvents', 'save', h);
   }
   function deleteHistoricalEvent(id) {
@@ -2337,8 +2371,7 @@ export const Store = (() => {
     // Normalise: ownerless / party-owned pets carry no ownerId.
     if (!pet.ownerType) pet.ownerType = 'none';
     if (pet.ownerType === 'none' || pet.ownerType === 'party') pet.ownerId = '';
-    const idx = _data.pets.findIndex(p => p.id === pet.id);
-    if (idx >= 0) _data.pets[idx] = pet; else _data.pets.push(pet);
+    _upsertById(_data.pets, pet);
     return _sync('pets', 'save', pet);
   }
 

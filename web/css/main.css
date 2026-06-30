@@ -61,6 +61,26 @@
   --color-info:          #90CAF9;   /* info / link / captured */
   --color-mystery:       #CE93D8;   /* mystery / unknown / DM */
 
+  /* Priority colours — promoted from the wiki.css literals so a theme
+     (or future per-instance skin) can re-tint event/mystery priority
+     chips. Theme-agnostic by default (no [data-theme] override). */
+  --priority-critical: #EF5350;   /* kritická */
+  --priority-high:     #FF9800;   /* vysoká   */
+  --priority-medium:   #FFD54F;   /* střední  */
+  --priority-low:      #9CC69A;   /* nízká (muted green — lowest urgency) */
+
+  /* Hairline borders on dark surfaces — the recurring white-alpha rule
+     used for card / panel / row separators. `--border-subtle` is the
+     0.05–0.07 cluster; `--border-faint` the lighter 0.04 variant.
+     Theme-agnostic (white channel reads on every dark theme). */
+  --border-subtle: rgba(255,255,255,0.07);
+  --border-faint:  rgba(255,255,255,0.04);
+
+  /* Dark ink for text/icons ON a gold (accent) button surface. Same
+     value as --text-ink; named semantically for on-accent contrast so
+     gold buttons read consistently. */
+  --color-on-accent: #2B1A00;
+
   /* Layout */
   --sidebar-width: 240px;
   --bottom-nav-h:  60px;
@@ -141,6 +161,20 @@
 /* ── Reset ──────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
+
+/* ── Reduced motion ─────────────────────────────────────────────
+   Honour the OS "reduce motion" preference: near-zero all animations
+   and transitions and disable smooth scroll. Uses !important so it
+   wins over per-component durations regardless of source order. The
+   cloudmap physics rAF loop is gated separately in JS. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* Global keyboard-focus ring. :focus-visible only triggers for
    keyboard / assistive-tech navigation, never on mouse clicks, so this
@@ -251,7 +285,7 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
   letter-spacing: 0.12em;
   color: var(--text-muted);
   padding: 1rem 1rem 0.35rem;
-  border-top: 1px solid rgba(255,255,255,0.05);
+  border-top: 1px solid var(--border-faint);
   margin-top: 0.5rem;
 }
 /* Stronger visual separation for the default Kampaň / Svět groups.
@@ -379,6 +413,57 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
 }
 .back-btn:hover { color: var(--accent-gold); }
 
+/* ── Shared chip / badge primitive ───────────────────────────────
+   Single source of truth for the "inline-flex, vertically-centred,
+   UI-font pill/tag" baseline shared by the chip & badge families
+   across the app: .badge / .profile-chip / .attitude-chip /
+   .relation-chip / .w-ms-chip (widgets) / .cm-chip (cloudmap) /
+   .sb-page-tag (settings) / .addon-chip (settings). Only the
+   genuinely shared, non-destructive properties live here — each
+   class keeps its own radius / padding / font-size / colours as
+   modifiers (their shapes deliberately differ: some are full pills,
+   some 10–12px tags). Grouped ADDITIVELY: the original class names
+   are untouched and still emitted by the JS. The members below were
+   already at these values, so this only centralises them. */
+.chip,
+.badge,
+.profile-chip,
+.attitude-chip,
+.relation-chip,
+.w-ms-chip,
+.cm-chip,
+.sb-page-tag,
+.addon-chip {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-ui);
+}
+
+/* ── Shared round icon-button primitive ──────────────────────────
+   Single source of truth for the 26px circular "pencil" affordances
+   that recur across the app: the list-card edit overlay
+   (.edit-card-overlay, edit.css), the open-questions row pencil
+   (.oq-edit, wiki.css) and the dashboard-hero per-field pen
+   (.dash-hero-pen, wiki.css). Only the IDENTICAL geometry +
+   interaction lives here; each member keeps its own background /
+   border / colour / opacity / transition / positioning so their
+   distinct contexts (absolute-over-card vs. inline) are preserved.
+   Grouped additively — the original class names are untouched and
+   still emitted by the JS. */
+.icon-btn-round,
+.edit-card-overlay,
+.oq-edit,
+.dash-hero-pen {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 /* ── Inline wiki links ───────────────────────────────────────── */
 .wiki-link {
   color: var(--accent-gold);
@@ -489,9 +574,16 @@ p  { color: var(--text-parchment); margin-bottom: 0.75em; }
 .map-sheet-item:hover { background: rgba(var(--accent-gold-rgb), 0.12); color: var(--accent-gold); }
 
 /* ── Scrollbar ───────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; }
+/* Firefox uses the standard two-property syntax; WebKit/Blink use the
+   ::-webkit-scrollbar pseudo-elements below. Both kept so every engine
+   gets the gold-on-deep treatment. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--accent-gold-rgb), 0.25) var(--bg-deep);
+}
+::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-track { background: var(--bg-deep); }
-::-webkit-scrollbar-thumb { background: rgba(var(--accent-gold-rgb), 0.25); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: rgba(var(--accent-gold-rgb), 0.25); border-radius: var(--radius-sm); }
 ::-webkit-scrollbar-thumb:hover { background: rgba(var(--accent-gold-rgb), 0.4); }
 
 /* ── Utility ─────────────────────────────────────────────────── */

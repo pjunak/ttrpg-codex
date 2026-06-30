@@ -142,6 +142,8 @@ export const Sidebar = (() => {
       if (r === '/mapa/palac' && PALAC_ROUTES.has(route)) active = true;
       if (r === '/mapa/svet' && route.startsWith('/mapa/local/')) active = true;
       el.classList.toggle('active', active);
+      if (active) el.setAttribute('aria-current', 'page');
+      else        el.removeAttribute('aria-current');
     });
   }
 

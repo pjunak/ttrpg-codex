@@ -15,6 +15,14 @@ import { Addons } from './addons.js';
 
 export const CloudMap = (() => {
 
+  // Validate a user-supplied CSS colour (faction colours are DM-typed)
+  // before it lands in an inline style / cssText string — a crafted
+  // value otherwise breaks out of the attribute. Only hex literals pass;
+  // anything else collapses to a neutral theme token.
+  function _safeColor(c) {
+    return /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : 'var(--text-muted)';
+  }
+
   // Per-page edit toggle. Surfaces the `.cm-save-pos` layout-action
   // buttons (gated by `.map-toolbar.is-editing` in cloudmap.css).
   // Anonymous click → login modal via the `auth:prompt-login` window
@@ -194,7 +202,7 @@ export const CloudMap = (() => {
 
   function _locationCloudHTML(loc) {
     return `<div class="cm-cloud cm-location" data-id="${loc.id}" data-type="location"
-              style="--cc:#5D7A3A; --cw:${CW}px">
+              style="--cc:${CM_NODE_COLORS.location}; --cw:${CW}px">
       <div class="cm-strip">📍 ${esc(I18n.t('cloudmap.placeStrip'))}</div>
       <div class="cm-name">${esc(loc.name)}</div>
       <div class="cm-divider"></div>
@@ -234,11 +242,21 @@ export const CloudMap = (() => {
   function _statusLabel(s)   { return Store.getStatusMap()[s]?.label  || s;     }
   function _statusColor(s)   { return Store.getStatusMap()[s]?.color  || '#888';}
 
+  // Cloudmap-intrinsic node/edge colours. These are CANVAS-rendered (Cytoscape +
+  // inline legend swatches), so they are JS constants rather than CSS tokens, and
+  // this graph-specific palette is deliberately distinct from the wiki theme.
+  // Single source of truth — referenced by BOTH the cloud builders and the legend
+  // so the two cannot drift. (Real relationship-edge colours stay data-driven via
+  // EDGE_COLORS / Store.getKinds('connections') — the legend reads those too.)
+  const CM_NODE_COLORS     = { location: '#5D7A3A', mystery: '#6A1B9A', event: '#8B6914', dead: '#666' };
+  const CM_EDGE_COLORS     = { member: '#888', located_at: '#5D7A3A', mysteryLink: '#7B2FA0', eventChain: '#C8A040', eventPart: '#555' };
+  const CM_PRIORITY_COLORS = { 'kritická': '#C62828', 'vysoká': '#E65100', _default: '#8A5CC8' };
+
   // ── Cloud HTML builders ─────────────────────────────────────
 
   function _charCloudHTML(c, mode) {
     const isDead  = c.status === 'dead';
-    const fColor  = isDead ? '#666' : _factionColor(c.faction);
+    const fColor  = isDead ? CM_NODE_COLORS.dead : _factionColor(c.faction);
     const badge   = _factionBadge(c.faction);
     const faction = _factionName(c.faction);
     const name    = c.knowledge >= 1 ? c.name : '???';
@@ -311,9 +329,7 @@ export const CloudMap = (() => {
   }
 
   function _mysteryCloudHTML(m) {
-    const priColor = m.priority === 'kritická' ? '#C62828'
-                   : m.priority === 'vysoká'   ? '#E65100'
-                   : '#8A5CC8';
+    const priColor = CM_PRIORITY_COLORS[m.priority] || CM_PRIORITY_COLORS._default;
     const q = Store.questionText((m.questions || [])[0]);
     let qHTML = '';
     if (q) {
@@ -322,7 +338,7 @@ export const CloudMap = (() => {
       qHTML = `<div class="cm-fact cm-hint">${esc(snippet)}</div>`;
     }
     return `<div class="cm-cloud cm-mystery" data-id="${m.id}" data-type="mystery"
-              style="--cc:#6A1B9A; --cw:${CW}px">
+              style="--cc:${CM_NODE_COLORS.mystery}; --cw:${CW}px">
       <div class="cm-strip">❓ ${esc(I18n.t('cloudmap.mysteryStrip'))}</div>
       <div class="cm-name">${esc(m.name)}</div>
       <div class="cm-divider"></div>
@@ -336,7 +352,7 @@ export const CloudMap = (() => {
     const lines = _wrap(desc, FONT_FACT, IW).slice(0, 2);
     const snippet = lines.join(' ') + (lines.length < _wrap(desc, FONT_FACT, IW).length ? '…' : '');
     return `<div class="cm-cloud cm-event" data-id="${e.id}" data-type="event"
-              style="--cc:#8B6914; --cw:${CW}px">
+              style="--cc:${CM_NODE_COLORS.event}; --cw:${CW}px">
       <div class="cm-strip">📜 ${e.sitting ? esc(I18n.t('cloudmap.sitting', { n: e.sitting })) : esc(I18n.t('cloudmap.past'))}</div>
       <div class="cm-name">${esc(e.name)}</div>
       <div class="cm-divider"></div>
@@ -363,7 +379,7 @@ export const CloudMap = (() => {
       EDGE_STYLES[t.id] = { 'line-style': t.style, width };
     }
     // Cloudmap-only edge kinds (not real relationships).
-    EDGE_COLORS.located_at = '#5D7A3A';
+    EDGE_COLORS.located_at = CM_EDGE_COLORS.located_at;
     EDGE_STYLES.member     = { 'line-style': 'dashed', width: 1.5 };
     EDGE_STYLES.located_at = { 'line-style': 'dotted', width: 2   };
   }
@@ -907,8 +923,8 @@ export const CloudMap = (() => {
         <label class="legend-item legend-filter" data-faction="${fId}">
           <input type="checkbox" ${_hiddenFactions.has(fId) ? '' : 'checked'}
                  ${dataOn('change', 'CloudMap.toggleFaction', fId)}>
-          <div class="legend-dot" style="background:${f.color}"></div>
-          ${f.badge} ${esc(f.name)}
+          <div class="legend-dot" style="background:${_safeColor(f.color)}"></div>
+          ${esc(f.badge || '⬡')} ${esc(f.name)}
         </label>`).join('');
   }
 
@@ -949,9 +965,15 @@ export const CloudMap = (() => {
     `;
 
     // Bridge TagFilter's 'tf-change' CustomEvent into the filter state.
-    // One listener per buildUI call; it's attached to the container so it
-    // dies with the next innerHTML swap.
-    container.addEventListener('tf-change', (ev) => {
+    // Attach to the per-render `.map-container` (created fresh by the
+    // innerHTML above and an ancestor of the filter bar the chips live
+    // in), NOT the persistent `#main-content` — innerHTML replaces a
+    // node's CHILDREN, so a listener on #main-content would survive
+    // every re-render and accumulate (a leak). The freshly-built
+    // .map-container is discarded with the next innerHTML swap, taking
+    // its listener with it.
+    const mapContainer = container.querySelector('.map-container');
+    if (mapContainer) mapContainer.addEventListener('tf-change', (ev) => {
       if (ev.target && ev.target.id === 'cm-filter') {
         _setFilterValues(ev.detail.values);
       }
@@ -979,7 +1001,7 @@ export const CloudMap = (() => {
       ].map(([t,l,c]) => buildEdgeChip(t,l,c)).join('');
     } else if (mode === 'frakce') {
       edgeChips = [
-        ['member',I18n.t('cloudmap.edgeMember'),'#888'], ['located_at',I18n.t('cloudmap.edgeLocation'),'#5D7A3A'],
+        ['member',I18n.t('cloudmap.edgeMember'),CM_EDGE_COLORS.member], ['located_at',I18n.t('cloudmap.edgeLocation'),CM_EDGE_COLORS.located_at],
         ['commands',I18n.t('cloudmap.edgeCommands'),EDGE_COLORS.commands], ['negotiates',I18n.t('cloudmap.edgeNegotiates'),EDGE_COLORS.negotiates],
         ['ally',I18n.t('cloudmap.edgeAlly'),EDGE_COLORS.ally],
       ].map(([t,l,c]) => buildEdgeChip(t,l,c)).join('');
@@ -1010,7 +1032,8 @@ export const CloudMap = (() => {
 
   // ── Cytoscape init ───────────────────────────────────────────
   function _initCy(elements, layout) {
-    if (_cy) _cy.destroy();
+    // No `_cy.destroy()` here — every caller is a view builder reached
+    // only via render(), which calls _destroy() (nulling _cy) first.
 
     // Defensive: drop any edge whose endpoints aren't both present as nodes.
     // The mind-palace is built from arbitrary user data, so a relationship to
@@ -1626,10 +1649,36 @@ export const CloudMap = (() => {
     _physWake();  // continue settling
   }
 
+  /** Honour the OS "reduce motion" setting. When on, the integrator
+   *  computes its final layout in a single synchronous pass instead of
+   *  animating frame-by-frame (springs/FR cooldown are fast-forwarded). */
+  function _prefersReducedMotion() {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+    catch (_) { return false; }
+  }
+
   // Wake the integrator if it's sleeping. Self-stops once kinetic
   // energy drops below ENERGY_SLEEP and no drag/autolayout is active.
   function _physWake() {
     if (_phys.raf || !_cy) return;
+
+    // Reduced motion: settle synchronously and skip the rAF animation.
+    // A drag is inherently interactive (the pointer drives it frame by
+    // frame), so only the non-drag settle / autolayout cooldown is
+    // fast-forwarded — to the same equilibrium the animation would
+    // reach, just without the in-between frames.
+    if (_prefersReducedMotion() && _phys.draggedId === null) {
+      if (_phys.mode === 'autolayout') _phys.layoutEnd = 0;   // finish FR this pass
+      let guard = 0;
+      do { _physStep(); } while (
+        guard++ < 600 &&
+        (_phys.mode === 'autolayout' || _physKineticEnergy() > PHYS_K.ENERGY_SLEEP)
+      );
+      _phys.raf = null;
+      _sync();   // one final clean redraw
+      return;
+    }
+
     const tick = () => {
       _physStep();
       const shouldRun =
@@ -2000,7 +2049,11 @@ export const CloudMap = (() => {
     // Re-fit the viewport so the freshly-arranged graph is centred
     // and sized to fill the available area. Without this the user
     // often had to manually pan/zoom to find their cards after a run.
-    if (_cy && _cy.nodes().nonempty()) _cy.animate({ fit: { padding: 80 } }, { duration: 450, easing: 'ease-out-cubic' });
+    // Reduced motion: snap the fit instead of animating the pan/zoom.
+    if (_cy && _cy.nodes().nonempty()) {
+      if (_prefersReducedMotion()) { _cy.fit(undefined, 80); _sync(); }
+      else _cy.animate({ fit: { padding: 80 } }, { duration: 450, easing: 'ease-out-cubic' });
+    }
   }
 
   // Hierarchical (dagre) layout — wired for the `frakce` mode, where the
@@ -2638,7 +2691,7 @@ export const CloudMap = (() => {
         edges.push({
           data: {
             id: `loc_${fId}_${locId}`, source: 'hub_' + fId, target: locId,
-            label: '', color: '#5D7A3A', width: 2, lineStyle: 'dotted',
+            label: '', color: CM_EDGE_COLORS.located_at, width: 2, lineStyle: 'dotted',
           }
         });
       }
@@ -2664,7 +2717,7 @@ export const CloudMap = (() => {
       if (HIDDEN_HUB_FACTIONS.has(fId)) return;
       const glow = document.createElement('div');
       glow.className = 'cm-glow';
-      glow.style.cssText = `--gc:${f.color};`;
+      glow.style.cssText = `--gc:${_safeColor(f.color)};`;
       _cloudLayer.insertBefore(glow, _cloudLayer.firstChild);
       _glowMap['hub_' + fId] = glow;
     });
@@ -2673,7 +2726,7 @@ export const CloudMap = (() => {
       const f = factions[c.faction];
       const glow = document.createElement('div');
       glow.className = 'cm-glow cm-glow-sm';
-      glow.style.cssText = `--gc:${f.color};`;
+      glow.style.cssText = `--gc:${_safeColor(f.color)};`;
       _cloudLayer.insertBefore(glow, _cloudLayer.firstChild);
       _glowMap[c.id] = glow;
     });
@@ -2700,20 +2753,20 @@ export const CloudMap = (() => {
         <div class="legend-title">${esc(I18n.t('cloudmap.legendFactions'))}</div>
         ${_buildFactionFilterLegend(factions, HIDDEN_HUB_FACTIONS)}
         <div class="legend-item">
-          <div class="legend-dot" style="background:#5D7A3A"></div>
+          <div class="legend-dot" style="background:${CM_NODE_COLORS.location}"></div>
           📍 ${esc(I18n.t('cloudmap.placeStrip'))}
         </div>
         <div class="legend-item" style="margin-top:0.4rem;opacity:0.55">
-          <div class="legend-dot" style="background:#666;border:1px dashed #888"></div>
+          <div class="legend-dot" style="background:${CM_NODE_COLORS.dead};border:1px dashed ${CM_EDGE_COLORS.member}"></div>
           ${esc(I18n.t('cloudmap.legendDead'))}
         </div>
         <div style="margin-top:0.5rem">
           <div class="legend-title">${esc(I18n.t('cloudmap.legendRelations'))}</div>
-          <div class="legend-item"><div class="legend-line" style="border-top:1.5px dashed #888"></div> ${esc(I18n.t('cloudmap.legendFactionMember'))}</div>
-          <div class="legend-item"><div class="legend-line" style="border-top:3px solid #8B0000"></div> ${esc(I18n.t('cloudmap.legendCommand'))}</div>
-          <div class="legend-item"><div class="legend-line" style="border-top:2px dashed #1565C0"></div> ${esc(I18n.t('cloudmap.legendNegotiation'))}</div>
-          <div class="legend-item"><div class="legend-line" style="border-top:2px solid #2E7D32"></div> ${esc(I18n.t('cloudmap.legendAlly'))}</div>
-          <div class="legend-item"><div class="legend-line" style="border-top:2px dotted #5D7A3A"></div> ${esc(I18n.t('cloudmap.legendLocation'))}</div>
+          <div class="legend-item"><div class="legend-line" style="border-top:1.5px dashed ${CM_EDGE_COLORS.member}"></div> ${esc(I18n.t('cloudmap.legendFactionMember'))}</div>
+          <div class="legend-item"><div class="legend-line" style="border-top:3px solid ${EDGE_COLORS.commands || '#8B0000'}"></div> ${esc(I18n.t('cloudmap.legendCommand'))}</div>
+          <div class="legend-item"><div class="legend-line" style="border-top:2px dashed ${EDGE_COLORS.negotiates || '#1565C0'}"></div> ${esc(I18n.t('cloudmap.legendNegotiation'))}</div>
+          <div class="legend-item"><div class="legend-line" style="border-top:2px solid ${EDGE_COLORS.ally || '#2E7D32'}"></div> ${esc(I18n.t('cloudmap.legendAlly'))}</div>
+          <div class="legend-item"><div class="legend-line" style="border-top:2px dotted ${CM_EDGE_COLORS.located_at}"></div> ${esc(I18n.t('cloudmap.legendLocation'))}</div>
         </div>`;
 
       if (_hiddenFactions.size) _applyFactionFilter();
@@ -2789,7 +2842,7 @@ export const CloudMap = (() => {
       (m.characters || []).map(cid => ({
         data: {
           id: `${m.id}__${cid}`, source: m.id, target: cid,
-          label: '', color: '#7B2FA0', width: 1.5, lineStyle: 'dotted',
+          label: '', color: CM_EDGE_COLORS.mysteryLink, width: 1.5, lineStyle: 'dotted',
         }
       }))
     );
@@ -2811,7 +2864,7 @@ export const CloudMap = (() => {
     if (leg) {
       leg.innerHTML = `
         <div class="legend-title">${esc(I18n.t('cloudmap.legendMysteries'))}</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#6A1B9A"></div> ${esc(I18n.t('cloudmap.legendMystery'))}</div>
+        <div class="legend-item"><div class="legend-dot" style="background:${CM_NODE_COLORS.mystery}"></div> ${esc(I18n.t('cloudmap.legendMystery'))}</div>
         <div class="legend-item"><div class="legend-dot"></div> ${esc(I18n.t('cloudmap.legendInvolvedCharacter'))}</div>
         <div class="legend-title" style="margin-top:0.5rem">${esc(I18n.t('cloudmap.legendFactions'))}</div>
         ${_buildFactionFilterLegend(factions)}`;
@@ -2841,7 +2894,7 @@ export const CloudMap = (() => {
     const chainEdges = events.slice(0, -1).map((e, i) => ({
       data: {
         id: `chain-${i}`, source: e.id, target: events[i + 1].id,
-        label: '', color: '#C8A040', width: 2, lineStyle: 'solid',
+        label: '', color: CM_EDGE_COLORS.eventChain, width: 2, lineStyle: 'solid',
       }
     }));
     // Event ↔ character participation edges
@@ -2849,7 +2902,7 @@ export const CloudMap = (() => {
       (e.characters || []).map(cid => ({
         data: {
           id: `${e.id}__${cid}`, source: e.id, target: cid,
-          label: '', color: '#555', width: 1, lineStyle: 'dotted',
+          label: '', color: CM_EDGE_COLORS.eventPart, width: 1, lineStyle: 'dotted',
         }
       }))
     );
@@ -2872,9 +2925,9 @@ export const CloudMap = (() => {
       leg.innerHTML = `
         <div class="legend-title">${esc(I18n.t('cloudmap.legendTimeline'))}</div>
         <div class="legend-item">
-          <div class="legend-line" style="border-top:2px solid #C8A040"></div> ${esc(I18n.t('cloudmap.legendEventSequence'))}
+          <div class="legend-line" style="border-top:2px solid ${CM_EDGE_COLORS.eventChain}"></div> ${esc(I18n.t('cloudmap.legendEventSequence'))}
         </div>
-        <div class="legend-item"><div class="legend-dot" style="background:#8B6914"></div> ${esc(I18n.t('cloudmap.legendEvent'))}</div>
+        <div class="legend-item"><div class="legend-dot" style="background:${CM_NODE_COLORS.event}"></div> ${esc(I18n.t('cloudmap.legendEvent'))}</div>
         <div class="legend-item"><div class="legend-dot"></div> ${esc(I18n.t('cloudmap.legendCharacter'))}</div>
         <div class="legend-title" style="margin-top:0.5rem">${esc(I18n.t('cloudmap.legendFactions'))}</div>
         ${_buildFactionFilterLegend(factions)}`;

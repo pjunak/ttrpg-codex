@@ -9,7 +9,7 @@ import { Store } from './store.js';
 import { EditTemplates } from './edit_templates.js';
 import { Widgets } from './widgets/widgets.js';
 import { PIN_TYPES, PIN_SIZE_MIN, PIN_SIZE_MAX, PIN_SIZE_DEFAULT } from './map.js';
-import { renderMarkdown, jaroWinkler, esc, norm } from './utils.js';
+import { renderMarkdown, jaroWinkler, esc, norm, trapFocus } from './utils.js';
 import { PARTY_FACTION_ID } from './constants.js';
 import { Role } from './role.js';
 import { Addons } from './addons.js';
@@ -65,8 +65,13 @@ export const EditMode = (() => {
     if (!t) {
       t = document.createElement("div");
       t.id = "edit-toast";
+      // Announce toasts to assistive tech. `role="status"` makes it a
+      // live region; politeness is set per-toast below (assertive for
+      // errors so they interrupt, polite otherwise).
+      t.setAttribute('role', 'status');
       document.body.appendChild(t);
     }
+    t.setAttribute('aria-live', ok ? 'polite' : 'assertive');
     const timeout = opts.timeout ?? (opts.action ? 8000 : 2500);
     t.innerHTML = '';
     const textEl = document.createElement('span');
@@ -291,8 +296,8 @@ export const EditMode = (() => {
       overlay.className = 'pw-modal';
       overlay.innerHTML = `
         <div class="pw-backdrop"></div>
-        <form class="pw-panel" autocomplete="on">
-          <div class="pw-title">${esc(message || I18n.t('editmode.passwordPrompt'))}</div>
+        <form class="pw-panel" role="dialog" aria-modal="true" aria-labelledby="pw-modal-title" autocomplete="on">
+          <div class="pw-title" id="pw-modal-title">${esc(message || I18n.t('editmode.passwordPrompt'))}</div>
           <div class="pw-row">
             <input class="pw-input" type="password" name="password"
                    autocomplete="current-password" autofocus
@@ -312,12 +317,14 @@ export const EditMode = (() => {
       const back  = overlay.querySelector('.pw-backdrop');
       const tog   = overlay.querySelector('.pw-toggle');
       const cnl   = overlay.querySelector('.pw-cancel');
+      const releaseTrap = trapFocus(form);
 
       function onKey(e) {
         if (e.key === 'Escape') { e.stopPropagation(); finish(null); }
       }
       function cleanup() {
         document.removeEventListener('keydown', onKey, true);
+        releaseTrap();
         overlay.remove();
       }
       form.addEventListener('submit', (e) => {
@@ -416,7 +423,7 @@ export const EditMode = (() => {
   function clearPortrait(uid, badge) {
     const preview = document.getElementById('ep-preview-' + uid);
     const hidden  = document.getElementById('ep-data-' + uid);
-    if (preview) preview.innerHTML = `<span style="font-size:2.5rem">${badge || ''}</span>`;
+    if (preview) preview.innerHTML = `<span style="font-size:2.5rem">${esc(badge || '')}</span>`;
     if (hidden)  hidden.value = '';
   }
   function updateKnowledgeLabel(uid) {
@@ -1430,7 +1437,7 @@ export const EditMode = (() => {
     overlay.className = 'twin-picker-overlay';
     overlay.hidden = true;
     overlay.innerHTML = `
-      <div class="twin-picker-card" role="dialog" aria-label="${esc(I18n.t('editmode.twinPickerTitle'))}">
+      <div class="twin-picker-card" role="dialog" aria-modal="true" aria-label="${esc(I18n.t('editmode.twinPickerTitle'))}">
         <div class="twin-picker-actions">
           <button type="button" class="twin-picker-btn twin-picker-btn-cancel" data-action="EditMode.cancelTwinPicker">✕ ${esc(I18n.t('action.cancel'))}</button>
           <button type="button" class="twin-picker-btn twin-picker-btn-create" data-action="EditMode.createTwinFromPicker">✨ ${esc(I18n.t('editmode.twinCreateNew'))}</button>
@@ -1497,6 +1504,8 @@ export const EditMode = (() => {
 
     p.overlay.hidden = false;
     document.body.classList.add('twin-picker-open');
+    if (p._trap) p._trap();
+    p._trap = trapFocus(p.card);
     // Autofocus after the show so the browser doesn't reject the focus.
     requestAnimationFrame(() => { try { p.input.focus(); p.input.select(); } catch (_) {} });
   }
@@ -1570,6 +1579,7 @@ export const EditMode = (() => {
 
   function _closeTwinPicker() {
     if (!_picker) return;
+    if (_picker._trap) { _picker._trap(); _picker._trap = null; }
     _picker.overlay.hidden = true;
     document.body.classList.remove('twin-picker-open');
     _picker.source = null;
@@ -1596,11 +1606,13 @@ export const EditMode = (() => {
   // character portrait pipeline (Store.uploadPortrait keyed by the
   // pet id) and is gated until the pet has been saved once.
   let _petModalEl = null;
+  let _petModalTrap = null;
 
   function _petModalKey(e) {
     if (e.key === 'Escape') { e.stopPropagation(); _closePetModal(); }
   }
   function _closePetModal() {
+    if (_petModalTrap) { _petModalTrap(); _petModalTrap = null; }
     if (_petModalEl) { _petModalEl.remove(); _petModalEl = null; }
     document.removeEventListener('keydown', _petModalKey, true);
   }
@@ -1627,8 +1639,8 @@ export const EditMode = (() => {
     overlay.className = 'pet-modal';
     overlay.innerHTML = `
       <div class="pet-modal-backdrop"></div>
-      <form class="pet-modal-panel" autocomplete="off">
-        <div class="pet-modal-title">${isNew ? '🐾 ' + esc(I18n.t('editmode.petNew')) : '🐾 ' + esc(I18n.t('editmode.petEdit'))}</div>
+      <form class="pet-modal-panel" role="dialog" aria-modal="true" aria-labelledby="pet-modal-title" autocomplete="off">
+        <div class="pet-modal-title" id="pet-modal-title">${isNew ? '🐾 ' + esc(I18n.t('editmode.petNew')) : '🐾 ' + esc(I18n.t('editmode.petEdit'))}</div>
 
         <div class="pet-modal-portrait">
           <div id="pet-portrait-preview" class="pet-portrait-preview">
@@ -1711,6 +1723,7 @@ export const EditMode = (() => {
     if (fileInput) fileInput.addEventListener('change', () => _petPortraitUpload(fileInput, overlay.dataset.petId));
 
     document.addEventListener('keydown', _petModalKey, true);
+    _petModalTrap = trapFocus(overlay.querySelector('.pet-modal-panel'));
     requestAnimationFrame(() => overlay.querySelector('#pet-name')?.focus());
   }
 

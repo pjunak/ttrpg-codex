@@ -104,8 +104,12 @@ async function buildFor(mapId, srcPath) {
       .extend({
         top:    0,
         left:   0,
-        bottom: cols * TILE_SIZE - scaledH < 0 ? 0 : (rows * TILE_SIZE - scaledH),
-        right:  (cols * TILE_SIZE) - scaledW,
+        // Pad the short side out to the tile-aligned canvas. Each axis pads
+        // against its OWN tile count (rows→height, cols→width); the Math.max
+        // floors at 0 so a perfectly tile-aligned image never requests a
+        // negative extend (which sharp rejects).
+        bottom: Math.max(0, rows * TILE_SIZE - scaledH),
+        right:  Math.max(0, cols * TILE_SIZE - scaledW),
         background: { r: 20, g: 20, b: 20, alpha: 1 },
       })
       .raw()

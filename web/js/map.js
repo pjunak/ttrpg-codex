@@ -47,6 +47,11 @@ export const PIN_SIZE_MIN = 14;
 export const PIN_SIZE_MAX = 64;
 export const PIN_SIZE_DEFAULT = 28;
 
+// Event-path overlay colours (canvas-rendered Leaflet polylines + divIcon marker
+// backgrounds, so JS constants not CSS tokens). Single source of truth shared by
+// the renderer and the legend so the two cannot drift.
+const EVENT_PATH_COLORS = { path: '#C8A040', sitting: '#8B6914', past: '#5A3A5A' };
+
 export const WorldMap = (() => {
 
   const LS_IMG_KEY  = 'world_map_image_url';
@@ -424,6 +429,15 @@ export const WorldMap = (() => {
       notes:      l.mapNotes || '',
       parentId:   l.parentId || null,
     };
+  }
+
+  // Validate a CSS colour before it lands in an inline style attribute.
+  // Attitude `labelColor`/`bg` come from user-editable settings, so a
+  // crafted value like `red"><script>` must not break out of the style
+  // string. Only `#rgb`..`#rrggbbaa` literals pass; anything else falls
+  // back to a neutral theme token.
+  function _safeColor(c) {
+    return /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : 'var(--text-muted)';
   }
 
   // Glow helpers — one drop-shadow per active attitude, alpha = strength.
@@ -1022,7 +1036,7 @@ export const WorldMap = (() => {
       className: '',
       iconSize:  [size, size],
       iconAnchor:[size/2, size/2],
-      html: `<div class="sc-pin sc-pin-${pin.status}" style="width:${size}px;height:${size}px;" title="${esc(pin.name)}">${inner}</div>`,
+      html: `<div class="sc-pin sc-pin-${esc(pin.status)}" style="width:${size}px;height:${size}px;" title="${esc(pin.name)}">${inner}</div>`,
     });
   }
 
@@ -1201,7 +1215,7 @@ export const WorldMap = (() => {
       const def = attEnum.find(a => a.id === id);
       const strength = (def && typeof def.strength === 'number') ? def.strength : 1.0;
       const pct = strength === 1.0 ? '' : ` ${Math.round(strength * 100)}%`;
-      return `<span style="color:${s.labelColor}">${esc(s.label)}${esc(pct)}</span>`;
+      return `<span style="color:${_safeColor(s.labelColor)}">${esc(s.label)}${esc(pct)}</span>`;
     }).filter(Boolean).join(', ');
     const previewUrl = _resolveIconUrl(pin);
     const previewHtml = previewUrl
@@ -1586,7 +1600,7 @@ export const WorldMap = (() => {
       const curr = eventPoints[i];
       if (spotKey(prev) === spotKey(curr)) continue;
       const line = L.polyline([prev.ll, curr.ll], {
-        color:      '#C8A040',
+        color:      EVENT_PATH_COLORS.path,
         weight:     2.5,
         opacity:    0.75,
         dashArray:  '7, 5',
@@ -1596,7 +1610,7 @@ export const WorldMap = (() => {
 
     eventPoints.forEach(({ event: e, ll }) => {
       const sittingLabel = e.sitting ? I18n.t('map.sittingShort', { n: e.sitting }) : '✦';
-      const bgColor      = e.sitting ? '#8B6914' : '#5A3A5A';
+      const bgColor      = e.sitting ? EVENT_PATH_COLORS.sitting : EVENT_PATH_COLORS.past;
       const icon = L.divIcon({
         className: '',
         iconSize:  [28, 28],
@@ -1856,20 +1870,20 @@ export const WorldMap = (() => {
       <div class="legend-title">${esc(I18n.t('map.legendAttitude'))}</div>
       ${(Store.getEnum('attitudes') || []).map(v =>
         `<div class="legend-item">
-          <div class="legend-dot" style="background:${v.labelColor || v.bg};box-shadow:0 0 0 1px rgba(0,0,0,0.4)"></div>
+          <div class="legend-dot" style="background:${_safeColor(v.labelColor || v.bg)};box-shadow:0 0 0 1px rgba(0,0,0,0.4)"></div>
           ${esc(v.label)}
         </div>`
       ).join('')}
       ${_eventPathsVisible ? `
         <div class="legend-title" style="margin-top:0.8rem">${esc(I18n.t('map.eventPaths'))}</div>
         <div class="legend-item">
-          <div class="legend-line" style="border-top:2px dashed #C8A040"></div> ${esc(I18n.t('map.legendStoryPath'))}
+          <div class="legend-line" style="border-top:2px dashed ${EVENT_PATH_COLORS.path}"></div> ${esc(I18n.t('map.legendStoryPath'))}
         </div>
         <div class="legend-item">
-          <div class="sc-event-marker-tiny" style="background:#8B6914">S#</div> ${esc(I18n.t('map.legendInSitting'))}
+          <div class="sc-event-marker-tiny" style="background:${EVENT_PATH_COLORS.sitting}">S#</div> ${esc(I18n.t('map.legendInSitting'))}
         </div>
         <div class="legend-item">
-          <div class="sc-event-marker-tiny" style="background:#5A3A5A">✦</div> ${esc(I18n.t('map.legendPast'))}
+          <div class="sc-event-marker-tiny" style="background:${EVENT_PATH_COLORS.past}">✦</div> ${esc(I18n.t('map.legendPast'))}
         </div>` : ''}
     `;
   }

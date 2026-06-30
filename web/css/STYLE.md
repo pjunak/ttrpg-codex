@@ -66,6 +66,20 @@ For toasts, status badges, form validation, editor syntax:
 `--color-danger-bd` `#CC4444` (border) · `--color-success` `#A5D6A7` ·
 `--color-info` `#90CAF9` · `--color-mystery` `#CE93D8`.
 
+### Colour — priority (event / mystery urgency)
+`--priority-critical` `#EF5350` (kritická) · `--priority-high` `#FF9800` (vysoká) ·
+`--priority-medium` `#FFD54F` (střední) · `--priority-low` `#9CC69A` (nízká).
+Theme-agnostic by default (no `[data-theme]` override yet).
+
+### Colour — on-accent ink
+`--color-on-accent` `#2B1A00` — dark ink for text/icons sitting **on** a gold
+(accent) button surface (same value as `--text-ink`, named for the contrast role).
+
+### Borders — hairlines on dark
+`--border-subtle` `rgba(255,255,255,0.07)` (the recurring card / panel / row
+separator — the 0.05–0.07 cluster) · `--border-faint` `rgba(255,255,255,0.04)`
+(the lighter variant). White-channel, so they read on every dark theme.
+
 ### Spacing (4 px rhythm)
 `--space-1`=4px · `--space-2`=8px · `--space-3`=12px · `--space-4`=16px ·
 `--space-5`=24px · `--space-6`=32px. Use for padding / margin / gap.
@@ -79,6 +93,9 @@ Radius: `--radius-sm` 4 · `--radius` 6 · `--radius-lg` 12 · `--radius-pill` 9
 Shadow: `--shadow-sm/md/lg` (elevation) + `--shadow-card`, `--shadow-glow-gold`.
 Z-index: `--z-base/sticky/drawer/dropdown/modal/toast` — stay on these rungs.
 Motion: `--ease-out`, `--dur-fast` .12s / `--dur-base` .18s / `--dur-slow` .25s.
+A global `@media (prefers-reduced-motion: reduce)` block in `main.css`
+near-zeroes all animations/transitions + smooth scroll, so individual
+components don't each need to handle it.
 
 ### Breakpoints (documented; CSS can't tokenize `@media`)
 `768px` mobile / sidebar drawer · `1100px` wiki two-col→one · `1200px` split editor
@@ -99,7 +116,11 @@ files noted; this is the everyday set:
   `.settings-hint` (muted help text), `.settings-field` + `.settings-field-label`,
   `.edit-input` (text input / select). (`settings.css`, `edit.css`)
 - **Badges / chips** — `.badge-status-{alive,dead,captured,unknown}`,
-  `.role-badge-chip`. (`wiki.css`)
+  `.role-badge-chip`. (`wiki.css`) The chip/badge families share a base
+  `.chip` (inline-flex · centred · UI font) grouped in `main.css`; each
+  variant keeps its own radius/padding/colour.
+- **Round icon button** — `.icon-btn-round` (26px circular pencil base,
+  `main.css`), shared by `.edit-card-overlay` / `.oq-edit` / `.dash-hero-pen`.
 - **Toasts** — `.app-toast` (+ `.err`), `.edit-toast` (+ `.ok`/`.err`).
 - **Nav** — `.nav-link`, `.sidebar-section`, `.sidebar-subsection`.
 

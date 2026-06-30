@@ -336,8 +336,63 @@ export function dataOn(kind, method, ...args) {
  */
 export function pageEditToggle({ moduleName, isEditing, label }) {
   const cls = 'page-edit-toggle' + (isEditing ? ' is-active' : '');
-  const title = isEditing ? 'Vypnout úpravy' : `Zapnout úpravy — ${label}`;
-  const text  = isEditing ? '✓ Hotovo' : `✏ Editovat ${label}`;
+  // Localised via I18n (utils already imports it — no cycle). `{label}`
+  // is the page noun ("the map", "the timeline", …) supplied by the caller.
+  const title = isEditing
+    ? I18n.t('action.editStopTitle')
+    : I18n.t('action.editStartTitle', { label });
+  const text  = isEditing
+    ? I18n.t('action.editDone')
+    : I18n.t('action.editStart', { label });
   return `<button type="button" class="${cls}"${dataAction(moduleName + '.toggleEditing')}
     title="${esc(title)}">${esc(text)}</button>`;
+}
+
+/**
+ * Trap keyboard focus inside a modal panel. While active, Tab / Shift+Tab
+ * cycle only through the panel's focusable elements, and focus is restored
+ * to whatever was focused before the modal opened when the trap is released.
+ *
+ * Returns a `release()` function — call it when closing the modal. The
+ * caller still owns Escape / backdrop-click handling; this only manages
+ * the Tab cycle + focus restore so every modal behaves consistently for
+ * keyboard + screen-reader users.
+ *
+ * @param {HTMLElement} panelEl - The dialog panel (not the backdrop).
+ * @returns {() => void} release function (idempotent).
+ */
+export function trapFocus(panelEl) {
+  if (!panelEl || typeof document === 'undefined') return () => {};
+  const prevFocused = document.activeElement;
+  const SELECTOR = [
+    'a[href]', 'button:not([disabled])', 'input:not([disabled])',
+    'select:not([disabled])', 'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])',
+  ].join(',');
+  const focusables = () =>
+    Array.from(panelEl.querySelectorAll(SELECTOR))
+      .filter(el => el.offsetParent !== null || el === document.activeElement);
+  function onKey(e) {
+    if (e.key !== 'Tab') return;
+    const list = focusables();
+    if (!list.length) { e.preventDefault(); return; }
+    const first = list[0];
+    const last  = list[list.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey) {
+      if (active === first || !panelEl.contains(active)) {
+        e.preventDefault(); last.focus();
+      }
+    } else if (active === last || !panelEl.contains(active)) {
+      e.preventDefault(); first.focus();
+    }
+  }
+  panelEl.addEventListener('keydown', onKey);
+  let released = false;
+  return function release() {
+    if (released) return;
+    released = true;
+    panelEl.removeEventListener('keydown', onKey);
+    try { if (prevFocused && prevFocused.focus) prevFocused.focus(); } catch (_) {}
+  };
 }

@@ -98,3 +98,45 @@ test('getEffectiveAttitudes: empty everywhere (and null entity) returns [] — n
   assert.deepEqual(Store.getEffectiveAttitudes(npc, 'character'), []);
   assert.deepEqual(Store.getEffectiveAttitudes(null, 'character'), []);
 });
+
+test('getEffectiveAttitudes: party strength is sourced from the attitudes enum (falls back to 1.0)', () => {
+  // No `party` row in the enum → default strength 1.0.
+  const pc = { id: 'pc-s', faction: 'party' };
+  assert.equal(Store.getEffectiveAttitudes(pc, 'character')[0].strength, 1.0);
+  // Seed a `party` enum row with a custom strength → it drives the glow.
+  Store.saveEnumItem('attitudes', { id: 'party', label: 'Party', strength: 0.5 });
+  assert.equal(Store.getEffectiveAttitudes(pc, 'character')[0].strength, 0.5);
+  // Clean up so other tests see the default again.
+  Store.deleteEnumItem('attitudes', 'party', { force: true });
+});
+
+// ── deleteCharacter cascade persistence (regression) ──────────────
+
+test('deleteCharacter: strips the id from referencing events/mysteries AND persists only those', () => {
+  Store.saveCharacter({ id: 'victim', name: 'Victim', faction: 'neutral', status: 'alive', knowledge: 4 });
+  Store.saveCharacter({ id: 'bystander', name: 'Bystander', faction: 'neutral', status: 'alive', knowledge: 4 });
+  Store.saveEvent({ id: 'ev-ref',   name: 'Ref',   characters: ['victim', 'bystander'] });
+  Store.saveEvent({ id: 'ev-unref', name: 'Unref', characters: ['bystander'] });
+  Store.saveMystery({ id: 'my-ref', name: 'MyRef', questions: [], characters: ['victim'] });
+
+  const evUnrefStampBefore = Store.getEvent('ev-unref').updatedAt;
+
+  Store.deleteCharacter('victim');
+
+  // Referencing event/mystery had the id stripped in memory…
+  assert.deepEqual(Store.getEvent('ev-ref').characters, ['bystander']);
+  assert.deepEqual(Store.getMystery('my-ref').characters, []);
+  // …and were re-stamped (the cascade touched + persisted them).
+  assert.ok(Store.getEvent('ev-ref').updatedAt >= 0);
+  // The unreferenced event was NOT touched (stamp unchanged).
+  assert.equal(Store.getEvent('ev-unref').updatedAt, evUnrefStampBefore);
+
+  Store.deleteCharacter('bystander');
+  Store.deleteEvent('ev-ref'); Store.deleteEvent('ev-unref'); Store.deleteMystery('my-ref');
+});
+
+// ── undelete unknown-kind guard ───────────────────────────────────
+
+test('undelete: returns false for an unknown trash kind (no throw)', () => {
+  assert.equal(Store.undelete('not-a-collection', 'x'), false);
+});

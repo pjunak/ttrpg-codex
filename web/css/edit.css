@@ -84,14 +84,14 @@
 .sidebar-footer {
   margin-top: auto;
   padding: 0.75rem 0.75rem 1rem;
-  border-top: 1px solid rgba(255,255,255,0.06);
+  border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
 }
 .sidebar-export-btn {
   background: none;
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   padding: 0.4rem 0.75rem;
   font-family: var(--font-ui);
@@ -142,18 +142,18 @@ body:not(.is-dm) .sidebar-nav-dm { display: none; }
   color: var(--accent-gold);
 }
 .role-badge-impersonating {
-  background: rgba(180,40,40,0.15);
+  background: rgba(var(--status-dead-rgb), 0.15);
   border: 1px solid var(--color-danger-bd);
   color: var(--color-danger-bright);
 }
 .role-badge-player {
-  background: rgba(60,140,200,0.12);
-  border: 1px solid #4a7fa8;
-  color: #8ab8e0;
+  background: rgba(var(--status-captured-rgb), 0.14);
+  border: 1px solid color-mix(in srgb, var(--color-info) 60%, transparent);
+  color: var(--color-info);
 }
 .role-badge-anonymous {
   background: var(--bg-raised);
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid var(--border-subtle);
   color: var(--text-muted);
 }
 
@@ -166,10 +166,7 @@ body:not(.is-dm) .sidebar-nav-dm { display: none; }
    Přehled is by design (the user asked for "no clutter outside the
    homescreen"). */
 .topbar-login {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 100;
+  order: 1;                 /* below the language chip in the #topbar-chips column */
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
@@ -188,14 +185,8 @@ body:not(.is-dm) .sidebar-nav-dm { display: none; }
 .topbar-login:hover { background: rgba(var(--accent-gold-rgb), 0.22); }
 .topbar-login:active { transform: translateY(1px); }
 .topbar-login-icon { font-size: var(--text-base); }
-/* Sits above the impersonation banner (which only renders for
-   DM-in-player-view, mutually exclusive with anonymous so no overlap
-   in practice — but the z-index ordering keeps things robust). */
-body.is-impersonating .topbar-login { top: calc(1rem + 36px); }
 @media (max-width: 600px) {
   .topbar-login {
-    top: 0.5rem;
-    right: 0.5rem;
     padding: 0.4rem 0.7rem;
     font-size: 0.78rem;
   }
@@ -210,10 +201,7 @@ body.is-impersonating .topbar-login { top: calc(1rem + 36px); }
    below it (offset rules below) so the two never collide regardless of
    width. Mirrors the .topbar-login visual language. */
 .topbar-lang {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 100;
+  order: 0;                 /* top of the #topbar-chips column */
 }
 .topbar-lang-select {
   display: inline-flex;
@@ -232,17 +220,27 @@ body.is-impersonating .topbar-login { top: calc(1rem + 36px); }
 }
 .topbar-lang-select:hover { background: rgba(var(--accent-gold-rgb), 0.22); }
 .topbar-lang-select:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
-/* Stack the anonymous login chip below the language chip (both pinned
-   top-right). Height-based offset is robust to the chips' widths. */
-body.has-lang-chip .topbar-login { top: calc(1rem + 46px); }
-/* The impersonation banner (~36px) pushes both chips down. */
-body.is-impersonating .topbar-lang { top: calc(1rem + 36px); }
-body.is-impersonating.has-lang-chip .topbar-login { top: calc(1rem + 36px + 46px); }
+/* The top-right chips share ONE fixed flex-COLUMN container (#topbar-chips,
+   created in app.js) so normal flow stacks them — no per-chip `position: fixed`
+   and no magic-number `top: calc(...)` offsets. `order` fixes the visual order
+   (language above login) regardless of which chip renders into the box first. */
+#topbar-chips {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+/* The impersonation banner (~36px, full-width at the very top) pushes the
+   whole column down by one banner-height. */
+body.is-impersonating #topbar-chips { top: calc(1rem + 36px); }
 @media (max-width: 600px) {
-  .topbar-lang { top: 0.5rem; right: 0.5rem; }
+  #topbar-chips { top: 0.5rem; right: 0.5rem; }
+  body.is-impersonating #topbar-chips { top: calc(0.5rem + 36px); }
   .topbar-lang-select { padding: 0.35rem 0.55rem; font-size: 0.78rem; }
-  body.has-lang-chip .topbar-login { top: calc(0.5rem + 44px); }
-  body.is-impersonating.has-lang-chip .topbar-login { top: calc(0.5rem + 36px + 44px); }
 }
 
 /* Top-of-page red banner while a DM is impersonating a player.
@@ -252,11 +250,11 @@ body.is-impersonating.has-lang-chip .topbar-login { top: calc(1rem + 36px + 46px
   position: fixed;
   top: 0; left: 0; right: 0;
   z-index: 9999;
-  background: #8B0000;
-  color: #fff;
+  background: var(--status-dead);
+  color: var(--text-cream);
   font-size: 13px;
   padding: 8px 16px;
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
   letter-spacing: 0.02em;
   display: flex;
   align-items: center;
@@ -265,16 +263,16 @@ body.is-impersonating.has-lang-chip .topbar-login { top: calc(1rem + 36px + 46px
 }
 .impersonation-banner button {
   background: rgba(0,0,0,0.3);
-  color: #fff;
+  color: var(--text-cream);
   border: 1px solid rgba(255,255,255,0.4);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 3px 10px;
   cursor: pointer;
   font-size: 12px;
 }
 .impersonation-banner button:hover {
   background: rgba(255,255,255,0.15);
-  border-color: #fff;
+  border-color: var(--text-cream);
 }
 /* Push main content down so it isn't hidden under the banner. */
 body.is-impersonating { padding-top: 36px; }
@@ -334,10 +332,10 @@ body:not(.is-dm) .edit-hdr-twin { display: none; }
    The class name stayed `visibility-section` for back-compat with
    the body.is-dm CSS gate above. */
 .visibility-section {
-  border-left: 3px solid rgba(180,40,40,0.35);
+  border-left: 3px solid rgba(var(--status-dead-rgb), 0.4);
   padding-left: 1rem;
-  background: rgba(180,40,40,0.05);
-  border-radius: 4px;
+  background: rgba(var(--status-dead-rgb), 0.06);
+  border-radius: var(--radius-sm);
   margin: 1rem 0;
 }
 .visibility-section .edit-section-title {
@@ -355,39 +353,39 @@ body:not(.is-dm) .edit-hdr-twin { display: none; }
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  color: #b9f0a8;
+  color: var(--color-success);
   text-decoration: none;
   font-weight: 500;
   padding: 0.3rem 0.7rem;
-  border-radius: 4px;
-  background: rgba(60,160,60,0.14);
-  border: 1px solid rgba(80,180,80,0.45);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--status-alive-rgb), 0.16);
+  border: 1px solid rgba(var(--status-alive-rgb), 0.5);
   font-size: 0.9rem;
 }
 .dm-twin-badge-linked:hover {
-  background: rgba(60,160,60,0.22);
-  border-color: #6c5;
+  background: rgba(var(--status-alive-rgb), 0.26);
+  border-color: var(--color-success);
   text-decoration: none;
 }
 .dm-twin-badge-vis {
-  color: rgba(185,240,168,0.7);
+  color: color-mix(in srgb, var(--color-success) 75%, transparent);
   font-size: 0.78em;
   font-weight: 400;
 }
 /* Generic twin button — base style; the link/unlink variants override
    border + text color. */
 .dm-twin-btn {
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.3rem 0.7rem;
   font-size: var(--text-sm);
   cursor: pointer;
   font-family: var(--font-ui);
-  background: rgba(180,40,40,0.12);
-  border: 1px solid rgba(180,40,40,0.45);
+  background: rgba(var(--status-dead-rgb), 0.14);
+  border: 1px solid rgba(var(--status-dead-rgb), 0.45);
   color: var(--color-danger-bright);
 }
 .dm-twin-btn:hover {
-  background: rgba(180,40,40,0.22);
+  background: rgba(var(--status-dead-rgb), 0.24);
   border-color: var(--color-danger-bd);
 }
 /* "Připojit twin" — unlinked state. Red signals "needs attention". */
@@ -427,7 +425,7 @@ body:not(.is-dm) .edit-hdr-twin { display: none; }
   display: flex;
   gap: 0.6rem;
   padding: 0.85rem 1rem;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+  border-bottom: 1px solid var(--border-subtle);
   justify-content: space-between;
 }
 .twin-picker-btn {
@@ -457,7 +455,7 @@ body:not(.is-dm) .edit-hdr-twin { display: none; }
 }
 .twin-picker-search-row {
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .twin-picker-search {
   width: 100%;
@@ -519,7 +517,7 @@ body:not(.is-dm) .edit-hdr-twin { display: none; }
   color: var(--text-muted);
 }
 .twin-picker-row-score        { font-variant-numeric: tabular-nums; }
-.twin-picker-score-high       { color: #b9f0a8; }
+.twin-picker-score-high       { color: var(--color-success); }
 .twin-picker-score-mid        { color: var(--accent-gold); }
 .twin-picker-score-low        { color: var(--text-muted); }
 
@@ -565,7 +563,7 @@ body.twin-picker-open { overflow: hidden; }
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.85rem 1rem;
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   background: var(--bg-raised);
   color: var(--text-light);
@@ -576,7 +574,7 @@ body.twin-picker-open { overflow: hidden; }
   border-color: var(--accent-gold);
 }
 .dm-count-card.has-dm {
-  border-color: rgba(180,40,40,0.5);
+  border-color: rgba(var(--status-dead-rgb), 0.5);
 }
 .dm-count-card.has-dm:hover {
   border-color: var(--color-danger-bd);
@@ -608,7 +606,7 @@ body.twin-picker-open { overflow: hidden; }
 }
 .dm-stub-list li {
   padding: 0.5rem 0.75rem;
-  border-left: 2px solid rgba(255,255,255,0.07);
+  border-left: 2px solid var(--border-subtle);
   margin-bottom: 0.3rem;
   color: var(--text-muted);
   font-size: 0.9rem;
@@ -633,22 +631,18 @@ body.twin-picker-open { overflow: hidden; }
    shouting "you can edit this") and goes fully opaque on hover —
    either hover over the parent card OR hover over the pencil itself.
    Hidden for anonymous viewers who can't edit anyway. */
+/* Geometry (26px · round · flex-centre · cursor) comes from the shared
+   `.icon-btn-round` base in main.css. */
 .edit-card-overlay {
   position: absolute;
   top: 0.4rem;
   right: 0.4rem;
-  width: 26px; height: 26px;
   background: rgba(14,10,5,0.75);
   border: 1px solid rgba(var(--accent-gold-rgb), 0.4);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   font-size: 0.7rem;
   color: var(--accent-gold);
   text-decoration: none;
   opacity: 0.45;
-  cursor: pointer;
   transition: opacity 0.15s, background 0.15s, transform 0.1s;
   z-index: 5;
   backdrop-filter: blur(2px);
@@ -670,30 +664,13 @@ body.twin-picker-open { overflow: hidden; }
    moved to always-visible "+ Přidat" buttons in each list's
    page-header toolbar. CSS rules deleted as dead code. */
 
-/* ── New item button on list pages ───────────────────────────── */
-.list-item-new {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.45rem 0.9rem;
-  background: rgba(var(--accent-gold-rgb), 0.08);
-  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
-  border-radius: var(--radius);
-  font-family: var(--font-ui);
-  font-size: 0.78rem;
-  color: var(--accent-gold);
-  white-space: nowrap;
-  transition: background 0.15s;
-}
-.list-item-new:hover { background: rgba(var(--accent-gold-rgb), 0.16); }
-
-/* ── Inline contextual creation buttons (faction/location pages) ── */
-.inline-create-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 1rem 0;
-}
+/* ── Secondary "＋ add" button (list-page header + inline create) ──
+   `.list-item-new` (an <a> in the page header) and `.inline-create-btn`
+   (a <button> on faction/location articles) were byte-identical bar the
+   cursor — merged into one comma-grouped rule (single source of truth),
+   with `cursor:pointer` kept on the button variant only. Both class
+   names stay live for the JS that emits them. */
+.list-item-new,
 .inline-create-btn {
   display: inline-flex;
   align-items: center;
@@ -706,10 +683,19 @@ body.twin-picker-open { overflow: hidden; }
   font-size: 0.78rem;
   color: var(--accent-gold);
   white-space: nowrap;
-  cursor: pointer;
   transition: background 0.15s;
 }
+.list-item-new:hover,
 .inline-create-btn:hover { background: rgba(var(--accent-gold-rgb), 0.16); }
+.inline-create-btn { cursor: pointer; }
+
+/* ── Inline contextual creation buttons (faction/location pages) ── */
+.inline-create-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
 
 /* `.list-edit-btn` was the inline-styled pencil on list-page cards
    (loc/mystery/species/pantheon/artifact/historicalEvent). Unified
@@ -942,7 +928,7 @@ body.twin-picker-open { overflow: hidden; }
 /* ── Edit section (facts, relationships) ─────────────────────── */
 .edit-section {
   padding-top: 1rem;
-  border-top: 1px solid rgba(255,255,255,0.06);
+  border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -984,7 +970,7 @@ body.twin-picker-open { overflow: hidden; }
   align-items: center;
   gap: 0.3rem;
   background: var(--bg-surface);
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   padding: 0.25rem 0.55rem;
   font-family: var(--font-ui);
@@ -1008,7 +994,7 @@ body.twin-picker-open { overflow: hidden; }
   gap: 0.4rem;
   align-items: center;
   background: var(--bg-surface);
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   padding: 0.5rem 0.6rem;
   font-family: var(--font-ui);
@@ -1443,7 +1429,7 @@ body.twin-picker-open { overflow: hidden; }
 .pw-btn:hover { background: rgba(var(--accent-gold-rgb), 0.14); }
 .pw-ok {
   background: var(--accent-gold);
-  color: #1a1208;
+  color: var(--color-on-accent);
   border-color: var(--accent-gold);
   font-weight: 600;
 }
@@ -1552,14 +1538,14 @@ body.twin-picker-open { overflow: hidden; }
 .pet-modal-btn:hover { background: rgba(var(--accent-gold-rgb), 0.14); }
 .pet-modal-save {
   background: var(--accent-gold);
-  color: #1a1208;
+  color: var(--color-on-accent);
   border-color: var(--accent-gold);
   font-weight: 600;
 }
 .pet-modal-save:hover { filter: brightness(1.08); }
 .pet-modal-delete {
-  background: rgba(180,60,60,0.12);
-  border-color: rgba(180,60,60,0.4);
-  color: #e8a0a0;
+  background: rgba(var(--status-dead-rgb), 0.14);
+  border-color: rgba(var(--status-dead-rgb), 0.4);
+  color: var(--color-danger);
 }
-.pet-modal-delete:hover { background: rgba(180,60,60,0.2); }
+.pet-modal-delete:hover { background: rgba(var(--status-dead-rgb), 0.22); }

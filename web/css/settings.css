@@ -663,14 +663,14 @@
 }
 .sb-sec-del {
   background: transparent;
-  border: 1px solid rgba(180,60,60,0.3);
+  border: 1px solid rgba(var(--status-dead-rgb), 0.35);
   border-radius: 6px;
-  color: #e8a0a0;
+  color: var(--color-danger);
   cursor: pointer;
   padding: 0.25rem 0.45rem;
   font-size: var(--text-sm);
 }
-.sb-sec-del:hover { background: rgba(180,60,60,0.15); }
+.sb-sec-del:hover { background: rgba(var(--status-dead-rgb), 0.18); }
 
 .sb-pages {
   list-style: none;
@@ -686,7 +686,7 @@
   align-items: center;
   gap: 0.5rem;
   background: var(--bg-surface);
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
   padding: 0.35rem 0.5rem;
 }

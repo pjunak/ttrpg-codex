@@ -325,15 +325,28 @@ export const Wiki = (() => {
     if (!el || !el.classList || !el.classList.contains('list-search-tf')) return;
     const kind = el.dataset.wlKind;
     if (!kind || !_listState[kind]) return;
-    _listState[kind].values = Array.isArray(ev.detail?.values) ? [...ev.detail.values] : [];
-    _persistListState();
-    if (kind === 'postavy') { _refreshPostavyGrid(); _refreshPostavyCount(); }
-    else if (kind === 'mista')   { _refreshMistaGrid();   _refreshMistaCount(); }
-    else if (kind === 'frakce')  { _refreshFrakceGrid();  _refreshFrakceCount(); }
+    _setListState(kind, 'values', Array.isArray(ev.detail?.values) ? [...ev.detail.values] : []);
   });
 
   // Czech-aware name compare. Falls back to default locale if `cs` not supported.
   const _czCompare = (a, b) => String(a||'').localeCompare(String(b||''), 'cs');
+
+  // ── XSS-safe interpolation helpers for faction visuals ──────────
+  // `badge` / `color` / `textColor` are free-text fields the DM types
+  // in the faction editor, so they MUST be escaped/validated before
+  // landing in innerHTML. `_factionGlyph` esc()s the emoji glyph (it
+  // can hold arbitrary text); `_safeColor` only lets through a real
+  // hex literal (so a value like `red"><script>` can't break out of
+  // the style attribute) and falls back to a theme token otherwise.
+  /** Escape a faction's badge glyph (free text → safe innerHTML). */
+  function _factionGlyph(f) { return esc((f && f.badge) || '⬡'); }
+  /** Validate a CSS colour: only `#rgb`..`#rrggbbaa` literals pass;
+   *  anything else (including attribute-breakout attempts) collapses to
+   *  a neutral theme token. The `${c}22`/`55` alpha-hex suffix pattern
+   *  still works because it's appended to the validated literal. */
+  function _safeColor(c) {
+    return /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : 'var(--text-muted)';
+  }
 
   // Null-safe: renders an "unknown faction" chip when the id doesn't
   // resolve to any faction (e.g. a character referencing a deleted
@@ -345,8 +358,9 @@ export const Wiki = (() => {
       const label = factionId ? esc(factionId) : esc(I18n.t('wiki.noFaction'));
       return `<span class="badge badge-faction" style="background:#55555522;color:#999;border:1px solid #55555555">⚐ ${label}</span>`;
     }
-    return `<span class="badge badge-faction" style="background:${f.color}22;color:${f.textColor};border:1px solid ${f.color}55">
-      ${f.badge} ${esc(f.name)}</span>`;
+    const col = _safeColor(f.color);
+    return `<span class="badge badge-faction" style="background:${col}22;color:${_safeColor(f.textColor)};border:1px solid ${col}55">
+      ${_factionGlyph(f)} ${esc(f.name)}</span>`;
   }
 
   function statusBadge(statusId) {
@@ -375,11 +389,16 @@ export const Wiki = (() => {
     const placeholderBadge = c.faction === PARTY_FACTION_ID
       ? (Store.getPlayerParty().badge || Store.getPlayerParty().icon || '🛡')
       : (factions[c.faction]?.badge || "👤");
+    // At knowledge 0 the name is unknown to the viewer — don't ship the
+    // real name even through the portrait's alt attribute (the CSS blur
+    // hides the picture, but alt text would still leak the identity to
+    // the DOM / screen readers). Mirrors the card + article title gating.
+    const altName = (c.knowledge >= 1) ? c.name : I18n.t('wiki.unknownCharacter');
     const imgHtml   = c.portrait
-      ? `<img class="portrait-img" src="${esc(c.portrait)}" alt="${esc(c.name)}" loading="lazy">`
+      ? `<img class="portrait-img" src="${esc(c.portrait)}" alt="${esc(altName)}" loading="lazy">`
       : `<div class="portrait-placeholder">${placeholderBadge}</div>`;
     const styleAttr = glowFilter ? ` style="filter: ${glowFilter}"` : '';
-    return `<div class="portrait-wrap${extraClass ? " "+extraClass : ""}" data-knowledge="${c.knowledge}" data-status="${c.status}"${styleAttr}>
+    return `<div class="portrait-wrap${extraClass ? " "+extraClass : ""}" data-knowledge="${Number(c.knowledge) || 0}" data-status="${esc(c.status)}"${styleAttr}>
       ${imgHtml}${deadHtml}
     </div>`;
   }
@@ -813,7 +832,7 @@ export const Wiki = (() => {
     const top = unsolved.slice(0, 3);
     const items = top.map(m => {
       const prio = m.priority
-        ? `<span class="mystery-priority priority-${esc(m.priority)}">${esc(m.priority.toUpperCase())}</span>`
+        ? `<span class="mystery-priority priority-${esc(m.priority)}">${esc(String(m.priority).toUpperCase())}</span>`
         : '';
       // Surface the first OPEN question (or fall back to the first
       // entry if none are open, so a fully-solved mystery still shows
@@ -1080,7 +1099,7 @@ export const Wiki = (() => {
       const count = allChars.filter(c => c.faction === id).length;
       if (count === 0) return "";
       return `<button class="filter-btn ${filterFaction === id ? "active" : ""}"
-        ${dataAction('Wiki.renderPage', 'postavy', id)}>${f.badge} ${esc(f.name)} (${count})</button>`;
+        ${dataAction('Wiki.renderPage', 'postavy', id)}>${_factionGlyph(f)} ${esc(f.name)} (${count})</button>`;
     }).join("");
 
     // Attitude filter chips — slice by stance toward the party. Counts
@@ -1135,6 +1154,71 @@ export const Wiki = (() => {
     `;
   }
 
+  // ── Shared list-page state plumbing ────────────────────────────
+  // Postavy / Místa / Frakce all share the same TagFilter chips + sort
+  // <select> + live grid/count refresh. The per-kind differences (grid
+  // host id, grid builder, apply fn, default sort, count label) live in
+  // this config so the public setters below are thin wrappers and the
+  // refresh/persist logic exists once.
+  const _LIST_KINDS = {
+    postavy: {
+      hostId:      'wl-postavy-grid',
+      defaultSort: 'faction',
+      grid:  () => _postavyGridHtml(_listState.postavy.faction),
+      total: () => Store.getCharacters().length,
+      shown: () => _postavyApply(_listState.postavy.faction).length,
+      countText: (shown, total) => {
+        const f = _listState.postavy.faction;
+        const fLabel = f ? " · " + (Store.getFactions()[f]?.name || '') : "";
+        return `${I18n.t('wiki.recordsCount', { shown, total })}${fLabel}`;
+      },
+    },
+    mista: {
+      hostId:      'wl-mista-grid',
+      defaultSort: 'type',
+      grid:  () => _mistaGridHtml(),
+      total: () => Store.getLocations().length,
+      shown: () => _mistaApply().length,
+      countText: (shown, total) => I18n.t('wiki.locationsCount', { shown, total }),
+    },
+    frakce: {
+      hostId:      'wl-frakce-grid',
+      defaultSort: 'default',
+      grid:  () => _frakceGridHtml(),
+      total: () => Object.keys(Store.getFactions()).length,
+      shown: () => _frakceApply().length,
+      countText: (shown, total) => I18n.t('wiki.factionsCount', { shown, total }),
+    },
+  };
+  /** Mutate one field of a list kind's state, persist, and live-refresh
+   *  the grid (+ count for `values`). Keeps the public setters tiny. */
+  function _setListState(kind, field, value) {
+    const cfg = _LIST_KINDS[kind];
+    if (!cfg || !_listState[kind]) return;
+    if (field === 'values') {
+      _listState[kind].values = Array.isArray(value) ? value : (value ? [String(value)] : []);
+    } else if (field === 'sort') {
+      _listState[kind].sort = value || cfg.defaultSort;
+    } else {
+      _listState[kind][field] = value;
+    }
+    _persistListState();
+    _refreshListGrid(kind);
+    if (field === 'values') _refreshListCount(kind);
+  }
+  function _refreshListGrid(kind) {
+    const cfg = _LIST_KINDS[kind];
+    const host = cfg && document.getElementById(cfg.hostId);
+    if (host) host.innerHTML = cfg.grid();
+  }
+  function _refreshListCount(kind) {
+    const cfg = _LIST_KINDS[kind];
+    if (!cfg) return;
+    const sub = document.querySelector('.page-header .subtitle');
+    if (!sub) return;
+    sub.textContent = cfg.countText(cfg.shown(), cfg.total());
+  }
+
   /**
    * Replace the Postavy list filter chips. Accepts an array of strings
    * (the canonical TagFilter shape) or a single string (treated as a
@@ -1142,36 +1226,13 @@ export const Wiki = (() => {
    *
    * @param {string|string[]} v
    */
-  function setPostavySearch(v) {
-    const arr = Array.isArray(v) ? v : (v ? [String(v)] : []);
-    _listState.postavy.values = arr;
-    _persistListState();
-    _refreshPostavyGrid();
-    _refreshPostavyCount();
-  }
-  function setPostavySort(v) {
-    _listState.postavy.sort = v || 'faction';
-    _persistListState();
-    _refreshPostavyGrid();
-  }
+  function setPostavySearch(v) { _setListState('postavy', 'values', v); }
+  function setPostavySort(v)   { _setListState('postavy', 'sort', v); }
   function setPostavyAttitude(v) {
     _listState.postavy.attitude = v || null;
     _persistListState();
     // Re-render the whole page so attitude chip highlights + subtitle update.
     Wiki.renderPage('postavy', _listState.postavy.faction || 'all');
-  }
-  function _refreshPostavyGrid() {
-    const host = document.getElementById('wl-postavy-grid');
-    if (host) host.innerHTML = _postavyGridHtml(_listState.postavy.faction);
-  }
-  function _refreshPostavyCount() {
-    const total = Store.getCharacters().length;
-    const shown = _postavyApply(_listState.postavy.faction).length;
-    const sub = document.querySelector('.page-header .subtitle');
-    if (!sub) return;
-    const f = _listState.postavy.faction;
-    const fLabel = f ? " · " + (Store.getFactions()[f]?.name || '') : "";
-    sub.textContent = `${I18n.t('wiki.recordsCount', { shown, total })}${fLabel}`;
   }
 
   function renderCharacterCard(c) {
@@ -1527,33 +1588,12 @@ export const Wiki = (() => {
     `;
   }
 
-  function setMistaSearch(v) {
-    const arr = Array.isArray(v) ? v : (v ? [String(v)] : []);
-    _listState.mista.values = arr;
-    _persistListState();
-    _refreshMistaGrid();
-    _refreshMistaCount();
-  }
-  function setMistaSort(v) {
-    _listState.mista.sort = v || 'type';
-    _persistListState();
-    _refreshMistaGrid();
-  }
+  function setMistaSearch(v) { _setListState('mista', 'values', v); }
+  function setMistaSort(v)   { _setListState('mista', 'sort', v); }
   function setMistaAttitude(v) {
     _listState.mista.attitude = v || null;
     _persistListState();
     Wiki.renderPage('mista');
-  }
-  function _refreshMistaGrid() {
-    const host = document.getElementById('wl-mista-grid');
-    if (host) host.innerHTML = _mistaGridHtml();
-  }
-  function _refreshMistaCount() {
-    const sub = document.querySelector('.page-header .subtitle');
-    if (!sub) return;
-    const total = Store.getLocations().length;
-    const shown = _mistaApply().length;
-    sub.textContent = I18n.t('wiki.locationsCount', { shown, total });
   }
 
   function renderLocationArticle(id) {
@@ -1708,7 +1748,7 @@ export const Wiki = (() => {
 
     const sittingLabel = e.sitting ? I18n.t('wiki.sessionBadge', { n: e.sitting }) : I18n.t('wiki.distantPast');
     const chips = [];
-    if (e.priority) chips.push(`<span class="mystery-priority priority-${e.priority}">${e.priority.toUpperCase()}</span>`);
+    if (e.priority) chips.push(`<span class="mystery-priority priority-${esc(e.priority)}">${esc(String(e.priority).toUpperCase())}</span>`);
     if ((e.tags || []).length) {
       e.tags.forEach(t => chips.push(`<span class="profile-chip">${esc(t)}</span>`));
     }
@@ -1876,7 +1916,7 @@ export const Wiki = (() => {
               <a href="#/zahada/${m.id}" style="text-decoration:none;color:inherit">❓ ${esc(m.name)} ${_twinCardMarker(m)}${solvedBadge}</a>
               ${editBtn}
             </div>
-            <div class="mystery-priority priority-${m.priority}">${esc(I18n.t('wiki.priorityLabel'))}: ${m.priority.toUpperCase()} ${qBadge}</div>
+            <div class="mystery-priority priority-${esc(m.priority)}">${esc(I18n.t('wiki.priorityLabel'))}: ${esc(String(m.priority).toUpperCase())} ${qBadge}</div>
             <div class="mystery-desc md-view" style="margin-top:0.5rem">${renderMarkdown(m.description)}</div>
             ${(m.characters||[]).length ? `
               <div style="margin-top:0.75rem">
@@ -1934,9 +1974,9 @@ export const Wiki = (() => {
       editButton: _articleEditButton('mysteries', id),
       visual: `<div class="ah-icon">❓</div>`,
       title: esc(m.name),
-      subtitle: `${I18n.t('wiki.priorityLabelCap')}: ${m.priority}`,
+      subtitle: `${esc(I18n.t('wiki.priorityLabelCap'))}: ${esc(m.priority)}`,
       chips: [
-        `<span class="mystery-priority priority-${m.priority}">${m.priority.toUpperCase()}</span>`,
+        `<span class="mystery-priority priority-${esc(m.priority)}">${esc(String(m.priority).toUpperCase())}</span>`,
         solvedAll
           ? `<span class="profile-chip">✓ ${esc(I18n.t('wiki.solved'))}</span>`
           : `<span class="profile-chip">⧗ ${esc(I18n.t('wiki.open'))}</span>`,
@@ -2014,13 +2054,14 @@ export const Wiki = (() => {
     return entries.map(({ id, f, memberCount }) => {
       const rankCount = (f.rankChains || []).reduce((s, ch) => s + ch.ranks.length, 0);
       const ovl = editOverlay(`#/frakce/${id}`);
+      const col = _safeColor(f.color);
       return `
-        <a class="faction-card" href="#/frakce/${id}" style="text-decoration:none;position:relative;border-color:${f.color}55">
+        <a class="faction-card" href="#/frakce/${id}" style="text-decoration:none;position:relative;border-color:${col}55">
           ${ovl}
           ${_twinCardMarker(f)}
-          <div class="faction-card-header" style="background:${f.color}22;border-bottom:1px solid ${f.color}33">
-            <span class="faction-card-badge">${f.badge}</span>
-            <span class="faction-card-name" style="color:${f.textColor}">${esc(f.name)}</span>
+          <div class="faction-card-header" style="background:${col}22;border-bottom:1px solid ${col}33">
+            <span class="faction-card-badge">${_factionGlyph(f)}</span>
+            <span class="faction-card-name" style="color:${_safeColor(f.textColor)}">${esc(f.name)}</span>
           </div>
           <div class="faction-card-meta">
             <span>👤 ${esc(I18n.t('wiki.membersCount', { n: memberCount }))}</span>
@@ -2060,29 +2101,8 @@ export const Wiki = (() => {
     `;
   }
 
-  function setFrakceSearch(v) {
-    const arr = Array.isArray(v) ? v : (v ? [String(v)] : []);
-    _listState.frakce.values = arr;
-    _persistListState();
-    _refreshFrakceGrid();
-    _refreshFrakceCount();
-  }
-  function setFrakceSort(v) {
-    _listState.frakce.sort = v || 'default';
-    _persistListState();
-    _refreshFrakceGrid();
-  }
-  function _refreshFrakceGrid() {
-    const host = document.getElementById('wl-frakce-grid');
-    if (host) host.innerHTML = _frakceGridHtml();
-  }
-  function _refreshFrakceCount() {
-    const sub = document.querySelector('.page-header .subtitle');
-    if (!sub) return;
-    const total = Object.keys(Store.getFactions()).length;
-    const shown = _frakceApply().length;
-    sub.textContent = I18n.t('wiki.factionsCount', { shown, total });
-  }
+  function setFrakceSearch(v) { _setListState('frakce', 'values', v); }
+  function setFrakceSort(v)   { _setListState('frakce', 'sort', v); }
 
   // ══════════════════════════════════════════════════════════════
   //  FACTION ARTICLE
@@ -2151,13 +2171,15 @@ export const Wiki = (() => {
         style="background:${esc(color)}22;color:${esc(color)};border:1px solid ${esc(color)}66">●&nbsp;${esc(def.label)}${esc(pct)}</span>`);
     }
     const facGlow = _attitudeGlow(facEntries, facColors);
-    const visualStyle = `background:${f.color}33;color:${f.textColor}${facGlow ? ';filter:'+facGlow : ''}`;
+    const facCol  = _safeColor(f.color);
+    const facText = _safeColor(f.textColor);
+    const visualStyle = `background:${facCol}33;color:${facText}${facGlow ? ';filter:'+facGlow : ''}`;
 
     _setCurrentArticle({ type: 'factions', id });
     return _articleShell({
       editButton: _articleEditButton('factions', id),
-      visual: `<div class="ah-icon" style="${visualStyle}">${f.badge}</div>`,
-      title: `<span style="color:${f.textColor}">${f.badge} ${esc(f.name)}</span>`,
+      visual: `<div class="ah-icon" style="${visualStyle}">${_factionGlyph(f)}</div>`,
+      title: `<span style="color:${facText}">${_factionGlyph(f)} ${esc(f.name)}</span>`,
       subtitle: '',
       chips,
       facts: [
@@ -2564,5 +2586,8 @@ export const Wiki = (() => {
     startInlineEdit, commitInlineEdit, handleInlineEditKey,
     // Polarity-aware wiki-link tie-breaker uses this (in app.js):
     getCurrentArticle: _getCurrentArticle,
+    // XSS-safe faction-glyph helper (exported so other modules can
+    // route the free-text badge through the same escape).
+    _factionGlyph,
   };
 })();

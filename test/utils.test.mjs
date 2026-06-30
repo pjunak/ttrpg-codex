@@ -11,7 +11,11 @@ import {
   setWikiLinkResolver,
   clearMarkdownCache,
   jaroWinkler,
+  pageEditToggle,
+  trapFocus,
 } from '../web/js/utils.js';
+
+import { I18n } from '../web/js/i18n.js';
 
 describe('esc', () => {
   it('escapes the four HTML-significant characters', () => {
@@ -168,5 +172,42 @@ describe('jaroWinkler', () => {
       const s = jaroWinkler(a, b);
       assert.ok(s >= 0 && s <= 1, `score out of bounds for ${JSON.stringify([a, b])}: ${s}`);
     }
+  });
+});
+
+describe('pageEditToggle', () => {
+  // Register tiny catalogs so t() resolves the new edit-toggle keys
+  // (with {label} interpolation) instead of returning the bare key.
+  I18n.register('en', {
+    'action.editStart': '✏ Edit {label}',
+    'action.editDone': '✓ Done',
+    'action.editStartTitle': 'Turn on editing — {label}',
+    'action.editStopTitle': 'Turn off editing',
+  });
+
+  it('renders the start button with interpolated label + module action', () => {
+    const html = pageEditToggle({ moduleName: 'WorldMap', isEditing: false, label: 'the map' });
+    assert.match(html, /data-action="WorldMap\.toggleEditing"/);
+    assert.match(html, /✏ Edit the map/);
+    assert.match(html, /title="Turn on editing — the map"/);
+    assert.doesNotMatch(html, /is-active/);
+  });
+
+  it('renders the done button when editing', () => {
+    const html = pageEditToggle({ moduleName: 'Timeline', isEditing: true, label: 'the timeline' });
+    assert.match(html, /class="page-edit-toggle is-active"/);
+    assert.match(html, /✓ Done/);
+    assert.match(html, /title="Turn off editing"/);
+  });
+});
+
+describe('trapFocus', () => {
+  it('returns a callable no-op when there is no DOM (Node import safety)', () => {
+    // Node test env has no `document`; trapFocus must degrade gracefully
+    // so importing modules that call it at runtime never crash tests.
+    const release = trapFocus(null);
+    assert.equal(typeof release, 'function');
+    release();           // must not throw
+    release();           // idempotent
   });
 });

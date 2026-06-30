@@ -390,14 +390,21 @@ document.addEventListener('dragend',   (ev) => {
       // Local sub-maps share the world-map sidebar entry.
       if (r === "/mapa/svet" && route.startsWith("/mapa/local/")) active = true;
       el.classList.toggle("active", active);
+      // Expose the active page to assistive tech.
+      if (active) el.setAttribute("aria-current", "page");
+      else        el.removeAttribute("aria-current");
     });
 
-    // Sync bottom nav active state
+    // Sync bottom nav active state. `route` always begins with "/", so
+    // the prefix test compares against `r + "/"` (was `r.replace(/^\//,
+    // "") + "/"`, which dropped the leading slash and never matched).
     document.querySelectorAll(".bottom-item[data-route]").forEach(el => {
       const r = el.dataset.route;
-      el.classList.toggle("active",
-        route === r || ("/" + route.split("/")[1]) === r || route.startsWith(r.replace(/^\//, "") + "/")
-      );
+      const active =
+        route === r || ("/" + route.split("/")[1]) === r || route.startsWith(r + "/");
+      el.classList.toggle("active", active);
+      if (active) el.setAttribute("aria-current", "page");
+      else        el.removeAttribute("aria-current");
     });
 
     const parts   = route.split("/").filter(Boolean);
@@ -709,6 +716,19 @@ document.addEventListener('dragend',   (ev) => {
   // button — no role indicator, since the impersonation banner
   // handles that case and the rest is implicit (you're either logged
   // in and seeing edit affordances, or you aren't).
+  // Single fixed flex-column container for the top-right chips (language +
+  // anonymous login). Normal flow stacks them, so neither chip needs its own
+  // `position: fixed` + magic-number `top: calc(...)` offset anymore.
+  function _topbarChips() {
+    let box = document.getElementById('topbar-chips');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'topbar-chips';
+      document.body.appendChild(box);
+    }
+    return box;
+  }
+
   function _renderTopbarLogin() {
     const route  = getRoute();
     const onDash = (route === '/' || route === '/dashboard');
@@ -719,16 +739,19 @@ document.addEventListener('dragend',   (ev) => {
       if (chip) chip.remove();
       return;
     }
-    if (chip) return;  // already showing the right thing
-
-    chip = document.createElement('button');
-    chip.id   = 'topbar-login';
-    chip.type = 'button';
-    chip.className = 'topbar-login';
+    if (!chip) {
+      chip = document.createElement('button');
+      chip.id   = 'topbar-login';
+      chip.type = 'button';
+      chip.className = 'topbar-login';
+      chip.setAttribute('data-action', 'EditMode.promptLogin');
+      _topbarChips().appendChild(chip);
+    }
+    // Rewrite label + title every call (not just on create) so a live
+    // language switch relabels the chip — the early `if (chip) return`
+    // used to leave the old-language text in place.
     chip.title = I18n.t('app.loginChipTitle');
-    chip.setAttribute('data-action', 'EditMode.promptLogin');
     chip.innerHTML = `<span class="topbar-login-icon">🔑</span> <span class="topbar-login-label">${esc(I18n.t('action.login'))}</span>`;
-    document.body.appendChild(chip);
   }
 
   // ── Top-right language switcher chip ────────────────────────
@@ -753,7 +776,7 @@ document.addEventListener('dragend',   (ev) => {
       chip = document.createElement('div');
       chip.id = 'topbar-lang';
       chip.className = 'topbar-lang';
-      document.body.appendChild(chip);
+      _topbarChips().appendChild(chip);
     }
     chip.innerHTML =
       `<select class="topbar-lang-select" aria-label="Language / Jazyk"` +

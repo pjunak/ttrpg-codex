@@ -181,8 +181,8 @@
 .tl-card {
   background: linear-gradient(160deg, rgba(28,20,8,0.97) 0%, rgba(14,10,3,0.99) 100%);
   border-top: 2px solid var(--tc, #8B6914);
-  border-left:   1px solid rgba(255,255,255,0.05);
-  border-right:  1px solid rgba(255,255,255,0.04);
+  border-left:   1px solid var(--border-subtle);
+  border-right:  1px solid var(--border-faint);
   border-bottom: 1px solid rgba(0,0,0,0.5);
   border-radius: 5px;
   padding: 8px 10px 10px;
