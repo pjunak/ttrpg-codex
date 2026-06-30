@@ -593,6 +593,16 @@
   "settings.changeOrClearPassword": "Změnit nebo vymazat heslo",
   "settings.checkFailed": "Kontrola selhala",
   "settings.checkUpdates": "Zkontrolovat aktualizace",
+  "settings.updateAll": "Aktualizovat vše",
+  "settings.updateAllQ": "Aktualizovat všechny doplňky na nejnovější verzi?",
+  "settings.updatingAll": "Aktualizuji doplňky…",
+  "settings.restartServer": "Restartovat server",
+  "settings.restartQ": "Restartovat server? Stránka se po naběhnutí automaticky znovu připojí.",
+  "settings.restarting": "Restartuji server… stránka se automaticky znovu připojí.",
+  "settings.restartFailed": "Restart selhal",
+  "settings.restartTimeout": "Server se déle nevrací. Pokud nenaběhne, obnovte stránku ručně.",
+  "settings.restartHint": "Restartujte server pro načtení serverových změn.",
+  "settings.reloadNow": "Obnovit nyní",
   "settings.checkUpdatesFirst": "Nejdřív zkontroluj aktualizace",
   "settings.checkingUpdates": "Kontroluji aktualizace…",
   "settings.chipActive": "aktivní",
@@ -826,6 +836,18 @@
     "few": "{n} aktualizace k dispozici",
     "many": "{n} aktualizací k dispozici",
     "other": "{n} aktualizací k dispozici"
+  },
+  "settings.updatedN": {
+    "one": "Aktualizován {n} doplněk",
+    "few": "Aktualizovány {n} doplňky",
+    "many": "Aktualizováno {n} doplňků",
+    "other": "Aktualizováno {n} doplňků"
+  },
+  "settings.updateErrorsN": {
+    "one": "{n} selhal",
+    "few": "{n} selhaly",
+    "many": "{n} selhalo",
+    "other": "{n} selhalo"
   },
   "settings.uploadFailed": "Nahrávání selhalo",
   "settings.uploadFiles": "Nahrát soubory…",

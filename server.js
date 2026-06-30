@@ -47,6 +47,15 @@ const PORT = process.env.PORT || 3000;
 const INSTANCE = process.env.CODEX_INSTANCE || 'default';
 const FEATURES = (process.env.CODEX_FEATURES || '').split(/[\s,]+/).filter(Boolean);
 
+// Whether the server may restart ITSELF by exiting and letting a process
+// supervisor bring it back up. True under Docker (the compose sets
+// `restart: unless-stopped`) or when an operator opts in via CODEX_RESTARTABLE=1
+// (systemd/pm2 with auto-restart). This gates the DM "restart server" button +
+// POST /api/restart — exiting WITHOUT a supervisor would just take the wiki down,
+// so both hide/refuse when this is false. It's the only way to reload in-process
+// addon SERVER code after an install/update/rollback without a manual restart.
+const RESTARTABLE = process.env.CODEX_RESTARTABLE === '1' || fs.existsSync('/.dockerenv');
+
 // Global safety net for the single-process server. Every mutating endpoint
 // already try/catches inside its `withWriteLock` callback, but those promises
 // are fire-and-forget — so a future uncaught throw on a write path would
@@ -1609,7 +1618,28 @@ app.patch('/api/data', (req, res) => {
  * historically for clients to poll for changes before SSE existed.
  */
 app.get('/api/version', async (_req, res) => {
-  res.json({ hash: await _dataHash(), instance: INSTANCE, features: FEATURES });
+  res.json({ hash: await _dataHash(), instance: INSTANCE, features: FEATURES, canRestart: RESTARTABLE });
+});
+
+// DM-only (realRole): restart the server process. With a supervisor (Docker
+// `restart: unless-stopped`, systemd, pm2…) a clean exit causes an automatic
+// restart that reloads in-process addon SERVER code — the only way to pick up a
+// server-addon install/update/rollback without a manual `docker restart`. Refused
+// when not RESTARTABLE (exiting bare would just kill the wiki). We respond FIRST,
+// then drain the write lock (so no save is mid-flight) and exit; the client polls
+// /api/version until the server is back and reloads. No Docker-socket access is
+// needed — we just exit and let the existing restart policy recover.
+app.post('/api/restart', requireRealDM('Jen DM může restartovat server.'), (req, res) => {
+  if (!RESTARTABLE) {
+    return res.status(400).json({ error: 'Restart není dostupný — server neběží pod správcem procesů (Docker restart: unless-stopped).' });
+  }
+  console.log('[restart] DM-requested restart — draining writes, then exiting for the supervisor to bring the process back up.');
+  res.json({ ok: true });
+  // Flush the response, then take the write lock so any in-flight save completes
+  // before we terminate. Both resolve + reject exit (a stuck lock shouldn't block).
+  setTimeout(() => {
+    withWriteLock(async () => {}).then(() => process.exit(0), () => process.exit(0));
+  }, 200);
 });
 
 // ── Addon framework ──────────────────────────────────────────────
@@ -2125,6 +2155,44 @@ app.post('/api/addons/check-updates', requireRealDM('Jen DM může kontrolovat a
   } catch (e) {
     console.error('POST /api/addons/check-updates:', e);
     res.status(500).json({ error: 'Check failed' });
+  }
+});
+
+// DM-only (realRole): update EVERY addon from a real GitHub repo to its latest
+// commit in one shot — the per-addon update flow, looped. For each non-local addon
+// we re-resolve its stored ref → latest SHA and, if it changed, stage+promote via
+// the SAME pipeline a single install uses (green-gate, content-hash, kept versions
+// for rollback). Local (dev-installed) addons have no remote and are skipped.
+// `serverChanged` flags whether any updated addon ships server code, so the client
+// can prompt a restart. Per-addon failures are isolated into `errors`.
+app.post('/api/addons/update-all', requireRealDM('Jen DM může aktualizovat doplňky.'), async (req, res) => {
+  try {
+    const reg   = await _readAddonsRegistry();
+    const token = process.env.GITHUB_TOKEN || '';
+    const updated = [], skipped = [], errors = [];
+    let serverChanged = false;
+    for (const a of reg.addons) {
+      if (!a || !a.id) continue;
+      if (!a.repo || a.repo === 'local' || !AddonBroker.REPO_RE.test(a.repo)) {
+        skipped.push({ id: a && a.id, reason: 'local' });   // dev-installed / no real source
+        continue;
+      }
+      try {
+        const latest = await AddonBroker.resolveRefToSha(a.repo, a.ref || 'HEAD', { fetch, token });
+        if (a.sha && latest === a.sha) { skipped.push({ id: a.id, reason: 'up-to-date' }); continue; }
+        const staged = await _stageAddon(a.repo, a.ref || 'HEAD', latest);
+        const entry  = await withWriteLock(() => _promoteAddon(staged));
+        if (entry && entry.server) serverChanged = true;
+        updated.push({ id: a.id, from: a.sha || null, to: latest });
+      } catch (e) {
+        errors.push({ id: a.id, error: e.message });
+      }
+    }
+    if (updated.length) _broadcast('addons-changed', { at: Date.now() });
+    res.json({ ok: true, updated, skipped, errors, serverChanged });
+  } catch (e) {
+    console.error('POST /api/addons/update-all:', e);
+    res.status(500).json({ error: 'Update-all failed' });
   }
 });
 

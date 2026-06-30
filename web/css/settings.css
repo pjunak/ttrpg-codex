@@ -931,3 +931,43 @@
   border-radius: var(--radius-sm);
   padding: var(--space-2);
 }
+
+/* ── "Restart server" overlay (Settings → Doplňky → ♻) ──────────────
+   Full-screen blocker shown while the server restarts; the client polls
+   /api/version (waits for down → up) then reloads. */
+#server-restart-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.72);
+}
+.sro-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 24rem;
+  padding: var(--space-5);
+  text-align: center;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.sro-msg {
+  color: var(--text-parchment);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+}
+.sro-spinner {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 3px solid rgba(var(--accent-gold-rgb), 0.25);
+  border-top-color: var(--accent-gold);
+  animation: sro-spin 0.8s linear infinite;
+}
+@keyframes sro-spin { to { transform: rotate(360deg); } }

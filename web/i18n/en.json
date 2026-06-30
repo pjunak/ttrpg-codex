@@ -575,6 +575,16 @@
   "settings.changeOrClearPassword": "Change or clear password",
   "settings.checkFailed": "Check failed",
   "settings.checkUpdates": "Check for updates",
+  "settings.updateAll": "Update all",
+  "settings.updateAllQ": "Update all addons to their latest version?",
+  "settings.updatingAll": "Updating addons…",
+  "settings.restartServer": "Restart server",
+  "settings.restartQ": "Restart the server now? The page reconnects automatically once it's back.",
+  "settings.restarting": "Restarting the server… the page will reconnect automatically.",
+  "settings.restartFailed": "Restart failed",
+  "settings.restartTimeout": "The server is taking a while to come back. Reload the page manually if it doesn't return.",
+  "settings.restartHint": "Restart the server to load the server-side changes.",
+  "settings.reloadNow": "Reload now",
   "settings.checkUpdatesFirst": "Check for updates first",
   "settings.checkingUpdates": "Checking for updates…",
   "settings.chipActive": "active",
@@ -800,6 +810,14 @@
   "settings.updatesAvailable": {
     "one": "{n} update available",
     "other": "{n} updates available"
+  },
+  "settings.updatedN": {
+    "one": "Updated {n} addon",
+    "other": "Updated {n} addons"
+  },
+  "settings.updateErrorsN": {
+    "one": "{n} failed",
+    "other": "{n} failed"
   },
   "settings.uploadFailed": "Upload failed",
   "settings.uploadFiles": "Upload files…",

@@ -1865,6 +1865,8 @@ export const Settings = (() => {
   let _wizardPreview  = null;   // { repo, ref, sha } captured at the wizard's preview step
   let _wizardMode     = 'install'; // 'install' | 'update' — wizard messaging
   let _addonUpdates   = {};     // id -> { hasUpdate, repo, ... } from the last check-updates
+  let _canRestart     = null;   // /api/version `canRestart` (null = not yet fetched)
+  let _serverInfoPending = false;
 
   function _loadAddons() {
     return fetch('/api/addons', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
@@ -1887,6 +1889,18 @@ export const Settings = (() => {
     return _loadAddons().then(() => { if (_activeCat === 'addons') render(); });
   }
 
+  /** Fetch /api/version `canRestart` once (gates the "restart server" button).
+   *  Re-renders the addons tab when it resolves so the button appears without a
+   *  manual reload. No-op once known or while a fetch is in flight. */
+  function _ensureServerInfo() {
+    if (_canRestart !== null || _serverInfoPending) return;
+    _serverInfoPending = true;
+    Store.getCanRestart().then(v => {
+      _canRestart = !!v; _serverInfoPending = false;
+      if (_activeCat === 'addons') render();
+    });
+  }
+
   // Close the addon-row overflow / permissions <details> menus on an outside
   // click, on a menu item firing, or on Esc — and keep only one open at a time.
   // Native <details> does none of this, so without it a menu sticks open over a
@@ -1906,6 +1920,7 @@ export const Settings = (() => {
   });
 
   function _addonsHtml() {
+    _ensureServerInfo();   // fetch canRestart once → reveals the restart button
     // Overlay each installed addon with its live client load-state so a
     // broken addon reads as an error rather than looking fine.
     const loadStates = {};
@@ -1923,7 +1938,11 @@ export const Settings = (() => {
         <h2>🧩 ${esc(I18n.t('settings.tabAddons'))}</h2>
         <div class="settings-editor-actions">
           ${(_addonsList && _addonsList.length) ? `<button type="button" class="inline-create-btn"
-            ${dataAction('Settings.checkAddonUpdates')}>🔄 ${esc(I18n.t('settings.checkUpdates'))}</button>` : ''}
+            ${dataAction('Settings.checkAddonUpdates')}>🔄 ${esc(I18n.t('settings.checkUpdates'))}</button>
+          <button type="button" class="inline-create-btn"
+            ${dataAction('Settings.updateAllAddons')}>⬆ ${esc(I18n.t('settings.updateAll'))}</button>` : ''}
+          ${_canRestart ? `<button type="button" class="inline-create-btn"
+            ${dataAction('Settings.restartServer')}>♻ ${esc(I18n.t('settings.restartServer'))}</button>` : ''}
           <button type="button" class="edit-save-btn"
             ${dataAction('Settings.openAddonWizard')}>＋ ${esc(I18n.t('settings.installFromGitHub'))}</button>
         </div>
@@ -2135,6 +2154,65 @@ export const Settings = (() => {
     });
   }
 
+  // ── Update all + server restart ──────────────────────────────
+  function updateAllAddons() {
+    if (!_requireDM()) return;
+    if (!confirm(I18n.t('settings.updateAllQ'))) return;
+    _flash(I18n.t('settings.updatingAll'));
+    Store.updateAllAddons().then(r => {
+      if (!r.ok) { _flash(r.error || I18n.t('settings.operationFailed'), false); return; }
+      const n = (r.updated || []).length;
+      const nErr = (r.errors || []).length;
+      if (!n && !nErr) { _flash(I18n.t('settings.allUpToDate')); }
+      else {
+        let msg = n ? I18n.plural('settings.updatedN', n) : I18n.t('settings.operationFailed');
+        if (nErr) msg += ' · ' + I18n.plural('settings.updateErrorsN', nErr);
+        if (r.serverChanged && _canRestart) msg += ' — ' + I18n.t('settings.restartHint');
+        _flash(msg, nErr === 0);
+      }
+      _addonUpdates = {};
+      _reloadAddonsIfActive();
+    });
+  }
+
+  function restartServer() {
+    if (!_requireDM()) return;
+    if (!confirm(I18n.t('settings.restartQ'))) return;
+    Store.restartServer().then(r => {
+      if (!r.ok) { _flash(r.error || I18n.t('settings.restartFailed'), false); return; }
+      _showRestartOverlay();
+    });
+  }
+
+  // Full-screen "restarting…" overlay. Two-phase poll on /api/version: wait for the
+  // server to go DOWN (the old process is still answering for ~200 ms after we ask
+  // it to exit), then for it to come back UP, then reload. Robust to that window.
+  function _showRestartOverlay() {
+    let ov = document.getElementById('server-restart-overlay');
+    if (!ov) { ov = document.createElement('div'); ov.id = 'server-restart-overlay'; document.body.appendChild(ov); }
+    ov.innerHTML =
+      `<div class="sro-card"><div class="sro-spinner" aria-hidden="true"></div>` +
+      `<div class="sro-msg">${esc(I18n.t('settings.restarting'))}</div></div>`;
+    let phase = 'down', tries = 0;
+    const tick = () => {
+      tries++;
+      fetch('/api/version', { cache: 'no-store' }).then(r => {
+        if (!r.ok) throw new Error('down');
+        if (phase === 'up') { window.location.reload(); return; }
+        if (tries < 90) setTimeout(tick, 800); else _restartOverlayTimeout(ov);
+      }).catch(() => {
+        phase = 'up';   // unreachable → it's restarting; now wait for it back
+        if (tries < 90) setTimeout(tick, 800); else _restartOverlayTimeout(ov);
+      });
+    };
+    setTimeout(tick, 800);
+  }
+  function _restartOverlayTimeout(ov) {
+    if (!ov) return;
+    ov.innerHTML = `<div class="sro-card"><div class="sro-msg">${esc(I18n.t('settings.restartTimeout'))}</div>` +
+      `<button type="button" class="edit-save-btn" ${dataAction('reload')}>${esc(I18n.t('settings.reloadNow'))}</button></div>`;
+  }
+
   // ── Install wizard (paste URL → install → live-load) ─────────
   // A focused modal appended to <body> (outside #main-content, so a
   // settings re-render behind it doesn't tear it down). The backup /
@@ -2319,7 +2397,7 @@ export const Settings = (() => {
     uploadLogo, deleteLogo, saveBranding, applyBranding,
     changeTheme, applyTheme,
     enableAddon, disableAddon, removeAddon, resolveAddonConflict,
-    checkAddonUpdates, updateAddon, rollbackAddon,
+    checkAddonUpdates, updateAddon, updateAllAddons, rollbackAddon, restartServer,
     openAddonWizard, closeAddonWizard, addonWizardKey,
     previewAddon, confirmInstallAddon,
   };

@@ -87,9 +87,16 @@ if (!entry) {
   };
   reg.addons.push(entry);
 } else {
+  // Dev re-install: refresh grantedPermissions from the manifest too, so an addon
+  // that GAINS a permission between installs (e.g. a new wiki:kind / server:code)
+  // actually receives it. The previous code only refreshed code+structural fields,
+  // so re-installs silently kept stale grants → registration failures. The prod
+  // install wizard re-prompts the DM for new perms; this dev shortcut just trusts
+  // the local manifest.
   Object.assign(entry, {
     name: manifest.name, version: manifest.version, apiVersion: manifest.apiVersion,
     entry: manifest.entry, server: manifest.server || null, activeHash: hash, enabled: true,
+    grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : (entry.grantedPermissions || []),
     serverDeps: Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [],
     dependencies: (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {},
     optionalDependencies: (manifest.optionalDependencies && typeof manifest.optionalDependencies === 'object' && !Array.isArray(manifest.optionalDependencies)) ? manifest.optionalDependencies : {},

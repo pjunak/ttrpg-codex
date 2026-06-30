@@ -2759,6 +2759,59 @@ export const Store = (() => {
     }
   }
 
+  /** DM-only: update every GitHub-installed addon to its latest commit in one
+   *  call (local/dev-installed addons are skipped server-side). Returns
+   *  `{ ok, updated:[], skipped:[], errors:[], serverChanged }`. */
+  async function updateAllAddons() {
+    try {
+      const res = await fetch('/api/addons/update-all', { method: 'POST', credentials: 'same-origin' });
+      if (res.status === 401 || res.status === 403) {
+        window.dispatchEvent(new CustomEvent('store:auth-failed'));
+        return { ok: false, error: I18n.t('store.dmRequired') };
+      }
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
+      return {
+        ok: true,
+        updated: Array.isArray(body.updated) ? body.updated : [],
+        skipped: Array.isArray(body.skipped) ? body.skipped : [],
+        errors:  Array.isArray(body.errors)  ? body.errors  : [],
+        serverChanged: !!body.serverChanged,
+      };
+    } catch (e) {
+      return { ok: false, error: e.message || I18n.t('store.networkError') };
+    }
+  }
+
+  /** DM-only: restart the server process — a supervisor (Docker
+   *  `restart: unless-stopped`) brings it back up, reloading addon server code.
+   *  Returns `{ ok }` or `{ ok:false, error }` (e.g. server not restartable). */
+  async function restartServer() {
+    try {
+      const res = await fetch('/api/restart', { method: 'POST', credentials: 'same-origin' });
+      if (res.status === 401 || res.status === 403) {
+        window.dispatchEvent(new CustomEvent('store:auth-failed'));
+        return { ok: false, error: I18n.t('store.dmRequired') };
+      }
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message || I18n.t('store.networkError') };
+    }
+  }
+
+  /** Whether the server can restart itself (Docker/supervisor) — reads
+   *  /api/version `canRestart`. Gates the DM "restart server" button. */
+  async function getCanRestart() {
+    try {
+      const res = await fetch('/api/version', { credentials: 'same-origin', cache: 'no-store' });
+      if (!res.ok) return false;
+      const body = await res.json().catch(() => ({}));
+      return !!body.canRestart;
+    } catch (_) { return false; }
+  }
+
   /**
    * Serialise the entire dataset to a JSON string, suitable for
    * `/api/restore` upload or out-of-band backup. Includes every
@@ -2832,6 +2885,7 @@ export const Store = (() => {
     getCampaign, setCampaign,
     ensureCollection, getAddonCollection, saveAddonItem, deleteAddonItem,
     patchAddonData, resolveAddonConflict, checkAddonUpdates, rollbackAddon,
+    updateAllAddons, restartServer, getCanRestart,
     generateId, exportJSON,
   };
 })();
