@@ -10,10 +10,10 @@
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── Article action bar (read view) ──────────────────────────
-   Sits above every entity article: back button on the left,
-   ✏ Upravit on the right (when the viewer can edit). Anonymous
-   visitors only see the back button — the edit button renderer
-   returns '' for them. */
+   Sits above every entity article. On full-width takeover pages a compact
+   ‹ parent breadcrumb chip sits on the left, ✏ Upravit on the right (when
+   the viewer can edit); normal articles carry only the edit button here —
+   their breadcrumb trail lives in the side rail. */
 .article-actions {
   display: flex;
   align-items: center;
@@ -21,10 +21,26 @@
   gap: 0.6rem;
   margin-bottom: 0.6rem;
 }
-.article-actions .back-btn { margin: 0; }
+.article-actions .bc-chip { margin: 0; }
+.article-actions .article-edit-btn { margin-left: auto; }
+/* Breadcrumb parent chip — same restrained look as the old back button. */
+.bc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  text-decoration: none;
+  padding: 0.2rem 0.35rem;
+  flex-shrink: 0;
+}
+.bc-chip:hover { color: var(--accent-gold); }
 
 /* On a wide FULL-WIDTH surface (the D&D character sheet, where the tabs claim
-   the whole width) the action bar's back / ✏ edit buttons float into the side
+   the whole width) the action bar's breadcrumb chip / ✏ edit buttons float into the side
    gutters — level with the top of the content — instead of reserving a row that
    pushes everything down. A container query on the shell gates it: the buttons
    move out only when the gutters can actually hold them; below that the bar stays
@@ -36,7 +52,7 @@
   .article-shell-full > .article-actions {
     position: absolute; inset: 0 0 auto 0; margin: 0; pointer-events: none;
   }
-  .article-shell-full > .article-actions > .back-btn {
+  .article-shell-full > .article-actions > .bc-chip {
     position: absolute; top: 0; right: calc(50% + 700px + 10px); margin: 0; pointer-events: auto;
   }
   .article-shell-full > .article-actions > .article-edit-btn {
@@ -63,6 +79,50 @@
   border-color: var(--accent-gold);
 }
 .article-edit-btn:active { transform: translateY(1px); }
+
+/* ── Inline click-to-edit for read-view fields (Stage 1: character name /
+   title / species / gender / age / circumstances). Reuses the dashboard-hero
+   contenteditable primitive; the ✏ pen fades in on hover for editors and is
+   hidden for anonymous viewers. ── */
+.inline-edit-wrap { display: inline-flex; align-items: baseline; gap: 0.2rem; }
+.inline-edit { outline: none; border-radius: var(--radius-sm); }
+.inline-edit:empty::before { content: attr(data-placeholder); color: var(--text-muted); font-style: italic; }
+.inline-edit.is-editing-inline {
+  background: var(--bg-raised);
+  padding: 0 0.2rem;
+  box-shadow: 0 0 0 2px rgba(var(--accent-gold-rgb), 0.45);
+}
+.inline-edit-pen {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.8em;
+  padding: 0 0.15rem;
+  transition: opacity 0.12s, color 0.12s;
+}
+.inline-edit-wrap:hover .inline-edit-pen,
+.inline-sel-wrap:hover .inline-edit-pen,
+.inline-edit-pen:focus { opacity: 1; }
+.inline-edit-pen:hover { color: var(--accent-gold); }
+body.is-anonymous .inline-edit-pen { display: none; }
+/* Inline click-to-edit SELECT (enum fields: status / faction / knowledge). */
+.inline-sel-wrap { display: inline-flex; align-items: center; }
+.inline-sel-read { display: inline-flex; align-items: center; }
+.inline-sel-input { display: none; }
+.inline-sel-wrap.editing .inline-sel-read { display: none; }
+.inline-sel-wrap.editing .inline-sel-input { display: inline-block; }
+/* Inline portrait upload (character article): click the portrait to replace. */
+.portrait-edit { position: relative; display: block; cursor: pointer; }
+.portrait-edit-badge {
+  position: absolute; right: 0.35rem; bottom: 0.35rem;
+  background: rgba(0, 0, 0, 0.55); color: #fff;
+  border-radius: var(--radius-sm); padding: 0.1rem 0.35rem;
+  font-size: 0.9rem; opacity: 0; transition: opacity 0.12s;
+}
+.portrait-edit:hover .portrait-edit-badge { opacity: 1; }
+body.is-anonymous .portrait-edit-badge { display: none; }
 
 /* ── Modal-page edit toggle ───────────────────────────────────
    Shared pill used by the map, timeline and Myšlenkový palác

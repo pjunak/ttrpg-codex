@@ -154,6 +154,73 @@ export const Wiki = (() => {
       ${dataAction('Wiki.startEditingArticle', route)}>✏ ${esc(I18n.t('action.edit'))}</button>`;
   }
 
+  // ── Breadcrumb (replaces the old generic ← Zpět button) ─────────
+  // Wayfinding, NOT history: list-root → location parentId ancestors →
+  // current record. Rendered as a vertical trail at the top of the sticky
+  // side rail on normal articles (_breadcrumbTrail), and as a compact
+  // ‹ parent chip on full-width takeover pages where there's no rail
+  // (_breadcrumbChip). `kind` is the collection, `entity` the record.
+  const _BREADCRUMB_ROOT = {
+    characters:       { route: '/postavy',    key: 'nav.characters' },
+    locations:        { route: '/mista',      key: 'nav.locations' },
+    events:           { route: '/casova-osa', key: 'nav.timeline' },
+    mysteries:        { route: '/zahady',     key: 'nav.mysteries' },
+    factions:         { route: '/frakce',     key: 'nav.factions' },
+    pantheon:         { route: '/panteon',    key: 'nav.pantheon' },
+    artifacts:        { route: '/artefakty',  key: 'nav.artifacts' },
+    historicalEvents: { route: '/historie',   key: 'nav.history' },
+  };
+  // Location ancestors via parentId, root-most first. Cycle- and
+  // depth-guarded; empty for every non-location kind.
+  function _locationAncestors(entity) {
+    const out = [];
+    if (!entity || !entity.parentId) return out;
+    const seen = new Set([entity.id]);
+    let pid = entity.parentId, guard = 0;
+    while (pid && !seen.has(pid) && guard++ < 12) {
+      const p = Store.getLocation(pid);
+      if (!p) break;
+      seen.add(p.id);
+      out.push(p);
+      pid = p.parentId;
+    }
+    return out.reverse();
+  }
+  // Ordered crumbs [{label, href?, current?}] — current (last) has no href.
+  function _breadcrumbCrumbs(kind, entity) {
+    const root = _BREADCRUMB_ROOT[kind];
+    if (!root || !entity) return [];
+    const crumbs = [{ label: I18n.t(root.key), href: '#' + root.route }];
+    for (const anc of _locationAncestors(entity)) {
+      crumbs.push({ label: anc.name || '', href: '#/misto/' + anc.id });
+    }
+    crumbs.push({ label: entity.name || '', current: true });
+    return crumbs;
+  }
+  // Vertical trail for the side rail: gentle capped per-level indent + a ↳
+  // connector so it reads as a descending path, not a tree.
+  function _breadcrumbTrail(kind, entity) {
+    const crumbs = _breadcrumbCrumbs(kind, entity);
+    if (crumbs.length < 2) return '';
+    const rows = crumbs.map((c, i) => {
+      const indent = Math.min(i, 5) * 8;
+      const arrow = i ? '<span class="bc-arrow" aria-hidden="true">↳</span>' : '';
+      const label = c.current
+        ? `<span class="bc-current" aria-current="page">${esc(c.label)}</span>`
+        : `<a class="bc-crumb" href="${esc(c.href)}">${esc(c.label)}</a>`;
+      return `<li class="bc-row" style="padding-left:${indent}px">${arrow}${label}</li>`;
+    }).join('');
+    return `<nav class="wiki-breadcrumb" aria-label="${esc(I18n.t('wiki.breadcrumbLabel'))}"><ol>${rows}</ol></nav>`;
+  }
+  // Compact ‹ parent chip for full-width/takeover pages (e.g. the D&D
+  // character sheet) where there's no side rail to host the trail.
+  function _breadcrumbChip(kind, entity) {
+    const crumbs = _breadcrumbCrumbs(kind, entity);
+    if (crumbs.length < 2) return '';
+    const parent = crumbs[crumbs.length - 2];
+    return `<a class="bc-chip" href="${esc(parent.href)}" title="${esc(parent.label)}">← ${esc(parent.label)}</a>`;
+  }
+
   /** Build a `facts` row entry showing the linked twin, when present
    *  and the viewer is DM. Returns '' for non-DM or when no twin is
    *  set, so the row vanishes naturally (the facts list filters
@@ -477,7 +544,6 @@ export const Wiki = (() => {
     visual = null, title = '', subtitle = '',
     chips = [], facts = [], sections = [], body = '',
     outlineSource = '',
-    back = true,
     editButton = '',
     kind = '', entity = null,
   }) {
@@ -550,13 +616,16 @@ export const Wiki = (() => {
     const mainHtml = (kind ? Addons.applyFragments(kind, _frags, entity) : _frags)
       .map(f => f.html).filter(Boolean).join('');
 
-    // Action bar above the article: back on the left, ✏ Upravit on
-    // the right (when the renderer provided one). Empty bar still
-    // renders so the visual rhythm of the page header stays stable
-    // across articles regardless of whether the viewer can edit.
-    const actionBar = (back || editButton) ? `
+    // Action row above the article: ✏ Upravit on the right. On full-width
+    // takeover pages (the D&D sheet) a compact ‹ parent breadcrumb chip
+    // rides on the left of the same row; normal articles get the vertical
+    // breadcrumb trail in the side rail instead (see below). The generic
+    // back button is gone — wayfinding is the breadcrumb, and the
+    // browser/OS back handles history.
+    const navChip = bodyTaken ? _breadcrumbChip(kind, entity) : '';
+    const actionBar = (navChip || editButton) ? `
       <div class="article-actions">
-        ${back ? `<button type="button" class="back-btn"${dataAction('back')}>← ${esc(I18n.t('action.back'))}</button>` : ''}
+        ${navChip}
         ${editButton || ''}
       </div>` : '';
 
@@ -565,6 +634,7 @@ export const Wiki = (() => {
         ${actionBar}
         <div class="wiki-article${bodyTaken ? ' wiki-article-full' : ''}">
           ${bodyTaken ? '' : `<aside class="wiki-side">
+            ${_breadcrumbTrail(kind, entity)}
             ${sideCard}
             ${outlineHtml}
           </aside>`}
@@ -954,6 +1024,96 @@ export const Wiki = (() => {
     }
   }
 
+  // ── Inline click-to-edit for character read-view fields (Stage 1) ──
+  // Reuses the dashboard-hero primitive (startInlineEdit / handleInlineEditKey)
+  // for the click-to-edit UX; commit routes to a per-field character save.
+  // Editors (`!Role.isAnonymous()`) get a contenteditable span + ✏ pen; other
+  // viewers get plain (knowledge-gated) text. Whitelisted fields only, so a
+  // crafted data-action can't write arbitrary keys.
+  const _CHAR_INLINE_FIELDS = new Set(['name', 'title', 'species', 'gender', 'age', 'circumstances', 'status', 'faction', 'knowledge']);
+  /** Persist one character field edited inline. Name is required (a blanking
+   *  edit is ignored — the re-render restores it); knowledge coerces to 0–4;
+   *  switching to the party faction strips now-dead attitudes (as the form
+   *  does); an unchanged value is a no-op so we don't spam saves/snapshots. */
+  function saveCharacterField(id, field, value) {
+    if (!_CHAR_INLINE_FIELDS.has(field)) return;
+    const c = Store.getCharacter(id);
+    if (!c) return;
+    let v = typeof value === 'string' ? value.trim() : value;
+    if (field === 'knowledge') { const n = parseInt(v, 10); if (Number.isNaN(n)) return; v = Math.max(0, Math.min(4, n)); }
+    if (field === 'name' && !v) return;
+    if ((c[field] == null ? '' : String(c[field])) === String(v)) return;
+    const next = { ...c, [field]: v };
+    if (field === 'faction' && Store.isPartyMember(next)) next.attitudes = [];
+    Store.saveCharacter(next);
+  }
+  /** Blur handler for an inline character field: exit contenteditable + save. */
+  function commitCharacterField(id, field, value, el) {
+    if (el && el.removeAttribute) {
+      el.removeAttribute('contenteditable');
+      el.classList.remove('is-editing-inline');
+    }
+    saveCharacterField(id, field, value);
+  }
+  /** Render one character field. Non-editors get plain text (the caller applies
+   *  any knowledge-gating); editors get a contenteditable span + ✏ pen bound to
+   *  the shared inline-edit primitive. `elId` is unique per field per record. */
+  function _charInlineText(editable, id, field, value, opts = {}) {
+    const text = value == null ? '' : String(value);
+    if (!editable) return esc(text);
+    const elId = `ci-${field}-${id}`;
+    const ph = opts.placeholder || I18n.t('wiki.inlineAdd');
+    return `<span class="inline-edit-wrap">`
+      + `<span id="${esc(elId)}" class="inline-edit" data-placeholder="${esc(ph)}"`
+      + ` ${dataOn('blur', 'Wiki.commitCharacterField', id, field, '$text', '$el')}`
+      + ` ${dataOn('keydown', 'Wiki.handleInlineEditKey', '$ev', '$el')}>${esc(text)}</span>`
+      + `<button type="button" class="inline-edit-pen" title="${esc(I18n.t('action.edit'))}"`
+      + ` ${dataAction('Wiki.startInlineEdit', elId)}>✏</button>`
+      + `</span>`;
+  }
+
+  // Inline click-to-edit for enum fields (status / faction / knowledge). The
+  // read badge carries a ✏ pen; clicking it reveals a pre-populated <select>
+  // (options built by the caller to mirror the form) that saves on change.
+  function _charInlineSelect(id, field, optionsHtml, readHtml) {
+    const wrapId = `cis-${field}-${id}`;
+    return `<span class="inline-sel-wrap" id="${esc(wrapId)}">`
+      + `<span class="inline-sel-read">${readHtml}`
+      + `<button type="button" class="inline-edit-pen" title="${esc(I18n.t('action.edit'))}" ${dataAction('Wiki.startInlineSelect', wrapId)}>✏</button></span>`
+      + `<select class="inline-sel-input edit-select" ${dataOn('change', 'Wiki.commitCharacterSelect', id, field, '$value', wrapId)} ${dataOn('blur', 'Wiki.cancelInlineSelect', wrapId)}>${optionsHtml}</select>`
+      + `</span>`;
+  }
+  /** Reveal the inline <select> (pen click) and open its picker. */
+  function startInlineSelect(wrapId) {
+    const w = document.getElementById(wrapId);
+    if (!w) return;
+    w.classList.add('editing');
+    const s = w.querySelector('select');
+    if (s) { s.focus(); try { s.showPicker && s.showPicker(); } catch (_) {} }
+  }
+  /** Select change → save + collapse back to the badge. */
+  function commitCharacterSelect(id, field, value, wrapId) {
+    const w = document.getElementById(wrapId);
+    if (w) w.classList.remove('editing');
+    saveCharacterField(id, field, value);
+  }
+  /** Select blur without a change → collapse back to the badge. */
+  function cancelInlineSelect(wrapId) {
+    const w = document.getElementById(wrapId);
+    if (w) w.classList.remove('editing');
+  }
+  // Editable portrait for the character article: the read-view portrait becomes
+  // a click-to-upload target (a <label> wrapping a hidden file input, so the
+  // browser opens the picker with no extra JS). Editors only; falls back to the
+  // plain portraitWrap for viewers.
+  function _charPortraitEditable(c, glowFilter) {
+    return `<label class="portrait-edit" title="${esc(I18n.t('editform.uploadPortrait'))}">`
+      + portraitWrap(c, '', glowFilter)
+      + `<span class="portrait-edit-badge" aria-hidden="true">📷</span>`
+      + `<input type="file" accept="image/*" style="display:none" ${dataOn('change', 'EditMode.uploadCharacterPortraitInline', c.id, '$el')}>`
+      + `</label>`;
+  }
+
   // Dashboard "Poslední úpravy" — top 5 most-recently edited entities
   // across every collection. Returns empty string if nothing has been
   // edited yet (i.e. fresh install with no updatedAt stamps anywhere).
@@ -1294,20 +1454,28 @@ export const Wiki = (() => {
     if (_isCurrentArticleEditing()) return EditMode.renderCharacterEditor(c);
 
     // ── View mode ────────────────────────────────────────────────
+    // Editors get inline click-to-edit on the identity fields (Stage 1 of the
+    // edit-in-place migration); anonymous viewers get the read-only, knowledge-
+    // gated view unchanged.
+    const editable = !Role.isAnonymous();
     const rels   = Store.getRelationships().filter(r => r.source === id || r.target === id);
     const chars  = Store.getCharacters();
     const events = Store.getEvents();
 
     const eventsInvolved = events.filter(e => (e.characters||[]).includes(id));
 
-    // Profile chips: species/gender/age — only render if present and the
-    // viewer knows enough about the character to see physical details.
-    const profileBits = [];
-    if (c.knowledge >= 2 && c.species) {
-      profileBits.push(`<span class="profile-chip">🧬 ${esc(c.species)}</span>`);
-    }
-    if (c.knowledge >= 2 && c.gender) profileBits.push(`<span class="profile-chip">⚥ ${esc(c.gender)}</span>`);
-    if (c.knowledge >= 2 && c.age)    profileBits.push(`<span class="profile-chip">⌛ ${esc(c.age)}</span>`);
+    // Profile chips: species/gender/age. Players see them only at knowledge ≥ 2
+    // (and only when set); editors always see them, inline-editable with the
+    // real (ungated) values — the same fields the old form exposed.
+    const profChip = (icon, field, val) =>
+      editable
+        ? `<span class="profile-chip">${icon} ${_charInlineText(true, id, field, val)}</span>`
+        : ((c.knowledge >= 2 && val) ? `<span class="profile-chip">${icon} ${esc(val)}</span>` : '');
+    const profileBits = [
+      profChip('🧬', 'species', c.species),
+      profChip('⚥', 'gender', c.gender),
+      profChip('⌛', 'age', c.age),
+    ].filter(Boolean);
 
     const locationLink = c.location ? (() => {
       const loc = Store.getLocation(c.location);
@@ -1325,7 +1493,7 @@ export const Wiki = (() => {
 
     const facts = [
       { label: I18n.t('wiki.factPlace'),         value: locationLink || '' },
-      { label: I18n.t('wiki.factCircumstances'), value: (c.knowledge >= 2 && c.circumstances) ? esc(c.circumstances) : '' },
+      { label: I18n.t('wiki.factCircumstances'), value: editable ? _charInlineText(true, id, 'circumstances', c.circumstances) : ((c.knowledge >= 2 && c.circumstances) ? esc(c.circumstances) : '') },
       { label: I18n.t('wiki.factRank'),          value: rankInfo },
       _twinFactRow('characters', c),
     ].filter(Boolean);
@@ -1356,16 +1524,32 @@ export const Wiki = (() => {
     }
     const articleGlow = _attitudeGlow(articleEntries, _attitudeColorMap());
 
+    // Inline-select option lists for editors — mirror the character form's
+    // faction / status / knowledge pickers (incl. the neutral/party casing).
+    let factionOpts = '', statusOpts = '', knowledgeOpts = '';
+    if (editable) {
+      const factions = Store.getFactions();
+      const pp = Store.getPlayerParty();
+      const realFactions = Object.entries(factions).filter(([fid]) => fid !== 'party');
+      const neutralSelected = c.faction !== 'party' && !realFactions.some(([fid]) => fid === c.faction);
+      factionOpts = `<option value="neutral"${neutralSelected ? ' selected' : ''}>👤 ${esc(I18n.t('editform.noFaction'))}</option>`
+        + `<option value="party"${c.faction === 'party' ? ' selected' : ''}>${esc(pp.badge || pp.icon || '🛡')} ${esc(pp.name || I18n.t('editform.ourParty'))}</option>`
+        + realFactions.map(([fid, f]) => `<option value="${esc(fid)}"${c.faction === fid ? ' selected' : ''}>${esc(f.badge || '⬡')} ${esc(f.name)}</option>`).join('');
+      statusOpts = Object.entries(Store.getStatusMap()).map(([sid, s]) => `<option value="${esc(sid)}"${c.status === sid ? ' selected' : ''}>${esc(s.icon)} ${esc(s.label)}</option>`).join('');
+      const KNAMES = [I18n.t('editform.know0'), I18n.t('editform.know1'), I18n.t('editform.know2'), I18n.t('editform.know3'), I18n.t('editform.know4')];
+      knowledgeOpts = KNAMES.map((label, n) => `<option value="${n}"${Number(c.knowledge) === n ? ' selected' : ''}>${esc(label)}</option>`).join('');
+    }
+
     return _articleShell({
       editButton: _articleEditButton('characters', id),
-      visual:   portraitWrap(c, '', articleGlow),
-      title:    c.knowledge >= 1 ? esc(c.name) : esc(I18n.t('wiki.unknownCharacter')),
-      subtitle: c.knowledge >= 2 && c.title ? esc(c.title) : '',
+      visual:   editable ? _charPortraitEditable(c, articleGlow) : portraitWrap(c, '', articleGlow),
+      title:    editable ? _charInlineText(true, id, 'name', c.name) : (c.knowledge >= 1 ? esc(c.name) : esc(I18n.t('wiki.unknownCharacter'))),
+      subtitle: editable ? _charInlineText(true, id, 'title', c.title) : (c.knowledge >= 2 && c.title ? esc(c.title) : ''),
       chips:    [
-        factionBadge(c.faction),
+        editable ? _charInlineSelect(id, 'faction', factionOpts, factionBadge(c.faction)) : factionBadge(c.faction),
         attitudeChips,
-        statusBadge(c.status),
-        knowledgeBadge(c.knowledge),
+        editable ? _charInlineSelect(id, 'status', statusOpts, statusBadge(c.status)) : statusBadge(c.status),
+        editable ? _charInlineSelect(id, 'knowledge', knowledgeOpts, knowledgeBadge(c.knowledge)) : knowledgeBadge(c.knowledge),
         ...profileBits,
       ].filter(Boolean),
       facts,
@@ -2007,12 +2191,7 @@ export const Wiki = (() => {
       ],
       outlineSource: m.description || '',
       kind: 'mysteries', entity: m,
-      body: `
-        <div class="md-view">${renderMarkdown(m.description)}</div>
-        <div style="margin-top:1.5rem">
-          <a href="#/zahady" class="wiki-link">← ${esc(I18n.t('wiki.backToMysteries'))}</a>
-        </div>
-      `,
+      body: `<div class="md-view">${renderMarkdown(m.description)}</div>`,
     });
   }
 
@@ -2214,12 +2393,7 @@ export const Wiki = (() => {
       ],
       outlineSource: f.description || '',
       kind: 'factions', entity: f,
-      body: `
-        ${f.description ? `<div class="md-view">${renderMarkdown(f.description)}</div>` : ''}
-        <div style="margin-top:1.5rem">
-          <a href="#/frakce" class="wiki-link">← ${esc(I18n.t('wiki.backToFactions'))}</a>
-        </div>
-      `,
+      body: f.description ? `<div class="md-view">${renderMarkdown(f.description)}</div>` : '',
     });
   }
 
@@ -2600,6 +2774,9 @@ export const Wiki = (() => {
     setZahadyQuestionFilter,
     // Dashboard hero per-field inline edit.
     startInlineEdit, commitInlineEdit, handleInlineEditKey,
+    // Character read-view per-field inline edit (Stages 1–2).
+    saveCharacterField, commitCharacterField,
+    startInlineSelect, commitCharacterSelect, cancelInlineSelect,
     // Polarity-aware wiki-link tie-breaker uses this (in app.js):
     getCurrentArticle: _getCurrentArticle,
     // XSS-safe faction-glyph helper (exported so other modules can
