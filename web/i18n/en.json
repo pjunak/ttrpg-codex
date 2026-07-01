@@ -886,6 +886,7 @@
   "timeline.hintDrag": "Drag a card = reorder",
   "timeline.newEvent": "New event",
   "timeline.newSession": "New session {n}",
+  "timeline.scrollSittings": "Scroll through sittings",
   "timeline.session": "Session {n}",
   "timeline.title": "Timeline",
   "widget.createOption": "✦ Create {kind} «{typed}»",

@@ -76,6 +76,16 @@
 .tl-board-viewport::-webkit-scrollbar { height: 8px; }
 .tl-board-viewport::-webkit-scrollbar-thumb { background: rgba(var(--accent-gold-rgb), 0.3); border-radius: 4px; }
 
+/* Horizontal pan slider under the board — a grabbable control to scroll
+   through sittings (shown only when the board overflows; wired in timeline.js). */
+.tl-hscroll {
+  flex-shrink: 0;
+  width: 100%;
+  margin: 0.5rem 0 0;
+  accent-color: var(--accent-gold);
+  cursor: pointer;
+}
+
 .tl-board {
   display: flex;
   align-items: stretch;

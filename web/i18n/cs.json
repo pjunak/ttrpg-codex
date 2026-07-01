@@ -916,6 +916,7 @@
   "timeline.hintDrag": "Táhni kartu = přeskládat",
   "timeline.newEvent": "Nová událost",
   "timeline.newSession": "Nové sezení {n}",
+  "timeline.scrollSittings": "Posouvat sezení",
   "timeline.session": "Sezení {n}",
   "timeline.title": "Časová Osa",
   "widget.createOption": "✦ Vytvořit {kind} «{typed}»",

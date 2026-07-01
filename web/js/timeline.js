@@ -306,6 +306,8 @@ export const Timeline = (() => {
         <div class="tl-board-viewport">
           <div class="tl-board" id="tl-board"></div>
         </div>
+        <input type="range" class="tl-hscroll" id="tl-hscroll" min="0" max="1000" value="0"
+          aria-label="${esc(I18n.t('timeline.scrollSittings'))}" style="display:none">
       </div>`;
 
     const board = document.getElementById('tl-board');
@@ -333,6 +335,34 @@ export const Timeline = (() => {
         variant: 'phantom',
       });
     }
+
+    _wireHScroll();
+  }
+
+  // Horizontal "pan" slider under the board — a big, grabbable control to
+  // scroll through sittings when there are more columns than fit (the native
+  // 8px scrollbar is easy to miss, especially without a horizontal-scroll
+  // mouse). Two-way synced with the viewport; hidden when it doesn't overflow.
+  let _hscrollWired = false;
+  function _syncHScroll() {
+    const viewport = document.querySelector('.tl-board-viewport');
+    const slider = document.getElementById('tl-hscroll');
+    if (!viewport || !slider) return;
+    const ms = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+    if (ms <= 0) { slider.style.display = 'none'; return; }
+    slider.style.display = '';
+    slider.max = String(ms);
+    slider.value = String(Math.round(viewport.scrollLeft));
+  }
+  function _wireHScroll() {
+    const viewport = document.querySelector('.tl-board-viewport');
+    const slider = document.getElementById('tl-hscroll');
+    if (!viewport || !slider) return;
+    slider.addEventListener('input', () => { viewport.scrollLeft = Number(slider.value); });
+    viewport.addEventListener('scroll', () => { slider.value = String(Math.round(viewport.scrollLeft)); }, { passive: true });
+    if (!_hscrollWired) { window.addEventListener('resize', _syncHScroll); _hscrollWired = true; }
+    _syncHScroll();
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(_syncHScroll);
   }
 
   function _renderColumn(board, opts) {
