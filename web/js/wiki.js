@@ -561,14 +561,16 @@ export const Wiki = (() => {
       </div>` : '';
 
     return `
-      ${actionBar}
-      <div class="wiki-article${bodyTaken ? ' wiki-article-full' : ''}">
-        ${bodyTaken ? '' : `<aside class="wiki-side">
-          ${sideCard}
-          ${outlineHtml}
-        </aside>`}
-        <div class="wiki-main">
-          ${mainHtml}
+      <div class="article-shell${bodyTaken ? ' article-shell-full' : ''}">
+        ${actionBar}
+        <div class="wiki-article${bodyTaken ? ' wiki-article-full' : ''}">
+          ${bodyTaken ? '' : `<aside class="wiki-side">
+            ${sideCard}
+            ${outlineHtml}
+          </aside>`}
+          <div class="wiki-main">
+            ${mainHtml}
+          </div>
         </div>
       </div>`;
   }
