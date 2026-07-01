@@ -211,6 +211,32 @@ document.addEventListener('dragend',   (ev) => {
   if (el) _dispatch(el, ev, 'onDragend', 'dragendArgs');
 }, true);
 
+// Themed number stepper. The native <input type=number> spin-buttons are hidden
+// app-wide (edit.css); .codex-stepper renders −/＋ buttons instead. A button
+// carries data-num-step="±1"; clicking it steps the sibling number input inside
+// the same .codex-stepper by the input's `step`, clamps to its min/max, and
+// dispatches bubbling input+change so the existing data-on-change delegation
+// (host OR addon) runs identically to a typed edit. Generic — any surface that
+// renders the .codex-stepper markup gets working steppers for free.
+document.addEventListener('click', (ev) => {
+  const btn = ev.target.closest('[data-num-step]');
+  if (!btn) return;
+  const wrap = btn.closest('.codex-stepper');
+  const input = wrap && wrap.querySelector('input[type="number"]');
+  if (!input || input.disabled || input.readOnly) return;
+  ev.preventDefault();
+  const step = Number(input.step) || 1;
+  const dir  = Number(btn.dataset.numStep) || 0;
+  const cur  = Number(input.value);
+  let next = (Number.isFinite(cur) ? cur : 0) + dir * step;
+  if (input.min !== '' && input.min != null && next < Number(input.min)) next = Number(input.min);
+  if (input.max !== '' && input.max != null && next > Number(input.max)) next = Number(input.max);
+  next = Math.round(next * 1e6) / 1e6;   // shed float dust from fractional steps
+  input.value = String(next);
+  input.dispatchEvent(new Event('input',  { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}, true);
+
 
 (function () {
 

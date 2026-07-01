@@ -925,6 +925,61 @@ body.twin-picker-open { overflow: hidden; }
   .edit-row-3 { grid-template-columns: 1fr; }
 }
 
+/* ── Number stepper (themed replacement for native spin-buttons) ──
+   The browser's up/down arrows on <input type=number> are off-theme and
+   fiddly to click, so we hide them everywhere and offer .codex-stepper: a
+   −/＋ button pair flanking a centred number field. A document-level click
+   handler in app.js (buttons carry data-num-step="±1") steps the input by its
+   `step`, clamps to min/max, and dispatches bubbling input+change — so every
+   host and addon `data-on-change` wiring fires exactly as if typed. Typing
+   still works for un-wrapped inputs; they just lose the native arrows. */
+.edit-input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.edit-input[type="number"]::-webkit-outer-spin-button,
+.edit-input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none; appearance: none; margin: 0;
+}
+.codex-stepper {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  overflow: hidden;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.codex-stepper:focus-within { border-color: rgba(var(--accent-gold-rgb), 0.45); }
+.codex-stepper > .edit-input {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  width: 3rem;
+  text-align: center;
+  padding: 0.4rem 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+.codex-stepper > .edit-input:focus { border: none; box-shadow: none; }
+.codex-stepper-btn {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  background: var(--bg-raised);
+  color: var(--accent-gold);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  line-height: 1;
+  padding: 0 var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.codex-stepper-btn:hover  { background: rgba(var(--accent-gold-rgb), 0.18); }
+.codex-stepper-btn:active { background: rgba(var(--accent-gold-rgb), 0.30); }
+.codex-stepper-btn:disabled { color: var(--text-muted); cursor: default; background: var(--bg-raised); }
+/* Vertical variant (＋ on top, − on bottom) for compact ± controls like HP. */
+.codex-stepper-v { flex-direction: column; }
+
 /* ── Edit section (facts, relationships) ─────────────────────── */
 .edit-section {
   padding-top: 1rem;
