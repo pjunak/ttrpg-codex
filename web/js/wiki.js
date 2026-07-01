@@ -508,10 +508,9 @@ export const Wiki = (() => {
         html: (s.html && s.html.trim()) ? _sectionBlock(s.title, s.html) : '',
       });
     });
-    _frags.push({ id: `${kind || 'x'}:body`, html: body ? `<div class="article-body">${body}</div>` : '' });
-    const mainHtml = (kind ? Addons.applyFragments(kind, _frags, entity) : _frags)
-      .map(f => f.html).filter(Boolean).join('');
-
+    // The side-card (portrait + identity + facts) + the outline normally fill the
+    // left rail. Built up-front because a full-width takeover folds the side-card
+    // INTO the body instead of rendering the rail (see bodyTaken below).
     const sideCard = `
       <div class="wiki-side-card">
         ${visual ? `<div class="ah-visual">${visual}</div>` : ''}
@@ -536,6 +535,21 @@ export const Wiki = (() => {
         </ul>
       </nav>` : '';
 
+    // When an addon exclusively owns this kind's `:body` (e.g. the D&D sheet turns
+    // it into a full-width tab strip), collapse the two-column article: drop the
+    // side rail and FOLD the side-card into the body, so the takeover addon can
+    // place the portrait/identity itself (it arrives as the fragment's html).
+    // Gated on a real claim, so a vanilla install / any un-claimed kind is
+    // byte-for-byte unchanged.
+    const bodyTaken = !!(kind && Addons.bodyOverridden(kind));
+    const bodyInner = body ? `<div class="article-body">${body}</div>` : '';
+    const bodyHtml = bodyTaken
+      ? `<div class="article-sidecard-inbody">${sideCard}</div>${bodyInner}`
+      : bodyInner;
+    _frags.push({ id: `${kind || 'x'}:body`, html: bodyHtml });
+    const mainHtml = (kind ? Addons.applyFragments(kind, _frags, entity) : _frags)
+      .map(f => f.html).filter(Boolean).join('');
+
     // Action bar above the article: back on the left, ✏ Upravit on
     // the right (when the renderer provided one). Empty bar still
     // renders so the visual rhythm of the page header stays stable
@@ -548,11 +562,11 @@ export const Wiki = (() => {
 
     return `
       ${actionBar}
-      <div class="wiki-article">
-        <aside class="wiki-side">
+      <div class="wiki-article${bodyTaken ? ' wiki-article-full' : ''}">
+        ${bodyTaken ? '' : `<aside class="wiki-side">
           ${sideCard}
           ${outlineHtml}
-        </aside>
+        </aside>`}
         <div class="wiki-main">
           ${mainHtml}
         </div>

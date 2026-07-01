@@ -829,6 +829,20 @@
 @media (max-width: 1100px) {
   .wiki-article { grid-template-columns: 1fr; }
 }
+/* Full-width takeover: an addon exclusively owns the body (e.g. the D&D sheet's
+   tab strip), so there is no side rail — the surface spans the whole article
+   width (roughly the old side-card + main combined). The side-card is folded
+   into the body and floated as a portrait block the content wraps around
+   (stacks on top on narrow screens). */
+.wiki-article-full { grid-template-columns: minmax(0, 1400px); }
+.article-sidecard-inbody {
+  float: left;
+  width: min(300px, 38%);
+  margin: 0 var(--space-4) var(--space-3) 0;
+}
+@media (max-width: 700px) {
+  .article-sidecard-inbody { float: none; width: auto; margin: 0 0 var(--space-3); }
+}
 
 /* ── Left sidebar: info card + outline ──────────────────────── */
 .wiki-side {

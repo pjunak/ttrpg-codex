@@ -749,6 +749,17 @@ export const Addons = (() => {
     return res.fragments;
   }
 
+  /** Does an addon exclusively (replace/hide) own a kind's `:body` fragment?
+   *  When it does, the article shell hands that surface the full width (drops the
+   *  side rail) — the takeover addon renders its own layout (e.g. a tabbed sheet)
+   *  and places the folded-in side-card itself. Zero-cost + false in a vanilla
+   *  install (no fragment ops), so the base article layout is unchanged. */
+  function bodyOverridden(kind) {
+    if (!kind || !_fragmentOps.length) return false;
+    const target = kind + ':body';
+    return _fragmentOps.some((c) => c.target === target && (c.op === 'replace' || c.op === 'hide'));
+  }
+
   /** Eager conflict report for the Addon Manager — ≥2 exclusive (replace/hide)
    *  claims on one target, with the DM's current resolution (addonId | null |
    *  undefined). */
@@ -904,7 +915,7 @@ export const Addons = (() => {
     hasRoute, renderRoute, sidebarPages, list,
     hasPageRenderer, renderPage, articleSections,
     editorFields, collectEditorFields,
-    applyFragments, conflicts, unmatchedClaims,
+    applyFragments, bodyOverridden, conflicts, unmatchedClaims,
     settingsTabs, settingsTab, runAction,
     resolveWikiLink,
     slotContent,
