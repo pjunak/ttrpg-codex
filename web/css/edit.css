@@ -21,23 +21,7 @@
   gap: 0.6rem;
   margin-bottom: 0.6rem;
 }
-.article-actions .bc-chip { margin: 0; }
 .article-actions .article-edit-btn { margin-left: auto; }
-/* Breadcrumb parent chip — same restrained look as the old back button. */
-.bc-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-family: var(--font-ui);
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  text-decoration: none;
-  padding: 0.2rem 0.35rem;
-  flex-shrink: 0;
-}
-.bc-chip:hover { color: var(--accent-gold); }
 
 /* On a wide FULL-WIDTH surface (the D&D character sheet, where the tabs claim
    the whole width) the action bar's breadcrumb chip / ✏ edit buttons float into the side
@@ -46,17 +30,16 @@
    move out only when the gutters can actually hold them; below that the bar stays
    the normal stacked row (unchanged). Scoped to `.article-shell-full`, so every
    other article type is untouched. */
-.article-shell { position: relative; }
-.article-shell-full { container-type: inline-size; }
-@container (min-width: 1600px) {
-  .article-shell-full > .article-actions {
+.article-shell { position: relative; container-type: inline-size; }
+@container (min-width: 1700px) {
+  .article-shell > .article-actions {
     position: absolute; inset: 0 0 auto 0; margin: 0; pointer-events: none;
   }
-  .article-shell-full > .article-actions > .bc-chip {
-    position: absolute; top: 0; right: calc(50% + 700px + 10px); margin: 0; pointer-events: auto;
+  .article-shell > .article-actions > .wiki-breadcrumb {
+    position: absolute; top: 0; left: 1rem; margin: 0; pointer-events: auto;
   }
-  .article-shell-full > .article-actions > .article-edit-btn {
-    position: absolute; top: 0; left: calc(50% + 700px + 10px); margin: 0; pointer-events: auto;
+  .article-shell > .article-actions > .article-edit-btn {
+    position: absolute; top: 0; right: 1rem; margin: 0; pointer-events: auto;
   }
 }
 .article-edit-btn {

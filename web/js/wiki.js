@@ -157,9 +157,9 @@ export const Wiki = (() => {
   // ── Breadcrumb (replaces the old generic ← Zpět button) ─────────
   // Wayfinding, NOT history: list-root → location parentId ancestors →
   // current record. Rendered as a vertical trail at the top of the sticky
-  // side rail on normal articles (_breadcrumbTrail), and as a compact
-  // ‹ parent chip on full-width takeover pages where there's no rail
-  // (_breadcrumbChip). `kind` is the collection, `entity` the record.
+  // side rail on normal articles, and in the action bar on full-width takeover
+  // pages where there's no rail (both use _breadcrumbTrail). `kind` is the
+  // collection, `entity` the record.
   const _BREADCRUMB_ROOT = {
     characters:       { route: '/postavy',    key: 'nav.characters' },
     locations:        { route: '/mista',      key: 'nav.locations' },
@@ -211,14 +211,6 @@ export const Wiki = (() => {
       return `<li class="bc-row" style="padding-left:${indent}px">${arrow}${label}</li>`;
     }).join('');
     return `<nav class="wiki-breadcrumb" aria-label="${esc(I18n.t('wiki.breadcrumbLabel'))}"><ol>${rows}</ol></nav>`;
-  }
-  // Compact ‹ parent chip for full-width/takeover pages (e.g. the D&D
-  // character sheet) where there's no side rail to host the trail.
-  function _breadcrumbChip(kind, entity) {
-    const crumbs = _breadcrumbCrumbs(kind, entity);
-    if (crumbs.length < 2) return '';
-    const parent = crumbs[crumbs.length - 2];
-    return `<a class="bc-chip" href="${esc(parent.href)}" title="${esc(parent.label)}">← ${esc(parent.label)}</a>`;
   }
 
   /** Build a `facts` row entry showing the linked twin, when present
@@ -622,11 +614,12 @@ export const Wiki = (() => {
     // breadcrumb trail in the side rail instead (see below). The generic
     // back button is gone — wayfinding is the breadcrumb, and the
     // browser/OS back handles history.
-    // Action row: breadcrumb chip (left) + ✏ Upravit (right), consistent with
-    // non-addon articles. On the full-width takeover the container query below
-    // floats them into the side gutters (level with the content) when there's
-    // room; otherwise they sit as a thin row above.
-    const navChip = bodyTaken ? _breadcrumbChip(kind, entity) : '';
+    // Action row: on the addon takeover the breadcrumb TRAIL rides here (there's
+    // no side rail to hold it); non-addon articles keep their trail in the rail,
+    // so this row carries only ✏ Upravit. The container query below floats the
+    // breadcrumb (left) + edit (right) into the gutters, level with the content,
+    // when there's room; otherwise they sit as a thin row above.
+    const navChip = bodyTaken ? _breadcrumbTrail(kind, entity) : '';
     const actionBar = (navChip || editButton) ? `
       <div class="article-actions">
         ${navChip}
