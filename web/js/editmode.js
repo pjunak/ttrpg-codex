@@ -488,6 +488,15 @@ export const EditMode = (() => {
     }
   }
 
+  // Inline portrait removal (character article). Deletes the stored image and
+  // clears the field — mirrors the form's remove-portrait button.
+  function removeCharacterPortraitInline(id) {
+    const c = Store.getCharacter(id);
+    if (!c || !c.portrait) return;
+    Store.deletePortrait(c.portrait);
+    Store.saveCharacter({ ...c, portrait: '' });
+  }
+
   // ── Gather helpers ─────────────────────────────────────────────
   // Read every {text, answer} pair from a `.qa-list` container.
   // Drops rows whose question text is empty — answer-only rows are
@@ -1826,6 +1835,10 @@ export const EditMode = (() => {
     createTwin, unlinkTwin, linkExistingTwin,
     openTwinPicker, cancelTwinPicker, createTwinFromPicker,
     mountEasyMDE,
+    // Passthrough so the wiki read view can surface the same relationship
+    // editor (add/update/delete + comboboxes) inline for editors; refresh
+    // still goes through _refreshRelSection, keeping both in sync.
+    getRelSectionHtml: EditTemplates.getRelSectionHtml,
     toast: _toast,
     renderCharacterEditor,
     renderLocationEditor,
@@ -1840,6 +1853,7 @@ export const EditMode = (() => {
     startNewHistoricalEvent,
     startNewCharacterInLocation,
     uploadCharacterPortraitInline,
+    removeCharacterPortraitInline,
   };
 
 })();
