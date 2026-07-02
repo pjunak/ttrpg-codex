@@ -562,14 +562,14 @@ export const Wiki = (() => {
       id:   `${kind}:addon:${s.addonId}:${s.seq}`,
       html: (s.html && s.html.trim()) ? _sectionBlock(s.title, s.html) : '',
     }));
-    // The side-card (✏ edit button + portrait + identity + facts) + the outline
+    // The side-card (portrait + identity + facts + ✏ edit button) + the outline
     // normally fill the left rail. Built up-front because a full-width takeover
     // folds the side-card INTO the body instead of rendering the rail (see the
-    // fold below). The edit button rides the card — anchored to the record it
-    // edits — so on a takeover page it lands inside the addon's Overview tab.
+    // fold below). The edit button rides the card as its LAST child (bottom-right
+    // corner) — anchored to the record it edits — so on a takeover page it lands
+    // inside the addon's Overview tab.
     const sideCard = `
       <div class="wiki-side-card">
-        ${editButton || ''}
         ${visual ? `<div class="ah-visual">${visual}</div>` : ''}
         <div class="ah-meta">
           <h1>${title}</h1>
@@ -577,6 +577,7 @@ export const Wiki = (() => {
           ${chipsHtml ? `<div class="ah-chips">${chipsHtml}</div>` : ''}
           ${factsHtml ? `<div class="ah-facts">${factsHtml}</div>` : ''}
         </div>
+        ${editButton || ''}
       </div>`;
 
     // Auto-generated outline from markdown headings in the article body.

@@ -54,15 +54,15 @@
   border-color: var(--accent-gold);
 }
 .article-edit-btn:active { transform: translateY(1px); }
-/* On the side-card (its first child — wiki.js _articleShell) the button
-   compacts and right-aligns, sitting above the portrait/icon. On a
-   takeover page the card is folded into the addon's Overview tab, so the
-   button travels with the profile content it edits. */
+/* On the side-card (its last child — wiki.js _articleShell) the button
+   compacts and sits in the card's bottom-right corner, below the facts.
+   On a takeover page the card is folded into the addon's Overview tab,
+   so the button travels with the profile content it edits. */
 .wiki-side-card > .article-edit-btn {
   align-self: flex-end;
   padding: 0.25rem 0.7rem;
   font-size: var(--text-xs);
-  margin-bottom: -0.35rem; /* tuck toward the visual (card flex gap is .75rem) */
+  margin-top: -0.25rem; /* tuck toward the facts above (card flex gap is .75rem) */
 }
 
 /* Connections: pretty click-to-edit chips + a per-connection editor row. */
