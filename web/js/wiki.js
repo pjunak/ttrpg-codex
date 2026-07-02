@@ -1254,11 +1254,12 @@ export const Wiki = (() => {
   function _charVisibilityControl(c) {
     const visibility = c.visibility === 'dm' ? 'dm' : 'public';
     const disabled = (c.linkedTwinId || Store.isPartyMember(c)) ? ' disabled' : '';
-    const note = Store.isPartyMember(c)
-      ? `<small class="edit-hint">${esc(I18n.t('editform.visNotePc'))}</small>`
-      : c.linkedTwinId
-        ? `<small class="edit-hint">${esc(I18n.t('editform.visNoteTwin'))}</small>`
-        : '';
+    // Party members get a disabled select (server-pinned public) with no note —
+    // the disabled control is self-explanatory. Twin-linked keeps its note since
+    // the reason for the lock is less obvious.
+    const note = c.linkedTwinId
+      ? `<small class="edit-hint">${esc(I18n.t('editform.visNoteTwin'))}</small>`
+      : '';
     return `<select class="edit-select edit-select-sm"${disabled} ${dataOn('change', 'Wiki.commitCharacterVisibility', c.id, '$value')}>`
       + `<option value="public"${visibility === 'public' ? ' selected' : ''}>${esc(I18n.t('editform.visPublic'))}</option>`
       + `<option value="dm"${visibility === 'dm' ? ' selected' : ''}>${esc(I18n.t('editform.visDmOnly'))}</option>`
