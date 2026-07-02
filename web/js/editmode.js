@@ -155,12 +155,13 @@ export const EditMode = (() => {
   // Clears dirty flag and wipes drafts for every currently-mounted
   // editor — once saved, the entity's content matches the draft.
   function _markClean() {
-    const wasDirty = _dirty;
     _dirty = false;
     document.querySelectorAll('textarea.md-easy').forEach(ta => {
       if (ta.id) _clearDraft(ta.id);
     });
-    if (wasDirty) window.dispatchEvent(new CustomEvent('editmode:clean'));
+    // Always signal a completed save so the per-article editor exits back to the
+    // read view (Wiki clears _editingArticle) — even a no-op save should close.
+    window.dispatchEvent(new CustomEvent('editmode:clean'));
   }
 
   function _setDirty() {

@@ -80,9 +80,6 @@
 }
 .article-edit-btn:active { transform: translateY(1px); }
 
-/* Edit switch relocated into an addon-owned Overview tab (top-right of it). */
-.article-body-editswitch { display: flex; justify-content: flex-end; margin-bottom: 0.5rem; }
-
 /* Connections: pretty click-to-edit chips + a per-connection editor row. */
 .rel-chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
 .rel-chip-editable {

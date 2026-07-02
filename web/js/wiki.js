@@ -609,13 +609,8 @@ export const Wiki = (() => {
     // byte-for-byte unchanged.
     const bodyTaken = !!(kind && Addons.bodyOverridden(kind));
     const bodyInner = body ? `<div class="article-body">${body}</div>` : '';
-    // When an addon owns the body (e.g. the D&D sheet's Overview tab), the edit
-    // switch sits above the portrait in the side column (so the main content
-    // rises to the top beside it) rather than the action bar. Elsewhere: the bar.
-    const bodyEditSwitch = (bodyTaken && editButton)
-      ? `<div class="article-body-editswitch">${editButton}</div>` : '';
     const bodyHtml = bodyTaken
-      ? `<div class="article-sidecard-inbody">${bodyEditSwitch}${sideCard}</div>${bodyInner}`
+      ? `<div class="article-sidecard-inbody">${sideCard}</div>${bodyInner}`
       : bodyInner;
     _frags.push({ id: `${kind || 'x'}:body`, html: bodyHtml });
     const mainHtml = (kind ? Addons.applyFragments(kind, _frags, entity) : _frags)
@@ -627,14 +622,15 @@ export const Wiki = (() => {
     // breadcrumb trail in the side rail instead (see below). The generic
     // back button is gone — wayfinding is the breadcrumb, and the
     // browser/OS back handles history.
+    // Action row: breadcrumb chip (left) + ✏ Upravit (right), consistent with
+    // non-addon articles. On the full-width takeover the container query below
+    // floats them into the side gutters (level with the content) when there's
+    // room; otherwise they sit as a thin row above.
     const navChip = bodyTaken ? _breadcrumbChip(kind, entity) : '';
-    // On addon-owned bodies the edit switch moved into the Overview tab
-    // (bodyEditSwitch above), so the action bar keeps only the breadcrumb chip.
-    const barEditButton = bodyTaken ? '' : editButton;
-    const actionBar = (navChip || barEditButton) ? `
+    const actionBar = (navChip || editButton) ? `
       <div class="article-actions">
         ${navChip}
-        ${barEditButton || ''}
+        ${editButton || ''}
       </div>` : '';
 
     return `
