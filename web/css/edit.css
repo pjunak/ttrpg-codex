@@ -10,36 +10,28 @@
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── Article action bar (read view) ──────────────────────────
-   Sits above every entity article. On full-width takeover pages a compact
-   ‹ parent breadcrumb chip sits on the left, ✏ Upravit on the right (when
-   the viewer can edit); normal articles carry only the edit button here —
-   their breadcrumb trail lives in the side rail. */
+   Sits above every entity article and carries ONLY the breadcrumb row
+   (markup in wiki.css) — the ✏ edit button lives on the side-card,
+   anchored to the record it edits (see below). */
 .article-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 0.6rem;
   margin-bottom: 0.6rem;
 }
-.article-actions .article-edit-btn { margin-left: auto; }
 
-/* On a wide FULL-WIDTH surface (the D&D character sheet, where the tabs claim
-   the whole width) the action bar's breadcrumb chip / ✏ edit buttons float into the side
-   gutters — level with the top of the content — instead of reserving a row that
-   pushes everything down. A container query on the shell gates it: the buttons
-   move out only when the gutters can actually hold them; below that the bar stays
-   the normal stacked row (unchanged). Scoped to `.article-shell-full`, so every
-   other article type is untouched. */
+/* On a wide container the bar docks into the shell's top-left gutter —
+   level with the top of the content — instead of reserving a row that
+   pushes everything down. Applies to every article: the two-column grid
+   (~1432px) and the full-width takeover (~1400px) both leave real gutters
+   beyond ~1700px, and the cqw-based max-width confines the (wrapping)
+   crumbs to that gutter so they never overlap the content columns. Below
+   the threshold the bar stays a thin in-flow row above the article. */
 .article-shell { position: relative; container-type: inline-size; }
 @container (min-width: 1700px) {
   .article-shell > .article-actions {
-    position: absolute; inset: 0 0 auto 0; margin: 0; pointer-events: none;
-  }
-  .article-shell > .article-actions > .wiki-breadcrumb {
-    position: absolute; top: 0; left: 1rem; margin: 0; pointer-events: auto;
-  }
-  .article-shell > .article-actions > .article-edit-btn {
-    position: absolute; top: 0; right: 1rem; margin: 0; pointer-events: auto;
+    position: absolute; top: 0; left: 1rem; margin: 0;
+    max-width: calc((100cqw - 1440px) / 2 - 1.5rem);
   }
 }
 .article-edit-btn {
@@ -62,6 +54,16 @@
   border-color: var(--accent-gold);
 }
 .article-edit-btn:active { transform: translateY(1px); }
+/* On the side-card (its first child — wiki.js _articleShell) the button
+   compacts and right-aligns, sitting above the portrait/icon. On a
+   takeover page the card is folded into the addon's Overview tab, so the
+   button travels with the profile content it edits. */
+.wiki-side-card > .article-edit-btn {
+  align-self: flex-end;
+  padding: 0.25rem 0.7rem;
+  font-size: var(--text-xs);
+  margin-bottom: -0.35rem; /* tuck toward the visual (card flex gap is .75rem) */
+}
 
 /* Connections: pretty click-to-edit chips + a per-connection editor row. */
 .rel-chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }

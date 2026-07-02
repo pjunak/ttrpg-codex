@@ -111,7 +111,11 @@ host.id            // your addon id
 host.apiVersion    // 1
 host.permissions   // string[] of what you were granted
 host.action(name)  // → "<id>:<name>"  — build action strings with this
-host.h             // { esc, dataAction, dataOn, renderMarkdown, slugify }
+host.h             // { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumb }
+                   //   breadcrumb([{label, href?}, …]) renders the same horizontal
+                   //   wayfinding row core articles use (last crumb = current page,
+                   //   '' below 2 crumbs). Use it at the top of your pages instead
+                   //   of a hand-rolled "← Back" link.
 host.role          // { isDM(), isAnonymous() }
 host.ui            // { toast(msg), rerender() }  — rerender re-renders the current route
 ```
@@ -330,6 +334,14 @@ host.registerFragmentOp('characters:body', {
   default) and surfaces a **conflict** in Nastavení → Doplňky → Konflikty for the
   DM to resolve. There is no silent last-wins.
 - `ctx` = `{ entity, kind, target }`. A throwing render degrades to the built-in.
+- **Full-width takeover:** an exclusive claim on `<kind>:body` collapses the
+  two-column article — the side rail is dropped and the host folds the
+  side-card (✏ edit button + portrait + identity + facts, as a floated
+  `.article-sidecard-inbody` block) **and every section** into the body html
+  your `render` receives. Treat that html as the complete wiki profile (the
+  D&D sheet shows it as its Overview tab). Consequently the
+  `<kind>:section:*` fragment ids do **not exist** on a taken-over page — a
+  section-targeted claim reports as unmatched there.
 
 ---
 

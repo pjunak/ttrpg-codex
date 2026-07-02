@@ -38,6 +38,20 @@ function _dataOn(kind, method, ...args) {
   const a = args.length ? ` data-${kind}-args='${JSON.stringify(args)}'` : '';
   return ` data-on-${kind}="${_esc(method)}"${a}`;
 }
+// Mirrors utils.breadcrumbNav: horizontal trail, last crumb = current page,
+// '' below 2 crumbs — so addon tests exercise the same contract.
+function _breadcrumb(crumbs) {
+  const list = (crumbs || []).filter(c => c && c.label);
+  if (list.length < 2) return '';
+  const rows = list.map((c, i) => {
+    const sep = i ? '<span class="bc-sep" aria-hidden="true">›</span>' : '';
+    const label = (i === list.length - 1 || !c.href)
+      ? `<span class="bc-current">${_esc(c.label)}</span>`
+      : `<a class="bc-crumb" href="${_esc(c.href)}">${_esc(c.label)}</a>`;
+    return `<li class="bc-row">${sep}${label}</li>`;
+  }).join('');
+  return `<nav class="wiki-breadcrumb"><ol>${rows}</ol></nav>`;
+}
 
 /** A fresh, blank registration record. */
 function _emptyRec() {
@@ -139,7 +153,7 @@ export function createMockHost(meta = {}, opts = {}) {
       isAnonymous: () => !!opts.isAnonymous,
     },
     h: { esc: _esc, slugify: _slugify, dataAction: _dataAction, dataOn: _dataOn,
-         renderMarkdown: (s) => _esc(s) },
+         renderMarkdown: (s) => _esc(s), breadcrumb: _breadcrumb },
     ui: {
       toast:    (m) => { rec.toasts.push(m); },
       rerender: () => { rec.rerenders++; },

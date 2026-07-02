@@ -12,7 +12,7 @@
 import { Store } from './store.js';
 import { EditMode } from './editmode.js';
 import { Role } from './role.js';
-import { norm, esc, renderMarkdown, extractOutline, humanTime, dataAction, dataOn } from './utils.js';
+import { norm, esc, renderMarkdown, extractOutline, humanTime, dataAction, dataOn, breadcrumbNav } from './utils.js';
 import { PIN_TYPES, WorldMap } from './map.js';
 import { Addons } from './addons.js';
 // Connection-kind labels come from Store.getKind('connections', id).label.
@@ -156,10 +156,11 @@ export const Wiki = (() => {
 
   // ── Breadcrumb (replaces the old generic ← Zpět button) ─────────
   // Wayfinding, NOT history: list-root → location parentId ancestors →
-  // current record. Rendered as a vertical trail at the top of the sticky
-  // side rail on normal articles, and in the action bar on full-width takeover
-  // pages where there's no rail (both use _breadcrumbTrail). `kind` is the
-  // collection, `entity` the record.
+  // current record. Rendered by `utils.breadcrumbNav` as a horizontal row
+  // in the article action bar on EVERY article (normal + addon takeover);
+  // edit.css docks it into the shell's top-left gutter when the container
+  // is wide enough, so it never pushes content down when there's room.
+  // `kind` is the collection, `entity` the record.
   const _BREADCRUMB_ROOT = {
     characters:       { route: '/postavy',    key: 'nav.characters' },
     locations:        { route: '/mista',      key: 'nav.locations' },
@@ -197,20 +198,11 @@ export const Wiki = (() => {
     crumbs.push({ label: entity.name || '', current: true });
     return crumbs;
   }
-  // Vertical trail for the side rail: gentle capped per-level indent + a ↳
-  // connector so it reads as a descending path, not a tree.
+  // The article breadcrumb row — crumbs from the registry above, markup
+  // from the shared renderer (utils.breadcrumbNav, same output addons get
+  // via `host.h.breadcrumb`).
   function _breadcrumbTrail(kind, entity) {
-    const crumbs = _breadcrumbCrumbs(kind, entity);
-    if (crumbs.length < 2) return '';
-    const rows = crumbs.map((c, i) => {
-      const indent = Math.min(i, 5) * 8;
-      const arrow = i ? '<span class="bc-arrow" aria-hidden="true">↳</span>' : '';
-      const label = c.current
-        ? `<span class="bc-current" aria-current="page">${esc(c.label)}</span>`
-        : `<a class="bc-crumb" href="${esc(c.href)}">${esc(c.label)}</a>`;
-      return `<li class="bc-row" style="padding-left:${indent}px">${arrow}${label}</li>`;
-    }).join('');
-    return `<nav class="wiki-breadcrumb" aria-label="${esc(I18n.t('wiki.breadcrumbLabel'))}"><ol>${rows}</ol></nav>`;
+    return breadcrumbNav(_breadcrumbCrumbs(kind, entity));
   }
 
   /** Build a `facts` row entry showing the linked twin, when present
@@ -497,9 +489,10 @@ export const Wiki = (() => {
   }
 
   // ── Article shell helper ─────────────────────────────────────
-  // Single-column wiki layout: head panel (visual + identity +
-  // badges + facts) at the top, then freeform `sections` (chips,
-  // fact lists, link rows) above the markdown `body` article.
+  // Two-column wiki layout: breadcrumb action bar on top, sticky side
+  // rail (identity card + outline) beside the main column (structured
+  // `sections`, then the markdown `body`). The body comes last,
+  // matching wiki convention: facts up front, prose at the bottom.
   //
   //   _articleShell({
   //     visual:   '<div class="portrait-wrap">…</div>' | '<div class="ah-icon">🛕</div>' | null,
@@ -509,16 +502,19 @@ export const Wiki = (() => {
   //     facts:    [{ label: 'Místo', value: '<a …>' }, …],
   //     sections: [{ title: 'Vazby', html: '<chips>' }, …],
   //     body:     '<div class="md-view">…</div>',   // narrative markdown
+  //     editButton: _articleEditButton('characters', id),  // rides the side-card
+  //     kind: 'characters', entity: c,   // fragment ids + breadcrumb source
   //   })
-  //
-  // The body comes last, after the structured data, matching
-  // wiki convention: facts up front, prose at the bottom.
   /**
-   * Shared two-column layout used by every entity article (character,
-   * location, event, mystery, faction, deity, artifact,
-   * historical event). Renders a sticky left side-card with the
-   * portrait + title + chips + facts + auto-generated outline, and a
-   * main column holding `sections` followed by the markdown body.
+   * Shared layout used by every entity article (character, location,
+   * event, mystery, faction, deity, artifact, historical event).
+   * Renders the breadcrumb action bar, a sticky side-card (✏ edit
+   * button + portrait + title + chips + facts) with the auto-generated
+   * outline beneath, and a main column holding `sections` followed by
+   * the markdown body. When an addon exclusively owns `<kind>:body`
+   * (Addons.bodyOverridden — e.g. the D&D sheet) the layout goes
+   * full-width: the rail is dropped and the side-card + every section
+   * fold INTO the body fragment handed to the takeover addon.
    *
    * @param {object} opts
    * @param {string|null} [opts.visual]   - HTML for the side-card visual.
@@ -529,7 +525,9 @@ export const Wiki = (() => {
    * @param {Array<{title:string,html:string}>} [opts.sections]
    * @param {string} [opts.body]          - Pre-rendered markdown HTML.
    * @param {string} [opts.outlineSource] - Raw markdown for TOC extraction.
-   * @param {boolean} [opts.back=true]
+   * @param {string} [opts.editButton]    - `_articleEditButton(…)` HTML; rendered on the side-card.
+   * @param {string} [opts.kind]          - Collection key (fragment ids + breadcrumb root).
+   * @param {object} [opts.entity]        - The record (fragment ctx + breadcrumb).
    * @returns {string} Complete article HTML.
    */
   function _articleShell({
@@ -549,28 +547,29 @@ export const Wiki = (() => {
     // the body each become a fragment with a stable id; `Addons.applyFragments`
     // applies override claims before we join. Empty fragments collapse. With no
     // override addons installed the pipeline is a pass-through (zero cost).
+    // `bodyTaken` (an addon exclusively owns `<kind>:body`) is decided up-front
+    // because it changes what the fragment list holds — see the fold below.
+    const bodyTaken = !!(kind && Addons.bodyOverridden(kind));
     const _sectionBlock = (title, html) =>
       `<div class="char-section"><div class="char-section-title">${esc(title)}</div>${html}</div>`;
-    const _frags = [];
-    (sections || []).filter(Boolean).forEach((s, i) => {
-      _frags.push({
-        id:   `${kind || 'x'}:section:${s.id || ('s' + i)}`,
-        html: (s.html && s.html.trim()) ? _sectionBlock(s.title, s.html) : '',
-      });
-    });
-    (kind ? Addons.articleSections(kind, entity) : []).forEach((s) => {
-      _frags.push({
-        // `s.seq` is the section's ordinal within its own addon — stable across
-        // load order, so a cross-addon override claim on this fragment id holds.
-        id:   `${kind}:addon:${s.addonId}:${s.seq}`,
-        html: (s.html && s.html.trim()) ? _sectionBlock(s.title, s.html) : '',
-      });
-    });
-    // The side-card (portrait + identity + facts) + the outline normally fill the
-    // left rail. Built up-front because a full-width takeover folds the side-card
-    // INTO the body instead of rendering the rail (see bodyTaken below).
+    const coreSecs = (sections || []).filter(Boolean).map((s, i) => ({
+      id:   `${kind || 'x'}:section:${s.id || ('s' + i)}`,
+      html: (s.html && s.html.trim()) ? _sectionBlock(s.title, s.html) : '',
+    }));
+    const addonSecs = (kind ? Addons.articleSections(kind, entity) : []).map((s) => ({
+      // `s.seq` is the section's ordinal within its own addon — stable across
+      // load order, so a cross-addon override claim on this fragment id holds.
+      id:   `${kind}:addon:${s.addonId}:${s.seq}`,
+      html: (s.html && s.html.trim()) ? _sectionBlock(s.title, s.html) : '',
+    }));
+    // The side-card (✏ edit button + portrait + identity + facts) + the outline
+    // normally fill the left rail. Built up-front because a full-width takeover
+    // folds the side-card INTO the body instead of rendering the rail (see the
+    // fold below). The edit button rides the card — anchored to the record it
+    // edits — so on a takeover page it lands inside the addon's Overview tab.
     const sideCard = `
       <div class="wiki-side-card">
+        ${editButton || ''}
         ${visual ? `<div class="ah-visual">${visual}</div>` : ''}
         <div class="ah-meta">
           <h1>${title}</h1>
@@ -595,35 +594,33 @@ export const Wiki = (() => {
 
     // When an addon exclusively owns this kind's `:body` (e.g. the D&D sheet turns
     // it into a full-width tab strip), collapse the two-column article: drop the
-    // side rail and FOLD the side-card into the body, so the takeover addon can
-    // place the portrait/identity itself (it arrives as the fragment's html).
-    // Gated on a real claim, so a vanilla install / any un-claimed kind is
-    // byte-for-byte unchanged.
-    const bodyTaken = !!(kind && Addons.bodyOverridden(kind));
+    // side rail and FOLD the side-card AND every section into the body, so the
+    // takeover addon receives the whole wiki profile as one html blob (the D&D
+    // sheet shows it as its Overview tab — the tab strip sits at the very top of
+    // the page instead of below the section blocks). Section fragment ids are
+    // therefore absent on takeover pages; a section-targeted override claim from
+    // another addon reports as unmatched in the Manager rather than silently
+    // no-opping. Gated on a real claim, so a vanilla install / any un-claimed
+    // kind is byte-for-byte unchanged.
     const bodyInner = body ? `<div class="article-body">${body}</div>` : '';
     const bodyHtml = bodyTaken
-      ? `<div class="article-sidecard-inbody">${sideCard}</div>${bodyInner}`
+      ? `<div class="article-sidecard-inbody">${sideCard}</div>${[...coreSecs, ...addonSecs].map(f => f.html).join('')}${bodyInner}`
       : bodyInner;
+    const _frags = bodyTaken ? [] : [...coreSecs, ...addonSecs];
     _frags.push({ id: `${kind || 'x'}:body`, html: bodyHtml });
     const mainHtml = (kind ? Addons.applyFragments(kind, _frags, entity) : _frags)
       .map(f => f.html).filter(Boolean).join('');
 
-    // Action row above the article: ✏ Upravit on the right. On full-width
-    // takeover pages (the D&D sheet) a compact ‹ parent breadcrumb chip
-    // rides on the left of the same row; normal articles get the vertical
-    // breadcrumb trail in the side rail instead (see below). The generic
-    // back button is gone — wayfinding is the breadcrumb, and the
-    // browser/OS back handles history.
-    // Action row: on the addon takeover the breadcrumb TRAIL rides here (there's
-    // no side rail to hold it); non-addon articles keep their trail in the rail,
-    // so this row carries only ✏ Upravit. The container query below floats the
-    // breadcrumb (left) + edit (right) into the gutters, level with the content,
-    // when there's room; otherwise they sit as a thin row above.
-    const navChip = bodyTaken ? _breadcrumbTrail(kind, entity) : '';
-    const actionBar = (navChip || editButton) ? `
+    // Action row above the article: the breadcrumb row, on EVERY article —
+    // wayfinding is the breadcrumb, the browser/OS back handles history, and
+    // the ✏ edit button lives on the side-card (anchored to the record it
+    // edits), not here. On wide containers edit.css docks this bar into the
+    // shell's top-left gutter, level with the content, so it stops reserving
+    // a row; below that it renders as a thin row above the article.
+    const navChip = _breadcrumbTrail(kind, entity);
+    const actionBar = navChip ? `
       <div class="article-actions">
         ${navChip}
-        ${editButton || ''}
       </div>` : '';
 
     return `
@@ -631,7 +628,6 @@ export const Wiki = (() => {
         ${actionBar}
         <div class="wiki-article${bodyTaken ? ' wiki-article-full' : ''}">
           ${bodyTaken ? '' : `<aside class="wiki-side">
-            ${_breadcrumbTrail(kind, entity)}
             ${sideCard}
             ${outlineHtml}
           </aside>`}

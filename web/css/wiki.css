@@ -860,14 +860,16 @@
   .wiki-side { position: static; max-height: none; overflow: visible; }
 }
 
-/* ── Breadcrumb trail — top of the sticky side rail. Wayfinding, not
-   history: list root → location ancestors → current, as a gentle
-   descending path (capped indent + ↳ connector, not a tree). The rail's
-   own flex `gap` spaces it from the info card below. ── */
-.wiki-breadcrumb { margin: 0; }
-.wiki-breadcrumb ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
-.bc-row { display: flex; align-items: flex-start; gap: 0.3rem; font-size: 0.8rem; line-height: 1.35; }
-.bc-arrow { color: var(--text-muted); opacity: 0.65; flex: none; }
+/* ── Breadcrumb — the article action bar's wayfinding row (also emitted
+   by addon pages via `host.h.breadcrumb`). List root → location
+   ancestors → current page, horizontal with › separators, wrapping when
+   tight. On wide containers edit.css docks it into the article shell's
+   top-left gutter so it doesn't reserve a row. ── */
+.wiki-breadcrumb { margin: 0 0 0.6rem; }             /* standalone (addon pages) */
+.article-actions .wiki-breadcrumb { margin: 0; }     /* the action bar owns spacing */
+.wiki-breadcrumb ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15rem 0.4rem; }
+.bc-row { display: inline-flex; align-items: baseline; gap: 0.4rem; font-size: 0.8rem; line-height: 1.35; min-width: 0; }
+.bc-sep { color: var(--text-muted); opacity: 0.65; flex: none; }
 .bc-crumb { color: var(--text-muted); text-decoration: none; word-break: break-word; }
 .bc-crumb:hover { color: var(--accent-gold); text-decoration: underline; }
 .bc-current { color: var(--text-parchment); font-weight: 600; word-break: break-word; }

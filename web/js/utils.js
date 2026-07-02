@@ -349,6 +349,34 @@ export function pageEditToggle({ moduleName, isEditing, label }) {
 }
 
 /**
+ * Horizontal breadcrumb nav from ordered crumbs `[{label, href?}]` —
+ * wayfinding, not history: list root → ancestors → current page. Every
+ * crumb but the last links; the last always renders as the current page
+ * (its `href` is ignored — a breadcrumb never links to itself). Returns
+ * '' for fewer than 2 crumbs (nothing to walk back to). Separators are
+ * decorative `›` spans (aria-hidden); styling in wiki.css, docking into
+ * the article shell's top-left gutter in edit.css.
+ *
+ * Shared by the wiki article shell and by addon pages via the host
+ * facade's `h.breadcrumb` (addons.js).
+ *
+ * @param {Array<{label: string, href?: string}>} crumbs
+ * @returns {string} HTML, or '' when there is no trail to show.
+ */
+export function breadcrumbNav(crumbs) {
+  const list = (crumbs || []).filter(c => c && c.label);
+  if (list.length < 2) return '';
+  const rows = list.map((c, i) => {
+    const sep = i ? '<span class="bc-sep" aria-hidden="true">›</span>' : '';
+    const label = (i === list.length - 1 || !c.href)
+      ? `<span class="bc-current"${i === list.length - 1 ? ' aria-current="page"' : ''}>${esc(c.label)}</span>`
+      : `<a class="bc-crumb" href="${esc(c.href)}">${esc(c.label)}</a>`;
+    return `<li class="bc-row">${sep}${label}</li>`;
+  }).join('');
+  return `<nav class="wiki-breadcrumb" aria-label="${esc(I18n.t('wiki.breadcrumbLabel'))}"><ol>${rows}</ol></nav>`;
+}
+
+/**
  * Trap keyboard focus inside a modal panel. While active, Tab / Shift+Tab
  * cycle only through the panel's focusable elements, and focus is restored
  * to whatever was focused before the modal opened when the trap is released.

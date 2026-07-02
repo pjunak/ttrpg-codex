@@ -86,7 +86,7 @@ Add only the fields you need: `server` (`.cjs`, needs `server:code`),
 | `registerAction(name, fn)` | `ui:action` | For `data-action="<id>:<name>"`. |
 | `registerCollection(name)` | `data:own` | Must be in manifest `collections[]`. |
 | `registerWikiKind(scope, resolve)` | `wiki:kind` | `resolve(label) → {kind, id} \| null`. |
-| `registerFragmentOp(target, {op, render?, order?, position?})` | `ui:override` | `op`: `replace`/`hide` (EXCLUSIVE) · `wrap`/`insert` (stack). |
+| `registerFragmentOp(target, {op, render?, order?, position?})` | `ui:override` | `op`: `replace`/`hide` (EXCLUSIVE) · `wrap`/`insert` (stack). An exclusive claim on `<kind>:body` = full-width takeover: the host folds the side-card + ALL sections into the body html your render receives (the whole wiki profile), and `<kind>:section:*` ids don't exist on that page. |
 | `registerSlot(slotId, render, {order?})` | `ui:slot:<surface>` | Content into a named slot (any surface; `<surface>` = slotId's 1st `:`-seg). `render(ctx)→{html}\|string\|null`. Slots: `dashboard:section` (ctx `{role}`), `map:pin:panel` (ctx `{location,pin,role}`), `timeline:card:extra`, `timeline:column:header\|footer`, `timeline:toolbar`. |
 | `registerKind(domain, {id,label,color?,…})` | `kinds:<domain>` | Pure-DATA enum kind merged into `Store.getKinds(domain)`. Domains: `connections`/`statuses`/`priorities`/`attitudes`/`genders`/`pinTypes`. Id → `<addonId>:<id>`. Renders wherever that kind's label/colour does; NOT an editable Settings row. |
 | `registerConnectionKind({id,label,color,style,dirs?,target?})` | `kinds:connections` | Alias for `registerKind('connections', …)`. In rel editor + mind-map edges. Id → `<addonId>:<id>`. |
@@ -98,7 +98,9 @@ Add only the fields you need: `server` (`.cjs`, needs `server:code`),
 **Other facade members** (always present unless noted):
 ```js
 host.id · host.apiVersion (1) · host.permissions[] · host.action(name)
-host.h    = { esc, dataAction, dataOn, renderMarkdown, slugify }
+host.h    = { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumb }
+//            breadcrumb([{label, href?}, …]) — the core wayfinding row (last crumb
+//            = current page); use it instead of hand-rolled "← Back" links
 host.role = { isDM(), isAnonymous() }
 host.ui   = { toast(msg), rerender() }          // rerender after a write
 host.store.generateId(name)                      // always
