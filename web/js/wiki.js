@@ -610,12 +610,12 @@ export const Wiki = (() => {
     const bodyTaken = !!(kind && Addons.bodyOverridden(kind));
     const bodyInner = body ? `<div class="article-body">${body}</div>` : '';
     // When an addon owns the body (e.g. the D&D sheet's Overview tab), the edit
-    // switch rides at the top of that tab's content rather than the action bar —
-    // the tab strip otherwise buries/splits it. Elsewhere it stays in the bar.
+    // switch sits above the portrait in the side column (so the main content
+    // rises to the top beside it) rather than the action bar. Elsewhere: the bar.
     const bodyEditSwitch = (bodyTaken && editButton)
       ? `<div class="article-body-editswitch">${editButton}</div>` : '';
     const bodyHtml = bodyTaken
-      ? `${bodyEditSwitch}<div class="article-sidecard-inbody">${sideCard}</div>${bodyInner}`
+      ? `<div class="article-sidecard-inbody">${bodyEditSwitch}${sideCard}</div>${bodyInner}`
       : bodyInner;
     _frags.push({ id: `${kind || 'x'}:body`, html: bodyHtml });
     const mainHtml = (kind ? Addons.applyFragments(kind, _frags, entity) : _frags)
