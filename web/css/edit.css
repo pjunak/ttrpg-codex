@@ -80,84 +80,8 @@
 }
 .article-edit-btn:active { transform: translateY(1px); }
 
-/* ── Inline click-to-edit for read-view fields (Stage 1: character name /
-   title / species / gender / age / circumstances). Reuses the dashboard-hero
-   contenteditable primitive; the ✏ pen fades in on hover for editors and is
-   hidden for anonymous viewers. ── */
-.inline-edit-wrap { display: inline-flex; align-items: baseline; gap: 0.2rem; }
-.inline-edit { outline: none; border-radius: var(--radius-sm); }
-.inline-edit:empty::before { content: attr(data-placeholder); color: var(--text-muted); font-style: italic; }
-.inline-edit.is-editing-inline {
-  background: var(--bg-raised);
-  padding: 0 0.2rem;
-  box-shadow: 0 0 0 2px rgba(var(--accent-gold-rgb), 0.45);
-}
-.inline-edit-pen {
-  opacity: 0;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.8em;
-  padding: 0 0.15rem;
-  transition: opacity 0.12s, color 0.12s;
-}
-.inline-edit-wrap:hover .inline-edit-pen,
-.inline-sel-wrap:hover .inline-edit-pen,
-.inline-edit-pen:focus { opacity: 1; }
-.inline-edit-pen:hover { color: var(--accent-gold); }
-body.is-anonymous .inline-edit-pen { display: none; }
-/* Inline click-to-edit SELECT (enum fields: status / faction / knowledge). */
-.inline-sel-wrap { display: inline-flex; align-items: center; }
-.inline-sel-read { display: inline-flex; align-items: center; }
-.inline-sel-input { display: none; }
-.inline-sel-wrap.editing .inline-sel-read { display: none; }
-.inline-sel-wrap.editing .inline-sel-input { display: inline-block; }
-/* Inline portrait (character article): click to replace, ✕ to remove. */
-.portrait-edit { position: relative; display: block; }
-.portrait-edit-label { display: block; cursor: pointer; }
-.portrait-edit-badge {
-  position: absolute; right: 0.35rem; bottom: 0.35rem;
-  background: rgba(0, 0, 0, 0.55); color: #fff;
-  border-radius: var(--radius-sm); padding: 0.1rem 0.35rem;
-  font-size: 0.9rem; opacity: 0; transition: opacity 0.12s; pointer-events: none;
-}
-.portrait-edit:hover .portrait-edit-badge { opacity: 1; }
-.portrait-edit-rm {
-  position: absolute; top: 0.35rem; right: 0.35rem;
-  width: 1.5rem; height: 1.5rem; border: none; border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55); color: #fff; cursor: pointer;
-  opacity: 0; transition: opacity 0.12s, background 0.12s; line-height: 1;
-}
-.portrait-edit:hover .portrait-edit-rm { opacity: 1; }
-.portrait-edit-rm:hover { background: var(--color-danger); }
-body.is-anonymous .portrait-edit-badge,
-body.is-anonymous .portrait-edit-rm { display: none; }
-
-/* Inline dynamic list (character "what we know"; reusable for future lists). */
-.inline-list { display: flex; flex-direction: column; gap: 0.25rem; }
-.inline-list-row { display: flex; align-items: baseline; gap: 0.4rem; }
-.inline-list-item { flex: 1; min-width: 0; cursor: text; }
-.inline-list-del {
-  flex-shrink: 0; background: none; border: none; color: var(--text-muted);
-  cursor: pointer; opacity: 0; transition: opacity 0.12s, color 0.12s; font-size: 0.85em;
-}
-.inline-list-row:hover .inline-list-del { opacity: 1; }
-.inline-list-del:hover { color: var(--color-danger); }
-.inline-list-add {
-  align-self: flex-start; margin-top: 0.25rem; background: none;
-  border: 1px dashed var(--border-subtle); color: var(--text-muted);
-  border-radius: var(--radius-sm); padding: 0.15rem 0.5rem; cursor: pointer; font-size: 0.85em;
-}
-.inline-list-add:hover { color: var(--accent-gold); border-color: var(--accent-gold); }
-
-/* Inline Q&A list (character "open questions" — question + answer per row). */
-.inline-qa-row { padding: 0.3rem 0; border-bottom: 1px solid var(--border-subtle); }
-.inline-qa-line { display: flex; align-items: baseline; gap: 0.4rem; }
-.inline-qa-mark { flex-shrink: 0; color: var(--text-muted); font-weight: 600; }
-.inline-qa-row.is-solved .inline-qa-mark { color: var(--color-success); }
-.inline-qa-line .inline-list-del { margin-left: auto; }
-.inline-qa-ans { margin-left: 1.1rem; color: var(--text-muted); font-size: 0.9em; }
+/* Edit switch relocated into an addon-owned Overview tab (top-right of it). */
+.article-body-editswitch { display: flex; justify-content: flex-end; margin-bottom: 0.5rem; }
 
 /* Connections: pretty click-to-edit chips + a per-connection editor row. */
 .rel-chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
@@ -180,25 +104,6 @@ body.is-anonymous .portrait-edit-rm { display: none; }
 .rel-edit-open { margin-top: 0.5rem; }
 .rel-cancel-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; padding: 0 0.3rem; }
 .rel-cancel-btn:hover { color: var(--accent-gold); }
-
-/* Inline lore/description editor (character Overview). */
-.lore-inline { position: relative; }
-.lore-edit-pen {
-  float: right; margin: 0 0 0.25rem 0.5rem;
-  background: none; border: none; color: var(--text-muted); cursor: pointer;
-  font-size: 0.85rem; transition: color 0.12s;
-}
-.lore-edit-pen:hover { color: var(--accent-gold); }
-.lore-empty { color: var(--text-muted); font-style: italic; }
-.lore-textarea {
-  width: 100%; min-height: 12rem; box-sizing: border-box;
-  background: var(--bg-surface); color: var(--text-parchment);
-  border: 1px solid var(--border-subtle); border-radius: var(--radius);
-  padding: var(--space-2, 0.6rem); font: inherit; line-height: 1.5; resize: vertical;
-}
-.lore-textarea:focus { outline: none; border-color: var(--accent-gold); }
-.lore-edit-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-body.is-anonymous .lore-edit-pen { display: none; }
 
 /* ── Modal-page edit toggle ───────────────────────────────────
    Shared pill used by the map, timeline and Myšlenkový palác

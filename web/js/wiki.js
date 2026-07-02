@@ -609,8 +609,13 @@ export const Wiki = (() => {
     // byte-for-byte unchanged.
     const bodyTaken = !!(kind && Addons.bodyOverridden(kind));
     const bodyInner = body ? `<div class="article-body">${body}</div>` : '';
+    // When an addon owns the body (e.g. the D&D sheet's Overview tab), the edit
+    // switch rides at the top of that tab's content rather than the action bar —
+    // the tab strip otherwise buries/splits it. Elsewhere it stays in the bar.
+    const bodyEditSwitch = (bodyTaken && editButton)
+      ? `<div class="article-body-editswitch">${editButton}</div>` : '';
     const bodyHtml = bodyTaken
-      ? `<div class="article-sidecard-inbody">${sideCard}</div>${bodyInner}`
+      ? `${bodyEditSwitch}<div class="article-sidecard-inbody">${sideCard}</div>${bodyInner}`
       : bodyInner;
     _frags.push({ id: `${kind || 'x'}:body`, html: bodyHtml });
     const mainHtml = (kind ? Addons.applyFragments(kind, _frags, entity) : _frags)
@@ -623,10 +628,13 @@ export const Wiki = (() => {
     // back button is gone — wayfinding is the breadcrumb, and the
     // browser/OS back handles history.
     const navChip = bodyTaken ? _breadcrumbChip(kind, entity) : '';
-    const actionBar = (navChip || editButton) ? `
+    // On addon-owned bodies the edit switch moved into the Overview tab
+    // (bodyEditSwitch above), so the action bar keeps only the breadcrumb chip.
+    const barEditButton = bodyTaken ? '' : editButton;
+    const actionBar = (navChip || barEditButton) ? `
       <div class="article-actions">
         ${navChip}
-        ${editButton || ''}
+        ${barEditButton || ''}
       </div>` : '';
 
     return `
@@ -1025,296 +1033,6 @@ export const Wiki = (() => {
     }
   }
 
-  // ── Inline click-to-edit for character read-view fields (Stage 1) ──
-  // Reuses the dashboard-hero primitive (startInlineEdit / handleInlineEditKey)
-  // for the click-to-edit UX; commit routes to a per-field character save.
-  // Editors (`!Role.isAnonymous()`) get a contenteditable span + ✏ pen; other
-  // viewers get plain (knowledge-gated) text. Whitelisted fields only, so a
-  // crafted data-action can't write arbitrary keys.
-  const _CHAR_INLINE_FIELDS = new Set(['name', 'title', 'species', 'gender', 'age', 'circumstances', 'status', 'faction', 'knowledge']);
-  /** Persist one character field edited inline. Name is required (a blanking
-   *  edit is ignored — the re-render restores it); knowledge coerces to 0–4;
-   *  switching to the party faction strips now-dead attitudes (as the form
-   *  does); an unchanged value is a no-op so we don't spam saves/snapshots. */
-  function saveCharacterField(id, field, value) {
-    if (!_CHAR_INLINE_FIELDS.has(field)) return;
-    const c = Store.getCharacter(id);
-    if (!c) return;
-    let v = typeof value === 'string' ? value.trim() : value;
-    if (field === 'knowledge') { const n = parseInt(v, 10); if (Number.isNaN(n)) return; v = Math.max(0, Math.min(4, n)); }
-    if (field === 'name' && !v) return;
-    if ((c[field] == null ? '' : String(c[field])) === String(v)) return;
-    const next = { ...c, [field]: v };
-    if (field === 'faction' && Store.isPartyMember(next)) next.attitudes = [];
-    Store.saveCharacter(next);
-  }
-  /** Blur handler for an inline character field: exit contenteditable + save. */
-  function commitCharacterField(id, field, value, el) {
-    if (el && el.removeAttribute) {
-      el.removeAttribute('contenteditable');
-      el.classList.remove('is-editing-inline');
-    }
-    saveCharacterField(id, field, value);
-  }
-  /** Render one character field. Non-editors get plain text (the caller applies
-   *  any knowledge-gating); editors get a contenteditable span + ✏ pen bound to
-   *  the shared inline-edit primitive. `elId` is unique per field per record. */
-  function _charInlineText(editable, id, field, value, opts = {}) {
-    const text = value == null ? '' : String(value);
-    if (!editable) return esc(text);
-    const elId = `ci-${field}-${id}`;
-    const ph = opts.placeholder || I18n.t('wiki.inlineAdd');
-    return `<span class="inline-edit-wrap">`
-      + `<span id="${esc(elId)}" class="inline-edit" data-placeholder="${esc(ph)}"`
-      + ` ${dataOn('blur', 'Wiki.commitCharacterField', id, field, '$text', '$el')}`
-      + ` ${dataOn('keydown', 'Wiki.handleInlineEditKey', '$ev', '$el')}>${esc(text)}</span>`
-      + `<button type="button" class="inline-edit-pen" title="${esc(I18n.t('action.edit'))}"`
-      + ` ${dataAction('Wiki.startInlineEdit', elId)}>✏</button>`
-      + `</span>`;
-  }
-
-  // Inline click-to-edit for enum fields (status / faction / knowledge). The
-  // read badge carries a ✏ pen; clicking it reveals a pre-populated <select>
-  // (options built by the caller to mirror the form) that saves on change.
-  function _charInlineSelect(id, field, optionsHtml, readHtml) {
-    const wrapId = `cis-${field}-${id}`;
-    return `<span class="inline-sel-wrap" id="${esc(wrapId)}">`
-      + `<span class="inline-sel-read">${readHtml}`
-      + `<button type="button" class="inline-edit-pen" title="${esc(I18n.t('action.edit'))}" ${dataAction('Wiki.startInlineSelect', wrapId)}>✏</button></span>`
-      + `<select class="inline-sel-input edit-select" ${dataOn('change', 'Wiki.commitCharacterSelect', id, field, '$value', wrapId)} ${dataOn('blur', 'Wiki.cancelInlineSelect', wrapId)}>${optionsHtml}</select>`
-      + `</span>`;
-  }
-  /** Reveal the inline <select> (pen click) and open its picker. */
-  function startInlineSelect(wrapId) {
-    const w = document.getElementById(wrapId);
-    if (!w) return;
-    w.classList.add('editing');
-    const s = w.querySelector('select');
-    if (s) { s.focus(); try { s.showPicker && s.showPicker(); } catch (_) {} }
-  }
-  /** Select change → save + collapse back to the badge. */
-  function commitCharacterSelect(id, field, value, wrapId) {
-    const w = document.getElementById(wrapId);
-    if (w) w.classList.remove('editing');
-    saveCharacterField(id, field, value);
-  }
-  /** Select blur without a change → collapse back to the badge. */
-  function cancelInlineSelect(wrapId) {
-    const w = document.getElementById(wrapId);
-    if (w) w.classList.remove('editing');
-  }
-  // Editable portrait for the character article: the read-view portrait becomes
-  // a click-to-upload target (a <label> wrapping a hidden file input, so the
-  // browser opens the picker with no extra JS). Editors only; falls back to the
-  // plain portraitWrap for viewers.
-  function _charPortraitEditable(c, glowFilter) {
-    const rm = c.portrait
-      ? `<button type="button" class="portrait-edit-rm" title="${esc(I18n.t('action.remove'))}" ${dataAction('EditMode.removeCharacterPortraitInline', c.id)}>✕</button>`
-      : '';
-    return `<div class="portrait-edit">`
-      + `<label class="portrait-edit-label" title="${esc(I18n.t('editform.uploadPortrait'))}">`
-      + portraitWrap(c, '', glowFilter)
-      + `<span class="portrait-edit-badge" aria-hidden="true">📷</span>`
-      + `<input type="file" accept="image/*" style="display:none" ${dataOn('change', 'EditMode.uploadCharacterPortraitInline', c.id, '$el')}>`
-      + `</label>${rm}</div>`;
-  }
-
-  // Inline editor for the character's "what we know" list (known[]). Each item
-  // is click-to-edit (shared contenteditable primitive); a blank commit removes
-  // it, ✕ removes, ＋ appends. Editors only; players get the read-only fact list.
-  function _charKnownEditor(id, known) {
-    const rows = (known || []).map((k, idx) => {
-      const elId = `ck-${id}-${idx}`;
-      return `<div class="inline-list-row">`
-        + `<span id="${esc(elId)}" class="inline-edit inline-list-item" data-placeholder="${esc(I18n.t('wiki.inlineAdd'))}"`
-        + ` ${dataAction('Wiki.startInlineEdit', elId)}`
-        + ` ${dataOn('blur', 'Wiki.commitCharacterKnown', id, idx, '$text', '$el')}`
-        + ` ${dataOn('keydown', 'Wiki.handleInlineEditKey', '$ev', '$el')}>${esc(k)}</span>`
-        + `<button type="button" class="inline-list-del" title="${esc(I18n.t('action.remove'))}" ${dataAction('Wiki.removeCharacterKnown', id, idx)}>✕</button>`
-        + `</div>`;
-    }).join('');
-    return `<div class="inline-list">${rows}`
-      + `<button type="button" class="inline-list-add" ${dataAction('Wiki.addCharacterKnown', id)}>＋ ${esc(I18n.t('action.add'))}</button></div>`;
-  }
-  /** Commit an edited "what we know" item; a blank value removes it. */
-  function commitCharacterKnown(id, idx, value, el) {
-    if (el && el.removeAttribute) { el.removeAttribute('contenteditable'); el.classList.remove('is-editing-inline'); }
-    const c = Store.getCharacter(id);
-    if (!c) return;
-    const known = (c.known || []).slice();
-    if (idx < 0 || idx >= known.length) return;
-    const v = typeof value === 'string' ? value.trim() : '';
-    if (v === (known[idx] || '')) return;
-    if (!v) known.splice(idx, 1); else known[idx] = v;
-    Store.saveCharacter({ ...c, known });
-  }
-  /** Append a fresh (empty) item to edit; drops any pre-existing blanks. */
-  function addCharacterKnown(id) {
-    const c = Store.getCharacter(id);
-    if (!c) return;
-    const known = (c.known || []).filter(x => x && String(x).trim()).concat(['']);
-    Store.saveCharacter({ ...c, known });
-  }
-  function removeCharacterKnown(id, idx) {
-    const c = Store.getCharacter(id);
-    if (!c) return;
-    const known = (c.known || []).slice();
-    if (idx < 0 || idx >= known.length) return;
-    known.splice(idx, 1);
-    Store.saveCharacter({ ...c, known });
-  }
-
-  // Inline editor for the character's "open questions" list (unknown[]: {text,
-  // answer} pairs). Question + answer are each click-to-edit; a filled answer
-  // marks it solved (✓). Empty question ⇒ dropped (answer-only rows aren't
-  // persisted, matching the form). Editors only; players get _qaListHtmlSplit.
-  function _charQuestionsEditor(id, unknown) {
-    const arr = Array.isArray(unknown) ? unknown : [];
-    const cell = (elId, idx, f, val, ph) =>
-      `<span id="${esc(elId)}" class="inline-edit" data-placeholder="${esc(ph)}"`
-      + ` ${dataAction('Wiki.startInlineEdit', elId)}`
-      + ` ${dataOn('blur', 'Wiki.commitCharacterQuestion', id, idx, f, '$text', '$el')}`
-      + ` ${dataOn('keydown', 'Wiki.handleInlineEditKey', '$ev', '$el')}>${esc(val)}</span>`;
-    const rows = arr.map((q, idx) => {
-      const item = (q && typeof q === 'object') ? q : { text: String(q || ''), answer: '' };
-      const solved = !!(item.answer && item.answer.trim());
-      return `<div class="inline-qa-row ${solved ? 'is-solved' : ''}">`
-        + `<div class="inline-qa-line"><span class="inline-qa-mark" aria-hidden="true">${solved ? '✓' : '?'}</span>`
-        + cell(`cq-t-${id}-${idx}`, idx, 'text', item.text || '', I18n.t('editform.questionPh'))
-        + `<button type="button" class="inline-list-del" title="${esc(I18n.t('action.remove'))}" ${dataAction('Wiki.removeCharacterQuestion', id, idx)}>✕</button></div>`
-        + `<div class="inline-qa-ans">${cell(`cq-a-${id}-${idx}`, idx, 'answer', item.answer || '', I18n.t('editform.answerPh'))}</div>`
-        + `</div>`;
-    }).join('');
-    return `<div class="inline-list">${rows}`
-      + `<button type="button" class="inline-list-add" ${dataAction('Wiki.addCharacterQuestion', id)}>＋ ${esc(I18n.t('editform.addQuestion'))}</button></div>`;
-  }
-  /** Commit a question's text/answer; blanking the text drops the row. */
-  function commitCharacterQuestion(id, idx, field, value, el) {
-    if (el && el.removeAttribute) { el.removeAttribute('contenteditable'); el.classList.remove('is-editing-inline'); }
-    if (field !== 'text' && field !== 'answer') return;
-    const c = Store.getCharacter(id);
-    if (!c) return;
-    const unknown = (c.unknown || []).slice();
-    if (idx < 0 || idx >= unknown.length) return;
-    const cur = unknown[idx];
-    const item = (cur && typeof cur === 'object') ? { text: cur.text || '', answer: cur.answer || '' } : { text: String(cur || ''), answer: '' };
-    const v = typeof value === 'string' ? value.trim() : '';
-    if ((item[field] || '') === v) return;
-    item[field] = v;
-    if (!item.text) unknown.splice(idx, 1); else unknown[idx] = item;
-    Store.saveCharacter({ ...c, unknown });
-  }
-  /** Append a fresh (empty) question to edit; drops any blank-text rows first. */
-  function addCharacterQuestion(id) {
-    const c = Store.getCharacter(id);
-    if (!c) return;
-    const unknown = (c.unknown || []).filter(q => {
-      const t = (q && typeof q === 'object') ? (q.text || '') : String(q || '');
-      return t.trim();
-    }).concat([{ text: '', answer: '' }]);
-    Store.saveCharacter({ ...c, unknown });
-  }
-  function removeCharacterQuestion(id, idx) {
-    const c = Store.getCharacter(id);
-    if (!c) return;
-    const unknown = (c.unknown || []).slice();
-    if (idx < 0 || idx >= unknown.length) return;
-    unknown.splice(idx, 1);
-    Store.saveCharacter({ ...c, unknown });
-  }
-
-  // Inline attitude editor (character read view; NPC-only — PCs use the party
-  // palette). Reuses the form's `.attitude-chip-row` markup + CSS; a delegated
-  // change handler on the row persists the checked set as attitudes[{id}].
-  function _charAttitudesEditor(id, c) {
-    const enums = Store.getEnum('attitudes') || [];
-    const checked = new Set((c.attitudes || []).map(e => (typeof e === 'string' ? e : (e && e.id))).filter(Boolean));
-    const rowId = `ca-att-${id}`;
-    const items = enums.map(a => {
-      const color = a.labelColor || a.bg || '#888';
-      return `<div class="attitude-chip-item" data-att-id="${esc(a.id)}" style="--attitude-color:${esc(color)}">`
-        + `<label class="attitude-chip"><input type="checkbox" value="${esc(a.id)}"${checked.has(a.id) ? ' checked' : ''}>`
-        + `<span class="attitude-chip-dot"></span><span class="attitude-chip-label">${esc(a.label)}</span></label></div>`;
-    }).join('');
-    return `<div class="attitude-chip-row" id="${esc(rowId)}" ${dataOn('change', 'Wiki.commitCharacterAttitudes', id, rowId)}>${items}</div>`;
-  }
-  /** Save the character's attitudes from the checked chips (delegated change). */
-  function commitCharacterAttitudes(id, rowId) {
-    const row = document.getElementById(rowId);
-    if (!row) return;
-    const c = Store.getCharacter(id);
-    if (!c) return;
-    const attitudes = [...row.querySelectorAll('input[type="checkbox"]:checked')].map(cb => ({ id: cb.value }));
-    Store.saveCharacter({ ...c, attitudes });
-  }
-
-  // Inline DM-only visibility control (public / DM-only). Mirrors the form's
-  // `_dmSection`: disabled for PCs (server-pinned public) and twin-linked
-  // entities (flip would break the pair). Saves on change. DM-gated by caller.
-  function _charVisibilityControl(c) {
-    const visibility = c.visibility === 'dm' ? 'dm' : 'public';
-    const disabled = (c.linkedTwinId || Store.isPartyMember(c)) ? ' disabled' : '';
-    // Party members get a disabled select (server-pinned public) with no note —
-    // the disabled control is self-explanatory. Twin-linked keeps its note since
-    // the reason for the lock is less obvious.
-    const note = c.linkedTwinId
-      ? `<small class="edit-hint">${esc(I18n.t('editform.visNoteTwin'))}</small>`
-      : '';
-    return `<select class="edit-select edit-select-sm"${disabled} ${dataOn('change', 'Wiki.commitCharacterVisibility', c.id, '$value')}>`
-      + `<option value="public"${visibility === 'public' ? ' selected' : ''}>${esc(I18n.t('editform.visPublic'))}</option>`
-      + `<option value="dm"${visibility === 'dm' ? ' selected' : ''}>${esc(I18n.t('editform.visDmOnly'))}</option>`
-      + `</select>${note}`;
-  }
-  /** Save character visibility (DM only; refused for PC / twin-linked). */
-  function commitCharacterVisibility(id, value) {
-    const c = Store.getCharacter(id);
-    if (!c) return;
-    if (Store.isPartyMember(c) || c.linkedTwinId) return;
-    const v = value === 'dm' ? 'dm' : 'public';
-    if ((c.visibility || 'public') === v) return;
-    Store.saveCharacter({ ...c, visibility: v });
-  }
-
-  // Inline lore/description editor (character read view = the addon's Overview
-  // tab). Rendered markdown + an ✎ pen; clicking swaps to a plain textarea +
-  // Save/Cancel — a plain textarea, not EasyMDE, to avoid the form's dirty-state
-  // guard and cross-tab editor teardown. Save persists + re-renders.
-  function _charLoreEditor(id, desc) {
-    const rendered = (desc && String(desc).trim())
-      ? `<div class="md-view">${renderMarkdown(desc)}</div>`
-      : `<div class="md-view lore-empty">${esc(I18n.t('wiki.inlineAdd'))}</div>`;
-    return `<div class="lore-inline" id="lore-${esc(id)}">`
-      + `<button type="button" class="lore-edit-pen" title="${esc(I18n.t('action.edit'))}"${dataAction('Wiki.editLore', id)}>✎ ${esc(I18n.t('action.edit'))}</button>`
-      + rendered
-      + `</div>`;
-  }
-  /** Swap the lore view for a textarea editor (pen click). */
-  function editLore(id) {
-    if (Role.isAnonymous()) { EditMode.promptLogin(); return; }
-    const box = document.getElementById('lore-' + id);
-    const c = Store.getCharacter(id);
-    if (!box || !c) return;
-    box.innerHTML = `<textarea class="lore-textarea" id="lore-ta-${esc(id)}" spellcheck="true">${esc(c.description || '')}</textarea>`
-      + `<div class="lore-edit-actions">`
-      + `<button type="button" class="edit-save-btn"${dataAction('Wiki.saveLore', id)}>💾 ${esc(I18n.t('action.save'))}</button>`
-      + `<button type="button" class="back-btn"${dataAction('Wiki.cancelLore', id)}>↩ ${esc(I18n.t('action.cancel'))}</button>`
-      + `</div>`;
-    const ta = document.getElementById('lore-ta-' + id);
-    if (ta) { ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (_) {} }
-  }
-  /** Persist edited lore, then re-render back to the rendered view. */
-  function saveLore(id) {
-    const ta = document.getElementById('lore-ta-' + id);
-    const c = Store.getCharacter(id);
-    if (!ta || !c) return;
-    const value = ta.value;
-    if ((c.description || '') !== value) Store.saveCharacter({ ...c, description: value });
-    window.dispatchEvent(new Event('hashchange'));
-  }
-  /** Discard lore edits + re-render back to the rendered view. */
-  function cancelLore(id) {
-    window.dispatchEvent(new Event('hashchange'));
-  }
 
   // Dashboard "Poslední úpravy" — top 5 most-recently edited entities
   // across every collection. Returns empty string if nothing has been
@@ -1655,30 +1373,18 @@ export const Wiki = (() => {
     if (!c) return `<p>${esc(I18n.t('wiki.charNotFound', { id }))}</p>`;
     if (_isCurrentArticleEditing()) return EditMode.renderCharacterEditor(c);
 
-    // ── View mode ────────────────────────────────────────────────
-    // Editors get inline click-to-edit on the identity fields (Stage 1 of the
-    // edit-in-place migration); anonymous viewers get the read-only, knowledge-
-    // gated view unchanged.
-    const editable = !Role.isAnonymous();
-    const isPc = Store.isPartyMember(c);
+    // ── View mode (read-only; editing goes through the ✏ switch → the form) ──
     const rels   = Store.getRelationships().filter(r => r.source === id || r.target === id);
     const chars  = Store.getCharacters();
     const events = Store.getEvents();
 
     const eventsInvolved = events.filter(e => (e.characters||[]).includes(id));
 
-    // Profile chips: species/gender/age. Players see them only at knowledge ≥ 2
-    // (and only when set); editors always see them, inline-editable with the
-    // real (ungated) values — the same fields the old form exposed.
-    const profChip = (icon, field, val) =>
-      editable
-        ? `<span class="profile-chip">${icon} ${_charInlineText(true, id, field, val)}</span>`
-        : ((c.knowledge >= 2 && val) ? `<span class="profile-chip">${icon} ${esc(val)}</span>` : '');
-    const profileBits = [
-      profChip('🧬', 'species', c.species),
-      profChip('⚥', 'gender', c.gender),
-      profChip('⌛', 'age', c.age),
-    ].filter(Boolean);
+    // Profile chips: species/gender/age — only when known (knowledge ≥ 2).
+    const profileBits = [];
+    if (c.knowledge >= 2 && c.species) profileBits.push(`<span class="profile-chip">🧬 ${esc(c.species)}</span>`);
+    if (c.knowledge >= 2 && c.gender)  profileBits.push(`<span class="profile-chip">⚥ ${esc(c.gender)}</span>`);
+    if (c.knowledge >= 2 && c.age)     profileBits.push(`<span class="profile-chip">⌛ ${esc(c.age)}</span>`);
 
     const locationLink = c.location ? (() => {
       const loc = Store.getLocation(c.location);
@@ -1696,20 +1402,16 @@ export const Wiki = (() => {
 
     const facts = [
       { label: I18n.t('wiki.factPlace'),         value: locationLink || '' },
-      { label: I18n.t('wiki.factCircumstances'), value: editable ? _charInlineText(true, id, 'circumstances', c.circumstances) : ((c.knowledge >= 2 && c.circumstances) ? esc(c.circumstances) : '') },
-      { label: I18n.t('editform.attitudes'), value: (editable && !isPc) ? _charAttitudesEditor(id, c) : '' },
-      { label: I18n.t('editform.visLabel'), value: Role.isDM() ? _charVisibilityControl(c) : '' },
+      { label: I18n.t('wiki.factCircumstances'), value: (c.knowledge >= 2 && c.circumstances) ? esc(c.circumstances) : '' },
       { label: I18n.t('wiki.factRank'),          value: rankInfo },
       _twinFactRow('characters', c),
     ].filter(Boolean);
 
     _setCurrentArticle({ type: 'characters', id });
 
-    const body = editable
-      ? _charLoreEditor(id, c.description)
-      : (c.knowledge >= 2
-          ? `<div class="md-view">${renderMarkdown(c.description)}</div>`
-          : `<em>${esc(I18n.t('wiki.charLittleKnown'))}</em>`);
+    const body = c.knowledge >= 2
+      ? `<div class="md-view">${renderMarkdown(c.description)}</div>`
+      : `<em>${esc(I18n.t('wiki.charLittleKnown'))}</em>`;
 
     // Attitude chips: one per active attitude (own or inherited from
     // faction). Strength % is shown when ≠ 100%. Party PCs always
@@ -1731,42 +1433,25 @@ export const Wiki = (() => {
     }
     const articleGlow = _attitudeGlow(articleEntries, _attitudeColorMap());
 
-    // Inline-select option lists for editors — mirror the character form's
-    // faction / status / knowledge pickers (incl. the neutral/party casing).
-    let factionOpts = '', statusOpts = '', knowledgeOpts = '';
-    if (editable) {
-      const factions = Store.getFactions();
-      const pp = Store.getPlayerParty();
-      const realFactions = Object.entries(factions).filter(([fid]) => fid !== 'party');
-      const neutralSelected = c.faction !== 'party' && !realFactions.some(([fid]) => fid === c.faction);
-      factionOpts = `<option value="neutral"${neutralSelected ? ' selected' : ''}>👤 ${esc(I18n.t('editform.noFaction'))}</option>`
-        + `<option value="party"${c.faction === 'party' ? ' selected' : ''}>${esc(pp.badge || pp.icon || '🛡')} ${esc(pp.name || I18n.t('editform.ourParty'))}</option>`
-        + realFactions.map(([fid, f]) => `<option value="${esc(fid)}"${c.faction === fid ? ' selected' : ''}>${esc(f.badge || '⬡')} ${esc(f.name)}</option>`).join('');
-      statusOpts = Object.entries(Store.getStatusMap()).map(([sid, s]) => `<option value="${esc(sid)}"${c.status === sid ? ' selected' : ''}>${esc(s.icon)} ${esc(s.label)}</option>`).join('');
-      const KNAMES = [I18n.t('editform.know0'), I18n.t('editform.know1'), I18n.t('editform.know2'), I18n.t('editform.know3'), I18n.t('editform.know4')];
-      knowledgeOpts = KNAMES.map((label, n) => `<option value="${n}"${Number(c.knowledge) === n ? ' selected' : ''}>${esc(label)}</option>`).join('');
-    }
-
     return _articleShell({
       editButton: _articleEditButton('characters', id),
-      visual:   editable ? _charPortraitEditable(c, articleGlow) : portraitWrap(c, '', articleGlow),
-      title:    editable ? _charInlineText(true, id, 'name', c.name) : (c.knowledge >= 1 ? esc(c.name) : esc(I18n.t('wiki.unknownCharacter'))),
-      subtitle: editable ? _charInlineText(true, id, 'title', c.title) : (c.knowledge >= 2 && c.title ? esc(c.title) : ''),
+      visual:   portraitWrap(c, '', articleGlow),
+      title:    c.knowledge >= 1 ? esc(c.name) : esc(I18n.t('wiki.unknownCharacter')),
+      subtitle: c.knowledge >= 2 && c.title ? esc(c.title) : '',
       chips:    [
-        editable ? _charInlineSelect(id, 'faction', factionOpts, factionBadge(c.faction)) : factionBadge(c.faction),
-        (editable && !isPc) ? '' : attitudeChips,
-        editable ? _charInlineSelect(id, 'status', statusOpts, statusBadge(c.status)) : statusBadge(c.status),
-        editable ? _charInlineSelect(id, 'knowledge', knowledgeOpts, knowledgeBadge(c.knowledge)) : knowledgeBadge(c.knowledge),
+        factionBadge(c.faction),
+        attitudeChips,
+        statusBadge(c.status),
+        knowledgeBadge(c.knowledge),
         ...profileBits,
       ].filter(Boolean),
       facts,
       sections: [
-        { id: 'vazby',    title: editable ? '' : I18n.t('wiki.sectionRelations'), html: editable ? EditMode.getRelSectionHtml(id) : (rels.length ? _relChipsHtml(rels, id, chars) : '') },
+        { id: 'vazby',    title: I18n.t('wiki.sectionRelations'),     html: rels.length          ? _relChipsHtml(rels, id, chars) : '' },
         { id: 'udalosti', title: I18n.t('wiki.sectionEventMentions'), html: eventsInvolved.length ? _eventListHtml(eventsInvolved) : '' },
-        { id: 'znalosti', title: I18n.t('wiki.sectionKnown'),         html: editable
-                                                ? _charKnownEditor(id, c.known)
-                                                : ((c.knowledge >= 2 && (c.known||[]).filter(Boolean).length) ? _factListHtml((c.known||[]).filter(Boolean), 'fact-item') : '') },
-        { id: 'otazky',   title: I18n.t('wiki.sectionOpenQuestions'), html: editable ? _charQuestionsEditor(id, c.unknown) : _qaListHtmlSplit(c.unknown || []) },
+        { id: 'znalosti', title: I18n.t('wiki.sectionKnown'),         html: (c.knowledge >= 2 && (c.known||[]).length)
+                                                ? _factListHtml(c.known, 'fact-item')   : '' },
+        { id: 'otazky',   title: I18n.t('wiki.sectionOpenQuestions'), html: _qaListHtmlSplit(c.unknown || []) },
         (() => { const ps = _petsArticleSection('character', id); return ps ? { id: 'mazlicci', ...ps } : null; })(),
       ],
       body,
@@ -2982,14 +2667,6 @@ export const Wiki = (() => {
     setZahadyQuestionFilter,
     // Dashboard hero per-field inline edit.
     startInlineEdit, commitInlineEdit, handleInlineEditKey,
-    // Character read-view per-field inline edit (Stages 1–2).
-    saveCharacterField, commitCharacterField,
-    startInlineSelect, commitCharacterSelect, cancelInlineSelect,
-    commitCharacterKnown, addCharacterKnown, removeCharacterKnown,
-    commitCharacterQuestion, addCharacterQuestion, removeCharacterQuestion,
-    commitCharacterAttitudes,
-    commitCharacterVisibility,
-    editLore, saveLore, cancelLore,
     // Polarity-aware wiki-link tie-breaker uses this (in app.js):
     getCurrentArticle: _getCurrentArticle,
     // XSS-safe faction-glyph helper (exported so other modules can

@@ -468,34 +468,6 @@ export const EditMode = (() => {
     }
   }
 
-  // Inline portrait upload from the character article (edit-in-place
-  // migration). Uploads to the character's own portrait subfolder
-  // (same-folder replacements are cleaned server-side) and persists the
-  // URL directly — no form round-trip. Bound to a hidden file input's change.
-  async function uploadCharacterPortraitInline(id, inputEl) {
-    const file = inputEl && inputEl.files && inputEl.files[0];
-    if (!file || !id) return;
-    const c = Store.getCharacter(id);
-    if (!c) return;
-    try {
-      _toast(I18n.t('editmode.uploadingImage'));
-      const url = await Store.uploadPortrait(file, id);
-      Store.saveCharacter({ ...c, portrait: url });
-      _toast(I18n.t('editmode.imageUploaded'));
-    } catch (e) {
-      _toast(I18n.t('editmode.imageUploadError'), false);
-      console.error(e);
-    }
-  }
-
-  // Inline portrait removal (character article). Deletes the stored image and
-  // clears the field — mirrors the form's remove-portrait button.
-  function removeCharacterPortraitInline(id) {
-    const c = Store.getCharacter(id);
-    if (!c || !c.portrait) return;
-    Store.deletePortrait(c.portrait);
-    Store.saveCharacter({ ...c, portrait: '' });
-  }
 
   // ── Gather helpers ─────────────────────────────────────────────
   // Read every {text, answer} pair from a `.qa-list` container.
@@ -1871,8 +1843,6 @@ export const EditMode = (() => {
     startNewBuh, startNewArtifact,
     startNewHistoricalEvent,
     startNewCharacterInLocation,
-    uploadCharacterPortraitInline,
-    removeCharacterPortraitInline,
   };
 
 })();
