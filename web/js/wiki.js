@@ -1274,6 +1274,47 @@ export const Wiki = (() => {
     Store.saveCharacter({ ...c, visibility: v });
   }
 
+  // Inline lore/description editor (character read view = the addon's Overview
+  // tab). Rendered markdown + an ✎ pen; clicking swaps to a plain textarea +
+  // Save/Cancel — a plain textarea, not EasyMDE, to avoid the form's dirty-state
+  // guard and cross-tab editor teardown. Save persists + re-renders.
+  function _charLoreEditor(id, desc) {
+    const rendered = (desc && String(desc).trim())
+      ? `<div class="md-view">${renderMarkdown(desc)}</div>`
+      : `<div class="md-view lore-empty">${esc(I18n.t('wiki.inlineAdd'))}</div>`;
+    return `<div class="lore-inline" id="lore-${esc(id)}">`
+      + `<button type="button" class="lore-edit-pen" title="${esc(I18n.t('action.edit'))}"${dataAction('Wiki.editLore', id)}>✎ ${esc(I18n.t('action.edit'))}</button>`
+      + rendered
+      + `</div>`;
+  }
+  /** Swap the lore view for a textarea editor (pen click). */
+  function editLore(id) {
+    if (Role.isAnonymous()) { EditMode.promptLogin(); return; }
+    const box = document.getElementById('lore-' + id);
+    const c = Store.getCharacter(id);
+    if (!box || !c) return;
+    box.innerHTML = `<textarea class="lore-textarea" id="lore-ta-${esc(id)}" spellcheck="true">${esc(c.description || '')}</textarea>`
+      + `<div class="lore-edit-actions">`
+      + `<button type="button" class="edit-save-btn"${dataAction('Wiki.saveLore', id)}>💾 ${esc(I18n.t('action.save'))}</button>`
+      + `<button type="button" class="back-btn"${dataAction('Wiki.cancelLore', id)}>↩ ${esc(I18n.t('action.cancel'))}</button>`
+      + `</div>`;
+    const ta = document.getElementById('lore-ta-' + id);
+    if (ta) { ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (_) {} }
+  }
+  /** Persist edited lore, then re-render back to the rendered view. */
+  function saveLore(id) {
+    const ta = document.getElementById('lore-ta-' + id);
+    const c = Store.getCharacter(id);
+    if (!ta || !c) return;
+    const value = ta.value;
+    if ((c.description || '') !== value) Store.saveCharacter({ ...c, description: value });
+    window.dispatchEvent(new Event('hashchange'));
+  }
+  /** Discard lore edits + re-render back to the rendered view. */
+  function cancelLore(id) {
+    window.dispatchEvent(new Event('hashchange'));
+  }
+
   // Dashboard "Poslední úpravy" — top 5 most-recently edited entities
   // across every collection. Returns empty string if nothing has been
   // edited yet (i.e. fresh install with no updatedAt stamps anywhere).
@@ -1663,9 +1704,11 @@ export const Wiki = (() => {
 
     _setCurrentArticle({ type: 'characters', id });
 
-    const body = c.knowledge >= 2
-      ? `<div class="md-view">${renderMarkdown(c.description)}</div>`
-      : `<em>${esc(I18n.t('wiki.charLittleKnown'))}</em>`;
+    const body = editable
+      ? _charLoreEditor(id, c.description)
+      : (c.knowledge >= 2
+          ? `<div class="md-view">${renderMarkdown(c.description)}</div>`
+          : `<em>${esc(I18n.t('wiki.charLittleKnown'))}</em>`);
 
     // Attitude chips: one per active attitude (own or inherited from
     // faction). Strength % is shown when ≠ 100%. Party PCs always
@@ -2945,6 +2988,7 @@ export const Wiki = (() => {
     commitCharacterQuestion, addCharacterQuestion, removeCharacterQuestion,
     commitCharacterAttitudes,
     commitCharacterVisibility,
+    editLore, saveLore, cancelLore,
     // Polarity-aware wiki-link tie-breaker uses this (in app.js):
     getCurrentArticle: _getCurrentArticle,
     // XSS-safe faction-glyph helper (exported so other modules can

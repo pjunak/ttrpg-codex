@@ -283,22 +283,47 @@ export const EditTemplates = (() => {
         placeholder="${esc((_cfg[type] && _cfg[type].label) || type)}">
       <button class="edit-add-btn"${saveAttr} title="${esc(saveTitle)}">${esc(saveLabel)}</button>
       ${deleteBtn}
+      <button type="button" class="rel-cancel-btn" title="${esc(I18n.t('action.cancel'))}"${dataAction('EditMode.cancelRel', charId)}>↩</button>
     </div>`;
   }
 
-  function _relSection(charId) {
+  // A saved relationship as a pretty, clickable chip — the other end's name +
+  // direction + relation label. Clicking opens that one connection for editing
+  // (EditMode.editRel). `isOpen` highlights the connection being edited.
+  function _relChip(charId, r, idx, isOpen) {
+    const otherId  = r.source === charId ? r.target : r.source;
+    const other    = Store.getCharacter(otherId) || Store.getLocation(otherId);
+    const name     = other ? other.name : otherId;
+    const dir      = r.source === charId ? '→' : '←';
+    const cfg      = _relConfig();
+    const relLabel = r.label || (cfg[r.type] && cfg[r.type].label) || r.type;
+    return `<button type="button" class="rel-chip-editable${isOpen ? ' is-open' : ''}" title="${esc(I18n.t('action.edit'))}"`
+      + `${dataAction('EditMode.editRel', charId, idx)}>`
+      + `<span class="rel-chip-name">${esc(name)}</span>`
+      + `<span class="rel-chip-rel">${esc(dir)} ${esc(relLabel)}</span></button>`;
+  }
+
+  // Relationships: saved connections render as chips; clicking one reveals its
+  // editor row below. `openIdx` = the index being edited, 'new' for the add
+  // form, or null for the pretty read state (the form passes null → all chips
+  // + an Add button). EditMode.editRel / cancelRel drive the open state.
+  function _relSection(charId, openIdx = null) {
     const rels = Store.getRelationships().filter(r => r.source === charId || r.target === charId);
-
-    const existingRows = rels.map((r, i) => _relRow(charId, r, i)).join('');
-    const newRow = _relRow(charId, null, 'new');
-
+    const chips = rels.map((r, i) => _relChip(charId, r, i, String(i) === String(openIdx))).join('');
+    const addBtn = openIdx === null
+      ? `<button type="button" class="rel-add-btn"${dataAction('EditMode.editRel', charId, 'new')}>＋ ${esc(I18n.t('editform.addRelationship'))}</button>`
+      : '';
+    const chipRow = (rels.length || openIdx === null)
+      ? `<div class="rel-chip-row">${chips || `<span class="edit-hint">${esc(I18n.t('editform.noRelationships'))}</span>`}${addBtn}</div>`
+      : '';
+    let editor = '';
+    if (openIdx === 'new') editor = _relRow(charId, null, 'new');
+    else if (openIdx !== null && rels[openIdx]) editor = _relRow(charId, rels[openIdx], openIdx);
     return `
       <div class="edit-section" id="rel-section-${charId}">
         <div class="edit-section-title">${esc(I18n.t('editform.relationships'))}</div>
-        <div class="rel-edit-list" id="rel-list-${charId}">
-          ${existingRows || `<span class="edit-hint">${esc(I18n.t('editform.noRelationships'))}</span>`}
-        </div>
-        <div class="rel-add-form">${newRow}</div>
+        ${chipRow}
+        ${editor ? `<div class="rel-edit-open">${editor}</div>` : ''}
       </div>`;
   }
 

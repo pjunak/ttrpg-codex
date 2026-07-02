@@ -159,6 +159,47 @@ body.is-anonymous .portrait-edit-rm { display: none; }
 .inline-qa-line .inline-list-del { margin-left: auto; }
 .inline-qa-ans { margin-left: 1.1rem; color: var(--text-muted); font-size: 0.9em; }
 
+/* Connections: pretty click-to-edit chips + a per-connection editor row. */
+.rel-chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.rel-chip-editable {
+  display: inline-flex; align-items: baseline; gap: 0.4rem;
+  background: var(--bg-raised); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill); padding: 0.25rem 0.7rem;
+  cursor: pointer; font: inherit; color: var(--text-parchment);
+  transition: border-color 0.12s, background 0.12s;
+}
+.rel-chip-editable:hover { border-color: var(--accent-gold); background: var(--bg-surface); }
+.rel-chip-editable.is-open { border-color: var(--accent-gold); box-shadow: 0 0 0 1px var(--accent-gold); }
+.rel-chip-name { font-weight: 600; }
+.rel-chip-rel { color: var(--text-muted); font-size: 0.85em; }
+.rel-add-btn {
+  background: none; border: 1px dashed var(--border-subtle); color: var(--text-muted);
+  border-radius: var(--radius-pill); padding: 0.25rem 0.7rem; cursor: pointer; font: inherit; font-size: 0.9em;
+}
+.rel-add-btn:hover { color: var(--accent-gold); border-color: var(--accent-gold); }
+.rel-edit-open { margin-top: 0.5rem; }
+.rel-cancel-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; padding: 0 0.3rem; }
+.rel-cancel-btn:hover { color: var(--accent-gold); }
+
+/* Inline lore/description editor (character Overview). */
+.lore-inline { position: relative; }
+.lore-edit-pen {
+  float: right; margin: 0 0 0.25rem 0.5rem;
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  font-size: 0.85rem; transition: color 0.12s;
+}
+.lore-edit-pen:hover { color: var(--accent-gold); }
+.lore-empty { color: var(--text-muted); font-style: italic; }
+.lore-textarea {
+  width: 100%; min-height: 12rem; box-sizing: border-box;
+  background: var(--bg-surface); color: var(--text-parchment);
+  border: 1px solid var(--border-subtle); border-radius: var(--radius);
+  padding: var(--space-2, 0.6rem); font: inherit; line-height: 1.5; resize: vertical;
+}
+.lore-textarea:focus { outline: none; border-color: var(--accent-gold); }
+.lore-edit-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+body.is-anonymous .lore-edit-pen { display: none; }
+
 /* ── Modal-page edit toggle ───────────────────────────────────
    Shared pill used by the map, timeline and Myšlenkový palác
    toolbars. Single source of truth for the look + behaviour of

@@ -725,6 +725,7 @@ export const EditMode = (() => {
     const rels = _relFromDir(charId, dir, target, type, label);
     rels.forEach(r => Store.saveRelationship(r));
     _toast(I18n.t('editmode.relationAdded'));
+    _openRel = { charId: null, idx: null };
     _refreshRelSection(charId);
   }
 
@@ -744,6 +745,7 @@ export const EditMode = (() => {
     const rels = _relFromDir(charId, dir, target, type, label);
     rels.forEach(r => Store.saveRelationship(r));
     _toast(I18n.t('editmode.relationUpdated'));
+    _openRel = { charId: null, idx: null };
     _refreshRelSection(charId);
   }
 
@@ -777,6 +779,21 @@ export const EditMode = (() => {
   function deleteRelationship(source, target, type, charId) {
     Store.deleteRelationship(source, target, type);
     _toast(I18n.t('editmode.relationRemoved'));
+    _openRel = { charId: null, idx: null };
+    _refreshRelSection(charId);
+  }
+
+  // Which single connection (if any) is open for editing. `idx` is the index in
+  // the character's relationship list, 'new' for the add row, or null (all chips).
+  let _openRel = { charId: null, idx: null };
+  /** Open one connection for editing (or the add row); re-render the section. */
+  function editRel(charId, idx) {
+    _openRel = { charId, idx: (idx === 'new' ? 'new' : Number(idx)) };
+    _refreshRelSection(charId);
+  }
+  /** Collapse the open connection back to its chip. */
+  function cancelRel(charId) {
+    _openRel = { charId: null, idx: null };
     _refreshRelSection(charId);
   }
 
@@ -784,7 +801,8 @@ export const EditMode = (() => {
     const section = document.getElementById(`rel-section-${charId}`);
     if (section) {
       const tmp = document.createElement("div");
-      tmp.innerHTML = EditTemplates.getRelSectionHtml(charId);
+      const openIdx = _openRel.charId === charId ? _openRel.idx : null;
+      tmp.innerHTML = EditTemplates.getRelSectionHtml(charId, openIdx);
       const newSection = tmp.firstElementChild;
       if (newSection) {
         section.replaceWith(newSection);
@@ -1825,6 +1843,7 @@ export const EditMode = (() => {
     addRankChain, addRankRow,
     saveCharacter, deleteCharacter, onGenderChange, onCharacterFactionChange,
     addRelationship, updateRelationship, deleteRelationship, relTypeChanged,
+    editRel, cancelRel,
     saveLocation, deleteLocation, uploadLocalMap,
     saveEvent, deleteEvent, addPartyToEvent,
     saveMystery, deleteMystery,
