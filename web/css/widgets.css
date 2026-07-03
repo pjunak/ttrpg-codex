@@ -221,3 +221,82 @@
   margin-top: 0.25rem;
   font-style: italic;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   SHARED COMPONENT CLASSES — host + addon building blocks.
+   Token-only primitives any surface (core page, settings panel,
+   addon) composes instead of re-rolling inline styles: popover
+   legends, tab strips, stat tiles, warning lists. Hoisted from the
+   dnd55e-sheets addon once they proved generic. Documented in
+   STYLE.md + examples/addons/AUTHORING.md — keep all three in sync.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Popover legend (.codex-tip / .codex-pop) ─────────────────
+   Hover/focus "how did we get this number" card. The trigger wraps
+   the value inline (add .codex-tip-u for the dotted has-info
+   underline); the pop floats beneath, centered — the -l / -r
+   variants pin it to an edge near container boundaries. Keyboard
+   reachable: give the trigger tabindex="0"; :focus-within keeps
+   the pop open. */
+.codex-tip { position: relative; display: inline-flex; align-items: center; gap: var(--space-1); cursor: help; outline: none; }
+.codex-tip-u { text-decoration: underline dotted rgba(var(--accent-gold-rgb), 0.55); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.codex-tip:focus-visible { border-radius: var(--radius-sm); box-shadow: 0 0 0 2px rgba(var(--accent-gold-rgb), 0.5); }
+.codex-pop {
+  position: absolute; z-index: var(--z-dropdown); top: calc(100% + 6px); left: 50%;
+  transform: translateX(-50%) translateY(-4px); width: max-content; max-width: 17rem;
+  background: var(--bg-raised); border: 1px solid rgba(var(--accent-gold-rgb), 0.35);
+  border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: var(--space-2) var(--space-3);
+  text-align: left; white-space: normal; opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.codex-tip:hover .codex-pop,
+.codex-tip:focus-within .codex-pop { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+.codex-tip-l .codex-pop { left: 0; transform: translateY(-4px); }
+.codex-tip-l:hover .codex-pop, .codex-tip-l:focus-within .codex-pop { transform: translateY(0); }
+.codex-tip-r .codex-pop { left: auto; right: 0; transform: translateY(-4px); }
+.codex-tip-r:hover .codex-pop, .codex-tip-r:focus-within .codex-pop { transform: translateY(0); }
+.codex-pop-title { font-weight: 700; color: var(--text-parchment); font-size: var(--text-sm); }
+.codex-pop-desc { color: var(--text-light); font-size: var(--text-xs); line-height: 1.5; margin-top: 2px; }
+.codex-pop-formula { color: var(--text-muted); font-size: var(--text-xs); font-style: italic; margin-top: var(--space-1); }
+.codex-pop-terms { display: grid; grid-template-columns: 1fr auto; gap: 1px var(--space-3); margin-top: var(--space-2); font-size: var(--text-xs); }
+.codex-pop-terms .k { color: var(--text-muted); }
+.codex-pop-terms .v { color: var(--text-light); font-variant-numeric: tabular-nums; text-align: right; }
+.codex-pop-total { border-top: 1px solid var(--border-subtle); margin-top: var(--space-2); padding-top: var(--space-1); display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--text-xs); }
+.codex-pop-total .k { color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.codex-pop-total .v { color: var(--accent-gold); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── Tab strip (.codex-tab-strip / .codex-tab) ────────────────
+   Horizontal tablist with a gold bottom-border active indicator.
+   .codex-tab-tool = a right-pushed, gold-tinted "tool" tab (e.g.
+   the D&D sheet's Builder). Callers own the ARIA (role=tablist /
+   role=tab / aria-selected / tabindex) + keyboard wiring. */
+.codex-tab-strip { display: flex; flex-wrap: wrap; gap: var(--space-1); border-bottom: 1px solid var(--border-subtle); margin-bottom: var(--space-4); }
+.codex-tab {
+  background: transparent; color: var(--text-muted);
+  border: none; border-bottom: 3px solid transparent;
+  padding: var(--space-2) var(--space-3); font-size: var(--text-sm); font-weight: 500;
+  cursor: pointer; border-radius: var(--radius) var(--radius) 0 0;
+  display: inline-flex; align-items: center; gap: var(--space-1); white-space: nowrap;
+  font-family: inherit;
+}
+.codex-tab:hover { color: var(--text-light); }
+.codex-tab.is-active { background: rgba(var(--accent-gold-rgb), 0.12); color: var(--text-parchment); font-weight: 600; border-bottom-color: var(--accent-gold); }
+.codex-tab-tool { margin-left: auto; background: rgba(var(--accent-gold-rgb), 0.05); color: var(--text-light); }
+.codex-tab-tool.is-active { background: rgba(var(--accent-gold-rgb), 0.16); color: var(--accent-gold); }
+
+/* ── Stat tile (.codex-tile) ──────────────────────────────────
+   A labelled headline-number tile (HP / AC / any vital). Compose:
+   .codex-tile > .codex-tile-label + .codex-tile-value (+ anything
+   beneath). -accent = faint gold ring; -wide = grows first in a
+   flex row of tiles. */
+.codex-tile { flex: 1 1 5rem; min-width: 5rem; background: var(--bg-raised); border: 1px solid var(--border-subtle); border-radius: var(--radius); padding: var(--space-2) var(--space-3); text-align: center; }
+.codex-tile-label { font-size: var(--text-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+.codex-tile-value { font-size: var(--text-xl); color: var(--text-parchment); font-weight: 700; line-height: 1.15; }
+.codex-tile-accent { border-color: rgba(var(--accent-gold-rgb), 0.35); box-shadow: inset 0 0 0 1px rgba(var(--accent-gold-rgb), 0.08); }
+.codex-tile-wide { flex-grow: 2; min-width: 8rem; }
+
+/* ── Warning list (.codex-warnings) ───────────────────────────
+   Advisory (never blocking) validation warnings — one ⚠ line per
+   warning. color-mix keeps the faint wash on the -bd token (it is
+   a color, not an r,g,b channel list). */
+.codex-warnings { background: color-mix(in srgb, var(--color-danger-bd) 8%, transparent); border: 1px solid var(--color-danger-bd); border-radius: var(--radius); padding: var(--space-2) var(--space-3); color: var(--color-danger); font-size: var(--text-xs); line-height: 1.6; }

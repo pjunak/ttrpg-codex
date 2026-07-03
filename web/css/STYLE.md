@@ -123,6 +123,21 @@ files noted; this is the everyday set:
   `main.css`), shared by `.edit-card-overlay` / `.oq-edit` / `.dash-hero-pen`.
 - **Toasts** — `.app-toast` (+ `.err`), `.edit-toast` (+ `.ok`/`.err`).
 - **Nav** — `.nav-link`, `.sidebar-section`, `.sidebar-subsection`.
+- **Breadcrumb** — `.wiki-breadcrumb` (`utils.breadcrumbNav` / `host.h.breadcrumb`
+  emit the markup; `wiki.css` styles, `edit.css` docks it on articles).
+- **Shared component classes** (`widgets.css`, hoisted from the D&D sheet addon
+  once they proved generic — host + addons alike):
+  - `.codex-tip` / `.codex-pop` (+ `-l`/`-r` edge pins, `.codex-tip-u`
+    underline, `.codex-pop-{title,desc,formula,terms,total}`) — the hover/focus
+    popover legend ("how did we get this number").
+  - `.codex-tab-strip` / `.codex-tab` (+ `.is-active`, `.codex-tab-tool`) — a
+    horizontal tablist with the gold bottom-border indicator; callers own ARIA
+    + keyboard wiring.
+  - `.codex-tile` (+ `.codex-tile-label`/`-value`, `-accent` ring, `-wide`) —
+    a labelled headline-number tile.
+  - `.codex-warnings` — advisory validation-warning list.
+  - `.codex-stepper` (+ `-btn`, `data-num-step`) — the −/＋ number stepper
+    (`edit.css`; the click handler lives in `app.js`).
 
 Addons get these via `host.h` (esc/dataAction/dataOn/renderMarkdown) producing the
 same markup; build addon UI from this vocabulary so it looks native.

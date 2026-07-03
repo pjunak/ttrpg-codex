@@ -272,6 +272,20 @@ theme) re-skins your addon for free.
 - Reuse documented component classes: `.page-header`, `.edit-section`,
   `.edit-input`, `.inline-create-btn`, `.settings-panel`, `.settings-hint`,
   `.md-view`, `.char-section`, …
+- **Shared component classes** (widgets.css — theme-aware for free, so prefer
+  them over restyling): `.codex-tip`/`.codex-pop` popover legends (hover/focus
+  "how did we get this number" cards; `-l`/`-r` edge pins), `.codex-tab-strip`/
+  `.codex-tab` (+`.is-active`, `.codex-tab-tool`) tab bars (you own the ARIA +
+  keyboard wiring), `.codex-tile` (+`-label`/`-value`/`-accent`/`-wide`) stat
+  tiles, `.codex-warnings` advisory warning lists, `.codex-stepper` −/＋ number
+  steppers (the host steps the input for you via `data-num-step`).
+- **Host widgets in addon HTML:** `Widgets.mountAll` runs after every route
+  render (and after `host.ui.rerender()`), so placeholder divs in YOUR html
+  mount too. `.tf-mount` (TagFilter — generic search+chips, you own the
+  matching via the bubbling `tf-change` event) is fully usable. `.cb-mount` /
+  `.ms-mount` (Combobox/MultiSelect) also mount but their option SOURCES are
+  the host's `character`/`location` collections only — fine for picking
+  characters/places, not (yet) for arbitrary addon option lists.
 - Bespoke styling, if truly needed, goes in an `.addon-<id>` wrapper — but prefer
   tokens + existing classes first.
 

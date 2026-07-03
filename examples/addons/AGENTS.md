@@ -121,6 +121,11 @@ const { esc, dataAction, dataOn } = host.h;
 // tokens + component classes, host.h for handlers, esc for text:
 `<button class="inline-create-btn"${dataAction(host.action('go'), id)}>Akce</button>
  <p style="color:var(--text-muted);margin-top:var(--space-2)">${esc(note)}</p>`
+// Shared component classes (widgets.css): .codex-tip/.codex-pop popover
+// legends · .codex-tab-strip/.codex-tab tab bars · .codex-tile stat tiles ·
+// .codex-warnings · .codex-stepper. Widget mounts work in addon HTML too:
+// .tf-mount (TagFilter) is generic; .cb-mount/.ms-mount sources are
+// host characters/locations only.
 ```
 Real tokens: `--text-parchment` `--text-cream` `--text-muted` `--accent-gold`
 `--bg-raised` `--bg-surface` `--color-danger` `--color-success` · spacing
