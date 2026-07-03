@@ -4,9 +4,12 @@
 // JPEG tiles at multiple zoom levels under data/maps/tiles/<mapId>/<z>/<x>/<y>.jpg
 // plus a tiles.json manifest the client reads to build L.tileLayer.
 //
-// Zoom convention: 0 = whole image fits in 256px, each +1 doubles the
-// tile grid in each axis. We cap at whatever zoom actually adds detail
-// (no upsampling past the source resolution).
+// Tile-DIRECTORY zoom convention: 0 = whole image fits in 256px, each
+// +1 doubles the tile grid in each axis; the deepest level is native
+// resolution (no upsampling past the source). The MANIFEST however
+// speaks the client's Leaflet convention (CRS.Simple, zoom 0 = native
+// image pixels): minZoom = -maxPyramidLevel, maxZoom = 2 (display
+// over-zoom). The client maps between the two with zoomOffset.
 //
 // Re-runs are cheap: if the manifest's "srcHash" matches the source
 // file's mtime+size, we skip. Delete the folder to force rebuild.
@@ -16,7 +19,12 @@ const fsp   = fs.promises;
 const path  = require('path');
 const sharp = require('sharp');
 
-const MAPS_DIR  = path.join(__dirname, 'data', 'maps');
+// Mirror server.js's DATA_DIR resolution — a non-default CODEX_DATA_DIR
+// deployment must write pyramids where the server serves them from
+// (`/maps/tiles` is static-served out of DATA_DIR/maps/tiles). The old
+// __dirname-anchored path silently built tiles the server never served.
+const DATA_DIR  = process.env.CODEX_DATA_DIR || path.join(__dirname, 'data');
+const MAPS_DIR  = path.join(DATA_DIR, 'maps');
 const TILES_DIR = path.join(MAPS_DIR, 'tiles');
 const TILE_SIZE = 256;
 
@@ -131,11 +139,15 @@ async function buildFor(mapId, srcPath) {
   const manifest = {
     mapId,
     srcHash:   fp,
-    imgW:      w,
-    imgH:      h,
+    // Field names are the CLIENT contract (map.js _doInitTiled reads
+    // width/height/tileSize/minZoom/maxZoom/ext) — the old imgW/imgH +
+    // pyramid-indexed zoom range never matched what the client expected.
+    width:     w,
+    height:    h,
     tileSize:  TILE_SIZE,
-    minZoom:   0,
-    maxZoom:   maxZ,
+    minZoom:   -maxZ,   // Leaflet zoom of pyramid level 0 (whole image in one tile)
+    maxZoom:   2,       // display over-zoom past native resolution
+    ext:       'jpg',
     canvasLong,
     builtAt:   Date.now(),
   };

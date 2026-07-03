@@ -6,10 +6,12 @@ import {
 import { norm, clearMarkdownCache } from './utils.js';
 import { PARTY_FACTION_ID, SIDEBAR_PAGES, SIDEBAR_LAYOUT_DEFAULT } from './constants.js';
 import { I18n } from './i18n.js';
+import { Role } from './role.js';
 
 export const Store = (() => {
   let _data            = null;
   let _serverAvailable = false;
+  let _loadedOnce      = false;   // a successful load() completed this session
 
   // ── Secondary indices (rebuilt by _reindex on every mutation) ──
   let _idxCharsByFaction   = new Map();
@@ -685,8 +687,12 @@ export const Store = (() => {
     const promote = (entry) => {
       // Already in target shape — leave alone.
       if (entry && typeof entry === 'object' && typeof entry.text === 'string') {
-        if (typeof entry.answer !== 'string') entry.answer = '';
-        return { entry, changed: typeof entry.answer === 'string' ? false : true };
+        // Capture BEFORE mutating — checking after the assignment made
+        // `changed` tautologically false, so the added `answer:''` was
+        // normalized in memory on every load but never persisted.
+        const missingAnswer = typeof entry.answer !== 'string';
+        if (missingAnswer) entry.answer = '';
+        return { entry, changed: missingAnswer };
       }
       // Promote a bare string to {text, answer:''}.
       if (typeof entry === 'string') {
@@ -783,6 +789,7 @@ export const Store = (() => {
       if (res.ok) {
         _serverAvailable = true;
         const serverData = await res.json();
+        _loadedOnce = true;
         if (serverData && serverData.characters) {
           // Layer the server payload OVER the defaults rather than replacing
           // wholesale. The server omits collections that have no file yet
@@ -823,40 +830,48 @@ export const Store = (() => {
           // with an `answer` field. Each entry becomes "solved" when
           // its answer is non-empty.
           const questionsMig   = _migrateQuestionsToObjects();
-          for (const c of capturedTouched)            _sync('characters', 'save', c);
-          for (const l of mapStatus.touchedLocations) _sync('locations', 'save', l);
-          if (mapStatus.droppedSettingsCat)           _sync('settings', 'delete', { id: 'mapStatuses' });
-          for (const c of attShape.characters)        _sync('characters', 'save', c);
-          for (const l of attShape.locations)         _sync('locations',  'save', l);
-          for (const { id, fac } of attShape.factions) _sync('factions',  'save', { id, data: fac });
-          if (droppedUnknown || strengthSeeded) {
-            _sync('settings', 'save', { id: 'attitudes', data: _data.settings.attitudes });
+          // Persisting migration results is DM-only. Player sessions
+          // would 403 on the `settings` writes (DM_ONLY_WRITE_TYPES) and
+          // surface a red "save failed" banner for edits they never
+          // made; anonymous sessions would fire straight into 401s.
+          // Non-DM sessions keep the in-memory normalization — the next
+          // DM load persists it (migrations are idempotent).
+          if (Role.isDM()) {
+            for (const c of capturedTouched)            _sync('characters', 'save', c);
+            for (const l of mapStatus.touchedLocations) _sync('locations', 'save', l);
+            if (mapStatus.droppedSettingsCat)           _sync('settings', 'delete', { id: 'mapStatuses' });
+            for (const c of attShape.characters)        _sync('characters', 'save', c);
+            for (const l of attShape.locations)         _sync('locations',  'save', l);
+            for (const { id, fac } of attShape.factions) _sync('factions',  'save', { id, data: fac });
+            if (droppedUnknown || strengthSeeded) {
+              _sync('settings', 'save', { id: 'attitudes', data: _data.settings.attitudes });
+            }
+            if (pinSize.pinTypesTouched || pinStrategyTouched) {
+              _sync('settings', 'save', { id: 'pinTypes', data: _data.settings.pinTypes });
+            }
+            for (const c of strengthMigrated.characters) _sync('characters', 'save', c);
+            for (const l of strengthMigrated.locations)  _sync('locations',  'save', l);
+            for (const { id, fac } of strengthMigrated.factions) _sync('factions', 'save', { id, data: fac });
+            for (const c of partyAtts.characters)        _sync('characters', 'save', c);
+            for (const l of pinSize.touchedLocations)   _sync('locations', 'save', l);
+            for (const l of droppedLocStat)             _sync('locations', 'save', l);
+            for (const a of droppedArtStat)             _sync('artifacts', 'save', a);
+            for (const cat of droppedSettingsCats)      _sync('settings', 'delete', { id: cat });
+            if (playerPartyMig.playerPartyChanged) {
+              _sync('settings', 'save', { id: 'playerParty', data: _data.settings.playerParty });
+            }
+            if (playerPartyMig.movedFromFactions) {
+              _sync('factions', 'delete', { id: 'party' });
+            }
+            if (partyAttMig.enumChanged) {
+              _sync('settings', 'save', { id: 'attitudes', data: _data.settings.attitudes });
+            }
+            for (const c of partyAttMig.characters) _sync('characters', 'save', c);
+            for (const l of partyAttMig.locations)  _sync('locations',  'save', l);
+            for (const { id, fac } of partyAttMig.factions) _sync('factions', 'save', { id, data: fac });
+            for (const m of questionsMig.mysteries)  _sync('mysteries',  'save', m);
+            for (const c of questionsMig.characters) _sync('characters', 'save', c);
           }
-          if (pinSize.pinTypesTouched || pinStrategyTouched) {
-            _sync('settings', 'save', { id: 'pinTypes', data: _data.settings.pinTypes });
-          }
-          for (const c of strengthMigrated.characters) _sync('characters', 'save', c);
-          for (const l of strengthMigrated.locations)  _sync('locations',  'save', l);
-          for (const { id, fac } of strengthMigrated.factions) _sync('factions', 'save', { id, data: fac });
-          for (const c of partyAtts.characters)        _sync('characters', 'save', c);
-          for (const l of pinSize.touchedLocations)   _sync('locations', 'save', l);
-          for (const l of droppedLocStat)             _sync('locations', 'save', l);
-          for (const a of droppedArtStat)             _sync('artifacts', 'save', a);
-          for (const cat of droppedSettingsCats)      _sync('settings', 'delete', { id: cat });
-          if (playerPartyMig.playerPartyChanged) {
-            _sync('settings', 'save', { id: 'playerParty', data: _data.settings.playerParty });
-          }
-          if (playerPartyMig.movedFromFactions) {
-            _sync('factions', 'delete', { id: 'party' });
-          }
-          if (partyAttMig.enumChanged) {
-            _sync('settings', 'save', { id: 'attitudes', data: _data.settings.attitudes });
-          }
-          for (const c of partyAttMig.characters) _sync('characters', 'save', c);
-          for (const l of partyAttMig.locations)  _sync('locations',  'save', l);
-          for (const { id, fac } of partyAttMig.factions) _sync('factions', 'save', { id, data: fac });
-          for (const m of questionsMig.mysteries)  _sync('mysteries',  'save', m);
-          for (const c of questionsMig.characters) _sync('characters', 'save', c);
           _reindex();
           return;
         }
@@ -869,6 +884,15 @@ export const Store = (() => {
       }
     } catch (e) {
       console.error('Store: server not reachable.', e);
+    }
+    // Mid-session refetch failure (an SSE-triggered reload during a
+    // network blip / server hiccup): keep the already-loaded dataset and
+    // stay write-enabled — the write queue retries transient failures on
+    // its own. Wiping to defaults here would replace a live campaign
+    // with an empty one and silently disable all syncing until reload.
+    if (_loadedOnce) {
+      console.warn('Store: refetch failed — keeping current in-memory data.');
+      return;
     }
     _serverAvailable = false;
     _data = _defaults();
@@ -1737,6 +1761,9 @@ export const Store = (() => {
     _stamp(g);
     if (!Array.isArray(_data.pantheon)) _data.pantheon = [];
     _upsertById(_data.pantheon, g);
+    // No reindex helper for this collection, but wiki-link resolution
+    // walks it — bust the markdown cache so renames resolve fresh.
+    _bustMarkdownCache();
     return _sync('pantheon', 'save', g);
   }
   function deleteBuh(id) {
@@ -1744,6 +1771,7 @@ export const Store = (() => {
     const g = (_data.pantheon || []).find(x => x.id === id);
     if (g) _trash.set(_trashKey('pantheon', id), { kind:'pantheon', entity: JSON.parse(JSON.stringify(g)) });
     _data.pantheon = (_data.pantheon || []).filter(g => g.id !== id);
+    _bustMarkdownCache();
     return _sync('pantheon', 'delete', { id });
   }
 
@@ -1752,6 +1780,7 @@ export const Store = (() => {
     _stamp(a);
     if (!Array.isArray(_data.artifacts)) _data.artifacts = [];
     _upsertById(_data.artifacts, a);
+    _bustMarkdownCache();
     return _sync('artifacts', 'save', a);
   }
   function deleteArtifact(id) {
@@ -1759,6 +1788,7 @@ export const Store = (() => {
     const a = (_data.artifacts || []).find(x => x.id === id);
     if (a) _trash.set(_trashKey('artifacts', id), { kind:'artifacts', entity: JSON.parse(JSON.stringify(a)) });
     _data.artifacts = (_data.artifacts || []).filter(a => a.id !== id);
+    _bustMarkdownCache();
     return _sync('artifacts', 'delete', { id });
   }
 
@@ -2287,6 +2317,7 @@ export const Store = (() => {
     init();
     _stamp(fac);
     _data.factions[id] = fac;
+    _bustMarkdownCache();
     return _sync('factions', 'save', { id, data: fac });
   }
 
@@ -2296,6 +2327,7 @@ export const Store = (() => {
     if (f) _trash.set(_trashKey('factions', id), { kind:'factions', id, entity: JSON.parse(JSON.stringify(f)) });
     delete _data.factions[id];
     _orphanPetsOf('faction', id);   // pets keep, just go unassigned
+    _bustMarkdownCache();
     return _sync('factions', 'delete', { id });
   }
 
@@ -2314,6 +2346,7 @@ export const Store = (() => {
     _stamp(h);
     if (!Array.isArray(_data.historicalEvents)) _data.historicalEvents = [];
     _upsertById(_data.historicalEvents, h);
+    _bustMarkdownCache();
     return _sync('historicalEvents', 'save', h);
   }
   function deleteHistoricalEvent(id) {
@@ -2323,6 +2356,7 @@ export const Store = (() => {
       kind:'historicalEvents', entity: JSON.parse(JSON.stringify(h))
     });
     _data.historicalEvents = (_data.historicalEvents || []).filter(x => x.id !== id);
+    _bustMarkdownCache();
     return _sync('historicalEvents', 'delete', { id });
   }
 

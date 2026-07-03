@@ -19,6 +19,12 @@ export const CloudMap = (() => {
   // before it lands in an inline style / cssText string — a crafted
   // value otherwise breaks out of the attribute. Only hex literals pass;
   // anything else collapses to a neutral theme token.
+  // Same posture for a user-supplied CSS line-style (relationship-kind
+  // `style` field): whitelist the valid border-style keywords, anything
+  // else renders solid instead of landing raw in a style attribute.
+  function _safeLineStyle(s) {
+    return /^(solid|dashed|dotted|double)$/.test(String(s || '')) ? s : 'solid';
+  }
   function _safeColor(c) {
     return /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : 'var(--text-muted)';
   }
@@ -186,7 +192,7 @@ export const CloudMap = (() => {
   function _factionHubCloudHTML(fId, faction, count) {
     let body = `<div class="cm-fact">${esc(I18n.plural('cloudmap.characters', count))}</div>`;
     return `<div class="cm-cloud cm-faction-hub" data-id="hub_${fId}" data-type="faction"
-              style="--cc:${faction.color}; --cw:${CW_HUB}px">
+              style="--cc:${_safeColor(faction.color)}; --cw:${CW_HUB}px">
       <div class="cm-strip">${esc(faction.badge)} ${esc(I18n.t('cloudmap.factionStrip'))}</div>
       <div class="cm-name">${esc(faction.name)}</div>
       <div class="cm-divider"></div>
@@ -284,14 +290,14 @@ export const CloudMap = (() => {
       const sIcon  = _statusIcon(c.status);
       const sLabel = _statusLabel(c.status);
       const sColor = _statusColor(c.status);
-      body += `<div class="cm-status-row"><span style="color:${sColor}">${sIcon}</span> ${esc(sLabel)}</div>`;
+      body += `<div class="cm-status-row"><span style="color:${_safeColor(sColor)}">${esc(sIcon)}</span> ${esc(sLabel)}</div>`;
       const rels = Store.getRelationships().filter(r => r.source === c.id || r.target === c.id);
       body += `<div class="cm-fact cm-dim">${esc(I18n.plural('cloudmap.relationships', rels.length))}</div>`;
       if (rels.length) {
         const counts = {};
         rels.forEach(r => { counts[r.type] = (counts[r.type] || 0) + 1; });
         const top = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 2)
-          .map(([t,n]) => `${Store.getKind('connections', t).label}×${n}`).join(', ');
+          .map(([t,n]) => `${esc(Store.getKind('connections', t).label)}×${n}`).join(', ');
         body += `<div class="cm-fact cm-dim">${top}</div>`;
       }
 
@@ -320,8 +326,8 @@ export const CloudMap = (() => {
 
     const modClass  = isDead ? ' cm-dead' : '';
     return `<div class="cm-cloud${modClass}" data-id="${c.id}" data-type="character"
-              style="--cc:${fColor}; --cw:${CW}px">
-      <div class="cm-strip">${badge} ${esc(faction)}</div>
+              style="--cc:${_safeColor(fColor)}; --cw:${CW}px">
+      <div class="cm-strip">${esc(badge)} ${esc(faction)}</div>
       <div class="cm-name">${deadMark}${esc(name)}</div>
       <div class="cm-divider"></div>
       ${body}
@@ -988,8 +994,8 @@ export const CloudMap = (() => {
     let edgeChips = '';
     const buildEdgeChip = (t, label, color) => {
       const off = _filters.hiddenEdgeTypes.has(t) ? ' is-off' : '';
-      return `<button type="button" class="cm-chip cm-chip-edge${off}" data-edge-type="${t}"
-        ${dataAction('CloudMap.toggleEdgeType', t)} style="--chip-color:${color}">${esc(label)}</button>`;
+      return `<button type="button" class="cm-chip cm-chip-edge${off}" data-edge-type="${esc(t)}"
+        ${dataAction('CloudMap.toggleEdgeType', t)} style="--chip-color:${_safeColor(color)}">${esc(label)}</button>`;
     };
     if (mode === 'vztahy') {
       edgeChips = [
@@ -2763,9 +2769,9 @@ export const CloudMap = (() => {
         <div style="margin-top:0.5rem">
           <div class="legend-title">${esc(I18n.t('cloudmap.legendRelations'))}</div>
           <div class="legend-item"><div class="legend-line" style="border-top:1.5px dashed ${CM_EDGE_COLORS.member}"></div> ${esc(I18n.t('cloudmap.legendFactionMember'))}</div>
-          <div class="legend-item"><div class="legend-line" style="border-top:3px solid ${EDGE_COLORS.commands || '#8B0000'}"></div> ${esc(I18n.t('cloudmap.legendCommand'))}</div>
-          <div class="legend-item"><div class="legend-line" style="border-top:2px dashed ${EDGE_COLORS.negotiates || '#1565C0'}"></div> ${esc(I18n.t('cloudmap.legendNegotiation'))}</div>
-          <div class="legend-item"><div class="legend-line" style="border-top:2px solid ${EDGE_COLORS.ally || '#2E7D32'}"></div> ${esc(I18n.t('cloudmap.legendAlly'))}</div>
+          <div class="legend-item"><div class="legend-line" style="border-top:3px solid ${_safeColor(EDGE_COLORS.commands || '#8B0000')}"></div> ${esc(I18n.t('cloudmap.legendCommand'))}</div>
+          <div class="legend-item"><div class="legend-line" style="border-top:2px dashed ${_safeColor(EDGE_COLORS.negotiates || '#1565C0')}"></div> ${esc(I18n.t('cloudmap.legendNegotiation'))}</div>
+          <div class="legend-item"><div class="legend-line" style="border-top:2px solid ${_safeColor(EDGE_COLORS.ally || '#2E7D32')}"></div> ${esc(I18n.t('cloudmap.legendAlly'))}</div>
           <div class="legend-item"><div class="legend-line" style="border-top:2px dotted ${CM_EDGE_COLORS.located_at}"></div> ${esc(I18n.t('cloudmap.legendLocation'))}</div>
         </div>`;
 
@@ -2803,8 +2809,8 @@ export const CloudMap = (() => {
       ['mission',I18n.t('cloudmap.legendMission')],    ['mystery',I18n.t('cloudmap.legendMystery')], ['history',I18n.t('cloudmap.legendPast')],
     ].map(([t, l]) => {
       const es = EDGE_STYLES[t] || {};
-      const c  = EDGE_COLORS[t] || '#666';
-      const d  = es['line-style'] || 'solid';
+      const c  = _safeColor(EDGE_COLORS[t] || '#666');
+      const d  = _safeLineStyle(es['line-style']);
       return `<div class="legend-item">
         <div class="legend-line" style="border-top:2px ${d} ${c}"></div>${esc(l)}
       </div>`;

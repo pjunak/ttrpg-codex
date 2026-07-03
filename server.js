@@ -622,6 +622,9 @@ async function _restoreSnapshot(id) {
       try { await fsp.unlink(abs); } catch (_) {}
     }
   }
+  // The restored file set may include a different data/addons.json —
+  // re-derive in-memory addon state from it.
+  await _reconcileAddonsFromDisk();
   // Unlinks above bypassed _atomicWrite, and a fresh write set may
   // differ from the cached digest — bust unconditionally.
   _invalidateDataHash();
@@ -1912,6 +1915,23 @@ function _scrubbedChildEnv() {
 // (defence). Rollback targets always live in `versions[]`, so this never
 // deletes a reachable rollback. Caller holds the write lock (install) or runs
 // pre-listen (boot sweep).
+// Restore paths rewrite data/addons.json on disk out-of-band — re-derive
+// the in-memory addon state (collection wire types + host-served content)
+// from the restored registry, exactly like the mutation endpoints do after
+// each registry write. Without this, a restore left stale `addon:<id>:<x>`
+// types registered (or missing), 400-ing addon-collection PATCHes and
+// serving stale content until a manual restart. Server CODE still defers
+// to a restart (the require() cache isn't busted live).
+async function _reconcileAddonsFromDisk() {
+  try {
+    const reg = await _readAddonsRegistry();
+    _applyAddonCollections(reg);
+    _applyAddonContent(reg);
+  } catch (e) {
+    console.warn('[addons] post-restore reconcile failed:', e.message);
+  }
+}
+
 async function _pruneAddonVersions(entry) {
   if (!entry || !entry.id) return;
   const idDir = path.join(ADDONS_DIR, entry.id);
@@ -1924,7 +1944,7 @@ async function _pruneAddonVersions(entry) {
   }
   for (const sub of subs) {
     if (keep.has(sub)) continue;
-    if (sub === '.incoming' || /^[0-9a-f]{16}$/.test(sub)) {
+    if (sub === '.incoming' || /^\.incoming-[0-9a-f]{12}$/.test(sub) || /^[0-9a-f]{16}$/.test(sub)) {
       const p = _safeJoinIn(idDir, sub);
       if (p) await fsp.rm(p, { recursive: true, force: true }).catch(() => {});
     }
@@ -1976,7 +1996,12 @@ async function _stageAddon(repo, ref, pinnedSha) {
   const id       = manifest.id;
   const hash     = AddonBroker.contentHash(fileMap, crypto);
   const idDir    = path.join(ADDONS_DIR, id);
-  const incoming = path.join(idDir, '.incoming');
+  // Per-request unique staging dir: a fixed `.incoming` let two
+  // overlapping installs of the same id (wizard double-click,
+  // update-all racing a manual install) delete each other's half-
+  // written tree mid-stage. Stale dirs from a hard crash are swept by
+  // _pruneAddonVersions.
+  const incoming = path.join(idDir, `.incoming-${crypto.randomBytes(6).toString('hex')}`);
   const finalDir = path.join(idDir, hash);
 
   // Stage into .incoming, then atomic-rename to the content-addressed dir
@@ -2549,8 +2574,11 @@ app.post('/api/localmap/:locId', requireAnyRole, uploadLocalMap.single('localmap
   const url = `/maps/local/${locId}/${req.file.filename}`;
   // Kick off tile generation in the background; the URL above is
   // always usable (fallback), tiles just accelerate subsequent loads.
-  if (_tiler) _tiler.buildFor(`local/${locId}`, path.join(locDir, newFile)).catch(e => {
-    console.warn(`[tiles] build failed for local/${locId}:`, e.message);
+  // mapId MUST be `local-<locId>` — that's what the client's
+  // _currentMapId() requests (`/maps/tiles/local-<locId>/tiles.json`);
+  // the old `local/<locId>` id left every pyramid unreachable.
+  if (_tiler) _tiler.buildFor(`local-${locId}`, path.join(locDir, newFile)).catch(e => {
+    console.warn(`[tiles] build failed for local-${locId}:`, e.message);
   });
   res.json({ url });
 });
@@ -2727,7 +2755,17 @@ app.get('/api/snapshots', requireAnyRole, async (_req, res) => {
  * activity. Auth: any role — players can pin a "known-good" point
  * before they make a risky edit, same as DMs.
  */
+// Cheap DoS guard: manual snapshots bypass the coalesce window and hold
+// the write lock for a full-dataset copy, so an authed client in a tight
+// loop could wedge all editing. Env-tunable (tests set it to 0).
+const SNAPSHOT_MIN_INTERVAL_MS = Number(process.env.CODEX_SNAPSHOT_MIN_INTERVAL_MS ?? 3000);
+let _lastManualSnapshotAt = 0;
 app.post('/api/snapshots', requireAnyRole, (_req, res) => {
+  const now = Date.now();
+  if (now - _lastManualSnapshotAt < SNAPSHOT_MIN_INTERVAL_MS) {
+    return res.status(429).json({ error: 'Too many snapshots — try again in a few seconds' });
+  }
+  _lastManualSnapshotAt = now;
   withWriteLock(async () => {
     try {
       const id = await _createSnapshot('manual');
@@ -2836,10 +2874,12 @@ app.post('/api/worldmap', requireAuth, uploadWorldMap.single('worldmap'), async 
   } catch (_) {}
   const url = `/maps/swordcoast/${newFile}`;
   // Schedule tile rebuild so the Leaflet path picks up the new image.
+  // mapId MUST be `world` — that's what the client's _currentMapId()
+  // requests (`/maps/tiles/world/tiles.json`); the old filename-derived
+  // `swordcoast/<base>` id left the pyramid unreachable.
   if (_tiler) {
-    const base = path.basename(newFile, path.extname(newFile));
-    _tiler.buildFor(`swordcoast/${base}`, path.join(SWORDCOAST_DIR, newFile)).catch(e => {
-      console.warn(`[tiles] build failed for swordcoast/${base}:`, e.message);
+    _tiler.buildFor('world', path.join(SWORDCOAST_DIR, newFile)).catch(e => {
+      console.warn('[tiles] build failed for world:', e.message);
     });
   }
   res.json({ url });
@@ -2937,15 +2977,17 @@ app.get('/api/backup', requireAuth, (_req, res) => {
 //
 // Uses disk-staged storage rather than memory: the container's 256 MB
 // memory limit can't absorb a 200 MB upload buffer, so multer writes
-// to the OS temp dir first and we read from there. 50 MB cap is well
-// above any realistic backup (campaign data + portraits + maps).
+// to the OS temp dir first and we read from there. 200 MB cap — backups
+// include portraits, world/local map images (world alone may be 40 MB)
+// and addon code, so the previous 50 MB cap could reject a legitimate
+// backup ZIP on disaster-recovery day (docs promise 200 MB).
 const AdmZip = require('adm-zip');
 const restoreUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, os.tmpdir()),
     filename:    (_req, _file, cb) => cb(null, `restore-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`),
   }),
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 200 * 1024 * 1024 },
 });
 
 function _safeJoinDataDir(rel) {
@@ -3071,6 +3113,10 @@ app.post('/api/restore', requireAuth, restoreUpload.single('backup'), (req, res)
             skipped.push(name);
           }
         }
+
+        // The restored ZIP may carry a different data/addons.json —
+        // re-derive in-memory addon state from it (same as snapshot restore).
+        await _reconcileAddonsFromDisk();
 
         // Rebuild tile pyramids in the background so map images uploaded
         // along with the backup get fresh tiles.
@@ -3236,11 +3282,10 @@ async function _backgroundTileSweep() {
   try {
     const swDir = path.join(MAPS_DIR, 'swordcoast');
     const list  = await fsp.readdir(swDir).catch(() => []);
-    for (const f of list) {
-      if (!/\.(jpe?g|png|webp)$/i.test(f)) continue;
-      const base = path.basename(f, path.extname(f));
-      jobs.push({ mapId: `swordcoast/${base}`, src: path.join(swDir, f) });
-    }
+    // Only one world image exists at a time (upload replaces others).
+    // Its pyramid must live under the client-visible id `world`.
+    const img = list.find(f => /\.(jpe?g|png|webp)$/i.test(f));
+    if (img) jobs.push({ mapId: 'world', src: path.join(swDir, img) });
   } catch (_) {}
   // Local maps: data/maps/local/<locId>/map.*
   try {
@@ -3251,7 +3296,7 @@ async function _backgroundTileSweep() {
       try { stat = await fsp.stat(locDir); } catch { continue; }
       if (!stat.isDirectory()) continue;
       const files = (await fsp.readdir(locDir)).filter(f => /^map\.(jpe?g|png|webp)$/i.test(f));
-      if (files.length) jobs.push({ mapId: `local/${locId}`, src: path.join(locDir, files[0]) });
+      if (files.length) jobs.push({ mapId: `local-${locId}`, src: path.join(locDir, files[0]) });
     }
   } catch (_) {}
   // Run sequentially to avoid hammering CPU on startup

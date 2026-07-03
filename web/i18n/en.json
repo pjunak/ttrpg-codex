@@ -54,6 +54,7 @@
   "addons.permWrite": "Modify: {coll}",
   "addons.permWriteAddonData": "Store custom data on: {coll}",
   "addons.sectionFailed": "Add-on section „{name}\" failed: {msg}",
+  "app.authFailed": "⚠ You are logged out — recent changes were NOT saved. Log in again and repeat the last edit.",
   "app.backToDM": "Back to DM",
   "app.impersonating": "Player view — DM content is hidden. This is what players see.",
   "app.loginChipTitle": "Log in and start editing",

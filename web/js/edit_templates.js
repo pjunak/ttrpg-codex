@@ -367,8 +367,14 @@ export const EditTemplates = (() => {
     const partyOption = `<option value="party" ${c.faction==='party'?"selected":""}>${esc(pp.badge || pp.icon || '🛡')} ${esc(pp.name || I18n.t('editform.ourParty'))}</option>`;
     const fOpts = neutralOption + partyOption + realFactions.map(([id,f]) =>
       `<option value="${esc(id)}" ${c.faction===id?"selected":""}>${esc(f.badge || '⬡')} ${esc(f.name)}</option>`).join("");
-    const sOpts = Object.entries(statusMap).map(([id,s]) =>
-      `<option value="${id}" ${c.status===id?"selected":""}>${s.icon} ${s.label}</option>`).join("");
+    // Include the current value even when it's an orphan (renamed/removed
+    // enum id) so saving never silently flips it to the first option —
+    // the same trap the mystery priority picker guards against. Labels
+    // and icons are user-edited settings content → esc().
+    const sEntries = Object.entries(statusMap);
+    if (c.status && !statusMap[c.status]) sEntries.unshift([c.status, { icon: '', label: c.status }]);
+    const sOpts = sEntries.map(([id,s]) =>
+      `<option value="${esc(id)}" ${c.status===id?"selected":""}>${esc(s.icon)} ${esc(s.label)}</option>`).join("");
     // Attitudes (multi-pick chip row + per-chip strength slider).
     // Empty = no stance set; renderer falls back to the character's
     // faction. Party members (faction==='party') always render with the

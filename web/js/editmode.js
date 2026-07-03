@@ -170,6 +170,16 @@ export const EditMode = (() => {
     window.dispatchEvent(new CustomEvent('editmode:dirty'));
   }
 
+  // Explicit "discard my edits" (cancel button, confirmed link-away):
+  // clears the dirty flag WITHOUT wiping drafts — they stay recoverable
+  // via the draft banner in case the discard was a mis-click — and fires
+  // `editmode:clean` so app.js drains any deferred remote change /
+  // language re-render and wiki.js drops its per-article edit state.
+  function discardDirty() {
+    _dirty = false;
+    window.dispatchEvent(new CustomEvent('editmode:clean'));
+  }
+
   /**
    * @returns {boolean} `true` while the user has unsaved edits.
    *   The SSE listener consults this before applying remote changes;
@@ -263,7 +273,9 @@ export const EditMode = (() => {
       e.preventDefault();
       e.stopPropagation();
     } else {
-      _dirty = false;
+      // Confirmed discard — go through discardDirty so `editmode:clean`
+      // fires (drains the deferred-SSE banner, drops wiki edit state).
+      discardDirty();
     }
   }, true);
 
@@ -842,7 +854,11 @@ export const EditMode = (() => {
     const next = {
       ...existing,
       id: newId, name,
-      pinType:     pinTypeKey || existing.pinType || undefined,
+      // Trust the form's type picker — it always renders with an explicit
+      // "⊘ Neurčeno" empty option, so an empty pick means CLEAR the pin
+      // type. Falling back to existing.pinType made that pick a silent
+      // no-op while `type` was blanked (inconsistent record).
+      pinType:     pinTypeKey || undefined,
       type:        typeLabel,
       attitudes,
       size,
@@ -852,6 +868,7 @@ export const EditMode = (() => {
       localMap:    localMap || undefined,
     };
     if (size === undefined) delete next.size;
+    if (!next.pinType) delete next.pinType;
     // The legacy `locationStatuses` enum is gone — strip any stale
     // `status` carried over from `existing` so it doesn't get re-persisted.
     delete next.status;
@@ -1808,7 +1825,7 @@ export const EditMode = (() => {
 
   // ── Public API ─────────────────────────────────────────────────
   return {
-    promptLogin, isDirty,
+    promptLogin, isDirty, discardDirty,
     openPetEditor, savePet, deletePet,
     addDynRow, addQARow, handlePortraitUpload,
     clearPortrait, updateKnowledgeLabel,

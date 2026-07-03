@@ -556,7 +556,17 @@ export const Addons = (() => {
     changed = _markBlocked(list, plan.blocked) || changed;
     for (const a of plan.order) {
       const cur = _addons.get(a.id);
-      if (!cur || cur.state !== 'ok') { await _loadOne(a); changed = true; }   // includes now-unblocked
+      if (!cur || cur.state !== 'ok') {
+        await _loadOne(a); changed = true;   // includes now-unblocked
+      } else if (cur.meta?.entryUrl !== a.entryUrl) {
+        // Same addon, new code version — update / update-all / rollback
+        // flipped activeHash, so the entryUrl changed. Reload it so the
+        // new version actually applies live (the documented contract);
+        // skipping on state==='ok' left the old module running until a
+        // manual refresh.
+        _unloadAddon(a.id);
+        await _loadOne(a); changed = true;
+      }
     }
     return changed;
   }
@@ -582,6 +592,12 @@ export const Addons = (() => {
     for (const [id, reason] of blocked) {
       const cur = _addons.get(id);
       if (!cur || cur.state !== 'blocked' || cur.error !== reason) {
+        // A previously-LOADED addon that just became blocked (its dep was
+        // disabled) must be torn down first — overwriting the rec would
+        // leave its registrations live ("blocked" but still rendering)
+        // and discard the undo stack, so a later re-enable would
+        // double-register everything.
+        if (cur && cur.state === 'ok') _unloadAddon(id);
         const a = list.find(x => x.id === id) || { id };
         _addons.set(id, { id, name: a.name || id, version: a.version || '', state: 'blocked', error: reason, meta: a });
         changed = true;

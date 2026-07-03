@@ -29,8 +29,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    name: Run test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - run: npm ci
+
+      # Same suite as `npm test`, with file-level concurrency capped so
+      # the integration tests (each spawns a real server child process)
+      # don't overwhelm the 2-core runner and flake on boot timeouts.
+      - run: node --test --test-concurrency=4 "test/**/*.test.*js"
+
   build:
     name: Build and push image
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

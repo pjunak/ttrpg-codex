@@ -712,8 +712,15 @@ export const WorldMap = (() => {
   // shape: { width, height, tileSize, minZoom, maxZoom, ext? }. The
   // ext defaults to "jpg". Tile URLs follow Leaflet's {z}/{x}/{y} scheme.
   function _doInitTiled(mapId, manifest, container) {
-    _imgW   = Number(manifest.width)  || 2048;
-    _imgH   = Number(manifest.height) || 1340;
+    const w = Number(manifest.width);
+    const h = Number(manifest.height);
+    // Validate BEFORE creating the Leaflet instance — a bad/legacy
+    // manifest throws here and the fetch .catch() falls back to the
+    // single-image overlay path (creating L.map first would poison the
+    // container for that fallback).
+    if (!w || !h) throw new Error('tile manifest missing width/height');
+    _imgW   = w;
+    _imgH   = h;
     _bounds = [[-_imgH, 0], [0, _imgW]];
 
     const tileSize = Number(manifest.tileSize) || 256;
@@ -734,9 +741,16 @@ export const WorldMap = (() => {
       zoomControl:         false,
     });
 
+    // Pyramid ↔ Leaflet zoom mapping. Tile DIRS are numbered 0..N where
+    // 0 = whole image in one tile and N = native resolution, while the
+    // map runs the CRS.Simple convention (zoom 0 = native pixels, so
+    // pyramid depth N = -minZoom). zoomOffset shifts the URL's {z} into
+    // pyramid numbering; maxNativeZoom 0 makes Leaflet scale the deepest
+    // tiles up when the user over-zooms past native resolution.
     L.tileLayer(
       `/maps/tiles/${encodeURIComponent(mapId)}/{z}/{x}/{y}.${ext}`,
-      { tileSize, noWrap: true, bounds: _bounds, minZoom, maxZoom },
+      { tileSize, noWrap: true, bounds: _bounds, minZoom, maxZoom,
+        minNativeZoom: minZoom, maxNativeZoom: 0, zoomOffset: -minZoom },
     ).addTo(_map);
 
     _map.fitBounds(_bounds);

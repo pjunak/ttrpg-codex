@@ -11,8 +11,12 @@ import { I18n } from './i18n.js';
 
 /**
  * HTML-escape a value for safe interpolation into a template literal that
- * builds DOM. Handles `&`, `"`, `<`, `>` — use this for any user-supplied
- * text that ends up inside an attribute value or text node.
+ * builds DOM. Handles `&`, `"`, `'`, `<`, `>` — use this for any
+ * user-supplied text that ends up inside an attribute value or text node.
+ * The `'` escape matters because `dataAction`/`dataOn` emit their JSON
+ * args inside SINGLE-quoted attributes — without it an apostrophe in an
+ * arg ("Baldur's Gate") terminates the attribute (dead button at best,
+ * attribute injection at worst).
  *
  * @param {*} s - Anything stringifiable; null/undefined become "".
  * @returns {string} Escaped string safe for direct innerHTML interpolation.
@@ -21,6 +25,7 @@ export function esc(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }

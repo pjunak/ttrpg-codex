@@ -107,8 +107,15 @@ export const Wiki = (() => {
   function cancelEditingArticle() {
     if (EditMode.isDirty && EditMode.isDirty() &&
         !confirm(I18n.t('wiki.discardChangesConfirm'))) return;
-    if (_editingArticle) {
-      _editingArticle = null;
+    const wasEditing = !!_editingArticle;
+    _editingArticle = null;
+    // A confirmed discard must also clear EditMode's dirty flag —
+    // otherwise the app keeps prompting about "unsaved changes" that no
+    // longer exist (next link click, tab close, deferred SSE banner).
+    // Fires `editmode:clean`, so capture wasEditing first (the wiki
+    // listener above nulls _editingArticle on that event).
+    EditMode.discardDirty?.();
+    if (wasEditing) {
       window.dispatchEvent(new Event('hashchange'));
     } else {
       // No article-edit state (e.g. cancelling a "new" entity creation)
@@ -415,8 +422,12 @@ export const Wiki = (() => {
   }
 
   function statusBadge(statusId) {
-    const s = Store.getStatusMap()[statusId] || Store.getStatusMap().unknown;
-    return `<span class="badge badge-status-${statusId}">${s.icon} ${s.label}</span>`;
+    const map = Store.getStatusMap();
+    // Synthetic last-resort fallback: if the DM deleted the `unknown`
+    // status row, `map.unknown` is gone and every article render would
+    // throw. Labels/icons are user-edited settings content → esc().
+    const s = map[statusId] || map.unknown || { icon: '❓', label: String(statusId || '?') };
+    return `<span class="badge badge-status-${esc(statusId)}">${esc(s.icon)} ${esc(s.label)}</span>`;
   }
 
   function knowledgeBadge(lvl) {
@@ -447,7 +458,7 @@ export const Wiki = (() => {
     const altName = (c.knowledge >= 1) ? c.name : I18n.t('wiki.unknownCharacter');
     const imgHtml   = c.portrait
       ? `<img class="portrait-img" src="${esc(c.portrait)}" alt="${esc(altName)}" loading="lazy">`
-      : `<div class="portrait-placeholder">${placeholderBadge}</div>`;
+      : `<div class="portrait-placeholder">${esc(placeholderBadge)}</div>`;
     const styleAttr = glowFilter ? ` style="filter: ${glowFilter}"` : '';
     return `<div class="portrait-wrap${extraClass ? " "+extraClass : ""}" data-knowledge="${Number(c.knowledge) || 0}" data-status="${esc(c.status)}"${styleAttr}>
       ${imgHtml}${deadHtml}
@@ -904,7 +915,7 @@ export const Wiki = (() => {
 
   function _dashMysteriesHtml() {
     const unsolved = Store.dedupeShadowTwins('mysteries', Store.getMysteries())
-      .filter(m => !m.solved)
+      .filter(m => !Store.isMysterySolved(m))
       .sort((a, b) =>
         (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9)
         || _czCompare(a.name, b.name));
@@ -1247,7 +1258,9 @@ export const Wiki = (() => {
       hostId:      'wl-postavy-grid',
       defaultSort: 'faction',
       grid:  () => _postavyGridHtml(_listState.postavy.faction),
-      total: () => Store.getCharacters().length,
+      // Same population as renderCharacterList's header (NPCs only) so
+      // the live-refreshed count can't disagree with the initial one.
+      total: () => Store.getNPCs().length,
       shown: () => _postavyApply(_listState.postavy.faction).length,
       countText: (shown, total) => {
         const f = _listState.postavy.faction;
@@ -1687,7 +1700,7 @@ export const Wiki = (() => {
       const badge = c.faction === PARTY_FACTION_ID
         ? (pp.badge || pp.icon || '🛡')
         : (factions[c.faction]?.badge || "👤");
-      return `<a class="relation-chip" href="#/postava/${c.id}">${badge} ${esc(c.name)}</a>`;
+      return `<a class="relation-chip" href="#/postava/${c.id}">${esc(badge)} ${esc(c.name)}</a>`;
     }).join("");
 
     // Hierarchy: ancestor breadcrumb + sub-locations.
@@ -1959,10 +1972,11 @@ export const Wiki = (() => {
           ctaLabel: I18n.t('wiki.mysteryNew'), ctaHref: '#/zahada/new',
         })}`;
     }
-    const sorted = [...mysteries].sort((a,b) => {
-      const order = { kritická: 0, vysoká: 1, střední: 2 };
-      return (order[a.priority] || 9) - (order[b.priority] || 9);
-    });
+    // `?? 9`, not `|| 9`: kritická maps to 0, which is falsy — `||`
+    // would sort critical mysteries LAST. Reuses the module-level
+    // PRIORITY_ORDER (the dashboard already sorts with it).
+    const sorted = [...mysteries].sort((a,b) =>
+      (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9));
     const unsolvedCount = mysteries.filter(m => !Store.isMysterySolved(m)).length;
 
     const newBtn = `
@@ -2342,8 +2356,11 @@ export const Wiki = (() => {
   //    })
   // ══════════════════════════════════════════════════════════════
   function renderRankChain({ title, color, textColor, rows, footer }) {
-    const accent = color || '#C9A14B';
-    const label  = textColor || accent;
+    // color/textColor are free-text faction fields — validate through
+    // _safeColor so a crafted value can't break out of the style
+    // attribute below (every other faction-colour sink already does).
+    const accent = _safeColor(color || '#C9A14B');
+    const label  = textColor ? _safeColor(textColor) : accent;
     const rowsHtml = (rows || []).map((r, i) => `
       <div class="rank-row">
         <div class="rank-row-label">

@@ -51,7 +51,7 @@ function _mount(el) {
     chipsEl.innerHTML = values.map((v, i) =>
       `<span class="w-tf-chip" role="listitem">
         ${esc(v)}
-        <button type="button" class="w-tf-chip-x" data-i="${i}" title="Odebrat filtr">×</button>
+        <button type="button" class="w-tf-chip-x" data-i="${i}" title="${esc(I18n.t('action.remove'))}">×</button>
       </span>`).join('');
   }
   function _add(raw) {

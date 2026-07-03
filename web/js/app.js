@@ -550,6 +550,7 @@ document.addEventListener('click', (ev) => {
   let _lastHash    = null;
   let _pendingHash = null;   // latest hash seen while dirty; null = nothing pending
   let _pendingLangRerender = false;  // language switched mid-edit; full re-render deferred to save
+  let _pendingAddonRerender = false; // addons changed mid-edit; re-render deferred to save/discard
   let _es          = null;
   let _esRetryMs   = 1000;
 
@@ -646,7 +647,21 @@ document.addEventListener('click', (ev) => {
     es.addEventListener('hello', ev => {
       try {
         const { hash } = JSON.parse(ev.data);
-        if (_lastHash === null) _lastHash = hash;
+        if (_lastHash === null) {
+          _lastHash = hash;
+        } else if (hash !== _lastHash) {
+          // Reconnected after an outage (laptop sleep, server restart,
+          // network drop) and the data changed while we were away. Treat
+          // it like a live data-changed event — same dirty-editor
+          // deferral — otherwise this client renders stale data until
+          // the NEXT unrelated write happens to broadcast.
+          if (EditMode.isDirty()) {
+            _pendingHash = hash;
+            _showRemoteBanner();
+          } else {
+            _applyRemoteChange(hash);
+          }
+        }
         _esRetryMs = 1000;  // reset backoff on successful connect
       } catch (_) {}
     });
@@ -668,7 +683,13 @@ document.addEventListener('click', (ev) => {
     es.addEventListener('addons-changed', async () => {
       try {
         const changed = await Addons.reconcile();
-        if (changed) { Sidebar.render(); navigate(getRoute()); }
+        if (!changed) return;
+        Sidebar.render();
+        // Same mid-edit guard as data-changed: navigate() rebuilds
+        // #main-content and would destroy a live editor (only the MD
+        // body survives via draft autosave). Defer to editmode:clean.
+        if (EditMode.isDirty()) { _pendingAddonRerender = true; return; }
+        navigate(getRoute());
       } catch (e) { console.warn('[addons] reconcile failed', e); }
     });
 
@@ -698,7 +719,11 @@ document.addEventListener('click', (ev) => {
     if (_pendingHash !== null) {
       const h = _pendingHash;
       _pendingHash = null;
+      _pendingAddonRerender = false;   // _applyRemoteChange re-renders anyway
       _applyRemoteChange(h);
+    } else if (_pendingAddonRerender) {
+      _pendingAddonRerender = false;
+      navigate(getRoute());
     }
   });
 
@@ -728,6 +753,12 @@ document.addEventListener('click', (ev) => {
   });
   window.addEventListener("store:save-failed", () => {
     _showServerBanner(I18n.t('app.saveFailed'));
+  });
+  // Session cookie expired or password rotated: every queued save is
+  // bouncing with 401 and nothing else surfaces it (Store._sync
+  // deliberately skips the save-failed banner for 401s).
+  window.addEventListener("store:auth-failed", () => {
+    _showServerBanner(I18n.t('app.authFailed'));
   });
 
   // ── Top-right login chip ────────────────────────────────────

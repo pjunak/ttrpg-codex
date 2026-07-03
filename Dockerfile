@@ -2,7 +2,9 @@ FROM node:26-slim
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --production
+# `npm ci` installs exactly the lockfile (reproducible builds — `install`
+# may resolve newer in-range versions and silently drift between builds).
+RUN npm ci --omit=dev
 
 COPY server.js .
 COPY server-utils.cjs .

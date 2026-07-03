@@ -1833,7 +1833,8 @@ export const Settings = (() => {
   function _routeForCollection(c) {
     return ({
       characters:'postava', locations:'misto', events:'udalost',
-      mysteries:'zahada', artifacts:'artefakt',
+      mysteries:'zahada', artifacts:'artefakt', factions:'frakce',
+      pantheon:'buh', historicalEvents:'historicka-udalost',
       relationships:'postava',  // rels don't have their own page
     })[c] || c;
   }

@@ -54,6 +54,7 @@
   "addons.permWrite": "Měnit: {coll}",
   "addons.permWriteAddonData": "Ukládat vlastní data k: {coll}",
   "addons.sectionFailed": "Sekce doplňku „{name}\" selhala: {msg}",
+  "app.authFailed": "⚠ Jste odhlášeni — poslední změny se NEuložily. Přihlaste se znovu a úpravu zopakujte.",
   "app.backToDM": "Zpět na DM",
   "app.impersonating": "Pohled hráče — DM obsah je skrytý. Tohle vidí hráči.",
   "app.loginChipTitle": "Přihlásit a začít editovat",

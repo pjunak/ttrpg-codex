@@ -18,8 +18,11 @@ import {
 import { I18n } from '../web/js/i18n.js';
 
 describe('esc', () => {
-  it('escapes the four HTML-significant characters', () => {
+  it('escapes the five HTML-significant characters', () => {
     assert.equal(esc('<a href="#">A&B</a>'), '&lt;a href=&quot;#&quot;&gt;A&amp;B&lt;/a&gt;');
+  });
+  it('escapes apostrophes so single-quoted data-args attributes cannot break', () => {
+    assert.equal(esc("Baldur's Gate"), 'Baldur&#39;s Gate');
   });
   it('coerces null/undefined to empty string', () => {
     assert.equal(esc(null), '');

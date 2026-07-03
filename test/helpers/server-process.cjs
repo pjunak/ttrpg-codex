@@ -90,6 +90,9 @@ async function startServer(opts = {}) {
     CODEX_DATA_DIR:        dataDir,
     CODEX_SNAPSHOTS_DIR:   snapshotsDir,
     NODE_ENV:              'test',
+    // Tests create manual snapshots back-to-back; disable the
+    // production rate limit on POST /api/snapshots.
+    CODEX_SNAPSHOT_MIN_INTERVAL_MS: '0',
     ...(opts.env || {}),
   };
 

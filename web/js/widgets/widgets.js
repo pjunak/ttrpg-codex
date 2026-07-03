@@ -310,6 +310,12 @@ function _mountMultiSelect(el) {
 
   let options = _resolveOptions(source, '');
   const selected = new Set(initial.filter(v => options.some(o => o.value === v)));
+  // Ids the viewer can't resolve into an option — e.g. DM-only entities
+  // filtered out of a player's dataset. They render no chip but MUST
+  // round-trip through the hidden checkboxes: dropping them meant a
+  // player save silently stripped the DM's links from the record.
+  // (The single-select Combobox already preserves unknown values.)
+  let passthrough = initial.filter(v => !options.some(o => o.value === v));
 
   let open = false;
   let highlight = -1;
@@ -335,14 +341,15 @@ function _mountMultiSelect(el) {
   function _byVal(v) { return options.find(o => o.value === v); }
   function _renderHidden() {
     // Hidden checkboxes inside the placeholder's own id container —
-    // keeps existing _checkVals(containerId) reads working.
-    hiddenEl.innerHTML = [...selected].map(v =>
+    // keeps existing _checkVals(containerId) reads working. Passthrough
+    // ids ride along so saves can't strip them.
+    hiddenEl.innerHTML = [...passthrough, ...selected].map(v =>
       `<input type="checkbox" value="${esc(v)}" checked>`
     ).join('');
   }
   function _renderChips() {
     if (!selected.size) {
-      chipsEl.innerHTML = `<span class="w-ms-chips-empty">— nikdo —</span>`;
+      chipsEl.innerHTML = `<span class="w-ms-chips-empty">${esc(I18n.t('widget.emptyOption'))}</span>`;
       return;
     }
     chipsEl.innerHTML = [...selected].map(v => {
@@ -351,7 +358,7 @@ function _mountMultiSelect(el) {
       const badge = o.badge ? `<span class="w-ms-chip-badge">${esc(o.badge)}</span>` : '';
       return `<span class="w-ms-chip" data-val="${esc(v)}">
         ${badge}${esc(o.label)}
-        <button type="button" class="w-ms-chip-x" title="Odebrat">×</button>
+        <button type="button" class="w-ms-chip-x" title="${esc(I18n.t('action.remove'))}">×</button>
       </span>`;
     }).join('');
   }
@@ -473,9 +480,12 @@ function _mountMultiSelect(el) {
   });
 
   el._multiselect = {
-    getValue() { return [...selected]; },
+    // getValue includes passthrough ids so a getValue→merge→setValue
+    // round-trip (e.g. EditMode.addPartyToEvent) can't drop them.
+    getValue() { return [...passthrough, ...selected]; },
     setValue(arr) {
       selected.clear();
+      passthrough = (arr || []).filter(v => !_byVal(v));
       (arr || []).forEach(v => { if (_byVal(v)) selected.add(v); });
       _renderChips(); _renderHidden();
     },

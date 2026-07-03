@@ -1,0 +1,16 @@
+# Runtime state — lives in volumes, never in the image. The data dir
+# also contains auth.json (password hashes) and campaign content; keep
+# it out of the build context so a future `COPY . .` can't leak it.
+data/
+data-snapshots/
+
+# Dev-only — not part of the deployed surface (Dockerfile COPYs an
+# explicit list; this keeps the context upload small regardless).
+node_modules/
+.git/
+.github/
+test/
+examples/
+scripts/
+.claude/
+.env*
