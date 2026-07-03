@@ -33,6 +33,7 @@ const { runVisibilityMigration: _runVisibilityMigration } = require('./server/mi
 // See server/addons.cjs. No module-level side effects.
 const AddonBroker = require('./server/addons.cjs');
 const AddonTesting = require('./server/addon-testing.cjs');
+const AddonContent = require('./server/addon-content.cjs');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -1698,6 +1699,9 @@ function _publicAddonList(reg) {
     // Server-side code (Phase 7): does it ship one, and its live load state.
     server:      !!a.server,
     serverState: _serverStateFor(a),
+    // Host-served declarative content (manifest `contentDir`) — data addons
+    // (rulebooks) with no server code; the host serves /api/addon/<id>/content.
+    contentDir:  a.contentDir || null,
     // Kept version history (Phase 9) — drives the rollback affordance. Trimmed
     // (no sha) to what the Manager needs. activeHash marks the live one.
     versions: Array.isArray(a.versions)
@@ -1720,6 +1724,38 @@ function _publicAddonList(reg) {
 // swapping require()'d code into a live process.
 const _addonServers    = new Map();   // id -> { id, router, state, hash }   (live routers, request-time)
 const _serverLoadState = new Map();   // id -> { state, error }              (boot load outcome, for the Manager)
+
+// ── Host-served declarative addon content (manifest `contentDir`) ──
+// A data addon (rulebooks…) declares a per-record JSON tree and the HOST
+// serves it at /api/addon/<id>/{content,content/:kind,item/:kind/:id,kinds} —
+// no addon server code, no `server:code` grant, and (unlike server code,
+// which is restart-to-load) fully HOT: rebuilt on every registry mutation,
+// so installing/updating a book addon needs no restart. Content-addressed:
+// the cache keys on activeHash, so an unchanged hash never re-reads disk.
+const _addonContent = new Map();      // id -> { hash, content, index, kinds, count }
+function _applyAddonContent(reg) {
+  const seen = new Set();
+  for (const a of (reg && Array.isArray(reg.addons)) ? reg.addons : []) {
+    if (!a || !a.enabled || !a.contentDir || !a.activeHash) continue;
+    if (!AddonBroker.ID_RE.test(a.id) || typeof a.contentDir !== 'string') continue;
+    seen.add(a.id);
+    const cached = _addonContent.get(a.id);
+    if (cached && cached.hash === a.activeHash) continue;
+    const codeDir = _safeJoinIn(path.join(ADDONS_DIR, a.id), a.activeHash);
+    const rootDir = codeDir ? _safeJoinIn(codeDir, a.contentDir) : null;
+    if (!rootDir) { _addonContent.delete(a.id); continue; }
+    try {
+      const tree = AddonContent.loadContentTree(rootDir);
+      _addonContent.set(a.id, { hash: a.activeHash, ...tree });
+      console.log(`[addons] content: ${a.id} — ${tree.count} records / ${tree.kinds.length} kinds (host-served)`);
+    } catch (e) {
+      console.warn(`[addons] content load failed for ${a.id}:`, e && e.message);
+      _addonContent.delete(a.id);
+    }
+  }
+  // Disabled/removed/no-longer-content addons stop serving immediately.
+  for (const id of [..._addonContent.keys()]) if (!seen.has(id)) _addonContent.delete(id);
+}
 
 // A data helper bound to the addon's isolated dir; a collection name maps to
 // data/addon-data/<id>/<name>.json. Uses the SAME grammar as the client wire
@@ -2017,6 +2053,7 @@ async function _promoteAddon(staged) {
   const versionRec = {
     contentHash: hash, version: manifest.version, sha, installedAt: Date.now(),
     entry: manifest.entry, server: manifest.server || null,
+    contentDir: manifest.contentDir || null,
     serverDeps: _serverDeps, collections: _collections,
     dependencies: _dependencies, optionalDependencies: _optionalDependencies,
   };
@@ -2027,6 +2064,7 @@ async function _promoteAddon(staged) {
       name: manifest.name, version: manifest.version,
       apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
       entry: manifest.entry, server: manifest.server || null,
+      contentDir: manifest.contentDir || null,
       serverDeps: _serverDeps,
       activeHash: hash, versions: [versionRec],
       enabled: true, grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
@@ -2042,6 +2080,7 @@ async function _promoteAddon(staged) {
       name: manifest.name, version: manifest.version,
       apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
       entry: manifest.entry, server: manifest.server || null,
+      contentDir: manifest.contentDir || null,
       serverDeps: _serverDeps,
       dependencies: _dependencies,
       optionalDependencies: _optionalDependencies,
@@ -2059,6 +2098,11 @@ async function _promoteAddon(staged) {
   // Make the addon's declared collections writable through /api/data now,
   // without waiting for a restart (the SSE reconcile live-loads the client).
   _applyAddonCollections(reg);
+  // (Re)build host-served content trees; and if the promoted version ships no
+  // server module, drop any stale live router at once so the content
+  // dispatcher (or the JSON 404) takes over instead of a dead router.
+  _applyAddonContent(reg);
+  if (!entry.server) _addonServers.delete(id);
   // Drop code dirs no longer in versions[] (keep-last-K). Best-effort — a
   // failed prune never fails the install.
   await _pruneAddonVersions(entry).catch(() => {});
@@ -2235,15 +2279,18 @@ app.post('/api/addons/:id/rollback', requireRealDM('Jen DM může vracet verze d
       entry.sha        = target.sha || entry.sha;
       if (target.entry)                  entry.entry       = target.entry;
       if (target.server !== undefined)   entry.server      = target.server;
+      if (target.contentDir !== undefined) entry.contentDir = target.contentDir;
       if (Array.isArray(target.serverDeps))  entry.serverDeps  = target.serverDeps;
       if (Array.isArray(target.collections)) entry.collections = target.collections;
       if (target.dependencies)           entry.dependencies = target.dependencies;
       if (target.optionalDependencies)   entry.optionalDependencies = target.optionalDependencies;
       await _writeAddonsRegistry(reg);
       _applyAddonCollections(reg);
+      _applyAddonContent(reg);           // host-served content flips with the hash, hot
       // Server code changed under it → drop the live router; restart reloads
-      // the rolled-back server module (restart-to-load v1).
-      if (entry.server) _addonServers.delete(id);
+      // the rolled-back server module (restart-to-load v1). A rolled-back
+      // version WITHOUT server code drops the router too (serve nothing stale).
+      _addonServers.delete(id);
       return { status: 200, version: entry.version, activeHash: entry.activeHash };
     });
     if (result.status !== 200) return res.status(result.status).json({ error: result.error || 'Doplněk nenalezen.' });
@@ -2360,6 +2407,7 @@ async function _setAddonEnabled(req, res, enabled) {
       entry.enabled = enabled;
       await _writeAddonsRegistry(reg);
       _applyAddonCollections(reg);   // enabling/disabling adds/removes its wire types
+      _applyAddonContent(reg);       // host-served content follows enabled state, hot
       // A disabled addon must serve nothing — drop its live router immediately
       // (re-enabling a server addon needs a restart to reload; restart-to-load v1).
       if (!enabled) _addonServers.delete(id);
@@ -2401,6 +2449,7 @@ app.delete('/api/addons/:id', requireRealDM('Jen DM může spravovat doplňky.')
         if (dataDir) await fsp.rm(dataDir, { recursive: true, force: true }).catch(() => {});
       }
       _applyAddonCollections(reg);   // removed addon's wire types go away
+      _applyAddonContent(reg);       // …and its host-served content
       _addonServers.delete(id);      // stop serving its endpoints at once
       return true;
     });
@@ -3093,6 +3142,25 @@ app.post('/api/restore', requireAuth, restoreUpload.single('backup'), (req, res)
 app.use('/api/addon/:addonId', (req, res, next) => {
   const entry = _addonServers.get(req.params.addonId);
   if (!entry || entry.state !== 'loaded' || !entry.router) {
+    // No live router — host-served declarative content (manifest `contentDir`)
+    // answers the four stable GET endpoints for data addons. An addon with a
+    // live server router takes precedence entirely (it may serve /content
+    // itself); everything else 404s as before.
+    const c = _addonContent.get(req.params.addonId);
+    if (c && req.method === 'GET') {
+      const p = req.path;                       // mount-relative: '/content', …
+      if (p === '/content') return res.json(c.content);
+      let m = /^\/content\/([^/]+)$/.exec(p);
+      if (m) return res.json(c.content[decodeURIComponent(m[1])] || []);
+      m = /^\/item\/([^/]+)\/([^/]+)$/.exec(p);
+      if (m) {
+        const byId = c.index[decodeURIComponent(m[1])];
+        const rec  = byId && byId[decodeURIComponent(m[2])];
+        if (!rec) return res.status(404).json({ error: 'not found' });
+        return res.json(rec);
+      }
+      if (p === '/kinds') return res.json({ kinds: c.kinds });
+    }
     return res.status(404).json({ error: 'Addon endpoint not available' });
   }
   // A SYNCHRONOUS throw inside the addon's router (Express routes async
@@ -3236,9 +3304,12 @@ async function _bootstrap() {
   }
   // Register enabled addons' declared collections into the type system so
   // their data rides the generic GET/PATCH /api/data path from the first
-  // request (install/enable/disable re-apply this live afterwards).
+  // request (install/enable/disable re-apply this live afterwards), and
+  // build the host-served content trees (manifest `contentDir`).
   try {
-    _applyAddonCollections(await _readAddonsRegistry());
+    const _bootReg = await _readAddonsRegistry();
+    _applyAddonCollections(_bootReg);
+    _applyAddonContent(_bootReg);
   } catch (e) {
     console.warn('[addons] collection type seed failed:', e.message);
   }

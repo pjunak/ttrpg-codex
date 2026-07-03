@@ -69,7 +69,10 @@ let reg;
 try { reg = Broker.normalizeRegistry(JSON.parse(fs.readFileSync(regFile, 'utf8'))); }
 catch { reg = Broker.defaultRegistry(); }
 
-const versionRec = { contentHash: hash, version: manifest.version, sha: 'local', installedAt: Date.now() };
+const versionRec = {
+  contentHash: hash, version: manifest.version, sha: 'local', installedAt: Date.now(),
+  entry: manifest.entry, server: manifest.server || null, contentDir: manifest.contentDir || null,
+};
 let entry = reg.addons.find(a => a.id === id);
 if (!entry) {
   entry = {
@@ -77,6 +80,7 @@ if (!entry) {
     name: manifest.name, version: manifest.version,
     apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
     entry: manifest.entry, server: manifest.server || null,
+    contentDir: manifest.contentDir || null,
     serverDeps: Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [],
     activeHash: hash, versions: [versionRec],
     enabled: true, grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
@@ -95,7 +99,8 @@ if (!entry) {
   // the local manifest.
   Object.assign(entry, {
     name: manifest.name, version: manifest.version, apiVersion: manifest.apiVersion,
-    entry: manifest.entry, server: manifest.server || null, activeHash: hash, enabled: true,
+    entry: manifest.entry, server: manifest.server || null,
+    contentDir: manifest.contentDir || null, activeHash: hash, enabled: true,
     grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : (entry.grantedPermissions || []),
     serverDeps: Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [],
     dependencies: (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {},

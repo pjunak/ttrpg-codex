@@ -85,6 +85,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `hostVersion` | — | semver range vs the app version (e.g. `">=1.0.0"`). |
 | `entry` | ✅ | Relative `.js`/`.mjs` path to the client module (default-export `register`). |
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
+| `contentDir` | — | Relative dir of a **per-record JSON tree** the HOST serves for you at `/api/addon/<id>/content` (+ `/content/:kind`, `/item/:kind/:id`, `/kinds`). The right choice for DATA addons (rulebooks): **no server code, no `server:code` grant**, kinds keyed by each record's own `kind` field (sub-dir name is the fallback), and hot-loaded — install/update needs no restart. A live `server` router takes precedence over it entirely. |
 | `serverDeps` | — | `string[]` of vetted host npm libs your server module needs via `serverHost.lib(...)`. Allowed: `express`, `adm-zip`, `archiver`, `multer`. Anything else → the addon loads `blocked`. |
 | `permissions` | — | Declared + **enforced** capability tokens (see §5). The DM reviews + grants them at install. |
 | `dependencies` | — | HARD deps: `{ "<otherAddonId>": { "range": ">=1.0.0", "repo": "owner/name" } }`. A missing/incompatible one **blocks** your addon (see §12). |
@@ -412,6 +413,13 @@ Ship a Node module and run it in-process. Routes mount under
 `/api/addon/<id>/*` (namespaced — never collide). The facade is scoped: data is
 confined to your dir, core reads need a permission, `lib()` only yields vetted
 host npm deps.
+
+> **Serving static content? You probably don't need server code.** If your
+> server module would only read bundled JSON off disk and serve it (a rulebook
+> / data addon), declare `"contentDir": "data"` instead — the host serves the
+> aggregate endpoints for you with no `server:code` grant and no restart.
+> Reach for a real server module only for LOGIC (authoritative dice, uploads,
+> custom queries).
 
 ```jsonc
 // addon.json

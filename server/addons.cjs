@@ -137,6 +137,12 @@ function validateManifest(m) {
   if (m.server !== undefined && (typeof m.server !== 'string' || !_safeRel(m.server) || !/\.c?js$/.test(m.server))) {
     errors.push('server, if set, must be a relative .cjs/.js path inside the addon');
   }
+  // Declarative content tree (host-served — no server code / server:code
+  // grant needed): a relative dir of per-record JSON the host exposes at
+  // /api/addon/<id>/{content,content/:kind,item/:kind/:id,kinds}.
+  if (m.contentDir !== undefined && (typeof m.contentDir !== 'string' || !m.contentDir.trim() || !_safeRel(m.contentDir))) {
+    errors.push('contentDir, if set, must be a relative directory path inside the addon');
+  }
   if (m.serverDeps !== undefined &&
       (!Array.isArray(m.serverDeps) || m.serverDeps.some(d => typeof d !== 'string'))) {
     errors.push('serverDeps must be an array of strings');
