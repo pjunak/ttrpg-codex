@@ -32,10 +32,13 @@ A minimal addon is two files at the repo root:
   "apiVersion": 1,
   "hostVersion": ">=1.0.0",
   "entry": "entry.js",
-  "permissions": ["ui:route", "ui:sidebar"],
+  "permissions": ["ui:route", "ui:sidebar", "data:read:characters"],
   "summary": "Adds a /pozdrav page."
 }
 ```
+(The third permission matters: `entry.js` below calls
+`host.store.getCharacters()`, and an ungranted capability **throws** —
+optional chaining doesn't save you, the method exists and denies.)
 
 **`entry.js`** — a default-export `register(host)`:
 ```js
@@ -81,8 +84,8 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `id` | ✅ | `^[a-z0-9][a-z0-9-]{1,38}$` — lowercase, hyphens, **no underscores**. Must equal the repo's declared id. Becomes the on-disk dir + URL segment + action/data namespace. |
 | `name` | ✅ | Human-readable. |
 | `version` | ✅ | semver `x.y.z`. Bump on every release. |
-| `apiVersion` | ✅ | Must equal the host API version (**`1`**). A mismatch → the addon loads `incompatible`, never registers. |
-| `hostVersion` | — | semver range vs the app version (e.g. `">=1.0.0"`). |
+| `apiVersion` | ✅ | Must equal the host API version (**`1`**). A mismatch is rejected at preview/install with a validation error — the addon never installs. |
+| `hostVersion` | — | semver range vs the app version (e.g. `">=1.0.0"`). Declarative only — the host does not currently enforce it. |
 | `entry` | ✅ | Relative `.js`/`.mjs` path to the client module (default-export `register`). |
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
 | `contentDir` | — | Relative dir of a **per-record JSON tree** the HOST serves for you at `/api/addon/<id>/content` (+ `/content/:kind`, `/item/:kind/:id`, `/kinds`). The right choice for DATA addons (rulebooks): **no server code, no `server:code` grant**, kinds keyed by each record's own `kind` field (sub-dir name is the fallback), and hot-loaded — install/update needs no restart. A live `server` router takes precedence over it entirely. |
@@ -131,14 +134,14 @@ host.ui            // { toast(msg), rerender() }  — rerender re-renders the cu
 | `registerRoute(seg, render)` | `ui:route` | A hash route `#/<seg>/…`. `render(sub, parts) → htmlString`. |
 | `registerSidebarPage(spec)` | `ui:sidebar` | A left-nav link. `spec = {route:'/x', label, icon?, section?, role?}`. |
 | `registerPageRenderer(kind, render)` | `ui:route` | Provide a `Wiki.renderPage(kind)` page. |
-| `registerArticleSection(kind, fn)` | `ui:article-section:<kind>` | A section on every entity article. `fn(entity) → {title, html} \| null`. ADDITIVE (stacks). |
+| `registerArticleSection(kind, fn, {order?})` | `ui:article-section:<kind>` | A section on every entity article. `fn(entity) → {title, html} \| null`. ADDITIVE (stacks, ordered by `order`). |
 | `registerEditorFields(kind, spec)` | `ui:editor-fields:<kind>` | Inject fields into an editor + collect on save. `spec = {fields(entity)→html, collect(scope, entity)→obj}`. Wired for `characters`. |
 | `registerSettingsTab(spec)` | `ui:settings-tab` | A Nastavení tab. `spec = {id, label, icon?, role?, render()→html}`. |
 | `registerAction(name, fn)` | `ui:action` | A handler for `data-action="<id>:<name>"`. Build with `host.action(name)`. |
 | `registerCollection(name)` | `data:own` | Wire your manifest-declared collection's scoped CRUD (§8). |
 | `registerWikiKind(scope, resolve)` | `wiki:kind` | Resolve `[[Label\|scope]]` links. `resolve(label) → {kind, id} \| null` (§7). |
 | `registerFragmentOp(target, spec)` | `ui:override` | Override a built-in fragment (replace/hide/wrap/insert) (§11). |
-| `registerSlot(slotId, render, opts?)` | `ui:slot:<surface>` | Inject content into a named slot on ANY surface (`<surface>` = slotId's first `:`-segment). `render(ctx) → {html} \| string \| null`. ADDITIVE, ordered by `opts.order`. Live slots: `dashboard:section` (ctx `{role}`), `map:pin:panel` (ctx `{location, pin, role}`), `timeline:card:extra`, `timeline:column:header\|footer`, `timeline:toolbar`. |
+| `registerSlot(slotId, render, opts?)` | `ui:slot:<surface>` | Inject content into a named slot on ANY surface (`<surface>` = slotId's first `:`-segment). `render(ctx) → {html} \| string \| null`. ADDITIVE, ordered by `opts.order`. Live slots: `dashboard:section` (ctx `{role}`), `map:pin:panel` (ctx `{location, pin, role}`), `timeline:card:extra`, `timeline:column:header\|footer`, `timeline:toolbar`. NOTE: `ctx.role.isDM` is a **boolean**, not a function. |
 | `registerKind(domain, def)` | `kinds:<domain>` | Add a pure-DATA enum kind in `domain` — merged into `Store.getKinds(domain)`. Domains: `connections`, `statuses`, `priorities`, `attitudes`, `genders`, `pinTypes`. `def = {id, label, color?, …}` (NO functions). Id namespaced `<addonId>:<def.id>`. Renders wherever that kind's label/colour does (e.g. a `statuses` kind shows up via `getStatusMap` on cloudmap/wiki/map). NOT an editable row in Settings. |
 | `registerConnectionKind(def)` | `kinds:connections` | Back-compat alias for `registerKind('connections', def)`. `def = {id, label, color, style, dirs?, target?}`. Shows in the rel editor + as a mind-map edge. |
 | `registerNodeKind(def)` | `kinds:graph` | Add a mind-map node type: `def = {id, shape?, cardHTML(node)→html, height?(node)→px, searchText?, detailHash?(d)}`. `cardHTML` must emit a `.cm-cloud` card. |
@@ -176,6 +179,7 @@ Request the **least** you need. The DM sees friendly labels at install.
 | `ui:article-section:<kind>` | Add a section to `<kind>` articles (`characters`, `locations`, `events`, `mysteries`, `factions`, …). |
 | `ui:editor-fields:<kind>` | Add fields to the `<kind>` editor. |
 | `ui:override` | Replace/hide/wrap/insert built-in fragments. |
+| `ui:slot:<surface>` | Inject content into named slots on `<surface>` (the slotId's first `:`-segment — e.g. `ui:slot:timeline` covers `timeline:card:extra`). Needed by `registerSlot`. |
 | `wiki:kind` | Extend `[[…]]` wiki-links. |
 | `data:own` | Store the addon's own collections + per-entity `addonData`. |
 | `data:read:<collection>` | Read a core collection. |

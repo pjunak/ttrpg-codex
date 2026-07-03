@@ -14,13 +14,22 @@ data/
 │   ├── local/                         # Per-location sub-map images
 │   │   └── {locationId}/map.{ext}     #   served at /maps/local/{id}/...
 │   └── tiles/                         # Generated tile pyramids (sharp)
-│       └── {mapId}/{z}/{x}/{y}.jpg
+│       └── {mapId}/{z}/{x}/{y}.jpg    #   mapId = `world` or `local-{locId}`
 │
-├── portraits/                         # Character portraits
+├── portraits/                         # Character / pet portraits
 │   └── {charId}/portrait.{ext}        #   served at /portraits/{id}/...
 │
 ├── icons/                             # Custom marker artwork
 │   └── {pinTypeId}/{file}.{svg,png}   #   served at /icons/{id}/...
+│
+├── branding/                          # Custom site logo (optional)
+│   └── logo.{ext}                     #   served at /branding/...
+│
+├── addons/                            # Installed addon CODE
+│   └── {addonId}/{contentHash}/       #   content-addressed versions
+├── addon-data/                        # Per-addon isolated data
+│   └── {addonId}/{collection}.json
+├── addons.json                        # Addon registry (versions, grants)
 │
 ├── characters.json                    # Per-collection JSON files
 ├── relationships.json
@@ -28,12 +37,15 @@ data/
 ├── events.json
 ├── mysteries.json
 ├── factions.json
+├── pets.json
 ├── pantheon.json
 ├── artifacts.json
 ├── historicalEvents.json
-├── settings.json                      # User-editable enums
+├── settings.json                      # User-editable enums + chrome config
 ├── campaign.json                      # Campaign name + tagline
-└── deletedDefaults.json               # Tombstones for removed seed entries
+├── deletedDefaults.json               # Tombstones for removed seed entries
+└── auth.json                          # Salted password hashes (set in-app;
+                                       #   excluded from snapshots + data hash)
 ```
 
 Snapshots live in a sibling directory (`data-snapshots/`), not inside

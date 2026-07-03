@@ -236,8 +236,12 @@ export function smokeRegistrations(rec, opts = {}) {
   }
   // Content slots — pass a superset ctx (card/column/generic) so a slot
   // renderer that reads event/sitting/role is exercised either way.
+  // ctx.role mirrors the LIVE call sites, which pass BOOLEANS
+  // (`role: { isDM: Role.isDM() }` in wiki.js/timeline.js/map.js) — a
+  // function-shaped mock here let `ctx.role.isDM()` pass the smoke and
+  // then break in production.
   const slotCtx = { entity, event: entity, sitting: 1, column: { sitting: 1, events: [entity] },
-                    role: { isDM: () => false, isAnonymous: () => false } };
+                    role: { isDM: false, isAnonymous: false } };
   for (const s of (rec.slots || []))     guard('slot', s.slotId, () => s.render(slotCtx));
   // Graph node-kind descriptors — exercise the cardHTML renderer on a sample node.
   for (const n of (rec.nodeKinds || [])) guard('nodeKind', n.id, () => { if (typeof n.cardHTML === 'function') n.cardHTML({ id: '_smoke', type: n.id, entity }); });

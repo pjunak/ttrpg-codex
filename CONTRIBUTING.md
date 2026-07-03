@@ -148,11 +148,13 @@ JSON-encoding and HTML escaping.
 `<link>` — the browser-native import keeps the source split for
 editing without requiring a bundler.
 
-Key variables live in `:root` inside [`web/css/main.css`](web/css/main.css):
-`--accent-gold`, `--bg-dark`, `--bg-card`, `--bg-raised`,
-`--text-muted`, `--border`. **Watch out:** `--bg-card` is
-**parchment** (`#F5EDD8`), not a dark surface. Use `--bg-raised`
-for dark panels.
+Design tokens live in `:root` inside [`web/css/main.css`](web/css/main.css) —
+e.g. `--accent-gold`, `--bg-deep`/`--bg-base` (dark surfaces),
+`--bg-card`, `--bg-raised`, `--text-muted`, `--border-subtle`. The full
+token + component-class reference is [`web/css/STYLE.md`](web/css/STYLE.md);
+all UI work must build from tokens (that's what makes the theme switcher
+work). **Watch out:** `--bg-card` is **parchment** (`#F5EDD8`), not a
+dark surface. Use `--bg-raised` for dark panels.
 
 ## Recipes
 
@@ -180,9 +182,13 @@ The minimum touch-list:
 7. **[`server.js`](server.js)** — add `'npcGroups'` to `ALLOWED_TYPES`
    and `ALL_TYPES`. (Keyed-object collections also go in
    `KEYED_OBJ_TYPES`.)
-8. **[`web/js/constants.js`](web/js/constants.js)** — add a route
-   constant and a sidebar entry in `SIDEBAR_PAGES`.
-9. **[`web/index.html`](web/index.html)** — add the sidebar link.
+8. **[`web/js/constants.js`](web/js/constants.js)** — add a
+   `SIDEBAR_PAGES` entry (route, i18n key, icon, home section). The
+   `Sidebar` module renders the left nav from this registry — there is
+   no static sidebar markup to edit. Optionally add a bottom-nav /
+   map-sheet link in `web/index.html` for mobile.
+9. **[`web/i18n/en.json`](web/i18n/en.json) + `cs.json`** — add the
+   page's UI strings to BOTH catalogs (the parity + key tests enforce it).
 
 If the collection should be searchable globally (Ctrl+K), add it to
 `Store.searchAll()` and to `web/js/search.js`'s `KIND_META` map.
@@ -221,8 +227,9 @@ a story about what happens when two migrations bounce off each other.
 3. Run `npm test` — the suite must stay green.
 4. Open a PR against `main`. Describe **why** in the body; the diff
    shows what.
-5. CI builds the Docker image and dispatches to the maintainer's infra
-   repo on merge to `main` (see `.github/workflows/build-and-dispatch.yml`).
+5. On merge to `main`, CI runs the full test suite first; only a green
+   suite builds the Docker image and dispatches to the maintainer's
+   infra repo (see `.github/workflows/build-and-dispatch.yml`).
    You don't need anything from the dispatch step to run locally.
 
 ## Reporting bugs

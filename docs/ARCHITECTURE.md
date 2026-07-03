@@ -17,9 +17,11 @@ loop see [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 | World map | Leaflet 1.9.4 + on-disk tile pyramid ([`web/js/map.js`](../web/js/map.js), [`tiler.js`](../tiler.js)) |
 | Markdown | marked + DOMPurify, edited via EasyMDE |
 | Auth | Signed `edit_session` cookie; DM + optional player roles, role-aware visibility filter ([`server/visibility.cjs`](../server/visibility.cjs)) |
-| Uploads | multer, capped at 20 MB / file (40 MB for the world map) |
+| Uploads | multer — 20 MB portraits/local maps · 40 MB world map · 5 MB logo · 2 MB × 16 marker icons · 200 MB restore ZIP |
 | Backups | archiver (ZIP) + adm-zip (restore) |
-| Tests | Node built-in `node --test` runner |
+| i18n | Per-user UI language (EN + CS), `web/i18n/*.json` catalogs + [`web/js/i18n.js`](../web/js/i18n.js) |
+| Addons | CodexHost — DM-installed GitHub addons ([`web/js/addons.js`](../web/js/addons.js) + [`server/addons.cjs`](../server/addons.cjs)); see [`examples/addons/AUTHORING.md`](../examples/addons/AUTHORING.md) |
+| Tests | Node built-in `node --test` runner (also the CI gate before build + deploy) |
 | Deploy | Docker Compose |
 
 ## Why no build step?
@@ -45,10 +47,17 @@ web/js/
   app.js            Router, navigation, SSE live-sync, action dispatcher
   store.js          In-memory state, server sync, secondary indices, trash
   data.js           Default seeds (FACTIONS, REL_TYPES, SETTINGS_DEFAULTS, …)
-  constants.js      PARTY_FACTION_ID, ROUTE map, SIDEBAR_PAGES, czPlural
+  constants.js      PARTY_FACTION_ID, SIDEBAR_PAGES, SIDEBAR_LAYOUT_DEFAULT, THEMES
   role.js           Role state (dm / player / anonymous) + view-as impersonation
+  i18n.js           Per-user UI language (t()/plural()/Intl dates), EN+CS catalogs
   utils.js          esc, escapeRe, norm, debounce, slugify, extractOutline,
                     humanTime, renderMarkdown, expandWikiLinks, dataAction/On
+
+  addons.js         Addon host (CodexHost): loads installed addons, permission-
+                    scoped host facade, fragment/slot integration
+  addon-deps.js     Pure addon dependency resolver (semver + topo-sort)
+  addon-fragments.js Pure fragment-override engine (conflict-safe arbitration)
+  addon-test-harness.mjs Published authoring test harness
 
   wiki.js           Article + list renderers (one entrypoint: renderPage)
   cloudmap.js       Mind maps (Cytoscape + custom physics + crossing reduction)
@@ -95,11 +104,13 @@ re-seeding of removed entries.
 | `relationships` | `{ source, target, type, … }` | Undirected types (`ally`, `mystery`, …) and directed types (`commands`, `mission`). |
 | `mysteries` | `{ id, name, questions[], clues[], characters[], locations[], priority, solved }` | |
 | `factions` | Keyed object: `{ "<id>": { name, color, badge, attitudes[], rankChains[], … } }` | |
-| `pantheon`, `artifacts` | Standard entity arrays. | Reference / world-building collections. (Species was removed from the base app — D&D 2024 species ship in the dnd55e-compendium addon; `character.species` is now a free-text string.) |
+| `pantheon`, `artifacts` | Standard entity arrays. | Reference / world-building collections. (Species was removed from the base app — D&D 2024 species ship in the dnd55e-players-handbook addon; `character.species` is now a free-text string.) |
 | `historicalEvents` | `{ id, name, start, end, summary, body, characters[], locations[], … }` | Separate from campaign `events` so the timeline stays campaign-only. |
-| `settings` | Keyed-by-category: `{ relationshipTypes: [], genders: [], pinTypes: [], characterStatuses: [], eventPriorities: [], attitudes: [], mapViews: [], mapConfigs: {}, hiddenSidebarPages: [] }` | User-editable enums. |
+| `pets` | `{ id, name, icon, portrait, species, note, ownerType, ownerId }` | Lightweight companions ("Mazlíčci"); public, no visibility filtering. |
+| `settings` | Keyed-by-category: `{ relationshipTypes: [], genders: [], pinTypes: [], characterStatuses: [], eventPriorities: [], attitudes: [], mapViews: [], mapConfigs: {}, sidebarLayout: {}, playerParty: {}, branding: {}, appearance: {} }` | User-editable enums + campaign chrome. (Legacy `hiddenSidebarPages` folds into `sidebarLayout.hidden` on read.) |
 | `campaign` | Keyed object with one `main` record: `{ name, tagline }` | Dashboard hero text. |
 | `deletedDefaults` | Keyed object `{ "<key>": true }` | Tombstones so removed seed entries don't resurrect. |
+| `addon:<id>:<name>` | Declared by installed addons (`collections[]` in their manifest). | Stored under `data/addon-data/<id>/<name>.json`; rides the same PATCH path, snapshots, and data hash. |
 
 Three storage shapes get distinguished server-side:
 
@@ -131,11 +142,14 @@ Hash-based SPA routing. All logic in `app.js:navigate()`.
 | `/mapa/local/:locId` | Sub-map of a location |
 | `/mapa/{frakce,vztahy,tajemstvi,palac}` | Mind-map modes |
 | `/casova-osa` | Timeline kanban |
+| `/mazlicci` | Pets hub |
+| `/dm` | DM-only landing page |
 | `/nastaveni` | Settings page |
 
-The full list of routes plus the responsible module lives in
-[`web/js/constants.js`](../web/js/constants.js) (`ROUTE` and
-`SIDEBAR_PAGES`).
+The route table itself is the `switch` in `app.js:navigate()`
+(unmatched sections fall through to addon-registered routes); sidebar
+entries come from `SIDEBAR_PAGES` in
+[`web/js/constants.js`](../web/js/constants.js).
 
 ## Action dispatcher
 
@@ -256,8 +270,11 @@ screens use the empty space symmetrically. Single-column under
 
 The `_articleShell` signature is documented in `wiki.js` — it takes
 `{ visual, title, subtitle, chips, facts, sections, body,
-outlineSource }`. New entity types fit into this shell rather than
-inventing their own layout.
+outlineSource, editButton, kind, entity }` (the last three power the
+per-article ✏ edit button, the breadcrumb action bar above the grid,
+and addon fragment overrides — an addon can wrap/replace named
+sections or take over the whole body). New entity types fit into this
+shell rather than inventing their own layout.
 
 ## Attitude glow system
 
@@ -402,10 +419,21 @@ that were tried and reverted (do not retry without reason).
   `Sidebar` module, not pre-boot inline JS) — so re-enabling
   `script-src 'self'` is a small change away once style attributes
   are eliminated.
-- **CDN script integrity.** Every `<script>` and `<link>` pointing at
-  a CDN in `web/index.html` carries a pinned `integrity="sha384-…"`
-  hash. A CDN compromise can't silently inject code; the browser
-  refuses to execute / apply a script whose hash doesn't match.
+- **CDN script integrity.** Every library `<script>` and `<link>`
+  pointing at a CDN in `web/index.html` carries a pinned
+  `integrity="sha384-…"` hash. A CDN compromise can't silently inject
+  code; the browser refuses to execute / apply a script whose hash
+  doesn't match. (Known exception: the Google Fonts stylesheet — its
+  responses vary per user-agent, so SRI is impossible there.)
+- **Addon trust model.** The DM can install addons from GitHub
+  (Settings → Doplňky). Addon code runs **in-process and
+  unsandboxed** — the permission review in the install wizard is
+  transparency, not containment; `server:code` in particular is full
+  host access. Guardrails: install is DM-only on the *signed* role,
+  pinned to a reviewed commit SHA, content-hashed, staged and
+  test-gated before activation, and a restore ZIP can never plant
+  addon code (`data/addons/**` entries are rejected). See
+  [`examples/addons/AUTHORING.md`](../examples/addons/AUTHORING.md).
 
 ## API reference
 
@@ -418,8 +446,9 @@ handler in [`server.js`](../server.js). Auth legend: `—` open ·
 | GET | `/api/data` | — | Full campaign JSON, role-filtered (DM-only entities dropped for non-DM) |
 | PATCH | `/api/data` | any | Save or delete one entity; player writes sanitised to public |
 | POST | `/api/twin` | dm | Create / link / unlink a public↔DM twin pair |
-| GET | `/api/events` | — | SSE stream of `data-changed` events |
-| GET | `/api/version` | — | Current dataset hash (health check) |
+| GET | `/api/events` | — | SSE stream of `data-changed` / `addons-changed` events |
+| GET | `/api/version` | — | `{ hash, instance, features, canRestart }` (health check) |
+| POST | `/api/restart` | dm | Clean process exit so the supervisor restarts it (gated on `canRestart`) |
 | POST | `/api/login` | — | Validate password, set `edit_session` cookie |
 | POST | `/api/logout` | — | Clear the cookie (idempotent) |
 | GET | `/api/auth` | — | Probe current role + impersonation state |
@@ -432,20 +461,26 @@ handler in [`server.js`](../server.js). Auth legend: `—` open ·
 | POST | `/api/icons/:pinTypeId` | dm | Upload up to 16 marker variants |
 | DELETE | `/api/icons/:pinTypeId/:filename` | dm | Remove one variant |
 | DELETE | `/api/icons/:pinTypeId` | dm | Remove the whole folder |
+| POST · DELETE | `/api/logo` | dm | Upload / revert the site logo |
 | GET | `/api/backup` | dm | Stream `data/` as a ZIP |
-| POST | `/api/restore` | dm | Replace `data/` from a ZIP or JSON upload |
+| POST | `/api/restore` | dm | Replace `data/` from a ZIP or JSON upload (200 MB cap) |
 | GET | `/api/snapshots` | any | List snapshots, newest first |
 | POST | `/api/snapshots` | any | Take a manual snapshot |
 | POST | `/api/snapshots/:id/restore` | dm | Roll back to a specific snapshot |
 | POST | `/api/snapshots/revert-last/:n` | dm | Undo the last N changes |
 | DELETE | `/api/snapshots/:id` | dm | Delete one snapshot file |
+| GET | `/api/addons` | — | Installed-addon registry (public projection) |
+| POST | `/api/addons/install` · `/preview` · `/check-updates` · `/update-all` · `/sources` · `/resolve` | dm | Addon lifecycle: install from GitHub, manifest preview, update checks, bulk update, source records, fragment-conflict resolution (all gated on the *signed* DM role) |
+| POST | `/api/addons/:id/enable` · `/disable` · `/rollback` · DELETE `/api/addons/:id` | dm | Per-addon enable / disable / version rollback / remove |
+| ANY | `/api/addon/:id/*` | — | Namespaced routes served by (or for) one addon — its own `express.Router()` or the host-served `contentDir` endpoints |
 
 ## Where to start reading
 
 If you want to understand the codebase, read in this order:
 
-1. [`web/js/constants.js`](../web/js/constants.js) — the route map
-   gives you the surface area at a glance.
+1. [`web/js/constants.js`](../web/js/constants.js) — `SIDEBAR_PAGES`
+   gives you the page surface area at a glance (the actual route
+   dispatch is the `switch` in `app.js:navigate()`).
 2. [`web/js/store.js`](../web/js/store.js) — every collection's
    shape, public getters, and the sync contract live here.
 3. [`web/js/app.js`](../web/js/app.js) — router, action dispatcher,

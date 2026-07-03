@@ -88,6 +88,11 @@ separator — the 0.05–0.07 cluster) · `--border-faint` `rgba(255,255,255,0.0
 `--text-xs` .75 · `--text-sm` .85 · `--text-base` 1 · `--text-lg` 1.2 · `--text-xl` 1.5 ·
 `--text-2xl` 2 · `--text-3xl` 2.6 (rem). Use for `font-size`.
 
+### Font families
+`--font-title` (Cinzel — display headings) · `--font-body` (Crimson Text —
+article prose) · `--font-ui` (system stack — chrome, forms, chips). Use for
+`font-family`; never name a typeface directly.
+
 ### Radius · shadow · z-index · motion
 Radius: `--radius-sm` 4 · `--radius` 6 · `--radius-lg` 12 · `--radius-pill` 999 (px).
 Shadow: `--shadow-sm/md/lg` (elevation) + `--shadow-card`, `--shadow-glow-gold`.
@@ -115,8 +120,8 @@ files noted; this is the everyday set:
 - **Settings panels** — `.settings-panel`, `.settings-editor-head`,
   `.settings-hint` (muted help text), `.settings-field` + `.settings-field-label`,
   `.edit-input` (text input / select). (`settings.css`, `edit.css`)
-- **Badges / chips** — `.badge-status-{alive,dead,captured,unknown}`,
-  `.role-badge-chip`. (`wiki.css`) The chip/badge families share a base
+- **Badges / chips** — `.badge-status-{alive,dead,captured,unknown}`
+  (`wiki.css`), `.role-badge-chip` (`edit.css`). The chip/badge families share a base
   `.chip` (inline-flex · centred · UI font) grouped in `main.css`; each
   variant keeps its own radius/padding/colour.
 - **Round icon button** — `.icon-btn-round` (26px circular pencil base,

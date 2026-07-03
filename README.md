@@ -10,11 +10,12 @@ every change propagates to every connected client in under a second.
 > see what a populated codex looks like; the code in this repo ships
 > empty so you can fill it with your own world.
 
-The repo is currently Czech-default in the UI. Plugin-based
-internationalisation, theme selection, and ruleset packs are on the
-roadmap so you won't have to fork the code to customise a campaign;
-until that lands, expect to translate UI strings yourself if you want
-something other than Czech.
+The UI ships in **English and Czech** — each user picks their language
+from the dashboard (defaults to the browser language, falls back to
+English), so a mixed-language group works out of the box. Visual themes
+are switchable from Settings, and an addon system lets the DM install
+extensions (rulebooks, character sheets, …) straight from GitHub — no
+fork needed to customise a campaign.
 
 ## What you get
 
@@ -47,6 +48,14 @@ something other than Czech.
   content only. Set them at deploy time (`DM_PASSWORD` /
   `PLAYER_PASSWORD`) or rotate them later from Settings → Účet.
   Sessions are signed, rate-limited cookies.
+- **Addons** — the DM installs extensions from a GitHub URL via a
+  guided wizard (permission review → backup → test-gate → activate,
+  with update checks and one-click rollback). Addons can add pages,
+  article sections, editor fields, data collections, mind-map node
+  kinds, and even server endpoints. See
+  [`examples/addons/AUTHORING.md`](examples/addons/AUTHORING.md) to
+  write one. Note the trust model: addon code runs **in-process,
+  unsandboxed** — install only addons you trust to run on your server.
 
 ## Quick start (5 minutes)
 
@@ -91,6 +100,10 @@ test/                    node --test unit + integration tests
 
 ## Documentation
 
+- **[CLAUDE.md](CLAUDE.md)** — the deep internal reference (written as an
+  AI-assistant context file, equally useful to humans): every subsystem's
+  contract, invariants, gotchas, known deferred issues. Start here before
+  changing code.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — local dev setup, the IIFE
   module pattern, how to add a new entity collection, testing.
 - **[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)** — Docker deployment
@@ -102,14 +115,15 @@ test/                    node --test unit + integration tests
 
 ## Roadmap
 
-- **i18n plugin** — separate UI strings from layout so non-Czech
-  campaigns don't need a fork.
-- **Theme manager** — colour palette + typography swap from Settings.
-- **Ruleset packs** — install D&D 5e / Pathfinder / Cyberpunk Red /
-  custom rulesets as plugins, each contributing entity collections,
-  dice helpers, and seed defaults.
 - **Per-Pohled marker visibility rules** — let each saved map preset
   carry rules like "hide pin type X" or "only show pins with attitude Y".
+- **More ruleset addons** — a D&D 5.5e (2024) toolkit (character
+  sheets + Player's Handbook + Monster Manual) is being built on the
+  addon framework; other systems can follow the same pattern.
+- **Addon sandboxing** — addons currently run trusted and in-process;
+  an iframe/Worker sandbox under strict CSP is a future hardening idea.
+- **Bulk marker-icon import** — zip upload following
+  `<pinTypeId>/<file>` for power users.
 
 ## License
 

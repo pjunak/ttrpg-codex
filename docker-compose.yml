@@ -11,13 +11,22 @@ services:
       - ./data-snapshots:/app/data-snapshots
     environment:
       - PORT=3000
-      - EDIT_PASSWORD=${EDIT_PASSWORD}
+      # DM_PASSWORD / PLAYER_PASSWORD are the documented names (README +
+      # docs/SELF_HOSTING.md tell users to put them in .env). Forwarding
+      # only the legacy EDIT_PASSWORD alias meant a .env with DM_PASSWORD
+      # silently deployed with the default password "123".
+      - DM_PASSWORD=${DM_PASSWORD:-}
+      - PLAYER_PASSWORD=${PLAYER_PASSWORD:-}
+      - EDIT_PASSWORD=${EDIT_PASSWORD:-}
       - NODE_ENV=production
       # Enables the DM "Restart server" button (Settings → Doplňky). Safe because
       # `restart: unless-stopped` below brings the container back after the process
       # exits. Also auto-detected via /.dockerenv, so this is just an explicit opt-in.
       - CODEX_RESTARTABLE=1
-    mem_limit: 256m
+    # 512m: tile-pyramid builds (sharp) of a large world map peak well
+    # above 256m — a 256m cap could OOM-kill the container mid-build
+    # and loop it through restarts.
+    mem_limit: 512m
     mem_reservation: 128m
     cpus: 0.5
     restart: unless-stopped

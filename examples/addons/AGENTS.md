@@ -22,7 +22,7 @@ reach the app through the `host` facade — there are no globals.
 2. **`addon.json` is at the repo root.** `apiVersion` is **exactly `1`**.
    `id` matches `^[a-z0-9][a-z0-9-]{1,38}$` (lowercase, hyphens, **no
    underscores**) and equals the repo/dir name. `version` is semver;
-   `hostVersion` is `">=1.0.0"`.
+   `hostVersion` (e.g. `">=1.0.0"`) is declarative — not enforced today.
 3. **Request exactly the permissions you use** in `permissions[]`, no more. An
    ungranted capability **throws** (caught, shown as an error). Each register
    method needs its specific token (table below).
@@ -65,9 +65,14 @@ reach the app through the `host` facade — there are no globals.
 }
 ```
 Add only the fields you need: `server` (`.cjs`, needs `server:code`),
-`serverDeps` (subset of `express` `adm-zip` `archiver` `multer`),
+`contentDir` (per-record JSON tree the HOST serves — the data-addon seam,
+see below), `serverDeps` (subset of `express` `adm-zip` `archiver` `multer`),
 `collections` (`[{ "name": "x", "keyed": false }]`, name `^[a-z0-9][a-z0-9_]{0,39}$`),
-`dependencies` (`{ "<id>": { "range": ">=1.0.0", "repo": "owner/name" } }`),
+`dependencies` (HARD — `{ "<id>": { "range": ">=1.0.0", "repo": "owner/name" } }`;
+missing/incompatible → your addon loads `blocked`),
+`optionalDependencies` (same shape, SOFT — load-ordered after the provider
+when present, NEVER blocks when absent; `host.use()` then throws → catch it
+and run standalone),
 `tests` (`{ "server": "tests/srv.cjs" }` — an explicit path or `string[]`,
 **never a glob**).
 
@@ -87,19 +92,19 @@ Add only the fields you need: `server` (`.cjs`, needs `server:code`),
 | `registerCollection(name)` | `data:own` | Must be in manifest `collections[]`. |
 | `registerWikiKind(scope, resolve)` | `wiki:kind` | `resolve(label) → {kind, id} \| null`. |
 | `registerFragmentOp(target, {op, render?, order?, position?})` | `ui:override` | `op`: `replace`/`hide` (EXCLUSIVE) · `wrap`/`insert` (stack). An exclusive claim on `<kind>:body` = full-width takeover: the host folds the side-card + ALL sections into the body html your render receives (the whole wiki profile), and `<kind>:section:*` ids don't exist on that page. |
+| `registerSlot(slotId, render, {order?})` | `ui:slot:<surface>` | Content into a named slot (any surface; `<surface>` = slotId's 1st `:`-seg). `render(ctx)→{html}\|string\|null`. Slots: `dashboard:section` (ctx `{role}`), `map:pin:panel` (ctx `{location,pin,role}`), `timeline:card:extra`, `timeline:column:header\|footer`, `timeline:toolbar`. `ctx.role.isDM` is a **boolean**, not a function. |
+| `registerKind(domain, {id,label,color?,…})` | `kinds:<domain>` | Pure-DATA enum kind merged into `Store.getKinds(domain)`. Domains: `connections`/`statuses`/`priorities`/`attitudes`/`genders`/`pinTypes`. Id → `<addonId>:<id>`. Renders wherever that kind's label/colour does; NOT an editable Settings row. |
+| `registerConnectionKind({id,label,color,style,dirs?,target?})` | `kinds:connections` | Alias for `registerKind('connections', …)`. In rel editor + mind-map edges. Id → `<addonId>:<id>`. |
+| `registerNodeKind({id,shape?,cardHTML,height?,searchText?,detailHash?})` | `kinds:graph` | Mind-map node type; `cardHTML(node)` emits a `.cm-cloud` card. |
+| `registerGraphView({id,label,build})` | `kinds:graph` | Mind-map "mode"; `build()→{nodes,edges}`; at `#/mapa/<addonId>:<id>`. |
+| `registerGraphContributor(viewId, fn)` | `graph:contribute` | Inject into an existing view (`vztahy`/`frakce`/…); `fn()→{nodes,edges}`. |
+| `provide(api)` / `use(depId)` | — | Inter-addon API (declare the dep first — hard or optional). |
 
 **Data/rulebook addons:** declare manifest `"contentDir": "data"` and ship a
 per-record JSON tree (`data/<dir>/<id>.json`, kinds keyed by each record's
 `kind` field) — the HOST serves `/api/addon/<id>/{content,content/:kind,item/:kind/:id,kinds}`
 for you: no server code, no `server:code` grant, no restart to load. Only write
 a `server` module for real logic.
-| `registerSlot(slotId, render, {order?})` | `ui:slot:<surface>` | Content into a named slot (any surface; `<surface>` = slotId's 1st `:`-seg). `render(ctx)→{html}\|string\|null`. Slots: `dashboard:section` (ctx `{role}`), `map:pin:panel` (ctx `{location,pin,role}`), `timeline:card:extra`, `timeline:column:header\|footer`, `timeline:toolbar`. |
-| `registerKind(domain, {id,label,color?,…})` | `kinds:<domain>` | Pure-DATA enum kind merged into `Store.getKinds(domain)`. Domains: `connections`/`statuses`/`priorities`/`attitudes`/`genders`/`pinTypes`. Id → `<addonId>:<id>`. Renders wherever that kind's label/colour does; NOT an editable Settings row. |
-| `registerConnectionKind({id,label,color,style,dirs?,target?})` | `kinds:connections` | Alias for `registerKind('connections', …)`. In rel editor + mind-map edges. Id → `<addonId>:<id>`. |
-| `registerNodeKind({id,shape?,cardHTML,height?,searchText?,detailHash?})` | `kinds:graph` | Mind-map node type; `cardHTML(node)` emits a `.cm-cloud` card. |
-| `registerGraphView({id,label,build})` | `kinds:graph` | Mind-map "mode"; `build()→{nodes,edges}`; at `#/mapa/<addonId>:<id>`. |
-| `registerGraphContributor(viewId, fn)` | `graph:contribute` | Inject into an existing view (`vztahy`/`frakce`/…); `fn()→{nodes,edges}`. |
-| `provide(api)` / `use(depId)` | — | Inter-addon API (declare the dep first). |
 
 **Other facade members** (always present unless noted):
 ```js

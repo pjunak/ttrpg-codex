@@ -10,7 +10,7 @@ already know your way around Compose + reverse proxies, skim to the
 | Topic | Value |
 |---|---|
 | Runtime | Node 26 inside a Docker container |
-| Memory | ~256 MB / 0.5 CPU is plenty |
+| Memory | 512 MB / 0.5 CPU (tile builds of large maps are the peak; idle use is far lower) |
 | Disk | A few MB of code + however much your campaign grows; tile pyramids dominate (≈3-5× the source map image) |
 | Persistent volumes | `./data` and `./data-snapshots` |
 | Network | Listens on port 3000 inside the container |
@@ -162,7 +162,7 @@ Every successful save coalesces into a snapshot under
 days. Manage them in the Settings → **Záloha** tab:
 
 - **Vytvořit zálohu** — take a manual snapshot now (bypasses
-  coalescing).
+  coalescing; rate-limited to one per 3 s).
 - **Obnovit** on any snapshot — roll the entire dataset back to that
   point. The handler takes a fresh `pre-restore` snapshot first so
   the operation itself is undoable.
@@ -234,10 +234,11 @@ Notable lines:
 
 ### Resource limits
 
-The shipped `docker-compose.yml` caps the container at 256 MB / 0.5
-CPU. Adjust if your campaign grows to thousands of entities or you
-upload very large maps that take a while to tile. Tile generation is
-the only CPU-heavy operation; entity reads and writes are cheap.
+The shipped `docker-compose.yml` caps the container at 512 MB / 0.5
+CPU — sized so a tile-pyramid build of a large (up to 40 MB) world map
+can't OOM the container. Adjust upward if your campaign grows to
+thousands of entities. Tile generation is the only CPU/memory-heavy
+operation; entity reads and writes are cheap.
 
 ### Permissions
 
@@ -249,7 +250,28 @@ UID. If you run into permission errors:
 sudo chown -R 1000:1000 ./data ./data-snapshots
 ```
 
-## 8. Running multiple instances (separate campaigns)
+## 8. Addons — what a host operator should know
+
+The DM can install **addons** from GitHub URLs (Settings → **Doplňky**:
+a wizard shows the requested permissions, takes a snapshot, runs the
+addon's self-tests, then activates). Operationally relevant:
+
+- **Trust model: addon code runs in-process, unsandboxed.** An addon
+  granted `server:code` ships a Node module the server `require()`s —
+  it has full host access. The permission review is transparency, not
+  containment. Only install addons you'd trust to run on the server.
+- **Data-only addons are hot.** An addon that declares `contentDir`
+  (e.g. a rulebook) is served by the host itself — install/update needs
+  **no restart**. Addons with server code load at boot; the DM
+  "♻ Restartovat server" button (enabled by `CODEX_RESTARTABLE=1`,
+  already set in the shipped compose) applies them without shell access.
+- Addon code lives under `data/addons/`, addon data under
+  `data/addon-data/` — both inside the existing volume, covered by the
+  ZIP backup, and survive image upgrades.
+- Set `GITHUB_TOKEN` if installs hit GitHub API rate limits or the
+  addon repo is private.
+
+## 9. Running multiple instances (separate campaigns)
 
 The image is stateless — every per-campaign thing lives in the two volumes and
 a handful of env vars — so you can run any number of independent codices side by
@@ -287,13 +309,17 @@ others:
 |------------------|------------------------------------------------------------------------------------------------------------------|
 | `CODEX_INSTANCE` | A label for the instance — logged at boot and returned by `GET /api/version`. Defaults to `default`.             |
 | `CODEX_FEATURES` | Space/comma-separated addon flags enabled for *this* instance only. Empty (the default) = baseline behavior.     |
+| `CODEX_RESTARTABLE` | `1` enables `POST /api/restart` + the DM "♻ Restartovat server" button (Settings → Server). Also auto-detected inside Docker via `/.dockerenv`. Only enable when a supervisor (`restart: unless-stopped`, systemd, pm2) brings the process back. |
+| `CODEX_DATA_DIR` / `CODEX_SNAPSHOTS_DIR` | Override the data / snapshot directories (default `./data` and `./data-snapshots` next to `server.js`). The seam for non-Docker hosting. |
+| `CODEX_SNAPSHOT_MIN_INTERVAL_MS` | Minimum interval between *manual* snapshots (default `3000`). |
+| `GITHUB_TOKEN` | Optional. Used by addon installs/updates for the GitHub API — raises rate limits and allows private addon repos. |
 
-`GET /api/version` returns `{ hash, instance, features }`, so you can confirm
-which instance and feature set a running container serves:
+`GET /api/version` returns `{ hash, instance, features, canRestart }`, so you
+can confirm which instance and feature set a running container serves:
 
 ```bash
 curl -s https://asurai.example.com/api/version
-# {"hash":"…","instance":"asurai","features":[]}
+# {"hash":"…","instance":"asurai","features":[],"canRestart":true}
 ```
 
 ## Troubleshooting
