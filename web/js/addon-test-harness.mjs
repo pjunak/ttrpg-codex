@@ -152,6 +152,8 @@ export function createMockHost(meta = {}, opts = {}) {
       isDM:        () => !!opts.isDM,
       isAnonymous: () => !!opts.isAnonymous,
     },
+    // Mirrors host.asset: the content-addressed static base (mock hash).
+    asset: (rel) => `/addons/${meta.id || 'addon'}/mockhash/` + String(rel == null ? '' : rel).replace(/^\/+/, ''),
     h: { esc: _esc, slugify: _slugify, dataAction: _dataAction, dataOn: _dataOn,
          renderMarkdown: (s) => _esc(s), breadcrumb: _breadcrumb },
     ui: {

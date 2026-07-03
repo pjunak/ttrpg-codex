@@ -104,6 +104,7 @@ a `server` module for real logic.
 **Other facade members** (always present unless noted):
 ```js
 host.id · host.apiVersion (1) · host.permissions[] · host.action(name)
+host.asset(rel)   // → /addons/<id>/<hash>/<rel> — URL of a bundled file (images…)
 host.h    = { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumb }
 //            breadcrumb([{label, href?}, …]) — the core wayfinding row (last crumb
 //            = current page); use it instead of hand-rolled "← Back" links

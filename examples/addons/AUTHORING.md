@@ -112,6 +112,9 @@ host.id            // your addon id
 host.apiVersion    // 1
 host.permissions   // string[] of what you were granted
 host.action(name)  // → "<id>:<name>"  — build action strings with this
+host.asset(rel)    // → "/addons/<id>/<hash>/<rel>" — URL of a file bundled
+                   //   WITH your addon (images, fonts…), version-safe. E.g.
+                   //   `<img src="${esc(host.asset('images/aboleth.webp'))}">`
 host.h             // { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumb }
                    //   breadcrumb([{label, href?}, …]) renders the same horizontal
                    //   wayfinding row core articles use (last crumb = current page,

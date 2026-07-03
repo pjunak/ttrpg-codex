@@ -51,16 +51,19 @@ export const Settings = (() => {
   // Non-enum tabs live alongside the category tabs. They render custom
   // panels (world-map upload, map-view presets, backup tools) instead
   // of the enum editor.
+  // Branding lives INSIDE the appearance tab and map views INSIDE the Mapy
+  // tab (per-map) — they used to be tabs of their own; `_editorHtml` coerces
+  // the stale ids for any session that still points at them.
   const SPECIAL_TABS = [
     { id: 'appearance',   labelKey: 'settings.tabAppearance',   icon: '🎨' },
-    { id: 'branding',     labelKey: 'settings.tabBranding',     icon: '🐉' },
     { id: 'playerParty',  labelKey: 'settings.tabPlayerParty',  icon: '🛡' },
     { id: 'worldmap',     labelKey: 'settings.tabMaps',         icon: '🗺' },
-    { id: 'mapViews',     labelKey: 'settings.tabMapViews',     icon: '📍' },
     { id: 'sidebarPages', labelKey: 'settings.tabSidebar',      icon: '🧭' },
     { id: 'addons',       labelKey: 'settings.tabAddons',       icon: '🧩' },
     { id: 'backup',       labelKey: 'settings.tabBackup',       icon: '💾' },
-    { id: 'account',      labelKey: 'settings.tabAccount',      icon: '👤' },
+    // The account tab doubles as the SERVER tab (label "Server"): role chip +
+    // login/logout + view-as + DM password rotation + the restart button.
+    { id: 'account',      labelKey: 'settings.tabAccount',      icon: '🖥' },
   ];
 
   let _activeCat       = CATEGORIES[0].id;
@@ -189,12 +192,13 @@ export const Settings = (() => {
   }
 
   function _editorHtml() {
+    // Retired tab ids (their panels merged elsewhere) — coerce a stale pick.
+    if (_activeCat === 'mapViews') _activeCat = 'worldmap';
+    if (_activeCat === 'branding') _activeCat = 'appearance';
     if (_activeCat === 'worldmap')     return _worldmapHtml();
-    if (_activeCat === 'mapViews')     return _mapViewsHtml();
     if (_activeCat === 'sidebarPages') return Sidebar.renderEditor();
     if (_activeCat === 'backup')       return _backupHtml();
     if (_activeCat === 'account')      return _accountHtml();
-    if (_activeCat === 'branding')     return _brandingHtml();
     if (_activeCat === 'appearance')   return _appearanceHtml();
     if (_activeCat === 'addons')       return _addonsHtml();
     if (_activeCat === 'playerParty')  return _playerPartyHtml();
@@ -677,53 +681,6 @@ export const Settings = (() => {
   // Presets are captured on the map itself via the ✚ toolbar button;
   // this panel only lists them and lets the GM rename or delete.
   // Entries are grouped by the map they belong to (world vs sub-map).
-  function _mapViewsHtml() {
-    const views = Store.getEnum('mapViews') || [];
-    if (!views.length) return `
-      <div class="settings-editor-head"><h2>📍 ${esc(I18n.t('settings.tabMapViews'))}</h2></div>
-      <div class="settings-panel">
-        ${_renderEmptyPresets()}
-      </div>`;
-
-    // Group by parentId (null = world). Label each group by the
-    // parent location's name, or "Mapa světa" for the world group.
-    const groups = new Map();
-    for (const v of views) {
-      const key = v.parentId || null;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(v);
-    }
-    const sections = [];
-    for (const [pid, list] of groups) {
-      const parent   = pid ? (Store.getLocation(pid) || { name: I18n.t('settings.unknownPlace') }) : null;
-      const title    = parent ? `🗺 ${esc(parent.name)}` : `🌐 ${esc(I18n.t('settings.worldMap'))}`;
-      const rowsHtml = list.map(_mapViewRow).join('');
-      sections.push(`
-        <div class="settings-mapviews-group">
-          <div class="settings-mapviews-group-title">${title}</div>
-          <div class="settings-rows">${rowsHtml}</div>
-        </div>`);
-    }
-
-    return `
-      <div class="settings-editor-head">
-        <h2>📍 ${esc(I18n.t('settings.tabMapViews'))}</h2>
-      </div>
-      <div class="settings-panel">
-        <p class="settings-hint" style="margin-bottom:0.8rem">
-          ${esc(I18n.t('settings.mapViewsHint'))}
-        </p>
-        ${sections.join('')}
-      </div>`;
-  }
-
-  function _renderEmptyPresets() {
-    return `
-      <div class="settings-empty">
-        ${esc(I18n.t('settings.mapViewsEmpty'))}
-      </div>`;
-  }
-
   function _mapViewRow(v) {
     return `
       <div class="settings-row">
@@ -989,8 +946,29 @@ export const Settings = (() => {
               <output id="settings-mapconfig-zoomscale-out">${ratioPct}%</output>
             </div>
           </label>
+
+          ${_mapViewsSectionHtml(current)}
         </section>
       </div>`;
+  }
+
+  // ── Saved views (Pohledy) for THE SELECTED MAP — a section of the
+  //    Mapy tab (used to be its own tab, grouped by map; the per-map
+  //    panel is the natural home). Creation still happens on the map
+  //    itself via the ✚ toolbar button; here it's rename/delete. ──
+  function _mapViewsSectionHtml(current) {
+    const pid   = current.isWorld ? null : current.locationId;
+    const views = (Store.getEnum('mapViews') || []).filter(v => (v.parentId || null) === pid);
+    const body  = views.length
+      ? `<div class="settings-rows">${views.map(_mapViewRow).join('')}</div>`
+      : `<div class="settings-empty">${esc(I18n.t('settings.mapViewsEmpty'))}</div>`;
+    return `
+          <hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.2rem 0">
+          <div class="settings-mapviews-group-title">📍 ${esc(I18n.t('settings.tabMapViews'))}</div>
+          <p class="settings-hint" style="margin:0.5rem 0 0.8rem">
+            ${esc(I18n.t('settings.mapViewsHint'))}
+          </p>
+          ${body}`;
   }
 
   /**
@@ -1210,59 +1188,6 @@ export const Settings = (() => {
     return b.logoUrl ? `${b.logoUrl}?v=${b.updatedAt || ''}` : DEFAULT_LOGO;
   }
 
-  function _brandingHtml() {
-    const b = Store.getBranding();
-    const hasCustom = !!b.logoUrl;
-    return `
-      <div class="settings-editor-head">
-        <h2>🐉 ${esc(I18n.t('settings.tabBranding'))}</h2>
-      </div>
-      <div class="settings-panel">
-        <p class="settings-hint" style="margin-bottom:1rem">
-          ${esc(I18n.t('settings.brandingIntro'))}
-        </p>
-        <div class="settings-branding-preview">
-          <img src="${esc(_logoSrc(b))}" alt="${esc(I18n.t('settings.logoAlt'))}" class="settings-branding-logo"
-               ${dataOn('error', 'hide', '$el')}>
-          <div class="settings-branding-meta">
-            ${esc(hasCustom ? I18n.t('settings.customLogo') : I18n.t('settings.defaultLogo'))}
-          </div>
-        </div>
-        <div class="settings-form-actions" style="margin-top:1rem;gap:0.6rem;flex-wrap:wrap">
-          <label class="inline-create-btn" style="cursor:pointer;display:inline-block">
-            📂 ${esc(I18n.t('settings.uploadLogoBtn'))}
-            <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                   style="display:none" ${dataOn('change', 'Settings.uploadLogo', '$el')}>
-          </label>
-          ${hasCustom ? `<button type="button" class="inline-create-btn"
-              ${dataAction('Settings.deleteLogo')}>↺ ${esc(I18n.t('settings.defaultDragon'))}</button>` : ''}
-        </div>
-        <span class="settings-hint" style="display:block;margin-top:0.5rem">
-          ${esc(I18n.t('settings.logoUploadHint'))}
-        </span>
-
-        <hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.5rem 0">
-
-        <div class="settings-mapviews-group-title">${esc(I18n.t('settings.wordmarkText'))}</div>
-        <div class="settings-form-row" style="margin-top:0.6rem">
-          <label class="settings-field">
-            <span class="settings-field-label">${esc(I18n.t('settings.fieldName'))}</span>
-            <input class="edit-input" id="brand-title" value="${esc(b.title)}"
-                   placeholder="TTRPG Codex">
-          </label>
-          <label class="settings-field">
-            <span class="settings-field-label">${esc(I18n.t('settings.fieldSubtitle'))}</span>
-            <input class="edit-input" id="brand-subtitle" value="${esc(b.subtitle)}"
-                   placeholder="Wiki & World Atlas">
-          </label>
-        </div>
-        <div class="settings-form-actions" style="margin-top:1rem">
-          <button type="button" class="edit-save-btn"
-            ${dataAction('Settings.saveBranding')}>💾 ${esc(I18n.t('settings.saveText'))}</button>
-        </div>
-      </div>`;
-  }
-
   /** Handle a logo file pick: upload, persist the URL, push to chrome. */
   function uploadLogo(input) {
     const file = input?.files?.[0];
@@ -1354,7 +1279,61 @@ export const Settings = (() => {
         <span class="settings-hint" style="display:block;margin-top:0.8rem">
           ${I18n.t('settings.appearanceMoreHint')}
         </span>
+        ${_brandingSectionHtml()}
       </div>`;
+  }
+
+  // ── Branding (logo + wordmark) — a SECTION of the appearance tab ──
+  // (used to be its own tab; the Store/api surface is unchanged:
+  // settings.branding via setBranding / uploadLogo / deleteLogo).
+  function _brandingSectionHtml() {
+    const b = Store.getBranding();
+    const hasCustom = !!b.logoUrl;
+    return `
+        <hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.5rem 0">
+        <div class="settings-mapviews-group-title">🐉 ${esc(I18n.t('settings.tabBranding'))}</div>
+        <p class="settings-hint" style="margin:0.6rem 0 1rem">
+          ${esc(I18n.t('settings.brandingIntro'))}
+        </p>
+        <div class="settings-branding-preview">
+          <img src="${esc(_logoSrc(b))}" alt="${esc(I18n.t('settings.logoAlt'))}" class="settings-branding-logo"
+               ${dataOn('error', 'hide', '$el')}>
+          <div class="settings-branding-meta">
+            ${esc(hasCustom ? I18n.t('settings.customLogo') : I18n.t('settings.defaultLogo'))}
+          </div>
+        </div>
+        <div class="settings-form-actions" style="margin-top:1rem;gap:0.6rem;flex-wrap:wrap">
+          <label class="inline-create-btn" style="cursor:pointer;display:inline-block">
+            📂 ${esc(I18n.t('settings.uploadLogoBtn'))}
+            <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                   style="display:none" ${dataOn('change', 'Settings.uploadLogo', '$el')}>
+          </label>
+          ${hasCustom ? `<button type="button" class="inline-create-btn"
+              ${dataAction('Settings.deleteLogo')}>↺ ${esc(I18n.t('settings.defaultDragon'))}</button>` : ''}
+        </div>
+        <span class="settings-hint" style="display:block;margin-top:0.5rem">
+          ${esc(I18n.t('settings.logoUploadHint'))}
+        </span>
+
+        <hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.5rem 0">
+
+        <div class="settings-mapviews-group-title">${esc(I18n.t('settings.wordmarkText'))}</div>
+        <div class="settings-form-row" style="margin-top:0.6rem">
+          <label class="settings-field">
+            <span class="settings-field-label">${esc(I18n.t('settings.fieldName'))}</span>
+            <input class="edit-input" id="brand-title" value="${esc(b.title)}"
+                   placeholder="TTRPG Codex">
+          </label>
+          <label class="settings-field">
+            <span class="settings-field-label">${esc(I18n.t('settings.fieldSubtitle'))}</span>
+            <input class="edit-input" id="brand-subtitle" value="${esc(b.subtitle)}"
+                   placeholder="Wiki & World Atlas">
+          </label>
+        </div>
+        <div class="settings-form-actions" style="margin-top:1rem">
+          <button type="button" class="edit-save-btn"
+            ${dataAction('Settings.saveBranding')}>💾 ${esc(I18n.t('settings.saveText'))}</button>
+        </div>`;
   }
 
   /** Persist + apply the picked theme. */
@@ -1430,9 +1409,22 @@ export const Settings = (() => {
       : `<p class="settings-hint" style="margin-top:1rem;font-style:italic">
            ${esc(I18n.t('settings.passwordDMOnly'))}
          </p>`;
+    // Server operations — DM-only + gated on /api/version canRestart
+    // (lazy-fetched, like the addons tab). The restart button moved
+    // here from the Doplňky toolbar: it's a server op, not an addon op
+    // (it's still HOW server-code addon changes load — see the hint).
+    if (realRole === 'dm') _ensureServerInfo();
+    const serverSection = (realRole === 'dm' && _canRestart) ? `
+        <hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.5rem 0">
+        <div class="settings-mapviews-group-title">♻ ${esc(I18n.t('settings.serverOps'))}</div>
+        <p class="settings-hint" style="margin:0.6rem 0 0.8rem">
+          ${esc(I18n.t('settings.serverOpsHint'))}
+        </p>
+        <button type="button" class="inline-create-btn"
+          ${dataAction('Settings.restartServer')}>♻ ${esc(I18n.t('settings.restartServer'))}</button>` : '';
     return `
       <div class="settings-editor-head">
-        <h2>👤 ${esc(I18n.t('settings.tabAccount'))}</h2>
+        <h2>🖥 ${esc(I18n.t('settings.tabAccount'))}</h2>
       </div>
       <div class="settings-panel">
         <div class="settings-field" style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1rem">
@@ -1447,6 +1439,7 @@ export const Settings = (() => {
           ${viewAsBtn}
         </div>
         ${passwordSection}
+        ${serverSection}
       </div>`;
   }
 
@@ -1941,8 +1934,6 @@ export const Settings = (() => {
             ${dataAction('Settings.checkAddonUpdates')}>🔄 ${esc(I18n.t('settings.checkUpdates'))}</button>
           <button type="button" class="inline-create-btn"
             ${dataAction('Settings.updateAllAddons')}>⬆ ${esc(I18n.t('settings.updateAll'))}</button>` : ''}
-          ${_canRestart ? `<button type="button" class="inline-create-btn"
-            ${dataAction('Settings.restartServer')}>♻ ${esc(I18n.t('settings.restartServer'))}</button>` : ''}
           <button type="button" class="edit-save-btn"
             ${dataAction('Settings.openAddonWizard')}>＋ ${esc(I18n.t('settings.installFromGitHub'))}</button>
         </div>
@@ -1950,6 +1941,7 @@ export const Settings = (() => {
       <div class="settings-panel">
         <p class="settings-hint" style="margin-bottom:1rem">
           ${esc(I18n.t('settings.addonsIntro'))}
+          ${_canRestart ? ' ' + esc(I18n.t('settings.restartMovedHint')) : ''}
         </p>
         ${_conflictsHtml()}
         ${body}

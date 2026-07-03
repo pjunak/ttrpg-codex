@@ -461,11 +461,20 @@ export const Addons = (() => {
       },
     };
 
+    // The addon's content-addressed static base (same-origin, CSP-clean):
+    // /addons/<id>/<hash>/ — derived from entryUrl so it always matches the
+    // LOADED code version. `host.asset(rel)` resolves a bundled file (images,
+    // fonts, …) against it; book addons use it to render record pictures.
+    const assetBase = (typeof meta.entryUrl === 'string' && meta.entryUrl.lastIndexOf('/') > 0)
+      ? meta.entryUrl.slice(0, meta.entryUrl.lastIndexOf('/') + 1)
+      : (meta.activeHash ? `/addons/${id}/${meta.activeHash}/` : `/addons/${id}/`);
+
     const host = {
       id,
       apiVersion: HOST_API_VERSION,
       permissions: grants.slice(),
       action: (name) => id + ':' + name,
+      asset:  (rel) => assetBase + String(rel == null ? '' : rel).replace(/^\/+/, ''),
       registerRoute, registerSidebarPage, registerPageRenderer,
       registerArticleSection, registerSettingsTab, registerAction,
       registerCollection, registerWikiKind, registerEditorFields,
