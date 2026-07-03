@@ -67,8 +67,14 @@ function _emptyRec() {
 /**
  * Build a recording mock of the host facade. Mirrors the real method names
  * (so tests exercise the real surface) but records instead of mutating any
- * registry. Does NOT enforce permissions — a unit test asserts register LOGIC,
- * not the host's permission gating (covered elsewhere).
+ * registry.
+ *
+ * PERMISSIONS ARE ENFORCED when `meta.permissions` is an array — each
+ * register* throws the same error the real host would for an ungranted
+ * capability, so a manifest that under-declares FAILS IN TESTS instead of at
+ * install (this exact gap once shipped two broken addons). Declare the same
+ * `permissions` your addon.json declares. Omitting `meta.permissions`
+ * entirely runs loose (allow-all) for quick throwaway tests.
  *
  * @param {object} [meta]  `{ id, permissions?, dependencies? }`
  * @param {object} [opts]  `{ isDM?, isAnonymous?, fixtures?, deps? }`
@@ -79,6 +85,15 @@ export function createMockHost(meta = {}, opts = {}) {
   const rec = _emptyRec();
   const fx  = opts.fixtures || {};
   const get = (k) => Array.isArray(fx[k]) ? fx[k] : [];
+
+  // Permission gate — mirrors web/js/addons.js (_makeHost): same permission
+  // per method, same error text. `null` grants (no `permissions` key) = loose.
+  const grants = Array.isArray(meta.permissions) ? meta.permissions.slice() : null;
+  const need = (perm, what) => {
+    if (grants && !grants.includes(perm)) {
+      throw new Error(`Doplněk „${id}" nemá udělené oprávnění „${perm}" (${what}).`);
+    }
+  };
 
   // A MUTABLE backing store for the scoped-CRUD mock, seeded from fixtures.
   // save()/remove() actually mutate it (and getCollection reads it) so a
@@ -114,22 +129,22 @@ export function createMockHost(meta = {}, opts = {}) {
     permissions: Array.isArray(meta.permissions) ? meta.permissions.slice() : [],
     action: (name) => id + ':' + name,
 
-    registerRoute:        (segment, render)   => { rec.routes.push({ segment, render }); },
-    registerSidebarPage:  (spec)              => { rec.sidebar.push(spec); },
-    registerPageRenderer: (kind, render)      => { rec.pages.push({ kind, render }); },
-    registerArticleSection: (kind, fn)        => { rec.articleSections.push({ kind, fn }); },
-    registerSettingsTab:  (spec)              => { rec.settingsTabs.push(spec); },
-    registerAction:       (name, fn)          => { rec.actions.push({ name, fn }); },
-    registerCollection:   (name, o)           => { rec.collections.push({ name, opts: o }); },
-    registerWikiKind:     (scope, resolve)    => { rec.wikiKinds.push({ scope, resolve }); },
-    registerEditorFields: (kind, spec)        => { rec.editorFields.push({ kind, spec }); },
-    registerFragmentOp:   (target, spec)      => { rec.fragmentOps.push({ target, spec }); },
-    registerSlot:         (slotId, render, o) => { rec.slots.push({ slotId, render, opts: o }); },
-    registerKind:         (domain, def)       => { rec.kinds.push({ domain, def }); },
-    registerConnectionKind:   (def)           => { rec.connectionKinds.push(def); },
-    registerNodeKind:     (def)               => { rec.nodeKinds.push(def); },
-    registerGraphView:    (def)               => { rec.graphViews.push(def); },
-    registerGraphContributor: (viewId, fn)    => { rec.graphContributors.push({ viewId, fn }); },
+    registerRoute:        (segment, render)   => { need('ui:route', 'registerRoute'); rec.routes.push({ segment, render }); },
+    registerSidebarPage:  (spec)              => { need('ui:sidebar', 'registerSidebarPage'); rec.sidebar.push(spec); },
+    registerPageRenderer: (kind, render)      => { need('ui:route', 'registerPageRenderer'); rec.pages.push({ kind, render }); },
+    registerArticleSection: (kind, fn)        => { need('ui:article-section:' + kind, 'registerArticleSection'); rec.articleSections.push({ kind, fn }); },
+    registerSettingsTab:  (spec)              => { need('ui:settings-tab', 'registerSettingsTab'); rec.settingsTabs.push(spec); },
+    registerAction:       (name, fn)          => { need('ui:action', 'registerAction'); rec.actions.push({ name, fn }); },
+    registerCollection:   (name, o)           => { need('data:own', 'registerCollection'); rec.collections.push({ name, opts: o }); },
+    registerWikiKind:     (scope, resolve)    => { need('wiki:kind', 'registerWikiKind'); rec.wikiKinds.push({ scope, resolve }); },
+    registerEditorFields: (kind, spec)        => { need('ui:editor-fields:' + kind, 'registerEditorFields'); rec.editorFields.push({ kind, spec }); },
+    registerFragmentOp:   (target, spec)      => { need('ui:override', 'registerFragmentOp'); rec.fragmentOps.push({ target, spec }); },
+    registerSlot:         (slotId, render, o) => { need('ui:slot:' + String(slotId || '').split(':')[0], 'registerSlot'); rec.slots.push({ slotId, render, opts: o }); },
+    registerKind:         (domain, def)       => { need('kinds:' + domain, 'registerKind'); rec.kinds.push({ domain, def }); },
+    registerConnectionKind:   (def)           => { need('kinds:connections', 'registerConnectionKind'); rec.connectionKinds.push(def); },
+    registerNodeKind:     (def)               => { need('kinds:graph', 'registerNodeKind'); rec.nodeKinds.push(def); },
+    registerGraphView:    (def)               => { need('kinds:graph', 'registerGraphView'); rec.graphViews.push(def); },
+    registerGraphContributor: (viewId, fn)    => { need('graph:contribute', 'registerGraphContributor'); rec.graphContributors.push({ viewId, fn }); },
 
     provide: (api)   => { rec.provided = api; },
     use:     (depId) => (opts.deps ? opts.deps[depId] : undefined),

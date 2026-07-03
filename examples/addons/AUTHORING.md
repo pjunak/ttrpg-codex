@@ -472,7 +472,12 @@ test('registers + smokes clean', () => {
 });
 ```
 - `createMockHost(meta, opts)` — records every `register*` call; stubs
-  store/role/h/ui (no DOM, no server).
+  store/role/h/ui (no DOM, no server). **Declare `meta.permissions` with the
+  SAME array as your addon.json** — the mock then enforces them exactly like
+  the real host, so a `register*` your manifest doesn't cover fails in your
+  tests with the same error it would throw at install. (Omitting the
+  `permissions` key entirely runs loose/allow-all — fine for throwaway tests,
+  but you lose that safety net.)
 - `dryRunRegister(register, meta)` → `{ ok, rec, error }` (catches throws).
 - `smokeRegistrations(rec)` → `{ ok, failures }` (invokes your renderers with
   sample fixtures; does **not** run actions).
