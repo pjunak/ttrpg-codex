@@ -101,7 +101,7 @@ const ICONS_DIR      = path.join(DATA_DIR, 'icons');
 const BRANDING_DIR   = path.join(DATA_DIR, 'branding');
 // Snapshots live OUTSIDE data/ so:
 //   - the data hash and the backup zip don't have to keep stepping
-//     around them (they used to be at data/snapshots/).
+//     around them.
 //   - the restore zip can never inadvertently plant or overwrite a
 //     legitimate snapshot via _safeJoinDataDir.
 //   - "data/" stays a clean reflection of the campaign content.
@@ -130,8 +130,8 @@ fs.mkdirSync(SNAPSHOTS_DIR,  { recursive: true });
 fs.mkdirSync(ADDONS_DIR,     { recursive: true });
 fs.mkdirSync(ADDON_DATA_DIR, { recursive: true });
 
-// Idempotent relocation: any leftover snapshots inside data/ get
-// moved to the new sibling directory.
+// Idempotent relocation: any leftover snapshots inside data/ are
+// moved to the sibling directory.
 try {
   if (fs.existsSync(LEGACY_SNAPSHOTS_DIR)) {
     const list = fs.readdirSync(LEGACY_SNAPSHOTS_DIR);
@@ -1135,14 +1135,14 @@ async function _readJsonOr(filePath, fallback) {
 //   - `linkedTwinId` is preserved from existing (player payloads don't
 //     carry it — server-side strip — so omission would silently break
 //     the link without this).
-//   - `secrets` is unconditionally stripped from the payload. The
-//     legacy per-field secret toggles were retired in the twin pivot;
-//     even if a stale client sends the field, it never persists.
+//   - `secrets` is unconditionally stripped from the payload. There
+//     are no per-field secret toggles; even if a stale client sends
+//     the field, it never persists.
 //
-// DM content (the lore that used to live under [secret] markers or
-// secret flags) now lives in a sibling DM-only twin entity linked via
-// `linkedTwinId`. There's no marker collision to defend against —
-// the public entity has only public content by construction.
+// DM content (the lore behind a public entity) lives in a sibling
+// DM-only twin entity linked via `linkedTwinId`. There's no marker
+// collision to defend against — the public entity has only public
+// content by construction.
 function _sanitizePlayerEntity(_type, payload, existing) {
   if (!payload || typeof payload !== 'object') return payload;
   const out = { ...payload };

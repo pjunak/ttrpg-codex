@@ -430,9 +430,8 @@ export const EditMode = (() => {
   }
 
   // ── Helpers for the data-action dispatcher ─────────────────────
-  // Replace inline DOM-manipulation handlers that used to live in
-  // edit_templates.js as multi-statement `onclick="…"` strings.
-  // Naming convention: same as the inline expression they superseded.
+  // DOM-manipulation handlers invoked via `data-action` from
+  // edit_templates.js.
   function clearPortrait(uid, badge) {
     const preview = document.getElementById('ep-preview-' + uid);
     const hidden  = document.getElementById('ep-data-' + uid);

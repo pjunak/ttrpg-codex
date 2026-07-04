@@ -16,9 +16,8 @@
 //       payloads so players can't infer "this entity has hidden
 //       DM lore" from the field's presence.
 //
-//  Per-field `secrets` and `[secret]…[/secret]` inline markers
-//  were removed in the twin-model pivot — DM granular annotations
-//  now live in the linked DM twin instead of as flags on public
+//  DM granular annotations live in the linked DM twin rather than as
+//  per-field `secrets` or `[secret]…[/secret]` inline markers on public
 //  entities. Any residual `secrets` on legacy data is stripped by
 //  the startup migration in `server/migrations.cjs`.
 //

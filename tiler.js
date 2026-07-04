@@ -102,11 +102,9 @@ async function buildFor(mapId, srcPath) {
     const rows = Math.ceil(scaledH / TILE_SIZE);
 
     // One pipeline: read+decode source, resize, extend to tile-aligned
-    // canvas, output as raw pixels. Previously this was three pipelines
-    // per zoom level (decode→resize→encode→decode→extend→encode→decode
-    // per tile→encode); the raw output skips two intermediate JPEG
-    // encode/decode round-trips. Slicing into tiles below operates on
-    // raw bytes so the only encode is the final per-tile JPEG.
+    // canvas, output as raw pixels. The raw output avoids intermediate
+    // JPEG encode/decode round-trips. Slicing into tiles below operates
+    // on raw bytes so the only encode is the final per-tile JPEG.
     const { data: rawData, info: rawInfo } = await sharp(srcPath)
       .resize({ width: scaledW, height: scaledH, fit: 'fill' })
       .extend({

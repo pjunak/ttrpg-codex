@@ -52,8 +52,8 @@ export const Settings = (() => {
   // panels (world-map upload, map-view presets, backup tools) instead
   // of the enum editor.
   // Branding lives INSIDE the appearance tab and map views INSIDE the Mapy
-  // tab (per-map) — they used to be tabs of their own; `_editorHtml` coerces
-  // the stale ids for any session that still points at them.
+  // tab (per-map); `_editorHtml` coerces their stale tab ids for any
+  // session that still points at them.
   const SPECIAL_TABS = [
     { id: 'appearance',   labelKey: 'settings.tabAppearance',   icon: '🎨' },
     { id: 'playerParty',  labelKey: 'settings.tabPlayerParty',  icon: '🛡' },
@@ -953,9 +953,8 @@ export const Settings = (() => {
   }
 
   // ── Saved views (Pohledy) for THE SELECTED MAP — a section of the
-  //    Mapy tab (used to be its own tab, grouped by map; the per-map
-  //    panel is the natural home). Creation still happens on the map
-  //    itself via the ✚ toolbar button; here it's rename/delete. ──
+  //    Mapy tab. Creation happens on the map itself via the ✚ toolbar
+  //    button; here it's rename/delete. ──
   function _mapViewsSectionHtml(current) {
     const pid   = current.isWorld ? null : current.locationId;
     const views = (Store.getEnum('mapViews') || []).filter(v => (v.parentId || null) === pid);
@@ -1284,8 +1283,8 @@ export const Settings = (() => {
   }
 
   // ── Branding (logo + wordmark) — a SECTION of the appearance tab ──
-  // (used to be its own tab; the Store/api surface is unchanged:
-  // settings.branding via setBranding / uploadLogo / deleteLogo).
+  // (Store/api surface: settings.branding via setBranding / uploadLogo /
+  // deleteLogo).
   function _brandingSectionHtml() {
     const b = Store.getBranding();
     const hasCustom = !!b.logoUrl;
@@ -2042,8 +2041,8 @@ export const Settings = (() => {
     if (smokeFails.length)                 chips.push(chip('warn', I18n.t('settings.chipRenderTest')));
     const chipsHtml = `<span class="addon-row-chips">${chips.join('')}</span>`;
 
-    // ── Notes: detail that USED to be tooltip-only, now visible (and reachable
-    // by keyboard / touch / screen reader).
+    // ── Notes: detail shown inline (reachable by keyboard / touch /
+    // screen reader).
     const notes = [];
     if ((lstate === 'error' || lstate === 'blocked') && loadState.error)
       notes.push(`<div class="addon-row-err">${esc(loadState.error)}</div>`);

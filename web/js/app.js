@@ -30,7 +30,7 @@ import { setWikiLinkResolver, norm, dataAction, dataOn, esc } from './utils.js';
 const ACTIONS = {
   Store, EditMode, Wiki, CloudMap, Timeline, WorldMap, Settings, GlobalSearch, Role, DmDashboard, Sidebar, Addons, I18n,
 };
-// Browser-built-in shortcuts that used to live inline (`history.back()`,
+// Browser-built-in shortcuts (`history.back()`,
 // `document.getElementById(slug).scrollIntoView(…)`, etc.). Element- /
 // event-aware builtins pull what they need via the `$el` / `$ev`
 // sentinels in the call site's args list — no per-handler magic.
@@ -71,8 +71,8 @@ const BUILTIN_ACTIONS = {
 //   `$value`   → el.value (covers `this.value` in inline `onchange`/`oninput`)
 //   `$text`    → el.textContent?.trim() (for contenteditable nodes)
 //   `$checked` → el.checked (for checkbox / radio handlers)
-// Lets templates pass the element / event / value to handlers that
-// previously relied on inline `this` / `event` references.
+// Lets templates pass the element / event / value to handlers via the
+// `$el` / `$ev` / `$value` sentinels.
 /**
  * Resolve placeholder sentinels in a `data-args` array against the current
  * element + event so handlers can receive live values (rather than the

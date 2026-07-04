@@ -10,9 +10,8 @@
 //   - edit any visibility:'dm' entity — 403
 // DMs retain full access to everything.
 //
-// The legacy per-field `secrets` and `[secret]` inline markers were
-// fully removed in the twin pivot; tests for those behaviors are
-// gone. Twins carry DM lore in a sibling entity instead.
+// Twins carry DM lore in a sibling entity; there are no per-field
+// `secrets` or `[secret]` inline markers to test.
 
 const { test } = require('node:test');
 const assert   = require('node:assert/strict');

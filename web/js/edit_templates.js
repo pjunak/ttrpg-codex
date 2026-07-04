@@ -16,7 +16,7 @@ export const EditTemplates = (() => {
   /** Multi-select chip row for "Postoje k partě" (attitudes).
    *  Each chip is a plain on/off toggle — the visual `intensity` of
    *  the resulting glow is set per-attitude in Settings, not per
-   *  entity, so chips no longer carry per-chip sliders. Read back
+   *  entity, so chips carry no per-chip sliders. Read back
    *  via `EditMode._readAttitudeChipRow(rowId)`. */
   function _attitudeChipRow(rowId, currentEntries) {
     const enums = Store.getEnum('attitudes') || [];
@@ -53,10 +53,6 @@ export const EditTemplates = (() => {
   // visibility on one side would put both sides in the same
   // space, an incoherent state. The server enforces the same
   // rule (400 on flip with twin set) as defence in depth.
-  //
-  // The legacy per-field `secrets` toggles and `[secret]` marker
-  // buttons were removed in the twin-entity pivot. DM annotations
-  // now live in the linked DM-only twin entity instead.
   //
   // Wiki routes per collection — mirrors KIND_ROUTE in app.js so
   // this template module can construct twin-jump links without

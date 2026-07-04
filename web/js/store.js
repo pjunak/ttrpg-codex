@@ -304,8 +304,8 @@ export const Store = (() => {
 
     // Returns a normalised array if any change is needed; null when the
     // input is already canonical (so the caller can skip a no-op sync).
-    // Canonical shape is `[{id}]` — no `strength` field, since strength
-    // moved to the `attitudes` settings enum item itself (see
+    // Canonical shape is `[{id}]` — no `strength` field; strength lives
+    // on the `attitudes` settings enum item itself (see
     // `_migrateStrengthFromEntityToEnum`).
     //
     // ⚠ LOAD-BEARING INVARIANT: this function MUST NOT re-add `strength`
@@ -1793,11 +1793,10 @@ export const Store = (() => {
   }
 
   // ── Player party (Naše parta) ─────────────────────────────────
-  // Special settings entry replacing the legacy `factions.party`
-  // record. Holds the party's visual identity (name / icon / colors)
-  // that used to live as a real faction. Members are still
-  // identified by `character.faction === PARTY_FACTION_ID` — no
-  // duplicate roster on this object.
+  // Special settings entry holding the party's visual identity
+  // (name / icon / colors). Members are identified by
+  // `character.faction === PARTY_FACTION_ID` — no duplicate roster
+  // on this object.
   const PLAYER_PARTY_DEFAULTS = {
     name:      'Our Party',
     icon:      '🛡',

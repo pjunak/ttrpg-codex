@@ -302,8 +302,8 @@ export const Wiki = (() => {
       map[a.id] = a.labelColor || a.bg || '#888';
     }
     // Synthetic 'party' entry — sourced from settings.playerParty so
-    // the party glow stays editable in one place even though the
-    // attitudes enum no longer carries a `party` row.
+    // the party glow stays editable in one place; the attitudes enum
+    // carries no `party` row.
     const pp = Store.getPlayerParty();
     if (pp && pp.color && !map.party) map.party = pp.color;
     return map;
@@ -1110,10 +1110,9 @@ export const Wiki = (() => {
   function _postavyGridHtml(filterFaction) {
     const chars = _postavyApply(filterFaction);
     const s = _listState.postavy;
-    // The trailing dashed "+ Nová postava" card used to live here, gated
-    // by global edit mode. With per-page edit-mode removed, the create
-    // affordance moved to the page-header "+ Přidat postavu" button —
-    // visible to anyone who can edit (i.e. not anonymous).
+    // The create affordance is the page-header "+ Přidat postavu" button
+    // (visible to anyone who can edit, i.e. not anonymous), so no inline
+    // "+ Nová postava" card is rendered here.
     const newCard = "";
     const emptyMsg = chars.length === 0
       ? `<div class="list-empty">${esc(I18n.t('wiki.charNoMatch'))}</div>` : "";
