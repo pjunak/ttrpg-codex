@@ -331,3 +331,17 @@
    surrounding text context (e.g. inside .codex-tile-label they
    inherit the muted label colour); size via the helper's opts. */
 .codex-icon { display: inline-block; vertical-align: middle; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── Management chip (.codex-chip) ────────────────────────────
+   A dark list chip for manageable entries (a prepared spell, an
+   inventory item): content + optional trailing control. -danger
+   flags the entry (e.g. unusable / over-budget) via the border. */
+.codex-chip { display: flex; align-items: center; gap: var(--space-2); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2); min-width: 8.5rem; min-height: 2.15rem; background: var(--bg-raised); border: 1px solid var(--border-subtle); }
+.codex-chip-danger { border-color: var(--color-danger); }
+
+/* ── Badge pill (.codex-badge) ────────────────────────────────
+   A small read-only fact pill (spell level, rarity, a monster's
+   alignment) for detail-page headers. -accent = the gold headline
+   fact. */
+.codex-badge { display: inline-flex; align-items: center; border: 1px solid var(--border-subtle); color: var(--text-light); background: var(--bg-raised); border-radius: var(--radius-pill); padding: 0.1rem var(--space-2); font-size: var(--text-xs); }
+.codex-badge-accent { border-color: rgba(var(--accent-gold-rgb), 0.45); color: var(--accent-gold); }

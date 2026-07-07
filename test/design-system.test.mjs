@@ -38,12 +38,22 @@ test('widgets.css: .codex-skel shimmer exists (reduced-motion handled globally)'
 
 test('h.icon: the harness mirror emits host-shaped stat glyphs', () => {
   const { host } = createMockHost({ id: 'ds-test' });
-  for (const name of ['heart', 'shield', 'bolt', 'chevrons', 'plus-circle', 'eye']) {
+  for (const name of ['heart', 'shield', 'bolt', 'chevrons', 'medal', 'plus-circle', 'eye']) {
     assert.match(host.h.icon(name), /^<svg class="codex-icon" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">/, name);
   }
   assert.equal(host.h.icon('no-such-glyph'), '', 'unknown name → empty, callers pass through freely');
   assert.match(host.h.icon('shield', { label: 'Armor Class', size: 14 }),
     /width="14" height="14" role="img" aria-label="Armor Class"/, 'label + size opts');
+});
+
+test('widgets.css: chip + badge variants exist for the addon list/fact patterns', () => {
+  const css = read('web/css/widgets.css');
+  const chip = css.match(/\.codex-chip\s*\{[^}]*\}/);
+  assert.ok(chip, '.codex-chip exists');
+  assert.match(chip[0], /min-height:\s*2\.15rem/, 'comfortable chip height');
+  assert.match(css, /\.codex-chip-danger/, 'danger variant');
+  assert.match(css, /\.codex-badge\s*\{/, 'badge pill');
+  assert.match(css, /\.codex-badge-accent/, 'accent badge variant');
 });
 
 test('the live facade and the harness mirror stay in sync (text tripwire)', () => {

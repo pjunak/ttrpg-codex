@@ -150,7 +150,11 @@ files noted; this is the everyday set:
     global reduced-motion block in `main.css` turns the sweep off).
   - `.codex-icon` — the inline-SVG stat-glyph set emitted by `utils.iconGlyph`
     (addons: `host.h.icon(name, {size, label})`; names: heart, shield, bolt,
-    chevrons, plus-circle, eye). stroke:`currentColor` — colour from context.
+    chevrons, medal, plus-circle, eye). stroke:`currentColor` — colour from context.
+  - `.codex-chip` (+ `-danger`) — a dark management-list chip (a prepared
+    spell, an inventory item): content + optional trailing control.
+  - `.codex-badge` (+ `-accent`) — a small read-only fact pill for detail-page
+    headers (spell level, rarity, alignment); `-accent` = the gold headline fact.
 
 Addons get these via `host.h` (esc/dataAction/dataOn/renderMarkdown) producing the
 same markup; build addon UI from this vocabulary so it looks native.

@@ -249,7 +249,7 @@ is still Phase 10.)
   MUST build HTML with these, never inline `onclick`; `breadcrumb(crumbs)` =
   `utils.breadcrumbNav`, the core wayfinding row, so addon pages don't roll
   their own ← back links; `icon(name, {size, label})` = `utils.iconGlyph`, the
-  shared stat-glyph set — heart/shield/bolt/chevrons/plus-circle/eye — so
+  shared stat-glyph set — heart/shield/bolt/chevrons/medal/plus-circle/eye — so
   addon stat tiles don't ship their own SVGs), **`host.asset(rel)`** (always available — URL of a
   file bundled with the addon: `/addons/<id>/<hash>/<rel>`, derived from the
   loaded entryUrl so it's version-safe; how book addons resolve record

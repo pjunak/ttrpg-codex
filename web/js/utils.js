@@ -384,13 +384,14 @@ export function breadcrumbNav(crumbs) {
 // The shared stat-glyph set for iconGlyph — named for the DRAWING, not a
 // game stat, so any system addon can map its own concepts onto them
 // (D&D: hp→heart, ac→shield, initiative→bolt, speed→chevrons,
-// proficiency→plus-circle, passive senses→eye). 24×24 stroke paths;
+// proficiency→medal, passive senses→eye). 24×24 stroke paths;
 // stroke styling lives on .codex-icon (widgets.css).
 const ICON_GLYPHS = {
   heart:         '<path d="M12 20.3C12 20.3 4.2 14.8 4.2 9 4.2 6.3 6.2 4.4 8.5 4.4 10.1 4.4 11.4 5.4 12 6.7 12.6 5.4 13.9 4.4 15.5 4.4 17.8 4.4 19.8 6.3 19.8 9 19.8 14.8 12 20.3 12 20.3Z"/>',
   shield:        '<path d="M12 2.6 19 5.3V11C19 15.6 16 19.4 12 21.4 8 19.4 5 15.6 5 11V5.3Z"/>',
   bolt:          '<path d="M13 2.5 6 13.5H11L10.5 21.5 18 9.5H12.5Z"/>',
   chevrons:      '<path d="M5 6.5 11 12 5 17.5"/><path d="M12 6.5 18 12 12 17.5"/>',
+  medal:         '<circle cx="12" cy="9.6" r="5.4"/><path d="M9.3 14.2 7.6 21 12 18.5 16.4 21 14.7 14.2"/>',
   'plus-circle': '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.8V16.2M7.8 12H16.2"/>',
   eye:           '<path d="M2.6 12C6.5 6.6 17.5 6.6 21.4 12 17.5 17.4 6.5 17.4 2.6 12Z"/><circle cx="12" cy="12" r="2.6"/>',
 };
@@ -405,7 +406,7 @@ const ICON_GLYPHS = {
  * Shared by addon stat tiles via the host facade's `h.icon` (addons.js);
  * the addon test harness mirrors it (keep the two in sync).
  *
- * @param {string} name  one of: heart, shield, bolt, chevrons, plus-circle, eye
+ * @param {string} name  one of: heart, shield, bolt, chevrons, medal, plus-circle, eye
  * @param {{size?: number, label?: string}} [opts]
  * @returns {string} SVG markup, or '' for an unknown glyph name.
  */

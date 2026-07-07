@@ -124,7 +124,7 @@ host.h             // { esc, dataAction, dataOn, renderMarkdown, slugify, breadc
                    //   '' below 2 crumbs). Use it at the top of your pages instead
                    //   of a hand-rolled "← Back" link.
                    //   icon(name, {size?, label?}) → the shared stat-glyph set
-                   //   (heart, shield, bolt, chevrons, plus-circle, eye) as an
+                   //   (heart, shield, bolt, chevrons, medal, plus-circle, eye) as an
                    //   inline `.codex-icon` SVG — use it to label stat tiles
                    //   instead of shipping your own SVGs. '' for unknown names.
 host.role          // { isDM(), isAnonymous() }
