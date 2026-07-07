@@ -23,7 +23,7 @@
 
 import { Store } from './store.js';
 import { Role } from './role.js';
-import { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumbNav, iconGlyph } from './utils.js';
+import { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumbNav, iconGlyph, announce } from './utils.js';
 import { I18n } from './i18n.js';
 import { planLoadOrder } from './addon-deps.js';
 import { applyFragmentOps, listConflicts } from './addon-fragments.js';
@@ -500,6 +500,11 @@ export const Addons = (() => {
         // Re-render the current route — addons call this after a write so the
         // user sees their change immediately (vs waiting on the SSE refetch).
         rerender: () => { try { _services.rerender(); } catch (_) {} },
+        // Screen-reader status via the HOST's persistent polite live region
+        // (utils.announce) — survives full-page re-renders, which destroy any
+        // live region inside a route's own HTML. For "N matches" / "3 pts
+        // left" style updates; it is NOT a visual toast.
+        announce: (m) => { try { announce(m); } catch (_) {} },
       },
     };
     return { host, tx };

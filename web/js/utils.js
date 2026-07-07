@@ -419,6 +419,40 @@ export function iconGlyph(name, opts = {}) {
 }
 
 /**
+ * Announce a short status message to screen readers via ONE host-owned,
+ * persistent, visually-hidden polite live region ("N matches", "3 pts
+ * left"). The point of it being host-owned: pages and addon routes re-render
+ * by replacing their whole subtree, so any live region inside their own HTML
+ * is destroyed before AT can announce the change — this node lives on
+ * document.body, outside every re-rendered container, and survives.
+ *
+ * Polite + last-write-wins: rapid successive calls (debounced typing) simply
+ * overwrite; the clear-then-set beat makes repeats of the SAME text (same
+ * count from a different filter) still announce in most AT.
+ *
+ * Shared with addons via the host facade's `ui.announce` (addons.js).
+ * No-op headless (tests/SSR).
+ *
+ * @param {string} text  plain text — not HTML (assigned via textContent).
+ */
+export function announce(text) {
+  if (typeof document === 'undefined' || !document.body) return;
+  let el = document.getElementById('codex-announcer');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'codex-announcer';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    // Visually hidden but AT-readable (the standard sr-only recipe, inline so
+    // the node works before/without any stylesheet).
+    el.style.cssText = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0';
+    document.body.appendChild(el);
+  }
+  el.textContent = '';
+  setTimeout(() => { el.textContent = String(text == null ? '' : text); }, 30);
+}
+
+/**
  * Trap keyboard focus inside a modal panel. While active, Tab / Shift+Tab
  * cycle only through the panel's focusable elements, and focus is restored
  * to whatever was focused before the modal opened when the trap is released.

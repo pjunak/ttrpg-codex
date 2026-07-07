@@ -128,7 +128,11 @@ host.h             // { esc, dataAction, dataOn, renderMarkdown, slugify, breadc
                    //   inline `.codex-icon` SVG — use it to label stat tiles
                    //   instead of shipping your own SVGs. '' for unknown names.
 host.role          // { isDM(), isAnonymous() }
-host.ui            // { toast(msg), rerender() }  — rerender re-renders the current route
+host.ui            // { toast(msg), rerender(), announce(text) } — rerender re-renders
+                   //   the current route; announce(text) speaks a short status line
+                   //   ("12 matches") to screen readers via the host's persistent
+                   //   polite live region (in-page live regions don't survive the
+                   //   full re-render, this one does). Not a visual toast.
 ```
 
 ### Registration methods (each needs the listed permission)

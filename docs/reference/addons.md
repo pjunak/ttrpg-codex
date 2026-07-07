@@ -254,7 +254,10 @@ is still Phase 10.)
   file bundled with the addon: `/addons/<id>/<hash>/<rel>`, derived from the
   loaded entryUrl so it's version-safe; how book addons resolve record
   images), `ui.toast` + **`ui.rerender()`** (re-render
-  the current route after a write). `Addons.describePermission(perm)` provides the
+  the current route after a write) + **`ui.announce(text)`** (screen-reader
+  status via the host's ONE persistent polite live region — survives the
+  full-page re-renders that destroy any live region inside a route's own HTML;
+  use for "N matches" / "N pts left", not as a visual toast). `Addons.describePermission(perm)` provides the
   permission labels (core Manager chrome — localized via `I18n.t`; the addon
   facade itself has NO translation API, addons are English-only).
 - **Integration seams**: `app.js navigate()` default arm →

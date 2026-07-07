@@ -56,12 +56,22 @@ test('widgets.css: chip + badge variants exist for the addon list/fact patterns'
   assert.match(css, /\.codex-badge-accent/, 'accent badge variant');
 });
 
+test('ui.announce: the harness mirror records screen-reader status lines', () => {
+  const { host, rec } = createMockHost({ id: 'ds-test' });
+  host.ui.announce('12 matches');
+  host.ui.announce('3 pts left');
+  assert.deepEqual(rec.announces, ['12 matches', '3 pts left'], 'announcements recorded in order');
+});
+
 test('the live facade and the harness mirror stay in sync (text tripwire)', () => {
   // addons.js + utils.js are browser modules (import Store/I18n) — not
   // importable headless — so pin the wiring at the source-text level.
   assert.match(read('web/js/addons.js'), /icon:\s*iconGlyph/, 'h.icon wired in the facade');
+  assert.match(read('web/js/addons.js'), /announce\(m\)/, 'ui.announce wired in the facade');
   const utils = read('web/js/utils.js');
   assert.match(utils, /export function iconGlyph/, 'utils.iconGlyph exported');
+  assert.match(utils, /export function announce/, 'utils.announce exported');
+  assert.match(utils, /codex-announcer/, 'announce uses the persistent host live region');
   for (const name of ['heart', 'shield', 'bolt', 'chevrons', "'plus-circle'", 'eye']) {
     assert.ok(utils.includes(name), `glyph ${name} in the live set`);
   }

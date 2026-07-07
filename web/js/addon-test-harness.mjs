@@ -79,7 +79,7 @@ function _emptyRec() {
     collections: [], wikiKinds: [], editorFields: [], fragmentOps: [],
     articleSections: [], slots: [],
     kinds: [], connectionKinds: [], nodeKinds: [], graphViews: [], graphContributors: [],
-    provided: undefined, toasts: [], rerenders: 0,
+    provided: undefined, toasts: [], rerenders: 0, announces: [],
   };
 }
 
@@ -193,6 +193,9 @@ export function createMockHost(meta = {}, opts = {}) {
     ui: {
       toast:    (m) => { rec.toasts.push(m); },
       rerender: () => { rec.rerenders++; },
+      // Mirrors ui.announce (utils.announce): screen-reader status line via
+      // the host's persistent live region — recorded so tests can assert it.
+      announce: (m) => { rec.announces.push(String(m == null ? '' : m)); },
     },
   };
   return { host, rec };
