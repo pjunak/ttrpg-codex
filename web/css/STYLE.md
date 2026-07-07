@@ -143,6 +143,14 @@ files noted; this is the everyday set:
   - `.codex-warnings` — advisory validation-warning list.
   - `.codex-stepper` (+ `-btn`, `data-num-step`) — the −/＋ number stepper
     (`edit.css`; the click handler lives in `app.js`).
+  - `.codex-link-row` / `.codex-link-tile` — whole-element navigation targets
+    for browse lists / index grids: ≥2.75rem (~44px, WCAG 2.5.5) with a gold
+    hover tint + keyboard focus ring. Callers own layout + content.
+  - `.codex-skel` — skeleton-loading shimmer block (caller sizes it; the
+    global reduced-motion block in `main.css` turns the sweep off).
+  - `.codex-icon` — the inline-SVG stat-glyph set emitted by `utils.iconGlyph`
+    (addons: `host.h.icon(name, {size, label})`; names: heart, shield, bolt,
+    chevrons, plus-circle, eye). stroke:`currentColor` — colour from context.
 
 Addons get these via `host.h` (esc/dataAction/dataOn/renderMarkdown) producing the
 same markup; build addon UI from this vocabulary so it looks native.

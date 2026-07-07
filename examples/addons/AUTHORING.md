@@ -118,11 +118,15 @@ host.action(name)  // → "<id>:<name>"  — build action strings with this
 host.asset(rel)    // → "/addons/<id>/<hash>/<rel>" — URL of a file bundled
                    //   WITH your addon (images, fonts…), version-safe. E.g.
                    //   `<img src="${esc(host.asset('images/aboleth.webp'))}">`
-host.h             // { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumb }
+host.h             // { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumb, icon }
                    //   breadcrumb([{label, href?}, …]) renders the same horizontal
                    //   wayfinding row core articles use (last crumb = current page,
                    //   '' below 2 crumbs). Use it at the top of your pages instead
                    //   of a hand-rolled "← Back" link.
+                   //   icon(name, {size?, label?}) → the shared stat-glyph set
+                   //   (heart, shield, bolt, chevrons, plus-circle, eye) as an
+                   //   inline `.codex-icon` SVG — use it to label stat tiles
+                   //   instead of shipping your own SVGs. '' for unknown names.
 host.role          // { isDM(), isAnonymous() }
 host.ui            // { toast(msg), rerender() }  — rerender re-renders the current route
 ```

@@ -381,6 +381,42 @@ export function breadcrumbNav(crumbs) {
   return `<nav class="wiki-breadcrumb" aria-label="${esc(I18n.t('wiki.breadcrumbLabel'))}"><ol>${rows}</ol></nav>`;
 }
 
+// The shared stat-glyph set for iconGlyph — named for the DRAWING, not a
+// game stat, so any system addon can map its own concepts onto them
+// (D&D: hp→heart, ac→shield, initiative→bolt, speed→chevrons,
+// proficiency→plus-circle, passive senses→eye). 24×24 stroke paths;
+// stroke styling lives on .codex-icon (widgets.css).
+const ICON_GLYPHS = {
+  heart:         '<path d="M12 20.3C12 20.3 4.2 14.8 4.2 9 4.2 6.3 6.2 4.4 8.5 4.4 10.1 4.4 11.4 5.4 12 6.7 12.6 5.4 13.9 4.4 15.5 4.4 17.8 4.4 19.8 6.3 19.8 9 19.8 14.8 12 20.3 12 20.3Z"/>',
+  shield:        '<path d="M12 2.6 19 5.3V11C19 15.6 16 19.4 12 21.4 8 19.4 5 15.6 5 11V5.3Z"/>',
+  bolt:          '<path d="M13 2.5 6 13.5H11L10.5 21.5 18 9.5H12.5Z"/>',
+  chevrons:      '<path d="M5 6.5 11 12 5 17.5"/><path d="M12 6.5 18 12 12 17.5"/>',
+  'plus-circle': '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.8V16.2M7.8 12H16.2"/>',
+  eye:           '<path d="M2.6 12C6.5 6.6 17.5 6.6 21.4 12 17.5 17.4 6.5 17.4 2.6 12Z"/><circle cx="12" cy="12" r="2.6"/>',
+};
+
+/**
+ * Small inline-SVG stat glyph (`.codex-icon`, 17px by default) for labelling
+ * stat tiles / vitals. stroke:currentColor, so it inherits the surrounding
+ * text colour. Decorative by default (aria-hidden); pass `opts.label` to make
+ * it meaningful on its own (role="img" + aria-label). Unknown names return ''
+ * so callers can pass through unchecked.
+ *
+ * Shared by addon stat tiles via the host facade's `h.icon` (addons.js);
+ * the addon test harness mirrors it (keep the two in sync).
+ *
+ * @param {string} name  one of: heart, shield, bolt, chevrons, plus-circle, eye
+ * @param {{size?: number, label?: string}} [opts]
+ * @returns {string} SVG markup, or '' for an unknown glyph name.
+ */
+export function iconGlyph(name, opts = {}) {
+  const path = ICON_GLYPHS[name];
+  if (!path) return '';
+  const size = Number(opts.size) > 0 ? Number(opts.size) : 17;
+  const aria = opts.label ? `role="img" aria-label="${esc(opts.label)}"` : 'aria-hidden="true"';
+  return `<svg class="codex-icon" viewBox="0 0 24 24" width="${size}" height="${size}" ${aria}>${path}</svg>`;
+}
+
 /**
  * Trap keyboard focus inside a modal panel. While active, Tab / Shift+Tab
  * cycle only through the panel's focusable elements, and focus is restored

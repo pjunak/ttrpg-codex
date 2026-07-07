@@ -23,7 +23,7 @@
 
 import { Store } from './store.js';
 import { Role } from './role.js';
-import { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumbNav } from './utils.js';
+import { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumbNav, iconGlyph } from './utils.js';
 import { I18n } from './i18n.js';
 import { planLoadOrder } from './addon-deps.js';
 import { applyFragmentOps, listConflicts } from './addon-fragments.js';
@@ -492,7 +492,9 @@ export const Addons = (() => {
       // ready for script-src 'self'. `breadcrumb(crumbs)` renders the same
       // wayfinding row core articles use ([{label, href?}], last = current
       // page) so addon pages don't roll their own ← back links.
-      h: { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumb: breadcrumbNav },
+      // `icon(name, opts)` = the shared stat-glyph set (utils.iconGlyph) so
+      // addon stat tiles don't ship their own SVGs.
+      h: { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumb: breadcrumbNav, icon: iconGlyph },
       ui: {
         toast: (m) => _services.toast(m),
         // Re-render the current route — addons call this after a write so the

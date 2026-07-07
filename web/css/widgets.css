@@ -300,3 +300,34 @@
    warning. color-mix keeps the faint wash on the -bd token (it is
    a color, not an r,g,b channel list). */
 .codex-warnings { background: color-mix(in srgb, var(--color-danger-bd) 8%, transparent); border: 1px solid var(--color-danger-bd); border-radius: var(--radius); padding: var(--space-2) var(--space-3); color: var(--color-danger); font-size: var(--text-xs); line-height: 1.6; }
+
+/* ── Link row / link tile (.codex-link-row / .codex-link-tile) ─
+   Whole-element navigation targets for browse lists + index grids
+   (hoisted from the PHB compendium once the bestiary needed the
+   same treatment). The row is a comfortable ≥2.75rem (~44px,
+   WCAG 2.5.5) flex strip; the tile is its stacked-card cousin.
+   Both get a gold hover tint + an inset keyboard focus ring.
+   Callers own the layout (grid/flex wrappers) and the content. */
+.codex-link-row { display: flex; align-items: center; gap: var(--space-2); min-height: 2.75rem; padding: var(--space-2) var(--space-3); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-light); text-decoration: none; background: var(--bg-surface); transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out); }
+.codex-link-row:hover { border-color: rgba(var(--accent-gold-rgb), 0.5); background: rgba(var(--accent-gold-rgb), 0.06); }
+.codex-link-row:focus-visible { outline: 2px solid rgba(var(--accent-gold-rgb), 0.5); outline-offset: -2px; }
+.codex-link-tile { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-3); text-decoration: none; text-align: center; transition: border-color var(--dur-fast) var(--ease-out); }
+.codex-link-tile:hover { border-color: rgba(var(--accent-gold-rgb), 0.5); }
+.codex-link-tile:focus-visible { outline: 2px solid rgba(var(--accent-gold-rgb), 0.5); outline-offset: -2px; }
+
+/* ── Skeleton shimmer (.codex-skel) ───────────────────────────
+   Loading placeholder block — caller sizes it (height/width/radius
+   inline or via a wrapper) to sketch the shape of the incoming
+   content. The gold sweep is a ::after overlay; the global
+   prefers-reduced-motion block in main.css caps it to a single
+   0.01ms pass (i.e. off), so no per-component guard is needed. */
+.codex-skel { position: relative; overflow: hidden; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
+.codex-skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(var(--accent-gold-rgb), 0.09), transparent); animation: codex-shimmer 1.3s ease-in-out infinite; }
+@keyframes codex-shimmer { to { transform: translateX(100%); } }
+
+/* ── Stat glyph (.codex-icon) ─────────────────────────────────
+   The inline-SVG stat icons emitted by utils.iconGlyph (addons:
+   host.h.icon). stroke:currentColor — colour them from the
+   surrounding text context (e.g. inside .codex-tile-label they
+   inherit the muted label colour); size via the helper's opts. */
+.codex-icon { display: inline-block; vertical-align: middle; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }

@@ -52,6 +52,24 @@ function _breadcrumb(crumbs) {
   }).join('');
   return `<nav class="wiki-breadcrumb"><ol>${rows}</ol></nav>`;
 }
+// Mirrors utils.iconGlyph: the shared stat-glyph set (h.icon). Same names +
+// markup shape (`<svg class="codex-icon" …>`), '' for unknown names — so
+// addon renders under test emit what the live host emits.
+const _ICON_GLYPHS = {
+  heart:         '<path d="M12 20.3C12 20.3 4.2 14.8 4.2 9 4.2 6.3 6.2 4.4 8.5 4.4 10.1 4.4 11.4 5.4 12 6.7 12.6 5.4 13.9 4.4 15.5 4.4 17.8 4.4 19.8 6.3 19.8 9 19.8 14.8 12 20.3 12 20.3Z"/>',
+  shield:        '<path d="M12 2.6 19 5.3V11C19 15.6 16 19.4 12 21.4 8 19.4 5 15.6 5 11V5.3Z"/>',
+  bolt:          '<path d="M13 2.5 6 13.5H11L10.5 21.5 18 9.5H12.5Z"/>',
+  chevrons:      '<path d="M5 6.5 11 12 5 17.5"/><path d="M12 6.5 18 12 12 17.5"/>',
+  'plus-circle': '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.8V16.2M7.8 12H16.2"/>',
+  eye:           '<path d="M2.6 12C6.5 6.6 17.5 6.6 21.4 12 17.5 17.4 6.5 17.4 2.6 12Z"/><circle cx="12" cy="12" r="2.6"/>',
+};
+function _icon(name, opts = {}) {
+  const path = _ICON_GLYPHS[name];
+  if (!path) return '';
+  const size = Number(opts.size) > 0 ? Number(opts.size) : 17;
+  const aria = opts.label ? `role="img" aria-label="${_esc(opts.label)}"` : 'aria-hidden="true"';
+  return `<svg class="codex-icon" viewBox="0 0 24 24" width="${size}" height="${size}" ${aria}>${path}</svg>`;
+}
 
 /** A fresh, blank registration record. */
 function _emptyRec() {
@@ -170,7 +188,7 @@ export function createMockHost(meta = {}, opts = {}) {
     // Mirrors host.asset: the content-addressed static base (mock hash).
     asset: (rel) => `/addons/${meta.id || 'addon'}/mockhash/` + String(rel == null ? '' : rel).replace(/^\/+/, ''),
     h: { esc: _esc, slugify: _slugify, dataAction: _dataAction, dataOn: _dataOn,
-         renderMarkdown: (s) => _esc(s), breadcrumb: _breadcrumb },
+         renderMarkdown: (s) => _esc(s), breadcrumb: _breadcrumb, icon: _icon },
     ui: {
       toast:    (m) => { rec.toasts.push(m); },
       rerender: () => { rec.rerenders++; },
