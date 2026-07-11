@@ -89,6 +89,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `entry` | ✅ | Relative `.js`/`.mjs` path to the client module (default-export `register`). |
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
 | `contentDir` | — | Relative dir of a **per-record JSON tree** the HOST serves for you at `/api/addon/<id>/content` (+ `/content/:kind`, `/item/:kind/:id`, `/kinds`). The right choice for DATA addons (rulebooks): **no server code, no `server:code` grant**, kinds keyed by each record's own `kind` field (sub-dir name is the fallback), and hot-loaded — install/update needs no restart. A live `server` router takes precedence over it entirely. |
+| `contentGroups` | — | `{ "field": "book", "label": "Sourcebooks" }` — declare one record field as a DM-toggleable grouping key for the content tree (see the "Content groups" section under server code). `field` is `^[a-zA-Z0-9_]{1,40}$`. |
 | `serverDeps` | — | `string[]` of vetted host npm libs your server module needs via `serverHost.lib(...)`. Allowed: `express`, `adm-zip`, `archiver`, `multer`. Anything else → the addon loads `blocked`. |
 | `permissions` | — | Declared + **enforced** capability tokens (see §5). The DM reviews + grants them at install. |
 | `dependencies` | — | HARD deps: `{ "<otherAddonId>": { "range": ">=1.0.0", "repo": "owner/name" } }`. A missing/incompatible one **blocks** your addon (see §12). |
@@ -206,6 +207,12 @@ Request the **least** you need. The DM sees friendly labels at install.
 Stash a namespaced blob on a core entity at `entity.addonData["<your-id>"]`. It
 rides inside the entity's JSON (snapshotted + role-filtered with it).
 
+> **Visibility caveat.** Role filtering is *entity*-granular: a DM-only
+> entity is dropped for players, but on a **public** entity the whole
+> `addonData` blob is sent to players **and anonymous viewers** verbatim.
+> Never store DM secrets in the addonData of a public entity — put them on
+> the entity's DM twin instead.
+
 ```js
 // Read-modify-write YOUR namespace only (the host injects your id):
 host.store.patchAddonData('characters', charId, (s) => ({ ...s, hp: (s.hp ?? 10) - 1 }));
@@ -253,6 +260,13 @@ host.registerWikiKind('pravidlo', (label) => {
 Declare in the manifest, register in `entry.js`, then use the scoped CRUD handle.
 Data lives isolated at `data/addon-data/<id>/<name>.json` and syncs to every
 client over SSE like core data.
+
+> **Visibility caveat.** Addon collections are **world-readable** — they take
+> the same posture as `pets`: public, outside the role-visibility filter, and
+> writable by any authenticated role. `GET /api/data` serves them to players
+> and anonymous viewers alike. Don't store DM-only content in them; if your
+> addon needs secret data, keep it in the `addonData` of a DM-only twin
+> entity.
 
 ```jsonc
 // addon.json
@@ -436,6 +450,29 @@ host npm deps.
 > Reach for a real server module only for LOGIC (authoritative dice, uploads,
 > custom queries).
 
+### Content groups (DM-toggleable slices of a content addon)
+
+A content addon can declare ONE record field as its grouping key:
+
+```jsonc
+// addon.json
+"contentDir": "data",
+"contentGroups": { "field": "book", "label": "Sourcebooks" }
+```
+
+The Manager then shows a checkbox per distinct `field` value (with record
+counts); the DM can untick a group and the host drops those records from
+EVERYTHING it serves — the `/content` aggregate, per-kind lists, `/item`
+lookups and `/kinds` — live, no restart. Consumers (browse pages, wiki-link
+kinds, `provide()`d data APIs) automatically agree because they all read the
+same filtered tree. Rules: records **lacking** the field are always kept (a
+toggle only hides records that opted into a group); unknown ids on the
+off-list match nothing (harmless, forward-compatible); nothing is ever
+deleted — re-ticking restores instantly. Toggle state survives updates.
+
+Installs are DM-only and work with **private GitHub repositories** when the
+operator sets `CODEX_GITHUB_TOKEN` (see `docs/SELF_HOSTING.md`).
+
 ```jsonc
 // addon.json
 "server": "server/index.cjs",
@@ -457,7 +494,9 @@ module.exports.init = (host) => {
 `serverHost`: `get/post/put/delete(subpath, handler)` + `router`;
 `data.{read(name), write(name, obj), dir}` (confined to your dir);
 `readCollection(name)` (needs `data:read:<name>`); `lib(name)` (vetted);
-`withLock(fn)`; `broadcastDataChanged()`; `log(...)`.
+`withLock(fn)` (30 s watchdog — a critical section that never settles is
+force-released so it can't wedge the server-wide write chain);
+`broadcastDataChanged()`; `log(...)`.
 
 > **Restart-to-load:** server code activates on the next server restart. The
 > Manager shows `🖥 restart serveru` until then. A throw in `init` is isolated —

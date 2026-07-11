@@ -80,4 +80,68 @@ function loadContentTree(rootDir) {
   return { content, index, kinds: Object.keys(content).sort(), count };
 }
 
-module.exports = { loadContentTree };
+/**
+ * Distinct values of `field` across every record in a loaded tree, with
+ * record counts. Computed from the UNFILTERED tree by the caller, so a
+ * disabled group still lists (checkable back on) with its true size.
+ * Records lacking the field contribute no value — they're never part of a
+ * group and never filterable. Values are stringified so a numeric field
+ * compares stably against the registry's string off-list.
+ *
+ * @param {{content: Object<string, Array>}} tree - from loadContentTree
+ * @param {string} field - the manifest's contentGroups.field
+ * @returns {Array<{id: string, count: number}>} sorted by id
+ */
+function groupValues(tree, field) {
+  const counts = new Map();
+  const content = (tree && tree.content) || {};
+  for (const k of Object.keys(content)) {
+    for (const r of content[k]) {
+      if (!r || r[field] === undefined || r[field] === null) continue;
+      const id = String(r[field]);
+      counts.set(id, (counts.get(id) || 0) + 1);
+    }
+  }
+  return [...counts.keys()].sort().map((id) => ({ id, count: counts.get(id) }));
+}
+
+/**
+ * Drop every record whose `field` value is on the DM's `disabled` list —
+ * the ONE filtering code path every consumer shares: server.js filters at
+ * tree-build time (_applyAddonContent), so the /content aggregate, the
+ * per-kind list, the /item lookup, /kinds, and anything else reading the
+ * cached tree all agree by construction. Records LACKING the field are
+ * ALWAYS kept: a group toggle can only hide records that opted into a
+ * group, never unrelated content. Returns a new tree (record objects are
+ * shared by reference — cheap); kinds emptied by the filter disappear from
+ * both `content` and `kinds`. An empty off-list returns the input as-is.
+ *
+ * @param {{content, index, kinds, count}} tree - from loadContentTree
+ * @param {string} field - the manifest's contentGroups.field
+ * @param {string[]} disabled - group ids (String(record[field]) values)
+ * @returns {{content: Object<string, Array>, index: Object<string, Object>,
+ *            kinds: string[], count: number}}
+ */
+function filterContentTree(tree, field, disabled) {
+  const off = new Set(Array.isArray(disabled) ? disabled : []);
+  if (!field || !off.size) return tree;
+  const content = {};
+  let count = 0;
+  const src = (tree && tree.content) || {};
+  for (const k of Object.keys(src)) {
+    const kept = src[k].filter(
+      (r) => !r || r[field] === undefined || r[field] === null || !off.has(String(r[field]))
+    );
+    if (!kept.length) continue;
+    content[k] = kept;
+    count += kept.length;
+  }
+  const index = {};
+  for (const k of Object.keys(content)) {
+    const m = (index[k] = Object.create(null));
+    for (const r of content[k]) if (r && r.id != null) m[r.id] = r;
+  }
+  return { content, index, kinds: Object.keys(content).sort(), count };
+}
+
+module.exports = { loadContentTree, groupValues, filterContentTree };

@@ -65,6 +65,14 @@ Passwords come from two sources, checked in this order:
    consulted only when the matching role has no stored credential.
    `EDIT_PASSWORD` is a legacy alias for `DM_PASSWORD`.
 
+One more optional variable: **`CODEX_GITHUB_TOKEN`** (or the conventional
+`GITHUB_TOKEN`) — a GitHub token the addon installer attaches to its
+api.github.com requests. Set it to install addons from **private
+repositories** (and to raise GitHub's anonymous rate limits). The token
+stays server-side only: it is never sent to clients, never logged, and —
+deliberately — never stored under `data/`, because backup ZIPs sweep that
+whole directory and a stored token would leak into every backup.
+
 A few consequences worth knowing:
 
 - **A player password is optional.** Leave `PLAYER_PASSWORD` unset and

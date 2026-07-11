@@ -18,6 +18,10 @@ services:
       - DM_PASSWORD=${DM_PASSWORD:-}
       - PLAYER_PASSWORD=${PLAYER_PASSWORD:-}
       - EDIT_PASSWORD=${EDIT_PASSWORD:-}
+      # Optional: GitHub token for installing addons from PRIVATE repositories
+      # (also raises anonymous API rate limits). Server-side only — never
+      # stored in data/ (backups sweep that dir) and never sent to clients.
+      - CODEX_GITHUB_TOKEN=${CODEX_GITHUB_TOKEN:-}
       - NODE_ENV=production
       # Enables the DM "Restart server" button (Settings → Doplňky). Safe because
       # `restart: unless-stopped` below brings the container back after the process

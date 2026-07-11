@@ -10,7 +10,7 @@ import { Store } from './store.js';
 import { EditMode } from './editmode.js';
 import { WorldMap, PIN_TYPES } from './map.js';
 import { Role } from './role.js';
-import { esc, dataAction, dataOn } from './utils.js';
+import { esc, dataAction, dataOn, safeColor } from './utils.js';
 import { Sidebar } from './sidebar.js';
 import { Addons } from './addons.js';
 import { THEMES } from './constants.js';
@@ -234,7 +234,7 @@ export const Settings = (() => {
     if (_editingId === item.id) return _formHtml(cat, item, false);
     const usageCount = Store.findEnumUsages(_activeCat, item.id).length;
     const swatch = item.color
-      ? `<span class="settings-swatch" style="background:${esc(item.color)}"></span>` : '';
+      ? `<span class="settings-swatch" style="background:${safeColor(item.color)}"></span>` : '';
     // Marker-icon panel toggle — pinTypes only. Opens an editor for
     // strategy + uploaded image variants below the row.
     const iconBtn = (cat.id === 'pinTypes')
@@ -1619,7 +1619,7 @@ export const Settings = (() => {
           <button type="button" class="inline-create-btn"
                   ${dataAction('Settings.createSnapshot')}>＋ ${esc(I18n.t('settings.createSnapshot'))}</button>
           <button type="button" class="inline-create-btn"
-                  ${dataAction('Settings.refreshSnapshots')}>↻ ${esc(I18n.t('action.restore'))}</button>
+                  ${dataAction('Settings.refreshSnapshots')}>↻ ${esc(I18n.t('action.refresh'))}</button>
         </div>
       </div>
       <div class="settings-panel">
@@ -2061,6 +2061,25 @@ export const Settings = (() => {
              `<span title="${esc(p)}">${esc(Addons.describePermission(p))}</span>`).join(' · ')}</div></details>`
       : '';
 
+    // ── Content groups (manifest `contentGroups`): a checkbox per group value
+    // (e.g. one per sourcebook for the compendium). Unchecking hides that
+    // group's records from EVERY consumer — browse, wiki links, dependent
+    // addons — live, no restart. Values come from the server's unfiltered
+    // count, so a disabled group still lists with its true size.
+    const cg = a.contentGroups;
+    const groupsLine = (a.enabled && cg && Array.isArray(cg.values) && cg.values.length)
+      ? `<details class="addon-row-perms"><summary>${esc(cg.label || I18n.t('settings.contentGroups'))} (${cg.values.length - (cg.disabled || []).length}/${cg.values.length})</summary>
+           <div class="addon-perms-detail" id="addon-cg-${esc(a.id)}">
+             <div class="settings-hint">${esc(I18n.t('settings.contentGroupsHint'))}</div>
+             ${cg.values.map(v => `
+               <label style="display:inline-flex;align-items:center;gap:.35rem;margin-right:.9rem">
+                 <input type="checkbox" value="${esc(v.id)}" ${(cg.disabled || []).includes(v.id) ? '' : 'checked'}
+                        ${dataAction('Settings.toggleContentGroup', a.id)}>
+                 <span>${esc(v.id)}</span><span style="color:var(--text-muted)">(${esc(String(v.count))})</span>
+               </label>`).join('')}
+           </div></details>`
+      : '';
+
     // ── Actions, ranked: primary Update (when available), secondary toggle,
     // rare actions (roll back / remove) behind an overflow menu.
     const updateBtn = (a.enabled && upd && upd.hasUpdate)
@@ -2089,6 +2108,7 @@ export const Settings = (() => {
           ${chipsHtml}
         </div>
         ${permsLine}
+        ${groupsLine}
         ${notes.join('')}
         <div class="addon-row-actions">
           ${updateBtn}${toggle}${moreMenu}
@@ -2100,6 +2120,22 @@ export const Settings = (() => {
     return fetch(url, { method, credentials: 'same-origin' })
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
       .then(() => { _flash(okMsg); return _reloadAddonsIfActive(); })
+      .catch(e => _flash((e && e.error) || I18n.t('settings.operationFailed'), false));
+  }
+  // Replace the addon's disabled-content-group list from the checkbox row's
+  // CURRENT state (unchecked = disabled). Fired per-click on any checkbox in
+  // the group, so the wire payload is always the full authoritative list.
+  function toggleContentGroup(id) {
+    const scope = document.getElementById('addon-cg-' + id);
+    if (!scope) return;
+    const disabled = [...scope.querySelectorAll('input[type="checkbox"]')]
+      .filter(c => !c.checked).map(c => c.value);
+    fetch(`/api/addons/${encodeURIComponent(id)}/content-groups`, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disabled }),
+    }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+      .then(() => { _flash(I18n.t('settings.contentGroupsSaved')); return _reloadAddonsIfActive(); })
       .catch(e => _flash((e && e.error) || I18n.t('settings.operationFailed'), false));
   }
   function enableAddon(id)  { _addonLifecycle('POST',   `/api/addons/${encodeURIComponent(id)}/enable`,  I18n.t('settings.addonEnabled')); }
@@ -2388,7 +2424,7 @@ export const Settings = (() => {
     savePlayerParty,
     uploadLogo, deleteLogo, saveBranding, applyBranding,
     changeTheme, applyTheme,
-    enableAddon, disableAddon, removeAddon, resolveAddonConflict,
+    enableAddon, disableAddon, removeAddon, resolveAddonConflict, toggleContentGroup,
     checkAddonUpdates, updateAddon, updateAllAddons, rollbackAddon, restartServer,
     openAddonWizard, closeAddonWizard, addonWizardKey,
     previewAddon, confirmInstallAddon,

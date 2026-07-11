@@ -537,9 +537,10 @@ async function _lastSnapshotTime() {
 
 // `auth.json` is deployment config, not campaign data. We intentionally
 // exclude it from snapshots (so restoring an old snapshot doesn't
-// silently roll back a password change) and from the data hash (so a
-// password rotation doesn't trigger a no-op SSE refetch). It still
-// ships inside the full backup zip for disaster-recovery purposes.
+// silently roll back a password change), from the data hash (so a
+// password rotation doesn't trigger a no-op SSE refetch), and from ZIP
+// restore (`_safeJoinDataDir` — same rationale as snapshots). It still
+// ships inside the full backup zip for disaster-recovery inspection.
 const NON_DATA_JSON_FILES = new Set(['auth.json']);
 
 async function _createSnapshot(reason = 'save') {
@@ -775,6 +776,10 @@ async function runVisibilityMigration() {
 // connected client. Clients refetch + re-render in well under a
 // second; no polling involved.
 const _sseClients = new Set();
+// Connection-cap bookkeeping for GET /api/events (see the handler).
+const _sseClientsByIp = new Map();   // ip → live connection count
+const SSE_MAX_CLIENTS = 256;
+const SSE_MAX_PER_IP  = 64;
 function _broadcast(eventName, payload) {
   const data = `event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`;
   for (const res of _sseClients) {
@@ -1656,6 +1661,23 @@ app.post('/api/restart', requireRealDM('Jen DM může restartovat server.'), (re
 const ADDON_MAX_FILES     = 2000;
 const ADDON_MAX_BYTES     = 25 * 1024 * 1024;   // 25 MB extracted cap
 const ADDON_VERSIONS_KEEP = 5;                  // content-addressed history kept per addon
+// Watchdog for host.withLock critical sections (see _makeServerHost). 30 s is
+// far beyond any legitimate JSON read-modify-write, and short enough that a
+// buggy addon can't freeze all editing until someone restarts the container.
+const ADDON_LOCK_TIMEOUT_MS = 30_000;
+
+// Server-side GitHub credential for the broker. `CODEX_GITHUB_TOKEN` is the
+// documented name (matches the other CODEX_* knobs); plain `GITHUB_TOKEN`
+// keeps working as an alias (the pre-existing name, and what CI environments
+// export). With a token set, every api.github.com request the broker makes
+// carries `Authorization: Bearer <token>` — which raises rate limits and
+// makes PRIVATE addon repos installable/updatable. The token never leaves
+// the process: it is never logged, never sent to a client, and never written
+// under DATA_DIR (backup ZIPs sweep data/ — a token there would leak into
+// every backup; _scrubbedChildEnv also strips it from addon test children).
+function _githubToken() {
+  return process.env.CODEX_GITHUB_TOKEN || process.env.GITHUB_TOKEN || '';
+}
 
 async function _readAddonsRegistry() {
   try {
@@ -1666,9 +1688,19 @@ async function _readAddonsRegistry() {
       console.warn('[addons] registry read failed, using empty:', e.message);
       // Preserve the unreadable file so the next write doesn't silently destroy
       // a possibly-recoverable registry (a JSON syntax error would otherwise
-      // wipe every installed addon on the next install/enable).
-      try { await fsp.rename(ADDONS_REGISTRY_FILE, ADDONS_REGISTRY_FILE + '.corrupt-' + Date.now()); }
-      catch (_) { /* best-effort */ }
+      // wipe every installed addon on the next install/enable). Keep only the
+      // newest few — these otherwise accumulate forever in DATA_DIR and ride
+      // along into every /api/backup ZIP.
+      try {
+        await fsp.rename(ADDONS_REGISTRY_FILE, ADDONS_REGISTRY_FILE + '.corrupt-' + Date.now());
+        const dir  = path.dirname(ADDONS_REGISTRY_FILE);
+        const base = path.basename(ADDONS_REGISTRY_FILE) + '.corrupt-';
+        const old  = (await fsp.readdir(dir))
+          .filter(f => f.startsWith(base))
+          .sort()             // timestamp suffix → lexicographic == chronological
+          .slice(0, -3);      // keep the newest 3
+        for (const f of old) await fsp.unlink(path.join(dir, f)).catch(() => {});
+      } catch (_) { /* best-effort */ }
     }
     return AddonBroker.defaultRegistry();
   }
@@ -1705,6 +1737,14 @@ function _publicAddonList(reg) {
     // Host-served declarative content (manifest `contentDir`) — data addons
     // (rulebooks) with no server code; the host serves /api/addon/<id>/content.
     contentDir:  a.contentDir || null,
+    // Content-group toggles (manifest `contentGroups`) — the Manager's
+    // per-group checkboxes. Values come from the live content cache (counted
+    // over the UNFILTERED tree so a disabled group still shows its size);
+    // null for addons that don't declare groups or aren't serving content.
+    contentGroups: (() => {
+      const c = _addonContent.get(a.id);
+      return (c && c.groups) ? c.groups : null;
+    })(),
     // Kept version history (Phase 9) — drives the rollback affordance. Trimmed
     // (no sha) to what the Manager needs. activeHash marks the live one.
     versions: Array.isArray(a.versions)
@@ -1735,26 +1775,51 @@ const _serverLoadState = new Map();   // id -> { state, error }              (bo
 // which is restart-to-load) fully HOT: rebuilt on every registry mutation,
 // so installing/updating a book addon needs no restart. Content-addressed:
 // the cache keys on activeHash, so an unchanged hash never re-reads disk.
-const _addonContent = new Map();      // id -> { hash, content, index, kinds, count }
+// Cache entry: { hash, offKey, groups, _raw, content, index, kinds, count }.
+// `content/index/kinds/count` are the SERVED view — already filtered by the
+// DM's per-addon content-group toggles — so the /content aggregate, per-kind
+// lists, /item lookups and /kinds all agree by construction (the one-code-
+// path rule filterContentTree documents). `_raw` keeps the unfiltered tree
+// so flipping a toggle re-filters in memory without re-reading disk, and
+// `groups` carries {field, label, values, disabled} for the Manager UI —
+// values counted from the RAW tree so a disabled group still lists with its
+// true size. `offKey` is the cache key half that tracks the off-list.
+const _addonContent = new Map();
 function _applyAddonContent(reg) {
   const seen = new Set();
   for (const a of (reg && Array.isArray(reg.addons)) ? reg.addons : []) {
     if (!a || !a.enabled || !a.contentDir || !a.activeHash) continue;
     if (!AddonBroker.ID_RE.test(a.id) || typeof a.contentDir !== 'string') continue;
     seen.add(a.id);
-    const cached = _addonContent.get(a.id);
-    if (cached && cached.hash === a.activeHash) continue;
-    const codeDir = _safeJoinIn(path.join(ADDONS_DIR, a.id), a.activeHash);
-    const rootDir = codeDir ? _safeJoinIn(codeDir, a.contentDir) : null;
-    if (!rootDir) { _addonContent.delete(a.id); continue; }
-    try {
-      const tree = AddonContent.loadContentTree(rootDir);
-      _addonContent.set(a.id, { hash: a.activeHash, ...tree });
-      console.log(`[addons] content: ${a.id} — ${tree.count} records / ${tree.kinds.length} kinds (host-served)`);
-    } catch (e) {
-      console.warn(`[addons] content load failed for ${a.id}:`, e && e.message);
-      _addonContent.delete(a.id);
+    const cg       = (a.contentGroups && a.contentGroups.field) ? a.contentGroups : null;
+    const disabled = cg ? AddonBroker.normalizeDisabledContentGroups(a.disabledContentGroups) : [];
+    const offKey   = cg ? JSON.stringify([...disabled].sort()) : '';
+    const cached   = _addonContent.get(a.id);
+    if (cached && cached.hash === a.activeHash && cached.offKey === offKey) continue;
+    // Same code version, different toggle state → re-filter the cached raw
+    // tree; only a version change re-reads disk.
+    let raw = (cached && cached.hash === a.activeHash) ? cached._raw : null;
+    if (!raw) {
+      const codeDir = _safeJoinIn(path.join(ADDONS_DIR, a.id), a.activeHash);
+      const rootDir = codeDir ? _safeJoinIn(codeDir, a.contentDir) : null;
+      if (!rootDir) { _addonContent.delete(a.id); continue; }
+      try {
+        raw = AddonContent.loadContentTree(rootDir);
+      } catch (e) {
+        console.warn(`[addons] content load failed for ${a.id}:`, e && e.message);
+        _addonContent.delete(a.id);
+        continue;
+      }
     }
+    const groups = cg ? {
+      field: cg.field, label: cg.label || '',
+      values: AddonContent.groupValues(raw, cg.field),
+      disabled,
+    } : null;
+    const served = cg ? AddonContent.filterContentTree(raw, cg.field, disabled) : raw;
+    _addonContent.set(a.id, { hash: a.activeHash, offKey, groups, _raw: raw, ...served });
+    console.log(`[addons] content: ${a.id} — ${served.count} records / ${served.kinds.length} kinds (host-served`
+      + (cg && disabled.length ? `; ${disabled.length} ${cg.field}-group(s) off, ${raw.count - served.count} records hidden` : '') + ')');
   }
   // Disabled/removed/no-longer-content addons stop serving immediately.
   for (const id of [..._addonContent.keys()]) if (!seen.has(id)) _addonContent.delete(id);
@@ -1827,7 +1892,26 @@ function _makeServerHost(entry) {
       }
       return require(name);
     },
-    withLock: (fn) => withWriteLock(fn),   // serialize a critical section — NOT reentrant (don't nest host.data.write inside; it locks too)
+    // Serialize a critical section on the global write chain — NOT reentrant
+    // (don't nest host.data.write inside; it locks too). Watchdogged: the
+    // chain is a single point of failure for ALL editing server-wide, so an
+    // addon critical section that never settles (a latent deadlock, an
+    // await on the nested-lock mistake above) must not wedge it forever.
+    // After the timeout the chain moves on and the addon's promise rejects;
+    // the addon's own fn keeps running detached, which is unavoidable — the
+    // loud log tells the operator which addon to fix.
+    withLock: (fn) => withWriteLock(() => {
+      let timer = null;
+      const watchdog = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          console.error(`[addon ${id}] withLock critical section exceeded ${ADDON_LOCK_TIMEOUT_MS} ms — releasing the write chain. The addon has a hang/deadlock bug.`);
+          reject(new Error(`addon withLock timed out after ${ADDON_LOCK_TIMEOUT_MS} ms`));
+        }, ADDON_LOCK_TIMEOUT_MS);
+        if (timer.unref) timer.unref();
+      });
+      return Promise.race([Promise.resolve().then(fn), watchdog])
+        .finally(() => clearTimeout(timer));
+    }),
     broadcastDataChanged: () => _broadcastDataChanged(),
     log: (...args) => console.log(`[addon ${id}]`, ...args),
   };
@@ -1967,7 +2051,7 @@ async function _pruneAllAddonCode() {
 // blocks other clients' saves/snapshots. Returns a staging descriptor for
 // _promoteAddon; throws (400-worthy) on any validation miss.
 async function _stageAddon(repo, ref, pinnedSha) {
-  const token  = process.env.GITHUB_TOKEN || '';
+  const token  = _githubToken();
   const useRef = ref || 'HEAD';
   // Pin to the exact reviewed commit when the wizard passes the previewed sha
   // (so what installs == what the DM reviewed); otherwise resolve the ref now.
@@ -2075,10 +2159,12 @@ async function _promoteAddon(staged) {
   // The version record snapshots the structural manifest fields too, so a
   // rollback to this contentHash can restore the right entry/server/collections,
   // not just flip the code dir.
+  const _contentGroups = AddonBroker.normalizeContentGroups(manifest.contentGroups);
   const versionRec = {
     contentHash: hash, version: manifest.version, sha, installedAt: Date.now(),
     entry: manifest.entry, server: manifest.server || null,
     contentDir: manifest.contentDir || null,
+    contentGroups: _contentGroups,
     serverDeps: _serverDeps, collections: _collections,
     dependencies: _dependencies, optionalDependencies: _optionalDependencies,
   };
@@ -2090,6 +2176,8 @@ async function _promoteAddon(staged) {
       apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
       entry: manifest.entry, server: manifest.server || null,
       contentDir: manifest.contentDir || null,
+      contentGroups: _contentGroups,
+      disabledContentGroups: [],
       serverDeps: _serverDeps,
       activeHash: hash, versions: [versionRec],
       enabled: true, grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
@@ -2106,6 +2194,10 @@ async function _promoteAddon(staged) {
       apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
       entry: manifest.entry, server: manifest.server || null,
       contentDir: manifest.contentDir || null,
+      // The DM's disabledContentGroups toggle state survives updates; the
+      // DECLARATION follows the manifest (an update may add/drop/rename the
+      // grouping field — stale off-list ids then simply match nothing).
+      contentGroups: _contentGroups,
       serverDeps: _serverDeps,
       dependencies: _dependencies,
       optionalDependencies: _optionalDependencies,
@@ -2202,7 +2294,7 @@ app.post('/api/addons/resolve', requireRealDM('Jen DM může řešit konflikty d
 app.post('/api/addons/check-updates', requireRealDM('Jen DM může kontrolovat aktualizace.'), async (req, res) => {
   try {
     const reg   = await _readAddonsRegistry();
-    const token = process.env.GITHUB_TOKEN || '';
+    const token = _githubToken();
     const updates = [];
     for (const a of reg.addons) {
       if (!a || !a.repo || a.repo === 'local' || !AddonBroker.REPO_RE.test(a.repo)) {
@@ -2237,7 +2329,7 @@ app.post('/api/addons/check-updates', requireRealDM('Jen DM může kontrolovat a
 app.post('/api/addons/update-all', requireRealDM('Jen DM může aktualizovat doplňky.'), async (req, res) => {
   try {
     const reg   = await _readAddonsRegistry();
-    const token = process.env.GITHUB_TOKEN || '';
+    const token = _githubToken();
     const updated = [], skipped = [], errors = [];
     let serverChanged = false;
     for (const a of reg.addons) {
@@ -2305,6 +2397,7 @@ app.post('/api/addons/:id/rollback', requireRealDM('Jen DM může vracet verze d
       if (target.entry)                  entry.entry       = target.entry;
       if (target.server !== undefined)   entry.server      = target.server;
       if (target.contentDir !== undefined) entry.contentDir = target.contentDir;
+      if (target.contentGroups !== undefined) entry.contentGroups = target.contentGroups;
       if (Array.isArray(target.serverDeps))  entry.serverDeps  = target.serverDeps;
       if (Array.isArray(target.collections)) entry.collections = target.collections;
       if (target.dependencies)           entry.dependencies = target.dependencies;
@@ -2388,7 +2481,7 @@ app.post('/api/addons/preview', requireRealDM('Jen DM může instalovat doplňky
     return res.status(400).json({ error: 'Neplatná adresa (očekávám https://github.com/owner/name nebo owner/name).' });
   }
   try {
-    const token = process.env.GITHUB_TOKEN || '';
+    const token = _githubToken();
     const ref = String((req.body && req.body.ref) || parsed.ref || 'HEAD');
     const { sha, manifest } = await AddonBroker.fetchManifest(parsed.repo, ref, { fetch, token });
     const v = AddonBroker.validateManifest(manifest);
@@ -2447,6 +2540,45 @@ async function _setAddonEnabled(req, res, enabled) {
   }
 }
 
+// DM-only (realRole) content-group toggles: replace the addon's disabled
+// group list wholesale ({ disabled: string[] }). Content is hot — the
+// filtered tree rebuilds from the in-memory raw cache immediately and
+// data-changed pushes every client to refetch, so unticking "Monster
+// Manual" empties the bestiary mid-session with no restart. Only valid on
+// an addon whose manifest declares `contentGroups`; unknown group ids are
+// stored as-is (they match nothing — harmless, and forward-compatible with
+// a book the next update adds).
+app.post('/api/addons/:id/content-groups', requireRealDM('Jen DM může spravovat doplňky.'), async (req, res) => {
+  const id = String(req.params.id || '');
+  if (!AddonBroker.ID_RE.test(id)) return res.status(400).json({ error: 'Neplatné id doplňku.' });
+  const disabled = AddonBroker.normalizeDisabledContentGroups(req.body && req.body.disabled);
+  if (req.body && req.body.disabled !== undefined && !Array.isArray(req.body.disabled)) {
+    return res.status(400).json({ error: 'disabled musí být pole řetězců.' });
+  }
+  try {
+    const outcome = await withWriteLock(async () => {
+      const reg = await _readAddonsRegistry();
+      const entry = reg.addons.find(a => a.id === id);
+      if (!entry) return 'missing';
+      if (!entry.contentGroups || !entry.contentGroups.field) return 'no-groups';
+      entry.disabledContentGroups = disabled;
+      await _writeAddonsRegistry(reg);
+      _applyAddonContent(reg);       // re-filter from the cached raw tree, hot
+      return 'ok';
+    });
+    if (outcome === 'missing')   return res.status(404).json({ error: 'Doplněk nenalezen.' });
+    if (outcome === 'no-groups') return res.status(400).json({ error: 'Doplněk nedeklaruje contentGroups.' });
+    // Content changed for every viewer → both signals: addons-changed
+    // refreshes the Manager, data-changed makes content consumers refetch.
+    _broadcast('addons-changed', { at: Date.now() });
+    await _broadcastDataChanged();
+    res.json({ ok: true, id, disabled });
+  } catch (e) {
+    console.error('POST /api/addons/:id/content-groups:', e);
+    res.status(500).json({ error: 'Write error' });
+  }
+});
+
 // DM-only (realRole) remove an installed addon: drop it from the registry +
 // delete its code dir. Per-addon DATA (data/addon-data/<id>/) is KEPT unless
 // ?purge=1, so a re-install restores the addon's content.
@@ -2498,6 +2630,17 @@ app.delete('/api/addons/:id', requireRealDM('Jen DM může spravovat doplňky.')
  * Auth: none — read-only event stream.
  */
 app.get('/api/events', async (req, res) => {
+  // Connection caps. The endpoint is unauthenticated (read-only stream),
+  // so without a ceiling a script could open connections until the
+  // 512 MB container starves — each one holds a socket + a 25 s ping
+  // timer and every _broadcast iterates the whole set. Both limits are
+  // far above what a real table ever produces (a party is < 10 clients);
+  // the per-IP cap stays generous because a reverse proxy can funnel
+  // every legitimate client through one address.
+  if (_sseClients.size >= SSE_MAX_CLIENTS
+      || (_sseClientsByIp.get(req.ip) || 0) >= SSE_MAX_PER_IP) {
+    return res.status(503).json({ error: 'Too many event-stream connections' });
+  }
   res.set({
     'Content-Type':      'text/event-stream',
     'Cache-Control':     'no-cache, no-transform',
@@ -2513,6 +2656,8 @@ app.get('/api/events', async (req, res) => {
     res.write(`event: hello\ndata: ${JSON.stringify({ hash, at: Date.now() })}\n\n`);
   } catch (_) { return; }
   _sseClients.add(res);
+  const ip = req.ip;
+  _sseClientsByIp.set(ip, (_sseClientsByIp.get(ip) || 0) + 1);
 
   const ping = setInterval(() => {
     try { res.write(`: ping ${Date.now()}\n\n`); } catch (_) {}
@@ -2521,6 +2666,9 @@ app.get('/api/events', async (req, res) => {
   req.on('close', () => {
     clearInterval(ping);
     _sseClients.delete(res);
+    const n = (_sseClientsByIp.get(ip) || 0) - 1;
+    if (n > 0) _sseClientsByIp.set(ip, n);
+    else _sseClientsByIp.delete(ip);
   });
 });
 
@@ -2975,13 +3123,21 @@ app.get('/api/backup', requireAuth, (_req, res) => {
 // undoable from the Záloha tab. Path-traversal-safe: every entry
 // is resolved against DATA_DIR and rejected if it would escape.
 //
-// Uses disk-staged storage rather than memory: the container's 256 MB
-// memory limit can't absorb a 200 MB upload buffer, so multer writes
-// to the OS temp dir first and we read from there. 200 MB cap — backups
-// include portraits, world/local map images (world alone may be 40 MB)
-// and addon code, so the previous 50 MB cap could reject a legitimate
-// backup ZIP on disaster-recovery day (docs promise 200 MB).
-const AdmZip = require('adm-zip');
+// Fully disk-staged, never memory-buffered: multer writes the upload to
+// the OS temp dir, and extraction streams entry-by-entry via yauzl (the
+// central directory is walked lazily for the zip-bomb scan; each file then
+// pipes decompressed straight to disk). The container's memory limit can't
+// absorb a 200 MB archive any other way — the previous AdmZip path buffered
+// the whole archive PLUS each entry's decompressed bytes and could OOM the
+// 512 MB container on a perfectly legitimate backup. 200 MB upload cap —
+// backups include portraits, world/local map images (world alone may be
+// 40 MB) and addon code (docs promise 200 MB).
+const yauzl = require('yauzl');
+const { Transform } = require('node:stream');
+const { pipeline } = require('node:stream/promises');
+const RESTORE_MAX_ENTRIES     = 50000;               // tile pyramids can be many files
+const RESTORE_MAX_ENTRY_BYTES = 200 * 1024 * 1024;   // 200 MB per file
+const RESTORE_MAX_TOTAL_BYTES = 1024 * 1024 * 1024;  // 1 GB uncompressed total
 const restoreUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, os.tmpdir()),
@@ -2993,6 +3149,14 @@ const restoreUpload = multer({
 function _safeJoinDataDir(rel) {
   const resolved = _safeJoinIn(DATA_DIR, rel);
   if (!resolved) return null;
+  // `auth.json` is deployment config, not campaign data — same posture as
+  // snapshots (NON_DATA_JSON_FILES): restoring an old backup must never
+  // silently roll the password back to one the operator may no longer
+  // remember (the cookie secret rotates with it → instant lockout with no
+  // in-app recovery). The file still ships inside backup ZIPs; disaster
+  // recovery onto a fresh install goes through setup first, then restore.
+  const base = rel.replace(/\\/g, '/');
+  if (NON_DATA_JSON_FILES.has(base)) return null;
   // Defence-in-depth: snapshots now live in a sibling `data-snapshots/`
   // dir, so a restore ZIP cannot reach them through DATA_DIR — but if a
   // future refactor ever moves them back inside DATA_DIR, this guard
@@ -3008,6 +3172,102 @@ function _safeJoinDataDir(rel) {
   const codeRoot = path.resolve(ADDONS_DIR);
   if (resolved === codeRoot || resolved.startsWith(codeRoot + path.sep)) return null;
   return resolved;
+}
+
+// A restore-validation failure carrying a user-facing (Czech) message; the
+// handler turns it into a 400. Anything without `userMessage` is treated as
+// a broken/invalid archive.
+function _restoreErr(userMessage) {
+  const e = new Error(userMessage);
+  e.userMessage = userMessage;
+  return e;
+}
+
+// Walk a ZIP's entries lazily via yauzl — central-directory metadata only,
+// nothing decompressed unless `onEntry` opens a read stream itself. yauzl
+// also validates entry names (absolute paths, `..` segments, `\` — all
+// error out), which layers under _safeJoinDataDir's own checks.
+// `onOpen(zipfile)` runs once before iteration (entryCount checks);
+// `onEntry(entry, zipfile)` may be async; a throw/rejection aborts the walk.
+function _walkZipEntries(zipPath, onEntry, onOpen) {
+  return new Promise((resolve, reject) => {
+    yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
+      if (err) return reject(err);
+      let settled = false;
+      const fail = (e) => {
+        if (settled) return;
+        settled = true;
+        try { zipfile.close(); } catch (_) {}
+        reject(e);
+      };
+      zipfile.on('error', fail);
+      zipfile.on('end', () => { if (!settled) { settled = true; resolve(); } });
+      zipfile.on('entry', (entry) => {
+        Promise.resolve()
+          .then(() => onEntry(entry, zipfile))
+          .then(() => { if (!settled) zipfile.readEntry(); })
+          .catch(fail);
+      });
+      try { if (onOpen) onOpen(zipfile); } catch (e) { return fail(e); }
+      zipfile.readEntry();
+    });
+  });
+}
+
+// Pass 1 — zip-bomb scan BEFORE anything is written: too many entries, a
+// single absurdly large file, or an absurd total uncompressed size (all
+// from central-directory metadata; realistic backups stay far under).
+async function _scanZipForRestore(zipPath) {
+  let total = 0;
+  await _walkZipEntries(zipPath, (entry) => {
+    if (/\/$/.test(entry.fileName)) return;   // directory entry
+    const sz = entry.uncompressedSize || 0;
+    if (sz > RESTORE_MAX_ENTRY_BYTES) throw _restoreErr('ZIP obsahuje příliš velký soubor (možný zip bomb)');
+    total += sz;
+    if (total > RESTORE_MAX_TOTAL_BYTES) throw _restoreErr('ZIP je po rozbalení příliš velký (možný zip bomb)');
+  }, (zipfile) => {
+    if (zipfile.entryCount > RESTORE_MAX_ENTRIES) throw _restoreErr(`ZIP má příliš mnoho položek (> ${RESTORE_MAX_ENTRIES})`);
+  });
+}
+
+// Pass 2 — extract: each entry streams decompressed straight to its target
+// file (constant memory). Per-entry failures are skipped, not fatal —
+// matching the old behavior. A byte-counting limiter backstops the scan:
+// the LOCAL file data could disagree with the central directory's declared
+// size, so actual streamed bytes are capped too.
+async function _extractZipForRestore(zipPath) {
+  const restored = [];
+  const skipped  = [];
+  await _walkZipEntries(zipPath, async (entry, zipfile) => {
+    if (/\/$/.test(entry.fileName)) return;
+    // Normalize separators and strip the leading `data/` wrapper that
+    // /api/backup adds. Other zip producers may put files at the root.
+    let name = entry.fileName.replace(/\\/g, '/');
+    if (name.startsWith('data/')) name = name.slice(5);
+    if (!name) return;
+
+    const target = _safeJoinDataDir(name);
+    if (!target) { skipped.push(name); return; }
+    try {
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      const rs = await new Promise((res, rej) =>
+        zipfile.openReadStream(entry, (e, s) => (e ? rej(e) : res(s))));
+      let seen = 0;
+      const limiter = new Transform({
+        transform(chunk, _enc, cb) {
+          seen += chunk.length;
+          if (seen > RESTORE_MAX_ENTRY_BYTES) return cb(new Error('entry stream exceeded the size cap'));
+          cb(null, chunk);
+        },
+      });
+      await pipeline(rs, limiter, fs.createWriteStream(target));
+      restored.push(name);
+    } catch (e) {
+      console.warn('[restore] failed entry', name, e.message);
+      skipped.push(name);
+    }
+  });
+  return { restored, skipped };
 }
 
 /**
@@ -3055,63 +3315,19 @@ app.post('/api/restore', requireAuth, restoreUpload.single('backup'), (req, res)
       catch (e) { console.warn('[restore] pre-restore snapshot failed:', e.message); }
 
       if (isZip) {
-        let zip;
-        try { zip = new AdmZip(tmpPath); }
+        // Pass 1: zip-bomb scan (central directory only, nothing written).
+        try { await _scanZipForRestore(tmpPath); }
         catch (e) {
           await cleanup();
-          return res.status(400).json({ error: 'Neplatný ZIP soubor' });
+          return res.status(400).json({ error: e.userMessage || 'Neplatný ZIP soubor' });
         }
-
-        const entries  = zip.getEntries();
-
-        // Guard against zip bombs / pathological archives BEFORE extracting:
-        // too many entries, a single absurdly large file, or an absurd total
-        // uncompressed size. Realistic backups (JSON + already-compressed
-        // images + tile pyramids) stay far under these. `entry.header.size`
-        // is the uncompressed size, read from the central directory without
-        // decompressing anything.
-        const MAX_ENTRIES     = 50000;               // tile pyramids can be many files
-        const MAX_ENTRY_BYTES = 200 * 1024 * 1024;   // 200 MB per file
-        const MAX_TOTAL_BYTES = 1024 * 1024 * 1024;  // 1 GB uncompressed total
-        if (entries.length > MAX_ENTRIES) {
+        // Pass 2: streaming extraction (constant memory; per-entry failures
+        // are counted as skipped, a broken archive structure is a 400).
+        let restored, skipped;
+        try { ({ restored, skipped } = await _extractZipForRestore(tmpPath)); }
+        catch (e) {
           await cleanup();
-          return res.status(400).json({ error: `ZIP má příliš mnoho položek (> ${MAX_ENTRIES})` });
-        }
-        let _totalUncompressed = 0;
-        for (const entry of entries) {
-          if (entry.isDirectory) continue;
-          const sz = entry.header?.size || 0;
-          if (sz > MAX_ENTRY_BYTES) {
-            await cleanup();
-            return res.status(400).json({ error: 'ZIP obsahuje příliš velký soubor (možný zip bomb)' });
-          }
-          _totalUncompressed += sz;
-          if (_totalUncompressed > MAX_TOTAL_BYTES) {
-            await cleanup();
-            return res.status(400).json({ error: 'ZIP je po rozbalení příliš velký (možný zip bomb)' });
-          }
-        }
-
-        const restored = [];
-        const skipped  = [];
-        for (const entry of entries) {
-          if (entry.isDirectory) continue;
-          // Normalize separators and strip the leading `data/` wrapper that
-          // /api/backup adds. Other zip producers may put files at the root.
-          let name = entry.entryName.replace(/\\/g, '/');
-          if (name.startsWith('data/')) name = name.slice(5);
-          if (!name) continue;
-
-          const target = _safeJoinDataDir(name);
-          if (!target) { skipped.push(name); continue; }
-          try {
-            await fsp.mkdir(path.dirname(target), { recursive: true });
-            await fsp.writeFile(target, entry.getData());
-            restored.push(name);
-          } catch (e) {
-            console.warn('[restore] failed entry', name, e.message);
-            skipped.push(name);
-          }
+          return res.status(400).json({ error: e.userMessage || 'Neplatný ZIP soubor' });
         }
 
         // The restored ZIP may carry a different data/addons.json —

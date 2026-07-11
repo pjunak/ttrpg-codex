@@ -58,6 +58,12 @@ const REPO_RE = /^[A-Za-z0-9_.-]{1,39}\/[A-Za-z0-9_.-]{1,100}$/;
 // clear of `__proto__`-style keys when a collection is keyed-object.
 const COLLECTION_NAME_RE = /^[a-z0-9][a-z0-9_]{0,39}$/;
 
+// Manifest `contentGroups.field` — the record property a content addon
+// (`contentDir`) buckets its records by (e.g. "book" for sourcebooks), so the
+// DM can toggle whole groups off. Plain identifier grammar: the field is used
+// as a bare property lookup on every record, never as a path.
+const CONTENT_GROUP_FIELD_RE = /^[a-zA-Z0-9_]{1,40}$/;
+
 // The wire `type` + on-disk identity for an addon-owned collection. Colon-
 // namespaced under the addon id so it can never collide with a built-in
 // collection (none contain a colon) or with another addon's collection.
@@ -90,6 +96,35 @@ function normalizeCollections(raw) {
   return out;
 }
 
+// Coerce a manifest `contentGroups` value into `{ field, label }` or null.
+// Never throws — a malformed declaration simply doesn't group (the strict
+// `validateManifest` below is what surfaces it as an error to the DM). Used
+// both at promote time (manifest → registry) and by normalizeRegistry (a
+// registry can arrive from a restore ZIP, so shapes are re-checked on read).
+function normalizeContentGroups(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const field = typeof raw.field === 'string' ? raw.field : '';
+  if (!CONTENT_GROUP_FIELD_RE.test(field)) return null;
+  const label = typeof raw.label === 'string' ? raw.label.slice(0, 60) : '';
+  return { field, label };
+}
+
+// Coerce a registry `disabledContentGroups` value into a clean, de-duped list
+// of group ids (the DM's per-addon off-list). Group ids are String(record
+// [field]) values — free-form content strings, so only length + type are
+// constrained. Never throws; junk entries are dropped.
+function normalizeDisabledContentGroups(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const v of raw) {
+    if (typeof v !== 'string' || !v || v.length > 80 || seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out;
+}
+
 /** The empty registry shape written on first install. */
 function defaultRegistry() {
   return { schema: REGISTRY_SCHEMA, addons: [], resolutions: {}, sources: { allow: [] } };
@@ -104,6 +139,17 @@ function normalizeRegistry(parsed) {
   reg.resolutions = (reg.resolutions && typeof reg.resolutions === 'object' && !Array.isArray(reg.resolutions)) ? reg.resolutions : {};
   reg.sources     = (reg.sources && typeof reg.sources === 'object' && !Array.isArray(reg.sources)) ? reg.sources : {};
   reg.sources.allow = Array.isArray(reg.sources.allow) ? reg.sources.allow.filter(s => typeof s === 'string') : [];
+  // Per-addon content-group state: `contentGroups` (the manifest declaration
+  // carried into the registry at promote) and `disabledContentGroups` (the
+  // DM's off-list). Both re-validated on every read — a registry may arrive
+  // from a restore ZIP, and downstream consumers (_applyAddonContent /
+  // _publicAddonList in server.js) rely on these shapes without re-checking.
+  for (const a of reg.addons) {
+    if (!a || typeof a !== 'object') continue;
+    const cg = normalizeContentGroups(a.contentGroups);
+    if (cg) a.contentGroups = cg; else delete a.contentGroups;
+    a.disabledContentGroups = normalizeDisabledContentGroups(a.disabledContentGroups);
+  }
   return reg;
 }
 
@@ -142,6 +188,22 @@ function validateManifest(m) {
   // /api/addon/<id>/{content,content/:kind,item/:kind/:id,kinds}.
   if (m.contentDir !== undefined && (typeof m.contentDir !== 'string' || !m.contentDir.trim() || !_safeRel(m.contentDir))) {
     errors.push('contentDir, if set, must be a relative directory path inside the addon');
+  }
+  // Optional content-group declaration for contentDir addons: the record
+  // field whose value buckets records into DM-toggleable groups (e.g. a
+  // rulebook's `book` field → per-sourcebook on/off switches).
+  if (m.contentGroups !== undefined) {
+    const cg = m.contentGroups;
+    if (!cg || typeof cg !== 'object' || Array.isArray(cg)) {
+      errors.push('contentGroups must be an object { field, label? }');
+    } else {
+      if (typeof cg.field !== 'string' || !CONTENT_GROUP_FIELD_RE.test(cg.field)) {
+        errors.push('contentGroups.field must match ^[a-zA-Z0-9_]{1,40}$');
+      }
+      if (cg.label !== undefined && (typeof cg.label !== 'string' || cg.label.length > 60)) {
+        errors.push('contentGroups.label must be a string of at most 60 characters');
+      }
+    }
   }
   if (m.serverDeps !== undefined &&
       (!Array.isArray(m.serverDeps) || m.serverDeps.some(d => typeof d !== 'string'))) {
@@ -338,6 +400,17 @@ function extractZip(buffer, AdmZip, limits) {
   return out;
 }
 
+// GitHub answers 404 (not 403) for a private repo hit anonymously, so a DM
+// installing from a private repo without a server token sees a misleading
+// "not found" for a repo they know exists. When a fetch 404s AND no token is
+// configured, extend the error with the operator hint. Never echoes the
+// token (or anything else request-derived beyond repo + status).
+function _privateRepoHint(status, token) {
+  return (status === 404 && !token)
+    ? ' — pokud je repozitář privátní, nastav na serveru CODEX_GITHUB_TOKEN'
+    : '';
+}
+
 /**
  * Resolve a git ref (branch/tag/sha) to a full commit SHA via the
  * GitHub API. Pins the install to an immutable commit.
@@ -352,7 +425,7 @@ async function resolveRefToSha(repo, ref, { fetch, token } = {}) {
   const headers = { Accept: 'application/vnd.github.sha', 'User-Agent': 'ttrpg-codex-addons' };
   if (token) headers.Authorization = `Bearer ${token}`;
   const r = await fetch(url, { headers, signal: AbortSignal.timeout(GH_FETCH_TIMEOUT_MS) });
-  if (!r.ok) throw new Error(`GitHub ref resolve failed (${r.status}) for ${repo}@${ref}`);
+  if (!r.ok) throw new Error(`GitHub ref resolve failed (${r.status}) for ${repo}@${ref}${_privateRepoHint(r.status, token)}`);
   const sha = (await r.text()).trim();
   if (!/^[0-9a-f]{40}$/i.test(sha)) throw new Error('GitHub returned an unexpected SHA');
   return sha.toLowerCase();
@@ -371,7 +444,7 @@ async function fetchZipball(repo, sha, { fetch, token } = {}) {
   const headers = { 'User-Agent': 'ttrpg-codex-addons' };
   if (token) headers.Authorization = `Bearer ${token}`;
   const r = await fetch(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(GH_FETCH_TIMEOUT_MS) });
-  if (!r.ok) throw new Error(`GitHub zipball fetch failed (${r.status}) for ${repo}@${sha}`);
+  if (!r.ok) throw new Error(`GitHub zipball fetch failed (${r.status}) for ${repo}@${sha}${_privateRepoHint(r.status, token)}`);
   const ab = await r.arrayBuffer();
   return Buffer.from(ab);
 }
@@ -390,7 +463,7 @@ async function fetchManifest(repo, ref, { fetch, token } = {}) {
   const headers = { Accept: 'application/vnd.github.raw', 'User-Agent': 'ttrpg-codex-addons' };
   if (token) headers.Authorization = `Bearer ${token}`;
   const r = await fetch(url, { headers, signal: AbortSignal.timeout(GH_FETCH_TIMEOUT_MS) });
-  if (!r.ok) throw new Error(`addon.json se nepodařilo načíst (${r.status})`);
+  if (!r.ok) throw new Error(`addon.json se nepodařilo načíst (${r.status})${_privateRepoHint(r.status, token)}`);
   let manifest;
   try { manifest = JSON.parse(await r.text()); }
   catch { throw new Error('addon.json není platný JSON'); }
@@ -404,8 +477,11 @@ module.exports = {
   ID_RE,
   REPO_RE,
   COLLECTION_NAME_RE,
+  CONTENT_GROUP_FIELD_RE,
   defaultRegistry,
   normalizeRegistry,
+  normalizeContentGroups,
+  normalizeDisabledContentGroups,
   validateManifest,
   matchRepoRule,
   isAllowed,
