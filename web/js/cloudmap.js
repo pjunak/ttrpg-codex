@@ -2071,6 +2071,14 @@ export const CloudMap = (() => {
   // arrangement persists and the integrator holds it until the user drags.
   function _runDagreLayout() {
     if (!_cy || _currentMode !== 'frakce' || _cy.nodes().empty()) return;
+    // The dagre layout comes from the cytoscape-dagre CDN plugin; if that
+    // script failed to load (offline self-host, CDN outage) `_cy.layout`
+    // throws "No such layout". Degrade to a no-op instead of an uncaught
+    // error from the toolbar button.
+    if (typeof cytoscapeDagre === 'undefined') {
+      console.warn('cloudmap: cytoscape-dagre plugin not loaded — hierarchy layout unavailable');
+      return;
+    }
     _physSnapshotForUndo();
     // Rank on the STRUCTURAL hierarchy only: hub→member (`mbr_`), hub→location
     // (`loc_`), and command chains (`*-commands`). Lateral cross-faction edges
@@ -2375,8 +2383,20 @@ export const CloudMap = (() => {
   // ── Right-click context menu ─────────────────────────────────
   // Singleton menu element appended to <body>; rebuilt per invocation.
   let _ctxMenu = null;
+  // Document/window dismiss handlers for the OPEN menu. Kept module-level
+  // so every close path (_hideCtxMenu on re-open, navigation _destroy,
+  // cxttap on empty canvas) detaches them — previously only the dismiss
+  // closure itself removed them, so non-dismiss closes leaked a stale
+  // handler that could instantly close the NEXT menu.
+  let _ctxDismissers = null;
 
   function _hideCtxMenu() {
+    if (_ctxDismissers) {
+      document.removeEventListener('mousedown', _ctxDismissers.dismiss);
+      document.removeEventListener('keydown',   _ctxDismissers.onEsc);
+      window.removeEventListener('blur',        _ctxDismissers.offBlur);
+      _ctxDismissers = null;
+    }
     if (_ctxMenu) { _ctxMenu.remove(); _ctxMenu = null; }
   }
 
@@ -2467,17 +2487,19 @@ export const CloudMap = (() => {
     _ctxMenu.style.left = Math.max(4, cx) + 'px';
     _ctxMenu.style.top  = Math.max(4, cy) + 'px';
 
-    // One-shot dismiss on next outside click / Esc / scroll
+    // One-shot dismiss on next outside click / Esc / scroll. Removal
+    // happens centrally in _hideCtxMenu (which every close path calls).
+    const menuAtRegistration = _ctxMenu;
     setTimeout(() => {
+      // The menu may already have been replaced/closed within this tick.
+      if (_ctxMenu !== menuAtRegistration) return;
       const dismiss = (e) => {
         if (_ctxMenu && _ctxMenu.contains(e.target)) return;
         _hideCtxMenu();
-        document.removeEventListener('mousedown', dismiss);
-        document.removeEventListener('keydown',   onEsc);
-        window.removeEventListener('blur',        offBlur);
       };
       const onEsc = (e) => { if (e.key === 'Escape') dismiss(e); };
       const offBlur = () => dismiss({ target: document.body });
+      _ctxDismissers = { dismiss, onEsc, offBlur };
       document.addEventListener('mousedown', dismiss);
       document.addEventListener('keydown',   onEsc);
       window.addEventListener('blur',        offBlur);

@@ -419,6 +419,21 @@ export function iconGlyph(name, opts = {}) {
 }
 
 /**
+ * Guard a user-editable color before interpolating it into a `style`
+ * attribute. Enum records (attitudes, statuses, factions…) hold arbitrary
+ * text, and `esc()` only prevents attribute breakout — not CSS declaration
+ * injection (`red;background-image:url(...)`). Only a real hex color makes
+ * it through; anything else gets `fallback`. Callers that append an alpha
+ * suffix (`${color}22`) should pass a hex fallback like `'#888'`.
+ *
+ * @param {string} c        candidate color (user data)
+ * @param {string} fallback returned when `c` isn't a hex color
+ */
+export function safeColor(c, fallback = 'var(--text-muted)') {
+  return /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : fallback;
+}
+
+/**
  * Announce a short status message to screen readers via ONE host-owned,
  * persistent, visually-hidden polite live region ("N matches", "3 pts
  * left"). The point of it being host-owned: pages and addon routes re-render

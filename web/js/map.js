@@ -2,7 +2,7 @@ import { Store } from './store.js';
 import { Widgets } from './widgets/widgets.js';
 import { EditTemplates } from './edit_templates.js';
 import { Role } from './role.js';
-import { esc, dataAction, dataOn, pageEditToggle } from './utils.js';
+import { esc, dataAction, dataOn, pageEditToggle, announce, safeColor } from './utils.js';
 import { I18n } from './i18n.js';
 import { Addons } from './addons.js';
 
@@ -434,11 +434,9 @@ export const WorldMap = (() => {
   // Validate a CSS colour before it lands in an inline style attribute.
   // Attitude `labelColor`/`bg` come from user-editable settings, so a
   // crafted value like `red"><script>` must not break out of the style
-  // string. Only `#rgb`..`#rrggbbaa` literals pass; anything else falls
-  // back to a neutral theme token.
-  function _safeColor(c) {
-    return /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : 'var(--text-muted)';
-  }
+  // string. Delegates to the shared utils.safeColor — one implementation
+  // for every module that inlines user-editable colors into styles.
+  const _safeColor = safeColor;
 
   // Glow helpers — one drop-shadow per active attitude, alpha = strength.
   // Tiny markers use a smaller blur than wiki cards (`blurPx` arg).
@@ -1882,7 +1880,7 @@ export const WorldMap = (() => {
     if (!leg) return;
     leg.innerHTML = `
       <div class="legend-title">${esc(I18n.t('map.legendAttitude'))}</div>
-      ${(Store.getEnum('attitudes') || []).map(v =>
+      ${(Store.getKinds('attitudes') || []).map(v =>
         `<div class="legend-item">
           <div class="legend-dot" style="background:${_safeColor(v.labelColor || v.bg)};box-shadow:0 0 0 1px rgba(0,0,0,0.4)"></div>
           ${esc(v.label)}
@@ -1932,6 +1930,7 @@ export const WorldMap = (() => {
     const el = _searchResultsEl();
     if (!el) return;
     const hits = _searchMatches(q);
+    if (String(q || '').trim()) announce(I18n.plural('a11y.matchCount', hits.length));
     if (!hits.length) { el.innerHTML = ''; _hideSearchResults(); return; }
     el.innerHTML = hits.map(p => {
       const pt = PIN_TYPES[p.type] || PIN_TYPES.custom;

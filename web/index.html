@@ -103,6 +103,12 @@
       <span class="bottom-icon">🛡</span>
       <span class="bottom-label" data-i18n="nav.party">Party</span>
     </a>
+    <!-- Opens the map-mode sheet below (Map / Mind Palace / Timeline)
+         unless already on a map route — wired in app.js. -->
+    <a href="#/mapa/svet" class="bottom-item" data-route="/mapa/svet">
+      <span class="bottom-icon">🗺</span>
+      <span class="bottom-label" data-i18n="nav.map">Map</span>
+    </a>
     <a href="#/casova-osa" class="bottom-item" data-route="/casova-osa">
       <span class="bottom-icon">⏳</span>
       <span class="bottom-label" data-i18n="nav.timeline">Timeline</span>
@@ -145,7 +151,8 @@
           integrity="sha384-K+k+ywfDuvV9dwg+bwsVE0WGkrTnqFamaER+ydBgMFQTtlI0jdI9no9AjkQHwh/T"
           crossorigin="anonymous"></script>
   <!-- cytoscape-dagre 4 bundles @dagrejs/dagre, so no standalone dagre script.
-       The dagre layout is registered defensively in app.js but unused. -->
+       The plugin's UMD build exposes `cytoscapeDagre`; app.js registers it
+       explicitly and cloudmap's hierarchy layout guards for its absence. -->
   <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@4.0.0/dist/cytoscape-dagre.min.js"
           integrity="sha384-ZB0G8+HSDcFhSFvwJP3rhJhh2sU/lJrfRrhqis4Gg7pP/CQ2IUzl86Gdlu3S17UF"
           crossorigin="anonymous"></script>

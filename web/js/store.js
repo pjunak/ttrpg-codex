@@ -780,7 +780,10 @@ export const Store = (() => {
    * `_sync` calls become no-ops until the page is reloaded with a
    * working server.
    *
-   * @returns {Promise<void>}
+   * @returns {Promise<boolean>} `true` when the dataset was (re)loaded
+   *   from the server; `false` when the fetch failed and the in-memory
+   *   data was kept/defaulted. Callers that latch state on "I now hold
+   *   the server's version X" (app.js `_lastHash`) must check this.
    * @fires window#store:server-unavailable
    */
   async function load() {
@@ -873,14 +876,14 @@ export const Store = (() => {
             for (const c of questionsMig.characters) _sync('characters', 'save', c);
           }
           _reindex();
-          return;
+          return true;
         }
         // Empty server: keep defaults locally; the first user edit
         // will lazily create files server-side via the per-entity
         // PATCH path. No bulk wipe necessary.
         _data = _defaults();
         _reindex();
-        return;
+        return true;
       }
     } catch (e) {
       console.error('Store: server not reachable.', e);
@@ -892,12 +895,13 @@ export const Store = (() => {
     // with an empty one and silently disable all syncing until reload.
     if (_loadedOnce) {
       console.warn('Store: refetch failed — keeping current in-memory data.');
-      return;
+      return false;
     }
     _serverAvailable = false;
     _data = _defaults();
     _reindex();
     window.dispatchEvent(new CustomEvent('store:server-unavailable'));
+    return false;
   }
 
   function init() {
@@ -944,12 +948,20 @@ export const Store = (() => {
 
   function _sync(type, action, payload) {
     if (!_serverAvailable) return false;
+    // Snapshot the payload NOW. The queue serializes requests, so the
+    // JSON.stringify in _patchOnce may run several writes later — by then
+    // an in-place mutation of the same live object (peer location moves,
+    // pet orphaning) would make this EARLIER patch silently carry the
+    // LATER state, undermining the ordering guarantee above.
+    const body = (payload && typeof payload === 'object')
+      ? JSON.parse(JSON.stringify(payload))
+      : payload;
     _setInflight(_inflightCount + 1);
     _writeChain = _writeChain.then(async () => {
       let lastErr = null;
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-          const r = await _patchOnce(type, action, payload);
+          const r = await _patchOnce(type, action, body);
           if (r.ok) return;
           if (r.terminal) {
             if (r.status !== 401) {
@@ -2848,14 +2860,16 @@ export const Store = (() => {
   /**
    * Serialise the entire dataset to a JSON string, suitable for
    * `/api/restore` upload or out-of-band backup. Includes every
-   * collection plus the `deletedDefaults` tombstone map.
+   * collection (campaign + addon-owned ones too — the restore endpoint
+   * iterates its ALL_TYPES for whatever keys are present) plus the
+   * `deletedDefaults` tombstone map.
    *
    * @returns {string}
    */
   function exportJSON() {
     init();
     const ts = I18n.formatDate(Date.now(), { dateStyle: 'medium', timeStyle: 'medium' });
-    return JSON.stringify({
+    const out = {
       _version:         5,
       _exported:        ts,
       factions:         _data.factions,
@@ -2869,8 +2883,13 @@ export const Store = (() => {
       historicalEvents: _data.historicalEvents || [],
       pets:             _data.pets             || [],
       settings:         _data.settings         || {},
+      campaign:         _data.campaign         || {},
       deletedDefaults:  _data.deletedDefaults  || {},
-    }, null, 2);
+    };
+    for (const [k, v] of Object.entries(_data)) {
+      if (k.startsWith('addon:')) out[k] = v;
+    }
+    return JSON.stringify(out, null, 2);
   }
 
   return {

@@ -1,4 +1,8 @@
 {
+  "a11y.matchCount": {
+    "one": "{n} match",
+    "other": "{n} matches"
+  },
   "action.add": "Add",
   "action.back": "Back",
   "action.cancel": "Cancel",
@@ -14,6 +18,7 @@
   "action.editStopTitle": "Turn off editing",
   "action.login": "Log in",
   "action.logout": "Log out",
+  "action.refresh": "Refresh",
   "action.remove": "Remove",
   "action.restore": "Restore",
   "action.save": "Save",
@@ -592,6 +597,9 @@
   "settings.checkUpdatesFirst": "Check for updates first",
   "settings.checkingUpdates": "Checking for updates…",
   "settings.chipActive": "active",
+  "settings.contentGroups": "Content",
+  "settings.contentGroupsHint": "Untick a group to hide its records everywhere — browse, links, dependent add-ons. Re-tick any time; nothing is deleted.",
+  "settings.contentGroupsSaved": "Content selection saved.",
   "settings.chipBlocked": "blocked",
   "settings.chipDisabled": "disabled",
   "settings.chipError": "error",

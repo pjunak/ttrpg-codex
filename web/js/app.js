@@ -241,7 +241,13 @@ document.addEventListener('click', (ev) => {
 (function () {
 
   // ── Register Cytoscape plugins ──────────────────────────────
-  if (typeof cytoscape !== "undefined" && typeof dagre !== "undefined") {
+  // cytoscape-dagre 4 bundles @dagrejs/dagre and its UMD build exposes a
+  // `cytoscapeDagre` global — there is no standalone `dagre` global (the
+  // old `typeof dagre` check was never true, and registration only worked
+  // because the UMD wrapper auto-registers against the `cytoscape` global).
+  // Register explicitly so the layout also works if that auto-registration
+  // behavior ever changes.
+  if (typeof cytoscape !== "undefined" && typeof cytoscapeDagre !== "undefined") {
     try { cytoscape.use(cytoscapeDagre); } catch(e) {}
   }
 
@@ -572,8 +578,13 @@ document.addEventListener('click', (ev) => {
   async function _applyRemoteChange(hash) {
     // Skip only if we already have this exact hash; null means "unknown, refetch anyway"
     if (hash !== null && _lastHash !== null && hash === _lastHash) return;
-    if (hash !== null) _lastHash = hash;
-    await Store.load();
+    // Latch the hash only AFTER a successful refetch. Latching before
+    // meant a failed reload (network blip — Store.load keeps old data)
+    // still marked the new hash as "applied", so the SSE hello after
+    // reconnect and duplicate data-changed events were skipped and the
+    // tab stayed stale until some *different* write came along.
+    const loaded = await Store.load();
+    if (hash !== null && loaded !== false) _lastHash = hash;
     Sidebar.render();
     Settings.applyBranding();
     Settings.applyTheme();
@@ -978,8 +989,10 @@ document.addEventListener('click', (ev) => {
     // Backup button is a plain <a href="/api/backup"> — no JS wiring needed.
     // It's only visible in edit mode (CSS .edit-only-btn).
 
-    // Mobile map sheet
-    const mapItems = document.querySelectorAll('.bottom-item[data-route="/mapa/frakce"]');
+    // Mobile map sheet — the bottom-nav Map item opens the mode chooser
+    // (Map / Mind Palace / Timeline) instead of navigating, unless the
+    // user is already on a map route (then it's a plain link to /mapa/svet).
+    const mapItems = document.querySelectorAll('.bottom-item[data-route="/mapa/svet"]');
     mapItems.forEach(item => {
       item.addEventListener("click", e => {
         if (!getRoute().startsWith("/mapa")) { e.preventDefault(); showMapSheet(); }

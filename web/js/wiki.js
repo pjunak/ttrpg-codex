@@ -12,7 +12,7 @@
 import { Store } from './store.js';
 import { EditMode } from './editmode.js';
 import { Role } from './role.js';
-import { norm, esc, renderMarkdown, extractOutline, humanTime, dataAction, dataOn, breadcrumbNav } from './utils.js';
+import { norm, esc, renderMarkdown, extractOutline, humanTime, dataAction, dataOn, breadcrumbNav, announce, safeColor } from './utils.js';
 import { PIN_TYPES, WorldMap } from './map.js';
 import { Addons } from './addons.js';
 // Connection-kind labels come from Store.getKind('connections', id).label.
@@ -299,7 +299,7 @@ export const Wiki = (() => {
   function _attitudeColorMap() {
     const map = {};
     for (const a of Store.getKinds('attitudes') || []) {
-      map[a.id] = a.labelColor || a.bg || '#888';
+      map[a.id] = _safeColor(a.labelColor || a.bg, '#888');
     }
     // Synthetic 'party' entry — sourced from settings.playerParty so
     // the party glow stays editable in one place; the attitudes enum
@@ -401,10 +401,10 @@ export const Wiki = (() => {
   /** Validate a CSS colour: only `#rgb`..`#rrggbbaa` literals pass;
    *  anything else (including attribute-breakout attempts) collapses to
    *  a neutral theme token. The `${c}22`/`55` alpha-hex suffix pattern
-   *  still works because it's appended to the validated literal. */
-  function _safeColor(c) {
-    return /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : 'var(--text-muted)';
-  }
+   *  still works because it's appended to the validated literal.
+   *  Delegates to the shared utils.safeColor — one implementation for
+   *  every module that inlines user-editable colors into styles. */
+  const _safeColor = safeColor;
 
   // Null-safe: renders an "unknown faction" chip when the id doesn't
   // resolve to any faction (e.g. a character referencing a deleted
@@ -1199,14 +1199,14 @@ export const Wiki = (() => {
     // so a member of an `enemy` faction with empty own-attitudes shows
     // up under the Nepřítel filter without any explicit per-character
     // attitude. Party PCs always carry an effective `party` entry.
-    const attEnum = Store.getEnum('attitudes') || [];
+    const attEnum = Store.getKinds('attitudes') || [];
     const activeAtt = _listState.postavy.attitude || null;
     const attFilters = attEnum.map(a => {
       const n = allChars.filter(c =>
         Store.getEffectiveAttitudes(c, 'character').some(e => e.id === a.id)
       ).length;
       if (n === 0) return "";
-      const color = a.labelColor || a.bg || '#888';
+      const color = _safeColor(a.labelColor || a.bg, '#888');
       return `<button class="filter-btn filter-btn-attitude ${activeAtt === a.id ? 'active' : ''}"
         style="--attitude-color: ${esc(color)}"
         ${dataAction('Wiki.setPostavyAttitude', a.id)}>●&nbsp;${esc(a.label)} (${n})</button>`;
@@ -1310,7 +1310,11 @@ export const Wiki = (() => {
     if (!cfg) return;
     const sub = document.querySelector('.page-header .subtitle');
     if (!sub) return;
-    sub.textContent = cfg.countText(cfg.shown(), cfg.total());
+    const text = cfg.countText(cfg.shown(), cfg.total());
+    sub.textContent = text;
+    // The subtitle repaint is invisible to AT — mirror it through the
+    // host live region so filter changes announce their result count.
+    announce(text);
   }
 
   /**
@@ -1417,11 +1421,11 @@ export const Wiki = (() => {
     let attitudeChips = '';
     const articleEntries = Store.getEffectiveAttitudes(c, 'character');
     if (c.knowledge >= 2) {
-      const attEnum = Store.getEnum('attitudes') || [];
+      const attEnum = Store.getKinds('attitudes') || [];
       attitudeChips = articleEntries.map(e => {
         const def = attEnum.find(a => a.id === e.id);
         if (!def) return '';
-        const color = def.labelColor || def.bg || '#888';
+        const color = _safeColor(def.labelColor || def.bg, '#888');
         // Strength now lives on the enum item itself, not the entry.
         const s = (typeof def.strength === 'number') ? def.strength : 1.0;
         const pct = s === 1.0 ? '' : ` ${Math.round(s * 100)}%`;
@@ -1644,7 +1648,7 @@ export const Wiki = (() => {
     // getEffectiveAttitudes so the filter agrees with what the cards
     // actually render (locations always use their own array; this is
     // really just a defensive equivalence).
-    const attEnum = Store.getEnum('attitudes') || [];
+    const attEnum = Store.getKinds('attitudes') || [];
     const activeAtt = _listState.mista.attitude || null;
     const allLocs = Store.getLocations();
     const attFilters = attEnum.map(a => {
@@ -1652,7 +1656,7 @@ export const Wiki = (() => {
         Store.getEffectiveAttitudes(l, 'location').some(e => e.id === a.id)
       ).length;
       if (count === 0) return '';
-      const color = a.labelColor || a.bg || '#888';
+      const color = _safeColor(a.labelColor || a.bg, '#888');
       return `<button class="filter-btn filter-btn-attitude ${activeAtt === a.id ? 'active' : ''}"
         style="--attitude-color: ${esc(color)}"
         ${dataAction('Wiki.setMistaAttitude', a.id)}>●&nbsp;${esc(a.label)} (${count})</button>`;
@@ -1763,11 +1767,11 @@ export const Wiki = (() => {
     // with strength % when ≠ 100.
     const locColors  = _attitudeColorMap();
     const locEntries = Store.getEffectiveAttitudes(l, 'location');
-    const locAttEnum = Store.getEnum('attitudes') || [];
+    const locAttEnum = Store.getKinds('attitudes') || [];
     for (const e of locEntries) {
       const def = locAttEnum.find(a => a.id === e.id);
       if (!def) continue;
-      const color = def.labelColor || def.bg || '#888';
+      const color = _safeColor(def.labelColor || def.bg, '#888');
       const s = (typeof def.strength === 'number') ? def.strength : 1.0;
       const pct = s === 1.0 ? '' : ` ${Math.round(s * 100)}%`;
       chips.push(`<span class="badge badge-attitude"
@@ -2247,11 +2251,11 @@ export const Wiki = (() => {
     // Faction-level attitude chips + glow on the badge.
     const facColors  = _attitudeColorMap();
     const facEntries = Store.getEffectiveAttitudes(f, 'faction');
-    const facAttEnum = Store.getEnum('attitudes') || [];
+    const facAttEnum = Store.getKinds('attitudes') || [];
     for (const e of facEntries) {
       const def = facAttEnum.find(a => a.id === e.id);
       if (!def) continue;
-      const color = def.labelColor || def.bg || '#888';
+      const color = _safeColor(def.labelColor || def.bg, '#888');
       const s = (typeof def.strength === 'number') ? def.strength : 1.0;
       const pct = s === 1.0 ? '' : ` ${Math.round(s * 100)}%`;
       chips.push(`<span class="badge badge-attitude"
@@ -2463,6 +2467,7 @@ export const Wiki = (() => {
       ].filter(Boolean),
       body: `<div class="md-view">${renderMarkdown(g.description)}</div>`,
       outlineSource: g.description || '',
+      kind: 'pantheon', entity: g,
     });
   }
 
@@ -2520,6 +2525,7 @@ export const Wiki = (() => {
       ].filter(Boolean),
       body: `<div class="md-view">${renderMarkdown(a.description)}</div>`,
       outlineSource: a.description || '',
+      kind: 'artifacts', entity: a,
     });
   }
 
@@ -2607,6 +2613,7 @@ export const Wiki = (() => {
       ].filter(Boolean),
       body: `<div class="md-view">${renderMarkdown(h.body)}</div>`,
       outlineSource: h.body || '',
+      kind: 'historicalEvents', entity: h,
     });
   }
 

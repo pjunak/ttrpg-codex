@@ -1,7 +1,7 @@
 import { Store } from './store.js';
 import { PIN_TYPES, PIN_SIZE_MIN, PIN_SIZE_MAX } from './map.js';
 // Relationship/connection kinds come from Store.getKinds('connections').
-import { esc, dataAction, dataOn } from './utils.js';
+import { esc, dataAction, dataOn, safeColor } from './utils.js';
 import { I18n } from './i18n.js';
 
 export const EditTemplates = (() => {
@@ -19,7 +19,7 @@ export const EditTemplates = (() => {
    *  entity, so chips carry no per-chip sliders. Read back
    *  via `EditMode._readAttitudeChipRow(rowId)`. */
   function _attitudeChipRow(rowId, currentEntries) {
-    const enums = Store.getEnum('attitudes') || [];
+    const enums = Store.getKinds('attitudes') || [];
     // Tolerate the legacy `[{id, strength}]` and string-array shapes
     // so the editor doesn't wipe data if someone hits Save before
     // migrations finish on a very fresh install. The strength field
@@ -31,7 +31,7 @@ export const EditTemplates = (() => {
     }
     const items = enums.map(a => {
       const checked = checkedIds.has(a.id);
-      const color   = a.labelColor || a.bg || '#888';
+      const color   = safeColor(a.labelColor || a.bg, '#888');
       return `
         <div class="attitude-chip-item" data-att-id="${esc(a.id)}" style="--attitude-color: ${esc(color)}">
           <label class="attitude-chip">

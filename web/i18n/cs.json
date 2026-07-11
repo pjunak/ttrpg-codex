@@ -1,4 +1,9 @@
 {
+  "a11y.matchCount": {
+    "one": "{n} výsledek",
+    "few": "{n} výsledky",
+    "other": "{n} výsledků"
+  },
   "action.add": "Přidat",
   "action.back": "Zpět",
   "action.cancel": "Zrušit",
@@ -14,6 +19,7 @@
   "action.editStopTitle": "Vypnout úpravy",
   "action.login": "Přihlásit",
   "action.logout": "Odhlásit",
+  "action.refresh": "Obnovit seznam",
   "action.remove": "Odebrat",
   "action.restore": "Obnovit",
   "action.save": "Uložit",
@@ -610,6 +616,9 @@
   "settings.checkUpdatesFirst": "Nejdřív zkontroluj aktualizace",
   "settings.checkingUpdates": "Kontroluji aktualizace…",
   "settings.chipActive": "aktivní",
+  "settings.contentGroups": "Obsah",
+  "settings.contentGroupsHint": "Odškrtnutím skupinu skryješ všude — v prohlížení, odkazech i závislých doplňcích. Kdykoli lze znovu zapnout; nic se nemaže.",
+  "settings.contentGroupsSaved": "Výběr obsahu uložen.",
   "settings.chipBlocked": "blokováno",
   "settings.chipDisabled": "vypnuto",
   "settings.chipError": "chyba",

@@ -6,7 +6,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { Store } from './store.js';
-import { esc, norm, debounce, trapFocus } from './utils.js';
+import { esc, norm, debounce, trapFocus, announce } from './utils.js';
 import { I18n } from './i18n.js';
 
 export const GlobalSearch = (() => {
@@ -28,6 +28,7 @@ export const GlobalSearch = (() => {
     frakce:   { icon: '⬡',  labelKey: 'nav.factions'   },
     buh:      { icon: '✨', labelKey: 'nav.pantheon'   },
     artefakt: { icon: '🗝', labelKey: 'nav.artifacts'  },
+    'historicka-udalost': { icon: '📜', labelKey: 'nav.history' },
   };
 
   function _build() {
@@ -101,6 +102,8 @@ export const GlobalSearch = (() => {
     pushKind('zahada',   'zahada',   all.mysteries,  e => e.priority ? I18n.t('search.priority', { priority: e.priority }) : '');
     pushKind('buh',      'buh',      all.pantheon,   e => e.domain || '');
     pushKind('artefakt', 'artefakt', all.artifacts);
+    pushKind('historicka-udalost', 'historicka-udalost', all.historicalEvents,
+             e => [e.start, e.end].filter(Boolean).join(' – '));
     // Factions aren't in searchAll — scan manually.
     const qn = norm(query);
     const factions = Store.getFactions ? Store.getFactions() : {};
@@ -111,6 +114,9 @@ export const GlobalSearch = (() => {
     }
     _items = out.slice(0, 50);
     _idx = 0;
+    // Screen readers can't see the results list repaint — push the count
+    // through the host live region (same pattern the addons use).
+    announce(I18n.plural('a11y.matchCount', _items.length));
     _renderResults(query);
   }
 
