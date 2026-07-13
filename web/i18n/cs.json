@@ -940,7 +940,6 @@
   "widget.selectPlaceholder": "Vyber…",
   "widget.tagfilterPlaceholder": "🔍 Napiš a stiskni Enter…",
   "wiki.addPartyCharacterTitle": "Přidat novou postavu do party",
-  "wiki.allMysteries": "Všechny záhady",
   "wiki.allOpenQuestions": "Všechny otevřené otázky",
   "wiki.artifactCount": {
     "one": "{n} artefakt",
@@ -1050,7 +1049,6 @@
   "wiki.open": "Otevřená",
   "wiki.openLocalMap": "Otevřít místní mapu",
   "wiki.openMemberList": "Otevřít seznam členů",
-  "wiki.openMysteries": "Otevřené záhady",
   "wiki.openQAllSolved": "Žádné otevřené otázky — vše vyřešené.",
   "wiki.openQNoMatch": "Žádná otevřená otázka neodpovídá hledání.",
   "wiki.openQSearchPlaceholder": "Hledat v textu otázky nebo jménu záhady…",
@@ -1076,7 +1074,8 @@
   "wiki.priorityLabelCap": "Priorita",
   "wiki.questionsCount": "{open}/{total} otázek",
   "wiki.ranksCount": "{n} hodností",
-  "wiki.recentEdits": "Poslední úpravy",
+  "wiki.recentChanges": "Poslední změny",
+  "wiki.recentChangesEmpty": "Zatím tu nejsou žádné úpravy — poslední změny postav, míst, událostí a dalších záznamů se objeví tady.",
   "wiki.recordCount": {
     "one": "{n} záznam",
     "few": "{n} záznamy",

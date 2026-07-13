@@ -96,14 +96,28 @@ custom property approach is gone; the CSS rule was deleted.
    all events, sorted by `order`. Each row links to `/udalost/:id`
    and shows `e.name`, `e.short`, and a small character/location
    count meta line. Empty state hidden in read mode.
-4. **Otevřené záhady** — top 3 unsolved mysteries by `PRIORITY_ORDER`
-   (kritická < vysoká < střední < nízká), then name. Each row shows
-   the priority chip and the first question.
+4. **Poslední změny** — `_dashRecentChangesHtml()`: the 10 most
+   recently edited entities across every collection
+   (`Store.getRecentActivity(10)`), newest first, each row an
+   `.activity-row` link (kind icon + name + `humanTime` relative
+   stamp). `.activity-list` is a responsive auto-fill grid (two
+   columns when the section is wide enough). Entities with no
+   `updatedAt` stamp don't show — datasets saved before stamping
+   existed start with an empty feed that fills as entities get
+   edited; signed-in users then see an empty-state hint, anonymous
+   viewers get no section at all (mirrors the last-session block).
+   Players receive role-filtered data, so DM-only
+   edits can't leak here. Replaced the old **Otevřené záhady** block
+   (top-3 unsolved mysteries — that overview now lives only on
+   `/zahady`); `PRIORITY_ORDER` stays in wiki.js for the mysteries
+   list sort.
 
 The old "Mind mapy" + "Rychlý Přehled" + "Poslední úpravy" dashboard
-blocks were removed. Legacy `.dashboard-title` / `.dashboard-subtitle`
-CSS classes remain as aliases in case something external still links
-to them, but nothing inside the app uses them anymore.
+blocks were removed (the dead `_recentActivityBlock` helper left over
+from "Poslední úpravy" was absorbed into `_dashRecentChangesHtml`).
+Legacy `.dashboard-title` / `.dashboard-subtitle` CSS classes remain
+as aliases in case something external still links to them, but
+nothing inside the app uses them anymore.
 
 Export: `Wiki.saveCampaignField(field, value)` — called from the
 hero's contenteditable `onblur` handler.

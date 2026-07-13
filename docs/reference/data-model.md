@@ -57,9 +57,11 @@ also catches deleted-faction ids. `/postavy` grouping renders the
 `neutral` bucket as "👤 Neutrální".
 
 **`updatedAt`** — every `Store.saveX()` stamps `entity.updatedAt =
-Date.now()` before persist. Surfaces the dashboard "Poslední úpravy"
-feed and any future "last modified" labels. Absent = treated as 0.
-`Store.getRecentActivity(n)` returns the top-n cross-collection.
+Date.now()` before persist. Surfaces the dashboard "Poslední změny"
+feed, the global-search recent suggestions, and any future "last
+modified" labels. Absent = treated as 0 and excluded from the feed.
+`Store.getRecentActivity(n)` returns the top-n cross-collection
+(covered by `test/store-logic.test.mjs`).
 
 **`addonData`** (optional, any entity) — a namespaced envelope
 `{ "<addonId>": {…} }` written by addons (Phase 5, see **Addon

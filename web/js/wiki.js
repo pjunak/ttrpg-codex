@@ -748,8 +748,10 @@ export const Wiki = (() => {
   //  DASHBOARD
   //  Layout: Hero (editable campaign name + tagline) → Naše parta
   //  (responsive portrait grid) → Poslední sezení (events from the
-  //  latest sitting) → Otevřené záhady (top 3 unsolved by priority).
+  //  latest sitting) → Poslední změny (recently edited entities).
   // ══════════════════════════════════════════════════════════════
+  // Used by the /zahady mysteries list sort (the dashboard's own
+  // mysteries block was replaced by the recent-changes feed).
   const PRIORITY_ORDER = { 'kritická': 0, 'vysoká': 1, 'střední': 2, 'nízká': 3 };
 
   function renderDashboard() {
@@ -768,7 +770,7 @@ export const Wiki = (() => {
       ${_dashHeroHtml(campaign)}
       ${_dashPartyHtml(party)}
       ${_dashLastSessionHtml()}
-      ${_dashMysteriesHtml()}
+      ${_dashRecentChangesHtml()}
       ${addonExtra}
     `;
   }
@@ -913,40 +915,44 @@ export const Wiki = (() => {
       </div>`;
   }
 
-  function _dashMysteriesHtml() {
-    const unsolved = Store.dedupeShadowTwins('mysteries', Store.getMysteries())
-      .filter(m => !Store.isMysterySolved(m))
-      .sort((a, b) =>
-        (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9)
-        || _czCompare(a.name, b.name));
-    if (!unsolved.length) return '';
-    const top = unsolved.slice(0, 3);
-    const items = top.map(m => {
-      const prio = m.priority
-        ? `<span class="mystery-priority priority-${esc(m.priority)}">${esc(String(m.priority).toUpperCase())}</span>`
-        : '';
-      // Surface the first OPEN question (or fall back to the first
-      // entry if none are open, so a fully-solved mystery still shows
-      // a hint of what it was about).
-      const firstOpen = (Array.isArray(m.questions) ? m.questions : [])
-        .find(q => !Store.isQuestionAnswered(q));
-      const firstQ = firstOpen || (Array.isArray(m.questions) ? m.questions[0] : null);
-      const questions = firstQ
-        ? `<div class="dash-mystery-q">${esc(Store.questionText(firstQ))}</div>` : '';
-      return `
-        <a class="dash-mystery-row" href="#/zahada/${m.id}">
-          <div class="dash-mystery-name">❓ ${esc(m.name)}</div>
-          ${prio}
-          ${questions}
-        </a>`;
-    }).join('');
+  // Dashboard "Poslední změny" — the most recently edited entities
+  // across every collection, so players returning between sessions can
+  // see at a glance what moved since they last looked (and what still
+  // needs filling in). Backed by Store.getRecentActivity (`updatedAt`
+  // is stamped on every save); entities never edited carry no stamp
+  // and don't show. Players only ever receive role-filtered data, so
+  // DM-only edits can't leak here. Replaced the old "Otevřené záhady"
+  // block (mysteries still have their /zahady aggregate page).
+  function _dashRecentChangesHtml() {
+    const items = Store.getRecentActivity(10);
+    if (!items.length) {
+      // Empty-state hint for signed-in users only (anonymous viewers
+      // just don't get the section) — mirrors the last-session block.
+      // This is what a dataset saved before `updatedAt` stamping
+      // existed shows: the feed fills in as entities get edited.
+      if (!Role.isAnonymous()) return `
+        <div class="dash-section">
+          <div class="dash-section-head"><h2>🕘 ${esc(I18n.t('wiki.recentChanges'))}</h2></div>
+          <div class="dash-empty">${I18n.t('wiki.recentChangesEmpty')}</div>
+        </div>`;
+      return '';
+    }
+    const ICONS = {
+      postava: '👤', misto: '📍', udalost: '⏳', zahada: '❓',
+      buh: '✨', artefakt: '🗝', frakce: '⬡', 'historicka-udalost': '📜',
+    };
+    const rows = items.map(it => `
+      <a class="activity-row" href="${esc(it.route)}/${esc(it.id)}">
+        <span class="activity-icon">${ICONS[it.kind] || '•'}</span>
+        <span class="activity-name">${esc(it.name || it.id)}</span>
+        <span class="activity-time">${esc(humanTime(it.updatedAt))}</span>
+      </a>`).join('');
     return `
       <div class="dash-section">
         <div class="dash-section-head">
-          <h2>🗝 ${esc(I18n.t('wiki.openMysteries'))}</h2>
-          <a class="dash-section-action" href="#/zahady">${esc(I18n.t('wiki.allMysteries'))} →</a>
+          <h2>🕘 ${esc(I18n.t('wiki.recentChanges'))}</h2>
         </div>
-        <div class="dash-mystery-list">${items}</div>
+        <div class="activity-list">${rows}</div>
       </div>`;
   }
 
@@ -1030,28 +1036,6 @@ export const Wiki = (() => {
     }
   }
 
-
-  // Dashboard "Poslední úpravy" — top 5 most-recently edited entities
-  // across every collection. Returns empty string if nothing has been
-  // edited yet (i.e. fresh install with no updatedAt stamps anywhere).
-  function _recentActivityBlock() {
-    const items = Store.getRecentActivity(5);
-    if (!items.length) return '';
-    const ICONS = {
-      postava:'👤', misto:'📍', udalost:'⏳', zahada:'❓',
-      buh:'✨', artefakt:'🗝', frakce:'⬡',
-    };
-    const rows = items.map(it => `
-      <a class="activity-row" href="${it.route === '#/frakce' ? '#/frakce/' + it.id : it.route + '/' + it.id}">
-        <span class="activity-icon">${ICONS[it.kind] || '•'}</span>
-        <span class="activity-name">${esc(it.name || it.id)}</span>
-        <span class="activity-time">${esc(humanTime(it.updatedAt))}</span>
-      </a>`).join('');
-    return `
-      <div class="dash-section-title" style="margin-top:2rem">${esc(I18n.t('wiki.recentEdits'))}</div>
-      <div class="activity-list">${rows}</div>
-    `;
-  }
 
   // ══════════════════════════════════════════════════════════════
   //  CHARACTER LIST
@@ -1976,8 +1960,8 @@ export const Wiki = (() => {
         })}`;
     }
     // `?? 9`, not `|| 9`: kritická maps to 0, which is falsy — `||`
-    // would sort critical mysteries LAST. Reuses the module-level
-    // PRIORITY_ORDER (the dashboard already sorts with it).
+    // would sort critical mysteries LAST. Uses the module-level
+    // PRIORITY_ORDER.
     const sorted = [...mysteries].sort((a,b) =>
       (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9));
     const unsolvedCount = mysteries.filter(m => !Store.isMysterySolved(m)).length;

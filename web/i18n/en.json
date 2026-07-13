@@ -909,7 +909,6 @@
   "widget.selectPlaceholder": "Select…",
   "widget.tagfilterPlaceholder": "🔍 Type and press Enter…",
   "wiki.addPartyCharacterTitle": "Add a new character to the party",
-  "wiki.allMysteries": "All mysteries",
   "wiki.allOpenQuestions": "All open questions",
   "wiki.artifactCount": {
     "one": "{n} artifact",
@@ -1011,7 +1010,6 @@
   "wiki.open": "Open",
   "wiki.openLocalMap": "Open local map",
   "wiki.openMemberList": "Open the member list",
-  "wiki.openMysteries": "Open mysteries",
   "wiki.openQAllSolved": "No open questions — everything solved.",
   "wiki.openQNoMatch": "No open question matches the search.",
   "wiki.openQSearchPlaceholder": "Search in the question text or mystery name…",
@@ -1037,7 +1035,8 @@
   "wiki.priorityLabelCap": "Priority",
   "wiki.questionsCount": "{open}/{total} questions",
   "wiki.ranksCount": "{n} ranks",
-  "wiki.recentEdits": "Recent edits",
+  "wiki.recentChanges": "Recent changes",
+  "wiki.recentChangesEmpty": "Nothing has been edited yet — recent changes to characters, locations, events and other records will show up here.",
   "wiki.recordCount": {
     "one": "{n} record",
     "other": "{n} records"

@@ -140,3 +140,49 @@ test('deleteCharacter: strips the id from referencing events/mysteries AND persi
 test('undelete: returns false for an unknown trash kind (no throw)', () => {
   assert.equal(Store.undelete('not-a-collection', 'x'), false);
 });
+
+// ── getRecentActivity (dashboard "Poslední změny" feed + search) ──
+
+test('getRecentActivity: newest-first cross-collection feed of stamped entities', () => {
+  // Saves stamp `updatedAt = Date.now()`. Sequential saves inside one
+  // test can land on the same millisecond, so pin Date.now to a
+  // strictly-increasing counter for deterministic ordering.
+  const realNow = Date.now;
+  let t = 1_000_000_000_000;
+  Date.now = () => (t += 1000);
+  try {
+    Store.saveCharacter({ id: 'ra-char', name: 'RA Char', faction: 'neutral', status: 'alive', knowledge: 4 });
+    Store.saveLocation({ id: 'ra-loc', name: 'RA Loc' });
+    Store.saveFaction('ra-fac', { name: 'RA Fac' });
+    Store.saveMystery({ id: 'ra-my', name: 'RA My', questions: [] });
+  } finally {
+    Date.now = realNow;
+  }
+
+  // Newest first, across list collections AND the keyed factions object.
+  const mine = Store.getRecentActivity(1000).filter(e => String(e.id).startsWith('ra-'));
+  assert.deepEqual(mine.map(e => e.id), ['ra-my', 'ra-fac', 'ra-loc', 'ra-char']);
+
+  // Entry shape drives the dashboard rows + search suggestions:
+  // `${route}/${id}` must be the article href for every kind.
+  const my = mine.find(e => e.id === 'ra-my');
+  assert.equal(my.kind, 'zahada');
+  assert.equal(my.route, '#/zahada');
+  assert.equal(my.name, 'RA My');
+  const fac = mine.find(e => e.id === 'ra-fac');
+  assert.equal(fac.kind, 'frakce');
+  assert.equal(fac.route, '#/frakce');
+  assert.equal(fac.name, 'RA Fac');
+
+  // Never-edited entities (no updatedAt — e.g. merged defaults) are
+  // excluded outright rather than sorted to the bottom.
+  assert.ok(Store.getRecentActivity(1000).every(e => e.updatedAt > 0));
+
+  // The limit caps the list.
+  assert.equal(Store.getRecentActivity(2).length, 2);
+
+  Store.deleteMystery('ra-my');
+  Store.deleteFaction('ra-fac');
+  Store.deleteLocation('ra-loc');
+  Store.deleteCharacter('ra-char');
+});

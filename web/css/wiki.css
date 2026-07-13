@@ -367,13 +367,12 @@
   }
 }
 
-/* Last session + mysteries rows share a similar look. */
-.dash-event-list, .dash-mystery-list {
+.dash-event-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-.dash-event-row, .dash-mystery-row {
+.dash-event-row {
   display: block;
   padding: 0.75rem 1rem;
   background: var(--bg-raised);
@@ -382,11 +381,11 @@
   text-decoration: none;
   transition: border-color 0.12s, background 0.12s;
 }
-.dash-event-row:hover, .dash-mystery-row:hover {
+.dash-event-row:hover {
   border-color: rgba(var(--accent-gold-rgb), 0.3);
   background: rgba(var(--accent-gold-rgb), 0.03);
 }
-.dash-event-name, .dash-mystery-name {
+.dash-event-name {
   font-family: var(--font-title);
   font-size: 0.95rem;
   color: var(--text-parchment);
@@ -404,13 +403,6 @@
   font-size: 0.7rem;
   color: var(--text-muted);
   letter-spacing: 0.04em;
-}
-.dash-mystery-q {
-  font-family: var(--font-ui);
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  margin-top: 0.3rem;
-  font-style: italic;
 }
 
 /* Legacy classes kept as aliases for anything outside the dashboard
@@ -1337,11 +1329,14 @@
   border-color: var(--accent-gold);
 }
 
-/* ── Dashboard: recent-activity feed ──────────────────────────── */
+/* ── Dashboard: recent-changes feed (Poslední změny) ────────────── */
+/* Two columns when the section is wide enough — 10 rows would other-
+   wise make the feed the tallest block on the dashboard. The min()
+   keeps single-column layouts from overflowing narrow phones. */
 .activity-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+  gap: var(--space-2);
   margin-top: 0.75rem;
 }
 .activity-row {
