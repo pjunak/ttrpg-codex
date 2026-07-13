@@ -96,17 +96,27 @@ custom property approach is gone; the CSS rule was deleted.
    all events, sorted by `order`. Each row links to `/udalost/:id`
    and shows `e.name`, `e.short`, and a small character/location
    count meta line. Empty state hidden in read mode.
-4. **Poslední změny** — `_dashRecentChangesHtml()`: the 10 most
+4. **Poslední změny** — `_dashRecentChangesHtml()`: the 30 most
    recently edited entities across every collection
-   (`Store.getRecentActivity(10)`), newest first, each row an
-   `.activity-row` link (kind icon + name + `humanTime` relative
-   stamp). `.activity-list` is a responsive auto-fill grid (two
-   columns when the section is wide enough). Entities with no
-   `updatedAt` stamp don't show — datasets saved before stamping
-   existed start with an empty feed that fills as entities get
-   edited; signed-in users then see an empty-state hint, anonymous
-   viewers get no section at all (mirrors the last-session block).
-   Players receive role-filtered data, so DM-only
+   (`Store.getRecentActivity(30)`), newest first, in a **scrollable
+   single-column list** (`.activity-list-scroll`, max-height 320 px,
+   token-styled thin scrollbar). Each `.activity-row` link is a grid:
+   kind icon · entity name · **one-line change preview** · `humanTime`
+   relative stamp; under 768 px the preview wraps to its own second
+   line (hidden when empty). The preview renders the entity's
+   `lastChange` summary (see data-model.md): "Vytvořeno" / "Propojení
+   aktualizována" / field labels with value transitions ("Stav:
+   Naživu → Mrtvý") — helpers `_changePreviewHtml` +
+   `_changeValueLabel` + the `_FIELD_LABEL_KEYS` map (reuses
+   `editform.*`/`wiki.fact*` label keys, `wiki.field.*` for the rest;
+   map-pin placement fields collapse into one "Značka na mapě" part;
+   enum/faction/location ids resolve to current display names at
+   render). Entities with no `updatedAt` stamp don't show — datasets
+   saved before stamping existed start with an empty feed that fills
+   as entities get edited; signed-in users then see an empty-state
+   hint, anonymous viewers get no section at all (mirrors the
+   last-session block). Legacy entities without `lastChange` degrade
+   to name + time. Players receive role-filtered data, so DM-only
    edits can't leak here. Replaced the old **Otevřené záhady** block
    (top-3 unsolved mysteries — that overview now lives only on
    `/zahady`); `PRIORITY_ORDER` stays in wiki.js for the mysteries

@@ -1454,6 +1454,70 @@ export const Store = (() => {
     return entity;
   }
 
+  // ── lastChange: "what changed" summaries ──────────────────────
+  // Every primary saveX records a compact summary of the edit on the
+  // entity itself (`entity.lastChange`) — the dashboard "Poslední
+  // změny" feed renders it as a one-line preview. Values are stored
+  // RAW (enum ids, location ids); labels are resolved at render time
+  // so previews survive renames and language switches.
+  const _CHANGE_SKIP_KEYS = new Set([
+    'id', 'updatedAt', 'lastChange', 'order', 'visibility', 'linkedTwinId',
+    'addonData', 'secrets',
+  ]);
+  const _CHANGE_MAX_FIELDS    = 6;   // the preview is one line anyway
+  const _CHANGE_VALUE_MAX_LEN = 40;  // longer values → field name only
+
+  /** Compute the `lastChange` payload between two versions of an
+   *  entity. Pure (exported for tests). Returns `{created: true}` for
+   *  a first save, `{fields: [{key, from?, to?}]}` for an edit —
+   *  `from`/`to` captured only when both sides are short scalars
+   *  (enum ids, names, numbers); long text and array/object fields
+   *  are name-only — or `null` when nothing observable changed (the
+   *  caller keeps the previous summary: a no-op re-save must not wipe
+   *  a meaningful one). */
+  function computeChangeSummary(before, after) {
+    if (!after || typeof after !== 'object') return null;
+    if (!before || typeof before !== 'object') return { created: true };
+    const isScalar = v =>
+      typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean';
+    const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+    const fields = [];
+    for (const key of keys) {
+      if (_CHANGE_SKIP_KEYS.has(key)) continue;
+      const a = before[key] ?? '';
+      const b = after[key]  ?? '';
+      const scalars = isScalar(a) && isScalar(b);
+      const equal = scalars ? a === b : JSON.stringify(a) === JSON.stringify(b);
+      if (equal) continue;
+      if (scalars
+          && String(a).length <= _CHANGE_VALUE_MAX_LEN
+          && String(b).length <= _CHANGE_VALUE_MAX_LEN) {
+        fields.push({ key, from: a, to: b });
+      } else {
+        fields.push({ key });
+      }
+      if (fields.length >= _CHANGE_MAX_FIELDS) break;
+    }
+    return fields.length ? { fields } : null;
+  }
+
+  /** Record the change summary on `after` before it replaces `before`
+   *  in `_data`. Empty diff → keep the previous summary. */
+  function _noteChange(after, before) {
+    const summary = computeChangeSummary(before, after);
+    if (summary) after.lastChange = summary;
+    else if (before && before.lastChange) after.lastChange = before.lastChange;
+    return after;
+  }
+
+  /** Cascade writes (peer syncs, dead-ref cleanup) mutate entities in
+   *  place, so there's no `before` left to diff — mark them with the
+   *  coarse "links updated" summary instead. */
+  function _noteRefChange(entity) {
+    if (entity && typeof entity === 'object') entity.lastChange = { refs: true };
+    return entity;
+  }
+
   // Mark a default-id as deleted so `_mergeDefaults` doesn't re-seed
   // it on next load. Tombstones round-trip through the keyed-object
   // PATCH path so the server keeps an authoritative `deletedDefaults`
@@ -1529,6 +1593,7 @@ export const Store = (() => {
    */
   function saveCharacter(char) {
     init();
+    _noteChange(char, _data.characters.find(c => c.id === char.id) || null);
     _stamp(char);
     _upsertById(_data.characters, char);
     _reindexCharacters();
@@ -1573,14 +1638,14 @@ export const Store = (() => {
     for (const e of _data.events || []) {
       if (Array.isArray(e.characters) && e.characters.includes(id)) {
         e.characters = e.characters.filter(cid => cid !== id);
-        _stamp(e); touchedEvents.push(e);
+        _noteRefChange(e); _stamp(e); touchedEvents.push(e);
       }
     }
     const touchedMysteries = [];
     for (const m of _data.mysteries || []) {
       if (Array.isArray(m.characters) && m.characters.includes(id)) {
         m.characters = m.characters.filter(cid => cid !== id);
-        _stamp(m); touchedMysteries.push(m);
+        _noteRefChange(m); _stamp(m); touchedMysteries.push(m);
       }
     }
 
@@ -1635,9 +1700,10 @@ export const Store = (() => {
    */
   function saveLocation(loc) {
     init();
-    _stamp(loc);
     const idx    = _data.locations.findIndex(l => l.id === loc.id);
     const before = idx >= 0 ? _data.locations[idx] : null;
+    _noteChange(loc, before);
+    _stamp(loc);
     if (idx >= 0) _data.locations[idx] = loc; else _data.locations.push(loc);
 
     // Connection symmetry. `connections[]` is undirected — if A lists B,
@@ -1655,7 +1721,7 @@ export const Store = (() => {
       if (!Array.isArray(peer.connections)) peer.connections = [];
       if (!peer.connections.includes(loc.id)) {
         peer.connections.push(loc.id);
-        _stamp(peer);
+        _noteRefChange(peer); _stamp(peer);
         touched.add(peer.id);
       }
     }
@@ -1665,7 +1731,7 @@ export const Store = (() => {
       const next = peer.connections.filter(x => x !== loc.id);
       if (next.length !== peer.connections.length) {
         peer.connections = next;
-        _stamp(peer);
+        _noteRefChange(peer); _stamp(peer);
         touched.add(peer.id);
       }
     }
@@ -1707,7 +1773,7 @@ export const Store = (() => {
         l.parentId = '';
         changed = true;
       }
-      if (changed) { _stamp(l); touched.push(l); }
+      if (changed) { _noteRefChange(l); _stamp(l); touched.push(l); }
     }
 
     // Characters reference locations by id: `location` is the canonical
@@ -1723,7 +1789,7 @@ export const Store = (() => {
         c.locationRoles = c.locationRoles.filter(r => r?.locationId !== id);
         cChanged = true;
       }
-      if (cChanged) { _stamp(c); touchedChars.push(c); }
+      if (cChanged) { _noteRefChange(c); _stamp(c); touchedChars.push(c); }
     }
 
     _reindexLocations();
@@ -1736,6 +1802,7 @@ export const Store = (() => {
 
   function saveEvent(evt) {
     init();
+    _noteChange(evt, _data.events.find(e => e.id === evt.id) || null);
     _stamp(evt);
     _upsertById(_data.events, evt);
     _reindexEvents();
@@ -1753,6 +1820,7 @@ export const Store = (() => {
 
   function saveMystery(mys) {
     init();
+    _noteChange(mys, _data.mysteries.find(m => m.id === mys.id) || null);
     _stamp(mys);
     _upsertById(_data.mysteries, mys);
     _reindexMysteries();
@@ -1770,8 +1838,9 @@ export const Store = (() => {
 
   function saveBuh(g) {
     init();
-    _stamp(g);
     if (!Array.isArray(_data.pantheon)) _data.pantheon = [];
+    _noteChange(g, _data.pantheon.find(x => x.id === g.id) || null);
+    _stamp(g);
     _upsertById(_data.pantheon, g);
     // No reindex helper for this collection, but wiki-link resolution
     // walks it — bust the markdown cache so renames resolve fresh.
@@ -1789,8 +1858,9 @@ export const Store = (() => {
 
   function saveArtifact(a) {
     init();
-    _stamp(a);
     if (!Array.isArray(_data.artifacts)) _data.artifacts = [];
+    _noteChange(a, _data.artifacts.find(x => x.id === a.id) || null);
+    _stamp(a);
     _upsertById(_data.artifacts, a);
     _bustMarkdownCache();
     return _sync('artifacts', 'save', a);
@@ -2326,6 +2396,7 @@ export const Store = (() => {
 
   function saveFaction(id, fac) {
     init();
+    _noteChange(fac, _data.factions[id] || null);
     _stamp(fac);
     _data.factions[id] = fac;
     _bustMarkdownCache();
@@ -2354,8 +2425,9 @@ export const Store = (() => {
   }
   function saveHistoricalEvent(h) {
     init();
-    _stamp(h);
     if (!Array.isArray(_data.historicalEvents)) _data.historicalEvents = [];
+    _noteChange(h, _data.historicalEvents.find(x => x.id === h.id) || null);
+    _stamp(h);
     _upsertById(_data.historicalEvents, h);
     _bustMarkdownCache();
     return _sync('historicalEvents', 'save', h);
@@ -2389,6 +2461,17 @@ export const Store = (() => {
       if (ot === 'none' || ot === 'party') return true;
       return p.ownerId === ownerId;
     });
+  }
+
+  /** All pets that belong to the party in the wide sense: owned by the
+   *  party itself PLUS owned by any individual party member (PC). Feeds
+   *  the dashboard flank columns. Party-owned first, then member pets
+   *  in party-roster order — deterministic, and a pet has exactly one
+   *  owner so the concat can't duplicate. */
+  function getPartyPets() {
+    const memberPets = getPartyMembers()
+      .flatMap(pc => getPetsForOwner('character', pc.id));
+    return [...getPetsForOwner('party'), ...memberPets];
   }
 
   /** Resolve a pet's owner to a display descriptor `{label, icon, href}`.
@@ -2584,6 +2667,7 @@ export const Store = (() => {
           kind, id: e.id,
           name: nameOf(e),
           updatedAt: e.updatedAt || 0,
+          lastChange: e.lastChange || null,
           route,
         });
       }
@@ -2599,6 +2683,7 @@ export const Store = (() => {
     for (const [id, f] of Object.entries(_data.factions || {})) {
       entries.push({
         kind: 'frakce', id, name: f.name, updatedAt: f.updatedAt || 0,
+        lastChange: f.lastChange || null,
         route: '#/frakce',
       });
     }
@@ -2916,7 +3001,7 @@ export const Store = (() => {
     searchCharacters, searchLocations, searchEvents, searchMysteries,
     searchPantheon, searchArtifacts, searchHistoricalEvents,
     searchAll,
-    getRecentActivity,
+    getRecentActivity, computeChangeSummary,
     saveCharacter, deleteCharacter,
     saveRelationship, deleteRelationship,
     saveLocation, deleteLocation,
@@ -2926,7 +3011,7 @@ export const Store = (() => {
     saveBuh, deleteBuh,
     saveArtifact, deleteArtifact,
     saveHistoricalEvent, deleteHistoricalEvent,
-    getPets, getPet, getPetsForOwner, getPetOwner, savePet, deletePet,
+    getPets, getPet, getPetsForOwner, getPartyPets, getPetOwner, savePet, deletePet,
     undelete,
     getSettings, getEnum, getEnumValue, getEffectiveAttitudes,
     saveEnumItem, deleteEnumItem, findEnumUsages, resetEnumCategory,

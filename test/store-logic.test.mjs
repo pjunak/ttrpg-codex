@@ -141,6 +141,68 @@ test('undelete: returns false for an unknown trash kind (no throw)', () => {
   assert.equal(Store.undelete('not-a-collection', 'x'), false);
 });
 
+// ── computeChangeSummary (lastChange previews) ────────────────────
+
+test('computeChangeSummary: first save → {created: true}', () => {
+  assert.deepEqual(Store.computeChangeSummary(null, { id: 'x', name: 'X' }), { created: true });
+  assert.deepEqual(Store.computeChangeSummary(undefined, { id: 'x' }), { created: true });
+});
+
+test('computeChangeSummary: short scalars capture from/to; long text and arrays are name-only', () => {
+  const before = {
+    id: 'x', status: 'alive', description: 'short before',
+    tags: ['a'], location: 'greenest',
+  };
+  const after = {
+    id: 'x', status: 'dead', description: 'x'.repeat(50),
+    tags: ['a', 'b'], location: 'greenest',
+  };
+  const s = Store.computeChangeSummary(before, after);
+  const byKey = Object.fromEntries(s.fields.map(f => [f.key, f]));
+  assert.deepEqual(byKey.status, { key: 'status', from: 'alive', to: 'dead' });
+  assert.deepEqual(byKey.description, { key: 'description' }, '>40 chars → name-only');
+  assert.deepEqual(byKey.tags, { key: 'tags' }, 'arrays → name-only');
+  assert.equal(byKey.location, undefined, 'unchanged fields are not listed');
+});
+
+test('computeChangeSummary: a field added or cleared diffs against the empty string', () => {
+  const s = Store.computeChangeSummary({ id: 'x' }, { id: 'x', title: 'Captain' });
+  assert.deepEqual(s.fields, [{ key: 'title', from: '', to: 'Captain' }]);
+  const s2 = Store.computeChangeSummary({ id: 'x', title: 'Captain' }, { id: 'x', title: '' });
+  assert.deepEqual(s2.fields, [{ key: 'title', from: 'Captain', to: '' }]);
+});
+
+test('computeChangeSummary: internal keys are ignored; empty diff → null', () => {
+  const s = Store.computeChangeSummary(
+    { id: 'x', name: 'N', updatedAt: 1, lastChange: { created: true }, order: 1, visibility: 'public' },
+    { id: 'x', name: 'N', updatedAt: 2, lastChange: null, order: 9, visibility: 'dm' },
+  );
+  assert.equal(s, null);
+});
+
+test('computeChangeSummary: caps at 6 field entries', () => {
+  const before = { id: 'x' };
+  const after = { id: 'x' };
+  for (let i = 0; i < 10; i++) after[`f${i}`] = `v${i}`;
+  assert.equal(Store.computeChangeSummary(before, after).fields.length, 6);
+});
+
+test('saveCharacter records lastChange; a no-op re-save keeps the previous summary', () => {
+  Store.saveCharacter({ id: 'lc1', name: 'LC', faction: 'neutral', status: 'alive', knowledge: 4 });
+  assert.deepEqual(Store.getCharacter('lc1').lastChange, { created: true });
+
+  const edited = { ...Store.getCharacter('lc1'), status: 'dead' };
+  Store.saveCharacter(edited);
+  const after = Store.getCharacter('lc1').lastChange;
+  assert.deepEqual(after, { fields: [{ key: 'status', from: 'alive', to: 'dead' }] });
+
+  // Re-save with no observable change: summary survives.
+  Store.saveCharacter({ ...Store.getCharacter('lc1') });
+  assert.deepEqual(Store.getCharacter('lc1').lastChange, after);
+
+  Store.deleteCharacter('lc1');
+});
+
 // ── getRecentActivity (dashboard "Poslední změny" feed + search) ──
 
 test('getRecentActivity: newest-first cross-collection feed of stamped entities', () => {
@@ -173,6 +235,11 @@ test('getRecentActivity: newest-first cross-collection feed of stamped entities'
   assert.equal(fac.kind, 'frakce');
   assert.equal(fac.route, '#/frakce');
   assert.equal(fac.name, 'RA Fac');
+
+  // Entries carry the entity's lastChange summary for the dashboard
+  // preview line (these were first saves → created).
+  assert.deepEqual(my.lastChange,  { created: true });
+  assert.deepEqual(fac.lastChange, { created: true });
 
   // Never-edited entities (no updatedAt — e.g. merged defaults) are
   // excluded outright rather than sorted to the bottom.

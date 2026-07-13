@@ -18,7 +18,7 @@ Merged at startup via `store.js:_mergeDefaults()`.
 | `events` | `id`, `name`, `date`, `description`, `short`, `characters[]`, `locations[]`, `priority` [kritická/vysoká/střední/nízká], `tags[]`, `sitting` (number, game session), `order` (int; **internal — not user-editable**, owned by timeline drag-drop; auto-assigned to tail of sitting on first save or when sitting changes). Event-only map pin (optional): `mapX`/`mapY` fractions 0–1 and `mapParentId` (null for world map, location id for a sub-map). Used to mark session progress at a spot that isn't a named Location. The `consequence` field was removed — the timeline is the sole ordering source of truth. |
 | `mysteries` | `id`, `name`, `questions[]` (array of `{text, answer}` objects — a question is answered when `answer.trim().length > 0`), `clues[]` (string array — atomic facts the party has collected), `characters[]`, `locations[]`, `solved` (boolean — legacy explicit flag; `Store.isMysterySolved(m)` returns true when `m.solved === true` OR every question is answered, so the field is now a manual override more than a computed state), `priority` [kritická/vysoká/střední/nízká], `linkedTwinId` (DM-only twin link metadata). Legacy string-array `questions[]` → `{text, answer}` via `_migrateQuestionsToObjects`. |
 | `historicalEvents` | `id`, `name`, `start`, `end` (free-text year strings — D&D-calendar years, vague ranges, etc.), `summary` (markdown), `body` (markdown), `characters[]`, `locations[]`, `tags[]`, `updatedAt`. Separate from campaign `events` so the timeline stays campaign-only. Sorted on `/historie` by `start` (numeric-aware `localeCompare`). |
-| `pets` | Lightweight companions (Mazlíčci). `id`, `name`, `icon` (emoji, default 🐾), `portrait` (optional uploaded URL — reuses `/api/portrait/:id`), `species` (short free text), `note`, `ownerType` (`'none'`\|`'party'`\|`'character'`\|`'faction'`), `ownerId` (`''` for none/party · charId · factionId), `updatedAt`. Plain **public, non-visibility-bearing** list collection (no twin/visibility wiring). `getPetsForOwner('party')` flanks the dashboard party grid; faction/character articles show their own pets. Deleting an owning character/faction reassigns its pets to `ownerType:'none'` (see `_orphanPetsOf` in store.js) so they survive. See **Pets (Mazlíčci)**. |
+| `pets` | Lightweight companions (Mazlíčci). `id`, `name`, `icon` (emoji, default 🐾), `portrait` (optional uploaded URL — reuses `/api/portrait/:id`), `species` (short free text), `note`, `ownerType` (`'none'`\|`'party'`\|`'character'`\|`'faction'`), `ownerId` (`''` for none/party · charId · factionId), `updatedAt`. Plain **public, non-visibility-bearing** list collection (no twin/visibility wiring). `getPartyPets()` (party-owned + individual-PC-owned) flanks the dashboard party grid; faction/character articles show their own pets. Deleting an owning character/faction reassigns its pets to `ownerType:'none'` (see `_orphanPetsOf` in store.js) so they survive. See **Pets (Mazlíčci)**. |
 | ~~`mapPins`~~ | **REMOVED.** Folded into `locations` in a prior deploy. All `saveMapPin`/`deleteMapPin`/`getMapPins` shims are gone. |
 | `factions` | keyed object. `name`, `color`, `textColor`, `badge`, `description`, `rankChains[]`, `attitudes[]` (array of `{id}` — faction-level stance inherited by characters with empty own-attitudes via `Store.getEffectiveAttitudes`). Each chain is `{id, name, ranks: string[]}` — the character editor's "řetězec hodností" dropdown stores `character.rankChain = chain.id`, and `character.rank` stores the selected rank string. Seeded with `attitudes: []` on first load via `_seedFactionAttitudes`. |
 | `settings` | keyed-by-category object (`relationshipTypes`, `genders`, `pinTypes`, `characterStatuses`, `eventPriorities`, `attitudes`, `mapViews`, `mapConfigs`, `sidebarLayout`, `playerParty`, `branding`; the legacy `hiddenSidebarPages` is folded into `sidebarLayout.hidden` on read). See Settings section above. `branding` carries `{logoUrl, title, subtitle, updatedAt}` — site logo + sidebar wordmark; empty `logoUrl` renders the bundled `web/branding/logo-default.svg`, a non-empty value points at an uploaded `data/branding/logo.<ext>` (via `POST /api/logo`). `playerParty` carries `{name, icon, badge, color, textColor}` — visual identity of the PC group; member list is derived from `character.faction === PARTY_FACTION_ID` (replaces the legacy `factions.party` keyed-object record via `_migratePartyFactionToPlayerParty`). `sidebarLayout` holds the DM-curated left-nav structure (`{ sections:[{ id, label, icon, collapsible, defaultOpen, role, pages[] }], hidden[] }`) — see **Sidebar structure**. The old `mapStatuses` category was replaced by `attitudes`; `pinTypes[].priority` was replaced by `pinTypes[].size`; `locationStatuses` and `artifactStates` were retired (the location-status icon-variant strategy went unused and `artifactStates` was a purely cosmetic chip). **`pinTypes[i].iconConfig`** (optional) carries custom marker artwork: `{ strategy: 'single' \| 'random', files: [{ id, url }] }`. Files live on disk under `data/icons/<pinTypeId>/<file>` and are uploaded/deleted via `/api/icons/...`. The map-side resolver in [map.js](web/js/map.js) (`_resolveIconUrl`) consumes this config: `single` (default) → `files[0]`; `random` → deterministic per-pin hash across all files. Empty/missing `iconConfig` falls through to the bundled game-icons SVG (`/icons-defaults/<id>.svg` for ids in `BUNDLED_DEFAULT_ICONS`), and finally to the `pinTypes[i].icon` emoji as last resort. `_migrateRetirePinTypeStateStrategy` strips the legacy `state` strategy and any per-file `stateId` markers on load. |
@@ -62,6 +62,23 @@ feed, the global-search recent suggestions, and any future "last
 modified" labels. Absent = treated as 0 and excluded from the feed.
 `Store.getRecentActivity(n)` returns the top-n cross-collection
 (covered by `test/store-logic.test.mjs`).
+
+**`lastChange`** — alongside `updatedAt`, every primary `saveX` records
+a compact "what changed" summary on the entity itself (computed
+client-side by `Store.computeChangeSummary(before, after)` — pure,
+exported, tested). Shapes: `{created: true}` (first save) ·
+`{refs: true}` (cascade write — peer connection sync, dead-ref cleanup;
+set via `_noteRefChange`) · `{fields: [{key, from?, to?}]}` (user edit;
+`from`/`to` captured only when both sides are scalars ≤ 40 chars — enum
+ids, names, numbers — long text/arrays are name-only; capped at 6
+entries; internal keys `id/updatedAt/lastChange/order/visibility/
+linkedTwinId/addonData/secrets` are skipped). A no-op re-save keeps the
+previous summary (`_noteChange`). Values are stored RAW (enum ids,
+location ids) — the dashboard resolves labels at render time
+(`wiki.js _changeValueLabel`) so previews survive renames and language
+switches. Rides the entity JSON through PATCH/`_sanitizePlayerEntity`
+untouched; entities saved before this feature show name + time only.
+`saveRelationship`/`savePet` don't record it (not in the feed).
 
 **`addonData`** (optional, any entity) — a namespaced envelope
 `{ "<addonId>": {…} }` written by addons (Phase 5, see **Addon
@@ -110,10 +127,12 @@ shows an undo toast (`Store.undelete('pets', id)`). Exported on
 the login modal.
 
 **Display surfaces** (all render-on-demand — nothing until a pet exists):
-- Dashboard `_dashPartyHtml` — party-owned pets flank the party grid in
-  `.dash-pets-col` columns, **first card on the right** then alternating
-  left. No add button here (creation lives on the Mazlíčci page / inline
-  on owner articles). Columns stack below the party under 768 px.
+- Dashboard `_dashPartyHtml` — pets owned by the party OR by any
+  individual party member (`Store.getPartyPets()`) flank the party grid
+  in `.dash-pets-col` columns, **first card on the right** then
+  alternating left. No add button here (creation lives on the Mazlíčci
+  page / inline on owner articles). Columns stack below the party under
+  768 px.
 - `/mazlicci` (`renderPetsList`) — every pet grouped by owner.
 - Faction/character articles — a `🐾 Mazlíčci` section
   (`_petsArticleSection`) renders only when that owner has pets, plus an
@@ -255,8 +274,10 @@ Getters:
 `getHistoricalEvents()` · `getFactions()` · `getFaction(id)` · `getStatusMap()`
 
 Pets: `getPets()` · `getPet(id)` · `getPetsForOwner(ownerType, ownerId)`
-(`'none'`/`'party'` ignore `ownerId`) · `getPetOwner(pet)` →
-`{label, icon, href}` owner descriptor (`href` null for none/deleted owner).
+(`'none'`/`'party'` ignore `ownerId`) · `getPartyPets()` — party-owned
+plus individual-party-member-owned, in that order (the dashboard flank) ·
+`getPetOwner(pet)` → `{label, icon, href}` owner descriptor (`href` null
+for none/deleted owner).
 
 Pin/hierarchy getters (Locations replace pins):
 `getLocationsOnMap(parentId)` returns Locations placed on the given

@@ -846,10 +846,12 @@ export const Wiki = (() => {
         </a>`;
     }).join('');
     const grid = `<div class="dash-party-grid">${cards}</div>`;
-    // Party-owned pets flank the grid — first card on the right, then
-    // alternating left/right. Nothing renders when there are none, so
-    // the dashboard is byte-for-byte unchanged until a party pet exists.
-    const partyPets = Store.getPetsForOwner('party');
+    // Pets flank the grid — first card on the right, then alternating
+    // left/right. Covers pets owned by the party AND by any individual
+    // party member (Store.getPartyPets). Nothing renders when there
+    // are none, so the dashboard is byte-for-byte unchanged until a
+    // party-side pet exists.
+    const partyPets = Store.getPartyPets();
     let partyBody = grid;
     if (partyPets.length) {
       const left = [], right = [];
@@ -918,13 +920,101 @@ export const Wiki = (() => {
   // Dashboard "Poslední změny" — the most recently edited entities
   // across every collection, so players returning between sessions can
   // see at a glance what moved since they last looked (and what still
-  // needs filling in). Backed by Store.getRecentActivity (`updatedAt`
-  // is stamped on every save); entities never edited carry no stamp
-  // and don't show. Players only ever receive role-filtered data, so
-  // DM-only edits can't leak here. Replaced the old "Otevřené záhady"
-  // block (mysteries still have their /zahady aggregate page).
+  // needs filling in). Backed by Store.getRecentActivity: `updatedAt`
+  // is stamped on every save, and `lastChange` (see store.js
+  // computeChangeSummary) carries a compact "what changed" summary
+  // rendered here as a one-line preview. Entities never edited carry
+  // neither and don't show / show name+time only. Players only ever
+  // receive role-filtered data, so DM-only edits can't leak here.
+
+  // Field key → i18n label key for the change previews. Reuses the
+  // editor's field labels where one exists; `wiki.field.*` covers the
+  // rest. Unknown keys fall back to the raw key (future/addon fields).
+  const _FIELD_LABEL_KEYS = {
+    name: 'wiki.field.name', title: 'wiki.field.title',
+    description: 'editform.description', faction: 'editform.faction',
+    status: 'editform.status', circumstances: 'editform.circumstances',
+    attitudes: 'editform.attitudes', knowledge: 'editform.knowledge',
+    portrait: 'wiki.field.portrait', location: 'wiki.factLocation',
+    known: 'wiki.field.known', unknown: 'editform.openQuestions',
+    tags: 'editform.tags', rank: 'wiki.factRank',
+    rankChain: 'editform.rankChains', rankChains: 'editform.rankChains',
+    locationRoles: 'wiki.field.locationRoles', species: 'editform.species',
+    gender: 'editform.gender', age: 'editform.age',
+    region: 'wiki.factRegion', history: 'wiki.field.history',
+    connections: 'wiki.field.connections', localMap: 'wiki.chipLocalMap',
+    parentId: 'editform.parentLocation',
+    date: 'wiki.factDate', short: 'editform.shortDescription',
+    characters: 'editform.characters', locations: 'editform.locations',
+    priority: 'editform.priority', sitting: 'wiki.field.sitting',
+    questions: 'editform.questionsAnswers', clues: 'wiki.field.clues',
+    solved: 'wiki.field.solved', domain: 'editform.domain',
+    summary: 'editform.summary', body: 'editform.detailedDescription',
+    start: 'editform.start', end: 'editform.end',
+    color: 'editform.backgroundColor', textColor: 'editform.textColor',
+    badge: 'editform.badge', holder: 'editform.holder',
+  };
+  // Map-pin placement fields collapse into ONE preview part ("Značka
+  // na mapě") — a drag on the map otherwise reads as "x · y".
+  const _MAP_PIN_FIELDS = new Set([
+    'x', 'y', 'size', 'pinType', 'mapNotes', 'mapParentId', 'mapX', 'mapY',
+  ]);
+
+  // Resolve a raw stored from/to value (enum id, entity id, boolean)
+  // to its current display label — summaries store raw ids so previews
+  // survive renames and language switches. Empty → '—'.
+  function _changeValueLabel(fieldKey, value) {
+    if (value === '' || value == null) return '—';
+    if (value === true)  return '✓';
+    if (value === false) return '✗';
+    const v = String(value);
+    const kindDomain = { status: 'statuses', priority: 'priorities', gender: 'genders' }[fieldKey];
+    if (kindDomain) {
+      const k = Store.getKinds(kindDomain).find(x => x.id === v);
+      if (k && k.label) return k.label;
+    }
+    if (fieldKey === 'faction') {
+      if (v === PARTY_FACTION_ID) return Store.getPlayerParty().name || v;
+      if (v === 'neutral') return I18n.t('wiki.neutral');
+      const f = Store.getFaction(v);
+      if (f && f.name) return f.name;
+    }
+    if (fieldKey === 'location' || fieldKey === 'parentId') {
+      const l = Store.getLocation(v);
+      if (l && l.name) return l.name;
+    }
+    return v;
+  }
+
+  // One-line "what changed" preview HTML for a feed row (parts joined
+  // with ·, value transitions in the accent span). Returns '' for
+  // legacy entities without a stored summary → name + time only.
+  function _changePreviewHtml(lastChange) {
+    if (!lastChange || typeof lastChange !== 'object') return '';
+    if (lastChange.created) return `<span class="activity-change-val">${esc(I18n.t('wiki.changeCreated'))}</span>`;
+    if (lastChange.refs)    return `<span class="activity-change-val">${esc(I18n.t('wiki.changeRefs'))}</span>`;
+    const entries = Array.isArray(lastChange.fields) ? lastChange.fields : [];
+    const parts = [];
+    let pinDone = false;
+    for (const f of entries) {
+      if (!f || !f.key) continue;
+      if (_MAP_PIN_FIELDS.has(f.key)) {
+        if (!pinDone) { pinDone = true; parts.push(esc(I18n.t('wiki.field.mapPin'))); }
+        continue;
+      }
+      const labelKey = _FIELD_LABEL_KEYS[f.key];
+      const label = labelKey ? I18n.t(labelKey) : f.key;
+      if (f.from !== undefined && f.to !== undefined) {
+        parts.push(`${esc(label)}: <span class="activity-change-val">${esc(_changeValueLabel(f.key, f.from))} → ${esc(_changeValueLabel(f.key, f.to))}</span>`);
+      } else {
+        parts.push(esc(label));
+      }
+    }
+    return parts.join(' · ');
+  }
+
   function _dashRecentChangesHtml() {
-    const items = Store.getRecentActivity(10);
+    const items = Store.getRecentActivity(30);
     if (!items.length) {
       // Empty-state hint for signed-in users only (anonymous viewers
       // just don't get the section) — mirrors the last-session block.
@@ -945,6 +1035,7 @@ export const Wiki = (() => {
       <a class="activity-row" href="${esc(it.route)}/${esc(it.id)}">
         <span class="activity-icon">${ICONS[it.kind] || '•'}</span>
         <span class="activity-name">${esc(it.name || it.id)}</span>
+        <span class="activity-change">${_changePreviewHtml(it.lastChange)}</span>
         <span class="activity-time">${esc(humanTime(it.updatedAt))}</span>
       </a>`).join('');
     return `
@@ -952,7 +1043,7 @@ export const Wiki = (() => {
         <div class="dash-section-head">
           <h2>🕘 ${esc(I18n.t('wiki.recentChanges'))}</h2>
         </div>
-        <div class="activity-list">${rows}</div>
+        <div class="activity-list activity-list-scroll">${rows}</div>
       </div>`;
   }
 

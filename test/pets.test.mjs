@@ -48,6 +48,22 @@ test('getPetsForOwner: filters by owner kind + id', () => {
   for (const id of ['none1', 'party1', 'char1', 'fac1']) Store.deletePet(id);
 });
 
+test('getPartyPets: party-owned pets PLUS pets of individual party members', () => {
+  Store.saveCharacter({ id: 'pc1', name: 'PC One', faction: 'party',   status: 'alive', knowledge: 4 });
+  Store.saveCharacter({ id: 'npc1', name: 'NPC',   faction: 'neutral', status: 'alive', knowledge: 4 });
+  Store.savePet({ id: 'gp-party', name: 'Party Dog', ownerType: 'party',     ownerId: '' });
+  Store.savePet({ id: 'gp-pc',    name: 'PC Cat',    ownerType: 'character', ownerId: 'pc1' });
+  Store.savePet({ id: 'gp-npc',   name: 'NPC Rat',   ownerType: 'character', ownerId: 'npc1' });
+  Store.savePet({ id: 'gp-none',  name: 'Stray',     ownerType: 'none',      ownerId: '' });
+
+  const ids = Store.getPartyPets().map(p => p.id);
+  // Party-owned first, then member pets; NPC pets + strays excluded.
+  assert.deepEqual(ids, ['gp-party', 'gp-pc']);
+
+  for (const id of ['gp-party', 'gp-pc', 'gp-npc', 'gp-none']) Store.deletePet(id);
+  Store.deleteCharacter('pc1'); Store.deleteCharacter('npc1');
+});
+
 test('getPetOwner: resolves none / party / character / faction descriptors', () => {
   assert.equal(Store.getPetOwner({ ownerType: 'none' }).href, null);
 
