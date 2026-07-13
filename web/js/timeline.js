@@ -339,10 +339,13 @@ export const Timeline = (() => {
     _wireHScroll();
   }
 
-  // Horizontal "pan" slider under the board — a big, grabbable control to
-  // scroll through sittings when there are more columns than fit (the native
-  // 8px scrollbar is easy to miss, especially without a horizontal-scroll
-  // mouse). Two-way synced with the viewport; hidden when it doesn't overflow.
+  // Horizontal "pan" slider under the board — THE scroll control for
+  // sittings when there are more columns than fit (the native scrollbar
+  // is hidden in CSS; this styled slider replaces it). Two-way synced
+  // with the viewport; hidden when the board doesn't overflow. The
+  // mouse wheel also pans the board horizontally (vertical wheels have
+  // no other job here — except over a column whose card list itself
+  // overflows, where the native vertical scroll must win).
   let _hscrollWired = false;
   function _syncHScroll() {
     const viewport = document.querySelector('.tl-board-viewport');
@@ -360,6 +363,18 @@ export const Timeline = (() => {
     if (!viewport || !slider) return;
     slider.addEventListener('input', () => { viewport.scrollLeft = Number(slider.value); });
     viewport.addEventListener('scroll', () => { slider.value = String(Math.round(viewport.scrollLeft)); }, { passive: true });
+    viewport.addEventListener('wheel', (e) => {
+      // Trackpads emit dominant deltaX for sideways swipes — the
+      // viewport already scrolls those natively.
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      // Over a vertically-overflowing column body, the wheel keeps its
+      // native job (scrolling the cards).
+      const colBody = e.target instanceof Element ? e.target.closest('.tl-col-body') : null;
+      if (colBody && colBody.scrollHeight > colBody.clientHeight) return;
+      // deltaMode 1 = lines (Firefox) → approximate px per line.
+      viewport.scrollLeft += e.deltaY * (e.deltaMode === 1 ? 40 : 1);
+      e.preventDefault();
+    }, { passive: false });
     if (!_hscrollWired) { window.addEventListener('resize', _syncHScroll); _hscrollWired = true; }
     _syncHScroll();
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(_syncHScroll);

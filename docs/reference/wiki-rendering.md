@@ -18,18 +18,30 @@ a place that's `[{neutral, 1.0}, {hostile, 0.5}]` renders a strong-
 blue + weak-red mixed glow without any per-segment masking. Empty
 `attitudes[]` = no filter applied = no glow ("not yet meaningful").
 
-The glow is applied directly to the icon-bearing element (no card-
-wide ring anymore):
-- **Character cards / dashboard party**: inline `style="filter: ..."`
-  on the `.portrait-wrap`. Composes cleanly with the existing
-  `[data-knowledge="N"] .portrait-img { filter: url(#sketch-N) }`
-  rule because the two filter stacks live on different elements.
-- **Location cards**: inline filter on `.loc-card-icon`.
-- **Faction article side card**: inline filter on the `.ah-icon`
-  badge.
-- **Map pins** (`.sc-pin`): inline filter on the marker `<div>`,
-  with a smaller `blurPx` (`max(4, round(size * 0.18))`) tuned for
-  pixel-scale visibility.
+**Two renderers, split by visual type:**
+
+- **PORTRAITS (pictures) use a border ring, not drop-shadow.**
+  `_attitudeGlowBox(entries, colors)` returns box-shadow layers
+  consumed through the **`--attitude-ring` custom property**, which
+  each surface's CSS composes into its own box-shadow (so inline glow
+  never clobbers base/hover shadows). Why: knowledge < 4 portraits
+  render at `opacity ≤ 0.9`, and a drop-shadow painted *behind* a
+  semi-transparent image shows THROUGH it — the glow colour washed
+  over the picture. An outer box-shadow is clipped away under the
+  border-box, so the ring hugs the portrait border only. Where the
+  property lands (dictated by `overflow: hidden` ancestors that would
+  clip an inner shadow):
+  - character cards → inline on the **`.char-card`** anchor itself;
+  - dashboard party → inline on the circular **`.dash-party-portrait`**;
+  - character article side card → via `portraitWrap`'s style attr on
+    `.portrait-wrap` (read by the `.ah-visual .portrait-wrap` rule).
+- **ICONS keep the silhouette-hugging `filter: drop-shadow`**
+  (`_attitudeGlow`): location cards (`.loc-card-icon`), the faction
+  article `.ah-icon` badge, and map pins (`.sc-pin`, own copy in
+  map.js with a smaller `blurPx` — `max(4, round(size * 0.18))`).
+
+Both emitters share `_glowLayers(entries, colors, blurPx)` (the
+two-layer-per-attitude strength logic).
 
 `wiki.js` helpers:
 - `_attitudeColorMap()` — id → color lookup from the `attitudes` enum

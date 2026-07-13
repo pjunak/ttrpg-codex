@@ -320,17 +320,16 @@ export const Wiki = (() => {
     const b = n & 255;
     return `rgba(${r},${g},${b},${alpha})`;
   }
-  // Returns a CSS filter string or '' when no entry has positive
-  // strength. Each active attitude contributes TWO stacked drop-
-  // shadows: a wide outer halo + a tighter inner glow ≈40% of the
-  // outer blur. The double layer makes strength=1.0 read as a
-  // confident glow rather than a washed-out haze; alpha = strength
-  // on both layers so 50% still looks proportionally subtle.
-  // Strength is sourced from the `attitudes` settings enum
-  // (per-attitude), NOT from each entity entry — see
-  // `_migrateStrengthFromEntityToEnum` in store.js.
-  function _attitudeGlow(entries, colors, blurPx = GLOW_BLUR_PX) {
-    if (!Array.isArray(entries) || !entries.length) return '';
+  // Each active attitude contributes TWO stacked glow layers: a wide
+  // outer halo + a tighter inner glow ≈40% of the outer blur. The
+  // double layer makes strength=1.0 read as a confident glow rather
+  // than a washed-out haze; alpha = strength on both layers so 50%
+  // still looks proportionally subtle. Strength is sourced from the
+  // `attitudes` settings enum (per-attitude), NOT from each entity
+  // entry — see `_migrateStrengthFromEntityToEnum` in store.js.
+  // Returns [{blur, rgba}] (empty when no entry has positive strength).
+  function _glowLayers(entries, colors, blurPx = GLOW_BLUR_PX) {
+    if (!Array.isArray(entries) || !entries.length) return [];
     const enums = Store.getKinds('attitudes') || [];
     const strengthByEnum = Object.fromEntries(
       enums.map(a => [a.id, (typeof a.strength === 'number') ? a.strength : 1.0])
@@ -344,10 +343,28 @@ export const Wiki = (() => {
       const s = strengthByEnum[e.id] ?? 1.0;
       if (s <= 0) continue;
       const rgba = _hexToRgba(color, s);
-      layers.push(`drop-shadow(0 0 ${blurPx}px ${rgba})`);
-      layers.push(`drop-shadow(0 0 ${innerBlur}px ${rgba})`);
+      layers.push({ blur: blurPx, rgba });
+      layers.push({ blur: innerBlur, rgba });
     }
-    return layers.join(' ');
+    return layers;
+  }
+  // Silhouette-hugging `filter:` value — used by ICON visuals (location
+  // cards, faction badge, map pins keep their own copy) where the glow
+  // should follow the glyph shape.
+  function _attitudeGlow(entries, colors, blurPx = GLOW_BLUR_PX) {
+    return _glowLayers(entries, colors, blurPx)
+      .map(l => `drop-shadow(0 0 ${l.blur}px ${l.rgba})`).join(' ');
+  }
+  // Border-ring `box-shadow` layer list — used by PORTRAIT visuals.
+  // Outer box-shadow is clipped away under the border-box, so unlike
+  // drop-shadow it can never wash over a semi-transparent picture
+  // (knowledge < 4 portraits have opacity ≤ 0.9 and showed the glow
+  // colour THROUGH the image). Consumed via the `--attitude-ring`
+  // custom property so it composes with each surface's own
+  // base/hover box-shadow instead of overriding it.
+  function _attitudeGlowBox(entries, colors, blurPx = GLOW_BLUR_PX) {
+    return _glowLayers(entries, colors, blurPx)
+      .map(l => `0 0 ${l.blur}px ${l.rgba}`).join(', ');
   }
 
   // Shared toolbar: TagFilter (name + tags, unified) + sort <select>.
@@ -437,13 +454,15 @@ export const Wiki = (() => {
   function relationLabel(type) { return Store.getKind('connections', type).label; }
 
   // ── Portrait wrapper (knowledge + dead overlay + attitude glow) ─
-  // The optional `glowFilter` is a CSS `filter:` value built by
-  // `_attitudeGlow(entries, colors)`. It's applied on the wrapper
-  // (not the img) so it composes with the `[data-knowledge="N"]
-  // .portrait-img { filter: url(#sketch-N) }` rule rather than
-  // overriding it. Drop-shadow follows the alpha of whatever's inside
-  // the wrapper, so the glow hugs the portrait silhouette.
-  function portraitWrap(c, extraClass, glowFilter) {
+  // The optional `glowRing` is a box-shadow layer list built by
+  // `_attitudeGlowBox(entries, colors)`. It's emitted as the
+  // `--attitude-ring` custom property; the surface's CSS composes it
+  // into its box-shadow (`.ah-visual .portrait-wrap` reads it here —
+  // card/dashboard surfaces set the property on their own outer
+  // element instead because their ancestors clip with overflow:
+  // hidden). Ring, not drop-shadow: the glow hugs the portrait
+  // BORDER and never bleeds over the picture itself.
+  function portraitWrap(c, extraClass, glowRing) {
     const factions  = Store.getFactions();
     const deadHtml  = c.status === "dead" ? `<div class="dead-overlay">💀</div>` : "";
     // Party PCs use the playerParty badge; others fall back to their
@@ -459,7 +478,7 @@ export const Wiki = (() => {
     const imgHtml   = c.portrait
       ? `<img class="portrait-img" src="${esc(c.portrait)}" alt="${esc(altName)}" loading="lazy">`
       : `<div class="portrait-placeholder">${esc(placeholderBadge)}</div>`;
-    const styleAttr = glowFilter ? ` style="filter: ${glowFilter}"` : '';
+    const styleAttr = glowRing ? ` style="--attitude-ring: ${glowRing}"` : '';
     return `<div class="portrait-wrap${extraClass ? " "+extraClass : ""}" data-knowledge="${Number(c.knowledge) || 0}" data-status="${esc(c.status)}"${styleAttr}>
       ${imgHtml}${deadHtml}
     </div>`;
@@ -834,10 +853,12 @@ export const Wiki = (() => {
         : '';
       const titleLine = c.title ? `<div class="dash-party-title">${esc(c.title)}</div>` : '';
       const statusDot = `<span class="dash-party-status" data-status="${esc(c.status||'alive')}"></span>`;
-      const glow = _attitudeGlow(Store.getEffectiveAttitudes(c, 'character'), partyColors);
+      // The ring rides the circular .dash-party-portrait (the wrap
+      // inside it is clipped by its overflow: hidden).
+      const glow = _attitudeGlowBox(Store.getEffectiveAttitudes(c, 'character'), partyColors);
       return `
         <a class="dash-party-card" href="#/postava/${c.id}">
-          <div class="dash-party-portrait">${portraitWrap(c, '', glow)}</div>
+          <div class="dash-party-portrait"${glow ? ` style="--attitude-ring: ${glow}"` : ''}>${portraitWrap(c, '')}</div>
           <div class="dash-party-body">
             <div class="dash-party-name">${statusDot}${esc(c.name)}</div>
             ${titleLine}
@@ -1416,11 +1437,13 @@ export const Wiki = (() => {
     const overlay = editOverlay(`#/postava/${c.id}`);
     const colors  = _attitudeColorMap();
     const entries = Store.getEffectiveAttitudes(c, 'character');
-    const glow    = _attitudeGlow(entries, colors);
+    // The ring rides the card itself — the card's overflow: hidden
+    // would clip a shadow on the inner portrait wrap.
+    const glow    = _attitudeGlowBox(entries, colors);
     const twinMark = _twinCardMarker(c);
     return `
-      <a class="char-card" href="#/postava/${c.id}">
-        ${portraitWrap(c, '', glow)}
+      <a class="char-card" href="#/postava/${c.id}"${glow ? ` style="--attitude-ring: ${glow}"` : ''}>
+        ${portraitWrap(c, '')}
         ${overlay}
         ${twinMark}
         <div class="char-card-info">
@@ -1508,7 +1531,7 @@ export const Wiki = (() => {
           style="background:${esc(color)}22;color:${esc(color)};border:1px solid ${esc(color)}66">●&nbsp;${esc(def.label)}${esc(pct)}</span>`;
       }).filter(Boolean).join(' ');
     }
-    const articleGlow = _attitudeGlow(articleEntries, _attitudeColorMap());
+    const articleGlow = _attitudeGlowBox(articleEntries, _attitudeColorMap());
 
     return _articleShell({
       editButton: _articleEditButton('characters', id),

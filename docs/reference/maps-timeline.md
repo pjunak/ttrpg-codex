@@ -347,6 +347,20 @@ Performance: `render()` builds module-level `_charMap` and `_locMap`
 (id → entity) once per render, and `_cardHTML`/`_eventAccentColor`
 do O(1) Map lookups instead of O(n) `.find()` across every card.
 
+**Horizontal scrolling — ONE affordance.** The board viewport's
+native scrollbar is hidden (`scrollbar-width: none` +
+`::-webkit-scrollbar { display: none }`); the styled `.tl-hscroll`
+range slider under the board is the single visible scroll control
+(custom track/thumb pseudo-elements in timeline.css — recessed gold
+track, wide pill thumb, `:focus-visible` ring). It's two-way synced
+with `viewport.scrollLeft` in `_wireHScroll`/`_syncHScroll` and
+hidden entirely while the board fits. The **mouse wheel pans the
+board horizontally** (non-passive `wheel` listener on the viewport):
+dominant-`deltaX` events are left to native handling (trackpad
+sideways swipes), and over a `.tl-col-body` that itself overflows
+vertically the wheel keeps its native card-scrolling job;
+`deltaMode === 1` (Firefox line mode) is scaled ×40.
+
 Each column: header (title + count badge), scrollable body of
 cards, and in edit mode a dashed `＋ Nová událost` footer button
 that calls `EditMode.startNewEvent({sitting})` so the new event

@@ -65,25 +65,70 @@
    Myšlenkový palác. The dedicated `.tl-edit-toggle` rule set lived
    here briefly; deleted after the migration to the shared template. */
 
-/* Board: horizontally scrollable row of columns */
+/* Board: horizontally scrollable row of columns. The native scrollbar
+   is hidden — the styled .tl-hscroll slider below the board is the ONE
+   scroll affordance (plus mouse-wheel panning wired in timeline.js). */
 .tl-board-viewport {
   flex: 1;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(var(--accent-gold-rgb), 0.3) transparent;
+  scrollbar-width: none;
 }
-.tl-board-viewport::-webkit-scrollbar { height: 8px; }
-.tl-board-viewport::-webkit-scrollbar-thumb { background: rgba(var(--accent-gold-rgb), 0.3); border-radius: 4px; }
+.tl-board-viewport::-webkit-scrollbar { display: none; }
 
-/* Horizontal pan slider under the board — a grabbable control to scroll
-   through sittings (shown only when the board overflows; wired in timeline.js). */
+/* Horizontal pan slider under the board — the single, deliberately
+   visible scroll control (shown only when the board overflows; two-way
+   synced in timeline.js). Fully custom-styled: a recessed gold-tinted
+   track with a wide pill thumb that's easy to see and grab. */
 .tl-hscroll {
   flex-shrink: 0;
-  width: 100%;
-  margin: 0.5rem 0 0;
-  accent-color: var(--accent-gold);
+  width: calc(100% - 40px);
+  margin: 0.6rem auto 0.35rem;
+  display: block;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 16px;
+  background: transparent;
   cursor: pointer;
+}
+.tl-hscroll::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(var(--gold-muted), 0.16);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
+}
+.tl-hscroll::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 56px;
+  height: 16px;
+  margin-top: -4px;
+  border-radius: var(--radius-pill);
+  background: rgba(var(--accent-gold-rgb), 0.75);
+  border: 1px solid var(--accent-gold);
+  box-shadow: var(--shadow-sm);
+}
+.tl-hscroll::-moz-range-track {
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(var(--gold-muted), 0.16);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
+}
+.tl-hscroll::-moz-range-thumb {
+  width: 56px;
+  height: 16px;
+  border-radius: var(--radius-pill);
+  background: rgba(var(--accent-gold-rgb), 0.75);
+  border: 1px solid var(--accent-gold);
+  box-shadow: var(--shadow-sm);
+}
+.tl-hscroll:hover::-webkit-slider-thumb,
+.tl-hscroll:active::-webkit-slider-thumb { background: var(--accent-gold); }
+.tl-hscroll:hover::-moz-range-thumb,
+.tl-hscroll:active::-moz-range-thumb { background: var(--accent-gold); }
+.tl-hscroll:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
 }
 
 .tl-board {
