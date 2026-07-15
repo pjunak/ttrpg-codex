@@ -572,6 +572,7 @@
   "settings.addonRequestsPermissions": "Doplněk žádá o tato oprávnění:",
   "settings.addonUpdated": "Doplněk aktualizován",
   "settings.addonsIntro": "Doplňky rozšiřují aplikaci (pravidla, deníky postav…). Instalují se z GitHubu vložením odkazu na repozitář a platí jen pro tuto kampaň.",
+  "settings.addonsManagerTab": "Správce",
   "settings.allUpToDate": "Vše je aktuální",
   "settings.ancestorsNoMap": "Předkové bez vlastní mapy",
   "settings.andMore": "…a dalších {count}",

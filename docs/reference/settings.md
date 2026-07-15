@@ -184,7 +184,18 @@ Vazby) leaves the active tab outside the visible set.
   `classic` is the bare `:root` baseline. Adding a style = one `THEMES`
   entry + one themes.css block, no component edits (every component reads
   `var(--token)`) — which re-skins addons for free too.
-- `addons` (label: **Doplňky**, DM-only) — the **Addon Manager**. Lists
+- `addons` (label: **Doplňky**) — a TWO-LEVEL surface: a `.codex-tab-strip`
+  of sub-tabs switching between the DM-only **Manager** (`_addonsManagerHtml`)
+  and every **addon-registered settings tab** (`registerSettingsTab` —
+  they are NOT top-level tabs anymore; `_pageHtml` coerces a stale
+  pre-restructure `_activeCat` addon-tab id into `addons` + `_activeAddonSub`).
+  Sub-tab state: `_activeAddonSub` (`'manager'` | `'<addonId>:<specId>'`,
+  role-aware default) via `Settings.selectAddonSub`; the strip is skipped
+  when only one entry is visible. Non-DM viewers get the `addons` tab
+  only when at least one addon ships a player-visible settings tab
+  (`role !== 'dm'`) — they see the addon sub-tabs, never the Manager,
+  and `selectCategory('addons')` skips the DM-only list fetch for them.
+  The **Manager** lists
   installed addons from `GET /api/addons` (lazy-loaded on tab entry like
   the account tab) with live load-state badges + enable/disable/remove
   (`POST /api/addons/:id/enable|disable`, `DELETE /api/addons/:id`), and a

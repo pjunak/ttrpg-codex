@@ -553,6 +553,7 @@
   "settings.addonRequestsPermissions": "The add-on requests these permissions:",
   "settings.addonUpdated": "Add-on updated",
   "settings.addonsIntro": "Add-ons extend the app (rules, character journals…). They install from GitHub by pasting a repository link and apply only to this campaign.",
+  "settings.addonsManagerTab": "Manager",
   "settings.allUpToDate": "Everything is up to date",
   "settings.ancestorsNoMap": "Ancestors without their own map",
   "settings.andMore": "…and {count} more",

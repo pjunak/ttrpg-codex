@@ -74,6 +74,10 @@ export const Settings = (() => {
   // workflow). Once a tab is picked, the selection sticks for the
   // remainder of the session.
   let _tabPickedByUser = false;
+  // Active SUB-tab inside the Doplňky tab: 'manager' (the DM-only Addon
+  // Manager) or an addon settings-tab id ('<addonId>:<specId>'). null =
+  // role-aware default (DM → manager, player → first addon tab).
+  let _activeAddonSub  = null;
   let _editingId       = null;  // id being edited inline, or '__new__' for add form
   let _snapshots       = [];    // populated by _loadSnapshots()
   // pinTypeId whose marker-icon panel is currently expanded. Only one at
@@ -132,11 +136,19 @@ export const Settings = (() => {
   function _visibleEnumTabs() {
     return Role.isDM() ? CATEGORIES : [];
   }
+  // Addon-registered settings tabs are NOT top-level tabs — they render as
+  // sub-tabs inside the Doplňky (addons) tab, beside the DM-only Manager.
+  function _visibleAddonSettingsTabs() {
+    const tabs = (() => { try { return Addons.settingsTabs(); } catch { return []; } })();
+    return tabs.filter(t => Role.isDM() || t.role !== 'dm');
+  }
   function _visibleSpecialTabs() {
-    const addonTabs = (() => { try { return Addons.settingsTabs(); } catch { return []; } })()
-      .filter(t => Role.isDM() || t.role !== 'dm');
-    const base = Role.isDM() ? SPECIAL_TABS : SPECIAL_TABS.filter(t => t.id === 'account' || t.id === 'backup');
-    return [...base, ...addonTabs];
+    if (Role.isDM()) return SPECIAL_TABS;
+    // Non-DM viewers: Account + Záloha, plus Doplňky when at least one addon
+    // ships a player-visible settings tab (the Manager inside stays DM-only).
+    const base = SPECIAL_TABS.filter(t => t.id === 'account' || t.id === 'backup');
+    if (_visibleAddonSettingsTabs().length) base.push(SPECIAL_TABS.find(t => t.id === 'addons'));
+    return base.filter(Boolean);
   }
 
   // Resolve a tab's display label. Built-in tabs (CATEGORIES /
@@ -148,6 +160,9 @@ export const Settings = (() => {
   }
 
   function _pageHtml() {
+    // Addon settings tabs are SUB-tabs of Doplňky now — coerce a stale
+    // top-level pick (pre-restructure sessions) into the addons tab.
+    if (Addons.settingsTab(_activeCat)) { _activeAddonSub = _activeCat; _activeCat = 'addons'; }
     // Defensive: if `_activeCat` references a tab that's been hidden
     // by the current role (e.g. DM exits to player view while the
     // enum editor is open), fall back to Account so the page renders
@@ -202,8 +217,6 @@ export const Settings = (() => {
     if (_activeCat === 'appearance')   return _appearanceHtml();
     if (_activeCat === 'addons')       return _addonsHtml();
     if (_activeCat === 'playerParty')  return _playerPartyHtml();
-    const _at = Addons.settingsTab(_activeCat);
-    if (_at) { try { return _at.render(); } catch (e) { return `<div class="settings-panel" style="color:var(--color-danger)">${esc(I18n.t('settings.addonFailed'))}: ${esc(e.message)}</div>`; } }
     const cat = CATEGORIES.find(c => c.id === _activeCat);
     const items = Store.getEnum(_activeCat);
     const rows = items.map(it => _rowHtml(cat, it)).join('');
@@ -585,7 +598,30 @@ export const Settings = (() => {
       render();
       if (Role.getReal() === 'dm') _loadPasswordStatus().then(render);
     } else if (cat === 'addons') {
-      _addonsList = null;        // show "loading" until /api/addons resolves
+      // The Manager list is DM-only (the endpoint would 403 for players, who
+      // only see the addon sub-tabs anyway) — skip the fetch for non-DM.
+      if (Role.isDM()) {
+        _addonsList = null;      // show "loading" until /api/addons resolves
+        render();
+        _loadAddons().then(render);
+      } else {
+        render();
+      }
+    } else {
+      render();
+    }
+  }
+
+  /**
+   * Switch the SUB-tab inside the Doplňky tab: 'manager' or an addon
+   * settings-tab id ('<addonId>:<specId>'). Entering the Manager
+   * (re)fetches the install list like a fresh tab entry.
+   */
+  function selectAddonSub(id) {
+    _activeAddonSub = String(id || 'manager');
+    _tabPickedByUser = true;
+    if (_activeAddonSub === 'manager' && Role.isDM()) {
+      _addonsList = null;
       render();
       _loadAddons().then(render);
     } else {
@@ -1912,7 +1948,44 @@ export const Settings = (() => {
     if (ev.key === 'Escape') document.querySelectorAll(_ADDON_MENU_SEL).forEach(d => { d.open = false; });
   });
 
+  // The Doplňky tab is a two-level surface: a sub-tab strip (host
+  // `.codex-tab-strip`) switching between the DM-only MANAGER and every
+  // addon-registered settings tab (role-filtered). Players reach their
+  // addon tabs (e.g. per-user UI preferences) without seeing the Manager.
   function _addonsHtml() {
+    const addonTabs = _visibleAddonSettingsTabs();
+    const canManage = Role.isDM();
+    // Resolve the active sub-tab — role-aware default, defensive against a
+    // removed addon or a role flip mid-session.
+    let sub = _activeAddonSub;
+    const valid = sub === 'manager' ? canManage : addonTabs.some(t => t.id === sub);
+    if (!sub || !valid) sub = canManage ? 'manager' : (addonTabs[0] ? addonTabs[0].id : 'manager');
+
+    let body;
+    if (sub === 'manager') {
+      body = _addonsManagerHtml();
+    } else {
+      const _at = Addons.settingsTab(sub);
+      try { body = _at ? _at.render() : ''; }
+      catch (e) { body = `<div class="settings-panel" style="color:var(--color-danger)">${esc(I18n.t('settings.addonFailed'))}: ${esc(e.message)}</div>`; }
+    }
+    // A strip with a single entry is chrome noise — skip it when the Manager
+    // is alone (DM, no addon tabs) or a player has exactly one addon tab.
+    const entries = (canManage ? 1 : 0) + addonTabs.length;
+    if (entries < 2) return body;
+
+    const btn = (id, icon, label, on) => `
+      <button type="button" role="tab" aria-selected="${on}" class="codex-tab ${on ? 'is-active' : ''}"
+        ${dataAction('Settings.selectAddonSub', id)}>
+        <span aria-hidden="true">${icon}</span> ${esc(label)}</button>`;
+    const strip = `<div role="tablist" class="codex-tab-strip" aria-label="${esc(I18n.t('settings.tabAddons'))}" style="margin-bottom:var(--space-4)">
+      ${canManage ? btn('manager', '🧩', I18n.t('settings.addonsManagerTab'), sub === 'manager') : ''}
+      ${addonTabs.map(t => btn(t.id, t.icon, t.label, sub === t.id)).join('')}
+    </div>`;
+    return strip + body;
+  }
+
+  function _addonsManagerHtml() {
     _ensureServerInfo();   // fetch canRestart once → reveals the restart button
     // Overlay each installed addon with its live client load-state so a
     // broken addon reads as an error rather than looking fine.
@@ -2404,7 +2477,7 @@ export const Settings = (() => {
 
   return {
     render,
-    selectCategory, startNew, startEdit, cancelEdit,
+    selectCategory, selectAddonSub, startNew, startEdit, cancelEdit,
     commit, requestDelete, commitDelete, closeModal,
     resetDefaults,
     uploadWorldMap,

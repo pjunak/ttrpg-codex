@@ -145,7 +145,7 @@ host.ui            // { toast(msg), rerender(), announce(text) } — rerender re
 | `registerPageRenderer(kind, render)` | `ui:route` | Provide a `Wiki.renderPage(kind)` page. |
 | `registerArticleSection(kind, fn, {order?})` | `ui:article-section:<kind>` | A section on every entity article. `fn(entity) → {title, html} \| null`. ADDITIVE (stacks, ordered by `order`). |
 | `registerEditorFields(kind, spec)` | `ui:editor-fields:<kind>` | Inject fields into an editor + collect on save. `spec = {fields(entity)→html, collect(scope, entity)→obj}`. Wired for `characters`. |
-| `registerSettingsTab(spec)` | `ui:settings-tab` | A Nastavení tab. `spec = {id, label, icon?, role?, render()→html}`. |
+| `registerSettingsTab(spec)` | `ui:settings-tab` | A settings panel under Nastavení → Doplňky (a sub-tab beside the DM-only Manager). `spec = {id, label, icon?, role?, render()→html}`. Omit `role` to keep it player-visible. |
 | `registerAction(name, fn)` | `ui:action` | A handler for `data-action="<id>:<name>"`. Build with `host.action(name)`. |
 | `registerCollection(name)` | `data:own` | Wire your manifest-declared collection's scoped CRUD (§8). |
 | `registerWikiKind(scope, resolve)` | `wiki:kind` | Resolve `[[Label\|scope]]` links. `resolve(label) → {kind, id} \| null` (§7). |

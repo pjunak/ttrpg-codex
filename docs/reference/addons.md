@@ -209,7 +209,8 @@ is still Phase 10.)
   (←`ui:sidebar`), `registerPageRenderer` (←`ui:route`, → `Wiki.renderPage`
   default), `registerArticleSection(kind,fn)` (←`ui:article-section:<kind>`;
   ADDITIVE — sections stack, each rendered safely), `registerSettingsTab`
-  (←`ui:settings-tab`), `registerAction(name,fn)` (←`ui:action`; invoked via
+  (←`ui:settings-tab`; renders as a SUB-tab of Nastavení → Doplňky beside
+  the DM-only Manager — see settings.md), `registerAction(name,fn)` (←`ui:action`; invoked via
   `data-action="<id>:<name>"` — build with `host.action(name)`),
   `registerCollection(name)` (←`data:own`; the collection MUST be declared in
   the manifest's `collections[]` — registering an undeclared one throws; backfills

@@ -87,7 +87,7 @@ and run standalone),
 | `registerPageRenderer(kind, render)` | `ui:route` | Provide a `Wiki.renderPage(kind)` page. |
 | `registerArticleSection(kind, fn, {order?})` | `ui:article-section:<kind>` | `fn(entity) → {title, html} \| null`. Stacks. |
 | `registerEditorFields(kind, {fields, collect})` | `ui:editor-fields:<kind>` | `fields(entity)→html`, `collect(scope,entity)→obj` merged into `addonData[id]` on save. (`characters`.) |
-| `registerSettingsTab({id,label,icon?,role?,render})` | `ui:settings-tab` | `render() → html`. |
+| `registerSettingsTab({id,label,icon?,role?,render})` | `ui:settings-tab` | `render() → html`. Renders as a SUB-tab of Nastavení → Doplňky (beside the DM-only Manager), not a top-level tab. |
 | `registerAction(name, fn)` | `ui:action` | For `data-action="<id>:<name>"`. |
 | `registerCollection(name)` | `data:own` | Must be in manifest `collections[]`. |
 | `registerWikiKind(scope, resolve)` | `wiki:kind` | `resolve(label) → {kind, id} \| null`. |
