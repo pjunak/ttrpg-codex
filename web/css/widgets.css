@@ -282,6 +282,9 @@
 .codex-tab:hover { color: var(--text-light); }
 .codex-tab.is-active { background: rgba(var(--accent-gold-rgb), 0.12); color: var(--text-parchment); font-weight: 600; border-bottom-color: var(--accent-gold); }
 .codex-tab-tool { margin-left: auto; background: rgba(var(--accent-gold-rgb), 0.05); color: var(--text-light); }
+/* Consecutive tool tabs sit together as one right-side group — only the
+   first takes the auto push (otherwise the free space splits between them). */
+.codex-tab-tool + .codex-tab-tool { margin-left: 0; }
 .codex-tab-tool.is-active { background: rgba(var(--accent-gold-rgb), 0.16); color: var(--accent-gold); }
 
 /* ── Stat tile (.codex-tile) ──────────────────────────────────

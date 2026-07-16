@@ -137,7 +137,8 @@ files noted; this is the everyday set:
     popover legend ("how did we get this number").
   - `.codex-tab-strip` / `.codex-tab` (+ `.is-active`, `.codex-tab-tool`) — a
     horizontal tablist with the gold bottom-border indicator; callers own ARIA
-    + keyboard wiring.
+    + keyboard wiring. Tool tabs are right-pushed; consecutive ones group
+    (only the first takes the `margin-left:auto`).
   - `.codex-tile` (+ `.codex-tile-label`/`-value`, `-accent` ring, `-wide`) —
     a labelled headline-number tile.
   - `.codex-warnings` — advisory validation-warning list.
