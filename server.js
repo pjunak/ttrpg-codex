@@ -2227,7 +2227,7 @@ async function _promoteAddon(staged) {
 }
 
 // Public list — readable by any caller (boot happens pre-login).
-app.get('/api/addons', async (_req, res) => {
+app.get('/api/addons', async (req, res) => {
   try {
     const reg = await _readAddonsRegistry();
     res.json({
@@ -2237,6 +2237,12 @@ app.get('/api/addons', async (_req, res) => {
       // Fragment-override conflict resolutions (target → winner addonId | null).
       // The client host consults these so a DM-picked winner actually applies.
       resolutions: (reg.resolutions && typeof reg.resolutions === 'object') ? reg.resolutions : {},
+      // Whether a server-side GitHub token is configured (CODEX_GITHUB_TOKEN /
+      // GITHUB_TOKEN) — the Manager shows it so a DM knows up front whether
+      // PRIVATE addon repos will install, instead of learning from a failed
+      // fetch. Real-DM only (the route itself is public for boot): a boolean
+      // about server config, but still nobody else's business. Never the token.
+      ...(req.realRole === 'dm' ? { githubTokenConfigured: !!_githubToken() } : {}),
     });
   } catch (e) {
     console.error('GET /api/addons:', e);

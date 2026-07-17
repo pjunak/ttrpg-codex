@@ -1890,6 +1890,7 @@ export const Settings = (() => {
   // with enable/disable/remove + an install wizard that takes a pasted
   // GitHub URL. Built entirely on design-system tokens/classes.
   let _addonsList     = null;   // cached /api/addons projection; null = loading
+  let _githubTokenOk  = null;   // DM-only server flag: private-repo installs possible? (null = unknown / non-DM)
   let _addonWizardEsc = null;   // keydown handler installed while the wizard is open
   let _wizardPreview  = null;   // { repo, ref, sha } captured at the wizard's preview step
   let _wizardMode     = 'install'; // 'install' | 'update' — wizard messaging
@@ -1900,7 +1901,12 @@ export const Settings = (() => {
   function _loadAddons() {
     return fetch('/api/addons', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then(r => r.ok ? r.json() : null)
-      .then(j => { _addonsList = (j && Array.isArray(j.addons)) ? j.addons : []; })
+      .then(j => {
+        _addonsList = (j && Array.isArray(j.addons)) ? j.addons : [];
+        // DM-only boolean (absent for other roles): server has a GitHub token,
+        // so private addon repos are installable. Drives the Manager's 🔑 line.
+        _githubTokenOk = (j && typeof j.githubTokenConfigured === 'boolean') ? j.githubTokenConfigured : null;
+      })
       .catch(() => { _addonsList = []; });
   }
 
@@ -2016,9 +2022,22 @@ export const Settings = (() => {
           ${esc(I18n.t('settings.addonsIntro'))}
           ${_canRestart ? ' ' + esc(I18n.t('settings.restartMovedHint')) : ''}
         </p>
+        ${_githubTokenLine()}
         ${_conflictsHtml()}
         ${body}
       </div>`;
+  }
+
+  // One-line 🔑 status: can this server install PRIVATE addon repos? Driven
+  // by the DM-only `githubTokenConfigured` boolean from /api/addons (absent →
+  // render nothing — non-DM, or an older server). Saves the DM from learning
+  // the token is missing only when an install fails.
+  function _githubTokenLine() {
+    if (_githubTokenOk === null) return '';
+    const on = _githubTokenOk;
+    return `<p class="settings-hint" style="margin-bottom:1rem;${on ? 'color:var(--color-success)' : ''}">
+      <span aria-hidden="true">🔑</span> ${esc(I18n.t(on ? 'settings.githubTokenOn' : 'settings.githubTokenOff'))}
+    </p>`;
   }
 
   // Fragment-override conflicts (Phase 6): ≥2 addons claiming an exclusive

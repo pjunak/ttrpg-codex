@@ -132,3 +132,40 @@ test('check-updates: empty + local-installed addons reported without network', a
     assert.ok(!u.hasUpdate);
   } finally { await srv.kill(); }
 });
+
+// ── GET /api/addons `githubTokenConfigured` — DM-only server-config flag ──
+// Drives the Manager's 🔑 line (private repos installable?). The route is
+// public (client boot), so the flag must be ABSENT for anonymous + player
+// and a boolean only for the real DM. Never the token itself.
+test('GET /api/addons: githubTokenConfigured is DM-only and true with a token', async () => {
+  const srv = await startServer({
+    dmPassword: DM, playerPassword: PLAYER,
+    env: { CODEX_GITHUB_TOKEN: 'test-token-abc', GITHUB_TOKEN: '' },
+  });
+  try {
+    let j = await (await srv.fetch('/api/addons')).json();
+    assert.equal('githubTokenConfigured' in j, false, 'anonymous sees no server-config flag');
+    await login(srv, PLAYER);
+    j = await (await srv.fetch('/api/addons')).json();
+    assert.equal('githubTokenConfigured' in j, false, 'player sees no server-config flag');
+    srv.clearCookies();
+    await login(srv, DM);
+    j = await (await srv.fetch('/api/addons')).json();
+    assert.equal(j.githubTokenConfigured, true, 'DM sees the flag (token set)');
+    assert.equal(JSON.stringify(j).includes('test-token-abc'), false, 'the token value itself never leaves the server');
+  } finally { await srv.kill(); }
+});
+
+test('GET /api/addons: githubTokenConfigured=false when no token is set', async () => {
+  // Blank BOTH names explicitly — the helper spreads process.env, so a
+  // GITHUB_TOKEN in the developer's shell would otherwise leak in.
+  const srv = await startServer({
+    dmPassword: DM, playerPassword: PLAYER,
+    env: { CODEX_GITHUB_TOKEN: '', GITHUB_TOKEN: '' },
+  });
+  try {
+    await login(srv, DM);
+    const j = await (await srv.fetch('/api/addons')).json();
+    assert.equal(j.githubTokenConfigured, false);
+  } finally { await srv.kill(); }
+});

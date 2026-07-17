@@ -572,6 +572,8 @@
   "settings.addonRequestsPermissions": "Doplněk žádá o tato oprávnění:",
   "settings.addonUpdated": "Doplněk aktualizován",
   "settings.addonsIntro": "Doplňky rozšiřují aplikaci (pravidla, deníky postav…). Instalují se z GitHubu vložením odkazu na repozitář a platí jen pro tuto kampaň.",
+  "settings.githubTokenOn": "GitHub token je nastaven — lze instalovat a aktualizovat i privátní repozitáře.",
+  "settings.githubTokenOff": "Na serveru není GitHub token — instalovat lze jen veřejné repozitáře. Pro privátní repozitáře nastav CODEX_GITHUB_TOKEN (viz příručka k provozu).",
   "settings.addonsManagerTab": "Správce",
   "settings.allUpToDate": "Vše je aktuální",
   "settings.ancestorsNoMap": "Předkové bez vlastní mapy",

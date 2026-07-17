@@ -9,6 +9,7 @@ const {
   validateManifest, matchRepoRule, isAllowed, parseRepoInput,
   contentHash, extractZip, _safeRel,
   addonCollectionType, parseAddonType, normalizeCollections,
+  resolveRefToSha, fetchZipball, fetchManifest,
 } = require('../server/addons.cjs');
 
 // ── validateManifest ──────────────────────────────────────────────
@@ -236,4 +237,64 @@ test('validateManifest: collections must be a well-formed array', () => {
   assert.equal(validateManifest(goodManifest({ collections: [{ name: 'Bad-Name' }] })).ok, false);
   assert.equal(validateManifest(goodManifest({ collections: [{ keyed: true }] })).ok, false);
   assert.equal(validateManifest(goodManifest({ collections: [{ name: 'r' }, { name: 'r' }] })).ok, false);
+});
+
+// ── GitHub fetch helpers — token threading + the private-repo hint ─
+// The broker's three api.github.com calls (ref resolve / zipball /
+// manifest preview) must carry `Authorization: Bearer <token>` when the
+// operator configured one (CODEX_GITHUB_TOKEN → private repos install),
+// and a 404 WITHOUT a token must carry the operator hint (GitHub answers
+// 404, not 403, for an anonymous hit on a private repo).
+const SHA40 = 'a'.repeat(40);
+function fakeFetch(routes) {
+  const calls = [];
+  const fn = async (url, init) => {
+    calls.push({ url, headers: (init && init.headers) || {} });
+    for (const [re, resp] of routes) if (re.test(url)) return resp(url);
+    throw new Error('unexpected url ' + url);
+  };
+  fn.calls = calls;
+  return fn;
+}
+const okText   = (body) => () => ({ ok: true,  status: 200, text: async () => body });
+const notFound = ()     => ({ ok: false, status: 404, text: async () => '' });
+
+test('resolveRefToSha: carries the Bearer token; anonymous carries no header', async () => {
+  let f = fakeFetch([[/\/commits\//, okText(SHA40)]]);
+  assert.equal(await resolveRefToSha('me/priv', 'main', { fetch: f, token: 'tok123' }), SHA40);
+  assert.equal(f.calls[0].headers.Authorization, 'Bearer tok123');
+  f = fakeFetch([[/\/commits\//, okText(SHA40)]]);
+  await resolveRefToSha('me/pub', 'main', { fetch: f });
+  assert.equal('Authorization' in f.calls[0].headers, false, 'no Authorization header without a token');
+});
+
+test('resolveRefToSha: 404 without a token → operator hint; with a token → plain 404', async () => {
+  const f1 = fakeFetch([[/\/commits\//, notFound]]);
+  await assert.rejects(() => resolveRefToSha('me/priv', 'main', { fetch: f1 }), /CODEX_GITHUB_TOKEN/);
+  const f2 = fakeFetch([[/\/commits\//, notFound]]);
+  await assert.rejects(
+    () => resolveRefToSha('me/priv', 'main', { fetch: f2, token: 'tok' }),
+    (e) => /404/.test(e.message) && !/CODEX_GITHUB_TOKEN/.test(e.message),
+    'with a token the 404 is real — no misleading hint');
+});
+
+test('fetchZipball: token on the zipball request; the buffer round-trips', async () => {
+  const bytes = new TextEncoder().encode('zipbytes');
+  const f = fakeFetch([[/\/zipball\//, () => ({ ok: true, status: 200, arrayBuffer: async () => bytes.buffer })]]);
+  const buf = await fetchZipball('me/priv', SHA40, { fetch: f, token: 'tok123' });
+  assert.equal(f.calls[0].headers.Authorization, 'Bearer tok123');
+  assert.equal(buf.toString(), 'zipbytes');
+});
+
+test('fetchManifest: token rides BOTH requests; the contents fetch pins to the resolved sha', async () => {
+  const f = fakeFetch([
+    [/\/commits\//, okText(SHA40)],
+    [/\/contents\/addon\.json/, okText(JSON.stringify({ id: 'x', version: '1.0.0' }))],
+  ]);
+  const { sha, manifest } = await fetchManifest('me/priv', 'main', { fetch: f, token: 'tok123' });
+  assert.equal(sha, SHA40);
+  assert.equal(manifest.id, 'x');
+  assert.equal(f.calls.length, 2);
+  for (const c of f.calls) assert.equal(c.headers.Authorization, 'Bearer tok123');
+  assert.match(f.calls[1].url, new RegExp('ref=' + SHA40), 'preview reads addon.json at the pinned commit');
 });

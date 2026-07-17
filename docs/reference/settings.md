@@ -204,9 +204,13 @@ Vazby) leaves the active tab outside the visible set.
   → the addon live-loads via the `addons-changed` SSE reconcile, no reload).
   Toolbar also has **⬆ Aktualizovat vše** (`Settings.updateAllAddons` →
   `POST /api/addons/update-all` — updates every GitHub addon at once; local addons
-  skipped). The **♻ Restartovat server** button MOVED to the `account`
-  (**Server**) tab; when the server is restartable the addons intro shows a
-  hint pointing there. All built on design-system tokens/classes. See
+  skipped). Under the intro the Manager shows a one-line **🔑 GitHub-token
+  status** (`_githubTokenLine` ← the DM-only `githubTokenConfigured` boolean
+  on `GET /api/addons`): whether the server can install PRIVATE addon repos
+  (`CODEX_GITHUB_TOKEN`, see SELF_HOSTING.md) — so a DM learns it up front,
+  not from a failed install. The **♻ Restartovat server** button MOVED to the
+  `account` (**Server**) tab; when the server is restartable the addons intro
+  shows a hint pointing there. All built on design-system tokens/classes. See
   **Addon framework**.
 - **Branding — a SECTION of `appearance`** (`_brandingSectionHtml`; used to
   be the `branding` tab). Site logo + sidebar wordmark editor. Uploads a

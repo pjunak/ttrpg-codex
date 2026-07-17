@@ -152,6 +152,13 @@ test-gate — all the network + up-to-30 s test work, **outside** the write lock
 then **`_promoteAddon`** (atomic rename to `<hash>/`→registry mutation→collection
 wiring→prune, **under** `withWriteLock` + `_safeJoinIn`). GitHub fetches carry an
 `AbortSignal.timeout` so a hung repo can't stall the install (or wedge the lock).
+**Private repos:** every api.github.com call (preview `fetchManifest`, install
+`_stageAddon`, `check-updates`, `update-all`) threads `_githubToken()`
+(`CODEX_GITHUB_TOKEN`, alias `GITHUB_TOKEN` — env only, NEVER under `data/`;
+see SELF_HOSTING.md) as `Authorization: Bearer`; a 404 with no token configured
+gets the `_privateRepoHint` suffix (GitHub 404s anonymous hits on private
+repos, which otherwise reads as "repo doesn't exist"). `GET /api/addons`
+carries a DM-only `githubTokenConfigured` boolean → the Manager's 🔑 line.
 `_readAddonsRegistry`/`_writeAddonsRegistry`,
 `_publicAddonList`. Endpoints in the API table; install/sources are
 **DM-only on `realRole`**. Each write broadcasts a new SSE event

@@ -72,6 +72,9 @@ repositories** (and to raise GitHub's anonymous rate limits). The token
 stays server-side only: it is never sent to clients, never logged, and —
 deliberately — never stored under `data/`, because backup ZIPs sweep that
 whole directory and a stored token would leak into every backup.
+A fine-grained personal access token with **Contents: Read-only** on the
+addon repositories is all it needs. The Addon Manager (Settings →
+Doplňky) shows a 🔑 line telling the DM whether a token is configured.
 
 A few consequences worth knowing:
 

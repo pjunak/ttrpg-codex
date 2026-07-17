@@ -553,6 +553,8 @@
   "settings.addonRequestsPermissions": "The add-on requests these permissions:",
   "settings.addonUpdated": "Add-on updated",
   "settings.addonsIntro": "Add-ons extend the app (rules, character journals…). They install from GitHub by pasting a repository link and apply only to this campaign.",
+  "settings.githubTokenOn": "GitHub token is configured — private repositories can be installed and updated.",
+  "settings.githubTokenOff": "No GitHub token on the server — only public repositories can be installed. To use private repositories, set CODEX_GITHUB_TOKEN (see the self-hosting guide).",
   "settings.addonsManagerTab": "Manager",
   "settings.allUpToDate": "Everything is up to date",
   "settings.ancestorsNoMap": "Ancestors without their own map",

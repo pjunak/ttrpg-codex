@@ -104,7 +104,7 @@ re-seeding of removed entries.
 | `relationships` | `{ source, target, type, … }` | Undirected types (`ally`, `mystery`, …) and directed types (`commands`, `mission`). |
 | `mysteries` | `{ id, name, questions[], clues[], characters[], locations[], priority, solved }` | |
 | `factions` | Keyed object: `{ "<id>": { name, color, badge, attitudes[], rankChains[], … } }` | |
-| `pantheon`, `artifacts` | Standard entity arrays. | Reference / world-building collections. (Species was removed from the base app — D&D 2024 species ship in the dnd55e-players-handbook addon; `character.species` is now a free-text string.) |
+| `pantheon`, `artifacts` | Standard entity arrays. | Reference / world-building collections. (Species was removed from the base app — D&D 2024 species ship in the dnd55e-compendium addon; `character.species` is now a free-text string.) |
 | `historicalEvents` | `{ id, name, start, end, summary, body, characters[], locations[], … }` | Separate from campaign `events` so the timeline stays campaign-only. |
 | `pets` | `{ id, name, icon, portrait, species, note, ownerType, ownerId }` | Lightweight companions ("Mazlíčci"); public, no visibility filtering. |
 | `settings` | Keyed-by-category: `{ relationshipTypes: [], genders: [], pinTypes: [], characterStatuses: [], eventPriorities: [], attitudes: [], mapViews: [], mapConfigs: {}, sidebarLayout: {}, playerParty: {}, branding: {}, appearance: {} }` | User-editable enums + campaign chrome. (Legacy `hiddenSidebarPages` folds into `sidebarLayout.hidden` on read.) |
