@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/check-meta.py 2>/dev/null || python .claude/check-meta.py 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

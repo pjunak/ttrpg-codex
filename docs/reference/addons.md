@@ -1,8 +1,8 @@
 # Addon framework (CodexHost) — deep reference (ttrpg-codex)
 
-> Moved verbatim out of CLAUDE.md to keep sessions lean. This file is
+> Moved verbatim out of AGENTS.md to keep sessions lean. This file is
 > CANONICAL for its subsystem — read it before working here and keep it
-> as current as CLAUDE.md itself. Cross-references like "see X above"
+> as current as AGENTS.md itself. Cross-references like "see X above"
 > may point at a sibling file in this directory.
 
 ## Addon framework (CodexHost)
@@ -102,7 +102,8 @@ testing, the update/rollback wizard, and backup coverage.
   in server.js — the single source of truth for "what counts as data").
 - `data/addons.json` — the **registry** (top-level → rides snapshots +
   the data hash). Shape: `{ schema, addons:[{id, repo, ref, sha, name,
-  version, apiVersion, hostVersion, entry, server, contentDir, serverDeps[], activeHash,
+  version, apiVersion, hostVersion, entry, server, contentDir, contentGroups?,
+  disabledContentGroups?, serverDeps[], activeHash,
   versions:[{contentHash,version,sha,installedAt, entry,server,contentDir,serverDeps,
   collections,dependencies,optionalDependencies}], enabled, grantedPermissions[],
   dependencies{}, optionalDependencies{},
@@ -125,7 +126,13 @@ host `HOST_API_VERSION`, currently 1), hostVersion, entry (client ESM,
 **exports `init(serverHost)`** — Phase 7), contentDir? (relative dir of a
 per-record JSON tree the HOST serves at `/api/addon/<id>/content*` — the
 declarative "static rulebook" seam: no server code, no `server:code` grant,
-hot-loaded; see the API table row), serverDeps? (`string[]` of vetted host
+hot-loaded; see the API table row), contentGroups? (`{field, label?}` — names
+a record property of the content tree, e.g. `book`, whose distinct values the
+DM can toggle per group in Settings → Doplňky; the HOST filters the served
+tree hot via `POST /api/addons/:id/content-groups` — registry stores the
+declaration as `contentGroups` + the DM's picks as `disabledContentGroups`;
+`normalizeContentGroups` in `server/addons.cjs` re-checks shapes on read),
+serverDeps? (`string[]` of vetted host
 npm libs the server module needs — must be in `HOST_SERVER_LIBS` =
 `{express, adm-zip, archiver, multer}` or the addon loads `blocked`), permissions[],
 dependencies? (HARD — a missing/incompatible one `blocks` the addon), optionalDependencies?
@@ -467,6 +474,8 @@ renames):
   `test/addon-content.test.cjs` (contentDir loader — tree walk, kinds,
   per-record shapes) + `test/integration-addon-content.test.cjs` (the
   host-served `/api/addon/:id/content*` endpoints end-to-end) +
+  `test/addon-content-groups.test.cjs` (contentGroups declaration
+  normalization + the disabled-group content filter) +
   `test/addon-contrib.test.mjs` (graph/node-kind contribution registries) +
   `test/integration-restart-updateall.test.cjs` (`/api/restart` gating +
   `/api/addons/update-all`).

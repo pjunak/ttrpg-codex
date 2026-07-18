@@ -856,7 +856,7 @@ export const CloudMap = (() => {
   //   - FR layout flies apart → raise GRAVITY.
   //   - FR collapses inward → lower GRAVITY (or raise k via _runAutoLayout).
   //
-  // See CLAUDE.md → "CloudMap architecture" → "Physics integrator" for
+  // See docs/reference/cloudmap.md → "Physics integrator" for
   // the full derivation, the rope-bend geometry note, and the list of
   // tried-and-reverted approaches (do NOT retry without reason).
   const PHYS_K = {
@@ -1188,7 +1188,7 @@ export const CloudMap = (() => {
   // crisply at any scale — that's not a texture-cache path. The
   // SVG must have `transform-origin: 0 0` (default is 50% 50%).
   //
-  // See CLAUDE.md "CloudMap text scaling via CSS variable" for the
+  // See docs/reference/cloudmap.md "CloudMap text scaling via CSS variable" for the
   // full rationale, including a list of what we tried and reverted.
   function _sync() {
     if (!_cy || !_cloudLayer) return;

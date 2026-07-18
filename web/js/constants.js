@@ -27,7 +27,7 @@ export const PARTY_FACTION_ID = 'party';
  *  `key` is the i18n catalog key for the link label (web/i18n/*.json).
  *  The Sidebar renders `I18n.t(key)`; `label` is the dev-facing default
  *  fallback only. (Section labels in `SIDEBAR_LAYOUT_DEFAULT` are
- *  DM-editable content and are NOT translated — see CLAUDE.md i18n.) */
+ *  DM-editable content and are NOT translated — see docs/reference/i18n.md.) */
 export const SIDEBAR_PAGES = [
   { route: '/',             label: 'Přehled',           key: 'nav.overview',   icon: '🏠', section: 'prehled' },
   { route: '/mapa/svet',    label: 'Mapa',              key: 'nav.map',        icon: '🗺', section: 'prehled' },

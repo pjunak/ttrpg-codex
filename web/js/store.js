@@ -191,7 +191,7 @@ export const Store = (() => {
     // "use the bundled default" (web/branding/logo-default.svg). The
     // condition only fires when the key is missing/invalid, so it's
     // idempotent and never re-syncs on its own (avoids the settings
-    // re-render loop documented in CLAUDE.md).
+    // re-render loop documented in docs/reference/settings.md).
     if (!_data.settings.branding || typeof _data.settings.branding !== 'object'
         || Array.isArray(_data.settings.branding)) {
       _data.settings.branding = {

@@ -13,7 +13,7 @@ loop see [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 | Frontend | Vanilla ES6 modules — no bundler, no framework |
 | Storage | One JSON file per collection in `data/` |
 | Sync | Server-Sent Events (`/api/events`) |
-| Mind maps | Cytoscape.js + Dagre ([`web/js/cloudmap.js`](../web/js/cloudmap.js)) |
+| Mind maps | Cytoscape.js + a custom rope-physics/FR auto-layout; dagre only for the optional "⊞ Hierarchie" layout ([`web/js/cloudmap.js`](../web/js/cloudmap.js)) |
 | World map | Leaflet 1.9.4 + on-disk tile pyramid ([`web/js/map.js`](../web/js/map.js), [`tiler.js`](../tiler.js)) |
 | Markdown | marked + DOMPurify, edited via EasyMDE |
 | Auth | Signed `edit_session` cookie; DM + optional player roles, role-aware visibility filter ([`server/visibility.cjs`](../server/visibility.cjs)) |

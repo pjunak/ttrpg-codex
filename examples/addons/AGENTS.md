@@ -103,8 +103,10 @@ and run standalone),
 **Data/rulebook addons:** declare manifest `"contentDir": "data"` and ship a
 per-record JSON tree (`data/<dir>/<id>.json`, kinds keyed by each record's
 `kind` field) — the HOST serves `/api/addon/<id>/{content,content/:kind,item/:kind/:id,kinds}`
-for you: no server code, no `server:code` grant, no restart to load. Only write
-a `server` module for real logic.
+for you: no server code, no `server:code` grant, no restart to load. Optionally
+declare `"contentGroups": {field, label?}` (e.g. `field: "book"`) so the DM can
+toggle whole record groups on/off in Settings — the host filters the served
+tree hot (full docs: AUTHORING.md). Only write a `server` module for real logic.
 
 **Other facade members** (always present unless noted):
 ```js

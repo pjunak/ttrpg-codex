@@ -658,6 +658,7 @@ returns `ok:true`, `smokeRegistrations(rec).ok` is true, and the app shows no
 | `examples/addons/sheet` | per-entity `addonData`: interactive HP via `patchAddonData` + `registerEditorFields` + a settings tab + a self-test |
 | `examples/addons/override` | a `wrap` fragment-override on `characters:body` |
 | `examples/addons/dice` | server-side code: `server/index.cjs` exposing `/api/addon/dice/roll` + isolated data |
+| `examples/addons/demo-contrib` | the data-driven contribution seams: `ui:slot:timeline`, `kinds:connections`, `kinds:statuses`, `kinds:graph` + `graph:contribute` |
 
-See also **`web/css/STYLE.md`** (tokens + components) and the **Addon
-framework** section of `CLAUDE.md` (host internals).
+See also **`web/css/STYLE.md`** (tokens + components) and
+**`docs/reference/addons.md`** (the host-internals deep reference).

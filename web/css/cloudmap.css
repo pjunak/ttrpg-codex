@@ -129,8 +129,8 @@
    for the current zoom level rather than scaling a cached texture.
    --cm-z is set on _cloudLayer per zoom-change frame in cloudmap.js
    _sync(). Default value 1 keeps cards at native size if --cm-z is
-   unset (during initial paint). See CLAUDE.md "CloudMap text scaling
-   via CSS variable" for the rationale. */
+   unset (during initial paint). See docs/reference/cloudmap.md
+   "CloudMap text scaling via CSS variable" for the rationale. */
 
 .cm-cloud {
   /* --cc: faction/type colour set per card via inline style */

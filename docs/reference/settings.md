@@ -1,8 +1,8 @@
 # Settings (/nastaveni) — deep reference (ttrpg-codex)
 
-> Moved verbatim out of CLAUDE.md to keep sessions lean. This file is
+> Moved verbatim out of AGENTS.md to keep sessions lean. This file is
 > CANONICAL for its subsystem — read it before working here and keep it
-> as current as CLAUDE.md itself. Cross-references like "see X above"
+> as current as AGENTS.md itself. Cross-references like "see X above"
 > may point at a sibling file in this directory.
 
 ## Settings (user-editable enums) — `/nastaveni`
@@ -208,7 +208,11 @@ Vazby) leaves the active tab outside the visible set.
   status** (`_githubTokenLine` ← the DM-only `githubTokenConfigured` boolean
   on `GET /api/addons`): whether the server can install PRIVATE addon repos
   (`CODEX_GITHUB_TOKEN`, see SELF_HOSTING.md) — so a DM learns it up front,
-  not from a failed install. The **♻ Restartovat server** button MOVED to the
+  not from a failed install. Content addons whose manifest declares
+  `contentGroups` (e.g. the compendium's `book` field) get a `<details>`
+  block in their Manager card with one checkbox per group value
+  (`Settings.toggleContentGroup` → `POST /api/addons/:id/content-groups`)
+  — unticking a book hides its records live, no restart. The **♻ Restartovat server** button MOVED to the
   `account` (**Server**) tab; when the server is restartable the addons intro
   shows a hint pointing there. All built on design-system tokens/classes. See
   **Addon framework**.

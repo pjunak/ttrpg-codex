@@ -279,8 +279,10 @@ addon's self-tests, then activates). Operationally relevant:
 - Addon code lives under `data/addons/`, addon data under
   `data/addon-data/` — both inside the existing volume, covered by the
   ZIP backup, and survive image upgrades.
-- Set `GITHUB_TOKEN` if installs hit GitHub API rate limits or the
-  addon repo is private.
+- Set `CODEX_GITHUB_TOKEN` if installs hit GitHub API rate limits or the
+  addon repo is private. (The server also accepts plain `GITHUB_TOKEN`,
+  but the shipped compose file only forwards `CODEX_GITHUB_TOKEN` into
+  the container.)
 
 ## 9. Running multiple instances (separate campaigns)
 
@@ -323,7 +325,7 @@ others:
 | `CODEX_RESTARTABLE` | `1` enables `POST /api/restart` + the DM "♻ Restartovat server" button (Settings → Server). Also auto-detected inside Docker via `/.dockerenv`. Only enable when a supervisor (`restart: unless-stopped`, systemd, pm2) brings the process back. |
 | `CODEX_DATA_DIR` / `CODEX_SNAPSHOTS_DIR` | Override the data / snapshot directories (default `./data` and `./data-snapshots` next to `server.js`). The seam for non-Docker hosting. |
 | `CODEX_SNAPSHOT_MIN_INTERVAL_MS` | Minimum interval between *manual* snapshots (default `3000`). |
-| `GITHUB_TOKEN` | Optional. Used by addon installs/updates for the GitHub API — raises rate limits and allows private addon repos. |
+| `CODEX_GITHUB_TOKEN` | Optional. Used by addon installs/updates for the GitHub API — raises rate limits and allows private addon repos. (`GITHUB_TOKEN` is accepted too, but is not forwarded by the shipped compose file.) |
 
 `GET /api/version` returns `{ hash, instance, features, canRestart }`, so you
 can confirm which instance and feature set a running container serves:

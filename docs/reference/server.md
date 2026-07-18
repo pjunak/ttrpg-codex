@@ -1,8 +1,8 @@
 # Server: API, snapshots, security, tests, deploy — deep reference (ttrpg-codex)
 
-> Moved verbatim out of CLAUDE.md to keep sessions lean. This file is
+> Moved verbatim out of AGENTS.md to keep sessions lean. This file is
 > CANONICAL for its subsystem — read it before working here and keep it
-> as current as CLAUDE.md itself. Cross-references like "see X above"
+> as current as AGENTS.md itself. Cross-references like "see X above"
 > may point at a sibling file in this directory.
 
 ## Snapshot system
@@ -114,7 +114,7 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | GET | `/maps/tiles/:mapId/tiles.json` | — | Per-map manifest `{ width, height, tileSize, minZoom, maxZoom, ext? }` written by the tiler. Missing = client falls back to imageOverlay. |
 | GET | `/maps/tiles/:mapId/:z/:x/:y.:ext` | — | Individual 256 px tile. Served as static files (`maxAge: '7d'`). |
 | GET | `/api/backup` | dm | Download `data/` as zip (`archive.directory(DATA_DIR,'data')` — blanket include, so addon-data + the `addons.json` registry + addon code under `data/addons/` are all in it). DM-only because the raw JSON contains DM-only entities (`visibility: 'dm'`); a player download would bypass the visibility filter. ⚠ **archiver v8 is ESM** — `require('archiver')` returns `{ZipArchive,…}`, not a callable; the route uses `new archiver.ZipArchive(opts)` (version-tolerant fallback to the old `archiver('zip')` factory). A naive bump back to the factory call would 500 the whole endpoint. |
-| POST | `/api/restore` | dm | Replace `data/` from an uploaded backup (multipart field `backup`). Accepts `.zip` produced by `/api/backup` (entries under `data/...`) **or** a `.json` document in the `Store.exportJSON()` shape. Takes a `pre-restore` snapshot first, writes each entry safely under `DATA_DIR` (path-traversal protected via `_safeJoinDataDir`), broadcasts `data-changed`. Triggers `_backgroundTileSweep()` after a ZIP restore so map tiles regenerate. 200 MB hard cap. Uses `adm-zip`. |
+| POST | `/api/restore` | dm | Replace `data/` from an uploaded backup (multipart field `backup`). Accepts `.zip` produced by `/api/backup` (entries under `data/...`) **or** a `.json` document in the `Store.exportJSON()` shape. Takes a `pre-restore` snapshot first, writes each entry safely under `DATA_DIR` (path-traversal protected via `_safeJoinDataDir`), broadcasts `data-changed`. Triggers `_backgroundTileSweep()` after a ZIP restore so map tiles regenerate. 200 MB hard cap. Streams entries via `yauzl` (disk-staged, constant memory; two-pass zip-bomb scan — the old buffering `adm-zip` path is gone). `_safeJoinDataDir` also refuses `auth.json` and anything under `data/addons/` (addon CODE — the anti-RCE guard); refused entries are counted, not fatal. Responds `{ ok, format, restored, skipped }`. Covered by `test/integration-restore.test.cjs`. |
 | GET | `/api/snapshots` | any | List point-in-time snapshots. Returns `{ snapshots: [{id, createdAt, dataHash, reason, size}] }` newest-first. Only metadata — contents never leave the server. |
 | POST | `/api/snapshots` | any | Take a manual snapshot now. Returns `{ ok, id }`. Bypasses the 60 s coalesce window. Players can pin a known-good point before a risky edit. Rate-limited: min 3 s between manual snapshots (`CODEX_SNAPSHOT_MIN_INTERVAL_MS`; the test helper sets 0) — a manual snapshot holds the write lock for a full-dataset copy. |
 | POST | `/api/snapshots/:id/restore` | dm | Restore a specific snapshot. Takes a `pre-restore` snapshot first, overwrites `data/` JSON files, broadcasts `data-changed`. |
@@ -129,6 +129,7 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | POST | `/api/addons/sources` | dm | DM-only on **realRole**. `{ repo, action? }` — add (default) or `remove` a recorded source (`owner/name` or `owner/*`) in `sources.allow`. Mostly auto-managed by install; this is the advanced manual lever. Broadcasts `addons-changed`. |
 | POST | `/api/addons/resolve` | dm | DM-only on **realRole**. `{ target, winner }` — resolve a fragment-override conflict: `winner` = an addonId (that addon's exclusive op wins), `null` (force the built-in), or absent/empty (clear → back to auto). Writes `resolutions[target]` in `data/addons.json` (prototype-key-guarded), broadcasts `addons-changed`. See **Fragment overrides**. |
 | POST | `/api/addons/:id/enable` · `/disable` | dm | DM-only on **realRole**. Flip `enabled` on an installed addon; broadcasts `addons-changed` (clients live-reconcile). 404 if unknown. |
+| POST | `/api/addons/:id/content-groups` | dm | DM-only on **realRole**. `{ disabled: string[] }` — replace wholesale which manifest `contentGroups` values are disabled for a content addon (registry key `disabledContentGroups`). Hot: `_applyAddonContent` re-filters the served tree from the in-memory raw cache, then BOTH `addons-changed` (Manager refresh) and `data-changed` (content consumers refetch) broadcast. 400 if the addon declares no `contentGroups`; unknown group ids are stored as-is (match nothing — forward-compatible). |
 | DELETE | `/api/addons/:id` | dm | DM-only on **realRole**. Remove an addon: drop it from the registry (clearing any `resolutions` pointing at it) + delete its code dir `data/addons/<id>/`. Per-addon DATA `data/addon-data/<id>/` is **kept** unless `?purge=1`, so a re-install restores content. Broadcasts `addons-changed`. |
 
 ## Write serialisation
@@ -235,6 +236,14 @@ Coverage today:
   `plural()` Czech one/few/other vs English one/other (pinned against
   `Intl.PluralRules`), `relativeTime` guards, and a **catalog-parity**
   check (cs covers every en key, with the Czech plural buckets).
+- `test/i18n-keys.test.mjs` — every LITERAL `I18n.t('…')` / `plural('…')`
+  key in the browser sources + every `data-i18n`/`data-i18n-title`
+  attribute in index.html exists in en.json (dynamic keys skipped).
+- `test/design-system.test.mjs` — tripwire over the shared design-system
+  components addons build on (`.codex-link-row/-tile` target size +
+  focus ring, `.codex-skel`, the `iconGlyph` facade): asserts the
+  load-bearing CSS properties exist so a host refactor can't silently
+  regress every consuming addon.
 
 **Integration tests** (boot the Express app against a tempdir
 `CODEX_DATA_DIR`, exercise endpoints, assert on disk + responses):
@@ -265,6 +274,10 @@ Coverage today:
   revert-last/delete DM-only; anonymous locked out); delete + 404
   paths. Uses manual snapshots as restore points so it never depends
   on wall-clock timing.
+- `test/integration-restore.test.cjs` — `POST /api/restore` guards:
+  backup-ZIP round-trip, `auth.json` never overwritten, addon-code
+  entries under `data/addons/` refused (counted in `skipped`), auth
+  required. The coverage for the `_safeJoinDataDir` anti-RCE guard.
 - `test/integration-pets.test.cjs` — the `pets` collection is a plain
   PUBLIC list type (in `ALLOWED_TYPES` + `ALL_TYPES` only): any authed
   role can save / delete, `GET /api/data` returns pets to every caller

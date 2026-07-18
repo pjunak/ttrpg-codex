@@ -1,8 +1,8 @@
 # Wiki rendering & editors — deep reference (ttrpg-codex)
 
-> Moved verbatim out of CLAUDE.md to keep sessions lean. This file is
+> Moved verbatim out of AGENTS.md to keep sessions lean. This file is
 > CANONICAL for its subsystem — read it before working here and keep it
-> as current as CLAUDE.md itself. Cross-references like "see X above"
+> as current as AGENTS.md itself. Cross-references like "see X above"
 > may point at a sibling file in this directory.
 
 ## Attitude glow (characters · locations · factions · pins)

@@ -1,8 +1,8 @@
 # CloudMap (mind maps) — deep reference (ttrpg-codex)
 
-> Moved verbatim out of CLAUDE.md to keep sessions lean. This file is
+> Moved verbatim out of AGENTS.md to keep sessions lean. This file is
 > CANONICAL for its subsystem — read it before working here and keep it
-> as current as CLAUDE.md itself. Cross-references like "see X above"
+> as current as AGENTS.md itself. Cross-references like "see X above"
 > may point at a sibling file in this directory.
 
 ## CloudMap architecture
@@ -14,7 +14,6 @@ instance and an HTML overlay.
 |---|---|---|
 | `frakce` | faction hubs + characters + locations | hub→member, hub→location, commands, negotiates, ally |
 | `vztahy` | characters only | all relationship types |
-| `mista` | locations | undirected from `location.connections[]`, deduped |
 | `tajemstvi` | mystery nodes + involved characters | mystery→character |
 | `casova-osa` | events + involved characters | chronological chain + event→character |
 

@@ -100,10 +100,11 @@ test/                    node --test unit + integration tests
 
 ## Documentation
 
-- **[CLAUDE.md](CLAUDE.md)** — the deep internal reference (written as an
+- **[AGENTS.md](AGENTS.md)** — the deep internal reference (written as an
   AI-assistant context file, equally useful to humans): every subsystem's
-  contract, invariants, gotchas, known deferred issues. Start here before
-  changing code.
+  contract, invariants, gotchas, known deferred issues — plus the
+  subsystem encyclopedia it points into, [docs/reference/](docs/reference/).
+  Start here before changing code.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — local dev setup, the IIFE
   module pattern, how to add a new entity collection, testing.
 - **[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)** — Docker deployment
