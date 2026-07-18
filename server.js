@@ -220,6 +220,32 @@ async function _writeStoredCredentials(next) {
   _clearAuthCache();
 }
 
+// ── data/secrets.json — server-held secrets settable from the UI ──
+// Today one key: { githubToken } (set/cleared by the DM from the addon
+// install wizard). Same posture as auth.json (NON_DATA_JSON_FILES → no
+// snapshots, no data hash, restore refuses it) PLUS excluded from the
+// /api/backup ZIP: a stored token is a live plaintext credential and must
+// never ride into a shareable archive. Never sent to a client, never logged.
+const SECRETS_FILE = path.join(DATA_DIR, 'secrets.json');
+let _secretsCache = null;
+function _clearSecretsCache() { _secretsCache = null; }
+function _loadSecrets() {
+  if (_secretsCache) return _secretsCache;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(SECRETS_FILE, 'utf8'));
+    _secretsCache = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+  } catch (e) {
+    if (e.code !== 'ENOENT') console.warn('[secrets] failed to read secrets.json:', e.message);
+    _secretsCache = {};
+  }
+  return _secretsCache;
+}
+async function _writeSecrets(next) {
+  await _atomicWrite(SECRETS_FILE, JSON.stringify(next, null, 2));
+  try { await fsp.chmod(SECRETS_FILE, 0o600); } catch (_) {}
+  _clearSecretsCache();
+}
+
 function _dmEnvPassword()     { return process.env.DM_PASSWORD     || process.env.EDIT_PASSWORD || '123'; }
 function _playerEnvPassword() { return process.env.PLAYER_PASSWORD || ''; }
 
@@ -535,13 +561,16 @@ async function _lastSnapshotTime() {
   } catch { return 0; }
 }
 
-// `auth.json` is deployment config, not campaign data. We intentionally
-// exclude it from snapshots (so restoring an old snapshot doesn't
-// silently roll back a password change), from the data hash (so a
+// `auth.json` and `secrets.json` are deployment config, not campaign data.
+// We intentionally exclude them from snapshots (so restoring an old snapshot
+// doesn't silently roll back a password change), from the data hash (so a
 // password rotation doesn't trigger a no-op SSE refetch), and from ZIP
-// restore (`_safeJoinDataDir` — same rationale as snapshots). It still
-// ships inside the full backup zip for disaster-recovery inspection.
-const NON_DATA_JSON_FILES = new Set(['auth.json']);
+// restore (`_safeJoinDataDir` — same rationale as snapshots). `auth.json`
+// still ships inside the full backup zip for disaster-recovery inspection
+// (salted hashes only); `secrets.json` (the DM-stored GitHub token — a LIVE
+// plaintext credential) is additionally excluded from the backup ZIP itself
+// (see /api/backup).
+const NON_DATA_JSON_FILES = new Set(['auth.json', 'secrets.json']);
 
 async function _createSnapshot(reason = 'save') {
   const now       = Date.now();
@@ -1666,17 +1695,31 @@ const ADDON_VERSIONS_KEEP = 5;                  // content-addressed history kep
 // buggy addon can't freeze all editing until someone restarts the container.
 const ADDON_LOCK_TIMEOUT_MS = 30_000;
 
-// Server-side GitHub credential for the broker. `CODEX_GITHUB_TOKEN` is the
-// documented name (matches the other CODEX_* knobs); plain `GITHUB_TOKEN`
-// keeps working as an alias (the pre-existing name, and what CI environments
-// export). With a token set, every api.github.com request the broker makes
-// carries `Authorization: Bearer <token>` — which raises rate limits and
-// makes PRIVATE addon repos installable/updatable. The token never leaves
-// the process: it is never logged, never sent to a client, and never written
-// under DATA_DIR (backup ZIPs sweep data/ — a token there would leak into
-// every backup; _scrubbedChildEnv also strips it from addon test children).
+// Server-side GitHub credential for the broker. Two sources: the DM-stored
+// token (data/secrets.json, set from the install wizard via
+// POST /api/addons/github-token) and the env vars — `CODEX_GITHUB_TOKEN` is
+// the documented name (matches the other CODEX_* knobs); plain
+// `GITHUB_TOKEN` keeps working as an alias (the pre-existing name, and what
+// CI environments export). With a token set, every api.github.com request
+// the broker makes carries `Authorization: Bearer <token>` — which raises
+// rate limits and makes PRIVATE addon repos installable/updatable. The
+// token never leaves the process: it is never logged, never sent to a
+// client, and secrets.json is excluded from the backup ZIP + snapshots +
+// the data hash + restore (NON_DATA_JSON_FILES and the /api/backup filter);
+// _scrubbedChildEnv also strips the env form from addon test children.
 function _githubToken() {
+  const stored = _loadSecrets().githubToken;
+  if (typeof stored === 'string' && stored) return stored;
   return process.env.CODEX_GITHUB_TOKEN || process.env.GITHUB_TOKEN || '';
+}
+// 'stored' | 'env' | null — tells the Manager/wizard WHERE the active token
+// comes from (never the token itself). Stored (wizard-set, data/secrets.json)
+// wins over env: it's the most recent explicit intent, and lets a DM fix a
+// wrong env token without shell access.
+function _githubTokenSource() {
+  const stored = _loadSecrets().githubToken;
+  if (typeof stored === 'string' && stored) return 'stored';
+  return (process.env.CODEX_GITHUB_TOKEN || process.env.GITHUB_TOKEN) ? 'env' : null;
 }
 
 async function _readAddonsRegistry() {
@@ -2237,12 +2280,16 @@ app.get('/api/addons', async (req, res) => {
       // Fragment-override conflict resolutions (target → winner addonId | null).
       // The client host consults these so a DM-picked winner actually applies.
       resolutions: (reg.resolutions && typeof reg.resolutions === 'object') ? reg.resolutions : {},
-      // Whether a server-side GitHub token is configured (CODEX_GITHUB_TOKEN /
-      // GITHUB_TOKEN) — the Manager shows it so a DM knows up front whether
-      // PRIVATE addon repos will install, instead of learning from a failed
-      // fetch. Real-DM only (the route itself is public for boot): a boolean
-      // about server config, but still nobody else's business. Never the token.
-      ...(req.realRole === 'dm' ? { githubTokenConfigured: !!_githubToken() } : {}),
+      // Whether a server-side GitHub token is configured (wizard-stored /
+      // CODEX_GITHUB_TOKEN / GITHUB_TOKEN) and where it came from — the
+      // Manager + wizard show it so a DM knows up front whether PRIVATE
+      // addon repos will install, instead of learning from a failed fetch.
+      // Real-DM only (the route itself is public for boot): booleans about
+      // server config, but still nobody else's business. Never the token.
+      ...(req.realRole === 'dm' ? {
+        githubTokenConfigured: !!_githubToken(),
+        githubTokenSource: _githubTokenSource(),
+      } : {}),
     });
   } catch (e) {
     console.error('GET /api/addons:', e);
@@ -2581,6 +2628,34 @@ app.post('/api/addons/:id/content-groups', requireRealDM('Jen DM může spravova
     res.json({ ok: true, id, disabled });
   } catch (e) {
     console.error('POST /api/addons/:id/content-groups:', e);
+    res.status(500).json({ error: 'Write error' });
+  }
+});
+
+// DM-only (realRole): set/clear the stored GitHub token from the install
+// wizard. Body { token: "<value>" } sets; { token: "" } (or no token key)
+// clears. Shape-validated only (printable ASCII, no spaces — covers ghp_*,
+// github_pat_* and future formats), written to data/secrets.json, and NEVER
+// echoed back, logged, backed up or snapshotted. A stored token wins over
+// the env vars (see _githubToken). Broadcasts addons-changed so every open
+// Manager refreshes its 🔑 line live.
+const GITHUB_TOKEN_RE = /^[\x21-\x7E]{8,255}$/;
+app.post('/api/addons/github-token', requireRealDM('Jen DM může spravovat GitHub token.'), async (req, res) => {
+  const raw = (req.body && typeof req.body.token === 'string') ? req.body.token.trim() : '';
+  if (raw && !GITHUB_TOKEN_RE.test(raw)) {
+    return res.status(400).json({ error: 'Token má neplatný tvar.' });
+  }
+  try {
+    await withWriteLock(async () => {
+      const secrets = { ..._loadSecrets() };
+      if (raw) secrets.githubToken = raw; else delete secrets.githubToken;
+      await _writeSecrets(secrets);
+    });
+    _broadcast('addons-changed', { at: Date.now() });
+    res.json({ ok: true, configured: !!_githubToken(), source: _githubTokenSource() });
+  } catch (e) {
+    // e.message only — an error object could conceivably carry request body.
+    console.error('POST /api/addons/github-token:', e && e.message);
     res.status(500).json({ error: 'Write error' });
   }
 });
@@ -3117,7 +3192,13 @@ app.get('/api/backup', requireAuth, (_req, res) => {
     if (!res.headersSent) res.status(500).json({ error: 'Backup failed' });
   });
   archive.pipe(res);
-  archive.directory(DATA_DIR, 'data');
+  // Blanket-include data/ EXCEPT secrets.json — the stored GitHub token is a
+  // live plaintext credential and must never ride into a shareable archive.
+  // (auth.json stays: salted hashes only, wanted for disaster-recovery
+  // inspection.) Covered by test/integration-github-token.test.cjs, which
+  // also guards that the archiver version still honours the entry filter.
+  archive.directory(DATA_DIR, 'data', (entry) =>
+    (entry && entry.name === 'secrets.json') ? false : entry);
   archive.finalize();
 });
 

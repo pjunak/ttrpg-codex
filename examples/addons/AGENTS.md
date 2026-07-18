@@ -106,7 +106,8 @@ per-record JSON tree (`data/<dir>/<id>.json`, kinds keyed by each record's
 for you: no server code, no `server:code` grant, no restart to load. Optionally
 declare `"contentGroups": {field, label?}` (e.g. `field: "book"`) so the DM can
 toggle whole record groups on/off in Settings — the host filters the served
-tree hot (full docs: AUTHORING.md). Only write a `server` module for real logic.
+tree hot, and each toggle is labelled by the `name` of the field-named kind's
+matching record (ship a `book` record per book) (full docs: AUTHORING.md). Only write a `server` module for real logic.
 
 **Other facade members** (always present unless noted):
 ```js

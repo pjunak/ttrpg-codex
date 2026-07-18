@@ -1891,6 +1891,7 @@ export const Settings = (() => {
   // GitHub URL. Built entirely on design-system tokens/classes.
   let _addonsList     = null;   // cached /api/addons projection; null = loading
   let _githubTokenOk  = null;   // DM-only server flag: private-repo installs possible? (null = unknown / non-DM)
+  let _githubTokenSrc = null;   // 'stored' (wizard-set) | 'env' | null — where the active token comes from
   let _addonWizardEsc = null;   // keydown handler installed while the wizard is open
   let _wizardPreview  = null;   // { repo, ref, sha } captured at the wizard's preview step
   let _wizardMode     = 'install'; // 'install' | 'update' — wizard messaging
@@ -1906,6 +1907,7 @@ export const Settings = (() => {
         // DM-only boolean (absent for other roles): server has a GitHub token,
         // so private addon repos are installable. Drives the Manager's 🔑 line.
         _githubTokenOk = (j && typeof j.githubTokenConfigured === 'boolean') ? j.githubTokenConfigured : null;
+        _githubTokenSrc = (j && typeof j.githubTokenSource === 'string') ? j.githubTokenSource : null;
       })
       .catch(() => { _addonsList = []; });
   }
@@ -2035,8 +2037,12 @@ export const Settings = (() => {
   function _githubTokenLine() {
     if (_githubTokenOk === null) return '';
     const on = _githubTokenOk;
+    const src = (on && _githubTokenSrc)
+      ? ' ' + esc(I18n.t(_githubTokenSrc === 'stored'
+          ? 'settings.githubTokenSourceStored' : 'settings.githubTokenSourceEnv'))
+      : '';
     return `<p class="settings-hint" style="margin-bottom:1rem;${on ? 'color:var(--color-success)' : ''}">
-      <span aria-hidden="true">🔑</span> ${esc(I18n.t(on ? 'settings.githubTokenOn' : 'settings.githubTokenOff'))}
+      <span aria-hidden="true">🔑</span> ${esc(I18n.t(on ? 'settings.githubTokenOn' : 'settings.githubTokenOff'))}${src}
     </p>`;
   }
 
@@ -2167,7 +2173,7 @@ export const Settings = (() => {
                <label style="display:inline-flex;align-items:center;gap:.35rem;margin-right:.9rem">
                  <input type="checkbox" value="${esc(v.id)}" ${(cg.disabled || []).includes(v.id) ? '' : 'checked'}
                         ${dataAction('Settings.toggleContentGroup', a.id)}>
-                 <span>${esc(v.id)}</span><span style="color:var(--text-muted)">(${esc(String(v.count))})</span>
+                 <span>${esc(v.label || v.id)}</span><span style="color:var(--text-muted)">(${esc(String(v.count))})</span>
                </label>`).join('')}
            </div></details>`
       : '';
@@ -2361,6 +2367,7 @@ export const Settings = (() => {
                    placeholder="https://github.com/owner/muj-doplnek" value="${esc(prefill)}"
                    ${dataOn('keydown', 'Settings.addonWizardKey', '$ev')}>
           </label>
+          ${_wizardTokenSectionHtml(false)}
           <div class="addon-wizard-status" id="addon-wizard-status"></div>
         </div>
         <div class="addon-wizard-foot" id="addon-wizard-foot">
@@ -2395,6 +2402,78 @@ export const Settings = (() => {
     if (el) el.innerHTML = html || '';
   }
 
+  // ── Private-repo GitHub token, managed inside the wizard ───────
+  // Collapsed <details> under the URL field: status in the summary, a
+  // password-type input + save (and remove, when a stored token exists)
+  // inside. Opens automatically when a preview fails without a token —
+  // the usual "why does my private repo 404" moment. The token value goes
+  // straight to POST /api/addons/github-token and is never rendered back.
+  function _wizardTokenSectionHtml(open) {
+    const state = _githubTokenOk
+      ? I18n.t(_githubTokenSrc === 'env' ? 'settings.tokenStateEnv' : 'settings.tokenStateStored')
+      : I18n.t('settings.tokenStateNone');
+    return `
+      <details class="addon-row-perms" id="addon-wizard-token"${open ? ' open' : ''}>
+        <summary>🔑 ${esc(I18n.t('settings.tokenSection'))} — ${esc(state)}</summary>
+        <div style="display:flex;flex-direction:column;gap:var(--space-2);margin-top:var(--space-2)">
+          <div class="settings-hint">${I18n.t('settings.tokenHint')}</div>
+          <div style="display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap">
+            <input class="edit-input" id="addon-wizard-token-input" type="password"
+                   autocomplete="off" placeholder="ghp_… / github_pat_…" style="flex:1;min-width:12rem"
+                   ${dataOn('keydown', 'Settings.githubTokenKey', '$ev')}>
+            <button type="button" class="edit-save-btn"
+              ${dataAction('Settings.saveGithubToken')}>${esc(I18n.t('settings.tokenSave'))}</button>
+            ${_githubTokenSrc === 'stored'
+              ? `<button type="button" class="inline-create-btn"
+                   ${dataAction('Settings.clearGithubToken')}>${esc(I18n.t('settings.tokenClear'))}</button>`
+              : ''}
+          </div>
+        </div>
+      </details>`;
+  }
+
+  function _refreshWizardTokenSection(forceOpen) {
+    const d = document.getElementById('addon-wizard-token');
+    if (!d) return;
+    const open = forceOpen !== undefined ? forceOpen : d.open;
+    d.outerHTML = _wizardTokenSectionHtml(open);
+  }
+
+  function githubTokenKey(ev) {
+    if (ev && ev.key === 'Enter') { ev.preventDefault(); saveGithubToken(); }
+  }
+
+  function _postGithubToken(token, doneKey) {
+    return fetch('/api/addons/github-token', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+      .then(j => {
+        _githubTokenOk  = !!j.configured;
+        _githubTokenSrc = j.source || null;
+        _flash(I18n.t(doneKey));
+        _refreshWizardTokenSection();
+        return true;
+      })
+      .catch(e => { _flash((e && e.error) || I18n.t('settings.operationFailed'), false); return false; });
+  }
+
+  function saveGithubToken() {
+    const input = document.getElementById('addon-wizard-token-input');
+    const token = ((input && input.value) || '').trim();
+    if (!token) { _flash(I18n.t('settings.tokenInvalid'), false); return; }
+    _postGithubToken(token, 'settings.tokenSaved').then((ok) => {
+      // A repo already pasted → retry the preview with the new credential.
+      const url = document.getElementById('addon-wizard-url');
+      if (ok && url && url.value.trim()) previewAddon();
+    });
+  }
+
+  function clearGithubToken() {
+    _postGithubToken('', 'settings.tokenCleared');
+  }
+
   // Step 1 — resolve addon.json for DM review (no download / install yet).
   function previewAddon() {
     const input = document.getElementById('addon-wizard-url');
@@ -2414,7 +2493,13 @@ export const Settings = (() => {
       .catch(e => {
         if (go)    go.disabled = false;
         if (input) input.disabled = false;
-        _wizardStatus(`<span class="addon-wizard-err">${esc((e && e.error) || I18n.t('settings.previewFailed'))}</span>`);
+        // Without any token, a private repo 404s — surface the fix in place:
+        // point at the token section and open it, ready for a paste + retry.
+        const tokenHint = !_githubTokenOk
+          ? `<div class="settings-hint" style="margin-top:.4rem">🔑 ${esc(I18n.t('settings.tokenPrivateHint'))}</div>`
+          : '';
+        _wizardStatus(`<span class="addon-wizard-err">${esc((e && e.error) || I18n.t('settings.previewFailed'))}</span>${tokenHint}`);
+        if (!_githubTokenOk) _refreshWizardTokenSection(true);
       });
   }
 
@@ -2520,5 +2605,6 @@ export const Settings = (() => {
     checkAddonUpdates, updateAddon, updateAllAddons, rollbackAddon, restartServer,
     openAddonWizard, closeAddonWizard, addonWizardKey,
     previewAddon, confirmInstallAddon,
+    saveGithubToken, clearGithubToken, githubTokenKey,
   };
 })();

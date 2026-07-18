@@ -88,9 +88,16 @@ function loadContentTree(rootDir) {
  * group and never filterable. Values are stringified so a numeric field
  * compares stably against the registry's string off-list.
  *
+ * Each value also carries a display `label`: when the tree ships a record of
+ * the kind NAMED LIKE the group field whose id matches the value (the
+ * compendium's `book` field is labelled by its `book`-kind records), that
+ * record's `name` is used; otherwise the raw value falls through — so the
+ * Manager's toggles show "Player's Handbook", not "phb", with zero manifest
+ * additions. The registry off-list and the toggle wire format stay raw ids.
+ *
  * @param {{content: Object<string, Array>}} tree - from loadContentTree
  * @param {string} field - the manifest's contentGroups.field
- * @returns {Array<{id: string, count: number}>} sorted by id
+ * @returns {Array<{id: string, count: number, label: string}>} sorted by id
  */
 function groupValues(tree, field) {
   const counts = new Map();
@@ -102,7 +109,14 @@ function groupValues(tree, field) {
       counts.set(id, (counts.get(id) || 0) + 1);
     }
   }
-  return [...counts.keys()].sort().map((id) => ({ id, count: counts.get(id) }));
+  const labels = new Map();
+  for (const r of content[field] || []) {
+    if (r && r.id != null && typeof r.name === 'string' && r.name.trim()) {
+      labels.set(String(r.id), r.name);
+    }
+  }
+  return [...counts.keys()].sort()
+    .map((id) => ({ id, count: counts.get(id), label: labels.get(id) || id }));
 }
 
 /**

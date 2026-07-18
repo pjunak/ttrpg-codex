@@ -202,17 +202,33 @@ Vazby) leaves the active tab outside the visible set.
   `＋ Instalovat z GitHubu` button opening the **install wizard** modal
   (`Settings.openAddonWizard` — paste a GitHub URL → `POST /api/addons/install`
   → the addon live-loads via the `addons-changed` SSE reconcile, no reload).
+  Under the URL field the wizard carries a collapsed **🔑 Private
+  repositories** `<details>` (`_wizardTokenSectionHtml`): status in the
+  summary (`settings.tokenState*` ← `_githubTokenSrc`), a password-type
+  input + `Settings.saveGithubToken` (POST `/api/addons/github-token`;
+  on success with a repo pasted the preview auto-retries) and
+  `Settings.clearGithubToken` when a stored token exists. A failed
+  preview with no token appends `settings.tokenPrivateHint` and
+  force-opens the section (`_refreshWizardTokenSection(true)`) — the
+  whole private-repo flow lives inside the wizard.
   Toolbar also has **⬆ Aktualizovat vše** (`Settings.updateAllAddons` →
   `POST /api/addons/update-all` — updates every GitHub addon at once; local addons
   skipped). Under the intro the Manager shows a one-line **🔑 GitHub-token
-  status** (`_githubTokenLine` ← the DM-only `githubTokenConfigured` boolean
-  on `GET /api/addons`): whether the server can install PRIVATE addon repos
-  (`CODEX_GITHUB_TOKEN`, see SELF_HOSTING.md) — so a DM learns it up front,
-  not from a failed install. Content addons whose manifest declares
+  status** (`_githubTokenLine` ← the DM-only `githubTokenConfigured` +
+  `githubTokenSource` on `GET /api/addons`): whether the server can install
+  PRIVATE addon repos and where the token came from (wizard-stored
+  `data/secrets.json` wins over `CODEX_GITHUB_TOKEN`/`GITHUB_TOKEN` env;
+  see SELF_HOSTING.md) — so a DM learns it up front, not from a failed
+  install; the token itself is managed inside the install wizard (see the
+  wizard bullet above). Content addons whose manifest declares
   `contentGroups` (e.g. the compendium's `book` field) get a `<details>`
   block in their Manager card with one checkbox per group value
   (`Settings.toggleContentGroup` → `POST /api/addons/:id/content-groups`)
-  — unticking a book hides its records live, no restart. The **♻ Restartovat server** button MOVED to the
+  — unticking a book hides its records live, no restart. Checkboxes show
+  each group's FULL name (`v.label`, resolved server-side by `groupValues`
+  from the field-named kind's matching record — `book` records →
+  "Player's Handbook"; raw-id fallback); the checkbox `value` and the
+  off-list wire format stay raw ids. The **♻ Restartovat server** button MOVED to the
   `account` (**Server**) tab; when the server is restartable the addons intro
   shows a hint pointing there. All built on design-system tokens/classes. See
   **Addon framework**.

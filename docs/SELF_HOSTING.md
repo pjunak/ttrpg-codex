@@ -65,16 +65,21 @@ Passwords come from two sources, checked in this order:
    consulted only when the matching role has no stored credential.
    `EDIT_PASSWORD` is a legacy alias for `DM_PASSWORD`.
 
-One more optional variable: **`CODEX_GITHUB_TOKEN`** (or the conventional
-`GITHUB_TOKEN`) — a GitHub token the addon installer attaches to its
-api.github.com requests. Set it to install addons from **private
-repositories** (and to raise GitHub's anonymous rate limits). The token
-stays server-side only: it is never sent to clients, never logged, and —
-deliberately — never stored under `data/`, because backup ZIPs sweep that
-whole directory and a stored token would leak into every backup.
-A fine-grained personal access token with **Contents: Read-only** on the
-addon repositories is all it needs. The Addon Manager (Settings →
-Doplňky) shows a 🔑 line telling the DM whether a token is configured.
+To install addons from **private repositories** (and to raise GitHub's
+anonymous rate limits) the server needs a GitHub token. The easiest path
+needs no shell access at all: the DM opens the install wizard (Settings →
+Doplňky → ＋ Instalovat z GitHubu) and pastes the token into its **🔑
+Private repositories** section — it's stored server-side in
+`data/secrets.json` and used for every install/update from then on.
+Alternatively set the env var **`CODEX_GITHUB_TOKEN`** (or the
+conventional `GITHUB_TOKEN`); a wizard-stored token takes precedence over
+the env vars. Either way the token stays server-side only: never sent to
+clients, never logged, and `secrets.json` is deliberately excluded from
+backup ZIPs, snapshots and restore — a stored credential must never ride
+into a shareable archive. A fine-grained personal access token with
+**Contents: Read-only** on the addon repositories is all it needs. The
+Addon Manager shows a 🔑 line telling the DM whether (and from where) a
+token is configured.
 
 A few consequences worth knowing:
 
@@ -279,10 +284,12 @@ addon's self-tests, then activates). Operationally relevant:
 - Addon code lives under `data/addons/`, addon data under
   `data/addon-data/` — both inside the existing volume, covered by the
   ZIP backup, and survive image upgrades.
-- Set `CODEX_GITHUB_TOKEN` if installs hit GitHub API rate limits or the
-  addon repo is private. (The server also accepts plain `GITHUB_TOKEN`,
-  but the shipped compose file only forwards `CODEX_GITHUB_TOKEN` into
-  the container.)
+- Private addon repo (or GitHub rate limits)? Paste a token into the
+  install wizard's 🔑 section (Settings → Doplňky → ＋ Instalovat z
+  GitHubu) — no shell needed. Env alternative: `CODEX_GITHUB_TOKEN`
+  (the server also accepts plain `GITHUB_TOKEN`, but the shipped compose
+  file only forwards `CODEX_GITHUB_TOKEN` into the container; a
+  wizard-stored token wins over both). See §2.
 
 ## 9. Running multiple instances (separate campaigns)
 
@@ -325,7 +332,7 @@ others:
 | `CODEX_RESTARTABLE` | `1` enables `POST /api/restart` + the DM "♻ Restartovat server" button (Settings → Server). Also auto-detected inside Docker via `/.dockerenv`. Only enable when a supervisor (`restart: unless-stopped`, systemd, pm2) brings the process back. |
 | `CODEX_DATA_DIR` / `CODEX_SNAPSHOTS_DIR` | Override the data / snapshot directories (default `./data` and `./data-snapshots` next to `server.js`). The seam for non-Docker hosting. |
 | `CODEX_SNAPSHOT_MIN_INTERVAL_MS` | Minimum interval between *manual* snapshots (default `3000`). |
-| `CODEX_GITHUB_TOKEN` | Optional. Used by addon installs/updates for the GitHub API — raises rate limits and allows private addon repos. (`GITHUB_TOKEN` is accepted too, but is not forwarded by the shipped compose file.) |
+| `CODEX_GITHUB_TOKEN` | Optional. Used by addon installs/updates for the GitHub API — raises rate limits and allows private addon repos. (`GITHUB_TOKEN` is accepted too, but is not forwarded by the shipped compose file; a token stored via the install wizard takes precedence over both.) |
 
 `GET /api/version` returns `{ hash, instance, features, canRestart }`, so you
 can confirm which instance and feature set a running container serves:

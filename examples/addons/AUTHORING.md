@@ -461,7 +461,12 @@ A content addon can declare ONE record field as its grouping key:
 ```
 
 The Manager then shows a checkbox per distinct `field` value (with record
-counts); the DM can untick a group and the host drops those records from
+counts). **Checkbox labels are data-driven:** when your tree ships a record
+of the kind *named like the field* whose `id` matches the value — e.g. the
+compendium's `book`-kind records — the toggle shows that record's `name`
+("Player's Handbook"), not the raw id (`phb`); values without such a record
+fall back to the raw id. Ship one per group value. The DM can untick a
+group and the host drops those records from
 EVERYTHING it serves — the `/content` aggregate, per-kind lists, `/item`
 lookups and `/kinds` — live, no restart. Consumers (browse pages, wiki-link
 kinds, `provide()`d data APIs) automatically agree because they all read the

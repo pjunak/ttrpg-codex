@@ -73,7 +73,24 @@ const TREE = { content: {
 } };
 
 test('groupValues: distinct values with counts from the unfiltered tree', () => {
-  assert.deepEqual(groupValues(TREE, 'book'), [{ id: 'mm', count: 2 }, { id: 'phb', count: 1 }]);
+  assert.deepEqual(groupValues(TREE, 'book'), [
+    { id: 'mm', count: 2, label: 'mm' },      // no same-kind record → raw id
+    { id: 'phb', count: 1, label: 'phb' },
+  ]);
+});
+
+test('groupValues: a record of the field-named kind labels its group', () => {
+  const labeled = { content: {
+    ...TREE.content,
+    book: [
+      { id: 'phb', kind: 'book', name: "Player's Handbook" },
+      { id: 'mm',  kind: 'book', name: '   ' },   // blank name → fall back to id
+    ],
+  } };
+  assert.deepEqual(groupValues(labeled, 'book'), [
+    { id: 'mm', count: 2, label: 'mm' },
+    { id: 'phb', count: 1, label: "Player's Handbook" },
+  ]);
 });
 
 test('filterContentTree: drops disabled groups, keeps field-less records, empties kinds', () => {
@@ -112,6 +129,8 @@ test('content-groups: POST filters the served tree live; DM-only; round-trips', 
       [`addons/books/${HASH}/content/spell/s1.json`]:       { id: 's1', kind: 'spell', name: 'One', book: 'phb' },
       [`addons/books/${HASH}/content/spell/s2.json`]:       { id: 's2', kind: 'spell', name: 'Two', book: 'mm' },
       [`addons/books/${HASH}/content/rule/r1.json`]:        { id: 'r1', kind: 'rule',  name: 'NoBook' },
+      // A record of the field-named kind labels its group in the Manager.
+      [`addons/books/${HASH}/content/book/phb.json`]:       { id: 'phb', kind: 'book', name: "Player's Handbook" },
     },
   });
   try {
@@ -129,10 +148,14 @@ test('content-groups: POST filters the served tree live; DM-only; round-trips', 
 
     await login(srv, DM);
 
-    // The Manager payload lists the groups with unfiltered counts.
+    // The Manager payload lists the groups with unfiltered counts; a value
+    // backed by a same-kind record shows its full name, others the raw id.
     let list = await (await srv.fetch('/api/addons')).json();
     let entry = list.addons.find(a => a.id === 'books');
-    assert.deepEqual(entry.contentGroups.values, [{ id: 'mm', count: 1 }, { id: 'phb', count: 1 }]);
+    assert.deepEqual(entry.contentGroups.values, [
+      { id: 'mm', count: 1, label: 'mm' },
+      { id: 'phb', count: 1, label: "Player's Handbook" },
+    ]);
     assert.deepEqual(entry.contentGroups.disabled, []);
 
     // Disable 'mm' → served tree filters immediately, field-less records stay.
@@ -150,7 +173,10 @@ test('content-groups: POST filters the served tree live; DM-only; round-trips', 
     list = await (await srv.fetch('/api/addons')).json();
     entry = list.addons.find(a => a.id === 'books');
     assert.deepEqual(entry.contentGroups.disabled, ['mm']);
-    assert.deepEqual(entry.contentGroups.values, [{ id: 'mm', count: 1 }, { id: 'phb', count: 1 }]);
+    assert.deepEqual(entry.contentGroups.values, [
+      { id: 'mm', count: 1, label: 'mm' },
+      { id: 'phb', count: 1, label: "Player's Handbook" },
+    ]);
 
     // Re-enable → everything back (nothing was deleted).
     await srv.fetch('/api/addons/books/content-groups', {

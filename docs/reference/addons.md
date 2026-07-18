@@ -131,7 +131,11 @@ a record property of the content tree, e.g. `book`, whose distinct values the
 DM can toggle per group in Settings → Doplňky; the HOST filters the served
 tree hot via `POST /api/addons/:id/content-groups` — registry stores the
 declaration as `contentGroups` + the DM's picks as `disabledContentGroups`;
-`normalizeContentGroups` in `server/addons.cjs` re-checks shapes on read),
+`normalizeContentGroups` in `server/addons.cjs` re-checks shapes on read.
+`groupValues` emits `[{id, count, label}]`: `label` is the `name` of a
+record of the field-named KIND with a matching id — `book` value `phb` →
+the `book` record's "Player's Handbook" — falling back to the raw id, so
+the Manager shows full names while the off-list wire format stays ids),
 serverDeps? (`string[]` of vetted host
 npm libs the server module needs — must be in `HOST_SERVER_LIBS` =
 `{express, adm-zip, archiver, multer}` or the addon loads `blocked`), permissions[],
@@ -160,12 +164,21 @@ then **`_promoteAddon`** (atomic rename to `<hash>/`→registry mutation→colle
 wiring→prune, **under** `withWriteLock` + `_safeJoinIn`). GitHub fetches carry an
 `AbortSignal.timeout` so a hung repo can't stall the install (or wedge the lock).
 **Private repos:** every api.github.com call (preview `fetchManifest`, install
-`_stageAddon`, `check-updates`, `update-all`) threads `_githubToken()`
-(`CODEX_GITHUB_TOKEN`, alias `GITHUB_TOKEN` — env only, NEVER under `data/`;
-see SELF_HOSTING.md) as `Authorization: Bearer`; a 404 with no token configured
-gets the `_privateRepoHint` suffix (GitHub 404s anonymous hits on private
-repos, which otherwise reads as "repo doesn't exist"). `GET /api/addons`
-carries a DM-only `githubTokenConfigured` boolean → the Manager's 🔑 line.
+`_stageAddon`, `check-updates`, `update-all`) threads `_githubToken()` as
+`Authorization: Bearer`. Two token sources, stored-wins: the **DM-stored
+token** — set from the install wizard's 🔑 section via
+`POST /api/addons/github-token`, persisted in `data/secrets.json`
+(NON_DATA_JSON_FILES: excluded from snapshots, the data hash and restore,
+PLUS filtered out of the `/api/backup` ZIP — a live plaintext credential
+must never ride into a shareable archive; `chmod 600` best-effort) — then
+the env vars `CODEX_GITHUB_TOKEN` / alias `GITHUB_TOKEN` (see
+SELF_HOSTING.md). The value is never echoed, logged, backed up or
+snapshotted. A 404 with no token configured gets the `_privateRepoHint`
+suffix (GitHub 404s anonymous hits on private repos, which otherwise reads
+as "repo doesn't exist") and the wizard auto-opens its token section.
+`GET /api/addons` carries DM-only `githubTokenConfigured` (boolean) +
+`githubTokenSource` (`'stored'|'env'|null`) → the Manager's 🔑 line + the
+wizard summary. Covered by `test/integration-github-token.test.cjs`.
 `_readAddonsRegistry`/`_writeAddonsRegistry`,
 `_publicAddonList`. Endpoints in the API table; install/sources are
 **DM-only on `realRole`**. Each write broadcasts a new SSE event
