@@ -1944,7 +1944,11 @@ export const Settings = (() => {
   // re-rendering list (or after a cancelled confirm). Bubble phase, so app.js's
   // capture-phase action dispatcher runs the clicked item's action first.
   // Registered once at module load.
-  const _ADDON_MENU_SEL = '.addon-actions-more[open], .addon-row-perms[open]';
+  // ⚠ The wizard's GitHub-token section (#addon-wizard-token) shares the
+  // .addon-row-perms styling but is an interactive FORM in a modal — menu
+  // semantics would close it the moment the user clicks its input (real
+  // bug: made the token unpasteable). Excluded → native <details> behavior.
+  const _ADDON_MENU_SEL = '.addon-actions-more[open], .addon-row-perms[open]:not(#addon-wizard-token)';
   document.addEventListener('click', (ev) => {
     document.querySelectorAll(_ADDON_MENU_SEL).forEach(d => {
       const sum = d.querySelector(':scope > summary');
@@ -2408,6 +2412,9 @@ export const Settings = (() => {
   // inside. Opens automatically when a preview fails without a token —
   // the usual "why does my private repo 404" moment. The token value goes
   // straight to POST /api/addons/github-token and is never rendered back.
+  // ⚠ Keep the id in sync with _ADDON_MENU_SEL's :not() — it opts this
+  // details OUT of the Manager's menu-close delegation (clicking the input
+  // would otherwise collapse the section).
   function _wizardTokenSectionHtml(open) {
     const state = _githubTokenOk
       ? I18n.t(_githubTokenSrc === 'env' ? 'settings.tokenStateEnv' : 'settings.tokenStateStored')
@@ -2416,7 +2423,7 @@ export const Settings = (() => {
       <details class="addon-row-perms" id="addon-wizard-token"${open ? ' open' : ''}>
         <summary>🔑 ${esc(I18n.t('settings.tokenSection'))} — ${esc(state)}</summary>
         <div style="display:flex;flex-direction:column;gap:var(--space-2);margin-top:var(--space-2)">
-          <div class="settings-hint">${I18n.t('settings.tokenHint')}</div>
+          <div class="settings-hint">${esc(I18n.t('settings.tokenHint'))}</div>
           <div style="display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap">
             <input class="edit-input" id="addon-wizard-token-input" type="password"
                    autocomplete="off" placeholder="ghp_… / github_pat_…" style="flex:1;min-width:12rem"

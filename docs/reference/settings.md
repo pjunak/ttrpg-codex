@@ -210,7 +210,12 @@ Vazby) leaves the active tab outside the visible set.
   `Settings.clearGithubToken` when a stored token exists. A failed
   preview with no token appends `settings.tokenPrivateHint` and
   force-opens the section (`_refreshWizardTokenSection(true)`) — the
-  whole private-repo flow lives inside the wizard.
+  whole private-repo flow lives inside the wizard. ⚠ The section shares
+  the `.addon-row-perms` styling but is excluded from the Manager's
+  menu-close delegation (`_ADDON_MENU_SEL` has `:not(#addon-wizard-token)`)
+  — menu semantics ("click inside → close") would collapse the details
+  the moment the user clicks the token input, making it unpasteable.
+  Keep the id and the `:not()` in sync.
   Toolbar also has **⬆ Aktualizovat vše** (`Settings.updateAllAddons` →
   `POST /api/addons/update-all` — updates every GitHub addon at once; local addons
   skipped). Under the intro the Manager shows a one-line **🔑 GitHub-token
