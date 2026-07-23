@@ -215,15 +215,36 @@ test('getRecentActivity: newest-first cross-collection feed of stamped entities'
   try {
     Store.saveCharacter({ id: 'ra-char', name: 'RA Char', faction: 'neutral', status: 'alive', knowledge: 4 });
     Store.saveLocation({ id: 'ra-loc', name: 'RA Loc' });
-    Store.saveFaction('ra-fac', { name: 'RA Fac' });
+    Store.saveEvent({ id: 'ra-event', name: 'RA Event' });
     Store.saveMystery({ id: 'ra-my', name: 'RA My', questions: [] });
+    Store.saveFaction('ra-fac', { name: 'RA Fac' });
+    Store.saveBuh({ id: 'ra-god', name: 'RA God' });
+    Store.saveArtifact({ id: 'ra-artifact', name: 'RA Artifact' });
+    Store.saveHistoricalEvent({ id: 'ra-history', name: 'RA History' });
   } finally {
     Date.now = realNow;
   }
 
   // Newest first, across list collections AND the keyed factions object.
   const mine = Store.getRecentActivity(1000).filter(e => String(e.id).startsWith('ra-'));
-  assert.deepEqual(mine.map(e => e.id), ['ra-my', 'ra-fac', 'ra-loc', 'ra-char']);
+  assert.deepEqual(mine.map(e => e.id), [
+    'ra-history', 'ra-artifact', 'ra-god', 'ra-fac',
+    'ra-my', 'ra-event', 'ra-loc', 'ra-char',
+  ]);
+
+  assert.deepEqual(
+    Object.fromEntries(mine.map(e => [e.id, [e.kind, e.route]])),
+    {
+      'ra-char':     ['postava', '#/postava'],
+      'ra-loc':      ['misto', '#/misto'],
+      'ra-event':    ['udalost', '#/udalost'],
+      'ra-my':       ['zahada', '#/zahada'],
+      'ra-fac':      ['frakce', '#/frakce'],
+      'ra-god':      ['buh', '#/buh'],
+      'ra-artifact': ['artefakt', '#/artefakt'],
+      'ra-history':  ['historicka-udalost', '#/historicka-udalost'],
+    },
+  );
 
   // Entry shape drives the dashboard rows + search suggestions:
   // `${route}/${id}` must be the article href for every kind.
@@ -250,6 +271,10 @@ test('getRecentActivity: newest-first cross-collection feed of stamped entities'
 
   Store.deleteMystery('ra-my');
   Store.deleteFaction('ra-fac');
+  Store.deleteHistoricalEvent('ra-history');
+  Store.deleteArtifact('ra-artifact');
+  Store.deleteBuh('ra-god');
+  Store.deleteEvent('ra-event');
   Store.deleteLocation('ra-loc');
   Store.deleteCharacter('ra-char');
 });

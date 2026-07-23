@@ -15,6 +15,7 @@ import { Sidebar } from './sidebar.js';
 import { Addons } from './addons.js';
 import { THEMES } from './constants.js';
 import { I18n } from './i18n.js';
+import { CollectionDescriptors } from './collection-descriptors.js';
 
 export const Settings = (() => {
 
@@ -1866,12 +1867,8 @@ export const Settings = (() => {
   }
 
   function _routeForCollection(c) {
-    return ({
-      characters:'postava', locations:'misto', events:'udalost',
-      mysteries:'zahada', artifacts:'artefakt', factions:'frakce',
-      pantheon:'buh', historicalEvents:'historicka-udalost',
-      relationships:'postava',  // rels don't have their own page
-    })[c] || c;
+    if (c === 'relationships') return CollectionDescriptors.forCollection('characters').routePrefix;
+    return CollectionDescriptors.forCollection(c)?.routePrefix || c;
   }
 
   // Route notifications through EditMode's toast (same visual style

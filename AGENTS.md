@@ -110,6 +110,9 @@ web/
                            (applyFragmentOps + listConflicts).
     addon-test-harness.mjs Published authoring harness (createMockHost,
                            dryRunRegister, smokeRegistrations).
+    addon-lifecycle.js     Shared bounded disposer stack used by the live host
+                           and authoring harness.
+    addon-host-contract.js Shared host.use + collection-declaration contract.
     store.js               In-memory state. Server sync. Secondary indices.
                            Trash + undelete. Settings API.
     data.js                Defaults: FACTIONS, collections (CHARACTERS,
@@ -119,6 +122,9 @@ web/
                            SETTINGS_USAGE_MAP.
     constants.js           PARTY_FACTION_ID, SIDEBAR_PAGES (each carries
                            an i18n `key`), SIDEBAR_LAYOUT_DEFAULT, THEMES.
+    collection-descriptors.js
+                           Immutable built-in collection identity, wiki-kind,
+                           alias, and article-route registry.
     i18n.js                I18n: per-user UI language. t()/plural()/dates
                            via native Intl.*. Catalogs in web/i18n/. See
                            docs/reference/i18n.md.
@@ -238,6 +244,14 @@ its GitHub repo should be archived. Port source-of-truth for 2024 rule
 content: the sibling `Living-scroll` repo
 (`modules/compendium/data/dnd_2024/`).
 
+Addon client lifecycle: API-v2 addons can require `lifecycle.dispose` and
+`content.revision`. `register(host)` may return a disposer and can add more via
+`host.onDispose(fn)`; the host runs them LIFO exactly once, bounded and
+failure-isolated, before reversing registrations. A changed `entryUrl` or
+deterministic `contentRevision` unloads the addon and loaded consumers
+consumer-first, then reloads provider-first. Content-group toggles therefore
+refresh compendium data and sheets live without a browser reload.
+
 ## Future ideas / roadmap
 
 These aren't implemented; record here so they survive across
@@ -298,8 +312,7 @@ sessions and don't get re-discovered:
 4. Legacy world-map upload path writes a base64 `data:` URL into
    `localStorage['world_map_image_url']` (quota risk + shadows the server
    upload) — delete that branch, keep only POST /api/worldmap.
-5. Missing guard tests: the addon permission facade; harness mock `use()`
-    returns `undefined` where the live host throws for undeclared deps.
+5. Missing guard tests: the addon permission facade.
     (The `/api/restore` path-safety and migration-idempotency gaps listed
     here originally are CLOSED; visibility closure is also CLOSED by
     `test/visibility.test.cjs` + `test/integration-visibility.test.cjs`.)

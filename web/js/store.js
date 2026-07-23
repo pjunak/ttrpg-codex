@@ -7,6 +7,7 @@ import { norm, clearMarkdownCache } from './utils.js';
 import { PARTY_FACTION_ID, SIDEBAR_PAGES, SIDEBAR_LAYOUT_DEFAULT } from './constants.js';
 import { I18n } from './i18n.js';
 import { Role } from './role.js';
+import { CollectionDescriptors } from './collection-descriptors.js';
 
 export const Store = (() => {
   let _data            = null;
@@ -2659,10 +2660,13 @@ export const Store = (() => {
   function getRecentActivity(limit = 5) {
     init();
     const entries = [];
-    const collect = (kind, route, list, nameOf) => {
+    const collect = (collection, list, nameOf) => {
+      const descriptor = CollectionDescriptors.forCollection(collection);
+      if (!descriptor) return;
+      const route = `#${CollectionDescriptors.routeForCollection(collection)}`;
       for (const e of list || []) {
         entries.push({
-          kind, id: e.id,
+          kind: descriptor.kind, id: e.id,
           name: nameOf(e),
           updatedAt: e.updatedAt || 0,
           lastChange: e.lastChange || null,
@@ -2670,19 +2674,21 @@ export const Store = (() => {
         });
       }
     };
-    collect('postava',            '#/postava',            _data.characters,       e => e.name);
-    collect('misto',              '#/misto',              _data.locations,        e => e.name);
-    collect('udalost',            '#/udalost',            _data.events,           e => e.name);
-    collect('zahada',             '#/zahada',             _data.mysteries,        e => e.name);
-    collect('buh',                '#/buh',                _data.pantheon,         e => e.name);
-    collect('artefakt',           '#/artefakt',           _data.artifacts,        e => e.name);
-    collect('historicka-udalost', '#/historicka-udalost', _data.historicalEvents, e => e.name);
+    collect('characters',       _data.characters,       e => e.name);
+    collect('locations',        _data.locations,        e => e.name);
+    collect('events',           _data.events,           e => e.name);
+    collect('mysteries',        _data.mysteries,        e => e.name);
+    collect('pantheon',         _data.pantheon,         e => e.name);
+    collect('artifacts',        _data.artifacts,        e => e.name);
+    collect('historicalEvents', _data.historicalEvents, e => e.name);
     // Factions are a keyed object rather than an array.
+    const factionDescriptor = CollectionDescriptors.forCollection('factions');
+    const factionRoute = `#${CollectionDescriptors.routeForCollection('factions')}`;
     for (const [id, f] of Object.entries(_data.factions || {})) {
       entries.push({
-        kind: 'frakce', id, name: f.name, updatedAt: f.updatedAt || 0,
+        kind: factionDescriptor.kind, id, name: f.name, updatedAt: f.updatedAt || 0,
         lastChange: f.lastChange || null,
-        route: '#/frakce',
+        route: factionRoute,
       });
     }
     return entries

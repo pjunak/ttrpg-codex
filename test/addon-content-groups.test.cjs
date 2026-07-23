@@ -9,9 +9,10 @@
 
 const { test } = require('node:test');
 const assert   = require('node:assert/strict');
+const crypto   = require('node:crypto');
 const {
   HOST_API_VERSION, validateManifest, normalizeRegistry,
-  normalizeContentGroups, normalizeDisabledContentGroups,
+  normalizeContentGroups, normalizeDisabledContentGroups, contentRevision,
 } = require('../server/addons.cjs');
 const { loadContentTree, groupValues, filterContentTree } = require('../server/addon-content.cjs');
 const { startServer } = require('./helpers/server-process.cjs');
@@ -63,6 +64,25 @@ test('normalizeRegistry: carries contentGroups, defaults disabledContentGroups',
   assert.deepEqual(reg.addons[0].disabledContentGroups, ['mm']);
   assert.equal(reg.addons[1].contentGroups, undefined);
   assert.deepEqual(reg.addons[1].disabledContentGroups, []);
+});
+
+test('contentRevision: stable canonical state; package and group changes invalidate it', () => {
+  const base = {
+    activeHash: 'package-a',
+    version: '1.0.0',
+    contentGroups: { field: 'book', label: 'Sourcebooks' },
+    disabledContentGroups: ['mm', 'dmg'],
+  };
+  const revision = contentRevision(base, crypto);
+  assert.equal(contentRevision({
+    version: '1.0.0',
+    disabledContentGroups: ['dmg', 'mm', 'dmg'],
+    contentGroups: { label: 'Sourcebooks', field: 'book' },
+    activeHash: 'package-a',
+  }, crypto), revision, 'object/group ordering and duplicates are normalized');
+  assert.notEqual(contentRevision({ ...base, activeHash: 'package-b' }, crypto), revision);
+  assert.notEqual(contentRevision({ ...base, version: '1.0.1' }, crypto), revision);
+  assert.notEqual(contentRevision({ ...base, disabledContentGroups: ['mm'] }, crypto), revision);
 });
 
 // ── pure tree helpers ─────────────────────────────────────────────
@@ -152,6 +172,8 @@ test('content-groups: POST filters the served tree live; DM-only; round-trips', 
     // backed by a same-kind record shows its full name, others the raw id.
     let list = await (await srv.fetch('/api/addons')).json();
     let entry = list.addons.find(a => a.id === 'books');
+    const initialRevision = entry.contentRevision;
+    assert.match(initialRevision, /^[0-9a-f]{16}$/);
     assert.deepEqual(entry.contentGroups.values, [
       { id: 'mm', count: 1, label: 'mm' },
       { id: 'phb', count: 1, label: "Player's Handbook" },
@@ -172,6 +194,10 @@ test('content-groups: POST filters the served tree live; DM-only; round-trips', 
     // Counts in the Manager payload stay unfiltered; disabled list reflects state.
     list = await (await srv.fetch('/api/addons')).json();
     entry = list.addons.find(a => a.id === 'books');
+    assert.notEqual(entry.contentRevision, initialRevision, 'toggle state changes public contentRevision');
+    const disabledRevision = entry.contentRevision;
+    const repeated = (await (await srv.fetch('/api/addons')).json()).addons.find(a => a.id === 'books');
+    assert.equal(repeated.contentRevision, disabledRevision, 'unchanged metadata is revision-stable');
     assert.deepEqual(entry.contentGroups.disabled, ['mm']);
     assert.deepEqual(entry.contentGroups.values, [
       { id: 'mm', count: 1, label: 'mm' },
@@ -185,6 +211,8 @@ test('content-groups: POST filters the served tree live; DM-only; round-trips', 
     });
     content = await (await srv.fetch('/api/addon/books/content')).json();
     assert.equal(content.spell.length, 2);
+    list = await (await srv.fetch('/api/addons')).json();
+    assert.equal(list.addons.find(a => a.id === 'books').contentRevision, initialRevision, 'equivalent re-enabled state restores the revision');
 
     // An addon without contentGroups rejects the toggle.
     const none = await srv.fetch('/api/addons/nope/content-groups', {

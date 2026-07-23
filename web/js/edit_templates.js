@@ -3,6 +3,7 @@ import { PIN_TYPES, PIN_SIZE_MIN, PIN_SIZE_MAX } from './map.js';
 // Relationship/connection kinds come from Store.getKinds('connections').
 import { esc, dataAction, dataOn, safeColor } from './utils.js';
 import { I18n } from './i18n.js';
+import { CollectionDescriptors } from './collection-descriptors.js';
 
 export const EditTemplates = (() => {
 
@@ -54,20 +55,6 @@ export const EditTemplates = (() => {
   // space, an incoherent state. The server enforces the same
   // rule (400 on flip with twin set) as defence in depth.
   //
-  // Wiki routes per collection — mirrors KIND_ROUTE in app.js so
-  // this template module can construct twin-jump links without
-  // importing anything from app.js. Keep in sync.
-  const TWIN_ROUTE_PREFIX = {
-    characters:       'postava',
-    locations:        'misto',
-    events:           'udalost',
-    mysteries:        'zahada',
-    factions:         'frakce',
-    pantheon:         'buh',
-    artifacts:        'artefakt',
-    historicalEvents: 'historicka-udalost',
-  };
-
   /** Render the twin link/badge/unlink controls for placement inside
    *  the editor's sticky header (between the title and save/delete).
    *  Returns empty string when the collection has no visibility model
@@ -75,19 +62,19 @@ export const EditTemplates = (() => {
    *  bottom DM section). CSS gates the whole element behind
    *  `body.is-dm` via `.edit-hdr-twin`. */
   function _twinHeaderRow(uid, entity, collection) {
-    if (!Object.prototype.hasOwnProperty.call(TWIN_ROUTE_PREFIX, collection)) return '';
+    if (!CollectionDescriptors.forCollection(collection)) return '';
     const isNew = !entity || !entity.id;
     if (isNew) return '';  // can't twin an unsaved entity
     const linkedId = entity.linkedTwinId;
     const twin     = linkedId ? (Store.getTwin ? Store.getTwin(collection, entity) : null) : null;
     if (linkedId) {
-      const route   = TWIN_ROUTE_PREFIX[collection];
+      const route   = CollectionDescriptors.routeForCollection(collection, linkedId);
       const twinNm  = twin ? twin.name : linkedId;
       const twinVis = twin && twin.visibility === 'dm' ? I18n.t('editform.twinVisDm') : I18n.t('editform.twinVisPlayer');
       return `
         <div class="edit-hdr-twin">
           <a class="dm-twin-badge dm-twin-badge-linked"
-             href="#/${route}/${esc(linkedId)}"
+             href="#${esc(route)}"
              title="${esc(I18n.t('editform.twinOpen'))}">
             ✓ ${esc(twinNm)} <span class="dm-twin-badge-vis">(${esc(twinVis)})</span> →
           </a>
@@ -120,7 +107,7 @@ export const EditTemplates = (() => {
    *  @returns {string}
    */
   function _dmSection(uid, entity, collection, opts = {}) {
-    if (!Object.prototype.hasOwnProperty.call(TWIN_ROUTE_PREFIX, collection)) return '';
+    if (!CollectionDescriptors.forCollection(collection)) return '';
     const visibility = (entity && entity.visibility === 'dm') ? 'dm' : 'public';
     const isPc       = !!opts.isPc;
     const linkedId   = entity && entity.linkedTwinId;

@@ -18,6 +18,7 @@ import { Addons } from './addons.js';
 // Connection-kind labels come from Store.getKind('connections', id).label.
 import { PARTY_FACTION_ID } from './constants.js';
 import { I18n } from './i18n.js';
+import { CollectionDescriptors } from './collection-descriptors.js';
 
 export const Wiki = (() => {
 
@@ -43,21 +44,6 @@ export const Wiki = (() => {
     _currentArticle = ctx && ctx.type && ctx.id ? { type: ctx.type, id: ctx.id } : null;
   }
   function _getCurrentArticle() { return _currentArticle; }
-
-  // Wiki route prefix per collection — used by the twin facts row
-  // to build the cross-jump link AND by the per-article edit button
-  // to construct the route Wiki._editingArticle compares against.
-  // Mirrors KIND_ROUTE in app.js.
-  const _TWIN_LINK_ROUTE = {
-    characters:       'postava',
-    locations:        'misto',
-    events:           'udalost',
-    mysteries:        'zahada',
-    factions:         'frakce',
-    pantheon:         'buh',
-    artifacts:        'artefakt',
-    historicalEvents: 'historicka-udalost',
-  };
 
   // ── Per-article edit state ─────────────────────────────────────
   // Replaces the global EditMode.isActive() check that used to drive
@@ -153,9 +139,8 @@ export const Wiki = (() => {
    *  `EditMode.promptLogin`. The route format must match what
    *  startEditingArticle expects so the data-action round-trips. */
   function _articleEditButton(collection, id) {
-    const prefix = _TWIN_LINK_ROUTE[collection];
-    if (!prefix) return '';
-    const route = '/' + prefix + '/' + id;
+    const route = CollectionDescriptors.routeForCollection(collection, id);
+    if (!route) return '';
     return `<button type="button" class="article-edit-btn"
       title="${esc(I18n.t('wiki.editThisRecord'))}"
       ${dataAction('Wiki.startEditingArticle', route)}>✏ ${esc(I18n.t('action.edit'))}</button>`;
@@ -225,7 +210,7 @@ export const Wiki = (() => {
     if (!Role.isDM()) return null;
     if (!entity || !entity.linkedTwinId) return null;
     const twin = Store.getTwin ? Store.getTwin(collection, entity) : null;
-    const route = _TWIN_LINK_ROUTE[collection];
+    const route = CollectionDescriptors.routeForCollection(collection, entity.linkedTwinId);
     if (!route) return null;
     const twinName = twin ? twin.name : entity.linkedTwinId;
     const polarity = twin
@@ -233,7 +218,7 @@ export const Wiki = (() => {
       : (entity.visibility === 'dm' ? I18n.t('wiki.twinPlayer') : I18n.t('wiki.twinDm')); // best-guess if twin missing
     return {
       label: '🔗 ' + I18n.t('wiki.twin'),
-      value: `<a href="#/${route}/${esc(entity.linkedTwinId)}" data-twin="${esc(polarity)}">${esc(twinName)} (${esc(polarity)}) →</a>`,
+      value: `<a href="#${esc(route)}" data-twin="${esc(polarity)}">${esc(twinName)} (${esc(polarity)}) →</a>`,
     };
   }
 

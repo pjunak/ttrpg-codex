@@ -1789,6 +1789,7 @@ function _publicAddonList(reg) {
     enabled:    !!a.enabled,
     state:      a.state || (a.enabled ? 'ok' : 'disabled'),
     activeHash: a.activeHash || null,
+    contentRevision: AddonBroker.contentRevision(a, crypto),
     // Granted permissions — the client needs these to build the addon's
     // SCOPED host facade (not secret; they describe what the addon can do).
     permissions: Array.isArray(a.grantedPermissions) ? a.grantedPermissions : [],

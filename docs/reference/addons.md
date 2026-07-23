@@ -165,6 +165,13 @@ security fields are strict: API v1 cannot declare `access`; API v2
 ensures old hosts reject v2 and incapable new hosts reject the capability,
 never broadening DM data to public access.
 
+The API-v2 capabilities currently advertised by the host are
+`lifecycle.dispose` and `content.revision`. An addon that requires either
+contract must declare it in `capabilities.required`; v1 addons remain loadable
+without either declaration. `lifecycle.dispose` enables the teardown contract
+described below. `content.revision` exposes the active package/content-policy
+revision as `host.contentRevision`.
+
 ### Server broker — `server/addons.cjs` (pure/injectable, unit-tested)
 `validateManifest` · `matchRepoRule`/`isAllowed` · `contentHash` (sha256
 over sorted `relpath\0buf`, 16-char) ·
@@ -172,7 +179,10 @@ over sorted `relpath\0buf`, 16-char) ·
 `defaultRegistry`/`normalizeRegistry` · **collection helpers** (4b-2):
 `normalizeCollections` (manifest `collections[]` → clean `[{name,keyed}]`),
 `addonCollectionType(id,name)` → `addon:<id>:<name>`, `parseAddonType(type)`
-→ `{id,name}|null` (tight id+name regex = the path-safety gate). server.js
+→ `{id,name}|null` (tight id+name regex = the path-safety gate), and
+`contentRevision(entry, crypto)` → a deterministic short SHA-256 over the
+active package hash, version, content declaration, and sorted disabled content
+groups. server.js
 owns the disk + the endpoints. Install is two-phase so it never blocks other
 writers: **`_stageAddon`** (fetch→validate→hash→stage `.incoming`→server
 test-gate — all the network + up-to-30 s test work, **outside** the write lock)
@@ -243,6 +253,16 @@ is still Phase 10.)
   (`use()` requires the dep be declared as a hard OR optional dependency + the
   provider loaded; a present declared dep is load-ordered first, an absent
   OPTIONAL one just makes `use()` throw → caught → the consumer runs standalone).
+- **Lifecycle + reconciliation:** a successful `register(host)` may return a
+  cleanup function and may also register any number of cleanup functions with
+  `host.onDispose(fn)`. Each cleanup is invoked exactly once, in reverse
+  registration order, before the host reverses the addon's ordinary
+  registrations. Promise-returning cleanup is allowed; cleanup for each addon
+  is bounded to two seconds and failure is isolated. `reconcile()` compares
+  both `entryUrl` and `contentRevision`; changed/disabled/removed addons and
+  their loaded hard or optional consumers unload consumer-first, then reload
+  provider-first. Overlapping reconciliations are coalesced and serialized so
+  only the newest server metadata survives.
 - **Failure isolation**: every import + register is per-addon
   try/caught; a broken addon is marked `error` and SKIPPED — boot still
   completes, others still load, no white screen. A throwing route
@@ -309,6 +329,10 @@ is still Phase 10.)
   use for "N matches" / "N pts left", not as a visual toast). `Addons.describePermission(perm)` provides the
   permission labels (core Manager chrome — localized via `I18n.t`; the addon
   facade itself has NO translation API, addons are English-only).
+  Always-available lifecycle metadata is `host.contentRevision`, and
+  `host.onDispose(fn)` registers resource cleanup. The former changes when the
+  active package identity/version or effective content-group policy changes,
+  but stays stable for semantically equivalent policy data.
 - **Integration seams**: `app.js navigate()` default arm →
   `Addons.hasRoute(section) ? Addons.renderRoute(...)` before the dashboard
   fallback; `app.js _runAction` routes any `data-action` containing `:` to
@@ -424,9 +448,10 @@ On top of that base, the concrete guardrails (added in the review/polish pass):
   registry; a corrupt `addons.json` is preserved as `.corrupt-<ts>` rather than
   silently overwritten. Dispatcher + every addon render/route is try/caught (a
   throwing addon never crashes the server or white-screens the app).
-- **Live unload:** `Addons.reconcile` now tears down a disabled/removed addon
-  (reverses its registrations via the kept `tx.undo`) instead of leaving it active
-  until a reload — so "remove" actually removes it across tabs.
+- **Live unload:** `Addons.reconcile` disposes a disabled, removed, replaced, or
+  content-revised addon (and its loaded consumers) before reversing the kept
+  `tx.undo` registrations. A cleanup failure cannot keep another addon active
+  or prevent it from reloading.
 - **CSRF** on the DM mutation endpoints (install = code execution) is mitigated by
   the `edit_session` cookie's `sameSite: 'lax'` — a cross-site POST omits the
   cookie, so `realRole` is null → 403.
@@ -443,7 +468,9 @@ renames):
   call, stubs `store`/`role`/`h`/`ui`; **ENFORCES `meta.permissions` like the
   real facade when the array is declared** — an under-declared manifest fails
   in tests with the exact live error instead of at install; omit the key for
-  loose allow-all), `dryRunRegister(register, meta)` (Tier-A
+  loose allow-all), with live-compatible `use()` dependency errors, collection
+  declaration checks, `host.contentRevision`, `host.onDispose`, and
+  `disposeMockHost(rec)`. `dryRunRegister(register, meta)` (Tier-A
   — run register against the mock, catch throws, return the `rec`), and
   `smokeRegistrations(rec)` (Tier-C — invoke each recorded RENDER with sample
   fixtures; actions/collect are NOT run). Unit-tested; the
@@ -507,8 +534,12 @@ renames):
   routing + isolated data, `server:code` gating, serverDeps blocking, throwing-
   init isolation, disabled state; uses the helper's new `seedFiles` option to
   lay down nested addon code before boot) + `test/addon-test-harness.test.mjs`
-  (Phase 8 — mock host records, dryRunRegister catch, smoke flags throwing
-  renderers but not actions) + `test/addon-testing.test.cjs` (the server
+  (Phase 8 — mock/live dependency and declaration parity, lifecycle cleanup,
+  dryRunRegister catch, smoke flags throwing renderers but not actions) +
+  `test/addon-lifecycle.test.mjs` (live disposal ordering/idempotence,
+  rollback, failure isolation, provider/consumer reload ordering, revision
+  cache busting, and overlapping reconciliation) +
+  `test/addon-testing.test.cjs` (the server
   green-gate runner — green/red/timeout/no-files) + `test/integration-addon-update.test.cjs`
   (Phase 9 — content-addressed rollback flip + field restore, targeted/default/
   error paths, check-updates empty/local/role-gating) + `test/integration-addon-backup.test.cjs`
@@ -518,7 +549,8 @@ renames):
   per-record shapes) + `test/integration-addon-content.test.cjs` (the
   host-served `/api/addon/:id/content*` endpoints end-to-end) +
   `test/addon-content-groups.test.cjs` (contentGroups declaration
-  normalization + the disabled-group content filter) +
+  normalization, deterministic `contentRevision`, and the disabled-group
+  content filter) +
   `test/addon-contrib.test.mjs` (graph/node-kind contribution registries) +
   `test/integration-restart-updateall.test.cjs` (`/api/restart` gating +
   `/api/addons/update-all`).

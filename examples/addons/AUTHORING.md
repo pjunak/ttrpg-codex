@@ -87,7 +87,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `version` | ✅ | semver `x.y.z`. Bump on every release. |
 | `apiVersion` | ✅ | `1` or `2`. Unsupported versions are rejected. API v2 is required for security-sensitive manifest semantics. |
 | `hostVersion` | v2: ✅ | Enforced against the host version. API-v1 manifests may omit it for legacy compatibility (equivalent to `"*"`). |
-| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. |
+| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `lifecycle.dispose` and `content.revision`. `collections.dm` is known but deliberately unavailable. |
 | `entry` | ✅ | Relative `.js`/`.mjs` path to the client module (default-export `register`). |
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
 | `contentDir` | — | Relative dir of a **per-record JSON tree** the HOST serves for you at `/api/addon/<id>/content` (+ `/content/:kind`, `/item/:kind/:id`, `/kinds`). The right choice for DATA addons (rulebooks): **no server code, no `server:code` grant**, kinds keyed by each record's own `kind` field (sub-dir name is the fallback), and hot-loaded — install/update needs no restart. A live `server` router takes precedence over it entirely. |
@@ -118,6 +118,8 @@ host.id            // your addon id
 host.apiVersion    // 2 (latest supported API)
 host.hostVersion   // "1.0.0"
 host.capabilities.has('collections.dm') // false until DM collections ship
+host.contentRevision // stable revision of this package + effective content policy
+host.onDispose(fn) // register cleanup for timers, listeners, requests, caches…
 host.permissions   // string[] of what you were granted
 host.action(name)  // → "<id>:<name>"  — build action strings with this
 host.asset(rel)    // → "/addons/<id>/<hash>/<rel>" — URL of a file bundled
@@ -139,6 +141,40 @@ host.ui            // { toast(msg), rerender(), announce(text) } — rerender re
                    //   polite live region (in-page live regions don't survive the
                    //   full re-render, this one does). Not a visual toast.
 ```
+
+### Lifecycle and cleanup
+
+If your addon owns a timer, event listener, observer, pending request, overlay,
+or module cache, request the API-v2 `lifecycle.dispose` capability and clean it
+up through either lifecycle form:
+
+```js
+export default function register(host) {
+  const controller = new AbortController();
+  const onResize = () => { /* … */ };
+  window.addEventListener('resize', onResize);
+  host.onDispose(() => controller.abort());
+
+  return async () => {
+    window.removeEventListener('resize', onResize);
+    await flushPendingWork();
+  };
+}
+```
+
+Each registered cleanup is called exactly once in reverse registration order
+before the host removes routes/actions/other registrations. Async cleanup is
+supported and bounded to two seconds per addon; a rejection or timeout is
+reported but never prevents another addon from unloading or loading.
+`register()` itself remains synchronous; only cleanup may return a promise.
+
+Disposal happens when the addon is disabled, removed, replaced, or its
+`contentRevision` changes. Loaded hard and optional consumers are also disposed
+consumer-first and re-registered provider-first, so consumers may safely cache a
+provider during `register()`. `host.contentRevision` changes for active package
+identity/version or effective content-group policy changes, and remains stable
+for equivalent policy data. Request `content.revision` when your addon depends
+on that value.
 
 ### Registration methods (each needs the listed permission)
 
@@ -417,10 +453,11 @@ is absent — wrong if you want to run standalone and merely *light up extra*
 behaviour when another addon is present. Declare it under `optionalDependencies`
 instead: it's **ordering-only** (the provider, when installed, loads before you
 so `host.use()` works during `register`/render; when it's absent, blocked, or
-version-incompatible the host simply doesn't load it and never blocks you).
+version-incompatible the edge is ignored and never blocks you).
 Probe it **lazily, per render/action, try/caught** — never at module top-level —
-and carry an `apiVersion` integer inside the provided API for the soft
-compatibility check (the manifest `range` isn't enforced for an optional edge):
+and carry an `apiVersion` integer inside the provided API for API-shape
+compatibility (the manifest range controls optional load ordering, while your
+API version controls the object you receive):
 
 ```js
 function getProvider() {
@@ -432,11 +469,10 @@ const rules = getProvider();
 return rules ? renderEnhanced(rules) : renderStandalone();
 ```
 
-Supported `range` forms: empty / `*` (any), exact `x.y.z`, comparators
+Supported `range` forms: `*` (any), exact `x.y.z`, comparators
 `>= > <= <`, caret `^x.y.z`, tilde `~x.y.z`, X-ranges `1.x` / `1.2.x`. Compound
-ranges (hyphen `1 - 2`, OR `^1 || ^2`) are **not** parsed — they silently match
-anything, so don't rely on them to gate. A pre-release tag (`1.2.0-beta`) is
-treated as its release.
+ranges, hyphen ranges, OR expressions, pre-release/build versions, leading
+`v`, malformed syntax, and empty ranges are rejected rather than widened.
 
 ---
 
@@ -472,9 +508,14 @@ compendium's `book`-kind records — the toggle shows that record's `name`
 fall back to the raw id. Ship one per group value. The DM can untick a
 group and the host drops those records from
 EVERYTHING it serves — the `/content` aggregate, per-kind lists, `/item`
-lookups and `/kinds` — live, no restart. Consumers (browse pages, wiki-link
-kinds, `provide()`d data APIs) automatically agree because they all read the
-same filtered tree. Rules: records **lacking** the field are always kept (a
+lookups and `/kinds` — live, no restart or browser reload. The toggle changes
+the addon's `contentRevision`; the host disposes/re-registers it and every
+loaded hard or optional consumer so stale client caches and `provide()`d APIs
+cannot survive the policy change. Consumers (browse pages, wiki-link kinds,
+`provide()`d data APIs) automatically agree because they all read the same
+filtered tree. A content addon relying on this behavior should use API v2 and
+require both `lifecycle.dispose` and `content.revision`. Rules: records
+**lacking** the field are always kept (a
 toggle only hides records that opted into a group); unknown ids on the
 off-list match nothing (harmless, forward-compatible); nothing is ever
 deleted — re-ticking restores instantly. Toggle state survives updates.
@@ -521,7 +562,11 @@ Write tests against the **published harness** `web/js/addon-test-harness.mjs`:
 ```js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dryRunRegister, smokeRegistrations } from '<host>/web/js/addon-test-harness.mjs';
+import {
+  disposeMockHost,
+  dryRunRegister,
+  smokeRegistrations,
+} from '<host>/web/js/addon-test-harness.mjs';
 import register from '../entry.js';
 
 test('registers + smokes clean', () => {
@@ -529,16 +574,23 @@ test('registers + smokes clean', () => {
   assert.ok(ok, error);
   assert.ok(rec.routes.length >= 1);
   assert.ok(smokeRegistrations(rec).ok);       // renderers survive sample input
+  return disposeMockHost(rec);                 // exercises lifecycle cleanup
 });
 ```
 - `createMockHost(meta, opts)` — records every `register*` call; stubs
   store/role/h/ui (no DOM, no server). **Declare `meta.permissions` with the
   SAME array as your addon.json** — the mock then enforces them exactly like
   the real host, so a `register*` your manifest doesn't cover fails in your
-  tests with the same error it would throw at install. (Omitting the
+  tests with the same error it would throw at install. Dependency `use()` and
+  collection declarations also use the same validation as the live facade.
+  (Omitting the
   `permissions` key entirely runs loose/allow-all — fine for throwaway tests,
   but you lose that safety net.)
-- `dryRunRegister(register, meta)` → `{ ok, rec, error }` (catches throws).
+- `dryRunRegister(register, meta)` → `{ ok, rec, error, dispose }` (catches
+  throws and rolls back partial lifecycle/registrations on failure).
+- `disposeMockHost(rec, {timeoutMs?})` invokes cleanup in live LIFO order,
+  exactly once, and returns its errors/timeout state. `createMockHost` also
+  returns a bound `dispose()` helper.
 - `smokeRegistrations(rec)` → `{ ok, failures }` (invokes your renderers with
   sample fixtures; does **not** run actions).
 - `tests.server` files are auto-run as a **green-gate at install** (`node --test`
@@ -578,8 +630,9 @@ automatically.
 **Hard invariants (violating any of these breaks the addon):**
 1. `entry.js` **default-exports** `register(host)`. Server code **exports**
    `init(serverHost)` (CommonJS `.cjs`).
-2. `addon.json` `apiVersion` is **`1`**. `id` matches `^[a-z0-9][a-z0-9-]{1,38}$`
-   (no underscores) and equals the dir/repo name.
+2. New addons use `addon.json` `apiVersion` **`2`** with an enforced
+   `hostVersion`. Legacy API-v1 addons remain supported. `id` matches
+   `^[a-z0-9][a-z0-9-]{1,38}$` (no underscores) and equals the dir/repo name.
 3. Request **exactly** the permissions you use, no more. An ungranted capability
    throws. Match them to §4's table (e.g. `registerArticleSection('characters', …)`
    needs `ui:article-section:characters`).
@@ -595,7 +648,9 @@ automatically.
 8. Addon-owned collections must be **declared in `addon.json` `collections[]`**
    before `registerCollection`. Wiki-kind targets resolve **by name → real id**.
 9. Keep `register()` side-effect-free except for `register*` calls. Do data work
-   in actions/renderers, not at register time.
+   in actions/renderers, not at register time. Register cleanup with
+   `host.onDispose(fn)` or return it from `register()` for every resource you
+   own.
 10. **Write the whole addon — UI strings included — in English.** The app's
    language switcher is a visual layer over the *core* UI only; it doesn't reach
    addon code, and there is no addon translation API.
@@ -606,7 +661,7 @@ satisfied):
 // addon.json
 {
   "id": "notes", "name": "Notes", "version": "0.1.0",
-  "apiVersion": 1, "hostVersion": ">=1.0.0", "entry": "entry.js",
+  "apiVersion": 2, "hostVersion": ">=1.0.0", "entry": "entry.js",
   "permissions": ["ui:route", "ui:sidebar", "ui:action", "data:own"],
   "collections": [{ "name": "notes", "keyed": false }],
   "summary": "A simple notes page."
@@ -673,7 +728,9 @@ returns `ok:true`, `smokeRegistrations(rec).ok` is true, and the app shows no
 
 See also **`web/css/STYLE.md`** (tokens + components) and
 **`docs/reference/addons.md`** (the host-internals deep reference).
-API v2 reserves the stable capability `collections.dm`. A future collection
+API v2 advertises `lifecycle.dispose` and `content.revision`; addons whose
+correctness relies on cleanup or revision metadata should require them.
+API v2 also reserves the stable capability `collections.dm`. A future collection
 with `"access": "dm"` must declare that capability in
 `capabilities.required`. The current host deliberately does not advertise or
 implement it, so such a manifest is rejected. API-v1 collection declarations,

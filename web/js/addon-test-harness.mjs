@@ -80,6 +80,7 @@ function _emptyRec() {
     articleSections: [], slots: [],
     kinds: [], connectionKinds: [], nodeKinds: [], graphViews: [], graphContributors: [],
     provided: undefined, toasts: [], rerenders: 0, announces: [],
+    cleanup: createDisposalStack(), disposeResult: null,
   };
 }
 
@@ -100,6 +101,8 @@ function _emptyRec() {
  * @returns {{ host: object, rec: object }}
  */
 import { HOST_CAPABILITIES, HOST_VERSION, compatibilityErrors } from './addon-compat.js';
+import { requireCollectionDeclaration, resolveDependency } from './addon-host-contract.js';
+import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack } from './addon-lifecycle.js';
 
 export function createMockHost(meta = {}, opts = {}) {
   meta = { version: '0.0.0', apiVersion: 1, hostVersion: '>=1.0.0', ...meta };
@@ -118,32 +121,57 @@ export function createMockHost(meta = {}, opts = {}) {
       throw new Error(`Doplněk „${id}" nemá udělené oprávnění „${perm}" (${what}).`);
     }
   };
+  const registeredCollections = new Set();
+  const declaration = (name) => (Array.isArray(meta.collections) ? meta.collections : [])
+    .find((entry) => entry && entry.name === name);
 
   // A MUTABLE backing store for the scoped-CRUD mock, seeded from fixtures.
   // save()/remove() actually mutate it (and getCollection reads it) so a
   // "save then read back" author test behaves like production instead of
   // silently passing on a no-op mock.
   const _collStore = {};
-  const _coll = (name) => (_collStore[name] || (_collStore[name] = get('collection:' + name).slice()));
+  const _coll = (name) => {
+    if (_collStore[name]) return _collStore[name];
+    const seeded = fx['collection:' + name];
+    _collStore[name] = declaration(name)?.keyed
+      ? { ...((seeded && !Array.isArray(seeded) && typeof seeded === 'object') ? seeded : {}) }
+      : (Array.isArray(seeded) ? seeded.slice() : []);
+    return _collStore[name];
+  };
 
   // Mirror the REAL scoped-CRUD shape: get() filters by id, save() generates a
   // missing id + stamps updatedAt + upserts, remove() deletes by id.
   const collectionHandle = (name) => ({
-    list:   () => _coll(name).slice(),
-    get:    (itemId) => _coll(name).find(x => x && x.id === itemId) || null,
+    list:   () => {
+      const data = _coll(name);
+      return Array.isArray(data) ? data.slice() : Object.entries(data).map(([key, value]) => ({ id: key, ...value }));
+    },
+    get:    (itemId) => {
+      const data = _coll(name);
+      return Array.isArray(data) ? data.find(x => x && x.id === itemId) || null : data[itemId] || null;
+    },
     save:   (item) => {
-      const arr = _coll(name);
+      const data = _coll(name);
       const r = { ...item };
       if (!r.id) r.id = _slugify((item && item.name) || name) + '_mock';
       r.updatedAt = 0;
-      const i = arr.findIndex(x => x && x.id === r.id);
-      if (i >= 0) arr[i] = r; else arr.push(r);
+      if (Array.isArray(data)) {
+        const i = data.findIndex(x => x && x.id === r.id);
+        if (i >= 0) data[i] = r; else data.push(r);
+      } else {
+        data[r.id] = { ...r };
+        delete data[r.id].id;
+      }
       return r;
     },
     remove: (itemId) => {
-      const arr = _coll(name);
-      const i = arr.findIndex(x => x && x.id === itemId);
-      if (i >= 0) arr.splice(i, 1);
+      const data = _coll(name);
+      if (Array.isArray(data)) {
+        const i = data.findIndex(x => x && x.id === itemId);
+        if (i >= 0) data.splice(i, 1);
+      } else {
+        delete data[itemId];
+      }
     },
   });
 
@@ -151,6 +179,7 @@ export function createMockHost(meta = {}, opts = {}) {
     id,
     apiVersion: 2,
     hostVersion: HOST_VERSION,
+    contentRevision: typeof meta.contentRevision === 'string' ? meta.contentRevision : '',
     capabilities: Object.freeze({ has: (capability) => HOST_CAPABILITIES.has(capability), supported: Object.freeze([...HOST_CAPABILITIES]) }),
     permissions: Array.isArray(meta.permissions) ? meta.permissions.slice() : [],
     action: (name) => id + ':' + name,
@@ -161,7 +190,13 @@ export function createMockHost(meta = {}, opts = {}) {
     registerArticleSection: (kind, fn)        => { need('ui:article-section:' + kind, 'registerArticleSection'); rec.articleSections.push({ kind, fn }); },
     registerSettingsTab:  (spec)              => { need('ui:settings-tab', 'registerSettingsTab'); rec.settingsTabs.push(spec); },
     registerAction:       (name, fn)          => { need('ui:action', 'registerAction'); rec.actions.push({ name, fn }); },
-    registerCollection:   (name, o)           => { need('data:own', 'registerCollection'); rec.collections.push({ name, opts: o }); },
+    registerCollection:   (name)              => {
+      need('data:own', 'registerCollection');
+      requireCollectionDeclaration(meta, name);
+      if (registeredCollections.has(name)) throw new Error(`registerCollection: "${name}" already registered`);
+      registeredCollections.add(name);
+      rec.collections.push({ name, opts: undefined });
+    },
     registerWikiKind:     (scope, resolve)    => { need('wiki:kind', 'registerWikiKind'); rec.wikiKinds.push({ scope, resolve }); },
     registerEditorFields: (kind, spec)        => { need('ui:editor-fields:' + kind, 'registerEditorFields'); rec.editorFields.push({ kind, spec }); },
     registerFragmentOp:   (target, spec)      => { need('ui:override', 'registerFragmentOp'); rec.fragmentOps.push({ target, spec }); },
@@ -173,21 +208,35 @@ export function createMockHost(meta = {}, opts = {}) {
     registerGraphContributor: (viewId, fn)    => { need('graph:contribute', 'registerGraphContributor'); rec.graphContributors.push({ viewId, fn }); },
 
     provide: (api)   => { rec.provided = api; },
-    use:     (depId) => (opts.deps ? opts.deps[depId] : undefined),
+    use:     (depId) => {
+      return resolveDependency(meta, depId, (dependencyId) => opts.deps && opts.deps[dependencyId]);
+    },
+    onDispose: (fn) => addDisposer(rec.cleanup, fn),
 
     store: {
       generateId:    (n) => _slugify(n || 'id') + '_mock',
-      getCharacters: () => get('characters'),
-      getLocations:  () => get('locations'),
-      getEvents:     () => get('events'),
-      getMysteries:  () => get('mysteries'),
-      getFactions:   () => fx.factions || {},
-      getCollection: (n) => _coll(n).slice(),
-      collection:    (n) => collectionHandle(n),
+      getCharacters: () => { need('data:read:characters', 'store.getCharacters'); return get('characters'); },
+      getLocations:  () => { need('data:read:locations', 'store.getLocations'); return get('locations'); },
+      getEvents:     () => { need('data:read:events', 'store.getEvents'); return get('events'); },
+      getMysteries:  () => { need('data:read:mysteries', 'store.getMysteries'); return get('mysteries'); },
+      getFactions:   () => { need('data:read:factions', 'store.getFactions'); return fx.factions || {}; },
+      getCollection: (n) => {
+        if (typeof n === 'string' && n.startsWith('addon:')) throw new Error(`Doplněk „${id}" nemůže přes getCollection číst kolekci jiného doplňku.`);
+        need('data:read:' + n, 'store.getCollection');
+        const data = _coll(n);
+        return Array.isArray(data) ? data.slice() : { ...data };
+      },
+      collection:    (n) => {
+        if (!registeredCollections.has(n)) throw new Error(`store.collection: "${n}" not registered (call host.registerCollection first)`);
+        return collectionHandle(n);
+      },
       // Real patchAddonData returns the SAVED ENTITY ({...entity, addonData}),
       // not the namespace — mirror that so a renderer reading `.addonData[id]`
       // off the return works the same in tests as in prod.
-      patchAddonData: (_c, itemId, fn) => ({ id: itemId, addonData: { [id]: (typeof fn === 'function' ? (fn({}) || {}) : {}) } }),
+      patchAddonData: (collection, itemId, fn) => {
+        need('data:write:' + collection + '.addonData', 'store.patchAddonData');
+        return { id: itemId, addonData: { [id]: (typeof fn === 'function' ? (fn({}) || {}) : {}) } };
+      },
     },
     role: {
       isDM:        () => !!opts.isDM,
@@ -205,7 +254,25 @@ export function createMockHost(meta = {}, opts = {}) {
       announce: (m) => { rec.announces.push(String(m == null ? '' : m)); },
     },
   };
-  return { host, rec };
+  return { host, rec, dispose: () => disposeMockHost(rec) };
+}
+
+function _clearRegistrations(rec) {
+  for (const key of [
+    'routes', 'pages', 'sidebar', 'settingsTabs', 'actions', 'collections',
+    'wikiKinds', 'editorFields', 'fragmentOps', 'articleSections', 'slots',
+    'kinds', 'connectionKinds', 'nodeKinds', 'graphViews', 'graphContributors',
+  ]) {
+    rec[key].length = 0;
+  }
+  rec.provided = undefined;
+}
+
+export async function disposeMockHost(rec, opts = {}) {
+  const result = await disposeStack(rec.cleanup, opts);
+  if (result.started) _clearRegistrations(rec);
+  rec.disposeResult = result;
+  return result;
 }
 
 /**
@@ -217,8 +284,14 @@ export function createMockHost(meta = {}, opts = {}) {
 export function dryRunRegister(register, meta = {}, opts = {}) {
   const { host, rec } = createMockHost(meta, opts);
   if (typeof register !== 'function') return { ok: false, rec, error: 'register is not a function' };
-  try { register(host); return { ok: true, rec }; }
-  catch (e) { return { ok: false, rec, error: (e && e.message) || String(e) }; }
+  try {
+    addReturnedDisposer(rec.cleanup, register(host));
+    return { ok: true, rec, dispose: () => disposeMockHost(rec) };
+  } catch (e) {
+    rec.disposePromise = disposeStack(rec.cleanup).then((result) => { rec.disposeResult = result; return result; });
+    _clearRegistrations(rec);
+    return { ok: false, rec, error: (e && e.message) || String(e), dispose: () => rec.disposePromise };
+  }
 }
 
 // A reasonably-complete sample entity so a well-written renderer doesn't trip

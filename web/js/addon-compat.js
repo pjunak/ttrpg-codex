@@ -1,7 +1,7 @@
 export const HOST_VERSION = '1.0.0';
 export const SUPPORTED_API_VERSIONS = new Set([1, 2]);
-export const KNOWN_CAPABILITIES = new Set(['collections.dm']);
-export const HOST_CAPABILITIES = new Set();
+export const KNOWN_CAPABILITIES = new Set(['collections.dm', 'lifecycle.dispose', 'content.revision']);
+export const HOST_CAPABILITIES = new Set(['lifecycle.dispose', 'content.revision']);
 
 export function parseVersion(value) {
   const match = typeof value === 'string' ? /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(value) : null;

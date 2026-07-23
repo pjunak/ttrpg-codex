@@ -27,6 +27,8 @@ import { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumbNav, iconGl
 import { I18n } from './i18n.js';
 import { planLoadOrder } from './addon-deps.js';
 import { HOST_CAPABILITIES, HOST_VERSION, compatibilityErrors } from './addon-compat.js';
+import { requireCollectionDeclaration, resolveDependency } from './addon-host-contract.js';
+import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack, reverseRegistrations } from './addon-lifecycle.js';
 import { applyFragmentOps, listConflicts } from './addon-fragments.js';
 import { smokeRegistrations } from './addon-test-harness.mjs';
 
@@ -81,6 +83,8 @@ export const Addons = (() => {
     rerender: () => {},
   };
   let _booted = false;
+  let _reconcileFlight = null;
+  let _reconcileAgain = false;
 
   /** app.js calls this once before boot() to wire host services. */
   function init(services) {
@@ -155,7 +159,7 @@ export const Addons = (() => {
     const deny = (p, what) => {
       throw new Error(`Doplněk „${id}" nemá udělené oprávnění „${p}" (${what}).`);
     };
-    const tx = { undo: [] };
+    const tx = { undo: [], cleanup: createDisposalStack() };
 
     // Undo helpers — every register* records a reverser so a thrown register()
     // (or a later unload / rollback) cleanly removes the addon's partial state.
@@ -243,9 +247,7 @@ export const Addons = (() => {
      *  `data:own`. */
     function registerCollection(name) {
       if (!has('data:own')) deny('data:own', 'registerCollection');
-      if (typeof name !== 'string' || !name) throw new Error('registerCollection: name required');
-      const decl = (Array.isArray(meta.collections) ? meta.collections : []).find(c => c && c.name === name);
-      if (!decl) throw new Error(`registerCollection: "${name}" is not declared in addon.json collections[]`);
+      const decl = requireCollectionDeclaration(meta, name);
       const key = id + ':' + name;
       if (_collections.has(key)) throw new Error(`registerCollection: "${name}" already registered`);
       const keyed = !!decl.keyed;
@@ -431,12 +433,10 @@ export const Addons = (() => {
      *  isn't loaded, so `use()` throws and the caller falls back (the soft-use
      *  pattern: probe lazily per render, try/caught). */
     function use(depId) {
-      const has_ = (o) => o && Object.prototype.hasOwnProperty.call(o, depId);
-      const declared = has_(meta.dependencies) || has_(meta.optionalDependencies);
-      if (!declared) throw new Error(`Doplněk „${id}" nedeklaroval závislost „${depId}" (host.use).`);
-      const api = _addonApis.get(depId);
-      if (api == null) throw new Error(`Závislost „${depId}" není načtená (host.use).`);
-      return api;
+      return resolveDependency(meta, depId, (dependencyId) => _addonApis.get(dependencyId));
+    }
+    function onDispose(fn) {
+      addDisposer(tx.cleanup, fn);
     }
 
     // Read getters gated by data:read:<collection>. generateId is a pure
@@ -474,6 +474,7 @@ export const Addons = (() => {
       id,
       apiVersion: HOST_API_VERSION,
       hostVersion: HOST_VERSION,
+      contentRevision: typeof meta.contentRevision === 'string' ? meta.contentRevision : '',
       capabilities: Object.freeze({ has: (id) => HOST_CAPABILITIES.has(id), supported: Object.freeze([...HOST_CAPABILITIES]) }),
       permissions: grants.slice(),
       action: (name) => id + ':' + name,
@@ -484,7 +485,7 @@ export const Addons = (() => {
       registerFragmentOp,
       registerSlot,
       registerKind, registerConnectionKind, registerNodeKind, registerGraphView, registerGraphContributor,
-      provide, use,
+      provide, use, onDispose,
       store,
       role: {
         isDM:        () => safe(() => Role.isDM(), false),
@@ -538,7 +539,16 @@ export const Addons = (() => {
     const compatible = [];
     for (const addon of list) {
       const errors = compatibilityErrors(addon);
-      if (errors.length) _states.set(addon.id, { state: 'blocked', reason: errors.join('; ') });
+      if (errors.length) {
+        _addons.set(addon.id, {
+          id: addon.id,
+          name: addon.name || addon.id,
+          version: addon.version || '',
+          state: 'blocked',
+          error: errors.join('; '),
+          meta: addon,
+        });
+      }
       else compatible.push(addon);
     }
     const plan = planLoadOrder(compatible);
@@ -549,7 +559,21 @@ export const Addons = (() => {
   /** Re-fetch the list, UNLOAD any addon no longer enabled, and load any
    *  newly-enabled addon. Wired to the SSE `addons-changed` event so a DM
    *  installing / removing / disabling on one tab takes effect on the others. */
-  async function reconcile() {
+  function reconcile() {
+    _reconcileAgain = true;
+    if (_reconcileFlight) return _reconcileFlight;
+    _reconcileFlight = (async () => {
+      let changed = false;
+      do {
+        _reconcileAgain = false;
+        changed = (await _reconcileOnce()) || changed;
+      } while (_reconcileAgain);
+      return changed;
+    })().finally(() => { _reconcileFlight = null; });
+    return _reconcileFlight;
+  }
+
+  async function _reconcileOnce() {
     const reg = await _fetchList();
     // A transient fetch failure must be a NO-OP — never unload every addon or
     // wipe resolutions just because the list came back empty.
@@ -566,29 +590,73 @@ export const Addons = (() => {
       if (errors.length) compatibilityBlocked.set(addon.id, errors.join('; '));
       return !errors.length;
     });
-    const enabledIds = new Set(compatible.map(a => a.id));
     let changed = resChanged;
-    // Unload addons that are gone from the enabled set (disabled / removed):
-    // reverse their registrations so their routes / sidebar pages / fragment
-    // claims / actions actually disappear, not just on a hard reload.
-    for (const id of [..._addons.keys()]) {
-      if (!enabledIds.has(id)) { _unloadAddon(id); changed = true; }
-    }
-    for (const [id, reason] of compatibilityBlocked) _states.set(id, { state: 'blocked', reason });
     const plan = planLoadOrder(compatible);
+    const desired = new Set(plan.order.map(a => a.id));
+    const listed = new Set(list.map(a => a.id));
+    const activating = new Set(plan.order
+      .filter(a => _addons.get(a.id)?.state !== 'ok')
+      .map(a => a.id));
+    const impacted = new Set();
+    for (const [id, rec] of _addons) {
+      if (rec.state === 'ok' && (!desired.has(id) || compatibilityBlocked.has(id) || plan.blocked.has(id))) {
+        impacted.add(id);
+      }
+    }
+    for (const a of plan.order) {
+      const cur = _addons.get(a.id);
+      if (cur?.state === 'ok' && (
+        cur.meta?.entryUrl !== a.entryUrl
+        || (cur.meta?.contentRevision || '') !== (a.contentRevision || '')
+      )) {
+        impacted.add(a.id);
+      }
+    }
+    // An already-loaded optional consumer may have registered a standalone
+    // fallback while its provider was absent. Reload it when that provider
+    // becomes loadable so register-time host.use() probes become current.
+    for (const [id, rec] of _addons) {
+      if (rec.state !== 'ok') continue;
+      const deps = { ...(rec.meta?.dependencies || {}), ...(rec.meta?.optionalDependencies || {}) };
+      if (Object.keys(deps).some(depId => activating.has(depId))) impacted.add(id);
+    }
+
+    let expanded;
+    do {
+      expanded = false;
+      for (const [id, rec] of _addons) {
+        if (rec.state !== 'ok' || impacted.has(id)) continue;
+        const deps = { ...(rec.meta?.dependencies || {}), ...(rec.meta?.optionalDependencies || {}) };
+        if (Object.keys(deps).some(depId => impacted.has(depId))) {
+          impacted.add(id);
+          expanded = true;
+        }
+      }
+    } while (expanded);
+
+    if (impacted.size) {
+      for (const id of [..._addons.keys()].reverse()) {
+        if (impacted.has(id)) await _unloadAddon(id);
+      }
+      changed = true;
+    }
+    for (const [id, rec] of [..._addons]) {
+      if (rec.state !== 'ok' && !listed.has(id)) {
+        _addons.delete(id);
+        changed = true;
+      }
+    }
+    for (const [id, reason] of compatibilityBlocked) {
+      const a = list.find(x => x.id === id) || { id };
+      const cur = _addons.get(id);
+      if (!cur || cur.state !== 'blocked' || cur.error !== reason) changed = true;
+      _addons.set(id, { id, name: a.name || id, version: a.version || '', state: 'blocked', error: reason, meta: a });
+    }
     changed = _markBlocked(list, plan.blocked) || changed;
     for (const a of plan.order) {
       const cur = _addons.get(a.id);
       if (!cur || cur.state !== 'ok') {
         await _loadOne(a); changed = true;   // includes now-unblocked
-      } else if (cur.meta?.entryUrl !== a.entryUrl) {
-        // Same addon, new code version — update / update-all / rollback
-        // flipped activeHash, so the entryUrl changed. Reload it so the
-        // new version actually applies live (the documented contract);
-        // skipping on state==='ok' left the old module running until a
-        // manual refresh.
-        _unloadAddon(a.id);
-        await _loadOne(a); changed = true;
       }
     }
     return changed;
@@ -597,11 +665,14 @@ export const Addons = (() => {
   /** Tear down a no-longer-enabled addon: reverse its registrations (routes,
    *  sidebar pages, sections, actions, fragment claims, collections, wiki
    *  kinds, provided API), drop its unmatched-claim notes, and forget it. */
-  function _unloadAddon(id) {
+  async function _unloadAddon(id) {
     const rec = _addons.get(id);
-    if (rec && Array.isArray(rec.undo)) {
-      for (const u of rec.undo.slice().reverse()) { try { u(); } catch (_) {} }
+    if (rec?.cleanup) {
+      await disposeStack(rec.cleanup, {
+        onError: (error) => console.error(`[addon ${id}] dispose failed`, error),
+      });
     }
+    reverseRegistrations(rec?.undo, (error) => console.error(`[addon ${id}] registration cleanup failed`, error));
     _addonApis.delete(id);
     for (const k of [..._unmatched.keys()]) { if (k.startsWith(id + '::')) _unmatched.delete(k); }
     _addons.delete(id);
@@ -615,12 +686,6 @@ export const Addons = (() => {
     for (const [id, reason] of blocked) {
       const cur = _addons.get(id);
       if (!cur || cur.state !== 'blocked' || cur.error !== reason) {
-        // A previously-LOADED addon that just became blocked (its dep was
-        // disabled) must be torn down first — overwriting the rec would
-        // leave its registrations live ("blocked" but still rendering)
-        // and discard the undo stack, so a later re-enable would
-        // double-register everything.
-        if (cur && cur.state === 'ok') _unloadAddon(id);
         const a = list.find(x => x.id === id) || { id };
         _addons.set(id, { id, name: a.name || id, version: a.version || '', state: 'blocked', error: reason, meta: a });
         changed = true;
@@ -671,7 +736,10 @@ export const Addons = (() => {
     _addons.set(a.id, rec);
     let mod;
     try {
-      mod = await import(/* @vite-ignore */ a.entryUrl);
+      const separator = a.entryUrl.includes('?') ? '&' : '?';
+      const revision = a.contentRevision || a.activeHash || '';
+      const importUrl = revision ? `${a.entryUrl}${separator}codex-revision=${encodeURIComponent(revision)}` : a.entryUrl;
+      mod = await import(/* @vite-ignore */ importUrl);
     } catch (e) {
       rec.state = 'error';
       rec.error = `import failed: ${e.message}`;
@@ -687,9 +755,10 @@ export const Addons = (() => {
     }
     const { host, tx } = _makeHost(a);
     try {
-      register(host);
+      addReturnedDisposer(tx.cleanup, register(host));
       rec.state = 'ok';
       rec.undo  = tx.undo;   // keep the teardown stack so reconcile can UNLOAD it later
+      rec.cleanup = tx.cleanup;
       // Tier-C render smoke (Phase 8): exercise this addon's renderers with
       // sample fixtures. A throw on benign input is almost certainly a bug —
       // surfaced as a NON-blocking warning in the Manager (the addon still
@@ -702,9 +771,10 @@ export const Addons = (() => {
         }
       } catch (_) { /* smoke is best-effort */ }
     } catch (e) {
-      // Transactional rollback — discard any partial registrations so a
-      // half-registered addon leaves no dangling routes/sections/actions.
-      for (const u of tx.undo.slice().reverse()) { try { u(); } catch (_) {} }
+      await disposeStack(tx.cleanup, {
+        onError: (error) => console.error(`[addon ${a.id}] dispose after register failure failed`, error),
+      });
+      reverseRegistrations(tx.undo);
       rec.state = 'error';
       rec.error = `register failed: ${e.message}`;
       console.error(`[addon ${a.id}] register failed`, e);

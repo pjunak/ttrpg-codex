@@ -19,10 +19,11 @@ reach the app through the `host` facade — there are no globals.
 
 1. **`entry.js` default-exports `register(host)`.** Optional server code is a
    separate CommonJS file that **exports `init(serverHost)`**.
-2. **`addon.json` is at the repo root.** `apiVersion` is **exactly `1`**.
+2. **`addon.json` is at the repo root.** New addons use `apiVersion` **`2`**;
+   legacy API-v1 addons remain supported.
    `id` matches `^[a-z0-9][a-z0-9-]{1,38}$` (lowercase, hyphens, **no
    underscores**) and equals the repo/dir name. `version` is semver;
-   `hostVersion` (e.g. `">=1.0.0"`) is declarative — not enforced today.
+   API-v2 `hostVersion` (e.g. `">=1.0.0"`) is required and enforced.
 3. **Request exactly the permissions you use** in `permissions[]`, no more. An
    ungranted capability **throws** (caught, shown as an error). Each register
    method needs its specific token (table below).
@@ -40,7 +41,9 @@ reach the app through the `host` facade — there are no globals.
    (`c?.addonData?.[host.id] ?? {}`).
 8. **`register()` is side-effect-free except for `register*` calls.** Do data
    work (reads/writes, fetches) inside actions/renderers, never at register time.
-   A throw in `register()` rolls back every partial registration.
+   A throw in `register()` rolls back every partial registration. Register
+   cleanup with `host.onDispose(fn)` or return a cleanup function for every
+   timer, listener, request, observer, overlay, or cache you own.
 9. **Addon-owned collections are declared in `addon.json` `collections[]`
    before `registerCollection`.** Wiki-kind resolvers look targets up **by name
    → real id** (ids carry a random suffix; never assume the slug).
@@ -57,7 +60,7 @@ reach the app through the `host` facade — there are no globals.
   "id": "my-addon",
   "name": "My Addon",
   "version": "0.1.0",
-  "apiVersion": 1,
+  "apiVersion": 2,
   "hostVersion": ">=1.0.0",
   "entry": "entry.js",
   "permissions": ["ui:route", "ui:sidebar"],
@@ -68,6 +71,9 @@ Add only the fields you need: `server` (`.cjs`, needs `server:code`),
 `contentDir` (per-record JSON tree the HOST serves — the data-addon seam,
 see below), `serverDeps` (subset of `express` `archiver` `multer`; archive
 readers are deliberately unavailable),
+`capabilities` (API-v2 `{required, optional}`; advertised:
+`lifecycle.dispose`, `content.revision`; `collections.dm` is reserved but
+unavailable),
 `collections` (`[{ "name": "x", "keyed": false }]`, name `^[a-z0-9][a-z0-9_]{0,39}$`),
 `dependencies` (HARD — `{ "<id>": { "range": ">=1.0.0", "repo": "owner/name" } }`;
 missing/incompatible → your addon loads `blocked`),
@@ -107,12 +113,18 @@ per-record JSON tree (`data/<dir>/<id>.json`, kinds keyed by each record's
 for you: no server code, no `server:code` grant, no restart to load. Optionally
 declare `"contentGroups": {field, label?}` (e.g. `field: "book"`) so the DM can
 toggle whole record groups on/off in Settings — the host filters the served
-tree hot, and each toggle is labelled by the `name` of the field-named kind's
-matching record (ship a `book` record per book) (full docs: AUTHORING.md). Only write a `server` module for real logic.
+tree hot without a browser reload, changes `host.contentRevision`, and
+disposes/re-registers the addon plus its loaded hard/optional consumers. A
+content addon that relies on this must use API v2 and require
+`lifecycle.dispose` + `content.revision`. Each toggle is labelled by the `name`
+of the field-named kind's matching record (ship a `book` record per book)
+(full docs: AUTHORING.md). Only write a `server` module for real logic.
 
 **Other facade members** (always present unless noted):
 ```js
-host.id · host.apiVersion (1) · host.permissions[] · host.action(name)
+host.id · host.apiVersion (2) · host.hostVersion · host.permissions[]
+host.capabilities.has(id) · host.contentRevision · host.onDispose(fn)
+host.action(name)
 host.asset(rel)   // → /addons/<id>/<hash>/<rel> — URL of a bundled file (images…)
 host.h    = { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumb }
 //            breadcrumb([{label, href?}, …]) — the core wayfinding row (last crumb
@@ -127,6 +139,12 @@ host.store.patchAddonData(coll, id, fn)          // data:write:<coll>.addonData 
 ```
 There is **no way to call one action from another** — factor shared logic into a
 local function and reuse it.
+
+`register(host)` may return another cleanup function. Each cleanup runs exactly
+once in LIFO order before ordinary registrations are reversed. Promise cleanup
+is allowed and bounded to two seconds per addon; rejection/timeout is isolated.
+Disposal occurs on disable, removal, replacement, or content-revision change,
+consumer-first; reload is provider-first.
 
 ---
 
@@ -173,14 +191,18 @@ A throw in `init` is isolated — it never crashes the host.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import register from '../entry.js';
-import { dryRunRegister, smokeRegistrations } from '<host>/web/js/addon-test-harness.mjs';
+import { disposeMockHost, dryRunRegister, smokeRegistrations } from '<host>/web/js/addon-test-harness.mjs';
 
 test('registers + smokes clean', () => {
   const { ok, rec, error } = dryRunRegister(register, { id: 'my-addon', permissions: [/* … */] });
   assert.ok(ok, error);
   assert.ok(smokeRegistrations(rec).ok);   // renderers survive sample input
+  return disposeMockHost(rec);
 });
 ```
+- The mock uses the live dependency/declaration checks. Test `host.use()`,
+  manifest-declared collections, disposal order/idempotence, and failed
+  registration cleanup. `dryRunRegister` also returns a bound `dispose()`.
 - `tests.server` (CommonJS) is the **green-gate run at install** — it must be
   **self-contained** (Node built-ins + your own files; the staged tree has no
   `node_modules`, so it can't import the harness). It receives only the host's
@@ -201,7 +223,7 @@ the addon loads at boot. Iterate, re-run to reinstall.
 // addon.json
 {
   "id": "notes", "name": "Notes", "version": "0.1.0",
-  "apiVersion": 1, "hostVersion": ">=1.0.0", "entry": "entry.js",
+  "apiVersion": 2, "hostVersion": ">=1.0.0", "entry": "entry.js",
   "permissions": ["ui:route", "ui:sidebar", "ui:action", "data:own"],
   "collections": [{ "name": "notes", "keyed": false }],
   "summary": "A simple notes page."

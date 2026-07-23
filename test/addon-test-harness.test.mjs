@@ -1,10 +1,10 @@
 // Unit tests for the published addon test harness (Phase 8). Pure — no DOM.
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { createMockHost, dryRunRegister, smokeRegistrations } from '../web/js/addon-test-harness.mjs';
+import { createMockHost, disposeMockHost, dryRunRegister, smokeRegistrations } from '../web/js/addon-test-harness.mjs';
 
 test('createMockHost: records every register* call', () => {
-  const { host, rec } = createMockHost({ id: 'x' });
+  const { host, rec } = createMockHost({ id: 'x', collections: [{ name: 'rules', keyed: true }] });
   host.registerRoute('foo', () => '');
   host.registerSidebarPage({ route: '/foo' });
   host.registerArticleSection('characters', () => null);
@@ -39,7 +39,12 @@ test('store fixtures + role flags are honoured', () => {
 });
 
 test('mock store.collection: save / read-back / remove actually mutate the backing store', () => {
-  const { host } = createMockHost({ id: 'rules-addon' }, { fixtures: { 'collection:rules': [{ id: 'seed', name: 'Seed' }] } });
+  const { host } = createMockHost({
+    id: 'rules-addon',
+    permissions: ['data:own'],
+    collections: [{ name: 'rules', keyed: false }],
+  }, { fixtures: { 'collection:rules': [{ id: 'seed', name: 'Seed' }] } });
+  host.registerCollection('rules');
   const rules = host.store.collection('rules');
   assert.equal(rules.list().length, 1, 'seeded from fixtures');
 
@@ -47,8 +52,6 @@ test('mock store.collection: save / read-back / remove actually mutate the backi
   assert.ok(saved.id, 'save generates a missing id');
   assert.equal(rules.list().length, 2, 'save is visible on read-back (not a no-op mock)');
   assert.equal(rules.get(saved.id).name, 'Grappling');
-  assert.equal(host.store.getCollection('rules').length, 2, 'getCollection sees it too');
-
   // upsert by id, not a duplicate
   rules.save({ id: saved.id, name: 'Grappling v2' });
   assert.equal(rules.list().length, 2);
@@ -67,10 +70,17 @@ test('dryRunRegister: ok for a clean register, captures registrations', () => {
 });
 
 test('dryRunRegister: catches a throwing register (no crash)', () => {
-  const register = () => { throw new Error('bad register'); };
+  let disposed = 0;
+  const register = (host) => {
+    host.onDispose(() => { disposed++; });
+    host.registerRoute('partial', () => '');
+    throw new Error('bad register');
+  };
   const r = dryRunRegister(register, { id: 'x' });
   assert.equal(r.ok, false);
   assert.match(r.error, /bad register/);
+  assert.equal(disposed, 1);
+  assert.equal(r.rec.routes.length, 0, 'partial registrations roll back');
 });
 
 test('dryRunRegister: rejects a non-function register', () => {
@@ -107,4 +117,68 @@ test('smokeRegistrations: does NOT invoke actions (side effects)', () => {
   const smoke = smokeRegistrations(rec);
   assert.equal(called, false);
   assert.equal(smoke.ok, true);
+});
+
+test('mock host.use matches live declared/missing/loaded dependency behavior', () => {
+  const undeclared = createMockHost({ id: 'consumer' }, { deps: { provider: { ok: true } } }).host;
+  assert.throws(() => undeclared.use('provider'), /nedeklaroval závislost/);
+
+  const hardMissing = createMockHost({ id: 'consumer', dependencies: { provider: '*' } }).host;
+  assert.throws(() => hardMissing.use('provider'), /není načtená/);
+
+  const optionalMissing = createMockHost({ id: 'consumer', optionalDependencies: { provider: '*' } }).host;
+  assert.throws(() => optionalMissing.use('provider'), /není načtená/);
+
+  const api = { apiVersion: 1 };
+  const loaded = createMockHost(
+    { id: 'consumer', optionalDependencies: { provider: '*' } },
+    { deps: { provider: api } },
+  ).host;
+  assert.equal(loaded.use('provider'), api);
+});
+
+test('mock collection declaration validation matches the live contract', () => {
+  const { host } = createMockHost({
+    id: 'collections-addon',
+    permissions: ['data:own'],
+    collections: [{ name: 'notes', keyed: false }],
+  });
+  assert.throws(() => host.registerCollection('missing'), /not declared/);
+  assert.throws(() => host.store.collection('notes'), /not registered/);
+  host.registerCollection('notes');
+  assert.throws(() => host.registerCollection('notes'), /already registered/);
+  assert.doesNotThrow(() => host.store.collection('notes'));
+});
+
+test('mock lifecycle models capabilities, content revision, LIFO disposal, and isolation', async () => {
+  const calls = [];
+  const { host, rec } = createMockHost({
+    id: 'lifecycle-addon',
+    version: '1.0.0',
+    apiVersion: 2,
+    hostVersion: '>=1.0.0',
+    capabilities: { required: ['lifecycle.dispose', 'content.revision'] },
+    contentRevision: 'revision-7',
+  });
+  assert.equal(host.capabilities.has('lifecycle.dispose'), true);
+  assert.equal(host.capabilities.has('content.revision'), true);
+  assert.equal(host.capabilities.has('collections.dm'), false);
+  assert.equal(host.contentRevision, 'revision-7');
+  host.onDispose(() => { calls.push('first'); });
+  host.onDispose(async () => { calls.push('second'); throw new Error('expected'); });
+  const result = await disposeMockHost(rec);
+  assert.deepEqual(calls, ['second', 'first']);
+  assert.equal(result.errors.length, 1);
+  assert.equal((await disposeMockHost(rec)).started, false, 'repeated disposal is idempotent');
+});
+
+test('mock lifecycle bounds hung async cleanup without skipping other disposers', async () => {
+  const calls = [];
+  const { host, rec } = createMockHost({ id: 'hung-addon' });
+  host.onDispose(() => { calls.push('first'); });
+  host.onDispose(() => new Promise(() => {}));
+  host.onDispose(() => { calls.push('last'); });
+  const result = await disposeMockHost(rec, { timeoutMs: 10 });
+  assert.equal(result.timedOut, true);
+  assert.deepEqual(calls, ['last', 'first'], 'all cleanup functions are invoked despite one hung promise');
 });

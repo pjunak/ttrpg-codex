@@ -69,9 +69,18 @@ let reg;
 try { reg = Broker.normalizeRegistry(JSON.parse(fs.readFileSync(regFile, 'utf8'))); }
 catch { reg = Broker.defaultRegistry(); }
 
+const serverDeps = Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [];
+const collections = Broker.normalizeCollections(manifest.collections);
+const dependencies = (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {};
+const optionalDependencies = (manifest.optionalDependencies && typeof manifest.optionalDependencies === 'object' && !Array.isArray(manifest.optionalDependencies)) ? manifest.optionalDependencies : {};
+const contentGroups = Broker.normalizeContentGroups(manifest.contentGroups);
+const capabilities = manifest.capabilities || undefined;
 const versionRec = {
   contentHash: hash, version: manifest.version, sha: 'local', installedAt: Date.now(),
-  entry: manifest.entry, server: manifest.server || null, contentDir: manifest.contentDir || null,
+  apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
+  entry: manifest.entry, server: manifest.server || null,
+  contentDir: manifest.contentDir || null, contentGroups,
+  serverDeps, collections, dependencies, optionalDependencies, capabilities,
 };
 let entry = reg.addons.find(a => a.id === id);
 if (!entry) {
@@ -79,14 +88,14 @@ if (!entry) {
     id, repo: 'local', ref: 'local', sha: 'local',
     name: manifest.name, version: manifest.version,
     apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
+    capabilities,
     entry: manifest.entry, server: manifest.server || null,
     contentDir: manifest.contentDir || null,
-    serverDeps: Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [],
+    contentGroups, disabledContentGroups: [],
+    serverDeps,
     activeHash: hash, versions: [versionRec],
     enabled: true, grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
-    dependencies: (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {},
-    optionalDependencies: (manifest.optionalDependencies && typeof manifest.optionalDependencies === 'object' && !Array.isArray(manifest.optionalDependencies)) ? manifest.optionalDependencies : {},
-    collections: Broker.normalizeCollections(manifest.collections),
+    dependencies, optionalDependencies, collections,
     schemaVersion: 0, installedAt: Date.now(),
   };
   reg.addons.push(entry);
@@ -99,16 +108,17 @@ if (!entry) {
   // the local manifest.
   Object.assign(entry, {
     name: manifest.name, version: manifest.version, apiVersion: manifest.apiVersion,
+    hostVersion: manifest.hostVersion || '', capabilities,
     entry: manifest.entry, server: manifest.server || null,
-    contentDir: manifest.contentDir || null, activeHash: hash, enabled: true,
+    contentDir: manifest.contentDir || null, contentGroups,
+    activeHash: hash, enabled: true,
     grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : (entry.grantedPermissions || []),
-    serverDeps: Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [],
-    dependencies: (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {},
-    optionalDependencies: (manifest.optionalDependencies && typeof manifest.optionalDependencies === 'object' && !Array.isArray(manifest.optionalDependencies)) ? manifest.optionalDependencies : {},
-    collections: Broker.normalizeCollections(manifest.collections),
+    serverDeps, dependencies, optionalDependencies, collections,
   });
   if (!Array.isArray(entry.versions)) entry.versions = [];
-  if (!entry.versions.some(x => x.contentHash === hash)) entry.versions.push(versionRec);
+  const versionIndex = entry.versions.findIndex(x => x.contentHash === hash);
+  if (versionIndex >= 0) entry.versions[versionIndex] = versionRec;
+  else entry.versions.push(versionRec);
 }
 
 fs.mkdirSync(dataDir, { recursive: true });

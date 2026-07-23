@@ -8,6 +8,7 @@
 import { Store } from './store.js';
 import { esc, norm, debounce, trapFocus, announce } from './utils.js';
 import { I18n } from './i18n.js';
+import { CollectionDescriptors } from './collection-descriptors.js';
 
 export const GlobalSearch = (() => {
 
@@ -84,32 +85,41 @@ export const GlobalSearch = (() => {
     // Store.searchAll() returns per-kind arrays of entities.
     const all = Store.searchAll(query) || {};
     const out = [];
-    const pushKind = (kind, route, list, sub) => {
+    const pushCollection = (collection, list, sub) => {
+      const descriptor = CollectionDescriptors.forCollection(collection);
+      if (!descriptor) return;
       for (const e of list || []) {
         out.push({
-          kind, id: e.id, name: e.name || e.id,
+          kind: descriptor.kind, id: e.id, name: e.name || e.id,
           subtitle: sub ? sub(e) : '',
-          route: `#/${route}/${e.id}`,
+          route: `#${CollectionDescriptors.routeForCollection(collection, e.id)}`,
         });
       }
     };
     // Subtitles are PLAIN text — escaped once at the render site
     // (_renderResults), mirroring the `name` field. Producers must not
     // pre-escape (would double-encode `&` etc).
-    pushKind('postava',  'postava',  all.characters, e => e.title || '');
-    pushKind('misto',    'misto',    all.locations,  e => [e.type, e.region].filter(Boolean).join(' · '));
-    pushKind('udalost',  'udalost',  all.events,     e => e.sitting ? I18n.t('search.sitting', { n: e.sitting }) : '');
-    pushKind('zahada',   'zahada',   all.mysteries,  e => e.priority ? I18n.t('search.priority', { priority: e.priority }) : '');
-    pushKind('buh',      'buh',      all.pantheon,   e => e.domain || '');
-    pushKind('artefakt', 'artefakt', all.artifacts);
-    pushKind('historicka-udalost', 'historicka-udalost', all.historicalEvents,
-             e => [e.start, e.end].filter(Boolean).join(' – '));
+    pushCollection('characters',       all.characters,       e => e.title || '');
+    pushCollection('locations',        all.locations,        e => [e.type, e.region].filter(Boolean).join(' · '));
+    pushCollection('events',           all.events,           e => e.sitting ? I18n.t('search.sitting', { n: e.sitting }) : '');
+    pushCollection('mysteries',        all.mysteries,        e => e.priority ? I18n.t('search.priority', { priority: e.priority }) : '');
+    pushCollection('pantheon',         all.pantheon,         e => e.domain || '');
+    pushCollection('artifacts',        all.artifacts);
+    pushCollection('historicalEvents', all.historicalEvents,
+                   e => [e.start, e.end].filter(Boolean).join(' – '));
     // Factions aren't in searchAll — scan manually.
     const qn = norm(query);
     const factions = Store.getFactions ? Store.getFactions() : {};
     for (const [id, f] of Object.entries(factions)) {
       if (norm(f.name).includes(qn) || norm(id).includes(qn)) {
-        out.push({ kind:'frakce', id, name: f.name, subtitle: '', route: `#/frakce/${id}` });
+        const descriptor = CollectionDescriptors.forCollection('factions');
+        out.push({
+          kind: descriptor.kind,
+          id,
+          name: f.name,
+          subtitle: '',
+          route: `#${CollectionDescriptors.routeForCollection('factions', id)}`,
+        });
       }
     }
     _items = out.slice(0, 50);

@@ -14,6 +14,7 @@ import { PARTY_FACTION_ID } from './constants.js';
 import { Role } from './role.js';
 import { Addons } from './addons.js';
 import { I18n } from './i18n.js';
+import { CollectionDescriptors } from './collection-descriptors.js';
 
 export const EditMode = (() => {
 
@@ -1417,27 +1418,15 @@ export const EditMode = (() => {
   // Thin wrappers around Store.linkTwin that surface a toast and
   // navigate to the new twin on create. The data-action dispatcher
   // calls these with (collection, sourceId) from the editor buttons
-  // injected by EditTemplates._dmSection. Each route maps to its
-  // own wiki path prefix; the map below is the inverse of
-  // KIND_ROUTE in app.js so this module stays standalone.
-  const _TWIN_ROUTE = {
-    characters:       'postava',
-    locations:        'misto',
-    events:           'udalost',
-    mysteries:        'zahada',
-    factions:         'frakce',
-    pantheon:         'buh',
-    artifacts:        'artefakt',
-    historicalEvents: 'historicka-udalost',
-  };
+  // injected by EditTemplates._dmSection.
   async function createTwin(collection, sourceId) {
     if (_dirty && !confirm(I18n.t('editmode.unsavedEditorContinueQ'))) return;
     _closeTwinPicker();
     const r = await Store.linkTwin('create', collection, sourceId);
     if (!r.ok) { _toast(r.error || I18n.t('editmode.twinCreateFailed'), false); return; }
     _toast(I18n.t('editmode.twinCreated'));
-    const route = _TWIN_ROUTE[collection];
-    if (route && r.twinId) _refreshTo(`#/${route}/${r.twinId}`);
+    const route = CollectionDescriptors.routeForCollection(collection, r.twinId);
+    if (route && r.twinId) _refreshTo(`#${route}`);
   }
   async function unlinkTwin(collection, sourceId) {
     if (!confirm(I18n.t('editmode.twinUnlinkQ'))) return;

@@ -17,6 +17,7 @@ import { Sidebar } from './sidebar.js';
 import { Addons } from './addons.js';
 import { I18n } from './i18n.js';
 import { createSyncCoordinator } from './sync-coordinator.js';
+import { CollectionDescriptors } from './collection-descriptors.js';
 import { setWikiLinkResolver, norm, dataAction, dataOn, esc } from './utils.js';
 
 // ── Action dispatcher (replaces inline `onclick="Module.method(...)"`) ──
@@ -258,11 +259,6 @@ document.addEventListener('click', (ev) => {
   // form supports manual disambiguation:
   //     [[Frulam|postava:frulam_a7b3c9]]       (explicit id)
   //     [[Frulam|postava]]                     (scope search)
-  const KIND_ROUTE = {
-    characters:'postava', locations:'misto',      events:'udalost',
-    mysteries: 'zahada',  pantheon:'buh',
-    artifacts:'artefakt', historicalEvents:'historicka-udalost',
-  };
   // Polarity-aware tie-breaker for the twin model. When DM and
   // more than one entity in the same collection matches `label`
   // (typical case: a public + DM twin sharing a name), prefer the
@@ -308,17 +304,18 @@ document.addEventListener('click', (ev) => {
     // Current-article polarity for the tie-breaker.
     const ctx = (typeof Wiki?.getCurrentArticle === 'function') ? Wiki.getCurrentArticle() : null;
     for (const k of order) {
-      const route = KIND_ROUTE[k];
-      if (scopeRoute && route !== scopeRoute) continue;
+      const descriptor = CollectionDescriptors.forCollection(k);
+      if (!descriptor || (scopeRoute && descriptor.routePrefix !== scopeRoute)) continue;
       const candidates = (all[k] || []).filter(e => norm(e.name) === targetN);
       if (candidates.length === 0) continue;
       const getter = _STORE_GETTER_BY_COLLECTION[k];
       const ctxGetter = ctx ? _STORE_GETTER_BY_COLLECTION[ctx.type] : null;
       const pick = _pickByPolarity(candidates, ctxGetter && ctx ? ((id) => ctxGetter(ctx.id)) : null);
-      if (pick) return { kind: route, id: pick.id };
+      if (pick) return { kind: descriptor.kind, id: pick.id };
     }
     // Faction special-case — factions aren't in searchAll, hit them by name.
-    if (!scopeRoute || scopeRoute === 'frakce') {
+    const factionDescriptor = CollectionDescriptors.forCollection('factions');
+    if (!scopeRoute || scopeRoute === factionDescriptor.routePrefix) {
       const factions = Store.getFactions ? Store.getFactions() : {};
       const facMatches = [];
       for (const [id, f] of Object.entries(factions)) {
@@ -327,7 +324,7 @@ document.addEventListener('click', (ev) => {
       if (facMatches.length) {
         const ctxGetter = ctx ? _STORE_GETTER_BY_COLLECTION[ctx.type] : null;
         const pick = _pickByPolarity(facMatches, ctxGetter && ctx ? ((id) => ctxGetter(ctx.id)) : null);
-        if (pick) return { kind: 'frakce', id: pick.id };
+        if (pick) return { kind: factionDescriptor.kind, id: pick.id };
       }
     }
     // Addon-registered wiki kinds ([[Label|scope]]) — additive fallthrough,

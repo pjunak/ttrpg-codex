@@ -349,6 +349,19 @@ function contentHash(fileMap, crypto) {
   return h.digest('hex').slice(0, 16);
 }
 
+function contentRevision(entry, crypto) {
+  const groups = normalizeContentGroups(entry && entry.contentGroups);
+  const disabled = groups
+    ? normalizeDisabledContentGroups(entry && entry.disabledContentGroups).sort()
+    : [];
+  const identity = {
+    activeHash: typeof entry?.activeHash === 'string' ? entry.activeHash : '',
+    version: typeof entry?.version === 'string' ? entry.version : '',
+    contentGroups: groups ? { field: groups.field, disabled } : null,
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(identity)).digest('hex').slice(0, 16);
+}
+
 // GitHub answers 404 (not 403) for a private repo hit anonymously, so a DM
 // installing from a private repo without a server token sees a misleading
 // "not found" for a repo they know exists. When a fetch 404s AND no token is
@@ -466,6 +479,7 @@ module.exports = {
   parseAddonType,
   normalizeCollections,
   contentHash,
+  contentRevision,
   resolveRefToSha,
   fetchZipball,
   fetchManifest,

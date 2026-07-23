@@ -262,6 +262,24 @@ which renders an inline "↶ Vrátit" button for 8 seconds. Confirm
 dialogs were removed from deletes because undo replaces the safety
 net.
 
+## Built-in collection descriptors
+
+`web/js/collection-descriptors.js` is the browser-side source of truth for the
+identity and article routing of the eight built-in routable collections:
+characters, locations, events, mysteries, factions, pantheon, artifacts, and
+historical events. Each immutable descriptor owns its canonical collection key,
+wiki/entity kind, article-route prefix, and compatibility aliases. The faction
+descriptor maps the canonical `frakce` kind and its internal `frakce-id` article
+renderer alias to the same `/frakce/:id` route.
+
+`CollectionDescriptors` exposes the frozen `all` array plus
+`forCollection`, `forKind`, `routeForCollection`, and `routeForKind`. Unknown
+collections and kinds return `null`; they never inherit an unrelated core
+route. The registry deliberately contains no Store access, rendering,
+permissions, translated labels, list-page routes, or addon registration.
+Consumers keep those policies locally, and addon wiki-kind resolution remains
+the fallback after built-in lookup.
+
 ## Wiki-links `[[Name]]`
 
 `utils.expandWikiLinks(src)` rewrites `[[Name]]` and `[[Name|kind:id]]`
@@ -271,9 +289,8 @@ injected from `app.js` at init via `setWikiLinkResolver(fn)` so
 the `order` array in `app.js`):
 characters → locations → events → mysteries → pantheon →
 artifacts → historicalEvents → factions (factions are a keyed object
-so they're scanned separately). The `KIND_ROUTE` in `app.js` maps
-collection keys to their wiki route prefixes (e.g.
-`historicalEvents → 'historicka-udalost'`). Unresolved links render
+so they're scanned separately). Built-in collection kinds and article routes
+come from `CollectionDescriptors`; unresolved links render
 as `<span class="wlink-missing">[[text]]</span>` (dashed red underline,
 "Nenalezeno" tooltip). Disambiguation syntax: `[[Frulam|postava:frulam_a7b3c9]]`
 (explicit id) or `[[Frulam|postava]]` (scope search).

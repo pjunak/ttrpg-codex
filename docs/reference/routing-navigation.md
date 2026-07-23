@@ -9,6 +9,14 @@
 
 Hash-based routes. All logic in `app.js:navigate()`.
 
+Built-in entity identity and article-route prefixes are owned by
+`web/js/collection-descriptors.js`. Its immutable descriptors are shared by
+wiki-link resolution, article/twin links, edit navigation, global search,
+recent activity, and settings usage links. `navigate()` keeps the page-dispatch
+switch locally because list routes, redirects, maps, settings, and addon pages
+have different routing semantics. Unknown descriptor lookups return `null`;
+addon wiki kinds continue through `Addons.resolveWikiLink`.
+
 | Hash | Handler | Notes |
 |---|---|---|
 | `/` or `/dashboard` | `Wiki.renderPage('dashboard')` | Hero (editable campaign name + tagline) · Naše parta responsive grid · Poslední sezení (events from max `sitting`) · Otevřené záhady (top 3 by priority). |
