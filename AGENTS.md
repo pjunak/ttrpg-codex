@@ -14,7 +14,14 @@ Do not re-read files you have already read unless the file may have changed.
 Skip files over 100KB unless explicitly required.
 Recommend starting a new session when switching to an unrelated task.
 No sycophantic openers or closing fluff.
-Keep solutions simple and direct.
+Keep solutions simple, well-structured, documented, and maintainable.
+Follow established best practices and prefer clear designs over clever ones.
+Write self-documenting code. Do not add comments that narrate changes, restate
+the code, or preserve implementation history. Add a comment only when it is
+needed to explain a non-obvious invariant, constraint, or why the obvious
+solution is incorrect or unsafe.
+Planning artifacts are local-only. Store them under the gitignored
+`docs/plans/` directory and never commit them.
 User instructions always override this file.
 
 ## Environment
@@ -268,7 +275,8 @@ sessions and don't get re-discovered:
   carries through to forks.
 - **Bulk zip upload for marker icons.** Accept a zip whose entries
   follow `<pinTypeId>/<filename>.<ext>` as a power-user import path.
-  Server unpacks via adm-zip into `data/icons/`, then the user
+  Server should reuse the bounded yauzl-style streaming extraction pattern
+  into `data/icons/`, then the user
   manages individual slots through the existing per-marker editor.
 - **Per-place icon override.** Let a single Location pick a specific
   icon variant (or a one-off uploaded file) overriding its pin
@@ -293,26 +301,20 @@ sessions and don't get re-discovered:
    mutating route with no 503. (The 30 s watchdog added 2026-07-11 wraps
    only the addon-facing `host.withLock`, NOT the core mutex — don't
    misread that commit as fixing this.)
-5. Player payloads keep relationships whose source/target is a DM-only
-   character → leaks the hidden entity's id/slug (filter relationships
-   against the surviving character-id set in GET /api/data).
-6. `_scrubbedChildEnv` is a denylist (misses `AWS_ACCESS_KEY_ID`,
-   `DATABASE_URL`, `SSH_*`) — switch the addon-test child env to an
-   allowlist.
-7. map.js async init lacks a generation token — fast navigation or an SSE
+5. map.js async init lacks a generation token — fast navigation or an SSE
    re-render mid-`_initLeaflet` / mid-`zoomToPin`-poll can mount into a
    stale container.
-8. Timeline `_commitReorder` silently persists coerced `sitting:0 → 1` on
+6. Timeline `_commitReorder` silently persists coerced `sitting:0 → 1` on
    any drag in column 1; proper fix is a one-time load migration.
-9. Legacy world-map upload path writes a base64 `data:` URL into
+7. Legacy world-map upload path writes a base64 `data:` URL into
    `localStorage['world_map_image_url']` (quota risk + shadows the server
    upload) — delete that branch, keep only POST /api/worldmap.
-10. Missing guard tests: the addon permission facade; harness mock `use()`
+8. Missing guard tests: the addon permission facade; harness mock `use()`
     returns `undefined` where the live host throws for undeclared deps.
     (The `/api/restore` path-safety and migration-idempotency gaps listed
-    here originally are CLOSED — `test/integration-restore.test.cjs` and
-    `test/integration-migration.test.cjs` cover them.)
-11. Structural: server.js / store.js / settings.js god files; 4 duplicated
+    here originally are CLOSED; visibility closure is also CLOSED by
+    `test/visibility.test.cjs` + `test/integration-visibility.test.cjs`.)
+9. Structural: server.js / store.js / settings.js god files; 4 duplicated
     collection→route maps (wiki `_TWIN_LINK_ROUTE`, edit_templates
     `TWIN_ROUTE_PREFIX`, editmode `_TWIN_ROUTE`, app `KIND_ROUTE`); 8
     near-clone entity editors; no linter/formatter.
