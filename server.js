@@ -15,6 +15,7 @@ const {
   isForbiddenKey, safeJoinIn, pickKeptSnapshots,
   hashPassword, verifyPassword, safeEqStrings,
 } = require('./server-utils.cjs');
+const { CoreWriteLock, WriteLockTimeoutError } = require('./server/core-write-lock.cjs');
 
 // Role-aware filtering of the dataset (`server/visibility.cjs`) and
 // the startup migration that backfills `visibility:'public'` on every
@@ -110,6 +111,8 @@ const BRANDING_DIR   = path.join(DATA_DIR, 'branding');
 // One-time migration below moves any pre-existing data/snapshots/* up.
 const SNAPSHOTS_DIR  = process.env.CODEX_SNAPSHOTS_DIR
                        || path.join(__dirname, 'data-snapshots');
+const BACKUP_STAGING_ROOT = process.env.CODEX_BACKUP_STAGING_DIR
+                            || path.join(os.tmpdir(), 'ttrpg-codex-backups');
 const LEGACY_SNAPSHOTS_DIR = path.join(DATA_DIR, 'snapshots');
 const WEB_DIR        = path.join(__dirname, 'web');
 
@@ -453,15 +456,34 @@ const uploadIcons = multer({
 });
 
 // ── Write serialisation ─────────────────────────────────────────
-// Single-host single-process app, so a Promise-chain mutex is enough
-// to prevent two concurrent PATCHes from interleaving read-modify-
-// write cycles on the same JSON file. Wrap any handler that mutates
-// disk state in `withWriteLock(async () => { … })`.
-let _writeChain = Promise.resolve();
+// Single-host single-process app, so one FIFO mutex prevents concurrent
+// read-modify-write cycles. Acquisition is bounded; a timed-out waiter is
+// cancelled and skipped rather than remaining in the queue as a ghost write.
+const WRITE_LOCK_TIMEOUT_MS = Math.max(
+  1,
+  Number(process.env.CODEX_WRITE_LOCK_TIMEOUT_MS) || 10_000,
+);
+const _coreWriteLock = new CoreWriteLock({ timeoutMs: WRITE_LOCK_TIMEOUT_MS });
 function withWriteLock(fn) {
-  const next = _writeChain.then(fn, fn);  // run regardless of prior outcome
-  _writeChain = next.catch(() => {});      // never break the chain
-  return next;
+  return _coreWriteLock.run(fn);
+}
+function _sendWriteLockTimeout(res, err) {
+  if (!(err instanceof WriteLockTimeoutError)) return false;
+  if (!res.headersSent) {
+    res.status(503).json({
+      error: 'Write lock acquisition timed out',
+      code: err.code,
+      timeoutMs: err.timeoutMs,
+    });
+  }
+  return true;
+}
+function _runWriteRequest(res, fn, onTimeout) {
+  return withWriteLock(fn).catch(async err => {
+    if (!(err instanceof WriteLockTimeoutError)) throw err;
+    if (onTimeout) await onTimeout();
+    _sendWriteLockTimeout(res, err);
+  });
 }
 
 // ── Atomic write helper ──────────────────────────────────────────
@@ -1328,7 +1350,7 @@ function _createTwin(source) {
  * doesn't. Broadcasts `data-changed` once at the end.
  */
 app.post('/api/twin', requireRealDM(), (req, res) => {
-  withWriteLock(async () => {
+  _runWriteRequest(res, async () => {
     try {
       const { action, type, sourceId, targetId } = req.body || {};
       if (action !== 'create' && action !== 'unlink' && action !== 'link') {
@@ -1465,7 +1487,7 @@ app.patch('/api/data', (req, res) => {
   if (req.role !== 'dm' && req.role !== 'player') {
     return res.status(401).json({ error: 'Neznámé nebo chybějící heslo.' });
   }
-  withWriteLock(async () => {
+  _runWriteRequest(res, async () => {
     try {
       const { type, action, payload } = req.body || {};
 
@@ -1690,10 +1712,10 @@ const ADDON_MAX_ENTRY_BYTES = 10 * 1024 * 1024;   // one expanded file
 const ADDON_MAX_BYTES     = 25 * 1024 * 1024;   // 25 MB extracted cap
 const ADDON_MAX_COMPRESSION_RATIO = 100;
 const ADDON_VERSIONS_KEEP = 5;                  // content-addressed history kept per addon
-// Watchdog for host.withLock critical sections (see _makeServerHost). 30 s is
-// far beyond any legitimate JSON read-modify-write, and short enough that a
-// buggy addon can't freeze all editing until someone restarts the container.
-const ADDON_LOCK_TIMEOUT_MS = 30_000;
+// Diagnostic threshold for host.withLock critical sections. It deliberately
+// does not release ownership: JavaScript promises cannot cancel a running
+// callback, so early release would allow concurrent writes.
+const ADDON_LOCK_WARNING_MS = 30_000;
 
 // Server-side GitHub credential for the broker. Two sources: the DM-stored
 // token (data/secrets.json, set from the install wizard via
@@ -1936,25 +1958,19 @@ function _makeServerHost(entry) {
       }
       return require(name);
     },
-    // Serialize a critical section on the global write chain — NOT reentrant
-    // (don't nest host.data.write inside; it locks too). Watchdogged: the
-    // chain is a single point of failure for ALL editing server-wide, so an
-    // addon critical section that never settles (a latent deadlock, an
-    // await on the nested-lock mistake above) must not wedge it forever.
-    // After the timeout the chain moves on and the addon's promise rejects;
-    // the addon's own fn keeps running detached, which is unavoidable — the
-    // loud log tells the operator which addon to fix.
-    withLock: (fn) => withWriteLock(() => {
-      let timer = null;
-      const watchdog = new Promise((_, reject) => {
-        timer = setTimeout(() => {
-          console.error(`[addon ${id}] withLock critical section exceeded ${ADDON_LOCK_TIMEOUT_MS} ms — releasing the write chain. The addon has a hang/deadlock bug.`);
-          reject(new Error(`addon withLock timed out after ${ADDON_LOCK_TIMEOUT_MS} ms`));
-        }, ADDON_LOCK_TIMEOUT_MS);
-        if (timer.unref) timer.unref();
-      });
-      return Promise.race([Promise.resolve().then(fn), watchdog])
-        .finally(() => clearTimeout(timer));
+    // Serialize a critical section on the global write lock — NOT reentrant
+    // (don't nest host.data.write inside; it locks too). A slow holder is
+    // logged, but retains ownership until its callback settles.
+    withLock: (fn) => withWriteLock(async () => {
+      const timer = setTimeout(() => {
+        console.error(`[addon ${id}] withLock critical section exceeded ${ADDON_LOCK_WARNING_MS} ms. It still owns the core write lock; fix the addon hang/deadlock.`);
+      }, ADDON_LOCK_WARNING_MS);
+      if (timer.unref) timer.unref();
+      try {
+        return await fn();
+      } finally {
+        clearTimeout(timer);
+      }
     }),
     broadcastDataChanged: () => _broadcastDataChanged(),
     log: (...args) => console.log(`[addon ${id}]`, ...args),
@@ -2325,6 +2341,7 @@ app.post('/api/addons/resolve', requireRealDM('Jen DM může řešit konflikty d
     _broadcast('addons-changed', { at: Date.now() });
     res.json({ ok: true, resolutions: result.resolutions });
   } catch (e) {
+    if (_sendWriteLockTimeout(res, e)) return;
     console.error('POST /api/addons/resolve:', e);
     res.status(500).json({ error: 'Write error' });
   }
@@ -2390,6 +2407,7 @@ app.post('/api/addons/update-all', requireRealDM('Jen DM může aktualizovat dop
         if (entry && entry.server) serverChanged = true;
         updated.push({ id: a.id, from: a.sha || null, to: latest });
       } catch (e) {
+        if (_sendWriteLockTimeout(res, e)) return;
         errors.push({ id: a.id, error: e.message });
       }
     }
@@ -2459,6 +2477,7 @@ app.post('/api/addons/:id/rollback', requireRealDM('Jen DM může vracet verze d
     _broadcast('addons-changed', { at: Date.now() });
     res.json({ ok: true, version: result.version, activeHash: result.activeHash });
   } catch (e) {
+    if (_sendWriteLockTimeout(res, e)) return;
     console.error('POST /api/addons/:id/rollback:', e);
     res.status(500).json({ error: 'Rollback failed' });
   }
@@ -2483,6 +2502,7 @@ app.post('/api/addons/sources', requireRealDM('Jen DM může spravovat zdroje do
     _broadcast('addons-changed', { at: Date.now() });
     res.json({ ok: true, allow });
   } catch (e) {
+    if (_sendWriteLockTimeout(res, e)) return;
     console.error('POST /api/addons/sources:', e);
     res.status(500).json({ error: 'Write error' });
   }
@@ -2509,6 +2529,7 @@ app.post('/api/addons/install', requireRealDM('Jen DM může instalovat doplňky
     _broadcast('addons-changed', { at: Date.now() });
     res.json({ ok: true, addon: { id: entry.id, version: entry.version, activeHash: entry.activeHash } });
   } catch (e) {
+    if (_sendWriteLockTimeout(res, e)) return;
     console.error('POST /api/addons/install:', e.message);
     res.status(400).json({ error: 'Instalace selhala: ' + e.message });
   }
@@ -2579,6 +2600,7 @@ async function _setAddonEnabled(req, res, enabled) {
     _broadcast('addons-changed', { at: Date.now() });
     res.json({ ok: true, id, enabled });
   } catch (e) {
+    if (_sendWriteLockTimeout(res, e)) return;
     console.error('POST /api/addons/:id/enable:', e);
     res.status(500).json({ error: 'Write error' });
   }
@@ -2618,6 +2640,7 @@ app.post('/api/addons/:id/content-groups', requireRealDM('Jen DM může spravova
     await _broadcastDataChanged();
     res.json({ ok: true, id, disabled });
   } catch (e) {
+    if (_sendWriteLockTimeout(res, e)) return;
     console.error('POST /api/addons/:id/content-groups:', e);
     res.status(500).json({ error: 'Write error' });
   }
@@ -2645,6 +2668,7 @@ app.post('/api/addons/github-token', requireRealDM('Jen DM může spravovat GitH
     _broadcast('addons-changed', { at: Date.now() });
     res.json({ ok: true, configured: !!_githubToken(), source: _githubTokenSource() });
   } catch (e) {
+    if (_sendWriteLockTimeout(res, e)) return;
     // e.message only — an error object could conceivably carry request body.
     console.error('POST /api/addons/github-token:', e && e.message);
     res.status(500).json({ error: 'Write error' });
@@ -2686,6 +2710,7 @@ app.delete('/api/addons/:id', requireRealDM('Jen DM může spravovat doplňky.')
     _broadcast('addons-changed', { at: Date.now() });
     res.json({ ok: true, id, purged: purge });
   } catch (e) {
+    if (_sendWriteLockTimeout(res, e)) return;
     console.error('DELETE /api/addons/:id:', e);
     res.status(500).json({ error: 'Delete error' });
   }
@@ -2835,7 +2860,7 @@ async function _pinTypeExists(pinTypeId) {
  * (files are still in memory). Auth: required.
  */
 app.post('/api/icons/:pinTypeId', requireAuth, uploadIcons.array('icons', 16), (req, res) => {
-  withWriteLock(async () => {
+  _runWriteRequest(res, async () => {
     try {
       const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
       if (!pinTypeId) return res.status(400).json({ error: 'Invalid pinTypeId' });
@@ -2876,7 +2901,7 @@ app.post('/api/icons/:pinTypeId', requireAuth, uploadIcons.array('icons', 16), (
 });
 
 app.delete('/api/icons/:pinTypeId/:filename', requireAuth, (req, res) => {
-  withWriteLock(async () => {
+  _runWriteRequest(res, async () => {
     try {
       const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
       if (!pinTypeId) return res.status(400).json({ error: 'Invalid pinTypeId' });
@@ -2901,7 +2926,7 @@ app.delete('/api/icons/:pinTypeId/:filename', requireAuth, (req, res) => {
 });
 
 app.delete('/api/icons/:pinTypeId', requireAuth, (req, res) => {
-  withWriteLock(async () => {
+  _runWriteRequest(res, async () => {
     try {
       const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
       if (!pinTypeId) return res.status(400).json({ error: 'Invalid pinTypeId' });
@@ -2986,7 +3011,7 @@ app.post('/api/snapshots', requireAnyRole, (_req, res) => {
     return res.status(429).json({ error: 'Too many snapshots — try again in a few seconds' });
   }
   _lastManualSnapshotAt = now;
-  withWriteLock(async () => {
+  _runWriteRequest(res, async () => {
     try {
       const id = await _createSnapshot('manual');
       res.json({ ok: true, id });
@@ -3004,7 +3029,7 @@ app.post('/api/snapshots', requireAnyRole, (_req, res) => {
  * every connected client refetches. Auth: required.
  */
 app.post('/api/snapshots/:id/restore', requireAuth, (req, res) => {
-  withWriteLock(async () => {
+  _runWriteRequest(res, async () => {
     try {
       const r = await _restoreSnapshot(req.params.id);
       if (!r.ok) return res.status(404).json(r);
@@ -3024,7 +3049,7 @@ app.post('/api/snapshots/:id/restore', requireAuth, (req, res) => {
  * Auth: required.
  */
 app.post('/api/snapshots/revert-last/:n', requireAuth, (req, res) => {
-  withWriteLock(async () => {
+  _runWriteRequest(res, async () => {
     const n = Math.max(1, Math.min(50, Number(req.params.n) || 1));
     try {
       const files = await _snapshotFiles();
@@ -3165,32 +3190,74 @@ app.delete('/api/logo', requireAuth, async (_req, res) => {
  * leave the server), and the DM can hand them a filtered export
  * separately if needed.
  */
-app.get('/api/backup', requireAuth, (_req, res) => {
+app.get('/api/backup', requireAuth, async (_req, res) => {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const filename  = `backup-${timestamp}.zip`;
+  await fsp.mkdir(BACKUP_STAGING_ROOT, { recursive: true });
+  const stageDir = await fsp.mkdtemp(path.join(BACKUP_STAGING_ROOT, 'backup-'));
+  const stagedDataDir = path.join(stageDir, 'data');
+  let cleaned = false;
+  const cleanup = async () => {
+    if (cleaned) return;
+    cleaned = true;
+    await fsp.rm(stageDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
+      .catch(err => console.error('Backup staging cleanup error:', err));
+  };
 
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  try {
+    await _runWriteRequest(res, async () => {
+      if (process.env.NODE_ENV === 'test' && process.env.CODEX_BACKUP_TEST_FAIL_PHASE === 'copy') {
+        throw new Error('Injected backup copy failure');
+      }
+      const testDelay = process.env.NODE_ENV === 'test'
+        ? Number(process.env.CODEX_BACKUP_TEST_COPY_DELAY_MS) || 0
+        : 0;
+      if (testDelay > 0) {
+        await new Promise(resolve => setTimeout(resolve, testDelay));
+      }
+      await fsp.cp(DATA_DIR, stagedDataDir, {
+        recursive: true,
+        filter: src => path.relative(DATA_DIR, src) !== 'secrets.json',
+      });
+    });
+    if (res.headersSent) {
+      await cleanup();
+      return;
+    }
+  } catch (err) {
+    console.error('Backup staging error:', err);
+    await cleanup();
+    return res.status(500).json({ error: 'Backup failed' });
+  }
 
-  // archiver v8 (ESM) dropped the callable factory in favour of class exports
-  // (`new ZipArchive(opts)`); older v5/v6 export a `archiver('zip', opts)`
-  // factory. Support both so a version bump can't silently break backup again.
-  const archive = (typeof archiver === 'function')
-    ? archiver('zip', { zlib: { level: 9 } })
-    : new archiver.ZipArchive({ zlib: { level: 9 } });
-  archive.on('error', err => {
-    console.error('Backup archive error:', err);
+  try {
+    if (process.env.NODE_ENV === 'test' && process.env.CODEX_BACKUP_TEST_FAIL_PHASE === 'archive') {
+      throw new Error('Injected backup archive failure');
+    }
+    // archiver v8 (ESM) dropped the callable factory in favour of class exports
+    // (`new ZipArchive(opts)`); older v5/v6 export a factory.
+    const archive = (typeof archiver === 'function')
+      ? archiver('zip', { zlib: { level: 9 } })
+      : new archiver.ZipArchive({ zlib: { level: 9 } });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.once('finish', cleanup);
+    res.once('close', cleanup);
+    archive.once('error', err => {
+      console.error('Backup archive error:', err);
+      cleanup();
+      if (!res.headersSent) res.status(500).json({ error: 'Backup failed' });
+      else res.destroy(err);
+    });
+    archive.pipe(res);
+    archive.directory(stagedDataDir, 'data');
+    archive.finalize();
+  } catch (err) {
+    console.error('Backup archive setup error:', err);
+    await cleanup();
     if (!res.headersSent) res.status(500).json({ error: 'Backup failed' });
-  });
-  archive.pipe(res);
-  // Blanket-include data/ EXCEPT secrets.json — the stored GitHub token is a
-  // live plaintext credential and must never ride into a shareable archive.
-  // (auth.json stays: salted hashes only, wanted for disaster-recovery
-  // inspection.) Covered by test/integration-github-token.test.cjs, which
-  // also guards that the archiver version still honours the entry filter.
-  archive.directory(DATA_DIR, 'data', (entry) =>
-    (entry && entry.name === 'secrets.json') ? false : entry);
-  archive.finalize();
+  }
 });
 
 // ── Full data/ restore from upload ────────────────────────────
@@ -3363,9 +3430,9 @@ app.post('/api/restore', requireAuth, restoreUpload.single('backup'), (req, res)
 
   const filename = String(req.file.originalname || '');
   const tmpPath  = req.file.path;
+  const cleanup = () => fsp.unlink(tmpPath).catch(() => {});
 
-  withWriteLock(async () => {
-    const cleanup = () => fsp.unlink(tmpPath).catch(() => {});
+  _runWriteRequest(res, async () => {
     try {
       // Sniff the first 64 bytes from disk to detect format. ZIP starts
       // with magic `PK\x03\x04`; JSON with `{` or `[` after optional ws.
@@ -3469,7 +3536,7 @@ app.post('/api/restore', requireAuth, restoreUpload.single('backup'), (req, res)
       console.error('POST /api/restore:', e);
       if (!res.headersSent) res.status(500).json({ error: 'Restore failed' });
     }
-  });
+  }, cleanup);
 });
 
 // Server-addon route dispatcher (Phase 7). A single stable mount, registered
@@ -3509,6 +3576,7 @@ app.use('/api/addon/:addonId', (req, res, next) => {
   try {
     entry.router(req, res, (err) => {
       if (err) {
+        if (_sendWriteLockTimeout(res, err)) return;
         console.error(`[addon ${req.params.addonId}] route error`, err);
         if (!res.headersSent) res.status(500).json({ error: 'Addon route error' });
         return;
@@ -3516,6 +3584,7 @@ app.use('/api/addon/:addonId', (req, res, next) => {
       if (!res.headersSent) res.status(404).json({ error: 'Addon route not found' });
     });
   } catch (e) {
+    if (_sendWriteLockTimeout(res, e)) return;
     console.error(`[addon ${req.params.addonId}] route threw`, e);
     if (!res.headersSent) res.status(500).json({ error: 'Addon route error' });
   }
@@ -3548,6 +3617,7 @@ app.get('/*splat', (_req, res) => {
 // that may have partially written a file before erroring are cleaned up
 // best-effort.
 app.use((err, req, res, _next) => {
+  if (_sendWriteLockTimeout(res, err)) return;
   if (err instanceof multer.MulterError) {
     // multer may have already written one or more files to disk before the
     // limit tripped (e.g. LIMIT_FILE_COUNT on a multi-file upload). Best-

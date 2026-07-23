@@ -783,17 +783,21 @@ export const Store = (() => {
    * @returns {Promise<boolean>} `true` when the dataset was (re)loaded
    *   from the server; `false` when the fetch failed and the in-memory
    *   data was kept/defaulted. Callers that latch state on "I now hold
-   *   the server's version X" (app.js `_lastHash`) must check this.
+   *   the server's version X" must check this.
    * @fires window#store:server-unavailable
    */
-  async function load() {
+  async function load({ shouldCommit = () => true } = {}) {
     try {
       const res = await fetch('/api/data');
       if (res.ok) {
-        _serverAvailable = true;
         const serverData = await res.json();
+        if (!serverData || typeof serverData !== 'object' || Array.isArray(serverData)) {
+          throw new TypeError('Store: /api/data returned a non-object payload');
+        }
+        if (!shouldCommit()) return false;
+        _serverAvailable = true;
         _loadedOnce = true;
-        if (serverData && serverData.characters) {
+        {
           // Layer the server payload OVER the defaults rather than replacing
           // wholesale. The server omits collections that have no file yet
           // (e.g. a fresh instance where the user added characters but never
@@ -878,15 +882,9 @@ export const Store = (() => {
           _reindex();
           return true;
         }
-        // Empty server: keep defaults locally; the first user edit
-        // will lazily create files server-side via the per-entity
-        // PATCH path. No bulk wipe necessary.
-        _data = _defaults();
-        _reindex();
-        return true;
       }
     } catch (e) {
-      console.error('Store: server not reachable.', e);
+      console.error('Store: load failed.', e);
     }
     // Mid-session refetch failure (an SSE-triggered reload during a
     // network blip / server hiccup): keep the already-loaded dataset and

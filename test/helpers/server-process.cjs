@@ -76,7 +76,13 @@ async function startServer(opts = {}) {
     for (const [rel, content] of Object.entries(opts.seedFiles)) {
       const p = path.join(dataDir, rel);
       await fsp.mkdir(path.dirname(p), { recursive: true });
-      await fsp.writeFile(p, typeof content === 'string' ? content : JSON.stringify(content, null, 2), 'utf8');
+      await fsp.writeFile(
+        p,
+        Buffer.isBuffer(content) || typeof content === 'string'
+          ? content
+          : JSON.stringify(content, null, 2),
+        Buffer.isBuffer(content) ? undefined : 'utf8',
+      );
     }
   }
 

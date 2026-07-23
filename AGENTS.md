@@ -76,7 +76,7 @@ Public/human docs are separate: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 | World map | Leaflet 1.9.4 (`map.js`) |
 | Auth | SHA256 cookie `edit_session`. Passwords in `data/auth.json` (Settings → Účet) with env `DM_PASSWORD` / `PLAYER_PASSWORD` fallback (`EDIT_PASSWORD` = legacy DM alias). See docs/reference/routing-navigation.md → Auth flow. |
 | Uploads | Multer. Portraits/local maps 20 MB · world map 40 MB · logo 5 MB · marker icons 2 MB × 16 · restore ZIP 200 MB. |
-| Backup | `archiver`. `/api/backup` streams `data/` as zip. |
+| Backup | `archiver`. `/api/backup` stages a locked point-in-time copy, then streams the ZIP outside the lock. |
 | Deploy | Docker (`docker-compose.yml`) |
 
 ## Key Files
@@ -88,7 +88,8 @@ server-utils.cjs           Pure server helpers (password hashing, path
 tiler.js                   sharp tile-pyramid builder (world + local maps).
 server/                    visibility.cjs (role filter) · migrations.cjs ·
                            addons.cjs (broker) · addon-testing.cjs (test
-                           green-gate) · addon-content.cjs (contentDir).
+                           green-gate) · addon-content.cjs (contentDir) ·
+                           core-write-lock.cjs (bounded FIFO mutex).
 web/
   index.html               SPA shell. Loads bundle.css + app.js.
   i18n/
@@ -284,37 +285,25 @@ sessions and don't get re-discovered:
 
 ### Known deferred issues (2026-07-03 audit — verified real, consciously postponed)
 
-1. SSE `data-changed` has no debounce/single-flight — cascade writes
-   (deleteCharacter, saveLocation peer sync) trigger N full refetch+rerender
-   cycles; overlapping `Store.load()`s can settle out of order
-   (app.js `_applyRemoteChange`).
-2. Addon-rendered HTML can invoke ANY core action via
+1. Addon-rendered HTML can invoke ANY core action via
    `data-action="Store.deleteCharacter"` — the dispatcher doesn't scope
    actions inside `[data-addon-id]` subtrees. Accepted under the
    trusted-addon posture; revisit before third-party addons (any fix must
    also cover the `deferred(action,…)` indirection).
-3. `GET /api/backup` streams `data/` outside `withWriteLock` — a concurrent
-   write can 500/corrupt the archive. Fix shape: copy to a staging dir
-   under the lock, stream the ZIP outside it (never hold the lock while
-   streaming to a slow client).
-4. Core `withWriteLock` has no timeout — one wedged holder hangs every
-   mutating route with no 503. (The 30 s watchdog added 2026-07-11 wraps
-   only the addon-facing `host.withLock`, NOT the core mutex — don't
-   misread that commit as fixing this.)
-5. map.js async init lacks a generation token — fast navigation or an SSE
+2. map.js async init lacks a generation token — fast navigation or an SSE
    re-render mid-`_initLeaflet` / mid-`zoomToPin`-poll can mount into a
    stale container.
-6. Timeline `_commitReorder` silently persists coerced `sitting:0 → 1` on
+3. Timeline `_commitReorder` silently persists coerced `sitting:0 → 1` on
    any drag in column 1; proper fix is a one-time load migration.
-7. Legacy world-map upload path writes a base64 `data:` URL into
+4. Legacy world-map upload path writes a base64 `data:` URL into
    `localStorage['world_map_image_url']` (quota risk + shadows the server
    upload) — delete that branch, keep only POST /api/worldmap.
-8. Missing guard tests: the addon permission facade; harness mock `use()`
+5. Missing guard tests: the addon permission facade; harness mock `use()`
     returns `undefined` where the live host throws for undeclared deps.
     (The `/api/restore` path-safety and migration-idempotency gaps listed
     here originally are CLOSED; visibility closure is also CLOSED by
     `test/visibility.test.cjs` + `test/integration-visibility.test.cjs`.)
-9. Structural: server.js / store.js / settings.js god files; 4 duplicated
+6. Structural: server.js / store.js / settings.js god files; 4 duplicated
     collection→route maps (wiki `_TWIN_LINK_ROUTE`, edit_templates
     `TWIN_ROUTE_PREFIX`, editmode `_TWIN_ROUTE`, app `KIND_ROUTE`); 8
     near-clone entity editors; no linter/formatter.

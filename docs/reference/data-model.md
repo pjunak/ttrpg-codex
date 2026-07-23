@@ -471,11 +471,16 @@ fire on the **dashboard** (`dashboard:section`, ctx `{role}`) and the
 
 Utilities:
 `generateId(name)` slugifies. Lowercase. NFD-normalized. Max 40 chars.
-`load()` is async. Fetches `/api/data`, merges defaults, then runs
+`load({shouldCommit?})` is async. Fetches `/api/data`, validates that the
+payload is a non-array object, merges defaults, then runs
 idempotent migrations. Each migration helper returns the entities it
 touched so `load()` syncs each via the per-entity PATCH path (no
 whole-dataset wipe). On an empty server, `load()` keeps defaults
-locally — first user edit lazily creates files server-side.
+locally — first user edit lazily creates files server-side. Invalid,
+failed, or superseded loads preserve the last valid in-memory dataset.
+The optional `shouldCommit` predicate is checked after parsing and before
+any visible Store mutation so the SSE coordinator can reject an obsolete
+response safely.
 `exportJSON()` for download.
 
 ⚠ **`load()` layers the server payload OVER `_defaults()`**
@@ -489,6 +494,10 @@ every article render on a fresh dataset. Spreading defaults first
 guarantees every collection key exists (empty array / object);
 present keys are still overridden by the server (source of truth).
 Keep this when adding a new collection.
+
+The presence of `characters` is not a payload-validity sentinel. A sparse
+object with no `characters` file is a valid campaign response; all absent
+documented collections receive their `_defaults()` shape.
 
 Tombstones (`_data.deletedDefaults`) round-trip through the keyed-
 object PATCH path via `_tombstone(key)`. Used by `deleteCharacter` /
@@ -513,3 +522,11 @@ backoff (200 ms, 800 ms), and surfaces:
 Local mutations are *not* rolled back on server failure — the next
 page load reconciles from the server's truth. The `store:save-failed`
 banner in `app.js` lets the user know to refresh.
+
+This browser queue is separate from, and feeds into, the server's single core
+write mutex. Server-side acquisition waits are bounded to 10 seconds by
+default (`CODEX_WRITE_LOCK_TIMEOUT_MS`); expiry returns a retryable HTTP 503
+with code `WRITE_LOCK_TIMEOUT`. An expired queued mutation is cancelled and
+will not run later. Once acquired, ownership lasts until the mutation settles,
+so the timeout cannot unlock an active write or weaken serialization. See
+`docs/reference/server.md` → **Core write lock**.

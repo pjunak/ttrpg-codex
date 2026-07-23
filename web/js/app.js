@@ -16,6 +16,7 @@ import { DmDashboard } from './dm_dashboard.js';
 import { Sidebar } from './sidebar.js';
 import { Addons } from './addons.js';
 import { I18n } from './i18n.js';
+import { createSyncCoordinator } from './sync-coordinator.js';
 import { setWikiLinkResolver, norm, dataAction, dataOn, esc } from './utils.js';
 
 // ── Action dispatcher (replaces inline `onclick="Module.method(...)"`) ──
@@ -553,7 +554,6 @@ document.addEventListener('click', (ev) => {
   // replace the EasyMDE/CodeMirror DOM and silently destroy in-progress
   // text. The banner clears automatically once the user saves (which
   // fires `editmode:clean`) or they can dismiss/refresh on demand.
-  let _lastHash    = null;
   let _pendingHash = null;   // latest hash seen while dirty; null = nothing pending
   let _pendingLangRerender = false;  // language switched mid-edit; full re-render deferred to save
   let _pendingAddonRerender = false; // addons changed mid-edit; re-render deferred to save/discard
@@ -561,9 +561,8 @@ document.addEventListener('click', (ev) => {
   let _esRetryMs   = 1000;
 
   /**
-   * Apply a remote `data-changed` notification: refetch the dataset, re-
-   * apply sidebar visibility, and re-render the current route. Skipped
-   * when `hash` matches the last-applied hash (a duplicate event).
+   * Apply chrome updates and re-render the current route after the
+   * synchronization coordinator accepts the newest fetched dataset.
    *
    * Special case: while the Settings page is mid-self-commit (slider
    * drag still in progress), we keep the data fresh but skip the
@@ -571,20 +570,9 @@ document.addEventListener('click', (ev) => {
    * the user. Genuine third-party edits during that ~1.5 s window get
    * one missed re-render at worst — the next change re-renders cleanly.
    *
-   * @param {string|null} hash - Server-computed dataset hash, or null
-   *                             to "refetch unconditionally".
    * @returns {Promise<void>}
    */
-  async function _applyRemoteChange(hash) {
-    // Skip only if we already have this exact hash; null means "unknown, refetch anyway"
-    if (hash !== null && _lastHash !== null && hash === _lastHash) return;
-    // Latch the hash only AFTER a successful refetch. Latching before
-    // meant a failed reload (network blip — Store.load keeps old data)
-    // still marked the new hash as "applied", so the SSE hello after
-    // reconnect and duplicate data-changed events were skipped and the
-    // tab stayed stale until some *different* write came along.
-    const loaded = await Store.load();
-    if (hash !== null && loaded !== false) _lastHash = hash;
+  async function _renderRemoteChange() {
     Sidebar.render();
     Settings.applyBranding();
     Settings.applyTheme();
@@ -595,8 +583,7 @@ document.addEventListener('click', (ev) => {
     // doing so kills any in-flight slider drag. The Settings module
     // sets `isPendingSelfCommit()` for ~1.5 s after committing
     // its own write; during that window we keep the data fresh
-    // (`Store.load()` above) and update `_lastHash` (preventing
-    // a queued duplicate from re-firing) but skip the wholesale
+    // and accept the new server hash but skip the wholesale
     // re-render. Genuine remote edits during the window get one
     // missed re-render at worst — the next remote change re-renders
     // normally.
@@ -609,6 +596,15 @@ document.addEventListener('click', (ev) => {
     const _ae = document.activeElement;
     if (_ae && _ae.closest && _ae.closest('#sidebar-layout-editor')) return;
     navigate(getRoute());
+  }
+
+  const _remoteSync = createSyncCoordinator({
+    load: (options) => Store.load(options),
+    render: _renderRemoteChange,
+  });
+
+  function _applyRemoteChange(hash) {
+    return _remoteSync.request(hash);
   }
 
   function _showRemoteBanner() {
@@ -658,9 +654,7 @@ document.addEventListener('click', (ev) => {
     es.addEventListener('hello', ev => {
       try {
         const { hash } = JSON.parse(ev.data);
-        if (_lastHash === null) {
-          _lastHash = hash;
-        } else if (hash !== _lastHash) {
+        if (hash !== _remoteSync.getAcceptedHash()) {
           // Reconnected after an outage (laptop sleep, server restart,
           // network drop) and the data changed while we were away. Treat
           // it like a live data-changed event — same dirty-editor

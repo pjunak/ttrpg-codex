@@ -100,8 +100,9 @@ renders `Store.getSidebarLayout()` into `#sidebar-nav-root` — a
 direct flex children exactly like the old static markup (every
 `.sidebar .sidebar-section` / `.sidebar-nav` CSS selector still matches).
 `Sidebar.render()` runs at boot (synchronously from the default layout
-to avoid a flash, then again after `Store.load`), in `_applyRemoteChange`
-(SSE), and on `role:changed`. It's in `app.js`'s `ACTIONS` map.
+to avoid a flash, then again after `Store.load`), after the SSE
+synchronization coordinator accepts the newest response, and on
+`role:changed`. It's in `app.js`'s `ACTIONS` map.
 
 **Layout shape** (`settings.sidebarLayout`, DM-only write): `{ sections:
 [{ id, label, icon, collapsible, defaultOpen, role, pages:[route,…] }],

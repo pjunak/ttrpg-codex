@@ -30,6 +30,25 @@ Helpers all live in `server.js` at the top (after `_atomicWrite`):
 `_lastSnapshotTime` · `_createSnapshot(reason)` · `_pruneSnapshots` ·
 `_maybeSnapshot(reason)` · `_restoreSnapshot(id)`.
 
+## Core write lock
+
+Every core disk mutation uses the single FIFO `CoreWriteLock` from
+`server/core-write-lock.cjs`; `withWriteLock` remains the server-local facade.
+Lock acquisition is bounded to **10,000 ms** by default and may be configured
+with `CODEX_WRITE_LOCK_TIMEOUT_MS`. A queued request that reaches the bound is
+cancelled and receives
+`503 { error: "Write lock acquisition timed out",
+code: "WRITE_LOCK_TIMEOUT", timeoutMs }`. Cancelled waiters are skipped when
+the active holder eventually settles, so they can never execute as ghost
+writes.
+
+The timeout applies only while waiting to acquire the lock. Once a callback
+owns the lock it retains ownership until its promise fulfills or rejects;
+timeout handling never releases a live callback or permits overlapping core
+writes. Ordinary callback rejection advances the queue normally. Addon
+`host.withLock` uses this same lock. Its 30-second timer is diagnostic only:
+it logs a suspected addon hang but cannot release ownership early.
+
 **Coalescing:** `_maybeSnapshot` skips the write if the previous
 snapshot is < 60 s old (`SNAPSHOT_COALESCE_MS`). Burst writes from a
 single logical action (e.g. `saveLocation`'s peer cascade, or a user
@@ -92,7 +111,7 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | GET | `/api/version` | — | `{ hash, instance, features, canRestart }`. `hash` = dataset hash (health-check + legacy change-poll). `instance`/`features` echo the `CODEX_INSTANCE` / `CODEX_FEATURES` env — the per-instance addon seam (see **Deployed surface area → Multiple instances**). `canRestart` = whether the server may restart itself (gates the DM "restart server" button; mirrors `RESTARTABLE`). |
 | POST | `/api/restart` | dm | DM-only on **realRole**. Restart the server process by exiting cleanly so the supervisor (Docker `restart: unless-stopped` / systemd / pm2) brings it back up — the only way to reload in-process addon **server code** after an install/update/rollback without a manual `docker restart`. **400** when not `RESTARTABLE` (`CODEX_RESTARTABLE=1` or `/.dockerenv` detected) — exiting bare would just take the wiki down. Responds first, drains the write lock, then `process.exit(0)`; the client (`Settings.restartServer`) shows a full-screen overlay that polls `/api/version` (down→up) and reloads. No Docker-socket access. |
 | POST | `/api/addons/update-all` | dm | DM-only on **realRole**. Update EVERY addon from a real GitHub repo to its latest commit in one shot — the per-addon update flow, looped (re-resolve stored ref→latest SHA, stage+promote via the same green-gate / content-hash / kept-versions pipeline a single install uses). Local (dev-installed, `repo:'local'`) addons are skipped. Returns `{ ok, updated[], skipped[], errors[], serverChanged }` (`serverChanged` = any updated addon ships server code → the client suggests a restart). Broadcasts `addons-changed`. |
-| GET | `/api/events` | — | SSE. Emits `hello` on connect and `data-changed` `{ hash, at }` after every write. Client uses `EventSource`. No polling. |
+| GET | `/api/events` | — | SSE. Emits `hello` on connect and `data-changed` `{ hash, at }` after every write. Client uses `EventSource`; one single-flight coordinator tracks the newest requested hash, coalesces bursts, rejects superseded fetches before Store commit, and renders only accepted state. No polling. |
 | POST | `/api/login` | — | `{ password }` sets `edit_session` cookie. Tries DM credential first, then player. |
 | POST | `/api/logout` | — | Clear `edit_session` cookie. Idempotent. |
 | GET | `/api/auth` | — | `{ role, realRole }`. Anonymous = both null. |
@@ -113,7 +132,7 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | GET | `/icons/:pinTypeId/:filename` | — | Static-served from `data/icons/`. `maxAge: '7d'`. |
 | GET | `/maps/tiles/:mapId/tiles.json` | — | Per-map manifest `{ width, height, tileSize, minZoom, maxZoom, ext? }` written by the tiler. Missing = client falls back to imageOverlay. |
 | GET | `/maps/tiles/:mapId/:z/:x/:y.:ext` | — | Individual 256 px tile. Served as static files (`maxAge: '7d'`). |
-| GET | `/api/backup` | dm | Download `data/` as zip (`archive.directory(DATA_DIR,'data')` — blanket include, so addon-data + the `addons.json` registry + addon code under `data/addons/` are all in it — EXCEPT `data/secrets.json`, filtered out via the directory-entry callback: the stored GitHub token is a live plaintext credential and never rides into a shareable archive; `auth.json` stays — salted hashes only). DM-only because the raw JSON contains DM-only entities (`visibility: 'dm'`); a player download would bypass the visibility filter. ⚠ **archiver v8 is ESM** — `require('archiver')` returns `{ZipArchive,…}`, not a callable; the route uses `new archiver.ZipArchive(opts)` (version-tolerant fallback to the old `archiver('zip')` factory). A naive bump back to the factory call would 500 the whole endpoint. |
+| GET | `/api/backup` | dm | Download a point-in-time copy of `data/` as ZIP. The server creates an OS-temp staging directory outside campaign data, copies the complete tree under the core write lock (excluding `secrets.json`), releases the lock, then compresses/streams the staged `data/` tree. Addon data, registry, addon code, `auth.json`, paths, and restore format remain unchanged. Staging is removed after success, copy/archive failure, stream error, or client abort. DM-only because raw JSON contains DM-only entities. ⚠ **archiver v8 is ESM** — the route retains the `new archiver.ZipArchive(opts)` / legacy factory compatibility path. |
 | POST | `/api/restore` | dm | Replace `data/` from an uploaded backup (multipart field `backup`). Accepts `.zip` produced by `/api/backup` (entries under `data/...`) **or** a `.json` document in the `Store.exportJSON()` shape. Takes a `pre-restore` snapshot first, writes each entry safely under `DATA_DIR` (path-traversal protected via `_safeJoinDataDir`), broadcasts `data-changed`. Triggers `_backgroundTileSweep()` after a ZIP restore so map tiles regenerate. 200 MB hard cap. Streams entries via `yauzl` (disk-staged, constant memory; two-pass zip-bomb scan — the old buffering `adm-zip` path is gone). `_safeJoinDataDir` also refuses `auth.json` + `secrets.json` (`NON_DATA_JSON_FILES` — deployment config/credentials, never campaign data) and anything under `data/addons/` (addon CODE — the anti-RCE guard); refused entries are counted, not fatal. Responds `{ ok, format, restored, skipped }`. Covered by `test/integration-restore.test.cjs`. |
 | GET | `/api/snapshots` | any | List point-in-time snapshots. Returns `{ snapshots: [{id, createdAt, dataHash, reason, size}] }` newest-first. Only metadata — contents never leave the server. |
 | POST | `/api/snapshots` | any | Take a manual snapshot now. Returns `{ ok, id }`. Bypasses the 60 s coalesce window. Players can pin a known-good point before a risky edit. Rate-limited: min 3 s between manual snapshots (`CODEX_SNAPSHOT_MIN_INTERVAL_MS`; the test helper sets 0) — a manual snapshot holds the write lock for a full-dataset copy. |
@@ -248,6 +267,10 @@ Coverage today:
   minimal `window`/`localStorage`/`document` polyfills before import
   so Store's IIFE doesn't crash; doesn't exercise the load/save fetch
   paths.
+- `test/store-load.test.mjs` + `test/sync-coordinator.test.mjs` — sparse
+  `/api/data` normalization and last-valid-state preservation; deterministic
+  deferred-fetch coverage for single-flight SSE burst coalescing, stale
+  commit/render rejection, hash deduplication, and failure recovery.
 - `test/server-utils.test.cjs` — `isForbiddenKey`, `safeJoinIn`
   (traversal / absolute / null-byte / symlink-escape / good paths),
   `pickKeptSnapshots` (recent + daily-window pruning policy),
@@ -323,6 +346,11 @@ Coverage today:
   backup-ZIP round-trip, `auth.json` never overwritten, addon-code
   entries under `data/addons/` refused (counted in `skipped`), auth
   required. The coverage for the `_safeJoinDataDir` anti-RCE guard.
+- `test/core-write-lock.test.cjs` +
+  `test/integration-storage-durability.test.cjs` — bounded core-lock
+  acquisition, cancelled-waiter/ghost-write prevention, serialization and
+  rejection recovery; point-in-time backup under a racing write, lock release
+  before slow streaming, and staging cleanup on success/failure/abort.
 - `test/integration-github-token.test.cjs` — the wizard-stored GitHub
   token (`POST /api/addons/github-token`): realRole gating, shape
   validation, set/clear round-trip + `githubTokenSource` transitions,
