@@ -4,7 +4,7 @@ import { satisfies, planLoadOrder, depRange } from '../web/js/addon-deps.js';
 
 // ── satisfies ─────────────────────────────────────────────────────
 test('satisfies: common range forms', () => {
-  assert.equal(satisfies('1.2.3', ''),        true);
+  assert.equal(satisfies('1.2.3', ''),        false);
   assert.equal(satisfies('1.2.3', '*'),       true);
   assert.equal(satisfies('1.2.3', '>=1.2.0'), true);
   assert.equal(satisfies('1.1.0', '>=1.2.0'), false);
@@ -14,7 +14,7 @@ test('satisfies: common range forms', () => {
   assert.equal(satisfies('1.3.0', '~1.2.0'),  false);
   assert.equal(satisfies('1.2.3', '1.2.3'),   true);
   assert.equal(satisfies('1.2.4', '1.2.3'),   false);
-  assert.equal(satisfies('garbage', '>=1.0.0'), true);  // unparseable → don't block
+  assert.equal(satisfies('garbage', '>=1.0.0'), false);
 });
 
 test('satisfies: caret on 0.x locks the leftmost non-zero (semver-correct)', () => {
@@ -50,16 +50,14 @@ test('satisfies: X-ranges lock major / major+minor', () => {
   assert.equal(satisfies('1.0.0', '1.*'),   true);
 });
 
-test('satisfies: pre-release tag is treated as its release (documented simplification)', () => {
-  // parseVer strips `-alpha`, so a pre-release satisfies a range naming its
-  // release. Pinned so the simplification is a known choice, not an accident.
-  assert.equal(satisfies('1.2.0-alpha', '^1.2.0'), true);
-  assert.equal(satisfies('1.2.3-rc.1', '>=1.2.3'), true);
+test('satisfies: pre-release tags fail closed', () => {
+  assert.equal(satisfies('1.2.0-alpha', '^1.2.0'), false);
+  assert.equal(satisfies('1.2.3-rc.1', '>=1.2.3'), false);
 });
 
-test('satisfies: unparseable RANGES (hyphen / OR) fall through to permissive', () => {
-  assert.equal(satisfies('5.0.0', '1.0.0 - 2.0.0'), true);   // hyphen range not parsed → don't block
-  assert.equal(satisfies('5.0.0', '^1.0.0 || ^2.0.0'), true); // OR not parsed → don't block
+test('satisfies: unsupported ranges fail closed', () => {
+  assert.equal(satisfies('5.0.0', '1.0.0 - 2.0.0'), false);
+  assert.equal(satisfies('5.0.0', '^1.0.0 || ^2.0.0'), false);
 });
 
 test('depRange: string and object forms', () => {

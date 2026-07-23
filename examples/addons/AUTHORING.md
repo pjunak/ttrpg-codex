@@ -10,7 +10,8 @@ wiki-link kinds, override built-in content, and run server-side code — all wit
 **no build step** (browser-native ES modules) and **no clobbering CSS** (it
 reuses the host's design system, so the theme switcher re-skins it for free).
 
-- **Host API version:** `1` (your manifest's `apiVersion` must equal it).
+- **Host API versions:** `1` and `2` during migration. New addons should use
+  `2`; existing API-v1 addons remain supported.
 - **Distribution:** one GitHub repo per addon. The DM pastes the URL into the
   install wizard (Nastavení → 🧩 Doplňky).
 - **Trust model:** DM-only install, commit-SHA-pinned, in-process. Permissions
@@ -29,7 +30,7 @@ A minimal addon is two files at the repo root:
   "id": "hello",
   "name": "Pozdrav",
   "version": "0.1.0",
-  "apiVersion": 1,
+  "apiVersion": 2,
   "hostVersion": ">=1.0.0",
   "entry": "entry.js",
   "permissions": ["ui:route", "ui:sidebar", "data:read:characters"],
@@ -84,8 +85,9 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `id` | ✅ | `^[a-z0-9][a-z0-9-]{1,38}$` — lowercase, hyphens, **no underscores**. Must equal the repo's declared id. Becomes the on-disk dir + URL segment + action/data namespace. |
 | `name` | ✅ | Human-readable. |
 | `version` | ✅ | semver `x.y.z`. Bump on every release. |
-| `apiVersion` | ✅ | Must equal the host API version (**`1`**). A mismatch is rejected at preview/install with a validation error — the addon never installs. |
-| `hostVersion` | — | semver range vs the app version (e.g. `">=1.0.0"`). Declarative only — the host does not currently enforce it. |
+| `apiVersion` | ✅ | `1` or `2`. Unsupported versions are rejected. API v2 is required for security-sensitive manifest semantics. |
+| `hostVersion` | v2: ✅ | Enforced against the host version. API-v1 manifests may omit it for legacy compatibility (equivalent to `"*"`). |
+| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. |
 | `entry` | ✅ | Relative `.js`/`.mjs` path to the client module (default-export `register`). |
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
 | `contentDir` | — | Relative dir of a **per-record JSON tree** the HOST serves for you at `/api/addon/<id>/content` (+ `/content/:kind`, `/item/:kind/:id`, `/kinds`). The right choice for DATA addons (rulebooks): **no server code, no `server:code` grant**, kinds keyed by each record's own `kind` field (sub-dir name is the fallback), and hot-loaded — install/update needs no restart. A live `server` router takes precedence over it entirely. |
@@ -113,7 +115,9 @@ registration is rolled back and the addon is marked `error` (others still load).
 ### Identity & helpers (always available)
 ```js
 host.id            // your addon id
-host.apiVersion    // 1
+host.apiVersion    // 2 (latest supported API)
+host.hostVersion   // "1.0.0"
+host.capabilities.has('collections.dm') // false until DM collections ship
 host.permissions   // string[] of what you were granted
 host.action(name)  // → "<id>:<name>"  — build action strings with this
 host.asset(rel)    // → "/addons/<id>/<hash>/<rel>" — URL of a file bundled
@@ -669,3 +673,18 @@ returns `ok:true`, `smokeRegistrations(rec).ok` is true, and the app shows no
 
 See also **`web/css/STYLE.md`** (tokens + components) and
 **`docs/reference/addons.md`** (the host-internals deep reference).
+API v2 reserves the stable capability `collections.dm`. A future collection
+with `"access": "dm"` must declare that capability in
+`capabilities.required`. The current host deliberately does not advertise or
+implement it, so such a manifest is rejected. API-v1 collection declarations,
+unknown collection fields, and API-v2 DM access without the required capability
+are also rejected; none can be normalized into public access.
+
+### Version-range grammar
+
+Versions are exact stable `MAJOR.MINOR.PATCH` strings with no leading `v`,
+pre-release, or build suffix. Supported ranges are `*`, exact versions,
+`>`, `>=`, `<`, `<=`, caret (`^1.2.3`), tilde (`~1.2.3`), and X-ranges
+(`1.x`, `1.2.x`; `X` and `*` are accepted in the wildcard position). Empty,
+compound, hyphen, OR, and other syntax is rejected. The same grammar applies
+to `hostVersion`, `dependencies`, and `optionalDependencies`.

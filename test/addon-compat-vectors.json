@@ -1,0 +1,15 @@
+[
+  { "version": "1.2.3", "range": "*", "valid": true, "matches": true },
+  { "version": "1.2.3", "range": ">=1.0.0", "valid": true, "matches": true },
+  { "version": "1.2.3", "range": "^1.2.0", "valid": true, "matches": true },
+  { "version": "0.2.4", "range": "^0.2.3", "valid": true, "matches": true },
+  { "version": "0.3.0", "range": "^0.2.3", "valid": true, "matches": false },
+  { "version": "1.2.3", "range": "~1.2.0", "valid": true, "matches": true },
+  { "version": "1.2.3", "range": "1.2.x", "valid": true, "matches": true },
+  { "version": "1.2.3", "range": "1.x", "valid": true, "matches": true },
+  { "version": "v1.2.3", "range": "*", "valid": false, "matches": false },
+  { "version": "1.2.3-beta", "range": "*", "valid": false, "matches": false },
+  { "version": "1.2.3", "range": "1.0.0 - 2.0.0", "valid": false, "matches": false },
+  { "version": "1.2.3", "range": "^1.0.0 || ^2.0.0", "valid": false, "matches": false },
+  { "version": "1.2.3", "range": "", "valid": false, "matches": false }
+]

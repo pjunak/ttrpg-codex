@@ -26,11 +26,12 @@ import { Role } from './role.js';
 import { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumbNav, iconGlyph, announce } from './utils.js';
 import { I18n } from './i18n.js';
 import { planLoadOrder } from './addon-deps.js';
+import { HOST_CAPABILITIES, HOST_VERSION, compatibilityErrors } from './addon-compat.js';
 import { applyFragmentOps, listConflicts } from './addon-fragments.js';
 import { smokeRegistrations } from './addon-test-harness.mjs';
 
 export const Addons = (() => {
-  const HOST_API_VERSION = 1;
+  const HOST_API_VERSION = 2;
 
   // Top-level route segments owned by core `navigate()` — an addon may
   // never shadow one of these (kept in sync with app.js's switch + the
@@ -472,6 +473,8 @@ export const Addons = (() => {
     const host = {
       id,
       apiVersion: HOST_API_VERSION,
+      hostVersion: HOST_VERSION,
+      capabilities: Object.freeze({ has: (id) => HOST_CAPABILITIES.has(id), supported: Object.freeze([...HOST_CAPABILITIES]) }),
       permissions: grants.slice(),
       action: (name) => id + ':' + name,
       asset:  (rel) => assetBase + String(rel == null ? '' : rel).replace(/^\/+/, ''),
@@ -532,7 +535,13 @@ export const Addons = (() => {
     _resolutions = { ...reg.resolutions };   // copy: never mutate the fetch payload
     _unmatched.clear();
     const list = reg.addons.filter(a => a.enabled && a.entryUrl);
-    const plan = planLoadOrder(list);
+    const compatible = [];
+    for (const addon of list) {
+      const errors = compatibilityErrors(addon);
+      if (errors.length) _states.set(addon.id, { state: 'blocked', reason: errors.join('; ') });
+      else compatible.push(addon);
+    }
+    const plan = planLoadOrder(compatible);
     _markBlocked(list, plan.blocked);
     for (const a of plan.order) await _loadOne(a);   // dependency order: deps first
   }
@@ -551,7 +560,13 @@ export const Addons = (() => {
     const resChanged = JSON.stringify(_resolutions) !== JSON.stringify(reg.resolutions);
     if (resChanged) _resolutions = { ...reg.resolutions };   // copy: never mutate the fetch payload
     const list = reg.addons.filter(a => a.enabled && a.entryUrl);
-    const enabledIds = new Set(list.map(a => a.id));
+    const compatibilityBlocked = new Map();
+    const compatible = list.filter(addon => {
+      const errors = compatibilityErrors(addon);
+      if (errors.length) compatibilityBlocked.set(addon.id, errors.join('; '));
+      return !errors.length;
+    });
+    const enabledIds = new Set(compatible.map(a => a.id));
     let changed = resChanged;
     // Unload addons that are gone from the enabled set (disabled / removed):
     // reverse their registrations so their routes / sidebar pages / fragment
@@ -559,7 +574,8 @@ export const Addons = (() => {
     for (const id of [..._addons.keys()]) {
       if (!enabledIds.has(id)) { _unloadAddon(id); changed = true; }
     }
-    const plan = planLoadOrder(list);
+    for (const [id, reason] of compatibilityBlocked) _states.set(id, { state: 'blocked', reason });
+    const plan = planLoadOrder(compatible);
     changed = _markBlocked(list, plan.blocked) || changed;
     for (const a of plan.order) {
       const cur = _addons.get(a.id);

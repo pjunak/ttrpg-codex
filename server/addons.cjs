@@ -21,7 +21,8 @@
 // must equal this or it won't load (with a clear "incompatible"
 // message rather than a silent break). Bump on a breaking change to
 // the host facade / fragment-id contract.
-const HOST_API_VERSION = 1;
+const Compatibility = require('./addon-compat.cjs');
+const HOST_API_VERSION = 2;
 
 // Vetted npm libraries a SERVER addon may pull via `serverHost.lib(name)`
 // (Phase 7). Arbitrary native modules aren't runtime-installable (no rebuild,
@@ -167,13 +168,13 @@ function validateManifest(m) {
     errors.push('id must match ^[a-z0-9][a-z0-9-]{1,38}$');
   }
   if (typeof m.name !== 'string' || !m.name.trim()) errors.push('name is required');
-  if (typeof m.version !== 'string' || !/^\d+\.\d+\.\d+/.test(m.version)) {
+  if (!Compatibility.parseVersion(m.version)) {
     errors.push('version must be semver (x.y.z)');
   }
   if (!Number.isInteger(m.apiVersion)) {
     errors.push('apiVersion must be an integer');
-  } else if (m.apiVersion !== HOST_API_VERSION) {
-    errors.push(`apiVersion ${m.apiVersion} is incompatible with host apiVersion ${HOST_API_VERSION}`);
+  } else if (!Compatibility.SUPPORTED_API_VERSIONS.has(m.apiVersion)) {
+    errors.push(`apiVersion ${m.apiVersion} is unsupported; host supports 1 and 2`);
   }
   if (typeof m.entry !== 'string' || !m.entry.trim()) {
     errors.push('entry (client ESM path) is required');
@@ -235,14 +236,7 @@ function validateManifest(m) {
       errors.push('each permission must be a token starting lowercase (^[a-z][a-zA-Z0-9:_.-]*$)');
     }
   }
-  if (m.dependencies !== undefined &&
-      (typeof m.dependencies !== 'object' || Array.isArray(m.dependencies) || m.dependencies === null)) {
-    errors.push('dependencies must be an object');
-  }
-  if (m.optionalDependencies !== undefined &&
-      (typeof m.optionalDependencies !== 'object' || Array.isArray(m.optionalDependencies) || m.optionalDependencies === null)) {
-    errors.push('optionalDependencies must be an object');
-  }
+  errors.push(...Compatibility.compatibilityErrors(m).filter(e => !e.startsWith('apiVersion ')));
   if (m.collections !== undefined) {
     if (!Array.isArray(m.collections)) {
       errors.push('collections must be an array');
@@ -255,6 +249,15 @@ function validateManifest(m) {
           errors.push(`duplicate collection name "${c.name}"`);
         } else {
           seen.add(c.name);
+          const allowed = m.apiVersion === 2 ? ['name', 'keyed', 'access'] : ['name', 'keyed'];
+          for (const key of Object.keys(c)) if (!allowed.includes(key)) errors.push(`collection "${c.name}" has unknown field "${key}"`);
+          if (c.access !== undefined) {
+            if (m.apiVersion !== 2) errors.push(`collection "${c.name}" access semantics require apiVersion 2`);
+            else if (c.access !== 'public' && c.access !== 'dm') errors.push(`collection "${c.name}" access must be "public" or "dm"`);
+            else if (c.access === 'dm' && !(m.capabilities && Array.isArray(m.capabilities.required) && m.capabilities.required.includes('collections.dm'))) {
+              errors.push(`collection "${c.name}" access "dm" requires capability "collections.dm"`);
+            }
+          }
         }
       }
     }
@@ -443,6 +446,8 @@ async function fetchManifest(repo, ref, { fetch, token } = {}) {
 
 module.exports = {
   HOST_API_VERSION,
+  HOST_VERSION: Compatibility.HOST_VERSION,
+  HOST_CAPABILITIES: Compatibility.HOST_CAPABILITIES,
   HOST_SERVER_LIBS,
   REGISTRY_SCHEMA,
   ID_RE,

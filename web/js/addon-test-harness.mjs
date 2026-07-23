@@ -99,7 +99,12 @@ function _emptyRec() {
  * @param {object} [opts]  `{ isDM?, isAnonymous?, fixtures?, deps? }`
  * @returns {{ host: object, rec: object }}
  */
+import { HOST_CAPABILITIES, HOST_VERSION, compatibilityErrors } from './addon-compat.js';
+
 export function createMockHost(meta = {}, opts = {}) {
+  meta = { version: '0.0.0', apiVersion: 1, hostVersion: '>=1.0.0', ...meta };
+  const compatibility = compatibilityErrors(meta);
+  if (compatibility.length) throw new Error(compatibility.join('; '));
   const id  = meta.id || 'mock-addon';
   const rec = _emptyRec();
   const fx  = opts.fixtures || {};
@@ -144,7 +149,9 @@ export function createMockHost(meta = {}, opts = {}) {
 
   const host = {
     id,
-    apiVersion: 1,
+    apiVersion: 2,
+    hostVersion: HOST_VERSION,
+    capabilities: Object.freeze({ has: (capability) => HOST_CAPABILITIES.has(capability), supported: Object.freeze([...HOST_CAPABILITIES]) }),
     permissions: Array.isArray(meta.permissions) ? meta.permissions.slice() : [],
     action: (name) => id + ':' + name,
 

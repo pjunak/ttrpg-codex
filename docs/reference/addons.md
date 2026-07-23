@@ -120,8 +120,8 @@ testing, the update/rollback wizard, and backup coverage.
 
 ### Manifest (`addon.json`, repo root)
 `{ id (^[a-z0-9][a-z0-9-]{1,38}$ — no underscores, which also blocks
-`__proto__`-style keys), name, version (semver), apiVersion (must equal
-host `HOST_API_VERSION`, currently 1), hostVersion, entry (client ESM,
+`__proto__`-style keys), name, version (strict `MAJOR.MINOR.PATCH`),
+apiVersion (`1` and `2` supported during migration), hostVersion, entry (client ESM,
 **default-export `register(host)`**), server? (relative `.cjs`/`.js` Node module,
 **exports `init(serverHost)`** — Phase 7), contentDir? (relative dir of a
 per-record JSON tree the HOST serves at `/api/addon/<id>/content*` — the
@@ -148,6 +148,22 @@ addon-owned data collections, validated + de-duped by `normalizeCollections`),
 tests? (`{client?, server?}` — relative path or `string[]` of self-test files
 run by the pre-activation gate, Phase 8), summary }`.
 `server/addons.cjs:validateManifest` is the always-run Tier-A gate.
+
+**API v2 compatibility contract.** API v1 remains loadable unchanged; an
+omitted v1 `hostVersion` means `*`. API v2 requires an enforced
+`hostVersion`. Versions have exactly three numeric components. Ranges support
+only `*`, exact, `> >= < <=`, `^`, `~`, and `M.x`/`M.m.x`; malformed installed
+versions and unsupported range syntax fail closed. Dependency keys must be
+valid addon ids. `capabilities` is API-v2-only and has the shape
+`{required?:string[], optional?:string[]}`. Required unavailable capabilities
+block installation and loading; optional known capabilities can be discovered
+with `host.capabilities.has(id)`. Unknown, malformed, or duplicate declarations
+are rejected. `collections.dm` is reserved for future DM-only collections but
+is not advertised yet, so a manifest requiring it is rejected. Collection
+security fields are strict: API v1 cannot declare `access`; API v2
+`access:"dm"` requires `collections.dm`; unknown fields are rejected. This
+ensures old hosts reject v2 and incapable new hosts reject the capability,
+never broadening DM data to public access.
 
 ### Server broker — `server/addons.cjs` (pure/injectable, unit-tested)
 `validateManifest` · `matchRepoRule`/`isAllowed` · `contentHash` (sha256

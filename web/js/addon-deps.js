@@ -16,48 +16,15 @@ export function depRange(spec) {
   return '';
 }
 
-export function parseVer(v) {
-  // NOTE: a pre-release suffix is intentionally ignored — `1.2.0-alpha`
-  // parses to [1,2,0] and is treated as its release. Real semver excludes
-  // pre-releases from ranges that don't name one; we accept the
-  // simplification because this addon ecosystem is solo-authored and
-  // pre-release deps are vanishingly unlikely. Pinned by a test so it's a
-  // known choice, not an accident.
-  const m = String(v == null ? '' : v).match(/(\d+)\.(\d+)\.(\d+)/);
-  return m ? [+m[1], +m[2], +m[3]] : null;
-}
-function _cmp(a, b) { for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0; }
+import { testRange } from './addon-compat.js';
 
-/** Minimal semver-range check covering the common forms: "" / "*" (any),
+/** Strict semver-range check covering "*" (any),
  *  exact "x.y.z", comparators >= > <= < , "^x.y.z" (caret), "~x.y.z" (tilde),
- *  and X-ranges "M.x" / "M.m.x" (also `*`). Compound forms we deliberately
- *  DON'T parse — hyphen ranges ("1 - 2") and OR ("^1 || ^2") — fall through to
- *  permissive `true` (documented; an unparseable version also doesn't block). */
+ *  and X-ranges "M.x" / "M.m.x". Unsupported syntax and malformed versions
+ *  fail closed. */
 export function satisfies(version, range) {
-  range = String(range || '').trim();
-  if (!range || range === '*') return true;
-  const v = parseVer(version);
-  if (!v) return true;
-  let m;
-  if ((m = range.match(/^>=\s*(\d+\.\d+\.\d+)$/)))      return _cmp(v, parseVer(m[1])) >= 0;
-  if ((m = range.match(/^>\s*(\d+\.\d+\.\d+)$/)))       return _cmp(v, parseVer(m[1])) > 0;
-  if ((m = range.match(/^<=\s*(\d+\.\d+\.\d+)$/)))      return _cmp(v, parseVer(m[1])) <= 0;
-  if ((m = range.match(/^<\s*(\d+\.\d+\.\d+)$/)))       return _cmp(v, parseVer(m[1])) < 0;
-  if ((m = range.match(/^\^\s*(\d+)\.(\d+)\.(\d+)$/))) {
-    // Caret: >= the floor AND within the leftmost-non-zero component. Crucially
-    // for 0.x (every early addon): ^0.2.3 = >=0.2.3 <0.3.0 (lock MINOR), and
-    // ^0.0.3 = exactly 0.0.3 (lock patch) — not just "major 0 and >=".
-    const r = [+m[1], +m[2], +m[3]];
-    if (_cmp(v, r) < 0) return false;
-    if (r[0] > 0) return v[0] === r[0];                       // ^M.m.p → lock major
-    if (r[1] > 0) return v[0] === 0 && v[1] === r[1];         // ^0.m.p → lock minor
-    return v[0] === 0 && v[1] === 0 && v[2] === r[2];         // ^0.0.p → exact
-  }
-  if ((m = range.match(/^~\s*(\d+)\.(\d+)\.(\d+)$/)))   { const r = [+m[1], +m[2], +m[3]]; return v[0] === r[0] && v[1] === r[1] && v[2] >= r[2]; }
-  if ((m = range.match(/^(\d+)\.(\d+)\.[xX*]$/)))       return v[0] === +m[1] && v[1] === +m[2];   // X-range M.m.x → lock minor
-  if ((m = range.match(/^(\d+)\.[xX*]$/)))              return v[0] === +m[1];                     // X-range M.x   → lock major
-  if ((m = range.match(/^(\d+\.\d+\.\d+)$/)))           return _cmp(v, parseVer(m[1])) === 0;
-  return true;
+  const result = testRange(version, range);
+  return result.valid && result.matches;
 }
 
 /**
@@ -90,6 +57,7 @@ export function planLoadOrder(list) {
     for (const d of deps(a)) {
       const dep = byId.get(d.id);
       if (!dep) { blocked.set(a.id, `chybí závislost „${d.id}"`); break; }
+      if (!testRange(dep.version, d.range).valid) { blocked.set(a.id, `závislost „${d.id}" má neplatnou verzi nebo rozsah`); break; }
       if (!satisfies(dep.version, d.range)) { blocked.set(a.id, `„${d.id}" ${dep.version || '?'} nesplňuje ${d.range}`); break; }
     }
   }

@@ -19,7 +19,7 @@ const { startServer } = require('./helpers/server-process.cjs');
 function goodManifest(over = {}) {
   return {
     id: 'books', name: 'Books', version: '0.1.0',
-    apiVersion: HOST_API_VERSION, entry: 'entry.js', ...over,
+    apiVersion: HOST_API_VERSION, hostVersion: '>=1.0.0', entry: 'entry.js', ...over,
   };
 }
 

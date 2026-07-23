@@ -1784,6 +1784,8 @@ function _publicAddonList(reg) {
     name:       a.name || a.id,
     version:    a.version || '',
     apiVersion: a.apiVersion,
+    hostVersion: a.hostVersion,
+    capabilities: a.capabilities || undefined,
     enabled:    !!a.enabled,
     state:      a.state || (a.enabled ? 'ok' : 'disabled'),
     activeHash: a.activeHash || null,
@@ -1984,6 +1986,12 @@ function _makeServerHost(entry) {
 async function _loadServerAddon(entry) {
   const id = entry.id;
   if (!entry.server) return { state: null };
+  const compatibility = AddonBroker.validateManifest({
+    ...entry,
+    entry: entry.entry || 'entry.js',
+    permissions: entry.grantedPermissions,
+  });
+  if (!compatibility.ok) return { state: 'blocked', error: compatibility.errors.join('; ') };
   if (!Array.isArray(entry.grantedPermissions) || !entry.grantedPermissions.includes('server:code')) {
     return { state: 'blocked', error: 'chybí oprávnění server:code' };
   }
@@ -2212,11 +2220,13 @@ async function _promoteAddon(staged) {
   const _contentGroups = AddonBroker.normalizeContentGroups(manifest.contentGroups);
   const versionRec = {
     contentHash: hash, version: manifest.version, sha, installedAt: Date.now(),
+    apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
     entry: manifest.entry, server: manifest.server || null,
     contentDir: manifest.contentDir || null,
     contentGroups: _contentGroups,
     serverDeps: _serverDeps, collections: _collections,
     dependencies: _dependencies, optionalDependencies: _optionalDependencies,
+    capabilities: manifest.capabilities || undefined,
   };
   let entry = reg.addons.find(a => a.id === id);
   if (!entry) {
@@ -2224,6 +2234,7 @@ async function _promoteAddon(staged) {
       id, repo, ref: useRef, sha,
       name: manifest.name, version: manifest.version,
       apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
+      capabilities: manifest.capabilities || undefined,
       entry: manifest.entry, server: manifest.server || null,
       contentDir: manifest.contentDir || null,
       contentGroups: _contentGroups,
@@ -2242,6 +2253,7 @@ async function _promoteAddon(staged) {
       repo, ref: useRef, sha,
       name: manifest.name, version: manifest.version,
       apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
+      capabilities: manifest.capabilities || undefined,
       entry: manifest.entry, server: manifest.server || null,
       contentDir: manifest.contentDir || null,
       // The DM's disabledContentGroups toggle state survives updates; the
@@ -2282,6 +2294,8 @@ app.get('/api/addons', async (req, res) => {
     const reg = await _readAddonsRegistry();
     res.json({
       apiVersion: AddonBroker.HOST_API_VERSION,
+      hostVersion: AddonBroker.HOST_VERSION,
+      capabilities: [...AddonBroker.HOST_CAPABILITIES],
       instance: INSTANCE,
       addons: _publicAddonList(reg),
       // Fragment-override conflict resolutions (target → winner addonId | null).
@@ -2457,6 +2471,10 @@ app.post('/api/addons/:id/rollback', requireRealDM('Jen DM může vracet verze d
       entry.version    = target.version || entry.version;
       entry.sha        = target.sha || entry.sha;
       if (target.entry)                  entry.entry       = target.entry;
+      if (target.apiVersion)             entry.apiVersion  = target.apiVersion;
+      if (target.hostVersion !== undefined) entry.hostVersion = target.hostVersion;
+      if (target.capabilities !== undefined) entry.capabilities = target.capabilities;
+      else delete entry.capabilities;
       if (target.server !== undefined)   entry.server      = target.server;
       if (target.contentDir !== undefined) entry.contentDir = target.contentDir;
       if (target.contentGroups !== undefined) entry.contentGroups = target.contentGroups;

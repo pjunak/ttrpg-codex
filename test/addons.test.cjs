@@ -15,7 +15,7 @@ const {
 function goodManifest(over = {}) {
   return {
     id: 'dnd5e-sheet', name: 'Sheet', version: '0.1.0',
-    apiVersion: HOST_API_VERSION, entry: 'entry.js', ...over,
+    apiVersion: HOST_API_VERSION, hostVersion: '>=1.0.0', entry: 'entry.js', ...over,
   };
 }
 
@@ -33,7 +33,7 @@ test('validateManifest: rejects bad id (uppercase / underscore / proto)', () => 
 test('validateManifest: rejects an incompatible apiVersion', () => {
   const v = validateManifest(goodManifest({ apiVersion: HOST_API_VERSION + 1 }));
   assert.equal(v.ok, false);
-  assert.match(v.errors.join(' '), /incompatible/);
+  assert.match(v.errors.join(' '), /unsupported/);
 });
 
 test('validateManifest: rejects a non-semver version and missing name', () => {
