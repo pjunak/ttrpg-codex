@@ -17,8 +17,8 @@ const { test } = require('node:test');
 const assert   = require('node:assert/strict');
 const fsp      = require('fs').promises;
 const path     = require('path');
-const AdmZip   = require('adm-zip');
 const { startServer } = require('./helpers/server-process.cjs');
+const { createZip, readZip } = require('./helpers/zip.cjs');
 
 const DM    = 'dm-pw';
 const TOKEN = 'ghp_integrationTestToken1234567890abcd';
@@ -71,23 +71,24 @@ test('github-token: DM-only set/clear; never echoed; excluded from backup + refu
     // Backup ZIP: secrets.json is excluded; the token value appears nowhere.
     const bres = await srv.fetch('/api/backup');
     assert.equal(bres.status, 200);
-    const zip   = new AdmZip(Buffer.from(await bres.arrayBuffer()));
-    const names = zip.getEntries().map(e => e.entryName.replace(/\\/g, '/'));
+    const entries = await readZip(Buffer.from(await bres.arrayBuffer()));
+    const names = entries.map(e => e.entryName);
     assert.ok(names.length > 0, 'backup ZIP is non-empty');
     assert.ok(!names.includes('data/secrets.json'),
       `secrets.json must not ride into backups (got: ${names.join(', ')})`);
-    for (const e of zip.getEntries()) {
-      assert.ok(!e.getData().toString('utf8').includes(TOKEN),
+    for (const e of entries) {
+      assert.ok(!e.data.toString('utf8').includes(TOKEN),
         `token value leaked into backup entry ${e.entryName}`);
     }
 
     // Restore: a crafted data/secrets.json entry is refused (skipped), the
     // live token survives; a normal collection file still restores.
-    const evil = new AdmZip();
-    evil.addFile('data/secrets.json', Buffer.from(JSON.stringify({ githubToken: 'ghp_EVILEVILEVILEVILEVIL111111' })));
-    evil.addFile('data/characters.json', Buffer.from('[]'));
+    const evil = await createZip({
+      'data/secrets.json': { githubToken: 'ghp_EVILEVILEVILEVILEVIL111111' },
+      'data/characters.json': [],
+    });
     const form = new FormData();
-    form.append('backup', new Blob([evil.toBuffer()], { type: 'application/zip' }), 'backup.zip');
+    form.append('backup', new Blob([evil], { type: 'application/zip' }), 'backup.zip');
     const rres = await srv.fetch('/api/restore', { method: 'POST', body: form });
     assert.equal(rres.status, 200);
     const rj = await rres.json();

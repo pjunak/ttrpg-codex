@@ -85,7 +85,7 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| GET | `/api/data` | — | Full campaign JSON, role-filtered. Anonymous + player callers get `filterForRole(...)` applied (DM-only entities dropped, `linkedTwinId` stripped — see `server/visibility.cjs`). DM callers get identity. |
+| GET | `/api/data` | — | Full campaign JSON, role-filtered. Anonymous + player callers get `filterDatasetForRole(...)`: DM-only entities are dropped, `linkedTwinId` is stripped, then every documented core reference is closed over the surviving entity-ID sets (see **Visibility closure**). DM callers get strict identity. |
 | ~~POST~~ | ~~`/api/data`~~ | — | **REMOVED.** Was a "replace whole dataset" endpoint used by the old `Store._persist()` for migrations + first-install seeding. Now everything goes through PATCH per-entity. Migrations sync each touched record individually; the empty-server case keeps defaults locally and lazily creates files on the first user edit. |
 | PATCH | `/api/data` | any | `{ type, action, payload }`. action is `save`\|`delete`. Validates `type`, `relationship.type`, `character.status`. **Keyed-object collections** (treated as object on disk, `container[payload.id] = payload.data`): `factions`, `settings`, `campaign`, `deletedDefaults`. Everything else is a per-entity list. Player saves go through `_sanitizePlayerEntity` (server.js) which forces `visibility: 'public'`, preserves `linkedTwinId`, and strips `secrets`. DM-only writes for `settings` / `campaign` types (per `DM_ONLY_WRITE_TYPES`). |
 | POST | `/api/twin` | dm | DM-only. `{ action: 'create' \| 'link' \| 'unlink', type, sourceId, targetId? }`. Manages twin entity pairs: `create` clones the source into the opposite visibility space and bidirectionally sets `linkedTwinId`; `link` marries two existing entities (one public, one DM-only); `unlink` clears the pair. Atomicity: both sides written inside one `withWriteLock` pass. Broadcasts `data-changed`. See "Twin entity model" section. |
@@ -122,7 +122,7 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | DELETE | `/api/snapshots/:id` | dm | Delete one snapshot file. |
 | GET | `/api/addons` | — | List installed addons (the registry's public projection): `{ apiVersion, instance, addons:[{id, name, version, apiVersion, enabled, state, activeHash, permissions, dependencies, collections, server, serverState, versions:[{contentHash,version,installedAt}], entryUrl}], resolutions }`. Readable by any caller because client boot loads addons before login; reveals enough to import + **scope the host facade** (the granted `permissions`), wire addon collections, apply fragment-override `resolutions`, show server-code load state + version history (rollback), + show status — never the `sources.allow` allowlist or the repo url. For the **real DM only** the payload adds `githubTokenConfigured` (boolean — is a GitHub token active, i.e. can private repos install) + `githubTokenSource` (`'stored'` = wizard-set `data/secrets.json`, `'env'` = `CODEX_GITHUB_TOKEN`/`GITHUB_TOKEN`, `null` = none; drives the Manager's 🔑 line + the wizard's token summary; never the token itself). See **Addon framework**. |
 | ANY | `/api/addon/:id/*` | — | **Namespaced server-addon routes** (Phase 7, singular). A stable dispatcher (before the SPA fallback) delegates to the enabled addon's `express.Router()` built by its `init(serverHost)`. `req.role`/`realRole` are stamped (the addon self-gates); an unmatched sub-path or a disabled/absent/errored addon → JSON 404. Each addon's routes are isolated under its own id. **When the addon has NO live router but declares manifest `contentDir`, the HOST answers the four GET content endpoints itself** (`/content`, `/content/:kind`, `/item/:kind/:id`, `/kinds`) from the addon's bundled per-record JSON tree — no addon server code, no `server:code` grant, HOT-rebuilt on every registry mutation (`_applyAddonContent`; cached per `activeHash`), so installing/updating a book addon needs no restart. A live router takes precedence entirely. See **Server-side addons**. |
-| POST | `/api/addons/install` | dm | DM-only on **realRole** (like twin ops). `{ repo, ref?, sha? }`. `repo` is a pasted GitHub URL or `owner/name` (parsed by `AddonBroker.parseRepoInput`, which also extracts a `/tree/<ref>`). When the wizard passes the previewed `sha`, install **pins to that exact commit** (what installs == what was reviewed) while storing the original `ref` for future update checks. **Auto-records** the repo in `sources.allow`. Fetches the GitHub zipball, validates + content-hashes, stages, runs the server **test green-gate** (Phase 8), then atomic-promotes to `data/addons/<id>/<hash>/` + appends to `versions[]` (kept for rollback), updates `data/addons.json`, broadcasts `addons-changed`. Upsert by id = update. |
+| POST | `/api/addons/install` | dm | DM-only on **realRole** (like twin ops). `{ repo, ref?, sha? }`. `repo` is a pasted GitHub URL or `owner/name` (parsed by `AddonBroker.parseRepoInput`, which also extracts a `/tree/<ref>`). When the wizard passes the previewed `sha`, install **pins to that exact commit** (what installs == what was reviewed) while storing the original `ref` for future update checks. **Auto-records** the repo in `sources.allow`. Fetches the GitHub zipball under a compressed-byte cap, scans its central directory before writing (entry count, safe/unique paths, per-entry and total expanded bytes, compression ratios), streams it to a unique staging tree, validates + content-hashes from disk, runs the server **test green-gate** (Phase 8), then atomic-promotes to `data/addons/<id>/<hash>/` + appends to `versions[]` (kept for rollback), updates `data/addons.json`, broadcasts `addons-changed`. Upsert by id = update. |
 | POST | `/api/addons/preview` | dm | DM-only on **realRole**. `{ repo, ref? }`. Resolves + fetches **just `addon.json`** (GitHub contents API — no download/install) via `AddonBroker.fetchManifest`, validates it, returns `{ repo, ref, sha, ok, errors, manifest:{…} }` so the wizard shows the requested permissions for DM review BEFORE granting. The returned `ref` (original branch/tag) + `sha` (exact commit) both feed back into install. |
 | POST | `/api/addons/check-updates` | dm | DM-only on **realRole** (Phase 9). PURE READ — for each addon from a real GitHub repo, re-resolve its stored `ref`→latest SHA and diff vs installed `sha`; returns `{ checkedAt, updates:[{id, status:'ok'\|'local'\|'error', hasUpdate, repo, currentSha, latestSha}] }`. Per-addon failures isolated. Never downloads — applying an update opens the wizard. |
 | POST | `/api/addons/:id/rollback` | dm | DM-only on **realRole** (Phase 9). `{ hash? }`. Content-addressed rollback: flip `activeHash` to a kept prior `versions[]` entry (`hash` targets one; omitted → the one before active) + restore that version's structural fields (`entry`/`server`/`serverDeps`/`collections`/`dependencies`). Instant + offline (the code dir survives). 400 if <2 versions or the target code dir is gone; broadcasts `addons-changed`. Server code change → drops the live router (restart-to-load). |
@@ -132,6 +132,36 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | POST | `/api/addons/github-token` | dm | DM-only on **realRole**. `{ token }` — set (non-empty; shape-validated: printable ASCII, no spaces, 8–255 chars) or clear (empty/absent) the **stored GitHub token** in `data/secrets.json`. The stored token wins over the env vars (`_githubToken`). Replies `{ ok, configured, source }` — NEVER the value; the file is excluded from backup/snapshots/hash/restore (`NON_DATA_JSON_FILES` + the `/api/backup` filter). Broadcasts `addons-changed`. Set from the install wizard's 🔑 section. |
 | POST | `/api/addons/:id/content-groups` | dm | DM-only on **realRole**. `{ disabled: string[] }` — replace wholesale which manifest `contentGroups` values are disabled for a content addon (registry key `disabledContentGroups`). Hot: `_applyAddonContent` re-filters the served tree from the in-memory raw cache, then BOTH `addons-changed` (Manager refresh) and `data-changed` (content consumers refetch) broadcast. 400 if the addon declares no `contentGroups`; unknown group ids are stored as-is (match nothing — forward-compatible). |
 | DELETE | `/api/addons/:id` | dm | DM-only on **realRole**. Remove an addon: drop it from the registry (clearing any `resolutions` pointing at it) + delete its code dir `data/addons/<id>/`. Per-addon DATA `data/addon-data/<id>/` is **kept** unless `?purge=1`, so a re-install restores content. Broadcasts `addons-changed`. |
+
+## Visibility closure
+
+`server/visibility.cjs:filterDatasetForRole` treats the player payload as a
+closed graph, not as independently filtered collection buckets. It is a pure
+two-pass transform:
+
+1. Drop `visibility:'dm'` records from every core visibility-bearing
+   collection and strip `linkedTwinId` from survivors.
+2. Build survivor-ID sets, then remove every reference that no longer resolves:
+   relationship endpoints (including location-target relationship types),
+   character faction/location/location-role fields, location parent/connection/
+   legacy-character fields, event/mystery/history character+location arrays,
+   event map parents, artifact owners/locations, pet owners, saved local-map
+   views/configs, and hidden scalar values in `lastChange.fields`.
+
+The reserved `character.faction` values `neutral` and `party` remain valid even
+though they are not records in `factions.json`. Invalid optional scalar fields
+are omitted; invalid ID-array entries are removed; pets whose character/faction
+owner is hidden become `{ownerType:'none', ownerId:''}` in the player projection.
+The source dataset is never mutated. A DM call returns the original dataset by
+identity, which is both the behavior and the regression-test contract.
+
+Addon API v1 collection declarations expose only `{name,keyed}` and define
+their records as public; they have no visibility or reference schema for the
+host to interpret. Dynamic `addon:<id>:<name>` containers therefore ride the
+dataset transform unchanged. Do not guess at opaque addon fields. DM-only addon
+records and declared cross-collection references require the later API-v2
+capability/schema work; P2 deliberately does not introduce those semantics on
+an old-host-compatible v1 manifest.
 
 ## Write serialisation
 
@@ -177,6 +207,12 @@ keyed-object collections must add the same guard.
 
 ## CDN scripts and SRI
 
+The production dependency graph is expected to pass `npm audit --omit=dev`.
+`package.json` pins transitive `brace-expansion` to `5.0.7` through an npm
+override because `archiver` reaches it through `readdir-glob` / `minimatch`;
+keep the override until that chain declares a non-vulnerable version directly.
+The backup integration tests guard compatibility with the overridden graph.
+
 Every `<script>` and `<link rel="stylesheet">` in `web/index.html`
 that points at a CDN carries a pinned `integrity="sha384-…"` hash
 plus `crossorigin="anonymous"`. A CDN compromise can't silently
@@ -216,9 +252,9 @@ Coverage today:
   (traversal / absolute / null-byte / symlink-escape / good paths),
   `pickKeptSnapshots` (recent + daily-window pruning policy),
   `hashPassword` / `verifyPassword` round-trip + timing safety.
-- `test/visibility.test.cjs` — `filterForRole` (DM vs player on every
-  visibility-bearing collection shape) and `stripEntityForRole`
-  (the `linkedTwinId` scrub for non-DM payloads).
+- `test/visibility.test.cjs` — per-container role filtering plus complete
+  dataset graph closure (survivor sets, every documented reference shape,
+  reserved faction ids, no source mutation, and strict DM identity).
 - `test/sidebar-layout.test.mjs` — `Store.getSidebarLayout` registry
   reconciliation (default seed, drop dead routes, re-home new routes,
   dedupe, hidden bucket), `setSidebarLayout` normalization, and the
@@ -245,6 +281,13 @@ Coverage today:
   focus ring, `.codex-skel`, the `iconGlyph` facade): asserts the
   load-bearing CSS properties exist so a host refactor can't silently
   regress every consuming addon.
+- `test/addon-archive.test.cjs` — production addon ZIP extraction: GitHub
+  wrapper stripping + content-hash parity, and count/path/per-entry/total/
+  compression-ratio limits rejected before any expanded file is written.
+- `test/addon-testing.test.cjs` — the install green-gate process runner,
+  including a real cross-platform Node spawn and the strict child-environment
+  allowlist (arbitrary, AWS, database, SSH, token, and `NODE_OPTIONS` values
+  are absent).
 
 **Integration tests** (boot the Express app against a tempdir
 `CODEX_DATA_DIR`, exercise endpoints, assert on disk + responses):
@@ -255,9 +298,10 @@ Coverage today:
   outstanding cookies while re-issuing the caller's, `auth.json`
   salted-hash shape, player set / clear-to-env-fallback, length
   validation.
-- `test/integration-visibility.test.cjs` — `GET /api/data` filters
-  DM-only entities for player callers; the strip is byte-level (the
-  field is gone from the JSON, not just hidden).
+- `test/integration-visibility.test.cjs` — `GET /api/data` filters DM-only
+  entities and closes cross-record references for player callers; assertions
+  cover both parsed structure and raw serialized bytes, while the DM payload
+  retains the original records and references.
 - `test/integration-player-edits.test.cjs` — `_sanitizePlayerEntity`
   applied to player saves; visibility + `linkedTwinId` preserved or
   forced; secrets stripped; settings/campaign rejected.
@@ -325,7 +369,8 @@ The Dockerfile copies `package.json`, `server.js`,
 - **Forgetting the `server/` directory** crashes the server too —
   `server.js` requires `./server/visibility.cjs`,
   `./server/migrations.cjs`, `./server/addons.cjs`,
-  `./server/addon-testing.cjs`, and `./server/addon-content.cjs` at
+  `./server/addon-archive.cjs`, `./server/addon-testing.cjs`, and
+  `./server/addon-content.cjs` at
   module-load time. All are critical
   (role-aware filtering, the startup visibility-stamp migration, the
   addon broker, and the addon test green-gate respectively). `COPY

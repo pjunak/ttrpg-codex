@@ -11,8 +11,8 @@ const { test } = require('node:test');
 const assert   = require('node:assert/strict');
 const fsp      = require('fs').promises;
 const path     = require('path');
-const AdmZip   = require('adm-zip');
 const { startServer } = require('./helpers/server-process.cjs');
+const { readZip } = require('./helpers/zip.cjs');
 
 const DM = 'dm-pw';
 async function login(srv, pw) {
@@ -41,8 +41,8 @@ test('GET /api/backup includes addon-data, the registry, and addon code', async 
     await login(srv, DM);
     const res = await srv.fetch('/api/backup');
     assert.equal(res.status, 200);
-    const zip   = new AdmZip(Buffer.from(await res.arrayBuffer()));
-    const names = zip.getEntries().map(e => e.entryName.replace(/\\/g, '/'));
+    const entries = await readZip(Buffer.from(await res.arrayBuffer()));
+    const names = entries.map(e => e.entryName);
     assert.ok(names.includes('data/addons.json'),                  'registry in backup');
     assert.ok(names.includes('data/addon-data/demo/rules.json'),   'addon data in backup');
     assert.ok(names.includes(`data/addons/demo/${HASH}/entry.js`), 'addon code in backup');
@@ -65,11 +65,17 @@ test('boot sweep prunes stale version dirs + .incoming, keeps the kept-K', async
       [`addons/demo/${KEEP_B}/entry.js`]:   'x',
       [`addons/demo/${STALE}/entry.js`]:    'x',
       'addons/demo/.incoming/entry.js':     'x',
+      'addons/.incoming-abcdef123456/entry.js': 'x',
     },
   });
   try {
     const subs = (await fsp.readdir(path.join(srv.dataDir, 'addons', 'demo'))).sort();
     assert.deepEqual(subs, [KEEP_A, KEEP_B], 'only kept-K version dirs survive (stale + .incoming pruned)');
+    await assert.rejects(
+      () => fsp.access(path.join(srv.dataDir, 'addons', '.incoming-abcdef123456')),
+      { code: 'ENOENT' },
+      'id-agnostic extraction staging from a crashed install is pruned',
+    );
   } finally { await srv.kill(); }
 });
 

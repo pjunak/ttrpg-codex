@@ -18,7 +18,7 @@ loop see [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 | Markdown | marked + DOMPurify, edited via EasyMDE |
 | Auth | Signed `edit_session` cookie; DM + optional player roles, role-aware visibility filter ([`server/visibility.cjs`](../server/visibility.cjs)) |
 | Uploads | multer — 20 MB portraits/local maps · 40 MB world map · 5 MB logo · 2 MB × 16 marker icons · 200 MB restore ZIP |
-| Backups | archiver (ZIP) + adm-zip (restore) |
+| ZIP handling | archiver (backup/test-fixture writer) + yauzl (bounded streaming restore and addon extraction) |
 | i18n | Per-user UI language (EN + CS), `web/i18n/*.json` catalogs + [`web/js/i18n.js`](../web/js/i18n.js) |
 | Addons | CodexHost — DM-installed GitHub addons ([`web/js/addons.js`](../web/js/addons.js) + [`server/addons.cjs`](../server/addons.cjs)); see [`examples/addons/AUTHORING.md`](../examples/addons/AUTHORING.md) |
 | Tests | Node built-in `node --test` runner (also the CI gate before build + deploy) |

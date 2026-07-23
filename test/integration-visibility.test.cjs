@@ -4,10 +4,10 @@
 // HTTP stack. Boots the real server, seeds DM-only / public /
 // twinned records, and asserts what reaches the player wire.
 //
-// Under the twin-entity model the visibility surface is simpler
-// than the MVP: only two things to verify per response —
+// The player projection is a closed graph:
 //   1. DM-only entities are absent.
-//   2. `linkedTwinId` is absent on every entity in non-DM payloads.
+//   2. `linkedTwinId` is absent on every surviving entity.
+//   3. Documented reference fields contain only surviving entity ids.
 
 const { test }   = require('node:test');
 const assert     = require('node:assert/strict');
@@ -146,6 +146,117 @@ test('GET /api/data: raw bytes do NOT contain any DM-only substring (no DevTools
     // Sanity: public content IS in the response.
     assert.equal(text.includes('A merchant'), true);
     assert.equal(text.includes('A hooded figure'), true);
+  } finally { await srv.kill(); }
+});
+
+test('GET /api/data: player wire is closed over all documented cross-collection references', async () => {
+  const addonRegistry = {
+    schema: 1,
+    addons: [{
+      id: 'notes', name: 'Notes', version: '0.1.0', apiVersion: 1,
+      enabled: true, entry: 'entry.js', activeHash: 'abc',
+      collections: [{ name: 'notes', keyed: false }],
+    }],
+    resolutions: {}, sources: { allow: [] },
+  };
+  const seedData = {
+    'addons.json': addonRegistry,
+    'characters.json': [
+      { id: 'char_public', name: 'Public Character', faction: 'faction_hidden',
+        location: 'loc_hidden', locationRoles: [{ locationId: 'loc_hidden', role: 'spy' }],
+        lastChange: { fields: [{ key: 'faction', from: 'faction_hidden', to: 'neutral' }] },
+        visibility: 'public' },
+      { id: 'char_hidden', name: 'Hidden Character', faction: 'faction_hidden', visibility: 'dm' },
+    ],
+    'factions.json': {
+      faction_public: { id: 'faction_public', name: 'Public Faction', visibility: 'public' },
+      faction_hidden: { id: 'faction_hidden', name: 'Hidden Faction', visibility: 'dm' },
+    },
+    'locations.json': [
+      { id: 'loc_public', name: 'Public Location', parentId: 'loc_hidden',
+        connections: ['loc_hidden'], characters: ['char_hidden'], visibility: 'public' },
+      { id: 'loc_hidden', name: 'Hidden Location', visibility: 'dm' },
+    ],
+    'events.json': [
+      { id: 'event_public', name: 'Public Event', characters: ['char_hidden'],
+        locations: ['loc_hidden'], mapParentId: 'loc_hidden', visibility: 'public' },
+      { id: 'event_hidden', name: 'Hidden Event', visibility: 'dm' },
+    ],
+    'mysteries.json': [
+      { id: 'mystery_public', name: 'Public Mystery', characters: ['char_hidden'],
+        locations: ['loc_hidden'], visibility: 'public' },
+      { id: 'mystery_hidden', name: 'Hidden Mystery', visibility: 'dm' },
+    ],
+    'relationships.json': [
+      { id: 'hidden-character-edge', source: 'char_public', target: 'char_hidden', type: 'ally', visibility: 'public' },
+      { id: 'hidden-location-edge', source: 'char_public', target: 'loc_hidden', type: 'mission', visibility: 'public' },
+    ],
+    'artifacts.json': [
+      { id: 'artifact_public', name: 'Public Artifact', ownerCharacterId: 'char_hidden',
+        locationId: 'loc_hidden', visibility: 'public' },
+    ],
+    'historicalEvents.json': [
+      { id: 'history_public', name: 'Public History', characters: ['char_hidden'],
+        locations: ['loc_hidden'], visibility: 'public' },
+    ],
+    'pets.json': [
+      { id: 'pet_public', name: 'Public Pet', ownerType: 'faction', ownerId: 'faction_hidden' },
+    ],
+    'settings.json': {
+      relationshipTypes: [{ id: 'ally', target: 'character' }, { id: 'mission', target: 'location' }],
+      mapViews: [{ id: 'hidden-map-view', parentId: 'loc_hidden' }],
+      mapConfigs: { 'local-loc_hidden': { zoomScaleRatio: 1 } },
+    },
+  };
+  const srv = await startServer({
+    dmPassword: DM,
+    playerPassword: PLAYER,
+    seedData,
+    seedFiles: {
+      'addon-data/notes/notes.json': [{ id: 'addon_public', body: 'Public addon record' }],
+    },
+  });
+  try {
+    const playerRes = await srv.fetch('/api/data');
+    const playerText = await playerRes.text();
+    for (const hidden of [
+      'char_hidden', 'faction_hidden', 'loc_hidden', 'event_hidden', 'mystery_hidden',
+      'Hidden Character', 'Hidden Faction', 'Hidden Location', 'Hidden Event', 'Hidden Mystery',
+    ]) {
+      assert.equal(playerText.includes(hidden), false, `${hidden} leaked in raw player bytes`);
+    }
+
+    const player = JSON.parse(playerText);
+    const character = player.characters[0];
+    assert.equal(Object.hasOwn(character, 'faction'), false);
+    assert.equal(Object.hasOwn(character, 'location'), false);
+    assert.deepEqual(character.locationRoles, []);
+    assert.deepEqual(character.lastChange.fields, []);
+    assert.deepEqual(player.locations[0].connections, []);
+    assert.deepEqual(player.locations[0].characters, []);
+    assert.deepEqual(player.events[0].characters, []);
+    assert.deepEqual(player.events[0].locations, []);
+    assert.equal(Object.hasOwn(player.events[0], 'mapParentId'), false);
+    assert.deepEqual(player.mysteries[0].characters, []);
+    assert.deepEqual(player.mysteries[0].locations, []);
+    assert.deepEqual(player.relationships, []);
+    assert.equal(Object.hasOwn(player.artifacts[0], 'ownerCharacterId'), false);
+    assert.equal(Object.hasOwn(player.artifacts[0], 'locationId'), false);
+    assert.deepEqual(player.historicalEvents[0].characters, []);
+    assert.deepEqual(player.historicalEvents[0].locations, []);
+    assert.deepEqual(player.pets[0], { id: 'pet_public', name: 'Public Pet', ownerType: 'none', ownerId: '' });
+    assert.deepEqual(player.settings.mapViews, []);
+    assert.deepEqual(player.settings.mapConfigs, {});
+    assert.deepEqual(player['addon:notes:notes'], [{ id: 'addon_public', body: 'Public addon record' }]);
+
+    await loginAs(srv, DM);
+    const dm = await fetchData(srv);
+    assert.equal(dm.characters[0].faction, 'faction_hidden');
+    assert.equal(dm.characters[0].location, 'loc_hidden');
+    assert.deepEqual(dm.relationships.map(r => r.id), ['hidden-character-edge', 'hidden-location-edge']);
+    assert.equal(dm.artifacts[0].ownerCharacterId, 'char_hidden');
+    assert.equal(dm.settings.mapViews[0].parentId, 'loc_hidden');
+    assert.equal(dm.settings.mapConfigs['local-loc_hidden'].zoomScaleRatio, 1);
   } finally { await srv.kill(); }
 });
 

@@ -66,7 +66,8 @@ reach the app through the `host` facade — there are no globals.
 ```
 Add only the fields you need: `server` (`.cjs`, needs `server:code`),
 `contentDir` (per-record JSON tree the HOST serves — the data-addon seam,
-see below), `serverDeps` (subset of `express` `adm-zip` `archiver` `multer`),
+see below), `serverDeps` (subset of `express` `archiver` `multer`; archive
+readers are deliberately unavailable),
 `collections` (`[{ "name": "x", "keyed": false }]`, name `^[a-z0-9][a-z0-9_]{0,39}$`),
 `dependencies` (HARD — `{ "<id>": { "range": ">=1.0.0", "repo": "owner/name" } }`;
 missing/incompatible → your addon loads `blocked`),
@@ -182,7 +183,9 @@ test('registers + smokes clean', () => {
 ```
 - `tests.server` (CommonJS) is the **green-gate run at install** — it must be
   **self-contained** (Node built-ins + your own files; the staged tree has no
-  `node_modules`, so it can't import the harness). A red set blocks the install.
+  `node_modules`, so it can't import the harness). It receives only the host's
+  minimal path/temp/home/locale environment allowlist; deployment variables and
+  secrets are absent. A red set blocks the install.
 - A renderer that throws on the load-time smoke shows a `⚠ test vykreslení` chip
   in the Manager — fix it.
 

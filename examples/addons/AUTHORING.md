@@ -90,7 +90,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
 | `contentDir` | — | Relative dir of a **per-record JSON tree** the HOST serves for you at `/api/addon/<id>/content` (+ `/content/:kind`, `/item/:kind/:id`, `/kinds`). The right choice for DATA addons (rulebooks): **no server code, no `server:code` grant**, kinds keyed by each record's own `kind` field (sub-dir name is the fallback), and hot-loaded — install/update needs no restart. A live `server` router takes precedence over it entirely. |
 | `contentGroups` | — | `{ "field": "book", "label": "Sourcebooks" }` — declare one record field as a DM-toggleable grouping key for the content tree (see the "Content groups" section under server code). `field` is `^[a-zA-Z0-9_]{1,40}$`. |
-| `serverDeps` | — | `string[]` of vetted host npm libs your server module needs via `serverHost.lib(...)`. Allowed: `express`, `adm-zip`, `archiver`, `multer`. Anything else → the addon loads `blocked`. |
+| `serverDeps` | — | `string[]` of vetted host npm libs your server module needs via `serverHost.lib(...)`. Allowed: `express`, `archiver`, `multer`. Archive readers are deliberately unavailable. Anything else → the addon loads `blocked`. |
 | `permissions` | — | Declared + **enforced** capability tokens (see §5). The DM reviews + grants them at install. |
 | `dependencies` | — | HARD deps: `{ "<otherAddonId>": { "range": ">=1.0.0", "repo": "owner/name" } }`. A missing/incompatible one **blocks** your addon (see §12). |
 | `optionalDependencies` | — | SOFT deps, same shape — **ordering-only**: the provider loads first WHEN present, but your addon still installs/loads standalone when it's absent. Lets you `host.use()` it behind a try/catch (see §12). |
@@ -539,7 +539,9 @@ test('registers + smokes clean', () => {
   sample fixtures; does **not** run actions).
 - `tests.server` files are auto-run as a **green-gate at install** (`node --test`
   against the staged tree — must be self-contained: Node built-ins + your own
-  files, no `node_modules`). A red set → the install is rejected.
+  files, no `node_modules`). The child receives only a minimal cross-platform
+  path/temp/home/locale environment allowlist; deployment variables and secrets
+  are absent. A red set → the install is rejected.
 
 Reference: `examples/addons/sheet/tests/sheet.addon-test.mjs`.
 

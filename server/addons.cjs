@@ -30,7 +30,7 @@ const HOST_API_VERSION = 1;
 // (crypto/path/fs/…) are reachable via the addon's own require — they're not
 // listed here. Anything in a manifest's `serverDeps[]` MUST be in this set or
 // the addon loads `blocked`.
-const HOST_SERVER_LIBS = new Set(['express', 'adm-zip', 'archiver', 'multer']);
+const HOST_SERVER_LIBS = new Set(['express', 'archiver', 'multer']);
 
 // On-disk registry schema version (data/addons.json).
 const REGISTRY_SCHEMA = 1;
@@ -346,60 +346,6 @@ function contentHash(fileMap, crypto) {
   return h.digest('hex').slice(0, 16);
 }
 
-/**
- * Extract a zip buffer into a file map, stripping the single top-level
- * wrapper directory that GitHub zipballs always add
- * (`<owner>-<repo>-<sha>/…`). Entry names that fail the relative-path
- * safety check are dropped (defence in depth — server.js also routes
- * every write through `_safeJoinIn`).
- *
- * @param {Buffer} buffer
- * @param {Function} AdmZip - the adm-zip constructor (injected).
- * @returns {Array<{relpath:string,buffer:Buffer}>}
- */
-function extractZip(buffer, AdmZip, limits) {
-  const maxFiles = (limits && limits.maxFiles) || 5000;
-  const maxBytes = (limits && limits.maxBytes) || 200 * 1024 * 1024;
-  const zip = new AdmZip(buffer);
-  const entries = zip.getEntries().filter(e => !e.isDirectory);
-
-  // Zip-bomb guard: cap the file count, and reject up front if the central
-  // directory's DECLARED uncompressed total already blows the cap — so we
-  // never decompress a 25 MB zipball into multiple GB of memory before
-  // checking. We also re-check the actual decompressed total below in case a
-  // crafted header under-reports.
-  if (entries.length > maxFiles) throw new Error(`too many files in archive (> ${maxFiles})`);
-  let declared = 0;
-  for (const e of entries) declared += (e.header && e.header.size) || 0;
-  if (declared > maxBytes) throw new Error('archive too large when uncompressed');
-
-  // Detect a common top-level segment shared by every entry (the GitHub
-  // wrapper dir). If entries disagree, strip nothing (a hand-made flat
-  // zip with files at the root).
-  let prefix = null;
-  for (const e of entries) {
-    const name = e.entryName.replace(/\\/g, '/');
-    const slash = name.indexOf('/');
-    const seg = slash === -1 ? '' : name.slice(0, slash + 1);   // "" when a file sits at the root
-    if (prefix === null) prefix = seg;
-    else if (seg !== prefix) { prefix = ''; break; }
-  }
-
-  const out = [];
-  let total = 0;
-  for (const e of entries) {
-    let rel = e.entryName.replace(/\\/g, '/');
-    if (prefix && rel.startsWith(prefix)) rel = rel.slice(prefix.length);
-    if (!rel) continue;                       // the wrapper dir entry itself
-    if (!_safeRel(rel)) continue;             // traversal / absolute / null — skip
-    const data = e.getData();
-    total += data.length;
-    if (total > maxBytes) throw new Error('archive too large when uncompressed');
-    out.push({ relpath: rel, buffer: data });
-  }
-  return out;
-}
-
 // GitHub answers 404 (not 403) for a private repo hit anonymously, so a DM
 // installing from a private repo without a server token sees a misleading
 // "not found" for a repo they know exists. When a fetch 404s AND no token is
@@ -439,13 +385,38 @@ async function resolveRefToSha(repo, ref, { fetch, token } = {}) {
  * @param {object} deps - { fetch, token? }
  * @returns {Promise<Buffer>}
  */
-async function fetchZipball(repo, sha, { fetch, token } = {}) {
+async function fetchZipball(repo, sha, { fetch, token, maxBytes = 30 * 1024 * 1024 } = {}) {
   const url = `https://api.github.com/repos/${repo}/zipball/${sha}`;
   const headers = { 'User-Agent': 'ttrpg-codex-addons' };
   if (token) headers.Authorization = `Bearer ${token}`;
   const r = await fetch(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(GH_FETCH_TIMEOUT_MS) });
   if (!r.ok) throw new Error(`GitHub zipball fetch failed (${r.status}) for ${repo}@${sha}${_privateRepoHint(r.status, token)}`);
+  const declared = Number(r.headers && r.headers.get && r.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new Error(`GitHub zipball exceeds the compressed size limit (${maxBytes} bytes)`);
+  }
+  // Node fetch exposes a WHATWG ReadableStream. Consume it incrementally and
+  // stop as soon as the compressed download crosses the cap, instead of
+  // calling response.arrayBuffer() and allowing an arbitrary allocation.
+  if (r.body && typeof r.body[Symbol.asyncIterator] === 'function') {
+    const chunks = [];
+    let total = 0;
+    for await (const chunk of r.body) {
+      const buf = Buffer.from(chunk);
+      total += buf.length;
+      if (total > maxBytes) {
+        throw new Error(`GitHub zipball exceeds the compressed size limit (${maxBytes} bytes)`);
+      }
+      chunks.push(buf);
+    }
+    return Buffer.concat(chunks, total);
+  }
+  // Small injected test doubles may expose only arrayBuffer(). Production
+  // always takes the bounded streaming branch above.
   const ab = await r.arrayBuffer();
+  if (ab.byteLength > maxBytes) {
+    throw new Error(`GitHub zipball exceeds the compressed size limit (${maxBytes} bytes)`);
+  }
   return Buffer.from(ab);
 }
 
@@ -490,7 +461,6 @@ module.exports = {
   parseAddonType,
   normalizeCollections,
   contentHash,
-  extractZip,
   resolveRefToSha,
   fetchZipball,
   fetchManifest,

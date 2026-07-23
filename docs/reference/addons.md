@@ -138,7 +138,8 @@ the `book` record's "Player's Handbook" — falling back to the raw id, so
 the Manager shows full names while the off-list wire format stays ids),
 serverDeps? (`string[]` of vetted host
 npm libs the server module needs — must be in `HOST_SERVER_LIBS` =
-`{express, adm-zip, archiver, multer}` or the addon loads `blocked`), permissions[],
+`{express, archiver, multer}` or the addon loads `blocked`; archive readers are
+deliberately not exposed), permissions[],
 dependencies? (HARD — a missing/incompatible one `blocks` the addon), optionalDependencies?
 (same shape; **SOFT** — ordering-only: loads the dep first WHEN present + compatible, but
 NEVER blocks when it's absent/blocked/incompatible — the soft-use seam, e.g. a sheet that
@@ -150,8 +151,7 @@ run by the pre-activation gate, Phase 8), summary }`.
 
 ### Server broker — `server/addons.cjs` (pure/injectable, unit-tested)
 `validateManifest` · `matchRepoRule`/`isAllowed` · `contentHash` (sha256
-over sorted `relpath\0buf`, 16-char) · `extractZip` (strips the GitHub
-`<owner>-<repo>-<sha>/` wrapper, drops unsafe paths via `_safeRel`) ·
+over sorted `relpath\0buf`, 16-char) ·
 `resolveRefToSha`/`fetchZipball` (injected `fetch`) ·
 `defaultRegistry`/`normalizeRegistry` · **collection helpers** (4b-2):
 `normalizeCollections` (manifest `collections[]` → clean `[{name,keyed}]`),
@@ -199,7 +199,12 @@ PATCH handler mkdirs the per-addon dir before `_atomicWrite`. Addon collections
 are **public, non-visibility-bearing, non-DM-only-write** (same posture as
 `pets`): any authed role may write, anonymous is 401, `filterForRole` is
 identity, and keyed addon collections still go through the `_isForbiddenKey`
-proto-pollution guard. Snapshot + hash coverage: `_createSnapshot`,
+proto-pollution guard. The player dataset is now closed over documented core
+references by `filterDatasetForRole`, but API v1 collection declarations expose
+only `{name,keyed}`—there is no addon record visibility/reference schema to
+interpret—so addon collection records themselves pass through unchanged. Do
+not invent field-name heuristics; DM-only addon data and declared references
+belong to the later API-v2 capability/schema contract. Snapshot + hash coverage: `_createSnapshot`,
 `_restoreSnapshot`, and `_dataHash` all walk `_trackedDataFiles()` (core
 top-level + `addon-data/<id>/*.json`, keyed `addon-data/<id>/<name>.json` in the
 snapshot map), and `_maybeBustDataHash` busts on any write under
@@ -377,9 +382,10 @@ is candidly full host access (the permission is transparency, not containment).
 On top of that base, the concrete guardrails (added in the review/polish pass):
 - **Install runs addon code only behind the same gate it'll run under.** The
   `tests.server` green-gate executes addon code, so it runs ONLY when `server:code`
-  is granted, and the spawned `node --test` gets a **scrubbed env** (`_scrubbedChildEnv`
-  strips `*TOKEN*`/`*PASSWORD*`/`*SECRET*`/… ) so an addon's tests can't read
-  `GITHUB_TOKEN`/passwords.
+  is granted, and the spawned `node --test` gets an explicit cross-platform
+  **environment allowlist** (basic path/temp/home + locale variables only).
+  Secret-shaped keys and ordinary deployment secrets such as `DATABASE_URL`,
+  `AWS_ACCESS_KEY_ID`, and `SSH_*` never reach the child.
 - **Restore can't plant code.** `_safeJoinDataDir` rejects any entry under
   `data/addons/` (and the snapshots dir). Backups include addon code for
   inspection, but a restored ZIP can never write a `server/index.cjs` that boot
@@ -390,8 +396,13 @@ On top of that base, the concrete guardrails (added in the review/polish pass):
   `data:read:auth` can't leak `auth.json` (password hashes) and an addon can't read
   another addon's collection. The client facade's `store.getCollection` likewise
   rejects `addon:` names.
-- **Zip-bomb cap** in `extractZip` (declared-size + per-entry checks BEFORE/DURING
-  decompression, + file-count cap) so a 25 MB zipball can't OOM the container.
+- **Bounded streaming addon extraction** lives in `server/addon-archive.cjs`:
+  the compressed download is capped, then yauzl scans the complete central
+  directory before any write (entry/file count, safe and unique paths,
+  per-entry + total expanded sizes, per-entry + aggregate compression ratios).
+  Pass two streams each entry directly to a unique staging tree through actual-
+  byte limiters, so expanded files are never allocated as buffers. `adm-zip` is
+  neither a production dependency nor exposed through `serverHost.lib()`.
 - **Manifest hygiene:** `permissions[]` must be lowercase token strings;
   `_applyAddonCollections` re-validates `id`/collection-name from the persisted
   registry; a corrupt `addons.json` is preserved as `.corrupt-<ts>` rather than
@@ -430,10 +441,10 @@ renames):
 - **Server green-gate at install** (`server/addon-testing.cjs` →
   `runNodeTests(cwd, paths, {spawn, timeoutMs})`, injectable spawn, unit-tested):
   `_stageAddon` runs the manifest's `tests.server` files with `node --test
-  --test-isolation=none` (env stripped of `NODE_TEST_CONTEXT` so a nested run
+  --test-isolation=none` (`NODE_TEST_CONTEXT` is not in the child env allowlist, so a nested run
   awaits async tests; `--test-isolation=none` so the timeout kill leaves no
-  orphan; the spawned child env defaults to a SCRUBBED `process.env` even if a
-  caller omits `env`) against the staged tree; red / timeout → discard staging,
+  orphan; every caller-supplied/default env is reduced by the same allowlist)
+  against the staged tree; red / timeout → discard staging,
   throw, never promote. Staged tree has no `node_modules` — server self-tests must be
   self-contained (Node built-ins + the addon's own files). `server/addon-testing.cjs`
   is a required `server/` module (COPYed by `COPY server ./server`).
@@ -461,8 +472,11 @@ renames):
   changes. No addons are published yet — these are dev fixtures + the contract
   real addons will be built against, so accuracy matters.
 - Unit tests: `test/addons.test.cjs` (manifest validation / allowlist /
-  content-hash determinism / zip extraction / repo-URL parsing + collection
+  content-hash determinism / bounded zipball download / repo-URL parsing + collection
   helpers `normalizeCollections`/`addonCollectionType`/`parseAddonType`) +
+  `test/addon-archive.test.cjs` (streaming extraction, wrapper stripping,
+  hash parity, path/count/per-entry/total/compression-ratio rejection before
+  writes) +
   `test/addon-deps.test.mjs` (semver `satisfies` + `planLoadOrder`
   topo-sort / blocked / cycle) + `test/addon-data.test.mjs` (Phase 5
   `Store.patchAddonData` — namespace isolation, patchFn semantics, unknown

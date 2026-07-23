@@ -20,14 +20,26 @@
 
 const MAX_OUTPUT = 200_000;   // keep the tail of noisy output, bounded
 
-// Env keys that must never reach a spawned addon test process. server.js passes
-// its own _scrubbedChildEnv(); but this helper runs UNTRUSTED addon code, so its
-// OWN default (when a caller omits `env`) must also be scrubbed — never a
-// verbatim process.env that would leak GITHUB_TOKEN / passwords / session keys.
-const SECRET_ENV_RE = /(TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|PRIVATE|SESSION|APIKEY|API_KEY)/i;
-function _scrubEnv(env) {
+// Explicit cross-platform allowlist for addon-test children. The executable is
+// an absolute process.execPath, so Node needs only basic OS path/temp/home and
+// locale variables. Denylists inevitably miss secrets with ordinary names
+// (DATABASE_URL, AWS_ACCESS_KEY_ID, SSH_AUTH_SOCK, arbitrary deployment vars).
+const CHILD_ENV_KEYS = new Set([
+  // Windows process launch/runtime.
+  'PATH', 'PATHEXT', 'SYSTEMROOT', 'WINDIR', 'COMSPEC',
+  'TEMP', 'TMP', 'USERPROFILE',
+  // POSIX process launch/runtime.
+  'HOME', 'TMPDIR',
+  // Stable locale/time behavior on either platform.
+  'LANG', 'LANGUAGE', 'LC_ALL', 'LC_CTYPE', 'TZ',
+]);
+
+function buildChildEnv(env = process.env) {
   const out = {};
-  for (const k of Object.keys(env || {})) if (!SECRET_ENV_RE.test(k)) out[k] = env[k];
+  for (const [key, value] of Object.entries(env || {})) {
+    if (!CHILD_ENV_KEYS.has(key.toUpperCase()) || value === undefined || value === null) continue;
+    out[key] = String(value);
+  }
   return out;
 }
 
@@ -53,10 +65,10 @@ function runNodeTests(cwd, paths, { spawn, timeoutMs = 30_000, execPath, env } =
     // a `node --test` run, a nested `node --test` would inherit that and run in
     // a degraded mode that skips AWAITING async tests (silently passing them).
     // Stripping it guarantees the gate actually runs the addon's tests.
-    // Caller-supplied env is taken as-is (server.js already scrubbed it);
-    // otherwise the default is a SCRUBBED process.env, not a verbatim one.
-    const childEnv = env ? { ...env } : _scrubEnv(process.env);
-    delete childEnv.NODE_TEST_CONTEXT;
+    // Every source, including an injected test env, goes through the same
+    // allowlist. NODE_TEST_CONTEXT is not allowlisted, which guarantees a
+    // real nested test run instead of node:test's inherited child mode.
+    const childEnv = buildChildEnv(env || process.env);
     let out = '';
     let timedOut = false;
     let child;
@@ -85,4 +97,4 @@ function runNodeTests(cwd, paths, { spawn, timeoutMs = 30_000, execPath, env } =
   });
 }
 
-module.exports = { runNodeTests, MAX_OUTPUT };
+module.exports = { runNodeTests, buildChildEnv, CHILD_ENV_KEYS, MAX_OUTPUT };

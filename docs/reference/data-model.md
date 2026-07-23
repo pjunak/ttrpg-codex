@@ -89,6 +89,20 @@ id, addonId, fn)`; the server's `_sanitizePlayerEntity` shallow-merges
 a player's incoming namespaces over the existing ones so a normal
 player edit can't drop one by omission.
 
+**Player payloads are a closed visibility graph.** `GET /api/data` first drops
+DM-only records, then `server/visibility.cjs:filterDatasetForRole` builds ID
+sets for the surviving characters, factions, locations, events, mysteries,
+deities, artifacts, and historical events. Every documented cross-record field
+is then checked against those sets: dangling relationship endpoints are dropped;
+scalar faction/location/owner/parent fields are omitted (pets become unowned);
+ID arrays are filtered; hidden local-map settings and `lastChange` scalar audit
+values are removed. The server does this on a response projection only—stored
+JSON is unchanged—and DM payloads are strict identity. `neutral` and `party`
+remain valid faction values without keyed faction records. API-v1 addon
+collections are public and schema-opaque, so they cannot declare filterable
+references yet and pass through unchanged; do not encode core entity references
+into an addon collection until a host contract explicitly declares their shape.
+
 `knowledge` 0 shows heavy blur+grayscale. 4 shows no filter.
 Controls SVG sketch effect on portraits.
 

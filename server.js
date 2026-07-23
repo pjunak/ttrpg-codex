@@ -22,16 +22,18 @@ const {
 // (visibility is pure; migrations only touch DATA_DIR through the
 // caller-supplied writer) so they're importable from node --test.
 const {
-  filterForRole,
+  filterDatasetForRole,
   VISIBILITY_BEARING,
   KEYED_OBJ_VISIBILITY,
 } = require('./server/visibility.cjs');
 const { runVisibilityMigration: _runVisibilityMigration } = require('./server/migrations.cjs');
 
 // Addon framework broker — pure/injectable helpers (manifest validation,
-// allowlist matching, content hashing, GitHub zipball fetch/extract).
+// allowlist matching, content hashing, GitHub fetches) plus the streaming
+// untrusted-archive extractor used by production installs.
 // See server/addons.cjs. No module-level side effects.
 const AddonBroker = require('./server/addons.cjs');
+const AddonArchive = require('./server/addon-archive.cjs');
 const AddonTesting = require('./server/addon-testing.cjs');
 const AddonContent = require('./server/addon-content.cjs');
 
@@ -847,10 +849,9 @@ const ALL_TYPES = [
  *
  * Response is filtered by the caller's role (req.role, stamped by
  * attachRole). For DM-role callers it's identity; for player or
- * anonymous callers, DM-only entities are dropped, `secrets` fields
- * are stripped, and `[secret]…[/secret]` regions are removed from
- * known markdown body fields. Players literally cannot see DM
- * content via DevTools.
+ * anonymous callers, DM-only entities are dropped and documented
+ * cross-collection references are closed over the surviving entity
+ * graph. Players literally cannot see DM content via DevTools.
  *
  * Auth: none required (anonymous callers get the same view as a
  * player). Editing requires the `edit_session` cookie + DM role.
@@ -870,15 +871,11 @@ app.get('/api/data', async (req, res) => {
       }
     }));
     if (!foundAny) return res.json(null);
-    // Role-aware filter. `filterForRole` is identity for DM and for
-    // non-visibility-bearing collections, so this is cheap on the
-    // hot path. Anonymous callers (req.role === null) are treated
-    // as players — they see the public subset.
+    // Role-aware graph closure. Anonymous callers (req.role === null) are
+    // treated as players — they see the public subset with no references
+    // to entities that were removed from that subset.
     const role = req.role === 'dm' ? 'dm' : 'player';
-    const filtered = {};
-    for (const [collection, container] of Object.entries(campaign)) {
-      filtered[collection] = filterForRole(collection, container, role);
-    }
+    const filtered = filterDatasetForRole(campaign, role);
     res.type('application/json').send(JSON.stringify(filtered));
   } catch (e) {
     console.error('GET /api/data:', e);
@@ -1688,7 +1685,10 @@ app.post('/api/restart', requireRealDM('Jen DM může restartovat server.'), (re
 // realRole (the signed claim) so an impersonating DM can't manage
 // addons. Updates run through the wizard (later phase) — no auto-update.
 const ADDON_MAX_FILES     = 2000;
+const ADDON_MAX_ARCHIVE_BYTES = 30 * 1024 * 1024; // compressed download cap
+const ADDON_MAX_ENTRY_BYTES = 10 * 1024 * 1024;   // one expanded file
 const ADDON_MAX_BYTES     = 25 * 1024 * 1024;   // 25 MB extracted cap
+const ADDON_MAX_COMPRESSION_RATIO = 100;
 const ADDON_VERSIONS_KEEP = 5;                  // content-addressed history kept per addon
 // Watchdog for host.withLock critical sections (see _makeServerHost). 30 s is
 // far beyond any legitimate JSON read-modify-write, and short enough that a
@@ -1706,7 +1706,8 @@ const ADDON_LOCK_TIMEOUT_MS = 30_000;
 // token never leaves the process: it is never logged, never sent to a
 // client, and secrets.json is excluded from the backup ZIP + snapshots +
 // the data hash + restore (NON_DATA_JSON_FILES and the /api/backup filter);
-// _scrubbedChildEnv also strips the env form from addon test children.
+// the addon-test runner's explicit child-env allowlist also excludes both
+// token names from addon-controlled test processes.
 function _githubToken() {
   const stored = _loadSecrets().githubToken;
   if (typeof stored === 'string' && stored) return stored;
@@ -2021,20 +2022,6 @@ function _serverStateFor(a) {
   return 'pending-restart';                                 // enabled but not live
 }
 
-// A copy of the process env with secret-shaped keys removed — handed to any
-// child process that runs addon-controlled code (the install test gate) so an
-// addon's tests can't read GITHUB_TOKEN / *_PASSWORD / tokens. Keeps PATH etc.
-// so the runner still works.
-function _scrubbedChildEnv() {
-  const SENSITIVE = /(TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|PRIVATE|SESSION|APIKEY|API_KEY)/i;
-  const out = {};
-  for (const [k, val] of Object.entries(process.env)) {
-    if (SENSITIVE.test(k)) continue;
-    out[k] = val;
-  }
-  return out;
-}
-
 // Prune an addon's on-disk code dirs down to the versions the registry still
 // keeps (kept-K `versions[]` + activeHash) — old `<hash>/` dirs would otherwise
 // accumulate forever. Only content-hash-shaped dirs (16 hex) + a stale
@@ -2081,6 +2068,15 @@ async function _pruneAddonVersions(entry) {
 // Boot sweep: prune every installed addon's stale code dirs (cleans up
 // accumulation from before pruning existed). Best-effort.
 async function _pruneAllAddonCode() {
+  // A crash before addon.json is validated can leave the id-agnostic raw
+  // extraction stage at the addons root. Only our random staging shape is
+  // eligible; real addon ids cannot start with a dot.
+  const rootEntries = await fsp.readdir(ADDONS_DIR, { withFileTypes: true }).catch(() => []);
+  for (const item of rootEntries) {
+    if (item.isDirectory() && /^\.incoming-[0-9a-f]{12}$/.test(item.name)) {
+      await fsp.rm(path.join(ADDONS_DIR, item.name), { recursive: true, force: true }).catch(() => {});
+    }
+  }
   let reg;
   try { reg = await _readAddonsRegistry(); } catch { return; }
   for (const a of reg.addons) {
@@ -2102,49 +2098,44 @@ async function _stageAddon(repo, ref, pinnedSha) {
   const sha = (typeof pinnedSha === 'string' && /^[0-9a-f]{40}$/i.test(pinnedSha))
     ? pinnedSha.toLowerCase()
     : await AddonBroker.resolveRefToSha(repo, useRef, { fetch, token });
-  const buf = await AddonBroker.fetchZipball(repo, sha, { fetch, token });
+  const buf = await AddonBroker.fetchZipball(repo, sha, {
+    fetch, token, maxBytes: ADDON_MAX_ARCHIVE_BYTES,
+  });
 
-  const AdmZip  = require('adm-zip');
-  // Zip-bomb caps are enforced DURING extraction (before full decompression).
-  const fileMap = AddonBroker.extractZip(buf, AdmZip, { maxFiles: ADDON_MAX_FILES, maxBytes: ADDON_MAX_BYTES });
-  if (!fileMap.length) throw new Error('archiv je prázdný nebo neobsahuje platné soubory');
-  if (fileMap.length > ADDON_MAX_FILES) throw new Error(`příliš mnoho souborů (> ${ADDON_MAX_FILES})`);
-  const totalBytes = fileMap.reduce((n, f) => n + f.buffer.length, 0);
-  if (totalBytes > ADDON_MAX_BYTES) throw new Error('doplněk je příliš velký');
-
-  const mfEntry = fileMap.find(f => f.relpath === 'addon.json');
-  if (!mfEntry) throw new Error('addon.json chybí v kořeni repozitáře');
-  let manifest;
-  try { manifest = JSON.parse(mfEntry.buffer.toString('utf8')); }
-  catch { throw new Error('addon.json není platný JSON'); }
-  const v = AddonBroker.validateManifest(manifest);
-  if (!v.ok) throw new Error('neplatný addon.json: ' + v.errors.join('; '));
-
-  const id       = manifest.id;
-  const hash     = AddonBroker.contentHash(fileMap, crypto);
-  const idDir    = path.join(ADDONS_DIR, id);
-  // Per-request unique staging dir: a fixed `.incoming` let two
-  // overlapping installs of the same id (wizard double-click,
-  // update-all racing a manual install) delete each other's half-
-  // written tree mid-stage. Stale dirs from a hard crash are swept by
-  // _pruneAddonVersions.
-  const incoming = path.join(idDir, `.incoming-${crypto.randomBytes(6).toString('hex')}`);
-  const finalDir = path.join(idDir, hash);
-
-  // Stage into .incoming, then atomic-rename to the content-addressed dir
-  // (so the client never imports a half-extracted tree). Everything from the
-  // mkdir to the return is wrapped so ANY throw — an unsafe archive path, a
-  // failed write, or a red test gate — removes the partially-written
-  // `.incoming` before propagating, rather than leaking it to disk.
-  await fsp.rm(incoming, { recursive: true, force: true }).catch(() => {});
-  await fsp.mkdir(incoming, { recursive: true });
+  // The manifest id is inside the archive, so extraction starts in a unique
+  // host-owned staging dir. The extractor scans every central-directory entry
+  // first (count/path/declared sizes/compression ratios), then streams accepted
+  // files to disk through actual-byte limiters. Expanded entry buffers never
+  // exist in memory. Once the manifest validates, rename the staging tree under
+  // its id; promotion later atomically flips it to the content-addressed dir.
+  const stageToken = crypto.randomBytes(6).toString('hex');
+  const rawIncoming = path.join(ADDONS_DIR, `.incoming-${stageToken}`);
+  let incoming = null;
+  await fsp.rm(rawIncoming, { recursive: true, force: true }).catch(() => {});
   try {
-    for (const f of fileMap) {
-      const dest = _safeJoinIn(incoming, f.relpath);
-      if (!dest) throw new Error('nebezpečná cesta v archivu: ' + f.relpath);
-      await fsp.mkdir(path.dirname(dest), { recursive: true });
-      await fsp.writeFile(dest, f.buffer);
-    }
+    const extracted = await AddonArchive.extractAddonZip(buf, rawIncoming, {
+      maxArchiveBytes: ADDON_MAX_ARCHIVE_BYTES,
+      maxEntries: ADDON_MAX_FILES,
+      maxEntryBytes: ADDON_MAX_ENTRY_BYTES,
+      maxTotalBytes: ADDON_MAX_BYTES,
+      maxCompressionRatio: ADDON_MAX_COMPRESSION_RATIO,
+    });
+    if (!extracted.files.length) throw new Error('archiv je prázdný nebo neobsahuje platné soubory');
+    if (!extracted.files.includes('addon.json')) throw new Error('addon.json chybí v kořeni repozitáře');
+
+    let manifest;
+    try { manifest = JSON.parse(await fsp.readFile(path.join(rawIncoming, 'addon.json'), 'utf8')); }
+    catch { throw new Error('addon.json není platný JSON'); }
+    const v = AddonBroker.validateManifest(manifest);
+    if (!v.ok) throw new Error('neplatný addon.json: ' + v.errors.join('; '));
+
+    const id = manifest.id;
+    const hash = await AddonArchive.contentHashDirectory(rawIncoming, extracted.files, crypto);
+    const idDir = path.join(ADDONS_DIR, id);
+    incoming = path.join(idDir, `.incoming-${stageToken}`);
+    const finalDir = path.join(idDir, hash);
+    await fsp.mkdir(idDir, { recursive: true });
+    await fsp.rename(rawIncoming, incoming);
 
     // Tier-B green-gate (Phase 8): run the addon's declared SERVER self-tests
     // against the STAGED tree before promoting. Red → discard staging, never
@@ -2163,20 +2154,20 @@ async function _stageAddon(repo, ref, pinnedSha) {
       const testPaths = (Array.isArray(serverTestDecl) ? serverTestDecl : [serverTestDecl])
         .map(p => _safeJoinIn(incoming, p)).filter(Boolean);
       const { spawn } = require('child_process');
-      const result = await AddonTesting.runNodeTests(incoming, testPaths, { spawn, timeoutMs: 30000, env: _scrubbedChildEnv() });
+      const result = await AddonTesting.runNodeTests(incoming, testPaths, { spawn, timeoutMs: 30000 });
       if (!result.ok) {
         const why = result.timedOut ? 'překročen časový limit' : `selhaly (exit ${result.code})`;
         throw new Error(`serverové testy doplňku ${why}`);
       }
     }
+    return { repo, useRef, sha, manifest, id, hash, incoming, finalDir };
   } catch (e) {
     // Discard the half-staged tree so a failed/aborted install never leaks
     // `.incoming`. Best-effort; the original error is what the caller sees.
-    await fsp.rm(incoming, { recursive: true, force: true }).catch(() => {});
+    await fsp.rm(rawIncoming, { recursive: true, force: true }).catch(() => {});
+    if (incoming) await fsp.rm(incoming, { recursive: true, force: true }).catch(() => {});
     throw e;
   }
-
-  return { repo, useRef, sha, manifest, id, hash, incoming, finalDir };
 }
 
 // Phase 2 — promote (caller HOLDS the write lock): atomic-rename the staged tree

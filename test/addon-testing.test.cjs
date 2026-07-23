@@ -8,7 +8,7 @@ const fsp      = require('fs').promises;
 const os       = require('os');
 const path     = require('path');
 const { spawn } = require('child_process');
-const { runNodeTests } = require('../server/addon-testing.cjs');
+const { runNodeTests, buildChildEnv } = require('../server/addon-testing.cjs');
 
 async function tmp(files) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'addon-runner-'));
@@ -25,6 +25,42 @@ async function cleanup(dir) {
 const PASS = `const {test}=require('node:test');const a=require('node:assert');test('p',()=>a.equal(1,1));`;
 const FAIL = `const {test}=require('node:test');const a=require('node:assert');test('f',()=>a.equal(1,2));`;
 const SLOW = `const {test}=require('node:test');test('s',async()=>{await new Promise(r=>setTimeout(r,8000));});`;
+
+test('child environment is a strict cross-platform allowlist', () => {
+  const env = buildChildEnv({
+    PATH: '/bin', SystemRoot: 'C:\\Windows', TEMP: '/tmp', LANG: 'en_US.UTF-8',
+    AWS_ACCESS_KEY_ID: 'aws-secret', DATABASE_URL: 'postgres://secret',
+    SSH_AUTH_SOCK: '/secret/socket', RANDOM_APP_SETTING: 'not-for-addons',
+    GITHUB_TOKEN: 'token', NODE_OPTIONS: '--require ./steal.cjs',
+  });
+  assert.deepEqual(env, {
+    PATH: '/bin', SystemRoot: 'C:\\Windows', TEMP: '/tmp', LANG: 'en_US.UTF-8',
+  });
+});
+
+test('spawned addon tests receive no secret-shaped or arbitrary variables', async () => {
+  const CHECK_ENV = `
+    const {test}=require('node:test');
+    const assert=require('node:assert/strict');
+    test('env',()=>{
+      for (const key of ['AWS_ACCESS_KEY_ID','DATABASE_URL','SSH_AUTH_SOCK','RANDOM_APP_SETTING','GITHUB_TOKEN','NODE_OPTIONS']) {
+        assert.equal(process.env[key], undefined, key + ' leaked');
+      }
+    });`;
+  const dir = await tmp({ 'env.test.cjs': CHECK_ENV });
+  try {
+    const env = {
+      ...process.env,
+      AWS_ACCESS_KEY_ID: 'aws-secret', DATABASE_URL: 'postgres://secret',
+      SSH_AUTH_SOCK: '/secret/socket', RANDOM_APP_SETTING: 'not-for-addons',
+      GITHUB_TOKEN: 'token', NODE_OPTIONS: '--require ./steal.cjs',
+    };
+    const r = await runNodeTests(dir, [path.join(dir, 'env.test.cjs')], {
+      spawn, timeoutMs: 20000, env,
+    });
+    assert.equal(r.ok, true, r.output);
+  } finally { await cleanup(dir); }
+});
 
 test('green for a passing test file', async () => {
   const dir = await tmp({ 'a.test.cjs': PASS });

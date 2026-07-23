@@ -14,8 +14,8 @@ const { test } = require('node:test');
 const assert   = require('node:assert/strict');
 const fsp      = require('fs').promises;
 const path     = require('path');
-const AdmZip   = require('adm-zip');
 const { startServer } = require('./helpers/server-process.cjs');
+const { createZip } = require('./helpers/zip.cjs');
 
 const DM = 'dm-pw';
 async function login(srv, pw) {
@@ -24,14 +24,6 @@ async function login(srv, pw) {
     body: JSON.stringify({ password: pw }),
   });
   assert.equal(r.status, 200);
-}
-
-function zipWith(entries) {
-  const zip = new AdmZip();
-  for (const [name, content] of Object.entries(entries)) {
-    zip.addFile(name, Buffer.from(typeof content === 'string' ? content : JSON.stringify(content)));
-  }
-  return zip.toBuffer();
 }
 
 async function postRestore(srv, zipBuf) {
@@ -45,7 +37,7 @@ test('restore: ZIP round-trips collection files but never auth.json or addon cod
   try {
     await login(srv, DM);
 
-    const zipBuf = zipWith({
+    const zipBuf = await createZip({
       'data/characters.json': [{ id: 'resa_x1', name: 'Restored Resa', visibility: 'public' }],
       'data/auth.json':       { bogus: 'credential-from-old-backup' },
       'data/addons/evil/1111111111111111/server/index.cjs': 'process.exit(1);',
@@ -91,7 +83,7 @@ test('restore: ZIP round-trips collection files but never auth.json or addon cod
 test('restore: requires auth', async () => {
   const srv = await startServer({ dmPassword: DM });
   try {
-    const res = await postRestore(srv, zipWith({ 'data/characters.json': [] }));
+    const res = await postRestore(srv, await createZip({ 'data/characters.json': [] }));
     assert.equal(res.status, 401);
   } finally { await srv.kill(); }
 });

@@ -1,13 +1,12 @@
 const { test } = require('node:test');
 const assert    = require('node:assert/strict');
 const crypto    = require('node:crypto');
-const AdmZip    = require('adm-zip');
 
 const {
-  HOST_API_VERSION,
+  HOST_API_VERSION, HOST_SERVER_LIBS,
   defaultRegistry, normalizeRegistry,
   validateManifest, matchRepoRule, isAllowed, parseRepoInput,
-  contentHash, extractZip, _safeRel,
+  contentHash, _safeRel,
   addonCollectionType, parseAddonType, normalizeCollections,
   resolveRefToSha, fetchZipball, fetchManifest,
 } = require('../server/addons.cjs');
@@ -138,52 +137,6 @@ test('contentHash: deterministic + order-independent + content-sensitive', () =>
   assert.match(h1, /^[0-9a-f]{16}$/);
 });
 
-// ── extractZip ────────────────────────────────────────────────────
-function zipOf(entries) {
-  const zip = new AdmZip();
-  for (const [name, content] of Object.entries(entries)) zip.addFile(name, Buffer.from(content));
-  return zip.toBuffer();
-}
-
-test('extractZip: strips the GitHub wrapper dir', () => {
-  const buf = zipOf({
-    'owner-repo-abc123/addon.json': '{}',
-    'owner-repo-abc123/entry.js':   'x',
-    'owner-repo-abc123/sub/a.css':  'y',
-  });
-  const map = extractZip(buf, AdmZip);
-  const names = map.map(f => f.relpath).sort();
-  assert.deepEqual(names, ['addon.json', 'entry.js', 'sub/a.css']);
-});
-
-test('extractZip: leaves a flat (no-wrapper) zip untouched', () => {
-  const buf = zipOf({ 'addon.json': '{}', 'entry.js': 'x' });
-  const names = extractZip(buf, AdmZip).map(f => f.relpath).sort();
-  assert.deepEqual(names, ['addon.json', 'entry.js']);
-});
-
-test('extractZip: enforces maxBytes / maxFiles (zip-bomb guard)', () => {
-  const buf = zipOf({ 'a.txt': 'x'.repeat(2000), 'b.txt': 'y'.repeat(2000) });
-  assert.throws(() => extractZip(buf, AdmZip, { maxBytes: 100 }),  /too large/);
-  assert.throws(() => extractZip(buf, AdmZip, { maxFiles: 1 }),    /too many files/);
-  assert.equal(extractZip(buf, AdmZip, { maxBytes: 1e6, maxFiles: 100 }).length, 2);  // generous → fine
-});
-
-test('extractZip: every emitted path is relative-safe', () => {
-  // Whatever the zip carries, nothing that escapes the addon dir may
-  // survive (the per-entry _safeRel filter is the guard; server.js also
-  // routes each write through _safeJoinIn).
-  const buf = zipOf({
-    'owner-repo-sha/addon.json':  '{}',
-    'owner-repo-sha/sub/ok.js':   'x',
-  });
-  for (const f of extractZip(buf, AdmZip)) {
-    assert.equal(_safeRel(f.relpath), true, `unsafe path leaked: ${f.relpath}`);
-    assert.ok(!f.relpath.startsWith('/'));
-    assert.ok(!f.relpath.split('/').includes('..'));
-  }
-});
-
 // ── parseRepoInput ────────────────────────────────────────────────
 test('parseRepoInput: accepts owner/name, GitHub URLs, ssh; extracts ref', () => {
   assert.deepEqual(parseRepoInput('me/addon'), { repo: 'me/addon' });
@@ -268,6 +221,12 @@ test('resolveRefToSha: carries the Bearer token; anonymous carries no header', a
   assert.equal('Authorization' in f.calls[0].headers, false, 'no Authorization header without a token');
 });
 
+test('HOST_SERVER_LIBS excludes archive readers from the addon facade', () => {
+  assert.equal(HOST_SERVER_LIBS.has('adm-zip'), false);
+  assert.equal(HOST_SERVER_LIBS.has('yauzl'), false);
+  assert.equal(HOST_SERVER_LIBS.has('archiver'), true);
+});
+
 test('resolveRefToSha: 404 without a token → operator hint; with a token → plain 404', async () => {
   const f1 = fakeFetch([[/\/commits\//, notFound]]);
   await assert.rejects(() => resolveRefToSha('me/priv', 'main', { fetch: f1 }), /CODEX_GITHUB_TOKEN/);
@@ -284,6 +243,26 @@ test('fetchZipball: token on the zipball request; the buffer round-trips', async
   const buf = await fetchZipball('me/priv', SHA40, { fetch: f, token: 'tok123' });
   assert.equal(f.calls[0].headers.Authorization, 'Bearer tok123');
   assert.equal(buf.toString(), 'zipbytes');
+});
+
+test('fetchZipball: streams with a compressed-size cap', async () => {
+  let arrayBufferCalled = false;
+  const body = {
+    async *[Symbol.asyncIterator]() {
+      yield Buffer.alloc(6, 1);
+      yield Buffer.alloc(6, 2);
+    },
+  };
+  const f = fakeFetch([[/\/zipball\//, () => ({
+    ok: true, status: 200, body,
+    headers: { get: () => null },
+    arrayBuffer: async () => { arrayBufferCalled = true; return new ArrayBuffer(0); },
+  })]]);
+  await assert.rejects(
+    () => fetchZipball('me/pub', SHA40, { fetch: f, maxBytes: 10 }),
+    /compressed size limit/,
+  );
+  assert.equal(arrayBufferCalled, false, 'production streaming path must not allocate the full response');
 });
 
 test('fetchManifest: token rides BOTH requests; the contents fetch pins to the resolved sha', async () => {
