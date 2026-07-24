@@ -103,6 +103,7 @@ function _emptyRec() {
 import { HOST_CAPABILITIES, HOST_VERSION, compatibilityErrors } from './addon-compat.js';
 import { requireCollectionDeclaration, resolveDependency } from './addon-host-contract.js';
 import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack } from './addon-lifecycle.js';
+import { createTransactionRunner } from './addon-transactions.js';
 
 export function createMockHost(meta = {}, opts = {}) {
   meta = { version: '0.0.0', apiVersion: 1, hostVersion: '>=1.0.0', ...meta };
@@ -125,6 +126,9 @@ export function createMockHost(meta = {}, opts = {}) {
     }
   };
   const registeredCollections = new Set();
+  const transactionDescriptors = new Map();
+  const collectionVersions = new Map();
+  const transactionLeases = new Map();
   const declaration = (name) => (Array.isArray(meta.collections) ? meta.collections : [])
     .find((entry) => entry && entry.name === name);
   const canAccess = (name) => declaration(name)?.access !== 'dm' || !!opts.isDM;
@@ -142,6 +146,7 @@ export function createMockHost(meta = {}, opts = {}) {
       : (Array.isArray(seeded) ? seeded.slice() : []);
     return _collStore[name];
   };
+  const bumpCollection = name => collectionVersions.set(name, (collectionVersions.get(name) || 0) + 1);
 
   // Mirror the REAL scoped-CRUD shape: get() filters by id, save() generates a
   // missing id + stamps updatedAt + upserts, remove() deletes by id.
@@ -169,6 +174,7 @@ export function createMockHost(meta = {}, opts = {}) {
         data[r.id] = { ...r };
         delete data[r.id].id;
       }
+      bumpCollection(name);
       return r;
     },
     remove: (itemId) => {
@@ -180,6 +186,95 @@ export function createMockHost(meta = {}, opts = {}) {
       } else {
         delete data[itemId];
       }
+      bumpCollection(name);
+    },
+  });
+
+  const transactionCapabilities = [
+    ...(meta.capabilities?.required || []),
+    ...(meta.capabilities?.optional || []),
+  ];
+  const transactionEnabled = meta.apiVersion === 2
+    && transactionCapabilities.includes('collections.transactions')
+    && (!grants || grants.includes('data:own'));
+  const transaction = createTransactionRunner({
+    descriptors: transactionDescriptors,
+    transport: {
+      begin: async (names, transactionOpts = {}) => {
+        if (!transactionEnabled) {
+          const capabilityError = new Error('Addon did not negotiate collections.transactions');
+          capabilityError.code = 'TX_CAPABILITY_REQUIRED';
+          throw capabilityError;
+        }
+        const timeoutMs = transactionOpts.timeoutMs ?? 5000;
+        const transactionId = `mock-tx-${transactionLeases.size + 1}`;
+        const snapshot = {};
+        const revisions = {};
+        for (const name of names) {
+          const descriptor = transactionDescriptors.get(name);
+          if (!descriptor || (descriptor.access === 'dm' && !opts.isDM)) {
+            const missing = new Error('Collection not found');
+            missing.code = 'TX_NOT_FOUND';
+            throw missing;
+          }
+          snapshot[name] = structuredClone(_coll(name));
+          revisions[name] = String(collectionVersions.get(name) || 0);
+        }
+        const deadline = Date.now() + timeoutMs;
+        transactionLeases.set(transactionId, { names, revisions, deadline });
+        return { transactionId, snapshot, revisions, deadline };
+      },
+      commit: async (transactionId, operations) => {
+        const lease = transactionLeases.get(transactionId);
+        transactionLeases.delete(transactionId);
+        if (!lease || lease.deadline <= Date.now()) {
+          const expired = new Error('Transaction expired');
+          expired.code = 'TX_EXPIRED';
+          throw expired;
+        }
+        for (const name of lease.names) {
+          if (String(collectionVersions.get(name) || 0) !== lease.revisions[name]) {
+            const conflict = new Error('Transaction snapshot is stale');
+            conflict.code = 'TX_CONFLICT';
+            throw conflict;
+          }
+        }
+        const staged = new Map(lease.names.map(name => [name, structuredClone(_coll(name))]));
+        for (const operation of operations) {
+          const descriptor = transactionDescriptors.get(operation.collection);
+          const data = staged.get(operation.collection);
+          if (descriptor.keyed) {
+            if (operation.op === 'put') {
+              data[operation.id] = structuredClone(operation.value);
+              delete data[operation.id].id;
+            } else delete data[operation.id];
+          } else {
+            const index = data.findIndex(item => item && item.id === operation.id);
+            if (operation.op === 'put') {
+              const value = { ...structuredClone(operation.value), id: operation.id };
+              if (index >= 0) data[index] = value; else data.push(value);
+            } else if (index >= 0) data.splice(index, 1);
+          }
+        }
+        const changed = [];
+        for (const [name, data] of staged) {
+          if (JSON.stringify(data) === JSON.stringify(_coll(name))) continue;
+          _collStore[name] = data;
+          bumpCollection(name);
+          changed.push(name);
+        }
+        return {
+          ok: true,
+          commitId: changed.length ? `mock-commit-${Date.now()}` : null,
+          changed,
+          collections: Object.fromEntries(lease.names.map(name => [name, structuredClone(_coll(name))])),
+          revisions: Object.fromEntries(lease.names.map(name => [name, String(collectionVersions.get(name) || 0)])),
+        };
+      },
+      cancel: async transactionId => {
+        transactionLeases.delete(transactionId);
+        return { ok: true };
+      },
     },
   });
 
@@ -203,6 +298,11 @@ export function createMockHost(meta = {}, opts = {}) {
       requireCollectionDeclaration(meta, name);
       if (registeredCollections.has(name)) throw new Error(`registerCollection: "${name}" already registered`);
       registeredCollections.add(name);
+      const collectionDeclaration = requireCollectionDeclaration(meta, name);
+      transactionDescriptors.set(name, {
+        keyed: !!collectionDeclaration.keyed,
+        access: collectionDeclaration.access === 'dm' ? 'dm' : 'public',
+      });
       rec.collections.push({ name, keyed: !!requireCollectionDeclaration(meta, name).keyed,
         access: requireCollectionDeclaration(meta, name).access === 'dm' ? 'dm' : 'public' });
     },
@@ -239,6 +339,7 @@ export function createMockHost(meta = {}, opts = {}) {
         if (!registeredCollections.has(n)) throw new Error(`store.collection: "${n}" not registered (call host.registerCollection first)`);
         return collectionHandle(n);
       },
+      transaction,
       // Real patchAddonData returns the SAVED ENTITY ({...entity, addonData}),
       // not the namespace — mirror that so a renderer reading `.addonData[id]`
       // off the return works the same in tests as in prod.

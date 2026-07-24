@@ -41,6 +41,13 @@ test('restore: ZIP round-trips collection files but never auth.json or addon cod
       'data/characters.json': [{ id: 'resa_x1', name: 'Restored Resa', visibility: 'public' }],
       'data/auth.json':       { bogus: 'credential-from-old-backup' },
       'data/addons/evil/1111111111111111/server/index.cjs': 'process.exit(1);',
+      'data/.runtime/transactions/tx-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/journal.json': {
+        version: 1,
+        id: 'tx-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        addonId: 'dm-tools',
+        state: 'publishing',
+        entries: [{ collection: 'scenarios' }],
+      },
       'data/addon-data/demo/rules.json': [{ id: 'grappling' }],
       'data/addon-data/dm-tools/scenarios.json': [{ id: 'restored-secret' }],
     });
@@ -76,9 +83,14 @@ test('restore: ZIP round-trips collection files but never auth.json or addon cod
       { code: 'ENOENT' },
       'restore must refuse to write addon code'
     );
+    assert.deepEqual(
+      await fsp.readdir(path.join(srv.dataDir, '.runtime', 'transactions')),
+      [],
+      'restore must not plant or execute transaction runtime journals',
+    );
 
-    // Both refusals surfaced as skipped entries (auth.json + addon code).
-    assert.ok(body.skipped >= 2, `expected ≥2 skipped entries, got ${body.skipped}`);
+    // All refusals surfaced as skipped entries (auth, addon code, transaction runtime).
+    assert.ok(body.skipped >= 3, `expected ≥3 skipped entries, got ${body.skipped}`);
 
     // The DM session survives the restore (cookie secret not rotated).
     const auth = await srv.fetch('/api/auth');

@@ -556,3 +556,11 @@ with code `WRITE_LOCK_TIMEOUT`. An expired queued mutation is cancelled and
 will not run later. Once acquired, ownership lasts until the mutation settles,
 so the timeout cannot unlock an active write or weaken serialization. See
 `docs/reference/server.md` → **Core write lock**.
+
+Addon-owned multi-collection changes use the API-v2
+`host.store.transaction(...)` contract rather than multiple optimistic
+`saveAddonItem` calls. The read set is one revisioned snapshot; callback
+writes stay buffered until the server validates the complete operation set
+and publishes every changed collection behind the shared publication barrier.
+See `docs/reference/addons.md` and `docs/reference/server.md` → **Addon
+collection transactions**.

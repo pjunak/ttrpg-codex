@@ -279,6 +279,18 @@ function validateManifest(m) {
       }
     }
   }
+  const declaredCapabilities = [
+    ...(m.capabilities?.required || []),
+    ...(m.capabilities?.optional || []),
+  ];
+  if (declaredCapabilities.includes('collections.transactions')) {
+    if (!Array.isArray(m.collections) || !m.collections.length) {
+      errors.push('capability "collections.transactions" requires at least one declared collection');
+    }
+    if (!Array.isArray(m.permissions) || !m.permissions.includes('data:own')) {
+      errors.push('capability "collections.transactions" requires permission "data:own"');
+    }
+  }
   return { ok: errors.length === 0, errors };
 }
 

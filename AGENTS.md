@@ -89,7 +89,9 @@ tiler.js                   sharp tile-pyramid builder (world + local maps).
 server/                    visibility.cjs (role filter) · migrations.cjs ·
                            addons.cjs (broker) · addon-testing.cjs (test
                            green-gate) · addon-content.cjs (contentDir) ·
-                           core-write-lock.cjs (bounded FIFO mutex).
+                           core-write-lock.cjs (bounded FIFO mutex) ·
+                           publication-barrier.cjs (read isolation) ·
+                           collection-transactions.cjs (durable F2 commits).
 web/
   index.html               SPA shell. Loads bundle.css + app.js.
   i18n/
@@ -113,6 +115,8 @@ web/
     addon-lifecycle.js     Shared bounded disposer stack used by the live host
                            and authoring harness.
     addon-host-contract.js Shared host.use + collection-declaration contract.
+    addon-transactions.js  Shared buffered transaction facade used by the
+                           live host and authoring harness.
     store.js               In-memory state. Server sync. Secondary indices.
                            Trash + undelete. Settings API.
     data.js                Defaults: FACTIONS, collections (CHARACTERS,
@@ -231,7 +235,7 @@ there.**
 |---|---|---|
 | `dnd-character-sheets` | `dnd-sheets` | Tabbed character sheet (Overview/Character Sheet/Combat/Spellbook/Builder) + a built-in pure rules engine (`rules/engine.js` + `rules/api.js`), edition-parameterized (built-in 2024 constants; a provider's `ruleset` record overrides per constant — `dnd5e-compendium` is the reserved 2014 provider id). Standalone hand-fillable; soft-dep (`optionalDependencies`) on the compendium — engine mode lights up when book data is present. `provide()`s the rules API for future consumers. ⚠ The addon id keys `character.addonData` — renaming it orphans sheet data without a key migration. |
 | `dnd55e-compendium` | `dnd55e-compendium` | The complete D&D 5.5e (2024) content addon — PHB, DMG material, and the Monster Manual bestiary (~1,880 records) as a per-record JSON tree served by THIS host via manifest `contentDir` (no server code, hot install/update). `/compendium` browse UI (+ `/bestiary` alias) + `[[…|spell]]`-style wiki kinds; `provide()`s the pure data API the sheets engine consumes. The equipment importer reads the sibling `Living-scroll` checkout. ⚠ The GitHub repo is **PRIVATE** (since 2026-07, so owner-owned copyrighted book content can live there — see its `data/COVERAGE.md`); GitHub installs/updates need `CODEX_GITHUB_TOKEN`. |
-| `dm-tools` | `dm-tools` | API-v2 reference consumer for host-managed DM-only data. F1 declares only the list-shaped `scenarios` collection with `access:"dm"` and requires `collections.dm`; later imports, graphs, planners, dashboard ownership, transactions, and localization packages remain out of scope. |
+| `dm-tools` | `dm-tools` | API-v2 reference consumer for host-managed DM-only data and F2 transactions. It declares only the list-shaped `scenarios` collection with `access:"dm"` and requires `collections.dm` + `collections.transactions`; host fixtures own the multi-collection matrix. Imports, graphs, planners, dashboard ownership, and localization packages remain out of scope. |
 
 Working loop: edit in the addon repo → `node scripts/dev-install-addon.cjs
 <path-to-addon>` (run in THIS repo) → restart the app + refresh. ⚠ **Addon

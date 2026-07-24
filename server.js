@@ -16,6 +16,11 @@ const {
   hashPassword, verifyPassword, safeEqStrings,
 } = require('./server-utils.cjs');
 const { CoreWriteLock, WriteLockTimeoutError } = require('./server/core-write-lock.cjs');
+const { PublicationBarrier } = require('./server/publication-barrier.cjs');
+const {
+  CollectionTransactionManager,
+  TransactionError,
+} = require('./server/collection-transactions.cjs');
 
 // Role-aware filtering of the dataset (`server/visibility.cjs`) and
 // the startup migration that backfills `visibility:'public'` on every
@@ -128,6 +133,7 @@ const WEB_DIR        = path.join(__dirname, 'web');
 const ADDONS_DIR           = path.join(DATA_DIR, 'addons');
 const ADDON_DATA_DIR       = path.join(DATA_DIR, 'addon-data');
 const ADDONS_REGISTRY_FILE = path.join(DATA_DIR, 'addons.json');
+const TRANSACTION_RUNTIME_DIR = path.join(DATA_DIR, '.runtime', 'transactions');
 
 fs.mkdirSync(DATA_DIR,       { recursive: true });
 fs.mkdirSync(PORTRAITS_DIR,  { recursive: true });
@@ -138,6 +144,7 @@ fs.mkdirSync(ICONS_DIR,      { recursive: true });
 fs.mkdirSync(SNAPSHOTS_DIR,  { recursive: true });
 fs.mkdirSync(ADDONS_DIR,     { recursive: true });
 fs.mkdirSync(ADDON_DATA_DIR, { recursive: true });
+fs.mkdirSync(TRANSACTION_RUNTIME_DIR, { recursive: true });
 
 // Idempotent relocation: any leftover snapshots inside data/ are
 // moved to the sibling directory.
@@ -468,6 +475,7 @@ const WRITE_LOCK_TIMEOUT_MS = Math.max(
   Number(process.env.CODEX_WRITE_LOCK_TIMEOUT_MS) || 10_000,
 );
 const _coreWriteLock = new CoreWriteLock({ timeoutMs: WRITE_LOCK_TIMEOUT_MS });
+const _publicationBarrier = new PublicationBarrier();
 function withWriteLock(fn) {
   return _coreWriteLock.run(fn);
 }
@@ -601,7 +609,7 @@ async function _lastSnapshotTime() {
 // (see /api/backup).
 const NON_DATA_JSON_FILES = new Set(['auth.json', 'secrets.json']);
 
-async function _createSnapshot(reason = 'save', access = 'public') {
+async function _createSnapshot(reason = 'save', access = 'public', metadata = {}) {
   const now       = Date.now();
   const createdAt = new Date(now).toISOString();
   const files     = {};
@@ -616,6 +624,7 @@ async function _createSnapshot(reason = 'save', access = 'public') {
     dataHash:  await _dataHash(),
     reason,
     access:    access === 'dm' ? 'dm' : 'public',
+    ...metadata,
     files,
   };
   const target = path.join(SNAPSHOTS_DIR, snap.id);
@@ -646,11 +655,22 @@ async function _pruneSnapshots() {
 // Take a snapshot unless the last one is within the coalesce window.
 // Called AFTER a successful write — snapshot N represents the data
 // state after change N, so restoring N puts you back to that moment.
-async function _maybeSnapshot(reason = 'save', access = 'public') {
+async function _maybeSnapshot(reason = 'save', access = 'public', metadata = {}) {
   const last = await _lastSnapshotTime();
   if (last && Date.now() - last < SNAPSHOT_COALESCE_MS) return null;
-  try { return await _createSnapshot(reason, access); }
+  try { return await _createSnapshot(reason, access, metadata); }
   catch (e) { console.warn('[snapshot] create failed:', e.message); return null; }
+}
+
+async function _hasTransactionSnapshot(commitId) {
+  if (typeof commitId !== 'string' || !commitId) return false;
+  for (const filename of await _snapshotFiles()) {
+    try {
+      const snapshot = JSON.parse(await fsp.readFile(path.join(SNAPSHOTS_DIR, filename), 'utf8'));
+      if (snapshot.transactionCommitId === commitId) return true;
+    } catch (_) { /* corrupt snapshots are ignored by the existing snapshot contract */ }
+  }
+  return false;
 }
 
 // Restore a snapshot: overwrite every JSON file in data/ with the
@@ -776,7 +796,7 @@ function _maybeBustDataHash(filePath) {
  *
  * @returns {Promise<string>} 16-char SHA-1 prefix or `'none'` on read failure.
  */
-async function _dataHash(role = 'dm') {
+async function _dataHashUnlocked(role = 'dm') {
   const scope = role === 'dm' ? 'dm' : 'player';
   if (_cachedDataHash[scope] !== null) return _cachedDataHash[scope];
   try {
@@ -850,6 +870,9 @@ async function runStartupMigrations() {
   }
   return { changed, results };
 }
+function _dataHash(role = 'dm') {
+  return _publicationBarrier.read(() => _dataHashUnlocked(role));
+}
 
 // ── SSE broadcast ────────────────────────────────────────────────
 // Every successful write fans a `data-changed` event out to every
@@ -914,7 +937,9 @@ const ALL_TYPES = [
 app.get('/api/data', async (req, res) => {
   try {
     const role = req.role === 'dm' ? 'dm' : 'player';
-    const { campaign, foundAny } = await _readDatasetForRole(role);
+    const { campaign, foundAny } = await _publicationBarrier.read(
+      () => _readDatasetForRole(role),
+    );
     if (!foundAny) return res.json(null);
     res.type('application/json').send(JSON.stringify(campaign));
   } catch (e) {
@@ -1183,10 +1208,87 @@ function _applyAddonCollections(reg) {
         name: c.name,
         keyed: !!c.keyed,
         access: c.access === 'dm' ? 'dm' : 'public',
+        apiVersion: a.apiVersion,
+        capabilities: a.capabilities,
+        grantedPermissions: Array.isArray(a.grantedPermissions) ? a.grantedPermissions : [],
       });
     }
   }
 }
+
+function _resolveTransactionCollection(addonId, name, role) {
+  const type = AddonBroker.addonCollectionType(addonId, name);
+  const meta = _addonCollections.get(type);
+  const declaredCapabilities = [
+    ...(meta?.capabilities?.required || []),
+    ...(meta?.capabilities?.optional || []),
+  ];
+  if (!meta || meta.addonId !== addonId || meta.apiVersion !== 2
+      || !declaredCapabilities.includes('collections.transactions')
+      || !meta.grantedPermissions.includes('data:own')
+      || !_addonCollectionAvailable(meta, role)) {
+    throw new TransactionError('TX_NOT_FOUND', 'Collection not found', 404);
+  }
+  return {
+    addonId,
+    name,
+    keyed: meta.keyed,
+    access: meta.access,
+    path: getFile(type),
+  };
+}
+
+async function _transactionFault(phase) {
+  if (process.env.NODE_ENV !== 'test') return;
+  if (process.env.CODEX_TX_CRASH_PHASE === phase) process.exit(86);
+  if (process.env.CODEX_TX_FAIL_PHASE === phase) {
+    throw new Error(`Injected transaction failure at ${phase}`);
+  }
+  if (process.env.CODEX_TX_PAUSE_PHASE === phase && process.env.CODEX_TX_CONTROL_DIR) {
+    const controlDir = path.resolve(process.env.CODEX_TX_CONTROL_DIR);
+    await fsp.mkdir(controlDir, { recursive: true });
+    const stem = phase.replace(/[^a-z0-9_-]/gi, '_');
+    await fsp.writeFile(path.join(controlDir, `${stem}.reached`), '', 'utf8');
+    const release = path.join(controlDir, `${stem}.release`);
+    while (true) {
+      try {
+        await fsp.access(release);
+        break;
+      } catch {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+    }
+  }
+}
+
+const _collectionTransactions = new CollectionTransactionManager({
+  runtimeDir: TRANSACTION_RUNTIME_DIR,
+  addonDataDir: ADDON_DATA_DIR,
+  publicationBarrier: _publicationBarrier,
+  resolveCollection: _resolveTransactionCollection,
+  fault: _transactionFault,
+  onFatal: error => {
+    console.error('[transaction] fatal publication state:', error);
+    setImmediate(() => process.exit(1));
+  },
+  onCommit: async ({ commitId, access }) => {
+    _invalidateDataHash();
+    await _maybeSnapshot('transaction', access, { transactionCommitId: commitId });
+    await _broadcastDataChanged(access);
+  },
+  onRecoveredCommit: async ({ commitId, access }) => {
+    _invalidateDataHash();
+    if (await _hasTransactionSnapshot(commitId)) return;
+    try {
+      await _createSnapshot(
+        'transaction-recovery',
+        access,
+        { transactionCommitId: commitId },
+      );
+    }
+    catch (error) { console.warn('[transaction recovery] snapshot failed:', error.message); }
+  },
+});
 
 function _addonCollectionAvailable(meta, role) {
   return !meta || meta.access !== 'dm' || role === 'dm';
@@ -1727,6 +1829,73 @@ app.patch('/api/data', (req, res) => {
 });
 
 /**
+ * POST /api/addons/:id/transactions
+ *
+ * API-v2 addon-owned multi-collection transactions. `begin` captures one
+ * consistent snapshot and issues a short-lived, single-use lease. Addon code
+ * buffers changes locally, then `commit` applies explicit put/delete
+ * operations only if every read-set revision is still current.
+ */
+app.post('/api/addons/:id/transactions', async (req, res) => {
+  if (req.role !== 'dm' && req.role !== 'player') {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  const addonId = String(req.params.id || '');
+  if (!AddonBroker.ID_RE.test(addonId)) return res.status(404).json({ error: 'Not found' });
+  let clientAborted = false;
+  req.once('aborted', () => { clientAborted = true; });
+  res.once('close', () => {
+    if (!res.writableEnded) clientAborted = true;
+  });
+
+  try {
+    const mode = req.body?.mode;
+    let result;
+    if (mode === 'begin') {
+      result = await withWriteLock(() => {
+        if (clientAborted) throw new TransactionError('TX_EXPIRED', 'Client disconnected', 409);
+        return _collectionTransactions.begin({
+          addonId,
+          role: req.role,
+          collections: req.body.collections,
+          timeoutMs: req.body.timeoutMs,
+        });
+      });
+    } else if (mode === 'commit') {
+      result = await withWriteLock(() => _collectionTransactions.commit({
+        addonId,
+        role: req.role,
+        transactionId: req.body.transactionId,
+        operations: req.body.operations,
+        clientAborted: () => clientAborted,
+      }));
+    } else if (mode === 'cancel') {
+      result = _collectionTransactions.cancel({
+        addonId,
+        transactionId: req.body?.transactionId,
+      });
+    } else {
+      throw new TransactionError('TX_VALIDATION', 'mode must be "begin", "commit", or "cancel"');
+    }
+    if (!clientAborted && !res.headersSent) res.json(result);
+  } catch (error) {
+    if (_sendWriteLockTimeout(res, error)) return;
+    if (error instanceof TransactionError) {
+      if (!clientAborted && !res.headersSent) {
+        const body = { error: error.message, code: error.code };
+        if (error.details !== undefined) body.details = error.details;
+        res.status(error.status).json(body);
+      }
+      return;
+    }
+    console.error(`POST /api/addons/${addonId}/transactions:`, error);
+    if (!clientAborted && !res.headersSent) {
+      res.status(500).json({ error: 'Transaction failed', code: 'TX_INTERNAL' });
+    }
+  }
+});
+
+/**
  * GET /api/version — Returns the current dataset hash. Useful for
  * health-check probes (the Dockerfile HEALTHCHECK pings this), and
  * historically for clients to poll for changes before SSE existed.
@@ -1999,8 +2168,10 @@ function _makeServerHost(entry) {
       read: async (name) => {
         const p = _addonDataPath(dataDir, name);
         if (!p) throw new Error(`unsafe data name "${name}"`);
-        try { return JSON.parse(await fsp.readFile(p, 'utf8')); }
-        catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+        return _publicationBarrier.read(async () => {
+          try { return JSON.parse(await fsp.readFile(p, 'utf8')); }
+          catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+        });
       },
       // NB: write() already runs inside withWriteLock. The mutex is NOT
       // reentrant — do NOT call host.data.write from inside host.withLock(...)
@@ -2026,8 +2197,10 @@ function _makeServerHost(entry) {
       if (typeof name !== 'string' || !ALLOWED_TYPES.has(name) || name.startsWith('addon:')) {
         throw new Error(`addon "${id}" cannot read "${name}"`);
       }
-      try { return JSON.parse(await fsp.readFile(getFile(name), 'utf8')); }
-      catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+      return _publicationBarrier.read(async () => {
+        try { return JSON.parse(await fsp.readFile(getFile(name), 'utf8')); }
+        catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+      });
     },
     lib: (name) => {
       if (!AddonBroker.HOST_SERVER_LIBS.has(name)) {
@@ -3332,7 +3505,10 @@ app.get('/api/backup', requireAuth, async (_req, res) => {
       }
       await fsp.cp(DATA_DIR, stagedDataDir, {
         recursive: true,
-        filter: src => path.relative(DATA_DIR, src) !== 'secrets.json',
+        filter: src => {
+          const rel = path.relative(DATA_DIR, src).replace(/\\/g, '/');
+          return rel !== 'secrets.json' && rel !== '.runtime' && !rel.startsWith('.runtime/');
+        },
       });
     });
     if (res.headersSent) {
@@ -3431,6 +3607,8 @@ function _safeJoinDataDir(rel) {
   // (data/addon-data/**) restores fine.
   const codeRoot = path.resolve(ADDONS_DIR);
   if (resolved === codeRoot || resolved.startsWith(codeRoot + path.sep)) return null;
+  const runtimeRoot = path.resolve(path.join(DATA_DIR, '.runtime'));
+  if (resolved === runtimeRoot || resolved.startsWith(runtimeRoot + path.sep)) return null;
   return resolved;
 }
 
@@ -3789,6 +3967,11 @@ async function _backgroundTileSweep() {
 // Tile sweep stays fire-and-forget (it can take seconds on a large
 // map and the fallback overlay covers any in-flight requests anyway).
 async function _bootstrap() {
+  const recovery = await _collectionTransactions.recover();
+  if (recovery.committed.length || recovery.rolledBack.length
+      || recovery.cleaned.length || recovery.invalid.length) {
+    console.log('[transactions] startup recovery:', recovery);
+  }
   // Loud warnings about password configuration. The codebase is open-
   // source so anyone can compute SHA256(...) — a deployment that left
   // DM_PASSWORD unset (or set to the default "123") would be world-

@@ -2,8 +2,13 @@
 
 const HOST_VERSION = '1.0.0';
 const SUPPORTED_API_VERSIONS = new Set([1, 2]);
-const KNOWN_CAPABILITIES = new Set(['collections.dm', 'lifecycle.dispose', 'content.revision']);
-const HOST_CAPABILITIES = new Set(['collections.dm', 'lifecycle.dispose', 'content.revision']);
+const KNOWN_CAPABILITIES = new Set([
+  'collections.dm',
+  'collections.transactions',
+  'lifecycle.dispose',
+  'content.revision',
+]);
+const HOST_CAPABILITIES = new Set(KNOWN_CAPABILITIES);
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,38}$/;
 const VERSION_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 

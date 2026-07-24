@@ -29,6 +29,7 @@ import { planLoadOrder } from './addon-deps.js';
 import { HOST_CAPABILITIES, HOST_VERSION, compatibilityErrors } from './addon-compat.js';
 import { requireCollectionDeclaration, resolveDependency } from './addon-host-contract.js';
 import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack, reverseRegistrations } from './addon-lifecycle.js';
+import { createTransactionRunner } from './addon-transactions.js';
 import { applyFragmentOps, listConflicts } from './addon-fragments.js';
 import { smokeRegistrations } from './addon-test-harness.mjs';
 
@@ -160,6 +161,7 @@ export const Addons = (() => {
       throw new Error(`Doplněk „${id}" nemá udělené oprávnění „${p}" (${what}).`);
     };
     const tx = { undo: [], cleanup: createDisposalStack() };
+    const transactionDescriptors = new Map();
 
     // Undo helpers — every register* records a reverser so a thrown register()
     // (or a later unload / rollback) cleanly removes the addon's partial state.
@@ -253,9 +255,11 @@ export const Addons = (() => {
       const keyed = !!decl.keyed;
       const access = decl.access === 'dm' ? 'dm' : 'public';
       _collections.set(key, { addonId: id, name, keyed, access });
+      transactionDescriptors.set(name, { keyed, access });
       // Backfill the local container so reads work before the first write.
       safe(() => Store.ensureCollection('addon:' + id + ':' + name, keyed), null);
       _undoMap(_collections, key);
+      tx.undo.push(() => { transactionDescriptors.delete(name); });
     }
 
     /** A scoped CRUD handle for one of THIS addon's own collections. The
@@ -452,6 +456,77 @@ export const Addons = (() => {
       addDisposer(tx.cleanup, fn);
     }
 
+    const transactionCapabilities = [
+      ...(meta.capabilities?.required || []),
+      ...(meta.capabilities?.optional || []),
+    ];
+    const transactionEnabled = meta.apiVersion === 2
+      && transactionCapabilities.includes('collections.transactions')
+      && has('data:own');
+
+    async function transactionRequest(mode, payload, timeoutMs) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), Math.max(1, timeoutMs));
+      try {
+        const response = await fetch(`/api/addons/${encodeURIComponent(id)}/transactions`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode, ...payload }),
+          signal: controller.signal,
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const requestError = new Error(body.error || `Transaction request failed (${response.status})`);
+          requestError.code = body.code || 'TX_REQUEST_FAILED';
+          requestError.status = response.status;
+          requestError.details = body.details;
+          throw requestError;
+        }
+        return body;
+      } catch (requestError) {
+        if (requestError.name === 'AbortError') {
+          const timeoutError = new Error('Transaction request timed out');
+          timeoutError.code = 'TX_EXPIRED';
+          throw timeoutError;
+        }
+        throw requestError;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    const transaction = createTransactionRunner({
+      descriptors: transactionDescriptors,
+      transport: {
+        begin: (collections, opts) => {
+          if (!transactionEnabled) {
+            const capabilityError = new Error('Addon did not negotiate collections.transactions');
+            capabilityError.code = 'TX_CAPABILITY_REQUIRED';
+            throw capabilityError;
+          }
+          const timeoutMs = opts.timeoutMs ?? 5000;
+          return transactionRequest('begin', { collections, timeoutMs }, timeoutMs + 1000);
+        },
+        commit: (transactionId, operations, deadline) => transactionRequest(
+          'commit',
+          { transactionId, operations },
+          Math.max(1, deadline - Date.now() + 1000),
+        ),
+        cancel: transactionId => transactionRequest(
+          'cancel',
+          { transactionId },
+          1000,
+        ),
+      },
+      applyCollections: collections => {
+        for (const [name, value] of Object.entries(collections || {})) {
+          const descriptor = transactionDescriptors.get(name);
+          if (descriptor) Store.replaceAddonCollection(id, name, value, descriptor.keyed);
+        }
+      },
+    });
+
     // Read getters gated by data:read:<collection>. generateId is a pure
     // helper (always available); role / h / ui.toast are harmless too.
     const store = {
@@ -465,6 +540,7 @@ export const Addons = (() => {
       // Scoped CRUD for one of THIS addon's own collections (gated by the
       // data:own that registerCollection required).
       collection,
+      transaction,
       // Read-modify-write THIS addon's namespace on a core entity (the host
       // injects the addon id, so it can never touch another addon's blob).
       // Needs `data:write:<collection>.addonData`.

@@ -87,7 +87,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `version` | ✅ | semver `x.y.z`. Bump on every release. |
 | `apiVersion` | ✅ | `1` or `2`. Unsupported versions are rejected. API v2 is required for security-sensitive manifest semantics. |
 | `hostVersion` | v2: ✅ | Enforced against the host version. API-v1 manifests may omit it for legacy compatibility (equivalent to `"*"`). |
-| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `collections.dm`, `lifecycle.dispose`, and `content.revision`. |
+| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `collections.dm`, `collections.transactions`, `lifecycle.dispose`, and `content.revision`. |
 | `entry` | ✅ | Relative `.js`/`.mjs` path to the client module (default-export `register`). |
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
 | `contentDir` | — | Relative dir of a **per-record JSON tree** the HOST serves for you at `/api/addon/<id>/content` (+ `/content/:kind`, `/item/:kind/:id`, `/kinds`). The right choice for DATA addons (rulebooks): **no server code, no `server:code` grant**, kinds keyed by each record's own `kind` field (sub-dir name is the fallback), and hot-loaded — install/update needs no restart. A live `server` router takes precedence over it entirely. |
@@ -205,6 +205,7 @@ host.store.getCharacters()              // needs data:read:characters
 host.store.getLocations() / getEvents() / getMysteries() / getFactions()
 host.store.getCollection(name)          // needs data:read:<name>  → array
 host.store.collection(name)             // your OWN collection (data:own) → { list, get, save, remove }
+host.store.transaction(names, callback) // atomic own-collection transaction (API v2 capability)
 host.store.patchAddonData(coll, id, fn) // needs data:write:<coll>.addonData (§6)
 ```
 
@@ -340,6 +341,44 @@ DM-only variant:
 ```js
 if (host.role.isDM()) host.registerCollection('scenarios');
 ```
+
+### Atomic multi-collection transactions
+
+Request API v2 capability `collections.transactions`, permission `data:own`,
+and declare every participating collection. Register those collections before
+calling:
+
+```js
+const result = await host.store.transaction(
+  ['scenarios', 'initiative'],
+  async tx => {
+    const scenarios = tx.collection('scenarios');
+    const initiative = tx.collection('initiative');
+
+    const scenario = scenarios.get('current');
+    scenarios.put({ ...scenario, id: 'current', state: 'running' });
+    initiative.put({ id: 'round', value: 1 });
+    return { started: scenario?.name || '' };
+  },
+  { timeoutMs: 5000 },
+);
+```
+
+The callback reads one consistent snapshot and buffers writes. `put(item)`
+requires an explicit string `id`; `remove(id)` buffers a delete. A
+`(collection,id)` may be written only once. If any collection changes after
+the snapshot, commit rejects with `error.code === "TX_CONFLICT"` and nothing
+is published. Callback errors also leave storage unchanged. Nested
+transactions reject with `TX_NESTED`.
+
+Limits: 16 collections, 256 operations, 2 MiB total operation JSON, 256 KiB
+per record, timeout 250–10,000 ms (default 5,000). Values must be finite,
+JSON-compatible plain objects. One successful transaction yields one logical
+commit and at most one role-scoped SSE event per audience. DM-only and public
+collections may be mixed only by an effective DM; players receive only the
+public resulting projection. The host uses a durable journal and startup
+recovery; see `docs/reference/server.md` for the commit point and filesystem
+durability assumptions.
 
 ---
 
@@ -747,7 +786,8 @@ returns `ok:true`, `smokeRegistrations(rec).ok` is true, and the app shows no
 
 See also **`web/css/STYLE.md`** (tokens + components) and
 **`docs/reference/addons.md`** (the host-internals deep reference).
-API v2 advertises `collections.dm`, `lifecycle.dispose`, and `content.revision`; addons whose
+API v2 advertises `collections.dm`, `collections.transactions`,
+`lifecycle.dispose`, and `content.revision`; addons whose
 correctness relies on cleanup or revision metadata should require them.
 An API-v2 collection with `"access": "dm"` must declare `collections.dm` in
 `capabilities.required`. API-v1 collection declarations,

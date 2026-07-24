@@ -234,6 +234,29 @@ test('resolveRefToSha: carries the Bearer token; anonymous carries no header', a
   assert.equal('Authorization' in f.calls[0].headers, false, 'no Authorization header without a token');
 });
 
+test('validateManifest: transaction capability requires owned declared collections', () => {
+  const base = {
+    id: 'transactions-addon',
+    name: 'Transactions',
+    version: '1.0.0',
+    apiVersion: 2,
+    hostVersion: '>=1.0.0',
+    capabilities: { required: ['collections.transactions'] },
+    entry: 'entry.js',
+  };
+  const missing = validateManifest(base);
+  assert.equal(missing.ok, false);
+  assert.ok(missing.errors.some(error => error.includes('at least one declared collection')));
+  assert.ok(missing.errors.some(error => error.includes('permission "data:own"')));
+
+  const valid = validateManifest({
+    ...base,
+    permissions: ['data:own'],
+    collections: [{ name: 'notes', keyed: false }],
+  });
+  assert.equal(valid.ok, true, valid.errors.join('; '));
+});
+
 test('HOST_SERVER_LIBS excludes archive readers from the addon facade', () => {
   assert.equal(HOST_SERVER_LIBS.has('adm-zip'), false);
   assert.equal(HOST_SERVER_LIBS.has('yauzl'), false);

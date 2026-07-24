@@ -73,7 +73,8 @@ Add only the fields you need: `server` (`.cjs`, needs `server:code`),
 see below), `serverDeps` (subset of `express` `archiver` `multer`; archive
 readers are deliberately unavailable),
 `capabilities` (API-v2 `{required, optional}`; advertised:
-`collections.dm`, `lifecycle.dispose`, `content.revision`),
+`collections.dm`, `collections.transactions`, `lifecycle.dispose`,
+`content.revision`),
 `collections` (`[{ "name": "x", "keyed": false, "access": "public" }]`, name
 `^[a-z0-9][a-z0-9_]{0,39}$`; `dm` access requires API v2 plus
 `collections.dm` in `capabilities.required`),
@@ -137,6 +138,7 @@ host.store.generateId(name)                      // always
 host.store.getCharacters() / getLocations() / getEvents() / getMysteries() / getFactions()   // each needs data:read:<coll>
 host.store.getCollection(name)                   // data:read:<name> → array
 host.store.collection(name)                      // data:own → { list(), get(id), save(item), remove(id) }
+await host.store.transaction(names, callback)    // API v2 + collections.transactions + data:own
 host.store.patchAddonData(coll, id, fn)          // data:write:<coll>.addonData — RMW your namespace only
 ```
 There is **no way to call one action from another** — factor shared logic into a

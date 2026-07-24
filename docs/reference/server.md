@@ -72,6 +72,76 @@ it logs a suspected addon hang but cannot release ownership early.
 write; it remains fully available to the DM but is absent from the player
 metadata projection.
 
+## Addon collection transactions
+
+API-v2 addons can negotiate `collections.transactions` and call
+`host.store.transaction(collectionNames, callback, { timeoutMs? })`. The
+capability requires `data:own` plus at least one manifest-declared collection.
+Only the calling addon's enabled, registered declarations may appear in the
+read set; bare names are resolved under that addon id, so same-named
+collections in other addons remain isolated. Effective-role checks apply to
+every declaration, including `access:"dm"`.
+
+The browser facade performs a short-lived two-phase exchange with
+`POST /api/addons/:id/transactions`: `begin` captures every requested
+container and its logical SHA-256 revision under the existing core write
+queue; the callback reads that snapshot and buffers explicit `put`/`delete`
+operations; `commit` reacquires the same queue and rejects the whole request
+with `TX_CONFLICT` if any read-set revision changed. The lease is random,
+single-use, role-bound, and expires in 250–10,000 ms (5,000 ms default).
+Callback failure sends only `cancel`. Nested facade transactions are rejected
+with `TX_NESTED`; duplicate writes to the same `(collection,id)` are rejected
+with `TX_DUPLICATE_WRITE`.
+
+Limits are 16 collections, 256 operations, 2 MiB total operation JSON, and
+256 KiB per record. Transaction values must be finite, JSON-compatible plain
+objects; forbidden prototype keys are rejected recursively. List and keyed
+containers share `tx.collection(name).{list,get,put,remove}`. `put` requires
+an explicit id.
+
+The core queue remains the only write serializer. A separate
+`PublicationBarrier` is a reader/writer visibility barrier, not a competing
+write lock: ordinary dataset reads, role-scoped hash reads, and server-addon
+collection reads take shared access; only the short multi-file publication
+window takes exclusive access. Preparation and staging do not block readers.
+Backup staging also uses the core queue, so it cannot race publication.
+
+Durability lives under ignored `data/.runtime/transactions/tx-<random>/`.
+Each changed collection has fsynced original and next JSON staging files. A
+fsynced `journal.json` moves through `prepared`, `publishing`, and `committed`;
+runtime publication copies each staged next file to a sibling temp, fsyncs it,
+renames it over the target, then fsyncs the directory where the platform
+supports directory handles. A runtime publication failure changes the journal
+to `rolling-back` and restores every original before releasing the barrier.
+If that restoration itself fails, the barrier is poisoned and the process
+exits so no uncertain dataset is served; the `rolling-back` journal remains
+for startup recovery.
+Startup recovery runs before migrations, addon loading, or `listen()`: a
+`prepared`/`publishing`/`committed` journal is idempotently rolled forward,
+while `rolling-back` is rolled back. Journal-less preparation directories are
+safe to remove. A malformed journal stops startup instead of guessing whether
+publication began; no collection request is served until an operator restores
+the journal/staged files or a known-good backup. Recovery records its
+post-commit effects durably before removing the journal. Transaction snapshots
+carry the internal commit id, so retrying recovery after a crash recognizes an
+already-created snapshot instead of duplicating it.
+
+The durability boundary is the local filesystem's same-volume rename and
+fsync implementation. POSIX filesystems provide the intended rename and
+directory-fsync guarantees. Windows provides atomic replacement through the
+supported Node rename path with sharing-violation retries, but directory
+fsync is not uniformly available and is best-effort. Network filesystems with
+weaker rename/fsync semantics are outside the guarantee.
+
+One successful logical commit invalidates role hashes once, creates at most
+one coalesced `transaction` snapshot, and emits at most one `data-changed`
+event per relevant audience. All-DM writes notify only DM connections; mixed
+transactions notify players with the public projection hash and DMs with the
+complete hash. Failed preparation/rollback emits no success event. A client
+disconnect or deadline before the durable prepared journal cancels the
+commit; after that durable commit point, recovery completes it and reconnect
+hash comparison reveals the result even if the response/event was lost.
+
 **Coalescing:** `_maybeSnapshot` skips the write if the previous
 snapshot is < 60 s old (`SNAPSHOT_COALESCE_MS`). Burst writes from a
 single logical action (e.g. `saveLocation`'s peer cascade, or a user
@@ -130,6 +200,7 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | GET | `/api/data` | — | Full campaign JSON, role-filtered. Anonymous + player callers get `filterDatasetForRole(...)`: DM-only entities are dropped, `linkedTwinId` is stripped, every documented core reference is closed over surviving IDs, and API-v2 addon collections with `access:"dm"` are omitted before serialization. DM callers get strict identity. |
 | ~~POST~~ | ~~`/api/data`~~ | — | **REMOVED.** Was a "replace whole dataset" endpoint used by the old `Store._persist()` for migrations + first-install seeding. Now everything goes through PATCH per-entity. Migrations sync each touched record individually; the empty-server case keeps defaults locally and lazily creates files on the first user edit. |
 | PATCH | `/api/data` | any | `{ type, action, payload }`. action is `save`\|`delete`. Validates `type`, `relationship.type`, `character.status`. **Keyed-object collections** (treated as object on disk, `container[payload.id] = payload.data`): `factions`, `settings`, `campaign`, `deletedDefaults`, and keyed addon declarations. Player saves go through `_sanitizePlayerEntity`. API-v2 addon collections with `access:"dm"` accept effective-DM requests only; a player receives the same generic 404 for a hidden declaration and an undeclared guessed addon type. |
+| POST | `/api/addons/:id/transactions` | any | API-v2 `collections.transactions` transport. `{mode:"begin",collections,timeoutMs?}` returns a consistent snapshot, revisions, deadline, and opaque single-use id; `{mode:"commit",transactionId,operations}` performs revision-checked atomic publication; `{mode:"cancel",transactionId}` drops an unused lease. Every collection must be declared/owned, enabled, role-authorized, and covered by `data:own`. Structured failures use `TX_*` codes. Addons consume `host.store.transaction(...)`, not this transport directly. |
 | POST | `/api/twin` | dm | DM-only. `{ action: 'create' \| 'link' \| 'unlink', type, sourceId, targetId? }`. Manages twin entity pairs: `create` clones the source into the opposite visibility space and bidirectionally sets `linkedTwinId`; `link` marries two existing entities (one public, one DM-only); `unlink` clears the pair. Atomicity: both sides written inside one `withWriteLock` pass. Broadcasts `data-changed`. See "Twin entity model" section. |
 | GET | `/api/version` | — | `{ hash, instance, features, canRestart }`. `hash` is role-scoped: DM hashes cover all tracked data, while player/anonymous hashes cover only their authorized `/api/data` projection and therefore do not change for DM-only addon writes. |
 | POST | `/api/restart` | dm | DM-only on **realRole**. Restart the server process by exiting cleanly so the supervisor (Docker `restart: unless-stopped` / systemd / pm2) brings it back up — the only way to reload in-process addon **server code** after an install/update/rollback without a manual `docker restart`. **400** when not `RESTARTABLE` (`CODEX_RESTARTABLE=1` or `/.dockerenv` detected) — exiting bare would just take the wiki down. Responds first, drains the write lock, then `process.exit(0)`; the client (`Settings.restartServer`) shows a full-screen overlay that polls `/api/version` (down→up) and reloads. No Docker-socket access. |
@@ -155,8 +226,8 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | GET | `/icons/:pinTypeId/:filename` | — | Static-served from `data/icons/`. `maxAge: '7d'`. |
 | GET | `/maps/tiles/:mapId/tiles.json` | — | Per-map manifest `{ width, height, tileSize, minZoom, maxZoom, ext? }` written by the tiler. Missing = client falls back to imageOverlay. |
 | GET | `/maps/tiles/:mapId/:z/:x/:y.:ext` | — | Individual 256 px tile. Served as static files (`maxAge: '7d'`). |
-| GET | `/api/backup` | dm | Download a point-in-time copy of `data/` as ZIP. The server creates an OS-temp staging directory outside campaign data, copies the complete tree under the core write lock (excluding `secrets.json`), releases the lock, then compresses/streams the staged `data/` tree. Addon data, registry, addon code, `auth.json`, paths, and restore format remain unchanged. Staging is removed after success, copy/archive failure, stream error, or client abort. DM-only because raw JSON contains DM-only entities. ⚠ **archiver v8 is ESM** — the route retains the `new archiver.ZipArchive(opts)` / legacy factory compatibility path. |
-| POST | `/api/restore` | dm | Replace `data/` from an uploaded backup (multipart field `backup`). Accepts `.zip` produced by `/api/backup` (entries under `data/...`) **or** a `.json` document in the `Store.exportJSON()` shape. Takes a `pre-restore` snapshot first, writes each entry safely under `DATA_DIR` (path-traversal protected via `_safeJoinDataDir`), broadcasts `data-changed`. Triggers `_backgroundTileSweep()` after a ZIP restore so map tiles regenerate. 200 MB hard cap. Streams entries via `yauzl` (disk-staged, constant memory; two-pass zip-bomb scan — the old buffering `adm-zip` path is gone). `_safeJoinDataDir` also refuses `auth.json` + `secrets.json` (`NON_DATA_JSON_FILES` — deployment config/credentials, never campaign data) and anything under `data/addons/` (addon CODE — the anti-RCE guard); refused entries are counted, not fatal. Responds `{ ok, format, restored, skipped }`. Covered by `test/integration-restore.test.cjs`. |
+| GET | `/api/backup` | dm | Download a point-in-time copy of `data/` as ZIP. The server creates an OS-temp staging directory outside campaign data, copies the complete tree under the core write lock (excluding `secrets.json` and `.runtime/`), releases the lock, then compresses/streams the staged `data/` tree. Addon data, registry, addon code, `auth.json`, paths, and restore format remain unchanged. Staging is removed after success, copy/archive failure, stream error, or client abort. DM-only because raw JSON contains DM-only entities. ⚠ **archiver v8 is ESM** — the route retains the `new archiver.ZipArchive(opts)` / legacy factory compatibility path. |
+| POST | `/api/restore` | dm | Replace `data/` from an uploaded backup (multipart field `backup`). Accepts `.zip` produced by `/api/backup` (entries under `data/...`) **or** a `.json` document in the `Store.exportJSON()` shape. Takes a `pre-restore` snapshot first, writes each entry safely under `DATA_DIR` (path-traversal protected via `_safeJoinDataDir`), broadcasts `data-changed`. Triggers `_backgroundTileSweep()` after a ZIP restore so map tiles regenerate. 200 MB hard cap. Streams entries via `yauzl` (disk-staged, constant memory; two-pass zip-bomb scan — the old buffering `adm-zip` path is gone). `_safeJoinDataDir` also refuses `auth.json` + `secrets.json` (`NON_DATA_JSON_FILES` — deployment config/credentials, never campaign data), anything under `data/addons/` (addon CODE — the anti-RCE guard), and `.runtime/` (transaction journals are never accepted from backups). Refused entries are counted, not fatal. Responds `{ ok, format, restored, skipped }`. Covered by `test/integration-restore.test.cjs`. |
 | GET | `/api/snapshots` | any | List point-in-time snapshots. DM gets `{id,createdAt,dataHash,reason,access,size}`. Player projections omit snapshots created solely by DM-only addon writes and omit every hash/size. Contents never leave the server. |
 | POST | `/api/snapshots` | any | Take a manual snapshot now. Returns `{ ok, id }`. Bypasses the 60 s coalesce window. Players can pin a known-good point before a risky edit. Rate-limited: min 3 s between manual snapshots (`CODEX_SNAPSHOT_MIN_INTERVAL_MS`; the test helper sets 0) — a manual snapshot holds the write lock for a full-dataset copy. |
 | POST | `/api/snapshots/:id/restore` | dm | Restore a specific snapshot. Takes a `pre-restore` snapshot first, overwrites `data/` JSON files, broadcasts `data-changed`. |
@@ -298,6 +369,10 @@ Coverage today:
   (traversal / absolute / null-byte / symlink-escape / good paths),
   `pickKeptSnapshots` (recent + daily-window pruning policy),
   `hashPassword` / `verifyPassword` round-trip + timing safety.
+- `test/publication-barrier.test.cjs` +
+  `test/collection-transactions.test.cjs` — shared-reader/exclusive-publication
+  ordering, transaction validation/application, logical revisions, and
+  deterministic lease expiry without ghost commits.
 - `test/visibility.test.cjs` — per-container role filtering plus complete
   dataset graph closure (survivor sets, every documented reference shape,
   reserved faction ids, no source mutation, and strict DM identity).
@@ -337,6 +412,12 @@ Coverage today:
 
 **Integration tests** (boot the Express app against a tempdir
 `CODEX_DATA_DIR`, exercise endpoints, assert on disk + responses):
+- `test/integration-collection-transactions.test.cjs` — list/keyed
+  multi-collection commit, consistent snapshots, authorization/ownership,
+  stale conflicts, duplicate-write rejection, deterministic failures at
+  staging/journal/publication boundaries, process restart recovery at durable
+  phases, publication read barrier, backup exclusion, disconnect cancellation,
+  and same-named addon isolation.
 - `test/integration-auth.test.cjs` — login flow, view-as toggles,
   role gate edges.
 - `test/integration-passwords.test.cjs` — `/api/passwords` rotation:

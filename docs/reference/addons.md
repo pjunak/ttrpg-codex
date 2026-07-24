@@ -165,9 +165,13 @@ security fields are strict: API v1 cannot declare `access`; API v2
 `access:"dm"` requires `collections.dm`; unknown fields are rejected. This
 ensures old hosts reject v2 and incapable new hosts reject the capability,
 never broadening DM data to public access.
+`collections.transactions` enables atomic, revision-checked writes across an
+addon's own declared collections and requires `data:own` plus at least one
+collection declaration.
 
 The API-v2 capabilities currently advertised by the host are
-`collections.dm`, `lifecycle.dispose`, and `content.revision`. An addon that requires any
+`collections.dm`, `collections.transactions`, `lifecycle.dispose`, and
+`content.revision`. An addon that requires any
 contract must declare it in `capabilities.required`; v1 addons remain loadable
 without either declaration. `lifecycle.dispose` enables the teardown contract
 described below. `content.revision` exposes the active package/content-policy
@@ -319,7 +323,15 @@ explicit destructive policy.
   `Store.{ensureCollection,getAddonCollection,saveAddonItem,deleteAddonItem}`;
   `save`/`remove` stamp `updatedAt`, fire `_sync(addon:<id>:<name>, …)`, bust the
   markdown cache; a DM handle read after entering player view returns the empty
-  shape and rejects writes) + **`store.patchAddonData(collection,id,fn)`**
+  shape and rejects writes) + **`store.transaction(names, callback, opts?)`**
+  (API v2 + negotiated `collections.transactions` + `data:own`; captures one
+  revisioned snapshot of registered own collections, exposes buffered
+  `tx.collection(name).{list,get,put,remove}`, then commits only if the whole
+  read set is still current; callback/validation/conflict/expiry failure
+  leaves every collection unchanged; nested transactions and duplicate
+  `(collection,id)` writes reject; returns
+  `{ok,commitId,changed,collections,revisions,value}`) +
+  **`store.patchAddonData(collection,id,fn)`**
   (←`data:write:<collection>.addonData`; read-modify-write the addon's OWN
   namespace on a core entity — host injects the addon id; backed by
   `Store.patchAddonData`), `role`, `h`
@@ -482,8 +494,9 @@ renames):
   real facade when the array is declared** — an under-declared manifest fails
   in tests with the exact live error instead of at install; omit the key for
   loose allow-all), with live-compatible `use()` dependency errors, collection
-  declaration/capability/role checks, keyed and list CRUD, empty player reads
-  for DM collections, `host.contentRevision`, `host.onDispose`, and
+  declaration/capability/role checks, keyed and list CRUD, transaction
+  buffering/conflicts/rollback/nesting, empty player reads for DM collections,
+  `host.contentRevision`, `host.onDispose`, and
   `disposeMockHost(rec)`. `dryRunRegister(register, meta)` (Tier-A
   — run register against the mock, catch throws, return the `rec`), and
   `smokeRegistrations(rec)` (Tier-C — invoke each recorded RENDER with sample

@@ -252,3 +252,143 @@ test('SSE: a DM-only addon mutation notifies only DM and preserves the player ha
     }
   } finally { await srv.kill(); }
 });
+
+test('SSE: mixed transaction emits one role-scoped event per audience without leaking DM state', async () => {
+  const addons = {
+    schema: 1,
+    addons: [{
+      id: 'tx-events',
+      name: 'Transaction Events',
+      version: '1.0.0',
+      apiVersion: 2,
+      hostVersion: '>=1.0.0',
+      capabilities: { required: ['collections.dm', 'collections.transactions'] },
+      enabled: true,
+      entry: 'entry.js',
+      activeHash: 'fixture',
+      grantedPermissions: ['data:own'],
+      collections: [
+        { name: 'notes', keyed: false, access: 'public' },
+        { name: 'secrets', keyed: false, access: 'dm' },
+      ],
+    }],
+    resolutions: {},
+    sources: { allow: [] },
+  };
+  const srv = await startServer({
+    dmPassword: DM,
+    playerPassword: PLAYER,
+    seedData: { 'addons.json': addons },
+  });
+  try {
+    const dmCookie = await loginAs(srv.baseUrl, DM);
+    const playerCookie = await loginAs(srv.baseUrl, PLAYER);
+    const playerSse = await openSSE(srv.baseUrl, playerCookie);
+    const dmSse = await openSSE(srv.baseUrl, dmCookie);
+    const request = (cookie, body) => fetch(srv.baseUrl + '/api/addons/tx-events/transactions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', cookie },
+      body: JSON.stringify(body),
+    });
+    try {
+      const playerHello = await playerSse.waitForEvent('hello');
+      await dmSse.waitForEvent('hello');
+      const opened = await request(dmCookie, {
+        mode: 'begin',
+        collections: ['notes', 'secrets'],
+      }).then(response => response.json());
+      const committed = await request(dmCookie, {
+        mode: 'commit',
+        transactionId: opened.transactionId,
+        operations: [
+          { collection: 'notes', op: 'put', id: 'public', value: { name: 'Public result' } },
+          { collection: 'secrets', op: 'put', id: 'hidden', value: { name: 'Hidden result' } },
+        ],
+      });
+      assert.equal(committed.status, 200);
+
+      const playerEvent = await playerSse.waitForEvent('data-changed');
+      const dmEvent = await dmSse.waitForEvent('data-changed');
+      assert.notEqual(playerEvent.data.hash, playerHello.data.hash);
+      assert.notEqual(dmEvent.data.hash, playerEvent.data.hash);
+      assert.equal(playerSse.events.filter(event => event.event === 'data-changed').length, 1);
+      assert.equal(dmSse.events.filter(event => event.event === 'data-changed').length, 1);
+
+      const playerRaw = await fetch(srv.baseUrl + '/api/data', {
+        headers: { cookie: playerCookie },
+      }).then(response => response.text());
+      assert.equal(playerRaw.includes('Public result'), true);
+      assert.equal(playerRaw.includes('secrets'), false);
+      assert.equal(playerRaw.includes('Hidden result'), false);
+    } finally {
+      playerSse.close();
+      dmSse.close();
+    }
+  } finally {
+    await srv.kill();
+  }
+});
+
+test('SSE: DM-only transaction leaves the player hash and event stream unchanged', async () => {
+  const addons = {
+    schema: 1,
+    addons: [{
+      id: 'tx-secret-events',
+      name: 'Secret Transaction Events',
+      version: '1.0.0',
+      apiVersion: 2,
+      hostVersion: '>=1.0.0',
+      capabilities: { required: ['collections.dm', 'collections.transactions'] },
+      enabled: true,
+      entry: 'entry.js',
+      activeHash: 'fixture',
+      grantedPermissions: ['data:own'],
+      collections: [{ name: 'secrets', keyed: false, access: 'dm' }],
+    }],
+    resolutions: {},
+    sources: { allow: [] },
+  };
+  const srv = await startServer({
+    dmPassword: DM,
+    playerPassword: PLAYER,
+    seedData: { 'addons.json': addons },
+  });
+  try {
+    const dmCookie = await loginAs(srv.baseUrl, DM);
+    const playerCookie = await loginAs(srv.baseUrl, PLAYER);
+    const playerSse = await openSSE(srv.baseUrl, playerCookie);
+    const dmSse = await openSSE(srv.baseUrl, dmCookie);
+    const request = body => fetch(srv.baseUrl + '/api/addons/tx-secret-events/transactions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', cookie: dmCookie },
+      body: JSON.stringify(body),
+    });
+    try {
+      const playerHello = await playerSse.waitForEvent('hello');
+      await dmSse.waitForEvent('hello');
+      const opened = await request({
+        mode: 'begin',
+        collections: ['secrets'],
+      }).then(response => response.json());
+      const committed = await request({
+        mode: 'commit',
+        transactionId: opened.transactionId,
+        operations: [
+          { collection: 'secrets', op: 'put', id: 'hidden', value: { name: 'Hidden result' } },
+        ],
+      });
+      assert.equal(committed.status, 200);
+      await dmSse.waitForEvent('data-changed');
+      await assert.rejects(playerSse.waitForEvent('data-changed', 250), /timeout/);
+      const playerVersion = await fetch(srv.baseUrl + '/api/version', {
+        headers: { cookie: playerCookie },
+      }).then(response => response.json());
+      assert.equal(playerVersion.hash, playerHello.data.hash);
+    } finally {
+      playerSse.close();
+      dmSse.close();
+    }
+  } finally {
+    await srv.kill();
+  }
+});

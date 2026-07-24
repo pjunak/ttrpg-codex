@@ -236,3 +236,67 @@ test('mock lifecycle bounds hung async cleanup without skipping other disposers'
   assert.equal(result.timedOut, true);
   assert.deepEqual(calls, ['last', 'first'], 'all cleanup functions are invoked despite one hung promise');
 });
+
+test('mock transactions match list/keyed buffering, rollback, conflict, role, and nesting semantics', async () => {
+  const meta = {
+    id: 'transaction-addon',
+    version: '1.0.0',
+    apiVersion: 2,
+    hostVersion: '>=1.0.0',
+    capabilities: { required: ['collections.dm', 'collections.transactions'] },
+    permissions: ['data:own'],
+    collections: [
+      { name: 'notes', keyed: false, access: 'public' },
+      { name: 'vault', keyed: true, access: 'dm' },
+    ],
+  };
+  const { host } = createMockHost(meta, {
+    isDM: true,
+    fixtures: {
+      'collection:notes': [{ id: 'seed', name: 'Seed' }],
+      'collection:vault': { main: { value: 1 } },
+    },
+  });
+  host.registerCollection('notes');
+  host.registerCollection('vault');
+
+  const committed = await host.store.transaction(['notes', 'vault'], tx => {
+    assert.equal(tx.collection('notes').get('seed').name, 'Seed');
+    tx.collection('notes').put({ id: 'next', name: 'Next' });
+    tx.collection('vault').put({ id: 'main', value: 2 });
+  });
+  assert.deepEqual(committed.changed, ['notes', 'vault']);
+  assert.equal(host.store.collection('notes').get('next').name, 'Next');
+  assert.equal(host.store.collection('vault').get('main').value, 2);
+
+  await assert.rejects(
+    host.store.transaction(['notes'], tx => {
+      tx.collection('notes').put({ id: 'ghost', name: 'Ghost' });
+      throw new Error('callback failed');
+    }),
+    /callback failed/,
+  );
+  assert.equal(host.store.collection('notes').get('ghost'), null);
+
+  await assert.rejects(
+    host.store.transaction(['notes', 'vault'], async tx => {
+      host.store.collection('notes').save({ id: 'outside', name: 'Outside' });
+      tx.collection('vault').put({ id: 'main', value: 3 });
+    }),
+    error => error.code === 'TX_CONFLICT',
+  );
+  assert.equal(host.store.collection('vault').get('main').value, 2);
+
+  await assert.rejects(
+    host.store.transaction(['notes'], () => host.store.transaction(['notes'], () => {})),
+    error => error.code === 'TX_NESTED',
+  );
+
+  const player = createMockHost(meta, { isDM: false }).host;
+  player.registerCollection('notes');
+  player.registerCollection('vault');
+  await assert.rejects(
+    player.store.transaction(['vault'], () => {}),
+    error => error.code === 'TX_NOT_FOUND',
+  );
+});

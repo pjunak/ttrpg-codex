@@ -2757,6 +2757,19 @@ export const Store = (() => {
     return ensureCollection(_addonType(addonId, name), keyed);
   }
 
+  function replaceAddonCollection(addonId, name, value, keyed) {
+    const type = _addonType(addonId, name);
+    if (keyed) {
+      _data[type] = (value && typeof value === 'object' && !Array.isArray(value))
+        ? structuredClone(value)
+        : {};
+    } else {
+      _data[type] = Array.isArray(value) ? structuredClone(value) : [];
+    }
+    _bustMarkdownCache();
+    return _data[type];
+  }
+
   /** Upsert an item into an addon's collection. Generates an id from
    *  item.name (or the collection name) when missing, stamps updatedAt, and
    *  syncs. Returns the stored record. */
@@ -3032,7 +3045,8 @@ export const Store = (() => {
     getHiddenSidebarPages, setHiddenSidebarPages,
     getMapConfig, setMapConfig,
     getCampaign, setCampaign,
-    clearAddonCollections, ensureCollection, getAddonCollection, saveAddonItem, deleteAddonItem,
+    clearAddonCollections, ensureCollection, getAddonCollection, replaceAddonCollection,
+    saveAddonItem, deleteAddonItem,
     patchAddonData, resolveAddonConflict, checkAddonUpdates, rollbackAddon,
     updateAllAddons, restartServer, getCanRestart,
     generateId, exportJSON,

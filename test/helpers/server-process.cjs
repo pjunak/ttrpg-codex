@@ -59,8 +59,16 @@ async function startServer(opts = {}) {
   const dmPwd     = opts.dmPassword     ?? 'dm-pass';
   const playerPwd = opts.playerPassword ?? 'player-pass';
 
-  const dataDir      = await fsp.mkdtemp(path.join(os.tmpdir(), 'codex-data-'));
-  const snapshotsDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'codex-snaps-'));
+  const ownsDataDir = !opts.dataDir;
+  const ownsSnapshotsDir = !opts.snapshotsDir;
+  const dataDir = opts.dataDir
+    ? path.resolve(opts.dataDir)
+    : await fsp.mkdtemp(path.join(os.tmpdir(), 'codex-data-'));
+  const snapshotsDir = opts.snapshotsDir
+    ? path.resolve(opts.snapshotsDir)
+    : await fsp.mkdtemp(path.join(os.tmpdir(), 'codex-snaps-'));
+  await fsp.mkdir(dataDir, { recursive: true });
+  await fsp.mkdir(snapshotsDir, { recursive: true });
 
   // Seed any pre-existing collections before boot so the migration
   // sees realistic state.
@@ -166,17 +174,23 @@ async function startServer(opts = {}) {
     /** Read the current cookie jar — handy for asserting cookie format. */
     cookieValue:  () => cookieJar,
     kill: async () => {
-      const exited = new Promise(r => child.once('exit', r));
-      try { child.kill('SIGTERM'); } catch (_) {}
-      // Hard kill after 2 s in case SIGTERM is ignored.
-      const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch (_) {} }, 2000);
-      await exited;
-      clearTimeout(timer);
+      if (child.exitCode === null && child.signalCode === null) {
+        const exited = new Promise(r => child.once('exit', r));
+        try { child.kill('SIGTERM'); } catch (_) {}
+        // Hard kill after 2 s in case SIGTERM is ignored.
+        const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch (_) {} }, 2000);
+        await exited;
+        clearTimeout(timer);
+      }
       // Best-effort cleanup of the temp dirs. fsp.rm with force/retry
       // because Windows occasionally holds onto recently-closed file
       // handles for a few ms after the child exits.
-      try { await fsp.rm(dataDir,      { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch (_) {}
-      try { await fsp.rm(snapshotsDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch (_) {}
+      if (ownsDataDir || opts.cleanupExternalDirs) {
+        try { await fsp.rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch (_) {}
+      }
+      if (ownsSnapshotsDir || opts.cleanupExternalDirs) {
+        try { await fsp.rm(snapshotsDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch (_) {}
+      }
     },
   };
 }
