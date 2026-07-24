@@ -142,6 +142,69 @@ disconnect or deadline before the durable prepared journal cancels the
 commit; after that durable commit point, recovery completes it and reconnect
 hash comparison reveals the result even if the response/event was lost.
 
+## Content-import provider jobs
+
+F4 adds a server-only import framework; it deliberately does not add the
+Import Center UI or a production provider. API-v2 server addons negotiate
+`imports.providers` and register versioned descriptors. Provider identity is
+`(addonId, providerId)`. Provider API v1 accepts JSON, permits explicitly
+granted core reads, and commits only to the provider addon's own declared
+collections. Core writes and cross-addon access are unsupported and rejected.
+
+`server/import-contract.cjs` is the shared live/harness authority for strict
+raw JSON parsing, descriptors, collection references, provider output,
+protected fields, diagnostics, stable plan digests, and limits.
+`server/import-jobs.cjs` owns the explicit ephemeral state machine:
+
+```text
+created -> validating -> preview-ready -> committing -> completed
+                 \-> failed/cancelled/expired
+```
+
+The upload is disk-staged under
+`<os.tmpdir>/ttrpg-codex-imports/campaign-<data-dir-hash>/`, outside campaign
+data. `CODEX_IMPORT_TEMP_DIR` replaces only the parent; cleanup remains
+confined to the host-owned campaign child.
+Startup removes and recreates that exact root, so all pre-restart previews are
+invalidated. The file is also removed after preview parsing, failure,
+cancellation, expiry, provider unload, and service disposal. MIME type and
+extension are metadata hints only; the provider/strict parser validates
+content. Provider v1 has no archive format.
+
+Preview requires both signed `realRole:"dm"` and effective `role:"dm"`.
+The initiating browser receives a random HttpOnly import-session cookie, and
+jobs/tokens are random and owner-bound. The strict parser enforces byte,
+nesting, array-record, string, and node limits before provider code. It parses
+raw JSON itself so nested duplicate keys—including escape-equivalent keys—are
+rejected before ordinary object construction. `__proto__`, `prototype`, and
+`constructor` are forbidden recursively.
+
+Declared read/write collections are captured consistently under the core write
+queue. Provider work runs after releasing it and receives only cloned parsed
+input, cloned declared reads/revisions, harmless metadata, stats, and an abort
+signal. Preview creates no write, revision, snapshot, hash invalidation, or SSE
+event. Host validation converts output to plan version 1, rejects undeclared
+targets/deletes/duplicates/non-JSON values/protected metadata, and stores the
+normalized plan in memory. The client receives a copy plus a random token
+whose server-held digest includes the exact plan.
+
+Commit accepts only the token. It consumes it before attempting publication,
+checks owner/expiry/provider package/schema and every participating base
+revision, and never reruns provider code. Under the same core queue it begins
+an F2 lease and commits the exact stored put operations. F2 remains the sole
+durability/publication authority and therefore supplies atomic rollback,
+restart recovery, one logical revision, one snapshot, and one role-scoped
+event. Any conflict or ambiguous failure requires a new preview.
+
+Limits include 2 MiB host input, 32 nesting levels, 10,000 array records,
+256 operations, five-minute job lifetime, 128 total jobs, 32 outstanding jobs
+and four concurrent previews per addon, 16 outstanding jobs and two concurrent
+previews per provider, addon/provider token buckets, and provider-declared
+lower bounds. Provider
+work is timeout/cancellation raced with an `AbortSignal`; a late result is
+ignored. Disable/update/remove/content-revision changes unregister the provider
+and invalidate its jobs without affecting unrelated providers.
+
 **Coalescing:** `_maybeSnapshot` skips the write if the previous
 snapshot is < 60 s old (`SNAPSHOT_COALESCE_MS`). Burst writes from a
 single logical action (e.g. `saveLocation`'s peer cascade, or a user
@@ -201,6 +264,12 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | ~~POST~~ | ~~`/api/data`~~ | — | **REMOVED.** Was a "replace whole dataset" endpoint used by the old `Store._persist()` for migrations + first-install seeding. Now everything goes through PATCH per-entity. Migrations sync each touched record individually; the empty-server case keeps defaults locally and lazily creates files on the first user edit. |
 | PATCH | `/api/data` | any | `{ type, action, payload }`. action is `save`\|`delete`. Validates `type`, `relationship.type`, `character.status`. **Keyed-object collections** (treated as object on disk, `container[payload.id] = payload.data`): `factions`, `settings`, `campaign`, `deletedDefaults`, and keyed addon declarations. Player saves go through `_sanitizePlayerEntity`. API-v2 addon collections with `access:"dm"` accept effective-DM requests only; a player receives the same generic 404 for a hidden declaration and an undeclared guessed addon type. |
 | POST | `/api/addons/:id/transactions` | any | API-v2 `collections.transactions` transport. `{mode:"begin",collections,timeoutMs?}` returns a consistent snapshot, revisions, deadline, and opaque single-use id; `{mode:"commit",transactionId,operations}` performs revision-checked atomic publication; `{mode:"cancel",transactionId}` drops an unused lease. Every collection must be declared/owned, enabled, role-authorized, and covered by `data:own`. Structured failures use `TX_*` codes. Addons consume `host.store.transaction(...)`, not this transport directly. |
+| GET | `/api/content-import/providers` | dm | Real and effective DM only. Lists active versioned provider declarations and host job/input limits. No job state is exposed. |
+| POST | `/api/content-import/jobs` | dm | Real and effective DM only. Multipart field `input` plus `addonId`, `providerId`, and `format`. Creates an owner-bound ephemeral job and stages at most 2 MiB outside campaign data. MIME/extension are hints, not trust decisions. |
+| GET | `/api/content-import/jobs/:jobId` | dm | Return the initiating import session's safe job state. Wrong session and unknown id both return the same 404. |
+| POST | `/api/content-import/jobs/:jobId/preview` | dm | Strict-parse and run the registered provider under timeout/cancellation, validate a normalized read-only plan, delete staged input, and return the server-bound preview token. |
+| POST | `/api/content-import/jobs/:jobId/commit` | dm | `{previewToken}` only. Consumes the token, verifies provider/package/schema/base revisions, and commits the exact stored operations through F2. Stale state is `409 IMPORT_REVISION_CONFLICT`; provider transformation is never rerun. |
+| DELETE | `/api/content-import/jobs/:jobId` | dm | Abort provider work, invalidate any preview token, mark the owner-bound job cancelled, and remove staged input. |
 | POST | `/api/twin` | dm | DM-only. `{ action: 'create' \| 'link' \| 'unlink', type, sourceId, targetId? }`. Manages twin entity pairs: `create` clones the source into the opposite visibility space and bidirectionally sets `linkedTwinId`; `link` marries two existing entities (one public, one DM-only); `unlink` clears the pair. Atomicity: both sides written inside one `withWriteLock` pass. Broadcasts `data-changed`. See "Twin entity model" section. |
 | GET | `/api/version` | — | `{ hash, instance, features, canRestart }`. `hash` is role-scoped: DM hashes cover all tracked data, while player/anonymous hashes cover only their authorized `/api/data` projection and therefore do not change for DM-only addon writes. |
 | POST | `/api/restart` | dm | DM-only on **realRole**. Restart the server process by exiting cleanly so the supervisor (Docker `restart: unless-stopped` / systemd / pm2) brings it back up — the only way to reload in-process addon **server code** after an install/update/rollback without a manual `docker restart`. **400** when not `RESTARTABLE` (`CODEX_RESTARTABLE=1` or `/.dockerenv` detected) — exiting bare would just take the wiki down. Responds first, drains the write lock, then `process.exit(0)`; the client (`Settings.restartServer`) shows a full-screen overlay that polls `/api/version` (down→up) and reloads. No Docker-socket access. |
@@ -373,6 +442,12 @@ Coverage today:
   `test/collection-transactions.test.cjs` — shared-reader/exclusive-publication
   ordering, transaction validation/application, logical revisions, and
   deterministic lease expiry without ghost commits.
+- `test/import-contract.test.cjs` + `test/import-jobs.test.mjs` — strict raw
+  JSON duplicate/prototype/limit handling; provider declaration, permission,
+  target and protected-field validation; server-bound exact previews,
+  single-use tokens, deterministic expiry/timeout/cancellation,
+  concurrency/rate limits, provider/package invalidation, conflicts, atomic
+  failure, and shared live/harness behavior.
 - `test/visibility.test.cjs` — per-container role filtering plus complete
   dataset graph closure (survivor sets, every documented reference shape,
   reserved faction ids, no source mutation, and strict DM identity).
@@ -422,6 +497,11 @@ Coverage today:
   staging/journal/publication boundaries, process restart recovery at durable
   phases, publication read barrier, backup exclusion, disconnect cancellation,
   and same-named addon isolation.
+- `test/integration-content-import.test.cjs` — real server-addon provider
+  registration, anonymous/player/view-as denial, MIME/extension hint behavior,
+  read-only preview, F2 exact commit, transaction snapshot/hash effects,
+  duplicate JSON rejection, revision conflict, cancellation, temp cleanup, and
+  restart invalidation.
 - `test/integration-auth.test.cjs` — login flow, view-as toggles,
   role gate edges.
 - `test/integration-passwords.test.cjs` — `/api/passwords` rotation:
@@ -506,7 +586,8 @@ The Dockerfile copies `package.json`, `server.js`,
 - **Forgetting the `server/` directory** crashes the server too —
   `server.js` requires `./server/visibility.cjs`,
   `./server/migrations.cjs`, `./server/addons.cjs`,
-  `./server/addon-archive.cjs`, `./server/addon-testing.cjs`, and
+  `./server/addon-archive.cjs`, `./server/addon-testing.cjs`,
+  `./server/import-contract.cjs`, `./server/import-jobs.cjs`, and
   `./server/addon-content.cjs` plus `./server/addon-localization.cjs` at
   module-load time. All are critical
   (role-aware filtering, the startup visibility-stamp migration, the

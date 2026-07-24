@@ -91,7 +91,10 @@ server/                    visibility.cjs (role filter) · migrations.cjs ·
                            green-gate) · addon-content.cjs (contentDir) ·
                            core-write-lock.cjs (bounded FIFO mutex) ·
                            publication-barrier.cjs (read isolation) ·
-                           collection-transactions.cjs (durable F2 commits).
+                           collection-transactions.cjs (durable F2 commits) ·
+                           import-contract.cjs (provider/parser/plan guards) ·
+                           import-jobs.cjs (F4 preview/commit job lifecycle) ·
+                           addon-import-harness.cjs (published server harness).
 web/
   index.html               SPA shell. Loads bundle.css + app.js.
   i18n/

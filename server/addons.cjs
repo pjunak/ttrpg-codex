@@ -334,6 +334,25 @@ function validateManifest(m) {
       errors.push('capability "collections.transactions" requires permission "data:own"');
     }
   }
+  if (declaredCapabilities.includes('imports.providers')) {
+    if (m.apiVersion !== 2) {
+      errors.push('capability "imports.providers" requires apiVersion 2');
+    }
+    if (typeof m.server !== 'string' || !m.server) {
+      errors.push('capability "imports.providers" requires a server module');
+    }
+    for (const permission of ['server:code', 'data:import-provider', 'data:own']) {
+      if (!Array.isArray(m.permissions) || !m.permissions.includes(permission)) {
+        errors.push(`capability "imports.providers" requires permission "${permission}"`);
+      }
+    }
+    if (!declaredCapabilities.includes('collections.transactions')) {
+      errors.push('capability "imports.providers" requires capability "collections.transactions"');
+    }
+    if (!Array.isArray(m.collections) || !m.collections.length) {
+      errors.push('capability "imports.providers" requires at least one declared collection');
+    }
+  }
   return { ok: errors.length === 0, errors };
 }
 

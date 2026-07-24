@@ -564,3 +564,14 @@ writes stay buffered until the server validates the complete operation set
 and publishes every changed collection behind the shared publication barrier.
 See `docs/reference/addons.md` and `docs/reference/server.md` → **Addon
 collection transactions**.
+
+F4 import providers do not receive `Store`, `_data`, collection files, or an
+F2 transaction handle. Preview reads are immutable clones of only the
+descriptor's declared dependencies. The host records logical SHA-256 revisions
+for the union of declared reads and writes, validates and stores the exact
+put-only plan, then maps that server-held plan to F2 operations at commit.
+Provider API v1 writes only the registering addon's declared list/keyed
+collections; core writes, cross-addon access, deletion, settings, campaign
+branding, tombstones, auth, registry data, backups, and transaction journals
+are not import targets. See `docs/reference/server.md` → **Content-import
+provider jobs**.

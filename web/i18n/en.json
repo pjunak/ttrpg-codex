@@ -40,6 +40,7 @@
   "addons.editorFieldsFailed": "Add-on field „{name}\" failed: {msg}",
   "addons.permArticleSection": "Article section: {coll}",
   "addons.permDataOwn": "Store the add-on's own data",
+  "addons.permImportProvider": "Inspect imported files and propose bounded writes",
   "addons.permEditorFields": "Editor fields: {coll}",
   "addons.permNetExternal": "Internet access",
   "addons.permRead": "Read: {coll}",

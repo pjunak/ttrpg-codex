@@ -175,13 +175,17 @@ collection declaration.
 
 The API-v2 capabilities currently advertised by the host are
 `collections.dm`, `collections.transactions`, `lifecycle.dispose`,
-`content.revision`, and `i18n.catalogs`. An addon that requires any
+`content.revision`, `i18n.catalogs`, and `imports.providers`. An addon that requires any
 contract must declare it in `capabilities.required`; v1 addons remain loadable
 without either declaration. `lifecycle.dispose` enables the teardown contract
 described below. `content.revision` exposes the active package/content-policy
 revision as `host.contentRevision`.
 `i18n.catalogs` enables the declarative manifest locale map and the scoped
 `host.i18n` facade; English must load successfully before registration.
+`imports.providers` enables the F4 server-side import-provider contract. It
+requires a server module, `server:code`, `data:import-provider`, `data:own`,
+`collections.transactions`, and at least one declared collection. Existing
+addons that do not negotiate it are unchanged.
 
 ### Server broker — `server/addons.cjs` (pure/injectable, unit-tested)
 `validateManifest` · `matchRepoRule`/`isAllowed` · `contentHash` (sha256
@@ -462,6 +466,65 @@ containment; install is DM-only + SHA-pinned). server.js owns it all:
   A disabled/removed addon's router is dropped from `_addonServers` immediately
   (serves nothing) even before the restart.
 - Code lives in the `data/` volume → no Dockerfile change; survives rebuilds.
+
+### Import providers (F4 server core)
+
+An API-v2 server addon may require `imports.providers` and call
+`serverHost.registerImportProvider(descriptor)`. Provider identity is the
+tuple `(addonId, providerId)`; duplicate, malformed, unknown-version,
+undeclared, foreign, and unsupported declarations throw during addon init.
+Provider API v1 supports JSON input and writes only the registering addon's
+declared list/keyed collections. Core reads require an explicit
+`data:read:<collection>` grant. Core writes and cross-addon reads/writes are
+unsupported in v1 and fail closed; a bare collection name never implies
+authority.
+
+The descriptor declares `id`, `apiVersion:1`, an independent positive
+`schemaVersion`, `formats:["json"]`, explicit `reads[]`/`writes[]` collection
+references, accepted `targetTypes` (`addon-list`/`addon-keyed`), bounded
+`limits`, `capabilities` (including `abort-signal`), and
+`preview(input, context)`. The callback must be deterministic for the supplied
+input, snapshots, and revisions. It receives parsed cloned data, harmless
+filename/MIME hints, parse statistics, an `AbortSignal`, and `read`/`revision`
+functions restricted to the declared read set. It receives no path,
+transaction, journal, lock, password, request, or unrestricted Store object.
+Because server addons remain trusted in-process Node code, this facade is a
+contract boundary rather than a sandbox; malicious `server:code` can still use
+Node built-ins outside the provider callback contract.
+
+The host validates provider output into plan version 1. Operations are
+put-only, target only declared writes, carry identity in `operation.id`, and
+may not set host-owned metadata in `value` (`id`, addon/namespace/access,
+revision/audit, or actor fields). Diagnostics are structured plain text
+(`severity`, token-shaped `code`, bounded `message`, optional path); provider
+HTML is never accepted as a renderable field.
+
+Import jobs are ephemeral and real/effective-DM-only. Uploads are staged under
+an OS-temp root keyed to the campaign data path, never under `data/`. A strict
+raw JSON parser rejects invalid UTF-8, nested duplicate keys (including escaped
+equivalents), forbidden prototype keys, excessive bytes/depth/records/strings/
+nodes, and malformed JSON before provider work. Preview snapshots all declared
+read/write revisions under the core queue, performs no mutation/snapshot/hash/
+SSE work, validates the returned operations, stores the normalized plan
+server-side, and returns an opaque token bound to its digest.
+
+Commit accepts only the job id and token. It never reruns provider
+transformation or accepts client operations. It verifies session ownership,
+expiry, provider/package/schema identity, token single-use, and every base
+revision, then submits the exact stored operations through the F2 transaction
+manager. A conflict requires a new preview. Successful work produces one F2
+logical revision/snapshot/event; failure produces no partial writes.
+
+Jobs have bounded lifetime/count/input/operations/provider time, per-addon and
+per-provider concurrency, outstanding-job limits, and token buckets.
+Cancellation, timeout, disconnect,
+disable/update/unload, and package/content revision changes abort or invalidate
+outstanding work. Input files are removed after preview, cancel, failure,
+expiry, and commit; startup clears the campaign-specific temp root, so previews
+do not survive restart. The published `server/addon-import-harness.cjs`
+exports `createMockImportHost(...)` and runs the same descriptor/parser/plan/job
+implementation in memory, including revision conflicts and atomic commit
+results.
 
 ### Security posture (hardening pass)
 The model is **trusted, DM-only install, in-process** (no sandbox yet) — `server:code`

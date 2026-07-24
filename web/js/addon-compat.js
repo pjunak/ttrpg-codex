@@ -6,6 +6,7 @@ export const KNOWN_CAPABILITIES = new Set([
   'lifecycle.dispose',
   'content.revision',
   'i18n.catalogs',
+  'imports.providers',
 ]);
 export const HOST_CAPABILITIES = new Set(KNOWN_CAPABILITIES);
 

@@ -89,7 +89,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `version` | ✅ | semver `x.y.z`. Bump on every release. |
 | `apiVersion` | ✅ | `1` or `2`. Unsupported versions are rejected. API v2 is required for security-sensitive manifest semantics. |
 | `hostVersion` | v2: ✅ | Enforced against the host version. API-v1 manifests may omit it for legacy compatibility (equivalent to `"*"`). |
-| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `collections.dm`, `collections.transactions`, `lifecycle.dispose`, `content.revision`, and `i18n.catalogs`. |
+| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `collections.dm`, `collections.transactions`, `lifecycle.dispose`, `content.revision`, `i18n.catalogs`, and `imports.providers`. |
 | `entry` | ✅ | Relative `.js`/`.mjs` path to the client module (default-export `register`). |
 | `locales` | — | API-v2 declarative UI catalogs: `{ "en": "locales/en.json", "cs": "locales/cs.json" }`. Requires `i18n.catalogs`; English is mandatory and complete, translations may be partial. |
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
@@ -655,6 +655,86 @@ module.exports.init = (host) => {
 force-released so it can't wedge the server-wide write chain);
 `broadcastDataChanged()`; `log(...)`.
 
+### Import-provider server contract
+
+F4 provides the contract/core only; addons should not build an Import Center
+page until the F5 UI contract exists. A server addon that registers a provider
+must require `imports.providers` and `collections.transactions`, request
+`server:code`, `data:own`, and `data:import-provider`, and declare every own
+write collection. DM-only targets also require `collections.dm`.
+
+```js
+module.exports.init = serverHost => {
+  const target = {
+    scope: 'addon',
+    addonId: serverHost.id,
+    collection: 'items',
+  };
+  serverHost.registerImportProvider({
+    id: 'items-json',
+    apiVersion: 1,
+    schemaVersion: 1,
+    formats: ['json'],
+    reads: [target],
+    writes: [target],
+    targetTypes: ['addon-list'],
+    limits: {
+      maxInputBytes: 1024 * 1024,
+      maxDepth: 16,
+      maxRecords: 5000,
+      maxStringChars: 65536,
+      maxOperations: 200,
+      timeoutMs: 3000,
+    },
+    capabilities: ['abort-signal', 'structured-diagnostics'],
+    async preview(input, context) {
+      context.read(target);
+      if (context.signal.aborted) throw context.signal.reason;
+      return {
+        schemaVersion: 1,
+        operations: input.data.records.map(record => ({
+          target,
+          op: 'put',
+          id: record.id,
+          value: { name: record.name },
+        })),
+        diagnostics: [],
+      };
+    },
+  });
+};
+```
+
+`preview` must be deterministic for the supplied input, declared snapshots,
+and revisions. It must not perform writes or depend on ambient request state.
+Identity is `(addonId, providerId)`. Descriptors and output are strict:
+unknown fields, duplicate registrations, unsupported versions/formats/
+capabilities, undeclared access, foreign access, delete operations, duplicate
+writes, unsafe JSON, and protected metadata fail closed. Core reads require an
+explicit `data:read:<collection>` grant. Provider API v1 does not support core
+writes, cross-addon reads/writes, or archives.
+
+Input paths, requests, passwords, filesystem helpers, locks, transaction
+journals, and transaction functions are never passed to `preview`. MIME and
+extension are hints only; validate actual parsed content. Honor the supplied
+abort signal. Diagnostics are bounded plain text objects with
+`severity:"info"|"warning"|"error"`, uppercase token `code`, `message`, and
+optional string/integer `path[]`; never return HTML.
+
+The host parses raw JSON with nested duplicate-key/prototype/size guards,
+captures declared collection revisions, validates and stores the normalized
+plan, and issues an opaque single-use token. Commit never reruns the provider
+and never accepts operations from the client; it verifies the provider package
+and all base revisions, then sends the exact plan through F2. Import jobs are
+ephemeral, session-bound, rate/concurrency/timeout limited, abort on provider
+unload/update, and do not survive restart.
+
+Server-addon tests can import `createMockImportHost` from
+`server/addon-import-harness.cjs`. It uses the same descriptor/parser/plan/job
+implementation as the live server and exposes in-memory `createJob`,
+`manager.preview`, `manager.commit`, cancellation, revision mutation, event
+counts, and atomic failure injection.
+
 > **Restart-to-load:** server code activates on the next server restart. The
 > Manager shows `🖥 restart serveru` until then. A throw in `init` is isolated —
 > it never crashes the server; the addon just shows `🖥 chyba serveru`.
@@ -857,7 +937,8 @@ returns `ok:true`, `smokeRegistrations(rec).ok` is true, and the app shows no
 See also **`web/css/STYLE.md`** (tokens + components) and
 **`docs/reference/addons.md`** (the host-internals deep reference).
 API v2 advertises `collections.dm`, `collections.transactions`,
-`lifecycle.dispose`, `content.revision`, and `i18n.catalogs`; addons whose
+`lifecycle.dispose`, `content.revision`, `i18n.catalogs`, and
+`imports.providers`; addons whose
 correctness relies on cleanup or revision metadata should require them.
 An API-v2 collection with `"access": "dm"` must declare `collections.dm` in
 `capabilities.required`. API-v1 collection declarations,

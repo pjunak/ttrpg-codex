@@ -41,6 +41,7 @@
   "addons.editorFieldsFailed": "Pole doplňku „{name}\" selhala: {msg}",
   "addons.permArticleSection": "Sekce v článku: {coll}",
   "addons.permDataOwn": "Ukládat vlastní data doplňku",
+  "addons.permImportProvider": "Kontrolovat importované soubory a navrhovat omezené zápisy",
   "addons.permEditorFields": "Pole v editoru: {coll}",
   "addons.permNetExternal": "Přístup k internetu",
   "addons.permRead": "Číst: {coll}",

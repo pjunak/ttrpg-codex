@@ -104,6 +104,7 @@ export const Addons = (() => {
     'ui:override':     'permUiOverride',
     'wiki:kind':       'permWikiKind',
     'data:own':        'permDataOwn',
+    'data:import-provider': 'permImportProvider',
     'net:external':    'permNetExternal',
     'server:code':     'permServerCode',
     'server:endpoint': 'permServerEndpoint',

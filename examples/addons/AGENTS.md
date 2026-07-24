@@ -74,7 +74,7 @@ see below), `serverDeps` (subset of `express` `archiver` `multer`; archive
 readers are deliberately unavailable),
 `capabilities` (API-v2 `{required, optional}`; advertised:
 `collections.dm`, `collections.transactions`, `lifecycle.dispose`,
-`content.revision`, `i18n.catalogs`),
+`content.revision`, `i18n.catalogs`, `imports.providers`),
 `locales` (`{ "en": "locales/en.json", "cs": "locales/cs.json" }`; API v2,
 requires `i18n.catalogs`; English is mandatory/complete, translations partial),
 `collections` (`[{ "name": "x", "keyed": false, "access": "public" }]`, name
@@ -195,6 +195,22 @@ Real classes: `.page-header` `.inline-create-btn` `.edit-input` `.edit-section`
 are stamped — self-gate sensitive routes. **Restart-to-load**: server code
 activates on the next server restart (the Manager shows `🖥 restart serveru`).
 A throw in `init` is isolated — it never crashes the host.
+
+An import provider additionally requires API v2 capability
+`imports.providers`, capability `collections.transactions` (and
+`collections.dm` for DM targets), permissions `server:code`, `data:own`, and
+`data:import-provider`, plus declared own collections. Register with
+`serverHost.registerImportProvider(descriptor)`. Provider API v1 accepts only
+strict JSON and commits only put operations to the registering addon's own
+declared list/keyed collections. Declare explicit `{scope, addonId?,
+collection}` reads/writes; core reads need `data:read:<collection>`, while
+core writes and cross-addon access are unsupported. The preview callback gets
+parsed cloned input, declared read snapshots/revisions, and an `AbortSignal`;
+it never gets paths, locks, journals, transactions, passwords, or Store.
+Return `{schemaVersion, operations, diagnostics}`. Put identity in
+`operation.id`, not `value.id`; host-owned namespace/access/revision/audit
+metadata is forbidden. The host binds the validated plan to a single-use
+token and commits that exact plan through F2.
 
 ---
 

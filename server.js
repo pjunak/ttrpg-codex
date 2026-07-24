@@ -20,7 +20,10 @@ const { PublicationBarrier } = require('./server/publication-barrier.cjs');
 const {
   CollectionTransactionManager,
   TransactionError,
+  revisionOf,
 } = require('./server/collection-transactions.cjs');
+const { ImportError, LIMITS: IMPORT_LIMITS, collectionRefKey } = require('./server/import-contract.cjs');
+const { ImportJobManager } = require('./server/import-jobs.cjs');
 
 // Role-aware filtering of the dataset (`server/visibility.cjs`) and
 // the startup migration that backfills `visibility:'public'` on every
@@ -135,6 +138,15 @@ const ADDONS_DIR           = path.join(DATA_DIR, 'addons');
 const ADDON_DATA_DIR       = path.join(DATA_DIR, 'addon-data');
 const ADDONS_REGISTRY_FILE = path.join(DATA_DIR, 'addons.json');
 const TRANSACTION_RUNTIME_DIR = path.join(DATA_DIR, '.runtime', 'transactions');
+const IMPORT_TEMP_BASE = process.env.CODEX_IMPORT_TEMP_DIR
+  || path.join(os.tmpdir(), 'ttrpg-codex-imports');
+const IMPORT_TEMP_ROOT = path.join(
+  IMPORT_TEMP_BASE,
+  `campaign-${crypto.createHash('sha256')
+    .update(path.resolve(DATA_DIR))
+    .digest('hex')
+    .slice(0, 16)}`,
+);
 
 fs.mkdirSync(DATA_DIR,       { recursive: true });
 fs.mkdirSync(PORTRAITS_DIR,  { recursive: true });
@@ -1192,7 +1204,10 @@ function _applyAddonCollections(reg) {
     if (i >= 0) ALL_TYPES.splice(i, 1);
   }
   _addonCollections.clear();
-  if (!reg || !Array.isArray(reg.addons)) return;
+  if (!reg || !Array.isArray(reg.addons)) {
+    _reconcileImportProviders([]);
+    return;
+  }
   for (const a of reg.addons) {
     // Re-validate id + collection name from the PERSISTED registry (which could
     // be legacy-shaped or hand-edited) so a corrupt entry can't inject a junk
@@ -1215,6 +1230,7 @@ function _applyAddonCollections(reg) {
       });
     }
   }
+  _reconcileImportProviders(reg.addons);
 }
 
 function _resolveTransactionCollection(addonId, name, role) {
@@ -1237,6 +1253,11 @@ function _resolveTransactionCollection(addonId, name, role) {
     access: meta.access,
     path: getFile(type),
   };
+}
+
+function requireImportDM(req, res, next) {
+  if (req.realRole === 'dm' && req.role === 'dm') return next();
+  return res.status(403).json({ error: 'DM role required', code: 'IMPORT_FORBIDDEN' });
 }
 
 async function _transactionFault(phase) {
@@ -1290,6 +1311,117 @@ const _collectionTransactions = new CollectionTransactionManager({
     catch (error) { console.warn('[transaction recovery] snapshot failed:', error.message); }
   },
 });
+
+const CORE_IMPORT_COLLECTIONS = new Set([
+  'characters', 'relationships', 'locations', 'events', 'mysteries',
+  'factions', 'deletedDefaults', 'pantheon', 'artifacts', 'settings',
+  'historicalEvents', 'campaign', 'pets',
+]);
+
+async function _readImportSnapshot(provider, refs) {
+  const values = Object.create(null);
+  const revisions = Object.create(null);
+  const targetTypes = new Map();
+  for (const ref of refs) {
+    const key = collectionRefKey(ref);
+    let descriptor;
+    if (ref.scope === 'core') {
+      if (!CORE_IMPORT_COLLECTIONS.has(ref.collection)) {
+        throw new ImportError('IMPORT_PROVIDER_UNDECLARED', 'Import collection is unavailable', 404);
+      }
+      descriptor = {
+        path: getFile(ref.collection),
+        keyed: KEYED_OBJ_TYPES.has(ref.collection),
+        access: 'public',
+      };
+      targetTypes.set(key, 'core');
+    } else {
+      if (ref.addonId !== provider.addonId) {
+        throw new ImportError('IMPORT_PROVIDER_FOREIGN', 'Cross-addon collection access is unavailable', 404);
+      }
+      descriptor = _resolveTransactionCollection(provider.addonId, ref.collection, 'dm');
+      targetTypes.set(key, descriptor.keyed ? 'addon-keyed' : 'addon-list');
+    }
+    const fallback = descriptor.keyed ? {} : [];
+    const value = await _readJsonOr(descriptor.path, fallback);
+    const validShape = descriptor.keyed
+      ? (value && typeof value === 'object' && !Array.isArray(value))
+      : Array.isArray(value);
+    if (!validShape) {
+      throw new ImportError('IMPORT_STORAGE_INVALID', 'Import collection has an invalid stored shape', 500);
+    }
+    values[key] = structuredClone(value);
+    revisions[key] = revisionOf(value);
+  }
+  return { values, revisions, targetTypes };
+}
+
+async function _snapshotImportCollections({ provider, refs }) {
+  return withWriteLock(() => _readImportSnapshot(provider, refs));
+}
+
+async function _commitImportOperations({ provider, plan, clientAborted }) {
+  return withWriteLock(async () => {
+    if (clientAborted()) throw new ImportError('IMPORT_CANCELLED', 'Client disconnected before commit', 409);
+    const refs = [...new Map([...plan.readSet, ...plan.writeSet]
+      .map(ref => [collectionRefKey(ref), ref])).values()];
+    const current = await _readImportSnapshot(provider, refs);
+    for (const ref of refs) {
+      const key = collectionRefKey(ref);
+      if (current.revisions[key] !== plan.baseRevisions[key]) {
+        throw new ImportError(
+          'IMPORT_REVISION_CONFLICT',
+          'Import preview is stale; create a new preview',
+          409,
+          { collection: key },
+        );
+      }
+    }
+    const writeNames = [...new Set(plan.writeSet.map(ref => ref.collection))];
+    const transaction = await _collectionTransactions.begin({
+      addonId: provider.addonId,
+      role: 'dm',
+      collections: writeNames,
+      timeoutMs: Math.max(250, Math.min(provider.limits.timeoutMs, 10_000)),
+    });
+    try {
+      return await _collectionTransactions.commit({
+        addonId: provider.addonId,
+        role: 'dm',
+        transactionId: transaction.transactionId,
+        operations: plan.operations.map(operation => ({
+          collection: operation.target.collection,
+          op: 'put',
+          id: operation.id,
+          value: operation.value,
+        })),
+        clientAborted,
+      });
+    } catch (error) {
+      _collectionTransactions.cancel({
+        addonId: provider.addonId,
+        transactionId: transaction.transactionId,
+      });
+      throw error;
+    }
+  });
+}
+
+const _importJobs = new ImportJobManager({
+  coreCollections: CORE_IMPORT_COLLECTIONS,
+  snapshotCollections: _snapshotImportCollections,
+  commitOperations: _commitImportOperations,
+});
+
+function _reconcileImportProviders(entries) {
+  _importJobs.reconcilePackages((entries || []).map(entry => ({
+    id: entry?.id,
+    enabled: !!entry?.enabled,
+    packageRevision: entry
+      ? AddonBroker.contentRevision(entry, crypto)
+      : '',
+  })));
+}
 
 function _addonCollectionAvailable(meta, role) {
   return !meta || meta.access !== 'dm' || role === 'dm';
@@ -1896,6 +2028,142 @@ app.post('/api/addons/:id/transactions', async (req, res) => {
   }
 });
 
+const IMPORT_SESSION_COOKIE = 'codex_import_session';
+const importUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      fs.mkdir(IMPORT_TEMP_ROOT, { recursive: true }, error => cb(error, IMPORT_TEMP_ROOT));
+    },
+    filename: (_req, _file, cb) => cb(null, `input-${crypto.randomBytes(16).toString('hex')}.tmp`),
+  }),
+  limits: {
+    fileSize: IMPORT_LIMITS.maxInputBytes,
+    files: 1,
+    fields: 8,
+  },
+});
+
+function _importOwner(req, res, create = false) {
+  let token = req.cookies?.[IMPORT_SESSION_COOKIE];
+  if (!/^[0-9a-f]{64}$/.test(token || '')) {
+    if (!create) return '';
+    token = crypto.randomBytes(32).toString('hex');
+  }
+  res.cookie(IMPORT_SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/api/content-import',
+    maxAge: IMPORT_LIMITS.jobTtlMs,
+  });
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function _sendImportError(res, error) {
+  if (_sendWriteLockTimeout(res, error)) return;
+  const normalized = error instanceof ImportError
+    ? error
+    : new ImportError('IMPORT_INTERNAL', 'Import operation failed', 500);
+  const body = { error: normalized.message, code: normalized.code };
+  if (normalized.details !== undefined) body.details = normalized.details;
+  if (!res.headersSent) res.status(normalized.status).json(body);
+}
+
+app.get('/api/content-import/providers', requireImportDM, (_req, res) => {
+  res.json({
+    version: 1,
+    providers: _importJobs.listProviders(),
+    limits: {
+      maxInputBytes: IMPORT_LIMITS.maxInputBytes,
+      jobTtlMs: IMPORT_LIMITS.jobTtlMs,
+      maxJobs: IMPORT_LIMITS.maxJobs,
+    },
+  });
+});
+
+app.post(
+  '/api/content-import/jobs',
+  requireImportDM,
+  importUpload.single('input'),
+  async (req, res) => {
+    const inputPath = req.file?.path;
+    try {
+      if (!req.file) throw new ImportError('IMPORT_INPUT_INVALID', 'Import input is required');
+      const job = _importJobs.createJob({
+        addonId: String(req.body?.addonId || ''),
+        providerId: String(req.body?.providerId || ''),
+        owner: _importOwner(req, res, true),
+        format: String(req.body?.format || ''),
+        input: {
+          path: req.file.path,
+          size: req.file.size,
+          originalName: req.file.originalname,
+          mimeType: req.file.mimetype,
+        },
+      });
+      res.status(201).json({ version: 1, job });
+    } catch (error) {
+      if (inputPath) await fsp.unlink(inputPath).catch(() => {});
+      _sendImportError(res, error);
+    }
+  },
+);
+
+app.get('/api/content-import/jobs/:jobId', requireImportDM, (req, res) => {
+  try {
+    res.json({ version: 1, job: _importJobs.getJob(req.params.jobId, _importOwner(req, res)) });
+  } catch (error) {
+    _sendImportError(res, error);
+  }
+});
+
+app.post('/api/content-import/jobs/:jobId/preview', requireImportDM, async (req, res) => {
+  const owner = _importOwner(req, res);
+  let disconnected = false;
+  req.once('aborted', () => { disconnected = true; });
+  res.once('close', () => {
+    if (!res.writableEnded) {
+      disconnected = true;
+      _importJobs.cancel(req.params.jobId, owner, 'Client disconnected during preview').catch(() => {});
+    }
+  });
+  try {
+    const result = await _importJobs.preview(req.params.jobId, owner);
+    if (!disconnected && !res.headersSent) res.json(result);
+  } catch (error) {
+    if (!disconnected) _sendImportError(res, error);
+  }
+});
+
+app.post('/api/content-import/jobs/:jobId/commit', requireImportDM, async (req, res) => {
+  const owner = _importOwner(req, res);
+  let disconnected = false;
+  req.once('aborted', () => { disconnected = true; });
+  res.once('close', () => {
+    if (!res.writableEnded) disconnected = true;
+  });
+  try {
+    const result = await _importJobs.commit(
+      req.params.jobId,
+      owner,
+      req.body?.previewToken,
+      { clientAborted: () => disconnected },
+    );
+    if (!disconnected && !res.headersSent) res.json(result);
+  } catch (error) {
+    if (!disconnected) _sendImportError(res, error);
+  }
+});
+
+app.delete('/api/content-import/jobs/:jobId', requireImportDM, async (req, res) => {
+  try {
+    const job = await _importJobs.cancel(req.params.jobId, _importOwner(req, res));
+    res.json({ version: 1, job });
+  } catch (error) {
+    _sendImportError(res, error);
+  }
+});
+
 /**
  * GET /api/version — Returns the current dataset hash. Useful for
  * health-check probes (the Dockerfile HEALTHCHECK pings this), and
@@ -2062,10 +2330,10 @@ function _playerAddonCapabilities(capabilities) {
     return undefined;
   }
   const required = Array.isArray(capabilities.required)
-    ? capabilities.required.filter(id => id !== 'collections.dm')
+    ? capabilities.required.filter(id => id !== 'collections.dm' && id !== 'imports.providers')
     : [];
   const optional = Array.isArray(capabilities.optional)
-    ? capabilities.optional.filter(id => id !== 'collections.dm')
+    ? capabilities.optional.filter(id => id !== 'collections.dm' && id !== 'imports.providers')
     : [];
   return required.length || optional.length ? { required, optional } : undefined;
 }
@@ -2158,8 +2426,16 @@ function _makeServerHost(entry) {
   const grants  = Array.isArray(entry.grantedPermissions) ? entry.grantedPermissions : [];
   const dataDir = path.join(ADDON_DATA_DIR, id);
   const router  = express.Router();
+  const importDisposers = [];
+  const packageRevision = AddonBroker.contentRevision(entry, crypto);
   const host = {
     id,
+    apiVersion: entry.apiVersion,
+    hostVersion: AddonBroker.HOST_VERSION,
+    capabilities: Object.freeze({
+      has: capability => AddonBroker.HOST_CAPABILITIES.has(capability),
+      supported: Object.freeze([...AddonBroker.HOST_CAPABILITIES]),
+    }),
     router,                                                   // raw Express Router, if the addon wants it
     get:    (p, ...h) => router.get(p, ...h),
     post:   (p, ...h) => router.post(p, ...h),
@@ -2204,6 +2480,22 @@ function _makeServerHost(entry) {
         catch (e) { if (e.code === 'ENOENT') return null; throw e; }
       });
     },
+    registerImportProvider: descriptor => {
+      const registration = _importJobs.registerProvider({
+        id,
+        apiVersion: entry.apiVersion,
+        capabilities: entry.capabilities,
+        collections: AddonBroker.normalizeCollections(
+          entry.collections,
+          entry.apiVersion,
+          entry.capabilities,
+        ),
+        grantedPermissions: grants,
+        packageRevision,
+      }, descriptor);
+      importDisposers.push(registration.dispose);
+      return registration.dispose;
+    },
     lib: (name) => {
       if (!AddonBroker.HOST_SERVER_LIBS.has(name)) {
         throw new Error(`addon "${id}" requested non-vetted server lib "${name}"`);
@@ -2227,7 +2519,12 @@ function _makeServerHost(entry) {
     broadcastDataChanged: () => _broadcastDataChanged(),
     log: (...args) => console.log(`[addon ${id}]`, ...args),
   };
-  return { host, router };
+  const dispose = () => {
+    while (importDisposers.length) {
+      try { importDisposers.pop()(); } catch (_) {}
+    }
+  };
+  return { host, router, dispose };
 }
 
 // Load one addon's server module (require + init), fully isolated: a throw
@@ -2253,15 +2550,20 @@ async function _loadServerAddon(entry) {
   if (!codeDir) return { state: 'error', error: 'neplatný activeHash' };
   const serverFile = _safeJoinIn(codeDir, entry.server);
   if (!serverFile) return { state: 'error', error: 'nebezpečná cesta v poli server' };
+  let dispose = () => {};
   try {
     const mod  = require(serverFile);
     const init = mod && (mod.init || mod.default);
     if (typeof init !== 'function') return { state: 'error', error: 'serverový modul nemá init(host)' };
-    const { host, router } = _makeServerHost(entry);
+    _importJobs.unregisterAddon(id, 'provider-reload');
+    const made = _makeServerHost(entry);
+    const { host, router } = made;
+    dispose = made.dispose;
     await init(host);
-    _addonServers.set(id, { id, router, state: 'loaded', hash: entry.activeHash });
+    _addonServers.set(id, { id, router, state: 'loaded', hash: entry.activeHash, dispose });
     return { state: 'loaded' };
   } catch (e) {
+    dispose();
     console.error(`[addon ${id}] server load failed:`, e);
     return { state: 'error', error: e.message };
   }
@@ -2311,6 +2613,7 @@ function _serverStateFor(a) {
 // serving stale content until a manual restart. Server CODE still defers
 // to a restart (the require() cache isn't busted live).
 async function _reconcileAddonsFromDisk() {
+  _importJobs.invalidateJobs('campaign-restored');
   try {
     const reg = await _readAddonsRegistry();
     _applyAddonCollections(reg);
@@ -2922,6 +3225,7 @@ app.post('/api/addons/:id/content-groups', requireRealDM('Jen DM může spravova
       entry.disabledContentGroups = disabled;
       await _writeAddonsRegistry(reg);
       _applyAddonContent(reg);       // re-filter from the cached raw tree, hot
+      _reconcileImportProviders(reg.addons);
       return 'ok';
     });
     if (outcome === 'missing')   return res.status(404).json({ error: 'Doplněk nenalezen.' });
@@ -3827,6 +4131,7 @@ app.post('/api/restore', requireAuth, restoreUpload.single('backup'), (req, res)
           await cleanup();
           return res.status(400).json({ error: 'JSON neobsahuje žádnou známou kolekci' });
         }
+        _importJobs.invalidateJobs('campaign-restored');
         await _broadcastDataChanged();
         await cleanup();
         return res.json({ ok: true, format: 'json', restored: restored.length });
@@ -3929,6 +4234,11 @@ app.use((err, req, res, _next) => {
     for (const f of files) {
       if (f && f.path) fsp.unlink(f.path).catch(() => {});
     }
+    if (req.path.startsWith('/api/content-import/')) {
+      const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      const code = err.code === 'LIMIT_FILE_SIZE' ? 'IMPORT_INPUT_LIMIT' : 'IMPORT_INPUT_INVALID';
+      return res.status(status).json({ error: `Upload error: ${err.code}`, code });
+    }
     return res.status(400).json({ error: `Upload error: ${err.code}` });
   }
   if (err && err.type === 'entity.too.large') {
@@ -3973,10 +4283,25 @@ async function _backgroundTileSweep() {
   }
 }
 
+async function _prepareImportTemp() {
+  const resolved = path.resolve(IMPORT_TEMP_ROOT);
+  const parsed = path.parse(resolved);
+  const dataRoot = path.resolve(DATA_DIR);
+  const relativeToData = path.relative(dataRoot, resolved);
+  const insideData = relativeToData === ''
+    || (!relativeToData.startsWith('..') && !path.isAbsolute(relativeToData));
+  if (resolved === parsed.root || insideData) {
+    throw new Error('Unsafe import temporary directory');
+  }
+  await fsp.rm(resolved, { recursive: true, force: true });
+  await fsp.mkdir(resolved, { recursive: true });
+}
+
 // Bootstrap: await data migrations BEFORE accepting any connections.
 // Tile sweep stays fire-and-forget (it can take seconds on a large
 // map and the fallback overlay covers any in-flight requests anyway).
 async function _bootstrap() {
+  await _prepareImportTemp();
   const recovery = await _collectionTransactions.recover();
   if (recovery.committed.length || recovery.rolledBack.length
       || recovery.cleaned.length || recovery.invalid.length) {
@@ -4039,6 +4364,8 @@ async function _bootstrap() {
   }
   // Reclaim old addon version code dirs left from before pruning existed.
   try { await _pruneAllAddonCode(); } catch (e) { console.warn('[addons] code prune failed:', e.message); }
+  const importSweep = setInterval(() => _importJobs.sweep(), 30_000);
+  if (importSweep.unref) importSweep.unref();
   app.listen(PORT, () => {
     console.log(`TTRPG Codex running on http://localhost:${PORT}`);
     if (INSTANCE !== 'default' || FEATURES.length) {
