@@ -74,7 +74,7 @@ see below), `serverDeps` (subset of `express` `archiver` `multer`; archive
 readers are deliberately unavailable),
 `capabilities` (API-v2 `{required, optional}`; advertised:
 `collections.dm`, `collections.transactions`, `lifecycle.dispose`,
-`content.revision`, `i18n.catalogs`, `imports.providers`),
+`content.revision`, `i18n.catalogs`, `imports.providers`, `graphs.facade`),
 `locales` (`{ "en": "locales/en.json", "cs": "locales/cs.json" }`; API v2,
 requires `i18n.catalogs`; English is mandatory/complete, translations partial),
 `collections` (`[{ "name": "x", "keyed": false, "access": "public" }]`, name
@@ -132,6 +132,7 @@ host.capabilities.has(id) · host.contentRevision · host.onDispose(fn)
 host.action(name)
 host.asset(rel)   // → /addons/<id>/<hash>/<rel> — URL of a bundled file (images…)
 host.i18n = { locale, t, plural, formatDate, formatNumber, relativeTime }
+host.graphs = { apiVersion, available, status, mount } // graphs.facade + ui:graph
 host.h    = { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumb }
 //            breadcrumb([{label, href?}, …]) — the core wayfinding row (last crumb
 //            = current page); use it instead of hand-rolled "← Back" links
@@ -159,6 +160,15 @@ once in LIFO order before ordinary registrations are reversed. Promise cleanup
 is allowed and bounded to two seconds per addon; rejection/timeout is isolated.
 Disposal occurs on disable, removal, replacement, or content-revision change,
 consumer-first; reload is provider-first.
+
+**Interactive graphs:** require API-v2 `graphs.facade`,
+`lifecycle.dispose`, and permission `ui:graph`. Mount only after a
+`.codex-graph-canvas` inside your addon route exists:
+`await host.graphs.mount(container, {nodes,edges,layout,accessibleLabel})`.
+The returned handle exposes only `update`, `select`, `focus`, `fit`, documented
+events, and idempotent `destroy`. Never import/use Cytoscape, raw graph globals,
+selectors, styles, plugins, or implementation events. Navigation and unload
+destroy host-owned handles; also cancel addon-owned scheduled mount work.
 
 ---
 

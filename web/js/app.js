@@ -19,6 +19,8 @@ import { I18n } from './i18n.js';
 import { createSyncCoordinator } from './sync-coordinator.js';
 import { CollectionDescriptors } from './collection-descriptors.js';
 import { setWikiLinkResolver, norm, dataAction, dataOn, esc } from './utils.js';
+import { graphImplementationRegistry } from './addon-graph.js';
+import { createCytoscapeGraphAdapter } from './addon-graph-cytoscape.js';
 
 // ── Action dispatcher (replaces inline `onclick="Module.method(...)"`) ──
 // Buttons / anchors carry `data-action="Module.method"` plus an optional
@@ -250,7 +252,14 @@ document.addEventListener('click', (ev) => {
   // Register explicitly so the layout also works if that auto-registration
   // behavior ever changes.
   if (typeof cytoscape !== "undefined" && typeof cytoscapeDagre !== "undefined") {
-    try { cytoscape.use(cytoscapeDagre); } catch(e) {}
+    try {
+      cytoscape.use(cytoscapeDagre);
+      if (!graphImplementationRegistry.describe().some(adapter => adapter.id === 'host-cytoscape')) {
+        graphImplementationRegistry.register(createCytoscapeGraphAdapter(cytoscape));
+      }
+    } catch (error) {
+      console.error('[graphs] Cytoscape adapter is unavailable', error);
+    }
   }
 
   // ── Wiki-link resolver for `[[Name]]` syntax in prose ───────
@@ -357,6 +366,7 @@ document.addEventListener('click', (ev) => {
    * @param {string} route - The current hash route (from `getRoute()`).
    */
   function navigate(route) {
+    Addons.disposeRouteGraphs();
     const isWorldMapRoute =
       route === '/mapa/svet' || route.startsWith('/mapa/local/');
     if (!isWorldMapRoute) WorldMap.teardown();

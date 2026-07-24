@@ -150,6 +150,11 @@
   --dur-base:  0.18s;
   --dur-slow:  0.25s;
 
+  /* Host-owned addon graph surface. Components consume these tokens so
+     campaigns can tune the shared canvas without addon-local dimensions. */
+  --graph-canvas-height: 60vh;
+  --graph-canvas-min-height: 24rem;
+
   /* Canonical responsive breakpoints (CSS can't put these in @media
      conditions without a build step — listed here as the agreed set
      so every file uses the same values):

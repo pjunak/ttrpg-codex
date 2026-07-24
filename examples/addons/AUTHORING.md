@@ -89,7 +89,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `version` | ✅ | semver `x.y.z`. Bump on every release. |
 | `apiVersion` | ✅ | `1` or `2`. Unsupported versions are rejected. API v2 is required for security-sensitive manifest semantics. |
 | `hostVersion` | v2: ✅ | Enforced against the host version. API-v1 manifests may omit it for legacy compatibility (equivalent to `"*"`). |
-| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `collections.dm`, `collections.transactions`, `lifecycle.dispose`, `content.revision`, `i18n.catalogs`, and `imports.providers`. |
+| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `collections.dm`, `collections.transactions`, `lifecycle.dispose`, `content.revision`, `i18n.catalogs`, `imports.providers`, and `graphs.facade`. |
 | `entry` | ✅ | Relative `.js`/`.mjs` path to the client module (default-export `register`). |
 | `locales` | — | API-v2 declarative UI catalogs: `{ "en": "locales/en.json", "cs": "locales/cs.json" }`. Requires `i18n.catalogs`; English is mandatory and complete, translations may be partial. |
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
@@ -140,6 +140,7 @@ host.h             // { esc, dataAction, dataOn, renderMarkdown, slugify, breadc
 host.role          // { isDM(), isAnonymous() }
 host.i18n          // { locale, t, plural, formatDate, formatNumber, relativeTime }
 host.imports       // scoped provider/job client for negotiated imports.providers
+host.graphs        // scoped graph facade for negotiated graphs.facade + ui:graph
 host.ui            // { toast(msg), rerender(), announce(text) } — rerender re-renders
                    //   the current route; announce(text) speaks a short status line
                    //   ("12 matches") to screen readers via the host's persistent
@@ -289,6 +290,7 @@ Request the **least** you need. The DM sees friendly labels at install.
 | `data:write:<collection>.addonData` | Patch your namespace on a core entity (§6). |
 | `kinds:<domain>` | Add pure-DATA enum kinds via `registerKind(domain, def)`. Domains: `connections`, `statuses`, `priorities`, `attitudes`, `genders`, `pinTypes`. (`kinds:connections` is also what `registerConnectionKind` needs; `kinds:graph` covers `registerNodeKind`/`registerGraphView`.) |
 | `graph:contribute` | Inject nodes/edges into an existing mind-map view (`registerGraphContributor`). |
+| `ui:graph` | Render bounded interactive graphs through `host.graphs`. |
 | `net:external` | (declared transparency; the host can't actually stop `fetch`) |
 | `server:code` | Run your `server/index.cjs` in-process (§13). |
 | `server:endpoint` | (declared transparency for server routes) |
@@ -473,6 +475,52 @@ const { esc, dataAction } = host.h;
 `<button class="inline-create-btn"${dataAction(host.action('go'), id)}>Akce</button>
  <p style="color:var(--text-muted);margin-top:var(--space-2)">${esc(note)}</p>`
 ```
+
+### Interactive graphs
+
+Graph consumers use API-v2 capability `graphs.facade`, permission `ui:graph`,
+and `lifecycle.dispose`. Facade API version 1 is independent of the host's
+bundled graph-library version. Never import Cytoscape, call
+`window.cytoscape`, load a plugin, or depend on raw selectors/styles/events.
+
+Render a `<div class="codex-graph-canvas">` in an addon route, then mount after
+the route HTML exists:
+
+```js
+let graph = null;
+const mountGraph = async () => {
+  const container = document.getElementById('my-graph');
+  if (!container || !host.graphs.available()) return;
+  graph = await host.graphs.mount(container, {
+    nodes: [{ id: 'a', label: 'Start', kind: 'planned' }],
+    edges: [],
+    layout: 'grid',
+    accessibleLabel: 'Scenario graph',
+    fitPadding: 40,
+  });
+  const off = graph.on('select', event => {
+    if (event.nodeId) host.ui.announce(`Selected ${event.nodeId}`);
+  });
+  host.onDispose(off);
+};
+host.onDispose(() => graph?.destroy());
+```
+
+`mount` is permitted only below the calling addon's host-owned route wrapper.
+It validates and clones plain data before the private adapter sees it. Nodes
+are `{id,label,kind?}`; edges are `{id,source,target,label?}`. IDs are unique
+across elements and dangling edges reject. Limits: 1,000 nodes, 4,000 edges,
+128-character ids, 500-character labels, 200-character accessible labels,
+and padding 0–200. Layouts are `grid`, `circle`, `concentric`,
+`breadthfirst`, and `dagre`, each with documented bounded data options.
+
+A handle exposes `update({nodes,edges},{layout?})`, `select(ids)`,
+`focus(ids,{padding?})`, `fit(ids?,{padding?})`,
+`on('select'|'unselect'|'activate'|'viewport'|'focus', fn)`, and idempotent
+`destroy()`. Navigation and addon disposal are host cleanup boundaries;
+still cancel any addon-owned scheduled mount work. Re-mounting the same
+container destroys its old graph. The harness supplies a deterministic fake
+implementation and records instances in `rec.graphInstances`.
 
 ---
 
@@ -960,7 +1008,7 @@ See also **`web/css/STYLE.md`** (tokens + components) and
 **`docs/reference/addons.md`** (the host-internals deep reference).
 API v2 advertises `collections.dm`, `collections.transactions`,
 `lifecycle.dispose`, `content.revision`, `i18n.catalogs`, and
-`imports.providers`; addons whose
+`imports.providers`, and `graphs.facade`; addons whose
 correctness relies on cleanup or revision metadata should require them.
 An API-v2 collection with `"access": "dm"` must declare `collections.dm` in
 `capabilities.required`. API-v1 collection declarations,

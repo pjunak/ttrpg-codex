@@ -494,6 +494,12 @@ Coverage today:
   scoped lookup/fallback/formatting, harness parity, cache/disposal, and stale
   response isolation; `test/dev-install-addon.test.cjs` verifies invalid
   catalogs cannot replace an active local install.
+- `test/addon-graph.test.mjs` +
+  `test/addon-graph-cytoscape.test.mjs` — graph capability/permission
+  validation, host-global implementation selection, bounded data/layout
+  validation, ownership, operations/events, multi-addon and adapter-failure
+  isolation, stale-mount/repeated-render disposal, harness parity, and the
+  private Cytoscape adapter's focused integration contract.
 
 **Integration tests** (boot the Express app against a tempdir
 `CODEX_DATA_DIR`, exercise endpoints, assert on disk + responses):

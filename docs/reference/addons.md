@@ -175,7 +175,7 @@ collection declaration.
 
 The API-v2 capabilities currently advertised by the host are
 `collections.dm`, `collections.transactions`, `lifecycle.dispose`,
-`content.revision`, `i18n.catalogs`, and `imports.providers`. An addon that requires any
+`content.revision`, `i18n.catalogs`, `imports.providers`, and `graphs.facade`. An addon that requires any
 contract must declare it in `capabilities.required`; v1 addons remain loadable
 without either declaration. `lifecycle.dispose` enables the teardown contract
 described below. `content.revision` exposes the active package/content-policy
@@ -186,6 +186,9 @@ revision as `host.contentRevision`.
 requires a server module, `server:code`, `data:import-provider`, `data:own`,
 `collections.transactions`, and at least one declared collection. Existing
 addons that do not negotiate it are unchanged.
+`graphs.facade` enables browser graph facade API v1 and requires
+`lifecycle.dispose` plus the reviewed `ui:graph` permission. The facade
+version is independent of the bundled graph-library version.
 
 ### Server broker — `server/addons.cjs` (pure/injectable, unit-tested)
 `validateManifest` · `matchRepoRule`/`isAllowed` · `contentHash` (sha256
@@ -383,6 +386,12 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   raw server paths, provider execution, transactions, foreign jobs, or plan
   mutation. Requests abort on addon disposal; effective-player calls fail
   before transport.
+  **`host.graphs`** is the browser-side F6 facade for an API-v2 addon that
+  negotiated `graphs.facade` and received `ui:graph`. API v1 exposes
+  `available()`, `status()`, and async `mount(container, spec)`. A mounted
+  handle exposes only `update`, `select`, `focus`, `fit`, `on`, and idempotent
+  `destroy`; raw Cytoscape constructors, instances, selectors, styles,
+  layouts, events, globals, and plugin loading never cross the boundary.
   Always-available lifecycle metadata is `host.contentRevision`, and
   `host.onDispose(fn)` registers resource cleanup. The former changes when the
   active package identity/version or effective content-group policy changes,
@@ -533,6 +542,39 @@ exports `createMockImportHost(...)` and runs the same descriptor/parser/plan/job
 implementation in memory, including revision conflicts and atomic commit
 results.
 
+### Addon graph facade (F6)
+
+`web/js/addon-graph.js` owns the graph facade contract and the single
+host-global implementation registry. The registry accepts only fixed,
+host-owned adapters, rejects duplicates and incompatible facade ranges, and
+selects by facade version, required features, and supported layout. Addons
+cannot register, replace, inspect, or mutate implementations. The first
+adapter is private `web/js/addon-graph-cytoscape.js`, registered once by
+`app.js` after the existing SRI-pinned Cytoscape 3.34.0 and
+cytoscape-dagre 4 runtime is ready. Core `cloudmap.js` remains on its existing
+internal runtime and physics contract.
+
+Facade API version 1 accepts nodes `{id,label,kind?}` and edges
+`{id,source,target,label?}`. IDs are bounded token-shaped strings; ids are
+unique across all elements; dangling edges reject. Limits are 1,000 nodes,
+4,000 edges, 128-character ids, 500-character labels, a 200-character
+accessible label, and viewport padding from 0 to 200. Configuration is plain
+data only. Supported layouts are `grid`, `circle`, `concentric`,
+`breadthfirst`, and `dagre`, each with a small validated option allowlist.
+Documented events are `select`, `unselect`, `activate`, `viewport`, and
+`focus`; callbacks receive frozen plain event summaries, never implementation
+events.
+
+Mount is allowed only below the calling addon's
+`.addon-route-page[data-addon-id]` wrapper. The facade tracks pending and live
+handles per addon instance and per container. Re-mounting a container destroys
+the old graph. Every navigation calls `Addons.disposeRouteGraphs()`;
+disable/update/reconciliation/failed registration uses the P5 lifecycle.
+Epoch checks destroy late asynchronous mounts before they can revive a stale
+page. Adapter cleanup stops layouts and removes event handlers, observers,
+animation frames, container attributes, DOM artifacts, and the Cytoscape
+instance. Failures destroy only the affected graph.
+
 ### Security posture (hardening pass)
 The model is **trusted, DM-only install, in-process** (no sandbox yet) — `server:code`
 is candidly full host access (the permission is transparency, not containment).
@@ -589,7 +631,8 @@ renames):
   declaration/capability/role checks, keyed and list CRUD, transaction
   buffering/conflicts/rollback/nesting, empty player reads for DM collections,
   `host.contentRevision`, `host.onDispose`, scoped `host.i18n`, the scoped
-  `host.imports` transport, catalog validation/fallback behavior, and
+  `host.imports` transport, the scoped mock `host.graphs` implementation,
+  catalog validation/fallback behavior, and
   `disposeMockHost(rec)`. `validateAddonCatalogs(meta, catalogs)` exposes the
   same package-shape/placeholder guard to addon authors. `dryRunRegister(register, meta)` (Tier-A
   — run register against the mock, catch throws, return the `rec`), and

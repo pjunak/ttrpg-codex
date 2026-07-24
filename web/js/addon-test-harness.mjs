@@ -79,6 +79,7 @@ function _emptyRec() {
     collections: [], wikiKinds: [], editorFields: [], fragmentOps: [],
     articleSections: [], slots: [],
     kinds: [], connectionKinds: [], nodeKinds: [], graphViews: [], graphContributors: [],
+    graphInstances: [],
     provided: undefined, toasts: [], rerenders: 0, announces: [], i18nMissing: [],
     cleanup: createDisposalStack(), disposeResult: null,
   };
@@ -105,6 +106,7 @@ import { requireCollectionDeclaration, resolveDependency } from './addon-host-co
 import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack } from './addon-lifecycle.js';
 import { createTransactionRunner } from './addon-transactions.js';
 import { createAddonImportClient } from './addon-imports.js';
+import { createGraphFacade, createGraphImplementationRegistry } from './addon-graph.js';
 import {
   createScopedI18n,
   validateCatalogPackage,
@@ -317,6 +319,80 @@ export function createMockHost(meta = {}, opts = {}) {
     AbortControllerImpl: opts.AbortController || globalThis.AbortController,
   });
   addDisposer(rec.cleanup, () => importClient.dispose());
+  const graphRegistry = opts.graphRegistry || createGraphImplementationRegistry();
+  if (!opts.graphRegistry && !opts.graphUnavailable) {
+    graphRegistry.register({
+      id: 'mock-graph',
+      minFacadeVersion: 1,
+      maxFacadeVersion: 1,
+      features: ['data', 'selection', 'viewport', 'events', 'lifecycle'],
+      layouts: ['grid', 'circle', 'concentric', 'breadthfirst', 'dagre'],
+      async create({ container, graph, layout, accessibleLabel, fitPadding }) {
+        if (opts.graphMount) {
+          return opts.graphMount({ container, graph, layout, accessibleLabel, fitPadding, rec });
+        }
+        const listeners = new Map();
+        const instance = {
+          container,
+          graph,
+          layout,
+          accessibleLabel,
+          fitPadding,
+          selected: [],
+          calls: [],
+          destroyed: false,
+          emit(event, payload = {}) {
+            for (const handler of listeners.get(event) || []) handler(payload);
+          },
+        };
+        rec.graphInstances.push(instance);
+        return {
+          update(nextGraph, nextLayout) {
+            instance.calls.push(['update', nextGraph, nextLayout]);
+            instance.graph = nextGraph;
+            instance.layout = nextLayout;
+          },
+          select(ids) {
+            instance.calls.push(['select', ids]);
+            instance.selected = ids.slice();
+          },
+          focus(ids, padding) {
+            instance.calls.push(['focus', ids, padding]);
+            instance.selected = ids.slice();
+          },
+          fit(ids, padding) {
+            instance.calls.push(['fit', ids, padding]);
+          },
+          on(event, handler) {
+            const entries = listeners.get(event) || new Set();
+            entries.add(handler);
+            listeners.set(event, entries);
+            return () => entries.delete(handler);
+          },
+          destroy() {
+            if (instance.destroyed) return;
+            instance.destroyed = true;
+            instance.calls.push(['destroy']);
+            listeners.clear();
+          },
+        };
+      },
+    });
+  }
+  const graphCapabilities = [
+    ...(meta.capabilities?.required || []),
+    ...(meta.capabilities?.optional || []),
+  ];
+  const graphController = createGraphFacade({
+    addonId: id,
+    negotiated: meta.apiVersion === 2 && graphCapabilities.includes('graphs.facade'),
+    permitted: !grants || grants.includes('ui:graph'),
+    registry: graphRegistry,
+    ownsContainer: typeof opts.graphOwnsContainer === 'function'
+      ? opts.graphOwnsContainer
+      : container => container?.addonId === id || container?.dataset?.addonId === id,
+  });
+  addDisposer(rec.cleanup, () => graphController.dispose());
 
   const host = {
     id,
@@ -363,6 +439,12 @@ export function createMockHost(meta = {}, opts = {}) {
     },
     onDispose: (fn) => addDisposer(rec.cleanup, fn),
     imports: importClient,
+    graphs: Object.freeze({
+      apiVersion: graphController.apiVersion,
+      available: graphController.available,
+      status: graphController.status,
+      mount: graphController.mount,
+    }),
 
     store: {
       generateId:    (n) => _slugify(n || 'id') + '_mock',

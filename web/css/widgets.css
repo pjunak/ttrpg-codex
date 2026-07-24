@@ -371,3 +371,23 @@
    fact. */
 .codex-badge { display: inline-flex; align-items: center; border: 1px solid var(--border-subtle); color: var(--text-light); background: var(--bg-raised); border-radius: var(--radius-pill); padding: 0.1rem var(--space-2); font-size: var(--text-xs); }
 .codex-badge-accent { border-color: rgba(var(--accent-gold-rgb), 0.45); color: var(--accent-gold); }
+
+/* ── Addon graph canvas (.codex-graph-canvas) ────────────────
+   The graph facade owns everything inside this container. Addons provide
+   only validated graph data and mount into their host-marked route subtree. */
+.codex-graph-canvas {
+  position: relative;
+  width: 100%;
+  height: var(--graph-canvas-height);
+  min-height: var(--graph-canvas-min-height);
+  overflow: hidden;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text-light);
+  font-family: var(--font-ui);
+}
+.codex-graph-canvas:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: var(--space-1);
+}

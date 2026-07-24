@@ -10,6 +10,13 @@
 `cloudmap.js` renders four mind-map modes. All share one Cytoscape
 instance and an HTML overlay.
 
+The API-v2 addon graph facade is deliberately separate. Its host-global
+adapter registry and narrow API live in `addon-graph.js` /
+`addon-graph-cytoscape.js`; F6 did not route this module through that facade.
+The facade exposes no raw Cytoscape behavior, and every physics, overlay,
+layout-persistence, text-scaling, and tried/reverted invariant documented
+below remains unchanged.
+
 | Mode | Nodes | Edges |
 |---|---|---|
 | `frakce` | faction hubs + characters + locations | hub→member, hub→location, commands, negotiates, ally |

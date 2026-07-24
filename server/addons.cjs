@@ -353,6 +353,17 @@ function validateManifest(m) {
       errors.push('capability "imports.providers" requires at least one declared collection');
     }
   }
+  if (declaredCapabilities.includes('graphs.facade')) {
+    if (m.apiVersion !== 2) {
+      errors.push('capability "graphs.facade" requires apiVersion 2');
+    }
+    if (!Array.isArray(m.permissions) || !m.permissions.includes('ui:graph')) {
+      errors.push('capability "graphs.facade" requires permission "ui:graph"');
+    }
+    if (!declaredCapabilities.includes('lifecycle.dispose')) {
+      errors.push('capability "graphs.facade" requires capability "lifecycle.dispose"');
+    }
+  }
   return { ok: errors.length === 0, errors };
 }
 

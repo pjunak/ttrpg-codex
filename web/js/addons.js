@@ -31,6 +31,7 @@ import { requireCollectionDeclaration, resolveDependency } from './addon-host-co
 import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack, reverseRegistrations } from './addon-lifecycle.js';
 import { createTransactionRunner } from './addon-transactions.js';
 import { createAddonImportClient } from './addon-imports.js';
+import { createGraphFacade, graphImplementationRegistry } from './addon-graph.js';
 import { applyFragmentOps, listConflicts } from './addon-fragments.js';
 import { smokeRegistrations } from './addon-test-harness.mjs';
 import { createScopedI18n, loadAddonCatalogs } from './addon-i18n.js';
@@ -64,6 +65,7 @@ export const Addons = (() => {
   let   _resolutions     = {};         // target   -> winner addonId | null            (DM conflict resolutions, from registry)
   const _unmatched       = new Map();  // "<id>::<target>" -> {addonId,target,op}      (claims whose fragment is absent; best-effort, reset on (re)boot)
   const _addons          = new Map();  // id       -> { id, state, error, meta }
+  const _graphFacades    = new Map();  // id       -> instance-scoped graph facade/controller
 
   // ── Contribution registries (data-driven content + kinds) ─────
   // Mirror the register→readback→tx.undo shape of _articleSections.
@@ -112,6 +114,7 @@ export const Addons = (() => {
     'kinds:connections': 'permKindsConnections',
     'kinds:graph':       'permKindsGraph',
     'graph:contribute':  'permGraphContribute',
+    'ui:graph':          'permUiGraph',
   };
   // Collection token → i18n key suffix for its localized name (used inside
   // describePermission's dynamic branches).
@@ -474,6 +477,25 @@ export const Addons = (() => {
       isDM: () => safe(() => Role.isDM(), false),
     });
     addDisposer(tx.cleanup, () => imports.dispose());
+    const graphController = createGraphFacade({
+      addonId: id,
+      negotiated: meta.apiVersion === 2 && transactionCapabilities.includes('graphs.facade'),
+      permitted: has('ui:graph'),
+      registry: graphImplementationRegistry,
+      ownsContainer: container => {
+        let current = container;
+        while (current) {
+          if (current.dataset?.addonId === id && current.classList?.contains('addon-route-page')) return true;
+          current = current.parentElement;
+        }
+        return false;
+      },
+    });
+    _graphFacades.set(id, graphController);
+    addDisposer(tx.cleanup, () => graphController.dispose());
+    tx.undo.push(() => {
+      if (_graphFacades.get(id) === graphController) _graphFacades.delete(id);
+    });
 
     async function transactionRequest(mode, payload, timeoutMs) {
       const controller = new AbortController();
@@ -598,6 +620,12 @@ export const Addons = (() => {
       provide, use, onDispose,
       store,
       imports,
+      graphs: Object.freeze({
+        apiVersion: graphController.apiVersion,
+        available: graphController.available,
+        status: graphController.status,
+        mount: graphController.mount,
+      }),
       role: {
         isDM:        () => safe(() => Role.isDM(), false),
         isAnonymous: () => safe(() => (Role.isAnonymous ? Role.isAnonymous() : false), false),
@@ -928,7 +956,7 @@ export const Addons = (() => {
     try {
       const html = entry.render(sub, parts);
       if (typeof html === 'string' && main) {
-        main.innerHTML = html;
+        main.innerHTML = `<div class="addon-route-page" data-addon-id="${esc(entry.addonId)}">${html}</div>`;
         main.scrollTop = 0;
         window.scrollTo(0, 0);
       }
@@ -937,6 +965,18 @@ export const Addons = (() => {
       if (main) main.innerHTML = _errorPane(entry.addonId, e);
     }
     return true;
+  }
+
+  /** Dispose page-scoped graph handles before any route render. The addon
+   *  instance and its facade stay live, so returning to the route can mount a
+   *  fresh graph without re-registering the addon. Pending mounts carry an
+   *  epoch and self-destruct if they settle after this boundary. */
+  function disposeRouteGraphs() {
+    for (const facade of _graphFacades.values()) {
+      try { facade.disposeMounted(); } catch (error) {
+        console.error('[addons] graph route cleanup failed', error);
+      }
+    }
   }
 
   function _errorPane(addonId, e) {
@@ -1164,7 +1204,7 @@ export const Addons = (() => {
   return {
     HOST_API_VERSION,
     init, boot, reconcile,
-    hasRoute, renderRoute, sidebarPages, list,
+    hasRoute, renderRoute, disposeRouteGraphs, sidebarPages, list,
     hasPageRenderer, renderPage, articleSections,
     editorFields, collectEditorFields,
     applyFragments, bodyOverridden, conflicts, unmatchedClaims,

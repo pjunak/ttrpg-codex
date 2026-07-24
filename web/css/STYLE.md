@@ -102,6 +102,9 @@ A global `@media (prefers-reduced-motion: reduce)` block in `main.css`
 near-zeroes all animations/transitions + smooth scroll, so individual
 components don't each need to handle it.
 
+Graph surface: `--graph-canvas-height` / `--graph-canvas-min-height` size the
+host-owned `.codex-graph-canvas` used by the addon graph facade.
+
 ### Breakpoints (documented; CSS can't tokenize `@media`)
 `768px` mobile / sidebar drawer · `1100px` wiki two-col→one · `1200px` split editor
 two-col→one. Use these three, nothing else.
@@ -159,6 +162,8 @@ files noted; this is the everyday set:
     spell, an inventory item): content + optional trailing control.
   - `.codex-badge` (+ `-accent`) — a small read-only fact pill for detail-page
     headers (spell level, rarity, alignment); `-accent` = the gold headline fact.
+  - `.codex-graph-canvas` — the focusable, theme-aware owned container for
+    `host.graphs.mount(...)`; addons do not style Cytoscape directly.
 
 Addons get these via `host.h` (esc/dataAction/dataOn/renderMarkdown) producing the
 same markup; build addon UI from this vocabulary so it looks native.
