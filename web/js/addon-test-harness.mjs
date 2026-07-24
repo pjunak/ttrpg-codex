@@ -104,6 +104,7 @@ import { HOST_CAPABILITIES, HOST_VERSION, compatibilityErrors } from './addon-co
 import { requireCollectionDeclaration, resolveDependency } from './addon-host-contract.js';
 import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack } from './addon-lifecycle.js';
 import { createTransactionRunner } from './addon-transactions.js';
+import { createAddonImportClient } from './addon-imports.js';
 import {
   createScopedI18n,
   validateCatalogPackage,
@@ -302,6 +303,21 @@ export function createMockHost(meta = {}, opts = {}) {
     },
   });
 
+  const importClient = createAddonImportClient({
+    addonId: id,
+    enabled: meta.apiVersion === 2
+      && [
+        ...(meta.capabilities?.required || []),
+        ...(meta.capabilities?.optional || []),
+      ].includes('imports.providers')
+      && (!Array.isArray(meta.permissions) || meta.permissions.includes('data:import-provider')),
+    isDM: () => !!opts.isDM,
+    fetchImpl: opts.fetch || globalThis.fetch,
+    FormDataImpl: opts.FormData || globalThis.FormData,
+    AbortControllerImpl: opts.AbortController || globalThis.AbortController,
+  });
+  addDisposer(rec.cleanup, () => importClient.dispose());
+
   const host = {
     id,
     apiVersion: 2,
@@ -346,6 +362,7 @@ export function createMockHost(meta = {}, opts = {}) {
       return resolveDependency(meta, depId, (dependencyId) => opts.deps && opts.deps[dependencyId]);
     },
     onDispose: (fn) => addDisposer(rec.cleanup, fn),
+    imports: importClient,
 
     store: {
       generateId:    (n) => _slugify(n || 'id') + '_mock',

@@ -144,8 +144,10 @@ hash comparison reveals the result even if the response/event was lost.
 
 ## Content-import provider jobs
 
-F4 adds a server-only import framework; it deliberately does not add the
-Import Center UI or a production provider. API-v2 server addons negotiate
+F4 adds the server-only import framework. F5's first consumer is DM Tools,
+which supplies the `scenario-json` provider and its own DM-only Import Center
+page; core still owns no production provider or generic import UI. API-v2
+server addons negotiate
 `imports.providers` and register versioned descriptors. Provider identity is
 `(addonId, providerId)`. Provider API v1 accepts JSON, permits explicitly
 granted core reads, and commits only to the provider addon's own declared
@@ -195,6 +197,10 @@ an F2 lease and commits the exact stored put operations. F2 remains the sole
 durability/publication authority and therefore supplies atomic rollback,
 restart recovery, one logical revision, one snapshot, and one role-scoped
 event. Any conflict or ambiguous failure requires a new preview.
+The completed commit summary remains on the owner-bound job until expiry and
+is included by `GET /api/content-import/jobs/:jobId`. A browser that loses the
+commit response checks that status and result; it never resubmits the
+single-use token automatically.
 
 Limits include 2 MiB host input, 32 nesting levels, 10,000 array records,
 256 operations, five-minute job lifetime, 128 total jobs, 32 outstanding jobs

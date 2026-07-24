@@ -139,6 +139,7 @@ host.h             // { esc, dataAction, dataOn, renderMarkdown, slugify, breadc
                    //   instead of shipping your own SVGs. '' for unknown names.
 host.role          // { isDM(), isAnonymous() }
 host.i18n          // { locale, t, plural, formatDate, formatNumber, relativeTime }
+host.imports       // scoped provider/job client for negotiated imports.providers
 host.ui            // { toast(msg), rerender(), announce(text) } — rerender re-renders
                    //   the current route; announce(text) speaks a short status line
                    //   ("12 matches") to screen readers via the host's persistent
@@ -657,9 +658,9 @@ force-released so it can't wedge the server-wide write chain);
 
 ### Import-provider server contract
 
-F4 provides the contract/core only; addons should not build an Import Center
-page until the F5 UI contract exists. A server addon that registers a provider
-must require `imports.providers` and `collections.transactions`, request
+An addon may pair its provider with a DM-only Import Center page through the
+F5 `host.imports` facade. A server addon that registers a provider must require
+`imports.providers` and `collections.transactions`, request
 `server:code`, `data:own`, and `data:import-provider`, and declare every own
 write collection. DM-only targets also require `collections.dm`.
 
@@ -734,6 +735,27 @@ Server-addon tests can import `createMockImportHost` from
 implementation as the live server and exposes in-memory `createJob`,
 `manager.preview`, `manager.commit`, cancellation, revision mutation, event
 counts, and atomic failure injection.
+
+The browser facade exposes only:
+
+```js
+await host.imports.listProviders();
+const job = await host.imports.createJob({ providerId, file, format: 'json' });
+const preview = await host.imports.preview(job.id);
+const status = await host.imports.getJob(job.id);
+const result = await host.imports.commit(job.id, preview.previewToken);
+await host.imports.cancel(job.id);
+```
+
+Provider lists are filtered to the calling addon, and job methods accept only
+ids created by that facade instance. The facade preserves structured
+`error.code/status/details`, aborts active requests on disposal, and refuses
+effective-player use. Import pages must localize API errors, escape all
+provider/file text, require explicit confirmation, disable repeated commit,
+and recover an interrupted commit response with `getJob()` rather than
+resubmitting. The completed status carries the owner-bound result until job
+expiry. Leaving the page should cancel any active job; addon disposal remains
+the final cleanup boundary.
 
 > **Restart-to-load:** server code activates on the next server restart. The
 > Manager shows `🖥 restart serveru` until then. A throw in `init` is isolated —

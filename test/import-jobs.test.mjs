@@ -63,6 +63,10 @@ test('preview performs no writes/events and commit applies the exact server-held
   assert.equal(committed.operationCount, 1);
   assert.deepEqual(harness.collection('items'), [{ id: 'alpha', name: 'Alpha' }]);
   assert.equal(harness.events(), 1);
+  assert.deepEqual(
+    harness.manager.getJob(job.id, 'mock-session').result,
+    committed,
+  );
 
   await assert.rejects(
     harness.manager.commit(job.id, 'mock-session', previewed.previewToken),

@@ -57,6 +57,7 @@ function _jobPublic(job) {
     createdAt: job.createdAt,
     expiresAt: job.expiresAt,
     ...(job.error ? { error: { ...job.error } } : {}),
+    ...(job.state === 'completed' && job.result ? { result: clone(job.result) } : {}),
   };
 }
 
@@ -230,6 +231,7 @@ class ImportJobManager {
       tokenDigest: null,
       tokenUsed: false,
       error: null,
+      result: null,
     };
     this.jobs.set(id, job);
     return _jobPublic(job);
@@ -434,7 +436,7 @@ class ImportJobManager {
       job.expiresAt = this.now() + this.limits.jobTtlMs;
       job.plan = null;
       job.planDigest = '';
-      return {
+      job.result = {
         ok: true,
         jobId: job.id,
         state: job.state,
@@ -443,10 +445,12 @@ class ImportJobManager {
         operationCount,
         revisions: result.revisions ? { ...result.revisions } : {},
       };
+      return clone(job.result);
     } catch (error) {
       const importError = this.#asImportError(error, 'IMPORT_COMMIT_FAILED', 'Import commit failed');
       job.state = importError.code === 'IMPORT_CANCELLED' ? 'cancelled' : 'failed';
       job.error = { code: importError.code, message: importError.message };
+      job.result = null;
       job.plan = null;
       job.planDigest = '';
       throw importError;

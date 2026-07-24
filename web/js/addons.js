@@ -30,6 +30,7 @@ import { HOST_CAPABILITIES, HOST_VERSION, compatibilityErrors } from './addon-co
 import { requireCollectionDeclaration, resolveDependency } from './addon-host-contract.js';
 import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack, reverseRegistrations } from './addon-lifecycle.js';
 import { createTransactionRunner } from './addon-transactions.js';
+import { createAddonImportClient } from './addon-imports.js';
 import { applyFragmentOps, listConflicts } from './addon-fragments.js';
 import { smokeRegistrations } from './addon-test-harness.mjs';
 import { createScopedI18n, loadAddonCatalogs } from './addon-i18n.js';
@@ -465,6 +466,14 @@ export const Addons = (() => {
     const transactionEnabled = meta.apiVersion === 2
       && transactionCapabilities.includes('collections.transactions')
       && has('data:own');
+    const imports = createAddonImportClient({
+      addonId: id,
+      enabled: meta.apiVersion === 2
+        && transactionCapabilities.includes('imports.providers')
+        && has('data:import-provider'),
+      isDM: () => safe(() => Role.isDM(), false),
+    });
+    addDisposer(tx.cleanup, () => imports.dispose());
 
     async function transactionRequest(mode, payload, timeoutMs) {
       const controller = new AbortController();
@@ -588,6 +597,7 @@ export const Addons = (() => {
       registerKind, registerConnectionKind, registerNodeKind, registerGraphView, registerGraphContributor,
       provide, use, onDispose,
       store,
+      imports,
       role: {
         isDM:        () => safe(() => Role.isDM(), false),
         isAnonymous: () => safe(() => (Role.isAnonymous ? Role.isAnonymous() : false), false),

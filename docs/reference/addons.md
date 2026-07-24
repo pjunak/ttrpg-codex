@@ -376,6 +376,13 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   **`host.i18n`** is always a per-addon facade with
   `locale`, `t`, `plural`, `formatDate`, `formatNumber`, and `relativeTime`;
   declarative catalogs require API v2 + `i18n.catalogs`.
+  **`host.imports`** is the browser-side F5 facade for an API-v2 addon that
+  negotiated `imports.providers` and received `data:import-provider`. It can
+  list only that addon's authorized providers and can create, preview, inspect,
+  commit, or cancel only jobs created by that facade instance. It never exposes
+  raw server paths, provider execution, transactions, foreign jobs, or plan
+  mutation. Requests abort on addon disposal; effective-player calls fail
+  before transport.
   Always-available lifecycle metadata is `host.contentRevision`, and
   `host.onDispose(fn)` registers resource cleanup. The former changes when the
   active package identity/version or effective content-group policy changes,
@@ -581,8 +588,8 @@ renames):
   loose allow-all), with live-compatible `use()` dependency errors, collection
   declaration/capability/role checks, keyed and list CRUD, transaction
   buffering/conflicts/rollback/nesting, empty player reads for DM collections,
-  `host.contentRevision`, `host.onDispose`, scoped `host.i18n`, catalog
-  validation/fallback behavior, and
+  `host.contentRevision`, `host.onDispose`, scoped `host.i18n`, the scoped
+  `host.imports` transport, catalog validation/fallback behavior, and
   `disposeMockHost(rec)`. `validateAddonCatalogs(meta, catalogs)` exposes the
   same package-shape/placeholder guard to addon authors. `dryRunRegister(register, meta)` (Tier-A
   — run register against the mock, catch throws, return the `rec`), and

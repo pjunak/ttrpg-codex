@@ -175,6 +175,9 @@ test('real server import flow is DM-only, preview is read-only, and commit uses 
     });
     const committed = await response.json();
     assert.equal(response.status, 200, JSON.stringify(committed));
+    response = await srv.fetch(`/api/content-import/jobs/${job.id}`);
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).job.result, committed);
     assert.equal(committed.operationCount, 1);
     assert.ok(committed.commitId);
     assert.deepEqual(
