@@ -234,6 +234,19 @@ type's label. Structure:
 `map.js` prefers a sharp-generated 256 px tile pyramid and falls back
 to a single `L.imageOverlay` if no pyramid exists.
 
+Every `_initLeaflet()` starts a generation through
+`map-generation.js:createMapGenerationController`. A newer render/init or
+`WorldMap.teardown()` invalidates the old generation and cleans its abort
+controller, pending image callbacks, Leaflet instance/listeners, DOM handlers,
+resize observer, animation frames, and zoom-to-pin timers. Fetch/image
+continuations verify both the captured token and the exact
+`#sc-map-container` before creating or publishing a map; only the current
+generation may assign `_map`. `app.js:navigate()` calls teardown whenever the
+destination is not the world/local-map route, and repeated teardown is safe.
+Map entry points keep location/event-pin intent until the destination
+generation finishes; teardown clears that intent, and no map workflow uses an
+untracked raw timer.
+
 `_initLeaflet()` picks a `mapId` via `_currentMapId()`:
 - world map → `world`
 - local map of Location X → `local-<locId>`
@@ -271,7 +284,9 @@ keeps a module-level `_currentParentId` (null = world map). Helpers:
   rendered through `_pinFromLocation(l)` (legacy pin shape for the
   marker code).
 - `_currentImgUrl()` returns the parent's `localMap` URL when on a
-  sub-map, else the world tile URL.
+  sub-map, else the canonical server-hosted world-map URL. There is no
+  browser-local image/URL override; world image changes go through
+  authenticated `POST /api/worldmap` in Settings → Mapy.
 
 `WorldMap.render(parentId)` accepts an optional parentId. The toolbar
 title shows a breadcrumb back to "↩ Mapa" when on a sub-map.
@@ -287,6 +302,8 @@ Location deletion remains in the wiki editor.
 `zoomToPin(id)` resolves the pin's `parentId`; if it doesn't match
 `_currentParentId` it re-renders the map in that parent's context,
 then polls (≤30 × 80 ms) for the marker to mount before flying to it.
+The poll belongs to that render generation and is cancelled on container
+replacement or teardown.
 
 Search now spans all placed Locations across all maps (world + every
 local map), not just the currently visible context.
@@ -336,12 +353,16 @@ the type label. CSS lives under `wiki.css` → "Location Grid".
 Kanban board: one column per sezení. Columns are `Sezení 1..maxSitting`
 — **including empty sittings in the middle**, so a skipped session
 renders as an empty column you can drop into. Any event without a
-numeric `sitting >= 1` is coerced into column 1 by `_groupBySitting`
+numeric `sitting >= 1` is displayed in column 1 by `_groupBySitting`
 (was a separate "Dávná minulost" column; the dedicated historical
 record now lives in the `historicalEvents` collection at `/historie`).
 `maxSitting = Math.max(1, max(event.sitting))` so there's always at
 least one column. In edit mode a phantom `Nové sezení N+1` column
 hangs off the end as a drop target that bumps `maxSitting` when used.
+Startup migration `timeline-sitting-zero-v1` changes only legacy
+`events[].sitting === 0` to `1`; positive, missing, and null values plus
+all other fields are preserved. The pass is idempotent and participates in
+the server's single post-migration snapshot/broadcast.
 
 Performance: `render()` builds module-level `_charMap` and `_locMap`
 (id → entity) once per render, and `_cardHTML`/`_eventAccentColor`
@@ -379,7 +400,9 @@ at the prospective position (computed from pointer Y relative to
 card midpoints). On drop, `_handleDrop(srcId, targetSitting,
 insertIdx)` relocates the event in its column group and
 `_commitReorder` renumbers `order`=1,2,3… per column, writing only
-the events whose `(sitting, order)` actually changed. Dragging
+the events whose displayed column or `order` actually changed. Reordering
+within column 1 preserves a missing/null `sitting` value rather than turning
+the drag into data normalization. Dragging
 from a stacked column auto-expands it so mid-column drops are
 precise.
 

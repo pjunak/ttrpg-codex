@@ -5,6 +5,29 @@
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── Shared toast (replaces per-module toasts) ──────────────── */
+.app-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-toast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg-raised);
+  color: var(--text-cream);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  text-align: center;
+  box-shadow: var(--shadow-md);
+}
+.app-banner-error {
+  background: var(--accent-crimson);
+}
+
 .app-toast {
   position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(20px);
   background: #1c1c1e; color: var(--text-cream); border: 1px solid rgba(var(--gold-muted), 0.35);

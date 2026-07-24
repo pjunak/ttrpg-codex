@@ -127,6 +127,9 @@ files noted; this is the everyday set:
 - **Round icon button** — `.icon-btn-round` (26px circular pencil base,
   `main.css`), shared by `.edit-card-overlay` / `.oq-edit` / `.dash-hero-pen`.
 - **Toasts** — `.app-toast` (+ `.err`), `.edit-toast` (+ `.ok`/`.err`).
+- **Top banners** — `.app-banner` (+ `.app-banner-error`) for persistent
+  synchronization/server notices; uses the toast z-index rung and existing
+  button components rather than creating another live region.
 - **Nav** — `.nav-link`, `.sidebar-section`, `.sidebar-subsection`.
 - **Breadcrumb** — `.wiki-breadcrumb` (`utils.breadcrumbNav` / `host.h.breadcrumb`
   emit the markup; `wiki.css` styles, `edit.css` docks it on articles).

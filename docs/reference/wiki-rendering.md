@@ -137,9 +137,6 @@ custom property approach is gone; the CSS rule was deleted.
 The old "Mind mapy" + "Rychlý Přehled" + "Poslední úpravy" dashboard
 blocks were removed (the dead `_recentActivityBlock` helper left over
 from "Poslední úpravy" was absorbed into `_dashRecentChangesHtml`).
-Legacy `.dashboard-title` / `.dashboard-subtitle` CSS classes remain
-as aliases in case something external still links to them, but
-nothing inside the app uses them anymore.
 
 Export: `Wiki.saveCampaignField(field, value)` — called from the
 hero's contenteditable `onblur` handler.

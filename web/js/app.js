@@ -357,6 +357,10 @@ document.addEventListener('click', (ev) => {
    * @param {string} route - The current hash route (from `getRoute()`).
    */
   function navigate(route) {
+    const isWorldMapRoute =
+      route === '/mapa/svet' || route.startsWith('/mapa/local/');
+    if (!isWorldMapRoute) WorldMap.teardown();
+
     // Schedule widget mount after the page renders. Runs for every route so
     // any cb-mount/ms-mount placeholders in newly-rendered HTML get wired up.
     // EasyMDE is initialised for any textarea.md-easy in the same pass.
@@ -609,21 +613,15 @@ document.addEventListener('click', (ev) => {
     if (banner) return;
     banner = document.createElement('div');
     banner.id = 'remote-change-banner';
-    banner.style.cssText = [
-      'position:fixed', 'top:0', 'left:0', 'right:0', 'z-index:9998',
-      'background:#3a4f6c', 'color:#fff', 'font-size:13px',
-      'padding:8px 16px', 'text-align:center',
-      'font-family:system-ui,sans-serif', 'letter-spacing:0.02em',
-      'display:flex', 'align-items:center', 'justify-content:center', 'gap:12px',
-    ].join(';');
+    banner.className = 'app-banner';
     banner.innerHTML = `
       <span>📡 ${esc(I18n.t('app.remoteChanged'))}</span>
       <button type="button" id="remote-change-banner-refresh"
-              style="background:#1a2738;color:#fff;border:1px solid #5a7090;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px">
+              class="inline-create-btn">
         ${esc(I18n.t('app.remoteReload'))}
       </button>
       <button type="button" id="remote-change-banner-dismiss"
-              style="background:transparent;color:#fff;border:1px solid #5a7090;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px">
+              class="inline-create-btn">
         ${esc(I18n.t('action.close'))}
       </button>
     `;
@@ -739,12 +737,7 @@ document.addEventListener('click', (ev) => {
     if (!banner) {
       banner = document.createElement("div");
       banner.id = "server-banner";
-      banner.style.cssText = [
-        "position:fixed", "top:0", "left:0", "right:0", "z-index:9999",
-        "background:#8B0000", "color:#fff", "font-size:13px",
-        "padding:8px 16px", "text-align:center",
-        "font-family:system-ui,sans-serif", "letter-spacing:0.02em",
-      ].join(";");
+      banner.className = "app-banner app-banner-error";
       document.body.prepend(banner);
     }
     banner.textContent = msg;

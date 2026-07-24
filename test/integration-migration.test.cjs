@@ -1,8 +1,8 @@
 'use strict';
 
-// Integration: the startup visibility migration.
-// Boots the server with un-stamped legacy data files seeded into
-// the temp data dir, then verifies the migration:
+// Integration: startup data migrations.
+// Boots the server with legacy data files seeded into the temp data
+// dir, then verifies the migration sweep:
 //   1. Stamps `visibility:'public'` + `secrets:{}` on every existing
 //      record across every visibility-bearing collection.
 //   2. Takes a single snapshot labelled `reason: 'migration'`.
@@ -130,6 +130,9 @@ test('migration: idempotent — already-stamped data triggers no writes, no snap
       // No `secrets` field (twin model deprecated it).
       'characters.json': [
         { id: 'a', name: 'Alice', faction: 'neutral', visibility: 'public' },
+      ],
+      'events.json': [
+        { id: 'session', name: 'Session', sitting: 1, visibility: 'public' },
       ],
     },
   });
@@ -282,4 +285,35 @@ test('migration: preserves all other entity fields verbatim', async () => {
     // only adds `visibility`; no `secrets` to backfill anymore).
     assert.deepEqual(after, { ...original, visibility: 'public' });
   } finally { await srv.kill(); }
+});
+
+test('migration: startup normalizes timeline sitting zero once and snapshots the migrated state', async () => {
+  const events = [
+    { id: 'legacy', name: 'Legacy', sitting: 0, order: 2, note: 'unchanged' },
+    { id: 'valid', name: 'Valid', sitting: 4, order: 1 },
+    { id: 'missing', name: 'Missing', order: 3 },
+    { id: 'null', name: 'Null', sitting: null, order: 4 },
+  ];
+  const srv = await startServer({
+    dmPassword: DM,
+    playerPassword: PLAYER,
+    seedData: { 'events.json': events },
+  });
+  try {
+    const migrated = await readJson(path.join(srv.dataDir, 'events.json'));
+    const campaignFields = migrated.map(({ visibility, ...event }) => event);
+    assert.deepEqual(campaignFields, [
+      { ...events[0], sitting: 1 },
+      ...events.slice(1),
+    ]);
+    assert.ok(migrated.every(event => event.visibility === 'public'));
+
+    const snapshots = await listSnapshots(srv.snapshotsDir);
+    assert.equal(snapshots.length, 1);
+    const snapshot = await readJson(path.join(srv.snapshotsDir, snapshots[0]));
+    assert.equal(snapshot.reason, 'migration');
+    assert.equal(snapshot.files['events.json'][0].sitting, 1);
+  } finally {
+    await srv.kill();
+  }
 });

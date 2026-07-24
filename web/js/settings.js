@@ -1103,10 +1103,6 @@ export const Settings = (() => {
     fetch('/api/worldmap', { method: 'POST', body: fd, credentials: 'same-origin' })
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
       .then(() => {
-        // A legacy localStorage override would still beat the new server
-        // file in WorldMap._getImgUrl, so drop it after a successful
-        // upload — the server copy is now the canonical image.
-        try { localStorage.removeItem('world_map_image_url'); } catch (_) {}
         _bumpPreviewBust('world');
         _flash(I18n.t('settings.mapUploadedRebuilding'));
         render();
@@ -1871,6 +1867,12 @@ export const Settings = (() => {
     return CollectionDescriptors.forCollection(c)?.routePrefix || c;
   }
 
+  function openWorldMap() {
+    _activeCat = 'worldmap';
+    _tabPickedByUser = true;
+    window.location.hash = '#/nastaveni';
+  }
+
   // Route notifications through EditMode's toast (same visual style
    // as save/delete feedback across the rest of the app).
   function _flash(msg, ok = true) {
@@ -2585,7 +2587,7 @@ export const Settings = (() => {
 
   return {
     render,
-    selectCategory, selectAddonSub, startNew, startEdit, cancelEdit,
+    selectCategory, openWorldMap, selectAddonSub, startNew, startEdit, cancelEdit,
     commit, requestDelete, commitDelete, closeModal,
     resetDefaults,
     uploadWorldMap,

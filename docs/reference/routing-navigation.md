@@ -38,7 +38,7 @@ addon wiki kinds continue through `Addons.resolveWikiLink`.
 | `/artefakt/:id` | `Wiki.renderPage('artefakt', id)` | artifact article / `new` editor |
 | `/historie` | `Wiki.renderPage('historie')` | historical-events list (Svět → Historie) |
 | `/historicka-udalost/:id` | `Wiki.renderPage('historicka-udalost', id)` | historical event article / `new` editor |
-| `/mapa/svet` | `WorldMap.render(null)` | World map. |
+| `/mapa/svet` | `WorldMap.render(null)` | World map. Each render owns a new initialization generation; navigating away calls `WorldMap.teardown()` so stale fetch/image continuations and zoom polling cannot attach to a replaced container. |
 | `/mapa/local/:locId` | `WorldMap.render(locId)` | Sub-map of a Location whose `localMap` image is the backdrop. Encoding the parent id in the URL means an edit-mode toggle (which dispatches a synthetic hashchange) preserves the sub-map context instead of dumping the user back to the world map. The sidebar's "Mapa" entry stays highlighted for both routes. `WorldMap.openLocalMap(parentId)` sets this hash; the wiki "🗺 Otevřít místní mapu" button uses the URL directly. `render()` falls back to the world map when the URL points at a deleted/unmapped location, so stale bookmarks degrade gracefully. |
 | `/mapa/palac` | `CloudMap.render('frakce')` | alias for /mapa/frakce |
 | `/mapa/frakce` | `CloudMap.render('frakce')` | |

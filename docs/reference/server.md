@@ -30,6 +30,24 @@ Helpers all live in `server.js` at the top (after `_atomicWrite`):
 `_lastSnapshotTime` · `_createSnapshot(reason)` · `_pruneSnapshots` ·
 `_maybeSnapshot(reason)` · `_restoreSnapshot(id)`.
 
+## Startup migrations
+
+`server/migrations.cjs` owns idempotent data passes. `_bootstrap()` awaits
+`runStartupMigrations()` before listening, injecting the production atomic
+writer into each pass. Failures are isolated per migration so a later pass and
+server startup still proceed. If any pass changes data, the server creates one
+post-migration snapshot (`reason: "migration"`) and broadcasts once.
+
+Current passes:
+
+- `visibility-public-v1` backfills visibility and removes legacy secrets from
+  visibility-bearing collections.
+- `timeline-sitting-zero-v1` changes only `events[].sitting === 0` to `1`;
+  positive, missing, and null values plus unrelated event fields are unchanged.
+
+Both passes are transformation-idempotent, so an already canonical dataset
+causes no write, snapshot, or broadcast.
+
 ## Core write lock
 
 Every core disk mutation uses the single FIFO `CoreWriteLock` from
@@ -330,9 +348,10 @@ Coverage today:
   forced; secrets stripped; settings/campaign rejected.
 - `test/integration-twins.test.cjs` — `POST /api/twin` create / link
   / unlink flows + cross-half cascade on delete.
-- `test/integration-migration.test.cjs` — `runVisibilityMigration`
-  stamps `visibility: 'public'` on legacy records and is idempotent
-  on subsequent boots.
+- `test/timeline-migration.test.cjs` +
+  `test/integration-migration.test.cjs` — startup migration transforms,
+  field preservation, the shared snapshot contract, and idempotency on
+  subsequent boots.
 - `test/integration-sse.test.cjs` — `/api/events` emits `hello` and
   `data-changed` with the correct hash.
 - `test/integration-snapshots.test.cjs` — snapshot/restore system:

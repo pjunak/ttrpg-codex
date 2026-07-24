@@ -261,8 +261,10 @@ Vazby) leaves the active tab outside the visible set.
   side: selected map's preview, upload button (`POST /api/worldmap`
   for world / `POST /api/localmap/:locId` for sub-maps), and a
   zoom-scale slider that writes
-  `settings.mapConfigs[mapId].zoomScaleRatio` (0..1). World uploads
-  clear the legacy `localStorage['world_map_image_url']` override.
+  `settings.mapConfigs[mapId].zoomScaleRatio` (0..1). World-map image
+  changes are server-hosted only; the browser has no local image or URL
+  override. The map toolbar's settings action calls
+  `Settings.openWorldMap()` so navigation lands directly on this tab.
   **Self-commit suppression:** `Settings.commitMapZoomRatio` is
   debounced 600 ms; once it fires, `_selfCommitUntil = now + 1500`,
   exposed via `Settings.isPendingSelfCommit()` so app.js's

@@ -27,7 +27,11 @@ const {
   VISIBILITY_BEARING,
   KEYED_OBJ_VISIBILITY,
 } = require('./server/visibility.cjs');
-const { runVisibilityMigration: _runVisibilityMigration } = require('./server/migrations.cjs');
+const {
+  TIMELINE_SITTING_MIGRATION_ID,
+  runTimelineSittingMigration: _runTimelineSittingMigration,
+  runVisibilityMigration: _runVisibilityMigration,
+} = require('./server/migrations.cjs');
 
 // Addon framework broker — pure/injectable helpers (manifest validation,
 // allowlist matching, content hashing, GitHub fetches) plus the streaming
@@ -803,25 +807,36 @@ function getFile(type) {
   return path.join(DATA_DIR, safeType + '.json');
 }
 
-// ── Visibility migration wrapper ─────────────────────────────────
-// Runs the pure migration from server/migrations.cjs with this
-// server's _atomicWrite injected, takes a one-shot pre-migration
-// snapshot if anything was touched (so the deploy is undoable), and
-// broadcasts data-changed so any client already on the page sees the
-// new shape. Idempotent on subsequent boots.
-async function runVisibilityMigration() {
-  const result = await _runVisibilityMigration(DATA_DIR, { atomicWrite: _atomicWrite });
-  if (result.changed > 0) {
-    // Snapshot AFTER the writes so it captures the migrated state.
-    // The pre-migration state is implicitly captured by any earlier
-    // 'save' snapshot — the dataset hasn't changed in essence, just
-    // gained a default field on each record.
+// ── Startup migrations ───────────────────────────────────────────
+// Each idempotent pass uses the production atomic writer. Successful
+// changes across all passes produce one post-migration snapshot and
+// one broadcast; a failing pass is isolated so later migrations and
+// server startup can continue.
+async function runStartupMigrations() {
+  const passes = [
+    ['visibility-public-v1', _runVisibilityMigration],
+    [TIMELINE_SITTING_MIGRATION_ID, _runTimelineSittingMigration],
+  ];
+  const results = [];
+  for (const [id, run] of passes) {
+    try {
+      const result = await run(DATA_DIR, { atomicWrite: _atomicWrite });
+      results.push(result);
+      if (result.changed > 0) {
+        console.log(`[migration] ${id}: changed ${result.changed} record(s)`);
+      }
+    } catch (e) {
+      console.warn(`[migration] ${id} failed:`, e.message);
+    }
+  }
+
+  const changed = results.reduce((total, result) => total + result.changed, 0);
+  if (changed > 0) {
     try { await _createSnapshot('migration'); }
     catch (e) { console.warn('[migration] snapshot failed:', e.message); }
     await _broadcastDataChanged();
-    console.log(`[migration] visibility: stamped ${result.changed} record(s) across ${Object.keys(result.byCollection).length} collection(s)`);
   }
-  return result;
+  return { changed, results };
 }
 
 // ── SSE broadcast ────────────────────────────────────────────────
@@ -3689,10 +3704,9 @@ async function _backgroundTileSweep() {
   }
 }
 
-// Bootstrap: await the visibility migration BEFORE accepting any
-// connections, so no client can ever see un-stamped data. Tile sweep
-// stays fire-and-forget (it can take seconds on a large map and the
-// fallback overlay covers any in-flight requests anyway).
+// Bootstrap: await data migrations BEFORE accepting any connections.
+// Tile sweep stays fire-and-forget (it can take seconds on a large
+// map and the fallback overlay covers any in-flight requests anyway).
 async function _bootstrap() {
   // Loud warnings about password configuration. The codebase is open-
   // source so anyone can compute SHA256(...) — a deployment that left
@@ -3726,9 +3740,9 @@ async function _bootstrap() {
     console.warn('');
   }
   try {
-    await runVisibilityMigration();
+    await runStartupMigrations();
   } catch (e) {
-    console.warn('[migration] visibility migration failed:', e.message);
+    console.warn('[migration] startup migration sweep failed:', e.message);
   }
   // Register enabled addons' declared collections into the type system so
   // their data rides the generic GET/PATCH /api/data path from the first

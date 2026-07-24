@@ -304,19 +304,11 @@ sessions and don't get re-discovered:
    actions inside `[data-addon-id]` subtrees. Accepted under the
    trusted-addon posture; revisit before third-party addons (any fix must
    also cover the `deferred(action,…)` indirection).
-2. map.js async init lacks a generation token — fast navigation or an SSE
-   re-render mid-`_initLeaflet` / mid-`zoomToPin`-poll can mount into a
-   stale container.
-3. Timeline `_commitReorder` silently persists coerced `sitting:0 → 1` on
-   any drag in column 1; proper fix is a one-time load migration.
-4. Legacy world-map upload path writes a base64 `data:` URL into
-   `localStorage['world_map_image_url']` (quota risk + shadows the server
-   upload) — delete that branch, keep only POST /api/worldmap.
-5. Missing guard tests: the addon permission facade.
+2. Missing guard tests: the addon permission facade.
     (The `/api/restore` path-safety and migration-idempotency gaps listed
     here originally are CLOSED; visibility closure is also CLOSED by
     `test/visibility.test.cjs` + `test/integration-visibility.test.cjs`.)
-6. Structural: server.js / store.js / settings.js god files; 4 duplicated
+3. Structural: server.js / store.js / settings.js god files; 4 duplicated
     collection→route maps (wiki `_TWIN_LINK_ROUTE`, edit_templates
     `TWIN_ROUTE_PREFIX`, editmode `_TWIN_ROUTE`, app `KIND_ROUTE`); 8
     near-clone entity editors; no linter/formatter.

@@ -17,6 +17,7 @@ import { Role } from './role.js';
 import { esc, dataAction, pageEditToggle } from './utils.js';
 import { I18n } from './i18n.js';
 import { Addons } from './addons.js';
+import { planTimelineReorder, timelineSittingColumn } from './timeline-order.js';
 
 const STACK_THRESHOLD = 4;
 
@@ -67,19 +68,9 @@ export const Timeline = (() => {
 
   // ── Persist after a drag. Given the post-drop mapping of
   // sitting → ordered event ids, renumber `order` 1,2,3… and
-  // write every event whose (sitting, order) actually changed.
+  // write every event whose displayed column or order actually changed.
   function _commitReorder(columns) {
-    const writes = [];
-    columns.forEach(col => {
-      col.ids.forEach((id, idx) => {
-        const existing = Store.getEvent(id);
-        if (!existing) return;
-        const order = idx + 1;
-        if (existing.sitting !== col.sitting || existing.order !== order) {
-          writes.push({ ...existing, sitting: col.sitting, order });
-        }
-      });
-    });
+    const writes = planTimelineReorder(columns, id => Store.getEvent(id));
     writes.forEach(w => Store.saveEvent(w));
     return writes.length > 0;
   }
@@ -247,14 +238,14 @@ export const Timeline = (() => {
   }
 
   // Map sitting-number → ordered list of events. Events without a
-  // sitting are coerced to sitting 1 so they're visible somewhere
+  // sitting are displayed in sitting 1 so they're visible somewhere
   // instead of vanishing. Orders within each sitting come from the
   // current `order` so rebuilds are stable.
   function _groupBySitting(events) {
     const out = new Map();
     const sorted = [...events].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     sorted.forEach(e => {
-      const k = (typeof e.sitting === 'number' && e.sitting >= 1) ? e.sitting : 1;
+      const k = timelineSittingColumn(e.sitting);
       if (!out.has(k)) out.set(k, []);
       out.get(k).push(e);
     });

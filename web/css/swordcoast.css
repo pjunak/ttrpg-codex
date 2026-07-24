@@ -535,33 +535,6 @@
    removed as DEAD CSS — the pin-priority system was retired (pins now
    use `size`), and no JS / template emits those classes anymore.) */
 
-/* Settings overlay */
-.sc-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.7);
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.sc-overlay[hidden] { display: none; }
-.sc-dialog {
-  background: var(--bg-base);
-  border: 1px solid rgba(var(--gold-muted), 0.3);
-  border-radius: 8px;
-  padding: 1.5rem;
-  width: 480px;
-  max-width: 95vw;
-}
-.sc-dialog-title {
-  font-family: 'Cinzel', serif;
-  font-size: var(--text-base);
-  color: var(--text-parchment);
-  margin-bottom: 0.5rem;
-}
-.sc-dialog-hint { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.5; }
-.sc-dialog-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
 .sc-img-error {
   display: flex;
   flex-direction: column;

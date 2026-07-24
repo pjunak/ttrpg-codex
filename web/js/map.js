@@ -5,6 +5,7 @@ import { Role } from './role.js';
 import { esc, dataAction, dataOn, pageEditToggle, announce, safeColor } from './utils.js';
 import { I18n } from './i18n.js';
 import { Addons } from './addons.js';
+import { createMapGenerationController } from './map-generation.js';
 
 // `size` is the default marker pixel size for new places of this
 // type. Kept in sync with SETTINGS_DEFAULTS.pinTypes in data.js so
@@ -54,16 +55,10 @@ const EVENT_PATH_COLORS = { path: '#C8A040', sitting: '#8B6914', past: '#5A3A5A'
 
 export const WorldMap = (() => {
 
-  const LS_IMG_KEY  = 'world_map_image_url';
   const DEFAULT_IMG = '/maps/swordcoast/sword_coast.jpg';
 
-  // Server-uploaded world maps live at the canonical DEFAULT_IMG path
-  // (written by POST /api/worldmap in server.js). `localStorage` still
-  // works as a per-browser override for the legacy "upload to the
-  // browser" flow exposed by WorldMap.showSettings, but server uploads
-  // clear that key so the fresh file wins.
   function _getImgUrl() {
-    return localStorage.getItem(LS_IMG_KEY) || DEFAULT_IMG;
+    return DEFAULT_IMG;
   }
 
   // Pin fill / label colors come from the unified `attitudes` settings
@@ -365,6 +360,8 @@ export const WorldMap = (() => {
   }
 
   let _map       = null;
+  const _mapGeneration = createMapGenerationController();
+  let _mapToken  = null;
   let _imgW      = 1;
   let _imgH      = 1;
   let _bounds    = null;
@@ -391,6 +388,47 @@ export const WorldMap = (() => {
   let _eventMarkers    = [];
   let _eventPolylines  = [];
 
+  function _isCurrentGeneration(token, container = token?.container) {
+    return _mapGeneration.isCurrent(token, container)
+      && document.getElementById('sc-map-container') === container;
+  }
+
+  function _scheduleForGeneration(token, callback, delay) {
+    return _mapGeneration.schedule(token, () => {
+      if (_isCurrentGeneration(token)) callback();
+    }, delay);
+  }
+
+  function _frameForGeneration(token, callback) {
+    if (!_isCurrentGeneration(token)) return null;
+    let pending = true;
+    const frame = requestAnimationFrame(() => {
+      pending = false;
+      if (_isCurrentGeneration(token)) callback();
+    });
+    _mapGeneration.track(token, () => {
+      if (pending && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);
+      pending = false;
+    });
+    return frame;
+  }
+
+  function teardown() {
+    _clearEventPaths();
+    _mapGeneration.invalidate();
+    _mapToken = null;
+    _map = null;
+    _modeObserver = null;
+    _resizeObserver = null;
+    _markers = {};
+    _sliderInteracting = false;
+    _pendingPinId = null;
+    _pendingEventPinId = null;
+    _placeForLocId = null;
+    _placeForEventId = null;
+    _addMode = false;
+  }
+
   // Current map context. null = the world map. Otherwise, a location id
   // whose `localMap` image is shown and whose subplaces appear as pins.
   let _currentParentId = null;
@@ -400,6 +438,7 @@ export const WorldMap = (() => {
   // finished its async image-preload init. Stash the target here; _doInit
   // consumes it once the map is ready.
   let _pendingPinId = null;
+  let _pendingEventPinId = null;
 
   // Pin shape derived from a Location. Map code below operates on this
   // pin-like view; writes go through Store.saveLocation. `attitudes`
@@ -604,7 +643,7 @@ export const WorldMap = (() => {
             ${_presetButtonsHtml()}
             <button class="sc-btn edit-only-inline"${dataAction('WorldMap.captureCurrentView')} title="${esc(I18n.t('map.saveViewTitle'))}">✚ ${esc(I18n.t('map.saveView'))}</button>
           </span>
-          <button class="sc-btn edit-only-inline"${dataAction('WorldMap.showSettings')}>⚙ ${esc(I18n.t('map.mapSettings'))}</button>
+          <button class="sc-btn edit-only-inline"${dataAction('Settings.openWorldMap')}>⚙ ${esc(I18n.t('map.mapSettings'))}</button>
           <span class="sc-hint">${_addMode
             ? esc(I18n.t('map.hintAddMode'))
             : esc(I18n.t('map.hintDefault'))
@@ -644,28 +683,6 @@ export const WorldMap = (() => {
         <div id="sc-panel-content"></div>
       </div>
 
-      <!-- Settings dialog -->
-      <div class="sc-overlay" id="sc-overlay" hidden>
-        <div class="sc-dialog">
-          <div class="sc-dialog-title">⚙ ${esc(I18n.t('map.settingsTitle'))}</div>
-          <p class="sc-dialog-hint">
-            <strong>${esc(I18n.t('map.settingsOpt1Label'))}</strong> ${esc(I18n.t('map.settingsOpt1Text'))}<br>
-            <strong>${esc(I18n.t('map.settingsOpt2Label'))}</strong> ${esc(I18n.t('map.settingsOpt2Text'))}<br>
-            <strong>${esc(I18n.t('map.settingsOpt3Label'))}</strong> ${esc(I18n.t('map.settingsOpt3TextPre'))} <code>data/maps/swordcoast/sword_coast.jpg</code> ${esc(I18n.t('map.settingsOpt3TextPost'))}
-          </p>
-          <label class="sc-label">${esc(I18n.t('map.settingsUploadLabel'))}</label>
-          <label class="sc-btn" style="cursor:pointer;display:inline-block;margin-bottom:0.8rem">
-            📂 ${esc(I18n.t('map.settingsChooseFile'))}
-            <input type="file" accept="image/*" style="display:none"${dataOn('change', 'WorldMap.handleMapFileUpload', '$el')}>
-          </label>
-          <label class="sc-label">${esc(I18n.t('map.settingsOrUrl'))}</label>
-          <input class="sc-input" id="sc-img-url" type="text" value="${esc(_getImgUrl().startsWith('data:') ? '' : _getImgUrl())}">
-          <div class="sc-dialog-actions">
-            <button class="sc-btn ok"${dataAction('WorldMap.applySettings')}>✓ ${esc(I18n.t('map.settingsApplyUrl'))}</button>
-            <button class="sc-btn"${dataAction('WorldMap.closeSettings')}>${esc(I18n.t('map.cancel'))}</button>
-          </div>
-        </div>
-      </div>
     `;
 
     _initLeaflet();
@@ -682,26 +699,61 @@ export const WorldMap = (() => {
 
   function _initLeaflet() {
     _clearEventPaths();
-    if (_modeObserver)   { _modeObserver.disconnect();   _modeObserver   = null; }
-    if (_resizeObserver) { _resizeObserver.disconnect(); _resizeObserver = null; }
-    if (_map) { _map.remove(); _map = null; }
-
     const imgUrl    = _currentImgUrl();
     const container = document.getElementById('sc-map-container');
     const mapId     = _currentMapId();
+    if (!container) {
+      teardown();
+      return;
+    }
+
+    const token = _mapGeneration.begin(container);
+    _mapToken = token;
+    _map = null;
+    _modeObserver = null;
+    _resizeObserver = null;
+    _markers = {};
+
+    const abortController = typeof AbortController === 'function'
+      ? new AbortController()
+      : null;
+    if (abortController) {
+      _mapGeneration.track(token, () => abortController.abort());
+    }
 
     // Try the tile-pyramid manifest first. Server computes tiles on
     // demand via sharp and exposes a `tiles.json` with dimensions +
     // zoom bounds. If the manifest is absent (404 / network error /
     // bad JSON) we fall back to the single-image overlay path that
     // has always worked.
-    fetch(`/maps/tiles/${encodeURIComponent(mapId)}/tiles.json`, { cache: 'no-store' })
+    fetch(`/maps/tiles/${encodeURIComponent(mapId)}/tiles.json`, {
+      cache: 'no-store',
+      ...(abortController ? { signal: abortController.signal } : {}),
+    })
       .then(r => r.ok ? r.json() : Promise.reject(new Error('no manifest')))
-      .then(m => _doInitTiled(mapId, m, container))
+      .then(m => {
+        if (_isCurrentGeneration(token, container)) {
+          _doInitTiled(mapId, m, container, token);
+        }
+      })
       .catch(() => {
+        if (!_isCurrentGeneration(token, container)) return;
         const img = new Image();
-        img.onload  = () => _doInit(img, imgUrl, container);
-        img.onerror = () => _showMapError(container);
+        const detach = () => {
+          img.onload = null;
+          img.onerror = null;
+        };
+        _mapGeneration.track(token, detach);
+        img.onload = () => {
+          detach();
+          if (_isCurrentGeneration(token, container)) {
+            _doInit(img, imgUrl, container, token);
+          }
+        };
+        img.onerror = () => {
+          detach();
+          if (_isCurrentGeneration(token, container)) _showMapError(container);
+        };
         img.src = imgUrl;
       });
   }
@@ -709,7 +761,8 @@ export const WorldMap = (() => {
   // Initialise the map using a sharp-generated tile pyramid. `manifest`
   // shape: { width, height, tileSize, minZoom, maxZoom, ext? }. The
   // ext defaults to "jpg". Tile URLs follow Leaflet's {z}/{x}/{y} scheme.
-  function _doInitTiled(mapId, manifest, container) {
+  function _doInitTiled(mapId, manifest, container, token) {
+    if (!_isCurrentGeneration(token, container)) return;
     const w = Number(manifest.width);
     const h = Number(manifest.height);
     // Validate BEFORE creating the Leaflet instance — a bad/legacy
@@ -726,7 +779,7 @@ export const WorldMap = (() => {
     const minZoom  = Number.isFinite(manifest.minZoom) ? manifest.minZoom : -8;
     const maxZoom  = Number.isFinite(manifest.maxZoom) ? manifest.maxZoom : 2;
 
-    _map = L.map(container, {
+    const candidate = L.map(container, {
       crs:                 L.CRS.Simple,
       minZoom,
       maxZoom,
@@ -738,23 +791,31 @@ export const WorldMap = (() => {
       // vertical slider in the floating top-left zoom panel.
       zoomControl:         false,
     });
+    const cleanupCandidate = _trackMapCandidate(candidate, token);
+    if (!cleanupCandidate) return;
 
-    // Pyramid ↔ Leaflet zoom mapping. Tile DIRS are numbered 0..N where
-    // 0 = whole image in one tile and N = native resolution, while the
-    // map runs the CRS.Simple convention (zoom 0 = native pixels, so
-    // pyramid depth N = -minZoom). zoomOffset shifts the URL's {z} into
-    // pyramid numbering; maxNativeZoom 0 makes Leaflet scale the deepest
-    // tiles up when the user over-zooms past native resolution.
-    L.tileLayer(
-      `/maps/tiles/${encodeURIComponent(mapId)}/{z}/{x}/{y}.${ext}`,
-      { tileSize, noWrap: true, bounds: _bounds, minZoom, maxZoom,
-        minNativeZoom: minZoom, maxNativeZoom: 0, zoomOffset: -minZoom },
-    ).addTo(_map);
+    try {
+      // Pyramid ↔ Leaflet zoom mapping. Tile DIRS are numbered 0..N where
+      // 0 = whole image in one tile and N = native resolution, while the
+      // map runs the CRS.Simple convention (zoom 0 = native pixels, so
+      // pyramid depth N = -minZoom). zoomOffset shifts the URL's {z} into
+      // pyramid numbering; maxNativeZoom 0 makes Leaflet scale the deepest
+      // tiles up when the user over-zooms past native resolution.
+      L.tileLayer(
+        `/maps/tiles/${encodeURIComponent(mapId)}/{z}/{x}/{y}.${ext}`,
+        { tileSize, noWrap: true, bounds: _bounds, minZoom, maxZoom,
+          minNativeZoom: minZoom, maxNativeZoom: 0, zoomOffset: -minZoom },
+      ).addTo(candidate);
 
-    _map.fitBounds(_bounds);
-    requestAnimationFrame(() => _enforceFitZoom());
+      candidate.fitBounds(_bounds);
+      if (!_publishMap(candidate, container, token)) return;
+      _frameForGeneration(token, () => _enforceFitZoom());
 
-    _wirePostInit();
+      _wirePostInit(container, token, candidate);
+    } catch (error) {
+      cleanupCandidate();
+      throw error;
+    }
   }
 
   function _fitZoom() {
@@ -776,12 +837,13 @@ export const WorldMap = (() => {
     _updateZoomReadout();
   }
 
-  function _doInit(img, imgUrl, container) {
+  function _doInit(img, imgUrl, container, token) {
+    if (!_isCurrentGeneration(token, container)) return;
     _imgW   = img.naturalWidth  || 2048;
     _imgH   = img.naturalHeight || 1340;
     _bounds = [[-_imgH, 0], [0, _imgW]];
 
-    _map = L.map(container, {
+    const candidate = L.map(container, {
       crs:                 L.CRS.Simple,
       minZoom:             -8,
       maxZoom:             2,
@@ -793,19 +855,46 @@ export const WorldMap = (() => {
       // vertical slider in the floating top-left zoom panel.
       zoomControl:         false,
     });
+    const cleanupCandidate = _trackMapCandidate(candidate, token);
+    if (!cleanupCandidate) return;
 
-    L.imageOverlay(imgUrl, _bounds).addTo(_map);
-    _map.fitBounds(_bounds);
+    try {
+      L.imageOverlay(imgUrl, _bounds).addTo(candidate);
+      candidate.fitBounds(_bounds);
 
-    requestAnimationFrame(() => _enforceFitZoom());
+      if (!_publishMap(candidate, container, token)) return;
+      _frameForGeneration(token, () => _enforceFitZoom());
 
-    _wirePostInit(container);
+      _wirePostInit(container, token, candidate);
+    } catch (error) {
+      cleanupCandidate();
+      throw error;
+    }
+  }
+
+  function _trackMapCandidate(candidate, token) {
+    let removed = false;
+    const cleanup = () => {
+      if (removed) return;
+      removed = true;
+      try { candidate.remove(); } catch (_) {}
+      if (_map === candidate) _map = null;
+    };
+    if (!_mapGeneration.track(token, cleanup)) return null;
+    return cleanup;
+  }
+
+  function _publishMap(candidate, container, token) {
+    if (!_isCurrentGeneration(token, container)) return false;
+    _map = candidate;
+    return true;
   }
 
   // Shared post-init wiring: marker placement, zoomend/click/edit-mode
   // observers, resize handling, pending-pin flush. Used by both the
   // tile-pyramid init path and the legacy imageOverlay fallback.
-  function _wirePostInit(container) {
+  function _wirePostInit(container, token, map) {
+    if (!_isCurrentGeneration(token, container) || _map !== map) return;
     _markers = {};
     _pinsForCurrent().forEach(_placePin);
 
@@ -837,6 +926,12 @@ export const WorldMap = (() => {
       // modal opens) should release the lock so the readout sync
       // resumes on the next zoomend.
       zoomSlider.addEventListener('blur',          onUp);
+      _mapGeneration.track(token, () => {
+        zoomSlider.removeEventListener('pointerdown',   onDown);
+        zoomSlider.removeEventListener('pointerup',     onUp);
+        zoomSlider.removeEventListener('pointercancel', onUp);
+        zoomSlider.removeEventListener('blur',          onUp);
+      });
     }
 
     _syncZoomSliderBounds();
@@ -846,7 +941,8 @@ export const WorldMap = (() => {
     // zoomanim fires only for animated zooms (wheel, double-click, +/−
     // buttons via Leaflet shortcut). Slider drags use {animate:false}
     // and skip this entirely, so they keep snapping instantly.
-    _map.on('zoomanim', (e) => {
+    map.on('zoomanim', (e) => {
+      if (!_isCurrentGeneration(token, container) || _map !== map) return;
       const r  = _currentZoomScaleRatio();
       const z1 = e.zoom;
       const target = _iconScaleAtZoom(z1, r).toFixed(4);
@@ -859,7 +955,8 @@ export const WorldMap = (() => {
         if (pin) pin.style.setProperty('--sc-pin-base-scale', target);
       }
     });
-    _map.on('zoomend', () => {
+    map.on('zoomend', () => {
+      if (!_isCurrentGeneration(token, container) || _map !== map) return;
       // Snap any in-flight transition off, write the final scale
       // (same value the transition was heading to, so no visible
       // jump), then restore the CSS-rule hover transition next frame.
@@ -867,10 +964,11 @@ export const WorldMap = (() => {
       _renderLegend();
       _applyMarkerScale();
       _updateZoomReadout();
-      requestAnimationFrame(() => _setMarkerTransition(''));
+      _frameForGeneration(token, () => _setMarkerTransition(''));
     });
 
-    _map.on('click', evt => {
+    map.on('click', evt => {
+      if (!_isCurrentGeneration(token, container) || _map !== map) return;
       if (!_addMode) return;
       const frac = _toFrac(evt.latlng);
       // If we're placing an existing location (from the wiki "Umístit na
@@ -888,7 +986,7 @@ export const WorldMap = (() => {
         if (!Array.isArray(patch.attitudes)) patch.attitudes = [];
         Store.saveLocation(patch);
         _refreshPin(loc.id);
-        setTimeout(() => zoomToPin(loc.id), 50);
+        _scheduleForGeneration(token, () => zoomToPin(loc.id), 50);
         return;
       }
       // Placing an event-only pin — stash coordinates on the event itself.
@@ -919,18 +1017,28 @@ export const WorldMap = (() => {
 
     if (_resizeObserver) _resizeObserver.disconnect();
     _resizeObserver = new ResizeObserver(() => {
-      if (!_map) return;
-      _map.invalidateSize();
+      if (!_isCurrentGeneration(token, container) || _map !== map) return;
+      map.invalidateSize();
       _enforceFitZoom();
     });
     _resizeObserver.observe(container);
+    const resizeObserver = _resizeObserver;
+    _mapGeneration.track(token, () => {
+      resizeObserver.disconnect();
+      if (_resizeObserver === resizeObserver) _resizeObserver = null;
+    });
 
     // Consume any pending "fly to pin" request scheduled before the map
     // was ready (e.g. WorldMap.showPin triggered during a hash navigation).
     if (_pendingPinId) {
       const id = _pendingPinId;
       _pendingPinId = null;
-      setTimeout(() => zoomToPin(id), 50);
+      _scheduleForGeneration(token, () => zoomToPin(id), 50);
+    }
+    if (_pendingEventPinId) {
+      const id = _pendingEventPinId;
+      _pendingEventPinId = null;
+      _flyToEventPin(id);
     }
 
     // Re-arm placement intent if it survived a re-render (SSE flush,
@@ -970,7 +1078,7 @@ export const WorldMap = (() => {
           ${esc(I18n.t('map.errorTextPre'))} <strong>⚙ ${esc(I18n.t('map.errorTextMenu'))}</strong> ${esc(I18n.t('map.errorTextMid'))}
           <code>data/maps/swordcoast/sword_coast.jpg</code>.
         </div>
-        <button class="sc-btn" style="margin-top:1.2rem"${dataAction('WorldMap.showSettings')}>⚙ ${esc(I18n.t('map.errorOpenSettings'))}</button>
+        <button class="sc-btn" style="margin-top:1.2rem"${dataAction('Settings.openWorldMap')}>⚙ ${esc(I18n.t('map.errorOpenSettings'))}</button>
       </div>`;
   }
 
@@ -1750,45 +1858,46 @@ export const WorldMap = (() => {
     const alreadyOnMap = _isOnMapRoute() && !!_map && targetParent === _currentParentId;
     if (alreadyOnMap) { _armForCurrentTarget(); return; }
     const targetHash = _hashForParent(targetParent);
-    const sameHash   = window.location.hash === targetHash;
-    if (!sameHash) window.location.hash = targetHash;
-    // Defer until the route change (and any parent-map render) finishes.
-    // _doInit will call _armForCurrentTarget once the map is ready, so the
-    // intent survives SSE-driven re-renders that may happen concurrently.
-    setTimeout(() => {
-      if (targetParent && targetParent !== _currentParentId) render(targetParent);
-      else if (sameHash && !_map) render(targetParent);
-      else if (!_map) _initLeaflet();
-      else _armForCurrentTarget();
-    }, 0);
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+      return;
+    }
+    if (!_isCurrentGeneration(_mapToken) || targetParent !== _currentParentId) {
+      render(targetParent);
+    }
   }
 
   // Navigate to the event pin's map context and fly to its position.
   // Mirrors showPin/zoomToPin for Locations.
+  function _flyToEventPin(eventId) {
+    const ev = Store.getEvent(eventId);
+    if (!ev || typeof ev.mapX !== 'number'
+        || !_map || !_isCurrentGeneration(_mapToken)) return false;
+    _eventPathsVisible = true;
+    _drawEventPaths();
+    const btn = document.getElementById('sc-event-btn');
+    if (btn) btn.classList.add('active');
+    const ll = _toLL(ev.mapX, ev.mapY);
+    const capZoom = Math.min(0, _map.getMaxZoom());
+    _map.flyTo(ll, capZoom, { animate: true, duration: 0.6 });
+    return true;
+  }
+
   function showEventPin(eventId) {
     const ev = Store.getEvent(eventId);
     if (!ev || typeof ev.mapX !== 'number') return;
     const targetParent = ev.mapParentId || null;
-    const fly = () => {
-      if (!_map) return;
-      _eventPathsVisible = true;
-      _drawEventPaths();
-      const btn = document.getElementById('sc-event-btn');
-      if (btn) btn.classList.add('active');
-      const ll = _toLL(ev.mapX, ev.mapY);
-      const capZoom = Math.min(0, _map.getMaxZoom());
-      _map.flyTo(ll, capZoom, { animate: true, duration: 0.6 });
-    };
     const alreadyOnMap = _isOnMapRoute() && !!_map && targetParent === _currentParentId;
-    if (alreadyOnMap) { fly(); return; }
+    if (alreadyOnMap) { _flyToEventPin(eventId); return; }
+    _pendingEventPinId = eventId;
     const targetHash = _hashForParent(targetParent);
-    const sameHash   = window.location.hash === targetHash;
-    if (!sameHash) window.location.hash = targetHash;
-    setTimeout(() => {
-      if (targetParent && targetParent !== _currentParentId) render(targetParent);
-      else if (sameHash && !_map) render(targetParent);
-      setTimeout(fly, 120);
-    }, 0);
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+      return;
+    }
+    if (!_isCurrentGeneration(_mapToken) || targetParent !== _currentParentId) {
+      render(targetParent);
+    }
   }
 
   // Strip a previously-placed event pin. Keeps the Event itself intact.
@@ -1825,54 +1934,18 @@ export const WorldMap = (() => {
     const alreadyOnMap = _isOnMapRoute() && !!_map && targetParent === _currentParentId;
     if (alreadyOnMap) { _armForCurrentTarget(); return; }
     const targetHash = _hashForParent(targetParent);
-    const sameHash   = window.location.hash === targetHash;
-    if (!sameHash) window.location.hash = targetHash;
-    // Defer until the route change (and any parent-map render) finishes.
-    // _doInit will call _armForCurrentTarget once the map is ready, so the
-    // intent survives SSE-driven re-renders that may happen concurrently.
-    setTimeout(() => {
-      if (targetParent && targetParent !== _currentParentId) render(targetParent);
-      else if (sameHash && !_map) render(targetParent);
-      else if (!_map) _initLeaflet();
-      else _armForCurrentTarget();
-    }, 0);
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+      return;
+    }
+    if (!_isCurrentGeneration(_mapToken) || targetParent !== _currentParentId) {
+      render(targetParent);
+    }
   }
 
   function closePanel() {
     document.getElementById('sc-panel')?.setAttribute('hidden', '');
     _editPinId = null;
-  }
-
-  function showSettings() {
-    document.getElementById('sc-overlay')?.removeAttribute('hidden');
-  }
-
-  function closeSettings() {
-    document.getElementById('sc-overlay')?.setAttribute('hidden', '');
-  }
-
-  function handleMapFileUpload(input) {
-    const file = input.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = e => {
-      try { localStorage.setItem(LS_IMG_KEY, e.target.result); } catch (err) {
-        alert(I18n.t('map.fileTooLarge'));
-        return;
-      }
-      closeSettings();
-      _initLeaflet();
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function applySettings() {
-    const url = document.getElementById('sc-img-url')?.value.trim();
-    if (url) {
-      try { localStorage.setItem(LS_IMG_KEY, url); } catch (e) { /* private browsing / quota */ }
-      closeSettings();
-      _initLeaflet();
-    }
   }
 
   function _renderLegend() {
@@ -1972,16 +2045,19 @@ export const WorldMap = (() => {
     const targetParent = loc.parentId || null;
     if (targetParent !== _currentParentId) {
       render(targetParent);
+      const token = _mapToken;
+      const container = token?.container;
       // _initLeaflet runs async (image preload). Wait for the marker.
       const tryFly = (tries) => {
+        if (!_isCurrentGeneration(token, container)) return;
         if (_markers[pinId]) return zoomToPin(pinId);
         if (tries > 30) return;
-        setTimeout(() => tryFly(tries + 1), 80);
+        _scheduleForGeneration(token, () => tryFly(tries + 1), 80);
       };
-      setTimeout(() => tryFly(0), 80);
+      _scheduleForGeneration(token, () => tryFly(0), 80);
       return;
     }
-    if (!_map) return;
+    if (!_map || !_isCurrentGeneration(_mapToken)) return;
     const ll = _toLL(loc.x, loc.y);
     const capZoom = Math.min(0, _map.getMaxZoom());
     _map.flyTo(ll, capZoom, { animate: true, duration: 0.6 });
@@ -2036,7 +2112,7 @@ export const WorldMap = (() => {
     if (window.location.hash !== targetHash) {
       window.location.hash = targetHash;
     } else {
-      setTimeout(() => render(targetParent), 0);
+      render(targetParent);
     }
   }
 
@@ -2065,14 +2141,13 @@ export const WorldMap = (() => {
   }
 
   return {
-    render,
+    render, teardown,
     setEditing, toggleEditing,
     toggleAddMode, closePanel,
     toggleEventPaths,
     openPinPanel, savePin, deletePin,
     syncSizeFromRange, syncSizeFromNumber,
     toggleTypeMenu, closeTypeMenu, selectPinType,
-    showSettings, closeSettings, applySettings, handleMapFileUpload,
     zoomFitAll,
     applyMapView, captureCurrentView, refreshPresetButtons: _refreshPresetButtons,
     onSearchInput, jumpToFirstMatch, handleSearchKey, zoomToPin, showPin,

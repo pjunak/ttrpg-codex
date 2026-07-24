@@ -20,6 +20,8 @@ const fsp  = require('fs').promises;
 const path = require('path');
 const { VISIBILITY_BEARING, KEYED_OBJ_VISIBILITY } = require('./visibility.cjs');
 
+const TIMELINE_SITTING_MIGRATION_ID = 'timeline-sitting-zero-v1';
+
 // Idempotent startup pass over every visibility-bearing collection:
 //   - Backfill `visibility: 'public'` on records that lack it.
 //   - Strip the legacy `secrets: {...}` field if present (the twin-
@@ -68,6 +70,45 @@ async function runVisibilityMigration(dataDir, opts = {}) {
   return result;
 }
 
+async function runTimelineSittingMigration(dataDir, opts = {}) {
+  const atomicWrite = opts.atomicWrite || _defaultAtomicWrite;
+  const file = path.join(dataDir, 'events.json');
+  const result = {
+    id: TIMELINE_SITTING_MIGRATION_ID,
+    changed: 0,
+    byCollection: {},
+  };
+
+  let raw;
+  try {
+    raw = await fsp.readFile(file, 'utf8');
+  } catch (e) {
+    if (e.code === 'ENOENT') return result;
+    throw e;
+  }
+
+  let events;
+  try {
+    events = JSON.parse(raw);
+  } catch (_) {
+    console.warn('[migration] events.json is not valid JSON, skipping timeline sitting migration');
+    return result;
+  }
+  if (!Array.isArray(events)) return result;
+
+  for (const event of events) {
+    if (event && typeof event === 'object' && event.sitting === 0) {
+      event.sitting = 1;
+      result.changed++;
+    }
+  }
+  if (result.changed > 0) {
+    await atomicWrite(file, JSON.stringify(events, null, 2));
+    result.byCollection.events = result.changed;
+  }
+  return result;
+}
+
 // Backfill `visibility: 'public'` if missing, and strip the legacy
 // `secrets: {...}` field if present. Returns true if the entity was
 // mutated (so the caller knows to write). Idempotent: an entity
@@ -95,5 +136,7 @@ async function _defaultAtomicWrite(file, content) {
 }
 
 module.exports = {
+  TIMELINE_SITTING_MIGRATION_ID,
+  runTimelineSittingMigration,
   runVisibilityMigration,
 };
