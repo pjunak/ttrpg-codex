@@ -231,3 +231,70 @@ test('lifecycle: consumers dispose before providers and rapid reconciles settle 
   const providerDispose = rt.state.events.indexOf('onDispose:provider:p1');
   assert.ok(consumerDispose >= 0 && consumerDispose < providerDispose, 'consumer unload precedes provider unload');
 });
+
+test('lifecycle: dashboard slots swap cleanly across disable, update, and render failure', async () => {
+  const dashboardMeta = (revision, extra = {}) => metadata('dashboard', revision, {
+    permissions: ['ui:route', 'ui:slot:dm'],
+    ...extra,
+  });
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const rt = await freshRuntime([dashboardMeta('r1')], {
+      dashboard: { slot: 'dm:dashboard' },
+    });
+    assert.deepEqual(rt.Addons.slotContent('dm:dashboard', {}).map(item => item.html), [
+      '<div>r1</div>',
+    ], JSON.stringify({ addons: rt.Addons.list(), events: rt.state.events }));
+
+    rt.queue([dashboardMeta('r1', { enabled: false })]);
+    await rt.Addons.reconcile();
+    assert.deepEqual(rt.Addons.slotContent('dm:dashboard', {}), []);
+
+    rt.queue([dashboardMeta('r1')]);
+    await rt.Addons.reconcile();
+    assert.equal(rt.Addons.slotContent('dm:dashboard', {}).length, 1);
+
+    rt.queue([dashboardMeta('r2')]);
+    await rt.Addons.reconcile();
+    assert.deepEqual(rt.Addons.slotContent('dm:dashboard', {}).map(item => item.html), [
+      '<div>r2</div>',
+    ]);
+
+    rt.state.config.dashboard.slotThrows = true;
+    assert.deepEqual(rt.Addons.slotContent('dm:dashboard', {}), []);
+    assert.match(rt.Addons.list()[0].slotFailures[0].message, /slot failure/);
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test('lifecycle: effective-role changes rebuild DM-only registrations', async () => {
+  const { Role } = await import('../web/js/role.js');
+  const originalGet = Role.get;
+  const originalIsDM = Role.isDM;
+  let effectiveRole = 'player';
+  Role.get = () => effectiveRole;
+  Role.isDM = () => effectiveRole === 'dm';
+  try {
+    const addon = metadata('role-aware', 'r1');
+    const rt = await freshRuntime([addon], {
+      'role-aware': { dmOnly: true },
+    });
+    assert.equal(rt.Addons.hasRoute('role-aware'), false);
+
+    effectiveRole = 'dm';
+    rt.queue([addon]);
+    await rt.Addons.reconcile();
+    assert.equal(rt.Addons.hasRoute('role-aware'), true);
+
+    effectiveRole = 'player';
+    rt.queue([addon]);
+    await rt.Addons.reconcile();
+    assert.equal(rt.Addons.hasRoute('role-aware'), false);
+    assert.ok(rt.state.events.includes('role-skip:role-aware:r1'));
+  } finally {
+    Role.get = originalGet;
+    Role.isDM = originalIsDM;
+  }
+});

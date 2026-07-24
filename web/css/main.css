@@ -84,6 +84,9 @@
   /* Layout */
   --sidebar-width: 240px;
   --bottom-nav-h:  60px;
+  --dm-panel-max-width: 68.75rem;
+  --dm-card-min-width: 11.25rem;
+  --dm-copy-max-width: 60ch;
   --radius:        6px;
   --radius-lg:     12px;
 

@@ -64,6 +64,7 @@ export const Addons = (() => {
   const _fragmentOps     = [];         // [{ addonId, target, op, render, order, position }]  (override claims)
   let   _resolutions     = {};         // target   -> winner addonId | null            (DM conflict resolutions, from registry)
   const _unmatched       = new Map();  // "<id>::<target>" -> {addonId,target,op}      (claims whose fragment is absent; best-effort, reset on (re)boot)
+  const _slotFailures    = new Map();  // "<id>::<slot>" -> {addonId,slotId,message}    (latest runtime render failure)
   const _addons          = new Map();  // id       -> { id, state, error, meta }
   const _graphFacades    = new Map();  // id       -> instance-scoped graph facade/controller
 
@@ -105,6 +106,7 @@ export const Addons = (() => {
     'ui:settings-tab': 'permUiSettingsTab',
     'ui:action':       'permUiAction',
     'ui:override':     'permUiOverride',
+    'ui:slot:dm':      'permSlotDm',
     'wiki:kind':       'permWikiKind',
     'data:own':        'permDataOwn',
     'data:import-provider': 'permImportProvider',
@@ -738,7 +740,12 @@ export const Addons = (() => {
       .map(a => a.id));
     const impacted = new Set();
     for (const [id, rec] of _addons) {
-      if (rec.state === 'ok' && (!desired.has(id) || compatibilityBlocked.has(id) || plan.blocked.has(id))) {
+      if (rec.state === 'ok' && (
+        !desired.has(id)
+        || compatibilityBlocked.has(id)
+        || plan.blocked.has(id)
+        || rec.role !== Role.get()
+      )) {
         impacted.add(id);
       }
     }
@@ -815,6 +822,7 @@ export const Addons = (() => {
     reverseRegistrations(rec?.undo, (error) => console.error(`[addon ${id}] registration cleanup failed`, error));
     _addonApis.delete(id);
     for (const k of [..._unmatched.keys()]) { if (k.startsWith(id + '::')) _unmatched.delete(k); }
+    for (const k of [..._slotFailures.keys()]) { if (k.startsWith(id + '::')) _slotFailures.delete(k); }
     _addons.delete(id);
   }
 
@@ -872,7 +880,16 @@ export const Addons = (() => {
   }
 
   async function _loadOne(a) {
-    const rec = { id: a.id, name: a.name || a.id, version: a.version || '', state: 'loading', error: '', smoke: null, meta: a };
+    const rec = {
+      id: a.id,
+      name: a.name || a.id,
+      version: a.version || '',
+      state: 'loading',
+      error: '',
+      smoke: null,
+      meta: a,
+      role: Role.get(),
+    };
     _addons.set(a.id, rec);
     let localization = { catalogs: { en: {} }, warnings: [], dispose: () => {} };
     if (a.locales) {
@@ -1125,11 +1142,18 @@ export const Addons = (() => {
     if (!lst || !lst.length) return [];
     const out = [];
     for (const e of lst) {
+      const failureKey = `${e.addonId}::${slotId}`;
       try {
         const r = e.render(ctx);
         const html = (r && typeof r === 'object') ? r.html : r;
+        _slotFailures.delete(failureKey);
         if (typeof html === 'string' && html) out.push({ addonId: e.addonId, html });
       } catch (err) {
+        _slotFailures.set(failureKey, {
+          addonId: e.addonId,
+          slotId,
+          message: err?.message || String(err),
+        });
         console.error(`[addon ${e.addonId}] slot "${slotId}" render failed`, err);
       }
     }
@@ -1198,7 +1222,17 @@ export const Addons = (() => {
 
   /** Loaded-addon states (for the Addon Manager UI / debugging). */
   function list() {
-    return [..._addons.values()].map(r => ({ id: r.id, name: r.name, version: r.version, state: r.state, error: r.error, smoke: r.smoke || null }));
+    return [..._addons.values()].map(r => ({
+      id: r.id,
+      name: r.name,
+      version: r.version,
+      state: r.state,
+      error: r.error,
+      smoke: r.smoke || null,
+      slotFailures: [..._slotFailures.values()]
+        .filter(failure => failure.addonId === r.id)
+        .map(failure => ({ ...failure })),
+    }));
   }
 
   return {

@@ -109,6 +109,10 @@ host-owned `.codex-graph-canvas` used by the addon graph facade.
 `768px` mobile / sidebar drawer · `1100px` wiki two-col→one · `1200px` split editor
 two-col→one. Use these three, nothing else.
 
+DM dashboard layout uses `--dm-panel-max-width`, `--dm-card-min-width`, and
+`--dm-copy-max-width` so the core fallback and addon-owned contribution share
+one responsive shell without embedding component dimensions.
+
 ---
 
 ## Component vocabulary (non-exhaustive)
