@@ -121,13 +121,13 @@ test('smokeRegistrations: does NOT invoke actions (side effects)', () => {
 
 test('mock host.use matches live declared/missing/loaded dependency behavior', () => {
   const undeclared = createMockHost({ id: 'consumer' }, { deps: { provider: { ok: true } } }).host;
-  assert.throws(() => undeclared.use('provider'), /nedeklaroval závislost/);
+  assert.throws(() => undeclared.use('provider'), /did not declare dependency/);
 
   const hardMissing = createMockHost({ id: 'consumer', dependencies: { provider: '*' } }).host;
-  assert.throws(() => hardMissing.use('provider'), /není načtená/);
+  assert.throws(() => hardMissing.use('provider'), /is not loaded/);
 
   const optionalMissing = createMockHost({ id: 'consumer', optionalDependencies: { provider: '*' } }).host;
-  assert.throws(() => optionalMissing.use('provider'), /není načtená/);
+  assert.throws(() => optionalMissing.use('provider'), /is not loaded/);
 
   const api = { apiVersion: 1 };
   const loaded = createMockHost(

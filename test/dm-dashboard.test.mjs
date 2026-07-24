@@ -123,7 +123,8 @@ test('fallback escapes addon diagnostics and reports hidden core counts', () => 
   const html = DmDashboard.html();
   assert.doesNotMatch(html, /<img|<script>/);
   assert.match(html, /&lt;img/);
-  assert.match(html, /&lt;script&gt;/);
+  assert.doesNotMatch(html, /&lt;script&gt;/);
+  assert.match(html, /An unexpected add-on error occurred/);
   assert.match(html, /<strong>1<\/strong> \/ 2/);
 });
 

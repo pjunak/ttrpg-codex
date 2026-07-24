@@ -73,17 +73,54 @@ test('plural(): English one/other', async () => {
   assert.equal(I18n.plural('pets.count', 0), '0 pets');
 });
 
-test('catalog parity: cs covers every en key, with Czech plural buckets', () => {
+function placeholders(value) {
+  return [...String(value).matchAll(/\{([A-Za-z0-9_]+)\}/g)]
+    .map(match => match[1])
+    .sort();
+}
+
+test('catalog parity: locales match key shapes, plural buckets, and placeholders', () => {
+  for (const k of Object.keys(cs)) {
+    assert.ok(k in en, `cs.json has orphan key "${k}"`);
+  }
   for (const k of Object.keys(en)) {
     assert.ok(k in cs, `cs.json is missing key "${k}"`);
-    if (en[k] && typeof en[k] === 'object') {
+    const enPlural = en[k] && typeof en[k] === 'object';
+    const csPlural = cs[k] && typeof cs[k] === 'object';
+    assert.equal(csPlural, enPlural, `cs["${k}"] must match the English value shape`);
+    if (enPlural) {
       assert.equal(typeof cs[k], 'object', `cs["${k}"] must be a plural object`);
       // Czech integers need one/few/other; many covers decimals.
       for (const bucket of ['one', 'few', 'other']) {
         assert.ok(bucket in cs[k], `cs["${k}"] needs the "${bucket}" form`);
       }
+      for (const [bucket, value] of Object.entries(cs[k])) {
+        const source = en[k][bucket] ?? en[k].other;
+        assert.ok(source, `en["${k}"] has no source form for Czech "${bucket}"`);
+        assert.deepEqual(
+          placeholders(value),
+          placeholders(source),
+          `cs["${k}"].${bucket} placeholders must match English`,
+        );
+      }
+    } else {
+      assert.deepEqual(
+        placeholders(cs[k]),
+        placeholders(en[k]),
+        `cs["${k}"] placeholders must match English`,
+      );
     }
   }
+});
+
+test('plural(): audited record-count messages select singular and Czech few forms', async () => {
+  await I18n.setLocale('en');
+  assert.equal(I18n.plural('wiki.recordsCount', 1, { shown: 1, total: 1 }), '1 / 1 record');
+  assert.equal(I18n.plural('settings.restoredFromFmt', 2, { fmt: 'ZIP' }), 'Restored from ZIP (2 files) ✓');
+
+  await I18n.setLocale('cs');
+  assert.equal(I18n.plural('wiki.recordsCount', 3, { shown: 2, total: 3 }), '2 / 3 záznamy');
+  assert.equal(I18n.plural('settings.replacedAndDeleted', 1), 'Nahrazeno v 1 záznamu a smazáno');
 });
 
 test('relativeTime(): locale-aware, with empty-input guards', async () => {

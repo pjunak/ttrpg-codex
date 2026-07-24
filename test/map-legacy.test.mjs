@@ -26,7 +26,7 @@ test('world map: settings keeps the authenticated server upload as the only imag
   assert.match(upload, /fd\.append\('worldmap', file\)/);
   assert.match(upload, /fetch\('\/api\/worldmap', \{ method: 'POST'/);
   assert.match(upload, /\.then\(\(\) => \{\s*_bumpPreviewBust\('world'\)/);
-  assert.match(upload, /\.catch\(e => _flash\(e\?\.error \|\| I18n\.t\('settings\.uploadFailed'\), false\)\)/);
+  assert.match(upload, /\.catch\(\(\) => _flash\(I18n\.t\('settings\.uploadFailed'\), false\)\)/);
   assert.equal((upload.match(/_bumpPreviewBust\('world'\)/g) || []).length, 1);
 });
 

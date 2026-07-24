@@ -1423,7 +1423,7 @@ export const EditMode = (() => {
     if (_dirty && !confirm(I18n.t('editmode.unsavedEditorContinueQ'))) return;
     _closeTwinPicker();
     const r = await Store.linkTwin('create', collection, sourceId);
-    if (!r.ok) { _toast(r.error || I18n.t('editmode.twinCreateFailed'), false); return; }
+    if (!r.ok) { _toast(I18n.t('editmode.twinCreateFailed'), false); return; }
     _toast(I18n.t('editmode.twinCreated'));
     const route = CollectionDescriptors.routeForCollection(collection, r.twinId);
     if (route && r.twinId) _refreshTo(`#${route}`);
@@ -1431,14 +1431,14 @@ export const EditMode = (() => {
   async function unlinkTwin(collection, sourceId) {
     if (!confirm(I18n.t('editmode.twinUnlinkQ'))) return;
     const r = await Store.linkTwin('unlink', collection, sourceId);
-    if (!r.ok) { _toast(r.error || I18n.t('editmode.twinUnlinkFailed'), false); return; }
+    if (!r.ok) { _toast(I18n.t('editmode.twinUnlinkFailed'), false); return; }
     _toast(I18n.t('editmode.twinUnlinked'));
     // Stay on current entity; the SSE refresh re-renders it.
     window.dispatchEvent(new Event('hashchange'));
   }
   async function linkExistingTwin(collection, sourceId, targetId) {
     const r = await Store.linkTwin('link', collection, sourceId, targetId);
-    if (!r.ok) { _toast(r.error || I18n.t('editmode.twinLinkFailed'), false); return; }
+    if (!r.ok) { _toast(I18n.t('editmode.twinLinkFailed'), false); return; }
     _closeTwinPicker();
     _toast(I18n.t('editmode.twinLinked'));
     window.dispatchEvent(new Event('hashchange'));

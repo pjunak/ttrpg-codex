@@ -821,7 +821,7 @@ export const Wiki = (() => {
             ${addBtn}
           </div>
           <div class="dash-empty">
-            ${I18n.t('wiki.partyEmptyDash')}
+            ${esc(I18n.t('wiki.partyEmptyDash'))}
           </div>
         </div>`;
     }
@@ -891,7 +891,10 @@ export const Wiki = (() => {
       if (!Role.isAnonymous()) return `
         <div class="dash-section">
           <div class="dash-section-head"><h2>🕯 ${esc(I18n.t('wiki.lastSession'))}</h2></div>
-          <div class="dash-empty">${I18n.t('wiki.lastSessionEmpty')}</div>
+          <div class="dash-empty">
+            ${esc(I18n.t('wiki.lastSessionEmpty'))}
+            <a href="#/casova-osa">${esc(I18n.t('wiki.lastSessionAction'))}</a>
+          </div>
         </div>`;
       return '';
     }
@@ -1029,7 +1032,7 @@ export const Wiki = (() => {
       if (!Role.isAnonymous()) return `
         <div class="dash-section">
           <div class="dash-section-head"><h2>🕘 ${esc(I18n.t('wiki.recentChanges'))}</h2></div>
-          <div class="dash-empty">${I18n.t('wiki.recentChangesEmpty')}</div>
+          <div class="dash-empty">${esc(I18n.t('wiki.recentChangesEmpty'))}</div>
         </div>`;
       return '';
     }
@@ -1305,7 +1308,7 @@ export const Wiki = (() => {
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
         <div style="flex:1">
           <h1>${esc(I18n.t('nav.characters'))}</h1>
-          <div class="subtitle">${esc(I18n.t('wiki.recordsCount', { shown: shown.length, total: allChars.length }))}${filterFaction ? " · " + factions[filterFaction]?.name : ""}${activeAtt ? " · " + esc(attEnum.find(a=>a.id===activeAtt)?.label || activeAtt) : ""}</div>
+          <div class="subtitle">${esc(I18n.plural('wiki.recordsCount', allChars.length, { shown: shown.length, total: allChars.length }))}${filterFaction ? " · " + esc(factions[filterFaction]?.name || '') : ""}${activeAtt ? " · " + esc(attEnum.find(a=>a.id===activeAtt)?.label || activeAtt) : ""}</div>
         </div>
         ${newBtn}
       </div>
@@ -1344,8 +1347,7 @@ export const Wiki = (() => {
       shown: () => _postavyApply(_listState.postavy.faction).length,
       countText: (shown, total) => {
         const f = _listState.postavy.faction;
-        const fLabel = f ? " · " + (Store.getFactions()[f]?.name || '') : "";
-        return `${I18n.t('wiki.recordsCount', { shown, total })}${fLabel}`;
+        return `${I18n.plural('wiki.recordsCount', total, { shown, total })}${f ? " · " + (Store.getFactions()[f]?.name || '') : ""}`;
       },
     },
     mista: {
@@ -1354,7 +1356,7 @@ export const Wiki = (() => {
       grid:  () => _mistaGridHtml(),
       total: () => Store.getLocations().length,
       shown: () => _mistaApply().length,
-      countText: (shown, total) => I18n.t('wiki.locationsCount', { shown, total }),
+      countText: (shown, total) => I18n.plural('wiki.locationsCount', total, { shown, total }),
     },
     frakce: {
       hostId:      'wl-frakce-grid',
@@ -1362,7 +1364,7 @@ export const Wiki = (() => {
       grid:  () => _frakceGridHtml(),
       total: () => Object.keys(Store.getFactions()).length,
       shown: () => _frakceApply().length,
-      countText: (shown, total) => I18n.t('wiki.factionsCount', { shown, total }),
+      countText: (shown, total) => I18n.plural('wiki.factionsCount', total, { shown, total }),
     },
   };
   /** Mutate one field of a list kind's state, persist, and live-refresh
@@ -1749,7 +1751,7 @@ export const Wiki = (() => {
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
         <div style="flex:1">
           <h1>${esc(I18n.t('nav.locations'))}</h1>
-          <div class="subtitle">${esc(I18n.t('wiki.locationsCount', { shown, total }))}${activeAtt ? " · " + esc(attEnum.find(a=>a.id===activeAtt)?.label || activeAtt) : ""}</div>
+          <div class="subtitle">${esc(I18n.plural('wiki.locationsCount', total, { shown, total }))}${activeAtt ? " · " + esc(attEnum.find(a=>a.id===activeAtt)?.label || activeAtt) : ""}</div>
         </div>
         ${newBtn}
       </div>
@@ -2072,7 +2074,7 @@ export const Wiki = (() => {
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
         <div style="flex:1">
           <h1>❓ ${esc(I18n.t('wiki.mysteriesHeader'))}</h1>
-          <div class="subtitle">${esc(I18n.t('wiki.mysteriesUnsolvedCount', { unsolved: unsolvedCount, total: mysteries.length }))}</div>
+          <div class="subtitle">${esc(I18n.plural('wiki.mysteriesUnsolvedCount', unsolvedCount, { unsolved: unsolvedCount, total: mysteries.length }))}</div>
         </div>
         ${newBtn}
       </div>
@@ -2084,7 +2086,7 @@ export const Wiki = (() => {
           const totalCnt = (m.questions || []).length;
           const solved   = Store.isMysterySolved(m);
           const qBadge   = totalCnt > 0
-            ? `<span class="mystery-qcount" title="${esc(I18n.t('wiki.openQuestionsOfTotal'))}">${esc(I18n.t('wiki.questionsCount', { open: openCnt, total: totalCnt }))}</span>`
+            ? `<span class="mystery-qcount" title="${esc(I18n.t('wiki.openQuestionsOfTotal'))}">${esc(I18n.plural('wiki.questionsCount', totalCnt, { open: openCnt, total: totalCnt }))}</span>`
             : '';
           const solvedBadge = solved ? `<span class="profile-chip" style="margin-left:0.4rem">✓ ${esc(I18n.t('wiki.solved'))}</span>` : '';
           // Card body is a <div> (can't be an <a> because it nests
@@ -2238,8 +2240,8 @@ export const Wiki = (() => {
             <span class="faction-card-name" style="color:${_safeColor(f.textColor)}">${esc(f.name)}</span>
           </div>
           <div class="faction-card-meta">
-            <span>👤 ${esc(I18n.t('wiki.membersCount', { n: memberCount }))}</span>
-            ${rankCount ? `<span>⚔ ${esc(I18n.t('wiki.ranksCount', { n: rankCount }))}</span>` : ""}
+            <span>👤 ${esc(I18n.plural('wiki.membersCount', memberCount))}</span>
+            ${rankCount ? `<span>⚔ ${esc(I18n.plural('wiki.ranksCount', rankCount))}</span>` : ""}
           </div>
         </a>`;
     }).join("");
@@ -2262,7 +2264,7 @@ export const Wiki = (() => {
       <div class="page-header" style="display:flex;align-items:center;gap:1rem">
         <div style="flex:1">
           <h1>⬡ ${esc(I18n.t('nav.factions'))}</h1>
-          <div class="subtitle">${esc(I18n.t('wiki.factionsCount', { shown, total }))}</div>
+          <div class="subtitle">${esc(I18n.plural('wiki.factionsCount', total, { shown, total }))}</div>
         </div>
         <a href="#/frakce/new" class="list-item-new" style="text-decoration:none">＋ ${esc(I18n.t('wiki.factionNew'))}</a>
       </div>
@@ -2287,7 +2289,7 @@ export const Wiki = (() => {
     if (id === PARTY_FACTION_ID) {
       return `
         <div class="page-header"><h1>🛡 ${esc(I18n.t('wiki.ourParty'))}</h1></div>
-        <p>${I18n.t('wiki.partyManagedVia')}</p>
+        <p><a class="wiki-link" href="#/nastaveni">${esc(I18n.t('wiki.partyManagedVia'))}</a> ${esc(I18n.t('wiki.partyManagedMembership'))}</p>
         <p><a class="wiki-link" href="#/parta">→ ${esc(I18n.t('wiki.openMemberList'))}</a></p>`;
     }
     const factions = Store.getFactions();
@@ -2328,8 +2330,8 @@ export const Wiki = (() => {
 
     const rankCount = (f.rankChains || []).reduce((s, ch) => s + ch.ranks.length, 0);
     const chips = [
-      `<span class="profile-chip">👤 ${esc(I18n.t('wiki.membersCount', { n: chars.length }))}</span>`,
-      ...(rankCount ? [`<span class="profile-chip">⚔ ${esc(I18n.t('wiki.ranksCount', { n: rankCount }))}</span>`] : []),
+      `<span class="profile-chip">👤 ${esc(I18n.plural('wiki.membersCount', chars.length))}</span>`,
+      ...(rankCount ? [`<span class="profile-chip">⚔ ${esc(I18n.plural('wiki.ranksCount', rankCount))}</span>`] : []),
     ];
     // Faction-level attitude chips + glow on the badge.
     const facColors  = _attitudeColorMap();

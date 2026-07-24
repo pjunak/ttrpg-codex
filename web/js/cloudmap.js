@@ -282,7 +282,7 @@ export const CloudMap = (() => {
       }
       if (cmdIn.length) {
         const boss = Store.getCharacter(cmdIn[0].source);
-        if (boss) body += `<div class="cm-fact cm-dim">${I18n.t('cloudmap.underCommand', { name: esc(boss.name) })}</div>`;
+        if (boss) body += `<div class="cm-fact cm-dim">${esc(I18n.t('cloudmap.underCommand', { name: boss.name }))}</div>`;
       }
       if (!body) body = `<div class="cm-fact cm-dim">${esc(I18n.t('cloudmap.noCommandLinks'))}</div>`;
 
@@ -514,7 +514,10 @@ export const CloudMap = (() => {
   // filter) — plus `cardHTML(entity, mode)` / `height(entity, mode)` the view
   // builders render with. Built-ins DELEGATE to the existing render fns, so
   // behaviour is identical with zero addons installed.
-  const KNOWLEDGE_NAMES = ['Neznámý','Tušený','Základní','Dobře znám','Plně zmapován'];
+  const KNOWLEDGE_KEYS = [
+    'wiki.knowledge0', 'wiki.knowledge1', 'wiki.knowledge2',
+    'wiki.knowledge3', 'wiki.knowledge4',
+  ];
   const NODE_KINDS = new Map([
     ['character', {
       id: 'character', shape: 'rect', cardHTML: _charCloudHTML, height: _charCloudH,
@@ -524,7 +527,7 @@ export const CloudMap = (() => {
         const f = Store.getFactions()[c.faction] || {};
         const s = Store.getStatusMap()[c.status] || {};
         return [c.name, c.title, c.species, c.gender, c.age, s.label, f.name,
-          KNOWLEDGE_NAMES[c.knowledge || 0], ...(c.tags || [])].filter(Boolean).join(' ');
+          I18n.t(KNOWLEDGE_KEYS[c.knowledge || 0]), ...(c.tags || [])].filter(Boolean).join(' ');
       },
     }],
     ['location', {

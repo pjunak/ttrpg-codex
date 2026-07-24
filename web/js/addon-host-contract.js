@@ -1,10 +1,10 @@
 export function resolveDependency(meta, depId, lookup) {
   const owns = (obj) => obj && Object.prototype.hasOwnProperty.call(obj, depId);
   if (!owns(meta.dependencies) && !owns(meta.optionalDependencies)) {
-    throw new Error(`Doplněk „${meta.id}" nedeklaroval závislost „${depId}" (host.use).`);
+    throw new Error(`Add-on "${meta.id}" did not declare dependency "${depId}" (host.use).`);
   }
   const api = lookup(depId);
-  if (api == null) throw new Error(`Závislost „${depId}" není načtená (host.use).`);
+  if (api == null) throw new Error(`Dependency "${depId}" is not loaded (host.use).`);
   return api;
 }
 

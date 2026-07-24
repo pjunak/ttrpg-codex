@@ -841,7 +841,7 @@ document.addEventListener('click', (ev) => {
       _topbarChips().appendChild(chip);
     }
     chip.innerHTML =
-      `<select class="topbar-lang-select" aria-label="Language / Jazyk"` +
+      `<select class="topbar-lang-select" aria-label="${esc(I18n.t('lang.selectorLabel'))}"` +
       `${dataOn('change', 'I18n.setLocale', '$value')}>${opts}</select>`;
   }
 

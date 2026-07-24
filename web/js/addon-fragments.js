@@ -89,7 +89,7 @@ export function applyFragmentOps(fragments, claims, resolutions, ctx) {
     // a genuine conflict means ≥2 DISTINCT addons.
     const exByAddon = new Map();
     for (const c of cs.filter(c => EXCLUSIVE.has(c.op))) {
-      if (exByAddon.has(c.addonId)) failures.push({ addonId: c.addonId, target: f.id, op: c.op, message: 'více výlučných operací na stejný fragment' });
+      if (exByAddon.has(c.addonId)) failures.push({ addonId: c.addonId, target: f.id, op: c.op, message: 'multiple exclusive operations on the same fragment' });
       else exByAddon.set(c.addonId, c);
     }
     const exclusives = [...exByAddon.values()];

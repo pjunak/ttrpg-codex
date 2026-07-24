@@ -29,18 +29,18 @@ export const PARTY_FACTION_ID = 'party';
  *  fallback only. (Section labels in `SIDEBAR_LAYOUT_DEFAULT` are
  *  DM-editable content and are NOT translated — see docs/reference/i18n.md.) */
 export const SIDEBAR_PAGES = [
-  { route: '/',             label: 'Přehled',           key: 'nav.overview',   icon: '🏠', section: 'prehled' },
+  { route: '/',             label: 'Overview',           key: 'nav.overview',   icon: '🏠', section: 'prehled' },
   { route: '/mapa/svet',    label: 'Mapa',              key: 'nav.map',        icon: '🗺', section: 'prehled' },
-  { route: '/casova-osa',   label: 'Časová Osa',        key: 'nav.timeline',   icon: '⏳', section: 'kampan' },
-  { route: '/zahady',       label: 'Záhady',            key: 'nav.mysteries',  icon: '❓', section: 'kampan' },
-  { route: '/mapa/palac',   label: 'Myšlenkový Palác',  key: 'nav.mindPalace', icon: '☁',  section: 'kampan' },
-  { route: '/mista',        label: 'Místa',             key: 'nav.locations',  icon: '📍', section: 'svet' },
-  { route: '/postavy',      label: 'Postavy',           key: 'nav.characters', icon: '👤', section: 'svet' },
-  { route: '/frakce',       label: 'Frakce',            key: 'nav.factions',   icon: '⬡',  section: 'svet' },
-  { route: '/mazlicci',     label: 'Mazlíčci',          key: 'nav.pets',       icon: '🐾', section: 'svet' },
-  { route: '/panteon',      label: 'Panteon',           key: 'nav.pantheon',   icon: '✨', section: 'kompendium' },
-  { route: '/artefakty',    label: 'Artefakty',         key: 'nav.artifacts',  icon: '🗝', section: 'kompendium' },
-  { route: '/historie',     label: 'Historie',          key: 'nav.history',    icon: '📜', section: 'kompendium' },
+  { route: '/casova-osa',   label: 'Timeline',           key: 'nav.timeline',   icon: '⏳', section: 'kampan' },
+  { route: '/zahady',       label: 'Mysteries',          key: 'nav.mysteries',  icon: '❓', section: 'kampan' },
+  { route: '/mapa/palac',   label: 'Mind Palace',        key: 'nav.mindPalace', icon: '☁',  section: 'kampan' },
+  { route: '/mista',        label: 'Places',             key: 'nav.locations',  icon: '📍', section: 'svet' },
+  { route: '/postavy',      label: 'Characters',        key: 'nav.characters', icon: '👤', section: 'svet' },
+  { route: '/frakce',       label: 'Factions',          key: 'nav.factions',   icon: '⬡',  section: 'svet' },
+  { route: '/mazlicci',     label: 'Pets',               key: 'nav.pets',       icon: '🐾', section: 'svet' },
+  { route: '/panteon',      label: 'Pantheon',          key: 'nav.pantheon',   icon: '✨', section: 'kompendium' },
+  { route: '/artefakty',    label: 'Artifacts',         key: 'nav.artifacts',  icon: '🗝', section: 'kompendium' },
+  { route: '/historie',     label: 'History',           key: 'nav.history',    icon: '📜', section: 'kompendium' },
   { route: '/dm',           label: 'DM panel',          key: 'nav.dmPanel',    icon: '🛡', section: 'dm', role: 'dm' },
 ];
 
@@ -53,10 +53,10 @@ export const SIDEBAR_PAGES = [
  *  referenced by route — their label/icon come from `SIDEBAR_PAGES`. */
 export const SIDEBAR_LAYOUT_DEFAULT = {
   sections: [
-    { id: 'prehled',    label: 'Přehled',    icon: '', collapsible: false, defaultOpen: true,  role: '',   pages: ['/', '/mapa/svet'] },
-    { id: 'kampan',     label: 'Kampaň',     icon: '', collapsible: false, defaultOpen: true,  role: '',   pages: ['/casova-osa', '/zahady', '/mapa/palac'] },
-    { id: 'svet',       label: 'Svět',       icon: '', collapsible: false, defaultOpen: true,  role: '',   pages: ['/mista', '/postavy', '/frakce', '/mazlicci'] },
-    { id: 'kompendium', label: 'Kompendium', icon: '', collapsible: true,  defaultOpen: false, role: '',   pages: ['/panteon', '/artefakty', '/historie'] },
+    { id: 'prehled',    label: 'Overview',    icon: '', collapsible: false, defaultOpen: true,  role: '',   pages: ['/', '/mapa/svet'] },
+    { id: 'kampan',     label: 'Campaign',    icon: '', collapsible: false, defaultOpen: true,  role: '',   pages: ['/casova-osa', '/zahady', '/mapa/palac'] },
+    { id: 'svet',       label: 'World',       icon: '', collapsible: false, defaultOpen: true,  role: '',   pages: ['/mista', '/postavy', '/frakce', '/mazlicci'] },
+    { id: 'kompendium', label: 'Compendium', icon: '', collapsible: true,  defaultOpen: false, role: '',   pages: ['/panteon', '/artefakty', '/historie'] },
     { id: 'dm',         label: 'DM',         icon: '', collapsible: false, defaultOpen: true,  role: 'dm', pages: ['/dm'] },
   ],
   hidden: [],
@@ -69,5 +69,5 @@ export const SIDEBAR_LAYOUT_DEFAULT = {
  *  here + one `[data-theme]` block in themes.css — nothing else. The
  *  Settings dropdown and `Settings.applyTheme()` consume this list. */
 export const THEMES = [
-  { id: 'classic', label: 'Klasický — Barvy draků' },
+  { id: 'classic', label: 'Classic — Dragon Colors' },
 ];

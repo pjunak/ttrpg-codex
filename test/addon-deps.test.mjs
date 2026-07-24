@@ -83,7 +83,7 @@ test('planLoadOrder: missing dependency blocks the dependent', () => {
   ]);
   assert.equal(order.length, 0);
   assert.ok(blocked.has('sheet'));
-  assert.match(blocked.get('sheet'), /chybí/);
+  assert.match(blocked.get('sheet'), /missing dependency/);
 });
 
 test('planLoadOrder: incompatible version blocks only the dependent', () => {
@@ -112,7 +112,7 @@ test('planLoadOrder: a cycle blocks every addon in it', () => {
   ]);
   assert.equal(order.length, 0);
   assert.deepEqual(cycles.sort(), ['a', 'b']);
-  assert.match(blocked.get('a'), /cykl/);
+  assert.match(blocked.get('a'), /cyclic dependency/);
 });
 
 test('planLoadOrder: a node DOWNSTREAM of a cycle is blocked but NOT mislabeled cyclic', () => {
@@ -126,9 +126,9 @@ test('planLoadOrder: a node DOWNSTREAM of a cycle is blocked but NOT mislabeled 
   assert.equal(order.length, 0);
   assert.deepEqual(cycles.sort(), ['a', 'b'], 'only the true cycle members');
   assert.ok(!cycles.includes('d'));
-  assert.match(blocked.get('a'), /cykl/);
-  assert.match(blocked.get('d'), /v cyklu/);          // "závislost je v cyklu", not "cyklická závislost"
-  assert.doesNotMatch(blocked.get('d'), /cyklická/);
+  assert.match(blocked.get('a'), /cyclic dependency/);
+  assert.match(blocked.get('d'), /in a cycle/);       // Dependent of the cycle, not a member of it.
+  assert.doesNotMatch(blocked.get('d'), /cyclic dependency/);
 });
 
 test('planLoadOrder: a 3-cycle labels all three members', () => {
@@ -233,5 +233,5 @@ test('planLoadOrder: a HARD dep still blocks even when an optional dep is also p
     { id: 'rules', version: '1.0.0' },
   ]);
   assert.ok(blocked.has('sheet'));
-  assert.match(blocked.get('sheet'), /chybí/);
+  assert.match(blocked.get('sheet'), /missing dependency/);
 });

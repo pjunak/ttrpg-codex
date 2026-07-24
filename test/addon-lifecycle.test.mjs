@@ -233,7 +233,7 @@ test('lifecycle: consumers dispose before providers and rapid reconciles settle 
 });
 
 test('lifecycle: dashboard slots swap cleanly across disable, update, and render failure', async () => {
-  const dashboardMeta = (revision, extra = {}) => metadata('dashboard', revision, {
+  const dashboardMeta = (revision, extra = {}) => metadata('workflow-dashboard', revision, {
     permissions: ['ui:route', 'ui:slot:dm'],
     ...extra,
   });
@@ -241,7 +241,7 @@ test('lifecycle: dashboard slots swap cleanly across disable, update, and render
   console.error = () => {};
   try {
     const rt = await freshRuntime([dashboardMeta('r1')], {
-      dashboard: { slot: 'dm:dashboard' },
+      'workflow-dashboard': { slot: 'dm:dashboard' },
     });
     assert.deepEqual(rt.Addons.slotContent('dm:dashboard', {}).map(item => item.html), [
       '<div>r1</div>',
@@ -261,7 +261,7 @@ test('lifecycle: dashboard slots swap cleanly across disable, update, and render
       '<div>r2</div>',
     ]);
 
-    rt.state.config.dashboard.slotThrows = true;
+    rt.state.config['workflow-dashboard'].slotThrows = true;
     assert.deepEqual(rt.Addons.slotContent('dm:dashboard', {}), []);
     assert.match(rt.Addons.list()[0].slotFailures[0].message, /slot failure/);
   } finally {

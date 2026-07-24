@@ -924,9 +924,12 @@ export const Settings = (() => {
     const ratioPct = Math.round(ratio * 100);
 
     const uploadAction  = current.isWorld ? 'Settings.uploadWorldMap' : 'Settings.uploadSubMap';
+    const uploadPath    = current.isWorld
+      ? '/maps/swordcoast/sword_coast.<ext>'
+      : `/maps/local/${current.locationId}/map.<ext>`;
     const uploadHint    = current.isWorld
-      ? I18n.t('settings.uploadHintWorld', { path: '<code>/maps/swordcoast/sword_coast.&lt;ext&gt;</code>' })
-      : I18n.t('settings.uploadHintLocal', { path: `<code>/maps/local/${esc(current.locationId)}/map.&lt;ext&gt;</code>` });
+      ? I18n.t('settings.uploadHintWorld', { path: uploadPath })
+      : I18n.t('settings.uploadHintLocal', { path: uploadPath });
     const uploadDataset = current.isWorld ? '' : ` data-loc-id="${esc(current.locationId)}"`;
 
     const previewSrc  = current.imgUrl ? `${current.imgUrl}?v=${_previewBustFor(_activeMapId)}` : '';
@@ -955,7 +958,7 @@ export const Settings = (() => {
         </aside>
         <section class="settings-maps-detail">
           <div class="settings-maps-detail-title">${headerLabel}</div>
-          <p class="settings-hint" style="margin-bottom:0.8rem">${uploadHint}</p>
+          <p class="settings-hint" style="margin-bottom:0.8rem">${esc(uploadHint)}</p>
           ${previewHtml}
           <label class="inline-create-btn" style="cursor:pointer;display:inline-block;margin-top:0.8rem">
             📂 ${esc(I18n.t('settings.chooseFile'))}
@@ -1107,7 +1110,7 @@ export const Settings = (() => {
         _flash(I18n.t('settings.mapUploadedRebuilding'));
         render();
       })
-      .catch(e => _flash(e?.error || I18n.t('settings.uploadFailed'), false))
+      .catch(() => _flash(I18n.t('settings.uploadFailed'), false))
       .finally(() => { if (input) input.value = ''; });
   }
 
@@ -1147,12 +1150,12 @@ export const Settings = (() => {
       </div>
       <div class="settings-panel">
         <p class="settings-hint" style="margin-bottom:1rem">
-          ${I18n.t('settings.playerPartyIntro')}
+          ${esc(I18n.t('settings.playerPartyIntro'))}
         </p>
         <div class="settings-form-row">
           <label class="settings-field">
             <span class="settings-field-label">${esc(I18n.t('settings.fieldName'))}</span>
-            <input class="edit-input" id="pp-name" value="${esc(pp.name)}" placeholder="Our Party">
+            <input class="edit-input" id="pp-name" value="${esc(pp.name)}" placeholder="${esc(I18n.t('settings.playerPartyNamePlaceholder'))}">
           </label>
           <label class="settings-field">
             <span class="settings-field-label">${esc(I18n.t('settings.fieldIconEmoji'))}</span>
@@ -1172,9 +1175,9 @@ export const Settings = (() => {
             ${dataAction('Settings.savePlayerParty')}>💾 ${esc(I18n.t('action.save'))}</button>
         </div>
         <hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.5rem 0">
-        <div class="settings-mapviews-group-title">${esc(I18n.t('settings.partyMembers', { count: memberCount }))}</div>
+        <div class="settings-mapviews-group-title">${esc(I18n.plural('settings.partyMembers', memberCount))}</div>
         <p class="settings-hint" style="margin-top:0.6rem">
-          ${I18n.t('settings.partyMembersHint')}
+          ${esc(I18n.t('settings.partyMembersHint'))}
         </p>
         <div class="settings-rows" style="margin-top:0.6rem">
           ${Store.getPartyMembers().map(c => `
@@ -1232,7 +1235,7 @@ export const Settings = (() => {
         _flash(I18n.t('settings.logoUploaded'));
         render();
       })
-      .catch(e => _flash(e?.error || I18n.t('settings.uploadFailed'), false))
+      .catch(() => _flash(I18n.t('settings.uploadFailed'), false))
       .finally(() => { if (input) input.value = ''; });
   }
 
@@ -1245,7 +1248,7 @@ export const Settings = (() => {
         _flash(I18n.t('settings.logoReverted'));
         render();
       })
-      .catch(e => _flash(e?.error || I18n.t('settings.operationFailed'), false));
+      .catch(() => _flash(I18n.t('settings.operationFailed'), false));
   }
 
   /** Persist the wordmark text (title + subtitle) and push to chrome. */
@@ -1309,7 +1312,7 @@ export const Settings = (() => {
                   ${dataOn('change', 'Settings.changeTheme', '$value')}>${opts}</select>
         </label>
         <span class="settings-hint" style="display:block;margin-top:0.8rem">
-          ${I18n.t('settings.appearanceMoreHint')}
+          ${esc(I18n.t('settings.appearanceMoreHint'))}
         </span>
         ${_brandingSectionHtml()}
       </div>`;
@@ -1354,12 +1357,12 @@ export const Settings = (() => {
           <label class="settings-field">
             <span class="settings-field-label">${esc(I18n.t('settings.fieldName'))}</span>
             <input class="edit-input" id="brand-title" value="${esc(b.title)}"
-                   placeholder="TTRPG Codex">
+                   placeholder="${esc(I18n.t('settings.brandTitlePlaceholder'))}">
           </label>
           <label class="settings-field">
             <span class="settings-field-label">${esc(I18n.t('settings.fieldSubtitle'))}</span>
             <input class="edit-input" id="brand-subtitle" value="${esc(b.subtitle)}"
-                   placeholder="Wiki & World Atlas">
+                   placeholder="${esc(I18n.t('settings.brandSubtitlePlaceholder'))}">
           </label>
         </div>
         <div class="settings-form-actions" style="margin-top:1rem">
@@ -1489,7 +1492,7 @@ export const Settings = (() => {
       <hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.5rem 0">
       <div class="settings-mapviews-group-title">🔑 ${esc(I18n.t('settings.accountPasswords'))}</div>
       <p class="settings-hint" style="margin-top:0.6rem;margin-bottom:1rem">
-        ${I18n.t('settings.passwordsIntro')}
+        ${esc(I18n.t('settings.passwordsIntro'))}
       </p>
       ${_passwordFormHtml('dm', `🛡 ${I18n.t('settings.dmPassword')}`, st.dm)}
       ${_passwordFormHtml('player', `👤 ${I18n.t('settings.playerPassword')}`, st.player)}`;
@@ -1584,7 +1587,7 @@ export const Settings = (() => {
         // Re-fetch status so the rows reflect the new "nastaveno" timestamp.
         return _loadPasswordStatus().then(render);
       })
-      .catch(e => _flash(e?.error || I18n.t('settings.passwordChangeFailed'), false));
+      .catch(() => _flash(I18n.t('settings.passwordChangeFailed'), false));
   }
 
   /** Fetch DM/player password status from the server. Stores into
@@ -1657,7 +1660,7 @@ export const Settings = (() => {
       </div>
       <div class="settings-panel">
         <p class="settings-hint" style="margin-bottom:0.8rem">
-          ${esc(I18n.t('settings.backupIntro'))}${isDM ? ' ' + I18n.t('settings.backupIntroDM') : ''}
+          ${esc(I18n.t('settings.backupIntro'))}${isDM ? ' ' + esc(I18n.t('settings.backupIntroDM')) : ''}
         </p>
         ${playerHint}
         ${revertRow}
@@ -1762,7 +1765,7 @@ export const Settings = (() => {
         _flash(I18n.t('settings.restored'));
         Store.load().then(() => _loadSnapshots().then(render));
       })
-      .catch(e => _flash(e?.error || I18n.t('settings.revertFailed'), false));
+      .catch(() => _flash(I18n.t('settings.revertFailed'), false));
   }
 
   // Restore from an uploaded ZIP (full data/ tree from /api/backup)
@@ -1783,11 +1786,11 @@ export const Settings = (() => {
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
       .then(j => {
         const fmt = j.format === 'zip' ? 'ZIP' : 'JSON';
-        _flash(I18n.t('settings.restoredFromFmt', { fmt, count: j.restored }));
+        _flash(I18n.plural('settings.restoredFromFmt', j.restored, { fmt }));
         // Refresh local store + snapshot list to reflect the new state.
         Store.load().then(() => _loadSnapshots().then(render));
       })
-      .catch(e => _flash(e?.error || I18n.t('settings.restoreFailed'), false))
+      .catch(() => _flash(I18n.t('settings.restoreFailed'), false))
       .finally(() => { if (input) input.value = ''; });
   }
 
@@ -1809,7 +1812,7 @@ export const Settings = (() => {
       <div class="settings-modal-panel" role="dialog" aria-modal="true">
         <div class="settings-modal-title">${esc(I18n.t('settings.deleteModalTitle', { name: item?.label || id }))}</div>
         <div class="settings-modal-body">
-          <p>${I18n.t('settings.deleteModalUsedBy', { count: `<strong>${usages.length}×</strong>` })}</p>
+          <p>${esc(I18n.t('settings.deleteModalUsedBy', { count: usages.length }))}</p>
           <ul class="settings-modal-usages">${usageLinks}${overflow}</ul>
           <div class="settings-modal-choice">
             <label class="settings-field">
@@ -1842,12 +1845,12 @@ export const Settings = (() => {
       const res = Store.deleteEnumItem(_activeCat, id, { replaceWith });
       closeModal();
       render();
-      _flash(I18n.t('settings.replacedAndDeleted', { count: res.usages.length }));
+      _flash(I18n.plural('settings.replacedAndDeleted', res.usages.length));
     } else if (mode === 'force') {
       const res = Store.deleteEnumItem(_activeCat, id, { force: true });
       closeModal();
       render();
-      _flash(I18n.t('settings.deletedOrphaned', { count: res.usages.length }));
+      _flash(I18n.plural('settings.deletedOrphaned', res.usages.length));
     }
   }
 
@@ -1980,7 +1983,10 @@ export const Settings = (() => {
     } else {
       const _at = Addons.settingsTab(sub);
       try { body = _at ? _at.render() : ''; }
-      catch (e) { body = `<div class="settings-panel" style="color:var(--color-danger)">${esc(I18n.t('settings.addonFailed'))}: ${esc(e.message)}</div>`; }
+      catch (e) {
+        console.error(`[addon ${sub}] settings tab render failed`, e);
+        body = `<div class="settings-panel" style="color:var(--color-danger)">${esc(I18n.t('settings.addonFailed'))}: ${esc(I18n.t('addons.unexpectedError'))}</div>`;
+      }
     }
     // A strip with a single entry is chrome noise — skip it when the Manager
     // is alone (DM, no addon tabs) or a player has exactly one addon tab.
@@ -2114,7 +2120,7 @@ export const Settings = (() => {
     if (!_requireDM()) return;
     Store.resolveAddonConflict(target, winner).then(r => {
       if (r && r.ok) _flash(I18n.t('settings.choiceSaved'));
-      else _flash((r && r.error) || I18n.t('settings.choiceSaveFailed'), false);
+      else _flash(I18n.t('settings.choiceSaveFailed'), false);
       // The addons-changed SSE reconcile re-renders with the winner applied.
     });
   }
@@ -2148,9 +2154,9 @@ export const Settings = (() => {
     // screen reader).
     const notes = [];
     if ((lstate === 'error' || lstate === 'blocked') && loadState.error)
-      notes.push(`<div class="addon-row-err">${esc(loadState.error)}</div>`);
+      notes.push(`<div class="addon-row-err">${esc(I18n.t('settings.addonFailed'))}</div>`);
     if (smokeFails.length)
-      notes.push(`<div class="addon-row-warn">${esc(I18n.t('settings.renderTestReported', { detail: smokeFails.map(f => `${f.kind} (${f.message || '?'})`).join(' · ') }))}</div>`);
+      notes.push(`<div class="addon-row-warn">${esc(I18n.t('settings.renderTestReported', { detail: smokeFails.map(f => `${f.kind} (${I18n.t('addons.unexpectedError')})`).join(' · ') }))}</div>`);
     if (a.server && a.serverState === 'pending-restart')
       notes.push(`<div class="addon-row-warn">${esc(I18n.t('settings.serverRestartNote'))}</div>`);
     else if (a.server && (a.serverState === 'error' || a.serverState === 'blocked'))
@@ -2223,7 +2229,7 @@ export const Settings = (() => {
     return fetch(url, { method, credentials: 'same-origin' })
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
       .then(() => { _flash(okMsg); return _reloadAddonsIfActive(); })
-      .catch(e => _flash((e && e.error) || I18n.t('settings.operationFailed'), false));
+      .catch(() => _flash(I18n.t('settings.operationFailed'), false));
   }
   // Replace the addon's disabled-content-group list from the checkbox row's
   // CURRENT state (unchecked = disabled). Fired per-click on any checkbox in
@@ -2239,7 +2245,7 @@ export const Settings = (() => {
       body: JSON.stringify({ disabled }),
     }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
       .then(() => { _flash(I18n.t('settings.contentGroupsSaved')); return _reloadAddonsIfActive(); })
-      .catch(e => _flash((e && e.error) || I18n.t('settings.operationFailed'), false));
+      .catch(() => _flash(I18n.t('settings.operationFailed'), false));
   }
   function enableAddon(id)  { _addonLifecycle('POST',   `/api/addons/${encodeURIComponent(id)}/enable`,  I18n.t('settings.addonEnabled')); }
   function disableAddon(id) { delete _addonUpdates[id]; _addonLifecycle('POST', `/api/addons/${encodeURIComponent(id)}/disable`, I18n.t('settings.addonDisabled')); }
@@ -2256,7 +2262,7 @@ export const Settings = (() => {
     if (!_requireDM()) return;
     _flash(I18n.t('settings.checkingUpdates'));
     Store.checkAddonUpdates().then(r => {
-      if (!r.ok) { _flash(r.error || I18n.t('settings.checkFailed'), false); return; }
+      if (!r.ok) { _flash(I18n.t('settings.checkFailed'), false); return; }
       _addonUpdates = {};
       for (const u of r.updates) if (u && u.id) _addonUpdates[u.id] = u;
       const n = r.updates.filter(u => u.hasUpdate).length;
@@ -2281,7 +2287,7 @@ export const Settings = (() => {
         _flash(I18n.t('settings.rolledBackTo', { version: r.version || '?' }) + ((a && a.server) ? I18n.t('settings.rollbackServerSuffix') : ''));
         _addonUpdates = {};   // version changed → the cached update check is stale
         _reloadAddonsIfActive();
-      } else _flash(r.error || I18n.t('settings.rollbackFailed'), false);
+      } else _flash(I18n.t('settings.rollbackFailed'), false);
     });
   }
 
@@ -2291,7 +2297,7 @@ export const Settings = (() => {
     if (!confirm(I18n.t('settings.updateAllQ'))) return;
     _flash(I18n.t('settings.updatingAll'));
     Store.updateAllAddons().then(r => {
-      if (!r.ok) { _flash(r.error || I18n.t('settings.operationFailed'), false); return; }
+      if (!r.ok) { _flash(I18n.t('settings.operationFailed'), false); return; }
       const n = (r.updated || []).length;
       const nErr = (r.errors || []).length;
       if (!n && !nErr) { _flash(I18n.t('settings.allUpToDate')); }
@@ -2310,7 +2316,7 @@ export const Settings = (() => {
     if (!_requireDM()) return;
     if (!confirm(I18n.t('settings.restartQ'))) return;
     Store.restartServer().then(r => {
-      if (!r.ok) { _flash(r.error || I18n.t('settings.restartFailed'), false); return; }
+      if (!r.ok) { _flash(I18n.t('settings.restartFailed'), false); return; }
       _showRestartOverlay();
     });
   }
@@ -2365,11 +2371,11 @@ export const Settings = (() => {
             ${dataAction('Settings.closeAddonWizard')}>✕</button>
         </div>
         <div class="addon-wizard-body" id="addon-wizard-body">
-          <p class="settings-hint">${I18n.t('settings.wizardPasteHint')}</p>
+          <p class="settings-hint">${esc(I18n.t('settings.wizardPasteHint'))}</p>
           <label class="settings-field" style="margin-top:.6rem">
             <span class="settings-field-label">${esc(I18n.t('settings.githubUrl'))}</span>
             <input class="edit-input" id="addon-wizard-url" type="text" autocomplete="off"
-                   placeholder="https://github.com/owner/muj-doplnek" value="${esc(prefill)}"
+                   placeholder="https://github.com/owner/my-addon" value="${esc(prefill)}"
                    ${dataOn('keydown', 'Settings.addonWizardKey', '$ev')}>
           </label>
           ${_wizardTokenSectionHtml(false)}
@@ -2464,7 +2470,7 @@ export const Settings = (() => {
         _refreshWizardTokenSection();
         return true;
       })
-      .catch(e => { _flash((e && e.error) || I18n.t('settings.operationFailed'), false); return false; });
+      .catch(() => { _flash(I18n.t('settings.operationFailed'), false); return false; });
   }
 
   function saveGithubToken() {
@@ -2506,7 +2512,7 @@ export const Settings = (() => {
         const tokenHint = !_githubTokenOk
           ? `<div class="settings-hint" style="margin-top:.4rem">🔑 ${esc(I18n.t('settings.tokenPrivateHint'))}</div>`
           : '';
-        _wizardStatus(`<span class="addon-wizard-err">${esc((e && e.error) || I18n.t('settings.previewFailed'))}</span>${tokenHint}`);
+        _wizardStatus(`<span class="addon-wizard-err">${esc(I18n.t('settings.previewFailed'))}</span>${tokenHint}`);
         if (!_githubTokenOk) _refreshWizardTokenSection(true);
       });
   }
@@ -2524,7 +2530,7 @@ export const Settings = (() => {
     const serverWarn = m.server
       ? `<div class="addon-perm-server">⚠ ${esc(I18n.t('settings.serverCodeWarn'))}</div>` : '';
     const errBox = p.ok ? ''
-      : `<div class="addon-wizard-err" style="margin-top:.6rem">⚠ ${esc(I18n.t('settings.cannotInstall'))}: ${esc((p.errors || []).join('; '))}</div>`;
+      : `<div class="addon-wizard-err" style="margin-top:.6rem">⚠ ${esc(I18n.t('settings.invalidManifest'))}</div>`;
     if (body) body.innerHTML = `
       <div class="addon-preview">
         <div class="addon-preview-name">${esc(m.name || m.id || '?')}
@@ -2583,7 +2589,7 @@ export const Settings = (() => {
       })
       .catch(e => {
         if (go) go.disabled = false;
-        _wizardStatus(`<span class="addon-wizard-err">${esc((e && e.error) || I18n.t('settings.installFailed'))}</span>`);
+        _wizardStatus(`<span class="addon-wizard-err">${esc(I18n.t('settings.installFailed'))}</span>`);
       });
   }
 

@@ -166,7 +166,7 @@ export const Addons = (() => {
     const grants = Array.isArray(meta.permissions) ? meta.permissions : [];
     const has = (p) => grants.includes(p);
     const deny = (p, what) => {
-      throw new Error(`Doplněk „${id}" nemá udělené oprávnění „${p}" (${what}).`);
+      throw new Error(`Add-on "${id}" was not granted permission "${p}" (${what}).`);
     };
     const tx = { undo: [], cleanup: createDisposalStack() };
     const transactionDescriptors = new Map();
@@ -571,7 +571,7 @@ export const Addons = (() => {
       getEvents:     () => { if (!has('data:read:events'))     deny('data:read:events',     'store.getEvents');     return safe(() => Store.getEvents(), []); },
       getMysteries:  () => { if (!has('data:read:mysteries'))  deny('data:read:mysteries',  'store.getMysteries');  return safe(() => Store.getMysteries(), []); },
       getFactions:   () => { if (!has('data:read:factions'))   deny('data:read:factions',   'store.getFactions');   return safe(() => Store.getFactions(), {}); },
-      getCollection: (n) => { if (typeof n === 'string' && n.startsWith('addon:')) throw new Error(`Doplněk „${id}" nemůže přes getCollection číst kolekci jiného doplňku.`); if (!has('data:read:' + n)) deny('data:read:' + n, 'store.getCollection'); return safe(() => (Store.getCollection ? Store.getCollection(n) : []), []); },
+      getCollection: (n) => { if (typeof n === 'string' && n.startsWith('addon:')) throw new Error(`Add-on "${id}" cannot read another add-on's collection through getCollection.`); if (!has('data:read:' + n)) deny('data:read:' + n, 'store.getCollection'); return safe(() => (Store.getCollection ? Store.getCollection(n) : []), []); },
       // Scoped CRUD for one of THIS addon's own collections (gated by the
       // data:own that registerCollection required).
       collection,
@@ -997,9 +997,10 @@ export const Addons = (() => {
   }
 
   function _errorPane(addonId, e) {
+    const message = I18n.t('addons.unexpectedError');
     return `<div class="page-header"><h1>⚠ ${esc(I18n.t('addons.addonFailedTitle'))}</h1></div>` +
       `<p style="color:var(--text-muted);max-width:560px;margin:1rem 0">` +
-      I18n.t('addons.addonFailedBody', { name: `<strong>${esc(addonId)}</strong>`, msg: esc(e.message) }) +
+      esc(I18n.t('addons.addonFailedBody', { name: addonId, msg: message })) +
       `</p>`;
   }
 
@@ -1034,7 +1035,7 @@ export const Addons = (() => {
         if (sec && typeof sec.html === 'string') out.push({ addonId: e.addonId, seq, title: sec.title || '', html: sec.html });
       } catch (err) {
         console.error(`[addon ${e.addonId}] article section failed`, err);
-        out.push({ addonId: e.addonId, seq, title: '⚠ ' + e.addonId, html: `<div style="color:var(--color-danger)">${esc(I18n.t('addons.sectionFailed', { name: e.addonId, msg: err.message }))}</div>` });
+        out.push({ addonId: e.addonId, seq, title: '⚠ ' + e.addonId, html: `<div style="color:var(--color-danger)">${esc(I18n.t('addons.sectionFailed', { name: e.addonId, msg: I18n.t('addons.unexpectedError') }))}</div>` });
       }
     }
     return out;
@@ -1094,7 +1095,7 @@ export const Addons = (() => {
         }
       } catch (err) {
         console.error(`[addon ${e.addonId}] editor fields failed`, err);
-        html += `<div class="addon-editor-section" style="color:var(--color-danger)">${esc(I18n.t('addons.editorFieldsFailed', { name: e.addonId, msg: err.message }))}</div>`;
+        html += `<div class="addon-editor-section" style="color:var(--color-danger)">${esc(I18n.t('addons.editorFieldsFailed', { name: e.addonId, msg: I18n.t('addons.unexpectedError') }))}</div>`;
       }
     }
     return html;
@@ -1184,7 +1185,7 @@ export const Addons = (() => {
     const entry = _actions.get(actionStr);
     if (!entry) { console.warn('Unknown addon action:', actionStr); return; }
     try { return entry.fn(...(Array.isArray(args) ? args : [])); }
-    catch (e) { console.error(`[addon ${entry.addonId}] action "${actionStr}" failed`, e); try { _services.toast(I18n.t('addons.actionFailed', { msg: e.message })); } catch (_) {} }
+    catch (e) { console.error(`[addon ${entry.addonId}] action "${actionStr}" failed`, e); try { _services.toast(I18n.t('addons.actionFailed', { msg: I18n.t('addons.unexpectedError') })); } catch (_) {} }
   }
 
   /** Snapshot of registered addon sidebar pages (for sidebar.js). */

@@ -149,7 +149,7 @@ export function createMockHost(meta = {}, opts = {}) {
   const grants = Array.isArray(meta.permissions) ? meta.permissions.slice() : null;
   const need = (perm, what) => {
     if (grants && !grants.includes(perm)) {
-      throw new Error(`Doplněk „${id}" nemá udělené oprávnění „${perm}" (${what}).`);
+      throw new Error(`Add-on "${id}" was not granted permission "${perm}" (${what}).`);
     }
   };
   const registeredCollections = new Set();
@@ -454,7 +454,7 @@ export function createMockHost(meta = {}, opts = {}) {
       getMysteries:  () => { need('data:read:mysteries', 'store.getMysteries'); return get('mysteries'); },
       getFactions:   () => { need('data:read:factions', 'store.getFactions'); return fx.factions || {}; },
       getCollection: (n) => {
-        if (typeof n === 'string' && n.startsWith('addon:')) throw new Error(`Doplněk „${id}" nemůže přes getCollection číst kolekci jiného doplňku.`);
+        if (typeof n === 'string' && n.startsWith('addon:')) throw new Error(`Add-on "${id}" cannot read another add-on's collection through getCollection.`);
         need('data:read:' + n, 'store.getCollection');
         const data = _coll(n);
         return Array.isArray(data) ? data.slice() : { ...data };

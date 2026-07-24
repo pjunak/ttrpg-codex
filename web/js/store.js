@@ -1196,9 +1196,7 @@ export const Store = (() => {
       window.dispatchEvent(new CustomEvent('store:auth-failed'));
       throw new Error(I18n.t('store.unknownPassword'));
     }
-    let msg = I18n.t('store.iconUploadFailed');
-    try { const j = await res.json(); if (j?.error) msg = j.error; } catch (_) {}
-    throw new Error(msg);
+    throw new Error(I18n.t('store.iconUploadFailed'));
   }
 
   async function deleteIcon(pinTypeId, filename) {

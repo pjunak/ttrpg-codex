@@ -222,7 +222,7 @@ export const Sidebar = (() => {
       </div>
       <div class="settings-panel">
         <p class="settings-hint" style="margin-bottom:0.8rem">
-          ${I18n.t('sidebar.editorHint', { grip: '<span class="sb-grip">⠿</span>', hidden: `<em>${esc(I18n.t('sidebar.hiddenWord'))}</em>` })}
+          ${esc(I18n.t('sidebar.editorHint'))}
         </p>
         <div id="sidebar-layout-editor" class="sb-editor">${_editorBodyHtml(Store.getSidebarLayout())}</div>
       </div>`;

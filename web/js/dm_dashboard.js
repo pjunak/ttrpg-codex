@@ -28,8 +28,8 @@ export const DmDashboard = (() => {
     });
     if (contributions.length) {
       return `
-        <main class="dm-panel" aria-labelledby="dm-dashboard-title">
-          <h1 id="dm-dashboard-title">🛡 ${esc(I18n.t('nav.dmPanel'))}</h1>
+        <main class="dm-panel" aria-labelledby="dm-page-title">
+          <h1 id="dm-page-title">🛡 ${esc(I18n.t('nav.dmPanel'))}</h1>
           <div id="dm-dashboard-contributions">
             ${contributions.map(item => `
               <div data-addon-id="${esc(item.addonId)}">${item.html}</div>
@@ -53,8 +53,8 @@ export const DmDashboard = (() => {
     const totalDm = counts.reduce((acc, count) => acc + count.dmOnly, 0);
     const addons = Addons.list();
     return `
-      <main class="dm-panel" aria-labelledby="dm-dashboard-title">
-        <h1 id="dm-dashboard-title">🛡 ${esc(I18n.t('nav.dmPanel'))}</h1>
+      <main class="dm-panel" aria-labelledby="dm-page-title">
+        <h1 id="dm-page-title">🛡 ${esc(I18n.t('nav.dmPanel'))}</h1>
         <p class="dm-stub">${esc(I18n.t('dm.fallbackIntro'))}</p>
 
         <section class="dm-section" aria-labelledby="dm-addon-health-title">
@@ -90,7 +90,7 @@ export const DmDashboard = (() => {
       return `<li>
         <strong>${esc(addon.name || addon.id || I18n.t('dm.unknownAddon'))}</strong>
         <span class="codex-badge${addon.state === 'ok' && !slotFailure ? ' codex-badge-accent' : ''}">${esc(_addonStateLabel(addon.state))}</span>
-        ${detail ? `<span>${esc(detail)}</span>` : ''}
+        ${detail ? `<span>${esc(I18n.t('addons.unexpectedError'))}</span>` : ''}
       </li>`;
     }).join('')}</ul>`;
   }

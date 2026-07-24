@@ -56,9 +56,9 @@ export function planLoadOrder(list) {
   for (const a of list) {
     for (const d of deps(a)) {
       const dep = byId.get(d.id);
-      if (!dep) { blocked.set(a.id, `chybí závislost „${d.id}"`); break; }
-      if (!testRange(dep.version, d.range).valid) { blocked.set(a.id, `závislost „${d.id}" má neplatnou verzi nebo rozsah`); break; }
-      if (!satisfies(dep.version, d.range)) { blocked.set(a.id, `„${d.id}" ${dep.version || '?'} nesplňuje ${d.range}`); break; }
+      if (!dep) { blocked.set(a.id, `missing dependency "${d.id}"`); break; }
+      if (!testRange(dep.version, d.range).valid) { blocked.set(a.id, `dependency "${d.id}" has an invalid version or range`); break; }
+      if (!satisfies(dep.version, d.range)) { blocked.set(a.id, `"${d.id}" ${dep.version || '?'} does not satisfy ${d.range}`); break; }
     }
   }
   // 2. transitively block anything depending (HARD) on a blocked addon
@@ -68,7 +68,7 @@ export function planLoadOrder(list) {
     for (const a of list) {
       if (blocked.has(a.id)) continue;
       for (const d of deps(a)) {
-        if (blocked.has(d.id)) { blocked.set(a.id, `závislost „${d.id}" je blokovaná`); changed = true; break; }
+        if (blocked.has(d.id)) { blocked.set(a.id, `dependency "${d.id}" is blocked`); changed = true; break; }
       }
     }
   }
@@ -123,7 +123,7 @@ export function planLoadOrder(list) {
   }
   const cycles = [...cycleSet];
   for (const id of unplacedIds) {
-    blocked.set(id, cycleSet.has(id) ? 'cyklická závislost' : 'závislost je v cyklu');
+    blocked.set(id, cycleSet.has(id) ? 'cyclic dependency' : 'dependency is in a cycle');
   }
 
   // 5. Final order over the (hard-acyclic) survivors, REFINED by optional-dep

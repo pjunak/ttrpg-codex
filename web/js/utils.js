@@ -212,7 +212,7 @@ export function expandWikiLinks(src) {
   if (!text || !_wikiResolver) return text;
   return text.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, label, hint) => {
     const match = _wikiResolver(label.trim(), hint ? hint.trim() : '');
-    if (!match) return `<span class="wlink-missing" title="Nenalezeno">[[${label}]]</span>`;
+    if (!match) return `<span class="wlink-missing" title="${esc(I18n.t('wiki.linkNotFound'))}">[[${label}]]</span>`;
     return `[${label}](#/${match.kind}/${match.id})`;
   });
 }
