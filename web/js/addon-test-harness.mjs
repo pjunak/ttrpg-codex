@@ -79,7 +79,7 @@ function _emptyRec() {
     collections: [], wikiKinds: [], editorFields: [], fragmentOps: [],
     articleSections: [], slots: [],
     kinds: [], connectionKinds: [], nodeKinds: [], graphViews: [], graphContributors: [],
-    provided: undefined, toasts: [], rerenders: 0, announces: [],
+    provided: undefined, toasts: [], rerenders: 0, announces: [], i18nMissing: [],
     cleanup: createDisposalStack(), disposeResult: null,
   };
 }
@@ -104,6 +104,14 @@ import { HOST_CAPABILITIES, HOST_VERSION, compatibilityErrors } from './addon-co
 import { requireCollectionDeclaration, resolveDependency } from './addon-host-contract.js';
 import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack } from './addon-lifecycle.js';
 import { createTransactionRunner } from './addon-transactions.js';
+import {
+  createScopedI18n,
+  validateCatalogPackage,
+} from './addon-i18n.js';
+
+export function validateAddonCatalogs(meta = {}, catalogs = {}) {
+  return validateCatalogPackage(meta.locales, catalogs, meta);
+}
 
 export function createMockHost(meta = {}, opts = {}) {
   meta = { version: '0.0.0', apiVersion: 1, hostVersion: '>=1.0.0', ...meta };
@@ -116,6 +124,22 @@ export function createMockHost(meta = {}, opts = {}) {
   const rec = _emptyRec();
   const fx  = opts.fixtures || {};
   const get = (k) => Array.isArray(fx[k]) ? fx[k] : [];
+  let catalogs = { en: {} };
+  if (meta.locales !== undefined) {
+    const localization = validateCatalogPackage(meta.locales, opts.catalogs, meta);
+    if (!localization.ok) throw new Error(localization.errors.join('; '));
+    catalogs = localization.catalogs;
+  }
+  const scopedI18n = createScopedI18n({
+    addonId: id,
+    catalogs,
+    getLocale: typeof opts.getLocale === 'function'
+      ? opts.getLocale
+      : () => opts.locale || 'en',
+    onMissing: ({ key }) => {
+      rec.i18nMissing.push(key);
+    },
+  });
 
   // Permission gate — mirrors web/js/addons.js (_makeHost): same permission
   // per method, same error text. `null` grants (no `permissions` key) = loose.
@@ -285,6 +309,7 @@ export function createMockHost(meta = {}, opts = {}) {
     contentRevision: typeof meta.contentRevision === 'string' ? meta.contentRevision : '',
     capabilities: Object.freeze({ has: (capability) => hostCapabilities.has(capability), supported: Object.freeze([...hostCapabilities]) }),
     permissions: Array.isArray(meta.permissions) ? meta.permissions.slice() : [],
+    i18n: scopedI18n,
     action: (name) => id + ':' + name,
 
     registerRoute:        (segment, render)   => { need('ui:route', 'registerRoute'); rec.routes.push({ segment, render }); },

@@ -26,12 +26,17 @@ const readReg = async (srv) => JSON.parse(await fsp.readFile(path.join(srv.dataD
 function twoVersionEntry(over) {
   const ver = (h, v, ts) => ({
     contentHash: h, version: v, sha: (h + '0').padEnd(40, '0'), installedAt: ts,
+    apiVersion: 2, hostVersion: '>=1.0.0',
+    capabilities: { required: ['i18n.catalogs'] },
     entry: 'entry.js', server: null, serverDeps: [], collections: [], dependencies: {},
+    locales: { en: `locales/${v}.json` },
   });
   return Object.assign({
-    id: 'demo', name: 'Demo', version: '2.0.0', apiVersion: 1, enabled: true,
+    id: 'demo', name: 'Demo', version: '2.0.0', apiVersion: 2, hostVersion: '>=1.0.0', enabled: true,
+    capabilities: { required: ['i18n.catalogs'] },
     repo: 'me/demo', ref: 'main', sha: 'hash20'.padEnd(40, '0'),
     entry: 'entry.js', server: null, serverDeps: [], collections: [], dependencies: {},
+    locales: { en: 'locales/2.0.0.json' },
     activeHash: 'hash2', grantedPermissions: [],
     versions: [ver('hash1', '1.0.0', 1), ver('hash2', '2.0.0', 2)],
   }, over || {});
@@ -61,6 +66,7 @@ test('rollback (no hash) flips activeHash to the previous version + restores its
     const a = reg.addons.find(x => x.id === 'demo');
     assert.equal(a.activeHash, 'hash1');
     assert.equal(a.version, '1.0.0');
+    assert.deepEqual(a.locales, { en: 'locales/1.0.0.json' });
   } finally { await srv.kill(); }
 });
 

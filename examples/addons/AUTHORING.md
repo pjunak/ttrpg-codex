@@ -67,6 +67,8 @@ Then launch the app — the addon loads at boot and its sidebar link appears und
 my-addon/
   addon.json              # manifest (required, repo root)
   entry.js                # client ESM, default-export register(host) (required)
+  locales/en.json         # REQUIRED source catalog when locales is declared
+  locales/<locale>.json   # OPTIONAL partial UI translations
   server/index.cjs        # OPTIONAL Node module, exports init(serverHost)
   tests/*.addon-test.mjs  # OPTIONAL self-tests (against the host harness)
   vendor/*.js             # OPTIONAL vendored client libs (import relatively)
@@ -87,8 +89,9 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `version` | ✅ | semver `x.y.z`. Bump on every release. |
 | `apiVersion` | ✅ | `1` or `2`. Unsupported versions are rejected. API v2 is required for security-sensitive manifest semantics. |
 | `hostVersion` | v2: ✅ | Enforced against the host version. API-v1 manifests may omit it for legacy compatibility (equivalent to `"*"`). |
-| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `collections.dm`, `collections.transactions`, `lifecycle.dispose`, and `content.revision`. |
+| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `collections.dm`, `collections.transactions`, `lifecycle.dispose`, `content.revision`, and `i18n.catalogs`. |
 | `entry` | ✅ | Relative `.js`/`.mjs` path to the client module (default-export `register`). |
+| `locales` | — | API-v2 declarative UI catalogs: `{ "en": "locales/en.json", "cs": "locales/cs.json" }`. Requires `i18n.catalogs`; English is mandatory and complete, translations may be partial. |
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
 | `contentDir` | — | Relative dir of a **per-record JSON tree** the HOST serves for you at `/api/addon/<id>/content` (+ `/content/:kind`, `/item/:kind/:id`, `/kinds`). The right choice for DATA addons (rulebooks): **no server code, no `server:code` grant**, kinds keyed by each record's own `kind` field (sub-dir name is the fallback), and hot-loaded — install/update needs no restart. A live `server` router takes precedence over it entirely. |
 | `contentGroups` | — | `{ "field": "book", "label": "Sourcebooks" }` — declare one record field as a DM-toggleable grouping key for the content tree (see the "Content groups" section under server code). `field` is `^[a-zA-Z0-9_]{1,40}$`. |
@@ -135,12 +138,60 @@ host.h             // { esc, dataAction, dataOn, renderMarkdown, slugify, breadc
                    //   inline `.codex-icon` SVG — use it to label stat tiles
                    //   instead of shipping your own SVGs. '' for unknown names.
 host.role          // { isDM(), isAnonymous() }
+host.i18n          // { locale, t, plural, formatDate, formatNumber, relativeTime }
 host.ui            // { toast(msg), rerender(), announce(text) } — rerender re-renders
                    //   the current route; announce(text) speaks a short status line
                    //   ("12 matches") to screen readers via the host's persistent
                    //   polite live region (in-page live regions don't survive the
                    //   full re-render, this one does). Not a visual toast.
 ```
+
+### Scoped UI localization
+
+Addon UI catalogs are declarative and isolated from both core strings and other
+addons:
+
+```json
+{
+  "apiVersion": 2,
+  "capabilities": { "required": ["i18n.catalogs"] },
+  "locales": {
+    "en": "locales/en.json",
+    "cs": "locales/cs.json"
+  }
+}
+```
+
+`locales/en.json` is the complete English source:
+
+```json
+{
+  "page.title": "Notes",
+  "item.count": { "one": "{n} note", "other": "{n} notes" }
+}
+```
+
+Translations may omit keys; resolution is exact locale → base locale → English
+→ key. A supplied translation must preserve the English string/plural shape and
+the exact `{placeholder}` set. Locale ids and paths are validated, files must be
+bounded regular JSON files inside the addon package, and unsafe keys/value
+shapes are rejected before activation.
+
+```js
+export default function register(host) {
+  const { esc } = host.h;
+  const { t, plural } = host.i18n;
+  host.registerSidebarPage({ route: '/notes', label: t('page.title') });
+  host.registerRoute('notes', () =>
+    `<h1>${esc(t('page.title'))}</h1><p>${esc(plural('item.count', 2))}</p>`);
+}
+```
+
+`t()` and `plural()` return plain text: escape them before interpolating into
+HTML. `formatDate`, `formatNumber`, and `relativeTime` use the viewer's current
+locale. Catalog fetch/cache ownership follows the addon instance; install
+replacement, content-revision reload, disable, and removal dispose the old
+facade and stale responses cannot re-register old strings.
 
 ### Lifecycle and cleanup
 
@@ -209,10 +260,10 @@ host.store.transaction(names, callback) // atomic own-collection transaction (AP
 host.store.patchAddonData(coll, id, fn) // needs data:write:<coll>.addonData (§6)
 ```
 
-> **Language.** The app's language switcher is a **visual layer over the core
-> UI only** — it does not reach into addon code. Write your addon entirely in
-> **English** (UI strings included), same as the rest of the codebase. There is
-> no addon translation API.
+> **Language.** Code and the mandatory source catalog stay English. Addon UI
+> participates in the viewer's language switcher only through a declared
+> locale package and its scoped `host.i18n` facade; never read `codex_lang`
+> directly or register strings in core `I18n`.
 
 ---
 
@@ -622,14 +673,28 @@ import {
   disposeMockHost,
   dryRunRegister,
   smokeRegistrations,
+  validateAddonCatalogs,
 } from '<host>/web/js/addon-test-harness.mjs';
 import register from '../entry.js';
+import en from '../locales/en.json' with { type: 'json' };
 
 test('registers + smokes clean', () => {
-  const { ok, rec, error } = dryRunRegister(register, { id: 'my-addon', permissions: [/* … */] });
+  const meta = {
+    id: 'my-addon',
+    apiVersion: 2,
+    permissions: [/* … */],
+    capabilities: { required: ['i18n.catalogs'] },
+    locales: { en: 'locales/en.json' },
+  };
+  assert.ok(validateAddonCatalogs(meta, { en }).ok);
+  const { ok, rec, error } = dryRunRegister(register, meta, {
+    catalogs: { en },
+    locale: 'en',
+  });
   assert.ok(ok, error);
   assert.ok(rec.routes.length >= 1);
   assert.ok(smokeRegistrations(rec).ok);       // renderers survive sample input
+  assert.deepEqual(rec.i18nMissing, []);       // every exercised key exists in English
   return disposeMockHost(rec);                 // exercises lifecycle cleanup
 });
 ```
@@ -639,6 +704,10 @@ test('registers + smokes clean', () => {
   the real host, so a `register*` your manifest doesn't cover fails in your
   tests with the same error it would throw at install. Dependency `use()` and
   collection declarations also use the same validation as the live facade.
+  Pass `opts.catalogs` and `opts.locale` to exercise the same scoped
+  localization, regional fallback, interpolation, and plural behavior.
+  `rec.i18nMissing` records safe missing-key diagnostics, so assert it stays
+  empty after exercising registrations/renderers.
   (Omitting the
   `permissions` key entirely runs loose/allow-all — fine for throwaway tests,
   but you lose that safety net.)
@@ -709,9 +778,10 @@ automatically.
    in actions/renderers, not at register time. Register cleanup with
    `host.onDispose(fn)` or return it from `register()` for every resource you
    own.
-10. **Write the whole addon — UI strings included — in English.** The app's
-   language switcher is a visual layer over the *core* UI only; it doesn't reach
-   addon code, and there is no addon translation API.
+10. **Write code and the mandatory source catalog in English.** Addon UI that
+   needs localization declares `locales` on API v2, requires `i18n.catalogs`,
+   and renders through scoped `host.i18n`; translations may be partial but may
+   not replace or omit the English source package.
 
 **Complete minimal template** (route + sidebar + action + data, all rules
 satisfied):
@@ -787,7 +857,7 @@ returns `ok:true`, `smokeRegistrations(rec).ok` is true, and the app shows no
 See also **`web/css/STYLE.md`** (tokens + components) and
 **`docs/reference/addons.md`** (the host-internals deep reference).
 API v2 advertises `collections.dm`, `collections.transactions`,
-`lifecycle.dispose`, and `content.revision`; addons whose
+`lifecycle.dispose`, `content.revision`, and `i18n.catalogs`; addons whose
 correctness relies on cleanup or revision metadata should require them.
 An API-v2 collection with `"access": "dm"` must declare `collections.dm` in
 `capabilities.required`. API-v1 collection declarations,

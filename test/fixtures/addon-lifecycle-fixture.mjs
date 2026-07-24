@@ -10,6 +10,7 @@ export default function register(host) {
     active: true,
     lookup: () => instance.active ? instance.revision : null,
   };
+  if (config.localizationKey) instance.localized = host.i18n.t(config.localizationKey);
   state.instances[host.id] = instance;
   state.events.push(`register:${host.id}:${host.contentRevision}:${moduleRevision}`);
 

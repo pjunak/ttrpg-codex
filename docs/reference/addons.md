@@ -102,9 +102,9 @@ testing, the update/rollback wizard, and backup coverage.
   in server.js — the single source of truth for "what counts as data").
 - `data/addons.json` — the **registry** (top-level → rides snapshots +
   the data hash). Shape: `{ schema, addons:[{id, repo, ref, sha, name,
-  version, apiVersion, hostVersion, entry, server, contentDir, contentGroups?,
+  version, apiVersion, hostVersion, entry, server, contentDir, contentGroups?, locales?,
   disabledContentGroups?, serverDeps[], activeHash,
-  versions:[{contentHash,version,sha,installedAt, entry,server,contentDir,serverDeps,
+  versions:[{contentHash,version,sha,installedAt, entry,server,contentDir,serverDeps,locales,
   collections,dependencies,optionalDependencies}], enabled, grantedPermissions[],
   dependencies{}, optionalDependencies{},
   collections:[{name,keyed,access}], schemaVersion}], resolutions:{}, sources:{allow:[]} }`.
@@ -136,6 +136,10 @@ declaration as `contentGroups` + the DM's picks as `disabledContentGroups`;
 record of the field-named KIND with a matching id — `book` value `phb` →
 the `book` record's "Player's Handbook" — falling back to the raw id, so
 the Manager shows full names while the off-list wire format stays ids),
+locales? (`{ "en": "locales/en.json", "cs": "locales/cs.json" }` — API-v2
+declarative UI catalogs; requires `i18n.catalogs`, mandatory English source,
+partial translations allowed; package paths are confined `.json` files and the
+staged package validator checks their content before promotion),
 serverDeps? (`string[]` of vetted host
 npm libs the server module needs — must be in `HOST_SERVER_LIBS` =
 `{express, archiver, multer}` or the addon loads `blocked`; archive readers are
@@ -170,12 +174,14 @@ addon's own declared collections and requires `data:own` plus at least one
 collection declaration.
 
 The API-v2 capabilities currently advertised by the host are
-`collections.dm`, `collections.transactions`, `lifecycle.dispose`, and
-`content.revision`. An addon that requires any
+`collections.dm`, `collections.transactions`, `lifecycle.dispose`,
+`content.revision`, and `i18n.catalogs`. An addon that requires any
 contract must declare it in `capabilities.required`; v1 addons remain loadable
 without either declaration. `lifecycle.dispose` enables the teardown contract
 described below. `content.revision` exposes the active package/content-policy
 revision as `host.contentRevision`.
+`i18n.catalogs` enables the declarative manifest locale map and the scoped
+`host.i18n` facade; English must load successfully before registration.
 
 ### Server broker — `server/addons.cjs` (pure/injectable, unit-tested)
 `validateManifest` · `matchRepoRule`/`isAllowed` · `contentHash` (sha256
@@ -250,6 +256,12 @@ exports contain only the already-authorized Store projection. Disable and
 ordinary uninstall preserve collection files; `?purge=1` retains the existing
 explicit destructive policy.
 
+`server/addon-localization.cjs` applies the shared catalog validator to staged
+packages: it resolves declared locale files inside the package root, rejects
+symlinks/non-files and oversized files before reading, parses English first,
+then checks every translation against its source shapes/placeholders. Both the
+GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
+
 ### Client host — `web/js/addons.js` (`Addons`)
 - `init({toast, rerender})` (app.js injects `EditMode.toast` + a
   re-render fn so addons.js needn't import EditMode/Sidebar — avoids
@@ -279,6 +291,14 @@ explicit destructive policy.
   try/caught; a broken addon is marked `error` and SKIPPED — boot still
   completes, others still load, no white screen. A throwing route
   renderer degrades to an inline error pane.
+- **Declarative localization:** before importing an addon module,
+  `loadAddonCatalogs` fetches its manifest-declared catalogs from the active
+  content-addressed package. The mandatory English source is a hard per-addon
+  gate; optional translation fetch failures warn and fall back. The scoped
+  facade resolves exact locale → base locale → English and never registers
+  keys in core `I18n`. Cache identity includes addon/revision/locale/path;
+  disposal aborts pending fetches, clears owned cache entries, and prevents
+  late stale responses from reaching a replacement instance.
 - **`host` facade (permission-scoped)**: built from the addon's GRANTED
   permissions — an ungranted capability throws a clear, caught error (never
   a silent partial); the no-`window.*` design means the facade is the only
@@ -348,8 +368,10 @@ explicit destructive policy.
   status via the host's ONE persistent polite live region — survives the
   full-page re-renders that destroy any live region inside a route's own HTML;
   use for "N matches" / "N pts left", not as a visual toast). `Addons.describePermission(perm)` provides the
-  permission labels (core Manager chrome — localized via `I18n.t`; the addon
-  facade itself has NO translation API, addons are English-only).
+  permission labels (core Manager chrome — localized via `I18n.t`).
+  **`host.i18n`** is always a per-addon facade with
+  `locale`, `t`, `plural`, `formatDate`, `formatNumber`, and `relativeTime`;
+  declarative catalogs require API v2 + `i18n.catalogs`.
   Always-available lifecycle metadata is `host.contentRevision`, and
   `host.onDispose(fn)` registers resource cleanup. The former changes when the
   active package identity/version or effective content-group policy changes,
@@ -496,8 +518,10 @@ renames):
   loose allow-all), with live-compatible `use()` dependency errors, collection
   declaration/capability/role checks, keyed and list CRUD, transaction
   buffering/conflicts/rollback/nesting, empty player reads for DM collections,
-  `host.contentRevision`, `host.onDispose`, and
-  `disposeMockHost(rec)`. `dryRunRegister(register, meta)` (Tier-A
+  `host.contentRevision`, `host.onDispose`, scoped `host.i18n`, catalog
+  validation/fallback behavior, and
+  `disposeMockHost(rec)`. `validateAddonCatalogs(meta, catalogs)` exposes the
+  same package-shape/placeholder guard to addon authors. `dryRunRegister(register, meta)` (Tier-A
   — run register against the mock, catch throws, return the `rec`), and
   `smokeRegistrations(rec)` (Tier-C — invoke each recorded RENDER with sample
   fixtures; actions/collect are NOT run). Unit-tested; the
@@ -522,7 +546,8 @@ renames):
 ### Dev / testing
 - `node scripts/dev-install-addon.cjs <addon-dir> [data-dir]` installs a
   LOCAL addon directory (bypasses GitHub / allowlist / UI) — it mirrors
-  `_installAddon`'s content-addressed layout + registry entry so the app
+  `_installAddon`'s content-addressed layout, localization validation, and
+  registry entry so the app
   loads it on next launch. Reference addons: `examples/addons/hello/`
   (route `/pozdrav` + sidebar link, reads characters via `host.store`),
   `examples/addons/sheet/` (Phase 5 — an active character sheet: interactive
@@ -541,7 +566,10 @@ renames):
   (auto-picked-up by Claude Code / Cursor). Keep both current when the host API
   changes. No addons are published yet — these are dev fixtures + the contract
   real addons will be built against, so accuracy matters.
-- Unit tests: `test/addons.test.cjs` (manifest validation / allowlist /
+- Unit tests: `test/addon-i18n.test.mjs` (manifest/package validation,
+  namespaces, interpolation/plurals, exact/base/English fallback,
+  live/harness parity, cache/disposal/update/stale-response isolation) +
+  `test/addons.test.cjs` (manifest validation / allowlist /
   content-hash determinism / bounded zipball download / repo-URL parsing + collection
   helpers `normalizeCollections`/`addonCollectionType`/`parseAddonType`) +
   `test/addon-archive.test.cjs` (streaming extraction, wrapper stripping,

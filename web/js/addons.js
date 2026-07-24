@@ -32,6 +32,7 @@ import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack, re
 import { createTransactionRunner } from './addon-transactions.js';
 import { applyFragmentOps, listConflicts } from './addon-fragments.js';
 import { smokeRegistrations } from './addon-test-harness.mjs';
+import { createScopedI18n, loadAddonCatalogs } from './addon-i18n.js';
 
 export const Addons = (() => {
   const HOST_API_VERSION = 2;
@@ -153,7 +154,7 @@ export const Addons = (() => {
   // register method applies to the global registry immediately AND records
   // its undo, so a register() that throws can be cleanly rolled back
   // (_loadOne does this), leaving no half-registered addon behind.
-  function _makeHost(meta) {
+  function _makeHost(meta, localization = { catalogs: { en: {} } }) {
     const id = meta.id;
     const grants = Array.isArray(meta.permissions) ? meta.permissions : [];
     const has = (p) => grants.includes(p);
@@ -558,6 +559,15 @@ export const Addons = (() => {
     const assetBase = (typeof meta.entryUrl === 'string' && meta.entryUrl.lastIndexOf('/') > 0)
       ? meta.entryUrl.slice(0, meta.entryUrl.lastIndexOf('/') + 1)
       : (meta.activeHash ? `/addons/${id}/${meta.activeHash}/` : `/addons/${id}/`);
+    const scopedI18n = createScopedI18n({
+      addonId: id,
+      catalogs: localization.catalogs,
+      getLocale: () => I18n.getLocale(),
+      formatNumber: (value, opts) => I18n.formatNumber(value, opts),
+      formatDate: (value, opts) => I18n.formatDate(value, opts),
+      relativeTime: (value, now) => I18n.relativeTime(value, now),
+      onMissing: ({ key }) => console.warn(`[addon ${id}] missing English localization key "${key}"`),
+    });
 
     const host = {
       id,
@@ -566,6 +576,7 @@ export const Addons = (() => {
       contentRevision: typeof meta.contentRevision === 'string' ? meta.contentRevision : '',
       capabilities: Object.freeze({ has: (id) => HOST_CAPABILITIES.has(id), supported: Object.freeze([...HOST_CAPABILITIES]) }),
       permissions: grants.slice(),
+      i18n: scopedI18n,
       action: (name) => id + ':' + name,
       asset:  (rel) => assetBase + String(rel == null ? '' : rel).replace(/^\/+/, ''),
       registerRoute, registerSidebarPage, registerPageRenderer,
@@ -824,6 +835,23 @@ export const Addons = (() => {
   async function _loadOne(a) {
     const rec = { id: a.id, name: a.name || a.id, version: a.version || '', state: 'loading', error: '', smoke: null, meta: a };
     _addons.set(a.id, rec);
+    let localization = { catalogs: { en: {} }, warnings: [], dispose: () => {} };
+    if (a.locales) {
+      try {
+        localization = await loadAddonCatalogs(a, {
+          isCurrent: () => _addons.get(a.id) === rec,
+        });
+        rec.localizationWarnings = localization.warnings;
+        for (const warning of localization.warnings) {
+          console.warn(`[addon ${a.id}] localization warning: ${warning}`);
+        }
+      } catch (e) {
+        rec.state = 'error';
+        rec.error = e.message;
+        console.error(`[addon ${a.id}] localization failed`, e);
+        return;
+      }
+    }
     let mod;
     try {
       const separator = a.entryUrl.includes('?') ? '&' : '?';
@@ -834,6 +862,7 @@ export const Addons = (() => {
       rec.state = 'error';
       rec.error = `import failed: ${e.message}`;
       console.error(`[addon ${a.id}] import failed`, e);
+      localization.dispose();
       return;
     }
     const register = mod && (mod.default || mod.register);
@@ -841,9 +870,11 @@ export const Addons = (() => {
       rec.state = 'error';
       rec.error = 'entry module has no default-export register(host)';
       console.error(`[addon ${a.id}] ${rec.error}`);
+      localization.dispose();
       return;
     }
-    const { host, tx } = _makeHost(a);
+    const { host, tx } = _makeHost(a, localization);
+    addDisposer(tx.cleanup, localization.dispose);
     try {
       addReturnedDisposer(tx.cleanup, register(host));
       rec.state = 'ok';

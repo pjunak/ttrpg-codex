@@ -7,7 +7,7 @@ const {
   defaultRegistry, normalizeRegistry,
   validateManifest, matchRepoRule, isAllowed, parseRepoInput,
   contentHash, _safeRel,
-  addonCollectionType, parseAddonType, normalizeCollections,
+  addonCollectionType, parseAddonType, normalizeCollections, normalizeLocales,
   resolveRefToSha, fetchZipball, fetchManifest,
 } = require('../server/addons.cjs');
 
@@ -232,6 +232,29 @@ test('resolveRefToSha: carries the Bearer token; anonymous carries no header', a
   f = fakeFetch([[/\/commits\//, okText(SHA40)]]);
   await resolveRefToSha('me/pub', 'main', { fetch: f });
   assert.equal('Authorization' in f.calls[0].headers, false, 'no Authorization header without a token');
+});
+
+test('validateManifest: declarative localization is API-v2 capability-gated and path-safe', () => {
+  const localized = goodManifest({
+    capabilities: { required: ['i18n.catalogs'] },
+    locales: { en: 'locales/en.json', cs: 'locales/cs.json' },
+  });
+  assert.equal(validateManifest(localized).ok, true);
+  assert.equal(validateManifest({ ...localized, apiVersion: 1 }).ok, false);
+  assert.equal(validateManifest({ ...localized, capabilities: { required: [] } }).ok, false);
+  assert.equal(validateManifest({ ...localized, locales: { cs: 'locales/cs.json' } }).ok, false);
+  assert.equal(validateManifest({ ...localized, locales: { en: '../en.json' } }).ok, false);
+  assert.equal(validateManifest({ ...localized, locales: { en: 'locales/en.js' } }).ok, false);
+  assert.equal(validateManifest({ ...localized, locales: { en: 'a.json', EN: 'b.json' } }).ok, false);
+  assert.deepEqual(normalizeLocales(localized.locales), {
+    en: 'locales/en.json',
+    cs: 'locales/cs.json',
+  });
+});
+
+test('validateManifest: existing API-v1 addons remain valid without localization', () => {
+  const legacy = goodManifest({ apiVersion: 1, hostVersion: undefined });
+  assert.equal(validateManifest(legacy).ok, true);
 });
 
 test('validateManifest: transaction capability requires owned declared collections', () => {

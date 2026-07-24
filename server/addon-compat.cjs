@@ -7,6 +7,7 @@ const KNOWN_CAPABILITIES = new Set([
   'collections.transactions',
   'lifecycle.dispose',
   'content.revision',
+  'i18n.catalogs',
 ]);
 const HOST_CAPABILITIES = new Set(KNOWN_CAPABILITIES);
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,38}$/;

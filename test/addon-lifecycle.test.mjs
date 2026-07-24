@@ -31,10 +31,17 @@ async function freshRuntime(initial, config = {}) {
     events: [],
     instances: {},
     consumerApis: {},
+    catalogFetches: [],
   };
   const responses = [initial];
   globalThis.fetch = async (url) => {
-    assert.equal(url, '/api/addons');
+    if (url !== '/api/addons') {
+      globalThis.__addonLifecycleState.catalogFetches.push(url);
+      const body = config.$catalogs?.[url];
+      return body === undefined
+        ? { ok: false, status: 404, text: async () => '' }
+        : { ok: true, status: 200, text: async () => body };
+    }
     const next = responses.shift();
     const addons = typeof next === 'function' ? await next() : next;
     return { ok: true, json: async () => ({ addons, resolutions: {} }) };
@@ -70,6 +77,41 @@ test('lifecycle: disable/removal is idempotent and cleanup precedes registration
   await rt.Addons.reconcile();
   assert.equal(rt.Addons.hasRoute('alpha'), false, 'uninstall/removal unloads the fresh instance');
   assert.equal(rt.state.events.filter(e => e.includes('Dispose:alpha')).length, 4);
+});
+
+test('lifecycle: localized addons clear package caches across disable, re-enable, and update', async () => {
+  const enPath = 'locales/en.json';
+  const localized = (revision, activeHash, extra = {}) => metadata('localized', revision, {
+    activeHash,
+    capabilities: { required: ['lifecycle.dispose', 'content.revision', 'i18n.catalogs'] },
+    locales: { en: enPath },
+    ...extra,
+  });
+  const firstUrl = '/addons/localized/hash-one/locales/en.json';
+  const secondUrl = '/addons/localized/hash-two/locales/en.json';
+  const rt = await freshRuntime([localized('r1', 'hash-one')], {
+    $catalogs: {
+      [firstUrl]: '{"title":"First"}',
+      [secondUrl]: '{"title":"Second"}',
+    },
+    localized: { localizationKey: 'title' },
+  });
+  assert.equal(rt.state.instances.localized.localized, 'First');
+
+  rt.queue([localized('r1', 'hash-one', { enabled: false })]);
+  await rt.Addons.reconcile();
+  rt.queue([localized('r1', 'hash-one')]);
+  await rt.Addons.reconcile();
+  assert.equal(rt.state.instances.localized.localized, 'First');
+  assert.equal(rt.state.catalogFetches.filter(url => url === firstUrl).length, 2,
+    're-enable refetches after the disposed instance clears its cache');
+
+  rt.queue([localized('r2', 'hash-two')]);
+  await rt.Addons.reconcile();
+  assert.equal(rt.state.instances.localized.localized, 'Second');
+  assert.equal(rt.state.catalogFetches.filter(url => url === secondUrl).length, 1);
+  assert.equal(rt.state.events.filter(event => event.startsWith('register:localized:')).length, 3,
+    'each live instance registers exactly once');
 });
 
 test('lifecycle: content revision reloads once, busts the entry-module cache, and same revision is a no-op', async () => {

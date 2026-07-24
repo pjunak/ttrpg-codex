@@ -64,6 +64,8 @@ const COLLECTION_NAME_RE = /^[a-z0-9][a-z0-9_]{0,39}$/;
 // DM can toggle whole groups off. Plain identifier grammar: the field is used
 // as a bare property lookup on every record, never as a path.
 const CONTENT_GROUP_FIELD_RE = /^[a-zA-Z0-9_]{1,40}$/;
+const LOCALE_RE = /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i;
+const MAX_LOCALES = 20;
 
 // The wire `type` + on-disk identity for an addon-owned collection. Colon-
 // namespaced under the addon id so it can never collide with a built-in
@@ -139,6 +141,23 @@ function normalizeDisabledContentGroups(raw) {
   return out;
 }
 
+function _safeCatalogPath(rel) {
+  if (!_safeRel(rel) || rel.includes('\\') || !/\.json$/i.test(rel)) return false;
+  if (rel.includes('?') || rel.includes('#')) return false;
+  return rel.split('/').every(segment => segment && segment !== '.' && segment !== '..');
+}
+
+function normalizeLocales(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const locales = {};
+  for (const [declaredId, rel] of Object.entries(raw)) {
+    const locale = LOCALE_RE.test(declaredId) ? declaredId.toLowerCase() : null;
+    if (!locale || Object.prototype.hasOwnProperty.call(locales, locale) || !_safeCatalogPath(rel)) continue;
+    locales[locale] = rel;
+  }
+  return Object.keys(locales).length ? locales : null;
+}
+
 /** The empty registry shape written on first install. */
 function defaultRegistry() {
   return { schema: REGISTRY_SCHEMA, addons: [], resolutions: {}, sources: { allow: [] } };
@@ -161,6 +180,8 @@ function normalizeRegistry(parsed) {
   for (const a of reg.addons) {
     if (!a || typeof a !== 'object') continue;
     a.collections = normalizeCollections(a.collections, a.apiVersion, a.capabilities);
+    const locales = normalizeLocales(a.locales);
+    if (locales) a.locales = locales; else delete a.locales;
     const cg = normalizeContentGroups(a.contentGroups);
     if (cg) a.contentGroups = cg; else delete a.contentGroups;
     a.disabledContentGroups = normalizeDisabledContentGroups(a.disabledContentGroups);
@@ -218,6 +239,28 @@ function validateManifest(m) {
       if (cg.label !== undefined && (typeof cg.label !== 'string' || cg.label.length > 60)) {
         errors.push('contentGroups.label must be a string of at most 60 characters');
       }
+    }
+  }
+  if (m.locales !== undefined) {
+    if (m.apiVersion !== 2) errors.push('locales requires apiVersion 2');
+    const required = Array.isArray(m.capabilities?.required) ? m.capabilities.required : [];
+    if (!required.includes('i18n.catalogs')) errors.push('locales requires capability "i18n.catalogs"');
+    if (!m.locales || typeof m.locales !== 'object' || Array.isArray(m.locales)) {
+      errors.push('locales must be an object mapping locale ids to catalog paths');
+    } else {
+      const entries = Object.entries(m.locales);
+      if (entries.length > MAX_LOCALES) errors.push(`locales may declare at most ${MAX_LOCALES} catalogs`);
+      const seen = new Set();
+      for (const [declaredId, rel] of entries) {
+        const locale = LOCALE_RE.test(declaredId) ? declaredId.toLowerCase() : null;
+        if (!locale) errors.push(`invalid locale id "${declaredId}"`);
+        else if (seen.has(locale)) errors.push(`duplicate locale declaration "${locale}"`);
+        else seen.add(locale);
+        if (typeof rel !== 'string' || !_safeCatalogPath(rel)) {
+          errors.push(`locales.${declaredId} must be a relative .json path inside the addon`);
+        }
+      }
+      if (!seen.has('en')) errors.push('locales must declare the required English source catalog "en"');
     }
   }
   if (m.serverDeps !== undefined &&
@@ -496,10 +539,12 @@ module.exports = {
   REPO_RE,
   COLLECTION_NAME_RE,
   CONTENT_GROUP_FIELD_RE,
+  LOCALE_RE,
   defaultRegistry,
   normalizeRegistry,
   normalizeContentGroups,
   normalizeDisabledContentGroups,
+  normalizeLocales,
   validateManifest,
   matchRepoRule,
   isAllowed,

@@ -235,10 +235,10 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | DELETE | `/api/snapshots/:id` | dm | Delete one snapshot file. |
 | GET | `/api/addons` | — | Role-scoped installed-addon projection. It includes compatibility/lifecycle metadata needed for client boot. Effective DM callers receive normalized collection `{name,keyed,access}` declarations; player/anonymous/view-as callers receive public declarations only, so hidden collection names and shapes are absent. |
 | ANY | `/api/addon/:id/*` | — | **Namespaced server-addon routes** (Phase 7, singular). A stable dispatcher (before the SPA fallback) delegates to the enabled addon's `express.Router()` built by its `init(serverHost)`. `req.role`/`realRole` are stamped (the addon self-gates); an unmatched sub-path or a disabled/absent/errored addon → JSON 404. Each addon's routes are isolated under its own id. **When the addon has NO live router but declares manifest `contentDir`, the HOST answers the four GET content endpoints itself** (`/content`, `/content/:kind`, `/item/:kind/:id`, `/kinds`) from the addon's bundled per-record JSON tree — no addon server code, no `server:code` grant, HOT-rebuilt on every registry mutation (`_applyAddonContent`; cached per `activeHash`), so installing/updating a book addon needs no restart. A live router takes precedence entirely. See **Server-side addons**. |
-| POST | `/api/addons/install` | dm | DM-only on **realRole** (like twin ops). `{ repo, ref?, sha? }`. `repo` is a pasted GitHub URL or `owner/name` (parsed by `AddonBroker.parseRepoInput`, which also extracts a `/tree/<ref>`). When the wizard passes the previewed `sha`, install **pins to that exact commit** (what installs == what was reviewed) while storing the original `ref` for future update checks. **Auto-records** the repo in `sources.allow`. Fetches the GitHub zipball under a compressed-byte cap, scans its central directory before writing (entry count, safe/unique paths, per-entry and total expanded bytes, compression ratios), streams it to a unique staging tree, validates + content-hashes from disk, runs the server **test green-gate** (Phase 8), then atomic-promotes to `data/addons/<id>/<hash>/` + appends to `versions[]` (kept for rollback), updates `data/addons.json`, broadcasts `addons-changed`. Upsert by id = update. |
+| POST | `/api/addons/install` | dm | DM-only on **realRole** (like twin ops). `{ repo, ref?, sha? }`. `repo` is a pasted GitHub URL or `owner/name` (parsed by `AddonBroker.parseRepoInput`, which also extracts a `/tree/<ref>`). When the wizard passes the previewed `sha`, install **pins to that exact commit** (what installs == what was reviewed) while storing the original `ref` for future update checks. **Auto-records** the repo in `sources.allow`. Fetches the GitHub zipball under a compressed-byte cap, scans its central directory before writing (entry count, safe/unique paths, per-entry and total expanded bytes, compression ratios), streams it to a unique staging tree, validates the manifest and any declarative locale package (`server/addon-localization.cjs`: confined regular JSON files, English source first, bounded shape/key/value/placeholder checks), content-hashes from disk, runs the server **test green-gate** (Phase 8), then atomic-promotes to `data/addons/<id>/<hash>/` + appends to `versions[]` (kept for rollback), updates `data/addons.json`, broadcasts `addons-changed`. Upsert by id = update. |
 | POST | `/api/addons/preview` | dm | DM-only on **realRole**. `{ repo, ref? }`. Resolves + fetches **just `addon.json`** (GitHub contents API — no download/install) via `AddonBroker.fetchManifest`, validates it, returns `{ repo, ref, sha, ok, errors, manifest:{…} }` so the wizard shows the requested permissions for DM review BEFORE granting. The returned `ref` (original branch/tag) + `sha` (exact commit) both feed back into install. |
 | POST | `/api/addons/check-updates` | dm | DM-only on **realRole** (Phase 9). PURE READ — for each addon from a real GitHub repo, re-resolve its stored `ref`→latest SHA and diff vs installed `sha`; returns `{ checkedAt, updates:[{id, status:'ok'\|'local'\|'error', hasUpdate, repo, currentSha, latestSha}] }`. Per-addon failures isolated. Never downloads — applying an update opens the wizard. |
-| POST | `/api/addons/:id/rollback` | dm | DM-only on **realRole** (Phase 9). `{ hash? }`. Content-addressed rollback: flip `activeHash` to a kept prior `versions[]` entry (`hash` targets one; omitted → the one before active) + restore that version's structural fields (`entry`/`server`/`serverDeps`/`collections`/`dependencies`). Instant + offline (the code dir survives). 400 if <2 versions or the target code dir is gone; broadcasts `addons-changed`. Server code change → drops the live router (restart-to-load). |
+| POST | `/api/addons/:id/rollback` | dm | DM-only on **realRole** (Phase 9). `{ hash? }`. Content-addressed rollback: flip `activeHash` to a kept prior `versions[]` entry (`hash` targets one; omitted → the one before active) + restore that version's structural fields (`entry`/`server`/`serverDeps`/`collections`/`dependencies`/`locales`). Instant + offline (the code dir survives). 400 if <2 versions or the target code dir is gone; broadcasts `addons-changed`. Server code change → drops the live router (restart-to-load). |
 | POST | `/api/addons/sources` | dm | DM-only on **realRole**. `{ repo, action? }` — add (default) or `remove` a recorded source (`owner/name` or `owner/*`) in `sources.allow`. Mostly auto-managed by install; this is the advanced manual lever. Broadcasts `addons-changed`. |
 | POST | `/api/addons/resolve` | dm | DM-only on **realRole**. `{ target, winner }` — resolve a fragment-override conflict: `winner` = an addonId (that addon's exclusive op wins), `null` (force the built-in), or absent/empty (clear → back to auto). Writes `resolutions[target]` in `data/addons.json` (prototype-key-guarded), broadcasts `addons-changed`. See **Fragment overrides**. |
 | POST | `/api/addons/:id/enable` · `/disable` | dm | DM-only on **realRole**. Flip `enabled` on an installed addon; broadcasts `addons-changed` (clients live-reconcile). 404 if unknown. |
@@ -409,6 +409,10 @@ Coverage today:
   including a real cross-platform Node spawn and the strict child-environment
   allowlist (arbitrary, AWS, database, SSH, token, and `NODE_OPTIONS` values
   are absent).
+- `test/addon-i18n.test.mjs` — declarative locale manifest/package validation,
+  scoped lookup/fallback/formatting, harness parity, cache/disposal, and stale
+  response isolation; `test/dev-install-addon.test.cjs` verifies invalid
+  catalogs cannot replace an active local install.
 
 **Integration tests** (boot the Express app against a tempdir
 `CODEX_DATA_DIR`, exercise endpoints, assert on disk + responses):
@@ -503,10 +507,11 @@ The Dockerfile copies `package.json`, `server.js`,
   `server.js` requires `./server/visibility.cjs`,
   `./server/migrations.cjs`, `./server/addons.cjs`,
   `./server/addon-archive.cjs`, `./server/addon-testing.cjs`, and
-  `./server/addon-content.cjs` at
+  `./server/addon-content.cjs` plus `./server/addon-localization.cjs` at
   module-load time. All are critical
   (role-aware filtering, the startup visibility-stamp migration, the
-  addon broker, and the addon test green-gate respectively). `COPY
+  addon broker, archive/content/localization gates, and the addon test
+  green-gate). `COPY
   server ./server` covers the whole dir.
 
 Verify all four are COPYed when adding any new top-level server-side

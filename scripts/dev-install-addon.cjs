@@ -20,7 +20,9 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 const Broker = require('../server/addons.cjs');
+const Localization = require('../server/addon-localization.cjs');
 
+async function main() {
 const src = process.argv[2];
 const dataDir = path.resolve(process.argv[3] || process.env.CODEX_DATA_DIR || path.join(__dirname, '..', 'data'));
 if (!src) {
@@ -51,6 +53,8 @@ catch (e) { console.error('addon.json is not valid JSON:', e.message); process.e
 
 const v = Broker.validateManifest(manifest);
 if (!v.ok) { console.error('invalid addon.json:\n  - ' + v.errors.join('\n  - ')); process.exit(1); }
+try { await Localization.validateLocalizationPackage(srcAbs, manifest); }
+catch (error) { console.error('invalid localization package:\n  - ' + error.message); process.exit(1); }
 
 const id   = manifest.id;
 const hash = Broker.contentHash(fileMap, crypto);
@@ -79,11 +83,12 @@ const collections = Broker.normalizeCollections(
 const dependencies = (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {};
 const optionalDependencies = (manifest.optionalDependencies && typeof manifest.optionalDependencies === 'object' && !Array.isArray(manifest.optionalDependencies)) ? manifest.optionalDependencies : {};
 const contentGroups = Broker.normalizeContentGroups(manifest.contentGroups);
+const locales = Broker.normalizeLocales(manifest.locales);
 const versionRec = {
   contentHash: hash, version: manifest.version, sha: 'local', installedAt: Date.now(),
   apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
   entry: manifest.entry, server: manifest.server || null,
-  contentDir: manifest.contentDir || null, contentGroups,
+  contentDir: manifest.contentDir || null, contentGroups, locales,
   serverDeps, collections, dependencies, optionalDependencies, capabilities,
 };
 let entry = reg.addons.find(a => a.id === id);
@@ -95,7 +100,7 @@ if (!entry) {
     capabilities,
     entry: manifest.entry, server: manifest.server || null,
     contentDir: manifest.contentDir || null,
-    contentGroups, disabledContentGroups: [],
+    contentGroups, locales, disabledContentGroups: [],
     serverDeps,
     activeHash: hash, versions: [versionRec],
     enabled: true, grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
@@ -114,7 +119,7 @@ if (!entry) {
     name: manifest.name, version: manifest.version, apiVersion: manifest.apiVersion,
     hostVersion: manifest.hostVersion || '', capabilities,
     entry: manifest.entry, server: manifest.server || null,
-    contentDir: manifest.contentDir || null, contentGroups,
+    contentDir: manifest.contentDir || null, contentGroups, locales,
     activeHash: hash, enabled: true,
     grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : (entry.grantedPermissions || []),
     serverDeps, dependencies, optionalDependencies, collections,
@@ -132,3 +137,9 @@ console.log(`✓ installed "${id}" v${manifest.version}`);
 console.log(`  code:      ${finalDir}`);
 console.log(`  entry URL: /addons/${id}/${hash}/${manifest.entry}`);
 console.log('  Restart / reload the app — the addon loads at boot and its sidebar link appears under "Doplňky".');
+}
+
+main().catch((error) => {
+  console.error(error && error.message ? error.message : error);
+  process.exit(1);
+});

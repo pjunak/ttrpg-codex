@@ -46,6 +46,7 @@ const AddonBroker = require('./server/addons.cjs');
 const AddonArchive = require('./server/addon-archive.cjs');
 const AddonTesting = require('./server/addon-testing.cjs');
 const AddonContent = require('./server/addon-content.cjs');
+const AddonLocalization = require('./server/addon-localization.cjs');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -2036,6 +2037,7 @@ function _publicAddonList(reg, role = 'player') {
     // Host-served declarative content (manifest `contentDir`) — data addons
     // (rulebooks) with no server code; the host serves /api/addon/<id>/content.
     contentDir:  a.contentDir || null,
+    locales:     AddonBroker.normalizeLocales(a.locales),
     // Content-group toggles (manifest `contentGroups`) — the Manager's
     // per-group checkboxes. Values come from the live content cache (counted
     // over the UNFILTERED tree so a disabled group still shows its size);
@@ -2401,6 +2403,8 @@ async function _stageAddon(repo, ref, pinnedSha) {
     const v = AddonBroker.validateManifest(manifest);
     if (!v.ok) throw new Error('neplatný addon.json: ' + v.errors.join('; '));
 
+    await AddonLocalization.validateLocalizationPackage(rawIncoming, manifest);
+
     const id = manifest.id;
     const hash = await AddonArchive.contentHashDirectory(rawIncoming, extracted.files, crypto);
     const idDir = path.join(ADDONS_DIR, id);
@@ -2470,12 +2474,14 @@ async function _promoteAddon(staged) {
   // rollback to this contentHash can restore the right entry/server/collections,
   // not just flip the code dir.
   const _contentGroups = AddonBroker.normalizeContentGroups(manifest.contentGroups);
+  const _locales = AddonBroker.normalizeLocales(manifest.locales);
   const versionRec = {
     contentHash: hash, version: manifest.version, sha, installedAt: Date.now(),
     apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
     entry: manifest.entry, server: manifest.server || null,
     contentDir: manifest.contentDir || null,
     contentGroups: _contentGroups,
+    locales: _locales,
     serverDeps: _serverDeps, collections: _collections,
     dependencies: _dependencies, optionalDependencies: _optionalDependencies,
     capabilities: manifest.capabilities || undefined,
@@ -2490,6 +2496,7 @@ async function _promoteAddon(staged) {
       entry: manifest.entry, server: manifest.server || null,
       contentDir: manifest.contentDir || null,
       contentGroups: _contentGroups,
+      locales: _locales,
       disabledContentGroups: [],
       serverDeps: _serverDeps,
       activeHash: hash, versions: [versionRec],
@@ -2512,6 +2519,7 @@ async function _promoteAddon(staged) {
       // DECLARATION follows the manifest (an update may add/drop/rename the
       // grouping field — stale off-list ids then simply match nothing).
       contentGroups: _contentGroups,
+      locales: _locales,
       serverDeps: _serverDeps,
       dependencies: _dependencies,
       optionalDependencies: _optionalDependencies,
@@ -2730,6 +2738,8 @@ app.post('/api/addons/:id/rollback', requireRealDM('Jen DM může vracet verze d
       if (target.server !== undefined)   entry.server      = target.server;
       if (target.contentDir !== undefined) entry.contentDir = target.contentDir;
       if (target.contentGroups !== undefined) entry.contentGroups = target.contentGroups;
+      if (target.locales !== undefined) entry.locales = target.locales;
+      else delete entry.locales;
       if (Array.isArray(target.serverDeps))  entry.serverDeps  = target.serverDeps;
       if (Array.isArray(target.collections)) {
         entry.collections = AddonBroker.normalizeCollections(

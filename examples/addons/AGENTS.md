@@ -48,9 +48,9 @@ reach the app through the `host` facade — there are no globals.
    before `registerCollection`.** DM access additionally requires API v2,
    `collections.dm`, and effective-DM registration. Wiki-kind resolvers look targets up **by name
    → real id** (ids carry a random suffix; never assume the slug).
-10. **Write the whole addon — UI strings included — in English.** The app's
-   language switcher is a visual layer over the *core* UI only; it doesn't reach
-   addon code, and there is no addon translation API.
+10. **Write code and the mandatory source catalog in English.** Localized UI
+   uses API v2, requires `i18n.catalogs`, declares a `locales` map with complete
+   `en`, and renders through scoped `host.i18n`. Translations may be partial.
 
 ---
 
@@ -74,7 +74,9 @@ see below), `serverDeps` (subset of `express` `archiver` `multer`; archive
 readers are deliberately unavailable),
 `capabilities` (API-v2 `{required, optional}`; advertised:
 `collections.dm`, `collections.transactions`, `lifecycle.dispose`,
-`content.revision`),
+`content.revision`, `i18n.catalogs`),
+`locales` (`{ "en": "locales/en.json", "cs": "locales/cs.json" }`; API v2,
+requires `i18n.catalogs`; English is mandatory/complete, translations partial),
 `collections` (`[{ "name": "x", "keyed": false, "access": "public" }]`, name
 `^[a-z0-9][a-z0-9_]{0,39}$`; `dm` access requires API v2 plus
 `collections.dm` in `capabilities.required`),
@@ -129,6 +131,7 @@ host.id · host.apiVersion (2) · host.hostVersion · host.permissions[]
 host.capabilities.has(id) · host.contentRevision · host.onDispose(fn)
 host.action(name)
 host.asset(rel)   // → /addons/<id>/<hash>/<rel> — URL of a bundled file (images…)
+host.i18n = { locale, t, plural, formatDate, formatNumber, relativeTime }
 host.h    = { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumb }
 //            breadcrumb([{label, href?}, …]) — the core wayfinding row (last crumb
 //            = current page); use it instead of hand-rolled "← Back" links
@@ -143,6 +146,13 @@ host.store.patchAddonData(coll, id, fn)          // data:write:<coll>.addonData 
 ```
 There is **no way to call one action from another** — factor shared logic into a
 local function and reuse it.
+
+`host.i18n` is isolated to this addon and resolves exact locale → base locale →
+English → key. `t()`/`plural()` return plain text, so escape their results in
+HTML. Locale files are bounded regular JSON files inside the package; supplied
+translations must preserve each English value's string/plural shape and exact
+`{placeholder}` set. Install/update disposal clears instance-owned catalog
+caches and prevents stale responses from reaching a replacement.
 
 `register(host)` may return another cleanup function. Each cleanup runs exactly
 once in LIFO order before ordinary registrations are reversed. Promise cleanup
@@ -195,7 +205,7 @@ A throw in `init` is isolated — it never crashes the host.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import register from '../entry.js';
-import { disposeMockHost, dryRunRegister, smokeRegistrations } from '<host>/web/js/addon-test-harness.mjs';
+import { disposeMockHost, dryRunRegister, smokeRegistrations, validateAddonCatalogs } from '<host>/web/js/addon-test-harness.mjs';
 
 test('registers + smokes clean', () => {
   const { ok, rec, error } = dryRunRegister(register, { id: 'my-addon', permissions: [/* … */] });
@@ -204,7 +214,10 @@ test('registers + smokes clean', () => {
   return disposeMockHost(rec);
 });
 ```
-- The mock uses the live dependency/declaration/capability checks. Test
+- The mock uses the live dependency/declaration/capability/catalog checks. Pass
+  `opts.catalogs` and `opts.locale` to test locale switching and fallback;
+  `validateAddonCatalogs(meta, catalogs)` exposes the package guard and
+  `rec.i18nMissing` records exercised keys absent from English. Test
   `host.use()`, public and DM collection roles, keyed/list CRUD, disposal order/idempotence, and failed
   registration cleanup. `dryRunRegister` also returns a bound `dispose()`.
 - `tests.server` (CommonJS) is the **green-gate run at install** — it must be
