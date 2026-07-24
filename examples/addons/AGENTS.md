@@ -45,7 +45,8 @@ reach the app through the `host` facade — there are no globals.
    cleanup with `host.onDispose(fn)` or return a cleanup function for every
    timer, listener, request, observer, overlay, or cache you own.
 9. **Addon-owned collections are declared in `addon.json` `collections[]`
-   before `registerCollection`.** Wiki-kind resolvers look targets up **by name
+   before `registerCollection`.** DM access additionally requires API v2,
+   `collections.dm`, and effective-DM registration. Wiki-kind resolvers look targets up **by name
    → real id** (ids carry a random suffix; never assume the slug).
 10. **Write the whole addon — UI strings included — in English.** The app's
    language switcher is a visual layer over the *core* UI only; it doesn't reach
@@ -72,9 +73,10 @@ Add only the fields you need: `server` (`.cjs`, needs `server:code`),
 see below), `serverDeps` (subset of `express` `archiver` `multer`; archive
 readers are deliberately unavailable),
 `capabilities` (API-v2 `{required, optional}`; advertised:
-`lifecycle.dispose`, `content.revision`; `collections.dm` is reserved but
-unavailable),
-`collections` (`[{ "name": "x", "keyed": false }]`, name `^[a-z0-9][a-z0-9_]{0,39}$`),
+`collections.dm`, `lifecycle.dispose`, `content.revision`),
+`collections` (`[{ "name": "x", "keyed": false, "access": "public" }]`, name
+`^[a-z0-9][a-z0-9_]{0,39}$`; `dm` access requires API v2 plus
+`collections.dm` in `capabilities.required`),
 `dependencies` (HARD — `{ "<id>": { "range": ">=1.0.0", "repo": "owner/name" } }`;
 missing/incompatible → your addon loads `blocked`),
 `optionalDependencies` (same shape, SOFT — load-ordered after the provider
@@ -96,7 +98,7 @@ and run standalone),
 | `registerEditorFields(kind, {fields, collect})` | `ui:editor-fields:<kind>` | `fields(entity)→html`, `collect(scope,entity)→obj` merged into `addonData[id]` on save. (`characters`.) |
 | `registerSettingsTab({id,label,icon?,role?,render})` | `ui:settings-tab` | `render() → html`. Renders as a SUB-tab of Nastavení → Doplňky (beside the DM-only Manager), not a top-level tab. |
 | `registerAction(name, fn)` | `ui:action` | For `data-action="<id>:<name>"`. |
-| `registerCollection(name)` | `data:own` | Must be in manifest `collections[]`. |
+| `registerCollection(name)` | `data:own` | Must be in the role-authorized manifest `collections[]`. Register DM collections only when `host.role.isDM()`. |
 | `registerWikiKind(scope, resolve)` | `wiki:kind` | `resolve(label) → {kind, id} \| null`. |
 | `registerFragmentOp(target, {op, render?, order?, position?})` | `ui:override` | `op`: `replace`/`hide` (EXCLUSIVE) · `wrap`/`insert` (stack). An exclusive claim on `<kind>:body` = full-width takeover: the host folds the side-card + ALL sections into the body html your render receives (the whole wiki profile), and `<kind>:section:*` ids don't exist on that page. |
 | `registerSlot(slotId, render, {order?})` | `ui:slot:<surface>` | Content into a named slot (any surface; `<surface>` = slotId's 1st `:`-seg). `render(ctx)→{html}\|string\|null`. Slots: `dashboard:section` (ctx `{role}`), `map:pin:panel` (ctx `{location,pin,role}`), `timeline:card:extra`, `timeline:column:header\|footer`, `timeline:toolbar`. `ctx.role.isDM` is a **boolean**, not a function. |
@@ -200,8 +202,8 @@ test('registers + smokes clean', () => {
   return disposeMockHost(rec);
 });
 ```
-- The mock uses the live dependency/declaration checks. Test `host.use()`,
-  manifest-declared collections, disposal order/idempotence, and failed
+- The mock uses the live dependency/declaration/capability checks. Test
+  `host.use()`, public and DM collection roles, keyed/list CRUD, disposal order/idempotence, and failed
   registration cleanup. `dryRunRegister` also returns a bound `dispose()`.
 - `tests.server` (CommonJS) is the **green-gate run at install** — it must be
   **self-contained** (Node built-ins + your own files; the staged tree has no

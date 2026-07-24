@@ -96,9 +96,9 @@ testing, the update/rollback wizard, and backup coverage.
   (`express.static`, `fallthrough:false` → clean 404 on a miss, never
   the SPA index).
 - `data/addon-data/<id>/` — each addon's isolated runtime data. Addon-owned
-  collections (Phase 4b-2) live here as `data/addon-data/<id>/<name>.json`
-  (one file per declared collection — removed with the addon, NOT in the flat
-  data root). Snapshot- + data-hash-covered (see the `_trackedDataFiles` helper
+  collections live here as `data/addon-data/<id>/<name>.json` (one file per
+  declared collection, not in the flat data root). Disable and ordinary
+  uninstall preserve it; explicit `?purge=1` removes it. Snapshot- + DM-hash-covered (see the `_trackedDataFiles` helper
   in server.js — the single source of truth for "what counts as data").
 - `data/addons.json` — the **registry** (top-level → rides snapshots +
   the data hash). Shape: `{ schema, addons:[{id, repo, ref, sha, name,
@@ -107,7 +107,7 @@ testing, the update/rollback wizard, and backup coverage.
   versions:[{contentHash,version,sha,installedAt, entry,server,contentDir,serverDeps,
   collections,dependencies,optionalDependencies}], enabled, grantedPermissions[],
   dependencies{}, optionalDependencies{},
-  collections:[{name,keyed}], schemaVersion}], resolutions:{}, sources:{allow:[]} }`.
+  collections:[{name,keyed,access}], schemaVersion}], resolutions:{}, sources:{allow:[]} }`.
   `ref` is the original branch/tag (for update checks); `sha` the installed
   commit. `versions[]` snapshots each version's structural manifest fields so a
   rollback restores them, not just the code dir.
@@ -143,8 +143,10 @@ deliberately not exposed), permissions[],
 dependencies? (HARD — a missing/incompatible one `blocks` the addon), optionalDependencies?
 (same shape; **SOFT** — ordering-only: loads the dep first WHEN present + compatible, but
 NEVER blocks when it's absent/blocked/incompatible — the soft-use seam, e.g. a sheet that
-auto-fills from a rules engine when installed and hand-fills when not), collections? (`[{name (^[a-z0-9][a-z0-9_]{0,39}$), keyed?}]` —
-addon-owned data collections, validated + de-duped by `normalizeCollections`),
+  auto-fills from a rules engine when installed and hand-fills when not), collections? (`[{name (^[a-z0-9][a-z0-9_]{0,39}$), keyed?, access?}]` —
+  addon-owned data collections, validated + de-duped by `normalizeCollections`;
+  `access` defaults to `"public"`, while `"dm"` is API-v2-only and requires
+  `collections.dm` in `capabilities.required`),
 tests? (`{client?, server?}` — relative path or `string[]` of self-test files
 run by the pre-activation gate, Phase 8), summary }`.
 `server/addons.cjs:validateManifest` is the always-run Tier-A gate.
@@ -158,15 +160,14 @@ valid addon ids. `capabilities` is API-v2-only and has the shape
 `{required?:string[], optional?:string[]}`. Required unavailable capabilities
 block installation and loading; optional known capabilities can be discovered
 with `host.capabilities.has(id)`. Unknown, malformed, or duplicate declarations
-are rejected. `collections.dm` is reserved for future DM-only collections but
-is not advertised yet, so a manifest requiring it is rejected. Collection
+are rejected. `collections.dm` enables host-managed DM-only collections. Collection
 security fields are strict: API v1 cannot declare `access`; API v2
 `access:"dm"` requires `collections.dm`; unknown fields are rejected. This
 ensures old hosts reject v2 and incapable new hosts reject the capability,
 never broadening DM data to public access.
 
 The API-v2 capabilities currently advertised by the host are
-`lifecycle.dispose` and `content.revision`. An addon that requires either
+`collections.dm`, `lifecycle.dispose`, and `content.revision`. An addon that requires any
 contract must declare it in `capabilities.required`; v1 addons remain loadable
 without either declaration. `lifecycle.dispose` enables the teardown contract
 described below. `content.revision` exposes the active package/content-policy
@@ -177,7 +178,7 @@ revision as `host.contentRevision`.
 over sorted `relpath\0buf`, 16-char) ·
 `resolveRefToSha`/`fetchZipball` (injected `fetch`) ·
 `defaultRegistry`/`normalizeRegistry` · **collection helpers** (4b-2):
-`normalizeCollections` (manifest `collections[]` → clean `[{name,keyed}]`),
+`normalizeCollections` (manifest `collections[]` → clean `[{name,keyed,access}]`),
 `addonCollectionType(id,name)` → `addon:<id>:<name>`, `parseAddonType(type)`
 → `{id,name}|null` (tight id+name regex = the path-safety gate), and
 `contentRevision(entry, crypto)` → a deterministic short SHA-256 over the
@@ -213,30 +214,37 @@ wizard summary. Covered by `test/integration-github-token.test.cjs`.
 by `COPY server ./server`); `ADDONS_DIR`/`ADDON_DATA_DIR` are mkdir'd at
 boot.
 
-**Addon collections through the data path (4b-2).** `_applyAddonCollections(reg)`
-augments the mutable type sets (`ALLOWED_TYPES`/`ALL_TYPES`, + `KEYED_OBJ_TYPES`
-when `keyed`) with `addon:<id>:<name>` for every enabled addon's declared
-collections — tracked in `_addonCollTypes` so re-applying after an install /
-enable / disable / remove is a clean swap, never an accumulation. Called once at
-boot (in `_bootstrap`, after the visibility migration) and after each registry
-mutation. `getFile(type)` routes an `addon:<id>:<name>` type to
-`data/addon-data/<id>/<name>.json` (via `parseAddonType` + `_safeJoinIn`); the
-PATCH handler mkdirs the per-addon dir before `_atomicWrite`. Addon collections
-are **public, non-visibility-bearing, non-DM-only-write** (same posture as
-`pets`): any authed role may write, anonymous is 401, `filterForRole` is
-identity, and keyed addon collections still go through the `_isForbiddenKey`
-proto-pollution guard. The player dataset is now closed over documented core
-references by `filterDatasetForRole`, but API v1 collection declarations expose
-only `{name,keyed}`—there is no addon record visibility/reference schema to
-interpret—so addon collection records themselves pass through unchanged. Do
-not invent field-name heuristics; DM-only addon data and declared references
-belong to the later API-v2 capability/schema contract. Snapshot + hash coverage: `_createSnapshot`,
-`_restoreSnapshot`, and `_dataHash` all walk `_trackedDataFiles()` (core
-top-level + `addon-data/<id>/*.json`, keyed `addon-data/<id>/<name>.json` in the
-snapshot map), and `_maybeBustDataHash` busts on any write under
-`ADDON_DATA_DIR` — so an addon-collection write propagates over SSE and survives
-snapshot/restore exactly like core data. (Backup-ZIP coverage of `addon-data/**`
-is still Phase 10.)
+**Addon collections through the data path (4b-2 + F1).**
+`_applyAddonCollections(reg)` augments the mutable type sets
+(`ALLOWED_TYPES`/`ALL_TYPES`, plus `KEYED_OBJ_TYPES` when `keyed`) with the
+wire identity `addon:<id>:<name>` for every enabled declaration. The
+`_addonCollections` map retains `{addonId,name,keyed,access}` for each wire
+type, so authorization never relies on a bare global collection name.
+Re-applying after install, update, rollback, enable, disable, restore, or
+remove is a clean swap. `getFile(type)` maps that identity to
+`data/addon-data/<id>/<name>.json` through `parseAddonType` and `_safeJoinIn`.
+
+Public declarations keep the existing posture: any authenticated role may
+write, anonymous writes are 401, records are schema-opaque, and keyed
+collections use the prototype-pollution guard. An API-v2 declaration with
+`access:"dm"` is readable and writable only for the effective DM role.
+Player, anonymous, and DM view-as-player `/api/data` projections omit it
+before serialization. Guessed PATCH requests receive the same generic 404 for
+a hidden declaration and an undeclared addon type. The public `/api/addons`
+projection similarly removes hidden collection declarations and the addon's
+`collections.dm` requirement; DM metadata includes normalized access and the
+full capability declaration for diagnostics.
+
+Snapshots, restore, and DM-authorized backup continue to include the isolated
+file without changing its record schema. The DM hash covers the full tracked
+dataset. The player hash is computed from the player-authorized `/api/data`
+projection, so DM-only files and audit metadata cannot perturb it. A DM-only
+write sends `data-changed` only to effective-DM SSE connections. Snapshots
+created solely by such writes are omitted from the player snapshot list, and
+the player snapshot projection carries neither hashes nor sizes. Client JSON
+exports contain only the already-authorized Store projection. Disable and
+ordinary uninstall preserve collection files; `?purge=1` retains the existing
+explicit destructive policy.
 
 ### Client host — `web/js/addons.js` (`Addons`)
 - `init({toast, rerender})` (app.js injects `EditMode.toast` + a
@@ -281,8 +289,8 @@ is still Phase 10.)
   the DM-only Manager — see settings.md), `registerAction(name,fn)` (←`ui:action`; invoked via
   `data-action="<id>:<name>"` — build with `host.action(name)`),
   `registerCollection(name)` (←`data:own`; the collection MUST be declared in
-  the manifest's `collections[]` — registering an undeclared one throws; backfills
-  the local container so reads never throw), `registerWikiKind(scope, resolve)`
+  the role-authorized manifest `collections[]` — registering an undeclared one
+  throws; shape/access come only from server metadata), `registerWikiKind(scope, resolve)`
   (←`wiki:kind`; `resolve(label)` → `{kind,id}` for `[[Label|scope]]`; scope
   can't shadow a built-in), `registerEditorFields(kind,{fields,collect})`
   (←`ui:editor-fields:<kind>`; `fields(entity)`→HTML injected into the editor,
@@ -310,7 +318,8 @@ is still Phase 10.)
   `list`/`get`/`save`/`remove` over the addon's own collection, backed by
   `Store.{ensureCollection,getAddonCollection,saveAddonItem,deleteAddonItem}`;
   `save`/`remove` stamp `updatedAt`, fire `_sync(addon:<id>:<name>, …)`, bust the
-  markdown cache) + **`store.patchAddonData(collection,id,fn)`**
+  markdown cache; a DM handle read after entering player view returns the empty
+  shape and rejects writes) + **`store.patchAddonData(collection,id,fn)`**
   (←`data:write:<collection>.addonData`; read-modify-write the addon's OWN
   namespace on a core entity — host injects the addon id; backed by
   `Store.patchAddonData`), `role`, `h`
@@ -333,6 +342,10 @@ is still Phase 10.)
   `host.onDispose(fn)` registers resource cleanup. The former changes when the
   active package identity/version or effective content-group policy changes,
   but stays stable for semantically equivalent policy data.
+  A role transition clears every in-memory addon container before refetch,
+  reconciles addons when their authorized collection declarations change, and
+  reconnects SSE under the new effective role. Switching back to DM therefore
+  reloads data only through the authorized server path.
 - **Integration seams**: `app.js navigate()` default arm →
   `Addons.hasRoute(section) ? Addons.renderRoute(...)` before the dashboard
   fallback; `app.js _runAction` routes any `data-action` containing `:` to
@@ -469,7 +482,8 @@ renames):
   real facade when the array is declared** — an under-declared manifest fails
   in tests with the exact live error instead of at install; omit the key for
   loose allow-all), with live-compatible `use()` dependency errors, collection
-  declaration checks, `host.contentRevision`, `host.onDispose`, and
+  declaration/capability/role checks, keyed and list CRUD, empty player reads
+  for DM collections, `host.contentRevision`, `host.onDispose`, and
   `disposeMockHost(rec)`. `dryRunRegister(register, meta)` (Tier-A
   — run register against the mock, catch throws, return the `rec`), and
   `smokeRegistrations(rec)` (Tier-C — invoke each recorded RENDER with sample
@@ -528,9 +542,12 @@ renames):
   render failure isolation) + `test/integration-addon-resolve.test.cjs`
   (`POST /api/addons/resolve` — set/null/clear, realRole gating, proto-key
   guard) + `test/integration-addon-collections.test.cjs`
-  (the addon-collection data path end-to-end: isolated-dir persistence, GET
-  payload, keyed/list shapes, proto guard, role gating, hash bust, snapshot
-  restore) + `test/integration-addon-server.test.cjs` (Phase 7 — server addon
+  (the addon-collection data path end-to-end: isolated-dir persistence,
+  addon-scoped same-name identity, public compatibility, DM keyed/list CRUD,
+  raw player concealment, guessed-write equivalence, role hashes, view-as,
+  snapshot/disable/re-enable/uninstall behavior) +
+  `test/integration-sse.test.cjs` (raw role-scoped events and before/after player
+  hashes) + `test/integration-addon-server.test.cjs` (Phase 7 — server addon
   routing + isolated data, `server:code` gating, serverDeps blocking, throwing-
   init isolation, disabled state; uses the helper's new `seedFiles` option to
   lay down nested addon code before boot) + `test/addon-test-harness.test.mjs`

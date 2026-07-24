@@ -70,11 +70,15 @@ try { reg = Broker.normalizeRegistry(JSON.parse(fs.readFileSync(regFile, 'utf8')
 catch { reg = Broker.defaultRegistry(); }
 
 const serverDeps = Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [];
-const collections = Broker.normalizeCollections(manifest.collections);
+const capabilities = manifest.capabilities || undefined;
+const collections = Broker.normalizeCollections(
+  manifest.collections,
+  manifest.apiVersion,
+  capabilities,
+);
 const dependencies = (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {};
 const optionalDependencies = (manifest.optionalDependencies && typeof manifest.optionalDependencies === 'object' && !Array.isArray(manifest.optionalDependencies)) ? manifest.optionalDependencies : {};
 const contentGroups = Broker.normalizeContentGroups(manifest.contentGroups);
-const capabilities = manifest.capabilities || undefined;
 const versionRec = {
   contentHash: hash, version: manifest.version, sha: 'local', installedAt: Date.now(),
   apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',

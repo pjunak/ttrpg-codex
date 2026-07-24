@@ -89,7 +89,11 @@ built on first open. Keybinding: Ctrl+K / Cmd+K toggles. ↑↓ move,
 Enter navigates, Esc closes. Results come from `Store.searchAll` +
 manual faction scan, grouped by kind. When the input is empty, it
 seeds from `Store.getRecentActivity(8)` as a quick-jump menu. The
-sidebar has a `.sidebar-search-btn` chip with a `Ctrl K` hint.
+sidebar has a `.sidebar-search-btn` chip with a `Ctrl K` hint. Both
+sources operate only on the role-authorized Store payload; DM-only
+addon containers are removed server-side and synchronously cleared
+during view-as transitions, so their names and records cannot appear
+in player search or recent activity.
 
 ## Mobile navigation
 
@@ -303,6 +307,17 @@ credentials). Player-password field accepts the empty string as a
 disables player login entirely. Status loaded lazily via
 `GET /api/passwords` on tab entry, re-fetched after each successful
 change so the "nastaveno (změněno…)" label updates.
+
+**View-as transitions are authorization reloads.** A `role:changed` event
+immediately closes the current SSE connection and synchronously removes every
+addon collection from the browser Store before any route can render again.
+The app then fetches the effective role's `/api/data`, reconciles addon
+registrations against that role-scoped metadata, re-renders navigation and the
+current route, and reconnects SSE. Entering player view therefore cannot retain
+DM-only addon records in search, wiki-link consumers, addon handles, or rendered
+DOM. Switching back to DM reloads those records through the authorized server
+path rather than reviving a stale cache. A real player follows the same player
+projection and never receives the hidden containers.
 
 Hash + verify helpers live in `server-utils.cjs` (`hashPassword`,
 `verifyPassword`, `safeEqStrings`) so they're unit-testable. The

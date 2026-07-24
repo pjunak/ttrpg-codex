@@ -42,6 +42,7 @@ test('restore: ZIP round-trips collection files but never auth.json or addon cod
       'data/auth.json':       { bogus: 'credential-from-old-backup' },
       'data/addons/evil/1111111111111111/server/index.cjs': 'process.exit(1);',
       'data/addon-data/demo/rules.json': [{ id: 'grappling' }],
+      'data/addon-data/dm-tools/scenarios.json': [{ id: 'restored-secret' }],
     });
 
     const res = await postRestore(srv, zipBuf);
@@ -55,6 +56,11 @@ test('restore: ZIP round-trips collection files but never auth.json or addon cod
     assert.equal(chars[0].name, 'Restored Resa');
     const rules = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'addon-data', 'demo', 'rules.json'), 'utf8'));
     assert.equal(rules[0].id, 'grappling');
+    const scenarios = JSON.parse(await fsp.readFile(
+      path.join(srv.dataDir, 'addon-data', 'dm-tools', 'scenarios.json'),
+      'utf8',
+    ));
+    assert.equal(scenarios[0].id, 'restored-secret');
 
     // auth.json NOT written from the ZIP.
     let authOnDisk = null;

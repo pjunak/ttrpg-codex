@@ -880,13 +880,22 @@ document.addEventListener('click', (ev) => {
   // we also render here so login/logout transitions repaint without
   // waiting for the subsequent navigate.
   let _roleChangeInflight = false;
+  let _addonsReady = false;
   window.addEventListener('role:changed', async () => {
     if (_roleChangeInflight) return;     // protect against re-entry while await Store.load() runs
     _roleChangeInflight = true;
+    const restartSync = !!_es;
+    if (restartSync) {
+      try { _es.close(); } catch (_) {}
+      _es = null;
+    }
     try {
       _renderTopbarLogin();
       _renderImpersonationBanner();
+      Store.clearAddonCollections?.();
       await Store.load();
+      if (_addonsReady) await Addons.reconcile();
+      if (restartSync) _startSync();
       Sidebar.render();
       Settings.applyBranding();
       Settings.applyTheme();
@@ -952,6 +961,7 @@ document.addEventListener('click', (ev) => {
     Store.setAddonKindProvider((domain) => Addons.kindsForDomain(domain));
     try { await Addons.boot(); }
     catch (e) { console.error('[addons] boot failed', e); }
+    _addonsReady = true;
 
     // Re-render the data-driven sidebar now that role + settings are
     // loaded (the early render above used the default layout).

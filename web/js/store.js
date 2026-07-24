@@ -2730,6 +2730,14 @@ export const Store = (() => {
   // manifest's `collections[].keyed` \u2014 keyed-object vs entity-list storage.
   function _addonType(addonId, name) { return `addon:${addonId}:${name}`; }
 
+  function clearAddonCollections() {
+    init();
+    for (const key of Object.keys(_data)) {
+      if (key.startsWith('addon:')) delete _data[key];
+    }
+    _bustMarkdownCache();
+  }
+
   /** Ensure a collection container exists locally so reads never throw, even
    *  before the first server round-trip. Returns the container. */
   function ensureCollection(name, keyed) {
@@ -3024,7 +3032,7 @@ export const Store = (() => {
     getHiddenSidebarPages, setHiddenSidebarPages,
     getMapConfig, setMapConfig,
     getCampaign, setCampaign,
-    ensureCollection, getAddonCollection, saveAddonItem, deleteAddonItem,
+    clearAddonCollections, ensureCollection, getAddonCollection, saveAddonItem, deleteAddonItem,
     patchAddonData, resolveAddonConflict, checkAddonUpdates, rollbackAddon,
     updateAllAddons, restartServer, getCanRestart,
     generateId, exportJSON,

@@ -3,7 +3,7 @@
 const HOST_VERSION = '1.0.0';
 const SUPPORTED_API_VERSIONS = new Set([1, 2]);
 const KNOWN_CAPABILITIES = new Set(['collections.dm', 'lifecycle.dispose', 'content.revision']);
-const HOST_CAPABILITIES = new Set(['lifecycle.dispose', 'content.revision']);
+const HOST_CAPABILITIES = new Set(['collections.dm', 'lifecycle.dispose', 'content.revision']);
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,38}$/;
 const VERSION_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
@@ -47,7 +47,7 @@ function testRange(version, range) {
   return exact ? { valid: true, matches: compare(parsed, exact) === 0 } : { valid: false, matches: false };
 }
 
-function capabilityErrors(apiVersion, declaration) {
+function capabilityErrors(apiVersion, declaration, availableCapabilities = HOST_CAPABILITIES) {
   const errors = [];
   if (declaration === undefined) return errors;
   if (apiVersion !== 2) return ['capabilities requires apiVersion 2'];
@@ -74,7 +74,7 @@ function capabilityErrors(apiVersion, declaration) {
     }
   }
   for (const value of declaration.required || []) {
-    if (KNOWN_CAPABILITIES.has(value) && !HOST_CAPABILITIES.has(value)) errors.push(`required capability "${value}" is unavailable`);
+    if (KNOWN_CAPABILITIES.has(value) && !availableCapabilities.has(value)) errors.push(`required capability "${value}" is unavailable`);
   }
   return errors;
 }
@@ -94,7 +94,7 @@ function dependencyErrors(field, dependencies) {
   return errors;
 }
 
-function compatibilityErrors(manifest) {
+function compatibilityErrors(manifest, availableCapabilities = HOST_CAPABILITIES) {
   const errors = [];
   if (!parseVersion(manifest.version)) errors.push('version must be semver (x.y.z)');
   if (!SUPPORTED_API_VERSIONS.has(manifest.apiVersion)) errors.push(`apiVersion ${manifest.apiVersion} is unsupported; host supports 1 and 2`);
@@ -104,7 +104,7 @@ function compatibilityErrors(manifest) {
   } else if (!testRange(HOST_VERSION, hostRange).matches) {
     errors.push(`host ${HOST_VERSION} does not satisfy hostVersion ${hostRange}`);
   }
-  errors.push(...capabilityErrors(manifest.apiVersion, manifest.capabilities));
+  errors.push(...capabilityErrors(manifest.apiVersion, manifest.capabilities, availableCapabilities));
   errors.push(...dependencyErrors('dependencies', manifest.dependencies));
   errors.push(...dependencyErrors('optionalDependencies', manifest.optionalDependencies));
   return errors;

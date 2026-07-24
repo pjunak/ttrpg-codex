@@ -106,7 +106,10 @@ import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack } f
 
 export function createMockHost(meta = {}, opts = {}) {
   meta = { version: '0.0.0', apiVersion: 1, hostVersion: '>=1.0.0', ...meta };
-  const compatibility = compatibilityErrors(meta);
+  const hostCapabilities = opts.capabilities
+    ? new Set(opts.capabilities)
+    : HOST_CAPABILITIES;
+  const compatibility = compatibilityErrors(meta, hostCapabilities);
   if (compatibility.length) throw new Error(compatibility.join('; '));
   const id  = meta.id || 'mock-addon';
   const rec = _emptyRec();
@@ -124,6 +127,7 @@ export function createMockHost(meta = {}, opts = {}) {
   const registeredCollections = new Set();
   const declaration = (name) => (Array.isArray(meta.collections) ? meta.collections : [])
     .find((entry) => entry && entry.name === name);
+  const canAccess = (name) => declaration(name)?.access !== 'dm' || !!opts.isDM;
 
   // A MUTABLE backing store for the scoped-CRUD mock, seeded from fixtures.
   // save()/remove() actually mutate it (and getCollection reads it) so a
@@ -143,14 +147,17 @@ export function createMockHost(meta = {}, opts = {}) {
   // missing id + stamps updatedAt + upserts, remove() deletes by id.
   const collectionHandle = (name) => ({
     list:   () => {
+      if (!canAccess(name)) return [];
       const data = _coll(name);
       return Array.isArray(data) ? data.slice() : Object.entries(data).map(([key, value]) => ({ id: key, ...value }));
     },
     get:    (itemId) => {
+      if (!canAccess(name)) return null;
       const data = _coll(name);
       return Array.isArray(data) ? data.find(x => x && x.id === itemId) || null : data[itemId] || null;
     },
     save:   (item) => {
+      if (!canAccess(name)) throw new Error(`store.collection: "${name}" is not available for this role`);
       const data = _coll(name);
       const r = { ...item };
       if (!r.id) r.id = _slugify((item && item.name) || name) + '_mock';
@@ -165,6 +172,7 @@ export function createMockHost(meta = {}, opts = {}) {
       return r;
     },
     remove: (itemId) => {
+      if (!canAccess(name)) throw new Error(`store.collection: "${name}" is not available for this role`);
       const data = _coll(name);
       if (Array.isArray(data)) {
         const i = data.findIndex(x => x && x.id === itemId);
@@ -180,7 +188,7 @@ export function createMockHost(meta = {}, opts = {}) {
     apiVersion: 2,
     hostVersion: HOST_VERSION,
     contentRevision: typeof meta.contentRevision === 'string' ? meta.contentRevision : '',
-    capabilities: Object.freeze({ has: (capability) => HOST_CAPABILITIES.has(capability), supported: Object.freeze([...HOST_CAPABILITIES]) }),
+    capabilities: Object.freeze({ has: (capability) => hostCapabilities.has(capability), supported: Object.freeze([...hostCapabilities]) }),
     permissions: Array.isArray(meta.permissions) ? meta.permissions.slice() : [],
     action: (name) => id + ':' + name,
 
@@ -195,7 +203,8 @@ export function createMockHost(meta = {}, opts = {}) {
       requireCollectionDeclaration(meta, name);
       if (registeredCollections.has(name)) throw new Error(`registerCollection: "${name}" already registered`);
       registeredCollections.add(name);
-      rec.collections.push({ name, opts: undefined });
+      rec.collections.push({ name, keyed: !!requireCollectionDeclaration(meta, name).keyed,
+        access: requireCollectionDeclaration(meta, name).access === 'dm' ? 'dm' : 'public' });
     },
     registerWikiKind:     (scope, resolve)    => { need('wiki:kind', 'registerWikiKind'); rec.wikiKinds.push({ scope, resolve }); },
     registerEditorFields: (kind, spec)        => { need('ui:editor-fields:' + kind, 'registerEditorFields'); rec.editorFields.push({ kind, spec }); },

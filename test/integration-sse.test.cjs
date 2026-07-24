@@ -146,8 +146,8 @@ test('SSE: data-changed fires after a PATCH, refetch under each role respects th
       const dmEvent     = await dmSse.waitForEvent('data-changed');
       assert.equal(playerEvent.event, 'data-changed');
       assert.equal(dmEvent.event,     'data-changed');
-      // Same hash for both (it's a property of the dataset, not the role).
-      assert.equal(playerEvent.data.hash, dmEvent.data.hash);
+      // Change tokens are projections of what each role may read.
+      assert.notEqual(playerEvent.data.hash, dmEvent.data.hash);
 
       // Player refetches → DM-only spy is absent.
       const playerData = await (await fetch(srv.baseUrl + '/api/data', { headers: { cookie: playerCookie } })).json();
@@ -194,5 +194,61 @@ test('SSE: anonymous client also receives data-changed and refetches filtered pa
       const data = await (await fetch(srv.baseUrl + '/api/data')).json();
       assert.ok(data.characters.find(c => c.id === 'pub_n'), 'anonymous should see public entities');
     } finally { anon.close(); }
+  } finally { await srv.kill(); }
+});
+
+test('SSE: a DM-only addon mutation notifies only DM and preserves the player hash', async () => {
+  const addons = {
+    schema: 1,
+    addons: [{
+      id: 'dm-fixture',
+      name: 'DM Fixture',
+      version: '1.0.0',
+      apiVersion: 2,
+      hostVersion: '>=1.0.0',
+      capabilities: { required: ['collections.dm'] },
+      enabled: true,
+      entry: 'entry.js',
+      activeHash: 'fixture',
+      collections: [{ name: 'scenarios', keyed: false, access: 'dm' }],
+    }],
+    resolutions: {},
+    sources: { allow: [] },
+  };
+  const srv = await startServer({
+    dmPassword: DM,
+    playerPassword: PLAYER,
+    seedData: { 'addons.json': addons },
+  });
+  try {
+    const dmCookie = await loginAs(srv.baseUrl, DM);
+    const playerCookie = await loginAs(srv.baseUrl, PLAYER);
+    const playerSse = await openSSE(srv.baseUrl, playerCookie);
+    const dmSse = await openSSE(srv.baseUrl, dmCookie);
+    try {
+      const playerHello = await playerSse.waitForEvent('hello');
+      await dmSse.waitForEvent('hello');
+      const patch = await fetch(srv.baseUrl + '/api/data', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', cookie: dmCookie },
+        body: JSON.stringify({
+          type: 'addon:dm-fixture:scenarios',
+          action: 'save',
+          payload: { id: 'hidden', name: 'Hidden scenario' },
+        }),
+      });
+      assert.equal(patch.status, 200);
+      const dmEvent = await dmSse.waitForEvent('data-changed');
+      assert.equal(dmEvent.event, 'data-changed');
+      await assert.rejects(playerSse.waitForEvent('data-changed', 250), /timeout/);
+
+      const version = await fetch(srv.baseUrl + '/api/version', {
+        headers: { cookie: playerCookie },
+      }).then(response => response.json());
+      assert.equal(version.hash, playerHello.data.hash);
+    } finally {
+      playerSse.close();
+      dmSse.close();
+    }
   } finally { await srv.kill(); }
 });

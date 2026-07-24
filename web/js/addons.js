@@ -251,7 +251,8 @@ export const Addons = (() => {
       const key = id + ':' + name;
       if (_collections.has(key)) throw new Error(`registerCollection: "${name}" already registered`);
       const keyed = !!decl.keyed;
-      _collections.set(key, { addonId: id, name, keyed });
+      const access = decl.access === 'dm' ? 'dm' : 'public';
+      _collections.set(key, { addonId: id, name, keyed, access });
       // Backfill the local container so reads work before the first write.
       safe(() => Store.ensureCollection('addon:' + id + ':' + name, keyed), null);
       _undoMap(_collections, key);
@@ -264,19 +265,31 @@ export const Addons = (() => {
       const rec = _collections.get(id + ':' + name);
       if (!rec) throw new Error(`store.collection: "${name}" not registered (call host.registerCollection first)`);
       const keyed = rec.keyed;
+      const available = () => rec.access !== 'dm' || safe(() => Role.isDM(), false);
+      const requireAvailable = () => {
+        if (!available()) throw new Error(`store.collection: "${name}" is not available for this role`);
+      };
       return {
         list:   () => {
+          if (!available()) return [];
           const c = safe(() => Store.getAddonCollection(id, name, keyed), keyed ? {} : []);
           if (Array.isArray(c)) return c.slice();
           return Object.entries(c || {}).map(([k, v]) => ({ id: k, ...v }));
         },
         get:    (itemId) => {
+          if (!available()) return null;
           const c = safe(() => Store.getAddonCollection(id, name, keyed), keyed ? {} : []);
           if (Array.isArray(c)) return c.find(x => x && x.id === itemId) || null;
           return (c && c[itemId]) || null;
         },
-        save:   (item) => safe(() => Store.saveAddonItem(id, name, item, keyed), item),
-        remove: (itemId) => { safe(() => Store.deleteAddonItem(id, name, itemId, keyed), null); },
+        save:   (item) => {
+          requireAvailable();
+          return safe(() => Store.saveAddonItem(id, name, item, keyed), item);
+        },
+        remove: (itemId) => {
+          requireAvailable();
+          safe(() => Store.deleteAddonItem(id, name, itemId, keyed), null);
+        },
       };
     }
 
@@ -608,6 +621,7 @@ export const Addons = (() => {
       if (cur?.state === 'ok' && (
         cur.meta?.entryUrl !== a.entryUrl
         || (cur.meta?.contentRevision || '') !== (a.contentRevision || '')
+        || JSON.stringify(cur.meta?.collections || []) !== JSON.stringify(a.collections || [])
       )) {
         impacted.add(a.id);
       }

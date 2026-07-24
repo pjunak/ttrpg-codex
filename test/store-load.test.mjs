@@ -63,3 +63,23 @@ test('invalid, failed, and superseded loads preserve the last valid state', asyn
   assert.equal(Store.getCharacter('kept').name, 'Kept');
   assert.equal(Store.getCharacter('stale'), null);
 });
+
+test('role transition clearing drops stale addon records before the player reload', async () => {
+  globalThis.fetch = async () => response({
+    'addon:dm-tools:scenarios': [{ id: 'secret', name: 'Hidden scenario' }],
+    'addon:dm-tools:settings': { main: { name: 'Hidden keyed record' } },
+  });
+  assert.equal(await Store.load(), true);
+  assert.equal(Store.getAddonCollection('dm-tools', 'scenarios', false)[0].id, 'secret');
+  assert.equal(Store.getAddonCollection('dm-tools', 'settings', true).main.name, 'Hidden keyed record');
+
+  Store.clearAddonCollections();
+  assert.deepEqual(Store.getAddonCollection('dm-tools', 'scenarios', false), []);
+  assert.deepEqual(Store.getAddonCollection('dm-tools', 'settings', true), {});
+  assert.equal(Store.exportJSON().includes('Hidden scenario'), false);
+
+  globalThis.fetch = async () => response({ characters: [] });
+  assert.equal(await Store.load(), true);
+  assert.deepEqual(Store.getAddonCollection('dm-tools', 'scenarios', false), []);
+  assert.deepEqual(Store.getAddonCollection('dm-tools', 'settings', true), {});
+});

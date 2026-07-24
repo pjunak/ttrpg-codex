@@ -1667,7 +1667,9 @@ export const Settings = (() => {
 
   function _snapshotRow(s) {
     const when = _formatSnapshotDate(s.createdAt);
-    const kb   = Math.max(1, Math.round((s.size || 0) / 1024));
+    const size = Number.isFinite(s.size)
+      ? `<span class="settings-row-usage" title="${esc(I18n.t('settings.sizeTitle'))}">${Math.max(1, Math.round(s.size / 1024))} kB</span>`
+      : '';
     const tag  = s.reason === 'manual' ? `✦ ${I18n.t('settings.snapshotManual')}` :
                  s.reason === 'pre-restore' ? `⚠ ${I18n.t('settings.snapshotPreRestore')}` : `✎ ${I18n.t('settings.snapshotEdit')}`;
     // Restore + delete are DM-only; players see the row without
@@ -1686,7 +1688,7 @@ export const Settings = (() => {
         <span class="settings-row-icon">🕒</span>
         <span class="settings-row-label">${esc(when)}</span>
         <code class="settings-row-id">${esc(tag)}</code>
-        <span class="settings-row-usage" title="${esc(I18n.t('settings.sizeTitle'))}">${kb} kB</span>
+        ${size}
         ${actions}
       </div>`;
   }

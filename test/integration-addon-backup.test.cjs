@@ -31,9 +31,14 @@ test('GET /api/backup includes addon-data, the registry, and addon code', async 
     seedData:  { 'addons.json': registry([
       { id: 'demo', name: 'Demo', version: '1.0.0', apiVersion: 1, enabled: true,
         entry: 'entry.js', activeHash: HASH, versions: [{ contentHash: HASH, version: '1.0.0' }] },
+      { id: 'dm-tools', name: 'DM Tools', version: '0.1.0', apiVersion: 2,
+        hostVersion: '>=1.0.0', capabilities: { required: ['collections.dm'] },
+        enabled: true, entry: 'entry.js', activeHash: HASH,
+        collections: [{ name: 'scenarios', keyed: false, access: 'dm' }] },
     ]) },
     seedFiles: {
       'addon-data/demo/rules.json':       [{ id: 'grappling' }],
+      'addon-data/dm-tools/scenarios.json': [{ id: 'secret-scenario' }],
       [`addons/demo/${HASH}/entry.js`]:   'export default () => {};',
     },
   });
@@ -45,6 +50,7 @@ test('GET /api/backup includes addon-data, the registry, and addon code', async 
     const names = entries.map(e => e.entryName);
     assert.ok(names.includes('data/addons.json'),                  'registry in backup');
     assert.ok(names.includes('data/addon-data/demo/rules.json'),   'addon data in backup');
+    assert.ok(names.includes('data/addon-data/dm-tools/scenarios.json'), 'DM-only addon data in DM backup');
     assert.ok(names.includes(`data/addons/demo/${HASH}/entry.js`), 'addon code in backup');
   } finally { await srv.kill(); }
 });

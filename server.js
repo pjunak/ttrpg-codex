@@ -564,6 +564,7 @@ async function _snapshotMeta(filename) {
       createdAt: snap.createdAt,
       dataHash:  snap.dataHash,
       reason:    snap.reason || 'save',
+      access:    snap.access === 'dm' ? 'dm' : 'public',
       size:      stat.size,
     };
   } catch { return null; }
@@ -600,7 +601,7 @@ async function _lastSnapshotTime() {
 // (see /api/backup).
 const NON_DATA_JSON_FILES = new Set(['auth.json', 'secrets.json']);
 
-async function _createSnapshot(reason = 'save') {
+async function _createSnapshot(reason = 'save', access = 'public') {
   const now       = Date.now();
   const createdAt = new Date(now).toISOString();
   const files     = {};
@@ -614,6 +615,7 @@ async function _createSnapshot(reason = 'save') {
     createdAt,
     dataHash:  await _dataHash(),
     reason,
+    access:    access === 'dm' ? 'dm' : 'public',
     files,
   };
   const target = path.join(SNAPSHOTS_DIR, snap.id);
@@ -644,10 +646,10 @@ async function _pruneSnapshots() {
 // Take a snapshot unless the last one is within the coalesce window.
 // Called AFTER a successful write — snapshot N represents the data
 // state after change N, so restoring N puts you back to that moment.
-async function _maybeSnapshot(reason = 'save') {
+async function _maybeSnapshot(reason = 'save', access = 'public') {
   const last = await _lastSnapshotTime();
   if (last && Date.now() - last < SNAPSHOT_COALESCE_MS) return null;
-  try { return await _createSnapshot(reason); }
+  try { return await _createSnapshot(reason, access); }
   catch (e) { console.warn('[snapshot] create failed:', e.message); return null; }
 }
 
@@ -699,7 +701,7 @@ async function _restoreSnapshot(id) {
 // file on disk to compute the same hex digest. `_atomicWrite` clears
 // the cache when it rewrites a top-level data file, and
 // `_restoreSnapshot` clears it when it deletes one.
-let _cachedDataHash = null;
+const _cachedDataHash = { dm: null, player: null };
 const _DATA_DIR_RESOLVED       = path.resolve(DATA_DIR);
 const _SNAPSHOTS_DIR_RESOLVED  = path.resolve(SNAPSHOTS_DIR);
 const _ADDON_DATA_DIR_RESOLVED = path.resolve(ADDON_DATA_DIR);
@@ -736,7 +738,10 @@ async function _trackedDataFiles() {
   } catch (_) { /* no addon-data yet is OK */ }
   return out;
 }
-function _invalidateDataHash() { _cachedDataHash = null; }
+function _invalidateDataHash() {
+  _cachedDataHash.dm = null;
+  _cachedDataHash.player = null;
+}
 function _maybeBustDataHash(filePath) {
   try {
     if (!filePath.endsWith('.json')) return;
@@ -746,7 +751,7 @@ function _maybeBustDataHash(filePath) {
     // dedupe the SSE event and never refetch the addon's change).
     if (resolved === _ADDON_DATA_DIR_RESOLVED ||
         resolved.startsWith(_ADDON_DATA_DIR_RESOLVED + path.sep)) {
-      _cachedDataHash = null;
+      _invalidateDataHash();
       return;
     }
     const dir = path.dirname(resolved);
@@ -758,8 +763,8 @@ function _maybeBustDataHash(filePath) {
     // shouldn't invalidate the cache either — otherwise a password
     // change would trigger a no-op SSE refetch.
     if (NON_DATA_JSON_FILES.has(path.basename(filePath))) return;
-    _cachedDataHash = null;
-  } catch (_) { _cachedDataHash = null; }
+    _invalidateDataHash();
+  } catch (_) { _invalidateDataHash(); }
 }
 
 /**
@@ -771,10 +776,17 @@ function _maybeBustDataHash(filePath) {
  *
  * @returns {Promise<string>} 16-char SHA-1 prefix or `'none'` on read failure.
  */
-async function _dataHash() {
-  if (_cachedDataHash !== null) return _cachedDataHash;
+async function _dataHash(role = 'dm') {
+  const scope = role === 'dm' ? 'dm' : 'player';
+  if (_cachedDataHash[scope] !== null) return _cachedDataHash[scope];
   try {
     const h = crypto.createHash('sha1');
+    if (scope === 'player') {
+      const { campaign, foundAny } = await _readDatasetForRole('player');
+      h.update(JSON.stringify(foundAny ? campaign : null));
+      _cachedDataHash.player = h.digest('hex').slice(0, 16);
+      return _cachedDataHash.player;
+    }
     // Digest core + addon-owned data together, ordered by stable key. When
     // no addon data exists the addon walk yields nothing, so the digest is
     // byte-identical to the pre-addon behaviour (key === filename for core).
@@ -786,8 +798,8 @@ async function _dataHash() {
       h.update(await fsp.readFile(abs));
       h.update('\0');
     }
-    _cachedDataHash = h.digest('hex').slice(0, 16);
-    return _cachedDataHash;
+    _cachedDataHash.dm = h.digest('hex').slice(0, 16);
+    return _cachedDataHash.dm;
   } catch {
     return 'none';
   }
@@ -843,19 +855,25 @@ async function runStartupMigrations() {
 // Every successful write fans a `data-changed` event out to every
 // connected client. Clients refetch + re-render in well under a
 // second; no polling involved.
-const _sseClients = new Set();
+const _sseClients = new Map();
 // Connection-cap bookkeeping for GET /api/events (see the handler).
 const _sseClientsByIp = new Map();   // ip → live connection count
 const SSE_MAX_CLIENTS = 256;
 const SSE_MAX_PER_IP  = 64;
-function _broadcast(eventName, payload) {
+function _broadcast(eventName, payload, role = null) {
   const data = `event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`;
-  for (const res of _sseClients) {
+  for (const [res, clientRole] of _sseClients) {
+    if (role && clientRole !== role) continue;
     try { res.write(data); } catch (_) { /* client gone — cleanup on close */ }
   }
 }
-async function _broadcastDataChanged() {
-  _broadcast('data-changed', { hash: await _dataHash(), at: Date.now() });
+async function _broadcastDataChanged(access = 'public') {
+  const at = Date.now();
+  const roles = access === 'dm' ? ['dm'] : ['dm', 'player'];
+  for (const role of roles) {
+    if (![..._sseClients.values()].includes(role)) continue;
+    _broadcast('data-changed', { hash: await _dataHash(role), at }, role);
+  }
 }
 
 // ── Allowed collections ──────────────────────────────────────────
@@ -895,25 +913,10 @@ const ALL_TYPES = [
  */
 app.get('/api/data', async (req, res) => {
   try {
-    const campaign = {};
-    let foundAny   = false;
-    await Promise.all(ALL_TYPES.map(async t => {
-      const p = getFile(t);
-      try {
-        const raw = await fsp.readFile(p, 'utf8');
-        campaign[t] = JSON.parse(raw);
-        foundAny    = true;
-      } catch (e) {
-        if (e.code !== 'ENOENT') throw e;
-      }
-    }));
-    if (!foundAny) return res.json(null);
-    // Role-aware graph closure. Anonymous callers (req.role === null) are
-    // treated as players — they see the public subset with no references
-    // to entities that were removed from that subset.
     const role = req.role === 'dm' ? 'dm' : 'player';
-    const filtered = filterDatasetForRole(campaign, role);
-    res.type('application/json').send(JSON.stringify(filtered));
+    const { campaign, foundAny } = await _readDatasetForRole(role);
+    if (!foundAny) return res.json(null);
+    res.type('application/json').send(JSON.stringify(campaign));
   } catch (e) {
     console.error('GET /api/data:', e);
     res.status(500).json({ error: 'Read error' });
@@ -1151,33 +1154,62 @@ const DM_ONLY_WRITE_TYPES = new Set(['settings', 'campaign']);
 // generic GET/PATCH /api/data path (file on disk: data/addon-data/<id>/
 // <name>.json — isolated, removed with the addon). We track exactly which
 // types we added so re-applying after an install/enable/disable is a clean
-// swap, never an accumulation. Addon collections default to the same posture
-// as `pets`: public, non-visibility-bearing, writable by any authed role.
-const _addonCollTypes = new Set();
+// swap, never an accumulation. Metadata remains keyed by the full wire type so
+// authorization never infers ownership or access from a bare collection name.
+const _addonCollections = new Map();
 function _applyAddonCollections(reg) {
   // Drop everything we added last time.
-  for (const t of _addonCollTypes) {
+  for (const t of _addonCollections.keys()) {
     ALLOWED_TYPES.delete(t);
     KEYED_OBJ_TYPES.delete(t);
     const i = ALL_TYPES.indexOf(t);
     if (i >= 0) ALL_TYPES.splice(i, 1);
   }
-  _addonCollTypes.clear();
+  _addonCollections.clear();
   if (!reg || !Array.isArray(reg.addons)) return;
   for (const a of reg.addons) {
     // Re-validate id + collection name from the PERSISTED registry (which could
     // be legacy-shaped or hand-edited) so a corrupt entry can't inject a junk
     // wire type into ALLOWED_TYPES / the data-hash walk.
-    if (!a || !a.enabled || !AddonBroker.ID_RE.test(a.id || '') || !Array.isArray(a.collections)) continue;
-    for (const c of a.collections) {
-      if (!c || !AddonBroker.COLLECTION_NAME_RE.test(c.name || '')) continue;
+    if (!a || !a.enabled || !AddonBroker.ID_RE.test(a.id || '')) continue;
+    const declarations = AddonBroker.normalizeCollections(a.collections, a.apiVersion, a.capabilities);
+    for (const c of declarations) {
       const t = AddonBroker.addonCollectionType(a.id, c.name);
       ALLOWED_TYPES.add(t);
       if (!ALL_TYPES.includes(t)) ALL_TYPES.push(t);
       if (c.keyed) KEYED_OBJ_TYPES.add(t);
-      _addonCollTypes.add(t);
+      _addonCollections.set(t, {
+        addonId: a.id,
+        name: c.name,
+        keyed: !!c.keyed,
+        access: c.access === 'dm' ? 'dm' : 'public',
+      });
     }
   }
+}
+
+function _addonCollectionAvailable(meta, role) {
+  return !meta || meta.access !== 'dm' || role === 'dm';
+}
+
+async function _readDatasetForRole(role) {
+  const effectiveRole = role === 'dm' ? 'dm' : 'player';
+  const campaign = {};
+  let foundAny = false;
+  for (const type of ALL_TYPES) {
+    const meta = _addonCollections.get(type);
+    if (!_addonCollectionAvailable(meta, effectiveRole)) continue;
+    try {
+      campaign[type] = JSON.parse(await fsp.readFile(getFile(type), 'utf8'));
+      foundAny = true;
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
+  }
+  return {
+    campaign: filterDatasetForRole(campaign, effectiveRole),
+    foundAny,
+  };
 }
 
 // Read a JSON collection file and return parsed contents, or `fallback`
@@ -1506,6 +1538,15 @@ app.patch('/api/data', (req, res) => {
     try {
       const { type, action, payload } = req.body || {};
 
+      const parsedAddonType = AddonBroker.parseAddonType(type);
+      const addonCollection = parsedAddonType ? _addonCollections.get(type) : null;
+      // A player gets the same response for a hidden collection and an
+      // undeclared guessed addon type. Do this before action/payload checks so
+      // validation details cannot become an existence oracle.
+      if (req.role !== 'dm' && parsedAddonType
+          && (!addonCollection || !_addonCollectionAvailable(addonCollection, req.role))) {
+        return res.status(404).json({ error: 'Not found' });
+      }
       if (!ALLOWED_TYPES.has(type)) {
         return res.status(400).json({ error: `Unknown collection: ${type}` });
       }
@@ -1670,12 +1711,13 @@ app.patch('/api/data', (req, res) => {
       // Addon collections live in a per-addon subdir that may not exist yet
       // (purged, or first write after a restore) — _atomicWrite won't create
       // parents, so ensure it here. Core types always land in DATA_DIR.
-      if (AddonBroker.parseAddonType(type)) {
+      if (parsedAddonType) {
         await fsp.mkdir(path.dirname(p), { recursive: true });
       }
       await _atomicWrite(p, JSON.stringify(container, null, 2));
-      await _maybeSnapshot('save');
-      await _broadcastDataChanged();
+      const access = addonCollection?.access === 'dm' ? 'dm' : 'public';
+      await _maybeSnapshot('save', access);
+      await _broadcastDataChanged(access);
       res.json({ ok: true });
     } catch (e) {
       console.error('PATCH /api/data:', e);
@@ -1689,8 +1731,9 @@ app.patch('/api/data', (req, res) => {
  * health-check probes (the Dockerfile HEALTHCHECK pings this), and
  * historically for clients to poll for changes before SSE existed.
  */
-app.get('/api/version', async (_req, res) => {
-  res.json({ hash: await _dataHash(), instance: INSTANCE, features: FEATURES, canRestart: RESTARTABLE });
+app.get('/api/version', async (req, res) => {
+  const role = req.role === 'dm' ? 'dm' : 'player';
+  res.json({ hash: await _dataHash(role), instance: INSTANCE, features: FEATURES, canRestart: RESTARTABLE });
 });
 
 // DM-only (realRole): restart the server process. With a supervisor (Docker
@@ -1793,14 +1836,16 @@ async function _writeAddonsRegistry(reg) {
 // Shape the registry into the public list the client boot consumes.
 // Readable by anyone (boot is pre-login); exposes only enough to import
 // + show status, never the allowlist or grants.
-function _publicAddonList(reg) {
+function _publicAddonList(reg, role = 'player') {
   return reg.addons.map(a => ({
     id:         a.id,
     name:       a.name || a.id,
     version:    a.version || '',
     apiVersion: a.apiVersion,
     hostVersion: a.hostVersion,
-    capabilities: a.capabilities || undefined,
+    capabilities: role === 'dm'
+      ? (a.capabilities || undefined)
+      : _playerAddonCapabilities(a.capabilities),
     enabled:    !!a.enabled,
     state:      a.state || (a.enabled ? 'ok' : 'disabled'),
     activeHash: a.activeHash || null,
@@ -1814,7 +1859,8 @@ function _publicAddonList(reg) {
     optionalDependencies: (a.optionalDependencies && typeof a.optionalDependencies === 'object') ? a.optionalDependencies : {},
     // Declared addon-owned collections — the client host calls
     // registerCollection against these to wire its scoped CRUD.
-    collections: Array.isArray(a.collections) ? a.collections : [],
+    collections: AddonBroker.normalizeCollections(a.collections, a.apiVersion, a.capabilities)
+      .filter(collection => role === 'dm' || collection.access === 'public'),
     // Server-side code (Phase 7): does it ship one, and its live load state.
     server:      !!a.server,
     serverState: _serverStateFor(a),
@@ -1838,6 +1884,19 @@ function _publicAddonList(reg) {
                   ? `/addons/${a.id}/${a.activeHash}/${a.entry}`
                   : null,
   }));
+}
+
+function _playerAddonCapabilities(capabilities) {
+  if (!capabilities || typeof capabilities !== 'object' || Array.isArray(capabilities)) {
+    return undefined;
+  }
+  const required = Array.isArray(capabilities.required)
+    ? capabilities.required.filter(id => id !== 'collections.dm')
+    : [];
+  const optional = Array.isArray(capabilities.optional)
+    ? capabilities.optional.filter(id => id !== 'collections.dm')
+    : [];
+  return required.length || optional.length ? { required, optional } : undefined;
 }
 
 // ── Server-side addon code (Phase 7) ─────────────────────────────
@@ -2227,7 +2286,11 @@ async function _promoteAddon(staged) {
   // version, versions[] keeps the last K for rollback).
   const reg = await _readAddonsRegistry();
   const _serverDeps   = Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [];
-  const _collections  = AddonBroker.normalizeCollections(manifest.collections);
+  const _collections  = AddonBroker.normalizeCollections(
+    manifest.collections,
+    manifest.apiVersion,
+    manifest.capabilities,
+  );
   const _dependencies = (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {};
   const _optionalDependencies = (manifest.optionalDependencies && typeof manifest.optionalDependencies === 'object' && !Array.isArray(manifest.optionalDependencies)) ? manifest.optionalDependencies : {};
   // The version record snapshots the structural manifest fields too, so a
@@ -2313,7 +2376,7 @@ app.get('/api/addons', async (req, res) => {
       hostVersion: AddonBroker.HOST_VERSION,
       capabilities: [...AddonBroker.HOST_CAPABILITIES],
       instance: INSTANCE,
-      addons: _publicAddonList(reg),
+      addons: _publicAddonList(reg, req.role === 'dm' ? 'dm' : 'player'),
       // Fragment-override conflict resolutions (target → winner addonId | null).
       // The client host consults these so a DM-picked winner actually applies.
       resolutions: (reg.resolutions && typeof reg.resolutions === 'object') ? reg.resolutions : {},
@@ -2495,7 +2558,13 @@ app.post('/api/addons/:id/rollback', requireRealDM('Jen DM může vracet verze d
       if (target.contentDir !== undefined) entry.contentDir = target.contentDir;
       if (target.contentGroups !== undefined) entry.contentGroups = target.contentGroups;
       if (Array.isArray(target.serverDeps))  entry.serverDeps  = target.serverDeps;
-      if (Array.isArray(target.collections)) entry.collections = target.collections;
+      if (Array.isArray(target.collections)) {
+        entry.collections = AddonBroker.normalizeCollections(
+          target.collections,
+          target.apiVersion || entry.apiVersion,
+          target.capabilities || entry.capabilities,
+        );
+      }
       if (target.dependencies)           entry.dependencies = target.dependencies;
       if (target.optionalDependencies)   entry.optionalDependencies = target.optionalDependencies;
       await _writeAddonsRegistry(reg);
@@ -2596,7 +2665,13 @@ app.post('/api/addons/preview', requireRealDM('Jen DM může instalovat doplňky
         version:     manifest.version,
         apiVersion:  manifest.apiVersion,
         hostVersion: manifest.hostVersion || '',
+        capabilities: manifest.capabilities || undefined,
         permissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
+        collections: AddonBroker.normalizeCollections(
+          manifest.collections,
+          manifest.apiVersion,
+          manifest.capabilities,
+        ),
         dependencies: (manifest.dependencies && typeof manifest.dependencies === 'object') ? manifest.dependencies : {},
         optionalDependencies: (manifest.optionalDependencies && typeof manifest.optionalDependencies === 'object') ? manifest.optionalDependencies : {},
         summary:     manifest.summary || '',
@@ -2779,14 +2854,15 @@ app.get('/api/events', async (req, res) => {
     'X-Accel-Buffering': 'no',
   });
   res.flushHeaders?.();
-  const hash = await _dataHash();
+  const role = req.role === 'dm' ? 'dm' : 'player';
+  const hash = await _dataHash(role);
   // Guard the handshake write: a client that disconnects between
   // flushHeaders and here makes res.write throw. Bail rather than let
   // the rejection escape the handler (the ping below is guarded too).
   try {
     res.write(`event: hello\ndata: ${JSON.stringify({ hash, at: Date.now() })}\n\n`);
   } catch (_) { return; }
-  _sseClients.add(res);
+  _sseClients.set(res, role);
   const ip = req.ip;
   _sseClientsByIp.set(ip, (_sseClientsByIp.get(ip) || 0) + 1);
 
@@ -3015,10 +3091,15 @@ app.delete('/api/portrait/:identifier', requireAnyRole, async (req, res) => {
  * players need read access so they can see their own change history
  * and pick a download point. Destructive endpoints below stay DM-only.
  */
-app.get('/api/snapshots', requireAnyRole, async (_req, res) => {
+app.get('/api/snapshots', requireAnyRole, async (req, res) => {
   try {
     const files = await _snapshotFiles();
-    const metas = (await Promise.all(files.map(_snapshotMeta))).filter(Boolean);
+    let metas = (await Promise.all(files.map(_snapshotMeta))).filter(Boolean);
+    if (req.role !== 'dm') {
+      metas = metas
+        .filter(meta => meta.access !== 'dm')
+        .map(({ id, createdAt, reason }) => ({ id, createdAt, reason }));
+    }
     // Newest first for UI convenience.
     metas.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
     res.json({ snapshots: metas });

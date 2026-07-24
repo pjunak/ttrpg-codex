@@ -35,16 +35,37 @@ test('compatibility inputs fail closed', () => {
 
 test('capabilities and collection security semantics fail closed', () => {
   assert.equal(validateManifest(base({ capabilities: { required: [] } })).ok, false);
-  assert.equal(validateManifest(base({ apiVersion: 2, capabilities: { required: ['collections.dm'] } })).ok, false);
+  assert.equal(validateManifest(base({ apiVersion: 2, capabilities: { required: ['collections.dm'] } })).ok, true);
   assert.equal(validateManifest(base({ apiVersion: 2, capabilities: { optional: ['collections.dm'] } })).ok, true);
   assert.equal(validateManifest(base({ apiVersion: 2, capabilities: { optional: ['unknown.cap'] } })).ok, false);
   assert.equal(validateManifest(base({ apiVersion: 2, capabilities: { optional: ['collections.dm'], required: ['collections.dm'] } })).ok, false);
   assert.equal(validateManifest(base({ collections: [{ name: 'secret', access: 'dm' }] })).ok, false);
   assert.equal(validateManifest(base({ apiVersion: 2, collections: [{ name: 'secret', access: 'dm' }] })).ok, false);
+  assert.equal(validateManifest(base({
+    apiVersion: 2,
+    capabilities: { required: ['collections.dm'] },
+    collections: [{ name: 'secret', keyed: false, access: 'dm' }],
+  })).ok, true);
+  assert.equal(validateManifest(base({
+    apiVersion: 2,
+    capabilities: { required: ['collections.dm'] },
+    collections: [{ name: 'secret', keyed: 'false', access: 'dm' }],
+  })).ok, false);
   assert.equal(validateManifest(base({ apiVersion: 2, collections: [{ name: 'x', mysteryAccess: true }] })).ok, false);
 });
 
 test('server and browser reject the same runtime manifest', () => {
-  const manifest = base({ apiVersion: 2, capabilities: { required: ['collections.dm'] } });
+  const manifest = base({ apiVersion: 2, capabilities: { required: ['unknown.cap'] } });
   assert.deepEqual(browserErrors(manifest), server.compatibilityErrors(manifest));
+});
+
+test('a host without collections.dm rejects a DM collection manifest', () => {
+  const manifest = base({
+    apiVersion: 2,
+    capabilities: { required: ['collections.dm'] },
+    collections: [{ name: 'secret', access: 'dm' }],
+  });
+  const incapable = new Set(['lifecycle.dispose', 'content.revision']);
+  assert.match(server.compatibilityErrors(manifest, incapable).join('; '), /collections\.dm.*unavailable/);
+  assert.deepEqual(browserErrors(manifest, incapable), server.compatibilityErrors(manifest, incapable));
 });

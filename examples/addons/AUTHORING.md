@@ -87,7 +87,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `version` | ✅ | semver `x.y.z`. Bump on every release. |
 | `apiVersion` | ✅ | `1` or `2`. Unsupported versions are rejected. API v2 is required for security-sensitive manifest semantics. |
 | `hostVersion` | v2: ✅ | Enforced against the host version. API-v1 manifests may omit it for legacy compatibility (equivalent to `"*"`). |
-| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `lifecycle.dispose` and `content.revision`. `collections.dm` is known but deliberately unavailable. |
+| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `collections.dm`, `lifecycle.dispose`, and `content.revision`. |
 | `entry` | ✅ | Relative `.js`/`.mjs` path to the client module (default-export `register`). |
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
 | `contentDir` | — | Relative dir of a **per-record JSON tree** the HOST serves for you at `/api/addon/<id>/content` (+ `/content/:kind`, `/item/:kind/:id`, `/kinds`). The right choice for DATA addons (rulebooks): **no server code, no `server:code` grant**, kinds keyed by each record's own `kind` field (sub-dir name is the fallback), and hot-loaded — install/update needs no restart. A live `server` router takes precedence over it entirely. |
@@ -96,7 +96,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `permissions` | — | Declared + **enforced** capability tokens (see §5). The DM reviews + grants them at install. |
 | `dependencies` | — | HARD deps: `{ "<otherAddonId>": { "range": ">=1.0.0", "repo": "owner/name" } }`. A missing/incompatible one **blocks** your addon (see §12). |
 | `optionalDependencies` | — | SOFT deps, same shape — **ordering-only**: the provider loads first WHEN present, but your addon still installs/loads standalone when it's absent. Lets you `host.use()` it behind a try/catch (see §12). |
-| `collections` | — | `[{ "name": "rules", "keyed": false }]` — your own data collections (see §8). `name` is `^[a-z0-9][a-z0-9_]{0,39}$`. |
+| `collections` | — | `[{ "name": "rules", "keyed": false, "access": "public" }]` — your own data collections (see §8). `name` is `^[a-z0-9][a-z0-9_]{0,39}$`; access defaults to `public`. `dm` is API-v2-only and requires `collections.dm` in `capabilities.required`. |
 | `tests` | — | `{ "server": "tests/srv.cjs", "client": "tests/cli.mjs" }` — an explicit file path or a `string[]` of them (**not** a glob — `node --test` doesn't expand `*`, so `tests/*.cjs` runs nothing). `tests.server` is a **green-gate run at install** (see §14). |
 | `summary` | — | One line shown in the install wizard. |
 
@@ -117,7 +117,7 @@ registration is rolled back and the addon is marked `error` (others still load).
 host.id            // your addon id
 host.apiVersion    // 2 (latest supported API)
 host.hostVersion   // "1.0.0"
-host.capabilities.has('collections.dm') // false until DM collections ship
+host.capabilities.has('collections.dm') // true on hosts that enforce DM collections
 host.contentRevision // stable revision of this package + effective content policy
 host.onDispose(fn) // register cleanup for timers, listeners, requests, caches…
 host.permissions   // string[] of what you were granted
@@ -297,16 +297,19 @@ host.registerWikiKind('pravidlo', (label) => {
 
 ## 8. Your own data collections
 
-Declare in the manifest, register in `entry.js`, then use the scoped CRUD handle.
-Data lives isolated at `data/addon-data/<id>/<name>.json` and syncs to every
-client over SSE like core data.
+Declare in the manifest, register in `entry.js`, then use the scoped CRUD
+handle. Identity is always `(addonId, collectionName)` and data lives at
+`data/addon-data/<id>/<name>.json`, so two addons may use the same name.
 
-> **Visibility caveat.** Addon collections are **world-readable** — they take
-> the same posture as `pets`: public, outside the role-visibility filter, and
-> writable by any authenticated role. `GET /api/data` serves them to players
-> and anonymous viewers alike. Don't store DM-only content in them; if your
-> addon needs secret data, keep it in the `addonData` of a DM-only twin
-> entity.
+Public collections retain the compatibility behavior: all viewers receive
+them and any authenticated role may write. A DM collection is different:
+declare API v2, require `collections.dm`, and set `access:"dm"`. The server
+omits its data and metadata for players, anonymous visitors, and a DM using
+view-as-player; guessed writes return a non-disclosing 404. DM-only writes
+notify only effective-DM SSE clients and do not change the player hash.
+Register a DM collection only while `host.role.isDM()` is true. Role changes
+clear addon caches, reconcile declarations, and reload through the authorized
+path.
 
 ```jsonc
 // addon.json
@@ -322,6 +325,20 @@ rules.list();                       // → array (fresh copy, safe to sort/filte
 rules.get(id);                      // → item | null
 const saved = rules.save({ name: 'Grappling', body: '' });  // upsert; id generated if missing
 rules.remove(id);
+```
+
+DM-only variant:
+
+```jsonc
+"apiVersion": 2,
+"hostVersion": ">=1.0.0",
+"capabilities": { "required": ["collections.dm", "lifecycle.dispose"] },
+"permissions": ["data:own"],
+"collections": [{ "name": "scenarios", "keyed": false, "access": "dm" }]
+```
+
+```js
+if (host.role.isDM()) host.registerCollection('scenarios');
 ```
 
 ---
@@ -646,7 +663,9 @@ automatically.
 7. Renderers must **tolerate sparse/empty input** (the smoke test calls them with
    a minimal sample entity) and must not throw.
 8. Addon-owned collections must be **declared in `addon.json` `collections[]`**
-   before `registerCollection`. Wiki-kind targets resolve **by name → real id**.
+   before `registerCollection`. DM declarations additionally require API v2,
+   `collections.dm`, and effective-DM registration. Wiki-kind targets resolve
+   **by name → real id**.
 9. Keep `register()` side-effect-free except for `register*` calls. Do data work
    in actions/renderers, not at register time. Register cleanup with
    `host.onDispose(fn)` or return it from `register()` for every resource you
@@ -728,12 +747,10 @@ returns `ok:true`, `smokeRegistrations(rec).ok` is true, and the app shows no
 
 See also **`web/css/STYLE.md`** (tokens + components) and
 **`docs/reference/addons.md`** (the host-internals deep reference).
-API v2 advertises `lifecycle.dispose` and `content.revision`; addons whose
+API v2 advertises `collections.dm`, `lifecycle.dispose`, and `content.revision`; addons whose
 correctness relies on cleanup or revision metadata should require them.
-API v2 also reserves the stable capability `collections.dm`. A future collection
-with `"access": "dm"` must declare that capability in
-`capabilities.required`. The current host deliberately does not advertise or
-implement it, so such a manifest is rejected. API-v1 collection declarations,
+An API-v2 collection with `"access": "dm"` must declare `collections.dm` in
+`capabilities.required`. API-v1 collection declarations,
 unknown collection fields, and API-v2 DM access without the required capability
 are also rejected; none can be normalized into public access.
 

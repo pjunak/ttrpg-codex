@@ -167,9 +167,22 @@ test('normalizeCollections: keeps valid {name,keyed}, drops junk + dupes', () =>
     'nope',                          // not an object → dropped
     { keyed: true },                // no name → dropped
   ]);
-  assert.deepEqual(out, [{ name: 'rules', keyed: false }, { name: 'spells', keyed: true }]);
+  assert.deepEqual(out, [
+    { name: 'rules', keyed: false, access: 'public' },
+    { name: 'spells', keyed: true, access: 'public' },
+  ]);
   assert.deepEqual(normalizeCollections(undefined), []);
   assert.deepEqual(normalizeCollections('x'), []);
+  assert.deepEqual(normalizeCollections(
+    [{ name: 'scenarios', keyed: false, access: 'dm' }],
+    2,
+    { required: ['collections.dm'] },
+  ), [{ name: 'scenarios', keyed: false, access: 'dm' }]);
+  assert.deepEqual(normalizeCollections(
+    [{ name: 'scenarios', access: 'dm' }],
+    2,
+    { optional: ['collections.dm'] },
+  ), [], 'missing required capability fails closed');
 });
 
 test('addonCollectionType / parseAddonType: round-trip + reject unsafe', () => {

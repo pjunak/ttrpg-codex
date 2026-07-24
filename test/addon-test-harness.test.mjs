@@ -150,6 +150,60 @@ test('mock collection declaration validation matches the live contract', () => {
   assert.doesNotThrow(() => host.store.collection('notes'));
 });
 
+test('collection facade rejects missing data:own permission before registration or CRUD', () => {
+  const { host } = createMockHost({
+    id: 'ungranted-collections',
+    permissions: [],
+    collections: [{ name: 'notes', keyed: false }],
+  });
+  assert.throws(() => host.registerCollection('notes'), /data:own/);
+  assert.throws(() => host.store.collection('notes'), /not registered/);
+});
+
+test('mock DM collections enforce capability, declaration, role, and keyed/list CRUD', () => {
+  const meta = {
+    id: 'dm-collections',
+    version: '1.0.0',
+    apiVersion: 2,
+    hostVersion: '>=1.0.0',
+    capabilities: { required: ['collections.dm'] },
+    permissions: ['data:own'],
+    collections: [
+      { name: 'list', keyed: false, access: 'dm' },
+      { name: 'keyed', keyed: true, access: 'dm' },
+    ],
+  };
+  assert.throws(
+    () => createMockHost(meta, { isDM: true, capabilities: ['lifecycle.dispose', 'content.revision'] }),
+    /collections\.dm.*unavailable/,
+  );
+
+  const dm = createMockHost(meta, { isDM: true }).host;
+  dm.registerCollection('list');
+  dm.registerCollection('keyed');
+  const list = dm.store.collection('list');
+  const keyed = dm.store.collection('keyed');
+  const listItem = list.save({ name: 'List item' });
+  const keyedItem = keyed.save({ id: 'main', value: 7 });
+  assert.equal(list.get(listItem.id).name, 'List item');
+  assert.equal(keyed.get(keyedItem.id).value, 7);
+  list.remove(listItem.id);
+  keyed.remove(keyedItem.id);
+  assert.deepEqual(list.list(), []);
+  assert.deepEqual(keyed.list(), []);
+
+  const player = createMockHost(meta, {
+    isDM: false,
+    fixtures: { 'collection:list': [{ id: 'secret', name: 'Hidden' }] },
+  }).host;
+  player.registerCollection('list');
+  const hidden = player.store.collection('list');
+  assert.deepEqual(hidden.list(), []);
+  assert.equal(hidden.get('secret'), null);
+  assert.throws(() => hidden.save({ id: 'x' }), /not available for this role/);
+  assert.throws(() => hidden.remove('secret'), /not available for this role/);
+});
+
 test('mock lifecycle models capabilities, content revision, LIFO disposal, and isolation', async () => {
   const calls = [];
   const { host, rec } = createMockHost({
@@ -162,7 +216,7 @@ test('mock lifecycle models capabilities, content revision, LIFO disposal, and i
   });
   assert.equal(host.capabilities.has('lifecycle.dispose'), true);
   assert.equal(host.capabilities.has('content.revision'), true);
-  assert.equal(host.capabilities.has('collections.dm'), false);
+  assert.equal(host.capabilities.has('collections.dm'), true);
   assert.equal(host.contentRevision, 'revision-7');
   host.onDispose(() => { calls.push('first'); });
   host.onDispose(async () => { calls.push('second'); throw new Error('expected'); });

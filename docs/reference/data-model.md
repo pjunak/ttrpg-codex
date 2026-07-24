@@ -98,10 +98,13 @@ scalar faction/location/owner/parent fields are omitted (pets become unowned);
 ID arrays are filtered; hidden local-map settings and `lastChange` scalar audit
 values are removed. The server does this on a response projection only—stored
 JSON is unchanged—and DM payloads are strict identity. `neutral` and `party`
-remain valid faction values without keyed faction records. API-v1 addon
-collections are public and schema-opaque, so they cannot declare filterable
-references yet and pass through unchanged; do not encode core entity references
-into an addon collection until a host contract explicitly declares their shape.
+remain valid faction values without keyed faction records. Public API-v1 and
+API-v2 addon collections are schema-opaque and pass through unchanged, so do
+not encode core entity references into them until a host contract explicitly
+declares their shape. An API-v2 collection declared with `access: "dm"` is
+removed as a whole before serialization, so its name, records, identifiers,
+and revision cannot reach player data, search, recent activity, wiki-link
+resolution, generated fragments, diagnostics, or player-facing exports.
 
 `knowledge` 0 shows heavy blur+grayscale. 4 shows no filter.
 Controls SVG sketch effect on portraits.
@@ -498,6 +501,12 @@ failed, or superseded loads preserve the last valid in-memory dataset.
 The optional `shouldCommit` predicate is checked after parsing and before
 any visible Store mutation so the SSE coordinator can reject an obsolete
 response safely.
+`clearAddonCollections()` synchronously removes every addon-owned container
+from the browser store. Role transitions call it before the replacement
+authorized payload is fetched, preventing a DM record from remaining available
+to search, wiki-link consumers, addon handles, or rendered pages while the DM
+is viewing as a player. Returning to DM view reloads the containers through
+`/api/data`; it does not reuse the cleared values.
 `exportJSON()` for download.
 
 ⚠ **`load()` layers the server payload OVER `_defaults()`**

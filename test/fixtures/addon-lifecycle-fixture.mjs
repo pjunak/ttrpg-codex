@@ -24,6 +24,7 @@ export default function register(host) {
   }
   if (config.provide) host.provide(instance);
   host.registerRoute(host.id, () => host.contentRevision);
+  if (config.collection) host.registerCollection(config.collection);
   host.onDispose(() => {
     const provider = state.consumerApis[host.id];
     if (provider) state.events.push(`consumer-sees:${host.id}:${provider.lookup()}`);

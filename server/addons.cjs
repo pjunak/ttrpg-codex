@@ -80,19 +80,32 @@ function parseAddonType(type) {
   return m ? { id: m[1], name: m[2] } : null;
 }
 
-// Coerce a manifest `collections` value into a clean, de-duped list of
-// `{ name, keyed }`. Never throws — invalid entries are dropped (the strict
-// `validateManifest` below is what surfaces them as errors to the DM).
-function normalizeCollections(raw) {
+// Coerce a manifest or persisted-registry `collections` value into a clean,
+// de-duped list of `{ name, keyed, access }`. Invalid security semantics drop
+// the declaration instead of widening it to public. The strict
+// `validateManifest` below surfaces install-time errors to the DM.
+function normalizeCollections(raw, apiVersion = 1, capabilities) {
   if (!Array.isArray(raw)) return [];
   const out = [];
   const seen = new Set();
+  const required = capabilities && Array.isArray(capabilities.required)
+    ? capabilities.required
+    : [];
   for (const c of raw) {
-    if (!c || typeof c !== 'object') continue;
+    if (!c || typeof c !== 'object' || Array.isArray(c)) continue;
     const name = typeof c.name === 'string' ? c.name : '';
     if (!COLLECTION_NAME_RE.test(name) || seen.has(name)) continue;
+    // Persisted normalized v1 declarations may carry `access:"public"` even
+    // though source v1 manifests may not declare access at all.
+    const allowed = ['name', 'keyed', 'access'];
+    if (Object.keys(c).some(key => !allowed.includes(key))) continue;
+    if (c.keyed !== undefined && typeof c.keyed !== 'boolean') continue;
+    if (apiVersion !== 2 && c.access !== undefined && c.access !== 'public') continue;
+    if (c.access !== undefined && c.access !== 'public' && c.access !== 'dm') continue;
+    const access = c.access === 'dm' ? 'dm' : 'public';
+    if (access === 'dm' && !required.includes('collections.dm')) continue;
     seen.add(name);
-    out.push({ name, keyed: !!c.keyed });
+    out.push({ name, keyed: !!c.keyed, access });
   }
   return out;
 }
@@ -147,6 +160,7 @@ function normalizeRegistry(parsed) {
   // _publicAddonList in server.js) rely on these shapes without re-checking.
   for (const a of reg.addons) {
     if (!a || typeof a !== 'object') continue;
+    a.collections = normalizeCollections(a.collections, a.apiVersion, a.capabilities);
     const cg = normalizeContentGroups(a.contentGroups);
     if (cg) a.contentGroups = cg; else delete a.contentGroups;
     a.disabledContentGroups = normalizeDisabledContentGroups(a.disabledContentGroups);
@@ -251,6 +265,9 @@ function validateManifest(m) {
           seen.add(c.name);
           const allowed = m.apiVersion === 2 ? ['name', 'keyed', 'access'] : ['name', 'keyed'];
           for (const key of Object.keys(c)) if (!allowed.includes(key)) errors.push(`collection "${c.name}" has unknown field "${key}"`);
+          if (c.keyed !== undefined && typeof c.keyed !== 'boolean') {
+            errors.push(`collection "${c.name}" keyed must be a boolean`);
+          }
           if (c.access !== undefined) {
             if (m.apiVersion !== 2) errors.push(`collection "${c.name}" access semantics require apiVersion 2`);
             else if (c.access !== 'public' && c.access !== 'dm') errors.push(`collection "${c.name}" access must be "public" or "dm"`);

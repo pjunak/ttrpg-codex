@@ -29,6 +29,16 @@ function registry() {
         entry: 'entry.js', activeHash: 'abc', collections: [{ name: 'rules', keyed: false }] },
       { id: 'cfg', name: 'Cfg', version: '0.1.0', apiVersion: 1, enabled: true,
         entry: 'entry.js', activeHash: 'def', collections: [{ name: 'config', keyed: true }] },
+      { id: 'secret-one', name: 'Secret One', version: '0.1.0', apiVersion: 2,
+        hostVersion: '>=1.0.0', capabilities: { required: ['collections.dm'] },
+        enabled: true, entry: 'entry.js', activeHash: 'ghi', collections: [
+          { name: 'scenarios', keyed: false, access: 'dm' },
+          { name: 'vault', keyed: true, access: 'dm' },
+        ] },
+      { id: 'secret-two', name: 'Secret Two', version: '0.1.0', apiVersion: 2,
+        hostVersion: '>=1.0.0', capabilities: { required: ['collections.dm'] },
+        enabled: true, entry: 'entry.js', activeHash: 'jkl',
+        collections: [{ name: 'scenarios', keyed: false, access: 'dm' }] },
     ],
     resolutions: {}, sources: { allow: [] },
   };
@@ -146,5 +156,165 @@ test('snapshots cover addon-data: restore brings a deleted addon item back', asy
     assert.equal(r.status, 200);
     const restored = await readAddonFile(srv, 'rules', 'rules');
     assert.ok(restored.find(x => x.id === 'keep'), 'addon item restored from snapshot');
+  } finally { await srv.kill(); }
+});
+
+test('DM collections use addon-scoped identity and support list/keyed CRUD', async () => {
+  const srv = await startServer({ dmPassword: DM, playerPassword: PLAYER, seedData: { 'addons.json': registry() } });
+  try {
+    await loginAs(srv, DM);
+    assert.equal((await patch(srv, 'addon:secret-one:scenarios', 'save',
+      { id: 'same', name: 'First secret' })).status, 200);
+    assert.equal((await patch(srv, 'addon:secret-two:scenarios', 'save',
+      { id: 'same', name: 'Second secret' })).status, 200);
+    assert.equal((await patch(srv, 'addon:secret-one:vault', 'save',
+      { id: 'main', data: { name: 'Keyed secret' } })).status, 200);
+
+    assert.equal((await readAddonFile(srv, 'secret-one', 'scenarios'))[0].name, 'First secret');
+    assert.equal((await readAddonFile(srv, 'secret-two', 'scenarios'))[0].name, 'Second secret');
+    assert.equal((await readAddonFile(srv, 'secret-one', 'vault')).main.name, 'Keyed secret');
+
+    assert.equal((await patch(srv, 'addon:secret-one:scenarios', 'delete', { id: 'same' })).status, 200);
+    assert.equal((await patch(srv, 'addon:secret-one:vault', 'delete', { id: 'main' })).status, 200);
+    assert.deepEqual(await readAddonFile(srv, 'secret-one', 'scenarios'), []);
+    assert.deepEqual(await readAddonFile(srv, 'secret-one', 'vault'), {});
+    assert.equal((await readAddonFile(srv, 'secret-two', 'scenarios'))[0].name, 'Second secret',
+      'same-named collection in the other addon is isolated');
+  } finally { await srv.kill(); }
+});
+
+test('player reads, metadata, diagnostics, hashes, and guessed writes conceal DM collections', async () => {
+  const srv = await startServer({ dmPassword: DM, playerPassword: PLAYER, seedData: { 'addons.json': registry() } });
+  try {
+    await loginAs(srv, PLAYER);
+    const beforeHash = (await (await srv.fetch('/api/version')).json()).hash;
+
+    srv.clearCookies();
+    await loginAs(srv, DM);
+    const secretId = 'hidden-scenario-7';
+    const secretName = 'The Unseen Scenario';
+    assert.equal((await patch(srv, 'addon:secret-one:scenarios', 'save',
+      { id: secretId, name: secretName })).status, 200);
+    const dmData = await (await srv.fetch('/api/data')).json();
+    assert.equal(dmData['addon:secret-one:scenarios'][0].id, secretId);
+    const dmAddons = await (await srv.fetch('/api/addons')).json();
+    const dmDecl = dmAddons.addons.find(addon => addon.id === 'secret-one').collections;
+    assert.deepEqual(dmDecl.find(collection => collection.name === 'scenarios'),
+      { name: 'scenarios', keyed: false, access: 'dm' });
+
+    srv.clearCookies();
+    await loginAs(srv, PLAYER);
+    const playerDataResponse = await srv.fetch('/api/data');
+    const playerDataRaw = await playerDataResponse.text();
+    assert.equal(playerDataRaw.includes('addon:secret-one:scenarios'), false);
+    assert.equal(playerDataRaw.includes(secretId), false);
+    assert.equal(playerDataRaw.includes(secretName), false);
+
+    const metadataRaw = await (await srv.fetch('/api/addons')).text();
+    assert.equal(metadataRaw.includes('"scenarios"'), false);
+    assert.equal(metadataRaw.includes('"vault"'), false);
+    const playerMetadata = JSON.parse(metadataRaw);
+    assert.equal(playerMetadata.capabilities.includes('collections.dm'), true,
+      'the capable host advertises the completed contract');
+    assert.equal(
+      JSON.stringify(playerMetadata.addons.find(addon => addon.id === 'secret-one').capabilities || {})
+        .includes('collections.dm'),
+      false,
+      'the addon declaration does not reveal that it owns hidden collections',
+    );
+
+    const known = await patch(srv, 'addon:secret-one:scenarios', 'save', { id: 'probe' });
+    const unknown = await patch(srv, 'addon:secret-one:guessed', 'save', { id: 'probe' });
+    assert.equal(known.status, 404);
+    assert.equal(unknown.status, 404);
+    assert.equal(await known.text(), await unknown.text());
+
+    const afterHash = (await (await srv.fetch('/api/version')).json()).hash;
+    assert.equal(afterHash, beforeHash, 'player-visible hash is unchanged by a DM-only write');
+
+    const snapshotsRaw = await (await srv.fetch('/api/snapshots')).text();
+    assert.equal(snapshotsRaw.includes('"dataHash"'), false);
+    assert.equal(snapshotsRaw.includes('"size"'), false);
+    assert.equal(snapshotsRaw.includes('"access":"dm"'), false);
+  } finally { await srv.kill(); }
+});
+
+test('DM collection data survives disable, re-enable, and non-purge uninstall', async () => {
+  const srv = await startServer({ dmPassword: DM, seedData: { 'addons.json': registry() } });
+  try {
+    await loginAs(srv, DM);
+    await patch(srv, 'addon:secret-one:scenarios', 'save',
+      { id: 'persistent', name: 'Persistent scenario' });
+
+    assert.equal((await srv.fetch('/api/addons/secret-one/disable', { method: 'POST' })).status, 200);
+    const disabledData = await (await srv.fetch('/api/data')).json();
+    assert.equal(disabledData?.['addon:secret-one:scenarios'], undefined);
+    assert.equal((await readAddonFile(srv, 'secret-one', 'scenarios'))[0].id, 'persistent');
+
+    assert.equal((await srv.fetch('/api/addons/secret-one/enable', { method: 'POST' })).status, 200);
+    const enabledData = await (await srv.fetch('/api/data')).json();
+    assert.equal(enabledData['addon:secret-one:scenarios'][0].id, 'persistent');
+
+    assert.equal((await srv.fetch('/api/addons/secret-one', { method: 'DELETE' })).status, 200);
+    const uninstalledData = await (await srv.fetch('/api/data')).json();
+    assert.equal(uninstalledData?.['addon:secret-one:scenarios'], undefined);
+    assert.equal((await readAddonFile(srv, 'secret-one', 'scenarios'))[0].id, 'persistent',
+      'default uninstall preserves addon data');
+  } finally { await srv.kill(); }
+});
+
+test('a server restart reloads persisted DM collection data through the authorized path', async () => {
+  const srv = await startServer({
+    dmPassword: DM,
+    playerPassword: PLAYER,
+    seedData: { 'addons.json': registry() },
+    seedFiles: {
+      'addon-data/secret-one/scenarios.json': [
+        { id: 'persisted-secret', name: 'Persisted across restart' },
+      ],
+    },
+  });
+  try {
+    await loginAs(srv, DM);
+    const dmData = await (await srv.fetch('/api/data')).json();
+    assert.equal(dmData['addon:secret-one:scenarios'][0].id, 'persisted-secret');
+
+    srv.clearCookies();
+    await loginAs(srv, PLAYER);
+    const playerDataRaw = await (await srv.fetch('/api/data')).text();
+    assert.equal(playerDataRaw.includes('persisted-secret'), false);
+    assert.equal(playerDataRaw.includes('addon:secret-one:scenarios'), false);
+  } finally { await srv.kill(); }
+});
+
+test('DM view-as-player conceals collections and switching back reloads the authorized projection', async () => {
+  const srv = await startServer({ dmPassword: DM, playerPassword: PLAYER, seedData: { 'addons.json': registry() } });
+  try {
+    await loginAs(srv, DM);
+    await patch(srv, 'addon:secret-one:scenarios', 'save',
+      { id: 'view-as-secret', name: 'View-as secret' });
+    const dmHash = (await (await srv.fetch('/api/version')).json()).hash;
+
+    assert.equal((await srv.fetch('/api/view-as', { method: 'POST' })).status, 200);
+    const playerDataRaw = await (await srv.fetch('/api/data')).text();
+    assert.equal(playerDataRaw.includes('view-as-secret'), false);
+    assert.equal(playerDataRaw.includes('addon:secret-one:scenarios'), false);
+    const playerMetadataRaw = await (await srv.fetch('/api/addons')).text();
+    assert.equal(playerMetadataRaw.includes('"scenarios"'), false);
+    const playerMetadata = JSON.parse(playerMetadataRaw);
+    assert.equal(
+      JSON.stringify(playerMetadata.addons.find(addon => addon.id === 'secret-one').capabilities || {})
+        .includes('collections.dm'),
+      false,
+    );
+    const denied = await patch(srv, 'addon:secret-one:scenarios', 'delete', { id: 'view-as-secret' });
+    assert.equal(denied.status, 404);
+    const playerHash = (await (await srv.fetch('/api/version')).json()).hash;
+    assert.notEqual(playerHash, dmHash);
+
+    assert.equal((await srv.fetch('/api/view-as-dm', { method: 'POST' })).status, 200);
+    const restored = await (await srv.fetch('/api/data')).json();
+    assert.equal(restored['addon:secret-one:scenarios'][0].id, 'view-as-secret');
+    assert.equal((await (await srv.fetch('/api/version')).json()).hash, dmHash);
   } finally { await srv.kill(); }
 });

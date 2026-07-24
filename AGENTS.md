@@ -231,6 +231,7 @@ there.**
 |---|---|---|
 | `dnd-character-sheets` | `dnd-sheets` | Tabbed character sheet (Overview/Character Sheet/Combat/Spellbook/Builder) + a built-in pure rules engine (`rules/engine.js` + `rules/api.js`), edition-parameterized (built-in 2024 constants; a provider's `ruleset` record overrides per constant — `dnd5e-compendium` is the reserved 2014 provider id). Standalone hand-fillable; soft-dep (`optionalDependencies`) on the compendium — engine mode lights up when book data is present. `provide()`s the rules API for future consumers. ⚠ The addon id keys `character.addonData` — renaming it orphans sheet data without a key migration. |
 | `dnd55e-compendium` | `dnd55e-compendium` | The complete D&D 5.5e (2024) content addon — PHB, DMG material, and the Monster Manual bestiary (~1,880 records) as a per-record JSON tree served by THIS host via manifest `contentDir` (no server code, hot install/update). `/compendium` browse UI (+ `/bestiary` alias) + `[[…|spell]]`-style wiki kinds; `provide()`s the pure data API the sheets engine consumes. The equipment importer reads the sibling `Living-scroll` checkout. ⚠ The GitHub repo is **PRIVATE** (since 2026-07, so owner-owned copyrighted book content can live there — see its `data/COVERAGE.md`); GitHub installs/updates need `CODEX_GITHUB_TOKEN`. |
+| `dm-tools` | `dm-tools` | API-v2 reference consumer for host-managed DM-only data. F1 declares only the list-shaped `scenarios` collection with `access:"dm"` and requires `collections.dm`; later imports, graphs, planners, dashboard ownership, transactions, and localization packages remain out of scope. |
 
 Working loop: edit in the addon repo → `node scripts/dev-install-addon.cjs
 <path-to-addon>` (run in THIS repo) → restart the app + refresh. ⚠ **Addon
@@ -304,7 +305,9 @@ sessions and don't get re-discovered:
    actions inside `[data-addon-id]` subtrees. Accepted under the
    trusted-addon posture; revisit before third-party addons (any fix must
    also cover the `deferred(action,…)` indirection).
-2. Missing guard tests: the addon permission facade.
+2. Missing guard tests: remaining addon permission-facade methods. Collection
+   declaration, `data:own`, ownership, effective-role, and keyed/unkeyed CRUD
+   guards are covered by the live/mock F1 matrix.
     (The `/api/restore` path-safety and migration-idempotency gaps listed
     here originally are CLOSED; visibility closure is also CLOSED by
     `test/visibility.test.cjs` + `test/integration-visibility.test.cjs`.)

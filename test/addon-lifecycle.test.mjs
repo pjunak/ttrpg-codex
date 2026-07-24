@@ -138,6 +138,32 @@ test('lifecycle: partial registration and disposer failures are isolated', async
   }
 });
 
+test('live collection facade requires data:own before registration', async () => {
+  const withoutPermission = metadata('guarded', 'r1', {
+    collections: [{ name: 'notes', keyed: false, access: 'public' }],
+  });
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const rt = await freshRuntime([withoutPermission], {
+      guarded: { collection: 'notes' },
+    });
+    assert.equal(rt.Addons.hasRoute('guarded'), false, 'failed registration rolls back earlier UI');
+    assert.equal(rt.Addons.list()[0].state, 'error');
+
+    const withPermission = {
+      ...withoutPermission,
+      permissions: ['ui:route', 'data:own'],
+    };
+    rt.queue([withPermission]);
+    await rt.Addons.reconcile();
+    assert.equal(rt.Addons.hasRoute('guarded'), true);
+    assert.equal(rt.Addons.list()[0].state, 'ok');
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('lifecycle: consumers dispose before providers and rapid reconciles settle on the newest revision', async () => {
   const provider = metadata('provider', 'p1');
   const consumer = metadata('consumer', 'c1', { dependencies: { provider: '*' } });

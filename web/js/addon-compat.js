@@ -1,7 +1,7 @@
 export const HOST_VERSION = '1.0.0';
 export const SUPPORTED_API_VERSIONS = new Set([1, 2]);
 export const KNOWN_CAPABILITIES = new Set(['collections.dm', 'lifecycle.dispose', 'content.revision']);
-export const HOST_CAPABILITIES = new Set(['lifecycle.dispose', 'content.revision']);
+export const HOST_CAPABILITIES = new Set(['collections.dm', 'lifecycle.dispose', 'content.revision']);
 
 export function parseVersion(value) {
   const match = typeof value === 'string' ? /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(value) : null;
@@ -34,7 +34,7 @@ export function testRange(version, range) {
   return exact ? { valid: true, matches: compare(parsed, exact) === 0 } : { valid: false, matches: false };
 }
 
-export function compatibilityErrors(manifest) {
+export function compatibilityErrors(manifest, availableCapabilities = HOST_CAPABILITIES) {
   const errors = [];
   if (!parseVersion(manifest.version)) errors.push('version must be semver (x.y.z)');
   if (!SUPPORTED_API_VERSIONS.has(manifest.apiVersion)) errors.push(`apiVersion ${manifest.apiVersion} is unsupported; host supports 1 and 2`);
@@ -59,7 +59,7 @@ export function compatibilityErrors(manifest) {
           else seen.add(value);
         }
       }
-      for (const value of caps.required || []) if (KNOWN_CAPABILITIES.has(value) && !HOST_CAPABILITIES.has(value)) errors.push(`required capability "${value}" is unavailable`);
+      for (const value of caps.required || []) if (KNOWN_CAPABILITIES.has(value) && !availableCapabilities.has(value)) errors.push(`required capability "${value}" is unavailable`);
     }
   }
   for (const field of ['dependencies', 'optionalDependencies']) {
