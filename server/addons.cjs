@@ -158,6 +158,57 @@ function normalizeLocales(raw) {
   return Object.keys(locales).length ? locales : null;
 }
 
+const INSTALLED_OPTIONAL_MANIFEST_FIELDS = [
+  'hostVersion',
+  'capabilities',
+  'server',
+  'contentDir',
+  'contentGroups',
+  'locales',
+];
+
+function installedOptionalMetadata(manifest) {
+  const metadata = {};
+  if (manifest.hostVersion !== undefined) metadata.hostVersion = manifest.hostVersion;
+  if (manifest.capabilities !== undefined) metadata.capabilities = manifest.capabilities;
+  if (manifest.server !== undefined) metadata.server = manifest.server;
+  if (manifest.contentDir !== undefined) metadata.contentDir = manifest.contentDir;
+  const contentGroups = normalizeContentGroups(manifest.contentGroups);
+  if (contentGroups) metadata.contentGroups = contentGroups;
+  const locales = normalizeLocales(manifest.locales);
+  if (locales) metadata.locales = locales;
+  return metadata;
+}
+
+function applyInstalledOptionalMetadata(target, metadata) {
+  for (const field of INSTALLED_OPTIONAL_MANIFEST_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(metadata, field)) target[field] = metadata[field];
+    else delete target[field];
+  }
+  return target;
+}
+
+function repairLegacyInstalledMetadata(registry) {
+  if (!registry || typeof registry !== 'object' || !Array.isArray(registry.addons)) return 0;
+  let repaired = 0;
+  for (const addon of registry.addons) {
+    if (!addon || typeof addon !== 'object' || Array.isArray(addon)) continue;
+    if (addon.contentDir === null) {
+      delete addon.contentDir;
+      repaired++;
+    }
+    if (!Array.isArray(addon.versions)) continue;
+    for (const version of addon.versions) {
+      if (!version || typeof version !== 'object' || Array.isArray(version)) continue;
+      if (version.contentDir === null) {
+        delete version.contentDir;
+        repaired++;
+      }
+    }
+  }
+  return repaired;
+}
+
 /** The empty registry shape written on first install. */
 function defaultRegistry() {
   return { schema: REGISTRY_SCHEMA, addons: [], resolutions: {}, sources: { allow: [] } };
@@ -172,6 +223,7 @@ function normalizeRegistry(parsed) {
   reg.resolutions = (reg.resolutions && typeof reg.resolutions === 'object' && !Array.isArray(reg.resolutions)) ? reg.resolutions : {};
   reg.sources     = (reg.sources && typeof reg.sources === 'object' && !Array.isArray(reg.sources)) ? reg.sources : {};
   reg.sources.allow = Array.isArray(reg.sources.allow) ? reg.sources.allow.filter(s => typeof s === 'string') : [];
+  repairLegacyInstalledMetadata(reg);
   // Per-addon content-group state: `contentGroups` (the manifest declaration
   // carried into the registry at promote) and `disabledContentGroups` (the
   // DM's off-list). Both re-validated on every read — a registry may arrive
@@ -575,6 +627,9 @@ module.exports = {
   normalizeContentGroups,
   normalizeDisabledContentGroups,
   normalizeLocales,
+  installedOptionalMetadata,
+  applyInstalledOptionalMetadata,
+  repairLegacyInstalledMetadata,
   validateManifest,
   matchRepoRule,
   isAllowed,

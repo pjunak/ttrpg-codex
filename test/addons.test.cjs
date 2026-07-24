@@ -8,6 +8,7 @@ const {
   validateManifest, matchRepoRule, isAllowed, parseRepoInput,
   contentHash, _safeRel,
   addonCollectionType, parseAddonType, normalizeCollections, normalizeLocales,
+  installedOptionalMetadata, applyInstalledOptionalMetadata, repairLegacyInstalledMetadata,
   resolveRefToSha, fetchZipball, fetchManifest,
 } = require('../server/addons.cjs');
 
@@ -80,6 +81,14 @@ test('validateManifest: server must be a relative .cjs/.js path; serverDeps an a
   assert.equal(validateManifest(goodManifest({ serverDeps: [1] })).ok, false);
 });
 
+test('validateManifest: contentDir must be an absent or valid relative string', () => {
+  assert.equal(validateManifest(goodManifest()).ok, true);
+  assert.equal(validateManifest(goodManifest({ contentDir: 'data/books' })).ok, true);
+  assert.equal(validateManifest(goodManifest({ contentDir: null })).ok, false);
+  assert.equal(validateManifest(goodManifest({ contentDir: '' })).ok, false);
+  assert.equal(validateManifest(goodManifest({ contentDir: '../data' })).ok, false);
+});
+
 test('validateManifest: tests must be { client?, server? } of relative paths', () => {
   assert.equal(validateManifest(goodManifest({ tests: { server: 'tests/a.cjs' } })).ok, true);
   assert.equal(validateManifest(goodManifest({ tests: { client: ['a.mjs', 'b.mjs'] } })).ok, true);
@@ -123,6 +132,69 @@ test('normalizeRegistry: coerces junk into a valid shape', () => {
   const reg2 = normalizeRegistry({ addons: 'x', sources: { allow: [1, 'me/ok', null] } });
   assert.deepEqual(reg2.addons, []);
   assert.deepEqual(reg2.sources.allow, ['me/ok']);   // non-strings dropped
+});
+
+test('installed optional metadata omits absent fields and preserves declared values', () => {
+  assert.deepEqual(installedOptionalMetadata(goodManifest({ apiVersion: 1, hostVersion: undefined })), {});
+  const metadata = installedOptionalMetadata(goodManifest({
+    capabilities: { required: ['content.revision'] },
+    server: 'server/index.cjs',
+    contentDir: 'Data/Books',
+    contentGroups: { field: 'book', label: 'Books' },
+    locales: { en: 'locales/en.json' },
+  }));
+  assert.deepEqual(metadata, {
+    hostVersion: '>=1.0.0',
+    capabilities: { required: ['content.revision'] },
+    server: 'server/index.cjs',
+    contentDir: 'Data/Books',
+    contentGroups: { field: 'book', label: 'Books' },
+    locales: { en: 'locales/en.json' },
+  });
+
+  const target = {
+    hostVersion: '>=0.9.0',
+    capabilities: { required: ['old'] },
+    server: 'old.cjs',
+    contentDir: 'old-data',
+    contentGroups: { field: 'old' },
+    locales: { en: 'old.json' },
+    activeHash: 'kept',
+  };
+  applyInstalledOptionalMetadata(target, { server: 'server/new.cjs' });
+  assert.deepEqual(target, { server: 'server/new.cjs', activeHash: 'kept' });
+});
+
+test('legacy installed contentDir:null repair is narrow and idempotent', () => {
+  const reg = {
+    schema: 1,
+    addons: [{
+      id: 'dm-tools',
+      contentDir: null,
+      server: 'server/index.cjs',
+      activeHash: 'abc',
+      grantedPermissions: ['server:code'],
+      disabledContentGroups: ['mm'],
+      versions: [
+        { contentHash: 'abc', contentDir: null, sha: 'one', rollback: { kept: true } },
+        { contentHash: 'def', contentDir: 'data', sha: 'two' },
+      ],
+    }],
+    resolutions: { x: 'dm-tools' },
+    sources: { allow: ['me/dm-tools'] },
+  };
+  assert.equal(repairLegacyInstalledMetadata(reg), 2);
+  assert.equal('contentDir' in reg.addons[0], false);
+  assert.equal('contentDir' in reg.addons[0].versions[0], false);
+  assert.equal(reg.addons[0].versions[1].contentDir, 'data');
+  assert.equal(reg.addons[0].server, 'server/index.cjs');
+  assert.deepEqual(reg.addons[0].grantedPermissions, ['server:code']);
+  assert.deepEqual(reg.addons[0].versions[0].rollback, { kept: true });
+  assert.deepEqual(reg.resolutions, { x: 'dm-tools' });
+  assert.deepEqual(reg.sources.allow, ['me/dm-tools']);
+  const afterFirstRepair = JSON.stringify(reg);
+  assert.equal(repairLegacyInstalledMetadata(reg), 0);
+  assert.equal(JSON.stringify(reg), afterFirstRepair);
 });
 
 // ── contentHash ───────────────────────────────────────────────────

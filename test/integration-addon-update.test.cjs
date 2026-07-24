@@ -49,9 +49,12 @@ const codeDirs = (id) => ({
 });
 
 test('rollback (no hash) flips activeHash to the previous version + restores its fields', async () => {
+  const installed = twoVersionEntry({ contentDir: 'data', contentGroups: { field: 'book', label: 'Books' } });
+  installed.versions[1].contentDir = 'data';
+  installed.versions[1].contentGroups = { field: 'book', label: 'Books' };
   const srv = await startServer({
     dmPassword: DM,
-    seedData:  { 'addons.json': registry([twoVersionEntry()]) },
+    seedData:  { 'addons.json': registry([installed]) },
     seedFiles: codeDirs('demo'),
   });
   try {
@@ -67,6 +70,8 @@ test('rollback (no hash) flips activeHash to the previous version + restores its
     assert.equal(a.activeHash, 'hash1');
     assert.equal(a.version, '1.0.0');
     assert.deepEqual(a.locales, { en: 'locales/1.0.0.json' });
+    assert.equal('contentDir' in a, false, 'rollback to a version without contentDir clears it');
+    assert.equal('contentGroups' in a, false, 'rollback restores the absence of optional grouping metadata');
   } finally { await srv.kill(); }
 });
 

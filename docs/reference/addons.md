@@ -102,13 +102,14 @@ testing, the update/rollback wizard, and backup coverage.
   in server.js — the single source of truth for "what counts as data").
 - `data/addons.json` — the **registry** (top-level → rides snapshots +
   the data hash). Shape: `{ schema, addons:[{id, repo, ref, sha, name,
-  version, apiVersion, hostVersion, entry, server, contentDir, contentGroups?, locales?,
+  version, apiVersion, hostVersion?, entry, server?, contentDir?, contentGroups?, locales?,
   disabledContentGroups?, serverDeps[], activeHash,
-  versions:[{contentHash,version,sha,installedAt, entry,server,contentDir,serverDeps,locales,
+  versions:[{contentHash,version,sha,installedAt, entry,server?,contentDir?,serverDeps,locales?,
   collections,dependencies,optionalDependencies}], enabled, grantedPermissions[],
   dependencies{}, optionalDependencies{},
   collections:[{name,keyed,access}], schemaVersion}], resolutions:{}, sources:{allow:[]} }`.
-  `ref` is the original branch/tag (for update checks); `sha` the installed
+  Optional installed-metadata fields are omitted when their source manifest
+  declaration is absent. `ref` is the original branch/tag (for update checks); `sha` the installed
   commit. `versions[]` snapshots each version's structural manifest fields so a
   rollback restores them, not just the code dir.
   `sources.allow` is an **audit trail** of repos an addon was installed from

@@ -2270,6 +2270,21 @@ async function _readAddonsRegistry() {
 async function _writeAddonsRegistry(reg) {
   await _atomicWrite(ADDONS_REGISTRY_FILE, JSON.stringify(reg, null, 2));
 }
+async function _repairLegacyAddonRegistry() {
+  return withWriteLock(async () => {
+    let raw;
+    try {
+      raw = await fsp.readFile(ADDONS_REGISTRY_FILE, 'utf8');
+    } catch (e) {
+      if (e.code === 'ENOENT') return 0;
+      throw e;
+    }
+    const reg = JSON.parse(raw);
+    const repaired = AddonBroker.repairLegacyInstalledMetadata(reg);
+    if (repaired) await _writeAddonsRegistry(reg);
+    return repaired;
+  });
+}
 
 // Shape the registry into the public list the client boot consumes.
 // Readable by anyone (boot is pre-login); exposes only enough to import
@@ -2776,30 +2791,22 @@ async function _promoteAddon(staged) {
   // The version record snapshots the structural manifest fields too, so a
   // rollback to this contentHash can restore the right entry/server/collections,
   // not just flip the code dir.
-  const _contentGroups = AddonBroker.normalizeContentGroups(manifest.contentGroups);
-  const _locales = AddonBroker.normalizeLocales(manifest.locales);
+  const _optionalMetadata = AddonBroker.installedOptionalMetadata(manifest);
   const versionRec = {
     contentHash: hash, version: manifest.version, sha, installedAt: Date.now(),
-    apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
-    entry: manifest.entry, server: manifest.server || null,
-    contentDir: manifest.contentDir || null,
-    contentGroups: _contentGroups,
-    locales: _locales,
+    apiVersion: manifest.apiVersion,
+    entry: manifest.entry,
     serverDeps: _serverDeps, collections: _collections,
     dependencies: _dependencies, optionalDependencies: _optionalDependencies,
-    capabilities: manifest.capabilities || undefined,
+    ..._optionalMetadata,
   };
   let entry = reg.addons.find(a => a.id === id);
   if (!entry) {
     entry = {
       id, repo, ref: useRef, sha,
       name: manifest.name, version: manifest.version,
-      apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
-      capabilities: manifest.capabilities || undefined,
-      entry: manifest.entry, server: manifest.server || null,
-      contentDir: manifest.contentDir || null,
-      contentGroups: _contentGroups,
-      locales: _locales,
+      apiVersion: manifest.apiVersion,
+      entry: manifest.entry,
       disabledContentGroups: [],
       serverDeps: _serverDeps,
       activeHash: hash, versions: [versionRec],
@@ -2808,27 +2815,25 @@ async function _promoteAddon(staged) {
       optionalDependencies: _optionalDependencies,
       collections: _collections,
       schemaVersion: 0, installedAt: Date.now(),
+      ..._optionalMetadata,
     };
     reg.addons.push(entry);
   } else {
     Object.assign(entry, {
       repo, ref: useRef, sha,
       name: manifest.name, version: manifest.version,
-      apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
-      capabilities: manifest.capabilities || undefined,
-      entry: manifest.entry, server: manifest.server || null,
-      contentDir: manifest.contentDir || null,
+      apiVersion: manifest.apiVersion,
+      entry: manifest.entry,
       // The DM's disabledContentGroups toggle state survives updates; the
       // DECLARATION follows the manifest (an update may add/drop/rename the
       // grouping field — stale off-list ids then simply match nothing).
-      contentGroups: _contentGroups,
-      locales: _locales,
       serverDeps: _serverDeps,
       dependencies: _dependencies,
       optionalDependencies: _optionalDependencies,
       collections: _collections,
       activeHash: hash,
     });
+    AddonBroker.applyInstalledOptionalMetadata(entry, _optionalMetadata);
     if (!Array.isArray(entry.versions)) entry.versions = [];
     if (!entry.versions.some(x => x.contentHash === hash)) entry.versions.push(versionRec);
     if (entry.versions.length > ADDON_VERSIONS_KEEP) entry.versions = entry.versions.slice(-ADDON_VERSIONS_KEEP);
@@ -3036,11 +3041,15 @@ app.post('/api/addons/:id/rollback', requireRealDM('Jen DM může vracet verze d
       if (target.entry)                  entry.entry       = target.entry;
       if (target.apiVersion)             entry.apiVersion  = target.apiVersion;
       if (target.hostVersion !== undefined) entry.hostVersion = target.hostVersion;
+      else delete entry.hostVersion;
       if (target.capabilities !== undefined) entry.capabilities = target.capabilities;
       else delete entry.capabilities;
-      if (target.server !== undefined)   entry.server      = target.server;
+      if (target.server !== undefined) entry.server = target.server;
+      else delete entry.server;
       if (target.contentDir !== undefined) entry.contentDir = target.contentDir;
+      else delete entry.contentDir;
       if (target.contentGroups !== undefined) entry.contentGroups = target.contentGroups;
+      else delete entry.contentGroups;
       if (target.locales !== undefined) entry.locales = target.locales;
       else delete entry.locales;
       if (Array.isArray(target.serverDeps))  entry.serverDeps  = target.serverDeps;
@@ -4342,6 +4351,12 @@ async function _bootstrap() {
     await runStartupMigrations();
   } catch (e) {
     console.warn('[migration] startup migration sweep failed:', e.message);
+  }
+  try {
+    const repaired = await _repairLegacyAddonRegistry();
+    if (repaired) console.log(`[addons] repaired ${repaired} legacy contentDir metadata field(s)`);
+  } catch (e) {
+    console.warn('[addons] legacy metadata repair failed:', e.message);
   }
   // Register enabled addons' declared collections into the type system so
   // their data rides the generic GET/PATCH /api/data path from the first

@@ -10,6 +10,7 @@
 const { test } = require('node:test');
 const assert   = require('node:assert/strict');
 const fsp      = require('fs').promises;
+const os       = require('node:os');
 const path     = require('path');
 const { startServer } = require('./helpers/server-process.cjs');
 
@@ -144,4 +145,58 @@ test('a disabled server addon serves nothing (404) + reports disabled', async ()
     assert.equal((await srv.fetch('/api/addon/dice/roll')).status, 404);
     assert.equal((await addonsList(srv)).find(x => x.id === 'dice').serverState, 'disabled');
   } finally { await srv.kill(); }
+});
+
+test('startup repairs legacy generated contentDir:null before loading a server addon', async () => {
+  const dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'codex-legacy-addon-registry-'));
+  const legacy = entry({
+    id: 'legacy-server',
+    contentDir: null,
+    versions: [{
+      contentHash: 'h1',
+      version: '0.1.0',
+      sha: 'local',
+      installedAt: 123,
+      entry: 'entry.js',
+      server: 'server/index.cjs',
+      contentDir: null,
+      serverDeps: [],
+      permissionsSnapshot: ['server:code'],
+    }],
+  });
+  let srv;
+  try {
+    srv = await startServer({
+      dataDir,
+      dmPassword: DM,
+      seedData: { 'addons.json': registry([legacy]) },
+      seedFiles: codeOf('legacy-server', GOOD_SERVER),
+    });
+    assert.equal((await srv.fetch('/api/addon/legacy-server/roll')).status, 200);
+    assert.equal((await addonsList(srv)).find(x => x.id === 'legacy-server').serverState, 'loaded');
+    await srv.kill();
+    srv = null;
+
+    const repairedText = await fsp.readFile(path.join(dataDir, 'addons.json'), 'utf8');
+    const repaired = JSON.parse(repairedText);
+    assert.equal('contentDir' in repaired.addons[0], false);
+    assert.equal('contentDir' in repaired.addons[0].versions[0], false);
+    assert.equal(repaired.addons[0].server, 'server/index.cjs');
+    assert.equal(repaired.addons[0].activeHash, 'h1');
+    assert.deepEqual(repaired.addons[0].grantedPermissions, ['server:code']);
+    assert.deepEqual(repaired.addons[0].versions[0].permissionsSnapshot, ['server:code']);
+
+    srv = await startServer({ dataDir, dmPassword: DM });
+    assert.equal((await srv.fetch('/api/addon/legacy-server/roll')).status, 200);
+    await srv.kill();
+    srv = null;
+    assert.equal(
+      await fsp.readFile(path.join(dataDir, 'addons.json'), 'utf8'),
+      repairedText,
+      'a second startup performs no registry rewrite',
+    );
+  } finally {
+    if (srv) await srv.kill();
+    await fsp.rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
 });

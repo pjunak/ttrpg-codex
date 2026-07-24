@@ -82,30 +82,28 @@ const collections = Broker.normalizeCollections(
 );
 const dependencies = (manifest.dependencies && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) ? manifest.dependencies : {};
 const optionalDependencies = (manifest.optionalDependencies && typeof manifest.optionalDependencies === 'object' && !Array.isArray(manifest.optionalDependencies)) ? manifest.optionalDependencies : {};
-const contentGroups = Broker.normalizeContentGroups(manifest.contentGroups);
-const locales = Broker.normalizeLocales(manifest.locales);
+const optionalMetadata = Broker.installedOptionalMetadata(manifest);
 const versionRec = {
   contentHash: hash, version: manifest.version, sha: 'local', installedAt: Date.now(),
-  apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
-  entry: manifest.entry, server: manifest.server || null,
-  contentDir: manifest.contentDir || null, contentGroups, locales,
-  serverDeps, collections, dependencies, optionalDependencies, capabilities,
+  apiVersion: manifest.apiVersion,
+  entry: manifest.entry,
+  serverDeps, collections, dependencies, optionalDependencies,
+  ...optionalMetadata,
 };
 let entry = reg.addons.find(a => a.id === id);
 if (!entry) {
   entry = {
     id, repo: 'local', ref: 'local', sha: 'local',
     name: manifest.name, version: manifest.version,
-    apiVersion: manifest.apiVersion, hostVersion: manifest.hostVersion || '',
-    capabilities,
-    entry: manifest.entry, server: manifest.server || null,
-    contentDir: manifest.contentDir || null,
-    contentGroups, locales, disabledContentGroups: [],
+    apiVersion: manifest.apiVersion,
+    entry: manifest.entry,
+    disabledContentGroups: [],
     serverDeps,
     activeHash: hash, versions: [versionRec],
     enabled: true, grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
     dependencies, optionalDependencies, collections,
     schemaVersion: 0, installedAt: Date.now(),
+    ...optionalMetadata,
   };
   reg.addons.push(entry);
 } else {
@@ -117,16 +115,18 @@ if (!entry) {
   // the local manifest.
   Object.assign(entry, {
     name: manifest.name, version: manifest.version, apiVersion: manifest.apiVersion,
-    hostVersion: manifest.hostVersion || '', capabilities,
-    entry: manifest.entry, server: manifest.server || null,
-    contentDir: manifest.contentDir || null, contentGroups, locales,
+    entry: manifest.entry,
     activeHash: hash, enabled: true,
     grantedPermissions: Array.isArray(manifest.permissions) ? manifest.permissions : (entry.grantedPermissions || []),
     serverDeps, dependencies, optionalDependencies, collections,
   });
+  Broker.applyInstalledOptionalMetadata(entry, optionalMetadata);
   if (!Array.isArray(entry.versions)) entry.versions = [];
   const versionIndex = entry.versions.findIndex(x => x.contentHash === hash);
-  if (versionIndex >= 0) entry.versions[versionIndex] = versionRec;
+  if (versionIndex >= 0) {
+    versionRec.installedAt = entry.versions[versionIndex].installedAt || versionRec.installedAt;
+    entry.versions[versionIndex] = versionRec;
+  }
   else entry.versions.push(versionRec);
 }
 
