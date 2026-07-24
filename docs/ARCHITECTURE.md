@@ -67,7 +67,7 @@ web/js/
   edit_templates.js HTML form templates for every edit overlay
   search.js         Ctrl+K global search palette
   settings.js       /nastaveni page (enums + maps + sidebar + backup + account tabs)
-  dm_dashboard.js   DM-only landing page at /dm (per-collection DM-entity counts)
+  dm_dashboard.js   Stable DM-only /dm shell, addon slot, diagnostics, and fallback
   sidebar.js        Data-driven left nav (Sidebar.render) + DM drag-drop layout editor
 
   widgets/
@@ -143,7 +143,7 @@ Hash-based SPA routing. All logic in `app.js:navigate()`.
 | `/mapa/{frakce,vztahy,tajemstvi,palac}` | Mind-map modes |
 | `/casova-osa` | Timeline kanban |
 | `/mazlicci` | Pets hub |
-| `/dm` | DM-only landing page |
+| `/dm` | DM-only shell; addon-owned workflow content with a core recovery fallback |
 | `/nastaveni` | Settings page |
 
 The route table itself is the `switch` in `app.js:navigate()`

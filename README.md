@@ -118,9 +118,8 @@ test/                    node --test unit + integration tests
 
 - **Per-Pohled marker visibility rules** — let each saved map preset
   carry rules like "hide pin type X" or "only show pins with attitude Y".
-- **More ruleset addons** — a D&D 5.5e (2024) toolkit (character
-  sheets + Player's Handbook + Monster Manual) is being built on the
-  addon framework; other systems can follow the same pattern.
+- **More ruleset addons** — the D&D 5.5e (2024) character sheets and
+  compendium establish the pattern; other systems can follow it.
 - **Addon sandboxing** — addons currently run trusted and in-process;
   an iframe/Worker sandbox under strict CSP is a future hardening idea.
 - **Bulk marker-icon import** — zip upload following

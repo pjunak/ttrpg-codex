@@ -335,9 +335,11 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   injection into a NAMED slot on ANY surface — `render(ctx)` → `{html}`|string|null,
   errors isolated; readback `Addons.slotContent(slotId, ctx)`. The open-ended
   slotId is the "no future rewrites" seam — a new surface adopts it with just a
-  `slotContent` call-site, no new host API. Live timeline slots:
-  `timeline:card:extra`, `timeline:column:header|footer`, `timeline:toolbar`,
-  plus `Addons.applyFragments('timeline:card', …)` for replace/hide/wrap),
+  `slotContent` call-site, no new host API. Live slots include
+  `dm:dashboard` (effective-DM workflow content; core owns authorization and
+  fallback), `dashboard:section`, `map:pin:panel`, `timeline:card:extra`,
+  `timeline:column:header|footer`, and `timeline:toolbar`, plus
+  `Addons.applyFragments('timeline:card', …)` for replace/hide/wrap),
   **`registerConnectionKind(def)`** (←`kinds:connections`; DATA-only
   `{id,label,color,style,dirs?,target?}` merged into `Store.getKinds('connections')`),
   **`registerNodeKind(def)`** / **`registerGraphView(def)`** (←`kinds:graph`) +

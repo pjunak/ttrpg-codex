@@ -210,9 +210,10 @@ git pull
 docker compose up -d --build
 ```
 
-The container restart preserves `./data` and `./data-snapshots`. If
-a release introduces a schema migration, it runs idempotently on the
-client's next page load — there's no manual migration step.
+The container restart preserves `./data` and `./data-snapshots`. Server-owned
+schema migrations run idempotently before the listener starts; the remaining
+client-owned normalizers run idempotently after data loads. There is no manual
+migration step.
 
 If you need to roll back, the previous Docker image is still cached;
 `docker compose down && docker tag <previous-sha> ttrpg-codex && docker compose up -d`

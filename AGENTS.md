@@ -161,7 +161,8 @@ web/
     search.js              Global Ctrl+K search palette (GlobalSearch).
     role.js                Client cache of /api/auth: Role.isDM()/isPlayer(),
                            view-as switching, body.is-dm/-player classes.
-    dm_dashboard.js        /dm landing page (DM-only entity counts + stubs).
+    dm_dashboard.js        Stable DM-only /dm shell: authorization, addon
+                           dashboard slot, diagnostics, and recovery fallback.
     settings.js            /nastaveni: enum editors, Vzhled, Účet/Server,
                            and the DM Addon Manager (install wizard,
                            content-group toggles).
@@ -243,7 +244,7 @@ there.**
 |---|---|---|
 | `dnd-character-sheets` | `dnd-sheets` | Tabbed character sheet (Overview/Character Sheet/Combat/Spellbook/Builder) + a built-in pure rules engine (`rules/engine.js` + `rules/api.js`), edition-parameterized (built-in 2024 constants; a provider's `ruleset` record overrides per constant — `dnd5e-compendium` is the reserved 2014 provider id). Standalone hand-fillable; soft-dep (`optionalDependencies`) on the compendium — engine mode lights up when book data is present. `provide()`s the rules API for future consumers. ⚠ The addon id keys `character.addonData` — renaming it orphans sheet data without a key migration. |
 | `dnd55e-compendium` | `dnd55e-compendium` | The complete D&D 5.5e (2024) content addon — PHB, DMG material, and the Monster Manual bestiary (~1,880 records) as a per-record JSON tree served by THIS host via manifest `contentDir` (no server code, hot install/update). `/compendium` browse UI (+ `/bestiary` alias) + `[[…|spell]]`-style wiki kinds; `provide()`s the pure data API the sheets engine consumes. The equipment importer reads the sibling `Living-scroll` checkout. ⚠ The GitHub repo is **PRIVATE** (since 2026-07, so owner-owned copyrighted book content can live there — see its `data/COVERAGE.md`); GitHub installs/updates need `CODEX_GITHUB_TOKEN`. |
-| `dm-tools` | `dm-tools` | API-v2 reference consumer for host-managed DM-only data, F2 transactions, F4/F5 imports, localization, and the F6 graph facade. It declares only the list-shaped `scenarios` collection with `access:"dm"`; its read-only graph page maps each scenario to one independent node because the schema has no relationships. Planners, dashboard ownership, additional providers, and speculative collections remain out of scope. |
+| `dm-tools` | `dm-tools` | API-v2 reference consumer for host-managed DM-only data, F2 transactions, F4/F5 imports, localization, the F6 graph facade, and the `dm:dashboard` content slot. It declares only the list-shaped `scenarios` collection with `access:"dm"`; its scenario dashboard owns the normal `/dm` workflow content, while core retains route authorization, diagnostics, and recovery fallback. Its read-only graph page maps each scenario to one independent node because the schema has no relationships. Planners, additional providers, and speculative collections remain out of scope. |
 
 Working loop: edit in the addon repo → `node scripts/dev-install-addon.cjs
 <path-to-addon>` (run in THIS repo) → restart the app + refresh. ⚠ **Addon
@@ -323,10 +324,9 @@ sessions and don't get re-discovered:
     (The `/api/restore` path-safety and migration-idempotency gaps listed
     here originally are CLOSED; visibility closure is also CLOSED by
     `test/visibility.test.cjs` + `test/integration-visibility.test.cjs`.)
-3. Structural: server.js / store.js / settings.js god files; 4 duplicated
-    collection→route maps (wiki `_TWIN_LINK_ROUTE`, edit_templates
-    `TWIN_ROUTE_PREFIX`, editmode `_TWIN_ROUTE`, app `KIND_ROUTE`); 8
-    near-clone entity editors; no linter/formatter.
+3. Structural: server.js / store.js / settings.js god files; 8 near-clone
+    entity editors; no linter/formatter. Built-in collection identity and
+    article-route metadata now live in `collection-descriptors.js`.
 
 ### Open decisions (need the maintainer)
 

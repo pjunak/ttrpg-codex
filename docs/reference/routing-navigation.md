@@ -45,7 +45,7 @@ addon wiki kinds continue through `Addons.resolveWikiLink`.
 | `/mapa/vztahy` | `CloudMap.render('vztahy')` | |
 | `/mapa/tajemstvi` | `CloudMap.render('tajemstvi')` | |
 | `/casova-osa` | `Timeline.render()` | |
-| `/dm` | `DmDashboard.render()` | DM-only landing page. Counts DM-only entities per collection (entities with `visibility: 'dm'`) plus stub links for future DM-specific tools (session notes, plot tracker, etc.). Renders a "jen pro DM" placeholder for non-DM viewers. Sidebar entry is gated on `role: 'dm'` in `SIDEBAR_PAGES` so non-DM visitors don't see the link at all. |
+| `/dm` | `DmDashboard.render()` | Stable DM-only shell. Effective-DM authorization runs before addon slot enumeration. Successful `dm:dashboard` contributions own the normal workflow content; without one, core renders safe addon diagnostics, DM-only content counts, and an Addon Manager recovery link. Non-DM viewers receive only the refusal view, and the sidebar entry is gated on `role: 'dm'`. |
 | `/nastaveni` | `Settings.render()` | User-editable enums plus six special tabs: **Naše parta** (player-party visual identity), **Mapy** (per-map image upload + zoom-scale config), **Pohledy na mapě** (rename/delete captured view presets), **Postranní panel** (toggle which sidebar links are visible), **Záloha** (snapshot list, backup zip, restore, revert-last-N — role-aware: non-DM sees only the list + create-snapshot), **Účet** (role chip, logout, DM-only password rotation, DM-only view-as-player toggle). **Role-aware tab visibility:** non-DM viewers see only Účet + Záloha; DM sees everything. Anonymous visitors are intercepted by the route guard in `navigate()` and shown the login modal. |
 
 ## Wiki list-view controls (search + sort)

@@ -243,7 +243,7 @@ on that value.
 | `registerCollection(name)` | `data:own` | Wire your manifest-declared collection's scoped CRUD (§8). |
 | `registerWikiKind(scope, resolve)` | `wiki:kind` | Resolve `[[Label\|scope]]` links. `resolve(label) → {kind, id} \| null` (§7). |
 | `registerFragmentOp(target, spec)` | `ui:override` | Override a built-in fragment (replace/hide/wrap/insert) (§11). |
-| `registerSlot(slotId, render, opts?)` | `ui:slot:<surface>` | Inject content into a named slot on ANY surface (`<surface>` = slotId's first `:`-segment). `render(ctx) → {html} \| string \| null`. ADDITIVE, ordered by `opts.order`. Live slots: `dashboard:section` (ctx `{role}`), `map:pin:panel` (ctx `{location, pin, role}`), `timeline:card:extra`, `timeline:column:header\|footer`, `timeline:toolbar`. NOTE: `ctx.role.isDM` is a **boolean**, not a function. |
+| `registerSlot(slotId, render, opts?)` | `ui:slot:<surface>` | Inject content into a named slot on ANY surface (`<surface>` = slotId's first `:`-segment). `render(ctx) → {html} \| string \| null`. ADDITIVE, ordered by `opts.order`. Live slots: `dm:dashboard` (ctx `{role}`; invoked only for an effective DM), `dashboard:section` (ctx `{role}`), `map:pin:panel` (ctx `{location, pin, role}`), `timeline:card:extra`, `timeline:column:header\|footer`, `timeline:toolbar`. NOTE: `ctx.role.isDM` is a **boolean**, not a function. |
 | `registerKind(domain, def)` | `kinds:<domain>` | Add a pure-DATA enum kind in `domain` — merged into `Store.getKinds(domain)`. Domains: `connections`, `statuses`, `priorities`, `attitudes`, `genders`, `pinTypes`. `def = {id, label, color?, …}` (NO functions). Id namespaced `<addonId>:<def.id>`. Renders wherever that kind's label/colour does (e.g. a `statuses` kind shows up via `getStatusMap` on cloudmap/wiki/map). NOT an editable row in Settings. |
 | `registerConnectionKind(def)` | `kinds:connections` | Back-compat alias for `registerKind('connections', def)`. `def = {id, label, color, style, dirs?, target?}`. Shows in the rel editor + as a mind-map edge. |
 | `registerNodeKind(def)` | `kinds:graph` | Add a mind-map node type: `def = {id, shape?, cardHTML(node)→html, height?(node)→px, searchText?, detailHash?(d)}`. `cardHTML` must emit a `.cm-cloud` card. |
@@ -700,8 +700,8 @@ module.exports.init = (host) => {
 `serverHost`: `get/post/put/delete(subpath, handler)` + `router`;
 `data.{read(name), write(name, obj), dir}` (confined to your dir);
 `readCollection(name)` (needs `data:read:<name>`); `lib(name)` (vetted);
-`withLock(fn)` (30 s watchdog — a critical section that never settles is
-force-released so it can't wedge the server-wide write chain);
+`withLock(fn)` (30 s diagnostic watchdog; ownership remains with `fn` until it
+settles so writes can never overlap);
 `broadcastDataChanged()`; `log(...)`.
 
 ### Import-provider server contract
