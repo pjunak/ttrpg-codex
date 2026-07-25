@@ -49,7 +49,7 @@ export function createSyncCoordinator({ load, render }) {
     getAcceptedHash: () => acceptedHash,
     isActive: () => active,
     whenIdle: () => active || requested
-      ? new Promise(resolve => idleWaiters.push(resolve))
+      ? new Promise(resolve => { idleWaiters.push(resolve); })
       : Promise.resolve(),
   };
 }

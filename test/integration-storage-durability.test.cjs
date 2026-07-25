@@ -41,7 +41,7 @@ async function waitForEmpty(dir, timeoutMs = 3000) {
   while (Date.now() - started < timeoutMs) {
     const entries = await fsp.readdir(dir).catch(() => []);
     if (entries.length === 0) return;
-    await new Promise(resolve => setTimeout(resolve, 25));
+    await new Promise(resolve => { setTimeout(resolve, 25); });
   }
   assert.deepEqual(await fsp.readdir(dir), []);
 }
@@ -81,7 +81,7 @@ test('a mutation queued behind a wedged holder gets the deterministic bounded 50
   try {
     await login(srv);
     void srv.fetch('/api/addon/wedge/hold').catch(() => {});
-    await new Promise(resolve => setTimeout(resolve, 30));
+    await new Promise(resolve => { setTimeout(resolve, 30); });
 
     const started = Date.now();
     const res = await patchCharacter(srv, { id: 'ghost', name: 'Ghost' });
@@ -114,7 +114,7 @@ test('backup is a point-in-time copy while a write races snapshot creation', asy
   try {
     await login(srv);
     const backupPromise = srv.fetch('/api/backup');
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await new Promise(resolve => { setTimeout(resolve, 20); });
     const writePromise = patchCharacter(srv, after);
     const [backup, write] = await Promise.all([backupPromise, writePromise]);
     assert.equal(backup.status, 200);
@@ -153,7 +153,9 @@ test('paused backup streaming does not hold the core write lock', async () => {
     const streaming = await responseReady;
     const write = await Promise.race([
       patchCharacter(srv, { id: 'during-stream', name: 'During stream' }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('write remained locked by stream')), 1000)),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('write remained locked by stream')), 1000);
+      }),
     ]);
     assert.equal(write.status, 200);
     streaming.res.destroy();

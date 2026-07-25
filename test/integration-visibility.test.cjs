@@ -308,13 +308,13 @@ test('Settings collection is not filtered (shared metadata)', async () => {
     dmPassword: DM, playerPassword: PLAYER,
     seedData: {
       'settings.json': {
-        attitudes: [{ id: 'ally', label: 'Spojenec' }],
+        attitudes: [{ id: 'ally', label: 'Spojenec', strength: 1 }],
       },
     },
   });
   try {
     const data = await fetchData(srv);
-    assert.deepEqual(data.settings.attitudes, [{ id: 'ally', label: 'Spojenec' }]);
+    assert.deepEqual(data.settings.attitudes, [{ id: 'ally', label: 'Spojenec', strength: 1 }]);
   } finally { await srv.kill(); }
 });
 

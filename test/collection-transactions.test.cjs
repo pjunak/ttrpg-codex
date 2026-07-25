@@ -150,6 +150,47 @@ test('recovery preserves and rejects an unparsable durable journal', async () =>
   }
 });
 
+test('a completed transaction journal never overwrites a later write during cleanup recovery', async () => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'codex-tx-complete-'));
+  const runtimeDir = path.join(root, '.runtime', 'transactions');
+  const addonDataDir = path.join(root, 'addon-data');
+  const id = 'tx-44444444444444444444444444444444';
+  const txDir = path.join(runtimeDir, id);
+  const target = path.join(addonDataDir, 'fixture', 'notes.json');
+  await fsp.mkdir(path.dirname(target), { recursive: true });
+  await fsp.mkdir(txDir, { recursive: true });
+  await fsp.writeFile(target, '[{"id":"later"}]', 'utf8');
+  await fsp.writeFile(path.join(txDir, 'notes.original.json'), '[{"id":"before"}]', 'utf8');
+  await fsp.writeFile(path.join(txDir, 'notes.next.json'), '[{"id":"committed"}]', 'utf8');
+  await fsp.writeFile(path.join(txDir, 'journal.json'), JSON.stringify({
+    version: 1,
+    id,
+    addonId: 'fixture',
+    state: 'committed',
+    effectsApplied: true,
+    entries: [{
+      collection: 'notes',
+      keyed: false,
+      access: 'public',
+      originalExists: true,
+    }],
+  }), 'utf8');
+  const manager = new CollectionTransactionManager({
+    runtimeDir,
+    addonDataDir,
+    publicationBarrier: new PublicationBarrier(),
+    resolveCollection: () => {
+      throw new Error('not used during recovery');
+    },
+  });
+  try {
+    assert.deepEqual((await manager.recover()).committed, [id]);
+    assert.deepEqual(JSON.parse(await fsp.readFile(target, 'utf8')), [{ id: 'later' }]);
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
 test('a failed rollback poisons reads and preserves a recoverable rolling-back journal', async () => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'codex-tx-rollback-fail-'));
   const runtimeDir = path.join(root, '.runtime', 'transactions');

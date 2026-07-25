@@ -68,7 +68,11 @@ function openSSE(baseUrl, cookie) {
         waitForEvent: (name, timeoutMs = 3000) => new Promise((res2, rej2) => {
           // Already in events?
           const hit = events.find(e => e.event === name && (e !== handle._lastDelivered));
-          if (hit) { handle._lastDelivered = hit; return res2(hit); }
+          if (hit) {
+            handle._lastDelivered = hit;
+            res2(hit);
+            return;
+          }
           const w = { name, resolve: (e) => { handle._lastDelivered = e; res2(e); } };
           waiters.push(w);
           setTimeout(() => {

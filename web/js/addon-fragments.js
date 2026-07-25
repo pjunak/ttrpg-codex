@@ -111,7 +111,6 @@ export function applyFragmentOps(fragments, claims, resolutions, ctx) {
       } else {
         // ≥2 exclusive claims, unresolved → conflict; keep built-in.
         conflicts.push({ target: f.id, claimants: exclusives.map(c => ({ addonId: c.addonId, op: c.op })) });
-        winner = null;
       }
       if (winner) html = (winner.op === 'hide') ? '' : render(winner, f.html, f.id);
       // winner === null → built-in html stands.

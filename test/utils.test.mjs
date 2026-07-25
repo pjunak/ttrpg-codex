@@ -94,7 +94,7 @@ describe('expandWikiLinks + resolver', () => {
   });
 
   it('rewrites resolved links into markdown links', () => {
-    setWikiLinkResolver((label, hint) => ({ kind: 'postava', id: 'frulam_a7b3c9' }));
+    setWikiLinkResolver(() => ({ kind: 'postava', id: 'frulam_a7b3c9' }));
     assert.equal(
       expandWikiLinks('see [[Frulam]]'),
       'see [Frulam](#/postava/frulam_a7b3c9)'

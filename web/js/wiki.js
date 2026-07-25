@@ -13,14 +13,19 @@ import { Store } from './store.js';
 import { EditMode } from './editmode.js';
 import { Role } from './role.js';
 import { norm, esc, renderMarkdown, extractOutline, humanTime, dataAction, dataOn, breadcrumbNav, announce, safeColor } from './utils.js';
-import { PIN_TYPES, WorldMap } from './map.js';
+import { WorldMap } from './map.js';
 import { Addons } from './addons.js';
 // Connection-kind labels come from Store.getKind('connections', id).label.
 import { PARTY_FACTION_ID } from './constants.js';
 import { I18n } from './i18n.js';
 import { CollectionDescriptors } from './collection-descriptors.js';
+import { PinTypes } from './pin-types.js';
 
 export const Wiki = (() => {
+
+  function _pinTypeDef(id) {
+    return PinTypes.resolve(Store.getEnum('pinTypes'), id);
+  }
 
   // Knowledge-level labels are UI chrome (the 0–4 SVG sketch tiers).
   // Built lazily at use time so a live language switch re-resolves them.
@@ -311,7 +316,7 @@ export const Wiki = (() => {
   // than a washed-out haze; alpha = strength on both layers so 50%
   // still looks proportionally subtle. Strength is sourced from the
   // `attitudes` settings enum (per-attitude), NOT from each entity
-  // entry — see `_migrateStrengthFromEntityToEnum` in store.js.
+  // entry; legacy entry-level strengths are removed at server startup.
   // Returns [{blur, rgba}] (empty when no entry has positive strength).
   function _glowLayers(entries, colors, blurPx = GLOW_BLUR_PX) {
     if (!Array.isArray(entries) || !entries.length) return [];
@@ -1625,7 +1630,7 @@ export const Wiki = (() => {
   }
 
   function _renderLocCard(l, colors) {
-    const pt = PIN_TYPES[l.pinType] || PIN_TYPES.custom || { icon: '📍', color: '#888' };
+    const pt = _pinTypeDef(l.pinType);
     const typeLabel = pt.label || l.type || '';
     const region = l.region ? `<div class="loc-card-sub">${esc(l.region)}</div>` : '';
     const editBtn = editOverlay(`#/misto/${l.id}`);
@@ -1640,8 +1645,8 @@ export const Wiki = (() => {
       ? `<img class="loc-card-icon-img" src="${esc(iconUrl)}" alt="" ${dataOn('error', 'hide', '$el')}>`
       : esc(pt.icon);
     const iconStyle = glow
-      ? `color:${pt.color};filter:${glow}`
-      : `color:${pt.color}`;
+      ? `color:${_safeColor(pt.color)};filter:${glow}`
+      : `color:${_safeColor(pt.color)}`;
     return `<a class="loc-card" href="#/misto/${l.id}" style="text-decoration:none;position:relative">
       ${editBtn}
       ${_twinCardMarker(l)}
@@ -1672,7 +1677,7 @@ export const Wiki = (() => {
     // Group by pinType when the default grouped-sort is active.
     // Group order follows the pinType's default `size` (bigger first
     // = more prominent place types head the page), with an "Ostatní"
-    // bucket pinned to the end. Falls back to PIN_TYPES constant when
+    // bucket pinned to the end. Falls back to the built-in definition when
     // settings hasn't been edited.
     if (s.sort === 'type') {
       const pinEnum = Store.getEnum('pinTypes') || [];
@@ -1687,21 +1692,21 @@ export const Wiki = (() => {
       keys.sort((a, b) => {
         if (a === '__other__') return 1;
         if (b === '__other__') return -1;
-        const sa = sizeMap.get(a) ?? (PIN_TYPES[a]?.size ?? 28);
-        const sb = sizeMap.get(b) ?? (PIN_TYPES[b]?.size ?? 28);
+        const sa = sizeMap.get(a) ?? (PinTypes.byId[a]?.size ?? PinTypes.sizeDefault);
+        const sb = sizeMap.get(b) ?? (PinTypes.byId[b]?.size ?? PinTypes.sizeDefault);
         if (sa !== sb) return sb - sa;  // bigger size first
-        const la = (PIN_TYPES[a]?.label) || a;
-        const lb = (PIN_TYPES[b]?.label) || b;
+        const la = _pinTypeDef(a).label;
+        const lb = _pinTypeDef(b).label;
         return _czCompare(la, lb);
       });
       const sections = keys.map(k => {
         const def = k === '__other__'
           ? { icon: '📦', label: I18n.t('wiki.locGroupOther') }
-          : (PIN_TYPES[k] || { icon: '📍', label: k });
+          : _pinTypeDef(k);
         const list = byType.get(k);
         return `
           <div class="list-group">
-            <div class="list-group-title">${def.icon} ${esc(def.label)} <span class="list-group-count">${list.length}</span></div>
+            <div class="list-group-title">${esc(def.icon || '📍')} ${esc(def.label)} <span class="list-group-count">${list.length}</span></div>
             <div class="loc-grid">${list.map(l => _renderLocCard(l, colors)).join('')}</div>
           </div>`;
       }).join('');
@@ -1842,7 +1847,7 @@ export const Wiki = (() => {
         <button class="inline-create-btn"${dataAction('EditMode.startNewLocation', { parentId: l.id })}>＋ ${esc(I18n.t('wiki.subLocation'))}</button>
       </div>`;
 
-    const pt = PIN_TYPES[l.pinType] || PIN_TYPES.custom || { icon: '📍', label: l.type || '' };
+    const pt = _pinTypeDef(l.pinType);
     const chips = [];
     if (placed)     chips.push(`<span class="profile-chip">📍 ${esc(I18n.t('wiki.chipOnMap'))}</span>`);
     if (l.localMap) chips.push(`<span class="profile-chip">🗺 ${esc(I18n.t('wiki.chipLocalMap'))}</span>`);
@@ -2716,7 +2721,7 @@ export const Wiki = (() => {
     const el = document.getElementById("main-content");
     if (!el) return;
 
-    let html = "";
+    let html;
     switch (page) {
       case "dashboard":  html = renderDashboard(); break;
       case "parta":      html = renderPartyList(); break;

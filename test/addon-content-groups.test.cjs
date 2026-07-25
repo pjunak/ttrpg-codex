@@ -14,7 +14,7 @@ const {
   HOST_API_VERSION, validateManifest, normalizeRegistry,
   normalizeContentGroups, normalizeDisabledContentGroups, contentRevision,
 } = require('../server/addons.cjs');
-const { loadContentTree, groupValues, filterContentTree } = require('../server/addon-content.cjs');
+const { groupValues, filterContentTree } = require('../server/addon-content.cjs');
 const { startServer } = require('./helpers/server-process.cjs');
 
 function goodManifest(over = {}) {

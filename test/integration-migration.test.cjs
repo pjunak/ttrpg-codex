@@ -129,7 +129,7 @@ test('migration: idempotent — already-stamped data triggers no writes, no snap
       // Pre-stamped data simulates a second boot after migration ran.
       // No `secrets` field (twin model deprecated it).
       'characters.json': [
-        { id: 'a', name: 'Alice', faction: 'neutral', visibility: 'public' },
+        { id: 'a', name: 'Alice', faction: 'neutral', visibility: 'public', attitudes: [] },
       ],
       'events.json': [
         { id: 'session', name: 'Session', sitting: 1, visibility: 'public' },
@@ -259,7 +259,7 @@ test('migration: corrupt JSON file is skipped with a warning, server still boots
   } finally { await srv.kill(); }
 });
 
-test('migration: preserves all other entity fields verbatim', async () => {
+test('migration: preserves unrelated entity fields verbatim', async () => {
   // Make sure the migration doesn't drop or rename anything beyond
   // the two new fields it adds.
   const original = {
@@ -281,9 +281,7 @@ test('migration: preserves all other entity fields verbatim', async () => {
   try {
     const chars = await readJson(path.join(srv.dataDir, 'characters.json'));
     const after = chars[0];
-    // Spread + visibility = the full original (twin-model migration
-    // only adds `visibility`; no `secrets` to backfill anymore).
-    assert.deepEqual(after, { ...original, visibility: 'public' });
+    assert.deepEqual(after, { ...original, visibility: 'public', attitudes: [] });
   } finally { await srv.kill(); }
 });
 
@@ -301,7 +299,7 @@ test('migration: startup normalizes timeline sitting zero once and snapshots the
   });
   try {
     const migrated = await readJson(path.join(srv.dataDir, 'events.json'));
-    const campaignFields = migrated.map(({ visibility, ...event }) => event);
+    const campaignFields = migrated.map(({ visibility: _visibility, ...event }) => event);
     assert.deepEqual(campaignFields, [
       { ...events[0], sitting: 1 },
       ...events.slice(1),
@@ -315,5 +313,142 @@ test('migration: startup normalizes timeline sitting zero once and snapshots the
     assert.equal(snapshot.files['events.json'][0].sitting, 1);
   } finally {
     await srv.kill();
+  }
+});
+
+test('migration: startup owns legacy campaign-shape normalization and remains idempotent', async () => {
+  const root = await fsp.mkdtemp(path.join(require('os').tmpdir(), 'codex-campaign-migration-'));
+  const dataDir = path.join(root, 'data');
+  const snapshotsDir = path.join(root, 'snapshots');
+  const seedData = {
+    'characters.json': [
+      {
+        id: 'pc',
+        faction: 'party',
+        status: 'captured',
+        attitudes: ['enemy'],
+        unknown: ['Where?'],
+        visibility: 'public',
+      },
+    ],
+    'locations.json': [
+      {
+        id: 'keep',
+        mapStatus: 'visited',
+        priority: 1,
+        status: 'occupied',
+        visibility: 'public',
+      },
+    ],
+    'factions.json': {
+      party: {
+        id: 'party',
+        name: 'The Heroes',
+        badge: '⚔',
+        color: '#123456',
+        textColor: '#abcdef',
+        visibility: 'public',
+      },
+    },
+    'mysteries.json': [
+      {
+        id: 'question',
+        questions: ['What?'],
+        visibility: 'public',
+      },
+    ],
+    'artifacts.json': [
+      {
+        id: 'relic',
+        state: 'lost',
+        visibility: 'public',
+      },
+    ],
+    'settings.json': {
+      attitudes: [
+        { id: 'unknown', label: 'Unknown' },
+        { id: 'enemy', label: 'Enemy' },
+      ],
+      pinTypes: [{ id: 'city', priority: 2 }],
+      mapStatuses: [{ id: 'visited' }],
+      locationStatuses: [{ id: 'occupied' }],
+      artifactStates: [{ id: 'lost' }],
+    },
+  };
+
+  let first;
+  let second;
+  try {
+    first = await startServer({
+      dmPassword: DM,
+      playerPassword: PLAYER,
+      dataDir,
+      snapshotsDir,
+      seedData,
+    });
+    await first.kill();
+    first = null;
+
+    assert.deepEqual(await readJson(path.join(dataDir, 'characters.json')), [
+      {
+        id: 'pc',
+        faction: 'party',
+        status: 'alive',
+        attitudes: [],
+        unknown: [{ text: 'Where?', answer: '' }],
+        visibility: 'public',
+        circumstances: 'Zajat/a',
+      },
+    ]);
+    assert.deepEqual(await readJson(path.join(dataDir, 'locations.json')), [
+      {
+        id: 'keep',
+        visibility: 'public',
+        attitudes: [{ id: 'ally' }],
+        size: 36,
+      },
+    ]);
+    assert.equal((await readJson(path.join(dataDir, 'factions.json'))).party, undefined);
+    assert.deepEqual(
+      (await readJson(path.join(dataDir, 'mysteries.json')))[0].questions,
+      [{ text: 'What?', answer: '' }],
+    );
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(
+        (await readJson(path.join(dataDir, 'artifacts.json')))[0],
+        'state',
+      ),
+      false,
+    );
+    const settings = await readJson(path.join(dataDir, 'settings.json'));
+    assert.deepEqual(settings.attitudes, [{ id: 'enemy', label: 'Enemy', strength: 1 }]);
+    assert.deepEqual(settings.pinTypes, [{ id: 'city', size: 30 }]);
+    assert.equal(settings.mapStatuses, undefined);
+    assert.equal(settings.locationStatuses, undefined);
+    assert.equal(settings.artifactStates, undefined);
+    assert.equal(settings.playerParty.name, 'The Heroes');
+    assert.deepEqual(await readJson(path.join(dataDir, 'deletedDefaults.json')), {
+      'settings:attitudes:unknown': true,
+      'factions:party': true,
+    });
+    assert.equal((await listSnapshots(snapshotsDir)).length, 1);
+
+    second = await startServer({
+      dmPassword: DM,
+      playerPassword: PLAYER,
+      dataDir,
+      snapshotsDir,
+    });
+    await second.kill();
+    second = null;
+    assert.equal(
+      (await listSnapshots(snapshotsDir)).length,
+      1,
+      'second startup must not create another migration snapshot',
+    );
+  } finally {
+    if (first) await first.kill();
+    if (second) await second.kill();
+    await fsp.rm(root, { recursive: true, force: true });
   }
 });

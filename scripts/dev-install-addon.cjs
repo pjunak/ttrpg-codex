@@ -20,6 +20,7 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 const Broker = require('../server/addons.cjs');
+const Content = require('../server/addon-content.cjs');
 const Localization = require('../server/addon-localization.cjs');
 
 async function main() {
@@ -55,6 +56,12 @@ const v = Broker.validateManifest(manifest);
 if (!v.ok) { console.error('invalid addon.json:\n  - ' + v.errors.join('\n  - ')); process.exit(1); }
 try { await Localization.validateLocalizationPackage(srcAbs, manifest); }
 catch (error) { console.error('invalid localization package:\n  - ' + error.message); process.exit(1); }
+try {
+  if (manifest.contentDir) Content.loadContentTree(path.join(srcAbs, manifest.contentDir));
+} catch (error) {
+  console.error('invalid declarative content:\n  - ' + error.message);
+  process.exit(1);
+}
 
 const id   = manifest.id;
 const hash = Broker.contentHash(fileMap, crypto);

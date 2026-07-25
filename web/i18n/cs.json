@@ -847,6 +847,7 @@
   "settings.saveText": "Uložit text",
   "settings.serverCodeWarn": "Obsahuje serverový kód — poběží s plnými právy serveru.",
   "settings.serverPartNote": "Serverová část doplňku: {state}.",
+  "settings.contentInvalid": "Deklarativní obsah je neplatný ({path}, {code}). Nainstalujte opravený balíček.",
   "settings.serverRestartNote": "Restartuj server (kontejner), aby se serverová část (od)načetla.",
   "settings.sizeTitle": "Velikost",
   "settings.snapshotCreateFailed": "Vytvoření bodu zálohy selhalo",

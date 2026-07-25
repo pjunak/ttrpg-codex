@@ -40,7 +40,7 @@ async function waitForReady(baseUrl, timeoutMs = 8000) {
       const res = await fetch(`${baseUrl}/api/version`);
       if (res.ok) return true;
     } catch (e) { lastErr = e; }
-    await new Promise(r => setTimeout(r, 80));
+    await new Promise(resolve => { setTimeout(resolve, 80); });
   }
   throw new Error(`Server did not become ready at ${baseUrl} within ${timeoutMs}ms: ${lastErr?.message || 'unknown'}`);
 }
@@ -128,7 +128,6 @@ async function startServer(opts = {}) {
   child.on('exit', (code, sig) => {
     if (code !== 0 && code !== null) {
       // Surface unexpected exits — most likely a startup crash.
-      // eslint-disable-next-line no-console
       console.error(`[server-process] exited code=${code} sig=${sig}\n${stderrBuf}`);
     }
   });
@@ -175,7 +174,7 @@ async function startServer(opts = {}) {
     cookieValue:  () => cookieJar,
     kill: async () => {
       if (child.exitCode === null && child.signalCode === null) {
-        const exited = new Promise(r => child.once('exit', r));
+        const exited = new Promise(resolve => { child.once('exit', resolve); });
         try { child.kill('SIGTERM'); } catch (_) {}
         // Hard kill after 2 s in case SIGTERM is ignored.
         const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch (_) {} }, 2000);

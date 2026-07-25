@@ -8,7 +8,7 @@
 
 import { Store } from './store.js';
 import { EditMode } from './editmode.js';
-import { WorldMap, PIN_TYPES } from './map.js';
+import { WorldMap } from './map.js';
 import { Role } from './role.js';
 import { esc, dataAction, dataOn, safeColor } from './utils.js';
 import { Sidebar } from './sidebar.js';
@@ -16,6 +16,9 @@ import { Addons } from './addons.js';
 import { THEMES } from './constants.js';
 import { I18n } from './i18n.js';
 import { CollectionDescriptors } from './collection-descriptors.js';
+import { ApiClient } from './api-client.js';
+import { PinTypes } from './pin-types.js';
+import { SettingsBackup } from './settings-backup.js';
 
 export const Settings = (() => {
 
@@ -80,7 +83,18 @@ export const Settings = (() => {
   // role-aware default (DM → manager, player → first addon tab).
   let _activeAddonSub  = null;
   let _editingId       = null;  // id being edited inline, or '__new__' for add form
-  let _snapshots       = [];    // populated by _loadSnapshots()
+  const _backup = SettingsBackup.create({
+    render: () => render(),
+    flash: (message, ok) => _flash(message, ok),
+  });
+  const {
+    refreshSnapshots,
+    createSnapshot,
+    restoreSnapshot,
+    deleteSnapshot,
+    revertLastN,
+    uploadRestore,
+  } = _backup;
   // pinTypeId whose marker-icon panel is currently expanded. Only one at
   // a time — opening another collapses the previous so the layout stays
   // tidy when there are many pin types.
@@ -213,7 +227,7 @@ export const Settings = (() => {
     if (_activeCat === 'branding') _activeCat = 'appearance';
     if (_activeCat === 'worldmap')     return _worldmapHtml();
     if (_activeCat === 'sidebarPages') return Sidebar.renderEditor();
-    if (_activeCat === 'backup')       return _backupHtml();
+    if (_activeCat === 'backup')       return _backup.html();
     if (_activeCat === 'account')      return _accountHtml();
     if (_activeCat === 'appearance')   return _appearanceHtml();
     if (_activeCat === 'addons')       return _addonsHtml();
@@ -475,7 +489,7 @@ export const Settings = (() => {
       const current = item.defaultIconId || '';
       const opts = [`<option value="">${esc(I18n.t('settings.defaultForType'))}</option>`,
         ...ids.map(id => {
-          const label = (PIN_TYPES[id] && PIN_TYPES[id].label) || id;
+          const label = PinTypes.resolve([], id).label;
           return `<option value="${esc(id)}" ${id===current?'selected':''}>${esc(label)}</option>`;
         })].join('');
       const previewUrl = current
@@ -586,11 +600,7 @@ export const Settings = (() => {
     _tabPickedByUser = true;   // honour the user's explicit choice on subsequent renders
     _editingId = null;
     if (cat === 'backup') {
-      // Fetch snapshot list before rendering so the table isn't empty
-      // for a frame. Render once on entry (while pending), then again
-      // when the list arrives.
-      render();
-      _loadSnapshots().then(render);
+      _backup.open();
     } else if (cat === 'account') {
       // Password status is DM-only; for non-DM viewers the panel
       // skips the form entirely so the fetch is a wasted round-trip
@@ -1103,8 +1113,7 @@ export const Settings = (() => {
     const fd = new FormData();
     fd.append('worldmap', file);
     _flash(I18n.t('settings.uploading'));
-    fetch('/api/worldmap', { method: 'POST', body: fd, credentials: 'same-origin' })
-      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+    ApiClient.uploadJson('/api/worldmap', fd, { method: 'POST' })
       .then(() => {
         _bumpPreviewBust('world');
         _flash(I18n.t('settings.mapUploadedRebuilding'));
@@ -1572,13 +1581,10 @@ export const Settings = (() => {
     }
     if (next.length > 200) { _flash(I18n.t('settings.passwordTooLong'), false); return; }
 
-    fetch('/api/passwords', {
-      method:      'POST',
-      credentials: 'same-origin',
-      headers:     { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role, currentPassword: current, newPassword: next }),
+    ApiClient.requestJson('/api/passwords', {
+      method: 'POST',
+      json: { role, currentPassword: current, newPassword: next },
     })
-      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
       .then(() => {
         const msg = (role === 'player' && next === '')
           ? I18n.t('settings.playerAccountDisabled')
@@ -1594,8 +1600,7 @@ export const Settings = (() => {
    *  module-level _passwordStatus; returns the promise so callers can
    *  chain a render. */
   function _loadPasswordStatus() {
-    return fetch('/api/passwords', { credentials: 'same-origin' })
-      .then(r => r.ok ? r.json() : null)
+    return ApiClient.requestJson('/api/passwords')
       .then(j => { _passwordStatus = j; })
       .catch(() => { _passwordStatus = null; });
   }
@@ -1606,192 +1611,6 @@ export const Settings = (() => {
   function logout() {
     if (!confirm(I18n.t('settings.logoutConfirm'))) return;
     Role.logout().then(() => _flash(I18n.t('settings.loggedOut')));
-  }
-
-  // ── Backup / Snapshot panel ──────────────────────────────────
-  // Players see: the snapshot list + the create-manual-snapshot
-  // button. Pinning a "known-good" point before risky edits is
-  // useful for everyone, and the metadata endpoint leaks nothing.
-  // DM-only on top: the raw ZIP download (would bypass the
-  // visibility filter), restore-from-file, restore-snapshot,
-  // delete-snapshot, and revert-last-N. The server enforces all of
-  // this — the UI gates below are pure UX so non-DM viewers don't
-  // see buttons that would 401.
-  function _backupHtml() {
-    const isDM = Role.isDM();
-    const rows = _snapshots.length ? _snapshots.map(_snapshotRow).join('') : `
-      <div class="settings-empty">${esc(I18n.t('settings.noSnapshots'))}</div>`;
-    const downloadBtn = isDM ? `
-          <a class="inline-create-btn" href="/api/backup"
-             title="${esc(I18n.t('settings.downloadZipTitle'))}">📥 ${esc(I18n.t('settings.downloadZip'))}</a>` : '';
-    const restoreBtn = isDM ? `
-          <label class="inline-create-btn" style="cursor:pointer"
-             title="${esc(I18n.t('settings.restoreFromBackupTitle'))}">
-            📤 ${esc(I18n.t('settings.restoreFromBackup'))}
-            <input type="file" accept=".zip,.json,application/zip,application/json"
-                   style="display:none"
-                   ${dataOn('change', 'Settings.uploadRestore', '$el')}>
-          </label>` : '';
-    const revertRow = isDM ? `
-        <div class="settings-revert-row">
-          <label class="settings-field" style="margin-right:0.6rem">
-            <span class="settings-field-label">${esc(I18n.t('settings.revertLastN'))}</span>
-            <input class="edit-input" type="number" min="1" max="50"
-                   value="1" id="settings-revert-n" style="width:5rem">
-          </label>
-          <button type="button" class="edit-delete-btn"
-                  ${dataAction('Settings.revertLastN')}>↶ ${esc(I18n.t('action.undo'))}</button>
-        </div>` : '';
-    const playerHint = isDM ? '' : `
-        <p class="settings-hint" style="margin-bottom:0.8rem;font-style:italic">
-          ${esc(I18n.t('settings.backupPlayerHint'))}
-        </p>`;
-    return `
-      <div class="settings-editor-head">
-        <h2>💾 ${esc(I18n.t('settings.tabBackup'))}</h2>
-        <div class="settings-editor-actions">
-          ${downloadBtn}
-          ${restoreBtn}
-          <button type="button" class="inline-create-btn"
-                  ${dataAction('Settings.createSnapshot')}>＋ ${esc(I18n.t('settings.createSnapshot'))}</button>
-          <button type="button" class="inline-create-btn"
-                  ${dataAction('Settings.refreshSnapshots')}>↻ ${esc(I18n.t('action.refresh'))}</button>
-        </div>
-      </div>
-      <div class="settings-panel">
-        <p class="settings-hint" style="margin-bottom:0.8rem">
-          ${esc(I18n.t('settings.backupIntro'))}${isDM ? ' ' + esc(I18n.t('settings.backupIntroDM')) : ''}
-        </p>
-        ${playerHint}
-        ${revertRow}
-        <div class="settings-snapshots">${rows}</div>
-      </div>`;
-  }
-
-  function _snapshotRow(s) {
-    const when = _formatSnapshotDate(s.createdAt);
-    const size = Number.isFinite(s.size)
-      ? `<span class="settings-row-usage" title="${esc(I18n.t('settings.sizeTitle'))}">${Math.max(1, Math.round(s.size / 1024))} kB</span>`
-      : '';
-    const tag  = s.reason === 'manual' ? `✦ ${I18n.t('settings.snapshotManual')}` :
-                 s.reason === 'pre-restore' ? `⚠ ${I18n.t('settings.snapshotPreRestore')}` : `✎ ${I18n.t('settings.snapshotEdit')}`;
-    // Restore + delete are DM-only; players see the row without
-    // action buttons so they can review history but not roll it back.
-    const actions = Role.isDM() ? `
-        <div class="settings-row-actions">
-          <button type="button" class="settings-btn-edit"
-                  title="${esc(I18n.t('settings.restoreThisStateTitle'))}"
-                  ${dataAction('Settings.restoreSnapshot', s.id)}>↶</button>
-          <button type="button" class="settings-btn-del"
-                  title="${esc(I18n.t('settings.deleteSnapshotTitle'))}"
-                  ${dataAction('Settings.deleteSnapshot', s.id)}>🗑</button>
-        </div>` : '';
-    return `
-      <div class="settings-row">
-        <span class="settings-row-icon">🕒</span>
-        <span class="settings-row-label">${esc(when)}</span>
-        <code class="settings-row-id">${esc(tag)}</code>
-        ${size}
-        ${actions}
-      </div>`;
-  }
-
-  function _formatSnapshotDate(iso) {
-    return I18n.formatDate(iso, {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-    });
-  }
-
-  function _loadSnapshots() {
-    return fetch('/api/snapshots', { credentials: 'same-origin' })
-      .then(r => r.ok ? r.json() : { snapshots: [] })
-      .then(j => { _snapshots = j.snapshots || []; })
-      .catch(() => { _snapshots = []; });
-  }
-
-  function refreshSnapshots() {
-    _loadSnapshots().then(render);
-  }
-
-  function createSnapshot() {
-    _flash(I18n.t('settings.creatingSnapshot'));
-    fetch('/api/snapshots', { method: 'POST', credentials: 'same-origin' })
-      .then(r => r.ok ? r.json() : Promise.reject(r))
-      .then(() => _loadSnapshots().then(render).then(() => _flash(I18n.t('settings.snapshotCreated'))))
-      .catch(() => _flash(I18n.t('settings.snapshotCreateFailed'), false));
-  }
-
-  function restoreSnapshot(id) {
-    const s = _snapshots.find(x => x.id === id);
-    const when = s ? _formatSnapshotDate(s.createdAt) : id;
-    if (!confirm(I18n.t('settings.restoreSnapshotQ', { when }))) return;
-    _flash(I18n.t('settings.restoring'));
-    fetch(`/api/snapshots/${encodeURIComponent(id)}/restore`, {
-      method: 'POST', credentials: 'same-origin',
-    })
-      .then(r => r.ok ? r.json() : Promise.reject(r))
-      .then(() => {
-        _flash(I18n.t('settings.restored'));
-        // Force the client to reload fresh data; SSE should fire too,
-        // but re-fetch to be certain the new state is in the tab.
-        Store.load().then(() => _loadSnapshots().then(render));
-      })
-      .catch(() => _flash(I18n.t('settings.restoreFailed'), false));
-  }
-
-  function deleteSnapshot(id) {
-    const s = _snapshots.find(x => x.id === id);
-    const when = s ? _formatSnapshotDate(s.createdAt) : id;
-    if (!confirm(I18n.t('settings.deleteSnapshotQ', { when }))) return;
-    fetch(`/api/snapshots/${encodeURIComponent(id)}`, {
-      method: 'DELETE', credentials: 'same-origin',
-    })
-      .then(r => r.ok ? r.json() : Promise.reject(r))
-      .then(() => _loadSnapshots().then(render).then(() => _flash(I18n.t('settings.deleted'))))
-      .catch(() => _flash(I18n.t('settings.deleteFailed'), false));
-  }
-
-  function revertLastN() {
-    const input = document.getElementById('settings-revert-n');
-    const n = Math.max(1, Math.min(50, Number(input?.value) || 1));
-    if (!confirm(I18n.plural('settings.revertLastNQ', n))) return;
-    _flash(I18n.plural('settings.revertingLastN', n));
-    fetch(`/api/snapshots/revert-last/${n}`, {
-      method: 'POST', credentials: 'same-origin',
-    })
-      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
-      .then(() => {
-        _flash(I18n.t('settings.restored'));
-        Store.load().then(() => _loadSnapshots().then(render));
-      })
-      .catch(() => _flash(I18n.t('settings.revertFailed'), false));
-  }
-
-  // Restore from an uploaded ZIP (full data/ tree from /api/backup)
-  // or a JSON document in the shape Store.exportJSON() produces.
-  // The server takes a pre-restore snapshot internally so the user
-  // can roll back even if they pick the wrong file.
-  function uploadRestore(input) {
-    const file = input?.files?.[0];
-    if (!file) return;
-    if (!confirm(I18n.t('settings.restoreFromFileQ', { name: file.name }))) {
-      input.value = '';
-      return;
-    }
-    const fd = new FormData();
-    fd.append('backup', file);
-    _flash(I18n.t('settings.uploadingRestoring'));
-    fetch('/api/restore', { method: 'POST', body: fd, credentials: 'same-origin' })
-      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
-      .then(j => {
-        const fmt = j.format === 'zip' ? 'ZIP' : 'JSON';
-        _flash(I18n.plural('settings.restoredFromFmt', j.restored, { fmt }));
-        // Refresh local store + snapshot list to reflect the new state.
-        Store.load().then(() => _loadSnapshots().then(render));
-      })
-      .catch(() => _flash(I18n.t('settings.restoreFailed'), false))
-      .finally(() => { if (input) input.value = ''; });
   }
 
   // ── Delete-with-usage modal ──────────────────────────────────
@@ -1904,8 +1723,7 @@ export const Settings = (() => {
   let _serverInfoPending = false;
 
   function _loadAddons() {
-    return fetch('/api/addons', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-      .then(r => r.ok ? r.json() : null)
+    return ApiClient.requestJson('/api/addons')
       .then(j => {
         _addonsList = (j && Array.isArray(j.addons)) ? j.addons : [];
         // DM-only boolean (absent for other roles): server has a GitHub token,
@@ -2161,6 +1979,13 @@ export const Settings = (() => {
       notes.push(`<div class="addon-row-warn">${esc(I18n.t('settings.serverRestartNote'))}</div>`);
     else if (a.server && (a.serverState === 'error' || a.serverState === 'blocked'))
       notes.push(`<div class="addon-row-err">${esc(I18n.t('settings.serverPartNote', { state: a.serverState }))}</div>`);
+    if (a.contentState === 'error') {
+      const diagnostic = Array.isArray(a.contentError?.diagnostics) ? a.contentError.diagnostics[0] : null;
+      notes.push(`<div class="addon-row-err">${esc(I18n.t('settings.contentInvalid', {
+        path: diagnostic?.path || 'contentDir',
+        code: diagnostic?.code || a.contentError?.code || 'ADDON_CONTENT_INVALID',
+      }))}</div>`);
+    }
 
     // ── Permissions: collapsed to a count (the full review happened at install).
     const perms = Array.isArray(a.permissions) ? a.permissions : [];
@@ -2226,8 +2051,7 @@ export const Settings = (() => {
   }
 
   function _addonLifecycle(method, url, okMsg) {
-    return fetch(url, { method, credentials: 'same-origin' })
-      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+    return ApiClient.requestJson(url, { method })
       .then(() => { _flash(okMsg); return _reloadAddonsIfActive(); })
       .catch(() => _flash(I18n.t('settings.operationFailed'), false));
   }
@@ -2239,11 +2063,10 @@ export const Settings = (() => {
     if (!scope) return;
     const disabled = [...scope.querySelectorAll('input[type="checkbox"]')]
       .filter(c => !c.checked).map(c => c.value);
-    fetch(`/api/addons/${encodeURIComponent(id)}/content-groups`, {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ disabled }),
-    }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+    ApiClient.requestJson(`/api/addons/${encodeURIComponent(id)}/content-groups`, {
+      method: 'POST',
+      json: { disabled },
+    })
       .then(() => { _flash(I18n.t('settings.contentGroupsSaved')); return _reloadAddonsIfActive(); })
       .catch(() => _flash(I18n.t('settings.operationFailed'), false));
   }
@@ -2458,11 +2281,10 @@ export const Settings = (() => {
   }
 
   function _postGithubToken(token, doneKey) {
-    return fetch('/api/addons/github-token', {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
-    }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+    return ApiClient.requestJson('/api/addons/github-token', {
+      method: 'POST',
+      json: { token },
+    })
       .then(j => {
         _githubTokenOk  = !!j.configured;
         _githubTokenSrc = j.source || null;
@@ -2497,14 +2319,12 @@ export const Settings = (() => {
     if (go)    go.disabled = true;
     if (input) input.disabled = true;
     _wizardStatus(`<span class="addon-wizard-busy">⏳ ${esc(I18n.t('settings.wizardLoadingManifest'))}</span>`);
-    fetch('/api/addons/preview', {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ repo: url }),
+    ApiClient.requestJson('/api/addons/preview', {
+      method: 'POST',
+      json: { repo: url },
     })
-      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
       .then(p => { _wizardPreview = { repo: p.repo, ref: p.ref, sha: p.sha }; _renderWizardPreview(p); })
-      .catch(e => {
+      .catch(() => {
         if (go)    go.disabled = false;
         if (input) input.disabled = false;
         // Without any token, a private repo 404s — surface the fix in place:
@@ -2562,17 +2382,18 @@ export const Settings = (() => {
     // Backup step: snapshot the dataset (incl. the addon registry) BEFORE the
     // change, so the install/update is one-click revertible from Záloha. Best-
     // effort — a snapshot failure doesn't block the install.
-    fetch('/api/snapshots', { method: 'POST', credentials: 'same-origin' })
-      .then(r => r.ok ? r.json() : {}).catch(() => ({}))
+    ApiClient.requestJson('/api/snapshots', { method: 'POST' }).catch(() => ({}))
       .then(snap => {
         const backupNote = (snap && snap.id) ? `✓ ${I18n.t('settings.wizardBackupNote')} · ` : '';
         _wizardStatus(`<span class="addon-wizard-busy">${esc(backupNote)}⏳ ${esc(verb)}…</span>`);
-        return fetch('/api/addons/install', {
-          method: 'POST', credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ repo: _wizardPreview.repo, ref: _wizardPreview.ref, sha: _wizardPreview.sha }),
+        return ApiClient.requestJson('/api/addons/install', {
+          method: 'POST',
+          json: {
+            repo: _wizardPreview.repo,
+            ref: _wizardPreview.ref,
+            sha: _wizardPreview.sha,
+          },
         })
-          .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
           .then(j => ({ j, backupNote }));
       })
       .then(({ j, backupNote }) => {
@@ -2587,7 +2408,7 @@ export const Settings = (() => {
         // live-loads/reconciles via Addons.reconcile() in app.js.
         _reloadAddonsIfActive();
       })
-      .catch(e => {
+      .catch(() => {
         if (go) go.disabled = false;
         _wizardStatus(`<span class="addon-wizard-err">${esc(I18n.t('settings.installFailed'))}</span>`);
       });

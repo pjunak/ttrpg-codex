@@ -24,7 +24,7 @@ test('world map: settings keeps the authenticated server upload as the only imag
   const upload = settings.match(/function uploadWorldMap\(input\) \{[\s\S]*?\n  \}/)?.[0] || '';
 
   assert.match(upload, /fd\.append\('worldmap', file\)/);
-  assert.match(upload, /fetch\('\/api\/worldmap', \{ method: 'POST'/);
+  assert.match(upload, /ApiClient\.uploadJson\('\/api\/worldmap', fd, \{ method: 'POST' \}\)/);
   assert.match(upload, /\.then\(\(\) => \{\s*_bumpPreviewBust\('world'\)/);
   assert.match(upload, /\.catch\(\(\) => _flash\(I18n\.t\('settings\.uploadFailed'\), false\)\)/);
   assert.equal((upload.match(/_bumpPreviewBust\('world'\)/g) || []).length, 1);

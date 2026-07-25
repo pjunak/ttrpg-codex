@@ -180,6 +180,27 @@ test('lifecycle: partial registration and disposer failures are isolated', async
   }
 });
 
+test('lifecycle: server-blocked addons remain visible and do not affect healthy addons', async () => {
+  const blocked = metadata('blocked-content', 'r1', {
+    state: 'blocked',
+    entryUrl: null,
+    contentState: 'error',
+    contentError: { code: 'ADDON_CONTENT_INVALID', message: 'Invalid addon content' },
+  });
+  const healthy = metadata('healthy-content', 'r1');
+  const rt = await freshRuntime([blocked, healthy]);
+
+  assert.equal(rt.Addons.hasRoute('blocked-content'), false);
+  assert.equal(rt.Addons.hasRoute('healthy-content'), true);
+  assert.equal(rt.Addons.list().find(addon => addon.id === 'blocked-content').state, 'blocked');
+
+  const repaired = metadata('blocked-content', 'r2');
+  rt.queue([repaired, healthy]);
+  await rt.Addons.reconcile();
+  assert.equal(rt.Addons.hasRoute('blocked-content'), true);
+  assert.equal(rt.Addons.list().find(addon => addon.id === 'blocked-content').state, 'ok');
+});
+
 test('live collection facade requires data:own before registration', async () => {
   const withoutPermission = metadata('guarded', 'r1', {
     collections: [{ name: 'notes', keyed: false, access: 'public' }],

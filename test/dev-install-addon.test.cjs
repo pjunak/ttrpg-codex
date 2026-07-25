@@ -97,6 +97,14 @@ test('dev install preserves API-v2 capability and content lifecycle metadata', a
     assert.match(rejected.stderr, /invalid localization package.*string or plural object/s);
     registry = JSON.parse(await fsp.readFile(path.join(dataDir, 'addons.json'), 'utf8'));
     assert.equal(registry.addons[0].version, '1.0.1', 'invalid catalogs never replace the active version');
+
+    await fsp.writeFile(path.join(addonDir, 'locales', 'en.json'), '{"page.title":"Fixture"}\n');
+    await fsp.writeFile(path.join(addonDir, 'data', 'broken.json'), '{ invalid json');
+    const invalidContent = runInstall();
+    assert.notEqual(invalidContent.status, 0);
+    assert.match(invalidContent.stderr, /invalid declarative content.*CONTENT|invalid declarative content.*not valid JSON/is);
+    registry = JSON.parse(await fsp.readFile(path.join(dataDir, 'addons.json'), 'utf8'));
+    assert.equal(registry.addons[0].version, '1.0.1', 'invalid declarative content never replaces the active version');
   } finally {
     await fsp.rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }

@@ -109,6 +109,13 @@ editor (`lf-size-${uid}` number input) write the override; saves
 delete the override when it matches the type default so changing
 the type's default later still moves un-customised places.
 
+Built-in pin metadata has one immutable source in
+`web/js/pin-types.js`; `data.js` obtains fresh mutable settings seeds from it.
+Map and wiki location controls enumerate the live
+`Store.getEnum('pinTypes')` collection, so user-created and renamed types are
+first-class choices. The immutable definitions are only compatibility
+fallbacks for stale records and campaigns that have not loaded settings yet.
+
 **Zoom-driven icon scaling.** Each map carries a per-map
 `zoomScaleRatio` (0..1, stored under
 `settings.mapConfigs[mapId].zoomScaleRatio`, edited from the
@@ -318,8 +325,8 @@ Location detail page (`renderLocationArticle`):
   `EditMode.startNewLocation({parentId: l.id})`.
 
 Location editor (`renderLocationEditor`) has:
-- `type` as a `<select>` over all PIN_TYPES entries rendered as
-  `${icon} ${label}`. Stores the PIN_TYPES **key** into `l.pinType`
+- `type` as a `<select>` over the live `pinTypes` settings entries rendered as
+  `${icon} ${label}`. Stores the type **id** into `l.pinType`
   and also mirrors the label into legacy `l.type` for wiki search/
   display back-compat.
 - "Hierarchie a mapa" section with a "Pin na mapě" control row
@@ -345,8 +352,8 @@ The save **does not** write `l.characters` anymore — character
 location is persisted via `character.location`.
 
 Místa list (`_mistaGridHtml`) renders a `.loc-grid` thumbnail grid.
-Each card shows the `PIN_TYPES[l.pinType].icon` large, the name and
-the type label. CSS lives under `wiki.css` → "Location Grid".
+Each card resolves the live `pinTypes` definition and shows its icon, name,
+and type label. CSS lives under `wiki.css` → "Location Grid".
 
 ## Timeline (`timeline.js`)
 

@@ -23,11 +23,13 @@
 
 import { Store } from './store.js';
 import { Role } from './role.js';
+import { ApiClient } from './api-client.js';
 import { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumbNav, iconGlyph, announce } from './utils.js';
 import { I18n } from './i18n.js';
 import { planLoadOrder } from './addon-deps.js';
 import { HOST_CAPABILITIES, HOST_VERSION, compatibilityErrors } from './addon-compat.js';
 import { requireCollectionDeclaration, resolveDependency } from './addon-host-contract.js';
+import { AddonRegistrationContract } from './addon-registration-contract.js';
 import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack, reverseRegistrations } from './addon-lifecycle.js';
 import { createTransactionRunner } from './addon-transactions.js';
 import { createAddonImportClient } from './addon-imports.js';
@@ -38,17 +40,6 @@ import { createScopedI18n, loadAddonCatalogs } from './addon-i18n.js';
 
 export const Addons = (() => {
   const HOST_API_VERSION = 2;
-
-  // Top-level route segments owned by core `navigate()` — an addon may
-  // never shadow one of these (kept in sync with app.js's switch + the
-  // early-return sections). Guards against an addon hijacking, say, the
-  // character pages by registering the `postava` segment.
-  const BUILTIN_SECTIONS = new Set([
-    '', 'dashboard', 'parta', 'postavy', 'postava', 'mista', 'misto',
-    'udalosti', 'udalost', 'zahady', 'zahada', 'frakce', 'mazlicci',
-    'panteon', 'buh', 'artefakty', 'artefakt',
-    'historie', 'historicka-udalost', 'nastaveni', 'dm', 'mapa', 'casova-osa',
-  ]);
 
   // ── Registries (keyed by namespaced ids) ──────────────────────
   const _routes          = new Map();  // segment  -> { addonId, render }       (navigate hash routes)
@@ -182,9 +173,7 @@ export const Addons = (() => {
     /** Register a top-level hash route. Needs `ui:route`. */
     function registerRoute(segment, render) {
       if (!has('ui:route')) deny('ui:route', 'registerRoute');
-      if (typeof segment !== 'string' || !segment) throw new Error('registerRoute: segment must be a non-empty string');
-      if (typeof render !== 'function') throw new Error('registerRoute: render must be a function');
-      if (BUILTIN_SECTIONS.has(segment)) throw new Error(`registerRoute: "${segment}" collides with a built-in route`);
+      AddonRegistrationContract.route(segment, render);
       const cur = _routes.get(segment);
       if (cur && cur.addonId !== id) throw new Error(`registerRoute: "${segment}" already registered by addon "${cur.addonId}"`);
       _routes.set(segment, { addonId: id, render });
@@ -194,7 +183,7 @@ export const Addons = (() => {
     /** Add a left-sidebar link (rendered under "Doplňky"). Needs `ui:sidebar`. */
     function registerSidebarPage(spec) {
       if (!has('ui:sidebar')) deny('ui:sidebar', 'registerSidebarPage');
-      if (!spec || typeof spec.route !== 'string' || !spec.route) throw new Error('registerSidebarPage: spec.route required');
+      AddonRegistrationContract.sidebarPage(spec);
       const entry = { icon: '🧩', section: 'doplnky', role: '', ...spec, addonId: id };
       _sidebarPages.push(entry);
       _undoArr(_sidebarPages, entry);
@@ -203,8 +192,7 @@ export const Addons = (() => {
     /** Provide a renderer for a `Wiki.renderPage(kind)` page. Needs `ui:route`. */
     function registerPageRenderer(kind, render) {
       if (!has('ui:route')) deny('ui:route', 'registerPageRenderer');
-      if (typeof kind !== 'string' || !kind) throw new Error('registerPageRenderer: kind required');
-      if (typeof render !== 'function') throw new Error('registerPageRenderer: render must be a function');
+      AddonRegistrationContract.pageRenderer(kind, render);
       const cur = _pageRenderers.get(kind);
       if (cur && cur.addonId !== id) throw new Error(`registerPageRenderer: "${kind}" already registered by "${cur.addonId}"`);
       _pageRenderers.set(kind, { addonId: id, render });
@@ -217,9 +205,9 @@ export const Addons = (() => {
     function registerArticleSection(kind, fn, opts) {
       const perm = 'ui:article-section:' + kind;
       if (!has(perm)) deny(perm, 'registerArticleSection');
-      if (typeof fn !== 'function') throw new Error('registerArticleSection: fn must be a function');
+      const registration = AddonRegistrationContract.articleSection(kind, fn, opts);
       const lst = _articleSections.get(kind) || [];
-      const entry = { addonId: id, fn, order: Number.isFinite(opts && opts.order) ? opts.order : 0 };
+      const entry = { addonId: id, fn, order: registration.order };
       lst.push(entry);
       lst.sort((a, b) => a.order - b.order);
       _articleSections.set(kind, lst);
@@ -230,7 +218,7 @@ export const Addons = (() => {
      *  returns the panel HTML; the tab id is namespaced under the addon. */
     function registerSettingsTab(spec) {
       if (!has('ui:settings-tab')) deny('ui:settings-tab', 'registerSettingsTab');
-      if (!spec || typeof spec.render !== 'function') throw new Error('registerSettingsTab: spec.render required');
+      AddonRegistrationContract.settingsTab(spec);
       const tabId = id + ':' + (spec.id || 'tab');
       if (_settingsTabs.has(tabId)) throw new Error(`registerSettingsTab: "${tabId}" already registered`);
       _settingsTabs.set(tabId, { id: tabId, label: spec.label || id, icon: spec.icon || '🧩', role: spec.role || '', render: spec.render, addonId: id });
@@ -241,8 +229,7 @@ export const Addons = (() => {
      *  (use `host.action(name)` to build the string). Needs `ui:action`. */
     function registerAction(name, fn) {
       if (!has('ui:action')) deny('ui:action', 'registerAction');
-      if (typeof name !== 'string' || !name) throw new Error('registerAction: name required');
-      if (typeof fn !== 'function') throw new Error('registerAction: fn must be a function');
+      AddonRegistrationContract.action(name, fn);
       const key = id + ':' + name;
       if (_actions.has(key)) throw new Error(`registerAction: "${key}" already registered`);
       _actions.set(key, { addonId: id, fn });
@@ -314,7 +301,7 @@ export const Addons = (() => {
     function registerEditorFields(kind, spec) {
       const perm = 'ui:editor-fields:' + kind;
       if (!has(perm)) deny(perm, 'registerEditorFields');
-      if (!spec || typeof spec.fields !== 'function') throw new Error('registerEditorFields: spec.fields required');
+      AddonRegistrationContract.editorFields(kind, spec);
       const entry = { addonId: id, fields: spec.fields, collect: typeof spec.collect === 'function' ? spec.collect : null };
       const lst = _editorFields.get(kind) || [];
       lst.push(entry);
@@ -332,20 +319,14 @@ export const Addons = (() => {
      *  surface in the Manager instead of silently clobbering. */
     function registerFragmentOp(target, spec) {
       if (!has('ui:override')) deny('ui:override', 'registerFragmentOp');
-      if (typeof target !== 'string' || !target) throw new Error('registerFragmentOp: target required');
-      spec = spec || {};
-      const op = spec.op;
-      if (op !== 'replace' && op !== 'hide' && op !== 'wrap' && op !== 'insert') {
-        throw new Error('registerFragmentOp: op must be replace|hide|wrap|insert');
-      }
-      if (op !== 'hide' && typeof spec.render !== 'function') {
-        throw new Error(`registerFragmentOp: op "${op}" needs a render(html, ctx) function`);
-      }
+      const registration = AddonRegistrationContract.fragmentOp(target, spec);
       const claim = {
-        addonId: id, target, op,
-        render: typeof spec.render === 'function' ? spec.render : null,
-        order: Number.isFinite(spec.order) ? spec.order : 0,
-        position: op === 'insert' ? (spec.position === 'before' ? 'before' : 'after') : null,
+        addonId: id,
+        target: registration.target,
+        op: registration.op,
+        render: registration.render,
+        order: registration.order,
+        position: registration.op === 'insert' ? registration.position : null,
       };
       _fragmentOps.push(claim);
       _undoArr(_fragmentOps, claim);
@@ -358,12 +339,10 @@ export const Addons = (() => {
      *  `opts.order`. The open-ended `slotId` is what lets a NEW surface adopt
      *  the seam with no new host API — just a `slotContent(...)` call-site. */
     function registerSlot(slotId, render, opts) {
-      if (typeof slotId !== 'string' || !slotId) throw new Error('registerSlot: slotId required');
-      const perm = 'ui:slot:' + slotId.split(':')[0];
-      if (!has(perm)) deny(perm, 'registerSlot');
-      if (typeof render !== 'function') throw new Error('registerSlot: render must be a function');
+      const registration = AddonRegistrationContract.slot(slotId, render, opts);
+      if (!has(registration.permission)) deny(registration.permission, 'registerSlot');
       const lst = _slots.get(slotId) || [];
-      const entry = { addonId: id, render, order: Number.isFinite(opts && opts.order) ? opts.order : 0 };
+      const entry = { addonId: id, render, order: registration.order };
       lst.push(entry);
       lst.sort((a, b) => a.order - b.order);
       _slots.set(slotId, lst);
@@ -378,10 +357,8 @@ export const Addons = (() => {
      *  priorities / attitudes / genders / pinTypes (graph node/view kinds use
      *  the dedicated register* below — they carry render fns). */
     function registerKind(domain, def) {
-      if (typeof domain !== 'string' || !domain) throw new Error('registerKind: domain required');
-      const perm = 'kinds:' + domain;
-      if (!has(perm)) deny(perm, 'registerKind');
-      if (!def || typeof def.id !== 'string' || !def.id) throw new Error('registerKind: def.id required');
+      const registration = AddonRegistrationContract.kind(domain, def);
+      if (!has(registration.permission)) deny(registration.permission, 'registerKind');
       const key = id + ':' + def.id;
       const map = _dataKinds.get(domain) || new Map();
       if (map.has(key)) throw new Error(`registerKind: "${def.id}" already registered in "${domain}"`);
@@ -399,7 +376,7 @@ export const Addons = (() => {
      *  legend?}`. Id namespaced `<addonId>:<id>`. Needs `kinds:graph`. */
     function registerNodeKind(def) {
       if (!has('kinds:graph')) deny('kinds:graph', 'registerNodeKind');
-      if (!def || typeof def.id !== 'string' || !def.id) throw new Error('registerNodeKind: def.id required');
+      AddonRegistrationContract.nodeKind(def);
       const key = id + ':' + def.id;
       if (_nodeKinds.has(key)) throw new Error(`registerNodeKind: "${def.id}" already registered`);
       _nodeKinds.set(key, { addonId: id, def: { ...def, id: key, _addonId: id } });
@@ -410,7 +387,7 @@ export const Addons = (() => {
      *  — id namespaced `<addonId>:<id>`. Needs `kinds:graph`. */
     function registerGraphView(def) {
       if (!has('kinds:graph')) deny('kinds:graph', 'registerGraphView');
-      if (!def || typeof def.id !== 'string' || !def.id) throw new Error('registerGraphView: def.id required');
+      AddonRegistrationContract.graphView(def);
       const key = id + ':' + def.id;
       if (_graphViews.has(key)) throw new Error(`registerGraphView: "${def.id}" already registered`);
       _graphViews.set(key, { addonId: id, def: { ...def, id: key, _addonId: id } });
@@ -423,8 +400,7 @@ export const Addons = (() => {
      *  `{nodes?, edges?}`. ADDITIVE. Needs `graph:contribute`. */
     function registerGraphContributor(viewId, fn) {
       if (!has('graph:contribute')) deny('graph:contribute', 'registerGraphContributor');
-      if (typeof viewId !== 'string' || !viewId) throw new Error('registerGraphContributor: viewId required');
-      if (typeof fn !== 'function') throw new Error('registerGraphContributor: fn must be a function');
+      AddonRegistrationContract.graphContributor(viewId, fn);
       const lst = _graphContributors.get(viewId) || [];
       const entry = { addonId: id, fn };
       lst.push(entry);
@@ -437,9 +413,7 @@ export const Addons = (() => {
      *  or null. The scope token can't shadow a built-in. Needs `wiki:kind`. */
     function registerWikiKind(scope, resolve) {
       if (!has('wiki:kind')) deny('wiki:kind', 'registerWikiKind');
-      if (typeof scope !== 'string' || !scope) throw new Error('registerWikiKind: scope required');
-      if (typeof resolve !== 'function') throw new Error('registerWikiKind: resolve must be a function');
-      if (BUILTIN_SECTIONS.has(scope)) throw new Error(`registerWikiKind: "${scope}" collides with a built-in scope`);
+      AddonRegistrationContract.wikiKind(scope, resolve);
       const cur = _wikiKinds.get(scope);
       if (cur && cur.addonId !== id) throw new Error(`registerWikiKind: "${scope}" already registered by "${cur.addonId}"`);
       _wikiKinds.set(scope, { addonId: id, resolve });
@@ -503,22 +477,11 @@ export const Addons = (() => {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.max(1, timeoutMs));
       try {
-        const response = await fetch(`/api/addons/${encodeURIComponent(id)}/transactions`, {
+        return await ApiClient.requestJson(`/api/addons/${encodeURIComponent(id)}/transactions`, {
           method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode, ...payload }),
+          json: { mode, ...payload },
           signal: controller.signal,
         });
-        const body = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          const requestError = new Error(body.error || `Transaction request failed (${response.status})`);
-          requestError.code = body.code || 'TX_REQUEST_FAILED';
-          requestError.status = response.status;
-          requestError.details = body.details;
-          throw requestError;
-        }
-        return body;
       } catch (requestError) {
         if (requestError.name === 'AbortError') {
           const timeoutError = new Error('Transaction request timed out');
@@ -676,6 +639,7 @@ export const Addons = (() => {
     _booted = true;
     _resolutions = { ...reg.resolutions };   // copy: never mutate the fetch payload
     _unmatched.clear();
+    _markBlocked(reg.addons, _serverBlocked(reg.addons));
     const list = reg.addons.filter(a => a.enabled && a.entryUrl);
     const compatible = [];
     for (const addon of list) {
@@ -725,6 +689,7 @@ export const Addons = (() => {
     const resChanged = JSON.stringify(_resolutions) !== JSON.stringify(reg.resolutions);
     if (resChanged) _resolutions = { ...reg.resolutions };   // copy: never mutate the fetch payload
     const list = reg.addons.filter(a => a.enabled && a.entryUrl);
+    const serverBlocked = _serverBlocked(reg.addons);
     const compatibilityBlocked = new Map();
     const compatible = list.filter(addon => {
       const errors = compatibilityErrors(addon);
@@ -734,7 +699,7 @@ export const Addons = (() => {
     let changed = resChanged;
     const plan = planLoadOrder(compatible);
     const desired = new Set(plan.order.map(a => a.id));
-    const listed = new Set(list.map(a => a.id));
+    const listed = new Set([...list.map(a => a.id), ...serverBlocked.keys()]);
     const activating = new Set(plan.order
       .filter(a => _addons.get(a.id)?.state !== 'ok')
       .map(a => a.id));
@@ -800,6 +765,7 @@ export const Addons = (() => {
       _addons.set(id, { id, name: a.name || id, version: a.version || '', state: 'blocked', error: reason, meta: a });
     }
     changed = _markBlocked(list, plan.blocked) || changed;
+    changed = _markBlocked(reg.addons, serverBlocked) || changed;
     for (const a of plan.order) {
       const cur = _addons.get(a.id);
       if (!cur || cur.state !== 'ok') {
@@ -842,11 +808,20 @@ export const Addons = (() => {
     return changed;
   }
 
+  function _serverBlocked(addons) {
+    return new Map(
+      addons
+        .filter(addon => addon.enabled && addon.state === 'blocked')
+        .map(addon => [
+          addon.id,
+          addon.contentError?.message || 'The host blocked this add-on',
+        ]),
+    );
+  }
+
   async function _fetchList() {
     try {
-      const r = await fetch('/api/addons', { headers: { Accept: 'application/json' } });
-      if (!r.ok) return { ok: false, addons: [], resolutions: {} };
-      const j = await r.json();
+      const j = await ApiClient.requestJson('/api/addons');
       return {
         ok: true,
         addons: Array.isArray(j.addons) ? j.addons : [],
@@ -996,7 +971,7 @@ export const Addons = (() => {
     }
   }
 
-  function _errorPane(addonId, e) {
+  function _errorPane(addonId) {
     const message = I18n.t('addons.unexpectedError');
     return `<div class="page-header"><h1>⚠ ${esc(I18n.t('addons.addonFailedTitle'))}</h1></div>` +
       `<p style="color:var(--text-muted);max-width:560px;margin:1rem 0">` +

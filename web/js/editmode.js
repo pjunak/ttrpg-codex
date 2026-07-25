@@ -8,13 +8,18 @@
 import { Store } from './store.js';
 import { EditTemplates } from './edit_templates.js';
 import { Widgets } from './widgets/widgets.js';
-import { PIN_TYPES, PIN_SIZE_MIN, PIN_SIZE_MAX, PIN_SIZE_DEFAULT } from './map.js';
+import { PinTypes } from './pin-types.js';
 import { renderMarkdown, jaroWinkler, esc, norm, trapFocus } from './utils.js';
 import { PARTY_FACTION_ID } from './constants.js';
 import { Role } from './role.js';
 import { Addons } from './addons.js';
 import { I18n } from './i18n.js';
 import { CollectionDescriptors } from './collection-descriptors.js';
+import { EditLoreController } from './edit-lore-controller.js';
+
+const PIN_SIZE_MIN = PinTypes.sizeMin;
+const PIN_SIZE_MAX = PinTypes.sizeMax;
+const PIN_SIZE_DEFAULT = PinTypes.sizeDefault;
 
 export const EditMode = (() => {
 
@@ -37,6 +42,29 @@ export const EditMode = (() => {
     _prefill[kind] = null;
     return p || null;
   }
+  const _loreEditors = EditLoreController.create({
+    consumePrefill: _consumePrefill,
+    setPrefill: (kind, value) => { _prefill[kind] = value; },
+    collectVisibility: uid => _collectVisibility(uid),
+    checkValues: id => _checkVals(id),
+    toast: (message, ok, options) => _toast(message, ok, options),
+    markClean: () => _markClean(),
+    refreshTo: hash => _refreshTo(hash),
+  });
+  const {
+    renderBuhEditor,
+    startNewBuh,
+    saveBuh,
+    deleteBuh,
+    renderArtifactEditor,
+    startNewArtifact,
+    saveArtifact,
+    deleteArtifact,
+    renderHistoricalEventEditor,
+    startNewHistoricalEvent,
+    saveHistoricalEvent,
+    deleteHistoricalEvent,
+  } = _loreEditors;
 
   // One-shot callbacks that run after a new entity has been saved.
   // Used by "+ Postava zde" to link the new character into the source
@@ -826,10 +854,12 @@ export const EditMode = (() => {
     const parentId = document.getElementById(`lf-parent-${uid}`)?.value.trim() || "";
     const localMap = document.getElementById(`lf-localmap-${uid}`)?.value.trim() || "";
 
-    // Typ dropdown stores a PIN_TYPES key; derive the human label into
+    // The type dropdown stores a pin-type id; derive the human label into
     // l.type for wiki search/display back-compat. Empty = unset.
     const pinTypeKey = document.getElementById(`lf-type-${uid}`)?.value || "";
-    const pinTypeDef = pinTypeKey ? PIN_TYPES[pinTypeKey] : null;
+    const pinTypeDef = pinTypeKey
+      ? PinTypes.resolve(Store.getKinds('pinTypes'), pinTypeKey)
+      : null;
     const typeLabel  = pinTypeDef ? pinTypeDef.label : "";
 
     // Attitude chips: multi-select with per-attitude strength.
@@ -843,7 +873,7 @@ export const EditMode = (() => {
     const sizeNum = sizeRaw === '' || sizeRaw == null ? null : parseInt(sizeRaw, 10);
     const typeForSize = pinTypeKey || existing.pinType || '';
     const typeDefault = (Store.getEnumValue('pinTypes', typeForSize) || {}).size
-      || (PIN_TYPES[typeForSize] && PIN_TYPES[typeForSize].size)
+      || (PinTypes.byId[typeForSize] && PinTypes.byId[typeForSize].size)
       || PIN_SIZE_DEFAULT;
     let size;
     if (Number.isFinite(sizeNum) && sizeNum >= PIN_SIZE_MIN && sizeNum <= PIN_SIZE_MAX
@@ -1277,141 +1307,6 @@ export const EditMode = (() => {
         console.warn('EasyMDE mount failed', e);
       }
     });
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  //  PANTHEON / ARTIFACT editors
-  // ══════════════════════════════════════════════════════════════
-  function renderBuhEditor(g) {
-    if (!g || !g.id) {
-      const pf = _consumePrefill('buh');
-      if (pf) return EditTemplates.renderBuhEditor(pf);
-    }
-    return EditTemplates.renderBuhEditor(g);
-  }
-  function startNewBuh(prefill) {
-    _prefill.buh = prefill || {};
-    _refreshTo('#/buh/new');
-  }
-  function saveBuh(originalId) {
-    const uid  = originalId || 'new_god';
-    const name = document.getElementById(`gf-name-${uid}`)?.value.trim();
-    if (!name) { _toast(I18n.t('editmode.nameRequired'), false); return; }
-    const newId = originalId || Store.generateId(name);
-    const existing = originalId ? (Store.getBuh(originalId) || {}) : {};
-    Store.saveBuh({
-      ...existing,
-      id: newId, name,
-      symbol:      document.getElementById(`gf-symbol-${uid}`)?.value.trim()   || '',
-      domain:      document.getElementById(`gf-domain-${uid}`)?.value.trim()   || '',
-      alignment:   document.getElementById(`gf-alignment-${uid}`)?.value.trim()|| '',
-      description: document.getElementById(`gf-desc-${uid}`)?.value.trim()     || '',
-      ..._collectVisibility(uid),
-    });
-    _toast(I18n.t('editmode.deitySaved'));
-    _markClean();
-    _refreshTo(`#/buh/${newId}`);
-  }
-  function deleteBuh(id) {
-    Store.deleteBuh(id);
-    _toast(I18n.t('editmode.deityDeleted'), true, {
-      action: { label: '↶ ' + I18n.t('action.undo'), onClick: () => {
-        Store.undelete('pantheon', id);
-        _toast(I18n.t('editmode.deityRestored'));
-      }},
-    });
-    window.location.hash = '#/panteon';
-  }
-
-  function renderArtifactEditor(a) {
-    if (!a || !a.id) {
-      const pf = _consumePrefill('artifact');
-      if (pf) return EditTemplates.renderArtifactEditor(pf);
-    }
-    return EditTemplates.renderArtifactEditor(a);
-  }
-  function startNewArtifact(prefill) {
-    _prefill.artifact = prefill || {};
-    _refreshTo('#/artefakt/new');
-  }
-  function saveArtifact(originalId) {
-    const uid  = originalId || 'new_art';
-    const name = document.getElementById(`af-name-${uid}`)?.value.trim();
-    if (!name) { _toast(I18n.t('editmode.titleRequired'), false); return; }
-    const newId = originalId || Store.generateId(name);
-    const existing = originalId ? (Store.getArtifact(originalId) || {}) : {};
-    const next = {
-      ...existing,
-      id: newId, name,
-      ownerCharacterId: document.getElementById(`af-owner-${uid}`)?.value.trim()    || '',
-      locationId:       document.getElementById(`af-loc-${uid}`)?.value.trim()      || '',
-      description:      document.getElementById(`af-desc-${uid}`)?.value.trim()     || '',
-      ..._collectVisibility(uid),
-    };
-    // The legacy `artifactStates` enum is gone — strip any stale
-    // `state` carried over from `existing` so it doesn't get re-persisted.
-    delete next.state;
-    Store.saveArtifact(next);
-    _toast(I18n.t('editmode.artifactSaved'));
-    _markClean();
-    _refreshTo(`#/artefakt/${newId}`);
-  }
-  function deleteArtifact(id) {
-    Store.deleteArtifact(id);
-    _toast(I18n.t('editmode.artifactDeleted'), true, {
-      action: { label: '↶ ' + I18n.t('action.undo'), onClick: () => {
-        Store.undelete('artifacts', id);
-        _toast(I18n.t('editmode.artifactRestored'));
-      }},
-    });
-    window.location.hash = '#/artefakty';
-  }
-
-  // ── Historical events ──────────────────────────────────────────
-  function renderHistoricalEventEditor(h) {
-    if (!h || !h.id) {
-      const pf = _consumePrefill('historicalEvent');
-      if (pf) return EditTemplates.renderHistoricalEventEditor(pf);
-    }
-    return EditTemplates.renderHistoricalEventEditor(h);
-  }
-  function startNewHistoricalEvent(prefill) {
-    _prefill.historicalEvent = prefill || {};
-    _refreshTo('#/historicka-udalost/new');
-  }
-  function saveHistoricalEvent(originalId) {
-    const uid  = originalId || 'new_hist';
-    const name = document.getElementById(`he-name-${uid}`)?.value.trim();
-    if (!name) { _toast(I18n.t('editmode.titleRequired'), false); return; }
-    const newId    = originalId || Store.generateId(name);
-    const existing = originalId ? (Store.getHistoricalEvent(originalId) || {}) : {};
-    const tags = (document.getElementById(`he-tags-${uid}`)?.value || '')
-      .split(',').map(s => s.trim()).filter(Boolean);
-    Store.saveHistoricalEvent({
-      ...existing,
-      ..._collectVisibility(uid),
-      id: newId, name,
-      start:      document.getElementById(`he-start-${uid}`)?.value.trim()   || '',
-      end:        document.getElementById(`he-end-${uid}`)?.value.trim()     || '',
-      summary:    document.getElementById(`he-summary-${uid}`)?.value.trim() || '',
-      body:       document.getElementById(`he-body-${uid}`)?.value.trim()    || '',
-      characters: _checkVals(`he-chars-${uid}`),
-      locations:  _checkVals(`he-locs-${uid}`),
-      tags,
-    });
-    _toast(I18n.t('editmode.historicalEventSaved'));
-    _markClean();
-    _refreshTo(`#/historicka-udalost/${newId}`);
-  }
-  function deleteHistoricalEvent(id) {
-    Store.deleteHistoricalEvent(id);
-    _toast(I18n.t('editmode.historicalEventDeleted'), true, {
-      action: { label: '↶ ' + I18n.t('action.undo'), onClick: () => {
-        Store.undelete('historicalEvents', id);
-        _toast(I18n.t('editmode.historicalEventRestored'));
-      }},
-    });
-    window.location.hash = '#/historie';
   }
 
   // ── Twin operations (DM-only) ──────────────────────────────────

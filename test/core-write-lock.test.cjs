@@ -26,7 +26,7 @@ test('queued acquisition times out and the cancelled callback never executes lat
 
   holder.resolve();
   await active;
-  await new Promise(resolve => setTimeout(resolve, 10));
+  await new Promise(resolve => { setTimeout(resolve, 10); });
   assert.equal(ghostRan, false);
 });
 
@@ -49,7 +49,7 @@ test('timeout never releases the active holder and writes remain serialized', as
     maxActive = Math.max(maxActive, activeCount);
     activeCount--;
   });
-  await new Promise(resolve => setTimeout(resolve, 10));
+  await new Promise(resolve => { setTimeout(resolve, 10); });
   assert.equal(activeCount, 1, 'the original holder still owns the lock');
 
   holder.resolve();

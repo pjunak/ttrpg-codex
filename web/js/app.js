@@ -317,9 +317,8 @@ document.addEventListener('click', (ev) => {
       if (!descriptor || (scopeRoute && descriptor.routePrefix !== scopeRoute)) continue;
       const candidates = (all[k] || []).filter(e => norm(e.name) === targetN);
       if (candidates.length === 0) continue;
-      const getter = _STORE_GETTER_BY_COLLECTION[k];
       const ctxGetter = ctx ? _STORE_GETTER_BY_COLLECTION[ctx.type] : null;
-      const pick = _pickByPolarity(candidates, ctxGetter && ctx ? ((id) => ctxGetter(ctx.id)) : null);
+      const pick = _pickByPolarity(candidates, ctxGetter);
       if (pick) return { kind: descriptor.kind, id: pick.id };
     }
     // Faction special-case — factions aren't in searchAll, hit them by name.
@@ -332,7 +331,7 @@ document.addEventListener('click', (ev) => {
       }
       if (facMatches.length) {
         const ctxGetter = ctx ? _STORE_GETTER_BY_COLLECTION[ctx.type] : null;
-        const pick = _pickByPolarity(facMatches, ctxGetter && ctx ? ((id) => ctxGetter(ctx.id)) : null);
+        const pick = _pickByPolarity(facMatches, ctxGetter);
         if (pick) return { kind: factionDescriptor.kind, id: pick.id };
       }
     }

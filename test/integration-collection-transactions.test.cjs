@@ -117,7 +117,7 @@ async function waitForFile(filePath, timeoutMs = 5000) {
       await fsp.access(filePath);
       return;
     } catch {
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => { setTimeout(resolve, 10); });
     }
   }
   throw new Error(`Timed out waiting for ${filePath}`);

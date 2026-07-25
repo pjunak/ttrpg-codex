@@ -24,6 +24,14 @@ const {
 } = require('./server/collection-transactions.cjs');
 const { ImportError, LIMITS: IMPORT_LIMITS, collectionRefKey } = require('./server/import-contract.cjs');
 const { ImportJobManager } = require('./server/import-jobs.cjs');
+const {
+  createByteLimiter,
+  openEntryStream,
+  walkZipEntries,
+} = require('./server/zip-reader.cjs');
+const { createSnapshotService } = require('./server/snapshot-service.cjs');
+const { registerSnapshotRoutes } = require('./server/snapshot-routes.cjs');
+const { CampaignRestoreManager } = require('./server/campaign-restore.cjs');
 
 // Role-aware filtering of the dataset (`server/visibility.cjs`) and
 // the startup migration that backfills `visibility:'public'` on every
@@ -33,10 +41,11 @@ const { ImportJobManager } = require('./server/import-jobs.cjs');
 const {
   filterDatasetForRole,
   VISIBILITY_BEARING,
-  KEYED_OBJ_VISIBILITY,
 } = require('./server/visibility.cjs');
 const {
+  CAMPAIGN_SHAPE_MIGRATION_ID,
   TIMELINE_SITTING_MIGRATION_ID,
+  runCampaignShapeMigration: _runCampaignShapeMigration,
   runTimelineSittingMigration: _runTimelineSittingMigration,
   runVisibilityMigration: _runVisibilityMigration,
 } = require('./server/migrations.cjs');
@@ -119,7 +128,7 @@ const BRANDING_DIR   = path.join(DATA_DIR, 'branding');
 //   - the data hash and the backup zip don't have to keep stepping
 //     around them.
 //   - the restore zip can never inadvertently plant or overwrite a
-//     legitimate snapshot via _safeJoinDataDir.
+//     legitimate snapshot via restore path policy.
 //   - "data/" stays a clean reflection of the campaign content.
 // One-time migration below moves any pre-existing data/snapshots/* up.
 const SNAPSHOTS_DIR  = process.env.CODEX_SNAPSHOTS_DIR
@@ -138,10 +147,20 @@ const ADDONS_DIR           = path.join(DATA_DIR, 'addons');
 const ADDON_DATA_DIR       = path.join(DATA_DIR, 'addon-data');
 const ADDONS_REGISTRY_FILE = path.join(DATA_DIR, 'addons.json');
 const TRANSACTION_RUNTIME_DIR = path.join(DATA_DIR, '.runtime', 'transactions');
+const RESTORE_RUNTIME_DIR = path.join(DATA_DIR, '.runtime', 'restores');
 const IMPORT_TEMP_BASE = process.env.CODEX_IMPORT_TEMP_DIR
   || path.join(os.tmpdir(), 'ttrpg-codex-imports');
 const IMPORT_TEMP_ROOT = path.join(
   IMPORT_TEMP_BASE,
+  `campaign-${crypto.createHash('sha256')
+    .update(path.resolve(DATA_DIR))
+    .digest('hex')
+    .slice(0, 16)}`,
+);
+const RESTORE_STAGING_BASE = process.env.CODEX_RESTORE_STAGING_DIR
+  || path.join(os.tmpdir(), 'ttrpg-codex-restores');
+const RESTORE_STAGING_ROOT = path.join(
+  RESTORE_STAGING_BASE,
   `campaign-${crypto.createHash('sha256')
     .update(path.resolve(DATA_DIR))
     .digest('hex')
@@ -158,6 +177,7 @@ fs.mkdirSync(SNAPSHOTS_DIR,  { recursive: true });
 fs.mkdirSync(ADDONS_DIR,     { recursive: true });
 fs.mkdirSync(ADDON_DATA_DIR, { recursive: true });
 fs.mkdirSync(TRANSACTION_RUNTIME_DIR, { recursive: true });
+fs.mkdirSync(RESTORE_RUNTIME_DIR, { recursive: true });
 
 // Idempotent relocation: any leftover snapshots inside data/ are
 // moved to the sibling directory.
@@ -359,20 +379,15 @@ function attachRole(req, _res, next) {
   req.realRole = realRole;
   next();
 }
-// requireRole('dm') replaces the old requireAuth — write endpoints
-// gate on it. Role gates are based on EFFECTIVE role (req.role), not
-// realRole: a DM impersonating a player gets player-level write rights
-// (i.e. none), which is the point of the impersonation feature.
+// Role gates use the effective role, so a DM viewing as a player receives
+// player-level write rights.
 function requireRole(role) {
   return (req, res, next) => {
     if (req.role === role) return next();
     res.status(401).json({ error: 'Neznámé nebo chybějící heslo.' });
   };
 }
-// Back-compat: the rest of this file was written against `requireAuth`.
-// Keep the name as an alias for `requireRole('dm')` so we don't churn
-// every endpoint.
-const requireAuth = requireRole('dm');
+const requireDM = requireRole('dm');
 
 // Content-write gate: any authenticated role (DM or player) may use
 // the endpoint. PATCH /api/data has its own role-aware logic; this
@@ -396,13 +411,30 @@ function requireRealDM(msg = 'Pouze pro DM') {
   };
 }
 
-app.use('/portraits', express.static(PORTRAITS_DIR));
-app.use('/maps',      express.static(MAPS_DIR));
-app.use('/icons',     express.static(ICONS_DIR, { maxAge: '7d', fallthrough: true }));
+function publicationRead(req, res, next) {
+  let release;
+  const completed = new Promise(resolve => { release = resolve; });
+  const done = () => {
+    res.off('finish', done);
+    res.off('close', done);
+    release();
+  };
+  res.once('finish', done);
+  res.once('close', done);
+  _publicationBarrier.read(async () => {
+    if (res.destroyed) return;
+    next();
+    await completed;
+  }).catch(next);
+}
+
+app.use('/portraits', publicationRead, express.static(PORTRAITS_DIR));
+app.use('/maps',      publicationRead, express.static(MAPS_DIR));
+app.use('/icons',     publicationRead, express.static(ICONS_DIR, { maxAge: '7d', fallthrough: true }));
 // Custom-uploaded logo. fallthrough: true so a request for the bundled
 // default (`/branding/logo-default.svg`) — which lives in WEB_DIR, not
 // here — passes through to the WEB_DIR static handler below.
-app.use('/branding',  express.static(BRANDING_DIR, { maxAge: '7d', fallthrough: true }));
+app.use('/branding',  publicationRead, express.static(BRANDING_DIR, { maxAge: '7d', fallthrough: true }));
 // Installed addon code, served same-origin (CSP-clean) at
 // /addons/<id>/<hash>/…. Content-addressed paths are immutable so a long
 // cache is safe; fallthrough:false → a missing addon file returns a clean
@@ -535,7 +567,7 @@ async function _atomicWrite(filePath, content) {
       lastErr = e;
       if (e.code !== 'EBUSY' && e.code !== 'EPERM' && e.code !== 'EACCES') break;
       if (attempt === delays.length) break;
-      await new Promise(r => setTimeout(r, delays[attempt]));
+      await new Promise(resolve => { setTimeout(resolve, delays[attempt]); });
     }
   }
   // Best-effort tmp cleanup so we don't leave half-written sidecars.
@@ -548,181 +580,31 @@ async function _atomicWrite(filePath, content) {
 // `_`-prefix name used throughout the rest of this file).
 const _safeJoinIn = safeJoinIn;
 
-// ── Snapshot system ──────────────────────────────────────────────
-// Every PATCH / POST that writes data creates a point-in-time
-// snapshot of the entire JSON dataset under `data/snapshots/`.
-// One file per snapshot, shape:
-//   { id, createdAt, dataHash, reason, files: { "<name>.json": <parsed> } }
-// Writes coalesce within a 60 s window so burst-edits (e.g.
-// saveLocation's peer cascade) produce one snapshot per logical
-// action. Retention: keep the most recent 50 snapshots, plus one
-// per UTC-day for the last 14 days — whichever is more.
-const SNAPSHOT_COALESCE_MS = 60 * 1000;
-const SNAPSHOT_RECENT_KEEP = 50;
-const SNAPSHOT_DAILY_DAYS  = 14;
-
-async function _snapshotFiles() {
-  try {
-    const list = await fsp.readdir(SNAPSHOTS_DIR);
-    return list.filter(f => /^snapshot-.*\.json$/.test(f)).sort();
-  } catch { return []; }
-}
-
-async function _readSnapshot(id) {
-  const safe = String(id || '').replace(/[^a-zA-Z0-9_\-\.]/g, '');
-  const file = path.join(SNAPSHOTS_DIR, safe);
-  try { return JSON.parse(await fsp.readFile(file, 'utf8')); }
-  catch { return null; }
-}
-
-async function _snapshotMeta(filename) {
-  const file = path.join(SNAPSHOTS_DIR, filename);
-  try {
-    const [stat, raw] = await Promise.all([fsp.stat(file), fsp.readFile(file, 'utf8')]);
-    const snap = JSON.parse(raw);
-    return {
-      id:        filename,
-      createdAt: snap.createdAt,
-      dataHash:  snap.dataHash,
-      reason:    snap.reason || 'save',
-      access:    snap.access === 'dm' ? 'dm' : 'public',
-      size:      stat.size,
-    };
-  } catch { return null; }
-}
-
-async function _lastSnapshotTime() {
-  const files = await _snapshotFiles();
-  if (!files.length) return 0;
-  const last = files[files.length - 1];
-  const meta = await _snapshotMeta(last);
-  if (meta && meta.createdAt) {
-    const t = Date.parse(meta.createdAt);
-    if (!Number.isNaN(t)) return t;
-  }
-  // Defensive fallback for a corrupt/unreadable snapshot file: trust the
-  // file's mtime instead of the field that failed to parse. Without this
-  // a NaN propagated into `Date.now() - last < SNAPSHOT_COALESCE_MS` and
-  // the comparison was always false — accidentally correct (a fresh
-  // snapshot would be taken) but only via NaN's quirks.
-  try {
-    const stat = await fsp.stat(path.join(SNAPSHOTS_DIR, last));
-    return stat.mtimeMs || 0;
-  } catch { return 0; }
-}
-
 // `auth.json` and `secrets.json` are deployment config, not campaign data.
 // We intentionally exclude them from snapshots (so restoring an old snapshot
 // doesn't silently roll back a password change), from the data hash (so a
 // password rotation doesn't trigger a no-op SSE refetch), and from ZIP
-// restore (`_safeJoinDataDir` — same rationale as snapshots). `auth.json`
+// restore (`_restoreRelativePath` — same rationale as snapshots). `auth.json`
 // still ships inside the full backup zip for disaster-recovery inspection
 // (salted hashes only); `secrets.json` (the DM-stored GitHub token — a LIVE
 // plaintext credential) is additionally excluded from the backup ZIP itself
 // (see /api/backup).
 const NON_DATA_JSON_FILES = new Set(['auth.json', 'secrets.json']);
 
-async function _createSnapshot(reason = 'save', access = 'public', metadata = {}) {
-  const now       = Date.now();
-  const createdAt = new Date(now).toISOString();
-  const files     = {};
-  for (const { key, abs } of await _trackedDataFiles()) {
-    try {
-      files[key] = JSON.parse(await fsp.readFile(abs, 'utf8'));
-    } catch (_) { /* skip corrupt / unreadable file */ }
-  }
-  const snap = {
-    id:        `snapshot-${createdAt.replace(/[:.]/g, '-')}.json`,
-    createdAt,
-    dataHash:  await _dataHash(),
-    reason,
-    access:    access === 'dm' ? 'dm' : 'public',
-    ...metadata,
-    files,
-  };
-  const target = path.join(SNAPSHOTS_DIR, snap.id);
-  await _atomicWrite(target, JSON.stringify(snap));
-  await _pruneSnapshots();
-  return snap.id;
-}
-
-// Keep last N plus the latest per UTC-day for D days. Anything
-// outside both windows is deleted. The pure retention logic lives in
-// `pickKeptSnapshots` (server-utils.cjs) so it can be unit-tested
-// without touching disk.
-async function _pruneSnapshots() {
-  const files = await _snapshotFiles();
-  if (files.length <= SNAPSHOT_RECENT_KEEP) return;
-
-  const metas = (await Promise.all(files.map(_snapshotMeta))).filter(Boolean);
-  const keep  = pickKeptSnapshots(metas, {
-    recentKeep: SNAPSHOT_RECENT_KEEP,
-    dailyDays:  SNAPSHOT_DAILY_DAYS,
-  });
-
-  await Promise.all(metas.map(m =>
-    keep.has(m.id) ? null : fsp.unlink(path.join(SNAPSHOTS_DIR, m.id)).catch(() => {})
-  ));
-}
-
-// Take a snapshot unless the last one is within the coalesce window.
-// Called AFTER a successful write — snapshot N represents the data
-// state after change N, so restoring N puts you back to that moment.
-async function _maybeSnapshot(reason = 'save', access = 'public', metadata = {}) {
-  const last = await _lastSnapshotTime();
-  if (last && Date.now() - last < SNAPSHOT_COALESCE_MS) return null;
-  try { return await _createSnapshot(reason, access, metadata); }
-  catch (e) { console.warn('[snapshot] create failed:', e.message); return null; }
-}
-
-async function _hasTransactionSnapshot(commitId) {
-  if (typeof commitId !== 'string' || !commitId) return false;
-  for (const filename of await _snapshotFiles()) {
-    try {
-      const snapshot = JSON.parse(await fsp.readFile(path.join(SNAPSHOTS_DIR, filename), 'utf8'));
-      if (snapshot.transactionCommitId === commitId) return true;
-    } catch (_) { /* corrupt snapshots are ignored by the existing snapshot contract */ }
-  }
-  return false;
-}
-
-// Restore a snapshot: overwrite every JSON file in data/ with the
-// snapshot's contents, and delete any JSON file present today that
-// the snapshot didn't have. Before restoring, take a "pre-restore"
-// snapshot so the operation itself is undoable.
-async function _restoreSnapshot(id) {
-  const snap = await _readSnapshot(id);
-  if (!snap || !snap.files) return { ok: false, error: 'Snapshot nenalezen' };
-  await _createSnapshot('pre-restore');
-  // Write every file in the snapshot. Keys are either a bare core filename
-  // (`characters.json`) or an addon-owned path (`addon-data/<id>/<name>.json`);
-  // both resolve safely inside DATA_DIR via _safeJoinIn (addon-data is a
-  // subdir of DATA_DIR). The mkdir recreates a per-addon dir the snapshot
-  // captured but that was removed (e.g. the addon was purged since).
-  for (const [key, content] of Object.entries(snap.files)) {
-    const isAddon = key.startsWith('addon-data/');
-    if (!isAddon && !/^[a-z0-9_]+\.json$/i.test(key)) continue;
-    const target = _safeJoinIn(DATA_DIR, key);
-    if (!target) continue;
-    if (isAddon) await fsp.mkdir(path.dirname(target), { recursive: true });
-    await _atomicWrite(target, JSON.stringify(content, null, 2));
-  }
-  // Remove any tracked data file (core OR addon-owned) not present in the
-  // snapshot — e.g. a collection added after the snapshot was taken.
-  // NON_DATA_JSON_FILES + addon CODE are already excluded by _trackedDataFiles.
-  for (const { key, abs } of await _trackedDataFiles()) {
-    if (!Object.prototype.hasOwnProperty.call(snap.files, key)) {
-      try { await fsp.unlink(abs); } catch (_) {}
-    }
-  }
-  // The restored file set may include a different data/addons.json —
-  // re-derive in-memory addon state from it.
-  await _reconcileAddonsFromDisk();
-  // Unlinks above bypassed _atomicWrite, and a fresh write set may
-  // differ from the cached digest — bust unconditionally.
-  _invalidateDataHash();
-  return { ok: true };
-}
+const _snapshots = createSnapshotService({
+  snapshotsDir: SNAPSHOTS_DIR,
+  dataDir: DATA_DIR,
+  atomicWrite: _atomicWrite,
+  trackedDataFiles: _trackedDataFiles,
+  dataHash: _dataHash,
+  pickKeptSnapshots,
+  safeJoinIn: _safeJoinIn,
+  reconcileAddons: _reconcileAddonsFromDisk,
+  invalidateDataHash: _invalidateDataHash,
+});
+const _createSnapshot = _snapshots.create;
+const _maybeSnapshot = _snapshots.maybeCreate;
+const _hasTransactionSnapshot = _snapshots.hasTransaction;
 
 // ── Data hash (with cache) ───────────────────────────────────────
 // Content-hashed — previous mtime+size version gave false positives
@@ -732,8 +614,8 @@ async function _restoreSnapshot(id) {
 //
 // Cached so SSE broadcasts (one per write) don't re-read every JSON
 // file on disk to compute the same hex digest. `_atomicWrite` clears
-// the cache when it rewrites a top-level data file, and
-// `_restoreSnapshot` clears it when it deletes one.
+// the cache when it rewrites a top-level data file, and the snapshot
+// service clears it after deleting files during a restore.
 const _cachedDataHash = { dm: null, player: null };
 const _DATA_DIR_RESOLVED       = path.resolve(DATA_DIR);
 const _SNAPSHOTS_DIR_RESOLVED  = path.resolve(SNAPSHOTS_DIR);
@@ -861,21 +743,26 @@ async function runStartupMigrations() {
   const passes = [
     ['visibility-public-v1', _runVisibilityMigration],
     [TIMELINE_SITTING_MIGRATION_ID, _runTimelineSittingMigration],
+    [CAMPAIGN_SHAPE_MIGRATION_ID, _runCampaignShapeMigration],
   ];
-  const results = [];
-  for (const [id, run] of passes) {
-    try {
-      const result = await run(DATA_DIR, { atomicWrite: _atomicWrite });
-      results.push(result);
-      if (result.changed > 0) {
-        console.log(`[migration] ${id}: changed ${result.changed} record(s)`);
+  const { changed, results } = await withWriteLock(async () => {
+    const completed = [];
+    for (const [id, run] of passes) {
+      try {
+        const result = await run(DATA_DIR, { atomicWrite: _atomicWrite });
+        completed.push(result);
+        if (result.changed > 0) {
+          console.log(`[migration] ${id}: changed ${result.changed} record(s)`);
+        }
+      } catch (e) {
+        console.warn(`[migration] ${id} failed:`, e.message);
       }
-    } catch (e) {
-      console.warn(`[migration] ${id} failed:`, e.message);
     }
-  }
-
-  const changed = results.reduce((total, result) => total + result.changed, 0);
+    return {
+      changed: completed.reduce((total, result) => total + result.changed, 0),
+      results: completed,
+    };
+  });
   if (changed > 0) {
     try { await _createSnapshot('migration'); }
     catch (e) { console.warn('[migration] snapshot failed:', e.message); }
@@ -1277,7 +1164,30 @@ async function _transactionFault(phase) {
         await fsp.access(release);
         break;
       } catch {
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise(resolve => { setTimeout(resolve, 10); });
+      }
+    }
+  }
+}
+
+async function _restoreFault(phase) {
+  if (process.env.NODE_ENV !== 'test') return;
+  if (process.env.CODEX_RESTORE_CRASH_PHASE === phase) process.exit(87);
+  if (process.env.CODEX_RESTORE_FAIL_PHASE === phase) {
+    throw new Error(`Injected restore failure at ${phase}`);
+  }
+  if (process.env.CODEX_RESTORE_PAUSE_PHASE === phase && process.env.CODEX_RESTORE_CONTROL_DIR) {
+    const controlDir = path.resolve(process.env.CODEX_RESTORE_CONTROL_DIR);
+    await fsp.mkdir(controlDir, { recursive: true });
+    const stem = phase.replace(/[^a-z0-9_-]/gi, '_');
+    await fsp.writeFile(path.join(controlDir, `${stem}.reached`), '', 'utf8');
+    const release = path.join(controlDir, `${stem}.release`);
+    while (true) {
+      try {
+        await fsp.access(release);
+        break;
+      } catch {
+        await new Promise(resolve => { setTimeout(resolve, 10); });
       }
     }
   }
@@ -1411,6 +1321,36 @@ const _importJobs = new ImportJobManager({
   coreCollections: CORE_IMPORT_COLLECTIONS,
   snapshotCollections: _snapshotImportCollections,
   commitOperations: _commitImportOperations,
+});
+
+async function _applyCampaignRestoreEffects({ paths }, { broadcast, reconcile }) {
+  _invalidateDataHash();
+  _importJobs.invalidateJobs('campaign-restored');
+  if (reconcile && paths.includes('addons.json')) await _reconcileAddonsFromDisk();
+  if (broadcast && paths.some(relativePath => relativePath.startsWith('maps/'))) {
+    _backgroundTileSweep().catch(error => console.warn('[restore tiles]', error.message));
+  }
+  if (broadcast) await _broadcastDataChanged();
+}
+
+const _campaignRestores = new CampaignRestoreManager({
+  dataDir: DATA_DIR,
+  runtimeDir: RESTORE_RUNTIME_DIR,
+  publicationBarrier: _publicationBarrier,
+  maxEntries: 50_000,
+  fault: _restoreFault,
+  onFatal: error => {
+    console.error('[restore] fatal publication state:', error);
+    setImmediate(() => process.exit(1));
+  },
+  onCommit: result => _applyCampaignRestoreEffects(result, {
+    broadcast: true,
+    reconcile: true,
+  }),
+  onRecoveredCommit: result => _applyCampaignRestoreEffects(result, {
+    broadcast: false,
+    reconcile: false,
+  }),
 });
 
 function _reconcileImportProviders(entries) {
@@ -2290,54 +2230,64 @@ async function _repairLegacyAddonRegistry() {
 // Readable by anyone (boot is pre-login); exposes only enough to import
 // + show status, never the allowlist or grants.
 function _publicAddonList(reg, role = 'player') {
-  return reg.addons.map(a => ({
-    id:         a.id,
-    name:       a.name || a.id,
-    version:    a.version || '',
-    apiVersion: a.apiVersion,
-    hostVersion: a.hostVersion,
-    capabilities: role === 'dm'
-      ? (a.capabilities || undefined)
-      : _playerAddonCapabilities(a.capabilities),
-    enabled:    !!a.enabled,
-    state:      a.state || (a.enabled ? 'ok' : 'disabled'),
-    activeHash: a.activeHash || null,
-    contentRevision: AddonBroker.contentRevision(a, crypto),
-    // Granted permissions — the client needs these to build the addon's
-    // SCOPED host facade (not secret; they describe what the addon can do).
-    permissions: Array.isArray(a.grantedPermissions) ? a.grantedPermissions : [],
-    dependencies: (a.dependencies && typeof a.dependencies === 'object') ? a.dependencies : {},
-    // Soft deps — ordering-only (load after, if present); never block. The
-    // client needs these so host.use() permits them and planLoadOrder orders.
-    optionalDependencies: (a.optionalDependencies && typeof a.optionalDependencies === 'object') ? a.optionalDependencies : {},
-    // Declared addon-owned collections — the client host calls
-    // registerCollection against these to wire its scoped CRUD.
-    collections: AddonBroker.normalizeCollections(a.collections, a.apiVersion, a.capabilities)
-      .filter(collection => role === 'dm' || collection.access === 'public'),
-    // Server-side code (Phase 7): does it ship one, and its live load state.
-    server:      !!a.server,
-    serverState: _serverStateFor(a),
-    // Host-served declarative content (manifest `contentDir`) — data addons
-    // (rulebooks) with no server code; the host serves /api/addon/<id>/content.
-    contentDir:  a.contentDir || null,
-    locales:     AddonBroker.normalizeLocales(a.locales),
-    // Content-group toggles (manifest `contentGroups`) — the Manager's
-    // per-group checkboxes. Values come from the live content cache (counted
-    // over the UNFILTERED tree so a disabled group still shows its size);
-    // null for addons that don't declare groups or aren't serving content.
-    contentGroups: (() => {
-      const c = _addonContent.get(a.id);
-      return (c && c.groups) ? c.groups : null;
-    })(),
-    // Kept version history (Phase 9) — drives the rollback affordance. Trimmed
-    // (no sha) to what the Manager needs. activeHash marks the live one.
-    versions: Array.isArray(a.versions)
-      ? a.versions.map(v => ({ contentHash: v.contentHash, version: v.version, installedAt: v.installedAt }))
-      : [],
-    entryUrl:   (a.enabled && a.activeHash && a.entry)
-                  ? `/addons/${a.id}/${a.activeHash}/${a.entry}`
-                  : null,
-  }));
+  return reg.addons.map(a => {
+    const content = _addonContent.get(a.id);
+    const contentError = _addonContentErrors.get(a.id);
+    const contentBlocked = !!a.enabled && contentError?.hash === a.activeHash;
+    return {
+      id:         a.id,
+      name:       a.name || a.id,
+      version:    a.version || '',
+      apiVersion: a.apiVersion,
+      hostVersion: a.hostVersion,
+      capabilities: role === 'dm'
+        ? (a.capabilities || undefined)
+        : _playerAddonCapabilities(a.capabilities),
+      enabled:    !!a.enabled,
+      state:      contentBlocked ? 'blocked' : (a.state || (a.enabled ? 'ok' : 'disabled')),
+      activeHash: a.activeHash || null,
+      contentRevision: AddonBroker.contentRevision(a, crypto),
+      // Granted permissions — the client needs these to build the addon's
+      // SCOPED host facade (not secret; they describe what the addon can do).
+      permissions: Array.isArray(a.grantedPermissions) ? a.grantedPermissions : [],
+      dependencies: (a.dependencies && typeof a.dependencies === 'object') ? a.dependencies : {},
+      // Soft deps — ordering-only (load after, if present); never block. The
+      // client needs these so host.use() permits them and planLoadOrder orders.
+      optionalDependencies: (a.optionalDependencies && typeof a.optionalDependencies === 'object') ? a.optionalDependencies : {},
+      // Declared addon-owned collections — the client host calls
+      // registerCollection against these to wire its scoped CRUD.
+      collections: AddonBroker.normalizeCollections(a.collections, a.apiVersion, a.capabilities)
+        .filter(collection => role === 'dm' || collection.access === 'public'),
+      // Server-side code (Phase 7): does it ship one, and its live load state.
+      server:      !!a.server,
+      serverState: contentBlocked && a.server ? 'blocked' : _serverStateFor(a),
+      // Host-served declarative content (manifest `contentDir`) — data addons
+      // (rulebooks) with no server code; the host serves /api/addon/<id>/content.
+      contentDir:  a.contentDir || null,
+      contentState: a.contentDir ? (contentBlocked ? 'error' : (content ? 'loaded' : 'unavailable')) : null,
+      ...(role === 'dm' && contentBlocked ? {
+        contentError: {
+          code: contentError.code,
+          message: contentError.message,
+          diagnostics: contentError.diagnostics,
+        },
+      } : {}),
+      locales:     AddonBroker.normalizeLocales(a.locales),
+      // Content-group toggles (manifest `contentGroups`) — the Manager's
+      // per-group checkboxes. Values come from the live content cache (counted
+      // over the UNFILTERED tree so a disabled group still shows its size);
+      // null for addons that don't declare groups or aren't serving content.
+      contentGroups: (content && content.groups) ? content.groups : null,
+      // Kept version history (Phase 9) — drives the rollback affordance. Trimmed
+      // (no sha) to what the Manager needs. activeHash marks the live one.
+      versions: Array.isArray(a.versions)
+        ? a.versions.map(v => ({ contentHash: v.contentHash, version: v.version, installedAt: v.installedAt }))
+        : [],
+      entryUrl:   (!contentBlocked && a.enabled && a.activeHash && a.entry)
+                    ? `/addons/${a.id}/${a.activeHash}/${a.entry}`
+                    : null,
+    };
+  });
 }
 
 function _playerAddonCapabilities(capabilities) {
@@ -2382,6 +2332,7 @@ const _serverLoadState = new Map();   // id -> { state, error }              (bo
 // values counted from the RAW tree so a disabled group still lists with its
 // true size. `offKey` is the cache key half that tracks the off-list.
 const _addonContent = new Map();
+const _addonContentErrors = new Map();
 function _applyAddonContent(reg) {
   const seen = new Set();
   for (const a of (reg && Array.isArray(reg.addons)) ? reg.addons : []) {
@@ -2392,6 +2343,8 @@ function _applyAddonContent(reg) {
     const disabled = cg ? AddonBroker.normalizeDisabledContentGroups(a.disabledContentGroups) : [];
     const offKey   = cg ? JSON.stringify([...disabled].sort()) : '';
     const cached   = _addonContent.get(a.id);
+    const cachedError = _addonContentErrors.get(a.id);
+    if (cachedError && cachedError.hash === a.activeHash) continue;
     if (cached && cached.hash === a.activeHash && cached.offKey === offKey) continue;
     // Same code version, different toggle state → re-filter the cached raw
     // tree; only a version change re-reads disk.
@@ -2399,12 +2352,31 @@ function _applyAddonContent(reg) {
     if (!raw) {
       const codeDir = _safeJoinIn(path.join(ADDONS_DIR, a.id), a.activeHash);
       const rootDir = codeDir ? _safeJoinIn(codeDir, a.contentDir) : null;
-      if (!rootDir) { _addonContent.delete(a.id); continue; }
+      if (!rootDir) {
+        _addonContent.delete(a.id);
+        _addonServers.delete(a.id);
+        _addonContentErrors.set(a.id, {
+          hash: a.activeHash,
+          code: 'ADDON_CONTENT_INVALID',
+          message: 'Declarative content path is invalid',
+          diagnostics: [],
+        });
+        continue;
+      }
       try {
         raw = AddonContent.loadContentTree(rootDir);
       } catch (e) {
         console.warn(`[addons] content load failed for ${a.id}:`, e && e.message);
         _addonContent.delete(a.id);
+        _addonServers.delete(a.id);
+        _addonContentErrors.set(a.id, {
+          hash: a.activeHash,
+          code: e?.code || 'ADDON_CONTENT_INVALID',
+          message: e?.message || 'Declarative content could not be loaded',
+          diagnostics: Array.isArray(e?.diagnostics)
+            ? e.diagnostics.map(diagnostic => ({ ...diagnostic }))
+            : [],
+        });
         continue;
       }
     }
@@ -2415,11 +2387,13 @@ function _applyAddonContent(reg) {
     } : null;
     const served = cg ? AddonContent.filterContentTree(raw, cg.field, disabled) : raw;
     _addonContent.set(a.id, { hash: a.activeHash, offKey, groups, _raw: raw, ...served });
+    _addonContentErrors.delete(a.id);
     console.log(`[addons] content: ${a.id} — ${served.count} records / ${served.kinds.length} kinds (host-served`
       + (cg && disabled.length ? `; ${disabled.length} ${cg.field}-group(s) off, ${raw.count - served.count} records hidden` : '') + ')');
   }
   // Disabled/removed/no-longer-content addons stop serving immediately.
   for (const id of [..._addonContent.keys()]) if (!seen.has(id)) _addonContent.delete(id);
+  for (const id of [..._addonContentErrors.keys()]) if (!seen.has(id)) _addonContentErrors.delete(id);
 }
 
 // A data helper bound to the addon's isolated dir; a collection name maps to
@@ -2592,6 +2566,11 @@ async function _loadServerAddons() {
   for (const a of reg.addons) {
     if (!a || !a.server) continue;
     if (!a.enabled) { _serverLoadState.set(a.id, { state: 'disabled' }); continue; }
+    const contentError = _addonContentErrors.get(a.id);
+    if (contentError?.hash === a.activeHash) {
+      _serverLoadState.set(a.id, { state: 'blocked', error: contentError.message });
+      continue;
+    }
     const r = await _loadServerAddon(a);
     _serverLoadState.set(a.id, r);
     if (r.state === 'loaded') console.log(`[addons] server loaded: ${a.id} (/api/addon/${a.id}/*)`);
@@ -2722,6 +2701,11 @@ async function _stageAddon(repo, ref, pinnedSha) {
     if (!v.ok) throw new Error('neplatný addon.json: ' + v.errors.join('; '));
 
     await AddonLocalization.validateLocalizationPackage(rawIncoming, manifest);
+    if (manifest.contentDir) {
+      const contentRoot = _safeJoinIn(rawIncoming, manifest.contentDir);
+      if (!contentRoot) throw new Error('neplatná cesta contentDir');
+      AddonContent.loadContentTree(contentRoot);
+    }
 
     const id = manifest.id;
     const hash = await AddonArchive.contentHashDirectory(rawIncoming, extracted.files, crypto);
@@ -3465,7 +3449,7 @@ async function _pinTypeExists(pinTypeId) {
  * anything to disk; an unknown id is rejected with no disk side-effect
  * (files are still in memory). Auth: required.
  */
-app.post('/api/icons/:pinTypeId', requireAuth, uploadIcons.array('icons', 16), (req, res) => {
+app.post('/api/icons/:pinTypeId', requireDM, uploadIcons.array('icons', 16), (req, res) => {
   _runWriteRequest(res, async () => {
     try {
       const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
@@ -3506,7 +3490,7 @@ app.post('/api/icons/:pinTypeId', requireAuth, uploadIcons.array('icons', 16), (
   });
 });
 
-app.delete('/api/icons/:pinTypeId/:filename', requireAuth, (req, res) => {
+app.delete('/api/icons/:pinTypeId/:filename', requireDM, (req, res) => {
   _runWriteRequest(res, async () => {
     try {
       const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
@@ -3531,7 +3515,7 @@ app.delete('/api/icons/:pinTypeId/:filename', requireAuth, (req, res) => {
   });
 });
 
-app.delete('/api/icons/:pinTypeId', requireAuth, (req, res) => {
+app.delete('/api/icons/:pinTypeId', requireDM, (req, res) => {
   _runWriteRequest(res, async () => {
     try {
       const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
@@ -3576,121 +3560,15 @@ app.delete('/api/portrait/:identifier', requireAnyRole, async (req, res) => {
   }
 });
 
-// ── Snapshot API ─────────────────────────────────────────────
-// Backed by the snapshot helpers near the top of this file. The
-// `/nastaveni` Záloha tab calls these to surface the snapshot list,
-// take a manual snapshot, restore one, or undo the last N edits.
-
-/**
- * GET /api/snapshots — List every snapshot, newest first. Each entry
- * carries `{id, createdAt, dataHash, reason, size}`. Auth: any role —
- * players need read access so they can see their own change history
- * and pick a download point. Destructive endpoints below stay DM-only.
- */
-app.get('/api/snapshots', requireAnyRole, async (req, res) => {
-  try {
-    const files = await _snapshotFiles();
-    let metas = (await Promise.all(files.map(_snapshotMeta))).filter(Boolean);
-    if (req.role !== 'dm') {
-      metas = metas
-        .filter(meta => meta.access !== 'dm')
-        .map(({ id, createdAt, reason }) => ({ id, createdAt, reason }));
-    }
-    // Newest first for UI convenience.
-    metas.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-    res.json({ snapshots: metas });
-  } catch (e) {
-    console.error('GET /api/snapshots:', e);
-    res.status(500).json({ error: 'List failed' });
-  }
-});
-
-/**
- * POST /api/snapshots — Take a manual snapshot now. Bypasses the
- * 60 s coalesce window that suppresses bursts during normal save
- * activity. Auth: any role — players can pin a "known-good" point
- * before they make a risky edit, same as DMs.
- */
-// Cheap DoS guard: manual snapshots bypass the coalesce window and hold
-// the write lock for a full-dataset copy, so an authed client in a tight
-// loop could wedge all editing. Env-tunable (tests set it to 0).
-const SNAPSHOT_MIN_INTERVAL_MS = Number(process.env.CODEX_SNAPSHOT_MIN_INTERVAL_MS ?? 3000);
-let _lastManualSnapshotAt = 0;
-app.post('/api/snapshots', requireAnyRole, (_req, res) => {
-  const now = Date.now();
-  if (now - _lastManualSnapshotAt < SNAPSHOT_MIN_INTERVAL_MS) {
-    return res.status(429).json({ error: 'Too many snapshots — try again in a few seconds' });
-  }
-  _lastManualSnapshotAt = now;
-  _runWriteRequest(res, async () => {
-    try {
-      const id = await _createSnapshot('manual');
-      res.json({ ok: true, id });
-    } catch (e) {
-      console.error('POST /api/snapshots:', e);
-      if (!res.headersSent) res.status(500).json({ error: 'Snapshot failed' });
-    }
-  });
-});
-
-/**
- * POST /api/snapshots/:id/restore — Roll the entire `data/` directory
- * back to a snapshot. The handler takes a `pre-restore` snapshot first
- * so the restore itself is undoable, then broadcasts `data-changed` so
- * every connected client refetches. Auth: required.
- */
-app.post('/api/snapshots/:id/restore', requireAuth, (req, res) => {
-  _runWriteRequest(res, async () => {
-    try {
-      const r = await _restoreSnapshot(req.params.id);
-      if (!r.ok) return res.status(404).json(r);
-      await _broadcastDataChanged();
-      res.json({ ok: true });
-    } catch (e) {
-      console.error('POST /api/snapshots/:id/restore:', e);
-      if (!res.headersSent) res.status(500).json({ error: 'Restore failed' });
-    }
-  });
-});
-
-/**
- * POST /api/snapshots/revert-last/:n — Undo the last N edits by
- * restoring the snapshot N positions before the newest. n=1 restores
- * the state right before the most recent change. Capped at 50.
- * Auth: required.
- */
-app.post('/api/snapshots/revert-last/:n', requireAuth, (req, res) => {
-  _runWriteRequest(res, async () => {
-    const n = Math.max(1, Math.min(50, Number(req.params.n) || 1));
-    try {
-      const files = await _snapshotFiles();
-      if (files.length <= n) return res.status(400).json({ error: 'Nedostatek bodů zálohy pro zpětný krok' });
-      // files is ascending by timestamp; the last entry is the newest.
-      // To undo the last N changes, restore the snapshot N+1 from the end.
-      const id = files[files.length - 1 - n];
-      const r = await _restoreSnapshot(id);
-      if (!r.ok) return res.status(404).json(r);
-      await _broadcastDataChanged();
-      res.json({ ok: true, id });
-    } catch (e) {
-      console.error('POST /api/snapshots/revert-last:', e);
-      if (!res.headersSent) res.status(500).json({ error: 'Revert failed' });
-    }
-  });
-});
-
-app.delete('/api/snapshots/:id', requireAuth, async (req, res) => {
-  const safe = String(req.params.id || '').replace(/[^a-zA-Z0-9_\-\.]/g, '');
-  if (!safe) return res.status(400).json({ error: 'Invalid id' });
-  const file = path.join(SNAPSHOTS_DIR, safe);
-  try {
-    await fsp.unlink(file);
-    res.json({ ok: true });
-  } catch (e) {
-    if (e.code === 'ENOENT') return res.status(404).json({ error: 'Snapshot nenalezen' });
-    console.error('DELETE /api/snapshots:', e);
-    res.status(500).json({ error: 'Delete failed' });
-  }
+registerSnapshotRoutes(app, {
+  snapshots: _snapshots,
+  requireAnyRole,
+  requireDM,
+  runWriteRequest: _runWriteRequest,
+  broadcastDataChanged: _broadcastDataChanged,
+  minManualIntervalMs: Number(
+    process.env.CODEX_SNAPSHOT_MIN_INTERVAL_MS ?? 3000,
+  ),
 });
 
 // ── World-map upload ─────────────────────────────────────────
@@ -3720,7 +3598,7 @@ const uploadWorldMap = multer({
  * tile-pyramid rebuild, returns the new URL. Capped at 40 MB.
  * Auth: required.
  */
-app.post('/api/worldmap', requireAuth, uploadWorldMap.single('worldmap'), async (req, res) => {
+app.post('/api/worldmap', requireDM, uploadWorldMap.single('worldmap'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image received' });
   const newFile = req.file.filename;
   try {
@@ -3767,7 +3645,7 @@ const uploadLogo = multer({
  * file with a different extension so the newest upload always wins,
  * returns the new URL. Capped at 5 MB. Auth: DM only (shared chrome).
  */
-app.post('/api/logo', requireAuth, uploadLogo.single('logo'), async (req, res) => {
+app.post('/api/logo', requireDM, uploadLogo.single('logo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image received' });
   const newFile = req.file.filename;
   try {
@@ -3782,7 +3660,7 @@ app.post('/api/logo', requireAuth, uploadLogo.single('logo'), async (req, res) =
  * DELETE /api/logo — Remove the custom logo so the bundled default
  * takes over again. Idempotent. Auth: DM only.
  */
-app.delete('/api/logo', requireAuth, async (_req, res) => {
+app.delete('/api/logo', requireDM, async (_req, res) => {
   try {
     const list = await fsp.readdir(BRANDING_DIR).catch(() => []);
     await Promise.all(list.filter(f => /^logo\./i.test(f))
@@ -3801,7 +3679,7 @@ app.delete('/api/logo', requireAuth, async (_req, res) => {
  * leave the server), and the DM can hand them a filtered export
  * separately if needed.
  */
-app.get('/api/backup', requireAuth, async (_req, res) => {
+app.get('/api/backup', requireDM, async (_req, res) => {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const filename  = `backup-${timestamp}.zip`;
   await fsp.mkdir(BACKUP_STAGING_ROOT, { recursive: true });
@@ -3824,7 +3702,7 @@ app.get('/api/backup', requireAuth, async (_req, res) => {
         ? Number(process.env.CODEX_BACKUP_TEST_COPY_DELAY_MS) || 0
         : 0;
       if (testDelay > 0) {
-        await new Promise(resolve => setTimeout(resolve, testDelay));
+        await new Promise(resolve => { setTimeout(resolve, testDelay); });
       }
       await fsp.cp(DATA_DIR, stagedDataDir, {
         recursive: true,
@@ -3891,8 +3769,6 @@ app.get('/api/backup', requireAuth, async (_req, res) => {
 // 512 MB container on a perfectly legitimate backup. 200 MB upload cap —
 // backups include portraits, world/local map images (world alone may be
 // 40 MB) and addon code (docs promise 200 MB).
-const yauzl = require('yauzl');
-const { Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const RESTORE_MAX_ENTRIES     = 50000;               // tile pyramids can be many files
 const RESTORE_MAX_ENTRY_BYTES = 200 * 1024 * 1024;   // 200 MB per file
@@ -3905,7 +3781,7 @@ const restoreUpload = multer({
   limits: { fileSize: 200 * 1024 * 1024 },
 });
 
-function _safeJoinDataDir(rel) {
+function _restoreRelativePath(rel) {
   const resolved = _safeJoinIn(DATA_DIR, rel);
   if (!resolved) return null;
   // `auth.json` is deployment config, not campaign data — same posture as
@@ -3932,7 +3808,7 @@ function _safeJoinDataDir(rel) {
   if (resolved === codeRoot || resolved.startsWith(codeRoot + path.sep)) return null;
   const runtimeRoot = path.resolve(path.join(DATA_DIR, '.runtime'));
   if (resolved === runtimeRoot || resolved.startsWith(runtimeRoot + path.sep)) return null;
-  return resolved;
+  return path.relative(DATA_DIR, resolved).replace(/\\/g, '/');
 }
 
 // A restore-validation failure carrying a user-facing (Czech) message; the
@@ -3944,91 +3820,102 @@ function _restoreErr(userMessage) {
   return e;
 }
 
-// Walk a ZIP's entries lazily via yauzl — central-directory metadata only,
-// nothing decompressed unless `onEntry` opens a read stream itself. yauzl
-// also validates entry names (absolute paths, `..` segments, `\` — all
-// error out), which layers under _safeJoinDataDir's own checks.
-// `onOpen(zipfile)` runs once before iteration (entryCount checks);
-// `onEntry(entry, zipfile)` may be async; a throw/rejection aborts the walk.
-function _walkZipEntries(zipPath, onEntry, onOpen) {
-  return new Promise((resolve, reject) => {
-    yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
-      if (err) return reject(err);
-      let settled = false;
-      const fail = (e) => {
-        if (settled) return;
-        settled = true;
-        try { zipfile.close(); } catch (_) {}
-        reject(e);
-      };
-      zipfile.on('error', fail);
-      zipfile.on('end', () => { if (!settled) { settled = true; resolve(); } });
-      zipfile.on('entry', (entry) => {
-        Promise.resolve()
-          .then(() => onEntry(entry, zipfile))
-          .then(() => { if (!settled) zipfile.readEntry(); })
-          .catch(fail);
-      });
-      try { if (onOpen) onOpen(zipfile); } catch (e) { return fail(e); }
-      zipfile.readEntry();
-    });
-  });
-}
-
 // Pass 1 — zip-bomb scan BEFORE anything is written: too many entries, a
 // single absurdly large file, or an absurd total uncompressed size (all
 // from central-directory metadata; realistic backups stay far under).
 async function _scanZipForRestore(zipPath) {
   let total = 0;
-  await _walkZipEntries(zipPath, (entry) => {
-    if (/\/$/.test(entry.fileName)) return;   // directory entry
-    const sz = entry.uncompressedSize || 0;
-    if (sz > RESTORE_MAX_ENTRY_BYTES) throw _restoreErr('ZIP obsahuje příliš velký soubor (možný zip bomb)');
-    total += sz;
-    if (total > RESTORE_MAX_TOTAL_BYTES) throw _restoreErr('ZIP je po rozbalení příliš velký (možný zip bomb)');
-  }, (zipfile) => {
-    if (zipfile.entryCount > RESTORE_MAX_ENTRIES) throw _restoreErr(`ZIP má příliš mnoho položek (> ${RESTORE_MAX_ENTRIES})`);
+  await walkZipEntries(zipPath, {
+    onEntry(entry) {
+      if (/\/$/.test(entry.fileName)) return;
+      const size = entry.uncompressedSize || 0;
+      if (size > RESTORE_MAX_ENTRY_BYTES) {
+        throw _restoreErr('ZIP obsahuje příliš velký soubor (možný zip bomb)');
+      }
+      total += size;
+      if (total > RESTORE_MAX_TOTAL_BYTES) {
+        throw _restoreErr('ZIP je po rozbalení příliš velký (možný zip bomb)');
+      }
+    },
+    onOpen(zipfile) {
+      if (zipfile.entryCount > RESTORE_MAX_ENTRIES) {
+        throw _restoreErr(`ZIP má příliš mnoho položek (> ${RESTORE_MAX_ENTRIES})`);
+      }
+    },
   });
 }
 
-// Pass 2 — extract: each entry streams decompressed straight to its target
-// file (constant memory). Per-entry failures are skipped, not fatal —
-// matching the old behavior. A byte-counting limiter backstops the scan:
-// the LOCAL file data could disagree with the central directory's declared
-// size, so actual streamed bytes are capped too.
-async function _extractZipForRestore(zipPath) {
+// Pass 2 — extract every allowed entry into an isolated candidate tree.
+// Policy-rejected entries are reported as skipped; any actual extraction
+// failure rejects the entire candidate before live data is touched.
+async function _extractZipForRestore(zipPath, candidateDir) {
   const restored = [];
   const skipped  = [];
-  await _walkZipEntries(zipPath, async (entry, zipfile) => {
-    if (/\/$/.test(entry.fileName)) return;
-    // Normalize separators and strip the leading `data/` wrapper that
-    // /api/backup adds. Other zip producers may put files at the root.
-    let name = entry.fileName.replace(/\\/g, '/');
-    if (name.startsWith('data/')) name = name.slice(5);
-    if (!name) return;
+  const seen = new Set();
+  await walkZipEntries(zipPath, {
+    async onEntry(entry, zipfile) {
+      if (/\/$/.test(entry.fileName)) return;
+      let name = entry.fileName.replace(/\\/g, '/');
+      if (name.startsWith('data/')) name = name.slice(5);
+      if (!name) return;
 
-    const target = _safeJoinDataDir(name);
-    if (!target) { skipped.push(name); return; }
-    try {
+      const relativePath = _restoreRelativePath(name);
+      if (!relativePath) {
+        skipped.push(name);
+        return;
+      }
+      if (seen.has(relativePath)) {
+        throw _restoreErr(`ZIP obsahuje duplicitní cestu „${relativePath}"`);
+      }
+      seen.add(relativePath);
+      const target = _safeJoinIn(candidateDir, relativePath);
+      if (!target) throw _restoreErr('ZIP obsahuje neplatnou cestu');
       await fsp.mkdir(path.dirname(target), { recursive: true });
-      const rs = await new Promise((res, rej) =>
-        zipfile.openReadStream(entry, (e, s) => (e ? rej(e) : res(s))));
-      let seen = 0;
-      const limiter = new Transform({
-        transform(chunk, _enc, cb) {
-          seen += chunk.length;
-          if (seen > RESTORE_MAX_ENTRY_BYTES) return cb(new Error('entry stream exceeded the size cap'));
-          cb(null, chunk);
-        },
+      const source = await openEntryStream(zipfile, entry);
+      const limiter = createByteLimiter({
+        maxBytes: RESTORE_MAX_ENTRY_BYTES,
+        errorFactory: () => new Error('entry stream exceeded the size cap'),
       });
-      await pipeline(rs, limiter, fs.createWriteStream(target));
-      restored.push(name);
-    } catch (e) {
-      console.warn('[restore] failed entry', name, e.message);
-      skipped.push(name);
-    }
+      await pipeline(source, limiter.stream, fs.createWriteStream(target, { flags: 'wx' }));
+      restored.push(relativePath);
+    },
   });
   return { restored, skipped };
+}
+
+async function _stageJsonRestore(uploadPath, candidateDir) {
+  let parsed;
+  try {
+    parsed = JSON.parse(await fsp.readFile(uploadPath, 'utf8'));
+  } catch {
+    throw _restoreErr('Neplatný JSON soubor');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw _restoreErr('Neplatný formát zálohy (očekávám objekt)');
+  }
+
+  const restored = [];
+  for (const type of ALL_TYPES) {
+    if (parsed[type] === undefined) continue;
+    const value = parsed[type];
+    const validShape = KEYED_OBJ_TYPES.has(type)
+      ? value !== null && typeof value === 'object' && !Array.isArray(value)
+      : Array.isArray(value);
+    if (!validShape) {
+      throw _restoreErr(`Neplatný tvar kolekce „${type}" v záloze`);
+    }
+    const relativePath = path.relative(DATA_DIR, getFile(type)).replace(/\\/g, '/');
+    await fsp.writeFile(
+      path.join(candidateDir, relativePath),
+      JSON.stringify(value, null, 2),
+      'utf8',
+    );
+    restored.push(relativePath);
+  }
+  if (!restored.length) {
+    throw _restoreErr('JSON neobsahuje žádnou známou kolekci');
+  }
+  return restored;
 }
 
 /**
@@ -4038,122 +3925,101 @@ async function _extractZipForRestore(zipPath) {
  *   - a single `.json` document in the shape `Store.exportJSON()` emits.
  * Takes a `pre-restore` snapshot first so the operation is undoable
  * from the Záloha tab. Every entry path is resolved through
- * `_safeJoinDataDir` so a malicious archive cannot escape `DATA_DIR`
+ * `_restoreRelativePath` so a malicious archive cannot escape `DATA_DIR`
  * (traversal, absolute paths, symlinks all rejected). Auth: required.
  */
-app.post('/api/restore', requireAuth, restoreUpload.single('backup'), (req, res) => {
+app.post('/api/restore', requireDM, restoreUpload.single('backup'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Žádný soubor nepřijat' });
 
   const filename = String(req.file.originalname || '');
   const tmpPath  = req.file.path;
-  const cleanup = () => fsp.unlink(tmpPath).catch(() => {});
+  let candidateDir = null;
+  let disconnected = false;
+  req.once('aborted', () => { disconnected = true; });
+  res.once('close', () => {
+    if (!res.writableEnded) disconnected = true;
+  });
+  const cleanup = async () => {
+    await Promise.all([
+      fsp.unlink(tmpPath).catch(() => {}),
+      candidateDir
+        ? fsp.rm(candidateDir, { recursive: true, force: true }).catch(() => {})
+        : Promise.resolve(),
+    ]);
+  };
 
-  _runWriteRequest(res, async () => {
+  try {
+    let head;
     try {
-      // Sniff the first 64 bytes from disk to detect format. ZIP starts
-      // with magic `PK\x03\x04`; JSON with `{` or `[` after optional ws.
-      let head;
+      const handle = await fsp.open(tmpPath, 'r');
       try {
-        const fh = await fsp.open(tmpPath, 'r');
-        try {
-          const { buffer: buf, bytesRead } = await fh.read(Buffer.alloc(64), 0, 64, 0);
-          head = buf.slice(0, bytesRead);
-        } finally { await fh.close(); }
-      } catch (e) {
-        await cleanup();
-        return res.status(500).json({ error: 'Nelze přečíst nahraný soubor' });
+        const { buffer, bytesRead } = await handle.read(Buffer.alloc(64), 0, 64, 0);
+        head = buffer.subarray(0, bytesRead);
+      } finally {
+        await handle.close();
       }
-
-      const isZipMagic = head.length >= 4 && head[0] === 0x50 && head[1] === 0x4B
-                                          && head[2] === 0x03 && head[3] === 0x04;
-      const isZip      = /\.zip$/i.test(filename) || isZipMagic;
-      const looksJson  = !isZip && (/\.json$/i.test(filename)
-                          || /^\s*[\{\[]/.test(head.toString('utf8')));
-
-      // Pre-restore snapshot — bypass the coalesce window so we always
-      // capture the current state regardless of recent activity.
-      try { await _createSnapshot('pre-restore'); }
-      catch (e) { console.warn('[restore] pre-restore snapshot failed:', e.message); }
-
-      if (isZip) {
-        // Pass 1: zip-bomb scan (central directory only, nothing written).
-        try { await _scanZipForRestore(tmpPath); }
-        catch (e) {
-          await cleanup();
-          return res.status(400).json({ error: e.userMessage || 'Neplatný ZIP soubor' });
-        }
-        // Pass 2: streaming extraction (constant memory; per-entry failures
-        // are counted as skipped, a broken archive structure is a 400).
-        let restored, skipped;
-        try { ({ restored, skipped } = await _extractZipForRestore(tmpPath)); }
-        catch (e) {
-          await cleanup();
-          return res.status(400).json({ error: e.userMessage || 'Neplatný ZIP soubor' });
-        }
-
-        // The restored ZIP may carry a different data/addons.json —
-        // re-derive in-memory addon state from it (same as snapshot restore).
-        await _reconcileAddonsFromDisk();
-
-        // Rebuild tile pyramids in the background so map images uploaded
-        // along with the backup get fresh tiles.
-        try { _backgroundTileSweep(); } catch (_) {}
-
-        await _broadcastDataChanged();
-        await cleanup();
-        return res.json({ ok: true, format: 'zip', restored: restored.length, skipped: skipped.length });
-      }
-
-      if (looksJson) {
-        let parsed;
-        try {
-          const raw = await fsp.readFile(tmpPath, 'utf8');
-          parsed = JSON.parse(raw);
-        } catch (e) {
-          await cleanup();
-          return res.status(400).json({ error: 'Neplatný JSON soubor' });
-        }
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          await cleanup();
-          return res.status(400).json({ error: 'Neplatný formát zálohy (očekávám objekt)' });
-        }
-        const restored = [];
-        for (const t of ALL_TYPES) {
-          if (parsed[t] === undefined) continue;
-          // Validate each collection's shape before writing: keyed-object
-          // collections must be plain objects, everything else an array.
-          // Writing a wrong shape (e.g. characters as a string) would break
-          // every subsequent read of that file.
-          const val       = parsed[t];
-          const wantArray = !KEYED_OBJ_TYPES.has(t);
-          const okShape   = wantArray
-            ? Array.isArray(val)
-            : (val !== null && typeof val === 'object' && !Array.isArray(val));
-          if (!okShape) {
-            await cleanup();
-            return res.status(400).json({ error: `Neplatný tvar kolekce „${t}" v záloze` });
-          }
-          await _atomicWrite(getFile(t), JSON.stringify(val, null, 2));
-          restored.push(`${t}.json`);
-        }
-        if (!restored.length) {
-          await cleanup();
-          return res.status(400).json({ error: 'JSON neobsahuje žádnou známou kolekci' });
-        }
-        _importJobs.invalidateJobs('campaign-restored');
-        await _broadcastDataChanged();
-        await cleanup();
-        return res.json({ ok: true, format: 'json', restored: restored.length });
-      }
-
-      await cleanup();
-      return res.status(400).json({ error: 'Nepodporovaný formát — očekávám .zip nebo .json' });
-    } catch (e) {
-      await cleanup();
-      console.error('POST /api/restore:', e);
-      if (!res.headersSent) res.status(500).json({ error: 'Restore failed' });
+    } catch {
+      return res.status(500).json({ error: 'Nelze přečíst nahraný soubor' });
     }
-  }, cleanup);
+
+    const isZipMagic = head.length >= 4 && head[0] === 0x50 && head[1] === 0x4B
+                                        && head[2] === 0x03 && head[3] === 0x04;
+    const isZip = /\.zip$/i.test(filename) || isZipMagic;
+    const looksJson = !isZip && (
+      /\.json$/i.test(filename) || /^\s*[\{\[]/.test(head.toString('utf8'))
+    );
+    if (!isZip && !looksJson) {
+      return res.status(400).json({ error: 'Nepodporovaný formát — očekávám .zip nebo .json' });
+    }
+
+    await fsp.mkdir(RESTORE_STAGING_ROOT, { recursive: true });
+    candidateDir = await fsp.mkdtemp(path.join(RESTORE_STAGING_ROOT, 'candidate-'));
+
+    let format;
+    let restored;
+    let skipped = [];
+    if (isZip) {
+      try {
+        await _scanZipForRestore(tmpPath);
+        ({ restored, skipped } = await _extractZipForRestore(tmpPath, candidateDir));
+      } catch (error) {
+        if (error.userMessage) throw error;
+        throw _restoreErr('Neplatný ZIP soubor');
+      }
+      format = 'zip';
+    } else {
+      restored = await _stageJsonRestore(tmpPath, candidateDir);
+      format = 'json';
+    }
+    if (!restored.length) {
+      throw _restoreErr('Záloha neobsahuje žádná obnovitelná data');
+    }
+    if (disconnected) return;
+
+    await _runWriteRequest(res, async () => {
+      if (disconnected) return;
+      try {
+        await _createSnapshot('pre-restore');
+      } catch (error) {
+        console.warn('[restore] pre-restore snapshot failed:', error.message);
+      }
+      await _campaignRestores.commit({ candidateDir, paths: restored });
+      if (!res.headersSent) {
+        const result = { ok: true, format, restored: restored.length };
+        if (format === 'zip') result.skipped = skipped.length;
+        res.json(result);
+      }
+    });
+  } catch (error) {
+    console.error('POST /api/restore:', error);
+    if (!res.headersSent && !disconnected) {
+      res.status(error.userMessage ? 400 : 500).json({
+        error: error.userMessage || 'Restore failed',
+      });
+    }
+  } finally {
+    await cleanup();
+  }
 });
 
 // Server-addon route dispatcher (Phase 7). A single stable mount, registered
@@ -4163,7 +4029,7 @@ app.post('/api/restore', requireAuth, restoreUpload.single('backup'), (req, res)
 // are already stamped by attachRole, so addon routes can gate themselves; an
 // unmatched sub-path returns JSON 404 (never the SPA index). A disabled/absent
 // addon 404s here too — a disabled addon serves nothing.
-app.use('/api/addon/:addonId', (req, res, next) => {
+app.use('/api/addon/:addonId', (req, res, _next) => {
   const entry = _addonServers.get(req.params.addonId);
   if (!entry || entry.state !== 'loaded' || !entry.router) {
     // No live router — host-served declarative content (manifest `contentDir`)
@@ -4292,15 +4158,15 @@ async function _backgroundTileSweep() {
   }
 }
 
-async function _prepareImportTemp() {
-  const resolved = path.resolve(IMPORT_TEMP_ROOT);
+async function _prepareOwnedTemp(root, label) {
+  const resolved = path.resolve(root);
   const parsed = path.parse(resolved);
   const dataRoot = path.resolve(DATA_DIR);
   const relativeToData = path.relative(dataRoot, resolved);
   const insideData = relativeToData === ''
     || (!relativeToData.startsWith('..') && !path.isAbsolute(relativeToData));
   if (resolved === parsed.root || insideData) {
-    throw new Error('Unsafe import temporary directory');
+    throw new Error(`Unsafe ${label} temporary directory`);
   }
   await fsp.rm(resolved, { recursive: true, force: true });
   await fsp.mkdir(resolved, { recursive: true });
@@ -4310,11 +4176,17 @@ async function _prepareImportTemp() {
 // Tile sweep stays fire-and-forget (it can take seconds on a large
 // map and the fallback overlay covers any in-flight requests anyway).
 async function _bootstrap() {
-  await _prepareImportTemp();
+  await _prepareOwnedTemp(IMPORT_TEMP_ROOT, 'import');
+  await _prepareOwnedTemp(RESTORE_STAGING_ROOT, 'restore');
   const recovery = await _collectionTransactions.recover();
   if (recovery.committed.length || recovery.rolledBack.length
       || recovery.cleaned.length || recovery.invalid.length) {
     console.log('[transactions] startup recovery:', recovery);
+  }
+  const restoreRecovery = await _campaignRestores.recover();
+  if (restoreRecovery.committed.length || restoreRecovery.rolledBack.length
+      || restoreRecovery.cleaned.length) {
+    console.log('[restore] startup recovery:', restoreRecovery);
   }
   // Loud warnings about password configuration. The codebase is open-
   // source so anyone can compute SHA256(...) — a deployment that left

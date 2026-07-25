@@ -23,42 +23,31 @@
 The `locationStatuses` and `artifactStates` categories were retired:
 the location-status icon-variant strategy was never used in practice,
 and `artifactStates` was a purely cosmetic chip with no search /
-filter / icon hook. `_migrateDropLocationStatus` /
-`_migrateDropArtifactState` strip the now-orphaned fields from every
-record on load.
+filter / icon hook. The server's `campaign-shape-v1` startup pass strips the
+now-orphaned fields and categories before clients can read them.
 
 **`attitudes`** is the unified "Postoje k partě" palette used on
 characters, locations and factions. Each enum item carries
 `{id, label, bg, fg, labelColor, strength}`. Default ids:
-`ally` · `enemy` · `hostile` · `neutral` · `party`. `unknown` is
+`ally` · `enemy` · `hostile` · `neutral`. `unknown` is
 gone — empty `attitudes[]` is itself the "no stance set" baseline,
 so removing the id avoids the ambiguity of having two ways to
-express the same thing. `party` is auto-applied to PCs whose
-`faction === 'party'` regardless of any other field, so it's mostly
-useful for our own strongholds on the map.
+express the same thing. The renderer synthesizes `party` for PCs whose
+`faction === 'party'`; it is not an editable enum row.
 
 The `strength` field (0..1, default 1.0) drives glow intensity and
 lives **on the enum item**, not on the per-entity entry — editing
 it in Settings updates every glow at once. Per-entity entries are
 just `{id}`. Strength used to live on each entry (`{id, strength}`);
-two migrations strip the legacy field on load:
-`_migrateAttitudesToObjectShape` and `_migrateStrengthFromEntityToEnum`.
+`campaign-shape-v1` strips the legacy field at server startup.
 Chip rows in the character/location/faction editors are plain on/off
 toggles. Renderers read `def.strength` via the enum lookup
 (`_attitudeGlow` in wiki.js, `_resolveAttitudeStripes` in map.js).
 
-**⚠ Idempotency contract for `_migrateAttitudesToObjectShape`** —
-canonical entry shape is `[{id}]` *without* a `strength` field. The
-normalize helper inside this migration MUST NOT re-add `strength`
-to entries that already lack it; if it does, it bounces with
-`_migrateStrengthFromEntityToEnum` on every load (one writes the
-field, the other strips it) and the resulting infinite SSE-driven
-re-render loop makes the page flicker until the user force-closes
-it. The hash-dedupe in `_applyRemoteChange` cannot save you here
-because each cycle's content genuinely differs (`{id:'enemy'}` ↔
-`{id:'enemy', strength:1.0}`). When adding a new field to the
-attitudes entry shape, mirror this discipline: only mark `changed
-= true` when the input is non-canonical.
+**Migration idempotency:** canonical entry shape is `[{id}]` without a
+`strength` field. `server/campaign-shape-migration.cjs` must leave that shape
+unchanged on subsequent boots; its direct regression suite asserts that a
+second pass reports zero changes. The browser never writes migration results.
 
 Seeded from `SETTINGS_DEFAULTS` in `data.js` on first load via
 `store._mergeDefaults`. Per-id deletions are tombstoned as
@@ -291,9 +280,11 @@ Vazby) leaves the active tab outside the visible set.
   actions) plus the `＋ Vytvořit bod zálohy` and `↻ Obnovit` buttons.
   DM sees additionally: `📥 Stáhnout ZIP`, `📤 Obnovit ze zálohy…`
   (uploads ZIP or JSON), `↶ Vrátit posledních X úprav`, and per-row
-  ↶ restore / 🗑 delete. The hide is in `_backupHtml` / `_snapshotRow`
-  via `Role.isDM()` checks; the server enforces the same gating via
-  `requireAuth` on destructive endpoints (`/api/backup`, restore /
+  ↶ restore / 🗑 delete. `web/js/settings-backup.js` owns this tab's
+  role-aware HTML, snapshot state, refresh, create/restore/delete/revert, and
+  uploaded-restore flow; `settings.js` only composes the controller and keeps
+  the stable `Settings.*` action names. The server enforces the same gating via
+  `requireDM` on destructive endpoints (`/api/backup`, restore /
   delete / revert-last-N) while leaving `GET /api/snapshots` and
   `POST /api/snapshots` (manual create) open to any authed role.
   ZIP download stays DM-only because the raw `data/*.json` files
@@ -330,8 +321,8 @@ auto-persist widget — every change writes through to
   `map.js`. Default for newly-uploaded pin types is `single` (the
   user can switch to `random` for variety). The retired `state`
   strategy (which keyed file variants off `location.status`) is
-  gone; `_migrateRetirePinTypeStateStrategy` coerces any legacy
-  `'state'` value to `'single'` on load.
+  gone; `campaign-shape-v1` coerces any legacy `'state'` value to
+  `'single'` at server startup.
 - **File list** — each uploaded variant shows as a row with a
   thumbnail (`<img>` fed by `/icons/<pinTypeId>/<file>`), the
   on-disk filename, and a 🗑 delete button (also DELETEs the file
@@ -342,9 +333,9 @@ auto-persist widget — every change writes through to
 
 Resolver semantics live in [map.js](web/js/map.js) `_resolveIconUrl`:
 - No `iconConfig` or empty `files` → bundled default at
-  `/icons-defaults/<pinTypeId>.svg` (see `BUNDLED_DEFAULT_ICONS`),
+  `/icons-defaults/<pinTypeId>.svg`,
   else null → emoji fallback. The bundled set covers every default
-  `pinTypes` id seeded by `data.js`; user-created pin types skip
+  `pinTypes` id defined by `pin-types.js`; user-created pin types skip
   the bundled fallback and go straight to emoji.
 - `single` (default) → `files[0]`.
 - `random` → `_hashStr(pin.id) % files.length` deterministic pick.

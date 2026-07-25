@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 //  MIGRATIONS — idempotent startup passes that backfill new fields
 //  on existing JSON data files. Runs once per server boot from the
-//  app.listen callback.
+//  server bootstrap.
 //
 //  Pattern: read each data file, walk records, mutate only when a
 //  required field is missing, write back. Returns a summary the
@@ -19,6 +19,12 @@
 const fsp  = require('fs').promises;
 const path = require('path');
 const { VISIBILITY_BEARING, KEYED_OBJ_VISIBILITY } = require('./visibility.cjs');
+const {
+  CAMPAIGN_COLLECTION_SHAPES,
+  CAMPAIGN_SHAPE_MIGRATION_ID,
+  isKeyedObject,
+  migrateCampaignShape,
+} = require('./campaign-shape-migration.cjs');
 
 const TIMELINE_SITTING_MIGRATION_ID = 'timeline-sitting-zero-v1';
 
@@ -109,6 +115,56 @@ async function runTimelineSittingMigration(dataDir, opts = {}) {
   return result;
 }
 
+async function runCampaignShapeMigration(dataDir, opts = {}) {
+  const atomicWrite = opts.atomicWrite || _defaultAtomicWrite;
+  const warn = opts.warn || (message => console.warn(message));
+  const dataset = {};
+
+  for (const [collection, shape] of Object.entries(CAMPAIGN_COLLECTION_SHAPES)) {
+    const file = path.join(dataDir, `${collection}.json`);
+    let raw;
+    try {
+      raw = await fsp.readFile(file, 'utf8');
+    } catch (error) {
+      if (error.code === 'ENOENT') continue;
+      throw error;
+    }
+
+    let value;
+    try {
+      value = JSON.parse(raw);
+    } catch (_) {
+      warn(`[migration] ${collection}.json is not valid JSON, skipping campaign shape migration`);
+      dataset[collection] = null;
+      continue;
+    }
+    const validShape = shape === 'array'
+      ? Array.isArray(value)
+      : shape === 'object-or-legacy-array'
+        ? (isKeyedObject(value) || Array.isArray(value))
+        : isKeyedObject(value);
+    if (!validShape) {
+      warn(`[migration] ${collection}.json has an invalid stored shape, skipping campaign shape migration`);
+      dataset[collection] = null;
+      continue;
+    }
+    dataset[collection] = value;
+  }
+
+  const result = migrateCampaignShape(dataset);
+  for (const collection of result.changedCollections) {
+    const value = dataset[collection];
+    if (value === null || value === undefined) continue;
+    const file = path.join(dataDir, `${collection}.json`);
+    await atomicWrite(file, JSON.stringify(value, null, 2));
+  }
+  return {
+    id: CAMPAIGN_SHAPE_MIGRATION_ID,
+    changed: result.changed,
+    byCollection: result.byCollection,
+  };
+}
+
 // Backfill `visibility: 'public'` if missing, and strip the legacy
 // `secrets: {...}` field if present. Returns true if the entity was
 // mutated (so the caller knows to write). Idempotent: an entity
@@ -136,7 +192,9 @@ async function _defaultAtomicWrite(file, content) {
 }
 
 module.exports = {
+  CAMPAIGN_SHAPE_MIGRATION_ID,
   TIMELINE_SITTING_MIGRATION_ID,
+  runCampaignShapeMigration,
   runTimelineSittingMigration,
   runVisibilityMigration,
 };

@@ -1,3 +1,5 @@
+import { ApiClient } from './api-client.js';
+
 function importError(code, message, status, details) {
   const error = new Error(message);
   error.code = code;
@@ -23,6 +25,7 @@ export function createAddonImportClient({
 } = {}) {
   const knownJobs = new Set();
   const active = new Map();
+  const api = ApiClient.create({ fetchImpl, onAuthFailure: null });
   let disposed = false;
 
   function ensureAvailable() {
@@ -46,26 +49,26 @@ export function createAddonImportClient({
     group.add(controller);
     active.set(jobId, group);
     try {
-      const response = await fetchImpl(path, {
-        credentials: 'same-origin',
+      return await api.requestJson(path, {
         ...options,
         signal: controller.signal,
       });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw importError(
-          body.code || 'IMPORT_REQUEST_FAILED',
-          body.error || `Import request failed (${response.status})`,
-          response.status,
-          body.details,
-        );
-      }
-      return body;
     } catch (error) {
-      if (error?.code) throw error;
       if (error?.name === 'AbortError') {
         throw importError('IMPORT_CANCELLED', 'Import request was cancelled', 409);
       }
+      if (error instanceof ApiClient.ApiError) {
+        if (error.code === 'API_NETWORK') {
+          throw importError('IMPORT_NETWORK', 'Import request failed before a response was received');
+        }
+        throw importError(
+          error.code === 'API_REQUEST_FAILED' ? 'IMPORT_REQUEST_FAILED' : error.code,
+          error.message,
+          error.status,
+          error.details,
+        );
+      }
+      if (error?.code) throw error;
       throw importError('IMPORT_NETWORK', 'Import request failed before a response was received');
     } finally {
       group.delete(controller);
@@ -131,8 +134,7 @@ export function createAddonImportClient({
       assertText(previewToken, 'previewToken');
       return request(`/api/content-import/jobs/${encodeURIComponent(jobId)}/commit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ previewToken }),
+        json: { previewToken },
       }, jobId);
     },
 

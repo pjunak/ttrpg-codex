@@ -23,61 +23,188 @@
 const fs = require('fs');
 const path = require('path');
 
+class AddonContentError extends Error {
+  constructor(diagnostics) {
+    const count = diagnostics.length;
+    const first = diagnostics[0];
+    const firstPath = [...String(first?.path || '.')]
+      .map(character => {
+        const code = character.charCodeAt(0);
+        return code <= 31 || code === 127 ? '?' : character;
+      })
+      .join('')
+      .slice(0, 240);
+    const detail = first ? `: ${firstPath}: ${first.message}` : '';
+    super(`Invalid addon content (${count} ${count === 1 ? 'issue' : 'issues'})${detail}`);
+    this.name = 'AddonContentError';
+    this.code = 'ADDON_CONTENT_INVALID';
+    this.diagnostics = Object.freeze(diagnostics.map(diagnostic => Object.freeze({ ...diagnostic })));
+  }
+}
+
+function relativePath(rootDir, filePath) {
+  const relative = path.relative(rootDir, filePath).replace(/\\/g, '/');
+  return relative || '.';
+}
+
+function buildTree(content) {
+  const index = Object.create(null);
+  let count = 0;
+  for (const kind of Object.keys(content)) {
+    const byId = Object.create(null);
+    index[kind] = byId;
+    for (const record of content[kind]) {
+      if (Object.hasOwn(byId, record.id)) {
+        throw new AddonContentError([{
+          code: 'CONTENT_DUPLICATE_ID',
+          path: kind,
+          message: 'Duplicate record id within one kind',
+        }]);
+      }
+      byId[record.id] = record;
+      count++;
+    }
+  }
+  return { content, index, kinds: Object.keys(content).sort(), count };
+}
+
 /**
  * Recursively read every `*.json` under `rootDir`'s child directories and
  * group records by their `kind` field (fallback: the immediate top-level
  * sub-directory name). Also builds a per-kind id index for O(1) item lookup.
- * Never throws for missing/corrupt input: a missing root yields empty
- * content; an unparseable file is skipped.
+ * The tree is accepted atomically: unreadable paths, malformed records,
+ * symlinks, and duplicate `(kind,id)` identities reject the whole package.
  *
  * @param {string} rootDir - absolute path of the addon's content dir
  * @returns {{content: Object<string, Array>, index: Object<string, Object>,
  *            kinds: string[], count: number}}
  */
 function loadContentTree(rootDir) {
-  const content = {};
-  let count = 0;
+  const content = Object.create(null);
+  const diagnostics = [];
+  const sources = new Map();
+
+  let rootStat;
+  try {
+    rootStat = fs.lstatSync(rootDir);
+  } catch (error) {
+    diagnostics.push({
+      code: error.code === 'ENOENT' ? 'CONTENT_DIR_MISSING' : 'CONTENT_DIR_READ_FAILED',
+      path: '.',
+      message: error.code === 'ENOENT' ? 'Content directory does not exist' : 'Content directory cannot be read',
+    });
+    throw new AddonContentError(diagnostics);
+  }
+  if (rootStat.isSymbolicLink()) {
+    throw new AddonContentError([{
+      code: 'CONTENT_SYMLINK_UNSUPPORTED',
+      path: '.',
+      message: 'Symbolic links are not allowed in declarative content',
+    }]);
+  }
+  if (!rootStat.isDirectory()) {
+    throw new AddonContentError([{
+      code: 'CONTENT_DIR_NOT_DIRECTORY',
+      path: '.',
+      message: 'Content path must be a directory',
+    }]);
+  }
 
   function walk(dir, topName) {
     let entries;
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
-    catch (_) { return; }                 // missing dir → nothing to add
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true })
+        .sort((left, right) => left.name.localeCompare(right.name));
+    } catch {
+      diagnostics.push({
+        code: 'CONTENT_DIR_READ_FAILED',
+        path: relativePath(rootDir, dir),
+        message: 'Content directory cannot be read',
+      });
+      return;
+    }
     for (const e of entries) {
       const full = path.join(dir, e.name);
-      if (e.isDirectory()) {
+      const relative = relativePath(rootDir, full);
+      if (e.isSymbolicLink()) {
+        diagnostics.push({
+          code: 'CONTENT_SYMLINK_UNSUPPORTED',
+          path: relative,
+          message: 'Symbolic links are not allowed in declarative content',
+        });
+      } else if (e.isDirectory()) {
         walk(full, topName || e.name);
       } else if (e.isFile() && e.name.endsWith('.json')) {
         let rec;
-        try { rec = JSON.parse(fs.readFileSync(full, 'utf8')); }
-        catch (_) { continue; }           // skip an unparseable file, keep going
-        if (!rec || typeof rec !== 'object') continue;
-        const kind = rec.kind || topName || 'unknown';
+        try {
+          rec = JSON.parse(fs.readFileSync(full, 'utf8'));
+        } catch (error) {
+          diagnostics.push({
+            code: error instanceof SyntaxError ? 'CONTENT_JSON_INVALID' : 'CONTENT_FILE_READ_FAILED',
+            path: relative,
+            message: error instanceof SyntaxError ? 'File is not valid JSON' : 'Content file cannot be read',
+          });
+          continue;
+        }
+        if (!rec || typeof rec !== 'object' || Array.isArray(rec)) {
+          diagnostics.push({
+            code: 'CONTENT_RECORD_INVALID',
+            path: relative,
+            message: 'Content record must be a JSON object',
+          });
+          continue;
+        }
+        if (typeof rec.id !== 'string' || !rec.id.trim()) {
+          diagnostics.push({
+            code: 'CONTENT_ID_INVALID',
+            path: relative,
+            message: 'Content record id must be a non-empty string',
+          });
+          continue;
+        }
+        if (rec.kind !== undefined && (typeof rec.kind !== 'string' || !rec.kind.trim())) {
+          diagnostics.push({
+            code: 'CONTENT_KIND_INVALID',
+            path: relative,
+            message: 'Content record kind must be a non-empty string when present',
+          });
+          continue;
+        }
+        const kind = rec.kind || topName;
+        if (!kind) {
+          diagnostics.push({
+            code: 'CONTENT_KIND_REQUIRED',
+            path: relative,
+            message: 'A root-level content record must declare kind',
+          });
+          continue;
+        }
+        const identity = JSON.stringify([kind, rec.id]);
+        if (sources.has(identity)) {
+          diagnostics.push({
+            code: 'CONTENT_DUPLICATE_ID',
+            path: relative,
+            relatedPath: sources.get(identity),
+            message: 'Duplicate record id within one kind',
+          });
+          continue;
+        }
+        sources.set(identity, relative);
         (content[kind] || (content[kind] = [])).push(rec);
-        count++;
       }
     }
   }
 
-  // Each immediate child dir of rootDir is a kind bucket (spells/, gear/, …).
-  let dirs = [];
-  try {
-    dirs = fs.readdirSync(rootDir, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name);
-  } catch (_) { /* no content dir → empty */ }
-  for (const d of dirs) walk(path.join(rootDir, d), d);
+  walk(rootDir, '');
+
+  if (diagnostics.length) throw new AddonContentError(diagnostics);
 
   // Stable order within each kind so the API output is deterministic.
   for (const k of Object.keys(content)) {
-    content[k].sort((a, b) => String(a.id || '').localeCompare(String(b.id || '')));
+    content[k].sort((a, b) => a.id.localeCompare(b.id));
   }
 
-  const index = {};
-  for (const k of Object.keys(content)) {
-    const m = (index[k] = Object.create(null));
-    for (const r of content[k]) if (r && r.id != null) m[r.id] = r;
-  }
-  return { content, index, kinds: Object.keys(content).sort(), count };
+  return buildTree(content);
 }
 
 /**
@@ -139,8 +266,7 @@ function groupValues(tree, field) {
 function filterContentTree(tree, field, disabled) {
   const off = new Set(Array.isArray(disabled) ? disabled : []);
   if (!field || !off.size) return tree;
-  const content = {};
-  let count = 0;
+  const content = Object.create(null);
   const src = (tree && tree.content) || {};
   for (const k of Object.keys(src)) {
     const kept = src[k].filter(
@@ -148,14 +274,8 @@ function filterContentTree(tree, field, disabled) {
     );
     if (!kept.length) continue;
     content[k] = kept;
-    count += kept.length;
   }
-  const index = {};
-  for (const k of Object.keys(content)) {
-    const m = (index[k] = Object.create(null));
-    for (const r of content[k]) if (r && r.id != null) m[r.id] = r;
-  }
-  return { content, index, kinds: Object.keys(content).sort(), count };
+  return buildTree(content);
 }
 
-module.exports = { loadContentTree, groupValues, filterContentTree };
+module.exports = { AddonContentError, loadContentTree, groupValues, filterContentTree };

@@ -127,7 +127,11 @@ apiVersion (`1` and `2` supported during migration), hostVersion, entry (client 
 **exports `init(serverHost)`** — Phase 7), contentDir? (relative dir of a
 per-record JSON tree the HOST serves at `/api/addon/<id>/content*` — the
 declarative "static rulebook" seam: no server code, no `server:code` grant,
-hot-loaded; see the API table row), contentGroups? (`{field, label?}` — names
+hot-loaded; every JSON file must be a record object with a non-empty string
+`id`, root-level records must declare `kind`, and `(kind,id)` must be unique;
+an unreadable path, symlink, malformed JSON/record, or duplicate rejects the
+whole package rather than serving a partial tree; see the API table row),
+contentGroups? (`{field, label?}` — names
 a record property of the content tree, e.g. `book`, whose distinct values the
 DM can toggle per group in Settings → Doplňky; the HOST filters the served
 tree hot via `POST /api/addons/:id/content-groups` — registry stores the
@@ -588,7 +592,7 @@ On top of that base, the concrete guardrails (added in the review/polish pass):
   **environment allowlist** (basic path/temp/home + locale variables only).
   Secret-shaped keys and ordinary deployment secrets such as `DATABASE_URL`,
   `AWS_ACCESS_KEY_ID`, and `SSH_*` never reach the child.
-- **Restore can't plant code.** `_safeJoinDataDir` rejects any entry under
+- **Restore can't plant code.** `_restoreRelativePath` rejects any entry under
   `data/addons/` (and the snapshots dir). Backups include addon code for
   inspection, but a restored ZIP can never write a `server/index.cjs` that boot
   `require()`s — addon code only ever lands via `_installAddon` (preview → SHA-pin
@@ -630,7 +634,11 @@ renames):
   call, stubs `store`/`role`/`h`/`ui`; **ENFORCES `meta.permissions` like the
   real facade when the array is declared** — an under-declared manifest fails
   in tests with the exact live error instead of at install; omit the key for
-  loose allow-all), with live-compatible `use()` dependency errors, collection
+  loose allow-all). Registration argument validation is shared with the live
+  facade through `web/js/addon-registration-contract.js`, so invalid routes,
+  renderers, kinds, slots, and duplicate keyed registrations fail the same way
+  in both environments. The harness also provides live-compatible `use()`
+  dependency errors, collection
   declaration/capability/role checks, keyed and list CRUD, transaction
   buffering/conflicts/rollback/nesting, empty player reads for DM collections,
   `host.contentRevision`, `host.onDispose`, scoped `host.i18n`, the scoped
@@ -719,9 +727,11 @@ renames):
   error paths, check-updates empty/local/role-gating) + `test/integration-addon-backup.test.cjs`
   (Phase 10 — `/api/backup` ZIP includes addon-data/registry/code, boot-sweep
   prunes stale `<hash>`/`.incoming` but keeps kept-K + non-hash dirs) +
-  `test/addon-content.test.cjs` (contentDir loader — tree walk, kinds,
-  per-record shapes) + `test/integration-addon-content.test.cjs` (the
-  host-served `/api/addon/:id/content*` endpoints end-to-end) +
+  `test/addon-content.test.cjs` (contentDir loader — atomic tree validation,
+  kinds, per-record shapes, diagnostics, and duplicate rejection) +
+  `test/integration-addon-content.test.cjs` (the host-served
+  `/api/addon/:id/content*` endpoints, runtime blocking, and failure isolation
+  end-to-end) +
   `test/addon-content-groups.test.cjs` (contentGroups declaration
   normalization, deterministic `contentRevision`, and the disabled-group
   content filter) +

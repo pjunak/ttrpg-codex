@@ -4,6 +4,12 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const fsp = fs.promises;
 const path = require('node:path');
+const {
+  durableCopy,
+  durableUnlink,
+  durableWrite,
+  fsyncDirectory,
+} = require('./durable-files.cjs');
 
 const TX_ID_RE = /^tx-[0-9a-f]{32}$/;
 const ADDON_ID_RE = /^[a-z0-9][a-z0-9-]{1,38}$/;
@@ -181,68 +187,6 @@ function applyOperations(containers, descriptors, operations) {
     }
   }
   return next;
-}
-
-async function fsyncDirectory(dir) {
-  let handle;
-  try {
-    handle = await fsp.open(dir, 'r');
-    await handle.sync();
-  } catch (error) {
-    if (process.platform !== 'win32' || !['EISDIR', 'EINVAL', 'EPERM', 'EACCES'].includes(error.code)) throw error;
-  } finally {
-    await handle?.close().catch(() => {});
-  }
-}
-
-async function durableWrite(filePath, content) {
-  await fsp.mkdir(path.dirname(filePath), { recursive: true });
-  const tmp = `${filePath}.${crypto.randomBytes(6).toString('hex')}.tmp`;
-  let handle;
-  try {
-    handle = await fsp.open(tmp, 'wx');
-    await handle.writeFile(content, 'utf8');
-    await handle.sync();
-    await handle.close();
-    handle = null;
-    await fsp.rename(tmp, filePath);
-    await fsyncDirectory(path.dirname(filePath));
-  } finally {
-    await handle?.close().catch(() => {});
-    await fsp.unlink(tmp).catch(() => {});
-  }
-}
-
-async function durablePublish(source, target) {
-  const content = await fsp.readFile(source);
-  await fsp.mkdir(path.dirname(target), { recursive: true });
-  const tmp = `${target}.${crypto.randomBytes(6).toString('hex')}.tx`;
-  let handle;
-  try {
-    handle = await fsp.open(tmp, 'wx');
-    await handle.writeFile(content);
-    await handle.sync();
-    await handle.close();
-    handle = null;
-    const delays = [10, 50, 200];
-    let lastError;
-    for (let attempt = 0; attempt <= delays.length; attempt++) {
-      try {
-        await fsp.rename(tmp, target);
-        lastError = null;
-        break;
-      } catch (error) {
-        lastError = error;
-        if (!['EBUSY', 'EPERM', 'EACCES'].includes(error.code) || attempt === delays.length) break;
-        await new Promise(resolve => setTimeout(resolve, delays[attempt]));
-      }
-    }
-    if (lastError) throw lastError;
-    await fsyncDirectory(path.dirname(target));
-  } finally {
-    await handle?.close().catch(() => {});
-    await fsp.unlink(tmp).catch(() => {});
-  }
 }
 
 async function cleanupTransactionDir(runtimeDir, txDir, transactionId) {
@@ -469,7 +413,7 @@ class CollectionTransactionManager {
             const entry = entries[index];
             const descriptor = descriptors.get(entry.collection);
             await this.fault(`publish:${index}:before`);
-            await durablePublish(path.join(txDir, `${entry.collection}.next.json`), descriptor.path);
+            await durableCopy(path.join(txDir, `${entry.collection}.next.json`), descriptor.path);
             await this.fault(`publish:${index}:after`);
           }
           journal = { ...journal, state: 'committed' };
@@ -487,10 +431,8 @@ class CollectionTransactionManager {
               const descriptor = descriptors.get(entry.collection);
               const original = path.join(txDir, `${entry.collection}.original.json`);
               await this.fault(`rollback:${index}:before`);
-              if (entry.originalExists) await durablePublish(original, descriptor.path);
-              else await fsp.unlink(descriptor.path).catch(unlinkError => {
-                if (unlinkError.code !== 'ENOENT') throw unlinkError;
-              });
+              if (entry.originalExists) await durableCopy(original, descriptor.path);
+              else await durableUnlink(descriptor.path);
               await this.fault(`rollback:${index}:after`);
             }
             journal = { ...journal, state: 'rolled-back' };
@@ -587,10 +529,8 @@ class CollectionTransactionManager {
           const validated = validateJournal(journal, this.runtimeDir, this.addonDataDir);
           await this.publicationBarrier.publish(async () => {
             for (const entry of validated.entries) {
-              if (entry.originalExists) await durablePublish(entry.original, entry.target);
-              else await fsp.unlink(entry.target).catch(unlinkError => {
-                if (unlinkError.code !== 'ENOENT') throw unlinkError;
-              });
+              if (entry.originalExists) await durableCopy(entry.original, entry.target);
+              else await durableUnlink(entry.target);
             }
           });
           journal = { ...journal, state: 'rolled-back' };
@@ -661,24 +601,24 @@ class CollectionTransactionManager {
         error.message = `Unsafe transaction journal ${name}: ${error.message}`;
         throw error;
       }
-      if (journal.state === 'rolling-back' || journal.state === 'rolled-back') {
+      if (journal.state === 'rolling-back') {
         await this.publicationBarrier.publish(async () => {
           for (const entry of validated.entries) {
-            if (entry.originalExists) await durablePublish(entry.original, entry.target);
-            else await fsp.unlink(entry.target).catch(error => {
-              if (error.code !== 'ENOENT') throw error;
-            });
+            if (entry.originalExists) await durableCopy(entry.original, entry.target);
+            else await durableUnlink(entry.target);
           }
         });
         result.rolledBack.push(name);
+      } else if (journal.state === 'rolled-back') {
+        result.rolledBack.push(name);
       } else {
-        await this.publicationBarrier.publish(async () => {
-          for (const entry of validated.entries) await durablePublish(entry.next, entry.target);
-          if (journal.state !== 'committed') {
+        if (journal.state !== 'committed') {
+          await this.publicationBarrier.publish(async () => {
+            for (const entry of validated.entries) await durableCopy(entry.next, entry.target);
             journal = { ...journal, state: 'committed' };
             await durableWrite(journalPath, JSON.stringify(journal, null, 2));
-          }
-        });
+          });
+        }
         const access = validated.entries.every(entry => entry.access === 'dm') ? 'dm' : 'public';
         if (journal.effectsApplied !== true) {
           await this.onRecoveredCommit({

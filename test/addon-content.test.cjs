@@ -13,9 +13,8 @@ const path = require('node:path');
 const { loadContentTree } = require('../server/addon-content.cjs');
 const { validateManifest } = require('../server/addons.cjs');
 
-// ── Fixture tree mirroring a book addon's layout (incl. a nested dir + a
-//    kind-field-less record + a corrupt file). ─────────────────────────────
-function makeTree() {
+// ── Fixture tree mirroring a book addon's layout. ─────────────────────────
+function makeTree(files = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'addon-content-'));
   const write = (rel, obj) => {
     const full = path.join(root, rel);
@@ -28,14 +27,13 @@ function makeTree() {
   write('subclasses/cleric/life-domain.json', { id: 'life-domain', kind: 'subclass', name: 'Life Domain', classId: 'cleric' });
   // NO kind field → grouped under the top-level dir name
   write('monsters/aboleth.json', { id: 'aboleth', name: 'Aboleth' });
-  // corrupt file — skipped, never fatal
-  write('rules/broken.json', '{ not valid json');
+  for (const [rel, value] of Object.entries(files)) write(rel, value);
   return root;
 }
 
-test('loadContentTree: groups by record kind (dir-name fallback), skips corrupt, counts', () => {
+test('loadContentTree: groups by record kind (dir-name fallback), indexes, and counts', () => {
   const { content, index, kinds, count } = loadContentTree(makeTree());
-  assert.equal(count, 4, 'four valid records (corrupt skipped)');
+  assert.equal(count, 4);
   assert.deepEqual(kinds, ['monsters', 'spell', 'subclass'], 'kind field wins; dir name is the fallback');
   assert.equal(content.spell.length, 2);
   assert.deepEqual(content.spell.map(s => s.id), ['bless', 'fireball'], 'sorted by id (deterministic)');
@@ -45,12 +43,71 @@ test('loadContentTree: groups by record kind (dir-name fallback), skips corrupt,
   assert.equal(index.spell.nope, undefined);
 });
 
-test('loadContentTree: a missing root yields empty content, never throws', () => {
-  const { content, index, kinds, count } = loadContentTree(path.join(os.tmpdir(), 'nope-' + Date.now()));
-  assert.deepEqual(content, {});
-  assert.deepEqual(index, {});
-  assert.deepEqual(kinds, []);
-  assert.equal(count, 0);
+test('loadContentTree: malformed files reject the whole package with safe diagnostics', () => {
+  const root = makeTree({
+    'rules/broken.json': '{ not valid json',
+    'rules/array.json': [],
+    'rules/missing-id.json': { kind: 'rule', name: 'No identity' },
+    'rules/invalid-kind.json': { id: 'bad-kind', kind: '' },
+  });
+  assert.throws(
+    () => loadContentTree(root),
+    error => {
+      assert.equal(error.code, 'ADDON_CONTENT_INVALID');
+      assert.deepEqual(
+        error.diagnostics.map(diagnostic => diagnostic.code).sort(),
+        ['CONTENT_ID_INVALID', 'CONTENT_JSON_INVALID', 'CONTENT_KIND_INVALID', 'CONTENT_RECORD_INVALID'],
+      );
+      assert.ok(error.diagnostics.every(diagnostic => !path.isAbsolute(diagnostic.path)));
+      return true;
+    },
+  );
+});
+
+test('loadContentTree: missing roots and non-directory roots reject the package', () => {
+  assert.throws(
+    () => loadContentTree(path.join(os.tmpdir(), 'nope-' + Date.now())),
+    error => error.code === 'ADDON_CONTENT_INVALID'
+      && error.diagnostics[0].code === 'CONTENT_DIR_MISSING',
+  );
+  const file = path.join(makeTree(), 'not-a-directory');
+  fs.writeFileSync(file, '{}');
+  assert.throws(
+    () => loadContentTree(file),
+    error => error.code === 'ADDON_CONTENT_INVALID'
+      && error.diagnostics[0].code === 'CONTENT_DIR_NOT_DIRECTORY',
+  );
+});
+
+test('loadContentTree: duplicate identities reject instead of overwriting', () => {
+  const duplicate = makeTree({
+    'other/fireball-copy.json': { id: 'fireball', kind: 'spell', name: 'Duplicate' },
+  });
+  assert.throws(
+    () => loadContentTree(duplicate),
+    error => error.code === 'ADDON_CONTENT_INVALID'
+      && error.diagnostics[0].code === 'CONTENT_DUPLICATE_ID'
+      && new Set([error.diagnostics[0].path, error.diagnostics[0].relatedPath]).size === 2,
+  );
+
+  const differentKind = makeTree({
+    'rules/fireball.json': { id: 'fireball', kind: 'rule', name: 'Same id, distinct kind' },
+  });
+  const tree = loadContentTree(differentKind);
+  assert.equal(tree.index.spell.fireball.name, 'Fireball');
+  assert.equal(tree.index.rule.fireball.name, 'Same id, distinct kind');
+});
+
+test('loadContentTree: root-level records must declare kind', () => {
+  assert.throws(
+    () => loadContentTree(makeTree({ 'orphan.json': { id: 'orphan' } })),
+    error => error.code === 'ADDON_CONTENT_INVALID'
+      && error.diagnostics[0].code === 'CONTENT_KIND_REQUIRED',
+  );
+  const tree = loadContentTree(makeTree({
+    'rule.json': { id: 'root-rule', kind: 'rule', name: 'Root rule' },
+  }));
+  assert.equal(tree.index.rule['root-rule'].name, 'Root rule');
 });
 
 // ── Manifest validation of contentDir ─────────────────────────────

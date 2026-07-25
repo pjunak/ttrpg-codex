@@ -13,6 +13,7 @@
 const { test } = require('node:test');
 const assert   = require('node:assert/strict');
 const fsp      = require('fs').promises;
+const os       = require('os');
 const path     = require('path');
 const { startServer } = require('./helpers/server-process.cjs');
 const { createZip } = require('./helpers/zip.cjs');
@@ -26,10 +27,23 @@ async function login(srv, pw) {
   assert.equal(r.status, 200);
 }
 
-async function postRestore(srv, zipBuf) {
+async function postRestore(srv, content, filename = 'backup.zip', type = 'application/zip') {
   const form = new FormData();
-  form.append('backup', new Blob([zipBuf], { type: 'application/zip' }), 'backup.zip');
+  form.append('backup', new Blob([content], { type }), filename);
   return srv.fetch('/api/restore', { method: 'POST', body: form });
+}
+
+async function waitForFile(filePath, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      await fsp.access(filePath);
+      return;
+    } catch {
+      await new Promise(resolve => { setTimeout(resolve, 10); });
+    }
+  }
+  throw new Error(`Timed out waiting for ${filePath}`);
 }
 
 test('restore: ZIP round-trips collection files but never auth.json or addon code', async () => {
@@ -104,4 +118,124 @@ test('restore: requires auth', async () => {
     const res = await postRestore(srv, await createZip({ 'data/characters.json': [] }));
     assert.equal(res.status, 401);
   } finally { await srv.kill(); }
+});
+
+test('restore: invalid JSON collection shape cannot partially publish earlier collections', async () => {
+  const srv = await startServer({
+    dmPassword: DM,
+    seedData: {
+      'characters.json': [{ id: 'old', name: 'Old character' }],
+      'events.json': [{ id: 'old-event', name: 'Old event' }],
+    },
+  });
+  try {
+    await login(srv, DM);
+    const res = await postRestore(
+      srv,
+      JSON.stringify({
+        characters: [{ id: 'new', name: 'New character' }],
+        events: 'not-an-array',
+      }),
+      'backup.json',
+      'application/json',
+    );
+    assert.equal(res.status, 400);
+    const characters = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'characters.json'), 'utf8'));
+    const events = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'events.json'), 'utf8'));
+    assert.deepEqual(characters.map(({ id, name }) => ({ id, name })), [
+      { id: 'old', name: 'Old character' },
+    ]);
+    assert.deepEqual(events.map(({ id, name }) => ({ id, name })), [
+      { id: 'old-event', name: 'Old event' },
+    ]);
+  } finally {
+    await srv.kill();
+  }
+});
+
+test('restore: startup recovery completes an interrupted multi-file publication', async () => {
+  const dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'codex-restore-recovery-data-'));
+  const snapshotsDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'codex-restore-recovery-snaps-'));
+  let crashed;
+  let recovered;
+  try {
+    crashed = await startServer({
+      dataDir,
+      snapshotsDir,
+      dmPassword: DM,
+      seedData: {
+        'characters.json': [{ id: 'old', name: 'Old character' }],
+        'events.json': [{ id: 'old-event', name: 'Old event' }],
+      },
+      env: { CODEX_RESTORE_CRASH_PHASE: 'publish:0:after' },
+    });
+    await login(crashed, DM);
+    await assert.rejects(postRestore(crashed, await createZip({
+      'data/characters.json': [{ id: 'new', name: 'New character' }],
+      'data/events.json': [{ id: 'new-event', name: 'New event' }],
+    })));
+    await crashed.kill();
+
+    recovered = await startServer({ dataDir, snapshotsDir, dmPassword: DM });
+    const characters = JSON.parse(await fsp.readFile(path.join(dataDir, 'characters.json'), 'utf8'));
+    const events = JSON.parse(await fsp.readFile(path.join(dataDir, 'events.json'), 'utf8'));
+    assert.deepEqual(characters.map(({ id, name }) => ({ id, name })), [
+      { id: 'new', name: 'New character' },
+    ]);
+    assert.deepEqual(events.map(({ id, name }) => ({ id, name })), [
+      { id: 'new-event', name: 'New event' },
+    ]);
+    assert.deepEqual(
+      await fsp.readdir(path.join(dataDir, '.runtime', 'restores')),
+      [],
+      'recovered restore journal is cleaned after the complete state is durable',
+    );
+  } finally {
+    if (crashed) await crashed.kill();
+    if (recovered) await recovered.kill();
+    await fsp.rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    await fsp.rm(snapshotsDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test('restore: static campaign files are hidden until the whole publication completes', async () => {
+  const controlDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'codex-restore-control-'));
+  const reached = path.join(controlDir, 'publish_0_after.reached');
+  const release = path.join(controlDir, 'publish_0_after.release');
+  const srv = await startServer({
+    dmPassword: DM,
+    seedFiles: {
+      'maps/a.txt': 'old a',
+      'maps/b.txt': 'old b',
+    },
+    env: {
+      CODEX_RESTORE_PAUSE_PHASE: 'publish:0:after',
+      CODEX_RESTORE_CONTROL_DIR: controlDir,
+    },
+  });
+  try {
+    await login(srv, DM);
+    const restorePromise = postRestore(srv, await createZip({
+      'data/maps/a.txt': 'new a',
+      'data/maps/b.txt': 'new b',
+    }));
+    await waitForFile(reached);
+
+    let readSettled = false;
+    const readPromise = srv.fetch('/maps/a.txt').then(async response => {
+      readSettled = true;
+      return response.text();
+    });
+    await new Promise(resolve => { setTimeout(resolve, 100); });
+    assert.equal(readSettled, false, 'static read must wait behind restore publication');
+
+    await fsp.writeFile(release, '', 'utf8');
+    assert.equal((await restorePromise).status, 200);
+    assert.equal(await readPromise, 'new a');
+    assert.equal(await (await srv.fetch('/maps/b.txt')).text(), 'new b');
+  } finally {
+    await fsp.writeFile(release, '', 'utf8').catch(() => {});
+    await srv.kill();
+    await fsp.rm(controlDir, { recursive: true, force: true });
+  }
 });

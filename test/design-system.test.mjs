@@ -68,6 +68,8 @@ test('the live facade and the harness mirror stay in sync (text tripwire)', () =
   // importable headless — so pin the wiring at the source-text level.
   assert.match(read('web/js/addons.js'), /icon:\s*iconGlyph/, 'h.icon wired in the facade');
   assert.match(read('web/js/addons.js'), /announce\(m\)/, 'ui.announce wired in the facade');
+  assert.match(read('web/js/addons.js'), /AddonRegistrationContract/, 'live facade uses the shared registration contract');
+  assert.match(read('web/js/addon-test-harness.mjs'), /AddonRegistrationContract/, 'harness uses the shared registration contract');
   const utils = read('web/js/utils.js');
   assert.match(utils, /export function iconGlyph/, 'utils.iconGlyph exported');
   assert.match(utils, /export function announce/, 'utils.announce exported');

@@ -54,10 +54,12 @@ function buildChildEnv(env = process.env) {
 function runNodeTests(cwd, paths, { spawn, timeoutMs = 30_000, execPath, env } = {}) {
   return new Promise((resolve) => {
     if (typeof spawn !== 'function') {
-      return resolve({ ok: false, code: null, signal: null, timedOut: false, output: 'no spawn provided' });
+      resolve({ ok: false, code: null, signal: null, timedOut: false, output: 'no spawn provided' });
+      return;
     }
     if (!Array.isArray(paths) || !paths.length) {
-      return resolve({ ok: true, code: 0, signal: null, timedOut: false, output: 'no test files' });
+      resolve({ ok: true, code: 0, signal: null, timedOut: false, output: 'no test files' });
+      return;
     }
     const node = execPath || process.execPath;
     // Spawn a CLEAN test run. node:test sets NODE_TEST_CONTEXT in the env of
@@ -80,7 +82,8 @@ function runNodeTests(cwd, paths, { spawn, timeoutMs = 30_000, execPath, env } =
       child = spawn(node, ['--test', '--test-isolation=none', ...paths],
         { cwd, env: childEnv, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     } catch (e) {
-      return resolve({ ok: false, code: null, signal: null, timedOut: false, output: 'spawn failed: ' + e.message });
+      resolve({ ok: false, code: null, signal: null, timedOut: false, output: 'spawn failed: ' + e.message });
+      return;
     }
     const append = (d) => { out += d.toString(); if (out.length > MAX_OUTPUT) out = out.slice(-MAX_OUTPUT); };
     if (child.stdout) child.stdout.on('data', append);

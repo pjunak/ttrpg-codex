@@ -1,9 +1,12 @@
 import { Store } from './store.js';
-import { PIN_TYPES, PIN_SIZE_MIN, PIN_SIZE_MAX } from './map.js';
+import { PinTypes } from './pin-types.js';
 // Relationship/connection kinds come from Store.getKinds('connections').
 import { esc, dataAction, dataOn, safeColor } from './utils.js';
 import { I18n } from './i18n.js';
 import { CollectionDescriptors } from './collection-descriptors.js';
+
+const PIN_SIZE_MIN = PinTypes.sizeMin;
+const PIN_SIZE_MAX = PinTypes.sizeMax;
 
 export const EditTemplates = (() => {
 
@@ -547,18 +550,18 @@ export const EditTemplates = (() => {
       <div class="edit-hint" style="margin-top:0.25rem">${esc(I18n.t('editform.onePlaceHint'))}</div>`
       : `<div class="edit-hint">${esc(I18n.t('editform.saveLocFirstChars'))}</div>`;
 
-    // Typ dropdown: PIN_TYPES entries with their icons, plus "custom"
-    // fallback. The id-based `pinType` field wins; if a record only
-    // carries the human-readable `type` text, try to match it back to
-    // a PIN_TYPES label so the dropdown shows the right selection.
+    // The id-based `pinType` field wins; legacy records that only carry
+    // the human-readable `type` text are matched against the live choices.
+    const livePinTypes = Store.getKinds('pinTypes') || [];
     let selectedPinType = l.pinType || '';
     if (!selectedPinType && l.type) {
-      const match = Object.entries(PIN_TYPES).find(([, v]) => v.label === l.type);
-      if (match) selectedPinType = match[0];
+      const match = PinTypes.choices(livePinTypes).find(item => item.label === l.type);
+      if (match) selectedPinType = match.id;
     }
+    const pinTypeChoices = PinTypes.choices(livePinTypes, selectedPinType);
     const typeOpts = `<option value="" ${!selectedPinType?'selected':''}>${esc(I18n.t('editform.undetermined'))}</option>` +
-      Object.entries(PIN_TYPES)
-        .map(([k, v]) => `<option value="${esc(k)}" ${selectedPinType===k?'selected':''}>${v.icon} ${esc(v.label)}</option>`)
+      pinTypeChoices
+        .map(item => `<option value="${esc(item.id)}" ${selectedPinType===item.id?'selected':''}>${esc(item.icon || '📌')} ${esc(item.label)}</option>`)
         .join('');
 
     // Subplace hierarchy: parent picker excludes self (and could exclude

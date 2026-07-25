@@ -6,13 +6,24 @@ import {
 import { norm, clearMarkdownCache } from './utils.js';
 import { PARTY_FACTION_ID, SIDEBAR_PAGES, SIDEBAR_LAYOUT_DEFAULT } from './constants.js';
 import { I18n } from './i18n.js';
-import { Role } from './role.js';
 import { CollectionDescriptors } from './collection-descriptors.js';
+import { ApiClient } from './api-client.js';
+import { StoreTransport } from './store-transport.js';
+import { StoreAdminClient } from './store-admin-client.js';
 
 export const Store = (() => {
   let _data            = null;
-  let _serverAvailable = false;
   let _loadedOnce      = false;   // a successful load() completed this session
+  const _transport = StoreTransport.create();
+  const _sync = _transport.sync;
+  const {
+    resolveAddonConflict,
+    checkAddonUpdates,
+    rollbackAddon,
+    updateAllAddons,
+    restartServer,
+    getCanRestart,
+  } = StoreAdminClient;
 
   // ── Secondary indices (rebuilt by _reindex on every mutation) ──
   let _idxCharsByFaction   = new Map();
@@ -131,10 +142,6 @@ export const Store = (() => {
   }
 
   function _mergeDefaults() {
-    // Coerce legacy array-shaped tombstones to the keyed object shape.
-    if (Array.isArray(_data.deletedDefaults)) {
-      _data.deletedDefaults = Object.fromEntries(_data.deletedDefaults.map(k => [k, true]));
-    }
     if (!_data.deletedDefaults || typeof _data.deletedDefaults !== 'object') {
       _data.deletedDefaults = {};
     }
@@ -173,9 +180,7 @@ export const Store = (() => {
       }
     }
     // Player party (Naše parta) — single-object setting (not an enum
-    // array). Seeded once on first install; never overwritten if
-    // already present. Migration from legacy `factions.party` runs
-    // later in load() via `_migratePartyFactionToPlayerParty`.
+    // array). Seeded locally when the server has no stored value.
     if (!_data.settings.playerParty || typeof _data.settings.playerParty !== 'object'
         || Array.isArray(_data.settings.playerParty)) {
       _data.settings.playerParty = {
@@ -215,566 +220,10 @@ export const Store = (() => {
     if (typeof _data.campaign.main.tagline !== 'string') _data.campaign.main.tagline = '';
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  Schema migrations.
-  //
-  //  Each `_migrate*()` helper below MUST be idempotent — `load()`
-  //  invokes the full set on every page load, so re-running on
-  //  already-migrated data has to be a no-op.
-  //
-  //  Each helper returns the entities it touched (plus, in some
-  //  cases, flags or category ids) so `load()` can sync per-record
-  //  via the normal PATCH path. Returning `[]` / `false` means
-  //  "nothing changed; no sync needed."
-  //
-  //  When adding a new migration: hook it into `load()` in the
-  //  same order-sensitive batch (mapStatus must precede the shape
-  //  upgrade so `unknown` ids are stripped together).
-  // ─────────────────────────────────────────────────────────────
-
   /**
-   * Translate the retired `location.mapStatus` field into the unified
-   * `attitudes[]` vocabulary and remove the orphan `mapStatuses` enum
-   * category from settings.
-   *
-   * @returns {{touchedLocations: Array, droppedSettingsCat: boolean}}
-   */
-  function _migrateMapStatusToAttitudes() {
-    if (!_data) return { touchedLocations: [], droppedSettingsCat: false };
-    const touched = [];
-    const IDMAP = { visited: 'ally', enemy: 'enemy', fog: 'unknown', known: 'neutral' };
-    for (const l of _data.locations || []) {
-      let locChanged = false;
-      let attitudes = Array.isArray(l.attitudes) ? l.attitudes.slice() : null;
-      // Carry legacy mapStatus forward into attitudes if not already set.
-      if (l.mapStatus) {
-        const mapped = IDMAP[l.mapStatus] || 'unknown';
-        if (!attitudes || !attitudes.length) attitudes = [mapped];
-        else if (!attitudes.includes(mapped)) attitudes.push(mapped);
-      }
-      if (attitudes && JSON.stringify(l.attitudes || []) !== JSON.stringify(attitudes)) {
-        l.attitudes = attitudes;
-        locChanged = true;
-      }
-      if (l.mapStatus !== undefined) {
-        delete l.mapStatus;
-        locChanged = true;
-      }
-      if (locChanged) touched.push(l);
-    }
-    let droppedSettingsCat = false;
-    if (_data.settings && Array.isArray(_data.settings.mapStatuses)) {
-      delete _data.settings.mapStatuses;
-      droppedSettingsCat = true;
-    }
-    return { touchedLocations: touched, droppedSettingsCat };
-  }
-
-  /**
-   * Replace any remaining `status: 'captured'` characters with
-   * `alive` + a `Zajat/a` note in the free-text `circumstances` field.
-   * The narrower enum keeps the picker simple; `circumstances` is the
-   * place to record richer states.
-   *
-   * @returns {Array} Characters whose record was rewritten.
-   */
-  function _migrateCapturedStatus() {
-    if (!_data || !Array.isArray(_data.characters)) return [];
-    const touched = [];
-    for (const c of _data.characters) {
-      if (c.status === 'captured') {
-        c.status = 'alive';
-        if (!c.circumstances) c.circumstances = 'Zajat/a';
-        touched.push(c);
-      }
-    }
-    return touched;
-  }
-
-  /**
-   * Coerce every entity's `attitudes` field into the canonical
-   * `[{id}]` shape: drop the legacy single-string `character.attitude`,
-   * upgrade legacy `string[]` arrays to objects, and strip the legacy
-   * `unknown` id (now expressed by an empty array).
-   *
-   * @returns {{characters: Array, locations: Array, factions: Array<{id:string, fac:object}>}}
-   */
-  function _migrateAttitudesToObjectShape() {
-    if (!_data) return { characters: [], locations: [], factions: [] };
-    const out = { characters: [], locations: [], factions: [] };
-
-    // Returns a normalised array if any change is needed; null when the
-    // input is already canonical (so the caller can skip a no-op sync).
-    // Canonical shape is `[{id}]` — no `strength` field; strength lives
-    // on the `attitudes` settings enum item itself (see
-    // `_migrateStrengthFromEntityToEnum`).
-    //
-    // ⚠ LOAD-BEARING INVARIANT: this function MUST NOT re-add `strength`
-    // to entries that are already canonical. If it does, it ping-pongs
-    // with `_migrateStrengthFromEntityToEnum` on every load — each
-    // migration sees the other's output as "non-canonical" and writes
-    // a fresh sync, which the SSE pushes back as a `data-changed`
-    // event, which triggers another load, which… The hash-dedupe in
-    // `_applyRemoteChange` cannot save you here because each cycle's
-    // payload genuinely differs (`{id:'enemy'}` ↔ `{id:'enemy', strength:1.0}`).
-    // Symptom: the page flickers continuously until the tab is closed.
-    const normalize = (arr) => {
-      if (!Array.isArray(arr)) return null;
-      let changed = false;
-      const seen = new Set();
-      const next = [];
-      for (const e of arr) {
-        if (typeof e === 'string') {
-          changed = true;
-          if (e === 'unknown' || !e) continue;
-          if (seen.has(e)) continue;
-          seen.add(e);
-          next.push({ id: e });
-        } else if (e && typeof e === 'object' && typeof e.id === 'string') {
-          if (e.id === 'unknown') { changed = true; continue; }
-          if (seen.has(e.id))      { changed = true; continue; }
-          seen.add(e.id);
-          if ('strength' in e) {
-            // Drop the legacy strength field (now per-enum).
-            changed = true;
-            const { strength, ...rest } = e;  // eslint-disable-line no-unused-vars
-            next.push({ ...rest, id: e.id });
-          } else {
-            // Already canonical — preserve as-is, no `changed` bump.
-            next.push(e);
-          }
-        } else {
-          changed = true; // drop garbage
-        }
-      }
-      return changed ? next : null;
-    };
-
-    for (const c of _data.characters || []) {
-      let touched = false;
-      // Legacy single `attitude` field → array form.
-      if ('attitude' in c) {
-        const legacy = c.attitude;
-        if (typeof legacy === 'string' && legacy && legacy !== 'unknown'
-            && (!Array.isArray(c.attitudes) || c.attitudes.length === 0)) {
-          c.attitudes = [{ id: legacy }];
-        }
-        delete c.attitude;
-        touched = true;
-      }
-      const norm = normalize(c.attitudes);
-      if (norm) { c.attitudes = norm; touched = true; }
-      else if (!Array.isArray(c.attitudes)) { c.attitudes = []; touched = true; }
-      if (touched) out.characters.push(c);
-    }
-
-    for (const l of _data.locations || []) {
-      const norm = normalize(l.attitudes);
-      if (norm) { l.attitudes = norm; out.locations.push(l); }
-      else if (!Array.isArray(l.attitudes)) { l.attitudes = []; out.locations.push(l); }
-    }
-
-    for (const [id, f] of Object.entries(_data.factions || {})) {
-      if (!f || typeof f !== 'object') continue;
-      if (!Array.isArray(f.attitudes)) {
-        f.attitudes = [];
-        out.factions.push({ id, fac: f });
-      } else {
-        const norm = normalize(f.attitudes);
-        if (norm) { f.attitudes = norm; out.factions.push({ id, fac: f }); }
-      }
-    }
-
-    return out;
-  }
-
-  /**
-   * Remove the `unknown` row from `settings.attitudes` and tombstone it
-   * so `_mergeDefaults` won't re-seed. Empty `attitudes[]` IS the new
-   * "no stance" baseline; the old explicit id was redundant and made
-   * the renderer ambiguous.
-   *
-   * @returns {boolean} `true` if the row was dropped (caller persists).
-   */
-  function _dropUnknownFromAttitudesEnum() {
-    if (!_data?.settings?.attitudes) return false;
-    const before = _data.settings.attitudes.length;
-    _data.settings.attitudes = _data.settings.attitudes.filter(a => a.id !== 'unknown');
-    if (_data.settings.attitudes.length === before) return false;
-    if (!_data.deletedDefaults || typeof _data.deletedDefaults !== 'object') {
-      _data.deletedDefaults = {};
-    }
-    _data.deletedDefaults['settings:attitudes:unknown'] = true;
-    return true;
-  }
-
-  /**
-   * Replace the `priority` (1/2/3) field on every pin type and on every
-   * placed location with an explicit pixel `size`. Visibility is no
-   * longer derived from priority; it'll be a per-Pohled rule.
-   *
-   * Mapping: 1→36 px, 2→30 px, 3→26 px (mirrors the seeded defaults).
-   *
-   * @returns {{pinTypesTouched: boolean, touchedLocations: Array}}
-   */
-  function _migratePinPriorityToSize() {
-    if (!_data) return { pinTypesTouched: false, touchedLocations: [] };
-    const SIZE_FROM_PRIORITY = { 1: 36, 2: 30, 3: 26 };
-    let pinTypesTouched = false;
-    const arr = (_data.settings && _data.settings.pinTypes) || [];
-    for (const pt of arr) {
-      if ('priority' in pt) {
-        if (typeof pt.size !== 'number') {
-          pt.size = SIZE_FROM_PRIORITY[pt.priority] || 28;
-        }
-        delete pt.priority;
-        pinTypesTouched = true;
-      } else if (typeof pt.size !== 'number') {
-        // Item that pre-dates both fields — give it a sensible default.
-        pt.size = 28;
-        pinTypesTouched = true;
-      }
-    }
-    const touched = [];
-    for (const l of _data.locations || []) {
-      if ('priority' in l) {
-        if (typeof l.size !== 'number') {
-          const mapped = SIZE_FROM_PRIORITY[l.priority];
-          if (mapped) l.size = mapped;
-        }
-        delete l.priority;
-        touched.push(l);
-      }
-    }
-    return { pinTypesTouched, touchedLocations: touched };
-  }
-
-  /**
-   * Strip the `strength` field from every entity's attitude entries.
-   * Strength now lives on the `attitudes` settings enum item, so editing
-   * intensity in Settings updates every glow at once instead of having
-   * to walk every entity record.
-   *
-   * Pairs with the LOAD-BEARING INVARIANT in
-   * `_migrateAttitudesToObjectShape.normalize` — see that comment for
-   * why this migration must NOT bounce with the shape upgrade.
-   *
-   * @returns {{characters: Array, locations: Array, factions: Array<{id:string, fac:object}>}}
-   */
-  function _migrateStrengthFromEntityToEnum() {
-    if (!_data) return { characters: [], locations: [], factions: [] };
-    const out = { characters: [], locations: [], factions: [] };
-    const stripStrength = (arr) => {
-      if (!Array.isArray(arr)) return null;
-      let changed = false;
-      const next = arr.map(e => {
-        if (e && typeof e === 'object' && 'strength' in e) {
-          changed = true;
-          const { strength, ...rest } = e;  // eslint-disable-line no-unused-vars
-          return rest;
-        }
-        return e;
-      });
-      return changed ? next : null;
-    };
-    for (const c of _data.characters || []) {
-      const next = stripStrength(c.attitudes);
-      if (next) { c.attitudes = next; out.characters.push(c); }
-    }
-    for (const l of _data.locations || []) {
-      const next = stripStrength(l.attitudes);
-      if (next) { l.attitudes = next; out.locations.push(l); }
-    }
-    for (const [id, f] of Object.entries(_data.factions || {})) {
-      if (!f || typeof f !== 'object') continue;
-      const next = stripStrength(f.attitudes);
-      if (next) { f.attitudes = next; out.factions.push({ id, fac: f }); }
-    }
-    return out;
-  }
-
-  /** PCs always render with the `party` palette via the faction
-   *  shortcut in getEffectiveAttitudes; their own `attitudes[]` field
-   *  is dead data. Strip it so saved records match reality.
-   *  Idempotent: only emits when the array is non-empty. Must run
-   *  after `_migrateStrengthFromEntityToEnum` so we don't double-
-   *  touch a record being normalised by both passes. */
-  function _migratePartyAttitudesEmpty() {
-    if (!_data) return { characters: [] };
-    const out = [];
-    for (const c of (_data.characters || [])) {
-      if (isPartyMember(c)
-          && Array.isArray(c.attitudes)
-          && c.attitudes.length > 0) {
-        c.attitudes = [];
-        out.push(c);
-      }
-    }
-    return { characters: out };
-  }
-
-  /**
-   * Ensure every `settings.attitudes` row has a numeric `strength`
-   * (defaulting to 1.0). The renderer expects a number; missing values
-   * would silently break the glow on first paint.
-   *
-   * @returns {boolean} `true` if any row was patched.
-   */
-  function _seedAttitudeStrength() {
-    if (!_data?.settings?.attitudes) return false;
-    let touched = false;
-    for (const a of _data.settings.attitudes) {
-      if (typeof a.strength !== 'number') {
-        a.strength = 1.0;
-        touched = true;
-      }
-    }
-    return touched;
-  }
-
-  /**
-   * Strip `location.status`. The `locationStatuses` enum and its
-   * icon-variant strategy were retired; description text is the place
-   * to record richer state.
-   *
-   * @returns {Array} Locations whose record was patched.
-   */
-  function _migrateDropLocationStatus() {
-    if (!_data || !Array.isArray(_data.locations)) return [];
-    const touched = [];
-    for (const l of _data.locations) {
-      if (Object.prototype.hasOwnProperty.call(l, 'status')) {
-        delete l.status;
-        touched.push(l);
-      }
-    }
-    return touched;
-  }
-
-  /**
-   * Strip `artifact.state`. The `artifactStates` enum was a cosmetic
-   * chip with no search / filter / icon hook, retired alongside
-   * `locationStatuses`.
-   *
-   * @returns {Array} Artifacts whose record was patched.
-   */
-  function _migrateDropArtifactState() {
-    if (!_data || !Array.isArray(_data.artifacts)) return [];
-    const touched = [];
-    for (const a of _data.artifacts) {
-      if (Object.prototype.hasOwnProperty.call(a, 'state')) {
-        delete a.state;
-        touched.push(a);
-      }
-    }
-    return touched;
-  }
-
-  /**
-   * Remove the `locationStatuses` and `artifactStates` keys from
-   * `_data.settings`. Pure server-side cleanup — without this, the
-   * orphan categories would linger in `data/settings.json` forever.
-   *
-   * @returns {Array<string>} Category ids actually removed (caller
-   *                          issues one `_sync('settings', 'delete')`
-   *                          per id).
-   */
-  function _migrateDropRetiredSettingsCategories() {
-    if (!_data?.settings) return [];
-    const RETIRED = ['locationStatuses', 'artifactStates'];
-    const dropped = [];
-    for (const cat of RETIRED) {
-      if (Object.prototype.hasOwnProperty.call(_data.settings, cat)) {
-        delete _data.settings[cat];
-        dropped.push(cat);
-      }
-    }
-    return dropped;
-  }
-
-  /**
-   * Collapse the retired `state` icon-strategy to `single` and strip
-   * per-file `stateId` markers on every pin type. With the `state`
-   * strategy gone, `files[0]` is the default for `single` mode so the
-   * marker metadata is no longer needed.
-   *
-   * @returns {boolean} `true` if any pin type was patched (caller
-   *                    persists the whole `pinTypes` category once).
-   */
-  function _migrateRetirePinTypeStateStrategy() {
-    const types = _data?.settings?.pinTypes;
-    if (!Array.isArray(types)) return false;
-    let touched = false;
-    for (const t of types) {
-      const cfg = t.iconConfig;
-      if (!cfg || typeof cfg !== 'object') continue;
-      if (cfg.strategy === 'state') {
-        cfg.strategy = 'single';
-        touched = true;
-      }
-      if (Array.isArray(cfg.files)) {
-        for (const f of cfg.files) {
-          if (Object.prototype.hasOwnProperty.call(f, 'stateId')) {
-            delete f.stateId;
-            touched = true;
-          }
-        }
-      }
-    }
-    return touched;
-  }
-
-  /**
-   * Move `factions.party` (legacy regular-faction record for the
-   * player party) into `settings.playerParty`. PCs are still
-   * identified by `character.faction === 'party'` — only the visual
-   * identity moves. Idempotent: if `settings.playerParty` is already
-   * populated, the factions side is dropped without overwrite.
-   *
-   * @returns {{movedFromFactions: boolean, playerPartyChanged: boolean}}
-   */
-  function _migratePartyFactionToPlayerParty() {
-    if (!_data) return { movedFromFactions: false, playerPartyChanged: false };
-    const fac = _data.factions && _data.factions.party;
-    if (!fac) return { movedFromFactions: false, playerPartyChanged: false };
-    // Always import the user's existing party-faction data — defaults
-    // were seeded in _mergeDefaults so settings.playerParty exists,
-    // but we want the real user-customised colours/name/badge to win
-    // on the first migration pass. After this runs, factions.party
-    // is gone so subsequent loads short-circuit at the !fac guard.
-    if (!_data.settings) _data.settings = {};
-    _data.settings.playerParty = {
-      name:      fac.name      || 'Our Party',
-      icon:      fac.badge     || '🛡',
-      badge:     fac.badge     || '🛡',
-      color:     fac.color     || '#F5F0E4',
-      textColor: fac.textColor || '#1a1410',
-    };
-    delete _data.factions.party;
-    if (!_data.deletedDefaults || typeof _data.deletedDefaults !== 'object') {
-      _data.deletedDefaults = {};
-    }
-    _data.deletedDefaults['factions:party'] = true;
-    return { movedFromFactions: true, playerPartyChanged: true };
-  }
-
-  /**
-   * Remove the legacy `party` entry from the attitudes settings enum
-   * AND strip it from any per-entity `attitudes[]` array. The party
-   * palette is now sourced from `settings.playerParty.color` directly
-   * (see `_attitudeColorMap` consumers); the enum entry is dead
-   * data that would just clutter the Settings → Postoje editor.
-   *
-   * @returns {{enumChanged: boolean, characters: Array, locations: Array, factions: Array}}
-   */
-  /**
-   * Promote `mystery.questions[]` and `character.unknown[]` from string
-   * arrays to arrays of `{text, answer}` objects so each question /
-   * unknown item can carry its own answer (and thus its own "solved"
-   * state). Mystery is considered solved iff every question has a
-   * non-empty `answer`.
-   *
-   * Idempotent: entries that are already objects with a `text` key are
-   * left alone. Entries with a non-string, non-object value (or null)
-   * get coerced into an empty `{text:'', answer:''}` so subsequent code
-   * can assume the canonical shape.
-   *
-   * @returns {{mysteries: Array, characters: Array}}
-   */
-  function _migrateQuestionsToObjects() {
-    if (!_data) return { mysteries: [], characters: [] };
-    const touchedM = [];
-    const touchedC = [];
-    const promote = (entry) => {
-      // Already in target shape — leave alone.
-      if (entry && typeof entry === 'object' && typeof entry.text === 'string') {
-        // Capture BEFORE mutating — checking after the assignment made
-        // `changed` tautologically false, so the added `answer:''` was
-        // normalized in memory on every load but never persisted.
-        const missingAnswer = typeof entry.answer !== 'string';
-        if (missingAnswer) entry.answer = '';
-        return { entry, changed: missingAnswer };
-      }
-      // Promote a bare string to {text, answer:''}.
-      if (typeof entry === 'string') {
-        return { entry: { text: entry, answer: '' }, changed: true };
-      }
-      // Anything else (null, number, …) becomes an empty record.
-      return { entry: { text: '', answer: '' }, changed: true };
-    };
-    for (const m of _data.mysteries || []) {
-      if (!Array.isArray(m.questions)) continue;
-      let changed = false;
-      const next = m.questions.map(q => {
-        const r = promote(q);
-        if (r.changed) changed = true;
-        return r.entry;
-      });
-      if (changed) {
-        m.questions = next;
-        touchedM.push(m);
-      }
-    }
-    for (const c of _data.characters || []) {
-      if (!Array.isArray(c.unknown)) continue;
-      let changed = false;
-      const next = c.unknown.map(u => {
-        const r = promote(u);
-        if (r.changed) changed = true;
-        return r.entry;
-      });
-      if (changed) {
-        c.unknown = next;
-        touchedC.push(c);
-      }
-    }
-    return { mysteries: touchedM, characters: touchedC };
-  }
-
-  function _migrateDropPartyFromAttitudesEnum() {
-    const result = { enumChanged: false, characters: [], locations: [], factions: [] };
-    if (!_data) return result;
-    if (Array.isArray(_data.settings?.attitudes)) {
-      const before = _data.settings.attitudes.length;
-      _data.settings.attitudes = _data.settings.attitudes.filter(a => a.id !== 'party');
-      if (_data.settings.attitudes.length !== before) {
-        result.enumChanged = true;
-        if (!_data.deletedDefaults || typeof _data.deletedDefaults !== 'object') {
-          _data.deletedDefaults = {};
-        }
-        _data.deletedDefaults['settings:attitudes:party'] = true;
-      }
-    }
-    const stripParty = (arr) => arr.filter(e => {
-      if (typeof e === 'string') return e !== 'party';
-      return !(e && e.id === 'party');
-    });
-    for (const c of (_data.characters || [])) {
-      if (Array.isArray(c.attitudes) && c.attitudes.some(e => (typeof e === 'string' ? e === 'party' : e?.id === 'party'))) {
-        c.attitudes = stripParty(c.attitudes);
-        result.characters.push(c);
-      }
-    }
-    for (const l of (_data.locations || [])) {
-      if (Array.isArray(l.attitudes) && l.attitudes.some(e => (typeof e === 'string' ? e === 'party' : e?.id === 'party'))) {
-        l.attitudes = stripParty(l.attitudes);
-        result.locations.push(l);
-      }
-    }
-    for (const [fid, fac] of Object.entries(_data.factions || {})) {
-      if (Array.isArray(fac.attitudes) && fac.attitudes.some(e => (typeof e === 'string' ? e === 'party' : e?.id === 'party'))) {
-        fac.attitudes = stripParty(fac.attitudes);
-        result.factions.push({ id: fid, fac });
-      }
-    }
-    return result;
-  }
-
-  /**
-   * Fetch the full dataset from `/api/data`, merge defaults for any
-   * collection the server hasn't seeded yet, and run every idempotent
-   * schema migration. Each migration's touched records are PATCHed back
-   * individually — never as a wholesale dataset overwrite.
+   * Fetch the full dataset from `/api/data` and merge defaults for any
+   * collection the server hasn't seeded yet. Persistent schema migrations
+   * run during server startup before this endpoint becomes available.
    *
    * If the server is unreachable, the in-memory dataset falls back to
    * defaults and a `store:server-unavailable` event fires; subsequent
@@ -789,14 +238,11 @@ export const Store = (() => {
    */
   async function load({ shouldCommit = () => true } = {}) {
     try {
-      const res = await fetch('/api/data');
-      if (res.ok) {
-        const serverData = await res.json();
-        if (!serverData || typeof serverData !== 'object' || Array.isArray(serverData)) {
-          throw new TypeError('Store: /api/data returned a non-object payload');
-        }
+      const result = await _transport.loadDataset();
+      if (result.ok) {
+        const serverData = result.data;
         if (!shouldCommit()) return false;
-        _serverAvailable = true;
+        _transport.setAvailable(true);
         _loadedOnce = true;
         {
           // Layer the server payload OVER the defaults rather than replacing
@@ -811,75 +257,6 @@ export const Store = (() => {
           // server (the source of truth).
           _data = { ..._defaults(), ...serverData };
           _mergeDefaults();
-          // Migrations run in a specific order — `mapStatus` must
-          // precede the shape upgrade so the `unknown` ids it inserts
-          // get stripped together; the rest are independent.
-          const capturedTouched = _migrateCapturedStatus();
-          const mapStatus       = _migrateMapStatusToAttitudes();
-          // Run the mapStatus → attitudes migration BEFORE the shape
-          // upgrade so the `unknown` ids it inserts get stripped here.
-          const attShape        = _migrateAttitudesToObjectShape();
-          const droppedUnknown  = _dropUnknownFromAttitudesEnum();
-          const pinSize         = _migratePinPriorityToSize();
-          const droppedLocStat  = _migrateDropLocationStatus();
-          const droppedArtStat  = _migrateDropArtifactState();
-          const droppedSettingsCats = _migrateDropRetiredSettingsCategories();
-          const pinStrategyTouched = _migrateRetirePinTypeStateStrategy();
-          const strengthMigrated = _migrateStrengthFromEntityToEnum();
-          const partyAtts       = _migratePartyAttitudesEmpty();
-          const strengthSeeded  = _seedAttitudeStrength();
-          // Party-faction → settings.playerParty + drop `party`
-          // attitude. Must run before _reindex so the renderers see
-          // the new shape. Idempotent — safe to re-run on subsequent
-          // loads after migration completed.
-          const playerPartyMig = _migratePartyFactionToPlayerParty();
-          const partyAttMig    = _migrateDropPartyFromAttitudesEnum();
-          // Mystery questions + character unknowns: strings → objects
-          // with an `answer` field. Each entry becomes "solved" when
-          // its answer is non-empty.
-          const questionsMig   = _migrateQuestionsToObjects();
-          // Persisting migration results is DM-only. Player sessions
-          // would 403 on the `settings` writes (DM_ONLY_WRITE_TYPES) and
-          // surface a red "save failed" banner for edits they never
-          // made; anonymous sessions would fire straight into 401s.
-          // Non-DM sessions keep the in-memory normalization — the next
-          // DM load persists it (migrations are idempotent).
-          if (Role.isDM()) {
-            for (const c of capturedTouched)            _sync('characters', 'save', c);
-            for (const l of mapStatus.touchedLocations) _sync('locations', 'save', l);
-            if (mapStatus.droppedSettingsCat)           _sync('settings', 'delete', { id: 'mapStatuses' });
-            for (const c of attShape.characters)        _sync('characters', 'save', c);
-            for (const l of attShape.locations)         _sync('locations',  'save', l);
-            for (const { id, fac } of attShape.factions) _sync('factions',  'save', { id, data: fac });
-            if (droppedUnknown || strengthSeeded) {
-              _sync('settings', 'save', { id: 'attitudes', data: _data.settings.attitudes });
-            }
-            if (pinSize.pinTypesTouched || pinStrategyTouched) {
-              _sync('settings', 'save', { id: 'pinTypes', data: _data.settings.pinTypes });
-            }
-            for (const c of strengthMigrated.characters) _sync('characters', 'save', c);
-            for (const l of strengthMigrated.locations)  _sync('locations',  'save', l);
-            for (const { id, fac } of strengthMigrated.factions) _sync('factions', 'save', { id, data: fac });
-            for (const c of partyAtts.characters)        _sync('characters', 'save', c);
-            for (const l of pinSize.touchedLocations)   _sync('locations', 'save', l);
-            for (const l of droppedLocStat)             _sync('locations', 'save', l);
-            for (const a of droppedArtStat)             _sync('artifacts', 'save', a);
-            for (const cat of droppedSettingsCats)      _sync('settings', 'delete', { id: cat });
-            if (playerPartyMig.playerPartyChanged) {
-              _sync('settings', 'save', { id: 'playerParty', data: _data.settings.playerParty });
-            }
-            if (playerPartyMig.movedFromFactions) {
-              _sync('factions', 'delete', { id: 'party' });
-            }
-            if (partyAttMig.enumChanged) {
-              _sync('settings', 'save', { id: 'attitudes', data: _data.settings.attitudes });
-            }
-            for (const c of partyAttMig.characters) _sync('characters', 'save', c);
-            for (const l of partyAttMig.locations)  _sync('locations',  'save', l);
-            for (const { id, fac } of partyAttMig.factions) _sync('factions', 'save', { id, data: fac });
-            for (const m of questionsMig.mysteries)  _sync('mysteries',  'save', m);
-            for (const c of questionsMig.characters) _sync('characters', 'save', c);
-          }
           _reindex();
           return true;
         }
@@ -896,7 +273,7 @@ export const Store = (() => {
       console.warn('Store: refetch failed — keeping current in-memory data.');
       return false;
     }
-    _serverAvailable = false;
+    _transport.setAvailable(false);
     _data = _defaults();
     _reindex();
     window.dispatchEvent(new CustomEvent('store:server-unavailable'));
@@ -905,84 +282,6 @@ export const Store = (() => {
 
   function init() {
     if (!_data) { _data = _defaults(); _reindex(); }
-  }
-
-  // ── Serialised write queue ────────────────────────────────────
-  // Every PATCH waits for the previous one to settle (success, terminal
-  // failure, or auth bounce) before going on the wire. This preserves
-  // ordering on the server side — a save-then-delete pair can't arrive
-  // out of order, even if the second was issued before the first
-  // completed. Each request gets up to 3 attempts with exponential
-  // backoff (200 ms → 800 ms) for transient network / 5xx errors.
-  //
-  // Local mutations are NOT rolled back on terminal failure. The next
-  // page load will reconcile from the server's authoritative copy, and
-  // the `store:save-failed` banner alerts the user that a refresh is
-  // needed. Rolling back optimistically would force editors to
-  // re-discover stale form state mid-edit, which is a worse UX than
-  // the rare "your last save didn't make it" message.
-  let _writeChain   = Promise.resolve();
-  let _inflightCount = 0;
-  function _setInflight(n) {
-    _inflightCount = n;
-    window.dispatchEvent(new CustomEvent('store:inflight', { detail: { count: n } }));
-  }
-
-  async function _patchOnce(type, action, payload) {
-    const res = await fetch('/api/data', {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ type, action, payload }),
-    });
-    if (res.status === 401) {
-      window.dispatchEvent(new CustomEvent('store:auth-failed'));
-      return { ok: false, terminal: true, status: 401 };
-    }
-    if (res.ok) return { ok: true };
-    // 4xx (other than 401) means our payload is wrong — retrying won't
-    // help. 5xx and network errors are worth retrying.
-    if (res.status >= 400 && res.status < 500) return { ok: false, terminal: true, status: res.status };
-    return { ok: false, terminal: false, status: res.status };
-  }
-
-  function _sync(type, action, payload) {
-    if (!_serverAvailable) return false;
-    // Snapshot the payload NOW. The queue serializes requests, so the
-    // JSON.stringify in _patchOnce may run several writes later — by then
-    // an in-place mutation of the same live object (peer location moves,
-    // pet orphaning) would make this EARLIER patch silently carry the
-    // LATER state, undermining the ordering guarantee above.
-    const body = (payload && typeof payload === 'object')
-      ? JSON.parse(JSON.stringify(payload))
-      : payload;
-    _setInflight(_inflightCount + 1);
-    _writeChain = _writeChain.then(async () => {
-      let lastErr = null;
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          const r = await _patchOnce(type, action, body);
-          if (r.ok) return;
-          if (r.terminal) {
-            if (r.status !== 401) {
-              console.warn(`Store: ${type}/${action} rejected (${r.status}).`);
-              window.dispatchEvent(new CustomEvent('store:save-failed', { detail: { type, action, status: r.status }}));
-            }
-            return;
-          }
-          lastErr = new Error(`HTTP ${r.status}`);
-        } catch (e) {
-          lastErr = e;
-        }
-        if (attempt < 3) {
-          await new Promise(r => setTimeout(r, attempt * attempt * 200));  // 200ms, 800ms
-        }
-      }
-      console.warn(`Store: ${type}/${action} sync failed after retries.`, lastErr);
-      window.dispatchEvent(new CustomEvent('store:save-failed', { detail: { type, action }}));
-    }).finally(() => {
-      _setInflight(Math.max(0, _inflightCount - 1));
-    });
-    return true;
   }
 
   // ─ Twin operations (DM-only) ──────────────────────────────────
@@ -1009,24 +308,21 @@ export const Store = (() => {
    * @returns {Promise<{ok: boolean, twinId?: string, error?: string}>}
    */
   async function linkTwin(action, type, sourceId, targetId) {
-    if (!_serverAvailable) return { ok: false, error: I18n.t('store.serverUnavailable') };
+    if (!_transport.isAvailable()) {
+      return { ok: false, error: I18n.t('store.serverUnavailable') };
+    }
     try {
       const payload = { action, type, sourceId };
       if (action === 'link') payload.targetId = targetId;
-      const res = await fetch('/api/twin', {
+      const body = await ApiClient.requestJson('/api/twin', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body:    JSON.stringify(payload),
+        json: payload,
       });
-      if (res.status === 401 || res.status === 403) {
-        window.dispatchEvent(new CustomEvent('store:auth-failed'));
-        return { ok: false, error: I18n.t('store.dmRequired') };
-      }
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
       return { ok: true, twinId: body.twinId };
     } catch (e) {
+      if (e.status === 401 || e.status === 403) {
+        return { ok: false, error: I18n.t('store.dmRequired') };
+      }
       return { ok: false, error: e.message || I18n.t('store.networkError') };
     }
   }
@@ -1133,17 +429,18 @@ export const Store = (() => {
    */
   async function uploadPortrait(file, charId) {
     if (!charId) throw new Error('uploadPortrait: charId is required.');
-    if (!_serverAvailable) throw new Error(I18n.t('store.serverUnavailablePortrait'));
+    if (!_transport.isAvailable()) {
+      throw new Error(I18n.t('store.serverUnavailablePortrait'));
+    }
     const form     = new FormData();
     form.append('portrait', file);
     const endpoint = `/api/portrait/${encodeURIComponent(charId)}`;
-    const res = await fetch(endpoint, { method: 'POST', body: form });
-    if (res.ok) return (await res.json()).url;
-    if (res.status === 401) {
-      window.dispatchEvent(new CustomEvent('store:auth-failed'));
-      throw new Error(I18n.t('store.unknownPassword'));
+    try {
+      return (await ApiClient.uploadJson(endpoint, form, { method: 'POST' })).url;
+    } catch (e) {
+      if (e.status === 401) throw new Error(I18n.t('store.unknownPassword'));
+      throw new Error(I18n.t('store.portraitUploadFailed'));
     }
-    throw new Error(I18n.t('store.portraitUploadFailed'));
   }
 
   /**
@@ -1157,16 +454,21 @@ export const Store = (() => {
    */
   async function uploadLocalMap(file, locId) {
     if (!locId) throw new Error('uploadLocalMap: locId is required.');
-    if (!_serverAvailable) throw new Error(I18n.t('store.serverUnavailableMap'));
+    if (!_transport.isAvailable()) {
+      throw new Error(I18n.t('store.serverUnavailableMap'));
+    }
     const form = new FormData();
     form.append('localmap', file);
-    const res = await fetch(`/api/localmap/${encodeURIComponent(locId)}`, { method: 'POST', body: form });
-    if (res.ok) return (await res.json()).url;
-    if (res.status === 401) {
-      window.dispatchEvent(new CustomEvent('store:auth-failed'));
-      throw new Error(I18n.t('store.unknownPassword'));
+    try {
+      return (await ApiClient.uploadJson(
+        `/api/localmap/${encodeURIComponent(locId)}`,
+        form,
+        { method: 'POST' },
+      )).url;
+    } catch (e) {
+      if (e.status === 401) throw new Error(I18n.t('store.unknownPassword'));
+      throw new Error(I18n.t('store.mapUploadFailed'));
     }
-    throw new Error(I18n.t('store.mapUploadFailed'));
   }
 
   // ── Marker icon uploads ──────────────────────────────────────
@@ -1186,28 +488,32 @@ export const Store = (() => {
    */
   async function uploadIcons(pinTypeId, files) {
     if (!pinTypeId) throw new Error('uploadIcons: pinTypeId is required.');
-    if (!_serverAvailable) throw new Error(I18n.t('store.serverUnavailableIcons'));
+    if (!_transport.isAvailable()) {
+      throw new Error(I18n.t('store.serverUnavailableIcons'));
+    }
     if (!files || !files.length) return { files: [] };
     const form = new FormData();
     for (const f of files) form.append('icons', f);
-    const res = await fetch(`/api/icons/${encodeURIComponent(pinTypeId)}`, { method: 'POST', body: form });
-    if (res.ok) return res.json();
-    if (res.status === 401) {
-      window.dispatchEvent(new CustomEvent('store:auth-failed'));
-      throw new Error(I18n.t('store.unknownPassword'));
+    try {
+      return await ApiClient.uploadJson(
+        `/api/icons/${encodeURIComponent(pinTypeId)}`,
+        form,
+        { method: 'POST' },
+      );
+    } catch (e) {
+      if (e.status === 401) throw new Error(I18n.t('store.unknownPassword'));
+      throw new Error(I18n.t('store.iconUploadFailed'));
     }
-    throw new Error(I18n.t('store.iconUploadFailed'));
   }
 
   async function deleteIcon(pinTypeId, filename) {
-    if (!_serverAvailable || !pinTypeId || !filename) return false;
+    if (!_transport.isAvailable() || !pinTypeId || !filename) return false;
     try {
-      const res = await fetch(
+      await ApiClient.requestJson(
         `/api/icons/${encodeURIComponent(pinTypeId)}/${encodeURIComponent(filename)}`,
         { method: 'DELETE' },
       );
-      if (res.status === 401) window.dispatchEvent(new CustomEvent('store:auth-failed'));
-      return res.ok;
+      return true;
     } catch (e) {
       console.warn('Store: deleteIcon failed.', e);
       return false;
@@ -1217,11 +523,10 @@ export const Store = (() => {
   // Drop the entire icon folder for a pin type. Called when a pin type
   // is deleted from settings so we don't leave orphan files on disk.
   async function deleteIcons(pinTypeId) {
-    if (!_serverAvailable || !pinTypeId) return false;
+    if (!_transport.isAvailable() || !pinTypeId) return false;
     try {
-      const res = await fetch(`/api/icons/${encodeURIComponent(pinTypeId)}`, { method: 'DELETE' });
-      if (res.status === 401) window.dispatchEvent(new CustomEvent('store:auth-failed'));
-      return res.ok;
+      await ApiClient.requestJson(`/api/icons/${encodeURIComponent(pinTypeId)}`, { method: 'DELETE' });
+      return true;
     } catch (e) {
       console.warn('Store: deleteIcons failed.', e);
       return false;
@@ -1229,11 +534,12 @@ export const Store = (() => {
   }
 
   function deletePortrait(url) {
-    if (!_serverAvailable || !url || !url.startsWith('/portraits/')) return;
+    if (!_transport.isAvailable() || !url || !url.startsWith('/portraits/')) {
+      return;
+    }
     const identifier = url.slice('/portraits/'.length).split('/')[0];
     if (!identifier) return;
-    fetch(`/api/portrait/${encodeURIComponent(identifier)}`, { method: 'DELETE' })
-      .then(res => { if (res.status === 401) window.dispatchEvent(new CustomEvent('store:auth-failed')); })
+    ApiClient.requestJson(`/api/portrait/${encodeURIComponent(identifier)}`, { method: 'DELETE' })
       .catch(e => console.warn('Store: portrait delete failed.', e));
   }
 
@@ -1974,15 +1280,13 @@ export const Store = (() => {
   function uploadLogo(file) {
     const fd = new FormData();
     fd.append('logo', file);
-    return fetch('/api/logo', { method: 'POST', body: fd, credentials: 'same-origin' })
-      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
-      .then(j => j.url);
+    return ApiClient.uploadJson('/api/logo', fd, { method: 'POST' })
+      .then(body => body.url);
   }
 
   /** Remove the custom logo on the server (revert to bundled default). */
   function deleteLogo() {
-    return fetch('/api/logo', { method: 'DELETE', credentials: 'same-origin' })
-      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)));
+    return ApiClient.requestJson('/api/logo', { method: 'DELETE' });
   }
 
   // ── Campaign metadata (dashboard hero) ────────────────────────
@@ -2158,14 +1462,11 @@ export const Store = (() => {
       for (const e of list) {
         if (!e) continue;
         const v = e[b.field];
-        let matched = false;
-        if (Array.isArray(v)) {
-          matched = v.some(x =>
-            (typeof x === 'string') ? x === id
-            : (x && typeof x === 'object' && x.id === id));
-        } else {
-          matched = v === id;
-        }
+        const matched = Array.isArray(v)
+          ? v.some(x => (typeof x === 'string')
+            ? x === id
+            : (x && typeof x === 'object' && x.id === id))
+          : v === id;
         if (matched) {
           out.push({
             collection: b.collection,
@@ -2846,123 +2147,6 @@ export const Store = (() => {
     const next  = { ...entity, addonData: { ...(entity.addonData || {}), [addonId]: ns } };
     tgt.save(next);
     return next;
-  }
-
-  /** DM-only: resolve an addon fragment-override conflict. `winner` = an
-   *  addonId (that addon's op wins), `null` (force the built-in), or '' /
-   *  undefined (clear → back to auto). POSTs /api/addons/resolve; the
-   *  addons-changed SSE reconcile applies it across clients. */
-  async function resolveAddonConflict(target, winner) {
-    try {
-      const res = await fetch('/api/addons/resolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ target, winner }),
-      });
-      if (res.status === 401 || res.status === 403) {
-        window.dispatchEvent(new CustomEvent('store:auth-failed'));
-        return { ok: false, error: I18n.t('store.dmRequired') };
-      }
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
-      return { ok: true, resolutions: body.resolutions };
-    } catch (e) {
-      return { ok: false, error: e.message || I18n.t('store.networkError') };
-    }
-  }
-
-  /** DM-only: on-demand addon update check (re-resolve each installed addon's
-   *  ref → latest SHA, diff vs installed). Pure read. Returns
-   *  `{ ok, updates: [{id, status, hasUpdate, repo, ...}] }`. */
-  async function checkAddonUpdates() {
-    try {
-      const res = await fetch('/api/addons/check-updates', { method: 'POST', credentials: 'same-origin' });
-      if (res.status === 401 || res.status === 403) {
-        window.dispatchEvent(new CustomEvent('store:auth-failed'));
-        return { ok: false, error: I18n.t('store.dmRequired') };
-      }
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
-      return { ok: true, updates: Array.isArray(body.updates) ? body.updates : [] };
-    } catch (e) {
-      return { ok: false, error: e.message || I18n.t('store.networkError') };
-    }
-  }
-
-  /** DM-only: content-addressed rollback of an addon to a kept prior version
-   *  (flip activeHash). `hash` targets a specific version; omitted → the one
-   *  before the active. The addons-changed SSE reconcile live-loads it. */
-  async function rollbackAddon(id, hash) {
-    try {
-      const res = await fetch(`/api/addons/${encodeURIComponent(id)}/rollback`, {
-        method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(hash ? { hash } : {}),
-      });
-      if (res.status === 401 || res.status === 403) {
-        window.dispatchEvent(new CustomEvent('store:auth-failed'));
-        return { ok: false, error: I18n.t('store.dmRequired') };
-      }
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
-      return { ok: true, version: body.version };
-    } catch (e) {
-      return { ok: false, error: e.message || I18n.t('store.networkError') };
-    }
-  }
-
-  /** DM-only: update every GitHub-installed addon to its latest commit in one
-   *  call (local/dev-installed addons are skipped server-side). Returns
-   *  `{ ok, updated:[], skipped:[], errors:[], serverChanged }`. */
-  async function updateAllAddons() {
-    try {
-      const res = await fetch('/api/addons/update-all', { method: 'POST', credentials: 'same-origin' });
-      if (res.status === 401 || res.status === 403) {
-        window.dispatchEvent(new CustomEvent('store:auth-failed'));
-        return { ok: false, error: I18n.t('store.dmRequired') };
-      }
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
-      return {
-        ok: true,
-        updated: Array.isArray(body.updated) ? body.updated : [],
-        skipped: Array.isArray(body.skipped) ? body.skipped : [],
-        errors:  Array.isArray(body.errors)  ? body.errors  : [],
-        serverChanged: !!body.serverChanged,
-      };
-    } catch (e) {
-      return { ok: false, error: e.message || I18n.t('store.networkError') };
-    }
-  }
-
-  /** DM-only: restart the server process — a supervisor (Docker
-   *  `restart: unless-stopped`) brings it back up, reloading addon server code.
-   *  Returns `{ ok }` or `{ ok:false, error }` (e.g. server not restartable). */
-  async function restartServer() {
-    try {
-      const res = await fetch('/api/restart', { method: 'POST', credentials: 'same-origin' });
-      if (res.status === 401 || res.status === 403) {
-        window.dispatchEvent(new CustomEvent('store:auth-failed'));
-        return { ok: false, error: I18n.t('store.dmRequired') };
-      }
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) return { ok: false, error: body.error || `HTTP ${res.status}` };
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, error: e.message || I18n.t('store.networkError') };
-    }
-  }
-
-  /** Whether the server can restart itself (Docker/supervisor) — reads
-   *  /api/version `canRestart`. Gates the DM "restart server" button. */
-  async function getCanRestart() {
-    try {
-      const res = await fetch('/api/version', { credentials: 'same-origin', cache: 'no-store' });
-      if (!res.ok) return false;
-      const body = await res.json().catch(() => ({}));
-      return !!body.canRestart;
-    } catch (_) { return false; }
   }
 
   /**

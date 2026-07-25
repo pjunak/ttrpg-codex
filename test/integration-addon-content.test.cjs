@@ -26,8 +26,6 @@ const TREE = {
   'addons/book/h1/data/spells/bless.json':    JSON.stringify({ id: 'bless', kind: 'spell', name: 'Bless', level: 1 }),
   // no kind field → grouped under the dir name
   'addons/book/h1/data/monsters/aboleth.json': JSON.stringify({ id: 'aboleth', name: 'Aboleth' }),
-  // corrupt file — skipped, never fatal
-  'addons/book/h1/data/rules/broken.json': '{ not valid json',
 };
 
 test('content addon: host serves the four endpoints, anonymously, with kind grouping', async () => {
@@ -40,8 +38,6 @@ test('content addon: host serves the four endpoints, anonymously, with kind grou
     const all = await (await srv.fetch('/api/addon/book/content')).json();
     assert.deepEqual(all.spell.map(s => s.id), ['bless', 'fireball'], 'spells present, sorted by id');
     assert.equal(all.monsters[0].id, 'aboleth', 'kind-less record under its dir name');
-    assert.ok(!all.rules, 'corrupt-only kind absent');
-
     // One kind + unknown kind.
     const spells = await (await srv.fetch('/api/addon/book/content/spell')).json();
     assert.equal(spells.length, 2);
@@ -77,6 +73,53 @@ test('content addon: disabled serves nothing', async () => {
   });
   try {
     assert.equal((await srv.fetch('/api/addon/book/content')).status, 404);
+  } finally { await srv.kill(); }
+});
+
+test('content addon: invalid packages are blocked without affecting valid addons', async () => {
+  const srv = await startServer({
+    dmPassword: 'dm-password',
+    seedData: {
+      'addons.json': registry([
+        bookEntry(),
+        bookEntry({ id: 'good', name: 'Good', activeHash: 'h2' }),
+      ]),
+    },
+    seedFiles: {
+      'addons/book/h1/entry.js': 'export default function register() {}',
+      'addons/book/h1/data/rules/broken.json': '{ not valid json',
+      'addons/good/h2/entry.js': 'export default function register() {}',
+      'addons/good/h2/data/rules/valid.json': JSON.stringify({ id: 'valid', kind: 'rule', name: 'Valid' }),
+    },
+  });
+  try {
+    assert.equal((await srv.fetch('/api/addon/book/content')).status, 404);
+    const good = await srv.fetch('/api/addon/good/content');
+    assert.equal(good.status, 200);
+    assert.equal((await good.json()).rule[0].id, 'valid');
+
+    let list = (await (await srv.fetch('/api/addons')).json()).addons;
+    let broken = list.find(addon => addon.id === 'book');
+    assert.equal(broken.state, 'blocked');
+    assert.equal(broken.contentState, 'error');
+    assert.equal(broken.entryUrl, null);
+    assert.equal(broken.contentError, undefined, 'anonymous projection omits diagnostics');
+    const healthy = list.find(addon => addon.id === 'good');
+    assert.equal(healthy.state, 'ok');
+    assert.equal(healthy.contentState, 'loaded');
+    assert.match(healthy.entryUrl, /\/addons\/good\/h2\/entry\.js$/);
+
+    const login = await srv.fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: 'dm-password' }),
+    });
+    assert.equal(login.status, 200);
+    list = (await (await srv.fetch('/api/addons')).json()).addons;
+    broken = list.find(addon => addon.id === 'book');
+    assert.equal(broken.contentError.code, 'ADDON_CONTENT_INVALID');
+    assert.equal(broken.contentError.diagnostics[0].code, 'CONTENT_JSON_INVALID');
+    assert.equal(broken.contentError.diagnostics[0].path, 'rules/broken.json');
   } finally { await srv.kill(); }
 });
 

@@ -28,9 +28,11 @@ User instructions always override this file.
 
 Node is not in Git Bash PATH, but Windows-native Node 26 **is** available via
 the PowerShell tool — `npm test` (and `node --test test/<file>.test.*js`) run
-the full suite there. Use PowerShell (not the Bash tool) for node/npm. The Bash
-tool's node calls fail, and `preview_start` / Docker aren't available — the app
-itself is still launched/exercised manually by the user.
+the full suite there. `npm run lint` is the zero-warning static correctness
+gate; `npm run check` runs lint followed by the full suite. Use PowerShell (not
+the Bash tool) for node/npm. The Bash tool's node calls fail, and
+`preview_start` / Docker aren't available — the app itself is still
+launched/exercised manually by the user.
 
 ## Project
 
@@ -53,7 +55,7 @@ BEFORE working on its area, and keep it updated exactly the same way.**
 | [i18n.md](docs/reference/i18n.md) | Any user-facing string — catalogs, t()/plural(), the two i18n test guards |
 | [ui-widgets.md](docs/reference/ui-widgets.md) | Combobox/MultiSelect/TagFilter mounts, inline create, the `data-action` dispatcher + sentinels |
 | [routing-navigation.md](docs/reference/routing-navigation.md) | Route table, list toolbars, global search, sidebar layout, mobile nav, per-page edit affordances, auth flow, prefill creation |
-| [settings.md](docs/reference/settings.md) | /nastaveni — enum categories, special tabs, attitudes contract (⚠ migration idempotency), marker icons |
+| [settings.md](docs/reference/settings.md) | /nastaveni — enum categories, special tabs, attitudes contract, marker icons |
 | [data-model.md](docs/reference/data-model.md) | Collections + fields, pets, twin visibility model, entity ids, undo/trash, wiki-links, the full Store API, write queue |
 | [wiki-rendering.md](docs/reference/wiki-rendering.md) | Attitude glow, dashboard, article shell, split editors, EasyMDE, draft recovery + dirty guard |
 | [maps-timeline.md](docs/reference/maps-timeline.md) | WorldMap (pins, tile pyramid, zoom, presets, sub-maps) + the timeline kanban |
@@ -87,11 +89,16 @@ server-utils.cjs           Pure server helpers (password hashing, path
                            safety, snapshot-pruning policy) — unit-tested.
 tiler.js                   sharp tile-pyramid builder (world + local maps).
 server/                    visibility.cjs (role filter) · migrations.cjs ·
+                           campaign-shape-migration.cjs (pure legacy-data transform) ·
+                           snapshot-service.cjs + snapshot-routes.cjs ·
                            addons.cjs (broker) · addon-testing.cjs (test
                            green-gate) · addon-content.cjs (contentDir) ·
+                           zip-reader.cjs (shared bounded lazy ZIP reader) ·
+                           durable-files.cjs (fsync/copy/rename primitives) ·
                            core-write-lock.cjs (bounded FIFO mutex) ·
                            publication-barrier.cjs (read isolation) ·
                            collection-transactions.cjs (durable F2 commits) ·
+                           campaign-restore.cjs (durable restore publication) ·
                            import-contract.cjs (provider/parser/plan guards) ·
                            import-jobs.cjs (F4 preview/commit job lifecycle) ·
                            addon-import-harness.cjs (published server harness).
@@ -115,6 +122,9 @@ web/
                            (applyFragmentOps + listConflicts).
     addon-test-harness.mjs Published authoring harness (createMockHost,
                            dryRunRegister, smokeRegistrations).
+    addon-registration-contract.js
+                           Shared register* argument validation used by the
+                           live facade and authoring harness.
     addon-lifecycle.js     Shared bounded disposer stack used by the live host
                            and authoring harness.
     addon-graph.js         API-v2 graph facade v1 + host-global implementation
@@ -125,8 +135,12 @@ web/
     addon-host-contract.js Shared host.use + collection-declaration contract.
     addon-transactions.js  Shared buffered transaction facade used by the
                            live host and authoring harness.
-    store.js               In-memory state. Server sync. Secondary indices.
-                           Trash + undelete. Settings API.
+    store.js               In-memory domain state, secondary indices, trash,
+                           undelete, and settings API.
+    store-transport.js     Validated loads + serialized retrying PATCH queue.
+    store-admin-client.js  Add-on update/rollback and restart administration.
+    api-client.js          Shared JSON/FormData request handling, structured
+                           errors, and auth-failure signaling.
     data.js                Defaults: FACTIONS, collections (CHARACTERS,
                            LOCATIONS, EVENTS, MYSTERIES, PANTHEON,
                            ARTIFACTS, HISTORICAL_EVENTS), REL_TYPES
@@ -137,6 +151,11 @@ web/
     collection-descriptors.js
                            Immutable built-in collection identity, wiki-kind,
                            alias, and article-route registry.
+    pin-types.js           Immutable built-in pin metadata and live-choice
+                           fallback helpers; data.js derives settings seeds.
+    settings-backup.js     Role-aware snapshot/backup settings controller.
+    edit-lore-controller.js
+                           Pantheon, artifact, and historical-event workflows.
     i18n.js                I18n: per-user UI language. t()/plural()/dates
                            via native Intl.*. Catalogs in web/i18n/. See
                            docs/reference/i18n.md.
@@ -324,9 +343,11 @@ sessions and don't get re-discovered:
     (The `/api/restore` path-safety and migration-idempotency gaps listed
     here originally are CLOSED; visibility closure is also CLOSED by
     `test/visibility.test.cjs` + `test/integration-visibility.test.cjs`.)
-3. Structural: server.js / store.js / settings.js god files; 8 near-clone
-    entity editors; no linter/formatter. Built-in collection identity and
-    article-route metadata now live in `collection-descriptors.js`.
+3. Structural: `server.js`, `store.js`, `settings.js`, and `editmode.js` still
+    contain several domains, but transport/admin, snapshots, backup settings,
+    lore editors, restore publication, collection identity, and pin-type seeds
+    now have dedicated modules with focused tests. Continue only as
+    responsibility-led extractions; do not split files solely by line count.
 
 ### Open decisions (need the maintainer)
 

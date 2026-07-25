@@ -6,47 +6,12 @@ import { esc, dataAction, dataOn, pageEditToggle, announce, safeColor } from './
 import { I18n } from './i18n.js';
 import { Addons } from './addons.js';
 import { createMapGenerationController } from './map-generation.js';
+import { PinTypes } from './pin-types.js';
 
-// `size` is the default marker pixel size for new places of this
-// type. Kept in sync with SETTINGS_DEFAULTS.pinTypes in data.js so
-// that fresh-installs match what the settings editor shows. The
-// runtime size lookup prefers `Store.getEnumValue('pinTypes', id)`
-// (user-editable) and falls back to this constant.
-export const PIN_TYPES = {
-  major_city:  { icon: '🏙',  label: 'Major city',    color: '#D4A017', size: 38 },
-  city:        { icon: '🏛',  label: 'City',          color: '#C0A060', size: 32 },
-  town:        { icon: '🏘',  label: 'Town',          color: '#A0B080', size: 28 },
-  village:     { icon: '🏠',  label: 'Village',       color: '#80A070', size: 26 },
-  fortress:    { icon: '🏰',  label: 'Fortress',      color: '#9090A0', size: 36 },
-  castle:      { icon: '🏯',  label: 'Castle',        color: '#9A9AA8', size: 36 },
-  tower:       { icon: '🗼',  label: 'Tower',         color: '#A8A098', size: 26 },
-  temple:      { icon: '🛕',  label: 'Temple',        color: '#C0A088', size: 28 },
-  shrine:      { icon: '⛩',  label: 'Shrine',        color: '#80A0B0', size: 26 },
-  tavern:      { icon: '🍺',  label: 'Tavern',        color: '#C89050', size: 24 },
-  market:      { icon: '🏪',  label: 'Market',        color: '#C8A050', size: 24 },
-  academy:     { icon: '🎓',  label: 'Academy',       color: '#A890C0', size: 30 },
-  port:        { icon: '⚓',  label: 'Port',          color: '#6090A0', size: 30 },
-  bridge:      { icon: '🌉',  label: 'Bridge',        color: '#909090', size: 24 },
-  camp:        { icon: '⛺',  label: 'Camp',          color: '#B88040', size: 24 },
-  dungeon:     { icon: '⚠',   label: 'Dungeon',       color: '#A06040', size: 28 },
-  cave:        { icon: '🕳',  label: 'Cave',          color: '#706050', size: 24 },
-  ruin:        { icon: '🏚',  label: 'Ruin',          color: '#888070', size: 26 },
-  graveyard:   { icon: '🪦',  label: 'Graveyard',     color: '#808080', size: 24 },
-  battlefield: { icon: '⚔',   label: 'Battlefield',   color: '#A04040', size: 28 },
-  landmark:    { icon: '🗿',  label: 'Landmark',      color: '#80A0B0', size: 26 },
-  forest:      { icon: '🌲',  label: 'Forest',        color: '#4A7A4A', size: 26 },
-  mountain:    { icon: '⛰',   label: 'Mountain',      color: '#8A7A6A', size: 30 },
-  lake:        { icon: '🏞',  label: 'Lake',          color: '#5A90B0', size: 28 },
-  curiosity:   { icon: '✨',  label: 'Curiosity',     color: '#C8A040', size: 24 },
-  region:      { icon: '🗺',  label: 'Region',        color: '#708090', size: 32 },
-  enemy:       { icon: '💀',  label: 'Hostile',       color: '#B04040', size: 28 },
-  custom:      { icon: '📌',  label: 'Custom',        color: '#8A5CC8', size: 26 },
-};
-
-// Marker size bounds used by inputs and the size-resolver below.
-export const PIN_SIZE_MIN = 14;
-export const PIN_SIZE_MAX = 64;
-export const PIN_SIZE_DEFAULT = 28;
+export const PIN_TYPES = PinTypes.byId;
+export const PIN_SIZE_MIN = PinTypes.sizeMin;
+export const PIN_SIZE_MAX = PinTypes.sizeMax;
+export const PIN_SIZE_DEFAULT = PinTypes.sizeDefault;
 
 // Event-path overlay colours (canvas-rendered Leaflet polylines + divIcon marker
 // backgrounds, so JS constants not CSS tokens). Single source of truth shared by
@@ -85,7 +50,7 @@ export const WorldMap = (() => {
 
   // ── Marker size resolver ──────────────────────────────────────
   // Per-pin override wins; otherwise the user-edited pinTypes
-  // settings entry; otherwise the constant default in PIN_TYPES;
+  // settings entry; otherwise the immutable built-in definition;
   // finally a global PIN_SIZE_DEFAULT. Clamped to [PIN_SIZE_MIN,
   // PIN_SIZE_MAX] so a stale settings value can't blow up the map.
   //
@@ -110,16 +75,15 @@ export const WorldMap = (() => {
   //   • strategy 'random'            → deterministic hash on pin.id
   //                                    across ALL files.
 
-  // Pin type ids that have a bundled default SVG under
-  // `web/icons-defaults/<id>.svg`. Kept in sync with the files
-  // committed in that folder; user-created pin types fall through
-  // to the emoji glyph because they have no entry here.
-  const BUNDLED_DEFAULT_ICONS = Object.freeze(new Set([
-    'major_city','city','town','village','fortress','castle','tower',
-    'temple','shrine','tavern','market','academy','port','bridge','camp',
-    'dungeon','cave','ruin','graveyard','battlefield','landmark','forest',
-    'mountain','lake','curiosity','region','enemy','custom',
-  ]));
+  function _livePinTypes() {
+    return (Store.getEnum && Store.getEnum('pinTypes')) || [];
+  }
+
+  function _pinTypeDef(id) {
+    return PinTypes.resolve(_livePinTypes(), id);
+  }
+
+  const BUNDLED_DEFAULT_ICONS = new Set(PinTypes.bundledIconIds);
   /**
    * @param {string} pinType - Pin type id from `pinTypes` settings.
    * @returns {string|null} Path to the bundled default SVG for this
@@ -135,9 +99,9 @@ export const WorldMap = (() => {
   /** List of bundled default icon ids — exposed so Settings can render
    *  a default-icon picker for user-created pin types (which otherwise
    *  fall through to the emoji glyph). Sorted by the order they appear
-   *  in PIN_TYPES so the picker matches the rest of the UI. */
+   *  in the built-in definition order so the picker matches the rest of the UI. */
   function getBundledDefaultIconIds() {
-    return Object.keys(PIN_TYPES).filter(id => BUNDLED_DEFAULT_ICONS.has(id));
+    return [...PinTypes.bundledIconIds];
   }
 
   /**
@@ -171,7 +135,7 @@ export const WorldMap = (() => {
   }
 
   function _resolveIconUrl(pin) {
-    const types = (Store.getEnum && Store.getEnum('pinTypes')) || [];
+    const types = _livePinTypes();
     const pt    = types.find(t => t.id === pin.type);
     const cfg   = pt?.iconConfig;
     // Uploaded files (iconConfig) always win when present.
@@ -198,12 +162,12 @@ export const WorldMap = (() => {
     if (typeof pin.size === 'number' && pin.size > 0) {
       return Math.max(PIN_SIZE_MIN, Math.min(PIN_SIZE_MAX, pin.size));
     }
-    const fromSettings = (Store.getEnum && Store.getEnum('pinTypes') || [])
+    const fromSettings = _livePinTypes()
       .find(p => p.id === pin.type);
     if (fromSettings && typeof fromSettings.size === 'number' && fromSettings.size > 0) {
       return Math.max(PIN_SIZE_MIN, Math.min(PIN_SIZE_MAX, fromSettings.size));
     }
-    const fromConst = PIN_TYPES[pin.type];
+    const fromConst = PinTypes.byId[pin.type];
     if (fromConst && typeof fromConst.size === 'number' && fromConst.size > 0) {
       return fromConst.size;
     }
@@ -510,7 +474,7 @@ export const WorldMap = (() => {
   // up front so callers don't have to repeat the filtering. Strength
   // is sourced from the `attitudes` settings enum (per-attitude),
   // NOT from each entry — the per-entity strength field was retired
-  // (see `_migrateStrengthFromEntityToEnum` in store.js). Used by
+  // and is removed at server startup. Used by
   // both the simple stacked-glow and the segmented-stripe rendering
   // paths in `_pinIcon`.
   function _resolveAttitudeStripes(entries) {
@@ -1083,7 +1047,7 @@ export const WorldMap = (() => {
   }
 
   function _pinIcon(pin) {
-    const pt   = PIN_TYPES[pin.type]  || PIN_TYPES.custom;
+    const pt   = _pinTypeDef(pin.type);
     const size = _resolvePinSize(pin);
     const fontPx = Math.round(size * 0.85);
     const blurPx = Math.max(5, Math.round(size * 0.22));
@@ -1134,7 +1098,7 @@ export const WorldMap = (() => {
       const styleAttr = styles.length ? ` style="${styles.join(';')}"` : '';
       return iconUrl
         ? `<img class="${cls}" src="${esc(iconUrl)}" alt="" draggable="false"${styleAttr}>`
-        : `<span class="${cls}"${styleAttr}>${pt.icon}</span>`;
+        : `<span class="${cls}"${styleAttr}>${esc(pt.icon || '📌')}</span>`;
     };
 
     let inner;
@@ -1306,9 +1270,8 @@ export const WorldMap = (() => {
     const pin = _pinsForCurrent().find(p => p.id === pinId);
     if (!pin) return;
     _editPinId = pinId;
-    const pt       = PIN_TYPES[pin.type] || PIN_TYPES.custom;
+    const pt       = _pinTypeDef(pin.type);
     const statuses = _pinStatuses();
-    const ps       = statuses[pin.status] || statuses.unknown;
     const loc      = pin.locationId ? Store.getLocation(pin.locationId) : null;
 
     const subCount = loc ? Store.getSubLocations(loc.id).length : 0;
@@ -1345,7 +1308,7 @@ export const WorldMap = (() => {
       ${previewHtml}
       <div>
         <div class="sc-pin-name">${esc(pin.name)}</div>
-        <div class="sc-pin-meta">${pt.label}${attLabels ? ' · ' + attLabels : ''}</div>
+        <div class="sc-pin-meta">${esc(pt.label)}${attLabels ? ' · ' + attLabels : ''}</div>
         ${subInfo}
       </div>`;
     const header = loc
@@ -1379,7 +1342,7 @@ export const WorldMap = (() => {
   // default. Skips the random strategy logic since the menu wants
   // ONE consistent icon per type, not a per-pin sample.
   function _typeMenuIconUrl(typeId) {
-    const types  = (Store.getEnum && Store.getEnum('pinTypes')) || [];
+    const types  = _livePinTypes();
     const cfg    = types.find(t => t.id === typeId)?.iconConfig;
     if (cfg && Array.isArray(cfg.files) && cfg.files.length && cfg.files[0].url) {
       return cfg.files[0].url;
@@ -1395,27 +1358,29 @@ export const WorldMap = (() => {
     // a styled button trigger + click-to-open menu replaces the
     // native picker. Each menu row is a button so the action
     // dispatcher routes selection through `WorldMap.selectPinType`.
-    const typeMenuItems = Object.entries(PIN_TYPES).map(([k, v]) => {
-      const url = _typeMenuIconUrl(k);
+    const typeChoices = PinTypes.choices(_livePinTypes(), currentType);
+    const typeMenuItems = typeChoices.map(v => {
+      const url = _typeMenuIconUrl(v.id);
       const iconHtml = url
         ? `<img class="spf-type-menu-icon" src="${esc(url)}" alt="" draggable="false">`
-        : `<span class="spf-type-menu-icon spf-type-menu-icon-emoji">${v.icon}</span>`;
-      const activeCls = (k === currentType) ? ' is-active' : '';
+        : `<span class="spf-type-menu-icon spf-type-menu-icon-emoji">${esc(v.icon || '📌')}</span>`;
+      const activeCls = (v.id === currentType) ? ' is-active' : '';
       return `<button type="button" class="spf-type-menu-item${activeCls}"
-        data-spf-type="${esc(k)}"
-        ${dataAction('WorldMap.selectPinType', k)}>
+        data-spf-type="${esc(v.id)}"
+        ${dataAction('WorldMap.selectPinType', v.id)}>
         ${iconHtml}
         <span class="spf-type-menu-label">${esc(v.label)}</span>
       </button>`;
     }).join('');
-    const currentLabel = (PIN_TYPES[currentType] || PIN_TYPES.custom).label;
+    const currentDefinition = PinTypes.resolve(typeChoices, currentType);
+    const currentLabel = currentDefinition.label;
     // Trigger icon mirrors the menu items so the closed dropdown still
     // shows the visual marker for the currently-selected type, not just
     // its name. Same resolver and fallback chain as menu rows.
     const currentTriggerIconUrl = _typeMenuIconUrl(currentType);
     const currentTriggerIconHtml = currentTriggerIconUrl
       ? `<img class="spf-type-trigger-icon" src="${esc(currentTriggerIconUrl)}" alt="" draggable="false">`
-      : `<span class="spf-type-trigger-icon spf-type-trigger-icon-emoji">${(PIN_TYPES[currentType] || PIN_TYPES.custom).icon}</span>`;
+      : `<span class="spf-type-trigger-icon spf-type-trigger-icon-emoji">${esc(currentDefinition.icon || '📌')}</span>`;
     // Pin form exposes the full attitudes array (with per-attitude
     // strength sliders) so multi-stance places can be edited from the
     // map without switching to the wiki editor. Same chip-row helper
@@ -1533,7 +1498,8 @@ export const WorldMap = (() => {
     const menu    = document.getElementById('spf-type-menu');
     if (!hidden || !trigger || !menu) return;
     hidden.value = typeId;
-    const label = (PIN_TYPES[typeId] || PIN_TYPES.custom).label;
+    const definition = _pinTypeDef(typeId);
+    const label = definition.label;
     const labelSpan = trigger.querySelector('.spf-type-trigger-label');
     if (labelSpan) labelSpan.textContent = label;
     // Replace the trigger icon in place so img↔emoji-span fallback
@@ -1551,7 +1517,7 @@ export const WorldMap = (() => {
       } else {
         nextIcon = document.createElement('span');
         nextIcon.className = 'spf-type-trigger-icon spf-type-trigger-icon-emoji';
-        nextIcon.textContent = (PIN_TYPES[typeId] || PIN_TYPES.custom).icon;
+        nextIcon.textContent = definition.icon || '📌';
       }
       oldIcon.replaceWith(nextIcon);
     }
@@ -1617,7 +1583,7 @@ export const WorldMap = (() => {
     loc.mapNotes   = mapNotes;
     // Decide whether to write a per-place size override.
     const typeDefault = (Store.getEnumValue('pinTypes', pinType) || {}).size
-      || (PIN_TYPES[pinType] && PIN_TYPES[pinType].size)
+      || (PinTypes.byId[pinType] && PinTypes.byId[pinType].size)
       || PIN_SIZE_DEFAULT;
     if (Number.isFinite(sizeNum) && sizeNum >= PIN_SIZE_MIN && sizeNum <= PIN_SIZE_MAX
         && sizeNum !== typeDefault) {
@@ -1805,7 +1771,7 @@ export const WorldMap = (() => {
    *  Anonymous viewers see the toggle and clicking it surfaces the
    *  login modal — routed via the `auth:prompt-login` window event
    *  because `editmode.js → map.js` is the established import direction
-   *  (PIN_TYPES etc.) and importing EditMode back would be a cycle. */
+   *  (pin metadata etc.) and importing EditMode back would be a cycle. */
   function setEditing(on) {
     if (on && Role.isAnonymous()) {
       window.dispatchEvent(new CustomEvent('auth:prompt-login'));
@@ -2006,11 +1972,11 @@ export const WorldMap = (() => {
     if (String(q || '').trim()) announce(I18n.plural('a11y.matchCount', hits.length));
     if (!hits.length) { el.innerHTML = ''; _hideSearchResults(); return; }
     el.innerHTML = hits.map(p => {
-      const pt = PIN_TYPES[p.type] || PIN_TYPES.custom;
+      const pt = _pinTypeDef(p.type);
       const url = _resolveIconUrl(p);
       const ico = url
         ? `<img class="sc-search-ico" src="${esc(url)}" alt="" draggable="false">`
-        : `<span class="sc-search-ico">${pt.icon}</span>`;
+        : `<span class="sc-search-ico">${esc(pt.icon || '📌')}</span>`;
       return `<div class="sc-search-item"${dataAction('WorldMap.zoomToPin', p.id)}>
         ${ico}
         <span class="sc-search-name">${esc(p.name)}</span>

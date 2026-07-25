@@ -814,6 +814,7 @@
   "settings.saveText": "Save text",
   "settings.serverCodeWarn": "Contains server code — it will run with full server privileges.",
   "settings.serverPartNote": "Server part of the add-on: {state}.",
+  "settings.contentInvalid": "Declarative content is invalid ({path}, {code}). Reinstall a corrected package.",
   "settings.serverRestartNote": "Restart the server (container) to (un)load the server part.",
   "settings.sizeTitle": "Size",
   "settings.snapshotCreateFailed": "Creating backup point failed",

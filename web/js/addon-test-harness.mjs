@@ -103,6 +103,7 @@ function _emptyRec() {
  */
 import { HOST_CAPABILITIES, HOST_VERSION, compatibilityErrors } from './addon-compat.js';
 import { requireCollectionDeclaration, resolveDependency } from './addon-host-contract.js';
+import { AddonRegistrationContract } from './addon-registration-contract.js';
 import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack } from './addon-lifecycle.js';
 import { createTransactionRunner } from './addon-transactions.js';
 import { createAddonImportClient } from './addon-imports.js';
@@ -153,6 +154,11 @@ export function createMockHost(meta = {}, opts = {}) {
     }
   };
   const registeredCollections = new Set();
+  const registeredSettingsTabs = new Set();
+  const registeredActions = new Set();
+  const registeredKinds = new Set();
+  const registeredNodeKinds = new Set();
+  const registeredGraphViews = new Set();
   const transactionDescriptors = new Map();
   const collectionVersions = new Map();
   const transactionLeases = new Map();
@@ -404,12 +410,38 @@ export function createMockHost(meta = {}, opts = {}) {
     i18n: scopedI18n,
     action: (name) => id + ':' + name,
 
-    registerRoute:        (segment, render)   => { need('ui:route', 'registerRoute'); rec.routes.push({ segment, render }); },
-    registerSidebarPage:  (spec)              => { need('ui:sidebar', 'registerSidebarPage'); rec.sidebar.push(spec); },
-    registerPageRenderer: (kind, render)      => { need('ui:route', 'registerPageRenderer'); rec.pages.push({ kind, render }); },
-    registerArticleSection: (kind, fn)        => { need('ui:article-section:' + kind, 'registerArticleSection'); rec.articleSections.push({ kind, fn }); },
-    registerSettingsTab:  (spec)              => { need('ui:settings-tab', 'registerSettingsTab'); rec.settingsTabs.push(spec); },
-    registerAction:       (name, fn)          => { need('ui:action', 'registerAction'); rec.actions.push({ name, fn }); },
+    registerRoute: (segment, render) => {
+      need('ui:route', 'registerRoute');
+      rec.routes.push(AddonRegistrationContract.route(segment, render));
+    },
+    registerSidebarPage: (spec) => {
+      need('ui:sidebar', 'registerSidebarPage');
+      rec.sidebar.push(AddonRegistrationContract.sidebarPage(spec));
+    },
+    registerPageRenderer: (kind, render) => {
+      need('ui:route', 'registerPageRenderer');
+      rec.pages.push(AddonRegistrationContract.pageRenderer(kind, render));
+    },
+    registerArticleSection: (kind, fn, options) => {
+      need('ui:article-section:' + kind, 'registerArticleSection');
+      rec.articleSections.push(AddonRegistrationContract.articleSection(kind, fn, options));
+    },
+    registerSettingsTab: (spec) => {
+      need('ui:settings-tab', 'registerSettingsTab');
+      const registration = AddonRegistrationContract.settingsTab(spec);
+      const key = id + ':' + (registration.id || 'tab');
+      if (registeredSettingsTabs.has(key)) throw new Error(`registerSettingsTab: duplicate tab "${key}"`);
+      registeredSettingsTabs.add(key);
+      rec.settingsTabs.push(registration);
+    },
+    registerAction: (name, fn) => {
+      need('ui:action', 'registerAction');
+      const registration = AddonRegistrationContract.action(name, fn);
+      const key = id + ':' + registration.name;
+      if (registeredActions.has(key)) throw new Error(`registerAction: duplicate action "${key}"`);
+      registeredActions.add(key);
+      rec.actions.push(registration);
+    },
     registerCollection:   (name)              => {
       need('data:own', 'registerCollection');
       requireCollectionDeclaration(meta, name);
@@ -423,15 +455,74 @@ export function createMockHost(meta = {}, opts = {}) {
       rec.collections.push({ name, keyed: !!requireCollectionDeclaration(meta, name).keyed,
         access: requireCollectionDeclaration(meta, name).access === 'dm' ? 'dm' : 'public' });
     },
-    registerWikiKind:     (scope, resolve)    => { need('wiki:kind', 'registerWikiKind'); rec.wikiKinds.push({ scope, resolve }); },
-    registerEditorFields: (kind, spec)        => { need('ui:editor-fields:' + kind, 'registerEditorFields'); rec.editorFields.push({ kind, spec }); },
-    registerFragmentOp:   (target, spec)      => { need('ui:override', 'registerFragmentOp'); rec.fragmentOps.push({ target, spec }); },
-    registerSlot:         (slotId, render, o) => { need('ui:slot:' + String(slotId || '').split(':')[0], 'registerSlot'); rec.slots.push({ slotId, render, opts: o }); },
-    registerKind:         (domain, def)       => { need('kinds:' + domain, 'registerKind'); rec.kinds.push({ domain, def }); },
-    registerConnectionKind:   (def)           => { need('kinds:connections', 'registerConnectionKind'); rec.connectionKinds.push(def); },
-    registerNodeKind:     (def)               => { need('kinds:graph', 'registerNodeKind'); rec.nodeKinds.push(def); },
-    registerGraphView:    (def)               => { need('kinds:graph', 'registerGraphView'); rec.graphViews.push(def); },
-    registerGraphContributor: (viewId, fn)    => { need('graph:contribute', 'registerGraphContributor'); rec.graphContributors.push({ viewId, fn }); },
+    registerWikiKind: (scope, resolve) => {
+      need('wiki:kind', 'registerWikiKind');
+      rec.wikiKinds.push(AddonRegistrationContract.wikiKind(scope, resolve));
+    },
+    registerEditorFields: (kind, spec) => {
+      need('ui:editor-fields:' + kind, 'registerEditorFields');
+      rec.editorFields.push(AddonRegistrationContract.editorFields(kind, spec));
+    },
+    registerFragmentOp: (target, spec) => {
+      need('ui:override', 'registerFragmentOp');
+      const registration = AddonRegistrationContract.fragmentOp(target, spec);
+      rec.fragmentOps.push({
+        target: registration.target,
+        spec: {
+          op: registration.op,
+          render: registration.render,
+          order: registration.order,
+          position: registration.position,
+        },
+      });
+    },
+    registerSlot: (slotId, render, options) => {
+      const registration = AddonRegistrationContract.slot(slotId, render, options);
+      need(registration.permission, 'registerSlot');
+      rec.slots.push({
+        slotId: registration.slotId,
+        render: registration.render,
+        opts: { order: registration.order },
+      });
+    },
+    registerKind: (domain, def) => {
+      const registration = AddonRegistrationContract.kind(domain, def);
+      need(registration.permission, 'registerKind');
+      const key = id + ':' + registration.def.id;
+      const registryKey = registration.domain + ':' + key;
+      if (registeredKinds.has(registryKey)) throw new Error(`registerKind: duplicate kind "${key}" in domain "${registration.domain}"`);
+      registeredKinds.add(registryKey);
+      rec.kinds.push({ domain: registration.domain, def: registration.def });
+    },
+    registerConnectionKind: (def) => {
+      const registration = AddonRegistrationContract.kind('connections', def);
+      need(registration.permission, 'registerConnectionKind');
+      const key = id + ':' + registration.def.id;
+      const registryKey = registration.domain + ':' + key;
+      if (registeredKinds.has(registryKey)) throw new Error(`registerKind: duplicate kind "${key}" in domain "${registration.domain}"`);
+      registeredKinds.add(registryKey);
+      rec.connectionKinds.push(registration.def);
+    },
+    registerNodeKind: (def) => {
+      need('kinds:graph', 'registerNodeKind');
+      const registration = AddonRegistrationContract.nodeKind(def);
+      const key = id + ':' + registration.id;
+      if (registeredNodeKinds.has(key)) throw new Error(`registerNodeKind: duplicate "${key}"`);
+      registeredNodeKinds.add(key);
+      rec.nodeKinds.push(registration);
+    },
+    registerGraphView: (def) => {
+      need('kinds:graph', 'registerGraphView');
+      const registration = AddonRegistrationContract.graphView(def);
+      const key = id + ':' + registration.id;
+      if (registeredGraphViews.has(key)) throw new Error(`registerGraphView: duplicate "${key}"`);
+      registeredGraphViews.add(key);
+      rec.graphViews.push(registration);
+    },
+    registerGraphContributor: (viewId, fn) => {
+      need('graph:contribute', 'registerGraphContributor');
+      rec.graphContributors.push(AddonRegistrationContract.graphContributor(viewId, fn));
+    },
 
     provide: (api)   => { rec.provided = api; },
     use:     (depId) => {

@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test \"test/**/*.test.*js\""
+    "test": "node --test \"test/**/*.test.*js\"",
+    "lint": "eslint . --max-warnings 0",
+    "check": "npm run lint && npm test"
   },
   "engines": {
     "node": ">=24"
@@ -21,5 +23,8 @@
     "multer": "^2.2.0",
     "sharp": "^0.35.2",
     "yauzl": "^3.4.0"
+  },
+  "devDependencies": {
+    "eslint": "~10.7.0"
   }
 }

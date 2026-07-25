@@ -63,8 +63,6 @@ export const CloudMap = (() => {
   const PAD        = 10;           // inner horizontal padding
   const IW         = CW - PAD * 2; // inner text width for wrapping
 
-  const FONT_STRIP = '500 10px Inter, sans-serif';
-  const FONT_NAME  = '600 13px Cinzel, Georgia, serif';
   const FONT_FACT  = '11px Lora, Georgia, serif';
 
   // Heights derived from actual CSS box model:
@@ -182,7 +180,7 @@ export const CloudMap = (() => {
   const IW_HUB      = CW_HUB - PAD_HUB * 2;
   const H_OVERHEAD_HUB = 14;             // border(3+1) + padding-bottom(10)
 
-  function _factionHubCloudH(faction, count) {
+  function _factionHubCloudH(faction, _count) {
     // strip + name + divider + 1 fact row (member count) + pill overhead
     let rows = 1;
     if (faction.description) rows += Math.min(2, _wrap(faction.description, FONT_FACT, IW_HUB).length);
@@ -1257,7 +1255,6 @@ export const CloudMap = (() => {
   // HTML label divs sit in that gap, centred on the edge midpoint.
 
   const EDGE_LABEL_FONT   = '12px Inter, sans-serif';
-  const EDGE_LABEL_LINE_H = 12 * 1.35;
   const LABEL_GAP_PAD     = 5;   // extra gap each side beyond text bounds
 
   function _dashArray(lineStyle, width) {
@@ -1812,7 +1809,6 @@ export const CloudMap = (() => {
         let dist = Math.hypot(dx, dy);
         if (dist < 1) {
           // Coincident nodes: push them apart with a tiny random kick
-          dist = 1;
           const jx = Math.random() - 0.5, jy = Math.random() - 0.5;
           if (va) { va.vx -= jx; va.vy -= jy; }
           const vb0 = _phys.nodeVel.get(b.id);

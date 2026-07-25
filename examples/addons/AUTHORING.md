@@ -93,7 +93,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `entry` | ✅ | Relative `.js`/`.mjs` path to the client module (default-export `register`). |
 | `locales` | — | API-v2 declarative UI catalogs: `{ "en": "locales/en.json", "cs": "locales/cs.json" }`. Requires `i18n.catalogs`; English is mandatory and complete, translations may be partial. |
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
-| `contentDir` | — | Relative dir of a **per-record JSON tree** the HOST serves for you at `/api/addon/<id>/content` (+ `/content/:kind`, `/item/:kind/:id`, `/kinds`). The right choice for DATA addons (rulebooks): **no server code, no `server:code` grant**, kinds keyed by each record's own `kind` field (sub-dir name is the fallback), and hot-loaded — install/update needs no restart. A live `server` router takes precedence over it entirely. |
+| `contentDir` | — | Relative dir of a **per-record JSON tree** the HOST serves for you at `/api/addon/<id>/content` (+ `/content/:kind`, `/item/:kind/:id`, `/kinds`). Every JSON file must contain one object with a non-empty string `id`; root-level records must declare `kind`, and `(kind,id)` identities must be unique. Invalid JSON/records, unreadable paths, symlinks, or duplicates reject the entire package. The right choice for DATA addons (rulebooks): **no server code, no `server:code` grant**, kinds keyed by each record's own `kind` field (sub-dir name is the fallback), and hot-loaded — install/update needs no restart. A live `server` router takes precedence over it entirely. |
 | `contentGroups` | — | `{ "field": "book", "label": "Sourcebooks" }` — declare one record field as a DM-toggleable grouping key for the content tree (see the "Content groups" section under server code). `field` is `^[a-zA-Z0-9_]{1,40}$`. |
 | `serverDeps` | — | `string[]` of vetted host npm libs your server module needs via `serverHost.lib(...)`. Allowed: `express`, `archiver`, `multer`. Archive readers are deliberately unavailable. Anything else → the addon loads `blocked`. |
 | `permissions` | — | Declared + **enforced** capability tokens (see §5). The DM reviews + grants them at install. |
@@ -816,6 +816,10 @@ Call your own endpoints from `entry.js` with `fetch('/api/addon/<id>/…')`.
 ## 14. Testing
 
 Write tests against the **published harness** `web/js/addon-test-harness.mjs`:
+Its `register*` argument validators are the same functions used by the live
+host, so a successful dry run cannot rely on looser route, renderer, slot, kind,
+or duplicate-registration checks.
+
 ```js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
