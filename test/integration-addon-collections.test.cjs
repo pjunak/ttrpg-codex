@@ -1,6 +1,6 @@
 'use strict';
 
-// Integration: addon-OWNED collections (Phase 4b-2). An enabled addon that
+// Integration: addon-owned collections. An enabled addon that
 // declares `collections` in its manifest gets a colon-namespaced wire type
 // `addon:<id>:<name>` registered into the server type system at boot, riding
 // the generic GET/PATCH /api/data path. The data lives ISOLATED at

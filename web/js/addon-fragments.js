@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-//  ADDON FRAGMENTS — pure slot/fragment override engine (Phase 6).
+//  ADDON FRAGMENTS — pure slot/fragment override engine.
 //
 //  A rendered surface (e.g. a character article's main column) is
 //  decomposed into an ordered list of NAMED fragments `[{id, html}]`.

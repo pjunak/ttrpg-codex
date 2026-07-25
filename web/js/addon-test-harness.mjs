@@ -4,7 +4,7 @@
 //  The framework publishes this so addon authors (human OR AI) can unit-test
 //  their `register(host)` against the REAL host surface without a browser, a
 //  running server, or real Store data. It's also what the host itself uses for
-//  the Tier-A dry-run + Tier-C render smoke (pre-activation testing, Phase 8).
+//  the dry-run and render-smoke checks used before activation.
 //
 //  Deliberately PURE + dependency-free: no DOM, no window, no Store, no
 //  utils.js import. The mock `host.h` ships its own tiny pure helpers so the

@@ -59,7 +59,7 @@ The app has three access levels:
 Passwords come from two sources, checked in this order:
 
 1. **`data/auth.json`** — credentials set in-app from **Settings →
-   Účet** by a logged-in DM. These persist across restarts and take
+   Account** by a logged-in DM. These persist across restarts and take
    priority over the environment.
 2. **Environment variables** — `DM_PASSWORD` and `PLAYER_PASSWORD`,
    consulted only when the matching role has no stored credential.
@@ -86,7 +86,7 @@ A few consequences worth knowing:
 - **A player password is optional.** Leave `PLAYER_PASSWORD` unset and
   player login is simply disabled — anonymous visitors already get the
   same public-only view.
-- **Rotate without redeploying.** Sign in as DM, open Settings → Účet,
+- **Rotate without redeploying.** Sign in as DM, open Settings → Account,
   and change either password. Changing the DM password rotates the
   cookie secret (invalidating old sessions) but re-issues your own so
   you stay logged in.
@@ -172,25 +172,29 @@ Two complementary strategies:
 
 ### Built-in snapshots
 
-Every successful save coalesces into a snapshot under
+Successful writes create coalesced recovery points under
 `./data-snapshots/snapshot-<ISO>.json`. Retention: the most recent
 50 snapshots plus the newest snapshot per UTC-day for the last 14
-days. Manage them in the Settings → **Záloha** tab:
+days. Manage them in the Settings → **Backup** tab (labels are translated
+for the selected UI language):
 
-- **Vytvořit zálohu** — take a manual snapshot now (bypasses
+- **Create recovery point** — take a manual snapshot now (bypasses
   coalescing; rate-limited to one per 3 s).
-- **Obnovit** on any snapshot — roll the entire dataset back to that
+- **Restore** on any recovery point — roll the entire dataset back to that
   point. The handler takes a fresh `pre-restore` snapshot first so
   the operation itself is undoable.
-- **Vrátit poslední N změn** — restore the snapshot N positions
-  before newest. n=1 = "undo the last change".
+- **Revert N recovery points** — restore the recovery point N positions
+  before newest. Because writes within 60 seconds may coalesce, N is not an
+  edit count.
 
 ### Full ZIP backup
 
-Settings → **Záloha** → **Stáhnout zálohu** triggers
+Settings → **Backup** → **Download backup** triggers
 `GET /api/backup` and downloads a ZIP containing the entire `data/`
-directory. Same dialog accepts an upload to restore — both ZIP and
-the JSON export from `Store.exportJSON()` are accepted.
+directory except `secrets.json` and internal recovery journals. It includes
+`auth.json`, addon packages, and addon data. The same dialog accepts an upload
+to restore — both ZIP and the JSON export from `Store.exportJSON()` are
+accepted.
 
 For automated off-site backups, just rsync `./data` and `./data-snapshots`:
 
@@ -211,13 +215,31 @@ docker compose up -d --build
 ```
 
 The container restart preserves `./data` and `./data-snapshots`. Server-owned
-schema migrations run idempotently before the listener starts; the remaining
-client-owned normalizers run idempotently after data loads. There is no manual
-migration step.
+schema migrations run idempotently before the listener starts. Browser-side
+normalization only supplies safe display defaults and never persists a schema
+migration. There is no manual migration step.
 
 If you need to roll back, the previous Docker image is still cached;
 `docker compose down && docker tag <previous-sha> ttrpg-codex && docker compose up -d`
 will revive it. Or git-checkout the previous commit and rebuild.
+
+### Post-deploy smoke check
+
+Production runs behind a real reverse proxy and persistent volumes, so a local
+browser is not a complete substitute. After an upgrade:
+
+1. confirm `GET /api/version` and the container health check;
+2. sign in through the public hostname and verify the expected real/effective
+   role;
+3. create one manual recovery point, refresh the list, and download a ZIP
+   backup;
+4. make a harmless edit and confirm another connected browser receives it;
+5. open every installed addon route and inspect the browser console; and
+6. check server logs for blocked addons, recovery warnings, and filesystem
+   permission errors.
+
+Run this independently for each hosted instance because its volumes, addon
+registry, credentials, and proxy route are separate.
 
 ## 7. Operational notes
 
@@ -240,9 +262,10 @@ Notable lines:
 - `TTRPG Codex running on http://localhost:3000` — server is up.
 - `[snapshot] migrated legacy data/snapshots → data-snapshots` —
   one-time relocation from a pre-A3 deployment.
-- `[tiles] sharp not installed — tile generation disabled` — the
-  optional `sharp` dep failed to load; the app still runs but uses
-  the slower single-image overlay instead of a tile pyramid.
+- `[tiles] sharp not installed — tile generation disabled` — the required
+  package failed to load despite being in the production dependency set.
+  The app degrades to a slower single-image overlay, but rebuild the image or
+  inspect `npm ci` rather than treating this as a normal configuration.
 - `⚠  DM password is UNSET` / `… is the default ("123")` — the
   deployment is world-editable. Set `DM_PASSWORD` (or change it from
   Settings → Účet) immediately.
@@ -320,16 +343,16 @@ Point a second hostname at it in your reverse proxy (Caddy:
 is **host-scoped** — no `domain=` is set — so logins never leak between
 hostnames even when the passwords match.
 
-### Per-instance feature flags
+### Per-instance identity and feature labels
 
 Two optional env vars let instances diverge in behavior while sharing one image,
-so a campaign-specific addon can be enabled on one site without affecting the
-others:
+without forking the application. `CODEX_FEATURES` is currently an opaque list
+exposed to clients and addons; core has no built-in feature flags.
 
 | Variable         | Purpose                                                                                                          |
 |------------------|------------------------------------------------------------------------------------------------------------------|
 | `CODEX_INSTANCE` | A label for the instance — logged at boot and returned by `GET /api/version`. Defaults to `default`.             |
-| `CODEX_FEATURES` | Space/comma-separated addon flags enabled for *this* instance only. Empty (the default) = baseline behavior.     |
+| `CODEX_FEATURES` | Space/comma-separated labels returned by `/api/version`. Empty by default; only code that explicitly reads a label gives it behavior. |
 | `CODEX_RESTARTABLE` | `1` enables `POST /api/restart` + the DM "♻ Restartovat server" button (Settings → Server). Also auto-detected inside Docker via `/.dockerenv`. Only enable when a supervisor (`restart: unless-stopped`, systemd, pm2) brings the process back. |
 | `CODEX_DATA_DIR` / `CODEX_SNAPSHOTS_DIR` | Override the data / snapshot directories (default `./data` and `./data-snapshots` next to `server.js`). The seam for non-Docker hosting. |
 | `CODEX_SNAPSHOT_MIN_INTERVAL_MS` | Minimum interval between *manual* snapshots (default `3000`). |
@@ -359,6 +382,28 @@ the logs say `sharp not installed`, the fallback `imageOverlay` should
 still work; if it doesn't, check that `data/maps/swordcoast/sword_coast.{jpg,png}`
 exists.
 
+**Backup download works, but the recovery-point list is empty or old points
+disappeared after a deploy.**
+Verify that both bind mounts resolve to the intended persistent host
+directories:
+
+```bash
+docker compose config
+docker compose exec ttrpg-codex sh -c 'ls -ld /app/data /app/data-snapshots && ls -la /app/data-snapshots | head'
+```
+
+The container user must be able to write both directories. Create and repair
+ownership before restarting:
+
+```bash
+mkdir -p ./data ./data-snapshots
+sudo chown -R 1000:1000 ./data ./data-snapshots
+```
+
+An empty or newly bound `data-snapshots` directory cannot reconstruct older
+recovery points from `data/`; restore the host directory from an off-site
+backup if those files matter.
+
 **The app loses my edits when I refresh.**
 The dirty-form guard tries to prevent this — confirm dialogs warn
 before navigating away, and CodeMirror autosaves to `localStorage`
@@ -378,5 +423,5 @@ are a full disk or a permissions error on `./data`.
 
 - [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) — how the app is built;
   read this if you want to extend it.
-- [`CONTRIBUTING.md`](../CONTRIBUTING.md) — local dev setup, the IIFE
-  module pattern, how to add a new entity collection.
+- [`CONTRIBUTING.md`](../CONTRIBUTING.md) — local setup, module boundaries,
+  persistence rules, and extension guidance.

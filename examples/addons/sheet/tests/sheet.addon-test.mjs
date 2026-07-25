@@ -1,4 +1,4 @@
-// Tier-B CLIENT self-test for the sheet addon (Phase 8), written against the
+// Client self-test for the sheet addon, written against the
 // published host test harness — the reference for how an addon ships tests.
 // Declared in addon.json as `tests.client`. Run standalone:
 //   node --test examples/addons/sheet/tests/sheet.addon-test.mjs

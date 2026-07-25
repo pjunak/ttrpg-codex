@@ -1,4 +1,4 @@
-// Unit tests for the published addon test harness (Phase 8). Pure — no DOM.
+// Unit tests for the published addon test harness. Pure — no DOM.
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { createMockHost, disposeMockHost, dryRunRegister, smokeRegistrations } from '../web/js/addon-test-harness.mjs';

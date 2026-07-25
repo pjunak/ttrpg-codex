@@ -911,10 +911,10 @@ export const Addons = (() => {
       rec.state = 'ok';
       rec.undo  = tx.undo;   // keep the teardown stack so reconcile can UNLOAD it later
       rec.cleanup = tx.cleanup;
-      // Tier-C render smoke (Phase 8): exercise this addon's renderers with
+      // Exercise this addon's renderers with
       // sample fixtures. A throw on benign input is almost certainly a bug —
       // surfaced as a NON-blocking warning in the Manager (the addon still
-      // loads; a strict pre-activation gate is the wizard's job, Phase 9).
+      // loads; the install wizard owns the strict pre-activation gate).
       try {
         const smoke = smokeRegistrations(_recForAddon(a.id));
         if (!smoke.ok) {

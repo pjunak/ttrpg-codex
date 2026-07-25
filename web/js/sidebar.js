@@ -87,7 +87,7 @@ export const Sidebar = (() => {
       <ul class="sidebar-nav">${lis}</ul>`;
   }
 
-  // Addon-registered sidebar links (CodexHost). Phase 1 groups them all
+  // Addon-registered sidebar links are grouped
   // under a single "Doplňky" section appended after the DM's layout;
   // placement into the DM-configurable layout arrives in a later phase.
   // Role-gated addon pages (spec.role === 'dm') never reach a non-DM DOM.

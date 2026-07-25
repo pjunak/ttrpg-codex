@@ -14,5 +14,5 @@
     "data:write:characters.addonData"
   ],
   "tests": { "client": "tests/sheet.addon-test.mjs" },
-  "summary": "Aktivní deník postavy (Phase 5): sekce s HP +/− na stránce postavy přes patchAddonData, pole v editoru postavy (registerEditorFields), namespacovaná akce a záložka v nastavení."
+  "summary": "Aktivní deník postavy: sekce s HP +/− na stránce postavy přes patchAddonData, pole v editoru postavy, namespacovaná akce a záložka v nastavení."
 }

@@ -1,6 +1,6 @@
-// Pravidla (Rulebook) — Phase 4b-2 reference addon.
+// Pravidla (Rulebook) reference addon.
 //
-// Demonstrates the addon DATA + linking surface that landed this phase:
+// Demonstrates the addon data and linking surface:
 //   • registerCollection  — an addon-OWNED collection ("rules"), declared in
 //                           addon.json and stored isolated at
 //                           data/addon-data/rules/rules.json (server side).

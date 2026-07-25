@@ -1,5 +1,5 @@
 'use strict';
-// Unit tests for the server-side addon test runner (Phase 8 green-gate).
+// Unit tests for the server-side addon installation test runner.
 // Uses the real child_process.spawn against throwaway temp dirs.
 
 const { test } = require('node:test');

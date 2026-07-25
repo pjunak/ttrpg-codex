@@ -121,7 +121,7 @@ async function createJob(srv, value, name, mime) {
   return body.job;
 }
 
-test('real server import flow is DM-only, preview is read-only, and commit uses F2 exactly once', async () => {
+test('real server import flow is DM-only, preview is read-only, and commit uses one transaction', async () => {
   const srv = await startServer({
     dmPassword: DM_PASSWORD,
     playerPassword: PLAYER_PASSWORD,

@@ -1,4 +1,4 @@
-// Fragment-override demo — Phase 6 reference addon.
+// Fragment-override reference addon.
 //
 // Decomposed built-in surfaces emit NAMED fragments (e.g. the character
 // article main column: `characters:section:vazby`, `characters:section:otazky`,

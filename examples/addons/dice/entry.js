@@ -1,4 +1,4 @@
-// Client half of the server-backed dice addon (Phase 7). The page calls the
+// Client half of the server-backed dice addon. The page calls the
 // addon's OWN server endpoint /api/addon/dice/* — server-authoritative rolls
 // (the client can't fudge them) plus a server-side isolated log. Addons may use
 // raw fetch for their own same-origin endpoints; the host facade gates Store

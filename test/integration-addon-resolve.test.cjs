@@ -1,7 +1,7 @@
 'use strict';
 
 // Integration: POST /api/addons/resolve — DM-only fragment-override conflict
-// resolution (Phase 6). Writes resolutions[target] into data/addons.json and
+// resolution. Writes resolutions[target] into data/addons.json and
 // surfaces the map on GET /api/addons so the client host applies the winner.
 
 const { test } = require('node:test');

@@ -24,21 +24,21 @@ fork needed to customise a campaign.
   resolves across collections.
 - **World map** (Leaflet) with sub-maps per location, custom marker
   artwork, attitude glows that signal stance toward the party,
-  zoom-driven scaling, captured view presets ("Pohledy"), and
-  event-path overlays so you can replay a sezení geographically.
+  zoom-driven scaling, saved view presets, and event-path overlays
+  for replaying a game session geographically.
 - **Mind maps** (Cytoscape + a hand-rolled rope-physics integrator
   with a worst-offender crossing-reduction post-pass): faction graph,
   relationship graph, mystery graph.
-- **Timeline kanban** organised by gaming session ("Sezení"), with
+- **Timeline kanban** organised by game session, with
   drag-and-drop reordering and stacked column hovering.
 - **Attitude glow system** — a single `attitudes` palette drives the
   visual halo on character portraits, location cards, faction badges,
   and map markers. Strength is per-attitude (one slider in Settings
   retints every glow at once); multi-attitude markers stripe colours
   rather than blending them muddily.
-- **Snapshots + backup**: every save coalesces into a point-in-time
-  snapshot; the Settings page exposes restore-to-snapshot, revert-
-  last-N, manual snapshot, and full ZIP backup / restore.
+- **Recovery points + backup**: successful writes create coalesced
+  point-in-time recovery points; Settings exposes restore, revert-last-N,
+  manual recovery points, and full ZIP backup / restore.
 - **Live sync** over Server-Sent Events. No polling, sub-second
   propagation, dirty-form guard so a teammate's edit can't stomp
   your in-progress changes.
@@ -46,8 +46,9 @@ fork needed to customise a campaign.
   password: a **DM** password unlocks everything (including DM-only
   lore); an optional **player** password grants edit access to public
   content only. Set them at deploy time (`DM_PASSWORD` /
-  `PLAYER_PASSWORD`) or rotate them later from Settings → Účet.
-  Sessions are signed, rate-limited cookies.
+  `PLAYER_PASSWORD`) or rotate them later from Settings → Account.
+  Sessions use HttpOnly, credential-derived cookies; login attempts are
+  rate-limited.
 - **Addons** — the DM installs extensions from a GitHub URL via a
   guided wizard (permission review → backup → test-gate → activate,
   with update checks and one-click rollback). Addons can add pages,
@@ -86,6 +87,7 @@ domain, etc.), see [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md).
 ```
 server.js                Express server + REST API
 server-utils.cjs         Pure helpers (path safety, key validation)
+server/                  Focused auth, sync, persistence, addon, and import services
 tiler.js                 Map tile-pyramid generator (sharp)
 docker-compose.yml       One-service compose file
 data/                    Runtime data (gitignored, mounted as volume)
@@ -105,8 +107,8 @@ test/                    node --test unit + integration tests
   contract, invariants, gotchas, known deferred issues — plus the
   subsystem encyclopedia it points into, [docs/reference/](docs/reference/).
   Start here before changing code.
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — local dev setup, the IIFE
-  module pattern, how to add a new entity collection, testing.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — local setup, module boundaries,
+  persistence rules, extension choices, and testing.
 - **[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)** — Docker deployment
   runbook, reverse proxy, backups, snapshots, upgrades.
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — tech stack, data
@@ -114,23 +116,10 @@ test/                    node --test unit + integration tests
 - **[ATTRIBUTIONS.md](ATTRIBUTIONS.md)** — credits for the bundled
   marker icon set (game-icons.net, CC BY 3.0).
 
-## Roadmap
-
-- **Per-Pohled marker visibility rules** — let each saved map preset
-  carry rules like "hide pin type X" or "only show pins with attitude Y".
-- **More ruleset addons** — the D&D 5.5e (2024) character sheets and
-  compendium establish the pattern; other systems can follow it.
-- **Addon sandboxing** — addons currently run trusted and in-process;
-  an iframe/Worker sandbox under strict CSP is a future hardening idea.
-- **Bulk marker-icon import** — zip upload following
-  `<pinTypeId>/<file>` for power users.
-
 ## License
 
 A formal `LICENSE` file has not been added yet — until it is, treat
 this code as "all rights reserved" and reach out before redistributing.
-The maintainer's intent is permissive (MIT-style); a concrete license
-file is on the to-do list.
 
 Bundled marker icons are independently licensed under CC BY 3.0 via
 [game-icons.net](https://game-icons.net/); attribution lives in

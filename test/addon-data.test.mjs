@@ -1,5 +1,5 @@
 // Unit: Store.patchAddonData — read-modify-write of ONE addon namespace on a
-// core entity (Phase 5). No server/DOM needed: the mutation is local, and
+// core entity. No server/DOM needed: the mutation is local, and
 // _sync no-ops because _serverAvailable starts false in tests.
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';

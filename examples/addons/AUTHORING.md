@@ -1,8 +1,8 @@
 # Writing addons for **O Barvách Draků** (CodexHost)
 
-A living reference for **human and AI** addon authors. If you read only one
-section, read **[For AI assistants](#for-ai-assistants)** — it has the
-invariants and a complete copy-paste template.
+The canonical reference for CodexHost addon authors. AI coding tools should
+also load [`AGENTS.md`](AGENTS.md), which condenses the rules into an efficient
+working contract.
 
 An addon is a GitHub repo the DM installs from a URL. It can add pages, sidebar
 links, settings tabs, article sections, editor fields, its own data collections,
@@ -10,8 +10,8 @@ wiki-link kinds, override built-in content, and run server-side code — all wit
 **no build step** (browser-native ES modules) and **no clobbering CSS** (it
 reuses the host's design system, so the theme switcher re-skins it for free).
 
-- **Host API versions:** `1` and `2` during migration. New addons should use
-  `2`; existing API-v1 addons remain supported.
+- **Host API versions:** new addons use `2`; existing API-v1 addons remain
+  supported for compatibility.
 - **Distribution:** one GitHub repo per addon. The DM pastes the URL into the
   install wizard (Nastavení → 🧩 Doplňky).
 - **Trust model:** DM-only install, commit-SHA-pinned, in-process. Permissions
@@ -22,19 +22,21 @@ reuses the host's design system, so the theme switcher re-skins it for free).
 
 ## 1. Quickstart
 
-A minimal addon is two files at the repo root:
+A minimal localized addon has three source files at the repo root:
 
 **`addon.json`**
 ```json
 {
   "id": "hello",
-  "name": "Pozdrav",
+  "name": "Hello",
   "version": "0.1.0",
   "apiVersion": 2,
   "hostVersion": ">=1.0.0",
   "entry": "entry.js",
+  "capabilities": { "required": ["i18n.catalogs"] },
+  "locales": { "en": "locales/en.json" },
   "permissions": ["ui:route", "ui:sidebar", "data:read:characters"],
-  "summary": "Adds a /pozdrav page."
+  "summary": "Adds a /hello page."
 }
 ```
 (The third permission matters: `entry.js` below calls
@@ -45,19 +47,32 @@ optional chaining doesn't save you, the method exists and denies.)
 ```js
 export default function register(host) {
   const { esc } = host.h;
-  host.registerSidebarPage({ route: '/pozdrav', label: 'Pozdrav', icon: '👋' });
-  host.registerRoute('pozdrav', () =>
-    `<div class="page-header"><h1>👋 Ahoj!</h1></div>
-     <p style="color:var(--text-muted)">Postav v databázi: ${esc(String(host.store.getCharacters?.().length ?? '—'))}</p>`);
+  const { t } = host.i18n;
+  host.registerSidebarPage({ route: '/hello', label: t('page.title'), icon: '👋' });
+  host.registerRoute('hello', () =>
+    `<div class="page-header"><h1>👋 ${esc(t('page.heading'))}</h1></div>
+     <p style="color:var(--text-muted)">${esc(t('character.count', {
+       count: host.store.getCharacters().length,
+     }))}</p>`);
 }
 ```
 
-Install it locally for development (no GitHub needed):
+**`locales/en.json`**
+
+```json
+{
+  "page.title": "Hello",
+  "page.heading": "Hello!",
+  "character.count": "Characters in the database: {count}"
+}
+```
+
+Install it locally for development from the host checkout (no GitHub needed):
 ```
 node scripts/dev-install-addon.cjs ./my-addon
 ```
-Then launch the app — the addon loads at boot and its sidebar link appears under
-**Doplňky**.
+Then launch the app. The addon loads at boot and its sidebar link appears in
+the addon section.
 
 ---
 
@@ -707,7 +722,7 @@ settles so writes can never overlap);
 ### Import-provider server contract
 
 An addon may pair its provider with a DM-only Import Center page through the
-F5 `host.imports` facade. A server addon that registers a provider must require
+`host.imports` facade. A server addon that registers a provider must require
 `imports.providers` and `collections.transactions`, request
 `server:code`, `data:own`, and `data:import-provider`, and declare every own
 write collection. DM-only targets also require `collections.dm`.
@@ -774,7 +789,8 @@ The host parses raw JSON with nested duplicate-key/prototype/size guards,
 captures declared collection revisions, validates and stores the normalized
 plan, and issues an opaque single-use token. Commit never reruns the provider
 and never accepts operations from the client; it verifies the provider package
-and all base revisions, then sends the exact plan through F2. Import jobs are
+and all base revisions, then sends the exact plan through the atomic
+multi-collection transaction service. Import jobs are
 ephemeral, session-bound, rate/concurrency/timeout limited, abort on provider
 unload/update, and do not survive restart.
 
@@ -918,8 +934,9 @@ automatically.
 4. Build **all** HTML with `host.h.esc(...)` for dynamic text and
    `host.h.dataAction(...)` / `host.h.dataOn(...)` for handlers. **Never** write
    inline `onclick`/`onchange` or unescaped interpolation.
-5. **Never** use literal colours/spacing/sizes. Use `var(--token)` only (see
-   `web/css/STYLE.md`) + documented component classes.
+5. Use host component classes and design tokens for product-facing styling
+   (see `web/css/STYLE.md`). Literals are reserved for one-off technical
+   geometry without theme or system meaning.
 6. Namespace everything: actions via `host.action(name)`; ids you choose live
    under your addon. Don't shadow built-in routes/scopes.
 7. Renderers must **tolerate sparse/empty input** (the smoke test calls them with
@@ -928,10 +945,9 @@ automatically.
    before `registerCollection`. DM declarations additionally require API v2,
    `collections.dm`, and effective-DM registration. Wiki-kind targets resolve
    **by name → real id**.
-9. Keep `register()` side-effect-free except for `register*` calls. Do data work
-   in actions/renderers, not at register time. Register cleanup with
-   `host.onDispose(fn)` or return it from `register()` for every resource you
-   own.
+9. Keep registration deterministic. Start data work in actions, renderers, or
+   explicitly owned asynchronous tasks, and register cleanup with
+   `host.onDispose(fn)` or return it from `register()`.
 10. **Write code and the mandatory source catalog in English.** Addon UI that
    needs localization declares `locales` on API v2, requires `i18n.catalogs`,
    and renders through scoped `host.i18n`; translations may be partial but may

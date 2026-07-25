@@ -2144,7 +2144,7 @@ export const Store = (() => {
     _bustMarkdownCache();
   }
 
-  // ── Per-entity addonData (Phase 5) ────────────────────────────
+  // ── Per-entity addonData ─────────────────────────────────────
   // Each addon may stash a namespaced blob on a core entity under
   // `entity.addonData[<addonId>]` — e.g. an active character sheet's HP/stats.
   // The blob rides INSIDE the entity's JSON, so it's snapshotted and

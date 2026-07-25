@@ -1,6 +1,6 @@
 'use strict';
 // ═══════════════════════════════════════════════════════════════
-//  ADDON TESTING — server-side Tier-B green-gate runner (Phase 8).
+//  ADDON TESTING — server-side installation green-gate runner.
 //
 //  Runs an addon's declared SERVER self-tests (`tests.server`) with
 //  `node --test` against the STAGED (.incoming) tree BEFORE the install is
@@ -15,7 +15,7 @@
 //  NB: the staged tree has no node_modules — server self-tests must be self-
 //  contained (Node built-ins `node:test`/`node:assert` + the addon's own files
 //  via relative require). Tests needing the host harness are CLIENT tests, run
-//  in the browser at staged activation (the wizard, Phase 9).
+//  in the browser during staged activation by the install wizard.
 // ═══════════════════════════════════════════════════════════════
 
 const MAX_OUTPUT = 200_000;   // keep the tail of noisy output, bounded

@@ -19,7 +19,7 @@ project's conventions, and the typical recipes you'll need.
 ```bash
 git clone https://github.com/pjunak/ttrpg-codex.git
 cd ttrpg-codex
-npm install
+npm ci
 DM_PASSWORD=test node server.js
 ```
 
@@ -47,9 +47,10 @@ delete them between experiments if you want a fresh state.
 ## Running tests
 
 ```bash
-npm test
+npm run check
 ```
 
+This runs the zero-warning ESLint gate and the complete Node test suite.
 Tests live under `test/` and use Node's built-in `--test` runner.
 There are two kinds:
 
@@ -66,8 +67,7 @@ Two file extensions:
 - `*.test.mjs` — browser-side modules (`web/js/*`). The `web/js/`
   directory has its own `package.json` declaring `"type": "module"` so
   Node treats those imports as ES modules.
-- `*.test.cjs` — server-side modules (`server.js`, `server-utils.cjs`,
-  `tiler.js`, and the integration suites).
+- `*.test.cjs` — server-side CommonJS modules and integration suites.
 
 Run a single file while iterating:
 
@@ -85,9 +85,10 @@ canonical names directly.
 
 ## Project conventions
 
-### IIFE module pattern
+### Module boundaries
 
-Every JS module is an IIFE assigned to a named export:
+Use named ES-module exports. A stateful facade may use an IIFE to keep its
+mutable state private:
 
 ```js
 export const Store = (() => {
@@ -96,11 +97,11 @@ export const Store = (() => {
 })();
 ```
 
-This keeps internals genuinely private (no `_`-prefix-by-convention
-trick required) and lets a module own its event listeners without
-leaking them. Imports come from sibling modules; shared helpers live
-in [`web/js/utils.js`](web/js/utils.js) — don't redefine `esc` /
-`norm` / `slugify` / `debounce` / etc. in a private scope.
+Pure modules should export functions directly; do not add an IIFE when there is
+no state to encapsulate. Keep each module focused on one owner or contract.
+Imports come from sibling modules; shared helpers live in
+[`web/js/utils.js`](web/js/utils.js) — do not redefine `esc`, `norm`,
+`slugify`, `debounce`, or similar helpers privately.
 
 ### No `window.*` exports
 
@@ -130,8 +131,8 @@ JSON-encoding and HTML escaping.
   arguments do most of the documentation work.
 - When you do comment, explain **why**, not what. The code already
   shows what.
-- JSDoc on every exported / module-public function (so contributors
-  see the contract without reading the implementation).
+- Add JSDoc where a public contract, non-obvious shape, or invariant benefits
+  from it. Do not add boilerplate documentation to self-explanatory helpers.
 - Skip changelog-style notes ("X used to live here", "added for
   Y feature") — `git log` / `git blame` cover history. Comments
   must explain the **present**.
@@ -156,75 +157,54 @@ all UI work must build from tokens (that's what makes the theme switcher
 work). **Watch out:** `--bg-card` is **parchment** (`#F5EDD8`), not a
 dark surface. Use `--bg-raised` for dark panels.
 
-## Recipes
+## Extending the data model
 
-### Add a new entity collection
+Prefer an addon-owned collection when a feature is optional or
+campaign-specific. Add a built-in collection only when it is part of the host's
+general campaign model and must participate in core search, visibility,
+editing, and cross-record invariants.
 
-Suppose you're adding a `factions` style collection called `npcGroups`.
-The minimum touch-list:
+For a built-in collection, update every applicable contract:
 
-1. **[`web/js/data.js`](web/js/data.js)** — declare a default seed:
-   ```js
-   export const NPC_GROUPS = [];   // empty default
-   ```
-2. **[`web/js/store.js`](web/js/store.js)** — add to `_defaults()`,
-   `_mergeDefaults()`, and the public API: `getNpcGroups()`,
-   `getNpcGroup(id)`, `saveNpcGroup(g)`, `deleteNpcGroup(id)`,
-   `searchNpcGroups(q)`. Wire those into the returned object.
-3. **[`web/js/app.js`](web/js/app.js)** — add the route in `navigate()`
-   (e.g. `case 'skupiny': Wiki.renderPage('skupiny'); break;`).
-4. **[`web/js/wiki.js`](web/js/wiki.js)** — implement the list page
-   and article renderers (`renderNpcGroupsList`, `renderNpcGroupArticle`).
-5. **[`web/js/editmode.js`](web/js/editmode.js)** — add `saveNpcGroup`,
-   `deleteNpcGroup`, `startNewNpcGroup`, and an editor renderer.
-6. **[`web/js/edit_templates.js`](web/js/edit_templates.js)** —
-   write the form template.
-7. **[`server.js`](server.js)** — add `'npcGroups'` to `ALLOWED_TYPES`
-   and `ALL_TYPES`. (Keyed-object collections also go in
-   `KEYED_OBJ_TYPES`.)
-8. **[`web/js/constants.js`](web/js/constants.js)** — add a
-   `SIDEBAR_PAGES` entry (route, i18n key, icon, home section). The
-   `Sidebar` module renders the left nav from this registry — there is
-   no static sidebar markup to edit. Optionally add a bottom-nav /
-   map-sheet link in `web/index.html` for mobile.
-9. **[`web/i18n/en.json`](web/i18n/en.json) + `cs.json`** — add the
-   page's UI strings to BOTH catalogs (the parity + key tests enforce it).
+1. Server collection allowlists, keyed/list shape, validation, optimistic
+   revision handling, role projection, snapshot/restore behavior, and compound
+   mutation rules.
+2. Browser defaults and Store accessors in `data.js` / `store.js`.
+3. Canonical identity and article routing in
+   `collection-descriptors.js`; route/sidebar/search registries stay
+   consumer-specific.
+4. Wiki rendering, edit templates/controllers, and localized strings in both
+   core catalogs.
+5. Reference docs and focused unit/integration coverage, including player
+   visibility and recovery behavior.
 
-If the collection should be searchable globally (Ctrl+K), add it to
-`Store.searchAll()` and to `web/js/search.js`'s `KIND_META` map.
+Do not copy an existing editor eight times without first checking whether the
+shared identity, transport, or rendering seam should be extended.
 
 ### Add a new schema migration
 
-Existing data may not match the new shape. Drop a helper in
-[`web/js/store.js`](web/js/store.js) following the established pattern:
+Persistent migrations are server-owned. Add a pure, idempotent transform under
+[`server/`](server/) and register it in
+[`server/migrations.cjs`](server/migrations.cjs):
 
 ```js
-/**
- * Brief description of what changes and why.
- * @returns {Array} Touched entities (the load() driver syncs each
- *                  one via the per-entity PATCH path).
- */
-function _migrateXyz() {
-  if (!_data) return [];
-  const touched = [];
-  // mutate _data, push touched records onto `touched`
-  return touched;
+function migrateExample(data) {
+  // Return whether the isolated campaign tree changed.
+  return false;
 }
 ```
 
-Then call it from `load()` alongside the existing migrations and pipe
-the returned array through `_sync` so changes round-trip to disk.
-
-**Idempotency is non-negotiable.** Migrations run on every page load;
-re-running on already-migrated data must be a no-op. Look at the
-`LOAD-BEARING INVARIANT` block in `_migrateAttitudesToObjectShape` for
-a story about what happens when two migrations bounce off each other.
+Startup and uploaded-restore candidates run the same ordered registry before
+publication. The transform must preserve unrelated fields, be idempotent, and
+be tested both as a pure transform and through startup/restore integration.
+The browser may normalize sparse data for display, but it must never persist a
+schema migration from `Store.load()`.
 
 ## Pull request flow
 
 1. Fork or branch from `main`.
 2. Make your change. Add or update a test if you can.
-3. Run `npm test` — the suite must stay green.
+3. Run `npm run check` — lint and the full suite must stay green.
 4. Open a PR against `main`. Describe **why** in the body; the diff
    shows what.
 5. On merge to `main`, CI runs the full test suite first; only a green

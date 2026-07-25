@@ -1,95 +1,39 @@
 # Addon framework (CodexHost) — deep reference (ttrpg-codex)
 
-> Moved verbatim out of AGENTS.md to keep sessions lean. This file is
-> CANONICAL for its subsystem — read it before working here and keep it
-> as current as AGENTS.md itself. Cross-references like "see X above"
-> may point at a sibling file in this directory.
+> Canonical internal contract for addon installation, compatibility,
+> permissions, lifecycle, data, and host facades.
 
 ## Addon framework (CodexHost)
 
-Installable addons (hosted **one per GitHub repo**) extend the app with
-new routes/pages, collections, settings tabs, article sections, and — in
-later phases — server-side code, all with **no build step**. The
-**server is the broker**; the **client host** (`addons.js`, the `Addons`
-module, in the ACTIONS map) loads them. (The original design plan lived in
-a machine-local file outside the repo; this section plus
-`examples/addons/AUTHORING.md` are the surviving canonical reference.)
+Installable addons extend the app without modifying core. Each addon is one
+GitHub repository with a root `addon.json`, a browser ES-module entry, and
+optional server code, content tree, locale catalogs, tests, and declared data
+collections.
 
-**Status: ALL 11 phases landed — the addon framework is complete.** Phase 1 = walking skeleton (broker + host +
-one additive route). Phase 2 = the **Addon Manager** (Settings → 🧩 Doplňky,
-DM-only): list installed addons with enable/disable/remove + a **URL install
-wizard** (paste a GitHub URL → install → live-load via the `addons-changed`
-SSE reconcile). Install auto-records the source — no allowlist to curate.
-Phase 3 = **enforced permissions**: the manifest's `permissions[]` are shown in
-the wizard's review step (resolved via `POST /api/addons/preview`) for the DM to
-see before installing, and the client `host` facade is built **scoped to the
-granted permissions** — an ungranted capability throws a clear, caught error (the
-no-`window.*` design makes this a real Store boundary). **Phase 4a** added the
-additive register API — `registerPageRenderer` / `registerArticleSection` /
-`registerSettingsTab` / `registerAction` (+ namespacing + transactional
-register), wired into `renderPage` / `_articleShell` / `_runAction` / settings
-tabs (example: `examples/addons/sheet`). **Phase 4b (deps)** added
-dependency-ordered loading + `host.provide`/`host.use` (inter-addon APIs) +
-`blocked`/`cycle` states (pure, unit-tested `web/js/addon-deps.js`). **Phase 4b-2**
-added **addon-owned collections** + **`registerWikiKind`**: an addon declares
-`collections[]` in its manifest → the server registers each as the colon-
-namespaced wire type `addon:<id>:<name>` (data isolated at
-`data/addon-data/<id>/<name>.json`, riding the generic GET/PATCH `/api/data`
-path, covered by the data hash + snapshots), and the client gets scoped CRUD
-via `host.store.collection(name)` (gated by `data:own`) + `[[Label|scope]]`
-wiki-links resolving into addon pages (example: `examples/addons/rules`). **Phase 5**
-added **per-entity `addonData`** + **active-sheet hooks**: an addon stashes a
-namespaced blob on a core entity at `entity.addonData[<addonId>]` and patches it
-via `host.store.patchAddonData(collection, id, fn)` (the host injects the addon
-id → it can only touch its OWN namespace, gated by
-`data:write:<collection>.addonData`); `host.registerEditorFields('characters',
-{fields, collect})` injects fields into the character editor (collected into
-`addonData` on save). The blob rides inside the entity's JSON (snapshotted +
-role-filtered with it). Server `_sanitizePlayerEntity` shallow-merges player
-addonData over existing so a normal player edit can't drop a namespace by
-omission (example: the upgraded `examples/addons/sheet` — interactive HP +/−).
-**Phase 6** added the **slot/fragment override model + conflict resolution**: a
-decomposed surface (the character article main column) emits NAMED fragments
-(`characters:section:vazby`, `characters:body`, …) and addons claim ops via
-`host.registerFragmentOp(target, {op})` — `replace`/`hide` (EXCLUSIVE per
-target), `wrap` (stackable), `insert` (additive). The arbitration is
-**conflict-safe**: ≥2 exclusive claims on one target with no DM resolution →
-render the built-in (never last-wins) + surface the clash in Nastavení →
-Doplňky → **Konflikty**, where the DM picks a winner (`POST /api/addons/resolve`
-→ `resolutions[target]`). The pure engine is `web/js/addon-fragments.js`
-(example: `examples/addons/override`). **Phase 7** added **server-side addon
-code**: an addon with a `server` entry + granted `server:code` ships a Node
-module the host loads in-process at boot (`init(serverHost)`), its routes mounted
-under the namespaced `/api/addon/<id>/*` (example: `examples/addons/dice` —
-server-authoritative dice). **Phase 8** added **pre-activation testing**: a
-published host test harness (`web/js/addon-test-harness.mjs` — mock host +
-`dryRunRegister` + `smokeRegistrations`), a client **render-smoke** diagnostic at
-load (a renderer that throws on sample input → a non-blocking ⚠ chip in the
-Manager), and a **server-side green-gate** (`server/addon-testing.cjs` runs an
-addon's declared `tests.server` with `node --test` against the staged tree
-before promoting — red → never activated). **Phase 9** added the wizard's
-**backup + update + rollback** flow: install/update first takes a snapshot
-(revertible), `POST /api/addons/check-updates` re-resolves each addon's stored
-ref→latest SHA (Manager ⬆ badge → "Aktualizovat" reopens the wizard), and
-`POST /api/addons/:id/rollback` flips `activeHash` to a kept prior version
-(instant, offline, restores that version's structural fields). **Phase 10**:
-the `/api/backup` ZIP already covers `data/` wholesale (so addon-data + the
-registry + addon code are in it — a restore recreates the nested dirs); added
-**keep-last-K pruning** of old `<hash>/` code dirs (`_pruneAddonVersions` on
-install + `_pruneAllAddonCode` boot sweep — only 16-hex dirs + a stale
-`.incoming` are ever removed). Hashes referenced by retained recovery points
-are protected even after uninstall; once those points expire or are deleted,
-the boot sweep reclaims the now-unreachable package. **Phase 11** = the
-**addon-authoring guide**
-[`examples/addons/AUTHORING.md`](examples/addons/AUTHORING.md) — a living
-reference for human + AI authors (manifest, full host + serverHost API +
-permission catalogue, the design-system/style contract, the
-build→install→update→rollback loop, copy-paste templates, a "For AI assistants"
-invariants section). Its flagship template is validated against the real test
-harness. **The framework is now feature-complete** across distribution,
-permissions, additive UI, dependencies, addon collections, per-entity data,
-fragment overrides + conflict resolution, server-side code, pre-activation
-testing, the update/rollback wizard, and backup coverage.
+The server is the package and data broker. It previews and validates manifests,
+bounds archive extraction, tests staged server code, content-hashes packages,
+persists the installed registry, serves content, owns addon data and imports,
+and exposes namespaced server routes. The browser host loads compatible addons
+in dependency order and gives each instance a permission-scoped facade.
+
+Current extension surfaces include:
+
+- routes, sidebar pages, settings tabs, actions, article sections, editor
+  fields, named slots, and conflict-arbitrated fragment operations;
+- scoped addon collections, atomic multi-collection transactions, and
+  per-entity `addonData`;
+- versioned inter-addon APIs, wiki kinds, data kinds, graph contributions, and
+  the bounded graph facade;
+- declarative localization and content trees with hot content-group changes;
+- server modules and deterministic import providers; and
+- lifecycle cleanup, compatibility/capability negotiation, install tests,
+  update checks, rollback, backup, and recovery-aware package retention.
+
+Permissions are enforced at the host facade but addon code remains trusted and
+in-process. The DM's install review is a transparency and consent boundary, not
+a sandbox. Public authoring guidance lives in
+[`examples/addons/AUTHORING.md`](../../examples/addons/AUTHORING.md);
+this file documents host internals and invariants.
 
 ### On-disk layout (all under the data volume)
 - `data/addons/<id>/<contentHash>/` — extracted addon CODE,
@@ -128,7 +72,7 @@ testing, the update/rollback wizard, and backup coverage.
 `__proto__`-style keys), name, version (strict `MAJOR.MINOR.PATCH`),
 apiVersion (`1` and `2` supported during migration), hostVersion, entry (client ESM,
 **default-export `register(host)`**), server? (relative `.cjs`/`.js` Node module,
-**exports `init(serverHost)`** — Phase 7), contentDir? (relative dir of a
+**exports `init(serverHost)`**), contentDir? (relative dir of a
 per-record JSON tree the HOST serves at `/api/addon/<id>/content*` — the
 declarative "static rulebook" seam: no server code, no `server:code` grant,
 hot-loaded; every JSON file must be a record object with a non-empty string
@@ -161,8 +105,8 @@ NEVER blocks when it's absent/blocked/incompatible — the soft-use seam, e.g. a
   `access` defaults to `"public"`, while `"dm"` is API-v2-only and requires
   `collections.dm` in `capabilities.required`),
 tests? (`{client?, server?}` — relative path or `string[]` of self-test files
-run by the pre-activation gate, Phase 8), summary }`.
-`server/addons.cjs:validateManifest` is the always-run Tier-A gate.
+run by the pre-activation gate), summary }`.
+`server/addons.cjs:validateManifest` is the always-run manifest gate.
 
 **API v2 compatibility contract.** API v1 remains loadable unchanged; an
 omitted v1 `hostVersion` means `*`. API v2 requires an enforced
@@ -191,7 +135,7 @@ described below. `content.revision` exposes the active package/content-policy
 revision as `host.contentRevision`.
 `i18n.catalogs` enables the declarative manifest locale map and the scoped
 `host.i18n` facade; English must load successfully before registration.
-`imports.providers` enables the F4 server-side import-provider contract. It
+`imports.providers` enables the server-side import-provider contract. It
 requires a server module, `server:code`, `data:import-provider`, `data:own`,
 `collections.transactions`, and at least one declared collection. Existing
 addons that do not negotiate it are unchanged.
@@ -240,7 +184,7 @@ wizard summary. Covered by `test/integration-github-token.test.cjs`.
 by `COPY server ./server`); `ADDONS_DIR`/`ADDON_DATA_DIR` are mkdir'd at
 boot.
 
-**Addon collections through the data path (4b-2 + F1).**
+**Addon collections through the data path.**
 `_applyAddonCollections(reg)` augments the mutable type sets
 (`ALLOWED_TYPES`/`ALL_TYPES`, plus `KEYED_OBJ_TYPES` when `keyed`) with the
 wire identity `addon:<id>:<name>` for every enabled declaration. The
@@ -390,14 +334,14 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   **`host.i18n`** is always a per-addon facade with
   `locale`, `t`, `plural`, `formatDate`, `formatNumber`, and `relativeTime`;
   declarative catalogs require API v2 + `i18n.catalogs`.
-  **`host.imports`** is the browser-side F5 facade for an API-v2 addon that
+  **`host.imports`** is the browser-side facade for an API-v2 addon that
   negotiated `imports.providers` and received `data:import-provider`. It can
   list only that addon's authorized providers and can create, preview, inspect,
   commit, or cancel only jobs created by that facade instance. It never exposes
   raw server paths, provider execution, transactions, foreign jobs, or plan
   mutation. Requests abort on addon disposal; effective-player calls fail
   before transport.
-  **`host.graphs`** is the browser-side F6 facade for an API-v2 addon that
+  **`host.graphs`** is the browser-side graph facade for an API-v2 addon that
   negotiated `graphs.facade` and received `ui:graph`. API v1 exposes
   `available()`, `status()`, and async `mount(container, spec)`. A mounted
   handle exposes only `update`, `select`, `focus`, `fit`, `on`, and idempotent
@@ -434,7 +378,7 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   built-in collection misses, so `[[Label|scope]]` resolves into an
   addon-registered kind (additive — never shadows a core scope).
 
-### Fragment overrides + conflict resolution (Phase 6)
+### Fragment overrides + conflict resolution
 A decomposed built-in surface emits an ORDERED list of NAMED fragments
 `[{id, html}]`. Today only the **character article main column** is decomposed:
 ids `characters:section:{vazby,udalosti,znalosti,otazky,mazlicci}`,
@@ -445,7 +389,7 @@ Adding a stable id to a `_articleShell` section makes it a targetable fragment.
 Addons claim ops with `host.registerFragmentOp(target, {op, render, order,
 position})` (perm `ui:override`). The claim is **recorded, never executed at
 register time** — arbitration happens at render in the pure engine
-[`web/js/addon-fragments.js`](web/js/addon-fragments.js) (`applyFragmentOps` +
+[`web/js/addon-fragments.js`](../../web/js/addon-fragments.js) (`applyFragmentOps` +
 `listConflicts`, unit-tested headless):
 - `replace` / `hide` — **EXCLUSIVE** per target. 0 claims → built-in; 1 → it
   wins; **≥2 unresolved → CONFLICT**: render the built-in (safe default), report
@@ -465,7 +409,7 @@ flags the resolution change so the article re-renders with the winner applied.
 `Addons.applyFragments` filters claims to the surface's `<kind>:` namespace, so
 a claim for another surface is never mistaken for a missing target.
 
-### Server-side addons (Phase 7)
+### Server-side addons
 An addon with a `server` manifest entry + granted **`server:code`** ships a Node
 module (`data/addons/<id>/<hash>/server/index.cjs`, exports `init(serverHost)`)
 the host loads **in-process** — full trust (the permission is transparency, not
@@ -494,7 +438,7 @@ containment; install is DM-only + SHA-pinned). server.js owns it all:
   (serves nothing) even before the restart.
 - Code lives in the `data/` volume → no Dockerfile change; survives rebuilds.
 
-### Import providers (F4 server core)
+### Import providers
 
 An API-v2 server addon may require `imports.providers` and call
 `serverHost.registerImportProvider(descriptor)`. Provider identity is the
@@ -538,8 +482,8 @@ server-side, and returns an opaque token bound to its digest.
 Commit accepts only the job id and token. It never reruns provider
 transformation or accepts client operations. It verifies session ownership,
 expiry, provider/package/schema identity, token single-use, and every base
-revision, then submits the exact stored operations through the F2 transaction
-manager. A conflict requires a new preview. Successful work produces one F2
+revision, then submits the exact stored operations through the collection
+transaction manager. A conflict requires a new preview. Successful work produces one
 logical revision/snapshot/event; failure produces no partial writes.
 
 Jobs have bounded lifetime/count/input/operations/provider time, per-addon and
@@ -553,7 +497,7 @@ exports `createMockImportHost(...)` and runs the same descriptor/parser/plan/job
 implementation in memory, including revision conflicts and atomic commit
 results.
 
-### Addon graph facade (F6)
+### Addon graph facade
 
 `web/js/addon-graph.js` owns the graph facade contract and the single
 host-global implementation registry. The registry accepts only fixed,
@@ -580,7 +524,7 @@ Mount is allowed only below the calling addon's
 `.addon-route-page[data-addon-id]` wrapper. The facade tracks pending and live
 handles per addon instance and per container. Re-mounting a container destroys
 the old graph. Every navigation calls `Addons.disposeRouteGraphs()`;
-disable/update/reconciliation/failed registration uses the P5 lifecycle.
+disable/update/reconciliation/failed registration uses the shared addon lifecycle.
 Epoch checks destroy late asynchronous mounts before they can revive a stale
 page. Adapter cleanup stops layouts and removes event handlers, observers,
 animation frames, container attributes, DOM artifacts, and the Cytoscape
@@ -629,7 +573,7 @@ On top of that base, the concrete guardrails (added in the review/polish pass):
   permission review is all-or-nothing (no per-permission deny); restart-to-load for
   server code (the `require` cache isn't busted live).
 
-### Pre-activation testing (Phase 8)
+### Pre-activation testing
 Three tiers gate a version before it goes live (green-only — a red set is never
 activated, which is free because install stages to `.incoming` then atomic-
 renames):
@@ -649,9 +593,10 @@ renames):
   `host.imports` transport, the scoped mock `host.graphs` implementation,
   catalog validation/fallback behavior, and
   `disposeMockHost(rec)`. `validateAddonCatalogs(meta, catalogs)` exposes the
-  same package-shape/placeholder guard to addon authors. `dryRunRegister(register, meta)` (Tier-A
-  — run register against the mock, catch throws, return the `rec`), and
-  `smokeRegistrations(rec)` (Tier-C — invoke each recorded RENDER with sample
+  same package-shape/placeholder guard to addon authors.
+  `dryRunRegister(register, meta)` runs registration against the mock, catches
+  failures, and returns the recording. `smokeRegistrations(rec)` invokes each
+  recorded renderer with sample
   fixtures; actions/collect are NOT run). Unit-tested; the
   `examples/addons/sheet/tests/sheet.addon-test.mjs` reference test exercises it
   against a real addon.
@@ -659,7 +604,7 @@ renames):
   `_recForAddon(id)` gathers the addon's LIVE renderers and runs
   `smokeRegistrations` — a throw on benign input becomes a NON-blocking `⚠ test
   vykreslení` chip in the Manager (`Addons.list()[].smoke`); the addon still
-  loads (a hard pre-activation gate is the wizard's job, Phase 9).
+  loads (the install wizard owns the hard pre-activation gate).
 - **Server green-gate at install** (`server/addon-testing.cjs` →
   `runNodeTests(cwd, paths, {spawn, timeoutMs})`, injectable spawn, unit-tested):
   `_stageAddon` runs the manifest's `tests.server` files with `node --test
@@ -671,79 +616,40 @@ renames):
   self-contained (Node built-ins + the addon's own files). `server/addon-testing.cjs`
   is a required `server/` module (COPYed by `COPY server ./server`).
 
-### Dev / testing
-- `node scripts/dev-install-addon.cjs <addon-dir> [data-dir]` installs a
-  LOCAL addon directory (bypasses GitHub / allowlist / UI) — it mirrors
-  `_installAddon`'s content-addressed layout, localization validation, and
-  registry entry so the app
-  loads it on next launch. Reference addons: `examples/addons/hello/`
-  (route `/pozdrav` + sidebar link, reads characters via `host.store`),
-  `examples/addons/sheet/` (Phase 5 — an active character sheet: interactive
-  HP +/− via `patchAddonData`, `registerEditorFields` on the character editor,
-  an article section, settings tab), and
-  `examples/addons/rules/` (4b-2 — an addon-owned collection via
-  `registerCollection` + scoped CRUD, `[[…|pravidlo]]` wiki-links via
-  `registerWikiKind`, a `/pravidla` page), `examples/addons/override/`
-  (Phase 6 — a `wrap` fragment-override op on `characters:body`), and
-  `examples/addons/dice/` (Phase 7 — a `server/index.cjs` exposing
-  server-authoritative `/api/addon/dice/roll` + an isolated server-side log).
-  **Author reference: [`examples/addons/AUTHORING.md`](examples/addons/AUTHORING.md)**
-  — the full guide for writing addons (human + AI). A condensed, standalone
-  **[`examples/addons/AGENTS.md`](examples/addons/AGENTS.md)** holds the same
-  invariants + template for an AI agent to copy into a new addon's own repo root
-  (auto-picked-up by Claude Code / Cursor). Keep both current when the host API
-  changes. No addons are published yet — these are dev fixtures + the contract
-  real addons will be built against, so accuracy matters.
-- Unit tests: `test/addon-i18n.test.mjs` (manifest/package validation,
-  namespaces, interpolation/plurals, exact/base/English fallback,
-  live/harness parity, cache/disposal/update/stale-response isolation) +
-  `test/addons.test.cjs` (manifest validation / allowlist /
-  content-hash determinism / bounded zipball download / repo-URL parsing + collection
-  helpers `normalizeCollections`/`addonCollectionType`/`parseAddonType`) +
-  `test/addon-archive.test.cjs` (streaming extraction, wrapper stripping,
-  hash parity, path/count/per-entry/total/compression-ratio rejection before
-  writes) +
-  `test/addon-deps.test.mjs` (semver `satisfies` + `planLoadOrder`
-  topo-sort / blocked / cycle) + `test/addon-data.test.mjs` (Phase 5
-  `Store.patchAddonData` — namespace isolation, patchFn semantics, unknown
-  collection/entity) + `test/addon-fragments.test.mjs` (Phase 6 pure engine —
-  replace/hide/wrap/insert, conflict + resolution arbitration, unmatched,
-  render failure isolation) + `test/integration-addon-resolve.test.cjs`
-  (`POST /api/addons/resolve` — set/null/clear, realRole gating, proto-key
-  guard) + `test/integration-addon-collections.test.cjs`
-  (the addon-collection data path end-to-end: isolated-dir persistence,
-  addon-scoped same-name identity, public compatibility, DM keyed/list CRUD,
-  raw player concealment, guessed-write equivalence, role hashes, view-as,
-  snapshot/disable/re-enable/uninstall behavior) +
-  `test/integration-sse.test.cjs` (raw role-scoped events and before/after player
-  hashes) + `test/integration-addon-server.test.cjs` (Phase 7 — server addon
-  routing + isolated data, `server:code` gating, serverDeps blocking, throwing-
-  init isolation, disabled state; uses the helper's new `seedFiles` option to
-  lay down nested addon code before boot) + `test/addon-test-harness.test.mjs`
-  (Phase 8 — mock/live dependency and declaration parity, lifecycle cleanup,
-  dryRunRegister catch, smoke flags throwing renderers but not actions) +
-  `test/addon-lifecycle.test.mjs` (live disposal ordering/idempotence,
-  rollback, failure isolation, provider/consumer reload ordering, revision
-  cache busting, and overlapping reconciliation) +
-  `test/addon-testing.test.cjs` (the server
-  green-gate runner — green/red/timeout/no-files) + `test/integration-addon-update.test.cjs`
-  (Phase 9 — content-addressed rollback flip + field restore, targeted/default/
-  error paths, check-updates empty/local/role-gating) + `test/integration-addon-backup.test.cjs`
-  (Phase 10 — `/api/backup` ZIP includes addon-data/registry/code, boot-sweep
-  prunes stale `<hash>`/`.incoming` but keeps kept-K, snapshot-reachable, and
-  defensive non-hash dirs; uninstall retains code until its final recovery
-  point is removed) +
-  `test/addon-content.test.cjs` (contentDir loader — atomic tree validation,
-  kinds, per-record shapes, diagnostics, and duplicate rejection) +
-  `test/integration-addon-content.test.cjs` (the host-served
-  `/api/addon/:id/content*` endpoints, runtime blocking, and failure isolation
-  end-to-end) +
-  `test/addon-content-groups.test.cjs` (contentGroups declaration
-  normalization, deterministic `contentRevision`, and the disabled-group
-  content filter) +
-  `test/addon-contrib.test.mjs` (graph/node-kind contribution registries) +
-  `test/integration-restart-updateall.test.cjs` (`/api/restart` gating +
-  `/api/addons/update-all`).
-  `test/integration-player-edits.test.cjs`
-  also covers the player `addonData` shallow-merge guard. `examples/` + `scripts/`
-  are dev-only and are NOT copied into the Docker image.
+### Development and verification
+
+Install a local addon while the app is stopped:
+
+```powershell
+node scripts/dev-install-addon.cjs <addon-directory>
+```
+
+The script mirrors production's content-addressed layout, manifest/catalog/
+content validation, test gate, and installed-metadata serialization, while
+bypassing GitHub. Restart the server and refresh after installation; source
+changes in the addon repository are otherwise invisible to the host.
+
+Published fixtures under `examples/addons/` exercise focused seams:
+
+- `hello`: route/sidebar and core reads;
+- `rules`: addon collection CRUD and wiki kinds;
+- `sheet`: per-entity addon data, editor fields, and settings;
+- `override`: fragment wrapping;
+- `dice`: server code and isolated server data; and
+- `demo-contrib`: slots, kinds, views, and graph contributions.
+
+Run `npm run check` for the complete host gate. The maintained addon test
+inventory is the set of `test/addon-*.test.*`,
+`test/integration-addon-*.test.cjs`,
+`test/integration-content-import.test.cjs`, and
+`test/integration-collection-transactions.test.cjs`. Together they cover
+compatibility vectors, permission parity, registration rollback, dependency
+ordering, lifecycle/reconciliation, archives, localization, content,
+collections, transactions, imports, graphs, install/update/rollback, backup,
+and restart behavior. Keep live and harness behavior on shared validators
+instead of documenting or testing two independent contracts.
+
+Public authoring contract:
+[`examples/addons/AUTHORING.md`](../../examples/addons/AUTHORING.md).
+Condensed agent contract:
+[`examples/addons/AGENTS.md`](../../examples/addons/AGENTS.md).

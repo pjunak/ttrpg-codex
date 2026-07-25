@@ -89,7 +89,7 @@ export const SETTINGS_DEFAULTS = {
   // default marker pixel size for this type, used as the pre-fill when
   // a new place of this type is created; per-place overrides live on
   // `location.size`. Tier sizing reflects map prominence, not zoom
-  // visibility — visibility rules will be per-Pohled (see roadmap).
+  // Visibility is controlled by each stored map view.
   pinTypes: PinTypes.seed(),
 
   // Character life-state. The `circumstances` free-text field on each

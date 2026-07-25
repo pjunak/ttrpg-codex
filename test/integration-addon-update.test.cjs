@@ -1,6 +1,6 @@
 'use strict';
 
-// Integration: addon update-check + content-addressed rollback (Phase 9).
+// Integration: addon update checks and content-addressed rollback.
 // Rollback is fully local (registry flip — no network), so it's exercised end
 // to end. check-updates' GitHub diff needs the network; the offline-testable
 // parts (role gating, empty, local-skip) are covered here.

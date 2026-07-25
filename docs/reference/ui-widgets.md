@@ -1,9 +1,7 @@
 # Widgets + action dispatcher — deep reference (ttrpg-codex)
 
-> Moved verbatim out of AGENTS.md to keep sessions lean. This file is
-> CANONICAL for its subsystem — read it before working here and keep it
-> as current as AGENTS.md itself. Cross-references like "see X above"
-> may point at a sibling file in this directory.
+> Canonical contract for widgets and delegated actions. Read this before
+> changing mounts, action attributes, or dispatcher sentinels.
 
 ## Widget mount convention
 
@@ -102,7 +100,6 @@ Built-in actions for cases that aren't a Module.method call:
 - `enterBlurs(ev)` — Enter blurs a contenteditable, no newline
 - `hide(el)` — used as `data-on-error="hide"` on `<img>` previews
 - `bodyToggleClass(cls)` / `bodyRemoveClass(cls)` — mobile drawer
-- `toggleKompendium` — sidebar collapsible state + localStorage
 - `deferred(action, ...args)` — `setTimeout(()=>X(),0)` equivalent
 
 preventDefault rule for `<a>`: anchors with `href="#/route"` keep their
@@ -113,10 +110,8 @@ modifier-click on a real href falls through to the browser entirely
 
 The sidebar nav is rendered by the `Sidebar` module (an external
 `app.js` import), so the page stays CSP-clean under `script-src 'self'`
-with no inline scripts. (The old `boot.js` pre-boot script — which
-restored the Kompendium collapse state before first paint — is retired;
-`Sidebar.render` applies per-section collapse state from localStorage on
-its first render instead.)
+with no inline scripts. `Sidebar.render` applies per-section collapse state
+from localStorage on its first render.
 
 When adding a new module that handles user clicks: import it in
 `app.js` and add it to the `ACTIONS` map. No global window assignment.

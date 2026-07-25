@@ -159,7 +159,7 @@ test('player: edit of a twinned public entity preserves linkedTwinId verbatim', 
   } finally { await srv.kill(); }
 });
 
-// ── Per-entity addonData (Phase 5) ────────────────────────────────
+// ── Per-entity addonData ─────────────────────────────────────────
 
 test('player: edit preserves an addonData namespace it did not send (no drop-by-omission)', async () => {
   const srv = await startServer({

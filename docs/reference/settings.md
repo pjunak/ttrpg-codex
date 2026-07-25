@@ -1,9 +1,7 @@
 # Settings (/nastaveni) — deep reference (ttrpg-codex)
 
-> Moved verbatim out of AGENTS.md to keep sessions lean. This file is
-> CANONICAL for its subsystem — read it before working here and keep it
-> as current as AGENTS.md itself. Cross-references like "see X above"
-> may point at a sibling file in this directory.
+> Canonical contract for Settings categories, special tabs, enum mutation,
+> appearance, maps, account, backup, and addon management.
 
 ## Settings (user-editable enums) — `/nastaveni`
 
@@ -16,7 +14,12 @@
   "characterStatuses": [...],
   "eventPriorities":   [...],
   "attitudes":         [...],
-  "mapViews":          [...]
+  "mapViews":          [...],
+  "mapConfigs":        {...},
+  "sidebarLayout":     {...},
+  "playerParty":       {...},
+  "branding":          {...},
+  "appearance":        {...}
 }
 ```
 
@@ -106,10 +109,11 @@ first-class collection), pantheon / artifacts (same).
   hash per pin id). `WorldMap.bundledDefaultUrl(id)` is exported so
   the Settings marker-icon panel can surface the bundled default
   as a "Výchozí ikona" placeholder.
-- `REL_TYPES` in `data.js` + `getRelType(id)` is still the canonical
-  cloudmap/consumer source; settings keeps the user-edited copy in
-  `_data.settings.relationshipTypes`. If you move more consumers to
-  read from settings, update `SETTINGS_USAGE_MAP` accordingly.
+- `Store.getKinds('connections')` is the runtime source for relationship
+  editors and mind-map consumers. It merges
+  `settings.relationshipTypes`—initially seeded from `REL_TYPES`—with
+  addon-registered connection kinds. `SETTINGS_USAGE_MAP` covers persisted
+  core relationship ids; addon kinds are registrations, not editable rows.
 
 ### findEnumUsages handles three storage shapes
 `attitudes` is an array-of-objects (`[{id}]`) on three collections:
@@ -148,9 +152,9 @@ tab ids for any session still pointing at them.
 **Role-aware visibility.** `_visibleEnumTabs()` / `_visibleSpecialTabs()`
 filter the rendered tab list by `Role.isDM()`:
 - DM viewers see everything (every CATEGORY + every SPECIAL_TAB).
-- Non-DM viewers (player, or DM in "view as player" mode) see only
-  **Server** (the account tab) + **Záloha** — the rest are DM-only
-  saves that would silently fail server-side.
+- Non-DM viewers (player, or DM in "view as player" mode) see **Server** and
+  **Backup**, plus **Addons** only when at least one addon contributes a
+  player-visible settings tab. They never see the Addon Manager.
 
 **Default tab.** `_tabPickedByUser` is a session-local flag. Before
 the user picks a tab, the landing tab is role-aware: non-DM viewers
@@ -280,7 +284,7 @@ Vazby) leaves the active tab outside the visible set.
   non-DM viewers see only the snapshot list (read-only — no per-row
   actions) plus the `＋ Vytvořit bod zálohy` and `↻ Obnovit` buttons.
   DM sees additionally: `📥 Stáhnout ZIP`, `📤 Obnovit ze zálohy…`
-  (uploads ZIP or JSON), `↶ Vrátit posledních X úprav`, and per-row
+  (uploads ZIP or JSON), `↶ Vrátit posledních X bodů`, and per-row
   ↶ restore / 🗑 delete. `web/js/settings-backup.js` owns this tab's
   role-aware HTML, snapshot state, refresh, create/restore/delete/revert, and
   uploaded-restore flow; `settings.js` only composes the controller and keeps
@@ -334,7 +338,7 @@ auto-persist widget — every change writes through to
 - **Multi-file uploader** — `<input type="file" multiple>` accepting
   svg/png/jpg/webp. New files arrive with just `{id, url}`.
 
-Resolver semantics live in [map.js](web/js/map.js) `_resolveIconUrl`:
+Resolver semantics live in [`map.js`](../../web/js/map.js) `_resolveIconUrl`:
 - No `iconConfig` or empty `files` → bundled default at
   `/icons-defaults/<pinTypeId>.svg`,
   else null → emoji fallback. The bundled set covers every default
@@ -347,7 +351,7 @@ Bundled defaults are sourced from [game-icons.net](https://game-icons.net/)
 under CC BY 3.0 (Lorc, Delapouite, Caro Asercion). The SVGs ship
 white-on-transparent (the upstream black backgrounds are stripped
 during import so the attitude-glow filter traces only the icon
-silhouette) and per-icon credit lives in [`ATTRIBUTIONS.md`](ATTRIBUTIONS.md)
+silhouette) and per-icon credit lives in [`ATTRIBUTIONS.md`](../../ATTRIBUTIONS.md)
 in the repo root — the file must travel with any redistribution to
 satisfy the license's attribution clause.
 

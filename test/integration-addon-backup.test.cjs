@@ -1,6 +1,6 @@
 'use strict';
 
-// Integration: addon backup coverage + version pruning (Phase 10).
+// Integration: addon backup coverage and version pruning.
 //  - GET /api/backup zips the WHOLE data/ dir, so addon-data, the addon
 //    registry, AND addon code are already in the backup (blanket include).
 //  - A boot sweep prunes old addon code dirs down to the kept-K versions[]

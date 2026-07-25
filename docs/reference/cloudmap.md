@@ -1,9 +1,7 @@
 # CloudMap (mind maps) — deep reference (ttrpg-codex)
 
-> Moved verbatim out of AGENTS.md to keep sessions lean. This file is
-> CANONICAL for its subsystem — read it before working here and keep it
-> as current as AGENTS.md itself. Cross-references like "see X above"
-> may point at a sibling file in this directory.
+> Canonical contract for core mind maps and their layout/physics invariants.
+> The tried-and-rejected notes are retained where they prevent regressions.
 
 ## CloudMap architecture
 
@@ -12,7 +10,7 @@ instance and an HTML overlay.
 
 The API-v2 addon graph facade is deliberately separate. Its host-global
 adapter registry and narrow API live in `addon-graph.js` /
-`addon-graph-cytoscape.js`; F6 did not route this module through that facade.
+`addon-graph-cytoscape.js`; core CloudMap does not route through that facade.
 The facade exposes no raw Cytoscape behavior, and every physics, overlay,
 layout-persistence, text-scaling, and tried/reverted invariant documented
 below remains unchanged.
@@ -30,7 +28,7 @@ below remains unchanged.
 Node `type` values used by `_applyFactionFilter` and edge logic:
 `'faction'` · `'character'` · `'location'` · `'mystery'` · `'event'`.
 
-**Node kinds + views are data-driven registries** (the contribution refactor).
+**Node kinds + views are data-driven registries.**
 The 5 built-in node types are `NODE_KINDS` descriptors
 (`{id, shape, detailHash, searchText, cardHTML, height}` — built-ins DELEGATE to
 the existing `_charCloudHTML`/`_charCloudH`/… so behaviour is unchanged), resolved

@@ -1,9 +1,7 @@
 # World map + timeline — deep reference (ttrpg-codex)
 
-> Moved verbatim out of AGENTS.md to keep sessions lean. This file is
-> CANONICAL for its subsystem — read it before working here and keep it
-> as current as AGENTS.md itself. Cross-references like "see X above"
-> may point at a sibling file in this directory.
+> Canonical contract for world/local maps, marker rendering, tile
+> publication, and timeline ordering.
 
 ## WorldMap — toolbar search + pin types + edit gating
 

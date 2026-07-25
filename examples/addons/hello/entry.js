@@ -5,7 +5,7 @@
 // never inline onclick, so the app stays CSP-clean.
 
 export default function register(host) {
-  // A left-sidebar link. Phase 1 groups addon links under "Doplňky".
+  // Addon sidebar links are grouped under "Doplňky".
   host.registerSidebarPage({ route: '/pozdrav', label: 'Pozdrav', icon: '👋' });
 
   // A top-level hash route. The render fn returns an HTML string that
@@ -32,7 +32,4 @@ export default function register(host) {
       </p>`;
   });
 
-  // Later phases add registerAction (namespaced "addonid:method"
-  // data-actions), registerArticleSection, registerSettingsTab,
-  // registerCollection, fragment overrides and per-addon permissions.
 }

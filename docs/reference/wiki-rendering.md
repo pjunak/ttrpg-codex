@@ -1,9 +1,7 @@
 # Wiki rendering & editors — deep reference (ttrpg-codex)
 
-> Moved verbatim out of AGENTS.md to keep sessions lean. This file is
-> CANONICAL for its subsystem — read it before working here and keep it
-> as current as AGENTS.md itself. Cross-references like "see X above"
-> may point at a sibling file in this directory.
+> Canonical contract for wiki pages, article composition, editing, Markdown,
+> drafts, and dashboard rendering.
 
 ## Attitude glow (characters · locations · factions · pins)
 
@@ -87,9 +85,6 @@ from the enum is what made this clean — the absence of any attitude
 is itself "unknown", so the renderer doesn't need a special-case
 filter.
 
-The old `.has-attitude-ring::before` pseudo-element + `--attitude-ring`
-custom property approach is gone; the CSS rule was deleted.
-
 ## Dashboard
 
 `renderDashboard()` in `wiki.js` renders four stacked sections:
@@ -129,14 +124,8 @@ custom property approach is gone; the CSS rule was deleted.
    hint, anonymous viewers get no section at all (mirrors the
    last-session block). Legacy entities without `lastChange` degrade
    to name + time. Players receive role-filtered data, so DM-only
-   edits can't leak here. Replaced the old **Otevřené záhady** block
-   (top-3 unsolved mysteries — that overview now lives only on
-   `/zahady`); `PRIORITY_ORDER` stays in wiki.js for the mysteries
-   list sort.
-
-The old "Mind mapy" + "Rychlý Přehled" + "Poslední úpravy" dashboard
-blocks were removed (the dead `_recentActivityBlock` helper left over
-from "Poslední úpravy" was absorbed into `_dashRecentChangesHtml`).
+   edits can't leak here. Mystery aggregation lives on `/zahady`;
+   `PRIORITY_ORDER` stays in wiki.js for that list sort.
 
 Export: `Wiki.saveCampaignField(field, value)` — called from the
 hero's contenteditable `onblur` handler.
@@ -149,8 +138,7 @@ Every entity article (character / location / event / faction / mystery
 
 - **Breadcrumb action bar `.article-actions`** above the grid, on EVERY
   article: a horizontal `utils.breadcrumbNav` row (list root → location
-  `parentId` ancestors → current; last crumb unlinked, `›` separators —
-  the old generic ← Zpět button and the vertical rail trail are gone).
+  `parentId` ancestors → current; last crumb unlinked, `›` separators).
   On wide containers (`@container (min-width: 1700px)` on
   `.article-shell`, edit.css) the bar docks absolutely into the shell's
   top-left gutter — level with the content, cqw-clamped so it can't
@@ -203,9 +191,9 @@ The outline uses `extractOutline(src)` from `utils.js`; heading IDs
 are injected by `renderMarkdown` via a post-sanitize DOM walk that
 calls `slugify(heading.textContent)`.
 
-Do not reintroduce the old right-side `.wiki-aside` / `.wiki-infobox`
-approach — it used `--bg-card` (parchment) and clashed with the
-dark theme.
+Keep article metadata in the left side card. A right-side infobox would compete
+with the outline and narrows the readable body; `--bg-card` is parchment and
+must not be used as a dark panel.
 
 ## Split editor layout
 

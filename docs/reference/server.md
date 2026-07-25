@@ -1,14 +1,12 @@
 # Server: API, snapshots, security, tests, deploy — deep reference (ttrpg-codex)
 
-> Moved verbatim out of AGENTS.md to keep sessions lean. This file is
-> CANONICAL for its subsystem — read it before working here and keep it
-> as current as AGENTS.md itself. Cross-references like "see X above"
-> may point at a sibling file in this directory.
+> Canonical server contract for APIs, persistence, recovery, authorization,
+> synchronization, and deployment.
 
 ## Snapshot system
 
-Every successful `PATCH /api/data` writes a point-in-time snapshot of
-the entire JSON dataset under `data-snapshots/snapshot-<ISO>.json`
+Successful campaign mutations request a coalesced point-in-time recovery point
+of the entire JSON dataset under `data-snapshots/snapshot-<ISO>.json`
 (sibling of `data/`, NOT a subdirectory — keeps the data hash clean,
 simplifies restore path policy, and stops backup zips from carrying
 their own history). A one-time migration on server boot moves any
@@ -212,8 +210,8 @@ publication.
 
 ## Content-import provider jobs
 
-F4 adds the server-only import framework. F5's first consumer is DM Tools,
-which supplies the `scenario-json` provider and its own DM-only Import Center
+The server-only import framework has no built-in provider or generic UI.
+DM Tools supplies the `scenario-json` provider and its own DM-only Import Center
 page; core still owns no production provider or generic import UI. API-v2
 server addons negotiate
 `imports.providers` and register versioned descriptors. Provider identity is
@@ -241,7 +239,7 @@ cancellation, expiry, provider unload, and service disposal. MIME type and
 extension are metadata hints only; the provider/strict parser validates
 content. Provider v1 has no archive format.
 
-Preview requires both signed `realRole:"dm"` and effective `role:"dm"`.
+Preview requires both verified `realRole:"dm"` and effective `role:"dm"`.
 The initiating browser receives a random HttpOnly import-session cookie, and
 jobs/tokens are random and owner-bound. The strict parser enforces byte,
 nesting, array-record, string, and node limits before provider code. It parses
@@ -261,7 +259,8 @@ whose server-held digest includes the exact plan.
 Commit accepts only the token. It consumes it before attempting publication,
 checks owner/expiry/provider package/schema and every participating base
 revision, and never reruns provider code. Under the same core queue it begins
-an F2 lease and commits the exact stored put operations. F2 remains the sole
+an atomic-transaction lease and commits the exact stored put operations. The
+transaction service remains the sole
 durability/publication authority and therefore supplies atomic rollback,
 restart recovery, one logical revision, one snapshot, and one role-scoped
 event. Any conflict or ambiguous failure requires a new preview.
@@ -320,7 +319,7 @@ owns the role-scoped SSE connection registry, caps, handshake, keepalive,
 cleanup, and broadcasts; callers only publish named events or data changes.
 
 **Privileged-endpoint gate.** The DM-only endpoints that gate on the
-SIGNED `realRole` claim (addon install/manage, twin ops, password
+verified `realRole` (addon install/manage, twin ops, password
 rotation, view-as) all route through the **`requireRealDM(msg?)`**
 middleware factory in `server.js` (registered as route middleware,
 e.g. `app.post(path, requireRealDM('…'), handler)`) rather than an
@@ -348,7 +347,6 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | GET | `/api/data` | — | Full campaign JSON, role-filtered. Anonymous + player callers get `filterDatasetForRole(...)`: DM-only entities are dropped, `linkedTwinId` is stripped, every documented core reference is closed over surviving IDs, and API-v2 addon collections with `access:"dm"` are omitted before serialization. DM callers get strict identity. |
-| ~~POST~~ | ~~`/api/data`~~ | — | **REMOVED.** Was a "replace whole dataset" endpoint used by the old `Store._persist()` for migrations + first-install seeding. Interactive writes now go through PATCH per entity; startup migrations write affected collection files atomically before `listen()`. The empty-server case keeps defaults locally and lazily creates files on the first user edit. |
 | PATCH | `/api/data` | any | `{ type, action, payload, baseRevision? }`. action is `save`\|`delete`. Validates the collection/action shape. When supplied, the 16-hex `baseRevision` must match the exact role-visible target record while the write lock is held; stale writes return `409 {code:"WRITE_CONFLICT", currentRevision}`. Successful responses include the new `revision`. Omission remains compatible with older clients. **Keyed-object collections** (treated as object on disk, `container[payload.id] = payload.data`): `factions`, `settings`, `campaign`, `deletedDefaults`, and keyed addon declarations. Player saves go through `_sanitizePlayerEntity`. Location saves and character/location/faction deletes delegate to the server-owned compound mutation service, which journal-publishes all invariant updates atomically. API-v2 addon collections with `access:"dm"` accept effective-DM requests only; a player receives the same generic 404 for a hidden declaration and an undeclared guessed addon type. |
 | DELETE | `/api/campaign/enums/:category/:id` | dm | Atomically remove one settings enum item with `{replaceWith?, force?, tombstone?, baseRevision?}`. The revision covers the loaded enum category; stale requests return `WRITE_CONFLICT`. The server rechecks scalar/object-array usages and publishes definition, replacements, and tombstone through the core compound-mutation journal. |
 | POST | `/api/addons/:id/transactions` | any | API-v2 `collections.transactions` transport. `{mode:"begin",collections,timeoutMs?}` returns a consistent snapshot, revisions, deadline, and opaque single-use id; `{mode:"commit",transactionId,operations}` performs revision-checked atomic publication; `{mode:"cancel",transactionId}` drops an unused lease. Every collection must be declared/owned, enabled, role-authorized, and covered by `data:own`. Structured failures use `TX_*` codes. Addons consume `host.store.transaction(...)`, not this transport directly. |
@@ -356,13 +354,13 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | POST | `/api/content-import/jobs` | dm | Real and effective DM only. Multipart field `input` plus `addonId`, `providerId`, and `format`. Creates an owner-bound ephemeral job and stages at most 2 MiB outside campaign data. MIME/extension are hints, not trust decisions. |
 | GET | `/api/content-import/jobs/:jobId` | dm | Return the initiating import session's safe job state. Wrong session and unknown id both return the same 404. |
 | POST | `/api/content-import/jobs/:jobId/preview` | dm | Strict-parse and run the registered provider under timeout/cancellation, validate a normalized read-only plan, delete staged input, and return the server-bound preview token. |
-| POST | `/api/content-import/jobs/:jobId/commit` | dm | `{previewToken}` only. Consumes the token, verifies provider/package/schema/base revisions, and commits the exact stored operations through F2. Stale state is `409 IMPORT_REVISION_CONFLICT`; provider transformation is never rerun. |
+| POST | `/api/content-import/jobs/:jobId/commit` | dm | `{previewToken}` only. Consumes the token, verifies provider/package/schema/base revisions, and commits the exact stored operations atomically. Stale state is `409 IMPORT_REVISION_CONFLICT`; provider transformation is never rerun. |
 | DELETE | `/api/content-import/jobs/:jobId` | dm | Abort provider work, invalidate any preview token, mark the owner-bound job cancelled, and remove staged input. |
 | POST | `/api/twin` | dm | DM-only. `{ action: 'create' \| 'link' \| 'unlink', type, sourceId, targetId? }`. Manages twin entity pairs: `create` clones the source into the opposite visibility space and bidirectionally sets `linkedTwinId`; `link` marries two existing entities (one public, one DM-only); `unlink` clears the pair. Atomicity: both sides written inside one `withWriteLock` pass. Broadcasts `data-changed`. See "Twin entity model" section. |
 | GET | `/api/version` | — | `{ hash, instance, features, canRestart }`. `hash` is role-scoped: DM hashes cover all tracked data, while player/anonymous hashes cover only their authorized `/api/data` projection and therefore do not change for DM-only addon writes. |
 | POST | `/api/restart` | dm | DM-only on **realRole**. Restart the server process by exiting cleanly so the supervisor (Docker `restart: unless-stopped` / systemd / pm2) brings it back up — the only way to reload in-process addon **server code** after an install/update/rollback without a manual `docker restart`. **400** when not `RESTARTABLE` (`CODEX_RESTARTABLE=1` or `/.dockerenv` detected) — exiting bare would just take the wiki down. Responds first, drains the write lock, then `process.exit(0)`; the client (`Settings.restartServer`) shows a full-screen overlay that polls `/api/version` (down→up) and reloads. No Docker-socket access. |
 | POST | `/api/addons/update-all` | dm | DM-only on **realRole**. Update EVERY addon from a real GitHub repo to its latest commit in one shot — the per-addon update flow, looped (re-resolve stored ref→latest SHA, stage+promote via the same green-gate / content-hash / kept-versions pipeline a single install uses). Local (dev-installed, `repo:'local'`) addons are skipped. Returns `{ ok, updated[], skipped[], errors[], serverChanged }` (`serverChanged` = any updated addon ships server code → the client suggests a restart). Broadcasts `addons-changed`. |
-| GET | `/api/events` | — | Role-scoped SSE. `hello` carries the caller's authorized hash. Public writes emit `data-changed {hash,at}` to every role with its own hash; DM-only addon writes emit only to effective-DM connections. Client uses the existing P3B single-flight coordinator. |
+| GET | `/api/events` | — | Role-scoped SSE. `hello` carries the caller's authorized hash. Public writes emit `data-changed {hash,at}` to every role with its own hash; DM-only addon writes emit only to effective-DM connections. The client accepts updates through its single-flight coordinator. |
 | POST | `/api/login` | — | `{ password }` sets `edit_session` cookie. Tries DM credential first, then player. |
 | POST | `/api/logout` | — | Clear `edit_session` cookie. Idempotent. |
 | GET | `/api/auth` | — | `{ role, realRole }`. Anonymous = both null. |
@@ -391,11 +389,11 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | POST | `/api/snapshots/revert-last/:n` | dm | Restore the snapshot N recovery points back from the newest. Automatic coalescing means N is not an edit count. |
 | DELETE | `/api/snapshots/:id` | dm | Delete one snapshot file. |
 | GET | `/api/addons` | — | Role-scoped installed-addon projection. It includes compatibility/lifecycle metadata needed for client boot. Effective DM callers receive normalized collection `{name,keyed,access}` declarations; player/anonymous/view-as callers receive public declarations only, so hidden collection names and shapes are absent. Invalid declarative content reports a blocked/content-error state; detailed file diagnostics are DM-only. |
-| ANY | `/api/addon/:id/*` | — | **Namespaced server-addon routes** (Phase 7, singular). A stable dispatcher (before the SPA fallback) delegates to the enabled addon's `express.Router()` built by its `init(serverHost)`. `req.role`/`realRole` are stamped (the addon self-gates); an unmatched sub-path or a disabled/absent/errored addon → JSON 404. Each addon's routes are isolated under its own id. **When the addon has NO live router but declares manifest `contentDir`, the HOST answers the four GET content endpoints itself** (`/content`, `/content/:kind`, `/item/:kind/:id`, `/kinds`) from the addon's bundled per-record JSON tree — no addon server code, no `server:code` grant, HOT-rebuilt on every registry mutation (`_applyAddonContent`; cached per `activeHash`), so installing/updating a book addon needs no restart. Content trees are accepted atomically: malformed JSON/records, missing ids, duplicate `(kind,id)` identities, unreadable paths, or symlinks block only that addon and all of its content endpoints return 404. A live router takes precedence entirely for a valid package. See **Server-side addons**. |
-| POST | `/api/addons/install` | dm | DM-only on **realRole** (like twin ops). `{ repo, ref?, sha? }`. `repo` is a pasted GitHub URL or `owner/name` (parsed by `AddonBroker.parseRepoInput`, which also extracts a `/tree/<ref>`). When the wizard passes the previewed `sha`, install **pins to that exact commit** (what installs == what was reviewed) while storing the original `ref` for future update checks. **Auto-records** the repo in `sources.allow`. Fetches the GitHub zipball under a compressed-byte cap, scans its central directory before writing (entry count, safe/unique paths, per-entry and total expanded bytes, compression ratios), streams it to a unique staging tree, validates the manifest, any declarative locale package (`server/addon-localization.cjs`: confined regular JSON files, English source first, bounded shape/key/value/placeholder checks), and any declarative content tree (`server/addon-content.cjs`: atomic record/identity/path validation), content-hashes from disk, runs the server **test green-gate** (Phase 8), then atomic-promotes to `data/addons/<id>/<hash>/` + appends to `versions[]` (kept for rollback), updates `data/addons.json`, broadcasts `addons-changed`. Upsert by id = update. |
+| ANY | `/api/addon/:id/*` | — | **Namespaced server-addon routes** (singular). A stable dispatcher (before the SPA fallback) delegates to the enabled addon's `express.Router()` built by its `init(serverHost)`. `req.role`/`realRole` are stamped (the addon self-gates); an unmatched sub-path or a disabled/absent/errored addon → JSON 404. Each addon's routes are isolated under its own id. **When the addon has no live router but declares manifest `contentDir`, the host answers the four GET content endpoints itself** (`/content`, `/content/:kind`, `/item/:kind/:id`, `/kinds`) from the bundled per-record JSON tree. Content trees are accepted atomically: malformed JSON/records, missing ids, duplicate `(kind,id)` identities, unreadable paths, or symlinks block only that addon. A live router takes precedence entirely for a valid package. |
+| POST | `/api/addons/install` | dm | DM-only on **realRole**. `{ repo, ref?, sha? }`. `repo` is a pasted GitHub URL or `owner/name`. When the wizard passes the previewed `sha`, installation pins to that exact reviewed commit while retaining the original ref for future update checks. The host bounds and scans the ZIP before writing, validates the manifest/locales/content tree, content-hashes the staged package, runs declared server tests, atomically promotes the package, updates `data/addons.json`, and broadcasts `addons-changed`. Upsert by id is an update. |
 | POST | `/api/addons/preview` | dm | DM-only on **realRole**. `{ repo, ref? }`. Resolves + fetches **just `addon.json`** (GitHub contents API — no download/install) via `AddonBroker.fetchManifest`, validates it, returns `{ repo, ref, sha, ok, errors, manifest:{…} }` so the wizard shows the requested permissions for DM review BEFORE granting. The returned `ref` (original branch/tag) + `sha` (exact commit) both feed back into install. |
-| POST | `/api/addons/check-updates` | dm | DM-only on **realRole** (Phase 9). PURE READ — for each addon from a real GitHub repo, re-resolve its stored `ref`→latest SHA and diff vs installed `sha`; returns `{ checkedAt, updates:[{id, status:'ok'\|'local'\|'error', hasUpdate, repo, currentSha, latestSha}] }`. Per-addon failures isolated. Never downloads — applying an update opens the wizard. |
-| POST | `/api/addons/:id/rollback` | dm | DM-only on **realRole** (Phase 9). `{ hash? }`. Content-addressed rollback: flip `activeHash` to a kept prior `versions[]` entry (`hash` targets one; omitted → the one before active) + restore that version's structural fields (`entry`/`server`/`serverDeps`/`collections`/`dependencies`/`locales`). Instant + offline (the code dir survives). 400 if <2 versions or the target code dir is gone; broadcasts `addons-changed`. Server code change → drops the live router (restart-to-load). |
+| POST | `/api/addons/check-updates` | dm | DM-only on **realRole**. Pure read: resolve each GitHub addon's stored ref to its latest SHA and compare with the installed SHA. Per-addon failures are isolated; applying an update still opens the review wizard. |
+| POST | `/api/addons/:id/rollback` | dm | DM-only on **realRole**. `{ hash? }`. Flip `activeHash` to a retained version and restore that version's manifest-derived metadata. Returns 400 if no usable prior version exists; server-code changes require restart. |
 | POST | `/api/addons/sources` | dm | DM-only on **realRole**. `{ repo, action? }` — add (default) or `remove` a recorded source (`owner/name` or `owner/*`) in `sources.allow`. Mostly auto-managed by install; this is the advanced manual lever. Broadcasts `addons-changed`. |
 | POST | `/api/addons/resolve` | dm | DM-only on **realRole**. `{ target, winner }` — resolve a fragment-override conflict: `winner` = an addonId (that addon's exclusive op wins), `null` (force the built-in), or absent/empty (clear → back to auto). Writes `resolutions[target]` in `data/addons.json` (prototype-key-guarded), broadcasts `addons-changed`. See **Fragment overrides**. |
 | POST | `/api/addons/:id/enable` · `/disable` | dm | DM-only on **realRole**. Flip `enabled` on an installed addon; broadcasts `addons-changed` (clients live-reconcile). 404 if unknown. |
@@ -425,13 +423,12 @@ owner is hidden become `{ownerType:'none', ownerId:''}` in the player projection
 The source dataset is never mutated. A DM call returns the original dataset by
 identity, which is both the behavior and the regression-test contract.
 
-Addon API v1 collection declarations expose only `{name,keyed}` and define
-their records as public; they have no visibility or reference schema for the
-host to interpret. Dynamic `addon:<id>:<name>` containers therefore ride the
-dataset transform unchanged. Do not guess at opaque addon fields. DM-only addon
-records and declared cross-collection references require the later API-v2
-capability/schema work; P2 deliberately does not introduce those semantics on
-an old-host-compatible v1 manifest.
+Addon API-v1 collection declarations expose only `{name,keyed}` and remain
+public/schema-opaque. Do not guess at references inside them. API-v2
+`access:"dm"` declarations require the negotiated `collections.dm`
+capability; their metadata and containers are removed before the player
+projection is serialized. The host still does not infer arbitrary
+cross-collection references inside addon records.
 
 ## Write serialisation
 
@@ -444,7 +441,7 @@ the lock; only their staged publication phases own it.
 
 `server/durable-files.cjs` owns the fsync, unique same-directory temporary
 file, sharing-violation retry, durable copy, durable JSON write, and durable
-unlink primitives shared by ordinary core mutations, F2, and campaign
+unlink primitives shared by ordinary core mutations, addon transactions, and campaign
 restore. `server/media-publication.cjs` composes those primitives with a
 dedicated recoverable journal for portraits, maps, logos, and icon batches;
 runtime static reads share the publication barrier. `server.js` wraps
@@ -519,230 +516,50 @@ cdnjs and jsdelivr also publish SRI hashes on their package pages.
 
 ## Tests
 
-`test/` contains `node --test` tests, runnable with the zero-warning ESLint
-gate via `npm run check`. CI (`.github/workflows/build-and-dispatch.yml`) runs
-`npm run check:ci`, which applies the same lint rules and complete suite with
-file concurrency capped for the two-core runner before image build and deploy.
-`.github/workflows/addon-compatibility.yml` checks the current host revision
-against the complete DM Tools and Character Sheets suites. It also runs the
-private Compendium suite when the repository has a read-only
-`ADDON_SUITE_TOKEN`; without that secret the private job reports a warning and
-skips cleanly.
-Coverage today:
+Run the repository gate from the host root:
 
-**Unit tests** (pure-function tests with no external dependencies):
-- `test/utils.test.mjs` — pure helpers in `web/js/utils.js` (slugify,
-  extractOutline, esc, escapeRe, norm, expandWikiLinks).
-- `test/store.test.mjs` — client-side `Store` smoke (id generation,
-  default getters, searchAll shape, exportJSON round-trip). Provides
-  minimal `window`/`localStorage`/`document` polyfills before import
-  so Store's IIFE doesn't crash; doesn't exercise the load/save fetch
-  paths.
-- `test/store-load.test.mjs` + `test/sync-coordinator.test.mjs` — sparse
-  `/api/data` normalization and last-valid-state preservation; deterministic
-  deferred-fetch coverage for single-flight SSE burst coalescing, stale
-  commit/render rejection, hash deduplication, and failure recovery.
-- `test/store-transport.test.mjs` + `test/write-revision.test.mjs` —
-  serialized optimistic writes, retry/terminal gating, confirmed reload
-  recovery, browser/server revision parity, and enum request binding.
-- `test/server-utils.test.cjs` — `isForbiddenKey`, `safeJoinIn`
-  (traversal / absolute / null-byte / symlink-escape / good paths),
-  `pickKeptSnapshots` (recent + daily-window pruning policy),
-  `hashPassword` / `verifyPassword` round-trip + timing safety.
-- `test/durable-files.test.cjs` — ordinary durable publication creates parent
-  directories, replaces existing content, preserves binary input, and removes
-  temporary sidecars.
-- `test/publication-barrier.test.cjs` +
-  `test/collection-transactions.test.cjs` +
-  `test/campaign-restore.test.cjs` — shared-reader/exclusive-publication
-  ordering, transaction validation/application, logical revisions, durable
-  restore publication/rollback/recovery, completed-journal cleanup without
-  stale replay, and deterministic lease expiry without ghost commits.
-- `test/import-contract.test.cjs` + `test/import-jobs.test.mjs` — strict raw
-  JSON duplicate/prototype/limit handling; provider declaration, permission,
-  target and protected-field validation; server-bound exact previews,
-  single-use tokens, deterministic expiry/timeout/cancellation,
-  concurrency/rate limits, provider/package invalidation, conflicts, atomic
-  failure, and shared live/harness behavior.
-- `test/visibility.test.cjs` — per-container role filtering plus complete
-  dataset graph closure (survivor sets, every documented reference shape,
-  reserved faction ids, no source mutation, and strict DM identity).
-- `test/sidebar-layout.test.mjs` — `Store.getSidebarLayout` registry
-  reconciliation (default seed, drop dead routes, re-home new routes,
-  dedupe, hidden bucket), `setSidebarLayout` normalization, and the
-  `hiddenSidebarPages` back-compat shims.
-- `test/pets.test.mjs` — pets (Mazlíčci) CRUD, `ownerId` normalization,
-  `getPetsForOwner` / `getPetOwner`, undo, and the orphan-on-owner-delete
-  cascade (`deleteCharacter` / `deleteFaction` → `ownerType:'none'`).
-- `test/store-logic.test.mjs` — domain helpers: `isQuestionAnswered`,
-  `questionText` / `questionAnswer`, `isMysterySolved`, `getOpenQuestions`,
-  `getEffectiveAttitudes` (party shortcut + faction inheritance).
-- `test/enums.test.mjs` — settings-enum management: `findEnumUsages`
-  (scalar + object-array shapes) and `deleteEnumItem`'s three paths
-  (refuse-when-used / force / replaceWith remap).
-- `test/i18n.test.mjs` — the i18n engine (`web/js/i18n.js`): locale
-  detection + fallback, `t()` interpolation + missing-key fallback,
-  `plural()` Czech one/few/other vs English one/other (pinned against
-  `Intl.PluralRules`), `relativeTime` guards, and a **catalog-parity**
-  check (cs covers every en key, with the Czech plural buckets).
-- `test/i18n-keys.test.mjs` — every LITERAL `I18n.t('…')` / `plural('…')`
-  key in the browser sources + every `data-i18n`/`data-i18n-title`
-  attribute in index.html exists in en.json (dynamic keys skipped).
-- `test/design-system.test.mjs` — tripwire over the shared design-system
-  components addons build on (`.codex-link-row/-tile` target size +
-  focus ring, `.codex-skel`, the `iconGlyph` facade): asserts the
-  load-bearing CSS properties exist so a host refactor can't silently
-  regress every consuming addon.
-- `test/addon-archive.test.cjs` — production addon ZIP extraction: GitHub
-  wrapper stripping + content-hash parity, and count/path/per-entry/total/
-  compression-ratio limits rejected before any expanded file is written.
-- `test/addon-testing.test.cjs` — the install green-gate process runner,
-  including a real cross-platform Node spawn and the strict child-environment
-  allowlist (arbitrary, AWS, database, SSH, token, and `NODE_OPTIONS` values
-  are absent).
-- `test/addon-i18n.test.mjs` — declarative locale manifest/package validation,
-  scoped lookup/fallback/formatting, harness parity, cache/disposal, and stale
-  response isolation; `test/dev-install-addon.test.cjs` verifies invalid
-  catalogs cannot replace an active local install.
-- `test/addon-graph.test.mjs` +
-  `test/addon-graph-cytoscape.test.mjs` — graph capability/permission
-  validation, host-global implementation selection, bounded data/layout
-  validation, ownership, operations/events, multi-addon and adapter-failure
-  isolation, stale-mount/repeated-render disposal, harness parity, and the
-  private Cytoscape adapter's focused integration contract.
+```powershell
+npm run check
+```
 
-**Integration tests** (boot the Express app against a tempdir
-`CODEX_DATA_DIR`, exercise endpoints, assert on disk + responses):
-- `test/integration-collection-transactions.test.cjs` — list/keyed
-  multi-collection commit, consistent snapshots, authorization/ownership,
-  stale conflicts, duplicate-write rejection, deterministic failures at
-  staging/journal/publication boundaries, process restart recovery at durable
-  phases, publication read barrier, backup exclusion, disconnect cancellation,
-  and same-named addon isolation.
-- `test/integration-content-import.test.cjs` — real server-addon provider
-  registration, anonymous/player/view-as denial, MIME/extension hint behavior,
-  read-only preview, F2 exact commit, transaction snapshot/hash effects,
-  duplicate JSON rejection, revision conflict, cancellation, temp cleanup, and
-  restart invalidation.
-- `test/integration-auth.test.cjs` — login flow, view-as toggles,
-  role gate edges.
-- `test/integration-passwords.test.cjs` — `/api/passwords` rotation:
-  realRole gating, wrong-current rejection, DM rotation invalidates
-  outstanding cookies while re-issuing the caller's, `auth.json`
-  salted-hash shape, player set / clear-to-env-fallback, length
-  validation.
-- `test/integration-visibility.test.cjs` — `GET /api/data` filters DM-only
-  entities and closes cross-record references for player callers; assertions
-  cover both parsed structure and raw serialized bytes, while the DM payload
-  retains the original records and references.
-- `test/integration-player-edits.test.cjs` — `_sanitizePlayerEntity`
-  applied to player saves; visibility + `linkedTwinId` preserved or
-  forced; secrets stripped; settings/campaign rejected.
-- `test/integration-write-conflicts.test.cjs` — per-record stale-write and
-  concurrent-create rejection, unrelated-record independence, enum-category
-  conflict binding, and preservation of the accepted on-disk state.
-- `test/integration-twins.test.cjs` — `POST /api/twin` create / link
-  / unlink flows + cross-half cascade on delete.
-- `test/campaign-shape-migration.test.cjs` +
-  `test/timeline-migration.test.cjs` +
-  `test/integration-migration.test.cjs` — pure and startup migration
-  transforms, field preservation, the shared snapshot contract, and
-  idempotency on subsequent boots.
-- `test/integration-sse.test.cjs` — `/api/events` emits `hello` and
-  `data-changed` with the correct hash.
-- `test/integration-snapshots.test.cjs` — snapshot/restore system:
-  manual `POST /api/snapshots` bypasses the 60 s coalesce window;
-  incomplete capture refusal for malformed campaign JSON; restore
-  round-trip atomically writes and removes files while recording a
-  `pre-restore` snapshot; role gating (list/create open to any role, restore/
-  revert-last/delete DM-only; anonymous locked out); delete + 404
-  paths. Uses manual snapshots as restore points so it never depends
-  on wall-clock timing.
-- `test/integration-restore.test.cjs` — `POST /api/restore` guards:
-  backup-ZIP round-trip, complete JSON validation and candidate migration
-  before publication, overlay preservation, `auth.json` never overwritten,
-  addon-code/runtime entries refused, auth required, pre-restore snapshot
-  failure aborts publication, crash recovery of a partially published file
-  set, and static-file read isolation until the complete restore is visible.
-- `test/restore-candidate.test.cjs` — authoritative JSON parsing and core/addon
-  shape checks, live-overlay materialization, shared ordered migrations,
-  canonical post-migration validation, and migration path confinement.
-- `test/campaign-mutations.test.cjs` +
-  `test/integration-campaign-mutations.test.cjs` — twin validation, location
-  symmetry, complete character/location/faction reference cascades, hidden-peer
-  preservation for player saves, atomic rollback, and startup recovery.
-- `test/zip-reader.test.cjs` — shared lazy ZIP walking for buffer and
-  file sources plus bounded streamed-byte accounting. Restore and addon
-  installation retain separate security policies.
-- `test/core-write-lock.test.cjs` +
-  `test/integration-storage-durability.test.cjs` — bounded core-lock
-  acquisition, cancelled-waiter/ghost-write prevention, serialization and
-  rejection recovery; point-in-time backup under a racing write, lock release
-  before slow streaming, and staging cleanup on success/failure/abort.
-- `test/media-publication.test.cjs` +
-  `test/integration-media.test.cjs` — staged durable replacement, atomic icon
-  batches and removals, rollback after injected publication failure, extension
-  replacement, route wiring, and staging/journal cleanup.
-- `test/tiler.test.cjs` — content-addressed immutable tile generations,
-  atomic manifest publication, failed-build preservation, and abandoned-build
-  cleanup.
-- `test/integration-github-token.test.cjs` — the wizard-stored GitHub
-  token (`POST /api/addons/github-token`): realRole gating, shape
-  validation, set/clear round-trip + `githubTokenSource` transitions,
-  stored-wins-over-env precedence, the value never echoed in any
-  payload, `secrets.json` excluded from the backup ZIP (also guards
-  the archiver directory-filter) and refused by restore.
-- `test/integration-pets.test.cjs` — the `pets` collection is a plain
-  PUBLIC list type (in `ALLOWED_TYPES` + `ALL_TYPES` only): any authed
-  role can save / delete, `GET /api/data` returns pets to every caller
-  (no visibility filtering), anonymous writes are 401.
-- `test/integration-errors.test.cjs` — the terminal error handler +
-  the `/api` JSON 404: an oversized upload → 400 `Upload error:
-  LIMIT_FILE_SIZE`, an oversized `express.json` body → 413, malformed
-  JSON → 400, an unknown `/api/*` path (GET + non-GET) → 404 JSON, and
-  the guards that a real `/api` route isn't shadowed + a non-`/api` deep
-  link still serves the SPA index.
-- `test/helpers/` — shared bootstrap utilities for integration tests
-  (start ephemeral server on a tempdir, drive HTTP, parse SSE).
+`npm run check:ci` applies the same zero-warning lint rules and full suite
+with file concurrency capped for CI. Browser-module tests use `*.test.mjs`;
+server and integration tests use `*.test.cjs`. Integration suites boot the
+real Express app against isolated temporary data and drive it over HTTP.
 
-To enable ESM imports of browser sources from a Node test,
-`web/js/package.json` declares `{"type": "module"}` — that flag scopes
-only to that directory and doesn't affect the CommonJS `server.js` /
-`tiler.js` / `server-utils.cjs`.
+The test filenames are the maintained inventory; do not duplicate an exhaustive
+list here. Coverage is organized around these contracts:
 
-Add new tests as `test/<name>.test.mjs` (browser-side, ESM) or
-`test/<name>.test.cjs` (server-side, CommonJS). Server-side helpers
-that need testing should be extracted into a separate CommonJS
-module first — `server.js` itself starts the listener at import
-time and isn't suitable for direct test imports. The pattern in use:
-`server-utils.cjs` exports the side-effect-free helpers, server.js
-re-binds them under their `_`-prefixed legacy names, tests import
-the canonical names.
+- pure helpers, revisions, descriptors, parsers, migrations, and UI state;
+- Store loading/transport/retry behavior and SSE single-flight coordination;
+- auth, role projection, visibility closure, and player-write sanitization;
+- durable single-file writes, compound mutations, media publication,
+  transactions, restore journals, snapshots, backup staging, and crash recovery;
+- addon compatibility, registration, permissions, lifecycle, archives,
+  localization, content groups, imports, graph isolation, and update/rollback;
+- maps, timeline ordering, Settings controllers, drafts/login/lore controllers,
+  i18n keys, and design-system residue.
+
+When adding a contract, add a focused unit test and an integration test whenever
+the behavior crosses HTTP, roles, disk publication, restart recovery, or addon
+lifecycle. Extract side-effect-free server logic into a CommonJS module instead
+of importing `server.js`, which starts the listener.
+
+`web/js/package.json` declares `{"type":"module"}` only for browser-source
+imports in Node tests; the server remains CommonJS. CI also checks the host
+revision against DM Tools and Character Sheets, and runs the private Compendium
+suite when `ADDON_SUITE_TOKEN` is configured.
 
 ## Deployed surface area
 
-The Dockerfile copies `package.json`, `server.js`,
-`server-utils.cjs`, `tiler.js`, the `server/` directory, and `web/`.
-- **Forgetting `tiler.js`** silently disables tile generation —
-  `server.js` swallows the require error and falls back to a
-  single-image overlay.
-- **Forgetting `server-utils.cjs`** crashes the server at startup
-  with `Cannot find module './server-utils.cjs'` (it's `require()`-d
-  at the top of `server.js`, no fallback).
-- **Forgetting the `server/` directory** crashes the server too —
-  `server.js` requires `./server/visibility.cjs`,
-  `./server/migrations.cjs`, `./server/addons.cjs`,
-  `./server/addon-archive.cjs`, `./server/addon-testing.cjs`,
-  `./server/import-contract.cjs`, `./server/import-jobs.cjs`, and
-  `./server/addon-content.cjs` plus `./server/addon-localization.cjs` at
-  module-load time. All are critical
-  (role-aware filtering, the startup visibility-stamp migration, the
-  addon broker, archive/content/localization gates, and the addon test
-  green-gate). `COPY
-  server ./server` covers the whole dir.
+The Dockerfile copies the package manifests, `server.js`,
+`server-utils.cjs`, `tiler.js`, the complete `server/` directory, and `web/`.
+Keep server services under `server/` so `COPY server ./server` remains the
+deployment boundary; a new top-level runtime file needs an explicit Dockerfile
+entry. `tiler.js` is the only optional-at-runtime module: failure to load it
+degrades maps to a single-image overlay.
 
-Verify all four are COPYed when adding any new top-level server-side
-module. The `web/icons-defaults/` directory ships the bundled
+The `web/icons-defaults/` directory ships the bundled
 game-icons SVG markers (CC BY 3.0 — see `ATTRIBUTIONS.md`); it's part
 of `web/` so the existing `COPY web ./web` covers it. The
 `web/branding/logo-default.svg` placeholder logo ships the same way
@@ -757,11 +574,9 @@ several campaigns run the same image side by side (e.g. `tiamat` +
 `asurai`), each with its own volumes, passwords, and hostname. Two
 optional env vars let instances diverge without forking the code:
 `CODEX_INSTANCE` (a label, surfaced in the boot log + `/api/version`)
-and `CODEX_FEATURES` (space/comma list of per-instance addon flags;
-empty = baseline behavior). Both are read once at boot into
-module-level `INSTANCE` / `FEATURES` in `server.js`; a future addon
-gates on `FEATURES` server-side (and the `/api/version` field
-client-side). A third, `CODEX_RESTARTABLE=1` (also auto-detected via
+and `CODEX_FEATURES` (an opaque space/comma list returned by
+`/api/version`; it has no built-in behavior). Both are read once at boot.
+A third, `CODEX_RESTARTABLE=1` (also auto-detected via
 `/.dockerenv`), sets module-level `RESTARTABLE` → enables `POST
 /api/restart` + the DM "restart server" button; the compose sets it
 explicitly alongside `restart: unless-stopped`. The `edit_session` cookie sets no `domain=`, so it's

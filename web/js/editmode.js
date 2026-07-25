@@ -757,8 +757,7 @@ export const EditMode = (() => {
     const name = document.getElementById(`mf-name-${uid}`)?.value.trim();
     if (!name) { _toast(I18n.t('editmode.titleRequired'), false); return; }
     const newId = originalId || Store.generateId(name);
-    // Preserve fields the editor doesn't expose (clues, etc. — clues
-    // are a future rework, see TODO/roadmap).
+    // Preserve fields this editor does not expose, such as clues.
     const existing = originalId
       ? (Store.getMysteries().find(m => m.id === originalId) || {})
       : {};

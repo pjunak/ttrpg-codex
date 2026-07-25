@@ -16,7 +16,7 @@ loop see [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 | Mind maps | Cytoscape.js + a custom rope-physics/FR auto-layout; dagre only for the optional "⊞ Hierarchie" layout ([`web/js/cloudmap.js`](../web/js/cloudmap.js)) |
 | World map | Leaflet 1.9.4 + on-disk tile pyramid ([`web/js/map.js`](../web/js/map.js), [`tiler.js`](../tiler.js)) |
 | Markdown | marked + DOMPurify, edited via EasyMDE |
-| Auth | Signed `edit_session` cookie; DM + optional player roles, role-aware visibility filter ([`server/visibility.cjs`](../server/visibility.cjs)) |
+| Auth | HttpOnly `edit_session` cookie verified with a credential-derived token; DM + optional player roles and role-aware visibility ([`server/auth.cjs`](../server/auth.cjs), [`server/visibility.cjs`](../server/visibility.cjs)) |
 | Uploads | multer — 20 MB portraits/local maps · 40 MB world map · 5 MB logo · 2 MB × 16 marker icons · 200 MB restore ZIP |
 | ZIP handling | archiver (backup/test-fixture writer) + yauzl (bounded streaming restore and addon extraction) |
 | i18n | Per-user UI language (EN + CS), `web/i18n/*.json` catalogs + [`web/js/i18n.js`](../web/js/i18n.js) |
@@ -45,9 +45,15 @@ TypeScript would need to introduce the build step deliberately.
 ```
 web/js/
   app.js            Router, navigation, SSE live-sync, action dispatcher
-  store.js          In-memory state, server sync, secondary indices, trash
+  sync-coordinator.js Single-flight remote-load coordination
+  api-client.js     Shared JSON/FormData requests and structured errors
+  store.js          In-memory domain state, secondary indices, trash
+  store-transport.js Serialized optimistic PATCH queue and recovery
+  store-admin-client.js Addon/restart administration transport
   data.js           Default seeds (FACTIONS, REL_TYPES, SETTINGS_DEFAULTS, …)
   constants.js      PARTY_FACTION_ID, SIDEBAR_PAGES, SIDEBAR_LAYOUT_DEFAULT, THEMES
+  collection-descriptors.js Built-in collection/kind/article-route identity
+  pin-types.js      Built-in map-marker metadata
   role.js           Role state (dm / player / anonymous) + view-as impersonation
   i18n.js           Per-user UI language (t()/plural()/Intl dates), EN+CS catalogs
   utils.js          esc, escapeRe, norm, debounce, slugify, extractOutline,
@@ -63,10 +69,15 @@ web/js/
   cloudmap.js       Mind maps (Cytoscape + custom physics + crossing reduction)
   timeline.js       Kanban board for events
   map.js            Leaflet world map + sub-maps + pin types + zoom scaling
-  editmode.js       Per-page edit affordances, auth, EasyMDE mount, draft recovery, dirty guard
+  editmode.js       Domain editor and upload composition
+  edit-login.js     Password modal and login flow
+  edit-drafts.js    Markdown draft persistence and dirty guard
+  edit-lore-controller.js Pantheon/artifact/history editor controller
   edit_templates.js HTML form templates for every edit overlay
   search.js         Ctrl+K global search palette
-  settings.js       /nastaveni page (enums + maps + sidebar + backup + account tabs)
+  settings.js       /nastaveni composition (enums, maps, appearance, addons)
+  settings-backup.js Recovery-point and ZIP-backup controller
+  settings-account.js Password, role, and restart controller
   dm_dashboard.js   Stable DM-only /dm shell, addon slot, diagnostics, and fallback
   sidebar.js        Data-driven left nav (Sidebar.render) + DM drag-drop layout editor
 
@@ -75,7 +86,7 @@ web/js/
     tagfilter.js    TagFilter primitive (search input + chip filters)
 ```
 
-Every module is an IIFE returning its public API:
+Modules use named exports. Stateful facades commonly use an IIFE:
 
 ```js
 export const Store = (() => {
@@ -86,8 +97,8 @@ export const Store = (() => {
 })();
 ```
 
-This keeps internals genuinely private and lets each module own its
-event listeners without leaking them across reloads.
+Pure modules export functions directly. The boundary follows state and
+responsibility rather than enforcing one wrapper shape everywhere.
 
 ## Data model
 
@@ -193,11 +204,12 @@ client A       server                   client B
                   │                         │── navigate(getRoute())
 ```
 
-Every successful PATCH atomically writes the new collection file,
-takes a coalesced snapshot, and broadcasts `data-changed` (with the
-new dataset hash) to every connected `/api/events` client. The
-client compares the hash to its last seen value to dedupe duplicate
-events, then refetches the dataset and re-renders the current route.
+A successful mutation durably publishes its complete logical change, requests
+a coalesced recovery point, and broadcasts role-scoped `data-changed` hashes.
+Multi-record and multi-collection writes use recoverable journals plus the
+publication barrier, so readers never observe a partially published graph.
+The single-flight sync coordinator deduplicates hashes, accepts only the newest
+load, then re-renders the current route.
 
 Two interaction guards:
 
@@ -219,10 +231,10 @@ exponential backoff capped at 30 s.
 
 ## Snapshot system
 
-Every successful write atomically appends a point-in-time snapshot of
-the entire JSON dataset under `data-snapshots/snapshot-<ISO>.json`
-(sibling of `data/`, NOT a subdirectory — keeps the data hash and
-backup ZIP clean).
+Successful writes request a point-in-time recovery point of the entire JSON
+dataset under `data-snapshots/snapshot-<ISO>.json` (a sibling of `data/`).
+Automatic requests within the coalescing window share one recovery point;
+manual and pre-restore points bypass that window.
 
 ```json
 {
@@ -381,20 +393,20 @@ that were tried and reverted (do not retry without reason).
 ## Security model
 
 - **Auth & roles.** Read access is open (the wiki is public, minus
-  DM-only entities — see *Visibility* below). Editing requires the
-  signed `edit_session` cookie. There are two write roles: **DM**
+  DM-only entities — see *Visibility* below). Editing requires a valid
+  HttpOnly `edit_session` cookie. There are two write roles: **DM**
   (full access) and **player** (public content only). The cookie
   token is derived from the role's password hash — read from
-  `data/auth.json` if a credential was set in-app (Settings → Účet),
+  `data/auth.json` if a credential was set in-app (Settings → Account),
   otherwise the `DM_PASSWORD` / `PLAYER_PASSWORD` env vars
   (`EDIT_PASSWORD` is a legacy DM alias). Changing a password rotates
   the secret and invalidates outstanding cookies for that role. Token
   comparison uses `crypto.timingSafeEqual`. A DM can also "view as
-  player" — an impersonation that keeps the signed DM claim
+  player" — an impersonation that keeps the verified DM identity
   (`realRole`) while flipping the effective `role`.
 - **Visibility (twin model).** Every content entity carries
   `visibility: 'public' | 'dm'`. `GET /api/data` runs through
-  `filterForRole` ([`server/visibility.cjs`](../server/visibility.cjs)):
+  `filterDatasetForRole` ([`server/visibility.cjs`](../server/visibility.cjs)):
   non-DM callers never receive `visibility:'dm'` records, and the
   `linkedTwinId` field is stripped from their payloads. DM-only lore
   is paired with a public "twin" via `linkedTwinId`; `POST /api/twin`
@@ -448,7 +460,7 @@ that were tried and reverted (do not retry without reason).
   (Settings → Doplňky). Addon code runs **in-process and
   unsandboxed** — the permission review in the install wizard is
   transparency, not containment; `server:code` in particular is full
-  host access. Guardrails: install is DM-only on the *signed* role,
+  host access. Guardrails: install is DM-only on the verified `realRole`,
   pinned to a reviewed commit SHA, content-hashed, staged and
   test-gated before activation, and a restore ZIP can never plant
   addon code (`data/addons/**` entries are rejected). See
@@ -456,9 +468,9 @@ that were tried and reverted (do not retry without reason).
 
 ## API reference
 
-Detailed endpoint reference is in the JSDoc comments above each
-handler in [`server.js`](../server.js). Auth legend: `—` open ·
-`any` any signed-in role · `dm` DM only.
+The complete endpoint and durability contract is
+[`docs/reference/server.md`](reference/server.md). This table is an orientation
+map only. Auth legend: `—` open · `any` any authenticated role · `dm` DM only.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -489,7 +501,7 @@ handler in [`server.js`](../server.js). Auth legend: `—` open ·
 | POST | `/api/snapshots/revert-last/:n` | dm | Go back N recovery points |
 | DELETE | `/api/snapshots/:id` | dm | Delete one snapshot file |
 | GET | `/api/addons` | — | Installed-addon registry (public projection) |
-| POST | `/api/addons/install` · `/preview` · `/check-updates` · `/update-all` · `/sources` · `/resolve` | dm | Addon lifecycle: install from GitHub, manifest preview, update checks, bulk update, source records, fragment-conflict resolution (all gated on the *signed* DM role) |
+| POST | `/api/addons/install` · `/preview` · `/check-updates` · `/update-all` · `/sources` · `/resolve` | dm | Addon lifecycle: install from GitHub, manifest preview, update checks, bulk update, source records, and fragment-conflict resolution |
 | POST | `/api/addons/:id/enable` · `/disable` · `/rollback` · DELETE `/api/addons/:id` | dm | Per-addon enable / disable / version rollback / remove |
 | ANY | `/api/addon/:id/*` | — | Namespaced routes served by (or for) one addon — its own `express.Router()` or the host-served `contentDir` endpoints |
 
@@ -500,15 +512,17 @@ If you want to understand the codebase, read in this order:
 1. [`web/js/constants.js`](../web/js/constants.js) — `SIDEBAR_PAGES`
    gives you the page surface area at a glance (the actual route
    dispatch is the `switch` in `app.js:navigate()`).
-2. [`web/js/store.js`](../web/js/store.js) — every collection's
-   shape, public getters, and the sync contract live here.
+2. [`web/js/store.js`](../web/js/store.js) and
+   [`web/js/store-transport.js`](../web/js/store-transport.js) — domain state
+   is separate from network/retry/revision behavior.
 3. [`web/js/app.js`](../web/js/app.js) — router, action dispatcher,
    SSE wiring.
-4. [`server.js`](../server.js) — the API surface and every disk
-   mutation.
+4. [`server.js`](../server.js) — composition and route surface; follow its
+   imports into the focused service under [`server/`](../server/) that owns
+   the subsystem you are changing.
 5. Whatever feature module you're touching — `wiki.js` for articles,
    `map.js` for the world map, `cloudmap.js` for mind maps,
    `editmode.js` for forms, `settings.js` for the enum editor.
 
-Each module's IIFE returns its public API at the bottom; that's the
-contract. Functions outside the returned object are private.
+Read the relevant deep reference before editing; it records the invariants that
+are not obvious from a single module.

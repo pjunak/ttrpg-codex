@@ -25,7 +25,7 @@ const Compatibility = require('./addon-compat.cjs');
 const HOST_API_VERSION = 2;
 
 // Vetted npm libraries a SERVER addon may pull via `serverHost.lib(name)`
-// (Phase 7). Arbitrary native modules aren't runtime-installable (no rebuild,
+// Arbitrary native modules aren't runtime-installable (no rebuild,
 // no writable node_modules), so a server addon either vendors pure-JS deps in
 // its repo or consumes one of these already-bundled host deps. Node built-ins
 // (crypto/path/fs/…) are reachable via the addon's own require — they're not

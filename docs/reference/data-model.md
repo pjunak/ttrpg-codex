@@ -1,9 +1,7 @@
 # Data model + Store — deep reference (ttrpg-codex)
 
-> Moved verbatim out of AGENTS.md to keep sessions lean. This file is
-> CANONICAL for its subsystem — read it before working here and keep it
-> as current as AGENTS.md itself. Cross-references like "see X above"
-> may point at a sibling file in this directory.
+> Canonical contract for campaign records, references, Store behavior,
+> visibility, and write coordination.
 
 ## Data model
 
@@ -19,12 +17,12 @@ Merged at startup via `store.js:_mergeDefaults()`.
 | `mysteries` | `id`, `name`, `questions[]` (array of `{text, answer}` objects — a question is answered when `answer.trim().length > 0`), `clues[]` (string array — atomic facts the party has collected), `characters[]`, `locations[]`, `solved` (boolean — legacy explicit flag; `Store.isMysterySolved(m)` returns true when `m.solved === true` OR every question is answered, so the field is now a manual override more than a computed state), `priority` [kritická/vysoká/střední/nízká], `linkedTwinId` (DM-only twin link metadata). `campaign-shape-v1` promotes legacy string-array `questions[]` before startup completes. |
 | `historicalEvents` | `id`, `name`, `start`, `end` (free-text year strings — D&D-calendar years, vague ranges, etc.), `summary` (markdown), `body` (markdown), `characters[]`, `locations[]`, `tags[]`, `updatedAt`. Separate from campaign `events` so the timeline stays campaign-only. Sorted on `/historie` by `start` (numeric-aware `localeCompare`). |
 | `artifacts` | `id`, `name`, `ownerCharacterId` (optional character reference), `locationId` (optional location reference), `description`, `tags[]`, `updatedAt`. Deleting the referenced character/location clears the corresponding scalar through the server-owned campaign mutation service. |
-| `pets` | Lightweight companions (Mazlíčci). `id`, `name`, `icon` (emoji, default 🐾), `portrait` (optional uploaded URL — reuses `/api/portrait/:id`), `species` (short free text), `note`, `ownerType` (`'none'`\|`'party'`\|`'character'`\|`'faction'`), `ownerId` (`''` for none/party · charId · factionId), `updatedAt`. Plain **public, non-visibility-bearing** list collection (no twin/visibility wiring). `getPartyPets()` (party-owned + individual-PC-owned) flanks the dashboard party grid; faction/character articles show their own pets. Deleting an owning character/faction reassigns its pets to `ownerType:'none'` (see `_orphanPetsOf` in store.js) so they survive. See **Pets (Mazlíčci)**. |
+| `pets` | Lightweight companions (Mazlíčci). `id`, `name`, `icon` (emoji, default 🐾), `portrait` (optional uploaded URL — reuses `/api/portrait/:id`), `species` (short free text), `note`, `ownerType` (`'none'`\|`'party'`\|`'character'`\|`'faction'`), `ownerId` (`''` for none/party · charId · factionId), `updatedAt`. Plain **public, non-visibility-bearing** list collection (no twin/visibility wiring). `getPartyPets()` (party-owned + individual-PC-owned) flanks the dashboard party grid; faction/character articles show their own pets. The server compound-mutation service reassigns pets to `ownerType:'none'` when their character/faction owner is deleted; the Store mirrors that result optimistically. See **Pets (Mazlíčci)**. |
 | ~~`mapPins`~~ | **REMOVED.** Folded into `locations` in a prior deploy. All `saveMapPin`/`deleteMapPin`/`getMapPins` shims are gone. |
 | `factions` | keyed object. `name`, `color`, `textColor`, `badge`, `description`, `rankChains[]`, `attitudes[]` (array of `{id}` — faction-level stance inherited by characters with empty own-attitudes via `Store.getEffectiveAttitudes`). Each chain is `{id, name, ranks: string[]}` — the character editor's "řetězec hodností" dropdown stores `character.rankChain = chain.id`, and `character.rank` stores the selected rank string. Seeded with `attitudes: []` on first load via `_seedFactionAttitudes`. |
-| `settings` | keyed-by-category object (`relationshipTypes`, `genders`, `pinTypes`, `characterStatuses`, `eventPriorities`, `attitudes`, `mapViews`, `mapConfigs`, `sidebarLayout`, `playerParty`, `branding`; the legacy `hiddenSidebarPages` is folded into `sidebarLayout.hidden` on read). See Settings section above. `branding` carries `{logoUrl, title, subtitle, updatedAt}` — site logo + sidebar wordmark; empty `logoUrl` renders the bundled `web/branding/logo-default.svg`, a non-empty value points at an uploaded `data/branding/logo.<ext>` (via `POST /api/logo`). `playerParty` carries `{name, icon, badge, color, textColor}` — visual identity of the PC group; member list is derived from `character.faction === PARTY_FACTION_ID` (`campaign-shape-v1` moves the legacy `factions.party` record here). `sidebarLayout` holds the DM-curated left-nav structure (`{ sections:[{ id, label, icon, collapsible, defaultOpen, role, pages[] }], hidden[] }`) — see **Sidebar structure**. The old `mapStatuses` category was replaced by `attitudes`; `pinTypes[].priority` was replaced by `pinTypes[].size`; `locationStatuses` and `artifactStates` were retired (the location-status icon-variant strategy went unused and `artifactStates` was a purely cosmetic chip). Built-in pin metadata lives once in `web/js/pin-types.js`; `data.js` derives mutable settings seeds from it and runtime controls enumerate the live settings enum. **`pinTypes[i].iconConfig`** (optional) carries custom marker artwork: `{ strategy: 'single' \| 'random', files: [{ id, url }] }`. Files live on disk under `data/icons/<pinTypeId>/<file>` and are uploaded/deleted via `/api/icons/...`. The map-side resolver in [map.js](web/js/map.js) (`_resolveIconUrl`) consumes this config: `single` (default) → `files[0]`; `random` → deterministic per-pin hash across all files. Empty/missing `iconConfig` falls through to the bundled game-icons SVG (`/icons-defaults/<id>.svg` for built-in ids), and finally to the live `pinTypes[i].icon` emoji as last resort. The startup migration also coerces the retired `state` strategy and removes per-file `stateId` markers. |
+| `settings` | keyed-by-category object (`relationshipTypes`, `genders`, `pinTypes`, `characterStatuses`, `eventPriorities`, `attitudes`, `mapViews`, `mapConfigs`, `sidebarLayout`, `playerParty`, `branding`, `appearance`; the legacy `hiddenSidebarPages` is folded into `sidebarLayout.hidden` on read). See Settings section above. `branding` carries `{logoUrl, title, subtitle, updatedAt}` — site logo + sidebar wordmark; empty `logoUrl` renders the bundled `web/branding/logo-default.svg`, a non-empty value points at an uploaded `data/branding/logo.<ext>` (via `POST /api/logo`). `appearance` currently carries `{theme}`. `playerParty` carries `{name, icon, badge, color, textColor}` — visual identity of the PC group; member list is derived from `character.faction === PARTY_FACTION_ID`. `sidebarLayout` holds the DM-curated left-nav structure (`{ sections:[{ id, label, icon, collapsible, defaultOpen, role, pages[] }], hidden[] }`) — see **Sidebar structure**. Built-in pin metadata lives once in `web/js/pin-types.js`; `data.js` derives mutable settings seeds from it and runtime controls enumerate the live settings enum. **`pinTypes[i].iconConfig`** (optional) carries custom marker artwork: `{ strategy: 'single' \| 'random', files: [{ id, url }] }`. Files live on disk under `data/icons/<pinTypeId>/<file>` and are uploaded/deleted via `/api/icons/...`. The map-side resolver in [`map.js`](../../web/js/map.js) (`_resolveIconUrl`) consumes this config: `single` (default) → `files[0]`; `random` → deterministic per-pin hash across all files. Empty/missing `iconConfig` falls through to the bundled game-icons SVG (`/icons-defaults/<id>.svg` for built-in ids), and finally to the live `pinTypes[i].icon` emoji as last resort. Legacy settings shapes are normalized by `campaign-shape-v1` before clients load them. |
 | `campaign` | Keyed-object collection with a single `main` record: `{ name, tagline }`. Used by the dashboard hero. Seeded to `{name:'O Barvách Draků', tagline:''}` on first load. Round-trips through the PATCH handler the same way factions/settings do. |
-| `deletedDefaults` | **Keyed object** `{ "<key>": true }`. IDs explicitly deleted (prevents re-merging on restart); also carries `"settings:<cat>:<id>"` tombstones. Was previously a string array — `_mergeDefaults` coerces legacy array shape on load. Tombstones round-trip through the keyed-object PATCH path via the `_tombstone` helper in store.js. |
+| `deletedDefaults` | **Keyed object** `{ "<key>": true }`. IDs explicitly deleted (prevents re-merging on restart); also carries `"settings:<cat>:<id>"` tombstones. The startup campaign-shape migration converts the legacy string-array shape. Tombstones round-trip through the keyed-object PATCH path via the `_tombstone` helper in store.js. |
 
 **PC vs NPC.** A character is a PC iff `Store.isPartyMember(c)` —
 currently a wrapper around `c.faction === PARTY_FACTION_ID`. Use
@@ -35,7 +33,7 @@ field) is a single-spot edit. `/postavy` lists NPCs only; the
 dashboard's *Naše parta* strip and `/parta` list PCs only;
 Comboboxes (relationships / event characters) intentionally span
 both. NPC-only editor fields live inside `#ef-npc-only-<uid>` in
-[edit_templates.js](web/js/edit_templates.js) — add new
+[`edit_templates.js`](../../web/js/edit_templates.js) — add new
 stance/perception fields there so they participate in the same
 faction-driven toggle (`EditMode.onCharacterFactionChange`).
 On save, `EditMode.saveCharacter` strips `attitudes[]` for PCs
@@ -44,7 +42,7 @@ since `Store.getEffectiveAttitudes` already short-circuits to the
 
 ⚠ **Faction picker must always offer a default-selected `neutral`
 option.** The character editor's faction `<select>`
-(`renderCharacterEditor` in [edit_templates.js](web/js/edit_templates.js))
+(`renderCharacterEditor` in [`edit_templates.js`](../../web/js/edit_templates.js))
 lists `neutral` (👤 Bez frakce) first, then `party`, then the real
 factions. The new-character default is `faction:'neutral'`, but there
 is no `neutral` *faction* object — so if the picker only emitted
@@ -81,8 +79,8 @@ untouched; entities saved before this feature show name + time only.
 `saveRelationship`/`savePet` don't record it (not in the feed).
 
 **`addonData`** (optional, any entity) — a namespaced envelope
-`{ "<addonId>": {…} }` written by addons (Phase 5, see **Addon
-framework → Phase 5**). Core code never reads it; it rides inside the
+`{ "<addonId>": {…} }` written by addons through the scoped addon-data
+facade. Core code never reads it; it rides inside the
 entity's JSON (snapshotted + role-filtered with the entity). Addons
 patch only their own namespace via `Store.patchAddonData(collection,
 id, addonId, fn)`; the server's `_sanitizePlayerEntity` shallow-merges
@@ -599,11 +597,12 @@ and publishes every changed collection behind the shared publication barrier.
 See `docs/reference/addons.md` and `docs/reference/server.md` → **Addon
 collection transactions**.
 
-F4 import providers do not receive `Store`, `_data`, collection files, or an
-F2 transaction handle. Preview reads are immutable clones of only the
+Import providers do not receive `Store`, `_data`, collection files, or a
+transaction handle. Preview reads are immutable clones of only the
 descriptor's declared dependencies. The host records logical SHA-256 revisions
 for the union of declared reads and writes, validates and stores the exact
-put-only plan, then maps that server-held plan to F2 operations at commit.
+put-only plan, then maps that server-held plan to atomic collection operations
+at commit.
 Provider API v1 writes only the registering addon's declared list/keyed
 collections; core writes, cross-addon access, deletion, settings, campaign
 branding, tombstones, auth, registry data, backups, and transaction journals

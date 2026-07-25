@@ -561,9 +561,9 @@ export const Wiki = (() => {
     const factsHtml = (facts || []).filter(f => f && f.value).map(f =>
       `<div class="ah-fact"><span class="ah-fact-label">${esc(f.label)}</span>${f.value}</div>`
     ).join('');
-    // Main column as an ordered, NAMED fragment list (Phase 6) so addons can
+    // Main column as an ordered, named fragment list so addons can
     // replace / hide / wrap / insert individual pieces with conflict-safe
-    // arbitration. Core sections + addon-added sections (Phase 4a, additive) +
+    // arbitration. Core sections, additive addon sections, and
     // the body each become a fragment with a stable id; `Addons.applyFragments`
     // applies override claims before we join. Empty fragments collapse. With no
     // override addons installed the pipeline is a pass-through (zero cost).

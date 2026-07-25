@@ -1,4 +1,4 @@
-// Unit tests for the pure fragment-override engine (Phase 6). No DOM needed.
+// Unit tests for the pure fragment-override engine. No DOM needed.
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { applyFragmentOps, listConflicts } from '../web/js/addon-fragments.js';

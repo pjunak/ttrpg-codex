@@ -76,7 +76,7 @@ Public/human docs are separate: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 | Storage | JSON files in `data/` |
 | Mind maps | Cytoscape.js 3.34 (`cloudmap.js`); dagre layout bundled in cytoscape-dagre 4 |
 | World map | Leaflet 1.9.4 (`map.js`) |
-| Auth | SHA256 cookie `edit_session`. Passwords in `data/auth.json` (Settings → Účet) with env `DM_PASSWORD` / `PLAYER_PASSWORD` fallback (`EDIT_PASSWORD` = legacy DM alias). See docs/reference/routing-navigation.md → Auth flow. |
+| Auth | HttpOnly `edit_session` cookie verified with a credential-derived SHA-256 token. Passwords in `data/auth.json` (Settings → Account) with env `DM_PASSWORD` / `PLAYER_PASSWORD` fallback (`EDIT_PASSWORD` = legacy DM alias). See docs/reference/routing-navigation.md → Auth flow. |
 | Uploads | Multer. Portraits/local maps 20 MB · world map 40 MB · logo 5 MB · marker icons 2 MB × 16 · restore ZIP 200 MB. |
 | Backup | `archiver`. `/api/backup` stages a locked point-in-time copy, then streams the ZIP outside the lock. |
 | Deploy | Docker (`docker-compose.yml`) |
@@ -99,12 +99,12 @@ server/                    visibility.cjs (role filter) · migrations.cjs ·
                            durable-files.cjs (fsync/copy/rename primitives) ·
                            core-write-lock.cjs (bounded FIFO mutex) ·
                            publication-barrier.cjs (read isolation) ·
-                           collection-transactions.cjs (durable F2 commits) ·
+                           collection-transactions.cjs (durable addon commits) ·
                            campaign-restore.cjs (durable restore publication) ·
                            campaign-mutations.cjs (core cross-record invariants) ·
                            write-revision.cjs (optimistic record revisions) ·
                            import-contract.cjs (provider/parser/plan guards) ·
-                           import-jobs.cjs (F4 preview/commit job lifecycle) ·
+                           import-jobs.cjs (preview/commit job lifecycle) ·
                            addon-import-harness.cjs (published server harness).
 web/
   index.html               SPA shell. Loads bundle.css + app.js.
@@ -200,12 +200,13 @@ web/
       tagfilter.js         Reusable search+chips primitive (AND-match).
 ```
 
-## Module pattern
+## Module boundaries
 
-Every JS module is an IIFE exported as a named const.
-Example: `export const Store = (() => { ... })()`.
-New code imports shared helpers from `utils.js`.
-Do not add a private `_esc` inside a module.
+Use named ES-module exports. Stateful facades commonly use
+`export const Store = (() => { ... })()`, while pure modules export functions
+directly. Choose the form that makes ownership clearest; do not wrap stateless
+helpers in an IIFE just for consistency. Import shared browser helpers from
+`utils.js` and never add a private `_esc`.
 
 **Escaping discipline (the app builds HTML via template strings, CSP is
 off — this is the XSS boundary):** every user-sourced string interpolated
@@ -220,49 +221,20 @@ and safe to inject as-is.
 
 ## CSS rules
 
-- **UI work goes through the design system — always.** Any change that
-  touches the UI (built-in pages, settings, addons) must use design
-  tokens (`var(--…)`) and the documented component classes — never
-  hardcoded colours / spacing / sizes. This is what makes the theme
-  switcher (Settings → Vzhled) and addon styling work: a literal value
-  can't be re-skinned by a `[data-theme]` block and won't match the rest.
-  Reach for an existing token; if none fits and the value recurs or is
-  semantic, add a token rather than inline it. Full reference:
-  **`web/css/STYLE.md`**.
-- `index.html` links only `css/bundle.css`. Never add another `<link>`.
-- All CSS files are `@import`ed in `bundle.css` in order. `themes.css`
-  holds `[data-theme="<id>"]` token-override blocks (`classic` = the bare
-  `:root` baseline); adding a style = one `THEMES` entry (constants.js) +
-  one themes.css block, no component edits.
-- **Design tokens** live on `:root` in `main.css`. Semantic colours
-  (`--bg-deep/base/surface/raised`, `--bg-card`, `--text-*`,
-  `--accent-gold`, faction/status colours, `--font-*`) plus the scales
-  added in the design-system cleanup: spacing (`--space-1..6`, 4px
-  rhythm), type (`--text-xs..3xl`), radius (`--radius-sm`, `--radius`,
-  `--radius-lg`, `--radius-pill`), elevation (`--shadow-sm/md/lg`),
-  z-index (`--z-base/sticky/drawer/dropdown/modal/toast`), motion
-  (`--ease-out`, `--dur-fast/base/slow`), **channel tokens** for alpha
-  use (`--accent-gold-rgb`, `--gold-muted`, `--status-{alive,dead,
-  captured,unknown}-rgb` — `rgba(var(--accent-gold-rgb), 0.25)`), and a
-  **semantic feedback palette** (`--color-danger`/`-bright`/`-bd`,
-  `--color-success`, `--color-info`, `--color-mystery`, `--text-cream`).
-  The bundle's colours were swept onto these in the design-system
-  unification; see `STYLE.md` for the full map + the per-pass status.
-  Canonical breakpoints (documented in `:root`, can't be CSS vars in
-  `@media`): 768 / 1100 / 1200 px.
-- A global `:focus-visible { outline: 2px solid var(--accent-gold) }`
-  in `main.css` gives keyboard-focused controls an on-brand ring; it
-  only fires for keyboard/AT nav and is overridden by component focus
-  styles via specificity.
-- **Colour gotcha:** `--bg-card` is **parchment** (`#F5EDD8`), not a
-  dark surface. Use `--bg-raised` for dark panels. Using `--bg-card`
-  for a dark-theme box produces the "bright ugly panel" bug (the
-  `.sc-btn:hover` instance — which flashed parchment on the dark map
-  toolbar — was fixed to a `rgba(var(--gold-muted), …)` tint).
+- Read [`web/css/STYLE.md`](web/css/STYLE.md) before UI work. Reuse the
+  documented tokens and components; add a token for recurring or semantic
+  values. Technical one-off dimensions are allowed when they are not
+  theme-dependent.
+- `web/index.html` links only `css/bundle.css`; component styles are imported
+  through `bundle.css`.
+- Theme overrides belong in `themes.css`. New themes add one `THEMES` entry
+  and one token-override block, not component-specific rewrites.
+- Canonical breakpoints are 768 / 1100 / 1200 px.
+- `--bg-card` is parchment. Use `--bg-raised` for dark panels.
 
 ## Companion repos — the D&D addon suite
 
-Two sibling repos (expected as sibling checkouts of this repo) hold the
+Three sibling repos (expected as sibling checkouts of this repo) hold the
 D&D toolkit built on the addon framework. **Each has its own
 AGENTS.md / README with full repo-local context — read those before working
 there.**
@@ -270,20 +242,19 @@ there.**
 | Repo (sibling dir) | Addon id | What it is |
 |---|---|---|
 | `dnd-character-sheets` | `dnd-sheets` | Tabbed character sheet (Overview/Character Sheet/Combat/Spellbook/Builder) + a built-in pure rules engine (`rules/engine.js` + `rules/api.js`), edition-parameterized (built-in 2024 constants; a provider's `ruleset` record overrides per constant — `dnd5e-compendium` is the reserved 2014 provider id). Standalone hand-fillable; soft-dep (`optionalDependencies`) on the compendium. Engine mode is per character: a returned provider cannot overwrite manually changed materialized fields until the user explicitly keeps manual mode or resumes the rulebook. `provide()`s the rules API for future consumers. ⚠ The addon id keys `character.addonData` — renaming it orphans sheet data without a key migration. |
-| `dnd55e-compendium` | `dnd55e-compendium` | The complete D&D 5.5e (2024) content addon — PHB, DMG material, and the Monster Manual bestiary (~1,880 records) as a per-record JSON tree served by THIS host via manifest `contentDir` (no server code, hot install/update). `/compendium` browse UI (+ `/bestiary` alias) + `[[…|spell]]`-style wiki kinds; `provide()`s the pure data API the sheets engine consumes. The equipment importer reads the sibling `Living-scroll` checkout. ⚠ The GitHub repo is **PRIVATE** (since 2026-07, so owner-owned copyrighted book content can live there — see its `data/COVERAGE.md`); GitHub installs/updates need `CODEX_GITHUB_TOKEN`. |
-| `dm-tools` | `dm-tools` | API-v2 reference consumer for host-managed DM-only data, F2 transactions, F4/F5 imports, localization, the F6 graph facade, and the `dm:dashboard` content slot. It declares only the list-shaped `scenarios` collection with `access:"dm"`; its scenario dashboard owns the normal `/dm` workflow content, while core retains route authorization, diagnostics, and recovery fallback. Its read-only graph page maps each scenario to one independent node because the schema has no relationships. Planners, additional providers, and speculative collections remain out of scope. |
+| `dnd55e-compendium` | `dnd55e-compendium` | Structured D&D 2024 content — PHB records, scoped DMG material, and a 332-record bestiary within the documented provenance boundary (~1,880 records total). The host serves its per-record JSON tree through manifest `contentDir` (no server code, hot install/update). `/compendium` browse UI (+ `/bestiary` alias) + `[[…|spell]]`-style wiki kinds; `provide()`s the pure data API the sheets engine consumes. The equipment importer reads the sibling `Living-scroll` checkout. The GitHub repository is private, so installs/updates need `CODEX_GITHUB_TOKEN`; privacy is access control, not a content license. |
+| `dm-tools` | `dm-tools` | API-v2 reference consumer for host-managed DM-only data, atomic collection transactions, reviewed imports, localization, the graph facade, and the `dm:dashboard` slot. It declares only the list-shaped `scenarios` collection with `access:"dm"`; core retains `/dm` authorization, diagnostics, and recovery fallback. |
 
 Working loop: edit in the addon repo → `node scripts/dev-install-addon.cjs
 <path-to-addon>` (run in THIS repo) → restart the app + refresh. ⚠ **Addon
 repo edits are invisible until re-dev-installed.** Tests per repo:
 `node --test tests/<file>.mjs` from that repo's root (RELATIVE paths — the
 directory form and absolute Windows paths false-fail on Windows).
-Production updates go through the Manager wizard; ⬆ "Aktualizovat vše"
-keeps existing grants, so an update that ADDS a permission must use the
-per-addon wizard. The retired `dnd55e-core-rules` addon merged into sheets;
-its GitHub repo should be archived. Port source-of-truth for 2024 rule
-content: the sibling `Living-scroll` repo
-(`modules/compendium/data/dnd_2024/`).
+Production updates go through the Manager wizard; **Update all** keeps existing
+grants, so an update that adds a permission must use the per-addon wizard.
+The compendium's committed `data/` tree is the rule-content source of truth.
+`Living-scroll` is input to one merge-preserving equipment importer, not an
+authoritative replacement for curated records.
 
 Addon client lifecycle: API-v2 addons can require `lifecycle.dispose` and
 `content.revision`. `register(host)` may return a disposer and can add more via
@@ -293,65 +264,17 @@ deterministic `contentRevision` unloads the addon and loaded consumers
 consumer-first, then reloads provider-first. Content-group toggles therefore
 refresh compendium data and sheets live without a browser reload.
 
-## Future ideas / roadmap
-
-These aren't implemented; record here so they survive across
-sessions and don't get re-discovered:
-
-- **Per-Pohled marker visibility rules.** The legacy zoom-gated pin
-  priority system was retired in favour of letting each `mapViews`
-  preset carry rules — e.g. "hide pins of type X", "only show pins
-  with attitude Y", "only show pins with size ≥ N". Wire through
-  `_pinsForCurrent` / `_resolvePinSize` in `map.js` when building it;
-  the toolbar already has the preset switcher to drive context.
-- **Striped multi-attitude glow in the wiki.** Map markers already
-  do this (see "Striped multi-attitude glow on map markers" above).
-  Wiki surfaces still use the additive blend — portraits as the
-  `--attitude-ring` box-shadow border ring, location cards / faction
-  badges as the inline `style="filter: ${glow}"` drop-shadow (see
-  docs/reference/wiki-rendering.md → Attitude glow). Extending the
-  stripe approach there means per-segment masking (a stacked-img
-  wrapper for icons, a conic-gradient ring for portraits). Defer
-  until the additive blend on those surfaces actually feels muddy
-  enough to warrant the work.
-- **Radial segmentation of the attitude glow.** Vertical-stripe
-  segmentation (TF2-style sheared slabs) is what map markers
-  ship; wedge / pie-slice radial segmentation was the alternative
-  considered. Vertical reads better at small marker sizes; revisit
-  radial only if a future use case (large icons, character bust
-  portraits) shows that vertical segments don't carry the read.
-- **Strength presets** in the Settings attitudes editor (lehce /
-  silně / velmi silně shortcuts) as alternatives to the continuous
-  slider.
-- ~~**PD baseline icon shipping.**~~ Done — see
-  `web/icons-defaults/` + `ATTRIBUTIONS.md`. Settled on game-icons.net
-  (CC BY 3.0) rather than CC0 because the CC BY pool had a much
-  better selection of medieval / settlement-style markers; the
-  attribution obligation is documented in the repo root and
-  carries through to forks.
-- **Bulk zip upload for marker icons.** Accept a zip whose entries
-  follow `<pinTypeId>/<filename>.<ext>` as a power-user import path.
-  Server should reuse the bounded yauzl-style streaming extraction pattern
-  into `data/icons/`, then the user
-  manages individual slots through the existing per-marker editor.
-- **Per-place icon override.** Let a single Location pick a specific
-  icon variant (or a one-off uploaded file) overriding its pin
-  type's strategy.
-
-### Known deferred issues (2026-07-03 audit — verified real, consciously postponed)
+## Known boundaries
 
 1. Addon-rendered HTML can invoke ANY core action via
    `data-action="Store.deleteCharacter"` — the dispatcher doesn't scope
    actions inside `[data-addon-id]` subtrees. Accepted under the
    trusted-addon posture; revisit before third-party addons (any fix must
    also cover the `deferred(action,…)` indirection).
-2. Missing guard tests: remaining addon permission-facade methods. Collection
-   declaration, `data:own`, ownership, effective-role, and keyed/unkeyed CRUD
-   guards are covered by the live/mock F1 matrix.
-    (The `/api/restore` path-safety and migration-idempotency gaps listed
-    here originally are CLOSED; visibility closure is also CLOSED by
-    `test/visibility.test.cjs` + `test/integration-visibility.test.cjs`.)
-3. Structural: `server.js`, `store.js`, `settings.js`, and `editmode.js` still
+2. Some addon permission-facade methods still lack direct guard tests.
+   Collection declaration, `data:own`, ownership, effective-role, and
+   keyed/unkeyed CRUD guards are covered by the live/mock matrix.
+3. `server.js`, `store.js`, `settings.js`, and `editmode.js` still
     contain several domains, but transport/admin, snapshots, backup settings,
     lore editors, restore publication, collection identity, and pin-type seeds
     now have dedicated modules with focused tests. Continue only as
@@ -366,7 +289,7 @@ sessions and don't get re-discovered:
   achievable now — there are no inline scripts.
 - No LICENSE file (maintainer intent: permissive/MIT).
 
-### Settled decisions (2026-07-03)
+### Settled decisions
 
 - **Offline/local play is OUT OF SCOPE.** The CDN-served libraries
   (SRI-pinned) stay — do not vendor them; do not build offline support.

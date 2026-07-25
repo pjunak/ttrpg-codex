@@ -1,9 +1,7 @@
 # Routing, navigation & edit affordances — deep reference (ttrpg-codex)
 
-> Moved verbatim out of AGENTS.md to keep sessions lean. This file is
-> CANONICAL for its subsystem — read it before working here and keep it
-> as current as AGENTS.md itself. Cross-references like "see X above"
-> may point at a sibling file in this directory.
+> Canonical contract for routes, navigation, sidebar composition, role
+> transitions, and contextual creation.
 
 ## Routing
 
@@ -106,7 +104,7 @@ button that toggles `body.mobile-nav-open`. `navigate()` in
 ## Sidebar structure (data-driven, DM-configurable)
 
 The left sidebar is **rendered from a layout config**, not static
-markup. The `Sidebar` module ([web/js/sidebar.js](web/js/sidebar.js))
+markup. The `Sidebar` module ([web/js/sidebar.js](../../web/js/sidebar.js))
 renders `Store.getSidebarLayout()` into `#sidebar-nav-root` — a
 `display:contents` wrapper inside `.sidebar` so the sections lay out as
 direct flex children exactly like the old static markup (every
@@ -322,8 +320,9 @@ projection and never receives the hidden containers.
 Hash + verify helpers live in `server-utils.cjs` (`hashPassword`,
 `verifyPassword`, `safeEqStrings`) so they're unit-testable. The
 file-level `NON_DATA_JSON_FILES` set in `server.js` is the single
-source of truth for which top-level JSON files are excluded from
-snapshots + data hash (currently just `auth.json`).
+source of truth for top-level JSON excluded from snapshots and the data hash:
+`auth.json` and `secrets.json`. `auth.json` is included in full ZIP backups;
+`secrets.json` is not.
 
 ## Inline contextual creation
 
@@ -336,14 +335,15 @@ pages and the cloudmap context menu.
 - `startNewLocation(prefill)` goes to `#/misto/new`.
 - `startNewEvent(prefill)` goes to `#/udalost/new`. Example:
   `{locations:['greenest']}` for "Událost zde".
-- `startNewCharacterInLocation(locId)` creates a character, then
-  a one-shot `_afterSave` hook appends its id to `location.characters[]`.
+- `startNewCharacterInLocation(locId)` pre-fills the canonical
+  `character.location` field. It does not write the deprecated
+  `location.characters[]` mirror.
 
-Implementation: prefill stored in module-level `_prefill` and
-`_afterSave` registries. `renderXxxEditor(null)` consumes prefill
-on render. `saveXxx()` runs the `_afterSave` hook with the new id.
-Editor templates merge prefill over defaults as
-`{...defaults, ...prefill}`. Any field can be pre-set.
+Implementation: prefill is stored in the module-level `_prefill` registry and
+consumed once by `renderXxxEditor(null)`. Editor templates merge it over
+defaults as `{...defaults, ...prefill}`. The `_afterSave` seam remains for
+workflows that genuinely need post-create behavior, but contextual character
+placement no longer uses it.
 
 Cloudmap right-click on a character node offers
 "➕ Přidat vazbu odsud". It navigates to that character's page and

@@ -5,12 +5,11 @@ pages, settings, and addons — is built from the tokens and components here.**
 
 ## The one rule
 
-**Never hardcode a colour, spacing, size, radius, shadow, or duration in a
-component. Use a `var(--token)`.** A literal value can't be re-skinned by a
-theme (`[data-theme]`) and drifts out of sync with everything else. If no token
-fits and the value *recurs or is semantic*, add a token (see `main.css :root`)
-rather than inline it. One-off, truly component-local values are tolerated, but
-prefer a token.
+Use design tokens for semantic colour, spacing, typography, radius, elevation,
+layering, and motion. A token lets themes restyle a component and keeps related
+surfaces consistent. If no token fits and the value recurs or carries meaning,
+add one to `main.css :root`. A literal is acceptable only for one-off technical
+geometry that has no theme or system meaning.
 
 This is what makes two features work for free:
 - **Themes** (Settings → Vzhled): a theme is a `[data-theme]` block in
@@ -183,21 +182,15 @@ same markup; build addon UI from this vocabulary so it looks native.
 
 ---
 
-## Unification status & known follow-ups
+## Runtime custom properties and exceptions
 
-The design-system sweep is incremental and **safe-by-construction** (every token
-substitution is exact-equal — zero visual change).
+`--cm-z`, `--gc`, and `--tc` are set by `cloudmap.js`;
+`--attitude-color` is set by wiki rendering. Their CSS consumers must retain
+safe fallbacks because the properties exist only while the corresponding
+component is mounted.
 
-- **Done:** every colour literal that maps to a token has been tokenized — the
-  gold/muted-gold channel families (236×), the status-colour channels, the
-  semantic feedback hexes, and the dead `var(--tok, #wrongFallback)` fallbacks
-  cleaned up (376 substitutions total). Exact-match `font-size` values → `--text-*`.
-- **Follow-up (low-risk, scales already exist):** tokenize spacing/`gap`/radius
-  shorthands → `--space-*`/`--radius-*` (property-aware, exact-equal); decide
-  on off-scale values (e.g. `0.82rem`, `0.72rem` font-sizes; `0.55rem`,
-  `0.45rem` spacings) — snap to the nearest scale step (sub-pixel change) or keep.
-  Do this with the app open so each pass can be eyeballed.
-- **Known orphan `var()`** (used, not defined in CSS): `--cm-z` / `--gc` / `--tc`
-  are set at runtime by `cloudmap.js` and carry CSS fallbacks (intentional);
-  `--font-display` is a stale reference worth chasing; `--attitude-color` /
-  `--token` only appear inside comments. None are regressions.
+Literal values are reasonable for technical geometry such as a hairline,
+intrinsic SVG dimension, or library-specific canvas bound. Product-facing
+colour, spacing, typography, radius, elevation, layering, and motion belong to
+the token system above. Keep historical audit counts and proposed cleanup
+passes out of this reference; record temporary plans under `docs/plans/`.

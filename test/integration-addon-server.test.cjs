@@ -1,6 +1,6 @@
 'use strict';
 
-// Integration: server-side addons (Phase 7). At boot the host loads an enabled
+// Integration: server-side addons. At boot the host loads an enabled
 // addon's server/index.cjs (when `server:code` is granted + serverDeps are
 // vetted) and mounts its routes under the namespaced prefix /api/addon/<id>/*.
 // Covers: routing + isolated data writes, server:code gating, serverDeps

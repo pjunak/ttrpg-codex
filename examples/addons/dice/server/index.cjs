@@ -1,5 +1,5 @@
 'use strict';
-// Server-side half of the dice addon — Phase 7 reference.
+// Server-side half of the dice addon reference.
 //
 // The host loads this module at boot (when the addon is enabled AND granted
 // `server:code`) and calls init(serverHost). Routes mount under the namespaced

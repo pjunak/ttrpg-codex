@@ -6,5 +6,5 @@
   "hostVersion": ">=1.0.0",
   "entry": "entry.js",
   "permissions": ["ui:override"],
-  "summary": "Ukázka fragment-override API (Phase 6): obalí tělo článku postavy rámečkem pomocí bezpečné, skládatelné operace wrap."
+  "summary": "Ukázka fragment-override API: obalí tělo článku postavy rámečkem pomocí bezpečné, skládatelné operace wrap."
 }

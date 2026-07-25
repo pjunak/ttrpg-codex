@@ -1,4 +1,4 @@
-// Active character sheet — Phase 5 reference addon.
+// Active character sheet reference addon.
 //
 // Demonstrates per-entity addonData (data bound to a CORE entity, not an
 // addon-owned collection):
@@ -89,7 +89,7 @@ export default function register(host) {
       <div class="settings-editor-head"><h2>🎲 Aktivní deník postavy</h2></div>
       <div class="settings-panel">
         <p class="settings-hint">
-          Ukázkový doplněk Phase 5 — přidává interaktivní HP na stránky postav
+          Ukázkový doplněk přidává interaktivní HP na stránky postav
           (data v <code>character.addonData['${esc(NS)}']</code>) a pole do editoru
           postavy. Postav v databázi: <strong>${host.store.getCharacters().length}</strong>.
         </p>
