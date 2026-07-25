@@ -27,6 +27,7 @@ const {
 } = require('./campaign-shape-migration.cjs');
 
 const TIMELINE_SITTING_MIGRATION_ID = 'timeline-sitting-zero-v1';
+const VISIBILITY_MIGRATION_ID = 'visibility-public-v1';
 
 // Idempotent startup pass over every visibility-bearing collection:
 //   - Backfill `visibility: 'public'` on records that lack it.
@@ -183,17 +184,23 @@ function _stampDefaults(entity) {
   return mutated;
 }
 
-// Fallback writer used when the caller doesn't pass one. Plain
-// write — no atomicity guarantee, no snapshot. Server.js injects
-// its own _atomicWrite via the opts.atomicWrite hook so production
-// uses the same code path as every other on-disk mutation.
+// Fallback writer used when the caller doesn't pass one. Production injects
+// the durable core writer through the opts.atomicWrite hook.
 async function _defaultAtomicWrite(file, content) {
   await fsp.writeFile(file, content, 'utf8');
 }
 
+const CAMPAIGN_MIGRATIONS = Object.freeze([
+  Object.freeze({ id: VISIBILITY_MIGRATION_ID, run: runVisibilityMigration }),
+  Object.freeze({ id: TIMELINE_SITTING_MIGRATION_ID, run: runTimelineSittingMigration }),
+  Object.freeze({ id: CAMPAIGN_SHAPE_MIGRATION_ID, run: runCampaignShapeMigration }),
+]);
+
 module.exports = {
+  CAMPAIGN_MIGRATIONS,
   CAMPAIGN_SHAPE_MIGRATION_ID,
   TIMELINE_SITTING_MIGRATION_ID,
+  VISIBILITY_MIGRATION_ID,
   runCampaignShapeMigration,
   runTimelineSittingMigration,
   runVisibilityMigration,

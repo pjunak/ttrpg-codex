@@ -765,8 +765,12 @@ export const WorldMap = (() => {
       // pyramid depth N = -minZoom). zoomOffset shifts the URL's {z} into
       // pyramid numbering; maxNativeZoom 0 makes Leaflet scale the deepest
       // tiles up when the user over-zooms past native resolution.
+      const generation = typeof manifest.generation === 'string'
+        && /^g-[0-9a-f]{16}$/.test(manifest.generation)
+        ? `/${manifest.generation}`
+        : '';
       L.tileLayer(
-        `/maps/tiles/${encodeURIComponent(mapId)}/{z}/{x}/{y}.${ext}`,
+        `/maps/tiles/${encodeURIComponent(mapId)}${generation}/{z}/{x}/{y}.${ext}`,
         { tileSize, noWrap: true, bounds: _bounds, minZoom, maxZoom,
           minNativeZoom: minZoom, maxNativeZoom: 0, zoomOffset: -minZoom },
       ).addTo(candidate);

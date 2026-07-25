@@ -112,7 +112,7 @@ test('getEffectiveAttitudes: party strength is sourced from the attitudes enum (
 
 // ── deleteCharacter cascade persistence (regression) ──────────────
 
-test('deleteCharacter: strips the id from referencing events/mysteries AND persists only those', () => {
+test('deleteCharacter mirrors the server-owned reference cascade in memory', () => {
   Store.saveCharacter({ id: 'victim', name: 'Victim', faction: 'neutral', status: 'alive', knowledge: 4 });
   Store.saveCharacter({ id: 'bystander', name: 'Bystander', faction: 'neutral', status: 'alive', knowledge: 4 });
   Store.saveEvent({ id: 'ev-ref',   name: 'Ref',   characters: ['victim', 'bystander'] });
@@ -126,7 +126,7 @@ test('deleteCharacter: strips the id from referencing events/mysteries AND persi
   // Referencing event/mystery had the id stripped in memory…
   assert.deepEqual(Store.getEvent('ev-ref').characters, ['bystander']);
   assert.deepEqual(Store.getMystery('my-ref').characters, []);
-  // …and were re-stamped (the cascade touched + persisted them).
+  // …and were re-stamped as reference-only changes.
   assert.ok(Store.getEvent('ev-ref').updatedAt >= 0);
   // The unreferenced event was NOT touched (stamp unchanged).
   assert.equal(Store.getEvent('ev-unref').updatedAt, evUnrefStampBefore);

@@ -172,6 +172,8 @@ async function startServer(opts = {}) {
     clearCookies: () => { cookieJar = ''; },
     /** Read the current cookie jar — handy for asserting cookie format. */
     cookieValue:  () => cookieJar,
+    /** Read captured server diagnostics when an assertion needs more context. */
+    stderr: () => stderrBuf,
     kill: async () => {
       if (child.exitCode === null && child.signalCode === null) {
         const exited = new Promise(resolve => { child.once('exit', resolve); });

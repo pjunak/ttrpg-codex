@@ -50,17 +50,24 @@ function joinInside(root, relativePath) {
   return target;
 }
 
-function validatePaths(paths, maxEntries) {
-  if (!Array.isArray(paths) || !paths.length || paths.length > maxEntries) {
+function validateOperations(paths, removePaths, maxEntries) {
+  if (!Array.isArray(paths) || !Array.isArray(removePaths)
+      || (!paths.length && !removePaths.length)
+      || paths.length + removePaths.length > maxEntries) {
     throw new CampaignRestoreError('RESTORE_INVALID', 'Restore candidate has an invalid file count');
   }
   const seen = new Set();
-  return paths.map(normalizeRelativePath).sort().map(relativePath => {
+  const operations = [
+    ...paths.map(pathValue => ({ relativePath: normalizeRelativePath(pathValue), remove: false })),
+    ...removePaths.map(pathValue => ({ relativePath: normalizeRelativePath(pathValue), remove: true })),
+  ].sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+  return operations.map(operation => {
+    const { relativePath } = operation;
     if (seen.has(relativePath)) {
       throw new CampaignRestoreError('RESTORE_INVALID', `Duplicate restore path: ${relativePath}`);
     }
     seen.add(relativePath);
-    return relativePath;
+    return operation;
   });
 }
 
@@ -73,7 +80,8 @@ function validateJournal(journal, { runtimeDir, dataDir, maxEntries }) {
   const restoreDir = path.join(runtimeDir, journal.id);
   const seen = new Set();
   const entries = journal.entries.map(entry => {
-    if (!isPlainObject(entry) || typeof entry.originalExists !== 'boolean') {
+    if (!isPlainObject(entry) || typeof entry.originalExists !== 'boolean'
+        || entry.remove !== undefined && typeof entry.remove !== 'boolean') {
       throw new CampaignRestoreError('RESTORE_JOURNAL_INVALID', 'Invalid restore journal entry');
     }
     const relativePath = normalizeRelativePath(entry.path);
@@ -84,6 +92,7 @@ function validateJournal(journal, { runtimeDir, dataDir, maxEntries }) {
     return {
       relativePath,
       originalExists: entry.originalExists,
+      remove: entry.remove === true,
       target: joinInside(dataDir, relativePath),
       original: joinInside(path.join(restoreDir, 'original'), relativePath),
       next: joinInside(path.join(restoreDir, 'next'), relativePath),
@@ -160,8 +169,8 @@ class CampaignRestoreManager {
     }
   }
 
-  async commit({ candidateDir, paths }) {
-    const relativePaths = validatePaths(paths, this.maxEntries);
+  async commit({ candidateDir, paths, removePaths = [] }) {
+    const operations = validateOperations(paths, removePaths, this.maxEntries);
     const restoreId = `restore-${crypto.randomBytes(16).toString('hex')}`;
     const restoreDir = path.join(this.runtimeDir, restoreId);
     const journalPath = path.join(restoreDir, 'journal.json');
@@ -170,12 +179,15 @@ class CampaignRestoreManager {
     let journal = null;
     try {
       const entries = [];
-      for (let index = 0; index < relativePaths.length; index++) {
-        const relativePath = relativePaths[index];
-        const source = joinInside(candidateDir, relativePath);
-        const sourceStat = await fsp.lstat(source);
-        if (!sourceStat.isFile()) {
-          throw new CampaignRestoreError('RESTORE_INVALID', `Restore candidate is not a file: ${relativePath}`);
+      for (let index = 0; index < operations.length; index++) {
+        const { relativePath, remove } = operations[index];
+        let source = null;
+        if (!remove) {
+          source = joinInside(candidateDir, relativePath);
+          const sourceStat = await fsp.lstat(source);
+          if (!sourceStat.isFile()) {
+            throw new CampaignRestoreError('RESTORE_INVALID', `Restore candidate is not a file: ${relativePath}`);
+          }
         }
         const target = joinInside(this.dataDir, relativePath);
         const originalExists = await fsp.lstat(target).then(stat => {
@@ -188,12 +200,14 @@ class CampaignRestoreManager {
           throw error;
         });
         await this.fault(`stage:${index}:before`);
-        await durableCopy(source, joinInside(path.join(restoreDir, 'next'), relativePath));
+        if (!remove) {
+          await durableCopy(source, joinInside(path.join(restoreDir, 'next'), relativePath));
+        }
         if (originalExists) {
           await durableCopy(target, joinInside(path.join(restoreDir, 'original'), relativePath));
         }
         await this.fault(`stage:${index}:after`);
-        entries.push({ path: relativePath, originalExists });
+        entries.push({ path: relativePath, originalExists, remove });
       }
 
       journal = {
@@ -217,7 +231,9 @@ class CampaignRestoreManager {
           await this.fault('journal:publishing:after');
           for (let index = 0; index < validated.entries.length; index++) {
             await this.fault(`publish:${index}:before`);
-            await durableCopy(validated.entries[index].next, validated.entries[index].target);
+            const entry = validated.entries[index];
+            if (entry.remove) await durableUnlink(entry.target);
+            else await durableCopy(entry.next, entry.target);
             await this.fault(`publish:${index}:after`);
           }
           journal = { ...journal, state: 'committed' };
@@ -251,7 +267,11 @@ class CampaignRestoreManager {
           console.warn(`[restore ${restoreId}] journal cleanup deferred:`, error.message);
         });
       }
-      return { ok: true, restoreId, paths: relativePaths };
+      return {
+        ok: true,
+        restoreId,
+        paths: operations.map(operation => operation.relativePath),
+      };
     } catch (error) {
       let stored = null;
       try {
@@ -279,7 +299,11 @@ class CampaignRestoreManager {
         if (effects.applied) {
           await cleanupRestoreDir(this.runtimeDir, restoreDir, restoreId).catch(() => {});
         }
-        return { ok: true, restoreId, paths: relativePaths };
+        return {
+          ok: true,
+          restoreId,
+          paths: operations.map(operation => operation.relativePath),
+        };
       }
       if (stored.state !== 'rolled-back') {
         try {
@@ -347,7 +371,10 @@ class CampaignRestoreManager {
       } else {
         if (journal.state !== 'committed') {
           await this.publicationBarrier.publish(async () => {
-            for (const entry of validated.entries) await durableCopy(entry.next, entry.target);
+            for (const entry of validated.entries) {
+              if (entry.remove) await durableUnlink(entry.target);
+              else await durableCopy(entry.next, entry.target);
+            }
             journal = { ...journal, state: 'committed' };
             await durableWrite(journalPath, JSON.stringify(journal, null, 2));
           });

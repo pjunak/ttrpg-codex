@@ -267,10 +267,11 @@ prose editor lives inside `.edit-form-split-article`.
 
 ## Draft recovery + dirty guard
 
-`editmode.js` autosaves every `.md-easy` markdown textarea to
+`web/js/edit-drafts.js`, composed by `editmode.js`, autosaves every
+`.md-easy` markdown textarea to
 localStorage and warns before the user can lose unsaved edits.
 
-**Autosave:** `_wireEasyMDEDraft(mde, textarea)` (called from
+**Autosave:** `EditDrafts.wireEasyMDE(mde, textarea)` (called from
 `mountEasyMDE` for every mounted EasyMDE) subscribes to CodeMirror
 `change` and writes `{ content, savedAt }` to
 `localStorage['md_draft:<textareaId>']` after a 500 ms debounce
@@ -284,7 +285,7 @@ banner above the EasyMDE wrapper with **Obnovit** / **Zahodit**
 buttons (styled in `edit.css` → "Draft-recovery banner"). If the
 draft matches the loaded content, it's auto-cleaned as stale.
 
-**Dirty guard:** A module-level `_dirty` boolean flips true on any
+**Dirty guard:** The draft controller's private dirty flag flips true on any
 `input`/`change` event inside an `.edit-form` (captured document-wide
 so dropdowns, chips, and multiselects all count — not just MD). The
 flag goes through `_setDirty()` so each `false→true` transition fires
@@ -302,7 +303,7 @@ the public API for other modules to gate behavior on unsaved state.
   `EditMode.toggle()` global-mode prompt is gone along with the
   toggle itself.
 - Every successful `save*()` in `editmode.js` ends with
-  `_markClean(); _navigateOrRefresh(…)`. `_markClean` clears `_dirty`
+  `_markClean(); _navigateOrRefresh(…)`. The controller clears its dirty flag
   and wipes drafts for every currently-mounted `.md-easy` textarea
   (the saved entity's content now matches, so drafts are stale).
 

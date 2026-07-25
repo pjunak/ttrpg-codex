@@ -1,0 +1,77 @@
+name: Addon compatibility
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: addon-compatibility-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  public-addons:
+    name: Public addon suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: ttrpg-codex
+
+      - uses: actions/checkout@v5
+        with:
+          repository: pjunak/addon-dm-tools
+          path: addon-dm-tools
+
+      - uses: actions/checkout@v5
+        with:
+          repository: pjunak/dnd-character-sheets
+          path: dnd-character-sheets
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: ttrpg-codex/.nvmrc
+
+      - name: Test DM Tools against this host revision
+        run: node --test tests/smoke.mjs tests/provider.mjs tests/import-center.mjs tests/scenario-graph.mjs tests/dashboard.mjs
+        working-directory: addon-dm-tools
+
+      - name: Test Character Sheets against this host revision
+        run: node --test tests/smoke.mjs tests/rules.mjs tests/ui-state.mjs tests/equipment-model.mjs
+        working-directory: dnd-character-sheets
+
+  private-compendium:
+    name: Private compendium suite
+    runs-on: ubuntu-latest
+    env:
+      ADDON_SUITE_TOKEN: ${{ secrets.ADDON_SUITE_TOKEN }}
+    steps:
+      - name: Report unavailable private suite
+        if: env.ADDON_SUITE_TOKEN == ''
+        run: echo "::warning::ADDON_SUITE_TOKEN is not configured; skipping the private compendium compatibility suite."
+
+      - uses: actions/checkout@v5
+        if: env.ADDON_SUITE_TOKEN != ''
+        with:
+          path: ttrpg-codex
+
+      - uses: actions/checkout@v5
+        if: env.ADDON_SUITE_TOKEN != ''
+        with:
+          repository: pjunak/dnd55e-compendium
+          token: ${{ env.ADDON_SUITE_TOKEN }}
+          path: dnd55e-compendium
+
+      - uses: actions/setup-node@v5
+        if: env.ADDON_SUITE_TOKEN != ''
+        with:
+          node-version-file: ttrpg-codex/.nvmrc
+
+      - name: Test Compendium against this host revision
+        if: env.ADDON_SUITE_TOKEN != ''
+        run: node --test tests/content-api.mjs tests/browse-state.mjs tests/browse-query.mjs tests/browse-config.mjs tests/detail-metadata.mjs tests/smoke.mjs tests/data-integrity.mjs
+        working-directory: dnd55e-compendium

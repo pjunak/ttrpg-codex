@@ -18,6 +18,7 @@ Merged at startup via `store.js:_mergeDefaults()`.
 | `events` | `id`, `name`, `date`, `description`, `short`, `characters[]`, `locations[]`, `priority` [kritická/vysoká/střední/nízká], `tags[]`, `sitting` (number, game session), `order` (int; **internal — not user-editable**, owned by timeline drag-drop; auto-assigned to tail of sitting on first save or when sitting changes). Event-only map pin (optional): `mapX`/`mapY` fractions 0–1 and `mapParentId` (null for world map, location id for a sub-map). Used to mark session progress at a spot that isn't a named Location. The `consequence` field was removed — the timeline is the sole ordering source of truth. |
 | `mysteries` | `id`, `name`, `questions[]` (array of `{text, answer}` objects — a question is answered when `answer.trim().length > 0`), `clues[]` (string array — atomic facts the party has collected), `characters[]`, `locations[]`, `solved` (boolean — legacy explicit flag; `Store.isMysterySolved(m)` returns true when `m.solved === true` OR every question is answered, so the field is now a manual override more than a computed state), `priority` [kritická/vysoká/střední/nízká], `linkedTwinId` (DM-only twin link metadata). `campaign-shape-v1` promotes legacy string-array `questions[]` before startup completes. |
 | `historicalEvents` | `id`, `name`, `start`, `end` (free-text year strings — D&D-calendar years, vague ranges, etc.), `summary` (markdown), `body` (markdown), `characters[]`, `locations[]`, `tags[]`, `updatedAt`. Separate from campaign `events` so the timeline stays campaign-only. Sorted on `/historie` by `start` (numeric-aware `localeCompare`). |
+| `artifacts` | `id`, `name`, `ownerCharacterId` (optional character reference), `locationId` (optional location reference), `description`, `tags[]`, `updatedAt`. Deleting the referenced character/location clears the corresponding scalar through the server-owned campaign mutation service. |
 | `pets` | Lightweight companions (Mazlíčci). `id`, `name`, `icon` (emoji, default 🐾), `portrait` (optional uploaded URL — reuses `/api/portrait/:id`), `species` (short free text), `note`, `ownerType` (`'none'`\|`'party'`\|`'character'`\|`'faction'`), `ownerId` (`''` for none/party · charId · factionId), `updatedAt`. Plain **public, non-visibility-bearing** list collection (no twin/visibility wiring). `getPartyPets()` (party-owned + individual-PC-owned) flanks the dashboard party grid; faction/character articles show their own pets. Deleting an owning character/faction reassigns its pets to `ownerType:'none'` (see `_orphanPetsOf` in store.js) so they survive. See **Pets (Mazlíčci)**. |
 | ~~`mapPins`~~ | **REMOVED.** Folded into `locations` in a prior deploy. All `saveMapPin`/`deleteMapPin`/`getMapPins` shims are gone. |
 | `factions` | keyed object. `name`, `color`, `textColor`, `badge`, `description`, `rankChains[]`, `attitudes[]` (array of `{id}` — faction-level stance inherited by characters with empty own-attitudes via `Store.getEffectiveAttitudes`). Each chain is `{id, name, ranks: string[]}` — the character editor's "řetězec hodností" dropdown stores `character.rankChain = chain.id`, and `character.rank` stores the selected rank string. Seeded with `attitudes: []` on first load via `_seedFactionAttitudes`. |
@@ -334,8 +335,9 @@ Save. Upsert by id. Fires PATCH to server. Every save stamps
 `savePet(p)` (normalises `ownerId` to `''` for none/party owners).
 
 `saveLocation` maintains **connection symmetry**: `connections[]` is
-undirected, so adds/removes mirror onto the peer Location and each
-touched peer is persisted with its own `_sync` call. Pin fields
+undirected, so adds/removes mirror onto the peer Location in memory. The
+browser sends one primary PATCH and `server/campaign-mutations.cjs` publishes
+the complete symmetric collection. Pin fields
 (`x`/`y`/`pinType`/`size`/`parentId`/`mapNotes`) survive edits via
 the spread `{...existing, ...formFields}`; to unplace from the map,
 save the Location with `x`/`y` cleared.
@@ -351,8 +353,12 @@ Delete:
 `deleteLocation` cascades: strips the dead id from every peer's
 `connections[]`, clears `parentId` on children, clears `c.location`
 and strips `c.locationRoles[]` entries on any character that
-referenced it (the canonical "where they are" pointer must not
-dangle), and persists each touched peer + character.
+referenced it, removes lore/map references, clears artifact ownership,
+and removes its settings map view/config. Character deletion removes
+relationships and lore references and orphans pets/artifact ownership;
+faction deletion neutralizes members and orphans pets. The Store mirrors
+these changes locally, while the server journal-publishes every affected
+collection as one compound mutation.
 
 Indexed reverse lookups. Each save/delete invokes only the
 per-collection reindex helper(s) it could affect — saving a
@@ -523,12 +529,12 @@ The presence of `characters` is not a payload-validity sentinel. A sparse
 object with no `characters` file is a valid campaign response; all absent
 documented collections receive their `_defaults()` shape.
 
-Tombstones (`_data.deletedDefaults`) round-trip through the keyed-
-object PATCH path via `_tombstone(key)`. Used by `deleteCharacter` /
-`deleteCharacter` (default-id removal) and `deleteEnumItem` (settings
-default removal). The previous `Store.reset` / `Store.exportJS` /
-`Store.importJSON` were dead code paired to the removed POST
-`/api/data` route; all three were removed.
+Tombstones (`_data.deletedDefaults`) normally round-trip through the
+keyed-object PATCH path via `_tombstone(key)`. Enum deletion publishes its
+definition, replacements, and optional default tombstone together through the
+server compound-mutation endpoint. The previous `Store.reset` /
+`Store.exportJS` / `Store.importJSON` were dead code paired to the removed
+POST `/api/data` route; all three were removed.
 
 ## Frontend write queue
 
@@ -540,25 +546,42 @@ and save-failure events.
 
 `Store._sync(type, action, payload)` delegates to
 `web/js/store-transport.js`. The transport snapshots the payload and enqueues
-the PATCH onto its private Promise chain, retries
-transient failures (network / 5xx) up to 3 times with exponential
-backoff (200 ms, 800 ms), and surfaces:
+the PATCH onto its private Promise chain. Each request carries the revision of
+the exact record from the last accepted server dataset. The server compares
+that revision while holding the core write lock, so a stale edit cannot
+overwrite a newer edit to the same record; changes to unrelated records do not
+conflict. Revisions are computed from the caller's role-visible projection, so
+hidden DM fields do not create false player conflicts. Requests from older
+clients that omit `baseRevision` remain compatible.
+
+Transient failures (network / 5xx) retry up to 3 times with exponential
+backoff (200 ms, 800 ms). The transport surfaces:
 
 - `store:auth-failed` — 401 from server (cookie expired/invalid)
-- `store:save-failed` — `{ type, action, status? }` after retries
+- `store:save-failed` — `{ type, action, status?, code? }` after retries
   exhausted or for terminal 4xx
+- `store:write-recovery-needed` — the optimistic state is no longer
+  confirmed and later queued writes have been stopped
 - `store:inflight` — `{ count }` whenever the queue depth changes;
   consumers can show a "Saving…" indicator
 
-Local mutations are *not* rolled back on server failure — the next
-page load reconciles from the server's truth. The `store:save-failed`
-banner in `app.js` lets the user know to refresh.
+Local mutations are not reversed piecemeal. After a conflict or ambiguous
+failure, the queue stops before sending later potentially dependent writes,
+waits for its active request to settle, and reloads the authoritative dataset
+through the single-flight sync coordinator. A successful reload replaces the
+optimistic state and re-enables writes; a failed reload retains both the last
+in-memory state and the recovery-required gate. `app.js` reports the conflict,
+failure, and successful reconciliation through the persistent server banner.
+Authentication failures stay gated until login and the subsequent authorized
+load.
 
 `StoreTransport` also owns validated `/api/data` fetches and explicit
-availability state. `Store.load()` retains domain-default merging, indexes, and
-the last-valid-state commit boundary. Add-on update/check/rollback and server
-restart requests live separately in `web/js/store-admin-client.js`; they are
-administration, not campaign-domain state.
+availability state. `Store.load()` retains domain-default merging, indexes,
+and the last-valid-state commit boundary; only a load that passes
+`shouldCommit` becomes the transport's new confirmed revision base. Add-on
+update/check/rollback and server restart requests live separately in
+`web/js/store-admin-client.js`; they are administration, not campaign-domain
+state.
 
 This browser queue is separate from, and feeds into, the server's single core
 write mutex. Server-side acquisition waits are bounded to 10 seconds by

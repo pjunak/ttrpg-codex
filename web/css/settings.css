@@ -567,6 +567,68 @@
   letter-spacing: 0.03em;
 }
 
+/* ── Account / server tab ───────────────────────────────────── */
+.settings-section-divider {
+  border: 0;
+  border-top: 1px dashed rgba(var(--gold-muted), 0.18);
+  margin: var(--space-5) 0;
+}
+.settings-account-role {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.settings-account-hint {
+  margin-bottom: var(--space-3);
+}
+.settings-account-actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
+}
+.settings-account-dm-note {
+  margin-top: var(--space-4);
+  font-style: italic;
+}
+.settings-account-section-hint {
+  margin-top: var(--space-2);
+}
+.settings-account-section-copy {
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.settings-account-server-hint {
+  margin: var(--space-2) 0 var(--space-3);
+}
+.settings-password-card {
+  margin-bottom: var(--space-4);
+  background: var(--bg-raised);
+}
+.settings-password-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+.settings-password-status {
+  font-size: var(--text-sm);
+}
+.settings-password-status.is-set {
+  color: var(--accent-gold);
+}
+.settings-password-status.is-danger {
+  color: var(--color-danger-bright);
+}
+.settings-password-status.is-muted {
+  color: var(--text-muted);
+}
+.settings-password-actions {
+  margin-top: var(--space-3);
+}
+
 /* ── Branding (logo) preview ────────────────────────────────── */
 .settings-branding-preview {
   display: flex;

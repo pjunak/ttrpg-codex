@@ -41,10 +41,10 @@ jobs:
 
       - run: npm ci
 
-      # Same suite as `npm test`, with file-level concurrency capped so
+      # Same gate as `npm run check`, with file-level concurrency capped so
       # the integration tests (each spawns a real server child process)
       # don't overwhelm the 2-core runner and flake on boot timeouts.
-      - run: node --test --test-concurrency=4 "test/**/*.test.*js"
+      - run: npm run check:ci
 
   build:
     name: Build and push image

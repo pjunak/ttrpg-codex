@@ -260,11 +260,12 @@ untracked raw timer.
 
 Then `fetch('/maps/tiles/<mapId>/tiles.json')`. If the manifest
 loads, `_doInitTiled(mapId, manifest, container)` mounts an
-`L.tileLayer('/maps/tiles/<mapId>/{z}/{x}/{y}.<ext>')`. Manifest
+`L.tileLayer('/maps/tiles/<mapId>/<generation>/{z}/{x}/{y}.<ext>')`. Manifest
 shape:
 ```json
 { "width": 2048, "height": 1340, "tileSize": 256,
-  "minZoom": -8, "maxZoom": 2, "ext": "jpg" }
+  "minZoom": -8, "maxZoom": 2, "ext": "jpg",
+  "generation": "g-0123456789abcdef", "srcHash": "<sha256>" }
 ```
 On 404 / network error / bad JSON, `_doInit()` keeps the legacy
 single-image overlay path. Post-init wiring (marker placement,
@@ -275,13 +276,28 @@ both paths.
 Server side: `tiler.js` (requires `sharp`) owns the actual pyramid
 build and is loaded lazily — if `sharp` isn't installed, tile
 generation logs a warning and the server keeps serving the raw
-`imageOverlay` fallback. Tiles live in `data/maps/tiles/<mapId>/`
-and are exposed as static files under `/maps/tiles`. `POST
+`imageOverlay` fallback. A build copies an immutable source-image snapshot,
+hashes its bytes, and renders into
+`data/maps/tiles/<mapId>/g-<hash>/`. Only after every tile exists does an
+atomic durable `tiles.json` replacement point clients at that generation.
+The prior manifest remains usable if decoding, rendering, or publication
+fails; overlapping builds may publish only the newest request. The client
+also accepts historical generation-less manifests. Three complete
+generations are retained, and abandoned `.incoming-*` builds are removed on
+startup. Tiles are exposed as static files under `/maps/tiles`. `POST
 /api/localmap/:locId` triggers an async `tiler.buildFor(...)` for
 the uploaded image; a `_backgroundTileSweep()` at server startup
 rebuilds any missing pyramids for the world map
 (`data/maps/swordcoast/*.jpg`) and every local map
 (`data/maps/local/<locId>/map.*`).
+
+Portraits, local/world maps, logos, and marker icons share
+`server/media-publication.cjs`. Multipart files are parsed into a
+campaign-scoped OS-temp staging root; the core write lock then
+journal-publishes the complete replacement or icon batch through the static
+publication barrier. Old extensions are removed in the same transaction,
+failures restore the previous files, and startup resolves an interrupted
+media journal before serving requests.
 
 ## WorldMap — Locations as pins, sub-maps via parentId/localMap
 

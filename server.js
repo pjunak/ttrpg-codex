@@ -9,12 +9,10 @@ const path         = require('path');
 const crypto       = require('crypto');
 const cookieParser = require('cookie-parser');
 
-// Pure helpers extracted for testability. server-utils.cjs has no
-// module-level side effects so it can be required from `node --test`.
 const {
   isForbiddenKey, safeJoinIn, pickKeptSnapshots,
-  hashPassword, verifyPassword, safeEqStrings,
 } = require('./server-utils.cjs');
+const { createAuthService } = require('./server/auth.cjs');
 const { CoreWriteLock, WriteLockTimeoutError } = require('./server/core-write-lock.cjs');
 const { PublicationBarrier } = require('./server/publication-barrier.cjs');
 const {
@@ -29,9 +27,25 @@ const {
   openEntryStream,
   walkZipEntries,
 } = require('./server/zip-reader.cjs');
-const { createSnapshotService } = require('./server/snapshot-service.cjs');
+const {
+  createSnapshotService,
+  isSnapshotFileKey,
+} = require('./server/snapshot-service.cjs');
 const { registerSnapshotRoutes } = require('./server/snapshot-routes.cjs');
 const { CampaignRestoreManager } = require('./server/campaign-restore.cjs');
+const {
+  CampaignMutationError,
+  CampaignMutationService,
+} = require('./server/campaign-mutations.cjs');
+const { writeRevision } = require('./server/write-revision.cjs');
+const { durableWrite } = require('./server/durable-files.cjs');
+const {
+  MediaPublicationService,
+  acceptsImage,
+  createUploadStorage,
+  imageExtension,
+} = require('./server/media-publication.cjs');
+const { createLiveSyncService } = require('./server/live-sync.cjs');
 
 // Role-aware filtering of the dataset (`server/visibility.cjs`) and
 // the startup migration that backfills `visibility:'public'` on every
@@ -43,12 +57,13 @@ const {
   VISIBILITY_BEARING,
 } = require('./server/visibility.cjs');
 const {
-  CAMPAIGN_SHAPE_MIGRATION_ID,
-  TIMELINE_SITTING_MIGRATION_ID,
-  runCampaignShapeMigration: _runCampaignShapeMigration,
-  runTimelineSittingMigration: _runTimelineSittingMigration,
-  runVisibilityMigration: _runVisibilityMigration,
+  CAMPAIGN_MIGRATIONS,
 } = require('./server/migrations.cjs');
+const {
+  RestoreCandidateError,
+  prepareRestoreCandidate,
+  validateRestoreCandidate,
+} = require('./server/restore-candidate.cjs');
 
 // Addon framework broker — pure/injectable helpers (manifest validation,
 // allowlist matching, content hashing, GitHub fetches) plus the streaming
@@ -148,6 +163,8 @@ const ADDON_DATA_DIR       = path.join(DATA_DIR, 'addon-data');
 const ADDONS_REGISTRY_FILE = path.join(DATA_DIR, 'addons.json');
 const TRANSACTION_RUNTIME_DIR = path.join(DATA_DIR, '.runtime', 'transactions');
 const RESTORE_RUNTIME_DIR = path.join(DATA_DIR, '.runtime', 'restores');
+const MEDIA_RUNTIME_DIR = path.join(DATA_DIR, '.runtime', 'media');
+const MUTATION_RUNTIME_DIR = path.join(DATA_DIR, '.runtime', 'mutations');
 const IMPORT_TEMP_BASE = process.env.CODEX_IMPORT_TEMP_DIR
   || path.join(os.tmpdir(), 'ttrpg-codex-imports');
 const IMPORT_TEMP_ROOT = path.join(
@@ -166,6 +183,24 @@ const RESTORE_STAGING_ROOT = path.join(
     .digest('hex')
     .slice(0, 16)}`,
 );
+const MEDIA_STAGING_BASE = process.env.CODEX_MEDIA_STAGING_DIR
+  || path.join(os.tmpdir(), 'ttrpg-codex-media');
+const MEDIA_STAGING_ROOT = path.join(
+  MEDIA_STAGING_BASE,
+  `campaign-${crypto.createHash('sha256')
+    .update(path.resolve(DATA_DIR))
+    .digest('hex')
+    .slice(0, 16)}`,
+);
+const MUTATION_STAGING_BASE = process.env.CODEX_MUTATION_STAGING_DIR
+  || path.join(os.tmpdir(), 'ttrpg-codex-mutations');
+const MUTATION_STAGING_ROOT = path.join(
+  MUTATION_STAGING_BASE,
+  `campaign-${crypto.createHash('sha256')
+    .update(path.resolve(DATA_DIR))
+    .digest('hex')
+    .slice(0, 16)}`,
+);
 
 fs.mkdirSync(DATA_DIR,       { recursive: true });
 fs.mkdirSync(PORTRAITS_DIR,  { recursive: true });
@@ -178,6 +213,8 @@ fs.mkdirSync(ADDONS_DIR,     { recursive: true });
 fs.mkdirSync(ADDON_DATA_DIR, { recursive: true });
 fs.mkdirSync(TRANSACTION_RUNTIME_DIR, { recursive: true });
 fs.mkdirSync(RESTORE_RUNTIME_DIR, { recursive: true });
+fs.mkdirSync(MEDIA_RUNTIME_DIR, { recursive: true });
+fs.mkdirSync(MUTATION_RUNTIME_DIR, { recursive: true });
 
 // Idempotent relocation: any leftover snapshots inside data/ are
 // moved to the sibling directory.
@@ -198,11 +235,9 @@ try {
   }
 } catch (e) { console.warn('[snapshot migrate]', e.message); }
 
-// Sensible default security headers — X-Content-Type-Options,
-// X-Frame-Options, Strict-Transport-Security, etc. CSP is OFF because
-// the UI uses inline onclick handlers and inline style="…" attributes
-// that strict CSP would block. crossOriginEmbedderPolicy is OFF so
-// CDN scripts/fonts without explicit CORP headers still load.
+// CSP remains off while the UI relies on inline style attributes. All scripts
+// are external modules, so script policy can be enabled independently later.
+// CDN fonts and scripts do not consistently send explicit CORP headers.
 app.use(helmet({
   contentSecurityPolicy:     false,
   crossOriginEmbedderPolicy: false,
@@ -210,64 +245,19 @@ app.use(helmet({
 }));
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
-// Stamp req.role / req.realRole on every request based on the
-// edit_session cookie. Must run AFTER cookieParser so the cookie is
-// already parsed when the middleware reads it.
-app.use((req, res, next) => attachRole(req, res, next));
-
-// ── Auth ──────────────────────────────────────────────────────────
-// Two shared passwords: DM (full edit access) and PLAYER (read-only
-// view, no DM-only content). Cookie value:
-//   "<realRole>.<role>.<token>"
-// where token = SHA256(realRole + ':' + role + ':' + secret). The
-// realRole claim is part of the signed token so a DM impersonating a
-// player can flip back without re-entering the password, and a player
-// can't forge a realRole=dm cookie.
-//
-// Passwords come from two sources, in priority order:
-//   1. `data/auth.json` — stored as `{ salt, hash, updatedAt }`. Set
-//      by the DM via Settings → Účet, persists across restarts, and
-//      survives env-var changes. Hash is SHA-256(salt + ':' + pwd).
-//   2. Env vars DM_PASSWORD / PLAYER_PASSWORD (EDIT_PASSWORD is a
-//      legacy alias for DM_PASSWORD). Only consulted when the
-//      corresponding role is missing from auth.json.
-//
-// The cookie token is derived from whichever secret was used (stored
-// hash or env-var raw). When the DM changes a password, the new hash
-// → new token → existing cookies for that role become invalid, which
-// is the desired logout-everyone-else behaviour.
-const AUTH_FILE = path.join(DATA_DIR, 'auth.json');
-
-// Lazy cache of the parsed auth.json. Reloaded on every write through
-// `_writeStoredCredentials`; cleared via `_clearAuthCache` so the
-// next `_loadStoredCredentials()` re-reads from disk.
-let _authCache = null;
-function _clearAuthCache() { _authCache = null; }
-function _loadStoredCredentials() {
-  if (_authCache) return _authCache;
-  try {
-    const raw = fs.readFileSync(AUTH_FILE, 'utf8');
-    const parsed = JSON.parse(raw);
-    _authCache = (parsed && typeof parsed === 'object') ? parsed : {};
-  } catch (e) {
-    if (e.code !== 'ENOENT') console.warn('[auth] failed to read auth.json:', e.message);
-    _authCache = {};
-  }
-  return _authCache;
-}
-function _storedCredentialFor(role) {
-  const c = _loadStoredCredentials()[role];
-  if (!c || typeof c.salt !== 'string' || typeof c.hash !== 'string') return null;
-  return c;
-}
-async function _writeStoredCredentials(next) {
-  const json = JSON.stringify(next, null, 2);
-  await _atomicWrite(AUTH_FILE, json);
-  // Restrictive perms: best-effort, harmless on Windows where chmod
-  // is a near-noop. Better than nothing on the Linux deploy target.
-  try { await fsp.chmod(AUTH_FILE, 0o600); } catch (_) {}
-  _clearAuthCache();
-}
+const _auth = createAuthService({
+  dataDir: DATA_DIR,
+  atomicWrite: _writeJsonFile,
+  withWriteLock,
+});
+const {
+  attachRole,
+  registerRoutes: registerAuthRoutes,
+  requireAnyRole,
+  requireDM,
+  requireRealDM,
+} = _auth;
+app.use(attachRole);
 
 // ── data/secrets.json — server-held secrets settable from the UI ──
 // Today one key: { githubToken } (set/cleared by the DM from the addon
@@ -290,125 +280,9 @@ function _loadSecrets() {
   return _secretsCache;
 }
 async function _writeSecrets(next) {
-  await _atomicWrite(SECRETS_FILE, JSON.stringify(next, null, 2));
+  await _writeJsonFile(SECRETS_FILE, JSON.stringify(next, null, 2));
   try { await fsp.chmod(SECRETS_FILE, 0o600); } catch (_) {}
   _clearSecretsCache();
-}
-
-function _dmEnvPassword()     { return process.env.DM_PASSWORD     || process.env.EDIT_PASSWORD || '123'; }
-function _playerEnvPassword() { return process.env.PLAYER_PASSWORD || ''; }
-
-// Secret used as the cookie-token input. Prefer stored hash (changes
-// when DM rotates the password → invalidates outstanding cookies);
-// fall back to env-var raw. Empty string = "no password configured"
-// → `_tokenFor` returns '' so the role can't be logged into.
-function _secretFor(role) {
-  const stored = _storedCredentialFor(role);
-  if (stored) return stored.hash;
-  return role === 'dm' ? _dmEnvPassword() : _playerEnvPassword();
-}
-
-function _tokenFor(realRole, role) {
-  const secret = _secretFor(realRole);
-  // Empty player password = player auth disabled; never matches.
-  if (!secret) return '';
-  return crypto.createHash('sha256')
-    .update(realRole + ':' + role + ':' + secret)
-    .digest('hex');
-}
-// Validate a raw login password against the configured credential for
-// this role. Stored credential wins; falls back to env var.
-function _verifyPassword(role, raw) {
-  const stored = _storedCredentialFor(role);
-  if (stored) return verifyPassword(stored, raw);
-  const envPwd = role === 'dm' ? _dmEnvPassword() : _playerEnvPassword();
-  if (!envPwd) return false;   // player auth disabled when env empty
-  return safeEqStrings(raw, envPwd);
-}
-// Back-compat alias for the rest of the file — `_safeEq` was the only
-// helper this section exported.
-const _safeEq = safeEqStrings;
-// Cookie shape: "<realRole>.<role>.<hex token>". Anything malformed
-// returns null so callers default to anonymous.
-function _parseSessionCookie(value) {
-  if (typeof value !== 'string') return null;
-  const parts = value.split('.');
-  if (parts.length !== 3) return null;
-  const [realRole, role, token] = parts;
-  if (realRole !== 'dm' && realRole !== 'player') return null;
-  if (role     !== 'dm' && role     !== 'player') return null;
-  // Player can never impersonate DM.
-  if (realRole === 'player' && role === 'dm')     return null;
-  if (!/^[0-9a-f]{64}$/.test(token))              return null;
-  return { realRole, role, token };
-}
-function _cookieValue(realRole, role) {
-  return `${realRole}.${role}.${_tokenFor(realRole, role)}`;
-}
-// Session cookies live for 30 days; a single place to change the policy.
-const SESSION_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-// Issue (or re-issue) the edit_session cookie for the given roles. All
-// auth endpoints (login, view-as, view-as-dm, password rotation) route
-// through here so the cookie options stay identical in one spot.
-function _setSessionCookie(res, realRole, role) {
-  res.cookie('edit_session', _cookieValue(realRole, role), {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure:   process.env.NODE_ENV === 'production',
-    path:     '/',
-    maxAge:   SESSION_COOKIE_MAX_AGE_MS,
-  });
-}
-// Resolve a request to a role (`dm` | `player` | null). Validates the
-// cookie's token against the expected hash for its claimed roles;
-// tampered cookies fall through to anonymous.
-function _resolveRole(req) {
-  const parsed = _parseSessionCookie(req.cookies?.edit_session);
-  if (!parsed) return { role: null, realRole: null };
-  const expected = _tokenFor(parsed.realRole, parsed.role);
-  if (!expected) return { role: null, realRole: null };
-  if (!_safeEq(parsed.token, expected)) return { role: null, realRole: null };
-  return { role: parsed.role, realRole: parsed.realRole };
-}
-// attachRole runs on every request and stamps req.role / req.realRole.
-// Reads don't reject for null role — they just filter to the public
-// subset (so unauthenticated visitors get a player-equivalent view).
-function attachRole(req, _res, next) {
-  const { role, realRole } = _resolveRole(req);
-  req.role     = role;
-  req.realRole = realRole;
-  next();
-}
-// Role gates use the effective role, so a DM viewing as a player receives
-// player-level write rights.
-function requireRole(role) {
-  return (req, res, next) => {
-    if (req.role === role) return next();
-    res.status(401).json({ error: 'Neznámé nebo chybějící heslo.' });
-  };
-}
-const requireDM = requireRole('dm');
-
-// Content-write gate: any authenticated role (DM or player) may use
-// the endpoint. PATCH /api/data has its own role-aware logic; this
-// gate is for simpler endpoints (portrait upload, sub-map upload)
-// that don't need per-payload sanitization.
-function requireAnyRole(req, res, next) {
-  if (req.role === 'dm' || req.role === 'player') return next();
-  return res.status(401).json({ error: 'Neznámé nebo chybějící heslo.' });
-}
-
-// Real-DM gate for the privileged endpoints (addon install/manage, twin
-// ops, password rotation, view-as). These gate on the SIGNED realRole
-// claim — not the effective role — so a DM impersonating a player still
-// can't run them. Factory so the existing per-route Czech message text is
-// preserved exactly (`msg`, defaulting to the most common one). Centralising
-// the check means a new privileged endpoint can't silently ship ungated.
-function requireRealDM(msg = 'Pouze pro DM') {
-  return (req, res, next) => {
-    if (req.realRole !== 'dm') return res.status(403).json({ error: msg });
-    next();
-  };
 }
 
 function publicationRead(req, res, next) {
@@ -443,37 +317,20 @@ app.use('/addons',    express.static(ADDONS_DIR, { maxAge: '7d', fallthrough: fa
 app.use(express.static(WEB_DIR));
 
 function _imageFilter(_req, file, cb) {
-  cb(null, file.mimetype.startsWith('image/'));
+  cb(null, acceptsImage(file));
 }
 
-const charStorage = multer.diskStorage({
-  destination: (req, _file, cb) => {
-    const charId = (req.params.charId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
-    const dir    = path.join(PORTRAITS_DIR, charId);
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-    cb(null, 'portrait' + ext);
-  },
+const mediaUploadStorage = createUploadStorage(multer, MEDIA_STAGING_ROOT);
+const uploadChar = multer({
+  storage: mediaUploadStorage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: _imageFilter,
 });
-
-const uploadChar = multer({ storage: charStorage, limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: _imageFilter });
-
-const localMapStorage = multer.diskStorage({
-  destination: (req, _file, cb) => {
-    const locId = (req.params.locId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
-    const dir   = path.join(LOCAL_MAPS_DIR, locId);
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-    cb(null, 'map' + ext);
-  },
+const uploadLocalMap = multer({
+  storage: mediaUploadStorage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: _imageFilter,
 });
-const uploadLocalMap = multer({ storage: localMapStorage, limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: _imageFilter });
 
 // ── Marker icon uploads ─────────────────────────────────────────
 // Filenames are slugified on write so a file like "Castle Burning.png"
@@ -543,36 +400,9 @@ function _runWriteRequest(res, fn, onTimeout) {
   });
 }
 
-// ── Atomic write helper ──────────────────────────────────────────
-// Writing JSON directly can corrupt the file if the server is killed
-// mid-write. We write to a sibling `.tmp` and `rename()` into place —
-// POSIX rename is atomic on the same filesystem. On Windows the rename
-// can briefly fail with EBUSY/EPERM if any reader has the destination
-// open; retry a few times with a tiny backoff before giving up.
-async function _atomicWrite(filePath, content) {
-  const tmp = filePath + '.tmp';
-  await fsp.writeFile(tmp, content, 'utf8');
-  const delays = [10, 50, 200];
-  let lastErr = null;
-  for (let attempt = 0; attempt <= delays.length; attempt++) {
-    try {
-      await fsp.rename(tmp, filePath);
-      // Invalidate the cached top-level data hash whenever a JSON file in
-      // DATA_DIR (but NOT a snapshot file) is written. Subdirectories like
-      // SNAPSHOTS_DIR don't contribute to the hash so they don't need to
-      // bust it.
-      _maybeBustDataHash(filePath);
-      return;
-    } catch (e) {
-      lastErr = e;
-      if (e.code !== 'EBUSY' && e.code !== 'EPERM' && e.code !== 'EACCES') break;
-      if (attempt === delays.length) break;
-      await new Promise(resolve => { setTimeout(resolve, delays[attempt]); });
-    }
-  }
-  // Best-effort tmp cleanup so we don't leave half-written sidecars.
-  try { await fsp.unlink(tmp); } catch (_) {}
-  throw lastErr;
+async function _writeJsonFile(filePath, content) {
+  await durableWrite(filePath, content);
+  _maybeBustDataHash(filePath);
 }
 
 // ── Path-safety helper ──────────────────────────────────────────
@@ -593,14 +423,11 @@ const NON_DATA_JSON_FILES = new Set(['auth.json', 'secrets.json']);
 
 const _snapshots = createSnapshotService({
   snapshotsDir: SNAPSHOTS_DIR,
-  dataDir: DATA_DIR,
-  atomicWrite: _atomicWrite,
+  atomicWrite: _writeJsonFile,
   trackedDataFiles: _trackedDataFiles,
   dataHash: _dataHash,
   pickKeptSnapshots,
-  safeJoinIn: _safeJoinIn,
-  reconcileAddons: _reconcileAddonsFromDisk,
-  invalidateDataHash: _invalidateDataHash,
+  publishRestore: _publishSnapshotRestore,
 });
 const _createSnapshot = _snapshots.create;
 const _maybeSnapshot = _snapshots.maybeCreate;
@@ -613,9 +440,9 @@ const _hasTransactionSnapshot = _snapshots.hasTransaction;
 // which is cheap enough for our ~100 KB dataset.
 //
 // Cached so SSE broadcasts (one per write) don't re-read every JSON
-// file on disk to compute the same hex digest. `_atomicWrite` clears
-// the cache when it rewrites a top-level data file, and the snapshot
-// service clears it after deleting files during a restore.
+// file on disk to compute the same hex digest. `_writeJsonFile` clears
+// the cache for ordinary writes; restore post-commit effects invalidate
+// both role-scoped values after the complete file set becomes visible.
 const _cachedDataHash = { dm: null, player: null };
 const _DATA_DIR_RESOLVED       = path.resolve(DATA_DIR);
 const _SNAPSHOTS_DIR_RESOLVED  = path.resolve(SNAPSHOTS_DIR);
@@ -722,9 +549,9 @@ async function _dataHashUnlocked(role = 'dm') {
 
 function getFile(type) {
   // Addon-owned collections (`addon:<id>:<name>`) live isolated under the
-  // addon's own data dir so they travel + get removed with the addon. The
-  // id/name parts are regex-validated by parseAddonType (no traversal), and
-  // routed through _safeJoinIn as defence in depth.
+  // addon's data directory. Normal uninstall preserves them; explicit purge
+  // removes them. The validated id/name parts are routed through _safeJoinIn
+  // as defence in depth.
   const addon = AddonBroker.parseAddonType(type);
   if (addon) {
     const p = _safeJoinIn(ADDON_DATA_DIR, `${addon.id}/${addon.name}.json`);
@@ -740,16 +567,11 @@ function getFile(type) {
 // one broadcast; a failing pass is isolated so later migrations and
 // server startup can continue.
 async function runStartupMigrations() {
-  const passes = [
-    ['visibility-public-v1', _runVisibilityMigration],
-    [TIMELINE_SITTING_MIGRATION_ID, _runTimelineSittingMigration],
-    [CAMPAIGN_SHAPE_MIGRATION_ID, _runCampaignShapeMigration],
-  ];
   const { changed, results } = await withWriteLock(async () => {
     const completed = [];
-    for (const [id, run] of passes) {
+    for (const { id, run } of CAMPAIGN_MIGRATIONS) {
       try {
-        const result = await run(DATA_DIR, { atomicWrite: _atomicWrite });
+        const result = await run(DATA_DIR, { atomicWrite: _writeJsonFile });
         completed.push(result);
         if (result.changed > 0) {
           console.log(`[migration] ${id}: changed ${result.changed} record(s)`);
@@ -774,30 +596,12 @@ function _dataHash(role = 'dm') {
   return _publicationBarrier.read(() => _dataHashUnlocked(role));
 }
 
-// ── SSE broadcast ────────────────────────────────────────────────
-// Every successful write fans a `data-changed` event out to every
-// connected client. Clients refetch + re-render in well under a
-// second; no polling involved.
-const _sseClients = new Map();
-// Connection-cap bookkeeping for GET /api/events (see the handler).
-const _sseClientsByIp = new Map();   // ip → live connection count
-const SSE_MAX_CLIENTS = 256;
-const SSE_MAX_PER_IP  = 64;
-function _broadcast(eventName, payload, role = null) {
-  const data = `event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`;
-  for (const [res, clientRole] of _sseClients) {
-    if (role && clientRole !== role) continue;
-    try { res.write(data); } catch (_) { /* client gone — cleanup on close */ }
-  }
-}
-async function _broadcastDataChanged(access = 'public') {
-  const at = Date.now();
-  const roles = access === 'dm' ? ['dm'] : ['dm', 'player'];
-  for (const role of roles) {
-    if (![..._sseClients.values()].includes(role)) continue;
-    _broadcast('data-changed', { hash: await _dataHash(role), at }, role);
-  }
-}
+const _liveSync = createLiveSyncService({ dataHash: _dataHash });
+const {
+  broadcast: _broadcast,
+  broadcastDataChanged: _broadcastDataChanged,
+  registerRoute: registerLiveSyncRoute,
+} = _liveSync;
 
 // ── Allowed collections ──────────────────────────────────────────
 // Defense in depth: reject unknown collection names at the API
@@ -848,218 +652,7 @@ app.get('/api/data', async (req, res) => {
   }
 });
 
-// ── Login rate limit ─────────────────────────────────────────────
-// In-memory sliding window. Blocks an IP after 10 failed attempts in
-// 15 minutes. Resets on successful login. Good enough for a small
-// campaign wiki; a proper reverse proxy would do this upstream.
-const _loginAttempts = new Map();   // ip → { count, firstMs }
-const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-const LOGIN_MAX       = 10;
-// Cap on tracked IPs. A failed-login spray from many distinct source IPs
-// would otherwise grow _loginAttempts without bound (entries only clear on a
-// successful login or the next attempt from that same IP). When the map
-// exceeds this, _noteFailure lazily evicts entries whose window has already
-// expired — cheap, and enough to keep memory bounded under a spray.
-const LOGIN_ATTEMPTS_MAX = 5000;
-function _loginKey(req) {
-  // `app.set('trust proxy', 1)` (above) makes req.ip honour X-Forwarded-For
-  // from the immediate reverse proxy, so we don't need the deprecated
-  // req.connection.remoteAddress fallback.
-  return (req.ip || req.socket?.remoteAddress || 'unknown').toString();
-}
-function _isBlocked(ip) {
-  const rec = _loginAttempts.get(ip);
-  if (!rec) return false;
-  if (Date.now() - rec.firstMs > LOGIN_WINDOW_MS) { _loginAttempts.delete(ip); return false; }
-  return rec.count >= LOGIN_MAX;
-}
-function _noteFailure(ip) {
-  const now = Date.now();
-  // Lazy sweep: if the map has grown past the cap (a many-IP spray), drop
-  // every entry whose window has already expired before recording this one.
-  // No timer needed — the work piggybacks on the spray that caused it.
-  if (_loginAttempts.size > LOGIN_ATTEMPTS_MAX) {
-    for (const [k, v] of _loginAttempts) {
-      if (now - v.firstMs > LOGIN_WINDOW_MS) _loginAttempts.delete(k);
-    }
-  }
-  const rec = _loginAttempts.get(ip);
-  if (!rec || now - rec.firstMs > LOGIN_WINDOW_MS) {
-    _loginAttempts.set(ip, { count: 1, firstMs: now });
-  } else {
-    rec.count++;
-  }
-}
-
-/**
- * POST /api/login — Validate the supplied password and issue an
- * `edit_session` cookie on success. Tries the DM password first, then
- * the player password; the role baked into the cookie reflects which
- * matched. Rate-limited per source IP (15-minute window).
- *
- * Body: `{ password: string }`.
- * Response: `{ ok: true, role: 'dm' | 'player' }`.
- */
-app.post('/api/login', (req, res) => {
-  const ip = _loginKey(req);
-  if (_isBlocked(ip)) {
-    return res.status(429).json({ error: 'Příliš mnoho neúspěšných pokusů. Zkus to za 15 minut.' });
-  }
-  const { password } = req.body || {};
-  if (typeof password !== 'string') {
-    _noteFailure(ip);
-    return res.status(401).json({ error: 'Špatné heslo' });
-  }
-  let role = null;
-  if (_verifyPassword('dm', password)) {
-    role = 'dm';
-  } else if (_verifyPassword('player', password)) {
-    role = 'player';
-  }
-  if (!role) {
-    _noteFailure(ip);
-    return res.status(401).json({ error: 'Špatné heslo' });
-  }
-  _loginAttempts.delete(ip);
-  _setSessionCookie(res, role, role);
-  res.json({ ok: true, role });
-});
-
-/**
- * POST /api/logout — Clear the edit_session cookie. Idempotent; safe
- * for anonymous callers too. Lets a DM hand the laptop to a player
- * without leaving a DM session attached.
- */
-app.post('/api/logout', (_req, res) => {
-  res.clearCookie('edit_session', { path: '/' });
-  res.json({ ok: true });
-});
-
-/**
- * GET /api/auth — Probe the caller's current role and impersonation
- * state. Returns `{ role: null, realRole: null }` for anonymous users
- * (no 401) so the client can decide whether to show the login prompt
- * without a network-level failure for first-time visitors.
- */
-app.get('/api/auth', (req, res) => {
-  res.json({ role: req.role, realRole: req.realRole });
-});
-
-/**
- * POST /api/view-as — DM-only. Re-issue the session cookie with the
- * effective `role` flipped to 'player' while `realRole` stays 'dm'.
- * Used by the "View as player" toggle so the DM can verify what leaks
- * without re-entering the password.
- *
- * Authorization is based on req.realRole (the validated signed claim),
- * not req.role — so a DM already impersonating a player can still
- * call this (and idempotently stay in player mode).
- */
-app.post('/api/view-as', requireRealDM(), (req, res) => {
-  _setSessionCookie(res, 'dm', 'player');
-  res.json({ ok: true, role: 'player', realRole: 'dm' });
-});
-
-/**
- * POST /api/view-as-dm — DM-only. Flip the effective role back to
- * 'dm' from an active impersonation. Same auth rule as /api/view-as.
- */
-app.post('/api/view-as-dm', requireRealDM(), (req, res) => {
-  _setSessionCookie(res, 'dm', 'dm');
-  res.json({ ok: true, role: 'dm', realRole: 'dm' });
-});
-
-/**
- * GET /api/passwords — DM-only. Report which roles have a stored
- * password (vs falling back to env / default). Used by the Settings →
- * Účet tab to label each row "nastaveno" vs "z proměnné prostředí".
- *
- * Never reveals the hash or salt — only presence flags.
- */
-app.get('/api/passwords', requireRealDM(), (req, res) => {
-  const dm     = _storedCredentialFor('dm');
-  const player = _storedCredentialFor('player');
-  res.json({
-    dm: {
-      stored:    !!dm,
-      updatedAt: dm ? (dm.updatedAt || null) : null,
-      envFallback: !dm && !!(process.env.DM_PASSWORD || process.env.EDIT_PASSWORD),
-      isDefault: !dm && !(process.env.DM_PASSWORD || process.env.EDIT_PASSWORD),
-    },
-    player: {
-      stored:    !!player,
-      updatedAt: player ? (player.updatedAt || null) : null,
-      envFallback: !player && !!process.env.PLAYER_PASSWORD,
-      disabled:  !player && !process.env.PLAYER_PASSWORD,
-    },
-  });
-});
-
-/**
- * POST /api/passwords — DM-only. Set or change the DM or player
- * password. Stores `{ salt, hash, updatedAt }` to `data/auth.json`,
- * which supersedes any env-var value on subsequent restarts.
- *
- * Body: `{ role: 'dm' | 'player', newPassword: string, currentPassword?: string }`
- *
- * Rules:
- *   - Caller must currently hold a DM session (realRole === 'dm').
- *   - `currentPassword` MUST verify against the active DM password
- *     before any change is accepted. This blocks a stolen session
- *     cookie from rotating credentials silently.
- *   - `newPassword` ≥ 4 chars. Empty string for `role: 'player'`
- *     is a special case: clears the stored player credential AND
- *     means env fallback applies (or player auth is disabled if env
- *     is also empty). Empty DM password is rejected outright.
- *   - On success: writes auth.json, then re-issues the caller's
- *     cookie if they changed their own (DM) password — otherwise
- *     their session would be invalidated by the secret rotation.
- */
-app.post('/api/passwords', requireRealDM(), async (req, res) => {
-  const { role, newPassword, currentPassword } = req.body || {};
-  if (role !== 'dm' && role !== 'player') {
-    return res.status(400).json({ error: 'Neznámá role' });
-  }
-  if (typeof newPassword !== 'string') {
-    return res.status(400).json({ error: 'Heslo musí být řetězec' });
-  }
-  // Always require the DM's current password — even when rotating the
-  // player password, since a stolen session shouldn't be able to lock
-  // players out.
-  if (!_verifyPassword('dm', currentPassword || '')) {
-    return res.status(401).json({ error: 'Aktuální DM heslo nesouhlasí' });
-  }
-  // Validation: DM password must be non-trivial; empty player
-  // password is the documented "clear stored credential, fall back to
-  // env (or disable player auth)" lever.
-  if (role === 'dm' && newPassword.length < 4) {
-    return res.status(400).json({ error: 'DM heslo musí mít alespoň 4 znaky' });
-  }
-  if (role === 'player' && newPassword.length > 0 && newPassword.length < 4) {
-    return res.status(400).json({ error: 'Hráčské heslo musí mít alespoň 4 znaky (nebo prázdné pro vymazání)' });
-  }
-  if (newPassword.length > 200) {
-    return res.status(400).json({ error: 'Heslo je příliš dlouhé' });
-  }
-
-  await withWriteLock(async () => {
-    const current = { ..._loadStoredCredentials() };
-    if (role === 'player' && newPassword === '') {
-      delete current.player;
-    } else {
-      current[role] = hashPassword(newPassword);
-    }
-    await _writeStoredCredentials(current);
-  });
-
-  // After a DM password change the secret rotates, which invalidates
-  // every outstanding DM cookie — including ours. Re-issue so the
-  // caller stays logged in without a manual re-login.
-  if (role === 'dm') {
-    _setSessionCookie(res, 'dm', req.role === 'player' ? 'player' : 'dm');
-  }
-  res.json({ ok: true, role });
-});
+registerAuthRoutes(app);
 
 // Collections stored as keyed objects on disk (factions, settings,
 // campaign, deletedDefaults). Everything else is a plain entity-list
@@ -1067,6 +660,14 @@ app.post('/api/passwords', requireRealDM(), async (req, res) => {
 // converted to a keyed-object so individual tombstones can round-trip
 // through the per-entity PATCH path (no whole-collection wipe needed).
 const KEYED_OBJ_TYPES = new Set(['factions', 'settings', 'campaign', 'deletedDefaults']);
+const CORE_RESTORE_SHAPES = Object.freeze(Object.fromEntries(
+  ALL_TYPES.map(type => [
+    type,
+    type === 'deletedDefaults'
+      ? 'object-or-legacy-array'
+      : KEYED_OBJ_TYPES.has(type) ? 'object' : 'array',
+  ]),
+));
 
 // Types DMs alone can write to. Players are collaborative editors of
 // in-world content; they don't get to rename the campaign or reshape
@@ -1077,10 +678,10 @@ const DM_ONLY_WRITE_TYPES = new Set(['settings', 'campaign']);
 // Enabled addons may declare their own collections in addon.json. Each
 // becomes a colon-namespaced wire type `addon:<id>:<name>` that rides the
 // generic GET/PATCH /api/data path (file on disk: data/addon-data/<id>/
-// <name>.json — isolated, removed with the addon). We track exactly which
-// types we added so re-applying after an install/enable/disable is a clean
-// swap, never an accumulation. Metadata remains keyed by the full wire type so
-// authorization never infers ownership or access from a bare collection name.
+// <name>.json). We track exactly which types we added so re-applying after an
+// install/enable/disable is a clean swap, never an accumulation. Metadata
+// remains keyed by the full wire type so authorization never infers ownership
+// or access from a bare collection name.
 const _addonCollections = new Map();
 function _applyAddonCollections(reg) {
   // Drop everything we added last time.
@@ -1190,6 +791,14 @@ async function _restoreFault(phase) {
         await new Promise(resolve => { setTimeout(resolve, 10); });
       }
     }
+  }
+}
+
+async function _campaignMutationFault(phase) {
+  if (process.env.NODE_ENV !== 'test') return;
+  if (process.env.CODEX_MUTATION_CRASH_PHASE === phase) process.exit(88);
+  if (process.env.CODEX_MUTATION_FAIL_PHASE === phase) {
+    throw new Error(`Injected campaign mutation failure at ${phase}`);
   }
 }
 
@@ -1353,6 +962,70 @@ const _campaignRestores = new CampaignRestoreManager({
   }),
 });
 
+const _mediaPublications = new CampaignRestoreManager({
+  dataDir: DATA_DIR,
+  runtimeDir: MEDIA_RUNTIME_DIR,
+  publicationBarrier: _publicationBarrier,
+  maxEntries: 1024,
+  onFatal: error => {
+    console.error('[media] fatal publication state:', error);
+    setImmediate(() => process.exit(1));
+  },
+});
+const _mediaFiles = new MediaPublicationService({
+  dataDir: DATA_DIR,
+  stagingRoot: MEDIA_STAGING_ROOT,
+  manager: _mediaPublications,
+});
+
+const _campaignMutationPublications = new CampaignRestoreManager({
+  dataDir: DATA_DIR,
+  runtimeDir: MUTATION_RUNTIME_DIR,
+  publicationBarrier: _publicationBarrier,
+  maxEntries: ALL_TYPES.length,
+  fault: _campaignMutationFault,
+  onFatal: error => {
+    console.error('[campaign mutation] fatal publication state:', error);
+    setImmediate(() => process.exit(1));
+  },
+});
+
+async function _publishCampaignCollections(collections) {
+  const entries = Object.entries(collections);
+  if (!entries.length) return;
+  if (entries.length === 1) {
+    const [type, value] = entries[0];
+    await _writeJsonFile(getFile(type), JSON.stringify(value, null, 2));
+    return;
+  }
+
+  const candidateDir = await fsp.mkdtemp(path.join(MUTATION_STAGING_ROOT, 'mutation-'));
+  try {
+    const paths = [];
+    for (const [type, value] of entries) {
+      const target = getFile(type);
+      const relativePath = path.relative(DATA_DIR, target).replace(/\\/g, '/');
+      const staged = path.join(candidateDir, ...relativePath.split('/'));
+      await fsp.mkdir(path.dirname(staged), { recursive: true });
+      await fsp.writeFile(staged, JSON.stringify(value, null, 2), 'utf8');
+      paths.push(relativePath);
+    }
+    await _campaignMutationPublications.commit({ candidateDir, paths });
+    _invalidateDataHash();
+  } finally {
+    await fsp.rm(candidateDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+const _campaignMutations = new CampaignMutationService({
+  readCollection: type => _readJsonOr(
+    getFile(type),
+    KEYED_OBJ_TYPES.has(type) ? {} : [],
+  ),
+  publishCollections: _publishCampaignCollections,
+  createId: _generateId,
+});
+
 function _reconcileImportProviders(entries) {
   _importJobs.reconcilePackages((entries || []).map(entry => ({
     id: entry?.id,
@@ -1398,6 +1071,40 @@ async function _readJsonOr(filePath, fallback) {
   }
 }
 
+function _patchRecord(type, payload, container) {
+  if (Array.isArray(container)) {
+    if (type === 'relationships') {
+      return container.find(record =>
+        record?.source === payload?.source
+        && record?.target === payload?.target
+        && record?.type === payload?.type) || null;
+    }
+    return container.find(record => record?.id === payload?.id) || null;
+  }
+  if (KEYED_OBJ_TYPES.has(type) && container && typeof container === 'object') {
+    return container[payload?.id] ?? null;
+  }
+  return null;
+}
+
+async function _patchRecordRevision(role, type, payload, knownContainer) {
+  let container = knownContainer;
+  if (role === 'player') {
+    const { campaign } = await _readDatasetForRole('player');
+    container = campaign[type] ?? (KEYED_OBJ_TYPES.has(type) ? {} : []);
+  } else if (container === undefined) {
+    container = await _readJsonOr(
+      getFile(type),
+      KEYED_OBJ_TYPES.has(type) ? {} : [],
+    );
+  }
+  return writeRevision(_patchRecord(type, payload, container));
+}
+
+function _validWriteRevision(value) {
+  return typeof value === 'string' && /^[0-9a-f]{16}$/.test(value);
+}
+
 // ─ Player save sanitization ──────────────────────────────────────
 // Players write to public content but never touch DM-only fields,
 // secret-flagged fields, [secret] markers, or visibility flags. This
@@ -1434,7 +1141,7 @@ function _sanitizePlayerEntity(_type, payload, existing) {
   }
   // Legacy field — refuse to persist even if a stale client sends it.
   delete out.secrets;
-  // Per-entity addonData (Phase 5): shallow-merge the player's incoming
+  // Per-entity addonData: shallow-merge the player's incoming
   // namespaces OVER the existing ones, so a normal player edit (whose form
   // doesn't surface every addon's fields) can't DROP an addon's data by
   // omission. A player can still update a namespace they DO send (active
@@ -1519,21 +1226,9 @@ function _playerCanWrite(type, action, payload, existing) {
   return true;
 }
 
-// ─ Twin creation ────────────────────────────────────────────────
-// Build a new entity that mirrors `source` but lives in the opposite
-// visibility space. Pure: returns the new entity object; the caller
-// is responsible for setting up the bidirectional linkedTwinId and
-// persisting both records inside one withWriteLock.
-//
-// Field copy is verbatim across every property on the source except:
-//   - `id`           → generated fresh (slug + suffix; uniqueness
-//                      check is the caller's responsibility)
-//   - `visibility`   → flipped to the opposite space
-//   - `linkedTwinId` → set explicitly by the caller to point back
-//   - `updatedAt`    → stamped fresh
-//   - `secrets`      → legacy field; never copied (removed in pivot)
-// Relationships are a separate collection and are NOT auto-mirrored;
-// the DM clones them manually in a later iteration.
+// Entity ids are generated here because the same format is also part of the
+// browser Store contract. Twin invariants and persistence live in
+// CampaignMutationService.
 function _generateId(name) {
   const base = String(name || '')
     .toLowerCase()
@@ -1544,32 +1239,20 @@ function _generateId(name) {
   const suffix = Math.random().toString(36).slice(2, 8);
   return (base || 'e') + '_' + suffix;
 }
-function _createTwin(source) {
-  const twin = { ...source };
-  delete twin.id;
-  delete twin.linkedTwinId;
-  delete twin.updatedAt;
-  delete twin.secrets;
-  twin.id = _generateId(source.name || 'twin');
-  twin.visibility = source.visibility === 'dm' ? 'public' : 'dm';
-  twin.updatedAt = Date.now();
-  return twin;
-}
-
 /**
- * POST /api/twin — Create or unlink a twin entity. DM-only via
+ * POST /api/twin — Create, link, or unlink a twin entity. DM-only via
  * `req.realRole === 'dm'` (impersonating players cannot manage
  * twins; the write tier is gated on the underlying signed claim,
  * not the effective role).
  *
  * Body shape:
  *   { action: 'create', type: <collection>, sourceId: <id> }
+ *   { action: 'link', type: <collection>, sourceId: <id>, targetId: <id> }
  *   { action: 'unlink', type: <collection>, sourceId: <id> }
  *
- * Atomicity: both sides of the link are written inside one
- * `withWriteLock` pass, so a concurrent PATCH can't see the
- * intermediate state where one side has linkedTwinId but the other
- * doesn't. Broadcasts `data-changed` once at the end.
+ * CampaignMutationService owns the bidirectional invariant. Both sides share
+ * one collection file and become durable in one replacement; this route owns
+ * the lock, snapshot, response, and single broadcast.
  */
 app.post('/api/twin', requireRealDM(), (req, res) => {
   _runWriteRequest(res, async () => {
@@ -1590,94 +1273,20 @@ app.post('/api/twin', requireRealDM(), (req, res) => {
       if (typeof sourceId !== 'string' || !sourceId) {
         return res.status(400).json({ error: 'Missing sourceId' });
       }
-
-      const p = getFile(type);
-      const emptyContainer = KEYED_OBJ_TYPES.has(type) ? {} : [];
-      const container = await _readJsonOr(p, emptyContainer);
-
-      const isKeyed = KEYED_OBJ_TYPES.has(type);
-      const lookup  = id => isKeyed ? (container[id] || null)
-                                     : (container.find(x => x && x.id === id) || null);
-
-      const source = lookup(sourceId);
-      if (!source) return res.status(404).json({ error: 'Source entity not found' });
-
-      if (action === 'create') {
-        if (source.linkedTwinId) {
-          return res.status(409).json({ error: 'Entita už má spárovaný twin.' });
-        }
-        const twin = _createTwin(source);
-        // Uniqueness guard for the generated id (vanishingly rare
-        // collision; the caller retries on 500).
-        if (lookup(twin.id)) {
-          return res.status(500).json({ error: 'Twin id collision — try again.' });
-        }
-        twin.linkedTwinId = source.id;
-        source.linkedTwinId = twin.id;
-        source.updatedAt = Date.now();
-
-        if (isKeyed) {
-          container[twin.id] = twin;
-          // source already in container (mutated above)
-        } else {
-          // source already in container (mutated above)
-          container.push(twin);
-        }
-        await _atomicWrite(p, JSON.stringify(container, null, 2));
-        await _maybeSnapshot('save');
-        await _broadcastDataChanged();
-        return res.json({ ok: true, twinId: twin.id, twin });
-      }
-
-      if (action === 'link') {
-        // Link two EXISTING entities as twins. Used when a player
-        // unknowingly created a duplicate of a DM-only entity (the
-        // typical case the picker resolves) — the DM marries the two
-        // records instead of deleting + recreating.
-        if (typeof targetId !== 'string' || !targetId) {
-          return res.status(400).json({ error: 'Missing targetId' });
-        }
-        if (targetId === sourceId) {
-          return res.status(400).json({ error: 'Source and target must differ.' });
-        }
-        const target = lookup(targetId);
-        if (!target) return res.status(404).json({ error: 'Target entity not found' });
-        if (source.linkedTwinId || target.linkedTwinId) {
-          return res.status(409).json({ error: 'Jedna nebo obě entity už mají twin — odpárujte ho nejprve.' });
-        }
-        const srcVis = source.visibility === 'dm' ? 'dm' : 'public';
-        const tgtVis = target.visibility === 'dm' ? 'dm' : 'public';
-        if (srcVis === tgtVis) {
-          return res.status(400).json({
-            error: 'Twin musí být v opačném prostoru (jeden DM, druhý hráčský).',
-          });
-        }
-        source.linkedTwinId = target.id;
-        target.linkedTwinId = source.id;
-        source.updatedAt = Date.now();
-        target.updatedAt = Date.now();
-        await _atomicWrite(p, JSON.stringify(container, null, 2));
-        await _maybeSnapshot('save');
-        await _broadcastDataChanged();
-        return res.json({ ok: true });
-      }
-
-      // action === 'unlink'
-      if (!source.linkedTwinId) {
-        return res.status(409).json({ error: 'Entita nemá spárovaný twin.' });
-      }
-      const twin = lookup(source.linkedTwinId);
-      delete source.linkedTwinId;
-      source.updatedAt = Date.now();
-      if (twin) {
-        delete twin.linkedTwinId;
-        twin.updatedAt = Date.now();
-      }
-      await _atomicWrite(p, JSON.stringify(container, null, 2));
+      const result = await _campaignMutations.mutateTwin({
+        action,
+        type,
+        sourceId,
+        targetId,
+        keyed: KEYED_OBJ_TYPES.has(type),
+      });
       await _maybeSnapshot('save');
       await _broadcastDataChanged();
-      return res.json({ ok: true });
+      return res.json({ ok: true, ...result });
     } catch (e) {
+      if (e instanceof CampaignMutationError) {
+        return res.status(e.status).json({ error: e.message, code: e.code });
+      }
       console.error('POST /api/twin:', e);
       if (!res.headersSent) res.status(500).json({ error: 'Twin op failed' });
     }
@@ -1711,7 +1320,7 @@ app.patch('/api/data', (req, res) => {
   }
   _runWriteRequest(res, async () => {
     try {
-      const { type, action, payload } = req.body || {};
+      const { type, action, payload, baseRevision } = req.body || {};
 
       const parsedAddonType = AddonBroker.parseAddonType(type);
       const addonCollection = parsedAddonType ? _addonCollections.get(type) : null;
@@ -1749,18 +1358,25 @@ app.patch('/api/data', (req, res) => {
       // Look up the existing record (if any) — used both for the
       // player gating below and for the visibility-flip + delete-
       // cascade guards. Different lookup per collection shape.
-      let existing = null;
-      if (Array.isArray(container)) {
-        if (type === 'relationships') {
-          existing = container.find(r =>
-            r.source === payload.source &&
-            r.target === payload.target &&
-            r.type   === payload.type) || null;
-        } else {
-          existing = container.find(x => x.id === payload.id) || null;
+      let existing = _patchRecord(type, payload, container);
+
+      if (baseRevision !== undefined) {
+        if (!_validWriteRevision(baseRevision)) {
+          return res.status(400).json({ error: 'Invalid base revision' });
         }
-      } else if (KEYED_OBJ_TYPES.has(type)) {
-        existing = container[payload.id] || null;
+        const currentRevision = await _patchRecordRevision(
+          req.role,
+          type,
+          payload,
+          container,
+        );
+        if (baseRevision !== currentRevision) {
+          return res.status(409).json({
+            error: 'The record changed after it was loaded',
+            code: 'WRITE_CONFLICT',
+            currentRevision,
+          });
+        }
       }
 
       // Player role gating + payload sanitization. Done after the
@@ -1816,6 +1432,29 @@ app.patch('/api/data', (req, res) => {
         payload.portrait = await _migratePortraitPath(payload.id, payload.portrait);
       }
 
+      if (type === 'locations' && action === 'save') {
+        await _campaignMutations.saveLocation(payload, {
+          editablePeer: req.role === 'player'
+            ? peer => peer?.visibility !== 'dm'
+            : undefined,
+        });
+        await _maybeSnapshot('save');
+        await _broadcastDataChanged();
+        return res.json({
+          ok: true,
+          revision: await _patchRecordRevision(req.role, type, payload),
+        });
+      }
+      if (action === 'delete' && ['characters', 'locations', 'factions'].includes(type)) {
+        await _campaignMutations.deleteEntity(type, payload.id);
+        await _maybeSnapshot('save');
+        await _broadcastDataChanged();
+        return res.json({
+          ok: true,
+          revision: await _patchRecordRevision(req.role, type, payload),
+        });
+      }
+
       if (action === 'save') {
         if (Array.isArray(container)) {
           if (type === 'relationships') {
@@ -1854,26 +1493,6 @@ app.patch('/api/data', (req, res) => {
             container = container.filter(r => !(r.source === payload.source && r.target === payload.target && r.type === payload.type));
           } else {
             container = container.filter(x => x.id !== payload.id);
-            if (type === 'characters') {
-              const relP = getFile('relationships');
-              const rels = await _readJsonOr(relP, null);
-              if (Array.isArray(rels)) {
-                const filtered = rels.filter(r => r.source !== payload.id && r.target !== payload.id);
-                await _atomicWrite(relP, JSON.stringify(filtered, null, 2));
-              }
-              const evtP = getFile('events');
-              const evts = await _readJsonOr(evtP, null);
-              if (Array.isArray(evts) && evts.some(e => (e.characters || []).includes(payload.id))) {
-                const next = evts.map(e => ({ ...e, characters: (e.characters || []).filter(cid => cid !== payload.id) }));
-                await _atomicWrite(evtP, JSON.stringify(next, null, 2));
-              }
-              const mysP = getFile('mysteries');
-              const mys = await _readJsonOr(mysP, null);
-              if (Array.isArray(mys) && mys.some(m => (m.characters || []).includes(payload.id))) {
-                const next = mys.map(m => ({ ...m, characters: (m.characters || []).filter(cid => cid !== payload.id) }));
-                await _atomicWrite(mysP, JSON.stringify(next, null, 2));
-              }
-            }
           }
         } else {
           if (_isForbiddenKey(payload.id)) {
@@ -1883,20 +1502,69 @@ app.patch('/api/data', (req, res) => {
         }
       }
 
-      // Addon collections live in a per-addon subdir that may not exist yet
-      // (purged, or first write after a restore) — _atomicWrite won't create
-      // parents, so ensure it here. Core types always land in DATA_DIR.
-      if (parsedAddonType) {
-        await fsp.mkdir(path.dirname(p), { recursive: true });
-      }
-      await _atomicWrite(p, JSON.stringify(container, null, 2));
+      await _writeJsonFile(p, JSON.stringify(container, null, 2));
       const access = addonCollection?.access === 'dm' ? 'dm' : 'public';
       await _maybeSnapshot('save', access);
       await _broadcastDataChanged(access);
-      res.json({ ok: true });
+      res.json({
+        ok: true,
+        revision: await _patchRecordRevision(req.role, type, payload, container),
+      });
     } catch (e) {
+      if (e instanceof CampaignMutationError) {
+        return res.status(e.status).json({ error: e.message, code: e.code });
+      }
       console.error('PATCH /api/data:', e);
       if (!res.headersSent) res.status(500).json({ error: 'Patch error' });
+    }
+  });
+});
+
+app.delete('/api/campaign/enums/:category/:id', requireDM, (req, res) => {
+  _runWriteRequest(res, async () => {
+    try {
+      const baseRevision = req.body?.baseRevision;
+      const settingsBefore = await _readJsonOr(getFile('settings'), {});
+      const currentRevision = writeRevision(
+        settingsBefore[req.params.category] ?? null,
+      );
+      if (baseRevision !== undefined) {
+        if (!_validWriteRevision(baseRevision)) {
+          return res.status(400).json({ error: 'Invalid base revision' });
+        }
+        if (baseRevision !== currentRevision) {
+          return res.status(409).json({
+            error: 'The enum changed after it was loaded',
+            code: 'WRITE_CONFLICT',
+            currentRevision,
+          });
+        }
+      }
+      const result = await _campaignMutations.deleteEnumItem({
+        category: req.params.category,
+        id: req.params.id,
+        replaceWith: req.body?.replaceWith || '',
+        force: req.body?.force === true,
+        tombstone: req.body?.tombstone === true,
+      });
+      await _maybeSnapshot('save');
+      await _broadcastDataChanged();
+      const settings = await _readJsonOr(getFile('settings'), {});
+      res.json({
+        ok: true,
+        usages: result.usages,
+        revision: writeRevision(settings[req.params.category] ?? null),
+      });
+    } catch (error) {
+      if (error instanceof CampaignMutationError) {
+        return res.status(error.status).json({
+          error: error.message,
+          code: error.code,
+          ...(error.usages ? { usages: error.usages } : {}),
+        });
+      }
+      console.error('DELETE /api/campaign/enums:', error);
+      if (!res.headersSent) res.status(500).json({ error: 'Enum delete failed' });
     }
   });
 });
@@ -2208,7 +1876,7 @@ async function _readAddonsRegistry() {
   }
 }
 async function _writeAddonsRegistry(reg) {
-  await _atomicWrite(ADDONS_REGISTRY_FILE, JSON.stringify(reg, null, 2));
+  await _writeJsonFile(ADDONS_REGISTRY_FILE, JSON.stringify(reg, null, 2));
 }
 async function _repairLegacyAddonRegistry() {
   return withWriteLock(async () => {
@@ -2258,7 +1926,7 @@ function _publicAddonList(reg, role = 'player') {
       // registerCollection against these to wire its scoped CRUD.
       collections: AddonBroker.normalizeCollections(a.collections, a.apiVersion, a.capabilities)
         .filter(collection => role === 'dm' || collection.access === 'public'),
-      // Server-side code (Phase 7): does it ship one, and its live load state.
+      // Server-side code: whether it ships one, and its live load state.
       server:      !!a.server,
       serverState: contentBlocked && a.server ? 'blocked' : _serverStateFor(a),
       // Host-served declarative content (manifest `contentDir`) — data addons
@@ -2278,7 +1946,7 @@ function _publicAddonList(reg, role = 'player') {
       // over the UNFILTERED tree so a disabled group still shows its size);
       // null for addons that don't declare groups or aren't serving content.
       contentGroups: (content && content.groups) ? content.groups : null,
-      // Kept version history (Phase 9) — drives the rollback affordance. Trimmed
+      // Kept version history drives the rollback affordance. Trimmed
       // (no sha) to what the Manager needs. activeHash marks the live one.
       versions: Array.isArray(a.versions)
         ? a.versions.map(v => ({ contentHash: v.contentHash, version: v.version, installedAt: v.installedAt }))
@@ -2303,7 +1971,7 @@ function _playerAddonCapabilities(capabilities) {
   return required.length || optional.length ? { required, optional } : undefined;
 }
 
-// ── Server-side addon code (Phase 7) ─────────────────────────────
+// ── Server-side addon code ───────────────────────────────────────
 // An addon with a `server` entry + granted `server:code` may ship a Node
 // module the server loads IN-PROCESS (full trust — the permission is
 // transparency, not containment; install is DM-only + SHA-pinned). Its routes
@@ -2444,12 +2112,12 @@ function _makeServerHost(entry) {
       // reentrant — do NOT call host.data.write from inside host.withLock(...)
       // or it deadlocks the whole write chain. To do several writes in one
       // critical section, use host.withLock + host.data.dir + your own
-      // _atomicWrite, not nested host.data.write calls.
+      // _writeJsonFile, not nested host.data.write calls.
       write: (name, obj) => withWriteLock(async () => {
         const p = _addonDataPath(dataDir, name);
         if (!p) throw new Error(`unsafe data name "${name}"`);
         await fsp.mkdir(path.dirname(p), { recursive: true });
-        await _atomicWrite(p, JSON.stringify(obj, null, 2));
+        await _writeJsonFile(p, JSON.stringify(obj, null, 2));
       }),
     },
     // Read a CORE collection — gated by the granted data:read:<name> permission
@@ -2593,8 +2261,9 @@ function _serverStateFor(a) {
 }
 
 // Prune an addon's on-disk code dirs down to the versions the registry still
-// keeps (kept-K `versions[]` + activeHash) — old `<hash>/` dirs would otherwise
-// accumulate forever. Only content-hash-shaped dirs (16 hex) + a stale
+// keeps (kept-K `versions[]` + activeHash), plus hashes reachable from retained
+// recovery points — old `<hash>/` dirs would otherwise accumulate forever.
+// Only content-hash-shaped dirs (16 hex) + a stale
 // `.incoming` staging dir are ever removed; anything else is left untouched
 // (defence). Rollback targets always live in `versions[]`, so this never
 // deletes a reachable rollback. Caller holds the write lock (install) or runs
@@ -2617,7 +2286,7 @@ async function _reconcileAddonsFromDisk() {
   }
 }
 
-async function _pruneAddonVersions(entry) {
+async function _pruneAddonVersions(entry, referencedHashes) {
   if (!entry || !entry.id) return;
   const idDir = path.join(ADDONS_DIR, entry.id);
   let subs;
@@ -2627,6 +2296,8 @@ async function _pruneAddonVersions(entry) {
   for (const v of (Array.isArray(entry.versions) ? entry.versions : [])) {
     if (v && v.contentHash) keep.add(v.contentHash);
   }
+  const snapshotReferences = referencedHashes || await _snapshots.referencedAddonHashes();
+  for (const hash of snapshotReferences.get(entry.id) || []) keep.add(hash);
   for (const sub of subs) {
     if (keep.has(sub)) continue;
     if (sub === '.incoming' || /^\.incoming-[0-9a-f]{12}$/.test(sub) || /^[0-9a-f]{16}$/.test(sub)) {
@@ -2650,12 +2321,20 @@ async function _pruneAllAddonCode() {
   }
   let reg;
   try { reg = await _readAddonsRegistry(); } catch { return; }
-  for (const a of reg.addons) {
-    try { await _pruneAddonVersions(a); } catch (_) {}
+  const installed = new Map(reg.addons.map(addon => [addon.id, addon]));
+  const referencedHashes = await _snapshots.referencedAddonHashes();
+  const ids = new Set(installed.keys());
+  for (const item of rootEntries) {
+    if (item.isDirectory() && AddonBroker.ID_RE.test(item.name)) ids.add(item.name);
+  }
+  for (const id of ids) {
+    try {
+      await _pruneAddonVersions(installed.get(id) || { id }, referencedHashes);
+    } catch (_) {}
   }
 }
 
-// Phase 1 — staging (NO write lock): fetch → validate → content-hash → stage to
+// Staging (NO write lock): fetch → validate → content-hash → stage to
 // .incoming → run the server test green-gate. The network I/O and the (up to
 // 30 s) test run happen HERE, outside the lock, so installing an addon never
 // blocks other clients' saves/snapshots. Returns a staging descriptor for
@@ -2715,7 +2394,7 @@ async function _stageAddon(repo, ref, pinnedSha) {
     await fsp.mkdir(idDir, { recursive: true });
     await fsp.rename(rawIncoming, incoming);
 
-    // Tier-B green-gate (Phase 8): run the addon's declared SERVER self-tests
+    // Run the addon's declared server self-tests before promotion.
     // against the STAGED tree before promoting. Red → discard staging, never
     // activate (the existing stage→rename pipeline makes "revert" free).
     //
@@ -2748,7 +2427,7 @@ async function _stageAddon(repo, ref, pinnedSha) {
   }
 }
 
-// Phase 2 — promote (caller HOLDS the write lock): atomic-rename the staged tree
+// Promotion (caller HOLDS the write lock): atomic-rename the staged tree
 // into the content-addressed dir, then the registry read-modify-write + live
 // collection wiring + version prune. Only this fast, disk-local phase is
 // serialized. Returns the updated registry entry.
@@ -2913,7 +2592,7 @@ app.post('/api/addons/resolve', requireRealDM('Jen DM může řešit konflikty d
   }
 });
 
-// DM-only (realRole) ON-DEMAND update check (Phase 9). For each addon installed
+// DM-only (realRole) on-demand update check. For each addon installed
 // from a real GitHub repo, re-resolve its stored ref → the latest commit SHA and
 // diff against the installed `sha`. PURE READ — resolves only, never downloads /
 // installs (applying an update opens the wizard). Per-addon failures are
@@ -2985,7 +2664,7 @@ app.post('/api/addons/update-all', requireRealDM('Jen DM může aktualizovat dop
   }
 });
 
-// DM-only (realRole) content-addressed ROLLBACK (Phase 9). Flip `activeHash` to
+// DM-only (realRole) content-addressed rollback. Flip `activeHash` to
 // a kept prior version — instant + offline (no re-fetch), since every version's
 // code dir survives under data/addons/<id>/<hash>/. Restores that version's
 // structural manifest fields too (entry/server/serverDeps/collections/deps) so
@@ -3010,7 +2689,7 @@ app.post('/api/addons/:id/rollback', requireRealDM('Jen DM může vracet verze d
         target = idx > 0 ? versions[idx - 1] : versions[versions.length - 2];   // the one before active
       }
       if (!target) return { status: 400, error: 'Cílová verze nenalezena.' };
-      // Verify the code dir still exists (defence — Phase 10 pruning keeps the
+      // Verify the code dir still exists (pruning keeps the
       // kept-K dirs, but a manual delete could have removed it).
       const codeDir = _safeJoinIn(path.join(ADDONS_DIR, id), target.contentHash);
       const codeDirExists = codeDir ? await fsp.access(codeDir).then(() => true, () => false) : false;
@@ -3281,11 +2960,12 @@ app.delete('/api/addons/:id', requireRealDM('Jen DM může spravovat doplňky.')
         if (reg.resolutions[k] === id) reg.resolutions[k] = null;
       }
       await _writeAddonsRegistry(reg);
-      // Remove with the VALIDATED joined path (the _safeJoinIn contract), not a
-      // freshly recomputed path.join — id is ID_RE-checked so they're equal here,
-      // but using the safe result is the intended pattern.
-      const codeDir = _safeJoinIn(ADDONS_DIR, id);
-      if (codeDir) await fsp.rm(codeDir, { recursive: true, force: true }).catch(() => {});
+      // Retained recovery points may restore this registry entry. Keep only
+      // packages they can still select; ordinary orphan packages are removed.
+      await _pruneAddonVersions(
+        { id },
+        await _snapshots.referencedAddonHashes(),
+      ).catch(() => {});
       if (purge) {
         const dataDir = _safeJoinIn(ADDON_DATA_DIR, id);
         if (dataDir) await fsp.rm(dataDir, { recursive: true, force: true }).catch(() => {});
@@ -3305,81 +2985,49 @@ app.delete('/api/addons/:id', requireRealDM('Jen DM může spravovat doplňky.')
   }
 });
 
-/**
- * GET /api/events — Server-Sent Events stream.
- *
- * Emits a `hello` event on connect carrying the current data hash so
- * the client can dedupe its very first refetch. Emits `data-changed`
- * after every successful write. Pings every 25 s to keep proxies from
- * dropping the idle connection.
- *
- * Auth: none — read-only event stream.
- */
-app.get('/api/events', async (req, res) => {
-  // Connection caps. The endpoint is unauthenticated (read-only stream),
-  // so without a ceiling a script could open connections until the
-  // 512 MB container starves — each one holds a socket + a 25 s ping
-  // timer and every _broadcast iterates the whole set. Both limits are
-  // far above what a real table ever produces (a party is < 10 clients);
-  // the per-IP cap stays generous because a reverse proxy can funnel
-  // every legitimate client through one address.
-  if (_sseClients.size >= SSE_MAX_CLIENTS
-      || (_sseClientsByIp.get(req.ip) || 0) >= SSE_MAX_PER_IP) {
-    return res.status(503).json({ error: 'Too many event-stream connections' });
-  }
-  res.set({
-    'Content-Type':      'text/event-stream',
-    'Cache-Control':     'no-cache, no-transform',
-    'Connection':        'keep-alive',
-    'X-Accel-Buffering': 'no',
-  });
-  res.flushHeaders?.();
-  const role = req.role === 'dm' ? 'dm' : 'player';
-  const hash = await _dataHash(role);
-  // Guard the handshake write: a client that disconnects between
-  // flushHeaders and here makes res.write throw. Bail rather than let
-  // the rejection escape the handler (the ping below is guarded too).
-  try {
-    res.write(`event: hello\ndata: ${JSON.stringify({ hash, at: Date.now() })}\n\n`);
-  } catch (_) { return; }
-  _sseClients.set(res, role);
-  const ip = req.ip;
-  _sseClientsByIp.set(ip, (_sseClientsByIp.get(ip) || 0) + 1);
+registerLiveSyncRoute(app);
 
-  const ping = setInterval(() => {
-    try { res.write(`: ping ${Date.now()}\n\n`); } catch (_) {}
-  }, 25_000);
-
-  req.on('close', () => {
-    clearInterval(ping);
-    _sseClients.delete(res);
-    const n = (_sseClientsByIp.get(ip) || 0) - 1;
-    if (n > 0) _sseClientsByIp.set(ip, n);
-    else _sseClientsByIp.delete(ip);
-  });
-});
+function _runMediaUpload(req, res, label, task) {
+  const cleanup = () => req.file?.path
+    ? fsp.unlink(req.file.path).catch(() => {})
+    : Promise.resolve();
+  return _runWriteRequest(res, async () => {
+    try {
+      await task();
+    } catch (error) {
+      console.error(`[media] ${label}:`, error);
+      if (!res.headersSent) res.status(500).json({ error: 'Upload failed' });
+    } finally {
+      await cleanup();
+    }
+  }, cleanup);
+}
 
 /**
  * POST /api/portrait/:charId — Upload a character portrait image.
  *
  * Multer config caps at 20 MB and rejects non-image MIME types.
- * After write, removes any previous portrait files in the same
- * subfolder so only the new file remains (the URL the client stores
- * doesn't carry an extension hint).
+ * The parsed file remains in campaign-scoped staging until the media
+ * journal atomically replaces any previous portrait extension.
  *
  * Auth: required.
  */
 app.post('/api/portrait/:charId', requireAnyRole, uploadChar.single('portrait'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image received' });
-  const charId  = (req.params.charId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
-  const charDir = path.join(PORTRAITS_DIR, charId);
-  const newFile = req.file.filename;
-  try {
-    const list = await fsp.readdir(charDir);
-    await Promise.all(list.filter(f => f !== newFile && /^portrait\./i.test(f))
-      .map(f => fsp.unlink(path.join(charDir, f)).catch(() => {})));
-  } catch (_) {}
-  res.json({ url: `/portraits/${charId}/${req.file.filename}` });
+  return _runMediaUpload(req, res, 'portrait upload', async () => {
+    const charId = (req.params.charId || '')
+      .replace(/[^a-z0-9_-]/gi, '_')
+      .substring(0, 60);
+    if (!charId) return res.status(400).json({ error: 'Invalid character id' });
+    const extension = imageExtension(req.file, '.jpg');
+    await _mediaFiles.publishReplacement({
+      stagedPath: req.file.path,
+      relativeDir: `portraits/${charId}`,
+      baseName: 'portrait',
+      extension,
+    });
+    res.json({ url: `/portraits/${charId}/portrait${extension}` });
+  });
 });
 
 // ── Tile pyramid ──────────────────────────────────────────────────
@@ -3392,30 +3040,33 @@ catch (e) { console.warn('[tiles] sharp not installed — tile generation disabl
 
 /**
  * POST /api/localmap/:locId — Upload a local sub-map image for a
- * location. Removes any prior file with a different extension and
- * schedules an async tile-pyramid rebuild. The returned URL is always
- * usable; tiles just accelerate subsequent loads. Auth: required.
+ * location. Journal-replaces any prior extension and schedules an
+ * immutable tile-generation rebuild. The returned image URL remains the
+ * fallback while tiles build. Auth: required.
  */
 app.post('/api/localmap/:locId', requireAnyRole, uploadLocalMap.single('localmap'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image received' });
-  const locId  = (req.params.locId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
-  const locDir = path.join(LOCAL_MAPS_DIR, locId);
-  const newFile = req.file.filename;
-  try {
-    const list = await fsp.readdir(locDir);
-    await Promise.all(list.filter(f => f !== newFile && /^map\./i.test(f))
-      .map(f => fsp.unlink(path.join(locDir, f)).catch(() => {})));
-  } catch (_) {}
-  const url = `/maps/local/${locId}/${req.file.filename}`;
-  // Kick off tile generation in the background; the URL above is
-  // always usable (fallback), tiles just accelerate subsequent loads.
-  // mapId MUST be `local-<locId>` — that's what the client's
-  // _currentMapId() requests (`/maps/tiles/local-<locId>/tiles.json`);
-  // the old `local/<locId>` id left every pyramid unreachable.
-  if (_tiler) _tiler.buildFor(`local-${locId}`, path.join(locDir, newFile)).catch(e => {
-    console.warn(`[tiles] build failed for local-${locId}:`, e.message);
+  return _runMediaUpload(req, res, 'local map upload', async () => {
+    const locId = (req.params.locId || '')
+      .replace(/[^a-z0-9_-]/gi, '_')
+      .substring(0, 60);
+    if (!locId) return res.status(400).json({ error: 'Invalid location id' });
+    const extension = imageExtension(req.file, '.jpg');
+    await _mediaFiles.publishReplacement({
+      stagedPath: req.file.path,
+      relativeDir: `maps/local/${locId}`,
+      baseName: 'map',
+      extension,
+    });
+    const url = `/maps/local/${locId}/map${extension}`;
+    if (_tiler) {
+      _tiler.buildFor(`local-${locId}`, path.join(LOCAL_MAPS_DIR, locId, `map${extension}`))
+        .catch(error => {
+          console.warn(`[tiles] build failed for local-${locId}:`, error.message);
+        });
+    }
+    res.json({ url });
   });
-  res.json({ url });
 });
 
 // Serve tiles as static files. The tiler writes to
@@ -3462,7 +3113,6 @@ app.post('/api/icons/:pinTypeId', requireDM, uploadIcons.array('icons', 16), (re
       if (!req.files || !req.files.length) return res.status(400).json({ error: 'No files received' });
 
       const dir = path.join(ICONS_DIR, pinTypeId);
-      await fsp.mkdir(dir, { recursive: true });
       // Resolve filename collisions deterministically (slug, slug-2, …)
       // against both the existing dir AND names already taken earlier in
       // THIS batch, so two identically-named uploads in one request don't
@@ -3470,6 +3120,7 @@ app.post('/api/icons/:pinTypeId', requireDM, uploadIcons.array('icons', 16), (re
       const taken = new Set();
       try { for (const f of await fsp.readdir(dir)) taken.add(f); } catch (_) {}
       const out = [];
+      const files = [];
       for (const f of req.files) {
         const ext  = _iconExt(f.originalname);
         const slug = _slugifyIconName(f.originalname);
@@ -3477,11 +3128,13 @@ app.post('/api/icons/:pinTypeId', requireDM, uploadIcons.array('icons', 16), (re
         let n = 2;
         while (taken.has(name)) name = `${slug}-${n++}${ext}`;
         taken.add(name);
-        const dest = _safeJoinIn(dir, name);
-        if (!dest) continue;   // slug is sanitised; defensive guard only
-        await fsp.writeFile(dest, f.buffer);
+        files.push({ name, content: f.buffer });
         out.push({ id: name, url: `/icons/${pinTypeId}/${name}`, name: f.originalname });
       }
+      await _mediaFiles.publishBuffers({
+        relativeDir: `icons/${pinTypeId}`,
+        files,
+      });
       res.json({ files: out });
     } catch (e) {
       console.error('POST /api/icons:', e);
@@ -3495,18 +3148,22 @@ app.delete('/api/icons/:pinTypeId/:filename', requireDM, (req, res) => {
     try {
       const pinTypeId = (req.params.pinTypeId || '').replace(/[^a-z0-9_\-]/gi, '_').substring(0, 60);
       if (!pinTypeId) return res.status(400).json({ error: 'Invalid pinTypeId' });
+      const filename = String(req.params.filename || '');
+      if (!/^[a-z0-9_-]{1,80}\.(?:svg|png|jpe?g|webp)$/i.test(filename)) {
+        return res.status(400).json({ error: 'Invalid filename' });
+      }
       const dir    = path.join(ICONS_DIR, pinTypeId);
-      const target = _safeJoinIn(dir, req.params.filename || '');
+      const target = _safeJoinIn(dir, filename);
       if (!target) return res.status(400).json({ error: 'Invalid filename' });
       try {
         const stat = await fsp.lstat(target);
         if (stat.isSymbolicLink()) return res.status(400).json({ error: 'Symlinks not allowed' });
         if (!stat.isFile()) return res.status(400).json({ error: 'Not a file' });
-        await fsp.unlink(target);
       } catch (e) {
         if (e.code === 'ENOENT') return res.json({ ok: true });
         throw e;
       }
+      await _mediaFiles.removeFiles([`icons/${pinTypeId}/${filename}`]);
       res.json({ ok: true });
     } catch (e) {
       console.error('DELETE /api/icons/:pinTypeId/:filename:', e);
@@ -3525,7 +3182,15 @@ app.delete('/api/icons/:pinTypeId', requireDM, (req, res) => {
       try {
         const stat = await fsp.lstat(target);
         if (stat.isSymbolicLink()) return res.status(400).json({ error: 'Symlinks not allowed' });
-        if (stat.isDirectory()) await fsp.rm(target, { recursive: true, force: true });
+        if (!stat.isDirectory()) return res.status(400).json({ error: 'Not a directory' });
+        const entries = await fsp.readdir(target, { withFileTypes: true });
+        if (entries.some(entry => !entry.isFile())) {
+          return res.status(400).json({ error: 'Unexpected icon entry' });
+        }
+        await _mediaFiles.removeFiles(
+          entries.map(entry => `icons/${pinTypeId}/${entry.name}`),
+        );
+        await fsp.rmdir(target).catch(() => {});
       } catch (e) {
         if (e.code === 'ENOENT') return res.json({ ok: true });
         throw e;
@@ -3542,22 +3207,35 @@ app.delete('/api/portrait/:identifier', requireAnyRole, async (req, res) => {
   const identifier = (req.params.identifier || '').replace(/[^a-z0-9_\-\.]/gi, '_');
   const target     = _safeJoinIn(PORTRAITS_DIR, identifier);
   if (!target) return res.status(400).json({ error: 'Invalid identifier' });
-  try {
-    let stat;
-    try { stat = await fsp.lstat(target); }
-    catch (e) {
-      if (e.code === 'ENOENT') return res.json({ ok: true });
-      throw e;
+  return _runWriteRequest(res, async () => {
+    try {
+      let stat;
+      try { stat = await fsp.lstat(target); }
+      catch (error) {
+        if (error.code === 'ENOENT') return res.json({ ok: true });
+        throw error;
+      }
+      if (stat.isSymbolicLink()) return res.status(400).json({ error: 'Symlinks not allowed' });
+      if (stat.isDirectory()) {
+        const entries = await fsp.readdir(target, { withFileTypes: true });
+        if (entries.some(entry => !entry.isFile())) {
+          return res.status(400).json({ error: 'Unexpected portrait entry' });
+        }
+        await _mediaFiles.removeFiles(
+          entries.map(entry => `portraits/${identifier}/${entry.name}`),
+        );
+        await fsp.rmdir(target).catch(() => {});
+      } else if (stat.isFile()) {
+        await _mediaFiles.removeFiles([`portraits/${identifier}`]);
+      } else {
+        return res.status(400).json({ error: 'Not a file' });
+      }
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('DELETE /api/portrait:', e);
+      if (!res.headersSent) res.status(500).json({ error: 'Delete error' });
     }
-    // Refuse symlinks — never follow them out of PORTRAITS_DIR.
-    if (stat.isSymbolicLink()) return res.status(400).json({ error: 'Symlinks not allowed' });
-    if (stat.isDirectory()) await fsp.rm(target, { recursive: true, force: true });
-    else await fsp.unlink(target);
-    res.json({ ok: true });
-  } catch (e) {
-    console.error('DELETE /api/portrait:', e);
-    res.status(500).json({ error: 'Delete error' });
-  }
+  });
 });
 
 registerSnapshotRoutes(app, {
@@ -3565,29 +3243,17 @@ registerSnapshotRoutes(app, {
   requireAnyRole,
   requireDM,
   runWriteRequest: _runWriteRequest,
-  broadcastDataChanged: _broadcastDataChanged,
   minManualIntervalMs: Number(
     process.env.CODEX_SNAPSHOT_MIN_INTERVAL_MS ?? 3000,
   ),
 });
 
 // ── World-map upload ─────────────────────────────────────────
-// Writes the image to `data/maps/swordcoast/sword_coast.<ext>`
-// (the canonical default path the client reads). Removes any
-// existing world-map file with a different extension so the
-// newest upload always wins. Triggers async tile-pyramid build.
-const worldMapStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    fs.mkdirSync(SWORDCOAST_DIR, { recursive: true });
-    cb(null, SWORDCOAST_DIR);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-    cb(null, 'sword_coast' + ext);
-  },
-});
+// The media journal publishes `data/maps/swordcoast/sword_coast.<ext>`
+// as the canonical source and removes prior extensions in the same
+// operation. Tile generation runs afterward against that durable source.
 const uploadWorldMap = multer({
-  storage:    worldMapStorage,
+  storage:    mediaUploadStorage,
   limits:     { fileSize: 40 * 1024 * 1024 },
   fileFilter: _imageFilter,
 });
@@ -3600,42 +3266,31 @@ const uploadWorldMap = multer({
  */
 app.post('/api/worldmap', requireDM, uploadWorldMap.single('worldmap'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image received' });
-  const newFile = req.file.filename;
-  try {
-    const list = await fsp.readdir(SWORDCOAST_DIR);
-    await Promise.all(list.filter(f => f !== newFile && /^sword_coast\./i.test(f))
-      .map(f => fsp.unlink(path.join(SWORDCOAST_DIR, f)).catch(() => {})));
-  } catch (_) {}
-  const url = `/maps/swordcoast/${newFile}`;
-  // Schedule tile rebuild so the Leaflet path picks up the new image.
-  // mapId MUST be `world` — that's what the client's _currentMapId()
-  // requests (`/maps/tiles/world/tiles.json`); the old filename-derived
-  // `swordcoast/<base>` id left the pyramid unreachable.
-  if (_tiler) {
-    _tiler.buildFor('world', path.join(SWORDCOAST_DIR, newFile)).catch(e => {
-      console.warn('[tiles] build failed for world:', e.message);
+  return _runMediaUpload(req, res, 'world map upload', async () => {
+    const extension = imageExtension(req.file, '.jpg');
+    await _mediaFiles.publishReplacement({
+      stagedPath: req.file.path,
+      relativeDir: 'maps/swordcoast',
+      baseName: 'sword_coast',
+      extension,
     });
-  }
-  res.json({ url });
+    const source = path.join(SWORDCOAST_DIR, `sword_coast${extension}`);
+    if (_tiler) {
+      _tiler.buildFor('world', source).catch(error => {
+        console.warn('[tiles] build failed for world:', error.message);
+      });
+    }
+    res.json({ url: `/maps/swordcoast/sword_coast${extension}` });
+  });
 });
 
 // ── Site logo upload ─────────────────────────────────────────
-// Writes the uploaded image to `data/branding/logo.<ext>` (replacing
-// any previous logo of a different extension). The client stores the
-// returned URL in `settings.branding.logoUrl`; clearing that (or
-// DELETE below) falls back to the bundled `web/branding/logo-default.svg`.
-const brandingStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    fs.mkdirSync(BRANDING_DIR, { recursive: true });
-    cb(null, BRANDING_DIR);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '.png';
-    cb(null, 'logo' + ext);
-  },
-});
+// The media journal publishes `data/branding/logo.<ext>` and removes any
+// previous extension in the same operation. The client stores the returned
+// URL in `settings.branding.logoUrl`; clearing that (or DELETE below) falls
+// back to the bundled `web/branding/logo-default.svg`.
 const uploadLogo = multer({
-  storage:    brandingStorage,
+  storage:    mediaUploadStorage,
   limits:     { fileSize: 5 * 1024 * 1024 },
   fileFilter: _imageFilter,
 });
@@ -3647,13 +3302,16 @@ const uploadLogo = multer({
  */
 app.post('/api/logo', requireDM, uploadLogo.single('logo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image received' });
-  const newFile = req.file.filename;
-  try {
-    const list = await fsp.readdir(BRANDING_DIR);
-    await Promise.all(list.filter(f => f !== newFile && /^logo\./i.test(f))
-      .map(f => fsp.unlink(path.join(BRANDING_DIR, f)).catch(() => {})));
-  } catch (_) {}
-  res.json({ url: `/branding/${newFile}` });
+  return _runMediaUpload(req, res, 'logo upload', async () => {
+    const extension = imageExtension(req.file, '.png');
+    await _mediaFiles.publishReplacement({
+      stagedPath: req.file.path,
+      relativeDir: 'branding',
+      baseName: 'logo',
+      extension,
+    });
+    res.json({ url: `/branding/logo${extension}` });
+  });
 });
 
 /**
@@ -3661,12 +3319,19 @@ app.post('/api/logo', requireDM, uploadLogo.single('logo'), async (req, res) => 
  * takes over again. Idempotent. Auth: DM only.
  */
 app.delete('/api/logo', requireDM, async (_req, res) => {
-  try {
-    const list = await fsp.readdir(BRANDING_DIR).catch(() => []);
-    await Promise.all(list.filter(f => /^logo\./i.test(f))
-      .map(f => fsp.unlink(path.join(BRANDING_DIR, f)).catch(() => {})));
-  } catch (_) {}
-  res.json({ ok: true });
+  return _runWriteRequest(res, async () => {
+    try {
+      const list = await fsp.readdir(BRANDING_DIR).catch(() => []);
+      await _mediaFiles.removeFiles(
+        list.filter(file => /^logo\./i.test(file))
+          .map(file => `branding/${file}`),
+      );
+      res.json({ ok: true });
+    } catch (error) {
+      console.error('DELETE /api/logo:', error);
+      if (!res.headersSent) res.status(500).json({ error: 'Delete error' });
+    }
+  });
 });
 
 /**
@@ -3820,6 +3485,12 @@ function _restoreErr(userMessage) {
   return e;
 }
 
+function _restoreCandidateErr(error) {
+  if (!(error instanceof RestoreCandidateError)) return error;
+  const file = error.relativePath ? ` „${error.relativePath}"` : '';
+  return _restoreErr(`Záloha obsahuje neplatná data${file}`);
+}
+
 // Pass 1 — zip-bomb scan BEFORE anything is written: too many entries, a
 // single absurdly large file, or an absurd total uncompressed size (all
 // from central-directory metadata; realistic backups stay far under).
@@ -3918,6 +3589,28 @@ async function _stageJsonRestore(uploadPath, candidateDir) {
   return restored;
 }
 
+async function _publishSnapshotRestore(files) {
+  const candidateDir = await fsp.mkdtemp(path.join(RESTORE_STAGING_ROOT, 'snapshot-'));
+  try {
+    const paths = Object.keys(files).sort();
+    for (const relativePath of paths) {
+      if (!isSnapshotFileKey(relativePath)) {
+        throw new Error(`Invalid snapshot path: ${relativePath}`);
+      }
+      const target = path.join(candidateDir, ...relativePath.split('/'));
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      await fsp.writeFile(target, JSON.stringify(files[relativePath], null, 2), 'utf8');
+    }
+    const currentPaths = (await _trackedDataFiles()).map(entry => entry.key);
+    const restored = new Set(paths);
+    const removePaths = currentPaths.filter(relativePath => !restored.has(relativePath));
+    if (!paths.length && !removePaths.length) return { ok: true };
+    return await _campaignRestores.commit({ candidateDir, paths, removePaths });
+  } finally {
+    await fsp.rm(candidateDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 /**
  * POST /api/restore — Replace the live `data/` directory from an
  * uploaded backup. Accepts both formats:
@@ -3994,16 +3687,35 @@ app.post('/api/restore', requireDM, restoreUpload.single('backup'), async (req, 
     if (!restored.length) {
       throw _restoreErr('Záloha neobsahuje žádná obnovitelná data');
     }
+    try {
+      await validateRestoreCandidate({
+        candidateDir,
+        paths: restored,
+        isAuthoritativePath: isSnapshotFileKey,
+        coreShapes: CORE_RESTORE_SHAPES,
+      });
+    } catch (error) {
+      throw _restoreCandidateErr(error);
+    }
     if (disconnected) return;
 
     await _runWriteRequest(res, async () => {
       if (disconnected) return;
+      await _createSnapshot('pre-restore');
+      let prepared;
       try {
-        await _createSnapshot('pre-restore');
+        prepared = await prepareRestoreCandidate({
+          candidateDir,
+          paths: restored,
+          liveFiles: await _trackedDataFiles(),
+          isAuthoritativePath: isSnapshotFileKey,
+          coreShapes: CORE_RESTORE_SHAPES,
+          migrations: CAMPAIGN_MIGRATIONS,
+        });
       } catch (error) {
-        console.warn('[restore] pre-restore snapshot failed:', error.message);
+        throw _restoreCandidateErr(error);
       }
-      await _campaignRestores.commit({ candidateDir, paths: restored });
+      await _campaignRestores.commit({ candidateDir, paths: prepared.paths });
       if (!res.headersSent) {
         const result = { ok: true, format, restored: restored.length };
         if (format === 'zip') result.skipped = skipped.length;
@@ -4022,7 +3734,7 @@ app.post('/api/restore', requireDM, restoreUpload.single('backup'), async (req, 
   }
 });
 
-// Server-addon route dispatcher (Phase 7). A single stable mount, registered
+// Server-addon route dispatcher. A single stable mount, registered
 // BEFORE the SPA fallback, that delegates `/api/addon/<id>/*` to the addon's
 // live Express Router (populated at boot). Singular `/api/addon/` can't collide
 // with the plural `/api/addons` management routes above. `req.role`/`realRole`
@@ -4178,6 +3890,8 @@ async function _prepareOwnedTemp(root, label) {
 async function _bootstrap() {
   await _prepareOwnedTemp(IMPORT_TEMP_ROOT, 'import');
   await _prepareOwnedTemp(RESTORE_STAGING_ROOT, 'restore');
+  await _prepareOwnedTemp(MEDIA_STAGING_ROOT, 'media');
+  await _prepareOwnedTemp(MUTATION_STAGING_ROOT, 'campaign mutation');
   const recovery = await _collectionTransactions.recover();
   if (recovery.committed.length || recovery.rolledBack.length
       || recovery.cleaned.length || recovery.invalid.length) {
@@ -4188,37 +3902,18 @@ async function _bootstrap() {
       || restoreRecovery.cleaned.length) {
     console.log('[restore] startup recovery:', restoreRecovery);
   }
-  // Loud warnings about password configuration. The codebase is open-
-  // source so anyone can compute SHA256(...) — a deployment that left
-  // DM_PASSWORD unset (or set to the default "123") would be world-
-  // editable. A stored credential in data/auth.json (set via Settings
-  // → Účet) satisfies the same requirement and silences the warning.
-  // EDIT_PASSWORD is the legacy alias; honour it but nag.
-  const storedDm     = !!_storedCredentialFor('dm');
-  const storedPlayer = !!_storedCredentialFor('player');
-  const dmPwdRaw  = process.env.DM_PASSWORD || process.env.EDIT_PASSWORD;
-  const playerPwd = process.env.PLAYER_PASSWORD;
-  const legacy    = !!process.env.EDIT_PASSWORD && !process.env.DM_PASSWORD;
-  if (!storedDm && (!dmPwdRaw || dmPwdRaw === '123')) {
-    console.warn('');
-    console.warn('  ⚠  DM password is ' + (dmPwdRaw ? 'the default ("123")' : 'UNSET') + '.');
-    console.warn('     Anyone with the source can compute the cookie value and gain DM access.');
-    console.warn('     Set DM_PASSWORD in the environment, OR sign in once and change it from Settings → Účet.');
-    console.warn('');
-  } else if (!storedDm && legacy) {
-    console.warn('');
-    console.warn('  ℹ  Using EDIT_PASSWORD as DM_PASSWORD (back-compat alias).');
-    console.warn('     Set DM_PASSWORD explicitly to silence this notice.');
-    console.warn('');
-  } else if (storedDm) {
-    console.log('  ✓  DM password loaded from data/auth.json (overrides env var).');
+  const mediaRecovery = await _mediaPublications.recover();
+  if (mediaRecovery.committed.length || mediaRecovery.rolledBack.length
+      || mediaRecovery.cleaned.length) {
+    console.log('[media] startup recovery:', mediaRecovery);
   }
-  if (!storedPlayer && !playerPwd) {
-    console.warn('  ℹ  Player password is unset — player login is disabled.');
-    console.warn('     Unauthenticated visitors see only public content (same view as a player).');
-    console.warn('     Set PLAYER_PASSWORD, or sign in as DM and configure it from Settings → Účet.');
-    console.warn('');
+  const mutationRecovery = await _campaignMutationPublications.recover();
+  if (mutationRecovery.committed.length || mutationRecovery.rolledBack.length
+      || mutationRecovery.cleaned.length) {
+    console.log('[campaign mutation] startup recovery:', mutationRecovery);
   }
+  if (_tiler) await _tiler.cleanupStaging();
+  _auth.reportConfiguration();
   try {
     await runStartupMigrations();
   } catch (e) {
@@ -4241,7 +3936,7 @@ async function _bootstrap() {
   } catch (e) {
     console.warn('[addons] collection type seed failed:', e.message);
   }
-  // Load enabled server-side addons (Phase 7) before listening so their
+  // Load enabled server-side addons before listening so their
   // /api/addon/<id>/* routes are ready. Each load is isolated — a throwing
   // addon is recorded as `error`, never crashing boot.
   try {

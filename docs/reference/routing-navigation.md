@@ -255,11 +255,11 @@ Login lives in two places, decoupled from editing:
 - **Settings → Účet "🔑 Přihlásit" button** for users who navigate
   there manually.
 
-Both buttons fire `EditMode.promptLogin()` (formerly `EditMode.toggle`;
-renamed when global edit mode was retired). The function:
+Both buttons fire the stable `EditMode.promptLogin()` facade. The actual modal
+and request lifecycle live in `web/js/edit-login.js`; `editmode.js` composes
+the controller with its shared toast. The function:
 1. Returns immediately if `Role.isAnonymous()` is false.
-2. Otherwise opens the password modal (`_passwordPrompt` in
-   `editmode.js`).
+2. Otherwise opens the controller-owned password modal.
 3. POSTs to `/api/login` and refreshes `Role` on success.
 4. Returns `Promise<boolean>` so callers can branch.
 

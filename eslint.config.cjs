@@ -1,5 +1,82 @@
 'use strict';
 
+const readonly = 'readonly';
+
+const runtimeGlobals = {
+  AbortController: readonly,
+  AbortSignal: readonly,
+  Blob: readonly,
+  console: readonly,
+  CustomEvent: readonly,
+  DOMException: readonly,
+  Event: readonly,
+  EventTarget: readonly,
+  fetch: readonly,
+  File: readonly,
+  FormData: readonly,
+  Headers: readonly,
+  performance: readonly,
+  queueMicrotask: readonly,
+  Request: readonly,
+  Response: readonly,
+  setInterval: readonly,
+  clearInterval: readonly,
+  setTimeout: readonly,
+  clearTimeout: readonly,
+  structuredClone: readonly,
+  TextDecoder: readonly,
+  TextEncoder: readonly,
+  URL: readonly,
+  URLSearchParams: readonly,
+};
+
+const nodeGlobals = {
+  ...runtimeGlobals,
+  __dirname: readonly,
+  __filename: readonly,
+  Buffer: readonly,
+  clearImmediate: readonly,
+  exports: readonly,
+  module: readonly,
+  process: readonly,
+  require: readonly,
+  setImmediate: readonly,
+};
+
+const browserGlobals = {
+  ...runtimeGlobals,
+  alert: readonly,
+  cancelAnimationFrame: readonly,
+  confirm: readonly,
+  CSS: readonly,
+  document: readonly,
+  DOMParser: readonly,
+  Element: readonly,
+  FileReader: readonly,
+  EventSource: readonly,
+  getComputedStyle: readonly,
+  history: readonly,
+  Image: readonly,
+  localStorage: readonly,
+  location: readonly,
+  matchMedia: readonly,
+  MutationObserver: readonly,
+  navigator: readonly,
+  Node: readonly,
+  prompt: readonly,
+  requestAnimationFrame: readonly,
+  ResizeObserver: readonly,
+  sessionStorage: readonly,
+  window: readonly,
+  DOMPurify: readonly,
+  EasyMDE: readonly,
+  L: readonly,
+  cytoscape: readonly,
+  cytoscapeDagre: readonly,
+  dagre: readonly,
+  marked: readonly,
+};
+
 module.exports = [
   {
     ignores: [
@@ -53,6 +130,7 @@ module.exports = [
       'no-sparse-arrays': 'error',
       'no-this-before-super': 'error',
       'no-unexpected-multiline': 'error',
+      'no-undef': 'error',
       'no-unreachable': 'error',
       'no-unreachable-loop': 'error',
       'no-unsafe-finally': 'error',
@@ -71,6 +149,28 @@ module.exports = [
       'require-yield': 'error',
       'use-isnan': 'error',
       'valid-typeof': 'error',
+    },
+  },
+  {
+    files: [
+      'server.js',
+      'server-utils.cjs',
+      'tiler.js',
+      'scripts/**/*.{js,cjs,mjs}',
+      'server/**/*.{js,cjs,mjs}',
+      'test/**/*.{js,cjs,mjs}',
+    ],
+    languageOptions: {
+      globals: nodeGlobals,
+    },
+  },
+  {
+    files: [
+      'web/**/*.{js,cjs,mjs}',
+      'examples/addons/**/*.{js,cjs,mjs}',
+    ],
+    languageOptions: {
+      globals: browserGlobals,
     },
   },
 ];

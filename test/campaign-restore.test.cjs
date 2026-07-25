@@ -69,6 +69,33 @@ test('campaign restore publishes a complete overlay and applies effects once', a
   }
 });
 
+test('campaign restore publishes removals in the same journaled operation', async () => {
+  const f = await fixture();
+  try {
+    await write(f.dataDir, 'characters.json', 'old characters');
+    await write(f.dataDir, 'locations.json', 'old locations');
+    await write(f.candidateDir, 'characters.json', 'new characters');
+
+    const result = await f.manager.commit({
+      candidateDir: f.candidateDir,
+      paths: ['characters.json'],
+      removePaths: ['locations.json'],
+    });
+
+    assert.equal(
+      await fsp.readFile(path.join(f.dataDir, 'characters.json'), 'utf8'),
+      'new characters',
+    );
+    await assert.rejects(fsp.stat(path.join(f.dataDir, 'locations.json')), {
+      code: 'ENOENT',
+    });
+    assert.deepEqual(result.paths, ['characters.json', 'locations.json']);
+    assert.equal(f.effects.length, 1);
+  } finally {
+    await f.cleanup();
+  }
+});
+
 test('campaign restore rolls every file back when publication fails', async () => {
   const f = await fixture({
     fault: async phase => {
@@ -89,6 +116,34 @@ test('campaign restore rolls every file back when publication fails', async () =
     await assert.rejects(fsp.stat(path.join(f.dataDir, 'b.json')), { code: 'ENOENT' });
     assert.equal(f.effects.length, 0);
     assert.deepEqual(await fsp.readdir(f.runtimeDir), []);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('campaign restore rolls a published removal back after failure', async () => {
+  const f = await fixture({
+    fault: async phase => {
+      if (phase === 'publish:1:after') throw new Error('injected removal failure');
+    },
+  });
+  try {
+    await write(f.dataDir, 'a.json', 'old a');
+    await write(f.dataDir, 'b.json', 'old b');
+    await write(f.candidateDir, 'a.json', 'new a');
+
+    await assert.rejects(
+      f.manager.commit({
+        candidateDir: f.candidateDir,
+        paths: ['a.json'],
+        removePaths: ['b.json'],
+      }),
+      /injected removal failure/,
+    );
+
+    assert.equal(await fsp.readFile(path.join(f.dataDir, 'a.json'), 'utf8'), 'old a');
+    assert.equal(await fsp.readFile(path.join(f.dataDir, 'b.json'), 'utf8'), 'old b');
+    assert.equal(f.effects.length, 0);
   } finally {
     await f.cleanup();
   }
@@ -115,6 +170,32 @@ test('startup recovery rolls a prepared restore forward idempotently', async () 
     assert.equal(await fsp.readFile(path.join(f.dataDir, 'characters.json'), 'utf8'), 'new');
     assert.equal(f.effects.length, 1);
     assert.deepEqual(await f.manager.recover(), { committed: [], rolledBack: [], cleaned: [] });
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('startup recovery completes a prepared removal', async () => {
+  const f = await fixture();
+  try {
+    const id = 'restore-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+    const restoreDir = path.join(f.runtimeDir, id);
+    await write(f.dataDir, 'locations.json', 'old locations');
+    await write(restoreDir, 'original/locations.json', 'old locations');
+    await write(restoreDir, 'journal.json', JSON.stringify({
+      version: 1,
+      id,
+      state: 'prepared',
+      entries: [{ path: 'locations.json', originalExists: true, remove: true }],
+    }));
+
+    const result = await f.manager.recover();
+
+    assert.deepEqual(result.committed, [id]);
+    await assert.rejects(fsp.stat(path.join(f.dataDir, 'locations.json')), {
+      code: 'ENOENT',
+    });
+    assert.equal(f.effects.length, 1);
   } finally {
     await f.cleanup();
   }

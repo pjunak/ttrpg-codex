@@ -13,7 +13,7 @@
 //  so tests never touch the network.
 //
 //  Nothing here touches the filesystem or holds module state —
-//  server.js owns DATA_DIR paths, withWriteLock, _atomicWrite, and
+//  server.js owns DATA_DIR paths, the write lock, durable persistence, and
 //  the Express endpoints, and calls into these helpers.
 // ═══════════════════════════════════════════════════════════════
 

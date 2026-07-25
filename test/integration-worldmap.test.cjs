@@ -31,8 +31,27 @@ test('world map upload: server path remains functional and a later error preserv
       url: '/maps/swordcoast/sword_coast.png',
     });
 
-    const imagePath = path.join(srv.dataDir, 'maps', 'swordcoast', 'sword_coast.png');
-    assert.deepEqual(await fsp.readFile(imagePath), bytes);
+    const pngPath = path.join(srv.dataDir, 'maps', 'swordcoast', 'sword_coast.png');
+    assert.deepEqual(await fsp.readFile(pngPath), bytes);
+
+    const replacementBytes = Buffer.from('replacement-world-map');
+    const replacementForm = new FormData();
+    replacementForm.append(
+      'worldmap',
+      new Blob([replacementBytes], { type: 'image/webp' }),
+      'campaign.webp',
+    );
+    const replaced = await srv.fetch('/api/worldmap', {
+      method: 'POST',
+      body: replacementForm,
+    });
+    assert.equal(replaced.status, 200);
+    assert.deepEqual(await replaced.json(), {
+      url: '/maps/swordcoast/sword_coast.webp',
+    });
+    const imagePath = path.join(srv.dataDir, 'maps', 'swordcoast', 'sword_coast.webp');
+    assert.deepEqual(await fsp.readFile(imagePath), replacementBytes);
+    await assert.rejects(fsp.stat(pngPath), { code: 'ENOENT' });
 
     const failed = await srv.fetch('/api/worldmap', {
       method: 'POST',
@@ -40,7 +59,7 @@ test('world map upload: server path remains functional and a later error preserv
     });
     assert.equal(failed.status, 400);
     assert.deepEqual(await failed.json(), { error: 'No image received' });
-    assert.deepEqual(await fsp.readFile(imagePath), bytes);
+    assert.deepEqual(await fsp.readFile(imagePath), replacementBytes);
   } finally {
     await srv.kill();
   }

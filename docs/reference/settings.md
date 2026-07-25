@@ -51,7 +51,7 @@ second pass reports zero changes. The browser never writes migration results.
 
 Seeded from `SETTINGS_DEFAULTS` in `data.js` on first load via
 `store._mergeDefaults`. Per-id deletions are tombstoned as
-`deletedDefaults: ["settings:<cat>:<id>", …]` so re-seed doesn't
+`deletedDefaults: { "settings:<cat>:<id>": true }` so re-seed doesn't
 resurrect them.
 
 **Not in settings** (coupled to code/SVG/CSS): `knowledgeLevels`
@@ -117,17 +117,18 @@ characters, locations, AND factions. `findEnumUsages` recognises
 scalar fields, string-array fields, and object-array fields;
 `deleteEnumItem` walks both array collections AND keyed-object
 collections (factions via `Object.values`), and its replace-with
-branch rewrites entry ids. Each touched record gets its own
-`_sync('factions', 'save', {id, data})` or `_sync('<coll>', 'save', e)`
-call so the server sees both ends of the change (fixes a latent
-sync bug where array-shaped remaps updated memory but never
-persisted).
+branch rewrites entry ids. The browser mirrors the complete result in memory,
+then sends one ordered enum-mutation request. The server repeats the usage
+check and journal-publishes the definition, replacements, and optional
+tombstone as one compound campaign mutation.
 
 ### Sync contract (server)
 Settings is treated like `factions` — a keyed-object collection.
 Save shape: `{ type:'settings', action:'save', payload:{ id:<category>, data:<fullArray> }}`.
-Delete is always a full-array overwrite via `save`; there's no
-per-item delete on the wire.
+Enum deletion uses
+`DELETE /api/campaign/enums/:category/:id` with
+`{replaceWith, force, tombstone}`. It is DM-only and shares the Store write
+queue with ordinary PATCHes.
 
 The server no longer validates relationship type or character status
 values — the client-side settings are truth. Structural validation
@@ -297,8 +298,10 @@ Vazby) leaves the active tab outside the visible set.
   `Settings.restartServer` → `POST /api/restart` with the
   `#server-restart-overlay` that polls until the server is back, then
   reloads — still how server-side addon code (re)loads after an
-  install/update). Visible to any authed viewer. See "Auth flow" below
-  for the password storage and cookie model.
+  install/update). `web/js/settings-account.js` owns the tab's status,
+  HTML, password actions, and restart lifecycle; `settings.js` retains the
+  stable `Settings.*` action facade. Visible to any authed viewer. See
+  "Auth flow" below for the password storage and cookie model.
 - `playerParty` — Edit the visual identity of the PC group (name,
   icon, badge, colour). Members are NOT stored here — membership is
   derived from `character.faction === PARTY_FACTION_ID`. Replaces

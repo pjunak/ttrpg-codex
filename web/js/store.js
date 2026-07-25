@@ -242,6 +242,7 @@ export const Store = (() => {
       if (result.ok) {
         const serverData = result.data;
         if (!shouldCommit()) return false;
+        _transport.acceptDataset(serverData);
         _transport.setAvailable(true);
         _loadedOnce = true;
         {
@@ -931,36 +932,32 @@ export const Store = (() => {
     _data.characters    = _data.characters.filter(c => c.id !== id);
     _data.relationships = _data.relationships.filter(r => r.source !== id && r.target !== id);
 
-    // Strip the dead id from every event/mystery that actually listed
-    // it — and persist ONLY those (mirrors deleteLocation's touched-peer
-    // pattern). The previous `.map(...)` rebuilt the whole array in
-    // memory but only synced the character delete, so the server never
-    // learned the character was removed from those events/mysteries —
-    // the next page load re-introduced the dangling reference.
-    const touchedEvents = [];
-    for (const e of _data.events || []) {
-      if (Array.isArray(e.characters) && e.characters.includes(id)) {
-        e.characters = e.characters.filter(cid => cid !== id);
-        _noteRefChange(e); _stamp(e); touchedEvents.push(e);
+    for (const type of ['events', 'mysteries', 'historicalEvents']) {
+      for (const entity of _data[type] || []) {
+        if (Array.isArray(entity.characters) && entity.characters.includes(id)) {
+          entity.characters = entity.characters.filter(characterId => characterId !== id);
+          _noteRefChange(entity);
+          _stamp(entity);
+        }
       }
     }
-    const touchedMysteries = [];
-    for (const m of _data.mysteries || []) {
-      if (Array.isArray(m.characters) && m.characters.includes(id)) {
-        m.characters = m.characters.filter(cid => cid !== id);
-        _noteRefChange(m); _stamp(m); touchedMysteries.push(m);
-      }
+    for (const artifact of _data.artifacts || []) {
+      if (artifact.ownerCharacterId !== id) continue;
+      artifact.ownerCharacterId = '';
+      _noteRefChange(artifact);
+      _stamp(artifact);
+    }
+    if (char?.linkedTwinId) {
+      const twin = _data.characters.find(entity => entity.id === char.linkedTwinId);
+      if (twin) delete twin.linkedTwinId;
     }
 
     _reindexCharacters();
     _reindexRelationships();
-    if (touchedEvents.length)    _reindexEvents();
-    if (touchedMysteries.length) _reindexMysteries();
+    _reindexEvents();
+    _reindexMysteries();
     _orphanPetsOf('character', id);   // pets keep, just go unassigned
-    const ok = _sync('characters', 'delete', { id });
-    for (const e of touchedEvents)    _sync('events', 'save', e);
-    for (const m of touchedMysteries) _sync('mysteries', 'save', m);
-    return ok;
+    return _sync('characters', 'delete', { id });
   }
 
   function saveRelationship(rel) {
@@ -1016,7 +1013,6 @@ export const Store = (() => {
     const newSet   = new Set(loc.connections      || []);
     const added    = [...newSet].filter(x => !oldSet.has(x));
     const removed  = [...oldSet].filter(x => !newSet.has(x));
-    const touched  = new Set();
     for (const peerId of added) {
       if (peerId === loc.id) continue;
       const peer = _data.locations.find(l => l.id === peerId);
@@ -1025,7 +1021,6 @@ export const Store = (() => {
       if (!peer.connections.includes(loc.id)) {
         peer.connections.push(loc.id);
         _noteRefChange(peer); _stamp(peer);
-        touched.add(peer.id);
       }
     }
     for (const peerId of removed) {
@@ -1035,23 +1030,17 @@ export const Store = (() => {
       if (next.length !== peer.connections.length) {
         peer.connections = next;
         _noteRefChange(peer); _stamp(peer);
-        touched.add(peer.id);
       }
     }
 
     _reindexLocations();
-    const ok = _sync('locations', 'save', loc);
-    for (const pid of touched) {
-      const peer = _data.locations.find(l => l.id === pid);
-      if (peer) _sync('locations', 'save', peer);
-    }
-    return ok;
+    return _sync('locations', 'save', loc);
   }
 
   /**
    * Delete a location. Cascade: snapshots into trash, strips the dead
-   * id from every peer's `connections[]`, clears `parentId` on any
-   * child that pointed at it, and syncs each touched peer individually.
+   * id from every documented core reference. The server owns durable
+   * publication of the complete cascade; this method mirrors it locally.
    *
    * @param {string} id
    * @returns {boolean} See `saveCharacter`.
@@ -1062,10 +1051,6 @@ export const Store = (() => {
     if (loc) _trash.set(_trashKey('locations', id), { kind:'locations', entity: JSON.parse(JSON.stringify(loc)) });
     _data.locations = _data.locations.filter(l => l.id !== id);
 
-    // Strip the dead id from every peer's connections[]; clear parentId
-    // on any child that pointed at it; every touched peer is then
-    // synced individually so the server persists both sides.
-    const touched = [];
     for (const l of _data.locations) {
       let changed = false;
       if (Array.isArray(l.connections) && l.connections.includes(id)) {
@@ -1076,15 +1061,10 @@ export const Store = (() => {
         l.parentId = '';
         changed = true;
       }
-      if (changed) { _noteRefChange(l); _stamp(l); touched.push(l); }
+      if (changed) { _noteRefChange(l); _stamp(l); }
     }
 
-    // Characters reference locations by id: `location` is the canonical
-    // "where they are", plus secondary `locationRoles[]`. Clear those dead
-    // refs too — otherwise the deleted location lingers as a phantom on the
-    // character (a broken location chip / orphaned role). Each touched
-    // character is persisted individually, mirroring the peer-location sync.
-    const touchedChars = [];
+    let touchedCharacters = false;
     for (const c of _data.characters || []) {
       let cChanged = false;
       if (c.location === id) { c.location = ''; cChanged = true; }
@@ -1092,15 +1072,53 @@ export const Store = (() => {
         c.locationRoles = c.locationRoles.filter(r => r?.locationId !== id);
         cChanged = true;
       }
-      if (cChanged) { _noteRefChange(c); _stamp(c); touchedChars.push(c); }
+      if (cChanged) {
+        _noteRefChange(c);
+        _stamp(c);
+        touchedCharacters = true;
+      }
+    }
+    for (const type of ['events', 'mysteries', 'historicalEvents']) {
+      for (const entity of _data[type] || []) {
+        let changed = false;
+        if (Array.isArray(entity.locations) && entity.locations.includes(id)) {
+          entity.locations = entity.locations.filter(locationId => locationId !== id);
+          changed = true;
+        }
+        if (type === 'events' && entity.mapParentId === id) {
+          delete entity.mapParentId;
+          delete entity.mapX;
+          delete entity.mapY;
+          changed = true;
+        }
+        if (changed) {
+          _noteRefChange(entity);
+          _stamp(entity);
+        }
+      }
+    }
+    for (const artifact of _data.artifacts || []) {
+      if (artifact.locationId !== id) continue;
+      artifact.locationId = '';
+      _noteRefChange(artifact);
+      _stamp(artifact);
+    }
+    if (loc?.linkedTwinId) {
+      const twin = _data.locations.find(entity => entity.id === loc.linkedTwinId);
+      if (twin) delete twin.linkedTwinId;
+    }
+    if (Array.isArray(_data.settings?.mapViews)) {
+      _data.settings.mapViews = _data.settings.mapViews.filter(view => view?.parentId !== id);
+    }
+    if (_data.settings?.mapConfigs && typeof _data.settings.mapConfigs === 'object') {
+      delete _data.settings.mapConfigs[`local-${id}`];
     }
 
     _reindexLocations();
-    if (touchedChars.length) _reindexCharacters();
-    const ok = _sync('locations', 'delete', { id });
-    for (const peer of touched) _sync('locations', 'save', peer);
-    for (const c of touchedChars) _sync('characters', 'save', c);
-    return ok;
+    if (touchedCharacters) _reindexCharacters();
+    _reindexEvents();
+    _reindexMysteries();
+    return _sync('locations', 'delete', { id });
   }
 
   function saveEvent(evt) {
@@ -1498,9 +1516,6 @@ export const Store = (() => {
       return { ok: false, usages };
     }
 
-    // Records touched by the replace-with rewrite — re-synced after
-    // the settings PATCH so the server sees both ends of the change.
-    const touched = [];   // { collection, key, entity }
     if (opts.replaceWith) {
       const bindings = SETTINGS_USAGE_MAP[cat] || [];
       for (const b of bindings) {
@@ -1531,10 +1546,15 @@ export const Store = (() => {
                 if (newId !== x.id) changed = true;
               }
             }
-            if (changed) { e[b.field] = next; touched.push({ ...rec, b }); }
+            if (changed) {
+              e[b.field] = next;
+              _noteRefChange(e);
+              _stamp(e);
+            }
           } else if (v === id) {
             e[b.field] = opts.replaceWith;
-            touched.push({ ...rec, b });
+            _noteRefChange(e);
+            _stamp(e);
           }
         }
       }
@@ -1543,21 +1563,23 @@ export const Store = (() => {
     const arr = (_data.settings && _data.settings[cat]) || [];
     _data.settings[cat] = arr.filter(x => x.id !== id);
     const wasDefault = (SETTINGS_DEFAULTS[cat] || []).some(d => d.id === id);
-    if (wasDefault) _tombstone(`settings:${cat}:${id}`);
+    if (wasDefault) {
+      if (!_data.deletedDefaults || typeof _data.deletedDefaults !== 'object'
+          || Array.isArray(_data.deletedDefaults)) {
+        _data.deletedDefaults = {};
+      }
+      _data.deletedDefaults[`settings:${cat}:${id}`] = true;
+    }
     // Pin types own a folder of uploaded icon files — clean it up.
     // Fire-and-forget; the orphan folder is harmless if the call fails.
     if (cat === 'pinTypes') deleteIcons(id);
-    // Sync: push the full post-delete category array plus persist
-    // every touched record via the entity-level save path so each
-    // gets its own PATCH (correct audit trail on the server).
-    _sync('settings', 'save', { id: cat, data: _data.settings[cat] });
-    for (const { entity, key, b } of touched) {
-      if (b.collection === 'factions') {
-        _sync('factions', 'save', { id: key, data: entity });
-      } else {
-        _sync(b.collection, 'save', entity);
-      }
-    }
+    _transport.deleteEnumItem({
+      category: cat,
+      id,
+      replaceWith: opts.replaceWith || '',
+      force: opts.force === true,
+      tombstone: wasDefault,
+    });
     _reindex();
     return { ok: true, usages };
   }
@@ -1706,6 +1728,20 @@ export const Store = (() => {
     const f = _data.factions[id];
     if (f) _trash.set(_trashKey('factions', id), { kind:'factions', id, entity: JSON.parse(JSON.stringify(f)) });
     delete _data.factions[id];
+    if (f?.linkedTwinId && _data.factions[f.linkedTwinId]) {
+      delete _data.factions[f.linkedTwinId].linkedTwinId;
+    }
+    let touchedCharacters = false;
+    for (const character of _data.characters || []) {
+      if (character.faction !== id) continue;
+      character.faction = 'neutral';
+      character.rank = '';
+      character.rankChain = '';
+      _noteRefChange(character);
+      _stamp(character);
+      touchedCharacters = true;
+    }
+    if (touchedCharacters) _reindexCharacters();
     _orphanPetsOf('faction', id);   // pets keep, just go unassigned
     _bustMarkdownCache();
     return _sync('factions', 'delete', { id });
@@ -1813,15 +1849,13 @@ export const Store = (() => {
   }
 
   /** Reassign every pet owned by `(ownerType, ownerId)` back to the
-   *  unassigned pile — called when that owner is deleted so important
-   *  pets survive rather than dangle. Persists each touched pet. */
+   *  unassigned pile when its owner is deleted. */
   function _orphanPetsOf(ownerType, ownerId) {
     for (const pet of (_data.pets || [])) {
       if (pet.ownerType === ownerType && pet.ownerId === ownerId) {
         pet.ownerType = 'none';
         pet.ownerId = '';
         _stamp(pet);
-        _sync('pets', 'save', pet);
       }
     }
   }
@@ -2232,5 +2266,7 @@ export const Store = (() => {
     patchAddonData, resolveAddonConflict, checkAddonUpdates, rollbackAddon,
     updateAllAddons, restartServer, getCanRestart,
     generateId, exportJSON,
+    settleWrites: _transport.settled,
+    needsWriteRecovery: _transport.needsRecovery,
   };
 })();

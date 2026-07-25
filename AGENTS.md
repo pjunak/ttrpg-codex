@@ -90,6 +90,8 @@ server-utils.cjs           Pure server helpers (password hashing, path
 tiler.js                   sharp tile-pyramid builder (world + local maps).
 server/                    visibility.cjs (role filter) · migrations.cjs ·
                            campaign-shape-migration.cjs (pure legacy-data transform) ·
+                           auth.cjs (credentials, sessions, role gates/routes) ·
+                           live-sync.cjs (role-scoped SSE clients/broadcasts) ·
                            snapshot-service.cjs + snapshot-routes.cjs ·
                            addons.cjs (broker) · addon-testing.cjs (test
                            green-gate) · addon-content.cjs (contentDir) ·
@@ -99,6 +101,8 @@ server/                    visibility.cjs (role filter) · migrations.cjs ·
                            publication-barrier.cjs (read isolation) ·
                            collection-transactions.cjs (durable F2 commits) ·
                            campaign-restore.cjs (durable restore publication) ·
+                           campaign-mutations.cjs (core cross-record invariants) ·
+                           write-revision.cjs (optimistic record revisions) ·
                            import-contract.cjs (provider/parser/plan guards) ·
                            import-jobs.cjs (F4 preview/commit job lifecycle) ·
                            addon-import-harness.cjs (published server harness).
@@ -137,7 +141,9 @@ web/
                            live host and authoring harness.
     store.js               In-memory domain state, secondary indices, trash,
                            undelete, and settings API.
-    store-transport.js     Validated loads + serialized retrying PATCH queue.
+    store-transport.js     Validated loads, optimistic revisions, recovery,
+                           and the serialized retrying PATCH queue.
+    write-revision.js      Browser half of the server/browser revision hash.
     store-admin-client.js  Add-on update/rollback and restart administration.
     api-client.js          Shared JSON/FormData request handling, structured
                            errors, and auth-failure signaling.
@@ -154,6 +160,9 @@ web/
     pin-types.js           Immutable built-in pin metadata and live-choice
                            fallback helpers; data.js derives settings seeds.
     settings-backup.js     Role-aware snapshot/backup settings controller.
+    settings-account.js    Account/password/restart settings controller.
+    edit-drafts.js         Markdown draft persistence and dirty-state guard.
+    edit-login.js          Password modal and login flow.
     edit-lore-controller.js
                            Pantheon, artifact, and historical-event workflows.
     i18n.js                I18n: per-user UI language. t()/plural()/dates
@@ -174,7 +183,7 @@ web/
     cloudmap.js            Cytoscape + HTML cloud cards + canvas word-wrap.
     timeline.js            Timeline kanban at /casova-osa.
     map.js                 Leaflet world map. Exports WorldMap.
-    editmode.js            Edit toggle. Auth. Portrait upload. EasyMDE mount.
+    editmode.js            Domain editors, uploads, EasyMDE composition, and
                            toast() with action-button support.
     edit_templates.js      HTML form templates for edit overlays.
     search.js              Global Ctrl+K search palette (GlobalSearch).
@@ -182,9 +191,8 @@ web/
                            view-as switching, body.is-dm/-player classes.
     dm_dashboard.js        Stable DM-only /dm shell: authorization, addon
                            dashboard slot, diagnostics, and recovery fallback.
-    settings.js            /nastaveni: enum editors, Vzhled, Účet/Server,
-                           and the DM Addon Manager (install wizard,
-                           content-group toggles).
+    settings.js            /nastaveni composition: enum/map/appearance editors
+                           and the DM Addon Manager.
     sidebar.js             Data-driven left nav (Sidebar.render) +
                            DM drag-drop layout editor (renderEditor).
     widgets/
@@ -261,7 +269,7 @@ there.**
 
 | Repo (sibling dir) | Addon id | What it is |
 |---|---|---|
-| `dnd-character-sheets` | `dnd-sheets` | Tabbed character sheet (Overview/Character Sheet/Combat/Spellbook/Builder) + a built-in pure rules engine (`rules/engine.js` + `rules/api.js`), edition-parameterized (built-in 2024 constants; a provider's `ruleset` record overrides per constant — `dnd5e-compendium` is the reserved 2014 provider id). Standalone hand-fillable; soft-dep (`optionalDependencies`) on the compendium — engine mode lights up when book data is present. `provide()`s the rules API for future consumers. ⚠ The addon id keys `character.addonData` — renaming it orphans sheet data without a key migration. |
+| `dnd-character-sheets` | `dnd-sheets` | Tabbed character sheet (Overview/Character Sheet/Combat/Spellbook/Builder) + a built-in pure rules engine (`rules/engine.js` + `rules/api.js`), edition-parameterized (built-in 2024 constants; a provider's `ruleset` record overrides per constant — `dnd5e-compendium` is the reserved 2014 provider id). Standalone hand-fillable; soft-dep (`optionalDependencies`) on the compendium. Engine mode is per character: a returned provider cannot overwrite manually changed materialized fields until the user explicitly keeps manual mode or resumes the rulebook. `provide()`s the rules API for future consumers. ⚠ The addon id keys `character.addonData` — renaming it orphans sheet data without a key migration. |
 | `dnd55e-compendium` | `dnd55e-compendium` | The complete D&D 5.5e (2024) content addon — PHB, DMG material, and the Monster Manual bestiary (~1,880 records) as a per-record JSON tree served by THIS host via manifest `contentDir` (no server code, hot install/update). `/compendium` browse UI (+ `/bestiary` alias) + `[[…|spell]]`-style wiki kinds; `provide()`s the pure data API the sheets engine consumes. The equipment importer reads the sibling `Living-scroll` checkout. ⚠ The GitHub repo is **PRIVATE** (since 2026-07, so owner-owned copyrighted book content can live there — see its `data/COVERAGE.md`); GitHub installs/updates need `CODEX_GITHUB_TOKEN`. |
 | `dm-tools` | `dm-tools` | API-v2 reference consumer for host-managed DM-only data, F2 transactions, F4/F5 imports, localization, the F6 graph facade, and the `dm:dashboard` content slot. It declares only the list-shaped `scenarios` collection with `access:"dm"`; its scenario dashboard owns the normal `/dm` workflow content, while core retains route authorization, diagnostics, and recovery fallback. Its read-only graph page maps each scenario to one independent node because the schema has no relationships. Planners, additional providers, and speculative collections remain out of scope. |
 

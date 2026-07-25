@@ -1,9 +1,4 @@
-// ═══════════════════════════════════════════════════════════════
-//  EDIT MODE — inline editing overlay for the wiki
-//  Toggled by the ✏ button. When active, article pages render
-//  edit forms instead of read-only views, and list pages show
-//  "+ New" cards and pencil overlays on existing items.
-// ═══════════════════════════════════════════════════════════════
+// Wiki entity editors and their shared interaction helpers.
 
 import { Store } from './store.js';
 import { EditTemplates } from './edit_templates.js';
@@ -15,6 +10,8 @@ import { Role } from './role.js';
 import { Addons } from './addons.js';
 import { I18n } from './i18n.js';
 import { CollectionDescriptors } from './collection-descriptors.js';
+import { EditDrafts } from './edit-drafts.js';
+import { EditLogin } from './edit-login.js';
 import { EditLoreController } from './edit-lore-controller.js';
 
 const PIN_SIZE_MIN = PinTypes.sizeMin;
@@ -22,12 +19,13 @@ const PIN_SIZE_MAX = PinTypes.sizeMax;
 const PIN_SIZE_DEFAULT = PinTypes.sizeDefault;
 
 export const EditMode = (() => {
-
-  // Phase 6 of the edit-mode migration removed the global toggle. The
-  // `_active` flag / `isActive()` / `body.edit-mode` class are gone;
-  // editing is per-page (Wiki._editingArticle, WorldMap.setEditing,
-  // Timeline.setEditing, CloudMap.setEditing). The IIFE keeps just the
-  // login affordance (promptLogin below) and the dirty-state guard.
+  const _drafts = EditDrafts.create();
+  const {
+    discardDirty,
+    isDirty,
+    markClean: _markClean,
+    wireEasyMDE: _wireEasyMDEDraft,
+  } = _drafts;
 
   // ── Prefill state for new-entity creation ──────────────────────
   // Set by startNewCharacter / startNewLocation / startNewEvent and
@@ -122,191 +120,8 @@ export const EditMode = (() => {
     t._tid = setTimeout(() => t.classList.remove("show"), timeout);
   }
 
-  // ── Drafts & dirty-state guard ────────────────────────────────
-  // Every `.md-easy` textarea autosaves its markdown to localStorage
-  // on change (debounced 500ms + flushed on pagehide). If a draft is
-  // found on mount that differs from the loaded entity content, a
-  // banner above the editor offers [Obnovit koncept] / [Zahodit].
-  // Drafts are scoped per-textarea-id, so switching entities doesn't
-  // cross-contaminate. Successful save → _markClean() clears the
-  // dirty flag and removes drafts for every currently-mounted editor.
-  // Unguarded close/refresh triggers a browser beforeunload prompt;
-  // internal link clicks go through a capture listener that confirms
-  // if dirty.
-  const DRAFT_PREFIX  = 'md_draft:';
-  const DRAFT_DEBOUNCE_MS = 500;
-  const DRAFT_TTL_MS  = 30 * 24 * 60 * 60 * 1000;  // 30 days
-  let   _dirty        = false;
-  const _draftTimers  = new Map();    // textareaId → setTimeout id
-
-  function _draftKey(textareaId) { return DRAFT_PREFIX + textareaId; }
-
-  function _loadDraft(textareaId) {
-    try {
-      const raw = localStorage.getItem(_draftKey(textareaId));
-      if (!raw) return null;
-      const obj = JSON.parse(raw);
-      if (!obj || typeof obj.content !== 'string') return null;
-      if (obj.savedAt && Date.now() - obj.savedAt > DRAFT_TTL_MS) {
-        localStorage.removeItem(_draftKey(textareaId));
-        return null;
-      }
-      return obj;
-    } catch { return null; }
-  }
-
-  function _saveDraft(textareaId, content) {
-    try {
-      localStorage.setItem(_draftKey(textareaId), JSON.stringify({
-        content, savedAt: Date.now(),
-      }));
-    } catch (_) { /* quota / disabled */ }
-  }
-
-  function _clearDraft(textareaId) {
-    try { localStorage.removeItem(_draftKey(textareaId)); } catch (_) {}
-  }
-
-  // Flush any pending debounced saves to localStorage. Called from
-  // pagehide so the last keystrokes aren't lost on tab close.
-  function _flushAllDrafts() {
-    for (const [id, timer] of _draftTimers) {
-      clearTimeout(timer);
-      const ta = document.getElementById(id);
-      if (ta && ta.classList.contains('md-easy')) {
-        _saveDraft(id, ta.value || '');
-      }
-    }
-    _draftTimers.clear();
-  }
-
-  // Called by each save*() at the end of a successful Store.saveXxx.
-  // Clears dirty flag and wipes drafts for every currently-mounted
-  // editor — once saved, the entity's content matches the draft.
-  function _markClean() {
-    _dirty = false;
-    document.querySelectorAll('textarea.md-easy').forEach(ta => {
-      if (ta.id) _clearDraft(ta.id);
-    });
-    // Always signal a completed save so the per-article editor exits back to the
-    // read view (Wiki clears _editingArticle) — even a no-op save should close.
-    window.dispatchEvent(new CustomEvent('editmode:clean'));
-  }
-
-  function _setDirty() {
-    if (_dirty) return;
-    _dirty = true;
-    window.dispatchEvent(new CustomEvent('editmode:dirty'));
-  }
-
-  // Explicit "discard my edits" (cancel button, confirmed link-away):
-  // clears the dirty flag WITHOUT wiping drafts — they stay recoverable
-  // via the draft banner in case the discard was a mis-click — and fires
-  // `editmode:clean` so app.js drains any deferred remote change /
-  // language re-render and wiki.js drops its per-article edit state.
-  function discardDirty() {
-    _dirty = false;
-    window.dispatchEvent(new CustomEvent('editmode:clean'));
-  }
-
-  /**
-   * @returns {boolean} `true` while the user has unsaved edits.
-   *   The SSE listener consults this before applying remote changes;
-   *   if `true`, the change is queued behind a banner instead of
-   *   replacing the live form DOM.
-   */
-  function isDirty() { return _dirty; }
-
-  function _showDraftBanner(textarea, draft, mde) {
-    // Place banner directly above the EasyMDE wrapper so it's visually
-    // attached to this specific editor (multi-editor forms possible).
-    const host = textarea.closest('.EasyMDEContainer')?.parentElement || textarea.parentElement;
-    if (!host || host.querySelector(`.md-draft-banner[data-for="${textarea.id}"]`)) return;
-    const when = I18n.formatDate(draft.savedAt || Date.now(), {
-      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-    });
-    const banner = document.createElement('div');
-    banner.className = 'md-draft-banner';
-    banner.setAttribute('data-for', textarea.id);
-    banner.innerHTML = `
-      <span class="md-draft-banner-icon">💾</span>
-      <span class="md-draft-banner-text">${esc(I18n.t('editmode.draftFound', { when }))}</span>
-      <button type="button" class="md-draft-btn md-draft-btn-restore">${esc(I18n.t('editmode.draftRestore'))}</button>
-      <button type="button" class="md-draft-btn md-draft-btn-discard">${esc(I18n.t('editmode.draftDiscard'))}</button>
-    `;
-    banner.querySelector('.md-draft-btn-restore').addEventListener('click', () => {
-      if (mde && typeof mde.value === 'function') mde.value(draft.content);
-      else textarea.value = draft.content;
-      _setDirty();   // restoring a draft counts as unsaved edits
-      banner.remove();
-    });
-    banner.querySelector('.md-draft-btn-discard').addEventListener('click', () => {
-      _clearDraft(textarea.id);
-      banner.remove();
-    });
-    host.insertBefore(banner, host.firstChild);
-  }
-
-  function _wireEasyMDEDraft(mde, textarea) {
-    // Autosave on change, flush on pagehide, offer restore banner when
-    // a stored draft differs from the loaded content.
-    const id = textarea.id;
-    if (!id) return;
-
-    // 1) Restore banner if a draft exists and differs from current value.
-    const draft = _loadDraft(id);
-    if (draft && draft.content !== (textarea.value || '')) {
-      _showDraftBanner(textarea, draft, mde);
-    } else if (draft) {
-      // Draft matches current content — stale, auto-clean.
-      _clearDraft(id);
-    }
-
-    // 2) Autosave on every CodeMirror change.
-    try {
-      mde.codemirror.on('change', () => {
-        _setDirty();
-        clearTimeout(_draftTimers.get(id));
-        _draftTimers.set(id, setTimeout(() => {
-          const ta = document.getElementById(id);
-          if (ta) _saveDraft(id, ta.value || '');
-        }, DRAFT_DEBOUNCE_MS));
-      });
-    } catch (_) { /* older EasyMDE API */ }
-  }
-
-  // Dirty on any input/change inside an .edit-form (covers non-MD fields).
-  document.addEventListener('input', (e) => {
-    if (e.target.closest && e.target.closest('.edit-form')) _setDirty();
-  }, true);
-  document.addEventListener('change', (e) => {
-    if (e.target.closest && e.target.closest('.edit-form')) _setDirty();
-  }, true);
-
-  // Warn if the user tries to close/refresh the tab with unsaved edits.
-  window.addEventListener('beforeunload', (e) => {
-    if (_dirty) { e.preventDefault(); e.returnValue = ''; }
-  });
-
-  // Flush pending autosaves on close. pagehide fires reliably even when
-  // beforeunload is bypassed (mobile back, tab discard).
-  window.addEventListener('pagehide', _flushAllDrafts);
-
-  // Intercept link clicks for in-app navigation (SPA hash routes).
-  // hashchange itself is non-cancelable, so we guard at the click level.
-  document.addEventListener('click', (e) => {
-    if (!_dirty) return;
-    const a = e.target && e.target.closest ? e.target.closest('a[href^="#/"]') : null;
-    if (!a) return;
-    if (!confirm(I18n.t('editmode.unsavedLeaveQ'))) {
-      e.preventDefault();
-      e.stopPropagation();
-    } else {
-      // Confirmed discard — go through discardDirty so `editmode:clean`
-      // fires (drains the deferred-SSE banner, drops wiki edit state).
-      discardDirty();
-    }
-  }, true);
+  const _login = EditLogin.create({ toast: _toast });
+  const { promptLogin } = _login;
 
   // ── Navigate to `hash` and force a re-render. ──────────────────
   // If the hash is already current, hashchange wouldn't fire and the
@@ -318,122 +133,6 @@ export const EditMode = (() => {
       window.dispatchEvent(new Event("hashchange"));
     } else {
       window.location.hash = hash;
-    }
-  }
-
-  // ── Password prompt modal ─────────────────────────────────────
-  // Replaces the native `prompt()` for the edit-mode unlock flow:
-  //   - works on mobile (native prompt suppressed in some browsers),
-  //   - lets password managers autofill (input is type="password"
-  //     with name=password + autocomplete="current-password"),
-  //   - has a 👁 visibility toggle.
-  // Returns a Promise that resolves to the typed string on submit
-  // and `null` on cancel/Esc/backdrop click.
-  function _passwordPrompt(message) {
-    return new Promise(resolve => {
-      let settled = false;
-      const finish = (val) => { if (settled) return; settled = true; cleanup(); resolve(val); };
-
-      const overlay = document.createElement('div');
-      overlay.className = 'pw-modal';
-      overlay.innerHTML = `
-        <div class="pw-backdrop"></div>
-        <form class="pw-panel" role="dialog" aria-modal="true" aria-labelledby="pw-modal-title" autocomplete="on">
-          <div class="pw-title" id="pw-modal-title">${esc(message || I18n.t('editmode.passwordPrompt'))}</div>
-          <div class="pw-row">
-            <input class="pw-input" type="password" name="password"
-                   autocomplete="current-password" autofocus
-                   spellcheck="false" autocapitalize="off">
-            <button type="button" class="pw-toggle" aria-label="${esc(I18n.t('editmode.showPassword'))}">👁</button>
-          </div>
-          <div class="pw-actions">
-            <button type="button" class="pw-btn pw-cancel">${esc(I18n.t('action.cancel'))}</button>
-            <button type="submit" class="pw-btn pw-ok">${esc(I18n.t('editmode.unlock'))}</button>
-          </div>
-        </form>
-      `;
-      document.body.appendChild(overlay);
-
-      const form  = overlay.querySelector('.pw-panel');
-      const input = overlay.querySelector('.pw-input');
-      const back  = overlay.querySelector('.pw-backdrop');
-      const tog   = overlay.querySelector('.pw-toggle');
-      const cnl   = overlay.querySelector('.pw-cancel');
-      const releaseTrap = trapFocus(form);
-
-      function onKey(e) {
-        if (e.key === 'Escape') { e.stopPropagation(); finish(null); }
-      }
-      function cleanup() {
-        document.removeEventListener('keydown', onKey, true);
-        releaseTrap();
-        overlay.remove();
-      }
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        finish(input.value);
-      });
-      cnl.addEventListener('click', () => finish(null));
-      back.addEventListener('click', () => finish(null));
-      tog.addEventListener('click', () => {
-        const isPwd = input.type === 'password';
-        input.type = isPwd ? 'text' : 'password';
-        tog.setAttribute('aria-label', isPwd ? I18n.t('editmode.hidePassword') : I18n.t('editmode.showPassword'));
-        input.focus();
-      });
-      document.addEventListener('keydown', onKey, true);
-      // Focus after layout — autofocus alone misses on some mobile browsers.
-      requestAnimationFrame(() => input.focus());
-    });
-  }
-
-  // ── Login affordance ───────────────────────────────────────────
-  /**
-   * Show the password modal and log the visitor in. No-op for users
-   * who are already authed. Triggered by:
-   *   - the top-right 🔑 Přihlásit chip on the dashboard,
-   *   - the Settings → Účet "🔑 Přihlásit" button,
-   *   - per-article ✏ Upravit (Wiki.startEditingArticle) when the
-   *     caller is anonymous.
-   *
-   * Replaces the old `EditMode.toggle()` which both prompted for a
-   * password AND flipped a global edit-mode flag. With per-page edit
-   * affordances, the toggle behavior is gone — this function just
-   * authenticates. The caller's intent (entering edit mode on the
-   * article they clicked from, etc.) is handled by the caller after
-   * `role:changed` fires.
-   *
-   * @returns {Promise<boolean>} true on successful login, false otherwise.
-   */
-  // Window-event bridge: modules that can't import EditMode directly
-  // (map.js — would be a circular import) dispatch this to request the
-  // login modal. Single listener routes back to `promptLogin`.
-  window.addEventListener('auth:prompt-login', () => { promptLogin(); });
-
-  async function promptLogin() {
-    if (!Role.isAnonymous()) return true;
-    const pwd = await _passwordPrompt(I18n.t('editmode.loginPrompt'));
-    if (!pwd) return false;
-    try {
-      const res = await fetch('/api/login', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ password: pwd }),
-        credentials: 'same-origin',
-      });
-      if (!res.ok) {
-        _toast(I18n.t('editmode.wrongPassword'), false);
-        return false;
-      }
-      // Refresh the cached role so body.is-dm / is-player are set
-      // before any post-login render runs.
-      await Role.refresh();
-      _toast(Role.isDM() ? I18n.t('editmode.dmAccess') : I18n.t('editmode.playerAccess'));
-      return true;
-    } catch (e) {
-      console.warn(e);
-      _toast(I18n.t('editmode.loginError'), false);
-      return false;
     }
   }
 
@@ -1315,7 +1014,7 @@ export const EditMode = (() => {
   // calls these with (collection, sourceId) from the editor buttons
   // injected by EditTemplates._dmSection.
   async function createTwin(collection, sourceId) {
-    if (_dirty && !confirm(I18n.t('editmode.unsavedEditorContinueQ'))) return;
+    if (isDirty() && !confirm(I18n.t('editmode.unsavedEditorContinueQ'))) return;
     _closeTwinPicker();
     const r = await Store.linkTwin('create', collection, sourceId);
     if (!r.ok) { _toast(I18n.t('editmode.twinCreateFailed'), false); return; }

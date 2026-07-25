@@ -153,6 +153,97 @@ test('restore: invalid JSON collection shape cannot partially publish earlier co
   }
 });
 
+test('restore: invalid ZIP collection shape is rejected before publication', async () => {
+  const srv = await startServer({
+    dmPassword: DM,
+    seedData: {
+      'characters.json': [{ id: 'old', name: 'Old character' }],
+      'events.json': [{ id: 'old-event', name: 'Old event' }],
+    },
+  });
+  try {
+    await login(srv, DM);
+    const res = await postRestore(srv, await createZip({
+      'data/characters.json': [{ id: 'new', name: 'New character' }],
+      'data/events.json': { id: 'not-an-array' },
+    }));
+    assert.equal(res.status, 400);
+    assert.match((await res.json()).error, /events\.json/);
+
+    const characters = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'characters.json'), 'utf8'));
+    const events = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'events.json'), 'utf8'));
+    assert.equal(characters[0].id, 'old');
+    assert.equal(events[0].id, 'old-event');
+  } finally {
+    await srv.kill();
+  }
+});
+
+test('restore: candidate migrations complete before the overlay becomes live', async () => {
+  const srv = await startServer({
+    dmPassword: DM,
+    seedData: {
+      'settings.json': { theme: 'classic' },
+      'mysteries.json': [{ id: 'kept', name: 'Overlay survivor' }],
+    },
+  });
+  try {
+    await login(srv, DM);
+    const res = await postRestore(srv, await createZip({
+      'data/characters.json': [{ id: 'legacy-character', name: 'Legacy' }],
+      'data/events.json': [{ id: 'legacy-event', sitting: 0 }],
+      'data/deletedDefaults.json': ['legacy:item'],
+    }));
+    assert.equal(res.status, 200);
+
+    const characters = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'characters.json'), 'utf8'));
+    const events = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'events.json'), 'utf8'));
+    const tombstones = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'deletedDefaults.json'), 'utf8'));
+    const settings = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'settings.json'), 'utf8'));
+    const mysteries = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'mysteries.json'), 'utf8'));
+
+    assert.equal(characters[0].visibility, 'public');
+    assert.deepEqual(characters[0].attitudes, []);
+    assert.equal(events[0].visibility, 'public');
+    assert.equal(events[0].sitting, 1);
+    assert.deepEqual(tombstones, { 'legacy:item': true });
+    assert.equal(settings.theme, 'classic');
+    assert.equal(mysteries[0].id, 'kept');
+  } finally {
+    await srv.kill();
+  }
+});
+
+test('restore: a failed pre-restore snapshot leaves live data unchanged', async () => {
+  const srv = await startServer({
+    dmPassword: DM,
+    seedData: {
+      'characters.json': [{ id: 'old', name: 'Old character' }],
+    },
+  });
+  try {
+    await login(srv, DM);
+    await fsp.writeFile(path.join(srv.dataDir, 'broken.json'), '{', 'utf8');
+
+    const res = await postRestore(
+      srv,
+      JSON.stringify({
+        characters: [{ id: 'new', name: 'New character' }],
+      }),
+      'backup.json',
+      'application/json',
+    );
+
+    assert.equal(res.status, 500);
+    const characters = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'characters.json'), 'utf8'));
+    assert.deepEqual(characters.map(({ id, name }) => ({ id, name })), [
+      { id: 'old', name: 'Old character' },
+    ]);
+  } finally {
+    await srv.kill();
+  }
+});
+
 test('restore: startup recovery completes an interrupted multi-file publication', async () => {
   const dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'codex-restore-recovery-data-'));
   const snapshotsDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'codex-restore-recovery-snaps-'));

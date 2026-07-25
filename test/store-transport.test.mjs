@@ -93,7 +93,6 @@ test('Store transport retries transient failures and reports terminal failures',
     response({ ok: false, status: 500 }),
     response(),
     response({ ok: false, status: 422 }),
-    response({ ok: false, status: 401 }),
   ];
   const transport = StoreTransport.create({
     fetchImpl: async () => results.shift(),
@@ -117,6 +116,127 @@ test('Store transport retries transient failures and reports terminal failures',
     true,
   );
   assert.equal(
+    recorder.events.some(event => event.type === 'store:write-recovery-needed'),
+    true,
+  );
+  assert.equal(transport.needsRecovery(), true);
+});
+
+test('Store transport serializes enum mutations with ordinary writes', async () => {
+  const calls = [];
+  const transport = StoreTransport.create({
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return response();
+    },
+    eventTarget: eventRecorder().target,
+  });
+  transport.setAvailable(true);
+
+  const command = {
+    category: 'attitudes',
+    id: 'old value',
+    replaceWith: 'new',
+    tombstone: true,
+  };
+  assert.equal(transport.deleteEnumItem(command), true);
+  command.replaceWith = 'changed-after-queue';
+  transport.sync('settings', 'save', { id: 'appearance', data: {} });
+  await transport.settled();
+
+  assert.equal(calls[0].url, '/api/campaign/enums/attitudes/old%20value');
+  assert.equal(calls[0].options.method, 'DELETE');
+  const enumBody = JSON.parse(calls[0].options.body);
+  assert.deepEqual({
+    replaceWith: enumBody.replaceWith,
+    force: enumBody.force,
+    tombstone: enumBody.tombstone,
+  }, {
+    replaceWith: 'new',
+    force: false,
+    tombstone: true,
+  });
+  assert.match(enumBody.baseRevision, /^[0-9a-f]{16}$/);
+  assert.equal(calls[1].url, '/api/data');
+});
+
+test('Store transport blocks dependent writes after conflict until a confirmed reload', async () => {
+  const calls = [];
+  const recorder = eventRecorder();
+  let conflict = true;
+  const transport = StoreTransport.create({
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return conflict
+        ? response({
+          ok: false,
+          status: 409,
+          data: { code: 'WRITE_CONFLICT' },
+        })
+        : response({ data: { revision: '0123456789abcdef' } });
+    },
+    eventTarget: recorder.target,
+    logger: { warn() {} },
+  });
+  transport.setAvailable(true);
+  transport.acceptDataset({
+    characters: [
+      { id: 'one', name: 'Original' },
+      { id: 'two', name: 'Other' },
+    ],
+  });
+
+  transport.sync('characters', 'save', { id: 'one', name: 'Local' });
+  transport.sync('characters', 'save', { id: 'two', name: 'Queued' });
+  await transport.settled();
+
+  assert.equal(calls.length, 1);
+  assert.equal(transport.needsRecovery(), true);
+  assert.equal(
+    recorder.events.some(event => (
+      event.type === 'store:write-recovery-needed'
+      && event.detail.code === 'WRITE_CONFLICT'
+    )),
+    true,
+  );
+
+  conflict = false;
+  transport.acceptDataset({
+    characters: [
+      { id: 'one', name: 'Remote' },
+      { id: 'two', name: 'Other' },
+    ],
+  });
+  assert.equal(transport.needsRecovery(), false);
+  assert.equal(
+    transport.sync('characters', 'save', { id: 'two', name: 'Retried' }),
+    true,
+  );
+  await transport.settled();
+  assert.equal(calls.length, 2);
+  assert.match(
+    JSON.parse(calls[1].options.body).baseRevision,
+    /^[0-9a-f]{16}$/,
+  );
+});
+
+test('Store transport reports authentication failures without sending later queued writes', async () => {
+  const recorder = eventRecorder();
+  let calls = 0;
+  const transport = StoreTransport.create({
+    fetchImpl: async () => {
+      calls += 1;
+      return response({ ok: false, status: 401 });
+    },
+    eventTarget: recorder.target,
+  });
+  transport.setAvailable(true);
+  transport.acceptDataset({ events: [] });
+  transport.sync('events', 'save', { id: 'one' });
+  transport.sync('events', 'save', { id: 'two' });
+  await transport.settled();
+  assert.equal(calls, 1);
+  assert.equal(
     recorder.events.some(event => event.type === 'store:auth-failed'),
     true,
   );
@@ -132,6 +252,7 @@ test('Store transport refuses writes while unavailable', async () => {
     eventTarget: eventRecorder().target,
   });
   assert.equal(transport.sync('events', 'save', {}), false);
+  assert.equal(transport.deleteEnumItem({ category: 'genders', id: 'x' }), false);
   await transport.settled();
   assert.equal(calls, 0);
 });

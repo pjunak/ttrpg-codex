@@ -5,7 +5,6 @@ function registerSnapshotRoutes(app, {
   requireAnyRole,
   requireDM,
   runWriteRequest,
-  broadcastDataChanged,
   minManualIntervalMs = 3000,
   now = Date.now,
   logger = console,
@@ -53,7 +52,6 @@ function registerSnapshotRoutes(app, {
       try {
         const result = await snapshots.restore(req.params.id);
         if (!result.ok) return res.status(404).json(result);
-        await broadcastDataChanged();
         res.json({ ok: true });
       } catch (error) {
         logger.error('POST /api/snapshots/:id/restore:', error);
@@ -75,7 +73,6 @@ function registerSnapshotRoutes(app, {
         const id = files[files.length - 1 - count];
         const result = await snapshots.restore(id);
         if (!result.ok) return res.status(404).json(result);
-        await broadcastDataChanged();
         res.json({ ok: true, id });
       } catch (error) {
         logger.error('POST /api/snapshots/revert-last:', error);

@@ -83,6 +83,19 @@ test('snapshots: manual POST bypasses the 60 s coalesce window', async () => {
   } finally { await srv.kill(); }
 });
 
+test('snapshots: unreadable campaign JSON prevents an incomplete recovery point', async () => {
+  const srv = await startServer({ dmPassword: DM, playerPassword: PLAYER });
+  try {
+    await loginAs(srv, DM);
+    const before = await listSnapshots(srv);
+    await fsp.writeFile(path.join(srv.dataDir, 'broken.json'), '{');
+
+    const response = await srv.fetch('/api/snapshots', { method: 'POST' });
+    assert.equal(response.status, 500);
+    assert.deepEqual(await listSnapshots(srv), before);
+  } finally { await srv.kill(); }
+});
+
 // ── 2. Role gating ─────────────────────────────────────────────────
 
 test('snapshots: list + create are open to players; restore/revert/delete are DM-only', async () => {
@@ -130,16 +143,31 @@ test('snapshots: restore rolls data back and records a pre-restore snapshot', as
     // Add Bob — coalesced under the just-taken manual snapshot, so no
     // extra automatic snapshot is written.
     await saveCharacter(srv, { id: 'bob', name: 'Bob', faction: 'neutral' });
+    const location = await srv.fetch('/api/data', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'locations',
+        action: 'save',
+        payload: { id: 'new-place', name: 'New Place' },
+      }),
+    });
+    assert.equal(location.status, 200);
     let chars = await readCharacters(srv);
     assert.equal(chars.length, 2, 'Bob was added');
 
     // Roll back to the pinned point.
     const restore = await srv.fetch(`/api/snapshots/${restorePoint}/restore`, { method: 'POST' });
-    assert.equal(restore.status, 200);
+    const restoreBody = await restore.text();
+    assert.equal(restore.status, 200, `${restoreBody}\n${srv.stderr()}`);
 
     chars = await readCharacters(srv);
     assert.ok(chars.find(c => c.id === 'alice'), 'Alice survives the restore');
     assert.equal(chars.find(c => c.id === 'bob'), undefined, 'Bob is rolled back');
+    await assert.rejects(
+      fsp.stat(path.join(srv.dataDir, 'locations.json')),
+      { code: 'ENOENT' },
+    );
 
     // The restore must itself be undoable — a pre-restore snapshot
     // capturing the Alice+Bob state should now exist.

@@ -18,6 +18,7 @@ import { I18n } from './i18n.js';
 import { CollectionDescriptors } from './collection-descriptors.js';
 import { ApiClient } from './api-client.js';
 import { PinTypes } from './pin-types.js';
+import { SettingsAccount } from './settings-account.js';
 import { SettingsBackup } from './settings-backup.js';
 
 export const Settings = (() => {
@@ -86,6 +87,11 @@ export const Settings = (() => {
   const _backup = SettingsBackup.create({
     render: () => render(),
     flash: (message, ok) => _flash(message, ok),
+  });
+  const _account = SettingsAccount.create({
+    render: () => render(),
+    flash: (message, ok) => _flash(message, ok),
+    requireDM: () => _requireDM(),
   });
   const {
     refreshSnapshots,
@@ -228,7 +234,7 @@ export const Settings = (() => {
     if (_activeCat === 'worldmap')     return _worldmapHtml();
     if (_activeCat === 'sidebarPages') return Sidebar.renderEditor();
     if (_activeCat === 'backup')       return _backup.html();
-    if (_activeCat === 'account')      return _accountHtml();
+    if (_activeCat === 'account')      return _account.html();
     if (_activeCat === 'appearance')   return _appearanceHtml();
     if (_activeCat === 'addons')       return _addonsHtml();
     if (_activeCat === 'playerParty')  return _playerPartyHtml();
@@ -587,7 +593,7 @@ export const Settings = (() => {
     }
   }
 
-  // ── Public commands (called from inline onclick handlers) ────
+  // ── Public commands used by the data-action dispatcher ───────
   /**
    * Switch the active settings tab. Re-renders the right pane in place
    * and lazy-loads the snapshot list when the Záloha tab is opened.
@@ -602,12 +608,8 @@ export const Settings = (() => {
     if (cat === 'backup') {
       _backup.open();
     } else if (cat === 'account') {
-      // Password status is DM-only; for non-DM viewers the panel
-      // skips the form entirely so the fetch is a wasted round-trip
-      // but harmless (server returns 403, we just don't render forms).
-      _passwordStatus = null;
+      _account.open();
       render();
-      if (Role.getReal() === 'dm') _loadPasswordStatus().then(render);
     } else if (cat === 'addons') {
       // The Manager list is DM-only (the endpoint would 403 for players, who
       // only see the addon sub-tabs anyway) — skip the fetch for non-DM.
@@ -1401,218 +1403,6 @@ export const Settings = (() => {
     try { localStorage.setItem('codex_theme', id); } catch (_) {}
   }
 
-  // ── Account panel ────────────────────────────────────────────
-  // Two parts:
-  //   1. Current role chip + login/logout button (anyone with a
-  //      session can see this — DM viewers in particular, since the
-  //      sidebar role badge doesn't carry a 'Odhlásit' affordance).
-  //   2. Password management for DM and player roles. DM-only — the
-  //      whole /nastaveni route is anyway, but we double-gate so a
-  //      future role expansion doesn't accidentally leak the form.
-  //      Backed by GET/POST /api/passwords; status fetched lazily on
-  //      tab entry and re-fetched after every successful change.
-
-  // Cached password status: { dm, player } each with {stored, updatedAt,
-  // envFallback, isDefault?, disabled?}. Loaded by _loadPasswordStatus.
-  let _passwordStatus = null;
-
-  function _accountHtml() {
-    const role     = Role.get();
-    const realRole = Role.getReal();
-    const roleChip = (() => {
-      if (role === 'dm')                           return `<span class="role-badge-chip role-badge-dm">🛡 DM</span>`;
-      if (role === 'player' && realRole === 'dm')  return `<span class="role-badge-chip role-badge-impersonating">👁 ${esc(I18n.t('settings.rolePlayerViewDM'))}</span>`;
-      if (role === 'player')                       return `<span class="role-badge-chip role-badge-player">👤 ${esc(I18n.t('settings.rolePlayer'))}</span>`;
-      return `<span class="role-badge-chip role-badge-anonymous">👁 ${esc(I18n.t('settings.rolePublic'))}</span>`;
-    })();
-    const logoutBtn = role
-      ? `<button type="button" class="edit-delete-btn"
-           ${dataAction('Settings.logout')}>↩ ${esc(I18n.t('action.logout'))}</button>`
-      : `<button type="button" class="inline-create-btn"
-           ${dataAction('EditMode.promptLogin')}>🔑 ${esc(I18n.t('action.login'))}</button>`;
-    // View-as-player toggle. Moved here from the sidebar so non-DM
-    // users see no role chrome outside Přehled. Only DMs (real or
-    // impersonating) see these buttons — players never need them.
-    const viewAsBtn = (() => {
-      if (realRole !== 'dm') return '';
-      if (role === 'dm') {
-        return `<button type="button" class="inline-create-btn"
-                  ${dataAction('Role.viewAsPlayer')}
-                  title="${esc(I18n.t('settings.viewAsPlayerTitle'))}">👁 ${esc(I18n.t('settings.viewAsPlayer'))}</button>`;
-      }
-      // role === 'player' && realRole === 'dm' (impersonating)
-      return `<button type="button" class="inline-create-btn"
-                ${dataAction('Role.backToDM')}
-                title="${esc(I18n.t('settings.backToDMTitle'))}">← ${esc(I18n.t('settings.backToDM'))}</button>`;
-    })();
-    // Password management section — DM-only. Guard on realRole so a
-    // DM in "view as player" mode still sees the forms (they're the
-    // one with credentials).
-    const passwordSection = (realRole === 'dm')
-      ? _passwordSectionHtml()
-      : `<p class="settings-hint" style="margin-top:1rem;font-style:italic">
-           ${esc(I18n.t('settings.passwordDMOnly'))}
-         </p>`;
-    // Server operations — DM-only + gated on /api/version canRestart
-    // (lazy-fetched, like the addons tab). The restart button moved
-    // here from the Doplňky toolbar: it's a server op, not an addon op
-    // (it's still HOW server-code addon changes load — see the hint).
-    if (realRole === 'dm') _ensureServerInfo();
-    const serverSection = (realRole === 'dm' && _canRestart) ? `
-        <hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.5rem 0">
-        <div class="settings-mapviews-group-title">♻ ${esc(I18n.t('settings.serverOps'))}</div>
-        <p class="settings-hint" style="margin:0.6rem 0 0.8rem">
-          ${esc(I18n.t('settings.serverOpsHint'))}
-        </p>
-        <button type="button" class="inline-create-btn"
-          ${dataAction('Settings.restartServer')}>♻ ${esc(I18n.t('settings.restartServer'))}</button>` : '';
-    return `
-      <div class="settings-editor-head">
-        <h2>🖥 ${esc(I18n.t('settings.tabAccount'))}</h2>
-      </div>
-      <div class="settings-panel">
-        <div class="settings-field" style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1rem">
-          <span class="settings-field-label">${esc(I18n.t('settings.currentRole'))}</span>
-          <div>${roleChip}</div>
-        </div>
-        <p class="settings-hint" style="margin-bottom:0.8rem">
-          ${esc(I18n.t('settings.logoutHint'))}
-        </p>
-        <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center">
-          ${logoutBtn}
-          ${viewAsBtn}
-        </div>
-        ${passwordSection}
-        ${serverSection}
-      </div>`;
-  }
-
-  /** Renders the DM-only password management subsection: status
-   *  summary for each role plus two change-password forms. Both forms
-   *  require the DM's current password as a safety check. */
-  function _passwordSectionHtml() {
-    const st = _passwordStatus;
-    if (!st) {
-      return `<hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.5rem 0">
-        <div class="settings-mapviews-group-title">🔑 ${esc(I18n.t('settings.accountPasswords'))}</div>
-        <p class="settings-hint" style="margin-top:0.6rem">${esc(I18n.t('settings.loadingStatus'))}</p>`;
-    }
-    return `
-      <hr style="border:none;border-top:1px dashed rgba(212,184,122,0.18);margin:1.5rem 0">
-      <div class="settings-mapviews-group-title">🔑 ${esc(I18n.t('settings.accountPasswords'))}</div>
-      <p class="settings-hint" style="margin-top:0.6rem;margin-bottom:1rem">
-        ${esc(I18n.t('settings.passwordsIntro'))}
-      </p>
-      ${_passwordFormHtml('dm', `🛡 ${I18n.t('settings.dmPassword')}`, st.dm)}
-      ${_passwordFormHtml('player', `👤 ${I18n.t('settings.playerPassword')}`, st.player)}`;
-  }
-
-  function _passwordFormHtml(role, title, info) {
-    const statusLine = (() => {
-      if (info.stored) {
-        const when = info.updatedAt
-          ? ` ${I18n.t('settings.pwdChangedAt', { when: _formatSnapshotDate(new Date(info.updatedAt).toISOString()) })}`
-          : '';
-        return `<span style="color:var(--accent-gold)">● ${esc(I18n.t('settings.pwdSet'))}${esc(when)}</span>`;
-      }
-      if (role === 'dm' && info.isDefault) {
-        return `<span style="color:#e88">⚠ ${esc(I18n.t('settings.pwdDefault'))}</span>`;
-      }
-      if (role === 'player' && info.disabled) {
-        return `<span style="color:var(--text-muted)">○ ${esc(I18n.t('settings.pwdDisabled'))}</span>`;
-      }
-      if (info.envFallback) {
-        return `<span style="color:var(--text-muted)">○ ${esc(I18n.t('settings.pwdFromEnv'))}</span>`;
-      }
-      return `<span style="color:var(--text-muted)">○ ${esc(I18n.t('settings.pwdNotSet'))}</span>`;
-    })();
-    const placeholder = (role === 'player')
-      ? I18n.t('settings.pwdNewPlaceholderPlayer')
-      : I18n.t('settings.pwdNewPlaceholderDM');
-    return `
-      <div class="settings-panel" style="margin-bottom:1rem;background:rgba(0,0,0,0.18)">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:1rem;margin-bottom:0.6rem">
-          <strong>${esc(title)}</strong>
-          <span style="font-size:0.85rem">${statusLine}</span>
-        </div>
-        <div class="settings-form-row">
-          <label class="settings-field">
-            <span class="settings-field-label">${esc(I18n.t('settings.currentDMPassword'))}</span>
-            <input class="edit-input" type="password" autocomplete="current-password"
-                   id="pwd-${esc(role)}-current"
-                   placeholder="${esc(I18n.t('settings.forConfirmation'))}">
-          </label>
-          <label class="settings-field">
-            <span class="settings-field-label">${esc(I18n.t('settings.newPassword'))}</span>
-            <input class="edit-input" type="password" autocomplete="new-password"
-                   id="pwd-${esc(role)}-new"
-                   placeholder="${esc(placeholder)}">
-          </label>
-          <label class="settings-field">
-            <span class="settings-field-label">${esc(I18n.t('settings.confirmNewPassword'))}</span>
-            <input class="edit-input" type="password" autocomplete="new-password"
-                   id="pwd-${esc(role)}-confirm"
-                   placeholder="${esc(I18n.t('settings.repeatNewPassword'))}">
-          </label>
-        </div>
-        <div class="settings-form-actions" style="margin-top:0.8rem">
-          <button type="button" class="edit-save-btn"
-            ${dataAction('Settings.changePassword', role)}>💾 ${esc(role === 'player' && info.stored ? I18n.t('settings.changeOrClearPassword') : I18n.t('settings.savePassword'))}</button>
-        </div>
-      </div>`;
-  }
-
-  /** Submit handler for one password form. Reads the three inputs,
-   *  validates locally (matching server-side rules), POSTs to
-   *  /api/passwords, then re-fetches status + re-renders. */
-  function changePassword(role) {
-    if (role !== 'dm' && role !== 'player') return;
-    const get = id => document.getElementById(id)?.value || '';
-    const current = get(`pwd-${role}-current`);
-    const next    = get(`pwd-${role}-new`);
-    const confirm = get(`pwd-${role}-confirm`);
-    if (!current) { _flash(I18n.t('settings.enterCurrentDMPassword'), false); return; }
-    if (next !== confirm) { _flash(I18n.t('settings.passwordsMismatch'), false); return; }
-    if (role === 'dm' && next.length < 4) {
-      _flash(I18n.t('settings.dmPasswordTooShort'), false); return;
-    }
-    if (role === 'player' && next.length > 0 && next.length < 4) {
-      _flash(I18n.t('settings.playerPasswordTooShort'), false); return;
-    }
-    if (next.length > 200) { _flash(I18n.t('settings.passwordTooLong'), false); return; }
-
-    ApiClient.requestJson('/api/passwords', {
-      method: 'POST',
-      json: { role, currentPassword: current, newPassword: next },
-    })
-      .then(() => {
-        const msg = (role === 'player' && next === '')
-          ? I18n.t('settings.playerAccountDisabled')
-          : I18n.t('settings.passwordChanged', { role: role === 'dm' ? I18n.t('settings.roleDMShort') : I18n.t('settings.rolePlayerShort') });
-        _flash(msg);
-        // Re-fetch status so the rows reflect the new "nastaveno" timestamp.
-        return _loadPasswordStatus().then(render);
-      })
-      .catch(() => _flash(I18n.t('settings.passwordChangeFailed'), false));
-  }
-
-  /** Fetch DM/player password status from the server. Stores into
-   *  module-level _passwordStatus; returns the promise so callers can
-   *  chain a render. */
-  function _loadPasswordStatus() {
-    return ApiClient.requestJson('/api/passwords')
-      .then(j => { _passwordStatus = j; })
-      .catch(() => { _passwordStatus = null; });
-  }
-
-  /** Clear the session cookie via Role.logout(). The role:changed
-   *  event handler in app.js refetches data + re-renders, so we don't
-   *  need to navigate ourselves. */
-  function logout() {
-    if (!confirm(I18n.t('settings.logoutConfirm'))) return;
-    Role.logout().then(() => _flash(I18n.t('settings.loggedOut')));
-  }
-
   // ── Delete-with-usage modal ──────────────────────────────────
   function _openDeleteModal(id, item, usages) {
     const cat = _activeCat;
@@ -1719,8 +1509,6 @@ export const Settings = (() => {
   let _wizardPreview  = null;   // { repo, ref, sha } captured at the wizard's preview step
   let _wizardMode     = 'install'; // 'install' | 'update' — wizard messaging
   let _addonUpdates   = {};     // id -> { hasUpdate, repo, ... } from the last check-updates
-  let _canRestart     = null;   // /api/version `canRestart` (null = not yet fetched)
-  let _serverInfoPending = false;
 
   function _loadAddons() {
     return ApiClient.requestJson('/api/addons')
@@ -1746,18 +1534,6 @@ export const Settings = (() => {
    *  shared tail of every lifecycle mutation. */
   function _reloadAddonsIfActive() {
     return _loadAddons().then(() => { if (_activeCat === 'addons') render(); });
-  }
-
-  /** Fetch /api/version `canRestart` once (gates the "restart server" button).
-   *  Re-renders the addons tab when it resolves so the button appears without a
-   *  manual reload. No-op once known or while a fetch is in flight. */
-  function _ensureServerInfo() {
-    if (_canRestart !== null || _serverInfoPending) return;
-    _serverInfoPending = true;
-    Store.getCanRestart().then(v => {
-      _canRestart = !!v; _serverInfoPending = false;
-      if (_activeCat === 'addons') render();
-    });
   }
 
   // Close the addon-row overflow / permissions <details> menus on an outside
@@ -1823,7 +1599,7 @@ export const Settings = (() => {
   }
 
   function _addonsManagerHtml() {
-    _ensureServerInfo();   // fetch canRestart once → reveals the restart button
+    _account.ensureServerInfo();
     // Overlay each installed addon with its live client load-state so a
     // broken addon reads as an error rather than looking fine.
     const loadStates = {};
@@ -1851,7 +1627,7 @@ export const Settings = (() => {
       <div class="settings-panel">
         <p class="settings-hint" style="margin-bottom:1rem">
           ${esc(I18n.t('settings.addonsIntro'))}
-          ${_canRestart ? ' ' + esc(I18n.t('settings.restartMovedHint')) : ''}
+          ${_account.canRestart() ? ' ' + esc(I18n.t('settings.restartMovedHint')) : ''}
         </p>
         ${_githubTokenLine()}
         ${_conflictsHtml()}
@@ -1875,7 +1651,7 @@ export const Settings = (() => {
     </p>`;
   }
 
-  // Fragment-override conflicts (Phase 6): ≥2 addons claiming an exclusive
+  // Fragment-override conflicts: ≥2 addons claiming an exclusive
   // (replace/hide) op on the SAME built-in fragment. Until the DM picks a
   // winner the built-in renders (never a silent clobber). Each card is a
   // radio of claimants + a "built-in" option; picking writes the resolution.
@@ -2080,7 +1856,7 @@ export const Settings = (() => {
     _addonLifecycle('DELETE', `/api/addons/${encodeURIComponent(id)}`, I18n.t('settings.addonRemoved'));
   }
 
-  // ── Update check + rollback (Phase 9) ─────────────────────────
+  // ── Update check + rollback ───────────────────────────────────
   function checkAddonUpdates() {
     if (!_requireDM()) return;
     _flash(I18n.t('settings.checkingUpdates'));
@@ -2114,7 +1890,7 @@ export const Settings = (() => {
     });
   }
 
-  // ── Update all + server restart ──────────────────────────────
+  // ── Update all ───────────────────────────────────────────────
   function updateAllAddons() {
     if (!_requireDM()) return;
     if (!confirm(I18n.t('settings.updateAllQ'))) return;
@@ -2127,50 +1903,12 @@ export const Settings = (() => {
       else {
         let msg = n ? I18n.plural('settings.updatedN', n) : I18n.t('settings.operationFailed');
         if (nErr) msg += ' · ' + I18n.plural('settings.updateErrorsN', nErr);
-        if (r.serverChanged && _canRestart) msg += ' — ' + I18n.t('settings.restartHint');
+        if (r.serverChanged && _account.canRestart()) msg += ' — ' + I18n.t('settings.restartHint');
         _flash(msg, nErr === 0);
       }
       _addonUpdates = {};
       _reloadAddonsIfActive();
     });
-  }
-
-  function restartServer() {
-    if (!_requireDM()) return;
-    if (!confirm(I18n.t('settings.restartQ'))) return;
-    Store.restartServer().then(r => {
-      if (!r.ok) { _flash(I18n.t('settings.restartFailed'), false); return; }
-      _showRestartOverlay();
-    });
-  }
-
-  // Full-screen "restarting…" overlay. Two-phase poll on /api/version: wait for the
-  // server to go DOWN (the old process is still answering for ~200 ms after we ask
-  // it to exit), then for it to come back UP, then reload. Robust to that window.
-  function _showRestartOverlay() {
-    let ov = document.getElementById('server-restart-overlay');
-    if (!ov) { ov = document.createElement('div'); ov.id = 'server-restart-overlay'; document.body.appendChild(ov); }
-    ov.innerHTML =
-      `<div class="sro-card"><div class="sro-spinner" aria-hidden="true"></div>` +
-      `<div class="sro-msg">${esc(I18n.t('settings.restarting'))}</div></div>`;
-    let phase = 'down', tries = 0;
-    const tick = () => {
-      tries++;
-      fetch('/api/version', { cache: 'no-store' }).then(r => {
-        if (!r.ok) throw new Error('down');
-        if (phase === 'up') { window.location.reload(); return; }
-        if (tries < 90) setTimeout(tick, 800); else _restartOverlayTimeout(ov);
-      }).catch(() => {
-        phase = 'up';   // unreachable → it's restarting; now wait for it back
-        if (tries < 90) setTimeout(tick, 800); else _restartOverlayTimeout(ov);
-      });
-    };
-    setTimeout(tick, 800);
-  }
-  function _restartOverlayTimeout(ov) {
-    if (!ov) return;
-    ov.innerHTML = `<div class="sro-card"><div class="sro-msg">${esc(I18n.t('settings.restartTimeout'))}</div>` +
-      `<button type="button" class="edit-save-btn" ${dataAction('reload')}>${esc(I18n.t('settings.reloadNow'))}</button></div>`;
   }
 
   // ── Install wizard (paste URL → install → live-load) ─────────
@@ -2372,7 +2110,7 @@ export const Settings = (() => {
 
   // Step 2 — backup → install/update the reviewed commit (sha-pinned; ref kept
   // for future update checks). The server runs the addon's server self-tests as
-  // a green-gate during install (Phase 8) — a red set surfaces here as an error.
+  // a green-gate during install; a red set surfaces here as an error.
   function confirmInstallAddon() {
     if (!_wizardPreview) return;
     const go = document.getElementById('addon-wizard-confirm');
@@ -2430,14 +2168,15 @@ export const Settings = (() => {
     selectMap, uploadSubMap,
     updateMapZoomRatioReadout, commitMapZoomRatio,
     isPendingSelfCommit,
-    logout,
-    changePassword,
+    logout: _account.logout,
+    changePassword: _account.changePassword,
     previewDefaultIcon,
     savePlayerParty,
     uploadLogo, deleteLogo, saveBranding, applyBranding,
     changeTheme, applyTheme,
     enableAddon, disableAddon, removeAddon, resolveAddonConflict, toggleContentGroup,
-    checkAddonUpdates, updateAddon, updateAllAddons, rollbackAddon, restartServer,
+    checkAddonUpdates, updateAddon, updateAllAddons, rollbackAddon,
+    restartServer: _account.restartServer,
     openAddonWizard, closeAddonWizard, addonWizardKey,
     previewAddon, confirmInstallAddon,
     saveGithubToken, clearGithubToken, githubTokenKey,

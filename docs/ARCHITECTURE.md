@@ -185,7 +185,7 @@ required if you ever turn on a strict Content-Security-Policy.
 client A       server                   client B
    │              │                         │
    │── PATCH ────▶│                         │
-   │              │── _atomicWrite          │
+   │              │── durableWrite          │
    │              │── _maybeSnapshot        │
    │              │── _broadcastDataChanged ──── data-changed event ────▶│
    │◀── 200 ──────│                         │                            │
@@ -226,13 +226,21 @@ backup ZIP clean).
 
 ```json
 {
+  "version":   1,
   "id":        "snapshot-2026-04-21T12-34-56-789Z.json",
   "createdAt": "2026-04-21T12:34:56.789Z",
   "dataHash":  "abc123…",
   "reason":    "save" | "manual" | "pre-restore",
-  "files":    { "characters.json": [...], "locations.json": [...], … }
+  "access":    "public" | "dm",
+  "files":     { "characters.json": [...], "locations.json": [...], … },
+  "fileDigests": { "characters.json": "<sha256>", "locations.json": "<sha256>" }
 }
 ```
+
+Creation is all-or-nothing: an unreadable, malformed, or scalar campaign JSON
+file prevents the recovery point. Version-1 digests bind the exact file
+inventory and parsed values; invalid or modified snapshots cannot be restored.
+Older snapshots without versioned digests remain supported.
 
 **Coalescing.** A snapshot is skipped if the previous one is < 60 s
 old. Burst writes from a single logical action (saveLocation's peer
@@ -242,16 +250,25 @@ cascade, or a user mashing save) collapse into one snapshot.
 UTC-day for the last 14 days are kept; everything else is pruned at
 the end of every snapshot creation. The pure retention policy lives
 in `pickKeptSnapshots` ([`server-utils.cjs`](../server-utils.cjs))
-so it can be unit-tested without touching disk.
+so it can be unit-tested without touching disk. Content-addressed addon code
+referenced by a retained snapshot is also protected from version pruning.
 
-**Restore.** Roll-forward an `id`, take a fresh `pre-restore` snapshot
-first (so the restore itself is undoable), overwrite every JSON file
-in `data/` with the snapshot's contents, broadcast `data-changed` so
-every connected client refetches.
+**Restore.** Validate an `id`, take a complete `pre-restore` snapshot first,
+stage its JSON files, and atomically journal-publish the snapshot's writes and
+deletions through `CampaignRestoreManager`. Failure rolls the full operation
+back; startup recovers an interrupted publication before listening. Successful
+publication reconciles addons and sends one `data-changed` notification.
+
+Uploaded ZIP/JSON restore candidates use the same journal, but first validate
+authoritative JSON, materialize omitted live files to preserve overlay
+semantics, and run the shared startup migration sequence in isolation. Only
+the validated canonical candidate becomes visible; generated and media files
+remain opaque journal payloads.
 
 **Revert-last-N.** `POST /api/snapshots/revert-last/:n` resolves the
 target as `files[files.length - 1 - n]` and calls `_restoreSnapshot`.
-n=1 = "undo the last change".
+`n` counts recovery points, not individual edits, because automatic snapshots
+coalesce bursts.
 
 ## Wiki article layout
 
@@ -312,11 +329,11 @@ Two modes share one Leaflet instance:
 
 If `tiler.js` and the `sharp` dep are available, the server builds
 a Leaflet-compatible 256 px tile pyramid under
-`data/maps/tiles/<mapId>/{z}/{x}/{y}.jpg` (plus a `tiles.json`
-manifest). The client loads `L.tileLayer` from those tiles for fast
-pan / zoom; if no manifest is found (sharp missing, or pyramid still
-building) it falls back to a single `L.imageOverlay` so the map
-still works.
+`data/maps/tiles/<mapId>/g-<sourceHash>/{z}/{x}/{y}.jpg`. It atomically
+switches `tiles.json` only after a complete immutable generation exists, so
+failed or overlapping rebuilds cannot expose mixed tiles. The client loads
+`L.tileLayer` from that generation for fast pan / zoom; if no manifest is
+found it falls back to a single `L.imageOverlay` so the map still works.
 
 Marker scaling is per-map config: `settings.mapConfigs[mapId].zoomScaleRatio`
 (0..1) controls how much markers grow / shrink with the map zoom.
@@ -399,13 +416,15 @@ that were tried and reverted (do not retry without reason).
   (`..`), absolute paths, null bytes, AND symlink escapes (via
   realpath on every existing prefix). Used by the portrait migration
   inside PATCH `/api/data` and by the restore-ZIP entry validator.
-- **Write serialisation.** Every disk-mutating route runs inside
-  `withWriteLock(fn)` — a Promise-chain mutex — so two PATCHes can't
-  interleave read-modify-write cycles on the same JSON file.
-- **Atomic writes.** `_atomicWrite` writes to a sibling `.tmp` file
-  and `rename()`s into place (atomic on POSIX, retried with backoff
-  on Windows EBUSY). A killed server can't corrupt a JSON file mid-
-  write.
+- **Write serialisation.** Every disk-mutating route runs inside the bounded
+  FIFO core lock so read-modify-write cycles cannot interleave. JSON writes use
+  the shared fsynced unique-temp writer. Media replacements, batches, and
+  removals additionally use a durable journal plus the static publication
+  barrier, so readers and backups see one complete file set.
+- **Durable writes.** `durableWrite` writes to a unique sibling temporary file,
+  fsyncs it, renames it over the target, and fsyncs the containing directory
+  where supported. This is the single-file persistence path for ordinary core
+  JSON writes, with sharing-violation retries on Windows.
 - **Prototype pollution guard.** Keyed-object collections
   (`factions`, `settings`, `campaign`, `deletedDefaults`) write via
   `container[payload.id] = …`. The PATCH handler calls
@@ -467,7 +486,7 @@ handler in [`server.js`](../server.js). Auth legend: `—` open ·
 | GET | `/api/snapshots` | any | List snapshots, newest first |
 | POST | `/api/snapshots` | any | Take a manual snapshot |
 | POST | `/api/snapshots/:id/restore` | dm | Roll back to a specific snapshot |
-| POST | `/api/snapshots/revert-last/:n` | dm | Undo the last N changes |
+| POST | `/api/snapshots/revert-last/:n` | dm | Go back N recovery points |
 | DELETE | `/api/snapshots/:id` | dm | Delete one snapshot file |
 | GET | `/api/addons` | — | Installed-addon registry (public projection) |
 | POST | `/api/addons/install` · `/preview` · `/check-updates` · `/update-all` · `/sources` · `/resolve` | dm | Addon lifecycle: install from GitHub, manifest preview, update checks, bulk update, source records, fragment-conflict resolution (all gated on the *signed* DM role) |

@@ -69,6 +69,8 @@
   "app.remoteChanged": "Někdo jiný upravil data. Tvoje rozepsané změny zatím nejsou ztracené.",
   "app.remoteReload": "Načíst (zahodit moje změny)",
   "app.saveFailed": "⚠ Uložení na server selhalo — zkontrolujte připojení a znovu načtěte stránku.",
+  "app.saveConflict": "⚠ Tento záznam byl mezitím upraven jinde. Vaše změna se neuložila; obnovuji potvrzenou verzi ze serveru.",
+  "app.saveRecovered": "Potvrzená verze ze serveru byla obnovena. Před další úpravou záznam zkontrolujte.",
   "app.serverUnavailable": "⚠ Server není dostupný — zobrazují se výchozí data. Změny nebudou uloženy.",
   "cloudmap.addRelationHere": "Přidat vazbu odsud",
   "cloudmap.autoLayout": "Auto rozložení",
@@ -819,19 +821,19 @@
     "other": "Obnoveno z {fmt} ({n} souborů) ✓"
   },
   "settings.restoring": "Obnovuji…",
-  "settings.revertFailed": "Vrácení změn selhalo",
-  "settings.revertLastN": "Vrátit poslední X úprav",
+  "settings.revertFailed": "Obnovení staršího bodu zálohy selhalo",
+  "settings.revertLastN": "Vrátit se o X bodů zálohy",
   "settings.revertLastNQ": {
-    "one": "Vrátit poslední {n} úpravu? Před obnovou se automaticky vytvoří bezpečnostní bod zálohy.",
-    "few": "Vrátit poslední {n} úpravy? Před obnovou se automaticky vytvoří bezpečnostní bod zálohy.",
-    "many": "Vrátit posledních {n} úprav? Před obnovou se automaticky vytvoří bezpečnostní bod zálohy.",
-    "other": "Vrátit posledních {n} úprav? Před obnovou se automaticky vytvoří bezpečnostní bod zálohy."
+    "one": "Vrátit se o {n} bod zálohy? Před obnovou se automaticky vytvoří bezpečnostní bod zálohy.",
+    "few": "Vrátit se o {n} body zálohy? Před obnovou se automaticky vytvoří bezpečnostní bod zálohy.",
+    "many": "Vrátit se o {n} bodů zálohy? Před obnovou se automaticky vytvoří bezpečnostní bod zálohy.",
+    "other": "Vrátit se o {n} bodu zálohy? Před obnovou se automaticky vytvoří bezpečnostní bod zálohy."
   },
   "settings.revertingLastN": {
-    "one": "Vracím poslední {n} úpravu…",
-    "few": "Vracím poslední {n} úpravy…",
-    "many": "Vracím posledních {n} úprav…",
-    "other": "Vracím posledních {n} úprav…"
+    "one": "Vracím se o {n} bod zálohy…",
+    "few": "Vracím se o {n} body zálohy…",
+    "many": "Vracím se o {n} bodů zálohy…",
+    "other": "Vracím se o {n} bodu zálohy…"
   },
   "settings.roleDMShort": "DM",
   "settings.rolePlayer": "Hráč",
@@ -852,7 +854,7 @@
   "settings.sizeTitle": "Velikost",
   "settings.snapshotCreateFailed": "Vytvoření bodu zálohy selhalo",
   "settings.snapshotCreated": "Bod zálohy vytvořen ✓",
-  "settings.snapshotEdit": "úprava",
+  "settings.snapshotEdit": "automatický",
   "settings.snapshotManual": "ruční",
   "settings.snapshotPreRestore": "před obnovou",
   "settings.strategyRandom": "Náhodná varianta",

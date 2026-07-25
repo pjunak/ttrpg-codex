@@ -741,7 +741,7 @@ document.addEventListener('click', (ev) => {
 
   // ── Server availability banner ──────────────────────────────
   // Shown when the server is unreachable at startup or a save fails mid-session.
-  function _showServerBanner(msg) {
+  function _showServerBanner(msg, { error = true } = {}) {
     let banner = document.getElementById("server-banner");
     if (!banner) {
       banner = document.createElement("div");
@@ -749,7 +749,9 @@ document.addEventListener('click', (ev) => {
       banner.className = "app-banner app-banner-error";
       document.body.prepend(banner);
     }
+    banner.className = error ? "app-banner app-banner-error" : "app-banner";
     banner.textContent = msg;
+    return banner;
   }
 
   window.addEventListener("store:server-unavailable", () => {
@@ -757,6 +759,26 @@ document.addEventListener('click', (ev) => {
   });
   window.addEventListener("store:save-failed", () => {
     _showServerBanner(I18n.t('app.saveFailed'));
+  });
+  let _writeRecovery = null;
+  window.addEventListener("store:write-recovery-needed", event => {
+    if (event.detail?.status === 401) return;
+    _showServerBanner(I18n.t(
+      event.detail?.code === 'WRITE_CONFLICT'
+        ? 'app.saveConflict'
+        : 'app.saveFailed',
+    ));
+    if (_writeRecovery) return;
+    _writeRecovery = (async () => {
+      await Store.settleWrites();
+      _applyRemoteChange(null);
+      await _remoteSync.whenIdle();
+      if (!Store.needsWriteRecovery()) {
+        _showServerBanner(I18n.t('app.saveRecovered'), { error: false });
+      }
+    })().finally(() => {
+      _writeRecovery = null;
+    });
   });
   // Session cookie expired or password rotated: every queued save is
   // bouncing with 401 and nothing else surfaces it (Store._sync

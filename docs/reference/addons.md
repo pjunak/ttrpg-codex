@@ -77,7 +77,10 @@ the `/api/backup` ZIP already covers `data/` wholesale (so addon-data + the
 registry + addon code are in it — a restore recreates the nested dirs); added
 **keep-last-K pruning** of old `<hash>/` code dirs (`_pruneAddonVersions` on
 install + `_pruneAllAddonCode` boot sweep — only 16-hex dirs + a stale
-`.incoming` are ever removed). **Phase 11** = the **addon-authoring guide**
+`.incoming` are ever removed). Hashes referenced by retained recovery points
+are protected even after uninstall; once those points expire or are deleted,
+the boot sweep reclaims the now-unreachable package. **Phase 11** = the
+**addon-authoring guide**
 [`examples/addons/AUTHORING.md`](examples/addons/AUTHORING.md) — a living
 reference for human + AI authors (manifest, full host + serverHost API +
 permission catalogue, the design-system/style contract, the
@@ -91,7 +94,8 @@ testing, the update/rollback wizard, and backup coverage.
 ### On-disk layout (all under the data volume)
 - `data/addons/<id>/<contentHash>/` — extracted addon CODE,
   **content-addressed** (the live version is `registry.activeHash`;
-  rollback = flip the hash; `versions[]` keeps the last K). Served
+  rollback = flip the hash; `versions[]` keeps the last K; retained snapshots
+  protect any additional hashes their registry can select). Served
   same-origin (CSP-clean) at `/addons/<id>/<hash>/…`
   (`express.static`, `fallthrough:false` → clean 404 on a miss, never
   the SPA index).
@@ -726,7 +730,9 @@ renames):
   (Phase 9 — content-addressed rollback flip + field restore, targeted/default/
   error paths, check-updates empty/local/role-gating) + `test/integration-addon-backup.test.cjs`
   (Phase 10 — `/api/backup` ZIP includes addon-data/registry/code, boot-sweep
-  prunes stale `<hash>`/`.incoming` but keeps kept-K + non-hash dirs) +
+  prunes stale `<hash>`/`.incoming` but keeps kept-K, snapshot-reachable, and
+  defensive non-hash dirs; uninstall retains code until its final recovery
+  point is removed) +
   `test/addon-content.test.cjs` (contentDir loader — atomic tree validation,
   kinds, per-record shapes, diagnostics, and duplicate rejection) +
   `test/integration-addon-content.test.cjs` (the host-served

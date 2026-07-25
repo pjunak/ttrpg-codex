@@ -68,6 +68,8 @@
   "app.remoteChanged": "Someone else edited the data. Your in-progress changes are not lost yet.",
   "app.remoteReload": "Load (discard my changes)",
   "app.saveFailed": "⚠ Saving to the server failed — check your connection and reload the page.",
+  "app.saveConflict": "⚠ This record changed elsewhere. Your optimistic edit was not saved; restoring the confirmed server version.",
+  "app.saveRecovered": "The confirmed server version was restored. Review the record before editing it again.",
   "app.serverUnavailable": "⚠ Server is unavailable — showing default data. Changes won't be saved.",
   "cloudmap.addRelationHere": "Add relationship from here",
   "cloudmap.autoLayout": "Auto layout",
@@ -790,15 +792,15 @@
     "other": "Restored from {fmt} ({n} files) ✓"
   },
   "settings.restoring": "Restoring…",
-  "settings.revertFailed": "Reverting changes failed",
-  "settings.revertLastN": "Revert last X edits",
+  "settings.revertFailed": "Restoring an earlier backup point failed",
+  "settings.revertLastN": "Go back X backup points",
   "settings.revertLastNQ": {
-    "one": "Revert the last {n} edit? A safety backup point is created automatically before restoring.",
-    "other": "Revert the last {n} edits? A safety backup point is created automatically before restoring."
+    "one": "Go back {n} backup point? A safety backup point is created automatically before restoring.",
+    "other": "Go back {n} backup points? A safety backup point is created automatically before restoring."
   },
   "settings.revertingLastN": {
-    "one": "Reverting the last {n} edit…",
-    "other": "Reverting the last {n} edits…"
+    "one": "Going back {n} backup point…",
+    "other": "Going back {n} backup points…"
   },
   "settings.roleDMShort": "DM",
   "settings.rolePlayer": "Player",
@@ -819,7 +821,7 @@
   "settings.sizeTitle": "Size",
   "settings.snapshotCreateFailed": "Creating backup point failed",
   "settings.snapshotCreated": "Backup point created ✓",
-  "settings.snapshotEdit": "edit",
+  "settings.snapshotEdit": "automatic",
   "settings.snapshotManual": "manual",
   "settings.snapshotPreRestore": "before restore",
   "settings.strategyRandom": "Random variant",
