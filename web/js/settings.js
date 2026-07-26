@@ -20,6 +20,7 @@ import { ApiClient } from './api-client.js';
 import { PinTypes } from './pin-types.js';
 import { SettingsAccount } from './settings-account.js';
 import { SettingsBackup } from './settings-backup.js';
+import { indexAddonUpdates, withoutAddonUpdate } from './addon-update-state.js';
 
 export const Settings = (() => {
 
@@ -1826,9 +1827,13 @@ export const Settings = (() => {
       </div>`;
   }
 
-  function _addonLifecycle(method, url, okMsg) {
+  function _addonLifecycle(method, url, okMsg, changedId) {
     return ApiClient.requestJson(url, { method })
-      .then(() => { _flash(okMsg); return _reloadAddonsIfActive(); })
+      .then(() => {
+        if (changedId) _addonUpdates = withoutAddonUpdate(_addonUpdates, changedId);
+        _flash(okMsg);
+        return _reloadAddonsIfActive();
+      })
       .catch(() => _flash(I18n.t('settings.operationFailed'), false));
   }
   // Replace the addon's disabled-content-group list from the checkbox row's
@@ -1847,13 +1852,14 @@ export const Settings = (() => {
       .catch(() => _flash(I18n.t('settings.operationFailed'), false));
   }
   function enableAddon(id)  { _addonLifecycle('POST',   `/api/addons/${encodeURIComponent(id)}/enable`,  I18n.t('settings.addonEnabled')); }
-  function disableAddon(id) { delete _addonUpdates[id]; _addonLifecycle('POST', `/api/addons/${encodeURIComponent(id)}/disable`, I18n.t('settings.addonDisabled')); }
+  function disableAddon(id) {
+    _addonLifecycle('POST', `/api/addons/${encodeURIComponent(id)}/disable`, I18n.t('settings.addonDisabled'), id);
+  }
   function removeAddon(id) {
     const a = (_addonsList || []).find(x => x.id === id);
     const name = a ? (a.name || a.id) : id;
     if (!confirm(I18n.t('settings.removeAddonQ', { name }))) return;
-    delete _addonUpdates[id];   // drop the stale update entry for the gone addon
-    _addonLifecycle('DELETE', `/api/addons/${encodeURIComponent(id)}`, I18n.t('settings.addonRemoved'));
+    _addonLifecycle('DELETE', `/api/addons/${encodeURIComponent(id)}`, I18n.t('settings.addonRemoved'), id);
   }
 
   // ── Update check + rollback ───────────────────────────────────
@@ -1862,8 +1868,7 @@ export const Settings = (() => {
     _flash(I18n.t('settings.checkingUpdates'));
     Store.checkAddonUpdates().then(r => {
       if (!r.ok) { _flash(I18n.t('settings.checkFailed'), false); return; }
-      _addonUpdates = {};
-      for (const u of r.updates) if (u && u.id) _addonUpdates[u.id] = u;
+      _addonUpdates = indexAddonUpdates(r.updates);
       const n = r.updates.filter(u => u.hasUpdate).length;
       _flash(n ? I18n.plural('settings.updatesAvailable', n) : I18n.t('settings.allUpToDate'));
       if (_activeCat === 'addons') render();
@@ -1884,7 +1889,7 @@ export const Settings = (() => {
     Store.rollbackAddon(id).then(r => {
       if (r.ok) {
         _flash(I18n.t('settings.rolledBackTo', { version: r.version || '?' }) + ((a && a.server) ? I18n.t('settings.rollbackServerSuffix') : ''));
-        _addonUpdates = {};   // version changed → the cached update check is stale
+        _addonUpdates = withoutAddonUpdate(_addonUpdates, id);
         _reloadAddonsIfActive();
       } else _flash(I18n.t('settings.rollbackFailed'), false);
     });
@@ -2141,7 +2146,7 @@ export const Settings = (() => {
         const foot = document.getElementById('addon-wizard-foot');
         if (foot) foot.innerHTML = `<button type="button" class="edit-save-btn" ${dataAction('Settings.closeAddonWizard')}>${esc(I18n.t('settings.done'))}</button>`;
         _flash(_wizardMode === 'update' ? I18n.t('settings.addonUpdated') : I18n.t('settings.addonInstalled'));
-        _addonUpdates = {};   // stale after a change — a fresh check is needed
+        _addonUpdates = withoutAddonUpdate(_addonUpdates, a.id);
         // Refresh the list behind the modal; the addons-changed SSE event also
         // live-loads/reconciles via Addons.reconcile() in app.js.
         _reloadAddonsIfActive();

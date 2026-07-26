@@ -210,6 +210,9 @@ Vazby) leaves the active tab outside the visible set.
   — menu semantics ("click inside → close") would collapse the details
   the moment the user clicks the token input, making it unpasteable.
   Keep the id and the `:not()` in sync.
+  Update-check results remain visible until individually invalidated: a
+  successful update, rollback, disable, or removal clears only that addon's
+  result, while a bulk update clears the complete result set.
   Toolbar also has **⬆ Aktualizovat vše** (`Settings.updateAllAddons` →
   `POST /api/addons/update-all` — updates every GitHub addon at once; local addons
   skipped). Under the intro the Manager shows a one-line **🔑 GitHub-token
