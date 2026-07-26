@@ -513,16 +513,21 @@ adapter is private `web/js/addon-graph-cytoscape.js`, registered once by
 cytoscape-dagre 4 runtime is ready. Core `cloudmap.js` remains on its existing
 internal runtime and physics contract.
 
-Facade API version 1 accepts nodes `{id,label,kind?}` and edges
+Facade API version 1 accepts nodes
+`{id,label,kind?,position?:{x,y}}` and edges
 `{id,source,target,label?}`. IDs are bounded token-shaped strings; ids are
 unique across all elements; dangling edges reject. Limits are 1,000 nodes,
 4,000 edges, 128-character ids, 500-character labels, a 200-character
-accessible label, and viewport padding from 0 to 200. Configuration is plain
-data only. Supported layouts are `grid`, `circle`, `concentric`,
-`breadthfirst`, and `dagre`, each with a small validated option allowlist.
-Documented events are `select`, `unselect`, `activate`, `viewport`, and
-`focus`; callbacks receive frozen plain event summaries, never implementation
-events.
+accessible label, coordinates from -1,000,000 to 1,000,000, and viewport
+padding from 0 to 200. Configuration is plain data only. Supported layouts are
+`grid`, `circle`, `concentric`, `breadthfirst`, `dagre`, and `preset`, each
+with a small validated option allowlist. `preset` consumes the validated node
+positions. Documented events are `select`, `unselect`, `activate`, `move`,
+`viewport`, and `focus`; `move` is the post-drag summary
+`{nodeId,position,selectedIds}`. Callbacks receive frozen plain event
+summaries, never implementation events. Node positions and dragging are
+advertised as optional `node-position` and `node-drag` adapter features so an
+addon can retain a read-only fallback on an older implementation.
 
 Mount is allowed only below the calling addon's
 `.addon-route-page[data-addon-id]` wrapper. The facade tracks pending and live

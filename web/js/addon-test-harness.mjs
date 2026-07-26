@@ -331,8 +331,16 @@ export function createMockHost(meta = {}, opts = {}) {
       id: 'mock-graph',
       minFacadeVersion: 1,
       maxFacadeVersion: 1,
-      features: ['data', 'selection', 'viewport', 'events', 'lifecycle'],
-      layouts: ['grid', 'circle', 'concentric', 'breadthfirst', 'dagre'],
+      features: [
+        'data',
+        'selection',
+        'viewport',
+        'events',
+        'lifecycle',
+        'node-position',
+        'node-drag',
+      ],
+      layouts: ['grid', 'circle', 'concentric', 'breadthfirst', 'dagre', 'preset'],
       async create({ container, graph, layout, accessibleLabel, fitPadding }) {
         if (opts.graphMount) {
           return opts.graphMount({ container, graph, layout, accessibleLabel, fitPadding, rec });

@@ -8,16 +8,18 @@ import {
 } from '../web/js/addon-graph.js';
 
 class Element {
-  constructor(data, group, emitEvent) {
+  constructor(data, group, emitEvent, position = { x: 0, y: 0 }) {
     this.dataValue = data;
     this.group = group;
     this.emitEvent = emitEvent;
     this.selected = false;
+    this.positionValue = { ...position };
   }
   id() { return this.dataValue.id; }
   select() { this.selected = true; return this; }
   unselect() { this.selected = false; return this; }
   emit(name) { this.emitEvent(name, this); return this; }
+  position() { return { ...this.positionValue }; }
 }
 
 class Collection extends Array {
@@ -73,13 +75,13 @@ function fakeRuntime() {
       }
     };
     let elements = Collection.from(config.elements.map(
-      item => new Element(item.data, item.group, emitEvent),
+      item => new Element(item.data, item.group, emitEvent, item.position),
     ));
     const cy = {
       elements: () => elements,
       nodes: () => Collection.from(elements.filter(item => item.group === 'nodes')),
       add(items) {
-        elements.push(...items.map(item => new Element(item.data, item.group, emitEvent)));
+        elements.push(...items.map(item => new Element(item.data, item.group, emitEvent, item.position)));
       },
       batch(callback) { callback(); },
       layout(options) {
@@ -159,7 +161,7 @@ test('private Cytoscape adapter mounts fixed styles, supports facade operations,
   const hostile = '<img src=x onerror=alert(1)>';
   const handle = await facade.mount(container, {
     nodes: [
-      { id: 'one', label: hostile, kind: 'planned' },
+      { id: 'one', label: hostile, kind: 'planned', position: { x: 24, y: 48 } },
       { id: 'two', label: 'Two', kind: 'active' },
     ],
     edges: [{ id: 'edge', source: 'one', target: 'two', label: '<script>x</script>' }],
@@ -170,6 +172,7 @@ test('private Cytoscape adapter mounts fixed styles, supports facade operations,
 
   assert.equal(state.configs.length, 1);
   assert.equal(state.configs[0].elements[0].data.label, hostile);
+  assert.deepEqual(state.configs[0].elements[0].position, { x: 24, y: 48 });
   assert.equal(state.configs[0].style.some(rule => typeof rule.selector === 'string' && rule.selector === 'node'), true);
   assert.equal(state.layouts[0].name, 'dagre');
   assert.equal(state.layouts[0].animate, false);
@@ -178,6 +181,8 @@ test('private Cytoscape adapter mounts fixed styles, supports facade operations,
   assert.equal(observers.resize, 1);
   assert.equal(observers.mutation, 1);
   assert.equal('cy' in handle, false);
+  assert.equal(facade.status().features.includes('node-drag'), true);
+  assert.equal(facade.status().layouts.includes('preset'), true);
 
   handle.select('one');
   const activated = [];
@@ -189,6 +194,16 @@ test('private Cytoscape adapter mounts fixed styles, supports facade operations,
   });
   assert.deepEqual(activated, [{ type: 'activate', nodeId: 'one', selectedIds: ['one'] }]);
   assert.equal(prevented, true);
+  const moved = [];
+  handle.on('move', event => moved.push(event));
+  state.cy.nodes().first()[0].positionValue = { x: 90, y: 110 };
+  state.cy.nodes().first().emit('dragfree');
+  assert.deepEqual(moved, [{
+    type: 'move',
+    nodeId: 'one',
+    position: { x: 90, y: 110 },
+    selectedIds: ['one'],
+  }]);
   handle.focus('two', { padding: 12 });
   handle.fit(undefined, { padding: 8 });
   handle.update({

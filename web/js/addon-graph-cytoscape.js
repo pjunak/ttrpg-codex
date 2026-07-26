@@ -1,13 +1,22 @@
 import { GRAPH_FACADE_VERSION } from './addon-graph.js';
 
-const FEATURES = Object.freeze(['data', 'selection', 'viewport', 'events', 'lifecycle']);
-const LAYOUTS = Object.freeze(['grid', 'circle', 'concentric', 'breadthfirst', 'dagre']);
+const FEATURES = Object.freeze([
+  'data',
+  'selection',
+  'viewport',
+  'events',
+  'lifecycle',
+  'node-position',
+  'node-drag',
+]);
+const LAYOUTS = Object.freeze(['grid', 'circle', 'concentric', 'breadthfirst', 'dagre', 'preset']);
 
 function elementData(graph) {
   return [
     ...graph.nodes.map(node => ({
       group: 'nodes',
       data: { id: node.id, label: node.label, kind: node.kind },
+      ...(node.position ? { position: node.position } : {}),
     })),
     ...graph.edges.map(edge => ({
       group: 'edges',
@@ -253,7 +262,7 @@ export function createCytoscapeGraphAdapter(cytoscapeRuntime) {
           container.addEventListener?.('focus', listener);
           return () => container.removeEventListener?.('focus', listener);
         }
-        const eventName = event === 'activate' ? 'tap' : event;
+        const eventName = event === 'activate' ? 'tap' : event === 'move' ? 'dragfree' : event;
         const selector = event === 'viewport' ? undefined : 'node';
         const listener = cyEvent => {
           if (destroyed) return;
@@ -262,8 +271,10 @@ export function createCytoscapeGraphAdapter(cytoscapeRuntime) {
             return;
           }
           const nodeId = cyEvent.target?.id?.() || '';
+          const position = event === 'move' ? cyEvent.target?.position?.() : undefined;
           handler({
             nodeId,
+            ...(position ? { position: { x: position.x, y: position.y } } : {}),
             selectedIds: cy.$('node:selected').map(node => node.id()),
           });
         };

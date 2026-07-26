@@ -7,6 +7,7 @@ export const GRAPH_LIMITS = Object.freeze({
   maxLabelLength: 500,
   maxAccessibleLabelLength: 200,
   maxPadding: 200,
+  maxCoordinate: 1_000_000,
 });
 
 const REQUIRED_FEATURES = Object.freeze([
@@ -16,7 +17,7 @@ const REQUIRED_FEATURES = Object.freeze([
   'events',
   'lifecycle',
 ]);
-const EVENTS = new Set(['select', 'unselect', 'activate', 'viewport', 'focus']);
+const EVENTS = new Set(['select', 'unselect', 'activate', 'move', 'viewport', 'focus']);
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const KIND_RE = /^[a-z][a-z0-9._-]{0,63}$/;
 const TOKEN_RE = /^[a-z][a-z0-9.-]{1,63}$/;
@@ -78,11 +79,35 @@ function normalizedPadding(value) {
   return value;
 }
 
+function normalizedPosition(value, name) {
+  if (value === undefined) return undefined;
+  if (!isPlainObject(value)) {
+    throw graphError('GRAPH_INVALID_DATA', `${name} must be an object { x, y }`);
+  }
+  exactFields(value, new Set(['x', 'y']), name);
+  const position = {};
+  for (const axis of ['x', 'y']) {
+    if (!Number.isFinite(value[axis])
+        || Math.abs(value[axis]) > GRAPH_LIMITS.maxCoordinate) {
+      throw graphError(
+        'GRAPH_INVALID_DATA',
+        `${name}.${axis} must be between -${GRAPH_LIMITS.maxCoordinate} and ${GRAPH_LIMITS.maxCoordinate}`,
+      );
+    }
+    position[axis] = value[axis];
+  }
+  return Object.freeze(position);
+}
+
 function publicEvent(event, payload) {
   const source = isPlainObject(payload) ? payload : {};
   const result = { type: event };
-  if (event === 'select' || event === 'unselect' || event === 'activate') {
+  if (event === 'select' || event === 'unselect' || event === 'activate' || event === 'move') {
     if (typeof source.nodeId === 'string' && ID_RE.test(source.nodeId)) result.nodeId = source.nodeId;
+  }
+  if (event === 'move') {
+    const position = normalizedPosition(source.position, 'move position');
+    if (position) result.position = position;
   }
   if (event !== 'viewport' && Array.isArray(source.selectedIds)) {
     result.selectedIds = source.selectedIds
@@ -112,16 +137,17 @@ export function validateGraphData(value) {
   const nodeIds = new Set();
   const nodes = value.nodes.map((node, index) => {
     if (!isPlainObject(node)) throw graphError('GRAPH_INVALID_DATA', `node ${index} must be an object`);
-    exactFields(node, new Set(['id', 'label', 'kind']), `node ${index}`);
+    exactFields(node, new Set(['id', 'label', 'kind', 'position']), `node ${index}`);
     const id = boundedText(node.id, `node ${index} id`, GRAPH_LIMITS.maxIdLength, { required: true });
     if (!ID_RE.test(id)) throw graphError('GRAPH_INVALID_DATA', `node ${index} id has an unsupported shape`);
     if (allIds.has(id)) throw graphError('GRAPH_DUPLICATE_ID', `duplicate graph id "${id}"`);
     const label = boundedText(node.label, `node ${index} label`, GRAPH_LIMITS.maxLabelLength);
     const kind = node.kind === undefined ? '' : boundedText(node.kind, `node ${index} kind`, 64);
     if (kind && !KIND_RE.test(kind)) throw graphError('GRAPH_INVALID_DATA', `node ${index} kind has an unsupported shape`);
+    const position = normalizedPosition(node.position, `node ${index} position`);
     allIds.add(id);
     nodeIds.add(id);
-    return Object.freeze({ id, label, kind });
+    return Object.freeze({ id, label, kind, ...(position ? { position } : {}) });
   });
 
   const edges = value.edges.map((edge, index) => {
@@ -155,6 +181,7 @@ const LAYOUT_FIELDS = Object.freeze({
   concentric: new Set(['name', 'minNodeSpacing']),
   breadthfirst: new Set(['name', 'directed', 'circle']),
   dagre: new Set(['name', 'rankDir', 'rankSep', 'nodeSep', 'edgeSep']),
+  preset: new Set(['name']),
 });
 
 function boundedLayoutNumber(value, name, min, max, integer = false) {

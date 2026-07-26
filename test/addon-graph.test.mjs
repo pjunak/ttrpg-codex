@@ -20,7 +20,7 @@ const { validateManifest } = require('../server/addons.cjs');
 function graphData(label = 'Alpha') {
   return {
     nodes: [
-      { id: 'alpha', label, kind: 'planned' },
+      { id: 'alpha', label, kind: 'planned', position: { x: 120, y: -40 } },
       { id: 'beta', label: 'Beta', kind: 'active' },
     ],
     edges: [
@@ -37,8 +37,16 @@ function adapter(id = 'fake', overrides = {}) {
       id,
       minFacadeVersion: 1,
       maxFacadeVersion: 1,
-      features: ['data', 'selection', 'viewport', 'events', 'lifecycle'],
-      layouts: ['grid', 'dagre'],
+      features: [
+        'data',
+        'selection',
+        'viewport',
+        'events',
+        'lifecycle',
+        'node-position',
+        'node-drag',
+      ],
+      layouts: ['grid', 'dagre', 'preset'],
       async create(spec) {
         const listeners = new Map();
         const instance = {
@@ -148,6 +156,7 @@ test('facade mounts, updates, selects, focuses, fits, emits safe events, and des
   });
   assert.deepEqual(Object.keys(handle).sort(), ['destroy', 'fit', 'focus', 'on', 'select', 'update']);
   assert.equal(fake.instances[0].accessibleLabel, 'Scenario graph');
+  assert.deepEqual(fake.instances[0].graph.nodes[0].position, { x: 120, y: -40 });
   handle.update(graphData('Updated'), { layout: 'grid' });
   handle.select('alpha');
   handle.focus(['beta'], { padding: 12 });
@@ -159,6 +168,20 @@ test('facade mounts, updates, selects, focuses, fits, emits safe events, and des
   unsubscribe();
   fake.instances[0].emit('select', { nodeId: 'beta' });
   assert.equal(events.length, 1);
+  const moves = [];
+  handle.on('move', event => moves.push(event));
+  fake.instances[0].emit('move', {
+    nodeId: 'beta',
+    position: { x: 33.5, y: 71 },
+    selectedIds: ['beta'],
+    raw: { private: true },
+  });
+  assert.deepEqual(moves[0], {
+    type: 'move',
+    nodeId: 'beta',
+    position: { x: 33.5, y: 71 },
+    selectedIds: ['beta'],
+  });
   handle.destroy();
   handle.destroy();
   assert.equal(fake.instances[0].destroyed, 1);
@@ -200,6 +223,17 @@ test('graph validation rejects invalid nodes, duplicate ids, dangling edges, hos
       edges: [],
     }),
     error => error.code === 'GRAPH_LIMIT_EXCEEDED',
+  );
+  assert.throws(
+    () => validateGraphData({
+      nodes: [{
+        id: 'one',
+        label: 'One',
+        position: { x: GRAPH_LIMITS.maxCoordinate + 1, y: 0 },
+      }],
+      edges: [],
+    }),
+    error => error.code === 'GRAPH_INVALID_DATA',
   );
 });
 

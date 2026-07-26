@@ -507,32 +507,48 @@ const mountGraph = async () => {
   const container = document.getElementById('my-graph');
   if (!container || !host.graphs.available()) return;
   graph = await host.graphs.mount(container, {
-    nodes: [{ id: 'a', label: 'Start', kind: 'planned' }],
+    nodes: [{
+      id: 'a',
+      label: 'Start',
+      kind: 'planned',
+      position: { x: 120, y: 80 },
+    }],
     edges: [],
-    layout: 'grid',
+    layout: 'preset',
     accessibleLabel: 'Scenario graph',
     fitPadding: 40,
   });
   const off = graph.on('select', event => {
     if (event.nodeId) host.ui.announce(`Selected ${event.nodeId}`);
   });
+  const offMove = graph.on('move', event => {
+    if (event.nodeId && event.position) savePosition(event.nodeId, event.position);
+  });
   host.onDispose(off);
+  host.onDispose(offMove);
 };
 host.onDispose(() => graph?.destroy());
 ```
 
 `mount` is permitted only below the calling addon's host-owned route wrapper.
 It validates and clones plain data before the private adapter sees it. Nodes
-are `{id,label,kind?}`; edges are `{id,source,target,label?}`. IDs are unique
+are `{id,label,kind?,position?:{x,y}}`; edges are
+`{id,source,target,label?}`. Coordinates are finite and bounded to
+±1,000,000. IDs are unique
 across elements and dangling edges reject. Limits: 1,000 nodes, 4,000 edges,
 128-character ids, 500-character labels, 200-character accessible labels,
 and padding 0–200. Layouts are `grid`, `circle`, `concentric`,
-`breadthfirst`, and `dagre`, each with documented bounded data options.
+`breadthfirst`, `dagre`, and `preset`, each with documented bounded data
+options. Use `preset` when supplying persistent positions.
 
 A handle exposes `update({nodes,edges},{layout?})`, `select(ids)`,
 `focus(ids,{padding?})`, `fit(ids?,{padding?})`,
-`on('select'|'unselect'|'activate'|'viewport'|'focus', fn)`, and idempotent
-`destroy()`. Navigation and addon disposal are host cleanup boundaries;
+`on('select'|'unselect'|'activate'|'move'|'viewport'|'focus', fn)`, and
+idempotent `destroy()`. A `move` event contains only the safe
+`{nodeId,position:{x,y},selectedIds}` summary after a user drag; it never
+exposes the underlying library event or node. Check `host.graphs.status()`
+for the optional `node-position` and `node-drag` features before relying on
+editable placement. Navigation and addon disposal are host cleanup boundaries;
 still cancel any addon-owned scheduled mount work. Re-mounting the same
 container destroys its old graph. The harness supplies a deterministic fake
 implementation and records instances in `rec.graphInstances`.
