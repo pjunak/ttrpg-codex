@@ -2146,9 +2146,12 @@ export const Settings = (() => {
         // live-loads/reconciles via Addons.reconcile() in app.js.
         _reloadAddonsIfActive();
       })
-      .catch(() => {
+      .catch(error => {
         if (go) go.disabled = false;
-        _wizardStatus(`<span class="addon-wizard-err">${esc(I18n.t('settings.installFailed'))}</span>`);
+        const serverDetail = Number(error?.status) > 0 && typeof error.message === 'string'
+          ? error.message.trim()
+          : '';
+        _wizardStatus(`<span class="addon-wizard-err">${esc(serverDetail || I18n.t('settings.installFailed'))}</span>`);
       });
   }
 

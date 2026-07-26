@@ -1810,7 +1810,7 @@ app.post('/api/restart', requireRealDM('Jen DM může restartovat server.'), (re
 // imports it same-origin. Management ops are DM-only and gate on
 // realRole (the signed claim) so an impersonating DM can't manage
 // addons. Updates run through the wizard (later phase) — no auto-update.
-const ADDON_MAX_FILES     = 2000;
+const ADDON_MAX_FILES     = 10_000;
 const ADDON_MAX_ARCHIVE_BYTES = 30 * 1024 * 1024; // compressed download cap
 const ADDON_MAX_ENTRY_BYTES = 10 * 1024 * 1024;   // one expanded file
 const ADDON_MAX_BYTES     = 25 * 1024 * 1024;   // 25 MB extracted cap

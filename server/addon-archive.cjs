@@ -17,7 +17,7 @@ const {
 
 const DEFAULT_LIMITS = Object.freeze({
   maxArchiveBytes: 30 * 1024 * 1024,
-  maxEntries: 2000,
+  maxEntries: 10_000,
   maxEntryBytes: 10 * 1024 * 1024,
   maxTotalBytes: 25 * 1024 * 1024,
   maxCompressionRatio: 100,

@@ -10,6 +10,7 @@ const { createZip } = require('./helpers/zip.cjs');
 
 const { contentHash } = require('../server/addons.cjs');
 const {
+  DEFAULT_LIMITS,
   scanAddonZip,
   extractAddonZip,
   contentHashDirectory,
@@ -62,6 +63,20 @@ test('entry-count, per-entry, and total expanded-size limits reject before writi
       await assert.rejects(() => fsp.access(target), { code: 'ENOENT' });
     } finally { await cleanup(root); }
   }
+});
+
+test('default limits accept a first-party compendium-sized package', async () => {
+  const entries = Object.fromEntries(
+    Array.from({ length: 3100 }, (_, index) => [
+      `owner-repo-sha/data/records/${index}.json`,
+      `{"id":"record-${index}"}`,
+    ]),
+  );
+  const zip = await createZip(entries);
+  const scan = await scanAddonZip(zip);
+  assert.equal(scan.files.length, 3100);
+  assert.equal(scan.limits.maxEntries, DEFAULT_LIMITS.maxEntries);
+  assert.equal(DEFAULT_LIMITS.maxEntries, 10_000);
 });
 
 test('compression-ratio limit rejects a highly compressed entry before writing', async () => {

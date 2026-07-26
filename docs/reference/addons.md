@@ -561,6 +561,10 @@ On top of that base, the concrete guardrails (added in the review/polish pass):
   Pass two streams each entry directly to a unique staging tree through actual-
   byte limiters, so expanded files are never allocated as buffers. `adm-zip` is
   neither a production dependency nor exposed through `serverHost.lib()`.
+  The package limits are 10,000 archive entries, 30 MB compressed, 25 MB total
+  expanded, 10 MB per file, and a 100:1 compression ratio. The entry ceiling
+  accommodates record-per-file content addons while the byte and ratio limits
+  continue to bound extraction work.
 - **Manifest hygiene:** `permissions[]` must be lowercase token strings;
   `_applyAddonCollections` re-validates `id`/collection-name from the persisted
   registry; a corrupt `addons.json` is preserved as `.corrupt-<ts>` rather than
