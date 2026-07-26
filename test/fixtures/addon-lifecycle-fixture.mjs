@@ -28,6 +28,7 @@ export default function register(host) {
     }
   }
   if (config.provide) host.provide(instance);
+  if (typeof config.exercise === 'function') config.exercise(host);
   host.registerRoute(host.id, () => host.contentRevision);
   if (config.slot) {
     host.registerSlot(config.slot, () => {

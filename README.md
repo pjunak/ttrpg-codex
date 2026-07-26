@@ -113,6 +113,8 @@ test/                    node --test unit + integration tests
   runbook, reverse proxy, backups, snapshots, upgrades.
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — tech stack, data
   model, routing, sync flow, security model.
+- **[docs/BACKLOG.md](docs/BACKLOG.md)** — the single current backlog and
+  open-decision list for the host and companion addons.
 - **[ATTRIBUTIONS.md](ATTRIBUTIONS.md)** — credits for the bundled
   marker icon set (game-icons.net, CC BY 3.0).
 

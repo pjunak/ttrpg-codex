@@ -369,7 +369,10 @@ export const Addons = (() => {
 
     /** Back-compat alias: `registerConnectionKind(def)` ===
      *  `registerKind('connections', def)`. Needs `kinds:connections`. */
-    function registerConnectionKind(def) { return registerKind('connections', def); }
+    function registerConnectionKind(def) {
+      if (!has('kinds:connections')) deny('kinds:connections', 'registerConnectionKind');
+      return registerKind('connections', def);
+    }
 
     /** Register a graph NODE kind for the mind map — a descriptor carrying
      *  render fns `{id, cardHTML(node), height?, searchText?, shape?, route?,

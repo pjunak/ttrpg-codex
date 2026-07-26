@@ -19,7 +19,10 @@ report the mismatch.
    `node scripts/dev-install-addon.cjs <path-to-addon>`.
 
 Do not create branches, commits, releases, or pushes unless the maintainer asks.
-Planning files are local-only and do not belong in the addon repository.
+The only durable suite backlog is [`../../docs/BACKLOG.md`](../../docs/BACKLOG.md).
+Temporary implementation plans belong only in the host repository's ignored
+`docs/plans/` directory and must be deleted when the task closes. Do not create
+repo-local TODO, roadmap, or planning files.
 
 ## Runtime model
 

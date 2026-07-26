@@ -654,8 +654,12 @@ inventory is the set of `test/addon-*.test.*`,
 compatibility vectors, permission parity, registration rollback, dependency
 ordering, lifecycle/reconciliation, archives, localization, content,
 collections, transactions, imports, graphs, install/update/rollback, backup,
-and restart behavior. Keep live and harness behavior on shared validators
-instead of documenting or testing two independent contracts.
+and restart behavior. `test/helpers/addon-permission-cases.mjs` is the shared
+live/mock matrix for every permission-scoped registration, core-read, and
+addon-data-write facade call; graph, import, collection, and transaction
+facades retain their focused behavioral suites. Keep live and harness behavior
+on shared validators instead of documenting or testing two independent
+contracts.
 
 Public authoring contract:
 [`examples/addons/AUTHORING.md`](../../examples/addons/AUTHORING.md).

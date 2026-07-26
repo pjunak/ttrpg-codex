@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { ADDON_PERMISSION_CASES } from './helpers/addon-permission-cases.mjs';
 
 const fixtureUrl = pathToFileURL(path.resolve('test/fixtures/addon-lifecycle-fixture.mjs')).href;
 let runtimeSequence = 0;
@@ -222,6 +223,46 @@ test('live collection facade requires data:own before registration', async () =>
     await rt.Addons.reconcile();
     assert.equal(rt.Addons.hasRoute('guarded'), true);
     assert.equal(rt.Addons.list()[0].state, 'ok');
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test('every permission-scoped live facade call denies without and succeeds with its grant', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    for (const [index, permissionCase] of ADDON_PERMISSION_CASES.entries()) {
+      const id = `permission-probe-${index}`;
+      const deniedPermissions = permissionCase.permission === 'ui:route' ? [] : ['ui:route'];
+      const denied = await freshRuntime(
+        [metadata(id, `denied-${index}`, {
+          ...permissionCase.meta,
+          permissions: deniedPermissions,
+        })],
+        { [id]: { exercise: permissionCase.invoke } },
+      );
+      const deniedState = denied.Addons.list()[0];
+      assert.equal(deniedState.state, 'error', `${permissionCase.method} must reject a missing grant`);
+      assert.ok(
+        deniedState.error.includes(`permission "${permissionCase.permission}"`)
+          && deniedState.error.includes(`(${permissionCase.method})`),
+        deniedState.error,
+      );
+
+      const allowed = await freshRuntime(
+        [metadata(id, `allowed-${index}`, {
+          ...permissionCase.meta,
+          permissions: [...new Set(['ui:route', permissionCase.permission])],
+        })],
+        { [id]: { exercise: permissionCase.invoke } },
+      );
+      assert.equal(
+        allowed.Addons.list()[0].state,
+        'ok',
+        `${permissionCase.method} must accept ${permissionCase.permission}`,
+      );
+    }
   } finally {
     console.error = originalError;
   }

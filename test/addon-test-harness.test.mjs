@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { createMockHost, disposeMockHost, dryRunRegister, smokeRegistrations } from '../web/js/addon-test-harness.mjs';
+import { ADDON_PERMISSION_CASES } from './helpers/addon-permission-cases.mjs';
 
 test('createMockHost: records every register* call', () => {
   const { host, rec } = createMockHost({ id: 'x', collections: [{ name: 'rules', keyed: true }] });
@@ -158,6 +159,32 @@ test('collection facade rejects missing data:own permission before registration 
   });
   assert.throws(() => host.registerCollection('notes'), /data:own/);
   assert.throws(() => host.store.collection('notes'), /not registered/);
+});
+
+test('every permission-scoped mock facade call denies without and succeeds with its grant', () => {
+  for (const permissionCase of ADDON_PERMISSION_CASES) {
+    const baseMeta = {
+      id: `mock-${permissionCase.method.toLowerCase().replaceAll('.', '-')}`,
+      apiVersion: 2,
+      ...permissionCase.meta,
+    };
+    const denied = createMockHost({ ...baseMeta, permissions: [] }).host;
+    assert.throws(
+      () => permissionCase.invoke(denied),
+      error => error.message.includes(`permission "${permissionCase.permission}"`)
+        && error.message.includes(`(${permissionCase.method})`),
+      `${permissionCase.method} must reject without ${permissionCase.permission}`,
+    );
+
+    const allowed = createMockHost({
+      ...baseMeta,
+      permissions: [permissionCase.permission],
+    }).host;
+    assert.doesNotThrow(
+      () => permissionCase.invoke(allowed),
+      `${permissionCase.method} must accept ${permissionCase.permission}`,
+    );
+  }
 });
 
 test('mock DM collections enforce capability, declaration, role, and keyed/list CRUD', () => {

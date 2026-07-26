@@ -20,8 +20,10 @@ Write self-documenting code. Do not add comments that narrate changes, restate
 the code, or preserve implementation history. Add a comment only when it is
 needed to explain a non-obvious invariant, constraint, or why the obvious
 solution is incorrect or unsafe.
-Planning artifacts are local-only. Store them under the gitignored
-`docs/plans/` directory and never commit them.
+The durable suite backlog lives only in [`docs/BACKLOG.md`](docs/BACKLOG.md).
+Temporary implementation plans are local-only: store them under the gitignored
+`docs/plans/` directory, delete them when the task closes, and never commit
+them. Do not create additional TODO or roadmap files.
 User instructions always override this file.
 
 ## Environment
@@ -264,35 +266,13 @@ deterministic `contentRevision` unloads the addon and loaded consumers
 consumer-first, then reloads provider-first. Content-group toggles therefore
 refresh compendium data and sheets live without a browser reload.
 
-## Known boundaries
+## Backlog and planning
 
-1. Addon-rendered HTML can invoke ANY core action via
-   `data-action="Store.deleteCharacter"` — the dispatcher doesn't scope
-   actions inside `[data-addon-id]` subtrees. Accepted under the
-   trusted-addon posture; revisit before third-party addons (any fix must
-   also cover the `deferred(action,…)` indirection).
-2. Some addon permission-facade methods still lack direct guard tests.
-   Collection declaration, `data:own`, ownership, effective-role, and
-   keyed/unkeyed CRUD guards are covered by the live/mock matrix.
-3. `server.js`, `store.js`, `settings.js`, and `editmode.js` still
-    contain several domains, but transport/admin, snapshots, backup settings,
-    lore editors, restore publication, collection identity, and pin-type seeds
-    now have dedicated modules with focused tests. Continue only as
-    responsibility-led extractions; do not split files solely by line count.
-
-### Open decisions (need the maintainer)
-
-- Password hashing is a single SHA-256(salt+pwd) (`server-utils.cjs`) —
-  switching to `crypto.scrypt` is recommended but invalidates sessions
-  (needs a hash-format migration + scheduled re-login).
-- CSP is off; enabling `script-src` alone (self + the SRI-pinned CDNs) is
-  achievable now — there are no inline scripts.
-- No LICENSE file (maintainer intent: permissive/MIT).
-
-### Settled decisions
-
-- **Offline/local play is OUT OF SCOPE.** The CDN-served libraries
-  (SRI-pinned) stay — do not vendor them; do not build offline support.
+[`docs/BACKLOG.md`](docs/BACKLOG.md) is the only durable backlog for the host
+and companion addons. It contains current maintenance work, product candidates,
+conditional hardening, explicit non-goals, and decisions that need the
+maintainer. Reference documents describe shipped contracts and must not grow
+independent TODO lists.
 
 ## Constraints
 
