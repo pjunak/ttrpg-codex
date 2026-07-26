@@ -69,9 +69,10 @@ model. Promote them before accepting untrusted third-party addons:
 - Structure narrative mechanics only when a concrete consumer needs them.
   Effects targeting other creatures, attacks, saves, areas, encounter timing,
   renown workflows, and similar rules may remain reference prose until then.
-- Extend DM Tools beyond scenarios only for a concrete versioned workflow.
-  Scenario editing, inferred planning, additional collections/providers, and
-  generalized graph relationships are not assumed requirements.
+- Keep combat resolution, homebrew rule automation, and detailed retrospective
+  session bookkeeping outside DM Tools. Its planning graph should grow only
+  through concrete planning/world-building workflows and stored relationships,
+  never inferred edges or automatic quest progress.
 
 ## Explicit non-goals
 
