@@ -120,8 +120,8 @@ test/                    node --test unit + integration tests
 
 ## License
 
-A formal `LICENSE` file has not been added yet — until it is, treat
-this code as "all rights reserved" and reach out before redistributing.
+The original software and documentation in this repository are licensed under
+the [MIT License](LICENSE).
 
 Bundled marker icons are independently licensed under CC BY 3.0 via
 [game-icons.net](https://game-icons.net/); attribution lives in

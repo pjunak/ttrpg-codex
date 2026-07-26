@@ -49,8 +49,6 @@ model. Promote them before accepting untrusted third-party addons:
   This needs a versioned hash migration and invalidates existing sessions.
 - **Content Security Policy:** enable a restrictive external-script policy.
   Inline style attributes still require a separate style-policy decision.
-- **License:** add an explicit license if redistribution is intended. Until
-  then the repository remains effectively all rights reserved.
 
 ## Product candidates
 
