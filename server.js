@@ -2050,10 +2050,12 @@ function _applyAddonContent(reg) {
     }
     const groups = cg ? {
       field: cg.field, label: cg.label || '',
-      values: AddonContent.groupValues(raw, cg.field),
+      values: AddonContent.groupValues(raw, cg.field, cg.additionalField),
       disabled,
     } : null;
-    const served = cg ? AddonContent.filterContentTree(raw, cg.field, disabled) : raw;
+    const served = cg
+      ? AddonContent.filterContentTree(raw, cg.field, disabled, cg.additionalField)
+      : raw;
     _addonContent.set(a.id, { hash: a.activeHash, offKey, groups, _raw: raw, ...served });
     _addonContentErrors.delete(a.id);
     console.log(`[addons] content: ${a.id} — ${served.count} records / ${served.kinds.length} kinds (host-served`

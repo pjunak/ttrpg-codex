@@ -25,12 +25,16 @@ function goodManifest(over = {}) {
 }
 
 // ── validateManifest ──────────────────────────────────────────────
-test('validateManifest: accepts contentGroups {field,label} and bare {field}', () => {
+test('validateManifest: accepts primary and optional additional content-group fields', () => {
   assert.deepEqual(validateManifest(goodManifest({
     contentDir: 'data', contentGroups: { field: 'book', label: 'Sourcebooks' },
   })).errors, []);
   assert.deepEqual(validateManifest(goodManifest({
     contentDir: 'data', contentGroups: { field: 'book' },
+  })).errors, []);
+  assert.deepEqual(validateManifest(goodManifest({
+    contentDir: 'data',
+    contentGroups: { field: 'book', additionalField: 'availableIn' },
   })).errors, []);
 });
 
@@ -41,12 +45,20 @@ test('validateManifest: rejects malformed contentGroups', () => {
   assert.ok(bad({}),                              'field is required');
   assert.ok(bad({ field: 'has spaces' }),         'field grammar enforced');
   assert.ok(bad({ field: 'a'.repeat(41) }),       'field length capped');
+  assert.ok(bad({ field: 'book', additionalField: 'book' }), 'fields must be distinct');
+  assert.ok(bad({ field: 'book', additionalField: 'has spaces' }), 'additional field grammar enforced');
+  assert.ok(bad({ field: 'book', extra: true }),  'unknown fields rejected');
   assert.ok(bad({ field: 'book', label: 'x'.repeat(61) }), 'label length capped');
 });
 
 // ── registry coercion ─────────────────────────────────────────────
 test('normalizeContentGroups / normalizeDisabledContentGroups coerce junk', () => {
   assert.deepEqual(normalizeContentGroups({ field: 'book', label: 'Books' }), { field: 'book', label: 'Books' });
+  assert.deepEqual(
+    normalizeContentGroups({ field: 'book', additionalField: 'availableIn', label: 'Books' }),
+    { field: 'book', additionalField: 'availableIn', label: 'Books' },
+  );
+  assert.equal(normalizeContentGroups({ field: 'book', additionalField: 'book' }), null);
   assert.equal(normalizeContentGroups({ field: 'not valid!' }), null);
   assert.equal(normalizeContentGroups('book'), null);
   assert.equal(normalizeContentGroups(undefined), null);
@@ -121,6 +133,29 @@ test('filterContentTree: drops disabled groups, keeps field-less records, emptie
   assert.equal(t.content.monster, undefined, 'kind emptied by the filter disappears');
   assert.equal(t.count, 2);
   assert.equal(filterContentTree(TREE, 'book', []), TREE, 'empty off-list is identity');
+});
+
+test('additional memberships count once and keep reprints until every source is disabled', () => {
+  const shared = { content: {
+    spell: [
+      { id: 'shared', book: 'phb', availableIn: ['rhw', 'rhw'] },
+      { id: 'primary', book: 'phb' },
+    ],
+  } };
+  assert.deepEqual(groupValues(shared, 'book', 'availableIn'), [
+    { id: 'phb', count: 2, label: 'phb' },
+    { id: 'rhw', count: 1, label: 'rhw' },
+  ]);
+  assert.deepEqual(
+    filterContentTree(shared, 'book', ['phb'], 'availableIn').content.spell.map(r => r.id),
+    ['shared'],
+    'an enabled reprint source keeps the canonical record',
+  );
+  assert.equal(
+    filterContentTree(shared, 'book', ['phb', 'rhw'], 'availableIn').count,
+    0,
+    'the record disappears when every supplying source is disabled',
+  );
 });
 
 // ── integration: live filtering through the served endpoints ─────

@@ -112,7 +112,8 @@ function normalizeCollections(raw, apiVersion = 1, capabilities) {
   return out;
 }
 
-// Coerce a manifest `contentGroups` value into `{ field, label }` or null.
+// Coerce a manifest `contentGroups` value into
+// `{ field, additionalField?, label }` or null.
 // Never throws — a malformed declaration simply doesn't group (the strict
 // `validateManifest` below is what surfaces it as an error to the DM). Used
 // both at promote time (manifest → registry) and by normalizeRegistry (a
@@ -121,8 +122,15 @@ function normalizeContentGroups(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const field = typeof raw.field === 'string' ? raw.field : '';
   if (!CONTENT_GROUP_FIELD_RE.test(field)) return null;
+  const additionalField = typeof raw.additionalField === 'string'
+    ? raw.additionalField
+    : '';
+  if (additionalField &&
+      (!CONTENT_GROUP_FIELD_RE.test(additionalField) || additionalField === field)) {
+    return null;
+  }
   const label = typeof raw.label === 'string' ? raw.label.slice(0, 60) : '';
-  return { field, label };
+  return additionalField ? { field, additionalField, label } : { field, label };
 }
 
 // Coerce a registry `disabledContentGroups` value into a clean, de-duped list
@@ -283,13 +291,24 @@ function validateManifest(m) {
   if (m.contentGroups !== undefined) {
     const cg = m.contentGroups;
     if (!cg || typeof cg !== 'object' || Array.isArray(cg)) {
-      errors.push('contentGroups must be an object { field, label? }');
+      errors.push('contentGroups must be an object { field, additionalField?, label? }');
     } else {
       if (typeof cg.field !== 'string' || !CONTENT_GROUP_FIELD_RE.test(cg.field)) {
         errors.push('contentGroups.field must match ^[a-zA-Z0-9_]{1,40}$');
       }
+      if (cg.additionalField !== undefined &&
+          (typeof cg.additionalField !== 'string' ||
+           !CONTENT_GROUP_FIELD_RE.test(cg.additionalField) ||
+           cg.additionalField === cg.field)) {
+        errors.push('contentGroups.additionalField must be a distinct field matching ^[a-zA-Z0-9_]{1,40}$');
+      }
       if (cg.label !== undefined && (typeof cg.label !== 'string' || cg.label.length > 60)) {
         errors.push('contentGroups.label must be a string of at most 60 characters');
+      }
+      for (const key of Object.keys(cg)) {
+        if (!['field', 'additionalField', 'label'].includes(key)) {
+          errors.push(`contentGroups has unknown field "${key}"`);
+        }
       }
     }
   }
@@ -511,7 +530,9 @@ function contentRevision(entry, crypto) {
   const identity = {
     activeHash: typeof entry?.activeHash === 'string' ? entry.activeHash : '',
     version: typeof entry?.version === 'string' ? entry.version : '',
-    contentGroups: groups ? { field: groups.field, disabled } : null,
+    contentGroups: groups
+      ? { field: groups.field, additionalField: groups.additionalField || '', disabled }
+      : null,
   };
   return crypto.createHash('sha256').update(JSON.stringify(identity)).digest('hex').slice(0, 16);
 }

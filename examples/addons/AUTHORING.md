@@ -109,7 +109,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `locales` | — | API-v2 declarative UI catalogs: `{ "en": "locales/en.json", "cs": "locales/cs.json" }`. Requires `i18n.catalogs`; English is mandatory and complete, translations may be partial. |
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
 | `contentDir` | — | Relative dir of a **per-record JSON tree** the HOST serves for you at `/api/addon/<id>/content` (+ `/content/:kind`, `/item/:kind/:id`, `/kinds`). Every JSON file must contain one object with a non-empty string `id`; root-level records must declare `kind`, and `(kind,id)` identities must be unique. Invalid JSON/records, unreadable paths, symlinks, or duplicates reject the entire package. The right choice for DATA addons (rulebooks): **no server code, no `server:code` grant**, kinds keyed by each record's own `kind` field (sub-dir name is the fallback), and hot-loaded — install/update needs no restart. A live `server` router takes precedence over it entirely. |
-| `contentGroups` | — | `{ "field": "book", "label": "Sourcebooks" }` — declare one record field as a DM-toggleable grouping key for the content tree (see the "Content groups" section under server code). `field` is `^[a-zA-Z0-9_]{1,40}$`. |
+| `contentGroups` | — | `{ "field": "book", "additionalField": "availableIn", "label": "Sourcebooks" }` — declare a canonical DM-toggleable grouping key and, optionally, a distinct scalar-or-array field for genuine alternate membership such as reprints (see "Content groups"). Field names match `^[a-zA-Z0-9_]{1,40}$`. |
 | `serverDeps` | — | `string[]` of vetted host npm libs your server module needs via `serverHost.lib(...)`. Allowed: `express`, `archiver`, `multer`. Archive readers are deliberately unavailable. Anything else → the addon loads `blocked`. |
 | `permissions` | — | Declared + **enforced** capability tokens (see §5). The DM reviews + grants them at install. |
 | `dependencies` | — | HARD deps: `{ "<otherAddonId>": { "range": ">=1.0.0", "repo": "owner/name" } }`. A missing/incompatible one **blocks** your addon (see §12). |
@@ -663,21 +663,27 @@ host npm deps.
 
 ### Content groups (DM-toggleable slices of a content addon)
 
-A content addon can declare ONE record field as its grouping key:
+A content addon declares one canonical grouping field and may declare one
+distinct scalar-or-array field for alternate membership:
 
 ```jsonc
 // addon.json
 "contentDir": "data",
-"contentGroups": { "field": "book", "label": "Sourcebooks" }
+"contentGroups": {
+  "field": "book",
+  "additionalField": "availableIn",
+  "label": "Sourcebooks"
+}
 ```
 
-The Manager then shows a checkbox per distinct `field` value (with record
-counts). **Checkbox labels are data-driven:** when your tree ships a record
+The Manager shows a checkbox per distinct value across those fields (with a
+record counted once per group). **Checkbox labels are data-driven:** when your tree ships a record
 of the kind *named like the field* whose `id` matches the value — e.g. the
 compendium's `book`-kind records — the toggle shows that record's `name`
 ("Player's Handbook"), not the raw id (`phb`); values without such a record
 fall back to the raw id. Ship one per group value. The DM can untick a
-group and the host drops those records from
+group and the host drops records that have no enabled primary or alternate
+membership from
 EVERYTHING it serves — the `/content` aggregate, per-kind lists, `/item`
 lookups and `/kinds` — live, no restart or browser reload. The toggle changes
 the addon's `contentRevision`; the host disposes/re-registers it and every
@@ -685,8 +691,10 @@ loaded hard or optional consumer so stale client caches and `provide()`d APIs
 cannot survive the policy change. Consumers (browse pages, wiki-link kinds,
 `provide()`d data APIs) automatically agree because they all read the same
 filtered tree. A content addon relying on this behavior should use API v2 and
-require both `lifecycle.dispose` and `content.revision`. Rules: records
-**lacking** the field are always kept (a
+require both `lifecycle.dispose` and `content.revision`. Use alternate
+membership only for one canonical entity genuinely supplied by multiple
+groups; keep the primary field as provenance instead of cloning the record.
+Rules: records **lacking both fields** are always kept (a
 toggle only hides records that opted into a group); unknown ids on the
 off-list match nothing (harmless, forward-compatible); nothing is ever
 deleted — re-ticking restores instantly. Toggle state survives updates.

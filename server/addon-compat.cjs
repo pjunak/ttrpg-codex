@@ -1,6 +1,6 @@
 'use strict';
 
-const HOST_VERSION = '1.0.0';
+const HOST_VERSION = '1.1.0';
 const SUPPORTED_API_VERSIONS = new Set([1, 2]);
 const KNOWN_CAPABILITIES = new Set([
   'collections.dm',

@@ -2,10 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import vectors from './addon-compat-vectors.json' with { type: 'json' };
-import { testRange as browserTestRange, compatibilityErrors as browserErrors } from '../web/js/addon-compat.js';
+import {
+  HOST_VERSION as browserHostVersion,
+  testRange as browserTestRange,
+  compatibilityErrors as browserErrors,
+} from '../web/js/addon-compat.js';
 
 const require = createRequire(import.meta.url);
 const server = require('../server/addon-compat.cjs');
+const packageJson = require('../package.json');
 const { validateManifest } = require('../server/addons.cjs');
 const base = (over = {}) => ({
   id: 'compat-addon', name: 'Compat', version: '1.0.0', apiVersion: 1,
@@ -18,6 +23,11 @@ test('server and browser compatibility adapters share strict range decisions', (
     assert.deepEqual(server.testRange(vector.version, vector.range), expected);
     assert.deepEqual(browserTestRange(vector.version, vector.range), expected);
   }
+});
+
+test('package, server, and browser advertise the same host version', () => {
+  assert.equal(server.HOST_VERSION, packageJson.version);
+  assert.equal(browserHostVersion, packageJson.version);
 });
 
 test('API v1 remains supported and API v2 loads without capabilities', () => {

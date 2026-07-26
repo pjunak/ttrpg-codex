@@ -226,14 +226,36 @@ function loadContentTree(rootDir) {
  * @param {string} field - the manifest's contentGroups.field
  * @returns {Array<{id: string, count: number, label: string}>} sorted by id
  */
-function groupValues(tree, field) {
+function _recordGroupIds(record, field, additionalField) {
+  const ids = [];
+  if (!record || typeof record !== 'object') return ids;
+  if (record[field] !== undefined && record[field] !== null) {
+    ids.push(String(record[field]));
+  }
+  if (!additionalField ||
+      record[additionalField] === undefined ||
+      record[additionalField] === null) {
+    return ids;
+  }
+  const additional = Array.isArray(record[additionalField])
+    ? record[additionalField]
+    : [record[additionalField]];
+  for (const value of additional) {
+    if (value === undefined || value === null) continue;
+    const id = String(value);
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
+function groupValues(tree, field, additionalField) {
   const counts = new Map();
   const content = (tree && tree.content) || {};
   for (const k of Object.keys(content)) {
     for (const r of content[k]) {
-      if (!r || r[field] === undefined || r[field] === null) continue;
-      const id = String(r[field]);
-      counts.set(id, (counts.get(id) || 0) + 1);
+      for (const id of _recordGroupIds(r, field, additionalField)) {
+        counts.set(id, (counts.get(id) || 0) + 1);
+      }
     }
   }
   const labels = new Map();
@@ -263,15 +285,16 @@ function groupValues(tree, field) {
  * @returns {{content: Object<string, Array>, index: Object<string, Object>,
  *            kinds: string[], count: number}}
  */
-function filterContentTree(tree, field, disabled) {
+function filterContentTree(tree, field, disabled, additionalField) {
   const off = new Set(Array.isArray(disabled) ? disabled : []);
   if (!field || !off.size) return tree;
   const content = Object.create(null);
   const src = (tree && tree.content) || {};
   for (const k of Object.keys(src)) {
-    const kept = src[k].filter(
-      (r) => !r || r[field] === undefined || r[field] === null || !off.has(String(r[field]))
-    );
+    const kept = src[k].filter((r) => {
+      const groups = _recordGroupIds(r, field, additionalField);
+      return !groups.length || groups.some((id) => !off.has(id));
+    });
     if (!kept.length) continue;
     content[k] = kept;
   }

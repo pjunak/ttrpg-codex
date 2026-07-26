@@ -79,16 +79,20 @@ hot-loaded; every JSON file must be a record object with a non-empty string
 `id`, root-level records must declare `kind`, and `(kind,id)` must be unique;
 an unreadable path, symlink, malformed JSON/record, or duplicate rejects the
 whole package rather than serving a partial tree; see the API table row),
-contentGroups? (`{field, label?}` — names
-a record property of the content tree, e.g. `book`, whose distinct values the
-DM can toggle per group in Settings → Doplňky; the HOST filters the served
+contentGroups? (`{field, additionalField?, label?}` — names
+a canonical record property of the content tree, e.g. `book`, whose distinct
+values the DM can toggle per group in Settings → Doplňky; `additionalField`
+optionally names a scalar-or-array property for genuine alternate membership
+such as a reprint; the HOST filters the served
 tree hot via `POST /api/addons/:id/content-groups` — registry stores the
 declaration as `contentGroups` + the DM's picks as `disabledContentGroups`;
 `normalizeContentGroups` in `server/addons.cjs` re-checks shapes on read.
 `groupValues` emits `[{id, count, label}]`: `label` is the `name` of a
 record of the field-named KIND with a matching id — `book` value `phb` →
 the `book` record's "Player's Handbook" — falling back to the raw id, so
-the Manager shows full names while the off-list wire format stays ids),
+the Manager shows full names while the off-list wire format stays ids; each
+record counts once per distinct membership and remains served while any of its
+memberships is enabled),
 locales? (`{ "en": "locales/en.json", "cs": "locales/cs.json" }` — API-v2
 declarative UI catalogs; requires `i18n.catalogs`, mandatory English source,
 partial translations allowed; package paths are confined `.json` files and the
