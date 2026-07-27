@@ -21,7 +21,8 @@ export const EditLogin = (() => {
           <form class="pw-panel" role="dialog" aria-modal="true" aria-labelledby="pw-modal-title" autocomplete="on">
             <div class="pw-title" id="pw-modal-title">${esc(message || I18n.t('editmode.passwordPrompt'))}</div>
             <div class="pw-row">
-              <input class="pw-input" type="password" name="password"
+              <label class="sr-only" for="pw-password">${esc(I18n.t('editmode.passwordLabel'))}</label>
+              <input class="pw-input" id="pw-password" type="password" name="password"
                      autocomplete="current-password" autofocus
                      spellcheck="false" autocapitalize="off">
               <button type="button" class="pw-toggle" aria-label="${esc(I18n.t('editmode.showPassword'))}">👁</button>

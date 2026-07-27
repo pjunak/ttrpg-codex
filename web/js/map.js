@@ -590,7 +590,7 @@ export const WorldMap = (() => {
     document.getElementById('main-content').innerHTML = `
       <div class="${shellClass}">
         <div class="sc-toolbar ${_editing ? 'is-editing' : ''}">
-          <div class="sc-title">${titleHtml}</div>
+          <h1 class="sc-title">${titleHtml}</h1>
           <input type="search" class="sc-search" id="sc-search"
                  placeholder="🔍 ${esc(I18n.t('map.searchPlaceholder'))}" autocomplete="off"
                  ${dataOn('input', 'WorldMap.onSearchInput', '$value')}
@@ -716,7 +716,20 @@ export const WorldMap = (() => {
         };
         img.onerror = () => {
           detach();
-          if (_isCurrentGeneration(token, container)) _showMapError(container);
+          if (!_isCurrentGeneration(token, container)) return;
+          fetch(imgUrl, {
+            method: 'HEAD',
+            cache: 'no-store',
+            ...(abortController ? { signal: abortController.signal } : {}),
+          })
+            .then(response => {
+              if (_isCurrentGeneration(token, container)) {
+                _showMapError(container, response.status === 404 ? 'missing' : 'failed');
+              }
+            })
+            .catch(() => {
+              if (_isCurrentGeneration(token, container)) _showMapError(container, 'failed');
+            });
         };
         img.src = imgUrl;
       });
@@ -1037,14 +1050,14 @@ export const WorldMap = (() => {
     }
   }
 
-  function _showMapError(container) {
+  function _showMapError(container, state = 'failed') {
+    const missing = state === 'missing';
     container.innerHTML = `
       <div class="sc-img-error">
         <div style="font-size:2rem;margin-bottom:1rem">🗺</div>
-        <div style="font-size:1.1rem;margin-bottom:0.5rem"><strong>${esc(I18n.t('map.errorTitle'))}</strong></div>
+        <div style="font-size:1.1rem;margin-bottom:0.5rem"><strong>${esc(I18n.t(missing ? 'map.missingTitle' : 'map.errorTitle'))}</strong></div>
         <div style="font-size:0.88rem;line-height:1.6;max-width:420px">
-          ${esc(I18n.t('map.errorTextPre'))} <strong>⚙ ${esc(I18n.t('map.errorTextMenu'))}</strong> ${esc(I18n.t('map.errorTextMid'))}
-          <code>data/maps/swordcoast/sword_coast.jpg</code>.
+          ${esc(I18n.t(missing ? 'map.missingText' : 'map.errorText'))}
         </div>
         <button class="sc-btn" style="margin-top:1.2rem"${dataAction('Settings.openWorldMap')}>⚙ ${esc(I18n.t('map.errorOpenSettings'))}</button>
       </div>`;

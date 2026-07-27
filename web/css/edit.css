@@ -689,6 +689,7 @@ body.twin-picker-open { overflow: hidden; }
 /* Geometry (26px · round · flex-centre · cursor) comes from the shared
    `.icon-btn-round` base in main.css. */
 .edit-card-overlay {
+  appearance: none;
   position: absolute;
   top: 0.4rem;
   right: 0.4rem;
@@ -701,10 +702,16 @@ body.twin-picker-open { overflow: hidden; }
   transition: opacity 0.15s, background 0.15s, transform 0.1s;
   z-index: 5;
   backdrop-filter: blur(2px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
 }
-.char-card:hover    .edit-card-overlay,
-.loc-card:hover     .edit-card-overlay,
-.faction-card:hover .edit-card-overlay,
+.entity-card-wrap:hover .edit-card-overlay,
 .mystery-card:hover .edit-card-overlay,
 .edit-card-overlay:hover { opacity: 1; background: rgba(var(--accent-gold-rgb), 0.20); }
 .edit-card-overlay:active { transform: translateY(1px); }
@@ -1371,6 +1378,33 @@ body.twin-picker-open { overflow: hidden; }
   color: var(--text-muted);
   border-color: transparent;
 }
+.EasyMDEContainer .editor-toolbar .fa::before {
+  display: inline-block;
+  min-width: 1.15em;
+  font-family: var(--font-ui) !important;
+  font-style: normal;
+  font-weight: 700;
+  text-align: center;
+}
+.EasyMDEContainer .editor-toolbar .fa-bold::before { content: "B"; }
+.EasyMDEContainer .editor-toolbar .fa-italic::before { content: "I"; font-style: italic; }
+.EasyMDEContainer .editor-toolbar .fa-strikethrough::before { content: "S̶"; }
+.EasyMDEContainer .editor-toolbar .fa-header::before { content: "H"; }
+.EasyMDEContainer .editor-toolbar .fa-header-x::before { content: "H"; }
+.EasyMDEContainer .editor-toolbar .fa-quote-left::before { content: "❝"; }
+.EasyMDEContainer .editor-toolbar .fa-list-ul::before { content: "•"; }
+.EasyMDEContainer .editor-toolbar .fa-list-ol::before { content: "1."; }
+.EasyMDEContainer .editor-toolbar .fa-link::before { content: "↗"; }
+.EasyMDEContainer .editor-toolbar .fa-picture-o::before { content: "▧"; }
+.EasyMDEContainer .editor-toolbar .fa-table::before { content: "▦"; }
+.EasyMDEContainer .editor-toolbar .fa-code::before { content: "</>"; font-size: 0.68em; }
+.EasyMDEContainer .editor-toolbar .fa-minus::before { content: "—"; }
+.EasyMDEContainer .editor-toolbar .fa-eye::before { content: "◉"; }
+.EasyMDEContainer .editor-toolbar .fa-columns::before { content: "▥"; }
+.EasyMDEContainer .editor-toolbar .fa-arrows-alt::before { content: "⛶"; }
+.EasyMDEContainer .editor-toolbar .fa-undo::before { content: "↶"; }
+.EasyMDEContainer .editor-toolbar .fa-repeat::before { content: "↷"; }
+.EasyMDEContainer .editor-toolbar .fa-question-circle::before { content: "?"; }
 .EasyMDEContainer .editor-toolbar button:hover,
 .EasyMDEContainer .editor-toolbar button.active {
   background: rgba(var(--accent-gold-rgb), 0.15);

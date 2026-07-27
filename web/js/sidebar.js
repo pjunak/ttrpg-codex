@@ -161,6 +161,16 @@ export const Sidebar = (() => {
   function _pageRowHtml(route, secId) {
     const p = _pageByRoute.get(route);
     if (!p) return '';
+    const pageLabel = _label(p);
+    const orderControls = secId === HIDDEN_ID ? '' : `
+      <span class="sb-order-controls">
+        <button type="button" class="sb-order-btn"
+          aria-label="${esc(I18n.t('sidebar.movePageUp', { name: pageLabel }))}"
+          ${dataAction('Sidebar.movePage', route, secId, -1)}>↑</button>
+        <button type="button" class="sb-order-btn"
+          aria-label="${esc(I18n.t('sidebar.movePageDown', { name: pageLabel }))}"
+          ${dataAction('Sidebar.movePage', route, secId, 1)}>↓</button>
+      </span>`;
     const move = secId === HIDDEN_ID
       ? `<button type="button" class="sb-page-btn" ${dataAction('Sidebar.showPage', route)} title="${esc(I18n.t('sidebar.showInPanelTitle'))}">← ${esc(I18n.t('sidebar.showAction'))}</button>`
       : `<button type="button" class="sb-page-btn" ${dataAction('Sidebar.hidePage', route)} title="${esc(I18n.t('sidebar.hideFromPanelTitle'))}">${esc(I18n.t('sidebar.hideAction'))} →</button>`;
@@ -168,8 +178,9 @@ export const Sidebar = (() => {
       <li class="sb-page" data-route="${esc(route)}" data-sec-id="${esc(secId)}">
         <span class="sb-grip" draggable="true" title="${esc(I18n.t('sidebar.dragTitle'))}" aria-hidden="true">⠿</span>
         <span class="sb-page-icon">${esc(p.icon || '')}</span>
-        <span class="sb-page-label">${esc(_label(p))}</span>
+        <span class="sb-page-label">${esc(pageLabel)}</span>
         ${p.role === 'dm' ? '<span class="sb-page-tag">DM</span>' : ''}
+        ${orderControls}
         ${move}
       </li>`;
   }
@@ -190,7 +201,17 @@ export const Sidebar = (() => {
           <label class="sb-sec-flag" title="${esc(I18n.t('sidebar.dmOnlyTitle'))}">
             <input type="checkbox" ${sec.role === 'dm' ? 'checked' : ''}
               ${dataOn('change', 'Sidebar.setSectionFlag', sec.id, 'role', '$checked')}> ${esc(I18n.t('sidebar.dmOnlyLabel'))}</label>
-          <button type="button" class="sb-sec-del" ${dataAction('Sidebar.deleteSection', sec.id)} title="${esc(I18n.t('sidebar.delSectionTitle'))}">🗑</button>
+          <span class="sb-order-controls">
+            <button type="button" class="sb-order-btn"
+              aria-label="${esc(I18n.t('sidebar.moveSectionUp', { name: sec.label || I18n.t('sidebar.newSectionLabel') }))}"
+              ${dataAction('Sidebar.moveSection', sec.id, -1)}>↑</button>
+            <button type="button" class="sb-order-btn"
+              aria-label="${esc(I18n.t('sidebar.moveSectionDown', { name: sec.label || I18n.t('sidebar.newSectionLabel') }))}"
+              ${dataAction('Sidebar.moveSection', sec.id, 1)}>↓</button>
+          </span>
+          <button type="button" class="sb-sec-del" ${dataAction('Sidebar.deleteSection', sec.id)}
+            aria-label="${esc(I18n.t('sidebar.deleteSectionLabel', { name: sec.label || I18n.t('sidebar.newSectionLabel') }))}"
+            title="${esc(I18n.t('sidebar.delSectionTitle'))}">🗑</button>
         </div>
         <ul class="sb-pages" data-sec-id="${esc(sec.id)}">${rows || `<li class="sb-empty">— ${esc(I18n.t('sidebar.dropPageHere'))} —</li>`}</ul>
       </div>`;
@@ -283,6 +304,28 @@ export const Sidebar = (() => {
     const home = _findSec(layout, page && page.section) || layout.sections[0];
     if (home) home.pages.push(route); else layout.hidden.push(route);
     Store.setSidebarLayout(layout); _rerenderEditor();
+  }
+  function movePage(route, sectionId, delta) {
+    const layout = Store.getSidebarLayout();
+    const section = _findSec(layout, sectionId);
+    if (!section) return;
+    const from = section.pages.indexOf(route);
+    const to = Math.max(0, Math.min(section.pages.length - 1, from + Number(delta)));
+    if (from < 0 || from === to) return;
+    const [page] = section.pages.splice(from, 1);
+    section.pages.splice(to, 0, page);
+    Store.setSidebarLayout(layout);
+    _rerenderEditor();
+  }
+  function moveSection(id, delta) {
+    const layout = Store.getSidebarLayout();
+    const from = layout.sections.findIndex(section => section.id === id);
+    const to = Math.max(0, Math.min(layout.sections.length - 1, from + Number(delta)));
+    if (from < 0 || from === to) return;
+    const [section] = layout.sections.splice(from, 1);
+    layout.sections.splice(to, 0, section);
+    Store.setSidebarLayout(layout);
+    _rerenderEditor();
   }
   function resetLayout() {
     Store.setSidebarLayout(JSON.parse(JSON.stringify(SIDEBAR_LAYOUT_DEFAULT)));
@@ -382,6 +425,6 @@ export const Sidebar = (() => {
     render, toggleSection, renderEditor,
     addSection, deleteSection, resetLayout,
     setSectionLabel, setSectionIcon, setSectionFlag,
-    hidePage, showPage,
+    hidePage, showPage, movePage, moveSection,
   };
 })();

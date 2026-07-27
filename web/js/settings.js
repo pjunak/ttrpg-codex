@@ -624,6 +624,14 @@ export const Settings = (() => {
     } else {
       render();
     }
+    requestAnimationFrame(() => {
+      if (globalThis.matchMedia?.('(max-width: 820px)').matches) {
+        document.querySelector('.settings-editor')?.scrollIntoView({
+          block: 'start',
+          behavior: 'smooth',
+        });
+      }
+    });
   }
 
   /**
@@ -1510,6 +1518,8 @@ export const Settings = (() => {
   let _wizardPreview  = null;   // { repo, ref, sha } captured at the wizard's preview step
   let _wizardMode     = 'install'; // 'install' | 'update' — wizard messaging
   let _addonUpdates   = {};     // id -> { hasUpdate, repo, ... } from the last check-updates
+  let _addonUpdatesChecked = false;
+  let _addonUpdateStatus = '';
 
   function _loadAddons() {
     return ApiClient.requestJson('/api/addons')
@@ -1613,13 +1623,15 @@ export const Settings = (() => {
     } else {
       body = `<div class="addon-list">${_addonsList.map(a => _addonRow(a, loadStates[a.id])).join('')}</div>`;
     }
+    const checked = _addonUpdatesChecked;
+    const available = Object.values(_addonUpdates).filter(update => update?.hasUpdate).length;
     return `
       <div class="settings-editor-head">
         <h2>🧩 ${esc(I18n.t('settings.tabAddons'))}</h2>
         <div class="settings-editor-actions">
           ${(_addonsList && _addonsList.length) ? `<button type="button" class="inline-create-btn"
             ${dataAction('Settings.checkAddonUpdates')}>🔄 ${esc(I18n.t('settings.checkUpdates'))}</button>
-          <button type="button" class="inline-create-btn"
+          <button type="button" class="inline-create-btn"${checked && !available ? ' disabled' : ''}
             ${dataAction('Settings.updateAllAddons')}>⬆ ${esc(I18n.t('settings.updateAll'))}</button>` : ''}
           <button type="button" class="edit-save-btn"
             ${dataAction('Settings.openAddonWizard')}>＋ ${esc(I18n.t('settings.installFromGitHub'))}</button>
@@ -1630,6 +1642,7 @@ export const Settings = (() => {
           ${esc(I18n.t('settings.addonsIntro'))}
           ${_account.canRestart() ? ' ' + esc(I18n.t('settings.restartMovedHint')) : ''}
         </p>
+        ${_addonUpdateStatus ? `<p class="settings-operation-status">${esc(_addonUpdateStatus)}</p>` : ''}
         ${_githubTokenLine()}
         ${_conflictsHtml()}
         ${body}
@@ -1869,8 +1882,12 @@ export const Settings = (() => {
     Store.checkAddonUpdates().then(r => {
       if (!r.ok) { _flash(I18n.t('settings.checkFailed'), false); return; }
       _addonUpdates = indexAddonUpdates(r.updates);
+      _addonUpdatesChecked = true;
       const n = r.updates.filter(u => u.hasUpdate).length;
-      _flash(n ? I18n.plural('settings.updatesAvailable', n) : I18n.t('settings.allUpToDate'));
+      _addonUpdateStatus = n
+        ? I18n.plural('settings.updatesAvailable', n)
+        : I18n.t('settings.allUpToDate');
+      _flash(_addonUpdateStatus);
       if (_activeCat === 'addons') render();
     });
   }
@@ -1898,6 +1915,8 @@ export const Settings = (() => {
   // ── Update all ───────────────────────────────────────────────
   function updateAllAddons() {
     if (!_requireDM()) return;
+    if (Object.keys(_addonUpdates).length > 0 &&
+        !Object.values(_addonUpdates).some(update => update?.hasUpdate)) return;
     if (!confirm(I18n.t('settings.updateAllQ'))) return;
     _flash(I18n.t('settings.updatingAll'));
     Store.updateAllAddons().then(r => {
@@ -1912,6 +1931,10 @@ export const Settings = (() => {
         _flash(msg, nErr === 0);
       }
       _addonUpdates = {};
+      _addonUpdatesChecked = true;
+      _addonUpdateStatus = nErr
+        ? I18n.plural('settings.updateErrorsN', nErr)
+        : (n ? I18n.plural('settings.updatedN', n) : I18n.t('settings.allUpToDate'));
       _reloadAddonsIfActive();
     });
   }

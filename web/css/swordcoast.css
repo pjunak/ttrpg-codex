@@ -33,7 +33,7 @@
   font-family: 'Cinzel', serif;
   font-size: 0.95rem;
   color: var(--text-parchment);
-  margin-right: 0.5rem;
+  margin: 0 0.5rem 0 0;
   white-space: nowrap;
 }
 .sc-btn {

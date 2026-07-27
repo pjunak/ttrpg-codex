@@ -486,8 +486,9 @@ export const Wiki = (() => {
   // pencil opens the editor — two distinct click targets in one card.
   function editOverlay(href) {
     const route = String(href || '').replace(/^#/, '');
-    return `<span class="edit-card-overlay" title="${esc(I18n.t('action.edit'))}" role="button"
-      ${dataAction('Wiki.startEditingArticle', route)}>✏</span>`;
+    return `<button type="button" class="edit-card-overlay" title="${esc(I18n.t('action.edit'))}"
+      aria-label="${esc(I18n.t('action.edit'))}"
+      ${dataAction('Wiki.startEditingArticle', route)}>✏</button>`;
   }
 
   // ── Empty-state onboarding card ───────────────────────────────
@@ -505,6 +506,20 @@ export const Wiki = (() => {
         <div class="empty-state-title">${esc(title || I18n.t('wiki.emptyDefault'))}</div>
         <div class="empty-state-desc">${esc(description || '')}</div>
         ${cta}
+      </div>`;
+  }
+
+  function _renderMissingRecord(message, listRoute) {
+    return `
+      <div class="empty-state missing-record">
+        <div class="empty-state-icon" aria-hidden="true">🧭</div>
+        <h1 class="empty-state-title">${esc(message)}</h1>
+        <div class="empty-state-desc">${esc(I18n.t('wiki.missingRecordDesc'))}</div>
+        <div class="empty-state-actions">
+          <button type="button" class="inline-create-btn" ${dataAction('back')}>← ${esc(I18n.t('action.back'))}</button>
+          <a class="inline-create-btn" href="#/${esc(listRoute)}">${esc(I18n.t('wiki.missingRecordList'))}</a>
+          <a class="inline-create-btn" href="#/">${esc(I18n.t('nav.dashboard'))}</a>
+        </div>
       </div>`;
   }
 
@@ -793,8 +808,11 @@ export const Wiki = (() => {
       ${dataOn('blur', 'Wiki.commitInlineEdit', field, '$text', '$el')}
       ${dataOn('keydown', 'Wiki.handleInlineEditKey', '$ev', '$el')}`;
     const editPen = (elId, label) => `
-      <button type="button" class="dash-hero-pen" title="${esc(label)}"
+      <button type="button" class="dash-hero-pen" title="${esc(label)}" aria-label="${esc(label)}"
         ${dataAction('Wiki.startInlineEdit', elId)}>✏</button>`;
+    const taglinePlaceholder = Role.isAnonymous()
+      ? ''
+      : ` data-placeholder="${esc(I18n.t('wiki.campaignTaglinePlaceholder'))}"`;
     return `
       <div class="dash-hero">
         <div class="dash-hero-row">
@@ -803,7 +821,7 @@ export const Wiki = (() => {
         </div>
         <div class="dash-hero-row">
           <div class="dash-hero-tagline" id="dash-hero-tagline"
-            data-placeholder="${esc(I18n.t('wiki.campaignTaglinePlaceholder'))}" ${fieldAttrs('tagline')}>${esc(campaign.tagline || '')}</div>
+            ${taglinePlaceholder} ${fieldAttrs('tagline')}>${esc(campaign.tagline || '')}</div>
           ${editPen('dash-hero-tagline', I18n.t('wiki.editCampaignTagline'))}
         </div>
       </div>`;
@@ -857,22 +875,15 @@ export const Wiki = (() => {
         </a>`;
     }).join('');
     const grid = `<div class="dash-party-grid">${cards}</div>`;
-    // Pets flank the grid — first card on the right, then alternating
-    // left/right. Covers pets owned by the party AND by any individual
-    // party member (Store.getPartyPets). Nothing renders when there
-    // are none, so the dashboard is byte-for-byte unchanged until a
-    // party-side pet exists.
     const partyPets = Store.getPartyPets();
     let partyBody = grid;
     if (partyPets.length) {
-      const left = [], right = [];
-      partyPets.forEach((p, i) => (i % 2 === 0 ? right : left).push(p));
-      const col = (list) => list.map(p => _petCardHtml(p, { cls: 'dash-pet-card' })).join('');
+      const petCards = partyPets.map(p => _petCardHtml(p, { cls: 'dash-pet-card' })).join('');
       partyBody = `
-        <div class="dash-party-flank">
-          <div class="dash-pets-col dash-pets-left">${col(left)}</div>
-          ${grid}
-          <div class="dash-pets-col dash-pets-right">${col(right)}</div>
+        ${grid}
+        <div class="dash-party-companions">
+          <h3>${esc(I18n.t('wiki.partyCompanions'))}</h3>
+          <div class="dash-pets-row">${petCards}</div>
         </div>`;
     }
     return `
@@ -1057,7 +1068,7 @@ export const Wiki = (() => {
         <div class="dash-section-head">
           <h2>🕘 ${esc(I18n.t('wiki.recentChanges'))}</h2>
         </div>
-        <div class="activity-list activity-list-scroll">${rows}</div>
+        <div class="activity-list">${rows}</div>
       </div>`;
   }
 
@@ -1434,16 +1445,18 @@ export const Wiki = (() => {
     const glow    = _attitudeGlowBox(entries, colors);
     const twinMark = _twinCardMarker(c);
     return `
-      <a class="char-card" href="#/postava/${c.id}"${glow ? ` style="--attitude-ring: ${glow}"` : ''}>
-        ${portraitWrap(c, '')}
+      <div class="entity-card-wrap">
+        <a class="char-card" href="#/postava/${c.id}"${glow ? ` style="--attitude-ring: ${glow}"` : ''}>
+          ${portraitWrap(c, '')}
+          ${twinMark}
+          <div class="char-card-info">
+            <div class="char-card-name">${c.knowledge >= 1 ? esc(c.name) : "???"}</div>
+            <div class="char-card-title">${c.knowledge >= 2 ? esc(c.title) : esc(I18n.t('wiki.unknownTitle'))}</div>
+            <div class="char-card-badges">${statusBadge(c.status)}</div>
+          </div>
+        </a>
         ${overlay}
-        ${twinMark}
-        <div class="char-card-info">
-          <div class="char-card-name">${c.knowledge >= 1 ? esc(c.name) : "???"}</div>
-          <div class="char-card-title">${c.knowledge >= 2 ? esc(c.title) : esc(I18n.t('wiki.unknownTitle'))}</div>
-          <div class="char-card-badges">${statusBadge(c.status)}</div>
-        </div>
-      </a>
+      </div>
     `;
   }
 
@@ -1462,7 +1475,7 @@ export const Wiki = (() => {
   function renderCharacterArticle(id) {
     if (id === "new") return EditMode.renderCharacterEditor(null);
     const c = Store.getCharacter(id);
-    if (!c) return `<p>${esc(I18n.t('wiki.charNotFound', { id }))}</p>`;
+    if (!c) return _renderMissingRecord(I18n.t('wiki.charNotFound', { id }), 'postavy');
     if (_isCurrentArticleEditing()) return EditMode.renderCharacterEditor(c);
 
     // ── View mode (read-only; editing goes through the ✏ switch → the form) ──
@@ -1647,16 +1660,18 @@ export const Wiki = (() => {
     const iconStyle = glow
       ? `color:${_safeColor(pt.color)};filter:${glow}`
       : `color:${_safeColor(pt.color)}`;
-    return `<a class="loc-card" href="#/misto/${l.id}" style="text-decoration:none;position:relative">
+    return `<div class="entity-card-wrap">
+      <a class="loc-card" href="#/misto/${l.id}" style="text-decoration:none">
+        ${_twinCardMarker(l)}
+        <div class="loc-card-icon" style="${iconStyle}">${iconInner}</div>
+        <div class="loc-card-body">
+          <div class="loc-card-name">${esc(l.name)}</div>
+          <div class="loc-card-type">${esc(typeLabel)}</div>
+          ${region}
+        </div>
+      </a>
       ${editBtn}
-      ${_twinCardMarker(l)}
-      <div class="loc-card-icon" style="${iconStyle}">${iconInner}</div>
-      <div class="loc-card-body">
-        <div class="loc-card-name">${esc(l.name)}</div>
-        <div class="loc-card-type">${esc(typeLabel)}</div>
-        ${region}
-      </div>
-    </a>`;
+    </div>`;
   }
 
   function _mistaGridHtml() {
@@ -1784,7 +1799,7 @@ export const Wiki = (() => {
   function renderLocationArticle(id) {
     if (id === "new") return EditMode.renderLocationEditor(null);
     const l = Store.getLocation(id);
-    if (!l) return `<p>${esc(I18n.t('wiki.locNotFound', { id }))}</p>`;
+    if (!l) return _renderMissingRecord(I18n.t('wiki.locNotFound', { id }), 'mista');
     if (_isCurrentArticleEditing()) return EditMode.renderLocationEditor(l);
 
     const factions = Store.getFactions();
@@ -1918,7 +1933,7 @@ export const Wiki = (() => {
   function renderEventArticle(id) {
     if (id === "new") return EditMode.renderEventEditor(null);
     const e = Store.getEvent(id);
-    if (!e) return `<p>${esc(I18n.t('wiki.eventNotFound', { id }))}</p>`;
+    if (!e) return _renderMissingRecord(I18n.t('wiki.eventNotFound', { id }), 'casova-osa');
     if (_isCurrentArticleEditing()) return EditMode.renderEventEditor(e);
 
     const chars = (e.characters || []).map(cid => {
@@ -2126,7 +2141,7 @@ export const Wiki = (() => {
   function renderMysteryArticle(id) {
     if (id === "new") return EditMode.renderMysteryEditor(null);
     const m = Store.getMystery(id);
-    if (!m) return `<p>${esc(I18n.t('wiki.mysteryNotFound', { id }))}</p>`;
+    if (!m) return _renderMissingRecord(I18n.t('wiki.mysteryNotFound', { id }), 'zahady');
     if (_isCurrentArticleEditing()) return EditMode.renderMysteryEditor(m);
 
     const charChips = (m.characters || []).map(cid => {
@@ -2237,8 +2252,8 @@ export const Wiki = (() => {
       const ovl = editOverlay(`#/frakce/${id}`);
       const col = _safeColor(f.color);
       return `
-        <a class="faction-card" href="#/frakce/${id}" style="text-decoration:none;position:relative;border-color:${col}55">
-          ${ovl}
+        <div class="entity-card-wrap">
+        <a class="faction-card" href="#/frakce/${id}" style="text-decoration:none;border-color:${col}55">
           ${_twinCardMarker(f)}
           <div class="faction-card-header" style="background:${col}22;border-bottom:1px solid ${col}33">
             <span class="faction-card-badge">${_factionGlyph(f)}</span>
@@ -2248,7 +2263,9 @@ export const Wiki = (() => {
             <span>👤 ${esc(I18n.plural('wiki.membersCount', memberCount))}</span>
             ${rankCount ? `<span>⚔ ${esc(I18n.plural('wiki.ranksCount', rankCount))}</span>` : ""}
           </div>
-        </a>`;
+        </a>
+        ${ovl}
+        </div>`;
     }).join("");
   }
 
@@ -2299,7 +2316,7 @@ export const Wiki = (() => {
     }
     const factions = Store.getFactions();
     const f = factions[id];
-    if (!f) return `<p>${esc(I18n.t('wiki.factionNotFound', { id }))}</p>`;
+    if (!f) return _renderMissingRecord(I18n.t('wiki.factionNotFound', { id }), 'frakce');
     if (_isCurrentArticleEditing()) return EditMode.renderFactionEditor(f, id);
 
     const chars = Store.getCharacters().filter(c => c.faction === id);
@@ -2521,15 +2538,17 @@ export const Wiki = (() => {
     const grid = items.map(g => {
           const editBtn = editOverlay(`#/buh/${g.id}`);
           const sub = [g.domain, g.alignment].filter(Boolean).map(esc).join(' · ');
-          return `<a class="loc-card" href="#/buh/${g.id}" style="text-decoration:none;position:relative">
+          return `<div class="entity-card-wrap">
+            <a class="loc-card" href="#/buh/${g.id}" style="text-decoration:none">
+              ${_twinCardMarker(g)}
+              <div class="loc-card-icon">${esc(g.symbol || '✨')}</div>
+              <div class="loc-card-body">
+                <div class="loc-card-name">${esc(g.name)}</div>
+                <div class="loc-card-type">${sub}</div>
+              </div>
+            </a>
             ${editBtn}
-            ${_twinCardMarker(g)}
-            <div class="loc-card-icon">${esc(g.symbol || '✨')}</div>
-            <div class="loc-card-body">
-              <div class="loc-card-name">${esc(g.name)}</div>
-              <div class="loc-card-type">${sub}</div>
-            </div>
-          </a>`;
+          </div>`;
         }).join('');
     return `
       ${_simpleListHeader('✨ ' + I18n.t('nav.pantheon'), I18n.plural('wiki.deityCount', items.length), '#/buh/new', I18n.t('wiki.deityNew'))}
@@ -2540,7 +2559,7 @@ export const Wiki = (() => {
   function renderBuhArticle(id) {
     if (id === 'new') return EditMode.renderBuhEditor(null);
     const g = Store.getBuh(id);
-    if (!g) return `<p>${esc(I18n.t('wiki.deityNotFound', { id }))}</p>`;
+    if (!g) return _renderMissingRecord(I18n.t('wiki.deityNotFound', { id }), 'panteon');
     if (_isCurrentArticleEditing()) return EditMode.renderBuhEditor(g);
 
     _setCurrentArticle({ type: 'pantheon', id });
@@ -2577,14 +2596,16 @@ export const Wiki = (() => {
     }
     const grid = items.map(a => {
           const editBtn = editOverlay(`#/artefakt/${a.id}`);
-          return `<a class="loc-card" href="#/artefakt/${a.id}" style="text-decoration:none;position:relative">
+          return `<div class="entity-card-wrap">
+            <a class="loc-card" href="#/artefakt/${a.id}" style="text-decoration:none">
+              ${_twinCardMarker(a)}
+              <div class="loc-card-icon">🗝</div>
+              <div class="loc-card-body">
+                <div class="loc-card-name">${esc(a.name)}</div>
+              </div>
+            </a>
             ${editBtn}
-            ${_twinCardMarker(a)}
-            <div class="loc-card-icon">🗝</div>
-            <div class="loc-card-body">
-              <div class="loc-card-name">${esc(a.name)}</div>
-            </div>
-          </a>`;
+          </div>`;
         }).join('');
     return `
       ${_simpleListHeader('🗝 ' + I18n.t('nav.artifacts'), I18n.plural('wiki.artifactCount', items.length), '#/artefakt/new', I18n.t('wiki.artifactNew'))}
@@ -2595,7 +2616,7 @@ export const Wiki = (() => {
   function renderArtifactArticle(id) {
     if (id === 'new') return EditMode.renderArtifactEditor(null);
     const a = Store.getArtifact(id);
-    if (!a) return `<p>${esc(I18n.t('wiki.artifactNotFound', { id }))}</p>`;
+    if (!a) return _renderMissingRecord(I18n.t('wiki.artifactNotFound', { id }), 'artefakty');
     if (_isCurrentArticleEditing()) return EditMode.renderArtifactEditor(a);
 
     const owner = a.ownerCharacterId ? Store.getCharacter(a.ownerCharacterId) : null;
@@ -2653,14 +2674,16 @@ export const Wiki = (() => {
       const editBtn = editOverlay(`#/historicka-udalost/${h.id}`);
       const range = _historyRange(h);
       const sub = [range, _firstParagraph(h.summary)].filter(Boolean).join(' · ');
-      return `<a class="loc-card" href="#/historicka-udalost/${h.id}" style="text-decoration:none;position:relative">
+      return `<div class="entity-card-wrap">
+        <a class="loc-card" href="#/historicka-udalost/${h.id}" style="text-decoration:none">
+          <div class="loc-card-icon">📜</div>
+          <div class="loc-card-body">
+            <div class="loc-card-name">${esc(h.name)}</div>
+            <div class="loc-card-type">${sub}</div>
+          </div>
+        </a>
         ${editBtn}
-        <div class="loc-card-icon">📜</div>
-        <div class="loc-card-body">
-          <div class="loc-card-name">${esc(h.name)}</div>
-          <div class="loc-card-type">${sub}</div>
-        </div>
-      </a>`;
+      </div>`;
     }).join('');
     return `
       ${_simpleListHeader('📜 ' + I18n.t('nav.history'), I18n.plural('wiki.eventCount', items.length), '#/historicka-udalost/new', I18n.t('wiki.historyNew'))}
@@ -2671,7 +2694,7 @@ export const Wiki = (() => {
   function renderHistoryArticle(id) {
     if (id === 'new') return EditMode.renderHistoricalEventEditor(null);
     const h = Store.getHistoricalEvent(id);
-    if (!h) return `<p>${esc(I18n.t('wiki.historyNotFound', { id }))}</p>`;
+    if (!h) return _renderMissingRecord(I18n.t('wiki.historyNotFound', { id }), 'historie');
     if (_isCurrentArticleEditing()) return EditMode.renderHistoricalEventEditor(h);
 
     const chars = (h.characters || []).map(cid => Store.getCharacter(cid)).filter(Boolean);
@@ -2747,6 +2770,9 @@ export const Wiki = (() => {
     el.innerHTML = html;
     el.scrollTop = 0;
     window.scrollTo(0, 0);
+    window.dispatchEvent(new CustomEvent('codex:content-rendered', {
+      detail: { root: el },
+    }));
   }
 
   return {

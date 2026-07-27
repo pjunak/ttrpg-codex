@@ -450,6 +450,18 @@ export function safeColor(c, fallback = 'var(--text-muted)') {
  *
  * @param {string} text  plain text — not HTML (assigned via textContent).
  */
+let _announcementTimer = null;
+
+export function clearAnnouncement() {
+  if (_announcementTimer !== null) {
+    clearTimeout(_announcementTimer);
+    _announcementTimer = null;
+  }
+  if (typeof document === 'undefined') return;
+  const el = document.getElementById('codex-announcer');
+  if (el) el.textContent = '';
+}
+
 export function announce(text) {
   if (typeof document === 'undefined' || !document.body) return;
   let el = document.getElementById('codex-announcer');
@@ -463,8 +475,11 @@ export function announce(text) {
     el.style.cssText = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0';
     document.body.appendChild(el);
   }
-  el.textContent = '';
-  setTimeout(() => { el.textContent = String(text == null ? '' : text); }, 30);
+  clearAnnouncement();
+  _announcementTimer = setTimeout(() => {
+    _announcementTimer = null;
+    el.textContent = String(text == null ? '' : text);
+  }, 30);
 }
 
 /**

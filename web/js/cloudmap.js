@@ -953,7 +953,7 @@ export const CloudMap = (() => {
     container.innerHTML = `
       <div class="map-container">
         <div class="map-toolbar ${_editing ? 'is-editing' : ''}">
-          <div class="map-title">☁ ${esc(I18n.t('cloudmap.title'))}</div>
+          <h1 class="map-title">☁ ${esc(I18n.t('cloudmap.title'))}</h1>
           <a href="#/mapa/frakce"    class="map-mode-btn ${mode==='frakce'    ?'active':''}">${esc(I18n.t('cloudmap.modeFactions'))}</a>
           <a href="#/mapa/vztahy"    class="map-mode-btn ${mode==='vztahy'    ?'active':''}">${esc(I18n.t('cloudmap.modeRelations'))}</a>
           <a href="#/mapa/tajemstvi" class="map-mode-btn ${mode==='tajemstvi' ?'active':''}">${esc(I18n.t('cloudmap.modeMysteries'))}</a>
@@ -967,7 +967,10 @@ export const CloudMap = (() => {
         </div>
         ${_buildFilterBar(mode)}
         <div id="cy-container"></div>
-        <div class="map-legend" id="map-legend"></div>
+        <details class="map-legend-shell"${globalThis.matchMedia?.('(max-width: 768px)').matches ? '' : ' open'}>
+          <summary>${esc(I18n.t('cloudmap.legendTitle'))}</summary>
+          <div class="map-legend" id="map-legend"></div>
+        </details>
       </div>
     `;
 
@@ -1071,6 +1074,13 @@ export const CloudMap = (() => {
         return el;
       });
       layout = { name: 'preset', fit: false, padding: 70 };
+    } else if (layout?.name === 'cose') {
+      layout = {
+        ...layout,
+        randomize: true,
+        nodeOverlap: Math.max(80, Number(layout.nodeOverlap) || 0),
+        componentSpacing: Math.max(100, Number(layout.componentSpacing) || 0),
+      };
     }
 
     const container = document.getElementById('cy-container');
@@ -1134,6 +1144,16 @@ export const CloudMap = (() => {
       'transform-origin:0 0;overflow:visible;z-index:5;';
     container.appendChild(_cloudLayer);
 
+    if (_nodeIds.size === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'cm-empty-state';
+      empty.innerHTML = `
+        <div class="cm-empty-icon" aria-hidden="true">☁</div>
+        <strong>${esc(I18n.t('cloudmap.emptyTitle'))}</strong>
+        <span>${esc(I18n.t('cloudmap.emptyText'))}</span>`;
+      container.appendChild(empty);
+    }
+
     // SVG edge layer — first child of cloud layer so it renders below
     // glow divs and cloud cards. Inherits the layer's `zoom` so vector
     // paths re-rasterise crisply at any zoom level.
@@ -1144,6 +1164,16 @@ export const CloudMap = (() => {
     _edgeSvg.setAttribute('width', '0');
     _edgeSvg.setAttribute('height', '0');
     _cloudLayer.insertBefore(_edgeSvg, _cloudLayer.firstChild);
+
+    if (!savedPos) {
+      const cy = _cy;
+      cy.one('layoutstop', () => {
+        if (_cy !== cy || cy.nodes(':visible').empty()) return;
+        requestAnimationFrame(() => {
+          if (_cy === cy) cy.fit(cy.nodes(':visible'), 70);
+        });
+      });
+    }
 
     return _cy;
   }

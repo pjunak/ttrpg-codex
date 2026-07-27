@@ -35,7 +35,7 @@
   font-size: 0.9rem;
   color: var(--accent-gold);
   letter-spacing: 0.06em;
-  margin-right: 0.4rem;
+  margin: 0 0.4rem 0 0;
 }
 .tl-hint {
   font-family: var(--font-ui);
@@ -207,6 +207,15 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(var(--accent-gold-rgb), 0.25) transparent;
   min-height: 40px;  /* drop target stays clickable when empty */
+}
+.tl-col-empty {
+  margin: auto;
+  max-width: 15rem;
+  padding: var(--space-5) var(--space-3);
+  color: var(--text-muted);
+  font: var(--text-sm) var(--font-ui);
+  line-height: 1.5;
+  text-align: center;
 }
 .tl-col-body::-webkit-scrollbar { width: 6px; }
 .tl-col-body::-webkit-scrollbar-thumb { background: rgba(var(--accent-gold-rgb), 0.25); border-radius: 3px; }

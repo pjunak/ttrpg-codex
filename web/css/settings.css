@@ -14,7 +14,29 @@
   margin-top: 1rem;
 }
 @media (max-width: 820px) {
-  .settings-shell { grid-template-columns: 1fr; }
+  .settings-shell { grid-template-columns: 1fr; gap: var(--space-3); }
+  .settings-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+    top: 0;
+    z-index: 20;
+  }
+  .settings-tab {
+    display: flex;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .settings-tabs-sep {
+    width: 1px;
+    min-width: 1px;
+    align-self: stretch;
+  }
+  .settings-editor {
+    scroll-margin-top: 4.5rem;
+    padding: var(--space-4);
+  }
 }
 
 /* ── Category tabs (left column) ──────────────────────────────── */
@@ -83,7 +105,16 @@
   font-size: 1.25rem;
   margin: 0;
 }
-.settings-editor-actions { display: flex; gap: 0.5rem; }
+.settings-editor-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.settings-operation-status {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-parchment);
+  background: rgba(var(--accent-gold-rgb), 0.08);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+}
 
 /* ── Item rows (each enum entry) ──────────────────────────────── */
 .settings-rows {
@@ -295,9 +326,43 @@
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: 0.2rem;
+}
+.settings-snapshot-row {
+  grid-template-columns: 1.6rem minmax(9rem, 1fr) minmax(7rem, auto) auto auto;
+}
+.settings-snapshots-older {
+  margin-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+.settings-snapshots-older > summary {
+  padding: var(--space-3);
+  color: var(--accent-gold);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+.settings-snapshots-older-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+@media (max-width: 620px) {
+  .settings-editor-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .settings-snapshot-row {
+    grid-template-columns: 1.4rem minmax(0, 1fr) auto;
+  }
+  .settings-snapshot-row .settings-row-id {
+    grid-column: 2;
+  }
+  .settings-snapshot-row .settings-row-usage {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .settings-snapshot-row .settings-row-actions {
+    grid-column: 2 / -1;
+  }
 }
 
 /* ── Attitude strength slider (Postoje k partě editor) ────── */
@@ -774,6 +839,25 @@
   cursor: pointer;
 }
 .sb-page-btn:hover { color: var(--accent-gold); border-color: var(--accent-gold); }
+.sb-order-controls {
+  display: inline-flex;
+  gap: 0.15rem;
+}
+.sb-order-btn {
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.sb-order-btn:hover,
+.sb-order-btn:focus-visible {
+  color: var(--accent-gold);
+  border-color: var(--accent-gold);
+}
 .sb-empty {
   list-style: none;
   font-family: var(--font-ui);

@@ -43,13 +43,15 @@ export const SettingsBackup = (() => {
         <div class="settings-row-actions">
           <button type="button" class="settings-btn-edit"
                   title="${esc(i18n.t('settings.restoreThisStateTitle'))}"
+                  aria-label="${esc(i18n.t('settings.restoreSnapshotLabel', { when }))}"
                   ${dataAction('Settings.restoreSnapshot', snapshot.id)}>↶</button>
           <button type="button" class="settings-btn-del"
                   title="${esc(i18n.t('settings.deleteSnapshotTitle'))}"
+                  aria-label="${esc(i18n.t('settings.deleteSnapshotLabel', { when }))}"
                   ${dataAction('Settings.deleteSnapshot', snapshot.id)}>🗑</button>
         </div>` : '';
       return `
-        <div class="settings-row">
+        <div class="settings-row settings-snapshot-row">
           <span class="settings-row-icon">🕒</span>
           <span class="settings-row-label">${esc(when)}</span>
           <code class="settings-row-id">${esc(tag)}</code>
@@ -60,8 +62,14 @@ export const SettingsBackup = (() => {
 
     function html() {
       const isDM = role.isDM();
+      const recent = snapshots.slice(0, 12).map(snapshotRow).join('');
+      const older = snapshots.slice(12).map(snapshotRow).join('');
       const rows = snapshots.length
-        ? snapshots.map(snapshotRow).join('')
+        ? `${recent}${older ? `
+          <details class="settings-snapshots-older">
+            <summary>${esc(i18n.t('settings.olderSnapshots', { n: snapshots.length - 12 }))}</summary>
+            <div class="settings-snapshots-older-list">${older}</div>
+          </details>` : ''}`
         : `<div class="settings-empty">${esc(i18n.t('settings.noSnapshots'))}</div>`;
       const downloadButton = isDM ? `
           <a class="inline-create-btn" href="/api/backup"

@@ -18,7 +18,7 @@ import { Addons } from './addons.js';
 import { I18n } from './i18n.js';
 import { createSyncCoordinator } from './sync-coordinator.js';
 import { CollectionDescriptors } from './collection-descriptors.js';
-import { setWikiLinkResolver, norm, dataAction, dataOn, esc } from './utils.js';
+import { setWikiLinkResolver, norm, dataAction, dataOn, esc, clearAnnouncement } from './utils.js';
 import { graphImplementationRegistry } from './addon-graph.js';
 import { createCytoscapeGraphAdapter } from './addon-graph-cytoscape.js';
 
@@ -355,6 +355,57 @@ document.addEventListener('click', (ev) => {
     return window.location.hash.replace(/^#/, "") || "/";
   }
 
+  let _lastAllowedRoute = '/';
+
+  function _mountRenderedContent(root = document.getElementById('main-content')) {
+    requestAnimationFrame(() => {
+      const mountRoot = root?.isConnected ? root : document.getElementById('main-content');
+      if (!mountRoot) return;
+      Widgets.mountAll(mountRoot);
+      EditMode.mountEasyMDE(mountRoot);
+    });
+  }
+
+  window.addEventListener('codex:content-rendered', event => {
+    _mountRenderedContent(event.detail?.root);
+  });
+
+  function _renderRouteNotFound(route) {
+    const main = document.getElementById('main-content');
+    if (!main) return;
+    main.style.display = '';
+    main.innerHTML = `
+      <div class="empty-state route-not-found">
+        <div class="empty-icon" aria-hidden="true">🧭</div>
+        <h1>${esc(I18n.t('app.routeNotFoundTitle'))}</h1>
+        <p>${esc(I18n.t('app.routeNotFoundText', { route }))}</p>
+        <div class="empty-state-actions">
+          <button type="button" class="inline-create-btn" ${dataAction('back')}>← ${esc(I18n.t('action.back'))}</button>
+          <a class="inline-create-btn" href="#/">${esc(I18n.t('nav.dashboard'))}</a>
+        </div>
+      </div>`;
+    main.scrollTop = 0;
+    window.scrollTo(0, 0);
+  }
+
+  function _isKnownRoute(route) {
+    const parts = route.split('/').filter(Boolean);
+    const section = parts[0] || '';
+    const sub = parts[1] || '';
+    if (section === 'mapa') {
+      return sub === 'svet' ||
+        (sub === 'local' && !!parts[2]) ||
+        new Set(['palac', 'frakce', 'vztahy', 'tajemstvi']).has(sub) ||
+        Addons.graphViews().some(view => view?.id === sub);
+    }
+    return new Set([
+      '', 'dashboard', 'parta', 'postavy', 'postava', 'mista', 'misto',
+      'udalosti', 'udalost', 'zahady', 'zahada', 'frakce', 'mazlicci',
+      'panteon', 'buh', 'artefakty', 'artefakt', 'historie',
+      'historicka-udalost', 'nastaveni', 'dm', 'casova-osa',
+    ]).has(section) || Addons.hasRoute(section);
+  }
+
   /**
    * Render the page for `route`. Dispatches to the right module
    * (`Wiki`, `WorldMap`, `CloudMap`, `Timeline`, `Settings`), keeps the
@@ -365,6 +416,7 @@ document.addEventListener('click', (ev) => {
    * @param {string} route - The current hash route (from `getRoute()`).
    */
   function navigate(route) {
+    clearAnnouncement();
     Addons.disposeRouteGraphs();
     const isWorldMapRoute =
       route === '/mapa/svet' || route.startsWith('/mapa/local/');
@@ -378,11 +430,7 @@ document.addEventListener('click', (ev) => {
     // the whole document is wasted work. Modules that inject widgets
     // dynamically (e.g. relTypeChanged, faction add) call
     // `Widgets.mountAll(scopedRoot)` with a tighter root themselves.
-    requestAnimationFrame(() => {
-      const root = document.getElementById('main-content') || document.body;
-      Widgets.mountAll(root);
-      EditMode.mountEasyMDE(root);
-    });
+    _mountRenderedContent();
 
     // Close the mobile drawer if navigating via a sidebar link.
     document.body.classList.remove('mobile-nav-open');
@@ -407,7 +455,17 @@ document.addEventListener('click', (ev) => {
     // explicitly asked that anonymous access prompt for login.
     if (Role.isAnonymous() &&
         (route === '/nastaveni' || route.endsWith('/new'))) {
-      EditMode.promptLogin();
+      const blockedRoute = route;
+      const fallbackRoute = _lastAllowedRoute;
+      EditMode.promptLogin().then(unlocked => {
+        if (getRoute() !== blockedRoute) return;
+        if (unlocked) {
+          navigate(blockedRoute);
+          return;
+        }
+        window.history.replaceState(null, '', `#${fallbackRoute}`);
+        navigate(fallbackRoute);
+      });
       const main = document.getElementById('main-content');
       if (main) {
         main.innerHTML = `
@@ -420,6 +478,12 @@ document.addEventListener('click', (ev) => {
       }
       return;
     }
+
+    if (!_isKnownRoute(route)) {
+      _renderRouteNotFound(route);
+      return;
+    }
+    _lastAllowedRoute = route;
 
     // Mind-map sub-routes that all belong to Myšlenkový Palác
     const PALAC_ROUTES = new Set(["/mapa/palac", "/mapa/frakce", "/mapa/vztahy", "/mapa/tajemstvi"]);
@@ -482,7 +546,7 @@ document.addEventListener('click', (ev) => {
       } else if (sub && Addons.graphViews().some(v => v && v.id === sub)) {
         CloudMap.render(sub);   // addon-registered mind-map view
       } else {
-        CloudMap.render("frakce");
+        _renderRouteNotFound(route);
       }
       return;
     }
@@ -547,10 +611,8 @@ document.addEventListener('click', (ev) => {
         // already hides the link for non-DM users.
         DmDashboard.render(); break;
       default:
-        // Addon-registered top-level routes (CodexHost). Falls back to
-        // the dashboard for genuinely unknown sections.
         if (Addons.hasRoute(section)) { Addons.renderRoute(section, sub, parts); break; }
-        Wiki.renderPage("dashboard");
+        _renderRouteNotFound(route);
     }
   }
 
@@ -834,6 +896,7 @@ document.addEventListener('click', (ev) => {
     // language switch relabels the chip — the early `if (chip) return`
     // used to leave the old-language text in place.
     chip.title = I18n.t('app.loginChipTitle');
+    chip.setAttribute('aria-label', I18n.t('app.loginChipTitle'));
     chip.innerHTML = `<span class="topbar-login-icon">🔑</span> <span class="topbar-login-label">${esc(I18n.t('action.login'))}</span>`;
   }
 

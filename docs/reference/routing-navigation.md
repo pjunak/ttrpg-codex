@@ -198,8 +198,9 @@ per-entity, and per-field. There is no global edit-mode flag; the
   rather than hiding the affordance — discoverability beats stealth
   for a tool used by a known group. `navigate()` in app.js also has
   a route guard that intercepts anonymous nav to `/nastaveni` or
-  any `/<entity>/new` and shows the same modal + a fallback
-  placeholder page in case the user cancels.
+  any `/<entity>/new`. Successful authentication resumes the requested
+  route. Cancelling restores the last allowed route with `replaceState`, so
+  browser history never retains a gated blank page.
 - **Per-article edit state.** `Wiki._editingArticle` holds the hash
   route (e.g. `'/postava/foo'`) of the article currently rendering
   its editor. `_isCurrentArticleEditing()` returns true when the
@@ -265,7 +266,12 @@ Per-page edit affordances (article ✏ Upravit, list-page ✏ pencils,
 map/timeline/cloudmap ✏ Editovat toggles) call `promptLogin` first
 when they detect an anonymous viewer. After successful login the
 user retries the action — no auto-resume is wired yet; one extra
-click is the cost of keeping the login flow stateless.
+click is the cost of keeping those individual edit actions stateless. The
+route-level `/nastaveni` and `/<entity>/new` guard does resume automatically.
+
+Unknown built-in and addon routes render a localized recovery page with links
+to the dashboard and the previous history entry. They never leave stale
+content from the preceding route mounted.
 
 **Password storage.** Two sources, in priority order:
 

@@ -289,7 +289,7 @@ export const Timeline = (() => {
     document.getElementById('main-content').innerHTML = `
       <div class="tl-shell ${editing ? 'is-editing' : ''}">
         <div class="tl-toolbar">
-          <div class="tl-title">⏳ ${esc(I18n.t('timeline.title'))}</div>
+          <h1 class="tl-title">⏳ ${esc(I18n.t('timeline.title'))}</h1>
           <span class="tl-hint">${esc(I18n.t('timeline.hintBase'))}${editing ? ` · ${esc(I18n.t('timeline.hintDrag'))}` : ''}</span>
           ${editToggle}${toolbarExtra}
           ${editing ? `<button class="tl-add-btn"${dataAction('EditMode.startNewEvent')}>＋ ${esc(I18n.t('timeline.newEvent'))}</button>` : ''}
@@ -398,6 +398,11 @@ export const Timeline = (() => {
     `;
 
     const body = col.querySelector('.tl-col-body');
+    if (!events.length && variant !== 'phantom') {
+      body.innerHTML = `<div class="tl-col-empty">${esc(I18n.t(
+        editing ? 'timeline.emptySessionEditing' : 'timeline.emptySession',
+      ))}</div>`;
+    }
     events.forEach(e => body.appendChild(_buildCard(e, col)));
 
     // Tap-to-expand for touch devices. Ignore taps on cards themselves
