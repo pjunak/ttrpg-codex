@@ -230,7 +230,7 @@ export const I18n = (() => {
 
   /**
    * Persist + switch the active locale, then re-render. Per-browser
-   * (localStorage) — no server sync. Wired to the dashboard dropdown
+   * (localStorage) — no server sync. Wired to the persistent sidebar dropdown
    * via `data-on-change`. Async because a not-yet-loaded catalog is
    * fetched once. The user's choice is remembered even if the fetch
    * transiently fails (this session degrades to English; next boot

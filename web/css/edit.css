@@ -121,10 +121,7 @@
   font-weight: 500;
 }
 
-/* ── Sidebar footer button ────────────────────────────────────
-   The global "✏ Úpravy" toggle and the construction-stripe were
-   removed in the per-page edit migration. The footer now holds
-   just the ⚙ Nastavení entry. */
+/* ── Sidebar footer ─────────────────────────────────────────── */
 .sidebar-footer {
   margin-top: auto;
   padding: 0.75rem 0.75rem 1rem;
@@ -132,6 +129,41 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+}
+.sidebar-language {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: 0.35rem 0.45rem 0.35rem 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+}
+.sidebar-language-label {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--space-1);
+}
+.sidebar-language-select {
+  min-height: 2rem;
+  max-width: 7.5rem;
+  padding: 0.25rem 1.6rem 0.25rem 0.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--text-light);
+  font: inherit;
+  cursor: pointer;
+}
+.sidebar-language-select:hover { border-color: rgba(var(--accent-gold-rgb), 0.45); }
+.sidebar-language-select:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
 }
 .sidebar-export-btn {
   background: none;
@@ -210,7 +242,6 @@ body:not(.is-dm) .sidebar-nav-dm { display: none; }
    Přehled is by design (the user asked for "no clutter outside the
    homescreen"). */
 .topbar-login {
-  order: 1;                 /* below the language chip in the #topbar-chips column */
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
@@ -237,37 +268,7 @@ body:not(.is-dm) .sidebar-nav-dm { display: none; }
   .topbar-login-label { display: none; }
 }
 
-/* Top-right language switcher chip — per-user UI language (localStorage
-   'codex_lang', NOT campaign-wide). Rendered by `_renderLangChip` in
-   app.js on the dashboard route for EVERY viewer (anonymous included —
-   language is a pre-auth choice). When present it sets the
-   `body.has-lang-chip` class, which stacks the anonymous login chip
-   below it (offset rules below) so the two never collide regardless of
-   width. Mirrors the .topbar-login visual language. */
-.topbar-lang {
-  order: 0;                 /* top of the #topbar-chips column */
-}
-.topbar-lang-select {
-  display: inline-flex;
-  align-items: center;
-  background: rgba(var(--accent-gold-rgb), 0.14);
-  border: 1px solid var(--accent-gold);
-  border-radius: var(--radius);
-  padding: 0.45rem 0.7rem;
-  font-family: var(--font-ui);
-  font-size: var(--text-sm);
-  letter-spacing: 0.03em;
-  color: var(--accent-gold);
-  cursor: pointer;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.35);
-  transition: background 0.15s, border-color 0.15s;
-}
-.topbar-lang-select:hover { background: rgba(var(--accent-gold-rgb), 0.22); }
-.topbar-lang-select:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
-/* The top-right chips share ONE fixed flex-COLUMN container (#topbar-chips,
-   created in app.js) so normal flow stacks them — no per-chip `position: fixed`
-   and no magic-number `top: calc(...)` offsets. `order` fixes the visual order
-   (language above login) regardless of which chip renders into the box first. */
+/* Top-right route-specific controls share one fixed container. */
 #topbar-chips {
   position: fixed;
   top: 1rem;
@@ -284,7 +285,6 @@ body.is-impersonating #topbar-chips { top: calc(1rem + 36px); }
 @media (max-width: 600px) {
   #topbar-chips { top: 0.5rem; right: 0.5rem; }
   body.is-impersonating #topbar-chips { top: calc(0.5rem + 36px); }
-  .topbar-lang-select { padding: 0.35rem 0.55rem; font-size: 0.78rem; }
 }
 
 /* Top-of-page red banner while a DM is impersonating a player.

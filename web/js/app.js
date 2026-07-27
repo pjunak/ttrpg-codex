@@ -18,7 +18,7 @@ import { Addons } from './addons.js';
 import { I18n } from './i18n.js';
 import { createSyncCoordinator } from './sync-coordinator.js';
 import { CollectionDescriptors } from './collection-descriptors.js';
-import { setWikiLinkResolver, norm, dataAction, dataOn, esc, clearAnnouncement } from './utils.js';
+import { setWikiLinkResolver, norm, dataAction, esc, clearAnnouncement } from './utils.js';
 import { graphImplementationRegistry } from './addon-graph.js';
 import { createCytoscapeGraphAdapter } from './addon-graph-cytoscape.js';
 
@@ -437,10 +437,10 @@ document.addEventListener('click', (ev) => {
 
     // Top-right login chip visibility is route-dependent (dashboard only).
     // Render here so leaving / returning to Přehled hides / re-shows the chip
-    // without waiting for a role transition. The language chip follows the
-    // same route gating.
+    // without waiting for a role transition. Keep the persistent language
+    // selector synchronized when navigation rebuilds the surrounding chrome.
     _renderTopbarLogin();
-    _renderLangChip();
+    _renderLanguageSwitch();
 
     // Clear any per-article edit state if we're leaving the article it
     // belongs to. Without this, navigating away mid-edit and then back
@@ -900,33 +900,14 @@ document.addEventListener('click', (ev) => {
     chip.innerHTML = `<span class="topbar-login-icon">🔑</span> <span class="topbar-login-label">${esc(I18n.t('action.login'))}</span>`;
   }
 
-  // ── Top-right language switcher chip ────────────────────────
-  // Per-user UI language (localStorage 'codex_lang', not campaign-wide).
-  // Floats top-right of the dashboard for EVERY viewer — anonymous
-  // included, since language is a pre-auth choice. The `has-lang-chip`
-  // body class lets edit.css stack the anonymous login chip below it so
-  // the two never overlap. The <select> dispatches I18n.setLocale via
-  // the global change listener. Route-gated render/remove like the login
-  // chip; rebuilt on every navigate() so the active option stays in sync.
-  function _renderLangChip() {
-    const route  = getRoute();
-    const onDash = (route === '/' || route === '/dashboard');
-    document.body.classList.toggle('has-lang-chip', onDash);
-    let chip = document.getElementById('topbar-lang');
-    if (!onDash) { if (chip) chip.remove(); return; }
-    const cur  = I18n.getLocale();
-    const opts = I18n.availableLocales().map(l =>
-      `<option value="${esc(l.id)}"${l.id === cur ? ' selected' : ''}>${esc(l.endonym)}</option>`
+  function _renderLanguageSwitch() {
+    const select = document.getElementById('sidebar-language-select');
+    if (!select) return;
+    const current = I18n.getLocale();
+    select.setAttribute('aria-label', I18n.t('lang.selectorLabel'));
+    select.innerHTML = I18n.availableLocales().map(locale =>
+      `<option value="${esc(locale.id)}"${locale.id === current ? ' selected' : ''}>${esc(locale.endonym)}</option>`
     ).join('');
-    if (!chip) {
-      chip = document.createElement('div');
-      chip.id = 'topbar-lang';
-      chip.className = 'topbar-lang';
-      _topbarChips().appendChild(chip);
-    }
-    chip.innerHTML =
-      `<select class="topbar-lang-select" aria-label="${esc(I18n.t('lang.selectorLabel'))}"` +
-      `${dataOn('change', 'I18n.setLocale', '$value')}>${opts}</select>`;
   }
 
   // Re-render after a language switch. Mirrors the SSE _applyRemoteChange
@@ -941,7 +922,7 @@ document.addEventListener('click', (ev) => {
     Settings.applyTheme();
     _renderTopbarLogin();
     _renderImpersonationBanner();
-    _renderLangChip();
+    _renderLanguageSwitch();
     navigate(getRoute());
   }
 
@@ -1024,7 +1005,7 @@ document.addEventListener('click', (ev) => {
       if (EditMode.isDirty()) {
         I18n.hydrate(document);
         Sidebar.render();
-        _renderLangChip();
+        _renderLanguageSwitch();
         _pendingLangRerender = true;
         try { EditMode.toast(I18n.t('lang.appliesAfterSave')); } catch (_) {}
         return;
@@ -1067,7 +1048,7 @@ document.addEventListener('click', (ev) => {
     // and any impersonation banner once we know the role. navigate()
     // re-runs _renderTopbarLogin on every route change too.
     _renderTopbarLogin();
-    _renderLangChip();
+    _renderLanguageSwitch();
     _renderImpersonationBanner();
 
     // Remove loading screen

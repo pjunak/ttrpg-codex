@@ -50,3 +50,12 @@ test('every data-i18n key in index.html exists in en.json', () => {
   }
   assert.equal(missing.length, 0, `Missing data-i18n keys: ${missing.join(', ')}`);
 });
+
+test('the language selector is persistent sidebar chrome', () => {
+  const html = readFileSync(join(__dirname, '../web/index.html'), 'utf8');
+  const app = readFileSync(join(__dirname, '../web/js/app.js'), 'utf8');
+  assert.match(html, /<div class="sidebar-footer">[\s\S]*id="sidebar-language-select"/);
+  assert.match(html, /data-on-change="I18n\.setLocale"/);
+  assert.match(app, /function _renderLanguageSwitch\(\)/);
+  assert.doesNotMatch(app, /_renderLangChip|topbar-lang/);
+});

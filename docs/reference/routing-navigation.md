@@ -163,14 +163,15 @@ The old sidebar **Parta** link was removed — the dashboard's Naše parta
 section fills that role, and `/parta` stays reachable via the "Celá parta →"
 action there (and via bookmarks).
 
-**Sidebar footer.** Holds a single `⚙ Nastavení` link. The global
-`✏ Úpravy` toggle that used to live here (and on mobile bottom-nav)
-was retired when editing moved to per-page affordances — see the
-**Per-page edit affordances** section. Anonymous viewers see a
-`🔑 Přihlásit` chip floating top-right on the Přehled route; on
-every other route, login is on-demand (clicking any edit pencil
-surfaces the same password modal). Logout + role switching live
-under Settings → Účet.
+**Sidebar footer.** Holds the persistent per-browser language selector
+and the `⚙ Nastavení` link. The selector remains available on every
+desktop route and in the mobile sidebar drawer. The global `✏ Úpravy`
+toggle that used to live here (and on mobile bottom-nav) was retired
+when editing moved to per-page affordances — see the **Per-page edit
+affordances** section. Anonymous viewers see a `🔑 Přihlásit` chip
+floating top-right on the Přehled route; on every other route, login is
+on-demand (clicking any edit pencil surfaces the same password modal).
+Logout + role switching live under Settings → Účet.
 
 ## Per-page edit affordances
 

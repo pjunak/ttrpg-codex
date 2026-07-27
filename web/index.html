@@ -74,11 +74,20 @@
          children of .sidebar, exactly like the old static markup. -->
     <div class="sidebar-nav-root" id="sidebar-nav-root"></div>
 
-    <!-- Sidebar footer. Global "✏ Úpravy" toggle is gone — editing is
-         per-page now (pen on each article / list, ✏ Editovat on map /
-         timeline / palác). The single "⚙ Nastavení" link covers the
-         backup + account + enum-edit tabs. -->
+    <!-- Sidebar footer. Language is a per-browser preference and remains
+         available on every route; Settings covers account, backup, and
+         campaign configuration. -->
     <div class="sidebar-footer">
+      <label class="sidebar-language" for="sidebar-language-select">
+        <span class="sidebar-language-label">
+          <span aria-hidden="true">🌐</span>
+          <span data-i18n="lang.selectorLabel">Language</span>
+        </span>
+        <select id="sidebar-language-select" class="sidebar-language-select"
+                data-on-change="I18n.setLocale" data-args='["$value"]'
+                aria-label="Language">
+        </select>
+      </label>
       <a class="sidebar-export-btn" href="#/nastaveni" title="Enums, world map, backup, account…" data-i18n-title="nav.settingsTooltip">⚙ <span data-i18n="nav.settings">Settings</span></a>
     </div>
   </nav>
