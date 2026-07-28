@@ -1014,7 +1014,18 @@
 .addon-wizard-status { margin-top: var(--space-3); min-height: 1.2em; font-size: var(--text-sm); }
 .addon-wizard-busy { color: var(--text-light); }
 .addon-wizard-ok   { color: var(--color-success); }
-.addon-wizard-err  { color: var(--color-danger); }
+.addon-wizard-err  { margin-top: var(--space-2); color: var(--color-danger); }
+.addon-validation-errors {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+}
+.addon-validation-errors li + li { margin-top: var(--space-1); }
+.addon-validation-errors code {
+  color: inherit;
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
 .addon-wizard-foot {
   display: flex;
   justify-content: flex-end;

@@ -2109,14 +2109,21 @@ export const Settings = (() => {
     const body = document.getElementById('addon-wizard-body');
     const foot = document.getElementById('addon-wizard-foot');
     const perms = Array.isArray(m.permissions) ? m.permissions : [];
+    const validationErrors = Array.isArray(p.errors)
+      ? p.errors.filter(error => typeof error === 'string' && error.trim())
+      : [];
     const permList = perms.length
       ? `<ul class="addon-perm-list">${perms.map(pr =>
           `<li><span>${esc(Addons.describePermission(pr))}</span> <code>${esc(pr)}</code></li>`).join('')}</ul>`
       : `<p class="settings-hint">${esc(I18n.t('settings.noSpecialPermissions'))}</p>`;
     const serverWarn = m.server
       ? `<div class="addon-perm-server">⚠ ${esc(I18n.t('settings.serverCodeWarn'))}</div>` : '';
+    const validationList = validationErrors.length
+      ? `<ul class="addon-validation-errors">${validationErrors.map(error =>
+          `<li><code>${esc(error)}</code></li>`).join('')}</ul>`
+      : '';
     const errBox = p.ok ? ''
-      : `<div class="addon-wizard-err" style="margin-top:.6rem">⚠ ${esc(I18n.t('settings.invalidManifest'))}</div>`;
+      : `<div class="addon-wizard-err">⚠ ${esc(I18n.t('settings.invalidManifest'))}${validationList}</div>`;
     if (body) body.innerHTML = `
       <div class="addon-preview">
         <div class="addon-preview-name">${esc(m.name || m.id || '?')}

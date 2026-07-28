@@ -183,6 +183,11 @@ as "repo doesn't exist") and the wizard auto-opens its token section.
 `GET /api/addons` carries DM-only `githubTokenConfigured` (boolean) +
 `githubTokenSource` (`'stored'|'env'|null`) → the Manager's 🔑 line + the
 wizard summary. Covered by `test/integration-github-token.test.cjs`.
+An incompatible preview remains non-installable, but the wizard renders every
+escaped validator diagnostic returned in `errors` beneath a neutral
+compatibility message. Capability and host-version mismatches therefore point
+the DM at the host update they need instead of misreporting every rejection as
+a malformed `addon.json`.
 `_readAddonsRegistry`/`_writeAddonsRegistry`,
 `_publicAddonList`. Endpoints in the API table; install/sources are
 **DM-only on `realRole`**. Each write broadcasts a new SSE event

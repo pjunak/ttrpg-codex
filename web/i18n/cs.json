@@ -780,7 +780,7 @@
   "settings.installAndEnable": "Instalovat a povolit",
   "settings.installFailed": "Instalace selhala",
   "settings.installFromGitHub": "Instalovat z GitHubu",
-  "settings.invalidManifest": "Manifest doplňku je neplatný. Požádej autora doplňku o opravu addon.json.",
+  "settings.invalidManifest": "Tuto verzi doplňku nelze do této verze aplikace nainstalovat.",
   "settings.itemCreated": "Položka „{label}“ vytvořena",
   "settings.itemUpdated": "Položka „{label}“ upravena",
   "settings.lineStyle": "Styl čáry",

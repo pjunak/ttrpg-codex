@@ -759,7 +759,7 @@
   "settings.installAndEnable": "Install and enable",
   "settings.installFailed": "Installation failed",
   "settings.installFromGitHub": "Install from GitHub",
-  "settings.invalidManifest": "The add-on manifest is invalid. Ask the add-on author to correct addon.json.",
+  "settings.invalidManifest": "This add-on version cannot be installed on this host.",
   "settings.itemCreated": "Item \"{label}\" created",
   "settings.itemUpdated": "Item \"{label}\" updated",
   "settings.lineStyle": "Line style",

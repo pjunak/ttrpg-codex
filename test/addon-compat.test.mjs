@@ -79,3 +79,27 @@ test('a host without collections.dm rejects a DM collection manifest', () => {
   assert.match(server.compatibilityErrors(manifest, incapable).join('; '), /collections\.dm.*unavailable/);
   assert.deepEqual(browserErrors(manifest, incapable), server.compatibilityErrors(manifest, incapable));
 });
+
+test('bundle contributors install only when the host advertises their capability', () => {
+  const manifest = base({
+    apiVersion: 2,
+    server: 'server/index.cjs',
+    permissions: ['data:own', 'data:import-provider', 'server:code'],
+    collections: [{ name: 'items', keyed: true, access: 'dm' }],
+    capabilities: {
+      required: [
+        'collections.dm',
+        'collections.transactions',
+        'imports.providers',
+        'imports.bundle-contributors',
+      ],
+    },
+  });
+  assert.equal(validateManifest(manifest).ok, true);
+
+  const legacyCapabilities = new Set(server.HOST_CAPABILITIES);
+  legacyCapabilities.delete('imports.bundle-contributors');
+  const errors = server.compatibilityErrors(manifest, legacyCapabilities);
+  assert.match(errors.join('; '), /imports\.bundle-contributors.*unavailable/);
+  assert.deepEqual(browserErrors(manifest, legacyCapabilities), errors);
+});
