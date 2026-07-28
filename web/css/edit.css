@@ -130,41 +130,6 @@
   flex-direction: column;
   gap: 0.4rem;
 }
-.sidebar-language {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 2.75rem;
-  padding: 0.35rem 0.45rem 0.35rem 0.75rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius);
-  color: var(--text-muted);
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-}
-.sidebar-language-label {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  gap: var(--space-1);
-}
-.sidebar-language-select {
-  min-height: 2rem;
-  max-width: 7.5rem;
-  padding: 0.25rem 1.6rem 0.25rem 0.5rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-raised);
-  color: var(--text-light);
-  font: inherit;
-  cursor: pointer;
-}
-.sidebar-language-select:hover { border-color: rgba(var(--accent-gold-rgb), 0.45); }
-.sidebar-language-select:focus-visible {
-  outline: 2px solid var(--accent-gold);
-  outline-offset: 2px;
-}
 .sidebar-export-btn {
   background: none;
   border: 1px solid var(--border-subtle);
@@ -181,8 +146,8 @@
 
 /* ── Role-aware UI ────────────────────────────────────────────── */
 /* Edit affordances are per-page now. The sidebar Settings link is
-   visible to everyone — the page itself routes role-aware (Účet for
-   any role, Záloha read-only for players, enum tabs DM-only behind
+   visible to everyone — the page itself routes role-aware (Server for
+   any role, Backup read-only for players, enum tabs DM-only behind
    the per-action gates inside `settings.js`). Anonymous viewers see
    a login prompt on the Account tab.                              */
 
@@ -198,7 +163,7 @@ body:not(.is-dm) .visibility-section { display: none; }
 body:not(.is-dm) .sidebar-section-dm,
 body:not(.is-dm) .sidebar-nav-dm { display: none; }
 
-/* Role chip — used inline in Settings → Účet to show the caller's
+/* Role chip — used inline in Settings → Server to show the caller's
    role. Was also used by the old sidebar-footer badge, which moved
    to a top-right login chip (see .topbar-login below). Keep these
    variants because Settings still renders them. */
@@ -238,8 +203,8 @@ body:not(.is-dm) .sidebar-nav-dm { display: none; }
    on Role.isAnonymous() AND route === '/' (or '/dashboard'). Clicking
    it goes through `EditMode.promptLogin` which shows the password
    modal; on successful login the chip vanishes. Logout + role
-   switching live in Settings → Účet — no persistent chrome outside
-   Přehled is by design (the user asked for "no clutter outside the
+   switching live in Settings → Server — no persistent chrome outside
+   Overview is by design (the user asked for "no clutter outside the
    homescreen"). */
 .topbar-login {
   display: inline-flex;

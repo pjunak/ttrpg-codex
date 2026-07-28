@@ -14,20 +14,16 @@ import cs from '../web/i18n/cs.json' with { type: 'json' };
 I18n.register('en', { ...en, 'test.enOnly': 'EnglishOnly' });
 I18n.register('cs', cs);
 
-test('detectLocale: primary-subtag match against browser languages', () => {
-  assert.equal(I18n.detectLocale(['cs-CZ', 'en'], null), 'cs');
-  assert.equal(I18n.detectLocale(['en-US'], null),       'en');
-});
-
-test('detectLocale: falls back to English when nothing matches', () => {
+test('detectLocale: defaults to English regardless of browser language', () => {
+  assert.equal(I18n.detectLocale(['cs-CZ', 'en'], null), 'en');
   assert.equal(I18n.detectLocale(['fr-FR', 'de'], null), 'en');
   assert.equal(I18n.detectLocale([], null),              'en');
   assert.equal(I18n.detectLocale(undefined, null) !== '', true); // never empty
 });
 
-test('detectLocale: an explicit stored choice overrides the browser', () => {
+test('detectLocale: an explicit stored choice overrides the default', () => {
   assert.equal(I18n.detectLocale(['en'], 'cs'), 'cs');
-  // An unavailable stored value is ignored, detection continues.
+  // An unavailable stored value is ignored.
   assert.equal(I18n.detectLocale(['en'], 'de'), 'en');
 });
 

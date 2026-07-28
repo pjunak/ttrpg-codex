@@ -45,7 +45,7 @@ addon wiki kinds continue through `Addons.resolveWikiLink`.
 | `/casova-osa` | `Timeline.render()` | |
 | `/dm` | `DmDashboard.render()` | Stable DM-only shell. Effective-DM authorization runs before addon slot enumeration. Successful `dm:dashboard` contributions own the normal workflow content; without one, core renders safe addon diagnostics, DM-only content counts, and an Addon Manager recovery link. Non-DM viewers receive only the refusal view, and the sidebar entry is gated on `role: 'dm'`. |
 | `/import` | `ImportCenter.render()` | Core-owned, effective-DM-only campaign bundle workflow. Links the live schema/inventory, uploads JSON, builds a read-only exact review, projects changed location pins over the world/local map image, requires explicit confirmation, and commits the single-use preview token. |
-| `/nastaveni` | `Settings.render()` | User-editable enums plus six special tabs: **Naše parta** (player-party visual identity), **Mapy** (per-map image upload + zoom-scale config), **Pohledy na mapě** (rename/delete captured view presets), **Postranní panel** (toggle which sidebar links are visible), **Záloha** (snapshot list, backup zip, restore, revert-last-N — role-aware: non-DM sees only the list + create-snapshot), **Účet** (role chip, logout, DM-only password rotation, DM-only view-as-player toggle). **Role-aware tab visibility:** non-DM viewers see only Účet + Záloha; DM sees everything. Anonymous visitors are intercepted by the route guard in `navigate()` and shown the login modal. |
+| `/nastaveni` | `Settings.render()` | User-editable enums plus special panels for **Appearance**, **Language**, **Our Party**, **Maps**, **Sidebar**, **Add-ons**, **Backup**, and **Server**. Language is a per-browser English/Czech choice. Backup and Server are role-aware; campaign configuration and the Add-on Manager remain DM-only. Non-DM viewers see Language, Backup, Server, and any player-visible addon settings. Anonymous visitors are intercepted by the route guard in `navigate()` and shown the login modal. |
 
 ## Wiki list-view controls (search + sort)
 
@@ -164,15 +164,13 @@ The old sidebar **Parta** link was removed — the dashboard's Naše parta
 section fills that role, and `/parta` stays reachable via the "Celá parta →"
 action there (and via bookmarks).
 
-**Sidebar footer.** Holds the persistent per-browser language selector
-and the `⚙ Nastavení` link. The selector remains available on every
-desktop route and in the mobile sidebar drawer. The global `✏ Úpravy`
+**Sidebar footer.** Holds the `⚙ Settings` link. The global `✏ Edit`
 toggle that used to live here (and on mobile bottom-nav) was retired
 when editing moved to per-page affordances — see the **Per-page edit
-affordances** section. Anonymous viewers see a `🔑 Přihlásit` chip
-floating top-right on the Přehled route; on every other route, login is
+affordances** section. Anonymous viewers see a `🔑 Log in` chip
+floating top-right on the Overview route; on every other route, login is
 on-demand (clicking any edit pencil surfaces the same password modal).
-Logout + role switching live under Settings → Účet.
+Language, logout, and role switching live under Settings.
 
 ## Per-page edit affordances
 

@@ -39,9 +39,9 @@ launched/exercised manually by the user.
 ## Project
 
 Collaborative D&D wiki. **All code/admin in English; the UI ships
-English source strings with per-user translations** (defaults to the
-viewer's browser language — Czech for Czech browsers — and falls back to
-English). See [docs/reference/i18n.md](docs/reference/i18n.md).
+English source strings with a per-browser Czech translation** (defaults to
+English; Czech is selected under Settings → Language).
+See [docs/reference/i18n.md](docs/reference/i18n.md).
 Players and DM view and edit characters, locations, events, mysteries, factions.
 Changes propagate to all clients in under 1 s via SSE on `/api/events`.
 

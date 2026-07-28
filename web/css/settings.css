@@ -297,6 +297,16 @@
 .settings-panel {
   padding: 0.25rem 0;
 }
+.settings-language-panel {
+  max-width: 36rem;
+}
+.settings-language-panel > .settings-hint:first-child {
+  margin-top: 0;
+}
+.settings-language-field {
+  max-width: 20rem;
+  margin-top: var(--space-4);
+}
 .settings-worldmap-preview {
   margin-top: 0.75rem;
   border: 1px solid rgba(var(--gold-muted), 0.2);
@@ -365,7 +375,7 @@
   }
 }
 
-/* ── Attitude strength slider (Postoje k partě editor) ────── */
+/* ── Attitude strength slider ─────────────────────────────── */
 .settings-strength-row {
   display: flex;
   align-items: center;
@@ -716,7 +726,7 @@
   font-size: var(--text-sm);
 }
 
-/* ── Sidebar layout editor (Postranní panel tab) ─────────────── */
+/* ── Sidebar layout editor ───────────────────────────────────── */
 .sb-editor { display: flex; flex-direction: column; gap: 0.75rem; }
 
 .sb-sec {
@@ -882,7 +892,7 @@
 }
 .sb-drop-indicator-sec { height: 3px; margin: 2px 0; }
 
-/* ── Addon manager (Settings → Doplňky) ──────────────────────── */
+/* ── Addon manager (Settings → Add-ons) ──────────────────────── */
 .addon-list { display: flex; flex-direction: column; gap: var(--space-2); }
 .addon-row {
   background: var(--bg-raised);
@@ -1089,7 +1099,7 @@
   padding: var(--space-2);
 }
 
-/* ── "Restart server" overlay (Settings → Doplňky → ♻) ──────────────
+/* ── Restart server overlay (Settings → Add-ons → ♻) ────────────────
    Full-screen blocker shown while the server restarts; the client polls
    /api/version (waits for down → up) then reloads. */
 #server-restart-overlay {

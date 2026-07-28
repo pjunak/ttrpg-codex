@@ -44,7 +44,7 @@ export const Settings = (() => {
       fields: ['label', 'icon', 'color'] },
     { id: 'eventPriorities',   labelKey: 'settings.catEventPriorities',   icon: '⚑',
       fields: ['label', 'color'] },
-    // "Postoje k partě" — unified palette used on character / location /
+    // Party attitudes — unified palette used on character / location /
     // faction glows. The intensity (`strength`) lives on each entity's
     // attitude entry, NOT on the enum item, so this editor only manages
     // colours + label. `bg` drives map-pin fill, `fg` is the icon contrast
@@ -54,14 +54,21 @@ export const Settings = (() => {
       fields: ['label', 'bg', 'fg', 'labelColor', 'strength'] },
   ];
 
+  const LINE_STYLES = [
+    { id: 'solid',  labelKey: 'settings.lineSolid' },
+    { id: 'dashed', labelKey: 'settings.lineDashed' },
+    { id: 'dotted', labelKey: 'settings.lineDotted' },
+  ];
+
   // Non-enum tabs live alongside the category tabs. They render custom
   // panels (world-map upload, map-view presets, backup tools) instead
   // of the enum editor.
-  // Branding lives INSIDE the appearance tab and map views INSIDE the Mapy
+  // Branding lives inside Appearance and map views inside Maps
   // tab (per-map); `_editorHtml` coerces their stale tab ids for any
   // session that still points at them.
   const SPECIAL_TABS = [
     { id: 'appearance',   labelKey: 'settings.tabAppearance',   icon: '🎨' },
+    { id: 'language',     labelKey: 'settings.tabLanguage',     icon: '🌐' },
     { id: 'playerParty',  labelKey: 'settings.tabPlayerParty',  icon: '🛡' },
     { id: 'worldmap',     labelKey: 'settings.tabMaps',         icon: '🗺' },
     { id: 'sidebarPages', labelKey: 'settings.tabSidebar',      icon: '🧭' },
@@ -74,13 +81,13 @@ export const Settings = (() => {
 
   let _activeCat       = CATEGORIES[0].id;
   // True once the user has explicitly picked a tab. Before that, the
-  // landing tab is role-aware: non-DM viewers default to "Účet" (most
+  // landing tab is role-aware: non-DM viewers default to Server (most
   // useful tab for them — role chip + logout + backup access via the
-  // Záloha tab); DMs default to the first enum editor (their common
+  // Backup tab); DMs default to the first enum editor (their common
   // workflow). Once a tab is picked, the selection sticks for the
   // remainder of the session.
   let _tabPickedByUser = false;
-  // Active SUB-tab inside the Doplňky tab: 'manager' (the DM-only Addon
+  // Active sub-tab inside Add-ons: 'manager' (the DM-only Addon
   // Manager) or an addon settings-tab id ('<addonId>:<specId>'). null =
   // role-aware default (DM → manager, player → first addon tab).
   let _activeAddonSub  = null;
@@ -106,7 +113,7 @@ export const Settings = (() => {
   // a time — opening another collapses the previous so the layout stays
   // tidy when there are many pin types.
   let _iconPanelOpenFor = null;
-  // Currently-selected map in the "Mapy" tab. 'world' = main map;
+  // Currently selected map in the Maps tab. 'world' = main map;
   // for sub-maps the id is `local-${locationId}` so it lines up
   // with `_currentMapId` in map.js and the keys used in
   // `settings.mapConfigs`.
@@ -138,8 +145,8 @@ export const Settings = (() => {
   function render() {
     const el = document.getElementById('main-content');
     if (!el) return;
-    // Role-aware default tab. Non-DM viewers land on Účet (logout +
-    // role chip + access to the Záloha tab); DMs land on the first
+    // Role-aware default tab. Non-DM viewers land on Server (logout +
+    // role chip + access to Backup); DMs land on the first
     // enum editor as before. Sticky once the user picks a tab.
     if (!_tabPickedByUser && !Role.isDM()) {
       _activeCat = 'account';
@@ -151,24 +158,24 @@ export const Settings = (() => {
 
   // Role-aware tab visibility. For DM viewers, all tabs are shown
   // (enum editors + every SPECIAL tab). For non-DM viewers (player or
-  // DM-in-player-view) we hide the tabs whose actions are DM-only,
-  // surfacing only Account + Záloha — the user's stated request was
-  // "non-DM users need access to logout and backups", and the rest of
-  // the tabs only edit DM-owned shared state.
+  // DM-in-player-view), only personal preferences and role-safe actions
+  // remain; tabs that edit shared campaign state stay DM-only.
   function _visibleEnumTabs() {
     return Role.isDM() ? CATEGORIES : [];
   }
   // Addon-registered settings tabs are NOT top-level tabs — they render as
-  // sub-tabs inside the Doplňky (addons) tab, beside the DM-only Manager.
+  // sub-tabs inside the Add-ons tab, beside the DM-only Manager.
   function _visibleAddonSettingsTabs() {
     const tabs = (() => { try { return Addons.settingsTabs(); } catch { return []; } })();
     return tabs.filter(t => Role.isDM() || t.role !== 'dm');
   }
   function _visibleSpecialTabs() {
     if (Role.isDM()) return SPECIAL_TABS;
-    // Non-DM viewers: Account + Záloha, plus Doplňky when at least one addon
+    // Non-DM viewers: Language, Server, and Backup, plus Add-ons when one
     // ships a player-visible settings tab (the Manager inside stays DM-only).
-    const base = SPECIAL_TABS.filter(t => t.id === 'account' || t.id === 'backup');
+    const base = SPECIAL_TABS.filter(t =>
+      t.id === 'language' || t.id === 'account' || t.id === 'backup'
+    );
     if (_visibleAddonSettingsTabs().length) base.push(SPECIAL_TABS.find(t => t.id === 'addons'));
     return base.filter(Boolean);
   }
@@ -182,7 +189,7 @@ export const Settings = (() => {
   }
 
   function _pageHtml() {
-    // Addon settings tabs are SUB-tabs of Doplňky now — coerce a stale
+    // Addon settings tabs are sub-tabs of Add-ons — coerce a stale
     // top-level pick (pre-restructure sessions) into the addons tab.
     if (Addons.settingsTab(_activeCat)) { _activeAddonSub = _activeCat; _activeCat = 'addons'; }
     // Defensive: if `_activeCat` references a tab that's been hidden
@@ -210,7 +217,7 @@ export const Settings = (() => {
       </button>`).join('');
     // Separator between enum tabs and special tabs renders only when
     // both groups are non-empty (DM viewers). Non-DM viewers see just
-    // Account + Záloha, so the separator would be a stray line.
+    // special tabs, so the separator would be a stray line.
     const tabsSep = (enumTabs && specialTabs) ? `<div class="settings-tabs-sep"></div>` : '';
     return `
       <div class="settings-page">
@@ -237,6 +244,7 @@ export const Settings = (() => {
     if (_activeCat === 'backup')       return _backup.html();
     if (_activeCat === 'account')      return _account.html();
     if (_activeCat === 'appearance')   return _appearanceHtml();
+    if (_activeCat === 'language')     return _languageHtml();
     if (_activeCat === 'addons')       return _addonsHtml();
     if (_activeCat === 'playerParty')  return _playerPartyHtml();
     const cat = CATEGORIES.find(c => c.id === _activeCat);
@@ -475,8 +483,9 @@ export const Settings = (() => {
       <label class="settings-field">
         <span class="settings-field-label">${esc(I18n.t('settings.lineStyle'))}</span>
         <select class="edit-select" id="sf-${uid}-style">
-          ${['solid','dashed','dotted'].map(s =>
-            `<option value="${s}" ${item.style===s?'selected':''}>${s}</option>`).join('')}
+          ${LINE_STYLES.map(style =>
+            `<option value="${style.id}" ${item.style===style.id?'selected':''}>${esc(I18n.t(style.labelKey))}</option>`
+          ).join('')}
         </select>
       </label>`;
     const sizeField = () => `
@@ -597,7 +606,7 @@ export const Settings = (() => {
   // ── Public commands used by the data-action dispatcher ───────
   /**
    * Switch the active settings tab. Re-renders the right pane in place
-   * and lazy-loads the snapshot list when the Záloha tab is opened.
+   * and lazy-loads the snapshot list when the Backup tab is opened.
    *
    * @param {string} cat - Category id (`relationshipTypes` etc.) or a
    *                       SPECIAL_TABS id (`worldmap`, `backup`, …).
@@ -635,7 +644,7 @@ export const Settings = (() => {
   }
 
   /**
-   * Switch the SUB-tab inside the Doplňky tab: 'manager' or an addon
+   * Switch the sub-tab inside Add-ons: 'manager' or an addon
    * settings-tab id ('<addonId>:<specId>'). Entering the Manager
    * (re)fetches the install list like a fresh tab entry.
    */
@@ -667,7 +676,7 @@ export const Settings = (() => {
   }
 
   /** Live percent readout next to the attitude strength slider in
-   *  the Postoje k partě editor. Wired via `dataOn('input', ...)`
+   *  the party-attitude editor. Wired via `dataOn('input', ...)`
    *  on the slider so the `<output>` updates as the user drags. */
   function updateStrengthReadout(rangeEl) {
     if (!rangeEl) return;
@@ -786,14 +795,14 @@ export const Settings = (() => {
 
   // ── Sidebar layout ───────────────────────────────────────────
   // The whole left sidebar is now data-driven (see the Sidebar module).
-  // The Postranní panel tab renders Sidebar's drag-drop layout editor
+  // The Sidebar tab renders Sidebar's drag-drop layout editor
   // (`_editorHtml` delegates to `Sidebar.renderEditor`). This alias
   // keeps the old public name working for any external caller; the
   // live sidebar re-render is `Sidebar.render`.
   function applySidebarVisibility() { Sidebar.render(); }
 
   // ── Maps panel ───────────────────────────────────────────────
-  // The "Mapy" tab covers both image upload AND per-map config
+  // The Maps tab covers both image upload and per-map config
   // (zoom-scale ratio for now; future per-map knobs would go here).
   // Left side renders an explorer-style tree mirroring the location
   // hierarchy (world root + every location with a `localMap`,
@@ -1013,8 +1022,8 @@ export const Settings = (() => {
       </div>`;
   }
 
-  // ── Saved views (Pohledy) for THE SELECTED MAP — a section of the
-  //    Mapy tab. Creation happens on the map itself via the ✚ toolbar
+  // ── Saved views for the selected map — a section of the Maps tab.
+  //    Creation happens on the map itself via the ✚ toolbar
   //    button; here it's rename/delete. ──
   function _mapViewsSectionHtml(current) {
     const pid   = current.isWorld ? null : current.locationId;
@@ -1032,7 +1041,7 @@ export const Settings = (() => {
   }
 
   /**
-   * Switch the Mapy tab to show a different map's preview + config.
+   * Switch the Maps tab to show a different map's preview and config.
    * `'world'` selects the main map; for sub-maps the id is
    * `local-${locationId}` (matches `_currentMapId` in map.js).
    *
@@ -1305,6 +1314,27 @@ export const Settings = (() => {
     if (b.title) document.title = b.title;
   }
 
+  // ── Language ────────────────────────────────────────────────
+  function _languageHtml() {
+    const current = I18n.getLocale();
+    const options = I18n.availableLocales().map(locale =>
+      `<option value="${esc(locale.id)}"${locale.id === current ? ' selected' : ''}>${esc(locale.endonym)}</option>`
+    ).join('');
+    return `
+      <div class="settings-editor-head">
+        <h2>🌐 ${esc(I18n.t('settings.tabLanguage'))}</h2>
+      </div>
+      <div class="settings-panel settings-language-panel">
+        <p class="settings-hint">${esc(I18n.t('lang.settingsIntro'))}</p>
+        <label class="settings-field settings-language-field" for="settings-language-select">
+          <span class="settings-field-label">${esc(I18n.t('lang.selectorLabel'))}</span>
+          <select class="edit-input" id="settings-language-select"
+                  ${dataOn('change', 'I18n.setLocale', '$value')}>${options}</select>
+        </label>
+        <p class="settings-hint">${esc(I18n.t('lang.settingsHint'))}</p>
+      </div>`;
+  }
+
   // ── Appearance (visual theme) ────────────────────────────────
   // A simple style switcher. Each THEMES entry maps to a
   // `[data-theme="<id>"]` block in web/css/themes.css overriding the
@@ -1316,7 +1346,7 @@ export const Settings = (() => {
   function _appearanceHtml() {
     const cur = Store.getAppearance().theme;
     const opts = THEMES.map(t =>
-      `<option value="${esc(t.id)}"${t.id === cur ? ' selected' : ''}>${esc(t.label)}</option>`
+      `<option value="${esc(t.id)}"${t.id === cur ? ' selected' : ''}>${esc(t.labelKey ? I18n.t(t.labelKey) : t.label)}</option>`
     ).join('');
     return `
       <div class="settings-editor-head">
@@ -1506,7 +1536,7 @@ export const Settings = (() => {
     }
   }
 
-  // ── Addon manager (Settings → Doplňky) ───────────────────────
+  // ── Addon manager (Settings → Add-ons) ───────────────────────
   // DM-only tab (gated by _visibleSpecialTabs). Lists installed addons
   // from /api/addons (lazy-loaded on tab entry like the account tab),
   // with enable/disable/remove + an install wizard that takes a pasted
@@ -1541,7 +1571,7 @@ export const Settings = (() => {
     return false;
   }
 
-  /** Re-fetch the addon list and re-render IF the Doplňky tab is showing — the
+  /** Re-fetch the addon list and re-render if Add-ons is showing — the
    *  shared tail of every lifecycle mutation. */
   function _reloadAddonsIfActive() {
     return _loadAddons().then(() => { if (_activeCat === 'addons') render(); });
@@ -1569,7 +1599,7 @@ export const Settings = (() => {
     if (ev.key === 'Escape') document.querySelectorAll(_ADDON_MENU_SEL).forEach(d => { d.open = false; });
   });
 
-  // The Doplňky tab is a two-level surface: a sub-tab strip (host
+  // Add-ons is a two-level surface: a sub-tab strip (host
   // `.codex-tab-strip`) switching between the DM-only MANAGER and every
   // addon-registered settings tab (role-filtered). Players reach their
   // addon tabs (e.g. per-user UI preferences) without seeing the Manager.
@@ -2153,7 +2183,7 @@ export const Settings = (() => {
     const verb = _wizardMode === 'update' ? I18n.t('settings.wizardUpdating') : I18n.t('settings.wizardInstalling');
     _wizardStatus(`<span class="addon-wizard-busy">⏳ ${esc(I18n.t('settings.wizardCreatingBackup'))}</span>`);
     // Backup step: snapshot the dataset (incl. the addon registry) BEFORE the
-    // change, so the install/update is one-click revertible from Záloha. Best-
+    // change, so the install/update is one-click revertible from Backup. Best-
     // effort — a snapshot failure doesn't block the install.
     ApiClient.requestJson('/api/snapshots', { method: 'POST' }).catch(() => ({}))
       .then(snap => {

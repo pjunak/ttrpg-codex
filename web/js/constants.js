@@ -30,7 +30,7 @@ export const PARTY_FACTION_ID = 'party';
  *  DM-editable content and are NOT translated — see docs/reference/i18n.md.) */
 export const SIDEBAR_PAGES = [
   { route: '/',             label: 'Overview',           key: 'nav.overview',   icon: '🏠', section: 'prehled' },
-  { route: '/mapa/svet',    label: 'Mapa',              key: 'nav.map',        icon: '🗺', section: 'prehled' },
+  { route: '/mapa/svet',    label: 'Map',               key: 'nav.map',        icon: '🗺', section: 'prehled' },
   { route: '/casova-osa',   label: 'Timeline',           key: 'nav.timeline',   icon: '⏳', section: 'kampan' },
   { route: '/zahady',       label: 'Mysteries',          key: 'nav.mysteries',  icon: '❓', section: 'kampan' },
   { route: '/mapa/palac',   label: 'Mind Palace',        key: 'nav.mindPalace', icon: '☁',  section: 'kampan' },
@@ -63,12 +63,12 @@ export const SIDEBAR_LAYOUT_DEFAULT = {
   hidden: [],
 };
 
-/** Registry of selectable visual themes (Settings → Vzhled). Each theme
+/** Registry of selectable visual themes (Settings → Appearance). Each theme
  *  is a `[data-theme="<id>"]` block in `web/css/themes.css` that overrides
  *  the `:root` design tokens; the default `classic` theme IS the `:root`
  *  baseline, so it needs no override block. Adding a new style = one entry
  *  here + one `[data-theme]` block in themes.css — nothing else. The
  *  Settings dropdown and `Settings.applyTheme()` consume this list. */
 export const THEMES = [
-  { id: 'classic', label: 'Classic — Dragon Colors' },
+  { id: 'classic', label: 'Classic — Dragon Colors', labelKey: 'settings.themeClassic' },
 ];

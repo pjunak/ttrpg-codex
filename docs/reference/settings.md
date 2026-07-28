@@ -29,7 +29,7 @@ and `artifactStates` was a purely cosmetic chip with no search /
 filter / icon hook. The server's `campaign-shape-v1` startup pass strips the
 now-orphaned fields and categories before clients can read them.
 
-**`attitudes`** is the unified "Postoje k partě" palette used on
+**`attitudes`** is the unified party-attitude palette used on
 characters, locations and factions. Each enum item carries
 `{id, label, bg, fg, labelColor, strength}`. Default ids:
 `ally` · `enemy` · `hostile` · `neutral`. `unknown` is
@@ -80,7 +80,7 @@ first-class collection), pantheon / artifacts (same).
 - `resetEnumCategory(cat)` — adds missing defaults, leaves edits
 - `getSidebarLayout()` / `setSidebarLayout(layout)` — the DM-curated,
   registry-reconciled sidebar layout (`settings.sidebarLayout`). Powers
-  the `Sidebar` module's render + the **Postranní panel** drag-drop
+  the `Sidebar` module's render + the **Sidebar** drag-drop
   editor (see **Sidebar structure**). `getHiddenSidebarPages` /
   `setHiddenSidebarPages` survive as thin shims over `layout.hidden`.
 - `getMapConfig(mapId)` / `setMapConfig(mapId, patch)` — per-map
@@ -88,7 +88,7 @@ first-class collection), pantheon / artifacts (same).
   for the main map, `'local-${locationId}'` for sub-maps (matches
   `_currentMapId` in map.js). Stored under `settings.mapConfigs`
   keyed by mapId. Defaults filled in via `_defaultMapConfig`. The
-  Mapy Settings tab edits this; `WorldMap` reads it on every
+  Maps Settings tab edits this; `WorldMap` reads it on every
   zoomend to compute the marker scale.
 
 ### Where it plugs in
@@ -108,7 +108,7 @@ first-class collection), pantheon / artifacts (same).
   Strategies are `single` (files[0]) and `random` (deterministic
   hash per pin id). `WorldMap.bundledDefaultUrl(id)` is exported so
   the Settings marker-icon panel can surface the bundled default
-  as a "Výchozí ikona" placeholder.
+  as a "Default icon" placeholder.
 - `Store.getKinds('connections')` is the runtime source for relationship
   editors and mind-map consumers. It merges
   `settings.relationshipTypes`—initially seeded from `REL_TYPES`—with
@@ -142,9 +142,9 @@ values — the client-side settings are truth. Structural validation
 
 `settings.js` has two kinds of tabs. Regular **category** tabs (from
 the `CATEGORIES` array) render the enum editor; **special** tabs
-(from `SPECIAL_TABS`) render custom panels. Seven special tabs exist:
-`appearance`, `playerParty`, `worldmap`, `sidebarPages`, `addons`,
-`backup`, `account` (label **Server**). The former `branding` tab is a
+(from `SPECIAL_TABS`) render custom panels. Eight special tabs exist:
+`appearance`, `language`, `playerParty`, `worldmap`, `sidebarPages`,
+`addons`, `backup`, `account` (label **Server**). The former `branding` tab is a
 SECTION inside `appearance`, and the former `mapViews` tab is a
 per-map SECTION inside `worldmap`; `_editorHtml` coerces the two stale
 tab ids for any session still pointing at them.
@@ -152,9 +152,9 @@ tab ids for any session still pointing at them.
 **Role-aware visibility.** `_visibleEnumTabs()` / `_visibleSpecialTabs()`
 filter the rendered tab list by `Role.isDM()`:
 - DM viewers see everything (every CATEGORY + every SPECIAL_TAB).
-- Non-DM viewers (player, or DM in "view as player" mode) see **Server** and
-  **Backup**, plus **Addons** only when at least one addon contributes a
-  player-visible settings tab. They never see the Addon Manager.
+- Non-DM viewers (player, or DM in "view as player" mode) see **Language**,
+  **Server**, and **Backup**, plus **Add-ons** only when at least one addon
+  contributes a player-visible settings tab. They never see the Addon Manager.
 
 **Default tab.** `_tabPickedByUser` is a session-local flag. Before
 the user picks a tab, the landing tab is role-aware: non-DM viewers
@@ -162,10 +162,15 @@ land on `account`, DMs land on the first enum editor (`relationshipTypes`).
 After any explicit click on a tab, the choice sticks for the rest of
 the session. `_pageHtml` also defensively coerces `_activeCat` to
 `account` if a role flip (e.g. DM enters "view as player" while on
-Vazby) leaves the active tab outside the visible set.
+Relationships) leaves the active tab outside the visible set.
 
-- `appearance` (label: **Vzhled**) — Visual-theme switcher **plus the
-  branding section** (`_brandingSectionHtml` — the former Logo a značka
+- `language` (label: **Language**) — a fixed English/Czech selector backed by
+  `I18n.availableLocales()`. English is the default when no explicit choice
+  exists. The choice is stored in `localStorage['codex_lang']`, is visible to
+  every authenticated role, changes immediately, and is never written to
+  campaign data.
+- `appearance` (label: **Appearance**) — Visual-theme switcher **plus the
+  branding section** (`_brandingSectionHtml` — the former Logo & brand
   tab: logo upload/revert + sidebar wordmark; same Store surface,
   `settings.branding` via `setBranding`/`uploadLogo`/`deleteLogo`).
   Theme: a `<select>`
@@ -178,7 +183,7 @@ Vazby) leaves the active tab outside the visible set.
   `classic` is the bare `:root` baseline. Adding a style = one `THEMES`
   entry + one themes.css block, no component edits (every component reads
   `var(--token)`) — which re-skins addons for free too.
-- `addons` (label: **Doplňky**) — a TWO-LEVEL surface: a `.codex-tab-strip`
+- `addons` (label: **Add-ons**) — a TWO-LEVEL surface: a `.codex-tab-strip`
   of sub-tabs switching between the DM-only **Manager** (`_addonsManagerHtml`)
   and every **addon-registered settings tab** (`registerSettingsTab` —
   they are NOT top-level tabs anymore; `_pageHtml` coerces a stale
@@ -213,7 +218,7 @@ Vazby) leaves the active tab outside the visible set.
   Update-check results remain visible until individually invalidated: a
   successful update, rollback, disable, or removal clears only that addon's
   result, while a bulk update clears the complete result set.
-  Toolbar also has **⬆ Aktualizovat vše** (`Settings.updateAllAddons` →
+  Toolbar also has **⬆ Update all** (`Settings.updateAllAddons` →
   `POST /api/addons/update-all` — updates every GitHub addon at once; local addons
   skipped). Under the intro the Manager shows a one-line **🔑 GitHub-token
   status** (`_githubTokenLine` ← the DM-only `githubTokenConfigured` +
@@ -248,7 +253,7 @@ Vazby) leaves the active tab outside the visible set.
   `_applyRemoteChange`, and on `role:changed`. Empty `logoUrl` =
   render `/branding/logo-default.svg`; non-empty is cache-busted by
   `updatedAt`. DM-only (settings is in `DM_ONLY_WRITE_TYPES`).
-- `worldmap` (label: **Mapy**) — Per-map editor covering image
+- `worldmap` (label: **Maps**) — Per-map editor covering image
   upload AND per-map config. Left side: explorer tree
   (`_mapsTree` + `_renderMapNode`) mirroring the `location.parentId`
   hierarchy — world root + every location with a `localMap`, nested
@@ -272,22 +277,22 @@ Vazby) leaves the active tab outside the visible set.
   `WorldMap.applyZoomScaleRatio(mapId)` rescales the live map.
   Preview `<img>` URLs use per-map cache-bust tokens
   (`_previewBust[mapId]`) bumped only on successful upload.
-  The panel also hosts the **saved-views (Pohledy) section**
+  The panel also hosts the **Saved views section**
   (`_mapViewsSectionHtml`; used to be the `mapViews` tab): the SELECTED
   map's user-captured zoom/pan presets, rename/delete only — creation
   happens on the map itself via the ✚ toolbar button.
 - `sidebarPages` — the **drag & drop sidebar layout editor**
   (the tab delegates to `Sidebar.renderEditor()`). DM-only. Drag pages
-  between sections or into the Skryté bucket, drag a section grip to
+  between sections or into the Hidden bucket, drag a section grip to
   reorder sections, rename / set icon / toggle collapsible / DM-only per
   section, add / delete sections. Every change persists to
   `settings.sidebarLayout` and re-renders the live sidebar instantly.
   See **Sidebar structure** for the model + DnD wiring.
 - `backup` — Snapshot system + ZIP download/upload. **Role-aware UI:**
   non-DM viewers see only the snapshot list (read-only — no per-row
-  actions) plus the `＋ Vytvořit bod zálohy` and `↻ Obnovit` buttons.
-  DM sees additionally: `📥 Stáhnout ZIP`, `📤 Obnovit ze zálohy…`
-  (uploads ZIP or JSON), `↶ Vrátit posledních X bodů`, and per-row
+  actions) plus the `＋ Create snapshot` and `↻ Refresh` buttons.
+  DM sees additionally: `📥 Download ZIP`, `📤 Restore backup…`
+  (uploads ZIP or JSON), `↶ Revert the last X snapshots`, and per-row
   ↶ restore / 🗑 delete. `web/js/settings-backup.js` owns this tab's
   role-aware HTML, snapshot state, refresh, create/restore/delete/revert, and
   uploaded-restore flow; `settings.js` only composes the controller and keeps
@@ -298,7 +303,7 @@ Vazby) leaves the active tab outside the visible set.
   ZIP download stays DM-only because the raw `data/*.json` files
   bypass the role-filter — a player download would leak `visibility:
   'dm'` entities.
-- `account` (label: **Server**, icon 🖥) — Role chip + Odhlásit +
+- `account` (label: **Server**, icon 🖥) — Role chip + Log out +
   (DM-only) view-as-player / back-to-DM toggles + DM-only password
   rotation forms **+ the DM-only ♻ Restartovat server button** (moved
   here from the addons toolbar; gated on `/api/version canRestart`,
@@ -315,12 +320,12 @@ Vazby) leaves the active tab outside the visible set.
   the legacy `factions.party` keyed-object record; `setPlayerParty`
   writes to `settings.playerParty`.
 
-The sidebar "Záloha" button was removed — the single `⚙ Nastavení`
+The sidebar Backup button was removed — the single `⚙ Settings`
 link covers backup/world-map/enums/account.
 
 ### Marker icon panel (pinTypes 🎨)
 
-Each row in the Typy míst tab carries a 🎨 toggle next to ✏ / 🗑.
+Each row in Place types carries a 🎨 toggle next to ✏ / 🗑.
 Clicking expands a `.mit-panel` below the row (only one open at a
 time — opening another collapses the previous, and entering inline
 edit mode collapses the panel). The panel is a self-contained

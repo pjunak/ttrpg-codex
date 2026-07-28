@@ -5,8 +5,7 @@
 //  catalogs under /i18n/<locale>.json (en = source of truth). Language
 //  is PER-USER, stored in localStorage ('codex_lang') — NOT campaign-
 //  wide, no server sync, no DM gate (it diverges from the theme system
-//  here). Resolution: explicit choice → browser languages (primary
-//  subtag match) → English fallback.
+//  here). Resolution: explicit choice → English default.
 //
 //  Plurals / dates / relative-time use native Intl.* — zero extra
 //  dependencies AND correct CLDR rules (Czech one/few/other; the old
@@ -40,30 +39,20 @@ export const I18n = (() => {
 
   // ── Locale detection (pure; explicit args make it DOM-free testable) ─
   /**
-   * Resolve the locale to use: an explicit stored choice wins, else the
-   * first browser-preferred language whose primary subtag we ship, else
-   * English. Both args default to the live browser state when omitted.
+   * Resolve the locale to use: an explicit stored choice wins, otherwise
+   * English. The languages argument remains for API compatibility and makes
+   * the default independent of the browser or operating-system locale.
    *
    * @param {string[]} [languages] - e.g. navigator.languages.
    * @param {string|null} [stored] - e.g. localStorage 'codex_lang'.
    * @returns {string} An available locale id.
    */
   function detectLocale(languages, stored) {
-    if (languages === undefined) {
-      try {
-        languages = (navigator.languages && navigator.languages.length)
-          ? navigator.languages
-          : (navigator.language ? [navigator.language] : []);
-      } catch (_) { languages = []; }
-    }
+    void languages;
     if (stored === undefined) {
       try { stored = localStorage.getItem(LS_KEY); } catch (_) { stored = null; }
     }
     if (stored && AVAILABLE.includes(stored)) return stored;
-    for (const tag of (languages || [])) {
-      const primary = String(tag || '').toLowerCase().split('-')[0];
-      if (AVAILABLE.includes(primary)) return primary;
-    }
     return 'en';
   }
 

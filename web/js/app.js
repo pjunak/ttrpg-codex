@@ -438,11 +438,9 @@ document.addEventListener('click', (ev) => {
     document.body.classList.remove('mobile-nav-open');
 
     // Top-right login chip visibility is route-dependent (dashboard only).
-    // Render here so leaving / returning to Přehled hides / re-shows the chip
-    // without waiting for a role transition. Keep the persistent language
-    // selector synchronized when navigation rebuilds the surrounding chrome.
+    // Render here so leaving / returning to Overview hides / re-shows the chip
+    // without waiting for a role transition.
     _renderTopbarLogin();
-    _renderLanguageSwitch();
 
     // Clear any per-article edit state if we're leaving the article it
     // belongs to. Without this, navigating away mid-edit and then back
@@ -904,16 +902,6 @@ document.addEventListener('click', (ev) => {
     chip.innerHTML = `<span class="topbar-login-icon">🔑</span> <span class="topbar-login-label">${esc(I18n.t('action.login'))}</span>`;
   }
 
-  function _renderLanguageSwitch() {
-    const select = document.getElementById('sidebar-language-select');
-    if (!select) return;
-    const current = I18n.getLocale();
-    select.setAttribute('aria-label', I18n.t('lang.selectorLabel'));
-    select.innerHTML = I18n.availableLocales().map(locale =>
-      `<option value="${esc(locale.id)}"${locale.id === current ? ' selected' : ''}>${esc(locale.endonym)}</option>`
-    ).join('');
-  }
-
   // Re-render after a language switch. Mirrors the SSE _applyRemoteChange
   // fan-out but skips Store.load() (data is locale-agnostic) and re-
   // hydrates the static index.html chrome. Injected into I18n via
@@ -926,7 +914,6 @@ document.addEventListener('click', (ev) => {
     Settings.applyTheme();
     _renderTopbarLogin();
     _renderImpersonationBanner();
-    _renderLanguageSwitch();
     navigate(getRoute());
   }
 
@@ -1009,7 +996,6 @@ document.addEventListener('click', (ev) => {
       if (EditMode.isDirty()) {
         I18n.hydrate(document);
         Sidebar.render();
-        _renderLanguageSwitch();
         _pendingLangRerender = true;
         try { EditMode.toast(I18n.t('lang.appliesAfterSave')); } catch (_) {}
         return;
@@ -1052,7 +1038,6 @@ document.addEventListener('click', (ev) => {
     // and any impersonation banner once we know the role. navigate()
     // re-runs _renderTopbarLogin on every route change too.
     _renderTopbarLogin();
-    _renderLanguageSwitch();
     _renderImpersonationBanner();
 
     // Remove loading screen

@@ -18,7 +18,7 @@ export const RELATIONSHIPS     = [];
 export const MYSTERIES         = [];
 export const HISTORICAL_EVENTS = [];
 
-/** Pets / companions (Mazlíčci). Lightweight records owned by a
+/** Pets / companions. Lightweight records owned by a
  *  character, faction, the party, or nobody (unassigned). Empty by
  *  default — nothing appears in the UI until the user adds one. */
 export const PETS              = [];
@@ -113,7 +113,7 @@ export const SETTINGS_DEFAULTS = {
     { id: 'nízká',    label: 'Low',      color: '#689F38' },
   ],
 
-  // Unified "Postoje k partě" palette — shared by characters,
+  // Unified party-attitude palette — shared by characters,
   // locations and factions. Each entity carries an `attitudes` array
   // of `{id}` references; the visual glow intensity (`strength`,
   // 0..1) lives on each enum item below, NOT on the entity, so
@@ -125,7 +125,7 @@ export const SETTINGS_DEFAULTS = {
   // no glow).
   //
   // **`party` is no longer in this enum** — party membership is its
-  // own concept now, edited via Settings → Naše parta. The renderer
+  // own concept now, edited via Settings → Our Party. The renderer
   // synthesizes a `party` entry from `settings.playerParty.color` on
   // the fly when a PC carries the implicit `{id:'party'}` from
   // Store.getEffectiveAttitudes.
