@@ -333,9 +333,14 @@ The core Import Center reuses this coordinate contract for review evidence.
 For every changed location with finite `x`/`y`, `import-center.js` selects the
 world image or the referenced parent's `localMap`, resolves the live pin type
 and clamped size through `PinTypes`, and overlays the changed marker at the
-normalized coordinates. This is a read-only projection of the server-held
-plan; changing placement requires editing the source and building a new
-preview.
+normalized coordinates. Directly imported locations retain their source
+reference and expose draggable, keyboard-adjustable markers. A move is only a
+local pending adjustment: commit stays disabled until **Apply placements**
+creates a modified copy of the original input, opens a new import job, and
+obtains a fresh server-validated plan/token. The previous job remains intact
+until that replacement preview succeeds, so a failed validation cannot destroy
+the last committable review. Existing locations and locations materialized only
+by an addon contribution remain read-only.
 
 Location detail page (`renderLocationArticle`):
 - Ancestor breadcrumb at the top (reverse `getAncestorLocations(id)`).

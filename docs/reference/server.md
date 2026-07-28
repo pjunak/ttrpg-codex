@@ -217,6 +217,12 @@ typed local/stored references, derived connection symmetry, exact before/after
 writes, a player projection, and map-placement evidence. It accepts no core
 updates, deletes, media, twins, settings, auth, backups, or registry changes.
 The current schema and campaign inventory are discoverable through the API.
+The review UI also projects contributed planning items, explicit planning
+links, and core relationship operations into a story outline and graph; it
+never invents connections from prose or tags. Adjusting a directly imported
+map marker creates a modified input and a new preview job rather than mutating
+the server-held plan. Commit remains bound to one exact validated preview
+token.
 
 API-v2 server addons negotiate
 `imports.providers` and register versioned descriptors. Provider identity is
