@@ -104,7 +104,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `version` | ✅ | semver `x.y.z`. Bump on every release. |
 | `apiVersion` | ✅ | `1` or `2`. Unsupported versions are rejected. API v2 is required for security-sensitive manifest semantics. |
 | `hostVersion` | v2: ✅ | Enforced against the host version. API-v1 manifests may omit it for legacy compatibility (equivalent to `"*"`). |
-| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `collections.dm`, `collections.transactions`, `lifecycle.dispose`, `content.revision`, `i18n.catalogs`, `imports.providers`, and `graphs.facade`. |
+| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `collections.dm`, `collections.transactions`, `lifecycle.dispose`, `content.revision`, `i18n.catalogs`, `imports.providers`, `imports.bundle-contributors`, and `graphs.facade`. |
 | `entry` | ✅ | Relative `.js`/`.mjs` path to the client module (default-export `register`). |
 | `locales` | — | API-v2 declarative UI catalogs: `{ "en": "locales/en.json", "cs": "locales/cs.json" }`. Requires `i18n.catalogs`; English is mandatory and complete, translations may be partial. |
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
@@ -823,6 +823,24 @@ Server-addon tests can import `createMockImportHost` from
 implementation as the live server and exposes in-memory `createJob`,
 `manager.preview`, `manager.commit`, cancellation, revision mutation, event
 counts, and atomic failure injection.
+
+An addon with an existing provider may additionally require
+`imports.bundle-contributors` and register it for the host campaign bundle
+after `registerImportProvider`:
+
+```js
+serverHost.registerCampaignBundleContributor({
+  id: 'planning',
+  providerId: 'planning-json',
+});
+```
+
+The provider must write only the addon's DM-only collections. A campaign
+envelope identifies the addon and contributor and carries the provider-owned
+`document`; exact `{"$ref":"local.name"}` objects inside it resolve to IDs
+reserved by the core preview. The original provider contract still validates
+all output. The host never grants contributor code core-write authority and
+never reruns it during commit.
 
 The browser facade exposes only:
 

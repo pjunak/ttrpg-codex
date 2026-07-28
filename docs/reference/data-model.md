@@ -608,3 +608,12 @@ collections; core writes, cross-addon access, deletion, settings, campaign
 branding, tombstones, auth, registry data, backups, and transaction journals
 are not import targets. See `docs/reference/server.md` → **Content-import
 provider jobs**.
+
+The private host-owned `core/campaign-bundle` provider is the narrow exception
+to addon provider authority. Its v1 planner creates only characters, locations,
+and relationships, reserves final IDs during preview, resolves references at
+schema-owned fields, validates visibility and map/hierarchy invariants, and
+stores direct plus derived writes in the plan. Registered addon contributors
+still write only their own DM-only collections; the host coordinates their
+preview output and publishes all allowlisted files through one campaign
+journal.

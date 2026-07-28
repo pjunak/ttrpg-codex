@@ -210,10 +210,15 @@ publication.
 
 ## Content-import provider jobs
 
-The server-only import framework has no built-in provider or generic UI.
-DM Tools supplies the `scenario-json` provider and its own DM-only Import Center
-page; core still owns no production provider or generic import UI. API-v2
-server addons negotiate
+Core registers the built-in `(core, campaign-bundle)` provider and owns the
+DM-only `#/import` Import Center. Campaign bundle schema v1 creates characters,
+locations, and relationships with explicit visibility, preview-reserved IDs,
+typed local/stored references, derived connection symmetry, exact before/after
+writes, a player projection, and map-placement evidence. It accepts no core
+updates, deletes, media, twins, settings, auth, backups, or registry changes.
+The current schema and campaign inventory are discoverable through the API.
+
+API-v2 server addons negotiate
 `imports.providers` and register versioned descriptors. Provider identity is
 `(addonId, providerId)`. Provider API v1 accepts JSON, permits explicitly
 granted core reads, and commits only to the provider addon's own declared
@@ -258,12 +263,14 @@ whose server-held digest includes the exact plan.
 
 Commit accepts only the token. It consumes it before attempting publication,
 checks owner/expiry/provider package/schema and every participating base
-revision, and never reruns provider code. Under the same core queue it begins
-an atomic-transaction lease and commits the exact stored put operations. The
-transaction service remains the sole
-durability/publication authority and therefore supplies atomic rollback,
-restart recovery, one logical revision, one snapshot, and one role-scoped
-event. Any conflict or ambiguous failure requires a new preview.
+revision, and never reruns provider code. Ordinary addon providers commit
+through their owned collection transaction. The host campaign provider uses
+the scoped campaign journal: core-only plans stage core collection files,
+while plans with registered addon contributions stage the allowlisted core and
+DM-only addon paths together. Both paths provide old-or-new crash recovery,
+one logical snapshot, and one role-scoped event. Contributor code runs only
+during preview and never during commit. Any conflict or ambiguous failure
+requires a new preview.
 The completed commit summary remains on the owner-bound job until expiry and
 is included by `GET /api/content-import/jobs/:jobId`. A browser that loses the
 commit response checks that status and result; it never resubmits the
@@ -351,6 +358,8 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | DELETE | `/api/campaign/enums/:category/:id` | dm | Atomically remove one settings enum item with `{replaceWith?, force?, tombstone?, baseRevision?}`. The revision covers the loaded enum category; stale requests return `WRITE_CONFLICT`. The server rechecks scalar/object-array usages and publishes definition, replacements, and tombstone through the core compound-mutation journal. |
 | POST | `/api/addons/:id/transactions` | any | API-v2 `collections.transactions` transport. `{mode:"begin",collections,timeoutMs?}` returns a consistent snapshot, revisions, deadline, and opaque single-use id; `{mode:"commit",transactionId,operations}` performs revision-checked atomic publication; `{mode:"cancel",transactionId}` drops an unused lease. Every collection must be declared/owned, enabled, role-authorized, and covered by `data:own`. Structured failures use `TX_*` codes. Addons consume `host.store.transaction(...)`, not this transport directly. |
 | GET | `/api/content-import/providers` | dm | Real and effective DM only. Lists active versioned provider declarations and host job/input limits. No job state is exposed. |
+| GET | `/api/content-import/schemas/:schemaId` | dm | Return a registered host import JSON Schema. Version 1 publishes `campaign-bundle-v1`; unknown ids return 404. |
+| GET | `/api/content-import/inventory` | dm-real | Return revisioned campaign identities for `characters`, `locations`, and `relationships`, plus active provider descriptors. `collections=` narrows the set and `includeBodies=true` includes cloned records for offline generation. |
 | POST | `/api/content-import/jobs` | dm | Real and effective DM only. Multipart field `input` plus `addonId`, `providerId`, and `format`. Creates an owner-bound ephemeral job and stages at most 2 MiB outside campaign data. MIME/extension are hints, not trust decisions. |
 | GET | `/api/content-import/jobs/:jobId` | dm | Return the initiating import session's safe job state. Wrong session and unknown id both return the same 404. |
 | POST | `/api/content-import/jobs/:jobId/preview` | dm | Strict-parse and run the registered provider under timeout/cancellation, validate a normalized read-only plan, delete staged input, and return the server-bound preview token. |

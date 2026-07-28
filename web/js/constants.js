@@ -42,6 +42,7 @@ export const SIDEBAR_PAGES = [
   { route: '/artefakty',    label: 'Artifacts',         key: 'nav.artifacts',  icon: '🗝', section: 'kompendium' },
   { route: '/historie',     label: 'History',           key: 'nav.history',    icon: '📜', section: 'kompendium' },
   { route: '/dm',           label: 'DM panel',          key: 'nav.dmPanel',    icon: '🛡', section: 'dm', role: 'dm' },
+  { route: '/import',       label: 'Import Center',     key: 'nav.import',     icon: '⌁',  section: 'dm', role: 'dm' },
 ];
 
 /** Default sidebar layout — mirrors the historical hardcoded markup.
@@ -57,7 +58,7 @@ export const SIDEBAR_LAYOUT_DEFAULT = {
     { id: 'kampan',     label: 'Campaign',    icon: '', collapsible: false, defaultOpen: true,  role: '',   pages: ['/casova-osa', '/zahady', '/mapa/palac'] },
     { id: 'svet',       label: 'World',       icon: '', collapsible: false, defaultOpen: true,  role: '',   pages: ['/mista', '/postavy', '/frakce', '/mazlicci'] },
     { id: 'kompendium', label: 'Compendium', icon: '', collapsible: true,  defaultOpen: false, role: '',   pages: ['/panteon', '/artefakty', '/historie'] },
-    { id: 'dm',         label: 'DM',         icon: '', collapsible: false, defaultOpen: true,  role: 'dm', pages: ['/dm'] },
+    { id: 'dm',         label: 'DM',         icon: '', collapsible: false, defaultOpen: true,  role: 'dm', pages: ['/dm', '/import'] },
   ],
   hidden: [],
 };

@@ -329,6 +329,14 @@ replacement or teardown.
 Search now spans all placed Locations across all maps (world + every
 local map), not just the currently visible context.
 
+The core Import Center reuses this coordinate contract for review evidence.
+For every changed location with finite `x`/`y`, `import-center.js` selects the
+world image or the referenced parent's `localMap`, resolves the live pin type
+and clamped size through `PinTypes`, and overlays the changed marker at the
+normalized coordinates. This is a read-only projection of the server-held
+plan; changing placement requires editing the source and building a new
+preview.
+
 Location detail page (`renderLocationArticle`):
 - Ancestor breadcrumb at the top (reverse `getAncestorLocations(id)`).
 - "Dílčí místa" chip section (`getSubLocations(id)`), 📍 marks placed

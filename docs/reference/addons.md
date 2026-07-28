@@ -132,7 +132,8 @@ collection declaration.
 
 The API-v2 capabilities currently advertised by the host are
 `collections.dm`, `collections.transactions`, `lifecycle.dispose`,
-`content.revision`, `i18n.catalogs`, `imports.providers`, and `graphs.facade`. An addon that requires any
+`content.revision`, `i18n.catalogs`, `imports.providers`,
+`imports.bundle-contributors`, and `graphs.facade`. An addon that requires any
 contract must declare it in `capabilities.required`; v1 addons remain loadable
 without either declaration. `lifecycle.dispose` enables the teardown contract
 described below. `content.revision` exposes the active package/content-policy
@@ -143,6 +144,8 @@ revision as `host.contentRevision`.
 requires a server module, `server:code`, `data:import-provider`, `data:own`,
 `collections.transactions`, and at least one declared collection. Existing
 addons that do not negotiate it are unchanged.
+`imports.bundle-contributors` requires `imports.providers`. It exposes the
+server-only registration described below; it adds no core-write permission.
 `graphs.facade` enables browser graph facade API v1 and requires
 `lifecycle.dispose` plus the reviewed `ui:graph` permission. The facade
 version is independent of the bundled graph-library version.
@@ -500,6 +503,18 @@ do not survive restart. The published `server/addon-import-harness.cjs`
 exports `createMockImportHost(...)` and runs the same descriptor/parser/plan/job
 implementation in memory, including revision conflicts and atomic commit
 results.
+
+An addon that also negotiates `imports.bundle-contributors` may call
+`serverHost.registerCampaignBundleContributor({id, providerId})` after
+registering that provider. The referenced provider remains the validation
+authority and must write only the addon's DM-only declared collections. A
+campaign bundle opts in with
+`{addonId, contributorId, document}`. Exact `{"$ref":"local.name"}` objects
+inside `document` resolve to IDs reserved by the core preview before the
+provider runs. The host validates the returned plan against the original
+provider declaration, prefixes its diagnostics, includes its exact writes in
+the review, and journal-publishes core plus addon files together. Contributors
+never receive core-write authority and are never rerun during commit.
 
 ### Addon graph facade
 

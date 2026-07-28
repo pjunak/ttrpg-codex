@@ -7,6 +7,7 @@ export const KNOWN_CAPABILITIES = new Set([
   'content.revision',
   'i18n.catalogs',
   'imports.providers',
+  'imports.bundle-contributors',
   'graphs.facade',
 ]);
 export const HOST_CAPABILITIES = new Set(KNOWN_CAPABILITIES);

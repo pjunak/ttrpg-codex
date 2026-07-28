@@ -45,11 +45,18 @@ module.exports.init = host => {
           target,
           op: 'put',
           id: record.id,
-          value: { name: record.name }
+          value: {
+            name: record.name,
+            ...(typeof record.coreId === 'string' ? { coreId: record.coreId } : {})
+          }
         })),
         diagnostics: []
       };
     }
+  });
+  host.registerCampaignBundleContributor({
+    id: 'fixture',
+    providerId: '${PROVIDER_ID}'
   });
 };`;
 
@@ -61,7 +68,12 @@ function addonEntry() {
     apiVersion: 2,
     hostVersion: '>=1.0.0',
     capabilities: {
-      required: ['collections.dm', 'collections.transactions', 'imports.providers'],
+      required: [
+        'collections.dm',
+        'collections.transactions',
+        'imports.providers',
+        'imports.bundle-contributors',
+      ],
     },
     enabled: true,
     entry: 'entry.js',
@@ -102,10 +114,16 @@ async function login(srv, password) {
   assert.equal(response.status, 200);
 }
 
-function uploadBody(value, name = 'input.json', mime = 'application/json') {
+function uploadBody(
+  value,
+  name = 'input.json',
+  mime = 'application/json',
+  addonId = ADDON_ID,
+  providerId = PROVIDER_ID,
+) {
   const form = new FormData();
-  form.append('addonId', ADDON_ID);
-  form.append('providerId', PROVIDER_ID);
+  form.append('addonId', addonId);
+  form.append('providerId', providerId);
   form.append('format', 'json');
   form.append('input', new Blob([value], { type: mime }), name);
   return form;
@@ -139,6 +157,7 @@ test('real server import flow is DM-only, preview is read-only, and commit uses 
     assert.equal(response.status, 200);
     const providers = (await response.json()).providers;
     assert.deepEqual(providers.map(entry => `${entry.addonId}:${entry.id}`), [
+      'core:campaign-bundle',
       `${ADDON_ID}:${PROVIDER_ID}`,
     ]);
 
@@ -199,6 +218,290 @@ test('real server import flow is DM-only, preview is read-only, and commit uses 
     });
     assert.equal(response.status, 409);
     assert.equal((await response.json()).code, 'IMPORT_TOKEN_USED');
+  } finally {
+    await srv.kill();
+  }
+});
+
+test('built-in campaign bundle publishes schemas, inventory, preview, and an atomic core commit', async () => {
+  const srv = await startServer({
+    dmPassword: DM_PASSWORD,
+    playerPassword: PLAYER_PASSWORD,
+    seedData: {
+      'characters.json': [],
+      'locations.json': [
+        {
+          id: 'radov_existing',
+          name: 'Radov',
+          localMap: '/maps/local/radov_existing/map.png',
+          connections: [],
+          visibility: 'public',
+        },
+      ],
+      'relationships.json': [],
+      'factions.json': {},
+      'settings.json': {
+        pinTypes: [{ id: 'market' }],
+        characterStatuses: [{ id: 'alive' }],
+        relationshipTypes: [{ id: 'ally', target: 'character' }],
+      },
+    },
+  });
+  try {
+    await login(srv, DM_PASSWORD);
+    let response = await srv.fetch('/api/content-import/schemas/campaign-bundle-v1');
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).properties.format.const, 'ttrpg-codex-campaign-bundle');
+
+    response = await srv.fetch('/api/content-import/inventory?collections=locations');
+    const inventory = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(inventory));
+    assert.equal(inventory.records.locations[0].id, 'radov_existing');
+    assert.equal(inventory.records.locations[0].record, undefined);
+    assert.ok(inventory.providers.some(provider =>
+      provider.authority === 'host' && provider.id === 'campaign-bundle'));
+
+    const document = {
+      format: 'ttrpg-codex-campaign-bundle',
+      schemaVersion: 1,
+      generatedAt: 1_785_200_000_000,
+      records: {
+        characters: [
+          {
+            ref: 'npc.tom',
+            operation: 'create',
+            record: {
+              name: 'Tom',
+              faction: 'neutral',
+              status: 'alive',
+              location: { $id: { collection: 'locations', id: 'radov_existing' } },
+              visibility: 'dm',
+            },
+          },
+          {
+            ref: 'npc.anezka',
+            operation: 'create',
+            record: {
+              name: 'Anezka',
+              faction: 'neutral',
+              status: 'alive',
+              location: { $ref: 'place.square' },
+              visibility: 'dm',
+            },
+          },
+        ],
+        locations: [
+          {
+            ref: 'place.square',
+            operation: 'create',
+            record: {
+              name: 'Town Square',
+              parentId: { $id: { collection: 'locations', id: 'radov_existing' } },
+              connections: [
+                { $id: { collection: 'locations', id: 'radov_existing' } },
+              ],
+              x: 0.5,
+              y: 0.25,
+              pinType: 'market',
+              visibility: 'public',
+            },
+          },
+        ],
+        relationships: [
+          {
+            ref: 'relationship.tom-anezka',
+            operation: 'create',
+            record: {
+              source: { $ref: 'npc.tom' },
+              target: { $ref: 'npc.anezka' },
+              type: 'ally',
+              label: 'Knows',
+              visibility: 'dm',
+            },
+          },
+        ],
+      },
+      addonImports: [],
+    };
+    response = await srv.fetch('/api/content-import/jobs', {
+      method: 'POST',
+      body: uploadBody(
+        JSON.stringify(document),
+        'campaign.json',
+        'application/json',
+        'core',
+        'campaign-bundle',
+      ),
+    });
+    const created = await response.json();
+    assert.equal(response.status, 201, JSON.stringify(created));
+
+    const before = {
+      characters: JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'characters.json'), 'utf8')),
+      locations: JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'locations.json'), 'utf8')),
+      relationships: JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'relationships.json'), 'utf8')),
+    };
+    response = await srv.fetch(`/api/content-import/jobs/${created.job.id}/preview`, {
+      method: 'POST',
+    });
+    const preview = await response.json();
+    assert.equal(response.status, 200, `${JSON.stringify(preview)}\n${srv.stderr()}`);
+    assert.equal(preview.committable, true);
+    assert.equal(preview.plan.review.logicalRecordCount, 4);
+    assert.equal(preview.plan.review.materializedWriteCount, 5);
+    assert.equal(preview.plan.review.playerProjection.characters.length, 0);
+    assert.equal(preview.plan.review.playerProjection.locations.length, 2);
+    assert.deepEqual(
+      JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'characters.json'), 'utf8')),
+      before.characters,
+    );
+    assert.deepEqual(
+      JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'locations.json'), 'utf8')),
+      before.locations,
+    );
+    assert.deepEqual(
+      JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'relationships.json'), 'utf8')),
+      before.relationships,
+    );
+
+    response = await srv.fetch(`/api/content-import/jobs/${created.job.id}/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ previewToken: preview.previewToken }),
+    });
+    const committed = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(committed));
+    assert.ok(committed.commitId);
+    assert.deepEqual(
+      new Set(committed.changed),
+      new Set(['characters', 'locations', 'relationships']),
+    );
+
+    const characters = JSON.parse(
+      await fsp.readFile(path.join(srv.dataDir, 'characters.json'), 'utf8'),
+    );
+    const locations = JSON.parse(
+      await fsp.readFile(path.join(srv.dataDir, 'locations.json'), 'utf8'),
+    );
+    const relationships = JSON.parse(
+      await fsp.readFile(path.join(srv.dataDir, 'relationships.json'), 'utf8'),
+    );
+    const references = Object.fromEntries(
+      preview.plan.review.references.map(item => [item.ref, item.id]),
+    );
+    assert.equal(characters.find(item => item.id === references['npc.anezka']).location,
+      references['place.square']);
+    assert.ok(locations.find(item => item.id === 'radov_existing').connections
+      .includes(references['place.square']));
+    assert.equal(relationships[0].source, references['npc.tom']);
+    assert.equal(relationships[0].target, references['npc.anezka']);
+  } finally {
+    await srv.kill();
+  }
+});
+
+test('campaign bundle resolves core refs for a restricted contributor and publishes one core/addon commit', async () => {
+  const srv = await startServer({
+    dmPassword: DM_PASSWORD,
+    playerPassword: PLAYER_PASSWORD,
+    seedData: {
+      'addons.json': registry(),
+      'characters.json': [],
+      'locations.json': [],
+      'relationships.json': [],
+      'factions.json': {},
+      'settings.json': {
+        characterStatuses: [{ id: 'alive' }],
+        relationshipTypes: [],
+        pinTypes: [],
+      },
+    },
+    seedFiles: seedFiles(),
+  });
+  try {
+    await login(srv, DM_PASSWORD);
+    const document = {
+      format: 'ttrpg-codex-campaign-bundle',
+      schemaVersion: 1,
+      generatedAt: 1_785_200_000_000,
+      records: {
+        characters: [{
+          ref: 'npc.alpha',
+          operation: 'create',
+          record: {
+            name: 'Alpha',
+            status: 'alive',
+            visibility: 'dm',
+          },
+        }],
+        locations: [],
+        relationships: [],
+      },
+      addonImports: [{
+        addonId: ADDON_ID,
+        contributorId: 'fixture',
+        document: {
+          records: [{
+            id: 'plan-alpha',
+            name: 'Plan for Alpha',
+            coreId: { $ref: 'npc.alpha' },
+          }],
+        },
+      }],
+    };
+    let response = await srv.fetch('/api/content-import/jobs', {
+      method: 'POST',
+      body: uploadBody(
+        JSON.stringify(document),
+        'campaign-with-planning.json',
+        'application/json',
+        'core',
+        'campaign-bundle',
+      ),
+    });
+    const created = await response.json();
+    assert.equal(response.status, 201, JSON.stringify(created));
+
+    response = await srv.fetch(`/api/content-import/jobs/${created.job.id}/preview`, {
+      method: 'POST',
+    });
+    const preview = await response.json();
+    assert.equal(response.status, 200, `${JSON.stringify(preview)}\n${srv.stderr()}`);
+    assert.equal(preview.committable, true);
+    assert.equal(preview.plan.operations.length, 2);
+    assert.equal(preview.plan.review.contributions[0].addonId, ADDON_ID);
+    assert.equal(preview.plan.review.contributions[0].materializedWriteCount, 1);
+    const characterId = preview.plan.review.references
+      .find(entry => entry.ref === 'npc.alpha').id;
+    const addonOperation = preview.plan.operations
+      .find(operation => operation.target.scope === 'addon');
+    assert.equal(addonOperation.value.coreId, characterId);
+    assert.deepEqual(
+      JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'characters.json'), 'utf8')),
+      [],
+    );
+    assert.deepEqual(
+      JSON.parse(await fsp.readFile(path.join(srv.dataDir, COLLECTION_FILE), 'utf8')),
+      [],
+    );
+
+    response = await srv.fetch(`/api/content-import/jobs/${created.job.id}/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ previewToken: preview.previewToken }),
+    });
+    const committed = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(committed));
+    assert.ok(committed.commitId);
+    assert.equal(committed.operationCount, 2);
+    assert.deepEqual(
+      JSON.parse(await fsp.readFile(path.join(srv.dataDir, COLLECTION_FILE), 'utf8')),
+      [{ id: 'plan-alpha', name: 'Plan for Alpha', coreId: characterId }],
+    );
+    assert.ok(
+      JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'characters.json'), 'utf8'))
+        .some(record => record.id === characterId && record.name === 'Alpha'),
+    );
   } finally {
     await srv.kill();
   }

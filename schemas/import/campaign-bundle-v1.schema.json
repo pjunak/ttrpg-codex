@@ -1,0 +1,439 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ttrpg-codex.local/schemas/import/campaign-bundle-v1.schema.json",
+  "title": "TTRPG Codex campaign bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schemaVersion",
+    "generatedAt",
+    "records"
+  ],
+  "properties": {
+    "format": {
+      "const": "ttrpg-codex-campaign-bundle"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "generatedAt": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "records": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "characters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/characterOperation"
+          }
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/locationOperation"
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/relationshipOperation"
+          }
+        }
+      }
+    },
+    "addonImports": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/addonContribution"
+      }
+    }
+  },
+  "$defs": {
+    "localRef": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9._-]{1,99}$"
+    },
+    "addonContribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "addonId",
+        "contributorId",
+        "document"
+      ],
+      "properties": {
+        "addonId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{1,38}$"
+        },
+        "contributorId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{1,63}$"
+        },
+        "document": {
+          "type": "object",
+          "$comment": "The contributor owns this schema. An exact {$ref: localRef} object anywhere in the document resolves to the core ID reserved by this preview."
+        }
+      }
+    },
+    "visibility": {
+      "enum": [
+        "public",
+        "dm"
+      ]
+    },
+    "reference": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "$ref"
+          ],
+          "properties": {
+            "$ref": {
+              "$ref": "#/$defs/localRef"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "$id"
+          ],
+          "properties": {
+            "$id": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "collection",
+                "id"
+              ],
+              "properties": {
+                "collection": {
+                  "enum": [
+                    "characters",
+                    "locations",
+                    "relationships"
+                  ]
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "attitude": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "answer"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "answer": {
+          "type": "string"
+        }
+      }
+    },
+    "locationRole": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "locationId",
+        "role"
+      ],
+      "properties": {
+        "locationId": {
+          "$ref": "#/$defs/reference"
+        },
+        "role": {
+          "type": "string"
+        }
+      }
+    },
+    "character": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "visibility"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "title": {
+          "type": "string"
+        },
+        "faction": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "circumstances": {
+          "type": "string"
+        },
+        "attitudes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attitude"
+          }
+        },
+        "knowledge": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "portrait": {
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/$defs/reference"
+        },
+        "description": {
+          "type": "string"
+        },
+        "known": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unknown": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/question"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rank": {
+          "type": "string"
+        },
+        "rankChain": {
+          "type": "string"
+        },
+        "locationRoles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/locationRole"
+          }
+        },
+        "species": {
+          "type": "string"
+        },
+        "gender": {
+          "type": "string"
+        },
+        "age": {
+          "type": "string"
+        },
+        "visibility": {
+          "$ref": "#/$defs/visibility"
+        }
+      }
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "visibility"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "region": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "history": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "knowledge": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "parentId": {
+          "$ref": "#/$defs/reference"
+        },
+        "connections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reference"
+          }
+        },
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "pinType": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "attitudes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attitude"
+          }
+        },
+        "size": {
+          "type": "number",
+          "minimum": 14,
+          "maximum": 64
+        },
+        "mapNotes": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "visibility": {
+          "$ref": "#/$defs/visibility"
+        }
+      }
+    },
+    "relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "target",
+        "type",
+        "visibility"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/reference"
+        },
+        "target": {
+          "$ref": "#/$defs/reference"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string"
+        },
+        "visibility": {
+          "$ref": "#/$defs/visibility"
+        }
+      }
+    },
+    "characterOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "operation",
+        "record"
+      ],
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/localRef"
+        },
+        "operation": {
+          "const": "create"
+        },
+        "record": {
+          "$ref": "#/$defs/character"
+        }
+      }
+    },
+    "locationOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "operation",
+        "record"
+      ],
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/localRef"
+        },
+        "operation": {
+          "const": "create"
+        },
+        "record": {
+          "$ref": "#/$defs/location"
+        }
+      }
+    },
+    "relationshipOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "operation",
+        "record"
+      ],
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/localRef"
+        },
+        "operation": {
+          "const": "create"
+        },
+        "record": {
+          "$ref": "#/$defs/relationship"
+        }
+      }
+    }
+  }
+}

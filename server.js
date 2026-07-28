@@ -23,6 +23,12 @@ const {
 const { ImportError, LIMITS: IMPORT_LIMITS, collectionRefKey } = require('./server/import-contract.cjs');
 const { ImportJobManager } = require('./server/import-jobs.cjs');
 const {
+  buildImportInventory,
+} = require('./server/campaign-bundle-contract.cjs');
+const {
+  descriptor: campaignBundleDescriptor,
+} = require('./server/campaign-bundle-provider.cjs');
+const {
   createByteLimiter,
   openEntryStream,
   walkZipEntries,
@@ -152,6 +158,22 @@ const BACKUP_STAGING_ROOT = process.env.CODEX_BACKUP_STAGING_DIR
                             || path.join(os.tmpdir(), 'ttrpg-codex-backups');
 const LEGACY_SNAPSHOTS_DIR = path.join(DATA_DIR, 'snapshots');
 const WEB_DIR        = path.join(__dirname, 'web');
+const IMPORT_SCHEMAS = new Map([
+  [
+    'campaign-bundle-v1',
+    JSON.parse(fs.readFileSync(
+      path.join(__dirname, 'schemas', 'import', 'campaign-bundle-v1.schema.json'),
+      'utf8',
+    )),
+  ],
+  [
+    'inventory-v1',
+    JSON.parse(fs.readFileSync(
+      path.join(__dirname, 'schemas', 'import', 'inventory-v1.schema.json'),
+      'utf8',
+    )),
+  ],
+]);
 
 // Addon framework: installed addon CODE is laid down content-addressed
 // under data/addons/<id>/<hash>/ and served same-origin from /addons.
@@ -855,10 +877,10 @@ async function _readImportSnapshot(provider, refs) {
       };
       targetTypes.set(key, 'core');
     } else {
-      if (ref.addonId !== provider.addonId) {
+      if (!provider.hostOwned && ref.addonId !== provider.addonId) {
         throw new ImportError('IMPORT_PROVIDER_FOREIGN', 'Cross-addon collection access is unavailable', 404);
       }
-      descriptor = _resolveTransactionCollection(provider.addonId, ref.collection, 'dm');
+      descriptor = _resolveTransactionCollection(ref.addonId, ref.collection, 'dm');
       targetTypes.set(key, descriptor.keyed ? 'addon-keyed' : 'addon-list');
     }
     const fallback = descriptor.keyed ? {} : [];
@@ -896,6 +918,104 @@ async function _commitImportOperations({ provider, plan, clientAborted }) {
         );
       }
     }
+    if (provider.hostOwned) {
+      if (provider.addonId !== 'core' || provider.id !== 'campaign-bundle') {
+        throw new ImportError(
+          'IMPORT_PROVIDER_UNAVAILABLE',
+          'Unknown host import provider',
+          409,
+        );
+      }
+      const containers = new Map();
+      const descriptors = new Map();
+      for (const ref of plan.writeSet) {
+        const key = collectionRefKey(ref);
+        const descriptor = ref.scope === 'core'
+          ? {
+            path: getFile(ref.collection),
+            keyed: KEYED_OBJ_TYPES.has(ref.collection),
+            access: 'public',
+            label: ref.collection,
+          }
+          : {
+            ..._resolveTransactionCollection(ref.addonId, ref.collection, 'dm'),
+            label: `addon:${ref.addonId}:${ref.collection}`,
+          };
+        containers.set(key, structuredClone(current.values[key]));
+        descriptors.set(key, descriptor);
+      }
+      for (const operation of plan.operations) {
+        const key = collectionRefKey(operation.target);
+        const container = containers.get(key);
+        const descriptor = descriptors.get(key);
+        if (!descriptor || (!Array.isArray(container) && !descriptor.keyed)) {
+          throw new ImportError(
+            'IMPORT_STORAGE_INVALID',
+            'Host import target has an invalid stored shape',
+            500,
+          );
+        }
+        if (descriptor.keyed) {
+          if (!container || typeof container !== 'object' || Array.isArray(container)) {
+            throw new ImportError(
+              'IMPORT_STORAGE_INVALID',
+              'Host import target has an invalid stored shape',
+              500,
+            );
+          }
+          container[operation.id] = structuredClone(operation.value);
+        } else {
+          const value = { id: operation.id, ...structuredClone(operation.value) };
+          const index = container.findIndex(record => record?.id === operation.id);
+          if (index >= 0) container[index] = value;
+          else container.push(value);
+        }
+      }
+      const changedContainers = [];
+      const revisions = {};
+      for (const [key, value] of containers) {
+        const nextRevision = revisionOf(value);
+        revisions[key] = nextRevision;
+        if (nextRevision !== current.revisions[key]) {
+          changedContainers.push({
+            key,
+            value,
+            descriptor: descriptors.get(key),
+          });
+        }
+      }
+      if (!changedContainers.length) {
+        return { ok: true, commitId: null, changed: [], revisions };
+      }
+      if (clientAborted()) {
+        throw new ImportError(
+          'IMPORT_CANCELLED',
+          'Client disconnected before commit',
+          409,
+        );
+      }
+      const hasAddonWrites = changedContainers.some(entry => entry.key.startsWith('addon:'));
+      const publication = hasAddonWrites
+        ? await _publishImportContainers(changedContainers)
+        : await _publishCampaignCollections(Object.fromEntries(
+          changedContainers.map(entry => [entry.descriptor.label, entry.value]),
+        ));
+      _invalidateDataHash();
+      const access = changedContainers.every(entry =>
+        entry.key.startsWith('core:') || entry.descriptor.access === 'dm')
+        && plan.operations.every(operation =>
+          operation.target.scope === 'addon' || operation.value?.visibility === 'dm')
+        ? 'dm'
+        : 'public';
+      await _maybeSnapshot('transaction', access);
+      await _broadcastDataChanged(access);
+      return {
+        ok: true,
+        commitId: publication.commitId,
+        changed: changedContainers.map(entry => entry.descriptor.label),
+        revisions,
+      };
+    }
     const writeNames = [...new Set(plan.writeSet.map(ref => ref.collection))];
     const transaction = await _collectionTransactions.begin({
       addonId: provider.addonId,
@@ -931,6 +1051,34 @@ const _importJobs = new ImportJobManager({
   snapshotCollections: _snapshotImportCollections,
   commitOperations: _commitImportOperations,
 });
+const _campaignBundleContributors = new Map();
+let _campaignBundleRegistration = null;
+
+function _campaignBundleCollectionPolicy() {
+  return new Map([..._addonCollections.values()].map(collection => [
+    `${collection.addonId}:${collection.name}`,
+    { keyed: collection.keyed, access: collection.access },
+  ]));
+}
+
+function _registerCampaignBundleProvider() {
+  if (_campaignBundleRegistration) _campaignBundleRegistration.dispose();
+  const contributions = [..._campaignBundleContributors.values()];
+  const revisionSeed = contributions
+    .map(entry => `${entry.addonId}:${entry.id}:${entry.provider.packageRevision}`)
+    .sort()
+    .join('|');
+  const packageRevision = crypto.createHash('sha256')
+    .update(`host-${AddonBroker.HOST_VERSION}-campaign-bundle-v1|${revisionSeed}`)
+    .digest('hex');
+  _campaignBundleRegistration = _importJobs.registerHostProvider(
+    campaignBundleDescriptor({ createId: _generateId, contributions }),
+    {
+      packageRevision,
+      addonCollections: _campaignBundleCollectionPolicy(),
+    },
+  );
+}
 
 async function _applyCampaignRestoreEffects({ paths }, { broadcast, reconcile }) {
   _invalidateDataHash();
@@ -982,7 +1130,7 @@ const _campaignMutationPublications = new CampaignRestoreManager({
   dataDir: DATA_DIR,
   runtimeDir: MUTATION_RUNTIME_DIR,
   publicationBarrier: _publicationBarrier,
-  maxEntries: ALL_TYPES.length,
+  maxEntries: 64,
   fault: _campaignMutationFault,
   onFatal: error => {
     console.error('[campaign mutation] fatal publication state:', error);
@@ -990,13 +1138,38 @@ const _campaignMutationPublications = new CampaignRestoreManager({
   },
 });
 
+async function _publishImportContainers(containers) {
+  const candidateDir = await fsp.mkdtemp(path.join(MUTATION_STAGING_ROOT, 'import-'));
+  try {
+    const paths = [];
+    for (const { value, descriptor } of containers) {
+      const relativePath = path.relative(DATA_DIR, descriptor.path).replace(/\\/g, '/');
+      if (!relativePath || relativePath.startsWith('../') || path.posix.isAbsolute(relativePath)) {
+        throw new ImportError(
+          'IMPORT_PROVIDER_UNDECLARED',
+          'Import target path is outside the campaign data directory',
+          500,
+        );
+      }
+      const staged = path.join(candidateDir, ...relativePath.split('/'));
+      await fsp.mkdir(path.dirname(staged), { recursive: true });
+      await fsp.writeFile(staged, JSON.stringify(value, null, 2), 'utf8');
+      paths.push(relativePath);
+    }
+    const result = await _campaignMutationPublications.commit({ candidateDir, paths });
+    return { commitId: result.restoreId };
+  } finally {
+    await fsp.rm(candidateDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 async function _publishCampaignCollections(collections) {
   const entries = Object.entries(collections);
-  if (!entries.length) return;
+  if (!entries.length) return { commitId: null };
   if (entries.length === 1) {
     const [type, value] = entries[0];
     await _writeJsonFile(getFile(type), JSON.stringify(value, null, 2));
-    return;
+    return { commitId: null };
   }
 
   const candidateDir = await fsp.mkdtemp(path.join(MUTATION_STAGING_ROOT, 'mutation-'));
@@ -1010,8 +1183,9 @@ async function _publishCampaignCollections(collections) {
       await fsp.writeFile(staged, JSON.stringify(value, null, 2), 'utf8');
       paths.push(relativePath);
     }
-    await _campaignMutationPublications.commit({ candidateDir, paths });
+    const result = await _campaignMutationPublications.commit({ candidateDir, paths });
     _invalidateDataHash();
+    return { commitId: result.restoreId };
   } finally {
     await fsp.rm(candidateDir, { recursive: true, force: true }).catch(() => {});
   }
@@ -1739,6 +1913,9 @@ app.post('/api/content-import/jobs/:jobId/preview', requireImportDM, async (req,
     const result = await _importJobs.preview(req.params.jobId, owner);
     if (!disconnected && !res.headersSent) res.json(result);
   } catch (error) {
+    if (error?.code === 'IMPORT_COMMIT_FAILED' || error?.status >= 500) {
+      console.error('POST /api/content-import/jobs/:jobId/preview:', error);
+    }
     if (!disconnected) _sendImportError(res, error);
   }
 });
@@ -2154,6 +2331,60 @@ function _makeServerHost(entry) {
       }, descriptor);
       importDisposers.push(registration.dispose);
       return registration.dispose;
+    },
+    registerCampaignBundleContributor: descriptor => {
+      const declaredCapabilities = [
+        ...(entry.capabilities?.required || []),
+        ...(entry.capabilities?.optional || []),
+      ];
+      if (!declaredCapabilities.includes('imports.bundle-contributors')) {
+        throw new Error(`addon "${id}" did not negotiate imports.bundle-contributors`);
+      }
+      if (!descriptor || typeof descriptor !== 'object' || Array.isArray(descriptor)
+          || Object.keys(descriptor).some(key => key !== 'id' && key !== 'providerId')
+          || typeof descriptor.id !== 'string'
+          || !/^[a-z0-9][a-z0-9._-]{1,63}$/.test(descriptor.id)
+          || typeof descriptor.providerId !== 'string') {
+        throw new Error('campaign bundle contributor descriptor is invalid');
+      }
+      const provider = _importJobs.providerForHost(id, descriptor.providerId);
+      if (!provider) {
+        throw new Error(`campaign bundle contributor provider "${descriptor.providerId}" is unavailable`);
+      }
+      const targetTypesByKey = new Map();
+      for (const ref of [...provider.reads, ...provider.writes]) {
+        const key = collectionRefKey(ref);
+        if (ref.scope === 'core') {
+          targetTypesByKey.set(key, 'core');
+          continue;
+        }
+        const collection = _resolveTransactionCollection(ref.addonId, ref.collection, 'dm');
+        targetTypesByKey.set(key, collection.keyed ? 'addon-keyed' : 'addon-list');
+      }
+      for (const ref of provider.writes) {
+        const collection = _resolveTransactionCollection(ref.addonId, ref.collection, 'dm');
+        if (collection.access !== 'dm') {
+          throw new Error('campaign bundle contributors may write only DM-only addon collections');
+        }
+      }
+      const key = `${id}:${descriptor.id}`;
+      if (_campaignBundleContributors.has(key)) {
+        throw new Error(`campaign bundle contributor "${key}" is already registered`);
+      }
+      const contribution = Object.freeze({
+        addonId: id,
+        id: descriptor.id,
+        provider,
+        targetTypesByKey,
+      });
+      _campaignBundleContributors.set(key, contribution);
+      const dispose = () => {
+        if (_campaignBundleContributors.get(key) === contribution) {
+          _campaignBundleContributors.delete(key);
+        }
+      };
+      importDisposers.push(dispose);
+      return dispose;
     },
     lib: (name) => {
       if (!AddonBroker.HOST_SERVER_LIBS.has(name)) {
@@ -3031,6 +3262,62 @@ app.post('/api/portrait/:charId', requireAnyRole, uploadChar.single('portrait'),
     res.json({ url: `/portraits/${charId}/portrait${extension}` });
   });
 });
+
+app.get('/api/content-import/schemas/:schemaId', requireImportDM, (req, res) => {
+  const schema = IMPORT_SCHEMAS.get(String(req.params.schemaId || ''));
+  if (!schema) {
+    return res.status(404).json({
+      error: 'Import schema not found',
+      code: 'IMPORT_SCHEMA_NOT_FOUND',
+    });
+  }
+  res.json(schema);
+});
+
+app.get(
+  '/api/content-import/inventory',
+  requireRealDM('Only the real DM may export import inventory.'),
+  async (req, res) => {
+    const requested = typeof req.query.collections === 'string'
+      ? req.query.collections.split(',').map(value => value.trim()).filter(Boolean)
+      : ['characters', 'locations', 'relationships'];
+    const allowed = new Set(['characters', 'locations', 'relationships']);
+    if (!requested.length || requested.some(collection => !allowed.has(collection))) {
+      return res.status(400).json({
+        error: 'Invalid inventory collection selection',
+        code: 'IMPORT_INVENTORY_COLLECTIONS_INVALID',
+      });
+    }
+    try {
+      const result = await withWriteLock(async () => {
+        const collections = {};
+        const collectionRevisions = {};
+        for (const collection of requested) {
+          const fallback = KEYED_OBJ_TYPES.has(collection) ? {} : [];
+          const value = await _readJsonOr(getFile(collection), fallback);
+          collections[collection] = value;
+          collectionRevisions[collection] = revisionOf(value);
+        }
+        return buildImportInventory(collections, {
+          selected: requested,
+          includeBodies: req.query.includeBodies === '1'
+            || req.query.includeBodies === 'true',
+          collectionRevisions,
+          campaignRevision: await _dataHashUnlocked('dm'),
+          providers: _importJobs.listProviders(),
+        });
+      });
+      res.json(result);
+    } catch (error) {
+      if (_sendWriteLockTimeout(res, error)) return;
+      console.error('GET /api/content-import/inventory:', error);
+      res.status(500).json({
+        error: 'Import inventory failed',
+        code: 'IMPORT_INVENTORY_FAILED',
+      });
+    }
+  },
+);
 
 // ── Tile pyramid ──────────────────────────────────────────────────
 // Maps are rendered in Leaflet via an on-disk pyramid of 256px tiles
@@ -3946,6 +4233,7 @@ async function _bootstrap() {
   } catch (e) {
     console.warn('[addons] server load sweep failed:', e.message);
   }
+  _registerCampaignBundleProvider();
   // Reclaim old addon version code dirs left from before pruning existed.
   try { await _pruneAllAddonCode(); } catch (e) { console.warn('[addons] code prune failed:', e.message); }
   const importSweep = setInterval(() => _importJobs.sweep(), 30_000);

@@ -31,6 +31,7 @@ function _safeTokenEqual(token, expected, planDigest) {
 
 function _providerPublic(provider) {
   return {
+    authority: provider.hostOwned ? 'host' : 'addon',
     addonId: provider.addonId,
     id: provider.id,
     apiVersion: provider.apiVersion,
@@ -42,6 +43,7 @@ function _providerPublic(provider) {
     limits: { ...provider.limits },
     capabilities: [...provider.capabilities],
     packageRevision: provider.packageRevision,
+    ...(provider.schema ? { schema: { ...provider.schema } } : {}),
   };
 }
 
@@ -100,6 +102,43 @@ class ImportJobManager {
     const provider = normalizeProviderDescriptor(addon, descriptor, {
       coreCollections: this.coreCollections,
     });
+    return this.#registerNormalizedProvider(provider);
+  }
+
+  registerHostProvider(descriptor, {
+    packageRevision = 'host-runtime',
+    addonCollections = new Map(),
+  } = {}) {
+    const grantedPermissions = [
+      'data:import-provider',
+      'data:own',
+      ...[...this.coreCollections].map(collection => `data:read:${collection}`),
+    ];
+    const provider = normalizeProviderDescriptor({
+      id: 'core',
+      apiVersion: 2,
+      packageRevision,
+      capabilities: {
+        required: ['imports.providers', 'collections.transactions'],
+      },
+      grantedPermissions,
+      collections: [],
+    }, descriptor, {
+      coreCollections: this.coreCollections,
+      hostOwned: true,
+      allowCoreWrites: true,
+      addonCollections,
+    });
+    return this.#registerNormalizedProvider(provider);
+  }
+
+  providerForHost(addonId, providerId) {
+    const provider = this.providers.get(`${addonId}:${providerId}`);
+    if (!provider || provider.hostOwned) return null;
+    return provider;
+  }
+
+  #registerNormalizedProvider(provider) {
     if (this.providers.has(provider.key)) {
       throw new ImportError(
         'IMPORT_PROVIDER_DUPLICATE',
@@ -155,6 +194,7 @@ class ImportJobManager {
       .filter(entry => entry && entry.enabled)
       .map(entry => [entry.id, String(entry.packageRevision || '')]));
     for (const provider of [...this.providers.values()]) {
+      if (provider.hostOwned) continue;
       if (current.get(provider.addonId) !== provider.packageRevision) {
         this.unregisterProvider(provider.addonId, provider.id, 'provider-package-changed');
       }
@@ -368,6 +408,7 @@ class ImportJobManager {
           decision: 'reject-in-value',
           fields: [...PROTECTED_FIELDS],
         })),
+        ...(normalized.review ? { review: normalized.review } : {}),
       };
       job.plan = plan;
       job.planDigest = digestPlan(plan);
@@ -583,11 +624,15 @@ class ImportJobManager {
         : error.code === 'TX_EXPIRED'
           ? 'IMPORT_CANCELLED'
           : 'IMPORT_COMMIT_FAILED';
-      return new ImportError(code, code === 'IMPORT_REVISION_CONFLICT'
+      const wrapped = new ImportError(code, code === 'IMPORT_REVISION_CONFLICT'
         ? 'Import preview is stale; create a new preview'
         : fallbackMessage, error.status || 409, error.details);
+      wrapped.cause = error;
+      return wrapped;
     }
-    return new ImportError(fallbackCode, fallbackMessage, 500);
+    const wrapped = new ImportError(fallbackCode, fallbackMessage, 500);
+    wrapped.cause = error;
+    return wrapped;
   }
 }
 

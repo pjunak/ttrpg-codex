@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ttrpg-codex.local/schemas/import/inventory-v1.schema.json",
+  "title": "TTRPG Codex import inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schemaVersion",
+    "campaignRevision",
+    "collectionRevisions",
+    "providers",
+    "records"
+  ],
+  "properties": {
+    "format": {
+      "const": "ttrpg-codex-import-inventory"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "campaignRevision": {
+      "type": "string"
+    },
+    "collectionRevisions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "records": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "characters": {
+          "$ref": "#/$defs/records"
+        },
+        "locations": {
+          "$ref": "#/$defs/records"
+        },
+        "relationships": {
+          "$ref": "#/$defs/records"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "revision"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          },
+          "updatedAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "visibility": {
+            "enum": [
+              "public",
+              "dm"
+            ]
+          },
+          "linkedTwinId": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "placement": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "x",
+              "y"
+            ],
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "hasLocalMap": {
+            "const": true
+          },
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "record": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

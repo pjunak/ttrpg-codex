@@ -103,6 +103,9 @@ server/                    visibility.cjs (role filter) · migrations.cjs ·
                            publication-barrier.cjs (read isolation) ·
                            collection-transactions.cjs (durable addon commits) ·
                            campaign-restore.cjs (durable restore publication) ·
+                           campaign-bundle-contract.cjs (pure core bundle
+                           planner/inventory) · campaign-bundle-provider.cjs
+                           (host provider + restricted addon contributions) ·
                            campaign-mutations.cjs (core cross-record invariants) ·
                            write-revision.cjs (optimistic record revisions) ·
                            import-contract.cjs (provider/parser/plan guards) ·
@@ -141,6 +144,7 @@ web/
     addon-host-contract.js Shared host.use + collection-declaration contract.
     addon-transactions.js  Shared buffered transaction facade used by the
                            live host and authoring harness.
+    import-center.js       Core DM-only campaign bundle review/commit page.
     store.js               In-memory domain state, secondary indices, trash,
                            undelete, and settings API.
     store-transport.js     Validated loads, optimistic revisions, recovery,

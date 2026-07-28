@@ -8,7 +8,7 @@ const PROVIDER_ID_RE = /^[a-z0-9][a-z0-9._-]{1,63}$/;
 const COLLECTION_RE = /^[a-z0-9][a-zA-Z0-9_]{0,63}$/;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const PROVIDER_CAPABILITIES = new Set(['abort-signal', 'structured-diagnostics']);
-const TARGET_TYPES = new Set(['addon-list', 'addon-keyed']);
+const TARGET_TYPES = new Set(['addon-list', 'addon-keyed', 'core']);
 const INPUT_FORMATS = new Set(['json']);
 
 const LIMITS = Object.freeze({
@@ -307,7 +307,7 @@ function normalizeProviderDescriptor(addon, raw, policy = {}) {
   if (!isPlainObject(raw)) throw new ImportError('IMPORT_PROVIDER_INVALID', 'Provider descriptor must be an object');
   const allowed = new Set([
     'id', 'apiVersion', 'schemaVersion', 'formats', 'reads', 'writes',
-    'targetTypes', 'limits', 'capabilities', 'preview',
+    'targetTypes', 'limits', 'capabilities', 'preview', 'schema',
   ]);
   for (const key of Object.keys(raw)) {
     if (!allowed.has(key)) throw new ImportError('IMPORT_PROVIDER_INVALID', `Provider has unknown field "${key}"`);
@@ -356,15 +356,29 @@ function normalizeProviderDescriptor(addon, raw, policy = {}) {
 
   const declarations = new Map((addon.collections || []).map(entry => [entry.name, entry]));
   const coreCollections = policy.coreCollections || new Set();
+  const hostOwned = policy.hostOwned === true;
+  const hostAddonCollections = policy.addonCollections instanceof Map
+    ? policy.addonCollections
+    : new Map();
   const resolveType = (ref) => {
     if (ref.scope === 'core') {
       if (!coreCollections.has(ref.collection)) {
         throw new ImportError('IMPORT_PROVIDER_UNDECLARED', 'Provider references an unavailable core collection');
       }
-      if (!grants.includes(`data:read:${ref.collection}`)) {
+      if (!hostOwned && !grants.includes(`data:read:${ref.collection}`)) {
         throw new ImportError('IMPORT_PERMISSION', `Core read requires data:read:${ref.collection}`, 403);
       }
       return 'core';
+    }
+    if (hostOwned) {
+      const declaration = hostAddonCollections.get(`${ref.addonId}:${ref.collection}`);
+      if (!declaration) {
+        throw new ImportError(
+          'IMPORT_PROVIDER_UNDECLARED',
+          'Host provider references an unavailable addon collection',
+        );
+      }
+      return declaration.keyed ? 'addon-keyed' : 'addon-list';
     }
     if (ref.addonId !== addon.id) {
       throw new ImportError(
@@ -383,7 +397,7 @@ function normalizeProviderDescriptor(addon, raw, policy = {}) {
   };
   reads.forEach(resolveType);
   for (const ref of writes) {
-    if (ref.scope === 'core') {
+    if (ref.scope === 'core' && policy.allowCoreWrites !== true) {
       throw new ImportError(
         'IMPORT_PROVIDER_FOREIGN',
         'Core collection writes are unsupported by provider API v1',
@@ -401,6 +415,9 @@ function normalizeProviderDescriptor(addon, raw, policy = {}) {
   const targetTypes = [];
   for (const type of raw.targetTypes) {
     if (!TARGET_TYPES.has(type)) throw new ImportError('IMPORT_PROVIDER_UNSUPPORTED', `Target type "${type}" is unsupported`);
+    if (type === 'core' && !hostOwned) {
+      throw new ImportError('IMPORT_PROVIDER_UNSUPPORTED', 'Core targets are reserved for host-owned providers');
+    }
     if (targetTypes.includes(type)) throw new ImportError('IMPORT_PROVIDER_INVALID', `Duplicate target type "${type}"`);
     targetTypes.push(type);
   }
@@ -429,6 +446,30 @@ function normalizeProviderDescriptor(addon, raw, policy = {}) {
   }
   if (typeof raw.preview !== 'function') {
     throw new ImportError('IMPORT_PROVIDER_INVALID', 'Provider preview must be a function');
+  }
+
+  let schema = null;
+  if (raw.schema !== undefined) {
+    if (!isPlainObject(raw.schema)) {
+      throw new ImportError('IMPORT_PROVIDER_INVALID', 'Provider schema must be an object');
+    }
+    const allowedSchemaFields = new Set(['id', 'version', 'url']);
+    for (const key of Object.keys(raw.schema)) {
+      if (!allowedSchemaFields.has(key)) {
+        throw new ImportError('IMPORT_PROVIDER_INVALID', `Provider schema has unknown field "${key}"`);
+      }
+    }
+    if (typeof raw.schema.id !== 'string' || !PROVIDER_ID_RE.test(raw.schema.id)
+        || !Number.isInteger(raw.schema.version) || raw.schema.version < 1
+        || typeof raw.schema.url !== 'string'
+        || !/^\/api\/content-import\/schemas\/[a-z0-9._-]{2,64}$/.test(raw.schema.url)) {
+      throw new ImportError('IMPORT_PROVIDER_INVALID', 'Provider schema descriptor is invalid');
+    }
+    schema = Object.freeze({
+      id: raw.schema.id,
+      version: raw.schema.version,
+      url: raw.schema.url,
+    });
   }
 
   const limitKeys = new Set([
@@ -464,6 +505,8 @@ function normalizeProviderDescriptor(addon, raw, policy = {}) {
     limits: Object.freeze(limits),
     capabilities: Object.freeze(capabilities),
     packageRevision: String(addon.packageRevision || ''),
+    hostOwned,
+    schema,
     preview: raw.preview,
   });
 }
@@ -510,7 +553,12 @@ function normalizeDiagnostics(raw) {
 
 function normalizePlan(provider, raw, targetTypesByKey) {
   if (!isPlainObject(raw)) throw new ImportError('IMPORT_PLAN_INVALID', 'Provider preview must return an object');
-  const allowed = new Set(['schemaVersion', 'operations', 'diagnostics']);
+  const allowed = new Set([
+    'schemaVersion',
+    'operations',
+    'diagnostics',
+    ...(provider.hostOwned ? ['review'] : []),
+  ]);
   for (const key of Object.keys(raw)) {
     if (!allowed.has(key)) throw new ImportError('IMPORT_PLAN_INVALID', `Provider plan has unknown field "${key}"`);
   }
@@ -525,7 +573,13 @@ function normalizePlan(provider, raw, targetTypesByKey) {
   const writeKeys = new Set();
   const operations = raw.operations.map((operation, index) => {
     if (!isPlainObject(operation)) throw new ImportError('IMPORT_PLAN_INVALID', `operations[${index}] must be an object`);
-    const allowedKeys = new Set(['target', 'op', 'id', 'value']);
+    const allowedKeys = new Set([
+      'target',
+      'op',
+      'id',
+      'value',
+      ...(provider.hostOwned ? ['meta'] : []),
+    ]);
     for (const key of Object.keys(operation)) {
       if (!allowedKeys.has(key)) throw new ImportError('IMPORT_PLAN_INVALID', `operations[${index}] has unknown field "${key}"`);
     }
@@ -567,12 +621,44 @@ function normalizePlan(provider, raw, targetTypesByKey) {
     if (byteLength(operation.value) > 256 * 1024) {
       throw new ImportError('IMPORT_OPERATION_LIMIT', `operations[${index}].value exceeds 262144 bytes`);
     }
-    return { target, op: 'put', id: operation.id, value: clone(operation.value) };
+    let meta;
+    if (provider.hostOwned && operation.meta !== undefined) {
+      if (!isPlainObject(operation.meta)) {
+        throw new ImportError('IMPORT_PLAN_INVALID', `operations[${index}].meta must be an object`);
+      }
+      assertSafeJson(operation.meta, `operations[${index}].meta`);
+      if (byteLength(operation.meta) > 16 * 1024) {
+        throw new ImportError('IMPORT_OPERATION_LIMIT', `operations[${index}].meta exceeds 16384 bytes`);
+      }
+      meta = clone(operation.meta);
+    }
+    return {
+      target,
+      op: 'put',
+      id: operation.id,
+      value: clone(operation.value),
+      ...(meta ? { meta } : {}),
+    };
   });
   if (byteLength(operations) > 2 * 1024 * 1024) {
     throw new ImportError('IMPORT_OPERATION_LIMIT', 'Plan operations exceed 2097152 bytes');
   }
-  return { operations, diagnostics: normalizeDiagnostics(raw.diagnostics) };
+  let review;
+  if (provider.hostOwned && raw.review !== undefined) {
+    if (!isPlainObject(raw.review)) {
+      throw new ImportError('IMPORT_PLAN_INVALID', 'Plan review must be an object');
+    }
+    assertSafeJson(raw.review, 'review');
+    if (byteLength(raw.review) > 4 * 1024 * 1024) {
+      throw new ImportError('IMPORT_OPERATION_LIMIT', 'Plan review exceeds 4194304 bytes');
+    }
+    review = clone(raw.review);
+  }
+  return {
+    operations,
+    diagnostics: normalizeDiagnostics(raw.diagnostics),
+    ...(review ? { review } : {}),
+  };
 }
 
 function stableStringify(value) {

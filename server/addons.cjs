@@ -424,6 +424,14 @@ function validateManifest(m) {
       errors.push('capability "imports.providers" requires at least one declared collection');
     }
   }
+  if (declaredCapabilities.includes('imports.bundle-contributors')) {
+    if (!declaredCapabilities.includes('imports.providers')) {
+      errors.push('capability "imports.bundle-contributors" requires capability "imports.providers"');
+    }
+    if (typeof m.server !== 'string' || !m.server) {
+      errors.push('capability "imports.bundle-contributors" requires a server module');
+    }
+  }
   if (declaredCapabilities.includes('graphs.facade')) {
     if (m.apiVersion !== 2) {
       errors.push('capability "graphs.facade" requires apiVersion 2');
