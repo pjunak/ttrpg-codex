@@ -562,10 +562,13 @@ suite when `ADDON_SUITE_TOKEN` is configured.
 ## Deployed surface area
 
 The Dockerfile copies the package manifests, `server.js`,
-`server-utils.cjs`, `tiler.js`, the complete `server/` directory, and `web/`.
+`server-utils.cjs`, `tiler.js`, the complete `server/` directory, the
+startup-loaded `schemas/` directory, and `web/`.
 Keep server services under `server/` so `COPY server ./server` remains the
 deployment boundary; a new top-level runtime file needs an explicit Dockerfile
-entry. `tiler.js` is the only optional-at-runtime module: failure to load it
+entry. Import schemas are read synchronously before bootstrap and therefore
+must remain inside the image; `test/docker-runtime-assets.test.cjs` guards that
+boundary. `tiler.js` is the only optional-at-runtime module: failure to load it
 degrades maps to a single-image overlay.
 
 The `web/icons-defaults/` directory ships the bundled
