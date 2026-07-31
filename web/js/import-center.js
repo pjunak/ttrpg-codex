@@ -104,7 +104,64 @@ export const ImportCenter = (() => {
   function _fieldOptions(field, path, currentValue) {
     let values = null;
     if (field === 'operation') values = ['create', 'update'];
-    if (field === 'kind') values = ['thread', 'quest', 'scenario', 'encounter', 'note'];
+    const documentIndex = path.indexOf('document');
+    const planningDocument = documentIndex >= 0 && _sourceDraft
+      ? valueAtPath(_sourceDraft, path.slice(0, documentIndex + 1))
+      : null;
+    const planningV2 = planningDocument?.format === 'dm-tools-planning'
+      && planningDocument.schemaVersion === 2;
+    const sourceArray = path.at(-3);
+    const planningItemOptions = (planningDocument?.items || []).map(item => ({
+      value: item.id,
+      label: item.title || item.id,
+    }));
+    if (field === 'kind' && planningV2 && sourceArray === 'items') {
+      values = ['plotline', 'quest', 'event', 'branch'];
+    } else if (field === 'kind' && planningV2 && sourceArray === 'flowLinks') {
+      values = ['continues', 'option'];
+    } else if (field === 'kind' && planningV2 && sourceArray === 'consequences') {
+      values = ['world', 'reward', 'information', 'complication'];
+    } else if (field === 'kind' && !planningV2) {
+      values = ['thread', 'quest', 'scenario', 'encounter', 'note'];
+    }
+    if (field === 'eventType' && planningV2 && sourceArray === 'items') {
+      values = ['story', 'encounter', 'puzzle'];
+    }
+    if (field === 'branchType' && planningV2 && sourceArray === 'items') {
+      values = ['decision', 'condition', 'random'];
+    }
+    if (field === 'relation' && planningV2 && sourceArray === 'references') {
+      values = [
+        'related',
+        'involves',
+        'features',
+        'located-at',
+        'opposes',
+        'supports',
+        'reveals',
+        'requires',
+        'rewards',
+      ];
+    }
+    if (field === 'parentId' && planningV2 && sourceArray === 'items') {
+      const currentItem = planningDocument.items?.[path.at(-2)];
+      values = [
+        { value: '', label: I18n.t('import.field.campaignRoot') },
+        ...planningItemOptions.filter(option => option.value !== currentItem?.id),
+      ];
+    }
+    if (planningV2 && ['sourceId', 'targetId', 'itemId'].includes(field)) {
+      values = planningItemOptions;
+    }
+    if (field === 'flowId' && planningV2) {
+      values = (planningDocument.flowLinks || []).map(flow => ({
+        value: flow.id,
+        label: flow.label || flow.id,
+      }));
+    }
+    if (field === 'collection' && planningV2) {
+      values = ['characters', 'factions', 'locations', 'mysteries', 'artifacts', 'events'];
+    }
     if (field === 'state') values = ['idea', 'ready', 'active', 'resolved', 'archived'];
     if (field === 'visibility') values = ['public', 'dm'];
     if (field === 'scope') values = ['planning', 'core', 'external'];
@@ -121,7 +178,10 @@ export const ImportCenter = (() => {
       ];
     }
     if (!values) return null;
-    if (typeof currentValue === 'string' && currentValue && !values.includes(currentValue)) {
+    const optionValues = values?.map(option => (
+      option && typeof option === 'object' ? option.value : option
+    ));
+    if (typeof currentValue === 'string' && currentValue && !optionValues?.includes(currentValue)) {
       values.unshift(currentValue);
     }
     return values;
@@ -140,10 +200,17 @@ export const ImportCenter = (() => {
     }
     const options = _fieldOptions(field, path, value);
     if (options) {
+      const selectedValue = value ?? '';
       return `<label class="import-form-field">
         <span>${label}</span>
         <select class="edit-input"${editable ? pathAttribute : ' disabled'}>
-          ${options.map(option => `<option value="${esc(option)}"${option === value ? ' selected' : ''}>${esc(_fieldLabel(option))}</option>`).join('')}
+          ${options.map(option => {
+            const optionValue = option && typeof option === 'object' ? option.value : option;
+            const optionLabel = option && typeof option === 'object'
+              ? option.label
+              : _fieldLabel(option);
+            return `<option value="${esc(optionValue)}"${optionValue === selectedValue ? ' selected' : ''}>${esc(optionLabel)}</option>`;
+          }).join('')}
         </select>
       </label>`;
     }
@@ -385,15 +452,24 @@ export const ImportCenter = (() => {
     return `<div class="import-story-cards">${story.items.map(item => {
       const change = byId.get(item.id);
       if (!change) return '';
+      const kind = [
+        'plotline', 'quest', 'event', 'branch',
+        'thread', 'scenario', 'encounter', 'note',
+      ].includes(item.kind) ? item.kind : 'note';
+      const eventType = ['story', 'encounter', 'puzzle'].includes(item.eventType)
+        ? ` is-${item.eventType}`
+        : '';
       return _changeHtml(
         change,
-        `import-story-change is-${item.kind || 'note'}`,
+        `import-story-change is-${kind}${eventType}`,
       );
     }).join('')}</div>`;
   }
 
   function _storyConnectionsHtml(story) {
-    const edges = story.edges.filter(edge => edge.type !== 'precedes' && edge.type !== 'branches');
+    const edges = story.edges.filter(edge => (
+      !['precedes', 'branches', 'continues', 'option'].includes(edge.type)
+    ));
     if (!edges.length) return '';
     const nodes = new Map(story.nodes.map(node => [node.id, node]));
     const items = new Map(story.items.map(item => [item.id, item]));
@@ -427,14 +503,17 @@ export const ImportCenter = (() => {
     return `<ol class="import-flow-list">${story.flowEdges.map(edge => {
       const source = nodes.get(edge.source);
       const target = nodes.get(edge.target);
-      return `<li class="is-${edge.type}">
+      const type = ['precedes', 'branches', 'continues', 'option'].includes(edge.type)
+        ? edge.type
+        : 'continues';
+      return `<li class="is-${type}">
         <span class="import-flow-source">
           ${source?.parentLabel ? `<small>${esc(source.parentLabel)}</small>` : ''}
           <strong>${esc(source?.label || edge.source)}</strong>
         </span>
         <span class="import-flow-transition">
           <b>${esc(edge.label)}</b>
-          <small>${esc(I18n.t(edge.type === 'branches'
+          <small>${esc(I18n.t(type === 'branches' || type === 'option'
             ? 'import.flowBranch'
             : 'import.flowNext'))}</small>
         </span>
@@ -446,6 +525,21 @@ export const ImportCenter = (() => {
     }).join('')}</ol>`;
   }
 
+  function _storyPlanHeaderHtml(story) {
+    if (!story.items.length) return '';
+    const rootTitles = story.roots.map(item => item.title || item.name || item.id).filter(Boolean);
+    const title = rootTitles.length ? rootTitles.join(' · ') : I18n.t('import.questlineUntitled');
+    return `<header class="import-plan-score">
+      <span>${esc(I18n.t('import.questlinePlan'))}</span>
+      <h4>${esc(title)}</h4>
+      <p>${esc(I18n.t('import.questlinePlanSummary', {
+        items: story.items.length,
+        decisions: story.items.filter(item => item.kind === 'branch').length,
+        links: story.flowEdges.length,
+      }))}</p>
+    </header>`;
+  }
+
   function _storyPreviewHtml(changes = []) {
     _storyReview = _storyModel(changes);
     if (!_storyReview.nodes.length && !_storyReview.items.length) {
@@ -453,6 +547,7 @@ export const ImportCenter = (() => {
     }
     return `
       <div class="import-story-evidence">
+        ${_storyPlanHeaderHtml(_storyReview)}
         ${_storyReview.flowNodes.length ? `
           <div class="import-story-graph-shell">
             <div id="import-story-graph" class="import-story-graph"
@@ -533,7 +628,22 @@ export const ImportCenter = (() => {
           },
           {
             selector: 'node[kind = "quest"]',
-            style: { 'border-color': token('--accent-gold', '#c8a040') },
+            style: { 'border-color': token('--color-info', '#90caf9') },
+          },
+          {
+            selector: 'node[kind = "plotline"]',
+            style: {
+              'border-color': token('--accent-gold', '#c8a040'),
+              'border-width': 3,
+            },
+          },
+          {
+            selector: 'node[kind = "event"][eventType = "encounter"]',
+            style: { 'border-color': token('--color-danger-bright', '#ff8888') },
+          },
+          {
+            selector: 'node[kind = "event"][eventType = "puzzle"]',
+            style: { 'border-color': token('--color-mystery', '#ce93d8') },
           },
           {
             selector: 'node[kind = "scenario"]',
@@ -574,7 +684,7 @@ export const ImportCenter = (() => {
             },
           },
           {
-            selector: 'edge[type = "branches"]',
+            selector: 'edge[type = "branches"], edge[type = "option"]',
             style: {
               width: 2.5,
               'line-color': token('--accent-gold', '#c8a040'),
@@ -897,14 +1007,14 @@ export const ImportCenter = (() => {
           <div class="${errorCount ? 'is-danger' : ''}"><strong>${errorCount}</strong><span>${esc(I18n.t('import.errors'))}</span></div>
         </div>
 
-        <section class="import-review-section">
-          <h3>${esc(I18n.t('import.diagnostics'))}</h3>
-          ${_diagnosticsHtml(plan.diagnostics)}
-        </section>
         <section class="import-review-section import-story-section">
           <h3>${esc(I18n.t('import.flowPreview'))}</h3>
           <p class="import-section-copy">${esc(I18n.t('import.flowPreviewHint'))}</p>
           ${_storyPreviewHtml(review.changes)}
+        </section>
+        <section class="import-review-section">
+          <h3>${esc(I18n.t('import.diagnostics'))}</h3>
+          ${_diagnosticsHtml(plan.diagnostics)}
         </section>
         <section class="import-review-section">
           <h3>${esc(I18n.t('import.mapPreview'))}</h3>

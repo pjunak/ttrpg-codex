@@ -86,10 +86,21 @@ export function locateChangeSource(source, change) {
   if (importIndex < 0) return null;
   const document = imports[importIndex].document;
   const collection = String(change.collection || '').split(':').at(-1);
+  const sourceCollection = {
+    planning_items: 'items',
+    planning_flow_links: 'flowLinks',
+    planning_references: 'references',
+    planning_consequences: 'consequences',
+    dm_notes: 'notes',
+  }[collection] || collection;
   const arrays = Object.entries(document)
     .filter(([, value]) => Array.isArray(value));
-  const preferred = arrays.filter(([key]) => collection === key || collection.endsWith(`_${key}`));
-  const matches = [...preferred, ...arrays.filter(entry => !preferred.includes(entry))]
+  const exact = arrays.filter(([key]) => sourceCollection === key);
+  const compatible = arrays.filter(([key]) => (
+    sourceCollection !== key && (collection === key || collection.endsWith(`_${key}`))
+  ));
+  const prioritized = [...exact, ...compatible];
+  const matches = [...prioritized, ...arrays.filter(entry => !prioritized.includes(entry))]
     .map(([key, records]) => ({
       key,
       index: records.findIndex(record => isObject(record) && record.id === change.id),
@@ -120,8 +131,16 @@ export function buildStoryReview(changes, {
   const items = values
     .filter(change => planningCollection(change.collection, 'planning_items') && isObject(change.after))
     .map(change => ({ id: change.id, ...clone(change.after) }));
-  const links = values
+  const legacyLinks = values
     .filter(change => planningCollection(change.collection, 'planning_links') && isObject(change.after))
+    .map(change => ({ id: change.id, ...clone(change.after) }));
+  const flowLinks = values
+    .filter(change => planningCollection(change.collection, 'planning_flow_links')
+      && isObject(change.after))
+    .map(change => ({ id: change.id, ...clone(change.after) }));
+  const references = values
+    .filter(change => planningCollection(change.collection, 'planning_references')
+      && isObject(change.after))
     .map(change => ({ id: change.id, ...clone(change.after) }));
   const nodes = new Map();
   const edges = [];
@@ -134,12 +153,17 @@ export function buildStoryReview(changes, {
     return node.id;
   };
   for (const item of items) {
+    const parent = itemsById.get(item.parentId);
     addNode({
       id: `planning:${item.id}`,
       recordId: item.id,
       scope: 'planning',
       kind: item.kind || 'note',
       label: labelOf(item, item.id),
+      parentId: item.parentId || '',
+      parentLabel: labelOf(parent, ''),
+      eventType: item.eventType || '',
+      branchType: item.branchType || '',
     });
   }
 
@@ -147,12 +171,18 @@ export function buildStoryReview(changes, {
     if (!isObject(endpoint)) return '';
     if (endpoint.scope === 'planning' && typeof endpoint.itemId === 'string') {
       const id = `planning:${endpoint.itemId}`;
+      const item = itemsById.get(endpoint.itemId);
+      const parent = itemsById.get(item?.parentId);
       addNode({
         id,
         recordId: endpoint.itemId,
         scope: 'planning',
-        kind: 'note',
-        label: endpoint.itemId,
+        kind: item?.kind || 'note',
+        label: labelOf(item, endpoint.itemId),
+        parentId: item?.parentId || '',
+        parentLabel: labelOf(parent, ''),
+        eventType: item?.eventType || '',
+        branchType: item?.branchType || '',
       });
       return id;
     }
@@ -189,6 +219,7 @@ export function buildStoryReview(changes, {
     if (!isObject(endpoint)) return '';
     if (endpoint.scope === 'planning' && typeof endpoint.itemId === 'string') {
       const item = itemsById.get(endpoint.itemId);
+      const parent = itemsById.get(item?.parentId);
       const section = endpoint.sectionId
         ? (item?.sections || []).find(value => value.id === endpoint.sectionId)
         : null;
@@ -198,16 +229,19 @@ export function buildStoryReview(changes, {
       if (!flowNodes.has(id)) {
         const itemLabel = labelOf(item, endpoint.itemId);
         const sectionLabel = section ? labelOf(section, section.id) : '';
+        const parentLabel = section ? itemLabel : labelOf(parent, '');
         flowNodes.set(id, {
           id,
           recordId: endpoint.itemId,
           sectionId: section?.id || '',
           scope: 'planning',
           kind: item?.kind || 'note',
+          eventType: item?.eventType || '',
+          branchType: item?.branchType || '',
           endpointKind: section ? 'section' : 'item',
           label: sectionLabel || itemLabel,
-          graphLabel: section ? `${itemLabel}\n${sectionLabel}` : itemLabel,
-          parentLabel: section ? itemLabel : '',
+          graphLabel: parentLabel ? `${parentLabel}\n${sectionLabel || itemLabel}` : itemLabel,
+          parentLabel,
         });
       }
       return id;
@@ -218,7 +252,7 @@ export function buildStoryReview(changes, {
     return id;
   };
 
-  for (const link of links) {
+  for (const link of legacyLinks) {
     const source = endpointNode(link.source);
     const target = endpointNode(link.target);
     if (!source || !target) continue;
@@ -250,6 +284,53 @@ export function buildStoryReview(changes, {
     }
   }
 
+  for (const link of flowLinks) {
+    const sourceEndpoint = { scope: 'planning', itemId: link.sourceId };
+    const targetEndpoint = { scope: 'planning', itemId: link.targetId };
+    const source = endpointNode(sourceEndpoint);
+    const target = endpointNode(targetEndpoint);
+    if (!source || !target) continue;
+    const edge = {
+      id: `planning-flow:${link.id}`,
+      recordId: link.id,
+      source,
+      target,
+      type: link.kind || 'continues',
+      label: labelOf(link, link.kind || 'continues'),
+      sourceSectionId: '',
+      targetSectionId: '',
+      notes: '',
+    };
+    edges.push(edge);
+    const flowSource = flowEndpointNode(sourceEndpoint);
+    const flowTarget = flowEndpointNode(targetEndpoint);
+    if (flowSource && flowTarget) {
+      flowEdges.push({
+        ...edge,
+        id: `flow-link:${link.id}`,
+        source: flowSource,
+        target: flowTarget,
+      });
+    }
+  }
+
+  for (const reference of references) {
+    const source = endpointNode({ scope: 'planning', itemId: reference.itemId });
+    const target = endpointNode(reference.target);
+    if (!source || !target) continue;
+    edges.push({
+      id: `planning-reference:${reference.id}`,
+      recordId: reference.id,
+      source,
+      target,
+      type: reference.relation || 'related',
+      label: labelOf(reference, reference.relation || 'related'),
+      sourceSectionId: '',
+      targetSectionId: '',
+      notes: typeof reference.notes === 'string' ? reference.notes : '',
+    });
+  }
+
   for (const change of values) {
     if (change.collection !== 'relationships' || !isObject(change.after)) continue;
     const relationship = change.after;
@@ -278,11 +359,16 @@ export function buildStoryReview(changes, {
   }
 
   const decisionNodes = new Set(flowEdges
-    .filter(edge => edge.type === 'branches')
+    .filter(edge => edge.type === 'branches' || edge.type === 'option')
     .map(edge => edge.source));
+  for (const item of items) {
+    if (item.kind === 'branch') decisionNodes.add(`planning:${item.id}`);
+  }
   return {
     items,
-    links,
+    links: [...legacyLinks, ...flowLinks],
+    references,
+    roots: items.filter(item => !item.parentId),
     nodes: [...nodes.values()],
     edges,
     flowNodes: [...flowNodes.values()].map(node => ({

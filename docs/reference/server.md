@@ -217,12 +217,17 @@ typed local/stored references, derived connection symmetry, exact before/after
 writes, a player projection, and map-placement evidence. It accepts no core
 updates, deletes, media, twins, settings, auth, backups, or registry changes.
 The current schema and campaign inventory are discoverable through the API.
-The review UI treats contributed planning links of type `precedes` and
-`branches` as the only chronological/decision-flow authority. Other explicit
-planning links and core relationships remain supporting context; the browser
-never invents time, causality, or choice from prose, tags, array order, or
-folders. Every materialized change expands into a read-only current-value form
-and, where the original input record is identifiable, an editable source form.
+The review UI recognizes DM Tools planning schema v2 directly. Contributed
+`planning_items` provide nested plotline/quest ownership and typed
+event/branch presentation; `planning_flow_links` of kind `continues` or
+`option` are the only chronological/decision-flow authority. Named planning
+references and core relationships remain supporting context. The legacy
+`planning_links` `precedes`/`branches` preview shape remains readable, but the
+browser never invents time, causality, or choice from prose, tags, array order,
+or ownership. The questline diagram precedes diagnostics and selecting one of
+its nodes opens that planning item's before/after review form. Every
+materialized change expands into a read-only current-value form and, where the
+original input record is identifiable, an editable source form.
 Source edits and directly imported map-marker moves stay local and disable
 commit. **Revalidate all edits** serializes the modified source into a new
 input, creates a new job, and obtains a fresh plan/token; the prior job remains
