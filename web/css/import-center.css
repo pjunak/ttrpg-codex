@@ -557,12 +557,6 @@
   background: #171a1d;
 }
 
-.import-map-stage > img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
 .import-map-stage.has-no-image {
   display: grid;
   place-items: center;
@@ -576,68 +570,32 @@
   color: var(--text-muted);
 }
 
-.import-map-pin {
-  position: absolute;
-  left: var(--import-pin-x);
-  top: var(--import-pin-y);
-  display: grid;
-  justify-items: center;
-  transform: translate(-50%, -50%);
-  color: var(--import-pin-color);
-  filter: drop-shadow(0 2px 3px #000);
+.import-map-leaflet {
+  height: min(68vh, 720px);
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: #171a1d;
 }
 
-.import-map-pin.is-adjustable {
-  z-index: 3;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: grab;
-  font: inherit;
-  touch-action: none;
+.import-map-leaflet[aria-busy="true"] {
+  background:
+    radial-gradient(circle at center, rgba(var(--accent-gold-rgb), 0.08), transparent 58%),
+    #171a1d;
 }
 
-.import-map-pin.is-adjustable:focus-visible {
+.import-map-marker.is-existing {
+  opacity: 0.42;
+}
+
+.import-map-marker.is-changed {
+  z-index: 600 !important;
+}
+
+.import-map-marker.is-adjustable:focus-visible {
   outline: 2px solid var(--accent-gold);
   outline-offset: var(--space-1);
-}
-
-.import-map-pin.is-adjustable.is-dragging {
-  z-index: 4;
-  cursor: grabbing;
-  filter: drop-shadow(0 3px 7px #000);
-}
-
-.import-map-pin.is-existing {
-  opacity: 0.48;
-}
-
-.import-map-pin.is-changed {
-  z-index: 2;
-}
-
-.import-map-pin > span {
-  width: var(--import-pin-size);
-  height: var(--import-pin-size);
-  display: grid;
-  place-items: center;
-  border: 2px solid currentColor;
-  border-radius: 50%;
-  background: rgba(18, 20, 23, 0.9);
-  font-size: calc(var(--import-pin-size) * 0.54);
-}
-
-.import-map-pin b {
-  max-width: 180px;
-  margin-top: var(--space-1);
-  padding: 2px 5px;
-  border-radius: var(--radius-sm);
-  background: rgba(0, 0, 0, 0.78);
-  color: var(--text-light);
-  font-size: var(--text-xs);
-  line-height: 1.25;
-  text-align: center;
 }
 
 .import-story-evidence {
@@ -741,7 +699,6 @@
   background: var(--bg-surface);
 }
 
-.import-flow-list li.is-branches,
 .import-flow-list li.is-option {
   border-left-color: var(--accent-gold);
 }
@@ -1009,6 +966,11 @@
 
   .import-story-graph {
     height: 420px;
+  }
+
+  .import-map-leaflet {
+    height: 55vh;
+    min-height: 320px;
   }
 
   .import-story-connections li {

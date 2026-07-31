@@ -123,25 +123,40 @@ function planningCollection(collection, name) {
   return typeof collection === 'string' && collection.endsWith(`:${name}`);
 }
 
+export function locatePlanningDocument(source) {
+  if (!isObject(source) || !Array.isArray(source.addonImports)) return null;
+  const index = source.addonImports.findIndex(entry => (
+    entry?.addonId === 'dm-tools'
+    && entry?.contributorId === 'planning'
+    && entry?.document?.format === 'dm-tools-planning'
+    && entry?.document?.schemaVersion === 2
+  ));
+  if (index < 0) return null;
+  const path = ['addonImports', index, 'document'];
+  return { path, document: valueAtPath(source, path) };
+}
+
 export function buildStoryReview(changes, {
   coreLabel = (_collection, id) => id,
   relationshipTarget = () => 'characters',
+  planningDocument = null,
 } = {}) {
   const values = Array.isArray(changes) ? changes : [];
-  const items = values
-    .filter(change => planningCollection(change.collection, 'planning_items') && isObject(change.after))
-    .map(change => ({ id: change.id, ...clone(change.after) }));
-  const legacyLinks = values
-    .filter(change => planningCollection(change.collection, 'planning_links') && isObject(change.after))
-    .map(change => ({ id: change.id, ...clone(change.after) }));
-  const flowLinks = values
-    .filter(change => planningCollection(change.collection, 'planning_flow_links')
-      && isObject(change.after))
-    .map(change => ({ id: change.id, ...clone(change.after) }));
-  const references = values
-    .filter(change => planningCollection(change.collection, 'planning_references')
-      && isObject(change.after))
-    .map(change => ({ id: change.id, ...clone(change.after) }));
+  const source = planningDocument?.format === 'dm-tools-planning'
+    && planningDocument?.schemaVersion === 2
+    ? planningDocument
+    : null;
+  const records = (sourceField, collection) => (
+    source && Array.isArray(source[sourceField])
+      ? source[sourceField].filter(isObject).map(clone)
+      : values
+        .filter(change => planningCollection(change.collection, collection)
+          && isObject(change.after))
+        .map(change => ({ id: change.id, ...clone(change.after) }))
+  );
+  const items = records('items', 'planning_items');
+  const flowLinks = records('flowLinks', 'planning_flow_links');
+  const references = records('references', 'planning_references');
   const nodes = new Map();
   const edges = [];
   const flowNodes = new Map();
@@ -158,7 +173,7 @@ export function buildStoryReview(changes, {
       id: `planning:${item.id}`,
       recordId: item.id,
       scope: 'planning',
-      kind: item.kind || 'note',
+      kind: item.kind || 'event',
       label: labelOf(item, item.id),
       parentId: item.parentId || '',
       parentLabel: labelOf(parent, ''),
@@ -167,18 +182,18 @@ export function buildStoryReview(changes, {
     });
   }
 
-  const endpointNode = endpoint => {
-    if (!isObject(endpoint)) return '';
-    if (endpoint.scope === 'planning' && typeof endpoint.itemId === 'string') {
-      const id = `planning:${endpoint.itemId}`;
-      const item = itemsById.get(endpoint.itemId);
+  const endpointNode = target => {
+    if (!isObject(target)) return '';
+    if (target.scope === 'planning' && typeof target.itemId === 'string') {
+      const id = `planning:${target.itemId}`;
+      const item = itemsById.get(target.itemId);
       const parent = itemsById.get(item?.parentId);
       addNode({
         id,
-        recordId: endpoint.itemId,
+        recordId: target.itemId,
         scope: 'planning',
-        kind: item?.kind || 'note',
-        label: labelOf(item, endpoint.itemId),
+        kind: item?.kind || 'event',
+        label: labelOf(item, target.itemId),
         parentId: item?.parentId || '',
         parentLabel: labelOf(parent, ''),
         eventType: item?.eventType || '',
@@ -186,103 +201,60 @@ export function buildStoryReview(changes, {
       });
       return id;
     }
-    if (endpoint.scope === 'core'
-        && typeof endpoint.collection === 'string'
-        && typeof endpoint.id === 'string') {
-      const id = `core:${endpoint.collection}:${endpoint.id}`;
+    if (target.scope === 'core'
+        && typeof target.collection === 'string'
+        && typeof target.id === 'string') {
+      const id = `core:${target.collection}:${target.id}`;
       addNode({
         id,
-        recordId: endpoint.id,
+        recordId: target.id,
         scope: 'core',
-        kind: endpoint.collection,
-        label: coreLabel(endpoint.collection, endpoint.id) || endpoint.id,
+        kind: target.collection,
+        label: coreLabel(target.collection, target.id) || target.id,
       });
       return id;
     }
-    if (endpoint.scope === 'external'
-        && typeof endpoint.addonId === 'string'
-        && typeof endpoint.id === 'string') {
-      const id = `external:${endpoint.addonId}:${endpoint.kind || 'record'}:${endpoint.id}`;
+    if (target.scope === 'external'
+        && typeof target.addonId === 'string'
+        && typeof target.id === 'string') {
+      const id = `external:${target.addonId}:${target.kind || 'record'}:${target.id}`;
       addNode({
         id,
-        recordId: endpoint.id,
+        recordId: target.id,
         scope: 'external',
-        kind: endpoint.kind || 'record',
-        label: endpoint.label || endpoint.id,
+        kind: target.kind || 'record',
+        label: target.label || target.id,
       });
       return id;
     }
     return '';
   };
 
-  const flowEndpointNode = endpoint => {
-    if (!isObject(endpoint)) return '';
-    if (endpoint.scope === 'planning' && typeof endpoint.itemId === 'string') {
-      const item = itemsById.get(endpoint.itemId);
+  const flowEndpointNode = itemId => {
+    if (typeof itemId !== 'string') return '';
+    const item = itemsById.get(itemId);
+    if (item) {
       const parent = itemsById.get(item?.parentId);
-      const section = endpoint.sectionId
-        ? (item?.sections || []).find(value => value.id === endpoint.sectionId)
-        : null;
-      const id = section
-        ? `planning:${endpoint.itemId}:section:${endpoint.sectionId}`
-        : `planning:${endpoint.itemId}`;
+      const id = `planning:${itemId}`;
       if (!flowNodes.has(id)) {
-        const itemLabel = labelOf(item, endpoint.itemId);
-        const sectionLabel = section ? labelOf(section, section.id) : '';
-        const parentLabel = section ? itemLabel : labelOf(parent, '');
+        const itemLabel = labelOf(item, itemId);
+        const parentLabel = labelOf(parent, '');
         flowNodes.set(id, {
           id,
-          recordId: endpoint.itemId,
-          sectionId: section?.id || '',
+          recordId: itemId,
           scope: 'planning',
-          kind: item?.kind || 'note',
+          kind: item.kind || 'event',
           eventType: item?.eventType || '',
           branchType: item?.branchType || '',
-          endpointKind: section ? 'section' : 'item',
-          label: sectionLabel || itemLabel,
-          graphLabel: parentLabel ? `${parentLabel}\n${sectionLabel || itemLabel}` : itemLabel,
+          label: itemLabel,
+          graphLabel: parentLabel ? `${parentLabel}\n${itemLabel}` : itemLabel,
           parentLabel,
         });
       }
       return id;
     }
-    const id = endpointNode(endpoint);
-    const node = nodes.get(id);
-    if (node && !flowNodes.has(id)) flowNodes.set(id, { ...clone(node), graphLabel: node.label });
-    return id;
+    return '';
   };
-
-  for (const link of legacyLinks) {
-    const source = endpointNode(link.source);
-    const target = endpointNode(link.target);
-    if (!source || !target) continue;
-    edges.push({
-      id: `planning-link:${link.id}`,
-      recordId: link.id,
-      source,
-      target,
-      type: link.type || 'related',
-      label: labelOf(link, link.type || ''),
-      sourceSectionId: link.source?.sectionId || '',
-      targetSectionId: link.target?.sectionId || '',
-      notes: typeof link.notes === 'string' ? link.notes : '',
-    });
-    if (link.type === 'precedes' || link.type === 'branches') {
-      const flowSource = flowEndpointNode(link.source);
-      const flowTarget = flowEndpointNode(link.target);
-      if (flowSource && flowTarget) {
-        flowEdges.push({
-          id: `flow-link:${link.id}`,
-          recordId: link.id,
-          source: flowSource,
-          target: flowTarget,
-          type: link.type,
-          label: labelOf(link, link.type),
-          notes: typeof link.notes === 'string' ? link.notes : '',
-        });
-      }
-    }
-  }
 
   for (const link of flowLinks) {
     const sourceEndpoint = { scope: 'planning', itemId: link.sourceId };
@@ -302,8 +274,8 @@ export function buildStoryReview(changes, {
       notes: '',
     };
     edges.push(edge);
-    const flowSource = flowEndpointNode(sourceEndpoint);
-    const flowTarget = flowEndpointNode(targetEndpoint);
+    const flowSource = flowEndpointNode(link.sourceId);
+    const flowTarget = flowEndpointNode(link.targetId);
     if (flowSource && flowTarget) {
       flowEdges.push({
         ...edge,
@@ -325,8 +297,6 @@ export function buildStoryReview(changes, {
       target,
       type: reference.relation || 'related',
       label: labelOf(reference, reference.relation || 'related'),
-      sourceSectionId: '',
-      targetSectionId: '',
       notes: typeof reference.notes === 'string' ? reference.notes : '',
     });
   }
@@ -352,21 +322,19 @@ export function buildStoryReview(changes, {
       target,
       type: relationship.type || 'related',
       label: labelOf(relationship, relationship.type || ''),
-      sourceSectionId: '',
-      targetSectionId: '',
       notes: '',
     });
   }
 
   const decisionNodes = new Set(flowEdges
-    .filter(edge => edge.type === 'branches' || edge.type === 'option')
+    .filter(edge => edge.type === 'option')
     .map(edge => edge.source));
   for (const item of items) {
     if (item.kind === 'branch') decisionNodes.add(`planning:${item.id}`);
   }
   return {
     items,
-    links: [...legacyLinks, ...flowLinks],
+    links: flowLinks,
     references,
     roots: items.filter(item => !item.parentId),
     nodes: [...nodes.values()],

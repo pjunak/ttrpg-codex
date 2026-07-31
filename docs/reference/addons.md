@@ -249,6 +249,9 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   (`use()` requires the dep be declared as a hard OR optional dependency + the
   provider loaded; a present declared dep is load-ordered first, an absent
   OPTIONAL one just makes `use()` throw → caught → the consumer runs standalone).
+  Core may feature-detect an addon-owned presentation integration through its
+  lifecycle-scoped provided API (`Addons.providedApi(id)`); this is not exposed
+  to unrelated addons and every core caller must retain a built-in fallback.
 - **Lifecycle + reconciliation:** a successful `register(host)` may return a
   cleanup function and may also register any number of cleanup functions with
   `host.onDispose(fn)`. Each cleanup is invoked exactly once, in reverse

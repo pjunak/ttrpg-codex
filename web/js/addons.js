@@ -434,7 +434,7 @@ export const Addons = (() => {
      *  declared dep loads first; an OPTIONAL dep that's absent/blocked simply
      *  isn't loaded, so `use()` throws and the caller falls back (the soft-use
      *  pattern: probe lazily per render, try/caught). */
-    function use(depId) {
+  function use(depId) {
       return resolveDependency(meta, depId, (dependencyId) => _addonApis.get(dependencyId));
     }
     function onDispose(fn) {
@@ -1138,6 +1138,13 @@ export const Addons = (() => {
     }
     return out;
   }
+
+  /** Core-only bridge for optional, addon-owned presentation integrations.
+   *  Addon APIs remain lifecycle-scoped by provide(); callers must feature-detect
+   *  every method and keep a built-in fallback. */
+  function providedApi(addonId) {
+    return _addonApis.get(addonId) || null;
+  }
   /** Addon-registered DATA kinds by domain — merged into Store.getKinds via
    *  Store.setAddonKindProvider (wired in app.js). Pure-data domains
    *  (connections / statuses / priorities / attitudes / genders / pinTypes)
@@ -1223,7 +1230,7 @@ export const Addons = (() => {
     applyFragments, bodyOverridden, conflicts, unmatchedClaims,
     settingsTabs, settingsTab, runAction,
     resolveWikiLink,
-    slotContent,
+    slotContent, providedApi,
     connectionKinds, nodeKinds, graphViews, graphContributors, kindsForDomain,
     describePermission,
   };

@@ -1,16 +1,18 @@
 import { createAddonImportClient } from './addon-imports.js';
+import { Addons } from './addons.js';
 import { I18n } from './i18n.js';
 import {
   applyLocationAdjustments,
   buildStoryReview,
   locateChangeSource,
+  locatePlanningDocument,
   setValueAtPath,
   valueAtPath,
 } from './import-review.js';
-import { PinTypes } from './pin-types.js';
+import { WorldMap } from './map.js';
 import { Role } from './role.js';
 import { Store } from './store.js';
-import { announce, dataAction, dataOn, esc, safeColor } from './utils.js';
+import { announce, dataAction, dataOn, esc } from './utils.js';
 
 const PROVIDER_ID = 'campaign-bundle';
 const WORLD_MAP_IMAGE = '/maps/swordcoast/sword_coast.jpg';
@@ -26,7 +28,12 @@ export const ImportCenter = (() => {
   let _generation = 0;
   let _storyGraph = null;
   let _storyReview = null;
-  let _dragCleanup = null;
+  let _storyRenderer = null;
+  let _storyRendererView = null;
+  let _storyRendererCleanup = null;
+  let _storyScopeId = null;
+  let _storySelectedId = '';
+  let _mapPreviewCleanups = [];
   let _sourceOriginal = null;
   let _sourceDraft = null;
   const _sourceLocations = new Map();
@@ -121,8 +128,6 @@ export const ImportCenter = (() => {
       values = ['continues', 'option'];
     } else if (field === 'kind' && planningV2 && sourceArray === 'consequences') {
       values = ['world', 'reward', 'information', 'complication'];
-    } else if (field === 'kind' && !planningV2) {
-      values = ['thread', 'quest', 'scenario', 'encounter', 'note'];
     }
     if (field === 'eventType' && planningV2 && sourceArray === 'items') {
       values = ['story', 'encounter', 'puzzle'];
@@ -165,18 +170,6 @@ export const ImportCenter = (() => {
     if (field === 'state') values = ['idea', 'ready', 'active', 'resolved', 'archived'];
     if (field === 'visibility') values = ['public', 'dm'];
     if (field === 'scope') values = ['planning', 'core', 'external'];
-    if (field === 'type' && path.includes('addonImports') && path.includes('links')) {
-      values = [
-        'related',
-        'involves',
-        'supports',
-        'opposes',
-        'reveals',
-        'requires',
-        'precedes',
-        'branches',
-      ];
-    }
     if (!values) return null;
     const optionValues = values?.map(option => (
       option && typeof option === 'object' ? option.value : option
@@ -295,7 +288,7 @@ export const ImportCenter = (() => {
     </div>`;
   }
 
-  function _changeHtml(change, className = '') {
+  function _changeHtml(change, className = '', open = false) {
     const label = change.after?.title || change.after?.name || change.after?.label
       || change.sourceRef || change.id;
     const statusKey = change.status === 'update' ? 'import.update' : 'import.create';
@@ -311,7 +304,7 @@ export const ImportCenter = (() => {
     const after = source?.value ?? change.after;
     return `
       <details class="import-change${className ? ` ${className}` : ''}"
-        data-change-id="${esc(`${change.collection}:${change.id}`)}">
+        data-change-id="${esc(`${change.collection}:${change.id}`)}"${open ? ' open' : ''}>
         <summary>
           <span class="import-change-kind">${esc(change.collection)}</span>
           <strong>${esc(label)}</strong>
@@ -379,42 +372,18 @@ export const ImportCenter = (() => {
   }
 
   function _mapPreviewHtml(changes = []) {
-    const pinTypes = Store.getEnum('pinTypes') || [];
     const groups = _mapGroups(changes);
     if (!groups.length) return `<p class="import-empty">${esc(I18n.t('import.noMapChanges'))}</p>`;
-    return `<div class="import-map-list">${groups.map(group => `
+    return `<div class="import-map-list">${groups.map((group, index) => `
       <figure class="import-map-card">
         <figcaption>
           <strong>${esc(group.label)}</strong>
           <span>${esc(I18n.t('import.changedPins', { count: group.changedCount }))}</span>
         </figcaption>
-        <div class="import-map-stage${group.image ? '' : ' has-no-image'}">
-          ${group.image
-            ? `<img src="${esc(group.image)}" alt="" loading="lazy">`
-            : `<p>${esc(I18n.t('import.mapUnavailable'))}</p>`}
-          ${group.pins.map(pin => {
-            const definition = PinTypes.resolve(pinTypes, pin.pinType);
-            const size = Math.max(
-              PinTypes.sizeMin,
-              Math.min(PinTypes.sizeMax, Number(pin.size) || Number(definition.size) || PinTypes.sizeDefault),
-            );
-            const adjustment = pin.sourceRef ? _mapAdjustments.get(pin.sourceRef) : null;
-            const x = Math.max(0, Math.min(1, adjustment?.x ?? pin.x));
-            const y = Math.max(0, Math.min(1, adjustment?.y ?? pin.y));
-            const adjustable = !!(pin.changed && pin.sourceRef && group.image);
-            const tag = adjustable ? 'button' : 'span';
-            const attributes = adjustable
-              ? ` type="button" data-source-ref="${esc(pin.sourceRef)}" data-map-x="${x}" data-map-y="${y}" aria-label="${esc(I18n.t('import.movePin', { name: pin.name || pin.id }))}"`
-              : '';
-            return `<${tag} class="import-map-pin${pin.changed ? ' is-changed' : ' is-existing'}${adjustable ? ' is-adjustable' : ''}"
-              ${attributes}
-              style="--import-pin-x:${(x * 100).toFixed(4)}%;--import-pin-y:${(y * 100).toFixed(4)}%;--import-pin-size:${size}px;--import-pin-color:${safeColor(definition.color)}"
-              title="${esc(pin.name || pin.id)}">
-                <span aria-hidden="true">${esc(definition.icon || '📌')}</span>
-                <b>${esc(pin.name || pin.id)}</b>
-              </${tag}>`;
-          }).join('')}
-        </div>
+        ${group.image
+          ? `<div class="import-map-leaflet" data-import-map-index="${index}"
+              role="region" aria-label="${esc(group.label)}"></div>`
+          : `<div class="import-map-stage has-no-image"><p>${esc(I18n.t('import.mapUnavailable'))}</p></div>`}
       </figure>`).join('')}</div>`;
   }
 
@@ -429,6 +398,7 @@ export const ImportCenter = (() => {
   }
 
   function _storyModel(changes = []) {
+    const planningDocument = locatePlanningDocument(_sourceDraft)?.document || null;
     const changedCore = new Map(changes
       .filter(change => ['characters', 'locations', 'factions', 'mysteries', 'artifacts', 'events']
         .includes(change.collection) && change.after)
@@ -436,6 +406,7 @@ export const ImportCenter = (() => {
     const relationshipTypes = new Map((Store.getEnum('relationshipTypes') || [])
       .map(type => [type.id, type.target === 'location' ? 'locations' : 'characters']));
     return buildStoryReview(changes, {
+      planningDocument,
       coreLabel: (collection, id) => {
         const record = changedCore.get(`${collection}:${id}`) || _coreRecord(collection, id);
         return record?.name || record?.title || record?.label || id;
@@ -454,8 +425,7 @@ export const ImportCenter = (() => {
       if (!change) return '';
       const kind = [
         'plotline', 'quest', 'event', 'branch',
-        'thread', 'scenario', 'encounter', 'note',
-      ].includes(item.kind) ? item.kind : 'note';
+      ].includes(item.kind) ? item.kind : 'event';
       const eventType = ['story', 'encounter', 'puzzle'].includes(item.eventType)
         ? ` is-${item.eventType}`
         : '';
@@ -468,29 +438,20 @@ export const ImportCenter = (() => {
 
   function _storyConnectionsHtml(story) {
     const edges = story.edges.filter(edge => (
-      !['precedes', 'branches', 'continues', 'option'].includes(edge.type)
+      !['continues', 'option'].includes(edge.type)
     ));
     if (!edges.length) return '';
     const nodes = new Map(story.nodes.map(node => [node.id, node]));
-    const items = new Map(story.items.map(item => [item.id, item]));
-    const sectionLabel = (node, sectionId) => {
-      if (!sectionId || node?.scope !== 'planning') return '';
-      const section = (items.get(node.recordId)?.sections || [])
-        .find(value => value.id === sectionId);
-      return section?.title || sectionId;
-    };
     return `
       <details class="import-story-connections">
         <summary>${esc(I18n.t('import.storyConnections', { count: edges.length }))}</summary>
         <ul>${edges.map(edge => {
           const source = nodes.get(edge.source);
           const target = nodes.get(edge.target);
-          const sourceSection = sectionLabel(source, edge.sourceSectionId);
-          const targetSection = sectionLabel(target, edge.targetSectionId);
           return `<li>
-            <span>${esc(source?.label || edge.source)}${sourceSection ? ` · ${esc(sourceSection)}` : ''}</span>
+            <span>${esc(source?.label || edge.source)}</span>
             <strong>${esc(edge.label || edge.type)}</strong>
-            <span>${esc(target?.label || edge.target)}${targetSection ? ` · ${esc(targetSection)}` : ''}</span>
+            <span>${esc(target?.label || edge.target)}</span>
             ${edge.notes ? `<p>${esc(edge.notes)}</p>` : ''}
           </li>`;
         }).join('')}</ul>
@@ -503,7 +464,7 @@ export const ImportCenter = (() => {
     return `<ol class="import-flow-list">${story.flowEdges.map(edge => {
       const source = nodes.get(edge.source);
       const target = nodes.get(edge.target);
-      const type = ['precedes', 'branches', 'continues', 'option'].includes(edge.type)
+      const type = ['continues', 'option'].includes(edge.type)
         ? edge.type
         : 'continues';
       return `<li class="is-${type}">
@@ -513,7 +474,7 @@ export const ImportCenter = (() => {
         </span>
         <span class="import-flow-transition">
           <b>${esc(edge.label)}</b>
-          <small>${esc(I18n.t(type === 'branches' || type === 'option'
+          <small>${esc(I18n.t(type === 'option'
             ? 'import.flowBranch'
             : 'import.flowNext'))}</small>
         </span>
@@ -540,15 +501,76 @@ export const ImportCenter = (() => {
     </header>`;
   }
 
+  function _storyItemChange(changes, itemId) {
+    const planned = changes.find(change => (
+      change.collection.endsWith(':planning_items') && change.id === itemId
+    ));
+    if (planned) return planned;
+    const item = locatePlanningDocument(_sourceDraft)?.document?.items
+      ?.find(value => value?.id === itemId);
+    if (!item) return null;
+    return {
+      collection: 'dm-tools:planning_items',
+      id: item.id,
+      status: 'create',
+      derived: false,
+      contributor: { addonId: 'dm-tools', id: 'planning' },
+      before: null,
+      after: item,
+    };
+  }
+
+  function _storyInspectorHtml(changes, itemId) {
+    const change = _storyItemChange(changes, itemId);
+    if (!change) return `<p class="import-empty">${esc(I18n.t('import.noStoryChanges'))}</p>`;
+    return _changeHtml(change, 'import-story-change import-story-inspector-change', true);
+  }
+
+  function _sharedStoryPreviewHtml(changes) {
+    const document = locatePlanningDocument(_sourceDraft)?.document;
+    const renderer = Addons.providedApi('dm-tools')?.campaignImportReview;
+    if (!document
+        || renderer?.apiVersion !== 1
+        || typeof renderer.project !== 'function'
+        || typeof renderer.render !== 'function'
+        || typeof renderer.mount !== 'function') {
+      _storyRenderer = null;
+      _storyRendererView = null;
+      return '';
+    }
+    try {
+      const view = renderer.project({
+        document,
+        scopeId: _storyScopeId,
+        selectedId: _storySelectedId,
+      });
+      if (!view) return '';
+      _storyScopeId = view.scopeId;
+      _storySelectedId = view.selectedId;
+      _storyRenderer = renderer;
+      _storyRendererView = view;
+      return renderer.render({
+        view,
+        inspectorHtml: _storyInspectorHtml(changes, view.selectedId),
+      });
+    } catch (error) {
+      console.warn('[import] addon story preview unavailable', error);
+      _storyRenderer = null;
+      _storyRendererView = null;
+      return '';
+    }
+  }
+
   function _storyPreviewHtml(changes = []) {
     _storyReview = _storyModel(changes);
     if (!_storyReview.nodes.length && !_storyReview.items.length) {
       return `<p class="import-empty">${esc(I18n.t('import.noStoryChanges'))}</p>`;
     }
+    const sharedPreview = _sharedStoryPreviewHtml(changes);
     return `
       <div class="import-story-evidence">
         ${_storyPlanHeaderHtml(_storyReview)}
-        ${_storyReview.flowNodes.length ? `
+        ${sharedPreview || (_storyReview.flowNodes.length ? `
           <div class="import-story-graph-shell">
             <div id="import-story-graph" class="import-story-graph"
               role="img" aria-label="${esc(I18n.t('import.flowGraphLabel'))}"></div>
@@ -560,13 +582,17 @@ export const ImportCenter = (() => {
             <strong>${esc(I18n.t('import.noFlowTitle'))}</strong>
             <p>${esc(I18n.t('import.noFlowHint'))}</p>
           </div>
-        `}
+        `)}
         ${_storyConnectionsHtml(_storyReview)}
-        ${_storyOutlineHtml(_storyReview, changes)}
+        ${sharedPreview ? '' : _storyOutlineHtml(_storyReview, changes)}
       </div>`;
   }
 
   function _destroyStoryGraph() {
+    try { _storyRendererCleanup?.(); } catch (_) {}
+    _storyRendererCleanup = null;
+    _storyRenderer = null;
+    _storyRendererView = null;
     if (!_storyGraph) return;
     try {
       _storyGraph.destroy();
@@ -577,6 +603,33 @@ export const ImportCenter = (() => {
   }
 
   function _mountStoryGraph(story) {
+    if (_storyRenderer && _storyRendererView) {
+      const root = document.querySelector('.dmt-import-preview');
+      if (!root) return;
+      _storyRendererCleanup = _storyRenderer.mount({
+        root,
+        onSelect: itemId => {
+          _storySelectedId = itemId;
+          const inspector = root.querySelector('[data-dmt-import-inspector]');
+          if (!inspector) return;
+          inspector.innerHTML = _storyInspectorHtml(
+            _preview?.plan?.review?.changes || [],
+            itemId,
+          );
+          _wireChangeEditors(inspector);
+        },
+        onScope: scopeId => {
+          _storyScopeId = scopeId;
+          _storySelectedId = '';
+          render();
+          document.querySelector('.import-story-section')?.scrollIntoView({
+            block: 'start',
+            behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+          });
+        },
+      });
+      return;
+    }
     const container = document.getElementById('import-story-graph');
     if (!container || !story?.flowNodes?.length) return;
     const cytoscapeFactory = globalThis.cytoscape;
@@ -616,17 +669,6 @@ export const ImportCenter = (() => {
             },
           },
           {
-            selector: 'node[endpointKind = "section"]',
-            style: {
-              'border-style': 'dashed',
-              'font-size': 10,
-            },
-          },
-          {
-            selector: 'node[kind = "thread"]',
-            style: { 'border-color': token('--color-mystery', '#ce93d8') },
-          },
-          {
             selector: 'node[kind = "quest"]',
             style: { 'border-color': token('--color-info', '#90caf9') },
           },
@@ -644,14 +686,6 @@ export const ImportCenter = (() => {
           {
             selector: 'node[kind = "event"][eventType = "puzzle"]',
             style: { 'border-color': token('--color-mystery', '#ce93d8') },
-          },
-          {
-            selector: 'node[kind = "scenario"]',
-            style: { 'border-color': token('--color-info', '#90caf9') },
-          },
-          {
-            selector: 'node[kind = "encounter"]',
-            style: { 'border-color': token('--color-danger-bright', '#ff8888') },
           },
           {
             selector: 'node[decision = true]',
@@ -684,7 +718,7 @@ export const ImportCenter = (() => {
             },
           },
           {
-            selector: 'edge[type = "branches"], edge[type = "option"]',
+            selector: 'edge[type = "option"]',
             style: {
               width: 2.5,
               'line-color': token('--accent-gold', '#c8a040'),
@@ -721,10 +755,10 @@ export const ImportCenter = (() => {
     }
   }
 
-  function _stopMapDrag() {
-    if (!_dragCleanup) return;
-    _dragCleanup();
-    _dragCleanup = null;
+  function _destroyMapPreviews() {
+    _mapPreviewCleanups.splice(0).reverse().forEach(cleanup => {
+      try { cleanup(); } catch (_) {}
+    });
   }
 
   function _pendingEditCount() {
@@ -755,8 +789,7 @@ export const ImportCenter = (() => {
     }
   }
 
-  function _setMapAdjustment(pin, x, y) {
-    const sourceRef = pin.dataset.sourceRef;
+  function _setMapAdjustment(sourceRef, x, y) {
     if (!sourceRef) return;
     const next = {
       x: Math.max(0, Math.min(1, x)),
@@ -764,69 +797,37 @@ export const ImportCenter = (() => {
     };
     _mapAdjustments.set(sourceRef, next);
     _confirmed = false;
-    pin.dataset.mapX = String(next.x);
-    pin.dataset.mapY = String(next.y);
-    pin.style.setProperty('--import-pin-x', `${(next.x * 100).toFixed(4)}%`);
-    pin.style.setProperty('--import-pin-y', `${(next.y * 100).toFixed(4)}%`);
     _updateReviewControls();
   }
 
-  function _wireMapEditors() {
-    for (const pin of document.querySelectorAll('.import-map-pin.is-adjustable')) {
-      pin.addEventListener('keydown', event => {
-        const direction = {
-          ArrowLeft: [-1, 0],
-          ArrowRight: [1, 0],
-          ArrowUp: [0, -1],
-          ArrowDown: [0, 1],
-        }[event.key];
-        if (!direction) return;
-        event.preventDefault();
-        const step = event.shiftKey ? 0.02 : 0.005;
-        _setMapAdjustment(
-          pin,
-          Number(pin.dataset.mapX) + direction[0] * step,
-          Number(pin.dataset.mapY) + direction[1] * step,
-        );
-      });
-      pin.addEventListener('pointerdown', event => {
-        if (event.pointerType === 'mouse' && event.button !== 0) return;
-        const stage = pin.closest('.import-map-stage');
-        const surface = stage?.querySelector(':scope > img');
-        if (!surface) return;
-        event.preventDefault();
-        _stopMapDrag();
-        pin.classList.add('is-dragging');
-        const move = pointerEvent => {
-          if (pointerEvent.pointerId !== event.pointerId) return;
-          const rect = surface.getBoundingClientRect();
-          if (!rect.width || !rect.height) return;
-          _setMapAdjustment(
-            pin,
-            (pointerEvent.clientX - rect.left) / rect.width,
-            (pointerEvent.clientY - rect.top) / rect.height,
-          );
-        };
-        const finish = pointerEvent => {
-          if (pointerEvent.pointerId !== event.pointerId) return;
-          _stopMapDrag();
-        };
-        window.addEventListener('pointermove', move);
-        window.addEventListener('pointerup', finish);
-        window.addEventListener('pointercancel', finish);
-        _dragCleanup = () => {
-          pin.classList.remove('is-dragging');
-          window.removeEventListener('pointermove', move);
-          window.removeEventListener('pointerup', finish);
-          window.removeEventListener('pointercancel', finish);
+  function _mountMapPreviews(changes) {
+    const groups = _mapGroups(changes);
+    for (const [index, group] of groups.entries()) {
+      if (!group.image) continue;
+      const container = document.querySelector(`[data-import-map-index="${index}"]`);
+      if (!container) continue;
+      const pins = group.pins.map(pin => {
+        const adjustment = pin.sourceRef ? _mapAdjustments.get(pin.sourceRef) : null;
+        return {
+          ...pin,
+          x: adjustment?.x ?? pin.x,
+          y: adjustment?.y ?? pin.y,
+          adjustable: !!(pin.changed && pin.sourceRef),
         };
       });
+      _mapPreviewCleanups.push(WorldMap.mountImportPreview(container, {
+        imageUrl: group.image,
+        pins,
+        onMove: (pin, position) => {
+          _setMapAdjustment(pin.sourceRef, position.x, position.y);
+        },
+      }));
     }
     _updateReviewControls();
   }
 
-  function _wireChangeEditors() {
-    for (const input of document.querySelectorAll('[data-import-source-path]')) {
+  function _wireChangeEditors(root = document) {
+    for (const input of root.querySelectorAll('[data-import-source-path]')) {
       const update = () => {
         if (!_sourceDraft || _busy) return;
         let path;
@@ -871,7 +872,7 @@ export const ImportCenter = (() => {
       }
       return null;
     };
-    for (const button of document.querySelectorAll('[data-import-array-action]')) {
+    for (const button of root.querySelectorAll('[data-import-array-action]')) {
       button.addEventListener('click', () => {
         if (!_sourceDraft || _busy) return;
         let path;
@@ -1136,7 +1137,7 @@ export const ImportCenter = (() => {
   }
 
   function render() {
-    _stopMapDrag();
+    _destroyMapPreviews();
     _destroyStoryGraph();
     if (typeof window !== 'undefined') {
       const route = (window.location.hash || '#/').replace(/^#/, '') || '/';
@@ -1169,9 +1170,9 @@ export const ImportCenter = (() => {
         ${_result ? _resultHtml() : (_preview ? _reviewHtml() : _uploadHtml())}
       </div>`;
     if (_preview && !_result) {
-      _wireMapEditors();
       _wireChangeEditors();
       _mountStoryGraph(_storyReview);
+      _mountMapPreviews(_preview.plan?.review?.changes || []);
     }
   }
 
@@ -1186,6 +1187,8 @@ export const ImportCenter = (() => {
     _sourceLocations.clear();
     _editedSourcePaths.clear();
     _mapAdjustments.clear();
+    _storyScopeId = null;
+    _storySelectedId = '';
     render();
   }
 
@@ -1274,12 +1277,14 @@ export const ImportCenter = (() => {
     _editedSourcePaths.clear();
     _mapAdjustments.clear();
     _storyReview = null;
+    _storyScopeId = null;
+    _storySelectedId = '';
     render();
   }
 
   function leave() {
     _generation++;
-    _stopMapDrag();
+    _destroyMapPreviews();
     _destroyStoryGraph();
     const jobId = _jobId;
     const committing = _busy === 'commit';
@@ -1296,6 +1301,8 @@ export const ImportCenter = (() => {
     _editedSourcePaths.clear();
     _mapAdjustments.clear();
     _storyReview = null;
+    _storyScopeId = null;
+    _storySelectedId = '';
     if (jobId && !committing) _client.cancel(jobId).catch(() => {});
   }
 

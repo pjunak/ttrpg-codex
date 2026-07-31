@@ -1141,6 +1141,112 @@ export const WorldMap = (() => {
     });
   }
 
+  function mountImportPreview(container, {
+    imageUrl,
+    pins = [],
+    onMove = null,
+  } = {}) {
+    if (!container || typeof imageUrl !== 'string' || !imageUrl || typeof L === 'undefined') {
+      return () => {};
+    }
+    let previewMap = null;
+    let disposed = false;
+    const image = new Image();
+    container.setAttribute('aria-busy', 'true');
+
+    image.onload = () => {
+      if (disposed || !container.isConnected) return;
+      const width = image.naturalWidth || 2048;
+      const height = image.naturalHeight || 1340;
+      const bounds = [[-height, 0], [0, width]];
+      previewMap = L.map(container, {
+        crs: L.CRS.Simple,
+        minZoom: -8,
+        maxZoom: 2,
+        zoomSnap: 0.25,
+        zoomDelta: 0.5,
+        wheelPxPerZoomLevel: 120,
+        attributionControl: false,
+        zoomControl: true,
+      });
+      L.imageOverlay(imageUrl, bounds).addTo(previewMap);
+      previewMap.fitBounds(bounds);
+
+      for (const location of pins) {
+        const pin = {
+          ..._pinFromLocation(location),
+          changed: !!location.changed,
+          adjustable: !!location.adjustable,
+          sourceRef: location.sourceRef || '',
+        };
+        if (!Number.isFinite(pin.x) || !Number.isFinite(pin.y)) continue;
+        const marker = L.marker(
+          L.latLng(-pin.y * height, pin.x * width),
+          {
+            icon: _pinIcon(pin),
+            draggable: pin.adjustable,
+            keyboard: true,
+            title: pin.name,
+          },
+        );
+        const moveTo = (x, y) => {
+          pin.x = Math.max(0, Math.min(1, x));
+          pin.y = Math.max(0, Math.min(1, y));
+          marker.setLatLng(L.latLng(-pin.y * height, pin.x * width));
+          onMove?.(pin, { x: pin.x, y: pin.y });
+        };
+        if (pin.adjustable) {
+          marker.on('dragend', () => {
+            const point = marker.getLatLng();
+            moveTo(point.lng / width, -point.lat / height);
+          });
+          marker.on('add', () => {
+            const element = marker.getElement();
+            if (!element) return;
+            element.classList.add('import-map-marker', 'is-changed', 'is-adjustable');
+            element.addEventListener('keydown', event => {
+              const direction = {
+                ArrowLeft: [-1, 0],
+                ArrowRight: [1, 0],
+                ArrowUp: [0, -1],
+                ArrowDown: [0, 1],
+              }[event.key];
+              if (!direction) return;
+              event.preventDefault();
+              const step = event.shiftKey ? 0.02 : 0.005;
+              moveTo(pin.x + direction[0] * step, pin.y + direction[1] * step);
+            });
+          });
+        } else {
+          marker.on('add', () => marker.getElement()?.classList.add(
+            'import-map-marker',
+            pin.changed ? 'is-changed' : 'is-existing',
+          ));
+        }
+        marker.addTo(previewMap);
+        marker.bindTooltip(pin.name, { direction: 'top', offset: [0, -12] });
+      }
+      container.removeAttribute('aria-busy');
+      requestAnimationFrame(() => {
+        if (!disposed) previewMap?.invalidateSize();
+      });
+    };
+    image.onerror = () => {
+      if (disposed) return;
+      container.removeAttribute('aria-busy');
+      container.dataset.mapState = 'failed';
+    };
+    image.src = imageUrl;
+
+    return () => {
+      disposed = true;
+      image.onload = null;
+      image.onerror = null;
+      try { previewMap?.remove(); } catch (_) {}
+      previewMap = null;
+    };
+  }
+
   function _placePin(pin) {
     if (!_map) return;
     const ll = _toLL(pin.x, pin.y);
@@ -2140,5 +2246,6 @@ export const WorldMap = (() => {
     getBundledDefaultIconIds,
     resolveIconForLocation,
     zoomSliderInput, zoomReset, zoomStep, applyZoomScaleRatio,
+    mountImportPreview,
   };
 })();

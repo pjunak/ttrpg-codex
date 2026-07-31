@@ -221,13 +221,23 @@ The review UI recognizes DM Tools planning schema v2 directly. Contributed
 `planning_items` provide nested plotline/quest ownership and typed
 event/branch presentation; `planning_flow_links` of kind `continues` or
 `option` are the only chronological/decision-flow authority. Named planning
-references and core relationships remain supporting context. The legacy
-`planning_links` `precedes`/`branches` preview shape remains readable, but the
-browser never invents time, causality, or choice from prose, tags, array order,
-or ownership. The questline diagram precedes diagnostics and selecting one of
-its nodes opens that planning item's before/after review form. Every
-materialized change expands into a read-only current-value form and, where the
-original input record is identifiable, an editable source form.
+references and core relationships remain supporting context. The browser never
+invents time, causality, or choice from prose, tags, array order, or ownership,
+and no retired planning-import shape is accepted by the preview.
+
+When DM Tools is loaded, its versioned `host.provide()` API supplies the same
+scope projection, DOM/SVG canvas renderer, styles, node shapes, and edge
+geometry used by the live Story Planner. Core embeds that workbench in the
+questline review and places the selected planning item's source-backed
+before/after form in its inspector. The built-in graph is only a failure
+fallback. The questline workbench precedes diagnostics.
+
+Map evidence mounts independent Leaflet image maps through `WorldMap` and uses
+the live map's marker-icon resolver, pin sizing, artwork, attitude glow, pan,
+zoom, and tooltip presentation. Directly imported pins are draggable and
+keyboard-adjustable; existing contextual pins remain subdued. Every
+materialized change also expands into a read-only current-value form and, where
+the original input record is identifiable, an editable source form.
 Source edits and directly imported map-marker moves stay local and disable
 commit. **Revalidate all edits** serializes the modified source into a new
 input, creates a new job, and obtains a fresh plan/token; the prior job remains
