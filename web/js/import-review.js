@@ -37,6 +37,70 @@ export function applyLocationAdjustments(source, adjustments) {
   return next;
 }
 
+export function valueAtPath(source, path) {
+  if (!Array.isArray(path)) return undefined;
+  return path.reduce((value, segment) => value?.[segment], source);
+}
+
+export function setValueAtPath(source, path, value) {
+  if (!isObject(source) || !Array.isArray(path) || !path.length) {
+    throw new TypeError('Import source path is unavailable');
+  }
+  const forbidden = new Set(['__proto__', 'prototype', 'constructor']);
+  let parent = source;
+  for (const segment of path.slice(0, -1)) {
+    if (forbidden.has(String(segment)) || (!isObject(parent) && !Array.isArray(parent))) {
+      throw new TypeError('Import source path is unsafe');
+    }
+    parent = parent[segment];
+  }
+  const leaf = path.at(-1);
+  if (forbidden.has(String(leaf)) || (!isObject(parent) && !Array.isArray(parent))) {
+    throw new TypeError('Import source path is unsafe');
+  }
+  parent[leaf] = value;
+}
+
+export function locateChangeSource(source, change) {
+  if (!isObject(source) || !isObject(change)) return null;
+  if (typeof change.sourceRef === 'string' && change.sourceRef) {
+    const records = source.records?.[change.collection];
+    const index = Array.isArray(records)
+      ? records.findIndex(entry => entry?.ref === change.sourceRef && isObject(entry.record))
+      : -1;
+    if (index >= 0) {
+      const path = ['records', change.collection, index, 'record'];
+      return { path, value: valueAtPath(source, path) };
+    }
+  }
+
+  const addonId = change.contributor?.addonId;
+  const contributorId = change.contributor?.id;
+  if (typeof addonId !== 'string' || typeof contributorId !== 'string') return null;
+  const imports = source.addonImports;
+  const importIndex = Array.isArray(imports)
+    ? imports.findIndex(entry => entry?.addonId === addonId
+      && entry?.contributorId === contributorId
+      && isObject(entry.document))
+    : -1;
+  if (importIndex < 0) return null;
+  const document = imports[importIndex].document;
+  const collection = String(change.collection || '').split(':').at(-1);
+  const arrays = Object.entries(document)
+    .filter(([, value]) => Array.isArray(value));
+  const preferred = arrays.filter(([key]) => collection === key || collection.endsWith(`_${key}`));
+  const matches = [...preferred, ...arrays.filter(entry => !preferred.includes(entry))]
+    .map(([key, records]) => ({
+      key,
+      index: records.findIndex(record => isObject(record) && record.id === change.id),
+    }))
+    .filter(match => match.index >= 0);
+  if (!matches.length) return null;
+  const match = matches[0];
+  const path = ['addonImports', importIndex, 'document', match.key, match.index];
+  return { path, value: valueAtPath(source, path) };
+}
+
 function labelOf(value, fallback) {
   for (const field of ['title', 'name', 'label']) {
     if (typeof value?.[field] === 'string' && value[field].trim()) return value[field].trim();
@@ -61,6 +125,9 @@ export function buildStoryReview(changes, {
     .map(change => ({ id: change.id, ...clone(change.after) }));
   const nodes = new Map();
   const edges = [];
+  const flowNodes = new Map();
+  const flowEdges = [];
+  const itemsById = new Map(items.map(item => [item.id, item]));
 
   const addNode = node => {
     if (!nodes.has(node.id)) nodes.set(node.id, node);
@@ -118,6 +185,39 @@ export function buildStoryReview(changes, {
     return '';
   };
 
+  const flowEndpointNode = endpoint => {
+    if (!isObject(endpoint)) return '';
+    if (endpoint.scope === 'planning' && typeof endpoint.itemId === 'string') {
+      const item = itemsById.get(endpoint.itemId);
+      const section = endpoint.sectionId
+        ? (item?.sections || []).find(value => value.id === endpoint.sectionId)
+        : null;
+      const id = section
+        ? `planning:${endpoint.itemId}:section:${endpoint.sectionId}`
+        : `planning:${endpoint.itemId}`;
+      if (!flowNodes.has(id)) {
+        const itemLabel = labelOf(item, endpoint.itemId);
+        const sectionLabel = section ? labelOf(section, section.id) : '';
+        flowNodes.set(id, {
+          id,
+          recordId: endpoint.itemId,
+          sectionId: section?.id || '',
+          scope: 'planning',
+          kind: item?.kind || 'note',
+          endpointKind: section ? 'section' : 'item',
+          label: sectionLabel || itemLabel,
+          graphLabel: section ? `${itemLabel}\n${sectionLabel}` : itemLabel,
+          parentLabel: section ? itemLabel : '',
+        });
+      }
+      return id;
+    }
+    const id = endpointNode(endpoint);
+    const node = nodes.get(id);
+    if (node && !flowNodes.has(id)) flowNodes.set(id, { ...clone(node), graphLabel: node.label });
+    return id;
+  };
+
   for (const link of links) {
     const source = endpointNode(link.source);
     const target = endpointNode(link.target);
@@ -133,6 +233,21 @@ export function buildStoryReview(changes, {
       targetSectionId: link.target?.sectionId || '',
       notes: typeof link.notes === 'string' ? link.notes : '',
     });
+    if (link.type === 'precedes' || link.type === 'branches') {
+      const flowSource = flowEndpointNode(link.source);
+      const flowTarget = flowEndpointNode(link.target);
+      if (flowSource && flowTarget) {
+        flowEdges.push({
+          id: `flow-link:${link.id}`,
+          recordId: link.id,
+          source: flowSource,
+          target: flowTarget,
+          type: link.type,
+          label: labelOf(link, link.type),
+          notes: typeof link.notes === 'string' ? link.notes : '',
+        });
+      }
+    }
   }
 
   for (const change of values) {
@@ -162,10 +277,18 @@ export function buildStoryReview(changes, {
     });
   }
 
+  const decisionNodes = new Set(flowEdges
+    .filter(edge => edge.type === 'branches')
+    .map(edge => edge.source));
   return {
     items,
     links,
     nodes: [...nodes.values()],
     edges,
+    flowNodes: [...flowNodes.values()].map(node => ({
+      ...node,
+      decision: decisionNodes.has(node.id),
+    })),
+    flowEdges,
   };
 }

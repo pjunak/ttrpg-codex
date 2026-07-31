@@ -70,7 +70,7 @@ model. Promote them before accepting untrusted third-party addons:
   Effects targeting other creatures, attacks, saves, areas, encounter timing,
   renown workflows, and similar rules may remain reference prose until then.
 - Keep combat resolution, homebrew rule automation, and detailed retrospective
-  session bookkeeping outside DM Tools. Its planning graph should grow only
+  session bookkeeping outside DM Tools. Its story canvas should grow only
   through concrete planning/world-building workflows and stored relationships,
   never inferred edges or automatic quest progress.
 

@@ -1,6 +1,12 @@
 import { createAddonImportClient } from './addon-imports.js';
 import { I18n } from './i18n.js';
-import { applyLocationAdjustments, buildStoryReview } from './import-review.js';
+import {
+  applyLocationAdjustments,
+  buildStoryReview,
+  locateChangeSource,
+  setValueAtPath,
+  valueAtPath,
+} from './import-review.js';
 import { PinTypes } from './pin-types.js';
 import { Role } from './role.js';
 import { Store } from './store.js';
@@ -21,6 +27,10 @@ export const ImportCenter = (() => {
   let _storyGraph = null;
   let _storyReview = null;
   let _dragCleanup = null;
+  let _sourceOriginal = null;
+  let _sourceDraft = null;
+  const _sourceLocations = new Map();
+  const _editedSourcePaths = new Set();
   const _mapAdjustments = new Map();
 
   const _client = createAddonImportClient({
@@ -31,10 +41,6 @@ export const ImportCenter = (() => {
 
   function _main() {
     return document.getElementById('main-content');
-  }
-
-  function _json(value) {
-    return esc(JSON.stringify(value, null, 2));
   }
 
   function _button(label, action, className = 'inline-create-btn', disabled = false, id = '') {
@@ -85,11 +91,160 @@ export const ImportCenter = (() => {
       </div>`;
   }
 
-  function _changeHtml(change) {
-    const label = change.after?.name || change.after?.label || change.sourceRef || change.id;
+  function _fieldLabel(field) {
+    const key = `import.field.${field}`;
+    const translated = I18n.t(key);
+    if (translated !== key) return translated;
+    return String(field)
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .replace(/^./, value => value.toUpperCase());
+  }
+
+  function _fieldOptions(field, path, currentValue) {
+    let values = null;
+    if (field === 'operation') values = ['create', 'update'];
+    if (field === 'kind') values = ['thread', 'quest', 'scenario', 'encounter', 'note'];
+    if (field === 'state') values = ['idea', 'ready', 'active', 'resolved', 'archived'];
+    if (field === 'visibility') values = ['public', 'dm'];
+    if (field === 'scope') values = ['planning', 'core', 'external'];
+    if (field === 'type' && path.includes('addonImports') && path.includes('links')) {
+      values = [
+        'related',
+        'involves',
+        'supports',
+        'opposes',
+        'reveals',
+        'requires',
+        'precedes',
+        'branches',
+      ];
+    }
+    if (!values) return null;
+    if (typeof currentValue === 'string' && currentValue && !values.includes(currentValue)) {
+      values.unshift(currentValue);
+    }
+    return values;
+  }
+
+  function _sourceControl(value, path, field, editable) {
+    const label = esc(_fieldLabel(field));
+    const pathAttribute = editable
+      ? ` data-import-source-path="${esc(JSON.stringify(path))}"`
+      : '';
+    if (typeof value === 'boolean') {
+      return `<label class="import-form-field is-boolean">
+        <input type="checkbox"${value ? ' checked' : ''}${editable ? pathAttribute : ' disabled'}>
+        <span>${label}</span>
+      </label>`;
+    }
+    const options = _fieldOptions(field, path, value);
+    if (options) {
+      return `<label class="import-form-field">
+        <span>${label}</span>
+        <select class="edit-input"${editable ? pathAttribute : ' disabled'}>
+          ${options.map(option => `<option value="${esc(option)}"${option === value ? ' selected' : ''}>${esc(_fieldLabel(option))}</option>`).join('')}
+        </select>
+      </label>`;
+    }
+    const type = typeof value;
+    const serialized = value === null ? '' : String(value ?? '');
+    const valueType = value === null ? 'null' : type;
+    const isLong = type === 'string'
+      && (serialized.length > 120 || ['body', 'description', 'summary', 'notes', 'backstory']
+        .includes(field));
+    if (isLong) {
+      return `<label class="import-form-field is-wide">
+        <span>${label}</span>
+        <textarea class="edit-input" rows="${Math.min(12, Math.max(3, serialized.split('\n').length + 1))}"
+          data-import-value-type="${valueType}"${editable ? pathAttribute : ' readonly'}>${esc(serialized)}</textarea>
+      </label>`;
+    }
+    return `<label class="import-form-field">
+      <span>${label}</span>
+      <input class="edit-input" type="${type === 'number' ? 'number' : 'text'}"
+        ${type === 'number' ? 'step="any"' : ''} value="${esc(serialized)}"
+        data-import-value-type="${valueType}"${editable ? pathAttribute : ' readonly'}>
+    </label>`;
+  }
+
+  function _sourceFields(value, path = [], editable = false, field = '') {
+    if (Array.isArray(value)) {
+      const pathJson = esc(JSON.stringify(path));
+      const addButton = editable
+        ? `<button type="button" class="inline-create-btn import-array-add"
+            data-import-array-action="add" data-import-array-path="${pathJson}">
+            ${esc(I18n.t('import.addListItem'))}
+          </button>`
+        : '';
+      if (!value.length) {
+        return `<div class="import-form-array">
+          <div class="import-form-empty">${esc(I18n.t('import.emptyList'))}</div>
+          ${addButton}
+        </div>`;
+      }
+      return `<div class="import-form-array">${value.map((entry, index) => {
+        const entryPath = [...path, index];
+        if (entry && typeof entry === 'object') {
+          return `<fieldset class="import-form-group">
+            <legend>
+              <span>${esc(I18n.t('import.listItem', { count: index + 1 }))}</span>
+              ${editable ? `<button type="button" class="import-array-remove"
+                data-import-array-action="remove" data-import-array-path="${pathJson}"
+                data-import-array-index="${index}">${esc(I18n.t('import.removeListItem'))}</button>` : ''}
+            </legend>
+            ${_sourceFields(entry, entryPath, editable)}
+          </fieldset>`;
+        }
+        return `<div class="import-array-scalar">
+          ${_sourceControl(entry, entryPath, `${field || 'item'} ${index + 1}`, editable)}
+          ${editable ? `<button type="button" class="import-array-remove"
+            data-import-array-action="remove" data-import-array-path="${pathJson}"
+            data-import-array-index="${index}">${esc(I18n.t('import.removeListItem'))}</button>` : ''}
+        </div>`;
+      }).join('')}${addButton}</div>`;
+    }
+    if (value && typeof value === 'object') {
+      return `<div class="import-form-grid">${Object.entries(value).map(([key, entry]) => {
+        const entryPath = [...path, key];
+        if (entry && typeof entry === 'object') {
+          return `<fieldset class="import-form-group is-wide">
+            <legend>${esc(_fieldLabel(key))}</legend>
+            ${_sourceFields(entry, entryPath, editable, key)}
+          </fieldset>`;
+        }
+        return _sourceControl(entry, entryPath, key, editable);
+      }).join('')}</div>`;
+    }
+    return _sourceControl(value, path, field || 'value', editable);
+  }
+
+  function _recordForm(value, path = [], editable = false) {
+    if (value === null || value === undefined) {
+      return `<p class="import-empty">${esc(I18n.t('import.noExistingValue'))}</p>`;
+    }
+    return `<div class="import-record-form${editable ? ' is-editable' : ' is-readonly'}">
+      ${_sourceFields(value, path, editable)}
+    </div>`;
+  }
+
+  function _changeHtml(change, className = '') {
+    const label = change.after?.title || change.after?.name || change.after?.label
+      || change.sourceRef || change.id;
     const statusKey = change.status === 'update' ? 'import.update' : 'import.create';
+    const sourceKey = `${change.collection}:${change.id}`;
+    let source = _sourceDraft ? locateChangeSource(_sourceDraft, change) : null;
+    if (source) {
+      _sourceLocations.set(sourceKey, source.path);
+    } else if (_sourceDraft && _sourceLocations.has(sourceKey)) {
+      const path = _sourceLocations.get(sourceKey);
+      const value = valueAtPath(_sourceDraft, path);
+      if (value !== undefined) source = { path, value };
+    }
+    const after = source?.value ?? change.after;
     return `
-      <details class="import-change">
+      <details class="import-change${className ? ` ${className}` : ''}"
+        data-change-id="${esc(`${change.collection}:${change.id}`)}">
         <summary>
           <span class="import-change-kind">${esc(change.collection)}</span>
           <strong>${esc(label)}</strong>
@@ -101,11 +256,14 @@ export const ImportCenter = (() => {
           <div class="import-diff">
             <section>
               <h4>${esc(I18n.t('import.before'))}</h4>
-              <pre>${_json(change.before)}</pre>
+              ${_recordForm(change.before)}
             </section>
             <section>
-              <h4>${esc(I18n.t('import.after'))}</h4>
-              <pre>${_json(change.after)}</pre>
+              <h4>${esc(I18n.t(source ? 'import.afterEditable' : 'import.after'))}</h4>
+              ${source
+                ? `<p class="import-form-hint">${esc(I18n.t('import.editHint'))}</p>`
+                : `<p class="import-form-hint">${esc(I18n.t('import.derivedReadOnly'))}</p>`}
+              ${_recordForm(after, source?.path || [], !!source)}
             </section>
           </div>
         </div>
@@ -203,14 +361,6 @@ export const ImportCenter = (() => {
     return null;
   }
 
-  function _storyKindLabel(kind) {
-    if (kind === 'thread') return I18n.t('import.storyKind.thread');
-    if (kind === 'quest') return I18n.t('import.storyKind.quest');
-    if (kind === 'scenario') return I18n.t('import.storyKind.scenario');
-    if (kind === 'encounter') return I18n.t('import.storyKind.encounter');
-    return I18n.t('import.storyKind.note');
-  }
-
   function _storyModel(changes = []) {
     const changedCore = new Map(changes
       .filter(change => ['characters', 'locations', 'factions', 'mysteries', 'artifacts', 'events']
@@ -227,34 +377,24 @@ export const ImportCenter = (() => {
     });
   }
 
-  function _storyOutlineHtml(story) {
+  function _storyOutlineHtml(story, changes) {
     if (!story.items.length) return '';
+    const byId = new Map(changes
+      .filter(change => change.collection.endsWith(':planning_items'))
+      .map(change => [change.id, change]));
     return `<div class="import-story-cards">${story.items.map(item => {
-      const sections = Array.isArray(item.sections) ? item.sections : [];
-      return `
-        <article class="import-story-card is-${esc(item.kind || 'note')}" data-story-id="${esc(item.id)}">
-          <header>
-            <span>${esc(_storyKindLabel(item.kind))}</span>
-            ${item.state ? `<span class="codex-badge">${esc(item.state)}</span>` : ''}
-          </header>
-          <h4>${esc(item.title || item.id)}</h4>
-          ${item.summary ? `<p class="import-story-summary">${esc(item.summary)}</p>` : ''}
-          ${(item.body || sections.length) ? `
-            <details>
-              <summary>${esc(I18n.t('import.storyDetails', { count: sections.length }))}</summary>
-              ${item.body ? `<div class="import-story-body">${esc(item.body)}</div>` : ''}
-              ${sections.length ? `<ol>${sections.map(section => `
-                <li>
-                  <strong>${esc(section.title || section.id)}</strong>
-                  ${section.body ? `<p>${esc(section.body)}</p>` : ''}
-                </li>`).join('')}</ol>` : ''}
-            </details>` : ''}
-        </article>`;
+      const change = byId.get(item.id);
+      if (!change) return '';
+      return _changeHtml(
+        change,
+        `import-story-change is-${item.kind || 'note'}`,
+      );
     }).join('')}</div>`;
   }
 
   function _storyConnectionsHtml(story) {
-    if (!story.edges.length) return '';
+    const edges = story.edges.filter(edge => edge.type !== 'precedes' && edge.type !== 'branches');
+    if (!edges.length) return '';
     const nodes = new Map(story.nodes.map(node => [node.id, node]));
     const items = new Map(story.items.map(item => [item.id, item]));
     const sectionLabel = (node, sectionId) => {
@@ -265,8 +405,8 @@ export const ImportCenter = (() => {
     };
     return `
       <details class="import-story-connections">
-        <summary>${esc(I18n.t('import.storyConnections', { count: story.edges.length }))}</summary>
-        <ul>${story.edges.map(edge => {
+        <summary>${esc(I18n.t('import.storyConnections', { count: edges.length }))}</summary>
+        <ul>${edges.map(edge => {
           const source = nodes.get(edge.source);
           const target = nodes.get(edge.target);
           const sourceSection = sectionLabel(source, edge.sourceSectionId);
@@ -281,6 +421,31 @@ export const ImportCenter = (() => {
       </details>`;
   }
 
+  function _flowConnectionsHtml(story) {
+    if (!story.flowEdges.length) return '';
+    const nodes = new Map(story.flowNodes.map(node => [node.id, node]));
+    return `<ol class="import-flow-list">${story.flowEdges.map(edge => {
+      const source = nodes.get(edge.source);
+      const target = nodes.get(edge.target);
+      return `<li class="is-${edge.type}">
+        <span class="import-flow-source">
+          ${source?.parentLabel ? `<small>${esc(source.parentLabel)}</small>` : ''}
+          <strong>${esc(source?.label || edge.source)}</strong>
+        </span>
+        <span class="import-flow-transition">
+          <b>${esc(edge.label)}</b>
+          <small>${esc(I18n.t(edge.type === 'branches'
+            ? 'import.flowBranch'
+            : 'import.flowNext'))}</small>
+        </span>
+        <span class="import-flow-target">
+          ${target?.parentLabel ? `<small>${esc(target.parentLabel)}</small>` : ''}
+          <strong>${esc(target?.label || edge.target)}</strong>
+        </span>
+      </li>`;
+    }).join('')}</ol>`;
+  }
+
   function _storyPreviewHtml(changes = []) {
     _storyReview = _storyModel(changes);
     if (!_storyReview.nodes.length && !_storyReview.items.length) {
@@ -288,13 +453,21 @@ export const ImportCenter = (() => {
     }
     return `
       <div class="import-story-evidence">
-        <div class="import-story-graph-shell">
-          <div id="import-story-graph" class="import-story-graph"
-            role="img" aria-label="${esc(I18n.t('import.storyGraphLabel'))}"></div>
-          <p class="import-story-graph-fallback" hidden>${esc(I18n.t('import.graphUnavailable'))}</p>
-        </div>
+        ${_storyReview.flowNodes.length ? `
+          <div class="import-story-graph-shell">
+            <div id="import-story-graph" class="import-story-graph"
+              role="img" aria-label="${esc(I18n.t('import.flowGraphLabel'))}"></div>
+            <p class="import-story-graph-fallback" hidden>${esc(I18n.t('import.graphUnavailable'))}</p>
+          </div>
+          ${_flowConnectionsHtml(_storyReview)}
+        ` : `
+          <div class="import-flow-empty">
+            <strong>${esc(I18n.t('import.noFlowTitle'))}</strong>
+            <p>${esc(I18n.t('import.noFlowHint'))}</p>
+          </div>
+        `}
         ${_storyConnectionsHtml(_storyReview)}
-        ${_storyOutlineHtml(_storyReview)}
+        ${_storyOutlineHtml(_storyReview, changes)}
       </div>`;
   }
 
@@ -310,7 +483,7 @@ export const ImportCenter = (() => {
 
   function _mountStoryGraph(story) {
     const container = document.getElementById('import-story-graph');
-    if (!container || !story?.nodes?.length) return;
+    if (!container || !story?.flowNodes?.length) return;
     const cytoscapeFactory = globalThis.cytoscape;
     const fallback = container.parentElement?.querySelector('.import-story-graph-fallback');
     if (typeof cytoscapeFactory !== 'function') {
@@ -324,8 +497,8 @@ export const ImportCenter = (() => {
       _storyGraph = cytoscapeFactory({
         container,
         elements: [
-          ...story.nodes.map(node => ({ data: node })),
-          ...story.edges.map(edge => ({ data: edge })),
+          ...story.flowNodes.map(node => ({ data: node })),
+          ...story.flowEdges.map(edge => ({ data: edge })),
         ],
         style: [
           {
@@ -334,7 +507,7 @@ export const ImportCenter = (() => {
               width: 148,
               height: 48,
               shape: 'round-rectangle',
-              label: 'data(label)',
+              label: 'data(graphLabel)',
               color: token('--text-cream', '#f0e6d2'),
               'font-family': token('--font-ui', 'sans-serif'),
               'font-size': 11,
@@ -348,12 +521,10 @@ export const ImportCenter = (() => {
             },
           },
           {
-            selector: 'node[scope = "core"]',
+            selector: 'node[endpointKind = "section"]',
             style: {
-              shape: 'ellipse',
-              width: 116,
-              height: 54,
-              'border-color': token('--color-info', '#90caf9'),
+              'border-style': 'dashed',
+              'font-size': 10,
             },
           },
           {
@@ -371,6 +542,16 @@ export const ImportCenter = (() => {
           {
             selector: 'node[kind = "encounter"]',
             style: { 'border-color': token('--color-danger-bright', '#ff8888') },
+          },
+          {
+            selector: 'node[decision = true]',
+            style: {
+              shape: 'diamond',
+              width: 118,
+              height: 82,
+              'border-color': token('--accent-gold', '#c8a040'),
+              'background-color': token('--bg-deep', '#0e0a05'),
+            },
           },
           {
             selector: 'edge',
@@ -392,6 +573,15 @@ export const ImportCenter = (() => {
               'text-rotation': 'autorotate',
             },
           },
+          {
+            selector: 'edge[type = "branches"]',
+            style: {
+              width: 2.5,
+              'line-color': token('--accent-gold', '#c8a040'),
+              'target-arrow-color': token('--accent-gold', '#c8a040'),
+              'line-style': 'dashed',
+            },
+          },
         ],
         layout: globalThis.cytoscapeDagre
           ? { name: 'dagre', rankDir: 'LR', nodeSep: 42, rankSep: 105, edgeSep: 18, padding: 36 }
@@ -405,8 +595,9 @@ export const ImportCenter = (() => {
       });
       _storyGraph.on('tap', 'node[scope = "planning"]', event => {
         const recordId = event.target.data('recordId');
-        const card = [...document.querySelectorAll('.import-story-card')]
-          .find(element => element.dataset.storyId === recordId);
+        const card = [...document.querySelectorAll('.import-story-change')]
+          .find(element => element.dataset.changeId.endsWith(`:planning_items:${recordId}`));
+        if (card) card.open = true;
         card?.scrollIntoView({
           block: 'nearest',
           behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
@@ -426,20 +617,31 @@ export const ImportCenter = (() => {
     _dragCleanup = null;
   }
 
-  function _updatePlacementControls() {
-    const count = _mapAdjustments.size;
-    const controls = document.getElementById('import-placement-controls');
-    const message = document.getElementById('import-placement-count');
-    if (controls) controls.hidden = count === 0;
-    if (message) message.textContent = I18n.t('import.placementPending', { count });
+  function _pendingEditCount() {
+    return _editedSourcePaths.size + _mapAdjustments.size;
+  }
+
+  function _updateReviewControls() {
+    const placementCount = _mapAdjustments.size;
+    const editCount = _pendingEditCount();
+    const placementControls = document.getElementById('import-placement-controls');
+    const placementMessage = document.getElementById('import-placement-count');
+    if (placementControls) placementControls.hidden = placementCount === 0;
+    if (placementMessage) {
+      placementMessage.textContent = I18n.t('import.placementPending', { count: placementCount });
+    }
+    const editControls = document.getElementById('import-review-edit-controls');
+    const editMessage = document.getElementById('import-review-edit-count');
+    if (editControls) editControls.hidden = editCount === 0;
+    if (editMessage) editMessage.textContent = I18n.t('import.editsPending', { count: editCount });
     const confirm = document.getElementById('import-confirm-plan');
     if (confirm) {
-      confirm.checked = count ? false : _confirmed;
-      confirm.disabled = !!count || !!_busy;
+      confirm.checked = editCount ? false : _confirmed;
+      confirm.disabled = !!editCount || !!_busy;
     }
     const commit = document.getElementById('import-commit-button');
     if (commit) {
-      commit.disabled = !_preview?.committable || !_confirmed || !!_busy || !!count;
+      commit.disabled = !_preview?.committable || !_confirmed || !!_busy || !!editCount;
     }
   }
 
@@ -456,7 +658,7 @@ export const ImportCenter = (() => {
     pin.dataset.mapY = String(next.y);
     pin.style.setProperty('--import-pin-x', `${(next.x * 100).toFixed(4)}%`);
     pin.style.setProperty('--import-pin-y', `${(next.y * 100).toFixed(4)}%`);
-    _updatePlacementControls();
+    _updateReviewControls();
   }
 
   function _wireMapEditors() {
@@ -510,7 +712,93 @@ export const ImportCenter = (() => {
         };
       });
     }
-    _updatePlacementControls();
+    _updateReviewControls();
+  }
+
+  function _wireChangeEditors() {
+    for (const input of document.querySelectorAll('[data-import-source-path]')) {
+      const update = () => {
+        if (!_sourceDraft || _busy) return;
+        let path;
+        try {
+          path = JSON.parse(input.dataset.importSourcePath || '[]');
+        } catch {
+          return;
+        }
+        let value;
+        if (input.type === 'checkbox') {
+          value = input.checked;
+        } else if (input.dataset.importValueType === 'number') {
+          value = input.value === '' ? null : Number(input.value);
+        } else if (input.dataset.importValueType === 'null') {
+          value = input.value === '' ? null : input.value;
+        } else {
+          value = input.value;
+        }
+        try {
+          setValueAtPath(_sourceDraft, path, value);
+        } catch {
+          return;
+        }
+        _editedSourcePaths.add(JSON.stringify(path));
+        _confirmed = false;
+        input.closest('.import-form-field')?.classList.add('is-modified');
+        _updateReviewControls();
+      };
+      input.addEventListener(input.matches('select, input[type="checkbox"], input[type="number"]')
+        ? 'change'
+        : 'input', update);
+    }
+    const blankValue = (value, key = '') => {
+      if (key === 'id') return `new-${Date.now().toString(36)}`;
+      if (typeof value === 'string') return '';
+      if (typeof value === 'number') return 0;
+      if (typeof value === 'boolean') return false;
+      if (Array.isArray(value)) return [];
+      if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value)
+          .map(([field, entry]) => [field, blankValue(entry, field)]));
+      }
+      return null;
+    };
+    for (const button of document.querySelectorAll('[data-import-array-action]')) {
+      button.addEventListener('click', () => {
+        if (!_sourceDraft || _busy) return;
+        let path;
+        try {
+          path = JSON.parse(button.dataset.importArrayPath || '[]');
+        } catch {
+          return;
+        }
+        const current = valueAtPath(_sourceDraft, path);
+        if (!Array.isArray(current)) return;
+        const next = [...current];
+        if (button.dataset.importArrayAction === 'remove') {
+          const index = Number(button.dataset.importArrayIndex);
+          if (!Number.isInteger(index) || index < 0 || index >= next.length) return;
+          next.splice(index, 1);
+        } else {
+          const field = String(path.at(-1) || '');
+          if (field === 'sections') {
+            next.push({
+              id: `section-${Date.now().toString(36)}`,
+              title: '',
+              body: '',
+            });
+          } else {
+            next.push(next.length ? blankValue(next.at(-1)) : '');
+          }
+        }
+        setValueAtPath(_sourceDraft, path, next);
+        _editedSourcePaths.add(JSON.stringify(path));
+        _confirmed = false;
+        const changeId = button.closest('.import-change')?.dataset.changeId || '';
+        render();
+        const change = [...document.querySelectorAll('.import-change')]
+          .find(element => element.dataset.changeId === changeId);
+        if (change) change.open = true;
+      });
+    }
   }
 
   function discardMapAdjustments() {
@@ -520,8 +808,17 @@ export const ImportCenter = (() => {
     render();
   }
 
-  async function applyMapAdjustments() {
-    if (_busy || !_file || !_mapAdjustments.size) return;
+  function discardReviewEdits() {
+    if (_busy || !_pendingEditCount()) return;
+    _sourceDraft = _sourceOriginal ? structuredClone(_sourceOriginal) : null;
+    _editedSourcePaths.clear();
+    _mapAdjustments.clear();
+    _confirmed = false;
+    render();
+  }
+
+  async function revalidateReviewEdits() {
+    if (_busy || !_file || !_pendingEditCount()) return;
     const generation = ++_generation;
     const previousJobId = _jobId;
     let nextJobId = '';
@@ -529,8 +826,12 @@ export const ImportCenter = (() => {
     _error = null;
     render();
     try {
-      const source = JSON.parse(await _file.text());
-      const adjusted = applyLocationAdjustments(source, _mapAdjustments);
+      const source = _sourceDraft
+        ? structuredClone(_sourceDraft)
+        : JSON.parse(await _file.text());
+      const adjusted = _mapAdjustments.size
+        ? applyLocationAdjustments(source, _mapAdjustments)
+        : source;
       const nextFile = new File(
         [JSON.stringify(adjusted, null, 2)],
         _file.name || 'campaign-bundle.json',
@@ -550,6 +851,10 @@ export const ImportCenter = (() => {
       _file = nextFile;
       _jobId = job.id;
       _preview = previewResult;
+      _sourceOriginal = structuredClone(adjusted);
+      _sourceDraft = structuredClone(adjusted);
+      _sourceLocations.clear();
+      _editedSourcePaths.clear();
       _mapAdjustments.clear();
       _confirmed = false;
       if (previousJobId) _client.cancel(previousJobId).catch(() => {});
@@ -597,8 +902,8 @@ export const ImportCenter = (() => {
           ${_diagnosticsHtml(plan.diagnostics)}
         </section>
         <section class="import-review-section import-story-section">
-          <h3>${esc(I18n.t('import.storyPreview'))}</h3>
-          <p class="import-section-copy">${esc(I18n.t('import.storyPreviewHint'))}</p>
+          <h3>${esc(I18n.t('import.flowPreview'))}</h3>
+          <p class="import-section-copy">${esc(I18n.t('import.flowPreviewHint'))}</p>
           ${_storyPreviewHtml(review.changes)}
         </section>
         <section class="import-review-section">
@@ -614,7 +919,7 @@ export const ImportCenter = (() => {
                 _busy === 'adjust'
                   ? esc(I18n.t('import.applyingPlacements'))
                   : esc(I18n.t('import.applyPlacements')),
-                'ImportCenter.applyMapAdjustments',
+                'ImportCenter.revalidateReviewEdits',
                 'edit-save-btn',
                 !!_busy,
               )}
@@ -634,11 +939,35 @@ export const ImportCenter = (() => {
         </section>
         <section class="import-review-section">
           <h3>${esc(I18n.t('import.changes'))}</h3>
-          ${_changesHtml(review.changes)}
+          <p class="import-section-copy">${esc(I18n.t('import.changesHint'))}</p>
+          <div class="import-review-edit-controls" id="import-review-edit-controls"
+            aria-live="polite"${_pendingEditCount() ? '' : ' hidden'}>
+            <span id="import-review-edit-count">${esc(I18n.t('import.editsPending', {
+              count: _pendingEditCount(),
+            }))}</span>
+            <div>
+              ${_button(
+                _busy === 'adjust'
+                  ? esc(I18n.t('import.applyingEdits'))
+                  : esc(I18n.t('import.revalidateEdits')),
+                'ImportCenter.revalidateReviewEdits',
+                'edit-save-btn',
+                !!_busy,
+              )}
+              ${_button(
+                esc(I18n.t('import.discardEdits')),
+                'ImportCenter.discardReviewEdits',
+                'inline-create-btn',
+                !!_busy,
+              )}
+            </div>
+          </div>
+          ${_changesHtml(review.changes
+            .filter(change => !change.collection.endsWith(':planning_items')))}
         </section>
         <div class="import-confirm">
           <label>
-            <input type="checkbox" id="import-confirm-plan"${_confirmed ? ' checked' : ''}${_mapAdjustments.size || _busy ? ' disabled' : ''}${dataOn('change', 'ImportCenter.setConfirmed', '$checked')}>
+            <input type="checkbox" id="import-confirm-plan"${_confirmed ? ' checked' : ''}${_pendingEditCount() || _busy ? ' disabled' : ''}${dataOn('change', 'ImportCenter.setConfirmed', '$checked')}>
             <span>${esc(I18n.t('import.confirmExactPlan'))}</span>
           </label>
           <div class="import-actions">
@@ -647,7 +976,7 @@ export const ImportCenter = (() => {
               `✓ ${esc(I18n.t('import.commit'))}`,
               'ImportCenter.commit',
               'edit-save-btn',
-              !_preview.committable || !_confirmed || !!_busy || !!_mapAdjustments.size,
+              !_preview.committable || !_confirmed || !!_busy || !!_pendingEditCount(),
               'import-commit-button',
             )}
           </div>
@@ -731,6 +1060,7 @@ export const ImportCenter = (() => {
       </div>`;
     if (_preview && !_result) {
       _wireMapEditors();
+      _wireChangeEditors();
       _mountStoryGraph(_storyReview);
     }
   }
@@ -741,6 +1071,10 @@ export const ImportCenter = (() => {
     _result = null;
     _error = null;
     _confirmed = false;
+    _sourceOriginal = null;
+    _sourceDraft = null;
+    _sourceLocations.clear();
+    _editedSourcePaths.clear();
     _mapAdjustments.clear();
     render();
   }
@@ -764,6 +1098,11 @@ export const ImportCenter = (() => {
       _jobId = job.id;
       _preview = await _client.preview(job.id);
       if (generation !== _generation) return;
+      _sourceOriginal = JSON.parse(await _file.text());
+      _sourceDraft = structuredClone(_sourceOriginal);
+      _sourceLocations.clear();
+      _editedSourcePaths.clear();
+      _mapAdjustments.clear();
       _confirmed = false;
       announce(I18n.t(_preview.committable ? 'import.previewReady' : 'import.previewBlocked'));
     } catch (error) {
@@ -779,14 +1118,14 @@ export const ImportCenter = (() => {
   }
 
   function setConfirmed(value) {
-    if (_mapAdjustments.size || _busy) return;
+    if (_pendingEditCount() || _busy) return;
     _confirmed = !!value;
     render();
   }
 
   async function commit() {
     if (!_jobId || !_preview?.previewToken || !_preview.committable
-        || !_confirmed || _busy || _mapAdjustments.size) return;
+        || !_confirmed || _busy || _pendingEditCount()) return;
     const generation = _generation;
     _busy = 'commit';
     _error = null;
@@ -819,6 +1158,10 @@ export const ImportCenter = (() => {
     _busy = '';
     _confirmed = false;
     _jobId = '';
+    _sourceOriginal = null;
+    _sourceDraft = null;
+    _sourceLocations.clear();
+    _editedSourcePaths.clear();
     _mapAdjustments.clear();
     _storyReview = null;
     render();
@@ -837,17 +1180,22 @@ export const ImportCenter = (() => {
     _busy = '';
     _confirmed = false;
     _jobId = '';
+    _sourceOriginal = null;
+    _sourceDraft = null;
+    _sourceLocations.clear();
+    _editedSourcePaths.clear();
     _mapAdjustments.clear();
     _storyReview = null;
     if (jobId && !committing) _client.cancel(jobId).catch(() => {});
   }
 
   return Object.freeze({
-    applyMapAdjustments,
     commit,
     discardMapAdjustments,
+    discardReviewEdits,
     leave,
     preview,
+    revalidateReviewEdits,
     render,
     reset,
     selectFile,

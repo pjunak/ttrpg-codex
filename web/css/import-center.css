@@ -362,17 +362,140 @@
   color: var(--text-muted);
 }
 
-.import-diff pre {
-  max-height: 420px;
-  margin: 0;
+.import-diff > section {
+  min-width: 0;
   padding: var(--space-3);
-  overflow: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  background: rgba(0, 0, 0, 0.2);
-  color: var(--text-light);
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.import-diff > section:last-child {
+  border-color: rgba(var(--accent-gold-rgb), 0.45);
+  background: rgba(var(--accent-gold-rgb), 0.04);
+}
+
+.import-form-hint {
+  margin: 0;
+  color: var(--text-muted);
   font-size: var(--text-xs);
-  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+.import-record-form {
+  max-height: 720px;
+  margin-top: var(--space-3);
+  padding-right: var(--space-1);
+  overflow: auto;
+}
+
+.import-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.import-form-field {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+}
+
+.import-form-field.is-wide,
+.import-form-group.is-wide {
+  grid-column: 1 / -1;
+}
+
+.import-form-field.is-boolean {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  align-self: end;
+  min-height: 44px;
+}
+
+.import-form-field .edit-input {
+  width: 100%;
+  color: var(--text-light);
+}
+
+.import-form-field textarea.edit-input {
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.import-record-form.is-readonly .edit-input {
+  border-color: var(--border-faint);
+  background: var(--bg-deep);
+  color: var(--text-muted);
+}
+
+.import-form-field.is-modified .edit-input {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 1px rgba(var(--accent-gold-rgb), 0.2);
+}
+
+.import-form-group {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-sm);
+}
+
+.import-form-group > legend {
+  padding: 0 var(--space-1);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.import-form-group > legend,
+.import-array-scalar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.import-form-group > legend > span,
+.import-array-scalar > .import-form-field {
+  flex: 1;
+}
+
+.import-form-array {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.import-array-add {
+  justify-self: start;
+}
+
+.import-array-remove {
+  padding: 2px var(--space-1);
+  border: 0;
+  background: transparent;
+  color: var(--color-danger-bright);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-xs);
+}
+
+.import-array-remove:hover,
+.import-array-remove:focus-visible {
+  text-decoration: underline;
+}
+
+.import-form-empty {
+  padding: var(--space-2);
+  border: 1px dashed var(--border-faint);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
 }
 
 .import-map-list {
@@ -380,7 +503,8 @@
   gap: var(--space-4);
 }
 
-.import-placement-controls {
+.import-placement-controls,
+.import-review-edit-controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -395,11 +519,13 @@
   font-size: var(--text-sm);
 }
 
-.import-placement-controls[hidden] {
+.import-placement-controls[hidden],
+.import-review-edit-controls[hidden] {
   display: none;
 }
 
-.import-placement-controls > div {
+.import-placement-controls > div,
+.import-review-edit-controls > div {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
@@ -524,7 +650,7 @@
 }
 
 .import-story-graph {
-  height: 500px;
+  height: 600px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background:
@@ -544,6 +670,103 @@
 
 .import-story-graph-fallback[hidden] {
   display: none;
+}
+
+.import-flow-empty {
+  padding: var(--space-5);
+  border: 1px dashed var(--accent-gold);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--accent-gold-rgb), 0.05);
+}
+
+.import-flow-empty strong {
+  color: var(--text-cream);
+}
+
+.import-flow-empty p {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+}
+
+.import-flow-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.import-flow-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.7fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--color-info);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+}
+
+.import-flow-list li.is-branches {
+  border-left-color: var(--accent-gold);
+}
+
+.import-flow-source,
+.import-flow-target,
+.import-flow-transition {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.import-flow-source small,
+.import-flow-target small,
+.import-flow-transition small {
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+}
+
+.import-flow-target {
+  text-align: right;
+}
+
+.import-flow-source strong,
+.import-flow-target strong {
+  overflow-wrap: anywhere;
+  color: var(--text-light);
+}
+
+.import-flow-transition {
+  position: relative;
+  justify-items: center;
+  color: var(--accent-gold);
+  text-align: center;
+}
+
+.import-flow-transition::before {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: currentColor;
+  content: "";
+  opacity: 0.35;
+}
+
+.import-flow-transition > * {
+  z-index: 1;
+  padding: 0 var(--space-2);
+  background: var(--bg-surface);
+}
+
+.import-flow-transition b {
+  max-width: 100%;
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
 }
 
 .import-story-connections {
@@ -601,98 +824,30 @@
   gap: var(--space-3);
 }
 
-.import-story-card {
+.import-story-change {
   min-width: 0;
-  padding: var(--space-4);
-  border: 1px solid var(--border-subtle);
   border-top: 3px solid var(--text-muted);
-  border-radius: var(--radius-sm);
   background: var(--bg-surface);
 }
 
-.import-story-card.is-thread {
+.import-story-change.is-thread {
   border-top-color: var(--color-mystery);
 }
 
-.import-story-card.is-quest {
+.import-story-change.is-quest {
   border-top-color: var(--accent-gold);
 }
 
-.import-story-card.is-scenario {
+.import-story-change.is-scenario {
   border-top-color: var(--color-info);
 }
 
-.import-story-card.is-encounter {
+.import-story-change.is-encounter {
   border-top-color: var(--color-danger-bright);
 }
 
-.import-story-card > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  color: var(--text-muted);
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.import-story-card h4 {
-  margin: var(--space-2) 0;
-  color: var(--text-cream);
-  font-size: var(--text-lg);
-}
-
-.import-story-summary {
-  margin: 0 0 var(--space-3);
-  color: var(--text-light);
-  line-height: 1.45;
-}
-
-.import-story-card details {
-  border-top: 1px solid var(--border-faint);
-  color: var(--text-light);
-}
-
-.import-story-card details > summary {
-  padding: var(--space-2) 0;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-family: var(--font-ui);
-  font-size: var(--text-sm);
-}
-
-.import-story-body {
-  max-height: 280px;
-  padding: var(--space-2) 0;
-  overflow: auto;
-  color: var(--text-light);
-  line-height: 1.45;
-  white-space: pre-wrap;
-}
-
-.import-story-card ol {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding-left: var(--space-5);
-}
-
-.import-story-card li::marker {
-  color: var(--accent-gold);
-}
-
-.import-story-card li strong {
-  color: var(--text-cream);
-}
-
-.import-story-card li p {
-  margin: var(--space-1) 0 0;
-  color: var(--text-muted);
-  line-height: 1.4;
-  white-space: pre-wrap;
+.import-story-change[open] {
+  grid-column: 1 / -1;
 }
 
 .import-confirm {
@@ -780,9 +935,29 @@
     grid-template-columns: 1fr;
   }
 
-  .import-placement-controls {
+  .import-placement-controls,
+  .import-review-edit-controls {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .import-form-grid,
+  .import-flow-list li {
+    grid-template-columns: 1fr;
+  }
+
+  .import-flow-target,
+  .import-flow-transition {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .import-flow-transition::before {
+    display: none;
+  }
+
+  .import-flow-transition > * {
+    padding: 0;
   }
 
   .import-story-graph {

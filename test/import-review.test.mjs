@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   applyLocationAdjustments,
   buildStoryReview,
+  locateChangeSource,
+  setValueAtPath,
 } from '../web/js/import-review.js';
 
 test('location adjustments produce a new campaign bundle with bounded coordinates', () => {
@@ -82,4 +84,85 @@ test('story review uses only explicit planning links and core relationships', ()
   assert.ok(review.nodes.some(node => node.id === 'planning:quest-one'));
   assert.ok(review.nodes.some(node => node.id === 'core:locations:place-one'));
   assert.equal(review.edges.some(edge => edge.label === 'Find the truth.'), false);
+});
+
+test('story review separates explicit chronology and decision branches from semantic links', () => {
+  const itemChange = (id, title, sections = []) => ({
+    collection: 'dm-tools:planning_items',
+    id,
+    after: { kind: 'scenario', title, sections },
+  });
+  const linkChange = (id, type, name, source, target) => ({
+    collection: 'dm-tools:planning_links',
+    id,
+    after: { type, name, source, target },
+  });
+  const review = buildStoryReview([
+    itemChange('arrival', 'Arrival'),
+    itemChange('choice', 'The choice', [{ id: 'refuse', title: 'Refuse', body: '' }]),
+    itemChange('outcome', 'Outcome'),
+    linkChange(
+      'ordered',
+      'precedes',
+      'Then the offer is made',
+      { scope: 'planning', itemId: 'arrival' },
+      { scope: 'planning', itemId: 'choice' },
+    ),
+    linkChange(
+      'branch',
+      'branches',
+      'Refuse the offer',
+      { scope: 'planning', itemId: 'choice', sectionId: 'refuse' },
+      { scope: 'planning', itemId: 'outcome' },
+    ),
+    linkChange(
+      'context',
+      'reveals',
+      'Explains the motive',
+      { scope: 'planning', itemId: 'arrival' },
+      { scope: 'planning', itemId: 'outcome' },
+    ),
+  ]);
+
+  assert.deepEqual(review.flowEdges.map(edge => edge.type), ['precedes', 'branches']);
+  assert.equal(review.flowEdges.some(edge => edge.label === 'Explains the motive'), false);
+  const decision = review.flowNodes.find(node => node.sectionId === 'refuse');
+  assert.equal(decision.label, 'Refuse');
+  assert.equal(decision.parentLabel, 'The choice');
+  assert.equal(decision.decision, true);
+});
+
+test('review changes locate and update their exact source records', () => {
+  const source = {
+    records: {
+      locations: [{
+        ref: 'place.square',
+        operation: 'create',
+        record: { name: 'Square' },
+      }],
+    },
+    addonImports: [{
+      addonId: 'dm-tools',
+      contributorId: 'planning',
+      document: {
+        items: [{ id: 'quest-one', operation: 'create', title: 'Quest One' }],
+        links: [{ id: 'quest-one', operation: 'create', name: 'Same id, other collection' }],
+      },
+    }],
+  };
+  const core = locateChangeSource(source, {
+    collection: 'locations',
+    sourceRef: 'place.square',
+  });
+  const addon = locateChangeSource(source, {
+    collection: 'dm-tools:planning_items',
+    id: 'quest-one',
+    contributor: { addonId: 'dm-tools', id: 'planning' },
+  });
+
+  assert.deepEqual(core.path, ['records', 'locations', 0, 'record']);
+  assert.deepEqual(addon.path, ['addonImports', 0, 'document', 'items', 0]);
+  setValueAtPath(source, [...addon.path, 'title'], 'Rewritten quest');
+  assert.equal(source.addonImports[0].document.items[0].title, 'Rewritten quest');
+  assert.equal(source.addonImports[0].document.links[0].name, 'Same id, other collection');
 });
