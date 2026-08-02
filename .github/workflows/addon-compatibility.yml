@@ -18,21 +18,21 @@ jobs:
     name: Public addon suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           path: ttrpg-codex
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           repository: pjunak/addon-dm-tools
           path: addon-dm-tools
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           repository: pjunak/dnd-character-sheets
           path: dnd-character-sheets
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: ttrpg-codex/.nvmrc
 
@@ -54,19 +54,19 @@ jobs:
         if: env.ADDON_SUITE_TOKEN == ''
         run: echo "::warning::ADDON_SUITE_TOKEN is not configured; skipping the private compendium compatibility suite."
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: env.ADDON_SUITE_TOKEN != ''
         with:
           path: ttrpg-codex
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: env.ADDON_SUITE_TOKEN != ''
         with:
           repository: pjunak/dnd55e-compendium
           token: ${{ env.ADDON_SUITE_TOKEN }}
           path: dnd55e-compendium
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         if: env.ADDON_SUITE_TOKEN != ''
         with:
           node-version-file: ttrpg-codex/.nvmrc
