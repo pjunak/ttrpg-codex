@@ -525,10 +525,10 @@ keyed-object collections must add the same guard.
 ## CDN scripts and SRI
 
 The production dependency graph is expected to pass `npm audit --omit=dev`.
-`package.json` pins transitive `brace-expansion` to `5.0.8` through an npm
-override because `archiver` reaches it through `readdir-glob` / `minimatch`;
-keep the override until that chain declares a non-vulnerable version directly.
-The backup integration tests guard compatibility with the overridden graph.
+`package-lock.json` records the exact direct and transitive graph installed by
+`npm ci`. Avoid npm overrides when the upstream dependency range already admits
+the audited release: an override can become a stale second source of truth.
+The backup integration tests guard compatibility with the resolved archive graph.
 
 Every `<script>` and `<link rel="stylesheet">` in `web/index.html`
 that points at a CDN carries a pinned `integrity="sha384-…"` hash
