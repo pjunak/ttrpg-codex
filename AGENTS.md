@@ -95,6 +95,7 @@ server/                    visibility.cjs (role filter) · migrations.cjs ·
                            auth.cjs (credentials, sessions, role gates/routes) ·
                            live-sync.cjs (role-scoped SSE clients/broadcasts) ·
                            snapshot-service.cjs + snapshot-routes.cjs ·
+                           snapshot-migration.cjs (cross-volume legacy move) ·
                            addons.cjs (broker) · addon-testing.cjs (test
                            green-gate) · addon-content.cjs (contentDir) ·
                            zip-reader.cjs (shared bounded lazy ZIP reader) ·

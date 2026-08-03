@@ -45,6 +45,7 @@ const {
 } = require('./server/campaign-mutations.cjs');
 const { writeRevision } = require('./server/write-revision.cjs');
 const { durableWrite } = require('./server/durable-files.cjs');
+const { migrateLegacySnapshots } = require('./server/snapshot-migration.cjs');
 const {
   MediaPublicationService,
   acceptsImage,
@@ -237,25 +238,6 @@ fs.mkdirSync(TRANSACTION_RUNTIME_DIR, { recursive: true });
 fs.mkdirSync(RESTORE_RUNTIME_DIR, { recursive: true });
 fs.mkdirSync(MEDIA_RUNTIME_DIR, { recursive: true });
 fs.mkdirSync(MUTATION_RUNTIME_DIR, { recursive: true });
-
-// Idempotent relocation: any leftover snapshots inside data/ are
-// moved to the sibling directory.
-try {
-  if (fs.existsSync(LEGACY_SNAPSHOTS_DIR)) {
-    const list = fs.readdirSync(LEGACY_SNAPSHOTS_DIR);
-    for (const f of list) {
-      if (!/^snapshot-.*\.json$/.test(f)) continue;
-      const src = path.join(LEGACY_SNAPSHOTS_DIR, f);
-      const dst = path.join(SNAPSHOTS_DIR, f);
-      try {
-        if (!fs.existsSync(dst)) fs.renameSync(src, dst);
-        else fs.unlinkSync(src);
-      } catch (e) { console.warn(`[snapshot migrate] ${f}: ${e.message}`); }
-    }
-    try { fs.rmdirSync(LEGACY_SNAPSHOTS_DIR); } catch (_) {}
-    console.log('[snapshot] migrated legacy data/snapshots → data-snapshots');
-  }
-} catch (e) { console.warn('[snapshot migrate]', e.message); }
 
 // CSP remains off while the UI relies on inline style attributes. All scripts
 // are external modules, so script policy can be enabled independently later.
@@ -4177,6 +4159,10 @@ async function _prepareOwnedTemp(root, label) {
 // Tile sweep stays fire-and-forget (it can take seconds on a large
 // map and the fallback overlay covers any in-flight requests anyway).
 async function _bootstrap() {
+  await migrateLegacySnapshots({
+    legacyDir: LEGACY_SNAPSHOTS_DIR,
+    snapshotsDir: SNAPSHOTS_DIR,
+  });
   await _prepareOwnedTemp(IMPORT_TEMP_ROOT, 'import');
   await _prepareOwnedTemp(RESTORE_STAGING_ROOT, 'restore');
   await _prepareOwnedTemp(MEDIA_STAGING_ROOT, 'media');

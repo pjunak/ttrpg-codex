@@ -245,7 +245,7 @@ registry, credentials, and proxy route are separate.
 
 ### Monitoring
 
-The Docker `HEALTHCHECK` probes `GET /api/version` every 30 s. The
+The Docker `HEALTHCHECK` probes `GET /api/version` every 10 s. The
 endpoint exercises `_dataHash`, so a wedged data directory fails the
 check.
 
@@ -261,7 +261,11 @@ Notable lines:
 
 - `TTRPG Codex running on http://localhost:3000` — server is up.
 - `[snapshot] migrated legacy data/snapshots → data-snapshots` —
-  one-time relocation from a pre-A3 deployment.
+  one-time relocation from a pre-A3 deployment. Separate Docker mounts are
+  handled with a durable copy followed by source deletion.
+- `[snapshot migrate] incomplete: …` — at least one legacy snapshot could not
+  be copied; its source remains intact. Check the preceding per-file error and
+  the ownership of both persistent directories before redeploying.
 - `[tiles] sharp not installed — tile generation disabled` — the required
   package failed to load despite being in the production dependency set.
   The app degrades to a slower single-image overlay, but rebuild the image or

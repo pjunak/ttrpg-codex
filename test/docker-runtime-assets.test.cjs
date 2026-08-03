@@ -16,3 +16,12 @@ test('Docker image includes import schemas loaded during server startup', () => 
     assert.doesNotThrow(() => JSON.parse(source), `${filename} must contain valid JSON`);
   }
 });
+
+test('Docker health check detects readiness within the deployment polling window', () => {
+  const dockerfile = fs.readFileSync(path.join(ROOT, 'Dockerfile'), 'utf8');
+  assert.match(
+    dockerfile,
+    /^HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3/m,
+  );
+  assert.match(dockerfile, /http:\/\/localhost:3000\/api\/version/);
+});

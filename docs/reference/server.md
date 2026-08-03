@@ -11,7 +11,10 @@ of the entire JSON dataset under `data-snapshots/snapshot-<ISO>.json`
 simplifies restore path policy, and stops backup zips from carrying
 their own history). A one-time migration on server boot moves any
 pre-existing `data/snapshots/*` files into the new sibling dir, then
-removes the empty subdir. Snapshot shape:
+removes the empty subdir. `server/snapshot-migration.cjs` falls back to a
+durable copy followed by source deletion when the directories are separate
+mounts and `rename` returns `EXDEV`; a failed copy retains the source and is
+reported as incomplete. Snapshot shape:
 
 ```json
 {
@@ -604,7 +607,7 @@ of `web/` so the existing `COPY web ./web` covers it. The
 `web/branding/logo-default.svg` placeholder logo ships the same way
 (custom-uploaded logos live in the `data/branding/` volume instead).
 
-`HEALTHCHECK` probes `GET /api/version` every 30 s. The endpoint
+`HEALTHCHECK` probes `GET /api/version` every 10 s. The endpoint
 exercises `_dataHash` so a wedged data dir fails the check.
 
 **Multiple instances, one image.** The image is stateless — all
