@@ -482,7 +482,8 @@ map only. Auth legend: `—` open · `any` any authenticated role · `dm` DM onl
 | PATCH | `/api/data` | any | Save or delete one entity; player writes sanitised to public |
 | POST | `/api/twin` | dm | Create / link / unlink a public↔DM twin pair |
 | GET | `/api/events` | — | SSE stream of `data-changed` / `addons-changed` events |
-| GET | `/api/version` | — | `{ hash, instance, features, canRestart }` (health check) |
+| GET | `/api/health` | — | Constant-time container readiness: `{ ok: true }` |
+| GET | `/api/version` | — | `{ hash, instance, features, canRestart }` (role-scoped synchronization) |
 | POST | `/api/restart` | dm | Clean process exit so the supervisor restarts it (gated on `canRestart`) |
 | POST | `/api/login` | — | Validate password, set `edit_session` cookie |
 | POST | `/api/logout` | — | Clear the cookie (idempotent) |

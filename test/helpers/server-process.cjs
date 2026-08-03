@@ -37,7 +37,7 @@ async function waitForReady(baseUrl, timeoutMs = 8000) {
   let lastErr = null;
   while (Date.now() - start < timeoutMs) {
     try {
-      const res = await fetch(`${baseUrl}/api/version`);
+      const res = await fetch(`${baseUrl}/api/health`);
       if (res.ok) return true;
     } catch (e) { lastErr = e; }
     await new Promise(resolve => { setTimeout(resolve, 80); });

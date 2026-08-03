@@ -396,6 +396,7 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | POST | `/api/content-import/jobs/:jobId/commit` | dm | `{previewToken}` only. Consumes the token, verifies provider/package/schema/base revisions, and commits the exact stored operations atomically. Stale state is `409 IMPORT_REVISION_CONFLICT`; provider transformation is never rerun. |
 | DELETE | `/api/content-import/jobs/:jobId` | dm | Abort provider work, invalidate any preview token, mark the owner-bound job cancelled, and remove staged input. |
 | POST | `/api/twin` | dm | DM-only. `{ action: 'create' \| 'link' \| 'unlink', type, sourceId, targetId? }`. Manages twin entity pairs: `create` clones the source into the opposite visibility space and bidirectionally sets `linkedTwinId`; `link` marries two existing entities (one public, one DM-only); `unlink` clears the pair. Atomicity: both sides written inside one `withWriteLock` pass. Broadcasts `data-changed`. See "Twin entity model" section. |
+| GET | `/api/health` | — | Constant-time, data-independent container readiness probe. Returns `{ ok: true }` with `Cache-Control: no-store`. |
 | GET | `/api/version` | — | `{ hash, instance, features, canRestart }`. `hash` is role-scoped: DM hashes cover all tracked data, while player/anonymous hashes cover only their authorized `/api/data` projection and therefore do not change for DM-only addon writes. |
 | POST | `/api/restart` | dm | DM-only on **realRole**. Restart the server process by exiting cleanly so the supervisor (Docker `restart: unless-stopped` / systemd / pm2) brings it back up — the only way to reload in-process addon **server code** after an install/update/rollback without a manual `docker restart`. **400** when not `RESTARTABLE` (`CODEX_RESTARTABLE=1` or `/.dockerenv` detected) — exiting bare would just take the wiki down. Responds first, drains the write lock, then `process.exit(0)`; the client (`Settings.restartServer`) shows a full-screen overlay that polls `/api/version` (down→up) and reloads. No Docker-socket access. |
 | POST | `/api/addons/update-all` | dm | DM-only on **realRole**. Update EVERY addon from a real GitHub repo to its latest commit in one shot — the per-addon update flow, looped (re-resolve stored ref→latest SHA, stage+promote via the same green-gate / content-hash / kept-versions pipeline a single install uses). Local (dev-installed, `repo:'local'`) addons are skipped. Returns `{ ok, updated[], skipped[], errors[], serverChanged }` (`serverChanged` = any updated addon ships server code → the client suggests a restart). Broadcasts `addons-changed`. |
@@ -607,8 +608,9 @@ of `web/` so the existing `COPY web ./web` covers it. The
 `web/branding/logo-default.svg` placeholder logo ships the same way
 (custom-uploaded logos live in the `data/branding/` volume instead).
 
-`HEALTHCHECK` probes `GET /api/version` every 10 s. The endpoint
-exercises `_dataHash` so a wedged data dir fails the check.
+`HEALTHCHECK` probes constant-time `GET /api/health` every 10 s. Readiness is
+therefore independent of campaign size and visibility projection cost;
+`GET /api/version` retains the role-scoped `_dataHash` synchronization contract.
 
 **Multiple instances, one image.** The image is stateless — all
 per-deploy state lives in the `data/` + `data-snapshots/` volumes — so

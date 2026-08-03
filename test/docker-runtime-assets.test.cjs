@@ -23,5 +23,6 @@ test('Docker health check detects readiness within the deployment polling window
     dockerfile,
     /^HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3/m,
   );
-  assert.match(dockerfile, /http:\/\/localhost:3000\/api\/version/);
+  assert.match(dockerfile, /http:\/\/127\.0\.0\.1:3000\/api\/health/);
+  assert.doesNotMatch(dockerfile, /HEALTHCHECK[^\n]*\/api\/version/);
 });

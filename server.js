@@ -1932,9 +1932,17 @@ app.delete('/api/content-import/jobs/:jobId', requireImportDM, async (req, res) 
 });
 
 /**
+ * GET /api/health — Constant-time container readiness probe. This must remain
+ * independent of campaign files: large instances still need to become healthy
+ * while their role-scoped /api/version hash is first computed by a client.
+ */
+app.get('/api/health', (_req, res) => {
+  res.set('Cache-Control', 'no-store').json({ ok: true });
+});
+
+/**
  * GET /api/version — Returns the current dataset hash. Useful for
- * health-check probes (the Dockerfile HEALTHCHECK pings this), and
- * historically for clients to poll for changes before SSE existed.
+ * clients to poll for changes and detect a completed server restart.
  */
 app.get('/api/version', async (req, res) => {
   const role = req.role === 'dm' ? 'dm' : 'player';

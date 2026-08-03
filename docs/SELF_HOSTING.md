@@ -228,7 +228,7 @@ will revive it. Or git-checkout the previous commit and rebuild.
 Production runs behind a real reverse proxy and persistent volumes, so a local
 browser is not a complete substitute. After an upgrade:
 
-1. confirm `GET /api/version` and the container health check;
+1. confirm `GET /api/health`, `GET /api/version`, and the container health check;
 2. sign in through the public hostname and verify the expected real/effective
    role;
 3. create one manual recovery point, refresh the list, and download a ZIP
@@ -245,9 +245,10 @@ registry, credentials, and proxy route are separate.
 
 ### Monitoring
 
-The Docker `HEALTHCHECK` probes `GET /api/version` every 10 s. The
-endpoint exercises `_dataHash`, so a wedged data directory fails the
-check.
+The Docker `HEALTHCHECK` probes the constant-time `GET /api/health` endpoint
+every 10 s. It verifies that the Node process and Express event loop can answer
+requests without making readiness depend on campaign size. `GET /api/version`
+separately computes the role-scoped data hash used by clients.
 
 `docker compose ps` shows health status; alert when it isn't `healthy`.
 
