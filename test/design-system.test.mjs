@@ -67,6 +67,22 @@ test('shared controls and addon composition primitives inherit theme-safe stylin
   }
 });
 
+test('character-card attitude rings belong to the portrait frame', () => {
+  const css = read('web/css/wiki.css');
+  const card = css.match(/\.char-card\s*\{[^}]*\}/);
+  assert.ok(card, '.char-card exists');
+  assert.match(card[0], /display:\s*flex/, 'anchor has one unfragmented card box');
+  assert.match(card[0], /overflow:\s*visible/, 'portrait halo is not clipped by the card');
+
+  const portrait = css.match(/\.char-card\s*>\s*\.portrait-wrap\s*\{[^}]*\}/);
+  assert.ok(portrait, 'character portrait-frame rule exists');
+  assert.match(portrait[0], /box-shadow:\s*var\(--attitude-ring/, 'portrait owns the attitude ring');
+
+  const wiki = read('web/js/wiki.js');
+  assert.match(wiki, /\$\{portraitWrap\(c, '', glow\)\}/, 'renderer passes the ring into the portrait');
+  assert.doesNotMatch(wiki, /class="char-card"[^>]*--attitude-ring/, 'card anchor does not own the ring');
+});
+
 test('ui.announce: the harness mirror records screen-reader status lines', () => {
   const { host, rec } = createMockHost({ id: 'ds-test' });
   host.ui.announce('12 matches');

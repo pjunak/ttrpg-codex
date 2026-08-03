@@ -447,11 +447,8 @@ export const Wiki = (() => {
   // The optional `glowRing` is a box-shadow layer list built by
   // `_attitudeGlowBox(entries, colors)`. It's emitted as the
   // `--attitude-ring` custom property; the surface's CSS composes it
-  // into its box-shadow (`.ah-visual .portrait-wrap` reads it here —
-  // card/dashboard surfaces set the property on their own outer
-  // element instead because their ancestors clip with overflow:
-  // hidden). Ring, not drop-shadow: the glow hugs the portrait
-  // BORDER and never bleeds over the picture itself.
+  // into its box-shadow. Ring, not drop-shadow: the glow hugs the
+  // portrait BORDER and never bleeds over the picture itself.
   function portraitWrap(c, extraClass, glowRing) {
     const factions  = Store.getFactions();
     const deadHtml  = c.status === "dead" ? `<div class="dead-overlay">💀</div>` : "";
@@ -1431,14 +1428,12 @@ export const Wiki = (() => {
     const overlay = editOverlay(`#/postava/${c.id}`);
     const colors  = _attitudeColorMap();
     const entries = Store.getEffectiveAttitudes(c, 'character');
-    // The ring rides the card itself — the card's overflow: hidden
-    // would clip a shadow on the inner portrait wrap.
     const glow    = _attitudeGlowBox(entries, colors);
     const twinMark = _twinCardMarker(c);
     return `
       <div class="entity-card-wrap">
-        <a class="char-card" href="#/postava/${c.id}"${glow ? ` style="--attitude-ring: ${glow}"` : ''}>
-          ${portraitWrap(c, '')}
+        <a class="char-card" href="#/postava/${c.id}">
+          ${portraitWrap(c, '', glow)}
           ${twinMark}
           <div class="char-card-info">
             <div class="char-card-name">${c.knowledge >= 1 ? esc(c.name) : "???"}</div>

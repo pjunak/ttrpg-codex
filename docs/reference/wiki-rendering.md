@@ -27,9 +27,10 @@ blue + weak-red mixed glow without any per-segment masking. Empty
   semi-transparent image shows THROUGH it — the glow colour washed
   over the picture. An outer box-shadow is clipped away under the
   border-box, so the ring hugs the portrait border only. Where the
-  property lands (dictated by `overflow: hidden` ancestors that would
-  clip an inner shadow):
-  - character cards → inline on the **`.char-card`** anchor itself;
+  property lands:
+  - character cards → inline on the **`.portrait-wrap`** inside the
+    `.char-card`; the card is a flex box with visible overflow, while the
+    portrait wrapper clips its own image to the rounded top corners;
   - dashboard party → inline on the circular **`.dash-party-portrait`**;
   - character article side card → via `portraitWrap`'s style attr on
     `.portrait-wrap` (read by the `.ah-visual .portrait-wrap` rule).
