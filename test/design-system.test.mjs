@@ -56,6 +56,17 @@ test('widgets.css: chip + badge variants exist for the addon list/fact patterns'
   assert.match(css, /\.codex-badge-accent/, 'accent badge variant');
 });
 
+test('shared controls and addon composition primitives inherit theme-safe styling', () => {
+  const main = read('web/css/main.css');
+  assert.match(main, /button\s*\{[^}]*color:\s*inherit/, 'bare buttons cannot fall back to black');
+  assert.match(main, /--font-mono:/, 'monospace UI uses a host token');
+
+  const css = read('web/css/widgets.css');
+  for (const className of ['codex-stack', 'codex-cluster', 'codex-auto-grid', 'codex-toolbar', 'codex-fact-grid', 'codex-reading-flow', 'codex-code-input']) {
+    assert.match(css, new RegExp(`\\.${className}\\s*\\{`), `${className} exists`);
+  }
+});
+
 test('ui.announce: the harness mirror records screen-reader status lines', () => {
   const { host, rec } = createMockHost({ id: 'ds-test' });
   host.ui.announce('12 matches');

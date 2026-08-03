@@ -29,7 +29,7 @@
 .sidebar-search-icon  { font-size: 0.95rem; }
 .sidebar-search-label { flex: 1; }
 .sidebar-search-kbd {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
   padding: 0.1em 0.4em;
   background: rgba(255,255,255,0.06);

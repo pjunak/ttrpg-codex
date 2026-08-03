@@ -74,7 +74,7 @@
 }
 .settings-tab-icon  { font-size: var(--text-base); }
 .settings-tab-count {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   padding: 0.1em 0.45em;
   border-radius: 3px;
@@ -154,7 +154,7 @@
   border: 1px solid rgba(255,255,255,0.15);
 }
 .settings-row-id {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--text-muted);
   background: rgba(255,255,255,0.05);
@@ -489,7 +489,7 @@
 }
 .mit-file-name {
   flex: 1 1 auto;
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   color: var(--text-muted);
   overflow: hidden;
@@ -593,7 +593,7 @@
 .settings-map-node-guide {
   display: inline-block;
   width: 0.85rem;
-  font-family: monospace;
+  font-family: var(--font-mono);
   color: rgba(var(--gold-muted), 0.4);
   flex-shrink: 0;
 }

@@ -190,7 +190,7 @@
     0 0 0 calc(1px * var(--cm-z, 1)) rgba(0,0,0,0.6),
     0 calc(4px * var(--cm-z, 1)) calc(14px * var(--cm-z, 1)) rgba(0,0,0,0.55),
     inset 0 calc(1px * var(--cm-z, 1)) 0 rgba(255,255,255,0.04);
-  font-family: var(--font-ui, 'Inter', sans-serif);
+  font-family: var(--font-ui);
   user-select: none;
   transition: opacity 0.2s, box-shadow 0.2s;
   cursor: default;
@@ -222,7 +222,7 @@
 
 /* Primary name */
 .cm-name {
-  font-family: var(--font-title, 'Cinzel', serif);
+  font-family: var(--font-title);
   font-size: calc(13px * var(--cm-z, 1));
   font-weight: 600;
   color: var(--text-parchment, #F5EDD8);
@@ -242,7 +242,7 @@
 
 /* Fact rows */
 .cm-fact {
-  font-family: 'Lora', Georgia, serif;
+  font-family: var(--font-body);
   font-size: calc(11px * var(--cm-z, 1));
   line-height: 1.4;
   color: var(--text-light);
@@ -264,7 +264,7 @@
 
 /* Status row (Vztahy mode) */
 .cm-status-row {
-  font-family: var(--font-ui, 'Inter', sans-serif);
+  font-family: var(--font-ui);
   font-size: calc(11px * var(--cm-z, 1));
   color: var(--text-light);
   margin-bottom: calc(3px * var(--cm-z, 1));
@@ -330,7 +330,7 @@
 }
 .cm-loc-chip {
   --cc: #888;
-  font-family: var(--font-ui, 'Inter', sans-serif);
+  font-family: var(--font-ui);
   font-size: calc(9.5px * var(--cm-z, 1));
   line-height: 1.2;
   padding: calc(1px * var(--cm-z, 1)) calc(5px * var(--cm-z, 1));
@@ -387,7 +387,7 @@
    Width is set dynamically from edge length so text wraps within the line span. */
 .cm-edge-label {
   position: absolute;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-ui);
   font-size: calc(12px * var(--cm-z, 1));
   line-height: 1.35;         /* unitless, scales with font-size */
   white-space: normal;       /* wrap within the dynamically-set width */

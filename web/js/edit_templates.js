@@ -583,7 +583,7 @@ export const EditTemplates = (() => {
 
     const onMap = (typeof l.x === 'number' && typeof l.y === 'number');
     const mapBadge = onMap
-      ? `<span class="badge" style="background:rgba(46,125,50,0.18);color:#a5d6a7">📍 ${esc(I18n.t('editform.onMap'))}</span>`
+      ? `<span class="badge badge-map">📍 ${esc(I18n.t('editform.onMap'))}</span>`
       : `<span class="badge" style="background:rgba(255,255,255,0.07);color:var(--text-muted)">${esc(I18n.t('editform.notOnMap'))}</span>`;
 
     const mapControls = isNew

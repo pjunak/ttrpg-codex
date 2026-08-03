@@ -473,7 +473,10 @@ theme) re-skins your addon for free.
   `.codex-tab` (+`.is-active`, `.codex-tab-tool`) tab bars (you own the ARIA +
   keyboard wiring), `.codex-tile` (+`-label`/`-value`/`-accent`/`-wide`) stat
   tiles, `.codex-warnings` advisory warning lists, `.codex-stepper` −/＋ number
-  steppers (the host steps the input for you via `data-num-step`).
+  steppers (the host steps the input for you via `data-num-step`), shared page
+  composition (`.codex-stack`, `.codex-cluster`, `.codex-auto-grid`,
+  `.codex-toolbar`, `.codex-reading-flow`), and content structures
+  (`.codex-fact-grid`, `.codex-notice`, `.codex-code-input`).
 - **Host widgets in addon HTML:** `Widgets.mountAll` runs after every route
   render (and after `host.ui.rerender()`), so placeholder divs in YOUR html
   mount too. `.tf-mount` (TagFilter — generic search+chips, you own the
@@ -488,7 +491,7 @@ theme) re-skins your addon for free.
 // Good: tokens + host.h, no inline onclick
 const { esc, dataAction } = host.h;
 `<button class="inline-create-btn"${dataAction(host.action('go'), id)}>Akce</button>
- <p style="color:var(--text-muted);margin-top:var(--space-2)">${esc(note)}</p>`
+ <p class="codex-muted codex-section">${esc(note)}</p>`
 ```
 
 ### Interactive graphs

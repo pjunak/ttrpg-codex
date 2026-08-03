@@ -88,9 +88,10 @@ separator — the 0.05–0.07 cluster) · `--border-faint` `rgba(255,255,255,0.0
 `--text-2xl` 2 · `--text-3xl` 2.6 (rem). Use for `font-size`.
 
 ### Font families
-`--font-title` (Cinzel — display headings) · `--font-body` (Crimson Text —
-article prose) · `--font-ui` (system stack — chrome, forms, chips). Use for
-`font-family`; never name a typeface directly.
+`--font-title` (Cinzel — display headings) · `--font-body` (Lora — article
+prose) · `--font-ui` (Inter/system stack — chrome, forms, chips) ·
+`--font-mono` (code, hashes, and machine-readable input). Use `font-family`
+tokens; never name a typeface directly.
 
 ### Radius · shadow · z-index · motion
 Radius: `--radius-sm` 4 · `--radius` 6 · `--radius-lg` 12 · `--radius-pill` 999 (px).
@@ -167,6 +168,13 @@ files noted; this is the everyday set:
     headers (spell level, rarity, alignment); `-accent` = the gold headline fact.
   - `.codex-graph-canvas` — the focusable, theme-aware owned container for
     `host.graphs.mount(...)`; addons do not style Cytoscape directly.
+  - Composition primitives: `.codex-stack` (`-compact`/`-loose`),
+    `.codex-cluster`, `.codex-auto-grid` (`-wide`/`-tiles`), `.codex-toolbar`,
+    `.codex-section-head`, `.codex-reading-flow`, and semantic helpers
+    (`.codex-muted`, `.codex-meta`, `.codex-push-end`, `.codex-center`).
+  - Shared content structures: `.codex-fact-grid` + `.codex-fact-*`,
+    `.codex-notice`, and `.codex-code-input`. Addons should compose these
+    before adding scoped product-specific layout rules.
 
 Addons get these via `host.h` (esc/dataAction/dataOn/renderMarkdown) producing the
 same markup; build addon UI from this vocabulary so it looks native.

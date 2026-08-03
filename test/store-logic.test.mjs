@@ -73,12 +73,16 @@ test('getOpenQuestions: aggregates open questions from mysteries + characters; s
 
 // ── getEffectiveAttitudes (attitude-glow resolution) ──────────────
 
-test('getEffectiveAttitudes: party PC short-circuits to the party palette', () => {
-  // Own attitudes are ignored for party members — the party shortcut wins.
+test('getEffectiveAttitudes: a party PC keeps an explicitly selected attitude', () => {
   const pc = { id: 'pc', faction: 'party', attitudes: [{ id: 'enemy' }] };
   const eff = Store.getEffectiveAttitudes(pc, 'character');
   assert.equal(eff.length, 1);
-  assert.equal(eff[0].id, 'party');
+  assert.equal(eff[0].id, 'enemy');
+});
+
+test('getEffectiveAttitudes: a party PC without an attitude uses the party palette', () => {
+  const pc = { id: 'pc-fallback', faction: 'party', attitudes: [] };
+  assert.equal(Store.getEffectiveAttitudes(pc, 'character')[0].id, 'party');
 });
 
 test('getEffectiveAttitudes: a non-party entity\'s own attitudes win when set', () => {

@@ -183,34 +183,35 @@
   font-style: italic;
 }
 
-/* Party row — flex with wrap so cards center horizontally when there
-   are fewer of them than fit a row. Fixed card width keeps sizes
-   consistent; rows wrap naturally on narrow viewports. */
+/* Party row — player characters and smaller companion cards share one
+   responsive row. The tighter PC width keeps the activity sections above
+   the fold without collapsing the portrait-led card hierarchy. */
 .dash-party-grid {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 1rem;
+  align-items: stretch;
+  gap: var(--space-3);
 }
 .dash-party-card {
   flex: 0 0 auto;
-  width: 180px;
+  width: 160px;
   background: var(--bg-raised);
   border: 1px solid rgba(var(--accent-gold-rgb), 0.2);
   border-radius: var(--radius-lg);
-  padding: 0.75rem;
+  padding: var(--space-3);
   text-decoration: none;
   color: var(--text-parchment);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.6rem;
-  transition: border-color 0.15s, transform 0.15s, box-shadow 0.2s;
+  gap: var(--space-2);
+  transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
 }
 .dash-party-card:hover {
   border-color: var(--accent-gold);
   transform: translateY(-2px);
-  box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow-md);
 }
 /* --attitude-ring: attitude-glow box-shadow layers set inline by the
    renderer (empty attitudes = property unset = the transparent
@@ -221,7 +222,7 @@
   height: 88px;
   border-radius: 50%;
   overflow: hidden;
-  box-shadow: var(--attitude-ring, 0 0 0 transparent), 0 0 0 2px rgba(240,230,200,0.25);
+  box-shadow: var(--attitude-ring, 0 0 0 transparent), 0 0 0 2px rgba(var(--gold-muted), 0.25);
 }
 .dash-party-portrait .portrait-wrap { width: 100%; height: 100%; border-radius: 50%; }
 .dash-party-portrait .portrait-img,
@@ -264,27 +265,6 @@
   background: rgba(var(--status-alive-rgb), 0.12);
   border: 1px solid rgba(var(--status-alive-rgb), 0.28);
 }
-/* ── Party companions (dashboard) ───────────────────────────── */
-.dash-party-companions {
-  margin-top: var(--space-5);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-subtle);
-}
-.dash-party-companions h3 {
-  margin: 0 0 var(--space-3);
-  color: var(--text-muted);
-  font: 600 var(--text-sm) var(--font-ui);
-  letter-spacing: 0.05em;
-  text-align: center;
-  text-transform: uppercase;
-}
-.dash-pets-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.75rem;
-}
-
 /* Pet card — a <button> (pets have no detail page; click = edit).
    Two sizes share one look: .dash-pet-card (dashboard) / .pet-card (page). */
 .dash-pet-card,
@@ -301,20 +281,20 @@
   align-items: center;
   text-align: center;
   gap: 0.4rem;
-  transition: border-color 0.15s, transform 0.15s, box-shadow 0.2s;
+  transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
 }
 .dash-pet-card:hover,
 .pet-card:hover {
   border-color: var(--accent-gold);
   transform: translateY(-2px);
-  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  box-shadow: var(--shadow-md);
 }
-.dash-pet-card { width: 120px; padding: 0.6rem; }
+.dash-pet-card { align-self: center; width: 104px; min-height: 142px; padding: var(--space-2); }
 .pet-card      { width: 150px; padding: 0.75rem; }
 .pet-card-portrait {
   border-radius: 50%;
   overflow: hidden;
-  box-shadow: 0 0 0 2px rgba(240,230,200,0.2);
+  box-shadow: 0 0 0 2px rgba(var(--gold-muted), 0.2);
   display: flex; align-items: center; justify-content: center;
   background: var(--bg-surface);
 }
@@ -689,6 +669,15 @@
   background: rgba(255,255,255,0.08);
   color: var(--text-light);
 }
+.badge-faction-unknown {
+  background: color-mix(in srgb, var(--faction-neutral) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--faction-neutral) 45%, transparent);
+  color: var(--text-muted);
+}
+.badge-map {
+  background: rgba(var(--status-alive-rgb), 0.18);
+  color: var(--color-success);
+}
 .badge-status-alive    { background: rgba(var(--status-alive-rgb), 0.25);  color: var(--color-success); }
 .badge-status-dead     { background: rgba(var(--status-dead-rgb), 0.25);    color: var(--color-danger); }
 .badge-status-captured { background: rgba(var(--status-captured-rgb), 0.25); color: var(--color-info); }
@@ -1035,7 +1024,7 @@
   border-radius: 999px;
   font-size: 0.78rem;
   color: var(--text-parchment);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-ui);
   white-space: nowrap;
 }
 .char-article-desc {
@@ -1052,7 +1041,7 @@
 .char-section-title {
   font-family: var(--font-title);
   font-size: var(--text-sm);
-  color: var(--accent-gold-dim);
+  color: var(--accent-gold);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   margin-bottom: 0.75rem;
@@ -1449,7 +1438,7 @@
   border-radius: 6px;
   padding: 0.45rem 0.75rem;
   color: var(--text-parchment);
-  font-family: var(--font-ui, 'Inter', sans-serif);
+  font-family: var(--font-ui);
   font-size: 0.88rem;
 }
 .list-search-input:focus {
@@ -1475,7 +1464,7 @@
   border-radius: 6px;
   padding: 0.4rem 0.6rem;
   color: var(--text-parchment);
-  font-family: var(--font-ui, 'Inter', sans-serif);
+  font-family: var(--font-ui);
   font-size: var(--text-sm);
   cursor: pointer;
 }
@@ -1550,7 +1539,7 @@
   background: rgba(var(--gold-muted), 0.1);
   border: 1px solid rgba(var(--gold-muted), 0.25);
   color: var(--accent-gold);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-ui);
   letter-spacing: 0.03em;
   margin-left: 0.3rem;
 }

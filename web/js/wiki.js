@@ -295,7 +295,7 @@ export const Wiki = (() => {
     // the party glow stays editable in one place; the attitudes enum
     // carries no `party` row.
     const pp = Store.getPlayerParty();
-    if (pp && pp.color && !map.party) map.party = pp.color;
+    if (pp && pp.color && !map.party) map.party = _safeColor(pp.color, '#F5F0E4');
     return map;
   }
   function _hexToRgba(hex, alpha) {
@@ -354,7 +354,7 @@ export const Wiki = (() => {
   // base/hover box-shadow instead of overriding it.
   function _attitudeGlowBox(entries, colors, blurPx = GLOW_BLUR_PX) {
     return _glowLayers(entries, colors, blurPx)
-      .map(l => `0 0 ${l.blur}px ${l.rgba}`).join(', ');
+      .map(l => `0 0 ${l.blur}px 1px ${l.rgba}`).join(', ');
   }
 
   // Shared toolbar: TagFilter (name + tags, unified) + sort <select>.
@@ -421,7 +421,7 @@ export const Wiki = (() => {
     const f = factions[factionId] || factions.neutral;
     if (!f) {
       const label = factionId ? esc(factionId) : esc(I18n.t('wiki.noFaction'));
-      return `<span class="badge badge-faction" style="background:#55555522;color:#999;border:1px solid #55555555">⚐ ${label}</span>`;
+      return `<span class="badge badge-faction badge-faction-unknown">⚐ ${label}</span>`;
     }
     const col = _safeColor(f.color);
     return `<span class="badge badge-faction" style="background:${col}22;color:${_safeColor(f.textColor)};border:1px solid ${col}55">
@@ -836,7 +836,8 @@ export const Wiki = (() => {
       <button class="dash-section-action dash-section-add"
         ${dataAction('EditMode.startNewCharacter', { faction: PARTY_FACTION_ID, knowledge: 4, status: 'alive' })}
         title="${esc(I18n.t('wiki.addPartyCharacterTitle'))}">＋ ${esc(I18n.t('action.add'))}</button>`;
-    if (!party.length) {
+    const partyPets = Store.getPartyPets();
+    if (!party.length && !partyPets.length) {
       return `
         <div class="dash-section">
           <div class="dash-section-head">
@@ -854,7 +855,7 @@ export const Wiki = (() => {
       return l ? l.name : '';
     };
     const partyColors = _attitudeColorMap();
-    const cards = party.map(c => {
+    const characterCards = party.map(c => {
       const locName = locNameOf(c.location);
       const locChip = locName
         ? `<div class="dash-party-loc" title="${esc(I18n.t('wiki.currentPosition'))}">📍 ${esc(locName)}</div>`
@@ -874,18 +875,8 @@ export const Wiki = (() => {
           </div>
         </a>`;
     }).join('');
-    const grid = `<div class="dash-party-grid">${cards}</div>`;
-    const partyPets = Store.getPartyPets();
-    let partyBody = grid;
-    if (partyPets.length) {
-      const petCards = partyPets.map(p => _petCardHtml(p, { cls: 'dash-pet-card' })).join('');
-      partyBody = `
-        ${grid}
-        <div class="dash-party-companions">
-          <h3>${esc(I18n.t('wiki.partyCompanions'))}</h3>
-          <div class="dash-pets-row">${petCards}</div>
-        </div>`;
-    }
+    const companionCards = partyPets.map(p => _petCardHtml(p, { cls: 'dash-pet-card' })).join('');
+    const partyBody = `<div class="dash-party-grid">${characterCards}${companionCards}</div>`;
     return `
       <div class="dash-section">
         <div class="dash-section-head">

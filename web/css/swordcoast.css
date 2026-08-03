@@ -30,7 +30,7 @@
   flex-wrap: wrap;
 }
 .sc-title {
-  font-family: 'Cinzel', serif;
+  font-family: var(--font-title);
   font-size: 0.95rem;
   color: var(--text-parchment);
   margin: 0 0.5rem 0 0;
@@ -72,7 +72,7 @@
    over Leaflet's own injected styles. */
 .leaflet-container {
   background: var(--bg-surface) !important;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-ui);
 }
 .leaflet-control-zoom a {
   background: var(--bg-raised) !important;
@@ -223,14 +223,14 @@
   filter: drop-shadow(0 0 1px rgba(0,0,0,0.95)) drop-shadow(0 0 1px rgba(0,0,0,0.95));
 }
 .sc-pin-name {
-  font-family: 'Cinzel', serif;
+  font-family: var(--font-title);
   font-size: 0.95rem;
   color: var(--text-parchment);
   margin-bottom: 0.2rem;
 }
 .sc-pin-meta { font-size: var(--text-xs); color: var(--text-muted); }
 .sc-pin-notes {
-  font-family: 'Lora', serif;
+  font-family: var(--font-body);
   font-size: 0.82rem;
   color: var(--text-light);
   line-height: 1.5;
@@ -252,7 +252,7 @@
 .sc-pin-header-link:hover .sc-pin-name { color: var(--accent-gold); }
 .sc-pin-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
 .sc-pin-form-title {
-  font-family: 'Cinzel', serif;
+  font-family: var(--font-title);
   font-size: 0.9rem;
   color: var(--text-parchment);
   margin-bottom: 0.75rem;
@@ -275,7 +275,7 @@
   font-size: 0.82rem;
   padding: 0.35rem 0.5rem;
   box-sizing: border-box;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-ui);
 }
 .sc-input:focus { outline: none; border-color: rgba(var(--gold-muted), 0.5); }
 
@@ -597,7 +597,7 @@
   color: var(--text-parchment);
   font-size: var(--text-sm);
   padding: 0.32rem 0.55rem;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-ui);
 }
 .sc-search:focus { outline: none; border-color: rgba(var(--gold-muted), 0.55); }
 

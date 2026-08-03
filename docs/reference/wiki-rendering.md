@@ -33,6 +33,10 @@ blue + weak-red mixed glow without any per-segment masking. Empty
   - dashboard party → inline on the circular **`.dash-party-portrait`**;
   - character article side card → via `portraitWrap`'s style attr on
     `.portrait-wrap` (read by the `.ah-visual .portrait-wrap` rule).
+  Party characters retain an explicitly selected attitude; only a party
+  character with an empty `attitudes[]` falls back to the campaign's editable
+  party color. This keeps the ring meaningful while still giving an untagged
+  roster a coherent baseline.
 - **ICONS keep the silhouette-hugging `filter: drop-shadow`**
   (`_attitudeGlow`): location cards (`.loc-card-icon`), the faction
   article `.ah-icon` badge, and map pins (`.sc-pin`, own copy in
@@ -51,9 +55,8 @@ two-layer-per-attitude strength logic).
   `''` when no entry has positive strength. Default blur is 7 px on
   cards.
 - The renderer pulls `entries` from `Store.getEffectiveAttitudes(c,
-  'character')` so faction inheritance (empty own-attitudes →
-  faction's attitudes) and the party shortcut both happen in the
-  Store rather than in each call site.
+  'character')` so faction inheritance and the empty-party-attitude fallback
+  happen in the Store rather than in each call site.
 
 `map.js` carries its own `_hexToRgba` and `_attitudeGlowFilter`
 copies (small enough that depending on wiki.js for them isn't worth
@@ -94,11 +97,12 @@ filter.
    both become `contenteditable="plaintext-only"` regions with a
    dashed hover outline; `onblur` commits via `Wiki.saveCampaignField
    → Store.setCampaign`. Enter blurs (no newlines in the title).
-2. **Naše parta** — responsive `grid-template-columns:
-   repeat(auto-fill, minmax(180px, 1fr))`. Each PC shows a circular
-   portrait, name + status dot, title, and an aktuální-location chip.
-   Header action: "Celá parta →" linking to `/parta`. Edit mode adds
-   a `＋ Nová postava` card at the end.
+2. **Naše parta** — a centered wrapping row of 160 px portrait-led PC cards.
+   Party companions join the same row as smaller 104 px cards instead of
+   opening a second titled block, keeping the session and activity sections
+   higher on the page. Each PC shows a circular portrait, name + status dot,
+   title, and current-location chip. Header action: "Celá parta →" linking to
+   `/parta`; the add-character action stays in the section header.
 3. **Poslední sezení** — events whose `sitting` equals the max over
    all events, sorted by `order`. Each row links to `/udalost/:id`
    and shows `e.name`, `e.short`, and a small character/location

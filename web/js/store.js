@@ -1414,10 +1414,11 @@ export const Store = (() => {
 
   /** Resolve the attitudes that should drive an entity's glow.
    *  Returns `[{id, strength}]`. Rules:
-   *    1. Party PCs (`faction === PARTY_FACTION_ID`) always render with
-   *       the parchment `party` palette regardless of any other field.
-   *    2. Otherwise the entity's own `attitudes[]` wins when non-empty.
-   *    3. Characters with empty own-attitudes inherit their faction's
+   *    1. The entity's own `attitudes[]` wins when non-empty, including
+   *       party PCs whose portrait ring should reflect their selected stance.
+   *    2. A party PC with no explicit attitude uses the editable `party`
+   *       palette as a neutral roster fallback.
+   *    3. Other characters with empty own-attitudes inherit their faction's
    *       `attitudes[]` (live fallback — no data duplication).
    *    4. Empty everywhere returns `[]` — caller renders nothing
    *       ("unknown" baseline).
@@ -1425,6 +1426,8 @@ export const Store = (() => {
    *  `kind` is one of `'character'`, `'location'`, `'faction'`. */
   function getEffectiveAttitudes(entity, kind) {
     if (!entity) return [];
+    const own = Array.isArray(entity.attitudes) ? entity.attitudes : [];
+    if (own.length) return own;
     if (kind === 'character' && isPartyMember(entity)) {
       // Strength is sourced from the `attitudes` enum (editable in
       // Settings → updates every glow at once), not hardcoded — falls
@@ -1432,8 +1435,6 @@ export const Store = (() => {
       const partyStrength = getEnumValue('attitudes', 'party')?.strength;
       return [{ id: 'party', strength: (typeof partyStrength === 'number') ? partyStrength : 1.0 }];
     }
-    const own = Array.isArray(entity.attitudes) ? entity.attitudes : [];
-    if (own.length) return own;
     if (kind === 'character' && entity.faction) {
       const f = _data?.factions?.[entity.faction];
       if (f && Array.isArray(f.attitudes) && f.attitudes.length) return f.attitudes;

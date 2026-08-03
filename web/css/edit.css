@@ -735,6 +735,56 @@ body.twin-picker-open { overflow: hidden; }
    Solved rows (answer non-empty) get a subtle green left border —
    matches the qa-solved styling in the article view so the editor
    and article share visual language. */
+.dyn-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.dyn-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+.dyn-item > .edit-input { min-width: 0; }
+.dyn-remove-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-danger-bd) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-danger-bd) 55%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--color-danger);
+  font-family: var(--font-ui);
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.dyn-remove-btn:hover,
+.dyn-remove-btn:focus-visible {
+  background: color-mix(in srgb, var(--color-danger-bd) 18%, transparent);
+  border-color: var(--color-danger-bd);
+}
+.dyn-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-3);
+  background: rgba(var(--accent-gold-rgb), 0.06);
+  border: 1px dashed rgba(var(--accent-gold-rgb), 0.35);
+  border-radius: var(--radius);
+  color: var(--accent-gold);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.dyn-add-btn:hover,
+.dyn-add-btn:focus-visible {
+  background: rgba(var(--accent-gold-rgb), 0.14);
+  border-color: var(--accent-gold);
+}
 .qa-list {
   display: flex;
   flex-direction: column;
@@ -751,11 +801,11 @@ body.twin-picker-open { overflow: hidden; }
 .qa-row .qa-q-answer { width: 100%; }
 .qa-row.is-solved {
   padding-left: 0.4rem;
-  border-left: 2px solid rgba(120,200,120,0.5);
+  border-left: 2px solid rgba(var(--status-alive-rgb), 0.5);
 }
 .qa-row .qa-q-answer:focus,
 .qa-row .qa-q-answer:not(:placeholder-shown) {
-  background: rgba(120,200,120,0.06);
+  background: rgba(var(--status-alive-rgb), 0.06);
 }
 @media (max-width: 720px) {
   .qa-row {
@@ -1018,7 +1068,7 @@ body.twin-picker-open { overflow: hidden; }
 .edit-section-title {
   font-family: var(--font-title);
   font-size: 0.78rem;
-  color: var(--accent-gold-dim);
+  color: var(--accent-gold);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   margin-bottom: 0.15rem;
@@ -1213,7 +1263,7 @@ body.twin-picker-open { overflow: hidden; }
 }
 .md-view code,
 .md-edit-preview code {
-  font-family: monospace;
+  font-family: var(--font-mono);
   background: rgba(255,255,255,0.06);
   padding: 0.1em 0.35em;
   border-radius: 3px;
@@ -1388,7 +1438,7 @@ body.twin-picker-open { overflow: hidden; }
   border-radius: 0;
   min-height: 320px;
   padding: 0.4rem;
-  font-family: 'Lora', Georgia, serif;
+  font-family: var(--font-body);
   font-size: 0.98rem;
   line-height: 1.6;
 }
@@ -1421,7 +1471,7 @@ body.twin-picker-open { overflow: hidden; }
   color: var(--text-parchment);
   border: 1px solid rgba(var(--accent-gold-rgb), 0.25);
   padding: 0.9rem 1.1rem;
-  font-family: 'Lora', Georgia, serif;
+  font-family: var(--font-body);
   font-size: 0.98rem;
   line-height: 1.7;
 }
