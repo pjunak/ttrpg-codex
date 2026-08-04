@@ -37,11 +37,11 @@ jobs:
           node-version-file: ttrpg-codex/.nvmrc
 
       - name: Test DM Tools against this host revision
-        run: node --test tests/smoke.mjs tests/provider.mjs tests/import-center.mjs tests/scenario-graph.mjs tests/dashboard.mjs
+        run: node --test tests/*.mjs
         working-directory: addon-dm-tools
 
       - name: Test Character Sheets against this host revision
-        run: node --test tests/smoke.mjs tests/rules.mjs tests/ui-state.mjs tests/equipment-model.mjs
+        run: node --test tests/*.mjs
         working-directory: dnd-character-sheets
 
   private-compendium:
@@ -73,5 +73,5 @@ jobs:
 
       - name: Test Compendium against this host revision
         if: env.ADDON_SUITE_TOKEN != ''
-        run: node --test tests/content-api.mjs tests/browse-state.mjs tests/browse-query.mjs tests/browse-config.mjs tests/detail-metadata.mjs tests/smoke.mjs tests/data-integrity.mjs
+        run: node --test tests/*.mjs
         working-directory: dnd55e-compendium
