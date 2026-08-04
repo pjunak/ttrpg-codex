@@ -836,7 +836,8 @@ settles so writes can never overlap);
 
 ### Import-provider server contract
 
-An addon may pair its provider with a DM-only Import Center page through the
+An addon may contribute import behavior to DM Tools' Import Center through a
+server provider plus a `codex.import-adapter` client service using the scoped
 `host.imports` facade. A server addon that registers a provider must require
 `imports.providers` and `collections.transactions`, request
 `server:code`, `data:own`, and `data:import-provider`, and declare every own

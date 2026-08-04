@@ -244,14 +244,15 @@ and safe to inject as-is.
 
 ## Companion repos — the D&D addon suite
 
-Three sibling repos (expected as sibling checkouts of this repo) hold the
+Four sibling repos (expected as sibling checkouts of this repo) hold the
 D&D toolkit built on the addon framework. **Each has its own
 AGENTS.md / README with full repo-local context — read those before working
 there.**
 
 | Repo (sibling dir) | Addon id | What it is |
 |---|---|---|
-| `dnd-character-sheets` | `dnd-sheets` | Tabbed character sheet (Overview/Character Sheet/Combat/Spellbook/Builder) + a built-in pure rules engine (`rules/engine.js` + `rules/api.js`), edition-parameterized (built-in 2024 constants; a provider's `ruleset` record overrides per constant — `dnd5e-compendium` is the reserved 2014 provider id). Standalone hand-fillable; soft-dep (`optionalDependencies`) on the compendium. Engine mode is per character: a returned provider cannot overwrite manually changed materialized fields until the user explicitly keeps manual mode or resumes the rulebook. `provide()`s the rules API for future consumers. ⚠ The addon id keys `character.addonData` — renaming it orphans sheet data without a key migration. |
+| `addon-dnd-engine` | `dnd-engine` | Headless, UI-free rules computation. Consumes one optional `dnd5e.rules-data` v1 service and provides `dnd5e.rules-engine` v1 for any compatible sheet or tool. Owns ruleset validation, deterministic hydration, detached results, and no character storage. |
+| `dnd-character-sheets` | `dnd-sheets` | Tabbed, standalone hand-fillable character sheet (Overview/Character Sheet/Combat/Spellbook/Builder). Consumes one optional rules-engine service and any number of `dnd-sheets.renderer` providers without naming addons. Compact is the default; Classic and Compact are built in, while third-party styles are selected per character/browser. Full engine/data/content identity reconciliation prevents silent recomputation after changes. ⚠ The addon id keys `character.addonData` — renaming it orphans sheet data without a key migration. |
 | `dnd55e-compendium` | `dnd55e-compendium` | Structured D&D 2024 content — the three core books plus Eberron, Forgotten Realms, Ravenloft, Lorwyn, and Astarion options (over 3,000 records). Canonical `book` provenance and optional `availableIn` reprint membership keep every source toggle-safe without duplicate entities. The host serves the per-record JSON tree through `contentDir`; `/compendium` provides browsing and the pure data API consumed by sheets. The private repository requires `CODEX_GITHUB_TOKEN` for installs and updates. |
 | `dm-tools` | `dm-tools` | DM-only forward planning and world-building plus the visible Import Center. The center discovers versioned `codex.import-adapter` services, so content-owning addons supply their own preview/edit/commit workflow without DM Tools changes. DM Tools also contributes its planning-document adapter. Legacy scenario/folder/item/link records are translated atomically and retained as migration sources; core retains `/dm` authorization, diagnostics, persistence, transactions, and recovery fallback. |
 
