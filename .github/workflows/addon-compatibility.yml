@@ -29,6 +29,11 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
+          repository: pjunak/addon-dnd-engine
+          path: addon-dnd-engine
+
+      - uses: actions/checkout@v7
+        with:
           repository: pjunak/dnd-character-sheets
           path: dnd-character-sheets
 
@@ -39,6 +44,10 @@ jobs:
       - name: Test DM Tools against this host revision
         run: node --test tests/*.mjs
         working-directory: addon-dm-tools
+
+      - name: Test D&D Engine against this host revision
+        run: node --test tests/*.mjs
+        working-directory: addon-dnd-engine
 
       - name: Test Character Sheets against this host revision
         run: node --test tests/*.mjs
