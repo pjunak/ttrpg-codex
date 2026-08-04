@@ -1,10 +1,11 @@
 # AGENTS.md — CodexHost addon contract
 
-Copy this file into an addon's repository when an AI coding tool needs the
-host contract locally. The complete author reference is
-[`AUTHORING.md`](AUTHORING.md); the host design system is documented in
-`web/css/STYLE.md`. If the two references disagree, follow `AUTHORING.md` and
-report the mismatch.
+Reference this file from an addon's repository when an AI coding tool needs the
+host contract. Keep it canonical in the host rather than copying it into each
+addon. The complete author reference is [`AUTHORING.md`](AUTHORING.md); the
+host design system is documented in
+[`web/css/STYLE.md`](../../web/css/STYLE.md). If the two references disagree,
+follow `AUTHORING.md` and report the mismatch.
 
 ## Start here
 
@@ -91,7 +92,8 @@ Add only fields that are needed:
 
 The host currently advertises `collections.dm`,
 `collections.transactions`, `lifecycle.dispose`, `content.revision`,
-`i18n.catalogs`, `imports.providers`, and `graphs.facade`.
+`i18n.catalogs`, `imports.providers`, `imports.bundle-contributors`, and
+`graphs.facade`.
 
 ## Common facade surfaces
 
@@ -171,9 +173,11 @@ return `<h1>${esc(title)}</h1>
 
 ## Testing and local installation
 
-- Use `web/js/addon-test-harness.mjs` for client registration, permission,
-  dependency, role, collection, localization, lifecycle, and renderer smoke
-  tests. Pass the real manifest metadata; an allow-all mock hides mistakes.
+- Use
+  [`web/js/addon-test-harness.mjs`](../../web/js/addon-test-harness.mjs) for
+  client registration, permission, dependency, role, collection,
+  localization, lifecycle, and renderer smoke tests. Pass the real manifest
+  metadata; an allow-all mock hides mistakes.
 - Keep `tests.server` self-contained: Node built-ins and addon files only.
 - Test empty and failure states, optional-provider absence, cleanup
   idempotence, and any role-conditioned registration.
