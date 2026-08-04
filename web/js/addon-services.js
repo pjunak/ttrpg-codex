@@ -53,37 +53,41 @@ export function normalizeServiceBindings(raw) {
   return out;
 }
 
+export function compatibleServiceProviders(list, contract, range, blockedIds = new Set()) {
+  const candidates = [];
+  for (const addon of list) {
+    if (blockedIds.has(addon.id)) continue;
+    for (const declaration of normalizeServiceDeclarations(addon.services).provides) {
+      if (declaration.contract === contract && satisfies(declaration.version, range)) {
+        candidates.push({ addon, declaration });
+      }
+    }
+  }
+  return candidates.sort((left, right) => left.addon.id.localeCompare(right.addon.id));
+}
+
 /** Resolve manifest-declared service consumers without source-order winners.
  * `blockedIds` excludes providers that cannot load for unrelated reasons.
  * The returned provider ids are sorted so cardinality-many is deterministic.
  */
 export function resolveServiceBindings(list, configuredBindings = {}, blockedIds = new Set()) {
   const bindings = normalizeServiceBindings(configuredBindings);
-  const providersByContract = new Map();
   const resolved = new Map();
   const issues = [];
   const requiredBlocks = new Map();
   const hardEdges = [];
   const optionalEdges = [];
 
-  for (const addon of list) {
-    if (blockedIds.has(addon.id)) continue;
-    for (const declaration of normalizeServiceDeclarations(addon.services).provides) {
-      const providers = providersByContract.get(declaration.contract) || [];
-      providers.push({ addon, declaration });
-      providersByContract.set(declaration.contract, providers);
-    }
-  }
-  for (const providers of providersByContract.values()) {
-    providers.sort((a, b) => a.addon.id.localeCompare(b.addon.id));
-  }
-
   for (const consumer of list) {
     if (blockedIds.has(consumer.id)) continue;
     for (const declaration of normalizeServiceDeclarations(consumer.services).consumes) {
       const key = serviceBindingKey(consumer.id, declaration.contract);
-      const candidates = (providersByContract.get(declaration.contract) || [])
-        .filter(provider => satisfies(provider.declaration.version, declaration.range));
+      const candidates = compatibleServiceProviders(
+        list,
+        declaration.contract,
+        declaration.range,
+        blockedIds,
+      );
       let selected = [];
       let reason = '';
 

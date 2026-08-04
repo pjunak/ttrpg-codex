@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  compatibleServiceProviders,
   normalizeServiceBindings,
   normalizeServiceDeclarations,
   resolveServiceBindings,
@@ -108,6 +109,21 @@ test('an addon may publish and consume its own cardinality-many service without 
   assert.equal(plan.blocked.size, 0);
   assert.deepEqual(plan.order.map(addon => addon.id), ['owner-ui']);
   assert.deepEqual(plan.services.resolved.get('owner-ui::codex.adapters'), ['owner-ui']);
+});
+
+test('cardinality-one candidate discovery includes the consumer\'s own provider', () => {
+  const owner = {
+    ...consumer('owner'),
+    services: {
+      provides: [{ contract: 'codex.example', version: '1.0.0' }],
+      consumes: [{ contract: 'codex.example', range: '^1.0.0', cardinality: 'one', required: false }],
+    },
+  };
+  assert.deepEqual(
+    compatibleServiceProviders([owner, provider('external')], 'codex.example', '^1.0.0')
+      .map(candidate => candidate.addon.id),
+    ['external', 'owner'],
+  );
 });
 
 test('required service cycles are blocked; optional cycles are ordering-only', () => {

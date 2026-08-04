@@ -112,8 +112,10 @@ providers publish strict semver versions, consumers declare a supported range,
   addon-owned data collections, validated + de-duped by `normalizeCollections`;
   `access` defaults to `"public"`, while `"dm"` is API-v2-only and requires
   `collections.dm` in `capabilities.required`),
-tests? (`{client?, server?}` — relative path or `string[]` of self-test files
-run by the pre-activation gate), summary }`.
+tests? (`{client?, server?}` — relative path or `string[]`; only
+`tests.server` runs in the server-side pre-activation gate, while
+`tests.client` records author-run harness tests and is never executed as an
+installed filesystem path), summary }`.
 `server/addons.cjs:validateManifest` is the always-run manifest gate.
 
 **API v2 compatibility contract.** API v1 remains loadable unchanged; an
@@ -260,7 +262,10 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   automatically. Multiple cardinality-one candidates are never resolved by
   registry/source/load order: the DM must bind one in Settings → Add-ons. Missing
   optional services return `null`/`[]`; missing or ambiguous required services
-  block the consumer. Handles carry trustworthy provider addon/version,
+  block the consumer. Candidate discovery includes a service published by the
+  consumer itself, and the runtime resolver and Settings binding selector use
+  the same compatibility function so a valid binding is never hidden. Handles
+  carry trustworthy provider addon/version,
   contract-version, content-revision, and granted-permissions metadata beside
   the API, so consumers that delegate privileged work can prevent permission
   laundering without naming individual providers.

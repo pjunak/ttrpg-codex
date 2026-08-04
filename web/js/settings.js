@@ -21,8 +21,7 @@ import { PinTypes } from './pin-types.js';
 import { SettingsAccount } from './settings-account.js';
 import { SettingsBackup } from './settings-backup.js';
 import { indexAddonUpdates, withoutAddonUpdate } from './addon-update-state.js';
-import { satisfies } from './addon-deps.js';
-import { normalizeServiceDeclarations, serviceBindingKey } from './addon-services.js';
+import { compatibleServiceProviders, normalizeServiceDeclarations, serviceBindingKey } from './addon-services.js';
 
 export const Settings = (() => {
 
@@ -1908,15 +1907,11 @@ export const Settings = (() => {
       for (const consumption of normalizeServiceDeclarations(consumer.services).consumes) {
         if (consumption.cardinality !== 'one') continue;
         const key = serviceBindingKey(consumer.id, consumption.contract);
-        const candidates = addons.flatMap(provider => normalizeServiceDeclarations(provider.services).provides
-          .filter(provision => provider.id !== consumer.id
-            && provision.contract === consumption.contract
-            && satisfies(provision.version, consumption.range))
-          .map(provision => ({ addon: provider, provision })));
+        const candidates = compatibleServiceProviders(addons, consumption.contract, consumption.range);
         const selected = bindings[key] || '';
         const issue = issues.get(key);
         if (candidates.length < 2 && !selected && !issue) continue;
-        const option = candidate => `<option value="${esc(candidate.addon.id)}" ${selected === candidate.addon.id ? 'selected' : ''}>${esc(candidate.addon.name || candidate.addon.id)} · ${esc(candidate.provision.version)}</option>`;
+        const option = candidate => `<option value="${esc(candidate.addon.id)}" ${selected === candidate.addon.id ? 'selected' : ''}>${esc(candidate.addon.name || candidate.addon.id)} · ${esc(candidate.declaration.version)}</option>`;
         let hint = '';
         if (issue) {
           const hintKey = issue.reason.startsWith('multiple')
