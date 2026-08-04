@@ -37,6 +37,7 @@ import { createGraphFacade, graphImplementationRegistry } from './addon-graph.js
 import { applyFragmentOps, listConflicts, resolvedExclusiveClaim } from './addon-fragments.js';
 import { smokeRegistrations } from './addon-test-harness.mjs';
 import { createScopedI18n, loadAddonCatalogs } from './addon-i18n.js';
+import { normalizeServiceDeclarations, serviceBindingKey } from './addon-services.js';
 
 export const Addons = (() => {
   const HOST_API_VERSION = 2;
@@ -50,10 +51,13 @@ export const Addons = (() => {
   const _actions         = new Map();  // "<id>:<name>" -> { addonId, fn }
   const _sidebarPages    = [];         // [{ route, label, icon, section, role, addonId }]
   const _addonApis       = new Map();  // id       -> api provided via host.provide() (for host.use)
+  const _serviceApis     = new Map();  // contract -> Map<addonId,{api,provider}>
   const _collections     = new Map();  // "<id>:<name>" -> { addonId, name, keyed }   (addon-owned data)
   const _wikiKinds       = new Map();  // scope     -> { addonId, resolve }            ([[X|scope]] resolver)
   const _fragmentOps     = [];         // [{ addonId, target, op, render, order, position }]  (override claims)
   let   _resolutions     = {};         // target   -> winner addonId | null            (DM conflict resolutions, from registry)
+  let   _serviceBindings = {};         // "consumer::contract" -> explicitly selected provider
+  let   _servicePlan     = { resolved: new Map(), issues: [], hardEdges: [], optionalEdges: [] };
   const _unmatched       = new Map();  // "<id>::<target>" -> {addonId,target,op}      (claims whose fragment is absent; best-effort, reset on (re)boot)
   const _slotFailures    = new Map();  // "<id>::<slot>" -> {addonId,slotId,message}    (latest runtime render failure)
   const _addons          = new Map();  // id       -> { id, state, error, meta }
@@ -437,6 +441,59 @@ export const Addons = (() => {
   function use(depId) {
       return resolveDependency(meta, depId, (dependencyId) => _addonApis.get(dependencyId));
     }
+    function provideService(contract, version, api) {
+      const declaration = normalizeServiceDeclarations(meta.services).provides
+        .find(service => service.contract === contract);
+      if (!declaration) throw new Error(`provideService: "${contract}" is not declared in addon.json`);
+      if (version !== declaration.version) {
+        throw new Error(`provideService: "${contract}" version ${version || '?'} does not match declared ${declaration.version}`);
+      }
+      if (api === undefined || api === null) throw new Error(`provideService: "${contract}" API is required`);
+      const providers = _serviceApis.get(contract) || new Map();
+      if (providers.has(id)) throw new Error(`provideService: "${contract}" already provided by this addon instance`);
+      const handle = Object.freeze({
+        api,
+        provider: Object.freeze({
+          addonId: id,
+          addonName: meta.name || id,
+          addonVersion: meta.version || '',
+          contract,
+          contractVersion: version,
+          contentRevision: typeof meta.contentRevision === 'string' ? meta.contentRevision : '',
+        }),
+      });
+      providers.set(id, handle);
+      _serviceApis.set(contract, providers);
+      tx.undo.push(() => {
+        const current = _serviceApis.get(contract);
+        if (current?.get(id) === handle) current.delete(id);
+        if (current && !current.size) _serviceApis.delete(contract);
+      });
+      return handle;
+    }
+    function _consumption(contract, cardinality) {
+      const declaration = normalizeServiceDeclarations(meta.services).consumes
+        .find(service => service.contract === contract);
+      if (!declaration) throw new Error(`Service "${contract}" is not declared in addon.json`);
+      if (declaration.cardinality !== cardinality) {
+        throw new Error(`Service "${contract}" declares cardinality "${declaration.cardinality}", not "${cardinality}"`);
+      }
+      return declaration;
+    }
+    function useService(contract) {
+      const declaration = _consumption(contract, 'one');
+      const providerIds = _servicePlan.resolved.get(serviceBindingKey(id, contract)) || [];
+      const handle = providerIds.length === 1 ? _serviceApis.get(contract)?.get(providerIds[0]) : null;
+      if (!handle && declaration.required) throw new Error(`Required service "${contract}" is not loaded`);
+      return handle || null;
+    }
+    function listServices(contract) {
+      const declaration = _consumption(contract, 'many');
+      const providerIds = _servicePlan.resolved.get(serviceBindingKey(id, contract)) || [];
+      const handles = providerIds.map(providerId => _serviceApis.get(contract)?.get(providerId)).filter(Boolean);
+      if (!handles.length && declaration.required) throw new Error(`Required service "${contract}" is not loaded`);
+      return Object.freeze(handles.slice());
+    }
     function onDispose(fn) {
       addDisposer(tx.cleanup, fn);
     }
@@ -585,7 +642,7 @@ export const Addons = (() => {
       registerFragmentOp,
       registerSlot,
       registerKind, registerConnectionKind, registerNodeKind, registerGraphView, registerGraphContributor,
-      provide, use, onDispose,
+      provide, use, provideService, useService, listServices, onDispose,
       store,
       imports,
       graphs: Object.freeze({
@@ -625,6 +682,15 @@ export const Addons = (() => {
     try { return fn(); } catch { return fallback; }
   }
 
+  function _resolvedProviderIds(addonId, plan = _servicePlan) {
+    const ids = [];
+    const prefix = addonId + '::';
+    for (const [key, providers] of plan.resolved || []) {
+      if (key.startsWith(prefix)) ids.push(...providers);
+    }
+    return [...new Set(ids)].sort();
+  }
+
   // ── Boot / load ───────────────────────────────────────────────
 
   /** Fetch the enabled-addon list and load each one. Called once from
@@ -641,6 +707,7 @@ export const Addons = (() => {
     if (!reg.ok) return;
     _booted = true;
     _resolutions = { ...reg.resolutions };   // copy: never mutate the fetch payload
+    _serviceBindings = { ...reg.serviceBindings };
     _unmatched.clear();
     _markBlocked(reg.addons, _serverBlocked(reg.addons));
     const list = reg.addons.filter(a => a.enabled && a.entryUrl);
@@ -659,7 +726,8 @@ export const Addons = (() => {
       }
       else compatible.push(addon);
     }
-    const plan = planLoadOrder(compatible);
+    const plan = planLoadOrder(compatible, { serviceBindings: _serviceBindings });
+    _servicePlan = plan.services;
     _markBlocked(list, plan.blocked);
     for (const a of plan.order) await _loadOne(a);   // dependency order: deps first
   }
@@ -691,6 +759,8 @@ export const Addons = (() => {
     // re-renders and the new winner actually applies.
     const resChanged = JSON.stringify(_resolutions) !== JSON.stringify(reg.resolutions);
     if (resChanged) _resolutions = { ...reg.resolutions };   // copy: never mutate the fetch payload
+    const bindingsChanged = JSON.stringify(_serviceBindings) !== JSON.stringify(reg.serviceBindings);
+    const previousServicePlan = _servicePlan;
     const list = reg.addons.filter(a => a.enabled && a.entryUrl);
     const serverBlocked = _serverBlocked(reg.addons);
     const compatibilityBlocked = new Map();
@@ -699,8 +769,8 @@ export const Addons = (() => {
       if (errors.length) compatibilityBlocked.set(addon.id, errors.join('; '));
       return !errors.length;
     });
-    let changed = resChanged;
-    const plan = planLoadOrder(compatible);
+    let changed = resChanged || bindingsChanged;
+    const plan = planLoadOrder(compatible, { serviceBindings: reg.serviceBindings });
     const desired = new Set(plan.order.map(a => a.id));
     const listed = new Set([...list.map(a => a.id), ...serverBlocked.keys()]);
     const activating = new Set(plan.order
@@ -723,9 +793,17 @@ export const Addons = (() => {
         cur.meta?.entryUrl !== a.entryUrl
         || (cur.meta?.contentRevision || '') !== (a.contentRevision || '')
         || JSON.stringify(cur.meta?.collections || []) !== JSON.stringify(a.collections || [])
+        || JSON.stringify(cur.meta?.services || {}) !== JSON.stringify(a.services || {})
       )) {
         impacted.add(a.id);
       }
+    }
+    for (const a of plan.order) {
+      const cur = _addons.get(a.id);
+      if (cur?.state !== 'ok') continue;
+      const before = (cur.serviceProviders || _resolvedProviderIds(a.id, previousServicePlan)).slice().sort();
+      const after = _resolvedProviderIds(a.id, plan.services);
+      if (JSON.stringify(before) !== JSON.stringify(after)) impacted.add(a.id);
     }
     // An already-loaded optional consumer may have registered a standalone
     // fallback while its provider was absent. Reload it when that provider
@@ -733,7 +811,8 @@ export const Addons = (() => {
     for (const [id, rec] of _addons) {
       if (rec.state !== 'ok') continue;
       const deps = { ...(rec.meta?.dependencies || {}), ...(rec.meta?.optionalDependencies || {}) };
-      if (Object.keys(deps).some(depId => activating.has(depId))) impacted.add(id);
+      const serviceProviders = _resolvedProviderIds(id, plan.services);
+      if (Object.keys(deps).some(depId => activating.has(depId)) || serviceProviders.some(providerId => activating.has(providerId))) impacted.add(id);
     }
 
     let expanded;
@@ -742,7 +821,11 @@ export const Addons = (() => {
       for (const [id, rec] of _addons) {
         if (rec.state !== 'ok' || impacted.has(id)) continue;
         const deps = { ...(rec.meta?.dependencies || {}), ...(rec.meta?.optionalDependencies || {}) };
-        if (Object.keys(deps).some(depId => impacted.has(depId))) {
+        const serviceProviders = new Set([
+          ...(rec.serviceProviders || _resolvedProviderIds(id, previousServicePlan)),
+          ..._resolvedProviderIds(id, plan.services),
+        ]);
+        if (Object.keys(deps).some(depId => impacted.has(depId)) || [...serviceProviders].some(providerId => impacted.has(providerId))) {
           impacted.add(id);
           expanded = true;
         }
@@ -755,6 +838,8 @@ export const Addons = (() => {
       }
       changed = true;
     }
+    _serviceBindings = { ...reg.serviceBindings };
+    _servicePlan = plan.services;
     for (const [id, rec] of [..._addons]) {
       if (rec.state !== 'ok' && !listed.has(id)) {
         _addons.delete(id);
@@ -790,6 +875,10 @@ export const Addons = (() => {
     }
     reverseRegistrations(rec?.undo, (error) => console.error(`[addon ${id}] registration cleanup failed`, error));
     _addonApis.delete(id);
+    for (const [contract, providers] of _serviceApis) {
+      providers.delete(id);
+      if (!providers.size) _serviceApis.delete(contract);
+    }
     for (const k of [..._unmatched.keys()]) { if (k.startsWith(id + '::')) _unmatched.delete(k); }
     for (const k of [..._slotFailures.keys()]) { if (k.startsWith(id + '::')) _slotFailures.delete(k); }
     _addons.delete(id);
@@ -829,12 +918,13 @@ export const Addons = (() => {
         ok: true,
         addons: Array.isArray(j.addons) ? j.addons : [],
         resolutions: (j.resolutions && typeof j.resolutions === 'object' && !Array.isArray(j.resolutions)) ? j.resolutions : {},
+        serviceBindings: (j.serviceBindings && typeof j.serviceBindings === 'object' && !Array.isArray(j.serviceBindings)) ? j.serviceBindings : {},
       };
     } catch (e) {
       console.warn('[addons] could not fetch /api/addons:', e.message);
       // ok:false so a transient failure never looks like "zero addons" — which
       // would otherwise make reconcile unload everything + wipe resolutions.
-      return { ok: false, addons: [], resolutions: {} };
+      return { ok: false, addons: [], resolutions: {}, serviceBindings: {} };
     }
   }
 
@@ -912,6 +1002,7 @@ export const Addons = (() => {
     try {
       addReturnedDisposer(tx.cleanup, register(host));
       rec.state = 'ok';
+      rec.serviceProviders = _resolvedProviderIds(a.id);
       rec.undo  = tx.undo;   // keep the teardown stack so reconcile can UNLOAD it later
       rec.cleanup = tx.cleanup;
       // Exercise this addon's renderers with
@@ -1145,6 +1236,21 @@ export const Addons = (() => {
   function providedApi(addonId) {
     return _addonApis.get(addonId) || null;
   }
+  function serviceIssues() {
+    return (_servicePlan.issues || []).map(issue => ({
+      ...issue,
+      candidates: (issue.candidates || []).map(candidate => ({ ...candidate })),
+    }));
+  }
+  function serviceBindings() { return { ..._serviceBindings }; }
+  async function setServiceBinding(consumerId, contract, providerId) {
+    return ApiClient.requestJson('/api/addons/service-bindings', {
+      method: 'POST',
+      json: providerId
+        ? { consumerId, contract, providerId }
+        : { consumerId, contract, clear: true },
+    });
+  }
   /** Addon-registered DATA kinds by domain — merged into Store.getKinds via
    *  Store.setAddonKindProvider (wired in app.js). Pure-data domains
    *  (connections / statuses / priorities / attitudes / genders / pinTypes)
@@ -1231,6 +1337,7 @@ export const Addons = (() => {
     settingsTabs, settingsTab, runAction,
     resolveWikiLink,
     slotContent, providedApi,
+    serviceIssues, serviceBindings, setServiceBinding,
     connectionKinds, nodeKinds, graphViews, graphContributors, kindsForDomain,
     describePermission,
   };

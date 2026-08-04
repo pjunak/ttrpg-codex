@@ -114,6 +114,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `permissions` | — | Declared + **enforced** capability tokens (see §5). The DM reviews + grants them at install. |
 | `dependencies` | — | HARD deps: `{ "<otherAddonId>": { "range": ">=1.0.0", "repo": "owner/name" } }`. A missing/incompatible one **blocks** your addon (see §12). |
 | `optionalDependencies` | — | SOFT deps, same shape — **ordering-only**: the provider loads first WHEN present, but your addon still installs/loads standalone when it's absent. Lets you `host.use()` it behind a try/catch (see §12). |
+| `services` | — | API-v2 contract discovery: `{ "provides": [{"contract":"codex.example","version":"1.0.0"}], "consumes": [{"contract":"codex.other","range":"^1.0.0","cardinality":"one","required":false}] }`. Use this when you need any compatible implementation, not a named addon (§12). |
 | `collections` | — | `[{ "name": "rules", "keyed": false, "access": "public" }]` — your own data collections (see §8). `name` is `^[a-z0-9][a-z0-9_]{0,39}$`; access defaults to `public`. `dm` is API-v2-only and requires `collections.dm` in `capabilities.required`. |
 | `tests` | — | `{ "server": "tests/srv.cjs", "client": "tests/cli.mjs" }` — an explicit file path or a `string[]` of them (**not** a glob — `node --test` doesn't expand `*`, so `tests/*.cjs` runs nothing). `tests.server` is a **green-gate run at install** (see §14). |
 | `summary` | — | One line shown in the install wizard. |
@@ -265,6 +266,8 @@ on that value.
 | `registerGraphView(def)` | `kinds:graph` | Add a mind-map "mode": `def = {id, label, build()→{nodes,edges}}`. Reachable at `#/mapa/<addonId>:<def.id>`. |
 | `registerGraphContributor(viewId, fn)` | `graph:contribute` | Inject nodes/edges into an EXISTING view (`'vztahy'`, `'frakce'`, `'tajemstvi'`, `'casova-osa'`). `fn() → {nodes:[{id,type,…}], edges:[{source,target,type?}]}`. |
 | `provide(api)` / `use(depId)` | — | Inter-addon API channel (§10). |
+| `provideService(contract, version, api)` | — | Publish a manifest-declared, versioned capability. |
+| `useService(contract)` / `listServices(contract)` | — | Consume declared cardinality-`one` / `many` service handles. Each handle is `{api, provider}` (§12). |
 
 ### Data access (`host.store`)
 ```js
@@ -621,6 +624,12 @@ host.registerFragmentOp('characters:body', {
 
 ## 12. Dependencies & inter-addon APIs
 
+Use an exact `dependencies`/`optionalDependencies` entry only when the consumer
+genuinely targets that addon’s identity or data namespace. If any compatible
+implementation should work—rules data, a rules engine, import adapters, sheet
+renderers—declare a versioned service contract instead. This prevents the host
+and consumers from becoming lists of official addon ids.
+
 ```jsonc
 // addon.json
 "dependencies":         { "core-dice":  { "range": ">=1.0.0", "repo": "owner/core-dice" } },
@@ -658,6 +667,47 @@ function getProvider() {
 const rules = getProvider();
 return rules ? renderEnhanced(rules) : renderStandalone();
 ```
+
+### Contract-discovered services
+
+```jsonc
+// provider addon.json
+"services": {
+  "provides": [{ "contract": "codex.example-engine", "version": "1.0.0" }]
+}
+
+// consumer addon.json
+"services": {
+  "consumes": [{
+    "contract": "codex.example-engine",
+    "range": "^1.0.0",
+    "cardinality": "one",
+    "required": false
+  }]
+}
+```
+
+```js
+// provider register(host)
+host.provideService('codex.example-engine', '1.0.0', Object.freeze({ calculate }));
+
+// consumer register(host); resolve lazily in render/actions when optional
+const engine = host.useService('codex.example-engine');
+if (engine) {
+  console.log(engine.provider.addonId, engine.provider.contractVersion);
+  return engine.api.calculate(input);
+}
+return renderManual(input);
+```
+
+`cardinality:"many"` consumers call `host.listServices(contract)` and receive a
+stable addon-id-ordered array. A sole cardinality-one provider is automatic;
+when several compatible providers exist, the host deliberately leaves the
+service unresolved until the DM selects one in Settings → Add-ons. It never
+uses install order, object order, or last registration wins. An explicit
+binding that becomes unavailable stays visibly stale rather than silently
+switching implementations. `required:true` blocks the consumer when unresolved;
+an optional consumer receives `null` or `[]` and must retain a standalone path.
 
 Supported `range` forms: `*` (any), exact `x.y.z`, comparators
 `>= > <= <`, caret `^x.y.z`, tilde `~x.y.z`, X-ranges `1.x` / `1.2.x`. Compound

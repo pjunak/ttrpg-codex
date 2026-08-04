@@ -77,6 +77,7 @@ const {
 // untrusted-archive extractor used by production installs.
 // See server/addons.cjs. No module-level side effects.
 const AddonBroker = require('./server/addons.cjs');
+const AddonCompatibility = require('./server/addon-compat.cjs');
 const AddonArchive = require('./server/addon-archive.cjs');
 const AddonTesting = require('./server/addon-testing.cjs');
 const AddonContent = require('./server/addon-content.cjs');
@@ -2089,6 +2090,10 @@ function _publicAddonList(reg, role = 'player') {
       // Soft deps — ordering-only (load after, if present); never block. The
       // client needs these so host.use() permits them and planLoadOrder orders.
       optionalDependencies: (a.optionalDependencies && typeof a.optionalDependencies === 'object') ? a.optionalDependencies : {},
+      // Versioned capabilities discoverable by contract rather than an
+      // official addon id. The browser planner uses this to bind and order
+      // providers before their consumers.
+      services: AddonBroker.normalizeServices(a.services),
       // Declared addon-owned collections — the client host calls
       // registerCollection against these to wire its scoped CRUD.
       collections: AddonBroker.normalizeCollections(a.collections, a.apiVersion, a.capabilities)
@@ -2755,6 +2760,7 @@ app.get('/api/addons', async (req, res) => {
       // Fragment-override conflict resolutions (target → winner addonId | null).
       // The client host consults these so a DM-picked winner actually applies.
       resolutions: (reg.resolutions && typeof reg.resolutions === 'object') ? reg.resolutions : {},
+      serviceBindings: AddonBroker.normalizeServiceBindings(reg.serviceBindings),
       // Whether a server-side GitHub token is configured (wizard-stored /
       // CODEX_GITHUB_TOKEN / GITHUB_TOKEN) and where it came from — the
       // Manager + wizard show it so a DM knows up front whether PRIVATE
@@ -2811,6 +2817,52 @@ app.post('/api/addons/resolve', requireRealDM('Jen DM může řešit konflikty d
   } catch (e) {
     if (_sendWriteLockTimeout(res, e)) return;
     console.error('POST /api/addons/resolve:', e);
+    res.status(500).json({ error: 'Write error' });
+  }
+});
+
+// DM-only cardinality-one service binding. A sole compatible provider is
+// selected automatically by the client planner; a stored choice is required
+// only when several providers implement the same contract. Body
+// `{ consumerId, contract, providerId }` sets; `{ ..., clear:true }` removes.
+app.post('/api/addons/service-bindings', requireRealDM('Jen DM může vybírat poskytovatele služeb doplňků.'), async (req, res) => {
+  const { consumerId, contract, providerId, clear } = req.body || {};
+  if (!AddonBroker.ID_RE.test(consumerId || '')) return res.status(400).json({ error: 'Neplatné id spotřebitele.' });
+  if (typeof contract !== 'string' || contract.length > 80 || !AddonBroker.SERVICE_CONTRACT_RE.test(contract)) {
+    return res.status(400).json({ error: 'Neplatný kontrakt služby.' });
+  }
+  if (!clear && !AddonBroker.ID_RE.test(providerId || '')) return res.status(400).json({ error: 'Neplatné id poskytovatele.' });
+  try {
+    const result = await withWriteLock(async () => {
+      const reg = await _readAddonsRegistry();
+      const consumer = reg.addons.find(addon => addon.id === consumerId);
+      if (!consumer) return { ok: false, error: 'Spotřebitelský doplněk není nainstalovaný.' };
+      const consumption = AddonBroker.normalizeServices(consumer.services).consumes
+        .find(declaration => declaration.contract === contract && declaration.cardinality === 'one');
+      if (!consumption) return { ok: false, error: 'Doplněk tento kontrakt nespotřebovává jako službu cardinality-one.' };
+      const key = `${consumerId}::${contract}`;
+      if (clear) {
+        delete reg.serviceBindings[key];
+      } else {
+        const provider = reg.addons.find(addon => addon.id === providerId);
+        const provision = provider && AddonBroker.normalizeServices(provider.services).provides
+          .find(declaration => declaration.contract === contract);
+        if (!provider || !provision) return { ok: false, error: 'Vybraný doplněk tento kontrakt neposkytuje.' };
+        const compatibility = AddonCompatibility.testRange(provision.version, consumption.range);
+        if (!compatibility.valid || !compatibility.matches) {
+          return { ok: false, error: 'Vybraný poskytovatel má nekompatibilní verzi kontraktu.' };
+        }
+        reg.serviceBindings[key] = providerId;
+      }
+      await _writeAddonsRegistry(reg);
+      return { ok: true, serviceBindings: reg.serviceBindings };
+    });
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    _broadcast('addons-changed', { at: Date.now() });
+    res.json(result);
+  } catch (e) {
+    if (_sendWriteLockTimeout(res, e)) return;
+    console.error('POST /api/addons/service-bindings:', e);
     res.status(500).json({ error: 'Write error' });
   }
 });
@@ -2938,6 +2990,8 @@ app.post('/api/addons/:id/rollback', requireRealDM('Jen DM může vracet verze d
       else delete entry.contentGroups;
       if (target.locales !== undefined) entry.locales = target.locales;
       else delete entry.locales;
+      if (target.services !== undefined) entry.services = AddonBroker.normalizeServices(target.services);
+      else delete entry.services;
       if (Array.isArray(target.serverDeps))  entry.serverDeps  = target.serverDeps;
       if (Array.isArray(target.collections)) {
         entry.collections = AddonBroker.normalizeCollections(

@@ -17,6 +17,7 @@ export function depRange(spec) {
 }
 
 import { testRange } from './addon-compat.js';
+import { resolveServiceBindings } from './addon-services.js';
 
 /** Strict semver-range check covering "*" (any),
  *  exact "x.y.z", comparators >= > <= < , "^x.y.z" (caret), "~x.y.z" (tilde),
@@ -46,11 +47,12 @@ export function satisfies(version, range) {
  *   `order` is the load order of loadable addons; `blocked` maps an
  *   un-loadable addon id to a human reason; `cycles` lists ids in HARD cycles.
  */
-export function planLoadOrder(list) {
+export function planLoadOrder(list, options = {}) {
   const byId = new Map(list.map(a => [a.id, a]));
   const deps    = (a) => Object.entries((a && a.dependencies) || {}).map(([id, spec]) => ({ id, range: depRange(spec) }));
   const optDeps = (a) => Object.entries((a && a.optionalDependencies) || {}).map(([id, spec]) => ({ id, range: depRange(spec) }));
   const blocked = new Map();
+  const serviceIssueHistory = new Map();
 
   // 1. direct missing / version-incompatible HARD dependencies
   for (const a of list) {
@@ -61,20 +63,16 @@ export function planLoadOrder(list) {
       if (!satisfies(dep.version, d.range)) { blocked.set(a.id, `"${d.id}" ${dep.version || '?'} does not satisfy ${d.range}`); break; }
     }
   }
-  // 2. transitively block anything depending (HARD) on a blocked addon
-  let changed = true;
-  while (changed) {
-    changed = false;
+  const propagateExactBlocks = () => {
+    let changed = false;
     for (const a of list) {
       if (blocked.has(a.id)) continue;
       for (const d of deps(a)) {
         if (blocked.has(d.id)) { blocked.set(a.id, `dependency "${d.id}" is blocked`); changed = true; break; }
       }
     }
-  }
-
-  const active = list.filter(a => !blocked.has(a.id));
-  const activeIds = new Set(active.map(a => a.id));
+    return changed;
+  };
 
   // Kahn topo-sort over a node-id set + directed edges [from, to] (`from` must
   // load before `to`). Returns the ids it could place — all of them unless the
@@ -96,35 +94,56 @@ export function planLoadOrder(list) {
     return out;
   };
 
-  // 3. HARD-dependency ordering + cycle detection. Optional edges are excluded
-  //    here so they can NEVER cause a block. Edge: dependency → dependent.
-  const hardEdges = [];
+  // Resolve hard exact and service requirements to a fixed point. A required
+  // service participates in the same graph as a hard dependency. Optional
+  // services only refine provider-first ordering and never block an addon.
+  const cycles = [];
+  let graphChanged = true;
+  while (graphChanged) {
+    graphChanged = false;
+    while (propagateExactBlocks()) graphChanged = true;
+    const servicePlan = resolveServiceBindings(list, options.serviceBindings, new Set(blocked.keys()));
+    for (const issue of servicePlan.issues) {
+      if (issue.required) serviceIssueHistory.set(`${issue.consumerId}::${issue.contract}`, issue);
+    }
+    for (const [id, reason] of servicePlan.requiredBlocks) {
+      if (!blocked.has(id)) { blocked.set(id, reason); graphChanged = true; }
+    }
+    if (graphChanged) continue;
+
+    const active = list.filter(a => !blocked.has(a.id));
+    const activeIds = new Set(active.map(a => a.id));
+    const hardEdges = servicePlan.hardEdges.slice();
+    for (const a of active) for (const d of deps(a)) if (activeIds.has(d.id)) hardEdges.push([d.id, a.id]);
+    const placedIds = kahn(active.map(a => a.id), hardEdges);
+    if (placedIds.length === active.length) break;
+
+    const placed = new Set(placedIds);
+    const unplacedIds = active.filter(a => !placed.has(a.id)).map(a => a.id);
+    const cycleSet = new Set(unplacedIds);
+    const selfLoops = id => hardEdges.some(([from, to]) => from === id && to === id);
+    let peeled = true;
+    while (peeled) {
+      peeled = false;
+      for (const id of [...cycleSet]) {
+        if (selfLoops(id)) continue;
+        const hasUnplacedDependent = hardEdges.some(([from, to]) => from === id && cycleSet.has(to) && to !== id);
+        if (!hasUnplacedDependent) { cycleSet.delete(id); peeled = true; }
+      }
+    }
+    for (const id of cycleSet) if (!cycles.includes(id)) cycles.push(id);
+    for (const id of unplacedIds) {
+      blocked.set(id, cycleSet.has(id) ? 'cyclic dependency' : 'dependency is in a cycle');
+    }
+    graphChanged = true;
+  }
+
+  const active = list.filter(a => !blocked.has(a.id));
+  const activeIds = new Set(active.map(a => a.id));
+  const services = resolveServiceBindings(list, options.serviceBindings, new Set(blocked.keys()));
+  const hardEdges = services.hardEdges.slice();
   for (const a of active) for (const d of deps(a)) if (activeIds.has(d.id)) hardEdges.push([d.id, a.id]);
   const hardOrderIds = kahn(active.map(a => a.id), hardEdges);
-
-  // 4. Survivors Kahn couldn't place are either IN a cycle or merely DOWNSTREAM
-  //    of one (they depend on a cycle but nothing depends back on them). Tell
-  //    them apart so the DM gets an accurate reason: peel "sink" nodes (no
-  //    other unplaced node depends on them) — a true cycle member always has a
-  //    dependent within the cycle, so it never peels. A self-dependency is a
-  //    trivial cycle and is pinned in place.
-  const placed = new Set(hardOrderIds);
-  const unplacedIds = active.filter(a => !placed.has(a.id)).map(a => a.id);
-  const cycleSet = new Set(unplacedIds);
-  const selfLoops = id => deps(byId.get(id)).some(d => d.id === id);
-  let peeled = true;
-  while (peeled) {
-    peeled = false;
-    for (const id of [...cycleSet]) {
-      if (selfLoops(id)) continue;
-      const hasUnplacedDependent = [...cycleSet].some(o => o !== id && deps(byId.get(o)).some(d => d.id === id));
-      if (!hasUnplacedDependent) { cycleSet.delete(id); peeled = true; }
-    }
-  }
-  const cycles = [...cycleSet];
-  for (const id of unplacedIds) {
-    blocked.set(id, cycleSet.has(id) ? 'cyclic dependency' : 'dependency is in a cycle');
-  }
 
   // 5. Final order over the (hard-acyclic) survivors, REFINED by optional-dep
   //    ordering edges where they're satisfiable. If the optional edges would
@@ -145,11 +164,24 @@ export function planLoadOrder(list) {
       }
     }
   }
+  for (const edge of services.optionalEdges) {
+    if (survSet.has(edge[0]) && survSet.has(edge[1])) {
+      combinedEdges.push(edge);
+      optAdded = true;
+    }
+  }
   let finalIds = survivorIds;
   if (optAdded) {
     const refined = kahn(survivorIds, combinedEdges);
     finalIds = refined.length < survivorIds.length ? survivorIds : refined;   // optional cycle → keep hard order
   }
 
-  return { order: finalIds.map(id => byId.get(id)), blocked, cycles };
+  const issueMap = new Map(serviceIssueHistory);
+  for (const issue of services.issues) issueMap.set(`${issue.consumerId}::${issue.contract}`, issue);
+  return {
+    order: finalIds.map(id => byId.get(id)),
+    blocked,
+    cycles,
+    services: { ...services, issues: [...issueMap.values()] },
+  };
 }

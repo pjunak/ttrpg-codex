@@ -21,6 +21,8 @@ import { PinTypes } from './pin-types.js';
 import { SettingsAccount } from './settings-account.js';
 import { SettingsBackup } from './settings-backup.js';
 import { indexAddonUpdates, withoutAddonUpdate } from './addon-update-state.js';
+import { satisfies } from './addon-deps.js';
+import { normalizeServiceDeclarations, serviceBindingKey } from './addon-services.js';
 
 export const Settings = (() => {
 
@@ -1674,6 +1676,7 @@ export const Settings = (() => {
         </p>
         ${_addonUpdateStatus ? `<p class="settings-operation-status">${esc(_addonUpdateStatus)}</p>` : ''}
         ${_githubTokenLine()}
+        ${_serviceBindingsHtml()}
         ${_conflictsHtml()}
         ${body}
       </div>`;
@@ -1893,6 +1896,64 @@ export const Settings = (() => {
     })
       .then(() => { _flash(I18n.t('settings.contentGroupsSaved')); return _reloadAddonsIfActive(); })
       .catch(() => _flash(I18n.t('settings.operationFailed'), false));
+  }
+
+  function _serviceBindingsHtml() {
+    const addons = (_addonsList || []).filter(addon => addon.enabled);
+    if (!addons.length) return '';
+    const bindings = Addons.serviceBindings();
+    const issues = new Map(Addons.serviceIssues().map(issue => [serviceBindingKey(issue.consumerId, issue.contract), issue]));
+    const rows = [];
+    for (const consumer of addons) {
+      for (const consumption of normalizeServiceDeclarations(consumer.services).consumes) {
+        if (consumption.cardinality !== 'one') continue;
+        const key = serviceBindingKey(consumer.id, consumption.contract);
+        const candidates = addons.flatMap(provider => normalizeServiceDeclarations(provider.services).provides
+          .filter(provision => provider.id !== consumer.id
+            && provision.contract === consumption.contract
+            && satisfies(provision.version, consumption.range))
+          .map(provision => ({ addon: provider, provision })));
+        const selected = bindings[key] || '';
+        const issue = issues.get(key);
+        if (candidates.length < 2 && !selected && !issue) continue;
+        const option = candidate => `<option value="${esc(candidate.addon.id)}" ${selected === candidate.addon.id ? 'selected' : ''}>${esc(candidate.addon.name || candidate.addon.id)} · ${esc(candidate.provision.version)}</option>`;
+        let hint = '';
+        if (issue) {
+          const hintKey = issue.reason.startsWith('multiple')
+            ? 'settings.serviceChooseProvider'
+            : (issue.reason.startsWith('configured') ? 'settings.serviceStaleBinding' : 'settings.serviceMissingProvider');
+          hint = `<div class="addon-conflict-hint">${esc(I18n.t(hintKey))}</div>`;
+        }
+        rows.push(`<div class="addon-conflict${issue ? ' addon-conflict-open' : ''}">
+          <div class="addon-conflict-title">${issue ? '⚠' : '✓'} ${esc(consumer.name || consumer.id)} <code>${esc(consumption.contract)}</code></div>
+          ${hint}
+          <label class="settings-field" style="margin-top:var(--space-2)">
+            <span class="settings-field-label">${esc(I18n.t('settings.serviceProvider'))}</span>
+            <select class="edit-input" ${dataOn('change', 'Settings.bindAddonService', consumer.id, consumption.contract, '$value')}>
+              <option value="" ${selected ? '' : 'selected'}>${esc(I18n.t(candidates.length === 1 ? 'settings.serviceAutomatic' : 'settings.serviceNotSelected'))}</option>
+              ${selected && !candidates.some(candidate => candidate.addon.id === selected)
+                ? `<option value="${esc(selected)}" selected disabled>${esc(selected)} · ${esc(I18n.t('settings.serviceUnavailable'))}</option>`
+                : ''}
+              ${candidates.map(option).join('')}
+            </select>
+          </label>
+        </div>`);
+      }
+    }
+    if (!rows.length) return '';
+    return `<div class="addon-conflicts"><h3 class="addon-conflicts-h">🔌 ${esc(I18n.t('settings.serviceBindings'))}</h3>
+      <p class="settings-hint">${esc(I18n.t('settings.serviceBindingsHint'))}</p>${rows.join('')}</div>`;
+  }
+
+  function bindAddonService(consumerId, contract, providerId) {
+    if (!_requireDM()) return;
+    Addons.setServiceBinding(consumerId, contract, providerId || null)
+      .then(() => Addons.reconcile())
+      .then(() => {
+        _flash(I18n.t('settings.choiceSaved'));
+        return _reloadAddonsIfActive();
+      })
+      .catch(() => _flash(I18n.t('settings.choiceSaveFailed'), false));
   }
   function enableAddon(id)  { _addonLifecycle('POST',   `/api/addons/${encodeURIComponent(id)}/enable`,  I18n.t('settings.addonEnabled')); }
   function disableAddon(id) {
@@ -2242,7 +2303,7 @@ export const Settings = (() => {
     savePlayerParty,
     uploadLogo, deleteLogo, saveBranding, applyBranding,
     changeTheme, applyTheme,
-    enableAddon, disableAddon, removeAddon, resolveAddonConflict, toggleContentGroup,
+    enableAddon, disableAddon, removeAddon, resolveAddonConflict, bindAddonService, toggleContentGroup,
     checkAddonUpdates, updateAddon, updateAllAddons, rollbackAddon,
     restartServer: _account.restartServer,
     openAddonWizard, closeAddonWizard, addonWizardKey,

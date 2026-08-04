@@ -66,6 +66,8 @@ const COLLECTION_NAME_RE = /^[a-z0-9][a-z0-9_]{0,39}$/;
 const CONTENT_GROUP_FIELD_RE = /^[a-zA-Z0-9_]{1,40}$/;
 const LOCALE_RE = /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i;
 const MAX_LOCALES = 20;
+const SERVICE_CONTRACT_RE = /^[a-z][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)+$/;
+const MAX_SERVICES_PER_DIRECTION = 32;
 
 // The wire `type` + on-disk identity for an addon-owned collection. Colon-
 // namespaced under the addon id so it can never collide with a built-in
@@ -166,6 +168,45 @@ function normalizeLocales(raw) {
   return Object.keys(locales).length ? locales : null;
 }
 
+function normalizeServices(raw) {
+  const services = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const provides = [];
+  const consumes = [];
+  const provided = new Set();
+  const consumed = new Set();
+  for (const declaration of Array.isArray(services.provides) ? services.provides : []) {
+    if (!declaration || typeof declaration !== 'object' || Array.isArray(declaration)) continue;
+    const contract = typeof declaration.contract === 'string' ? declaration.contract : '';
+    const version = typeof declaration.version === 'string' ? declaration.version : '';
+    if (contract.length > 80 || !SERVICE_CONTRACT_RE.test(contract) || provided.has(contract)) continue;
+    if (!Compatibility.parseVersion(version)) continue;
+    provided.add(contract);
+    provides.push({ contract, version });
+  }
+  for (const declaration of Array.isArray(services.consumes) ? services.consumes : []) {
+    if (!declaration || typeof declaration !== 'object' || Array.isArray(declaration)) continue;
+    const contract = typeof declaration.contract === 'string' ? declaration.contract : '';
+    const range = typeof declaration.range === 'string' ? declaration.range : '';
+    if (contract.length > 80 || !SERVICE_CONTRACT_RE.test(contract) || consumed.has(contract)) continue;
+    if (!Compatibility.testRange('0.0.0', range).valid) continue;
+    if (!['one', 'many'].includes(declaration.cardinality) || typeof declaration.required !== 'boolean') continue;
+    consumed.add(contract);
+    consumes.push({ contract, range, cardinality: declaration.cardinality, required: declaration.required });
+  }
+  return { provides, consumes };
+}
+
+function normalizeServiceBindings(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [key, providerId] of Object.entries(raw)) {
+    if (!/^[a-z0-9][a-z0-9-]{1,38}::[a-z][a-z0-9.-]{2,79}$/.test(key)) continue;
+    if (typeof providerId !== 'string' || !ID_RE.test(providerId)) continue;
+    out[key] = providerId;
+  }
+  return out;
+}
+
 const INSTALLED_OPTIONAL_MANIFEST_FIELDS = [
   'hostVersion',
   'capabilities',
@@ -173,6 +214,7 @@ const INSTALLED_OPTIONAL_MANIFEST_FIELDS = [
   'contentDir',
   'contentGroups',
   'locales',
+  'services',
 ];
 
 function installedOptionalMetadata(manifest) {
@@ -185,6 +227,7 @@ function installedOptionalMetadata(manifest) {
   if (contentGroups) metadata.contentGroups = contentGroups;
   const locales = normalizeLocales(manifest.locales);
   if (locales) metadata.locales = locales;
+  if (manifest.services !== undefined) metadata.services = normalizeServices(manifest.services);
   return metadata;
 }
 
@@ -219,7 +262,7 @@ function repairLegacyInstalledMetadata(registry) {
 
 /** The empty registry shape written on first install. */
 function defaultRegistry() {
-  return { schema: REGISTRY_SCHEMA, addons: [], resolutions: {}, sources: { allow: [] } };
+  return { schema: REGISTRY_SCHEMA, addons: [], resolutions: {}, serviceBindings: {}, sources: { allow: [] } };
 }
 
 /** Coerce an arbitrary parsed value into a well-formed registry so
@@ -229,6 +272,7 @@ function normalizeRegistry(parsed) {
   reg.schema      = Number.isInteger(reg.schema) ? reg.schema : REGISTRY_SCHEMA;
   reg.addons      = Array.isArray(reg.addons) ? reg.addons : [];
   reg.resolutions = (reg.resolutions && typeof reg.resolutions === 'object' && !Array.isArray(reg.resolutions)) ? reg.resolutions : {};
+  reg.serviceBindings = normalizeServiceBindings(reg.serviceBindings);
   reg.sources     = (reg.sources && typeof reg.sources === 'object' && !Array.isArray(reg.sources)) ? reg.sources : {};
   reg.sources.allow = Array.isArray(reg.sources.allow) ? reg.sources.allow.filter(s => typeof s === 'string') : [];
   repairLegacyInstalledMetadata(reg);
@@ -242,6 +286,7 @@ function normalizeRegistry(parsed) {
     a.collections = normalizeCollections(a.collections, a.apiVersion, a.capabilities);
     const locales = normalizeLocales(a.locales);
     if (locales) a.locales = locales; else delete a.locales;
+    if (a.services !== undefined) a.services = normalizeServices(a.services);
     const cg = normalizeContentGroups(a.contentGroups);
     if (cg) a.contentGroups = cg; else delete a.contentGroups;
     a.disabledContentGroups = normalizeDisabledContentGroups(a.disabledContentGroups);
@@ -422,6 +467,63 @@ function validateManifest(m) {
     }
     if (!Array.isArray(m.collections) || !m.collections.length) {
       errors.push('capability "imports.providers" requires at least one declared collection');
+    }
+  }
+  if (m.services !== undefined) {
+    if (m.apiVersion !== 2) errors.push('services requires apiVersion 2');
+    if (!m.services || typeof m.services !== 'object' || Array.isArray(m.services)) {
+      errors.push('services must be an object { provides?, consumes? }');
+    } else {
+      for (const key of Object.keys(m.services)) {
+        if (!['provides', 'consumes'].includes(key)) errors.push(`services has unknown field "${key}"`);
+      }
+      for (const direction of ['provides', 'consumes']) {
+        const declarations = m.services[direction];
+        if (declarations === undefined) continue;
+        if (!Array.isArray(declarations)) {
+          errors.push(`services.${direction} must be an array`);
+          continue;
+        }
+        if (declarations.length > MAX_SERVICES_PER_DIRECTION) {
+          errors.push(`services.${direction} may declare at most ${MAX_SERVICES_PER_DIRECTION} contracts`);
+        }
+        const seen = new Set();
+        for (const declaration of declarations) {
+          if (!declaration || typeof declaration !== 'object' || Array.isArray(declaration)) {
+            errors.push(`each services.${direction} entry must be an object`);
+            continue;
+          }
+          const allowed = direction === 'provides'
+            ? ['contract', 'version']
+            : ['contract', 'range', 'cardinality', 'required'];
+          for (const key of Object.keys(declaration)) {
+            if (!allowed.includes(key)) errors.push(`services.${direction} has unknown field "${key}"`);
+          }
+          const contract = declaration.contract;
+          if (typeof contract !== 'string' || contract.length > 80 || !SERVICE_CONTRACT_RE.test(contract)) {
+            errors.push(`services.${direction}.contract must be a dot-namespaced lowercase token of at most 80 characters`);
+          } else if (seen.has(contract)) {
+            errors.push(`duplicate services.${direction} contract "${contract}"`);
+          } else {
+            seen.add(contract);
+          }
+          if (direction === 'provides') {
+            if (!Compatibility.parseVersion(declaration.version)) {
+              errors.push(`services.provides "${contract || '?'}" version must be semver (x.y.z)`);
+            }
+          } else {
+            if (typeof declaration.range !== 'string' || !Compatibility.testRange('0.0.0', declaration.range).valid) {
+              errors.push(`services.consumes "${contract || '?'}" range is invalid or unsupported`);
+            }
+            if (!['one', 'many'].includes(declaration.cardinality)) {
+              errors.push(`services.consumes "${contract || '?'}" cardinality must be "one" or "many"`);
+            }
+            if (typeof declaration.required !== 'boolean') {
+              errors.push(`services.consumes "${contract || '?'}" required must be a boolean`);
+            }
+          }
+        }
+      }
     }
   }
   if (declaredCapabilities.includes('imports.bundle-contributors')) {
@@ -651,11 +753,14 @@ module.exports = {
   COLLECTION_NAME_RE,
   CONTENT_GROUP_FIELD_RE,
   LOCALE_RE,
+  SERVICE_CONTRACT_RE,
   defaultRegistry,
   normalizeRegistry,
   normalizeContentGroups,
   normalizeDisabledContentGroups,
   normalizeLocales,
+  normalizeServices,
+  normalizeServiceBindings,
   installedOptionalMetadata,
   applyInstalledOptionalMetadata,
   repairLegacyInstalledMetadata,

@@ -80,7 +80,7 @@ function _emptyRec() {
     articleSections: [], slots: [],
     kinds: [], connectionKinds: [], nodeKinds: [], graphViews: [], graphContributors: [],
     graphInstances: [],
-    provided: undefined, toasts: [], rerenders: 0, announces: [], i18nMissing: [],
+    provided: undefined, providedServices: [], toasts: [], rerenders: 0, announces: [], i18nMissing: [],
     cleanup: createDisposalStack(), disposeResult: null,
   };
 }
@@ -108,6 +108,7 @@ import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack } f
 import { createTransactionRunner } from './addon-transactions.js';
 import { createAddonImportClient } from './addon-imports.js';
 import { createGraphFacade, createGraphImplementationRegistry } from './addon-graph.js';
+import { normalizeServiceDeclarations } from './addon-services.js';
 import {
   createScopedI18n,
   validateCatalogPackage,
@@ -144,6 +145,33 @@ export function createMockHost(meta = {}, opts = {}) {
       rec.i18nMissing.push(key);
     },
   });
+  const serviceDeclarations = normalizeServiceDeclarations(meta.services);
+  const mockServiceHandles = contract => {
+    const supplied = opts.services && opts.services[contract];
+    const values = supplied === undefined ? [] : (Array.isArray(supplied) ? supplied : [supplied]);
+    return values.map((value, index) => {
+      if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, 'api') && value.provider) return value;
+      return Object.freeze({
+        api: value,
+        provider: Object.freeze({
+          addonId: `mock-provider-${index + 1}`,
+          addonName: `Mock provider ${index + 1}`,
+          addonVersion: '0.0.0',
+          contract,
+          contractVersion: '0.0.0',
+          contentRevision: '',
+        }),
+      });
+    });
+  };
+  const serviceConsumption = (contract, cardinality) => {
+    const declaration = serviceDeclarations.consumes.find(service => service.contract === contract);
+    if (!declaration) throw new Error(`Service "${contract}" is not declared in addon.json`);
+    if (declaration.cardinality !== cardinality) {
+      throw new Error(`Service "${contract}" declares cardinality "${declaration.cardinality}", not "${cardinality}"`);
+    }
+    return declaration;
+  };
 
   // Permission gate — mirrors web/js/addons.js (_makeHost): same permission
   // per method, same error text. `null` grants (no `permissions` key) = loose.
@@ -536,6 +564,43 @@ export function createMockHost(meta = {}, opts = {}) {
     use:     (depId) => {
       return resolveDependency(meta, depId, (dependencyId) => opts.deps && opts.deps[dependencyId]);
     },
+    provideService: (contract, version, api) => {
+      const declaration = serviceDeclarations.provides.find(service => service.contract === contract);
+      if (!declaration) throw new Error(`provideService: "${contract}" is not declared in addon.json`);
+      if (version !== declaration.version) {
+        throw new Error(`provideService: "${contract}" version ${version || '?'} does not match declared ${declaration.version}`);
+      }
+      if (api === undefined || api === null) throw new Error(`provideService: "${contract}" API is required`);
+      if (rec.providedServices.some(service => service.contract === contract)) {
+        throw new Error(`provideService: "${contract}" already provided by this addon instance`);
+      }
+      const handle = Object.freeze({
+        api,
+        provider: Object.freeze({
+          addonId: id,
+          addonName: meta.name || id,
+          addonVersion: meta.version || '',
+          contract,
+          contractVersion: version,
+          contentRevision: typeof meta.contentRevision === 'string' ? meta.contentRevision : '',
+        }),
+      });
+      rec.providedServices.push({ contract, version, api, handle });
+      return handle;
+    },
+    useService: (contract) => {
+      const declaration = serviceConsumption(contract, 'one');
+      const handles = mockServiceHandles(contract);
+      if (handles.length > 1) throw new Error(`Mock service "${contract}" has multiple providers; supply the selected provider only`);
+      if (!handles.length && declaration.required) throw new Error(`Required service "${contract}" is not loaded`);
+      return handles[0] || null;
+    },
+    listServices: (contract) => {
+      const declaration = serviceConsumption(contract, 'many');
+      const handles = mockServiceHandles(contract);
+      if (!handles.length && declaration.required) throw new Error(`Required service "${contract}" is not loaded`);
+      return Object.freeze(handles.slice());
+    },
     onDispose: (fn) => addDisposer(rec.cleanup, fn),
     imports: importClient,
     graphs: Object.freeze({
@@ -599,6 +664,7 @@ function _clearRegistrations(rec) {
     rec[key].length = 0;
   }
   rec.provided = undefined;
+  rec.providedServices.length = 0;
 }
 
 export async function disposeMockHost(rec, opts = {}) {

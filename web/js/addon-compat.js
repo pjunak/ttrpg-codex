@@ -1,4 +1,4 @@
-export const HOST_VERSION = '1.1.1';
+export const HOST_VERSION = '1.2.0';
 export const SUPPORTED_API_VERSIONS = new Set([1, 2]);
 export const KNOWN_CAPABILITIES = new Set([
   'collections.dm',

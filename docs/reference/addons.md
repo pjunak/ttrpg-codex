@@ -50,12 +50,12 @@ this file documents host internals and invariants.
   in server.js — the single source of truth for "what counts as data").
 - `data/addons.json` — the **registry** (top-level → rides snapshots +
   the data hash). Shape: `{ schema, addons:[{id, repo, ref, sha, name,
-  version, apiVersion, hostVersion?, entry, server?, contentDir?, contentGroups?, locales?,
+  version, apiVersion, hostVersion?, entry, server?, contentDir?, contentGroups?, locales?, services?,
   disabledContentGroups?, serverDeps[], activeHash,
   versions:[{contentHash,version,sha,installedAt, entry,server?,contentDir?,serverDeps,locales?,
-  collections,dependencies,optionalDependencies}], enabled, grantedPermissions[],
+  collections,dependencies,optionalDependencies,services}], enabled, grantedPermissions[],
   dependencies{}, optionalDependencies{},
-  collections:[{name,keyed,access}], schemaVersion}], resolutions:{}, sources:{allow:[]} }`.
+  collections:[{name,keyed,access}], schemaVersion}], resolutions:{}, serviceBindings:{}, sources:{allow:[]} }`.
   Optional installed-metadata fields are omitted when their source manifest
   declaration is absent. `ref` is the original branch/tag (for update checks); `sha` the installed
   commit. `versions[]` snapshots each version's structural manifest fields so a
@@ -104,7 +104,11 @@ deliberately not exposed), permissions[],
 dependencies? (HARD — a missing/incompatible one `blocks` the addon), optionalDependencies?
 (same shape; **SOFT** — ordering-only: loads the dep first WHEN present + compatible, but
 NEVER blocks when it's absent/blocked/incompatible — the soft-use seam, e.g. a sheet that
-  auto-fills from a rules engine when installed and hand-fills when not), collections? (`[{name (^[a-z0-9][a-z0-9_]{0,39}$), keyed?, access?}]` —
+  auto-fills from a rules engine when installed and hand-fills when not),
+services? (`{provides?:[{contract,version}], consumes?:[{contract,range,cardinality,required}]}` —
+API-v2 contract discovery; contracts are lowercase dot-namespaced tokens,
+providers publish strict semver versions, consumers declare a supported range,
+`cardinality` is `"one"` or `"many"`, and `required` is explicit), collections? (`[{name (^[a-z0-9][a-z0-9_]{0,39}$), keyed?, access?}]` —
   addon-owned data collections, validated + de-duped by `normalizeCollections`;
   `access` defaults to `"public"`, while `"dm"` is API-v2-only and requires
   `collections.dm` in `capabilities.required`),
@@ -238,7 +242,7 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
 - `init({toast, rerender})` (app.js injects `EditMode.toast` + a
   re-render fn so addons.js needn't import EditMode/Sidebar — avoids
   cycles) → `boot()` runs after `Store.load()`: fetch `/api/addons`,
-  **topo-sort by manifest `dependencies` + `optionalDependencies`**
+  **topo-sort by manifest dependencies and resolved service edges**
   (`addon-deps.js planLoadOrder`, deps first), then dynamic-`import()` each
   enabled addon's `entryUrl` in order + call its default-export
   `register(host)`. Addons whose HARD deps are missing / version-incompatible /
@@ -249,6 +253,15 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   (`use()` requires the dep be declared as a hard OR optional dependency + the
   provider loaded; a present declared dep is load-ordered first, an absent
   OPTIONAL one just makes `use()` throw → caught → the consumer runs standalone).
+  Contract discovery is separate: `host.provideService(contract, version, api)`
+  publishes a manifest-declared capability; `host.useService(contract)` consumes
+  a declared cardinality-one capability and `host.listServices(contract)` returns
+  every declared cardinality-many provider. A sole compatible provider is chosen
+  automatically. Multiple cardinality-one candidates are never resolved by
+  registry/source/load order: the DM must bind one in Settings → Add-ons. Missing
+  optional services return `null`/`[]`; missing or ambiguous required services
+  block the consumer. Handles carry trustworthy provider addon/version,
+  contract-version, and content-revision metadata beside the API.
   Core may feature-detect an addon-owned presentation integration through its
   lifecycle-scoped provided API (`Addons.providedApi(id)`); this is not exposed
   to unrelated addons and every core caller must retain a built-in fallback.
@@ -258,8 +271,9 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   registration order, before the host reverses the addon's ordinary
   registrations. Promise-returning cleanup is allowed; cleanup for each addon
   is bounded to two seconds and failure is isolated. `reconcile()` compares
-  both `entryUrl` and `contentRevision`; changed/disabled/removed addons and
-  their loaded hard or optional consumers unload consumer-first, then reload
+  `entryUrl`, `contentRevision`, declarations, service bindings, and resolved
+  provider identities; changed/disabled/removed providers and their loaded
+  exact-id or service consumers unload consumer-first, then reload
   provider-first. Overlapping reconciliations are coalesced and serialized so
   only the newest server metadata survives.
 - **Failure isolation**: every import + register is per-addon

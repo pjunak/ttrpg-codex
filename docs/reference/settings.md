@@ -239,6 +239,14 @@ Relationships) leaves the active tab outside the visible set.
   `account` (**Server**) tab; when the server is restartable the addons intro
   shows a hint pointing there. All built on design-system tokens/classes. See
   **Addon framework**.
+  The Manager also renders **Service providers** from manifest `services`
+  declarations. A sole compatible cardinality-one provider is automatic. If
+  several are enabled, the host leaves the consumer unresolved until the DM
+  chooses one; the choice is persisted in `data/addons.json`
+  `serviceBindings` by `POST /api/addons/service-bindings`. Stale selections
+  remain visible and never silently switch to another implementation.
+  Cardinality-many services need no manual choice and are ordered
+  deterministically by provider addon id.
 - **Branding — a SECTION of `appearance`** (`_brandingSectionHtml`; used to
   be the `branding` tab). Site logo + sidebar wordmark editor. Uploads a
   custom logo (`POST /api/logo` →

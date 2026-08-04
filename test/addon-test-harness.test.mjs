@@ -327,3 +327,37 @@ test('mock transactions match list/keyed buffering, rollback, conflict, role, an
     error => error.code === 'TX_NOT_FOUND',
   );
 });
+
+test('mock host mirrors declared versioned service APIs and provider metadata', () => {
+  const providerMeta = {
+    id: 'provider-addon',
+    name: 'Provider',
+    version: '2.3.4',
+    apiVersion: 2,
+    services: { provides: [{ contract: 'codex.example', version: '1.1.0' }] },
+  };
+  const provider = createMockHost(providerMeta);
+  const published = provider.host.provideService('codex.example', '1.1.0', { answer: 42 });
+  assert.equal(published.provider.addonId, 'provider-addon');
+  assert.equal(provider.rec.providedServices[0].api.answer, 42);
+  assert.throws(() => provider.host.provideService('codex.other', '1.0.0', {}), /not declared/);
+
+  const consumer = createMockHost({
+    id: 'consumer-addon',
+    apiVersion: 2,
+    services: {
+      consumes: [
+        { contract: 'codex.example', range: '^1.0.0', cardinality: 'one', required: true },
+        { contract: 'codex.renderers', range: '^1.0.0', cardinality: 'many', required: false },
+      ],
+    },
+  }, {
+    services: {
+      'codex.example': published,
+      'codex.renderers': [{ render: () => 'a' }, { render: () => 'b' }],
+    },
+  });
+  assert.equal(consumer.host.useService('codex.example').api.answer, 42);
+  assert.equal(consumer.host.listServices('codex.renderers').length, 2);
+  assert.throws(() => consumer.host.listServices('codex.example'), /cardinality/);
+});
