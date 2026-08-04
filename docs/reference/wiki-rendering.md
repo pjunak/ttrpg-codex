@@ -165,8 +165,8 @@ wide screens the sidebar sits in space that would otherwise be
 empty padding and the main column keeps its 1100 px width.
 Collapses to single-column under 1100 px viewport.
 
-**Full-width takeover** (`Addons.bodyOverridden(kind)` — an addon holds
-an exclusive replace/hide claim on `<kind>:body`, e.g. the D&D sheet's
+**Full-width takeover** (`Addons.bodyOverridden(kind)` — an addon is the
+resolved owner of an exclusive replace/hide claim on `<kind>:body`, e.g. the D&D sheet's
 tab strip): the shell gains `.article-shell-full` / `.wiki-article-full`
 (single `minmax(0, 1400px)` column), the rail is dropped, and the
 side-card (as a floated `.article-sidecard-inbody` block) **plus every
@@ -175,7 +175,9 @@ takeover addon — the addon receives the whole wiki profile as one blob
 (the sheet shows it as its Overview tab, so the tab strip sits at the
 very top). `<kind>:section:*` fragment ids don't exist on such pages; a
 section-targeted claim reports as unmatched. The breadcrumb bar renders
-identically in both modes.
+identically in both modes. An unresolved conflict, an explicit built-in
+resolution, or a stale winner id keeps the ordinary two-column article; the
+mere presence of an exclusive claim is not enough to switch layouts.
 
 Shell signature:
 ```

@@ -1,7 +1,11 @@
 // Unit tests for the pure fragment-override engine. No DOM needed.
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { applyFragmentOps, listConflicts } from '../web/js/addon-fragments.js';
+import {
+  applyFragmentOps,
+  listConflicts,
+  resolvedExclusiveClaim,
+} from '../web/js/addon-fragments.js';
 
 const frags = () => ([
   { id: 'characters:section:vazby', html: '<vazby>' },
@@ -63,6 +67,26 @@ test('resolution pointing at a now-absent claimant → built-in (not a crash)', 
   ];
   const r = applyFragmentOps(frags(), claims, { 'characters:body': 'gone' });
   assert.equal(r.fragments.find(f => f.id === 'characters:body').html, '<body>');
+});
+
+test('resolvedExclusiveClaim matches the article takeover decision', () => {
+  const target = 'characters:body';
+  const claims = [
+    { addonId: 'a', target, op: 'replace' },
+    { addonId: 'b', target, op: 'hide' },
+    { addonId: 'c', target, op: 'wrap' },
+  ];
+
+  assert.equal(resolvedExclusiveClaim(claims, {}, target), null,
+    'an unresolved conflict keeps the built-in article layout');
+  assert.equal(resolvedExclusiveClaim(claims, { [target]: null }, target), null,
+    'an explicit built-in resolution keeps the built-in article layout');
+  assert.equal(resolvedExclusiveClaim(claims, { [target]: 'gone' }, target), null,
+    'a stale resolution keeps the built-in article layout');
+  assert.equal(resolvedExclusiveClaim(claims, { [target]: 'b' }, target), claims[1],
+    'the selected exclusive claimant owns the takeover layout');
+  assert.equal(resolvedExclusiveClaim([claims[0]], {}, target), claims[0],
+    'a sole exclusive claimant owns the takeover layout');
 });
 
 test('wrap: stackable, ordered, composes with the inner html (no conflict)', () => {

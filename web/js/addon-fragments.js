@@ -29,6 +29,35 @@
 
 const EXCLUSIVE = new Set(['replace', 'hide']);
 
+function _exclusiveClaims(claims, target) {
+  const byAddon = new Map();
+  for (const claim of (claims || [])) {
+    if (claim?.target !== target || !EXCLUSIVE.has(claim.op)) continue;
+    if (!byAddon.has(claim.addonId)) byAddon.set(claim.addonId, claim);
+  }
+  return [...byAddon.values()];
+}
+
+function _resolvedExclusiveClaim(exclusives, resolutions, target) {
+  const hasResolution = Object.prototype.hasOwnProperty.call(resolutions || {}, target);
+  if (hasResolution) {
+    const winnerId = resolutions[target];
+    return winnerId === null
+      ? null
+      : (exclusives.find(claim => claim.addonId === winnerId) || null);
+  }
+  return exclusives.length === 1 ? exclusives[0] : null;
+}
+
+/**
+ * Return the exclusive claim that currently owns a target, or null when the
+ * built-in fragment is active. Unresolved conflicts, explicit built-in
+ * resolutions, and stale winner ids all resolve to the built-in.
+ */
+export function resolvedExclusiveClaim(claims, resolutions, target) {
+  return _resolvedExclusiveClaim(_exclusiveClaims(claims, target), resolutions, target);
+}
+
 /**
  * Apply fragment-override claims to an ordered fragment list.
  *
@@ -102,13 +131,8 @@ export function applyFragmentOps(fragments, claims, resolutions, ctx) {
 
     if (exclusives.length) {
       const hasRes = Object.prototype.hasOwnProperty.call(resolutions, f.id);
-      let winner = null;
-      if (hasRes) {
-        const wid = resolutions[f.id];
-        winner = (wid === null) ? null : (exclusives.find(c => c.addonId === wid) || null);
-      } else if (exclusives.length === 1) {
-        winner = exclusives[0];
-      } else {
+      const winner = _resolvedExclusiveClaim(exclusives, resolutions, f.id);
+      if (!hasRes && exclusives.length > 1) {
         // ≥2 exclusive claims, unresolved → conflict; keep built-in.
         conflicts.push({ target: f.id, claimants: exclusives.map(c => ({ addonId: c.addonId, op: c.op })) });
       }

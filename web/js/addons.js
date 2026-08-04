@@ -34,7 +34,7 @@ import { addDisposer, addReturnedDisposer, createDisposalStack, disposeStack, re
 import { createTransactionRunner } from './addon-transactions.js';
 import { createAddonImportClient } from './addon-imports.js';
 import { createGraphFacade, graphImplementationRegistry } from './addon-graph.js';
-import { applyFragmentOps, listConflicts } from './addon-fragments.js';
+import { applyFragmentOps, listConflicts, resolvedExclusiveClaim } from './addon-fragments.js';
 import { smokeRegistrations } from './addon-test-harness.mjs';
 import { createScopedI18n, loadAddonCatalogs } from './addon-i18n.js';
 
@@ -1045,7 +1045,7 @@ export const Addons = (() => {
   function bodyOverridden(kind) {
     if (!kind || !_fragmentOps.length) return false;
     const target = kind + ':body';
-    return _fragmentOps.some((c) => c.target === target && (c.op === 'replace' || c.op === 'hide'));
+    return !!resolvedExclusiveClaim(_fragmentOps, _resolutions, target);
   }
 
   /** Eager conflict report for the Addon Manager — ≥2 exclusive (replace/hide)
