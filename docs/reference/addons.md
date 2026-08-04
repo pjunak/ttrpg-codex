@@ -262,9 +262,6 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   optional services return `null`/`[]`; missing or ambiguous required services
   block the consumer. Handles carry trustworthy provider addon/version,
   contract-version, and content-revision metadata beside the API.
-  Core may feature-detect an addon-owned presentation integration through its
-  lifecycle-scoped provided API (`Addons.providedApi(id)`); this is not exposed
-  to unrelated addons and every core caller must retain a built-in fallback.
 - **Lifecycle + reconciliation:** a successful `register(host)` may return a
   cleanup function and may also register any number of cleanup functions with
   `host.onDispose(fn)`. Each cleanup is invoked exactly once, in reverse
@@ -525,6 +522,25 @@ do not survive restart. The published `server/addon-import-harness.cjs`
 exports `createMockImportHost(...)` and runs the same descriptor/parser/plan/job
 implementation in memory, including revision conflicts and atomic commit
 results.
+
+Visible import UX is adapter-owned, not broker-owned. Importable content addons
+provide the cardinality-many `codex.import-adapter` service v1 alongside their
+server provider. Its `descriptor()` returns localized plain metadata and safe
+same-origin resource links; `activate({invalidate})`, `render()`, and `leave()`
+own the adapter state, escaped review/editor UI, registered actions, and job
+cleanup. The adapter uses its own scoped `host.imports`, so the composing addon
+cannot operate another addon's provider. DM Tools owns the `#/dm-import` route,
+enumerates all compatible handles with `host.listServices`, and provides only
+selection, lifecycle, and unavailable/error containment. It never parses an
+adapter payload or contains known addon ids.
+
+Core campaign data participates through `web/js/core-import-adapter.js`, a
+generic built-in service registered by `app.js`; the normal Import Center route
+does not exist without DM Tools. The adapter uses the same `campaign-bundle`
+broker provider and owns only core campaign review/edit links. Addon-specific
+planning projections and field maps do not live in core. Disabling/updating an
+adapter unloads DM Tools first, disposes the scoped import client, and leaves
+the server's revision-pinned job unable to publish stale work.
 
 An addon that also negotiates `imports.bundle-contributors` may call
 `serverHost.registerCampaignBundleContributor({id, providerId})` after

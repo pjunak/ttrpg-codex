@@ -13,7 +13,7 @@ import { Widgets } from './widgets/widgets.js';
 import { GlobalSearch } from './search.js';
 import { Role } from './role.js';
 import { DmDashboard } from './dm_dashboard.js';
-import { ImportCenter } from './import-center.js';
+import { CoreImportAdapter } from './core-import-adapter.js';
 import { Sidebar } from './sidebar.js';
 import { Addons } from './addons.js';
 import { I18n } from './i18n.js';
@@ -22,6 +22,8 @@ import { CollectionDescriptors } from './collection-descriptors.js';
 import { setWikiLinkResolver, norm, dataAction, esc, clearAnnouncement } from './utils.js';
 import { graphImplementationRegistry } from './addon-graph.js';
 import { createCytoscapeGraphAdapter } from './addon-graph-cytoscape.js';
+
+Addons.registerBuiltInService('codex.import-adapter', '1.0.0', CoreImportAdapter.service);
 
 // ── Action dispatcher (replaces inline `onclick="Module.method(...)"`) ──
 // Buttons / anchors carry `data-action="Module.method"` plus an optional
@@ -33,7 +35,7 @@ import { createCytoscapeGraphAdapter } from './addon-graph-cytoscape.js';
 //   2. Lets the page run under `Content-Security-Policy: script-src 'self'`
 //      because no inline event-handler attributes survive.
 const ACTIONS = {
-  Store, EditMode, Wiki, CloudMap, Timeline, WorldMap, Settings, GlobalSearch, Role, DmDashboard, ImportCenter, Sidebar, Addons, I18n,
+  Store, EditMode, Wiki, CloudMap, Timeline, WorldMap, Settings, GlobalSearch, Role, DmDashboard, CoreImportAdapter, Sidebar, Addons, I18n,
 };
 // Browser-built-in shortcuts (`history.back()`,
 // `document.getElementById(slug).scrollIntoView(…)`, etc.). Element- /
@@ -403,7 +405,7 @@ document.addEventListener('click', (ev) => {
       '', 'dashboard', 'parta', 'postavy', 'postava', 'mista', 'misto',
       'udalosti', 'udalost', 'zahady', 'zahada', 'frakce', 'mazlicci',
       'panteon', 'buh', 'artefakty', 'artefakt', 'historie',
-      'historicka-udalost', 'nastaveni', 'dm', 'import', 'casova-osa',
+      'historicka-udalost', 'nastaveni', 'dm', 'casova-osa',
     ]).has(section) || Addons.hasRoute(section);
   }
 
@@ -419,7 +421,6 @@ document.addEventListener('click', (ev) => {
   function navigate(route) {
     clearAnnouncement();
     Addons.disposeRouteGraphs();
-    if (route !== '/import') ImportCenter.leave();
     const isWorldMapRoute =
       route === '/mapa/svet' || route.startsWith('/mapa/local/');
     if (!isWorldMapRoute) WorldMap.teardown();
@@ -610,8 +611,6 @@ document.addEventListener('click', (ev) => {
         // a "jen pro DM" stub if Role.isDM() is false; the sidebar
         // already hides the link for non-DM users.
         DmDashboard.render(); break;
-      case "import":
-        ImportCenter.render(); break;
       default:
         if (Addons.hasRoute(section)) { Addons.renderRoute(section, sub, parts); break; }
         _renderRouteNotFound(route);

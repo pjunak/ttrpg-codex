@@ -143,9 +143,12 @@ web/
                            Private adapter for the existing SRI-pinned runtime;
                            raw Cytoscape never crosses the addon boundary.
     addon-host-contract.js Shared host.use + collection-declaration contract.
+    addon-services.js      Pure versioned service-discovery planner and
+                           provider/consumer binding validation.
     addon-transactions.js  Shared buffered transaction facade used by the
                            live host and authoring harness.
-    import-center.js       Core DM-only campaign bundle review/commit page.
+    core-import-adapter.js Headless core campaign-bundle import adapter;
+                           DM Tools owns the visible Import Center.
     store.js               In-memory domain state, secondary indices, trash,
                            undelete, and settings API.
     store-transport.js     Validated loads, optimistic revisions, recovery,
@@ -250,7 +253,7 @@ there.**
 |---|---|---|
 | `dnd-character-sheets` | `dnd-sheets` | Tabbed character sheet (Overview/Character Sheet/Combat/Spellbook/Builder) + a built-in pure rules engine (`rules/engine.js` + `rules/api.js`), edition-parameterized (built-in 2024 constants; a provider's `ruleset` record overrides per constant — `dnd5e-compendium` is the reserved 2014 provider id). Standalone hand-fillable; soft-dep (`optionalDependencies`) on the compendium. Engine mode is per character: a returned provider cannot overwrite manually changed materialized fields until the user explicitly keeps manual mode or resumes the rulebook. `provide()`s the rules API for future consumers. ⚠ The addon id keys `character.addonData` — renaming it orphans sheet data without a key migration. |
 | `dnd55e-compendium` | `dnd55e-compendium` | Structured D&D 2024 content — the three core books plus Eberron, Forgotten Realms, Ravenloft, Lorwyn, and Astarion options (over 3,000 records). Canonical `book` provenance and optional `availableIn` reprint membership keep every source toggle-safe without duplicate entities. The host serves the per-record JSON tree through `contentDir`; `/compendium` provides browsing and the pure data API consumed by sheets. The private repository requires `CODEX_GITHUB_TOKEN` for installs and updates. |
-| `dm-tools` | `dm-tools` | DM-only forward planning and world-building: one nested story canvas for plotlines, quests, typed events, branches, stateless flow, named core/optional-addon references, intended consequences, and separately stored DM marginalia. The same schema powers manual editing and reviewed multi-collection LLM imports. Legacy scenario/folder/item/link records are translated atomically and retained as migration sources; core retains `/dm` authorization, diagnostics, persistence, transactions, and recovery fallback. |
+| `dm-tools` | `dm-tools` | DM-only forward planning and world-building plus the visible Import Center. The center discovers versioned `codex.import-adapter` services, so content-owning addons supply their own preview/edit/commit workflow without DM Tools changes. DM Tools also contributes its planning-document adapter. Legacy scenario/folder/item/link records are translated atomically and retained as migration sources; core retains `/dm` authorization, diagnostics, persistence, transactions, and recovery fallback. |
 
 Working loop: edit in the addon repo → `node scripts/dev-install-addon.cjs
 <path-to-addon>` (run in THIS repo) → restart the app + refresh. ⚠ **Addon

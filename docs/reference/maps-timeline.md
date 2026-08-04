@@ -329,19 +329,6 @@ replacement or teardown.
 Search now spans all placed Locations across all maps (world + every
 local map), not just the currently visible context.
 
-The core Import Center reuses this coordinate contract for review evidence.
-For every changed location with finite `x`/`y`, `import-center.js` selects the
-world image or the referenced parent's `localMap`, resolves the live pin type
-and clamped size through `PinTypes`, and overlays the changed marker at the
-normalized coordinates. Directly imported locations retain their source
-reference and expose draggable, keyboard-adjustable markers. A move is only a
-local pending adjustment: commit stays disabled until **Apply placements**
-creates a modified copy of the original input, opens a new import job, and
-obtains a fresh server-validated plan/token. The previous job remains intact
-until that replacement preview succeeds, so a failed validation cannot destroy
-the last committable review. Existing locations and locations materialized only
-by an addon contribution remain read-only.
-
 Location detail page (`renderLocationArticle`):
 - Ancestor breadcrumb at the top (reverse `getAncestorLocations(id)`).
 - "Dílčí místa" chip section (`getSubLocations(id)`), 📍 marks placed

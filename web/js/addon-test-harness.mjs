@@ -590,14 +590,20 @@ export function createMockHost(meta = {}, opts = {}) {
     },
     useService: (contract) => {
       const declaration = serviceConsumption(contract, 'one');
-      const handles = mockServiceHandles(contract);
+      const handles = [
+        ...mockServiceHandles(contract),
+        ...rec.providedServices.filter(service => service.contract === contract).map(service => service.handle),
+      ];
       if (handles.length > 1) throw new Error(`Mock service "${contract}" has multiple providers; supply the selected provider only`);
       if (!handles.length && declaration.required) throw new Error(`Required service "${contract}" is not loaded`);
       return handles[0] || null;
     },
     listServices: (contract) => {
       const declaration = serviceConsumption(contract, 'many');
-      const handles = mockServiceHandles(contract);
+      const handles = [
+        ...mockServiceHandles(contract),
+        ...rec.providedServices.filter(service => service.contract === contract).map(service => service.handle),
+      ];
       if (!handles.length && declaration.required) throw new Error(`Required service "${contract}" is not loaded`);
       return Object.freeze(handles.slice());
     },

@@ -213,40 +213,22 @@ publication.
 
 ## Content-import provider jobs
 
-Core registers the built-in `(core, campaign-bundle)` provider and owns the
-DM-only `#/import` Import Center. Campaign bundle schema v1 creates characters,
+Core registers the built-in `(core, campaign-bundle)` provider and a headless
+`codex.import-adapter` implementation consumed by DM Tools. Campaign bundle schema v1 creates characters,
 locations, and relationships with explicit visibility, preview-reserved IDs,
 typed local/stored references, derived connection symmetry, exact before/after
 writes, a player projection, and map-placement evidence. It accepts no core
 updates, deletes, media, twins, settings, auth, backups, or registry changes.
 The current schema and campaign inventory are discoverable through the API.
-The review UI recognizes DM Tools planning schema v2 directly. Contributed
-`planning_items` provide nested plotline/quest ownership and typed
-event/branch presentation; `planning_flow_links` of kind `continues` or
-`option` are the only chronological/decision-flow authority. Named planning
-references and core relationships remain supporting context. The browser never
-invents time, causality, or choice from prose, tags, array order, or ownership,
-and no retired planning-import shape is accepted by the preview.
-
-When DM Tools is loaded, its versioned `host.provide()` API supplies the same
-scope projection, DOM/SVG canvas renderer, styles, node shapes, and edge
-geometry used by the live Story Planner. Core embeds that workbench in the
-questline review and places the selected planning item's source-backed
-before/after form in its inspector. The built-in graph is only a failure
-fallback. The questline workbench precedes diagnostics.
-
-Map evidence mounts independent Leaflet image maps through `WorldMap` and uses
-the live map's marker-icon resolver, pin sizing, artwork, attitude glow, pan,
-zoom, and tooltip presentation. Directly imported pins are draggable and
-keyboard-adjustable; existing contextual pins remain subdued. Every
-materialized change also expands into a read-only current-value form and, where
-the original input record is identifiable, an editable source form.
-Source edits and directly imported map-marker moves stay local and disable
-commit. **Revalidate all edits** serializes the modified source into a new
-input, creates a new job, and obtains a fresh plan/token; the prior job remains
-intact until replacement preview succeeds. The client never mutates a
+The core adapter renders core before/after records, diagnostics, safe public
+record links, and a bounded source-JSON editor. Revalidation serializes the
+modified source into a new input, creates a new job, and obtains a fresh
+plan/token; the prior job remains intact until replacement preview succeeds.
+It contains no DM Tools schema, planning field map, story projection, or known
+addon id. DM Tools owns `#/dm-import`, adapter selection, and lifecycle; its
+planning adapter owns the planning workflow. The client never mutates a
 server-held plan, and commit remains bound to one exact validated preview
-token.
+token. With DM Tools absent there is no visible Import Center route.
 
 API-v2 server addons negotiate
 `imports.providers` and register versioned descriptors. Provider identity is

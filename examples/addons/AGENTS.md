@@ -83,6 +83,8 @@ Add only fields that are needed:
 - `locales`: catalog paths; English is mandatory and complete.
 - `collections`: `{ "name", "keyed", "access" }`; access defaults to public.
 - `dependencies` and `optionalDependencies`: versioned addon APIs.
+- `services`: versioned contract discovery when any compatible provider should
+  work. Declare `provides` and/or explicit `consumes` cardinality/range entries.
 - `contentDir`: a host-served per-record JSON tree for data addons.
 - `contentGroups`: DM-toggleable content slices.
 - `server`: optional server module; requires `server:code`.
@@ -134,6 +136,9 @@ host.store.transaction(names, callback)
 host.store.patchAddonData(collection, id, update)
 host.provide(api)
 host.use(addonId)
+host.provideService(contract, version, api)
+host.useService(contract)
+host.listServices(contract)
 ```
 
 See `AUTHORING.md` for complete method signatures, collection identity,
@@ -156,6 +161,16 @@ try {
 
 Dispose or invalidate provider-derived state when the addon is unloaded.
 Provider APIs should return data rather than host-owned DOM or private objects.
+
+## Discoverable services
+
+Use exact dependencies only when identity matters. For extensible roles such as
+rules data, engines, renderers, or import adapters, declare a service contract.
+A cardinality-one consumer receives the sole compatible provider automatically;
+multiple providers require a DM binding. Cardinality-many consumers receive
+every compatible handle in deterministic provider-id order. Handles contain
+`{api, provider}`; provider metadata includes addon/version, contract version,
+and content revision. Optional consumers must handle `null` or `[]`.
 
 ## Localization and HTML
 

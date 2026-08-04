@@ -83,7 +83,6 @@ export function resolveServiceBindings(list, configuredBindings = {}, blockedIds
     for (const declaration of normalizeServiceDeclarations(consumer.services).consumes) {
       const key = serviceBindingKey(consumer.id, declaration.contract);
       const candidates = (providersByContract.get(declaration.contract) || [])
-        .filter(provider => provider.addon.id !== consumer.id)
         .filter(provider => satisfies(provider.declaration.version, declaration.range));
       let selected = [];
       let reason = '';
@@ -106,7 +105,9 @@ export function resolveServiceBindings(list, configuredBindings = {}, blockedIds
 
       resolved.set(key, selected.map(provider => provider.addon.id));
       const edges = declaration.required ? hardEdges : optionalEdges;
-      for (const provider of selected) edges.push([provider.addon.id, consumer.id]);
+      for (const provider of selected) {
+        if (provider.addon.id !== consumer.id) edges.push([provider.addon.id, consumer.id]);
+      }
       if (reason) {
         const issue = {
           consumerId: consumer.id,

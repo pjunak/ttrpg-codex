@@ -26,7 +26,7 @@ import { Role } from './role.js';
 import { ApiClient } from './api-client.js';
 import { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumbNav, iconGlyph, announce } from './utils.js';
 import { I18n } from './i18n.js';
-import { planLoadOrder } from './addon-deps.js';
+import { planLoadOrder, satisfies } from './addon-deps.js';
 import { HOST_CAPABILITIES, HOST_VERSION, compatibilityErrors } from './addon-compat.js';
 import { requireCollectionDeclaration, resolveDependency } from './addon-host-contract.js';
 import { AddonRegistrationContract } from './addon-registration-contract.js';
@@ -52,6 +52,7 @@ export const Addons = (() => {
   const _sidebarPages    = [];         // [{ route, label, icon, section, role, addonId }]
   const _addonApis       = new Map();  // id       -> api provided via host.provide() (for host.use)
   const _serviceApis     = new Map();  // contract -> Map<addonId,{api,provider}>
+  const _builtInServices = new Map();  // contract -> [{api,provider}] registered by core
   const _collections     = new Map();  // "<id>:<name>" -> { addonId, name, keyed }   (addon-owned data)
   const _wikiKinds       = new Map();  // scope     -> { addonId, resolve }            ([[X|scope]] resolver)
   const _fragmentOps     = [];         // [{ addonId, target, op, render, order, position }]  (override claims)
@@ -90,6 +91,32 @@ export const Addons = (() => {
   /** app.js calls this once before boot() to wire host services. */
   function init(services) {
     if (services && typeof services === 'object') _services = { ..._services, ...services };
+  }
+
+  function registerBuiltInService(contract, version, api, provider = {}) {
+    if (typeof contract !== 'string' || typeof version !== 'string' || api == null) {
+      throw new Error('registerBuiltInService requires contract, version, and api');
+    }
+    const handle = Object.freeze({
+      api,
+      provider: Object.freeze({
+        addonId: 'core',
+        addonName: 'TTRPG Codex',
+        addonVersion: HOST_VERSION,
+        contract,
+        contractVersion: version,
+        contentRevision: HOST_VERSION,
+        ...provider,
+      }),
+    });
+    const handles = _builtInServices.get(contract) || [];
+    if (handles.some(existing => existing.provider.addonId === handle.provider.addonId)) {
+      throw new Error(`Built-in service "${contract}" already has provider "${handle.provider.addonId}"`);
+    }
+    handles.push(handle);
+    handles.sort((a, b) => a.provider.addonId.localeCompare(b.provider.addonId));
+    _builtInServices.set(contract, handles);
+    return handle;
   }
 
   // ── Permission catalogue (human-readable, for the install wizard) ──
@@ -490,7 +517,11 @@ export const Addons = (() => {
     function listServices(contract) {
       const declaration = _consumption(contract, 'many');
       const providerIds = _servicePlan.resolved.get(serviceBindingKey(id, contract)) || [];
-      const handles = providerIds.map(providerId => _serviceApis.get(contract)?.get(providerId)).filter(Boolean);
+      const handles = [
+        ...(_builtInServices.get(contract) || [])
+          .filter(handle => satisfies(handle.provider.contractVersion, declaration.range)),
+        ...providerIds.map(providerId => _serviceApis.get(contract)?.get(providerId)).filter(Boolean),
+      ].sort((a, b) => a.provider.addonId.localeCompare(b.provider.addonId));
       if (!handles.length && declaration.required) throw new Error(`Required service "${contract}" is not loaded`);
       return Object.freeze(handles.slice());
     }
@@ -1230,12 +1261,6 @@ export const Addons = (() => {
     return out;
   }
 
-  /** Core-only bridge for optional, addon-owned presentation integrations.
-   *  Addon APIs remain lifecycle-scoped by provide(); callers must feature-detect
-   *  every method and keep a built-in fallback. */
-  function providedApi(addonId) {
-    return _addonApis.get(addonId) || null;
-  }
   function serviceIssues() {
     return (_servicePlan.issues || []).map(issue => ({
       ...issue,
@@ -1329,14 +1354,14 @@ export const Addons = (() => {
 
   return {
     HOST_API_VERSION,
-    init, boot, reconcile,
+    init, registerBuiltInService, boot, reconcile,
     hasRoute, renderRoute, disposeRouteGraphs, sidebarPages, list,
     hasPageRenderer, renderPage, articleSections,
     editorFields, collectEditorFields,
     applyFragments, bodyOverridden, conflicts, unmatchedClaims,
     settingsTabs, settingsTab, runAction,
     resolveWikiLink,
-    slotContent, providedApi,
+    slotContent,
     serviceIssues, serviceBindings, setServiceBinding,
     connectionKinds, nodeKinds, graphViews, graphContributors, kindsForDomain,
     describePermission,

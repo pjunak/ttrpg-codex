@@ -709,6 +709,44 @@ binding that becomes unavailable stays visibly stale rather than silently
 switching implementations. `required:true` blocks the consumer when unresolved;
 an optional consumer receives `null` or `[]` and must retain a standalone path.
 
+### Import adapters
+
+An addon that owns importable content provides `codex.import-adapter` version
+`1.0.0`. DM Tools consumes this contract with cardinality `many`; neither DM
+Tools nor core contains a list of known content addons. The service API is:
+
+```js
+host.provideService('codex.import-adapter', '1.0.0', Object.freeze({
+  apiVersion: 1,
+  descriptor: () => ({
+    id: 'my-content-json',
+    label: host.i18n.t('import.label'),
+    description: host.i18n.t('import.description'),
+    accept: '.json,application/json',
+    links: [{ label: host.i18n.t('import.schema'), href: '/api/addon/my-addon/schema' }],
+  }),
+  activate: ({ invalidate }) => { /* retain callback; return optional cleanup */ },
+  render: () => '<section>…owner-rendered review/edit UI…</section>',
+  leave: async () => { /* cancel preview jobs and clear draft state */ },
+}));
+```
+
+The content owner registers every action referenced by its HTML and uses its
+own scoped `host.imports` client, so another addon never gains authority over
+its providers or collections. `descriptor()` returns localized plain text and
+optional same-origin absolute-path resource links. `render()` returns escaped,
+owner-defined UI; the center never introspects or generically edits the
+payload. `activate({invalidate})` connects state changes to the containing
+route and its cleanup must detach that callback. `leave()` cancels nonterminal
+jobs. Server preview tokens already pin provider/package/content and collection
+revisions, so disable/update/replacement cannot publish a stale plan.
+
+Every stable importable content type should pair this client adapter with its
+owner server import provider. Package-authored read-only content, caches,
+settings, and migration-source collections should instead be documented as
+non-importable. View/edit links belong to the owner adapter and should target
+its public routes rather than exposing collection internals.
+
 Supported `range` forms: `*` (any), exact `x.y.z`, comparators
 `>= > <= <`, caret `^x.y.z`, tilde `~x.y.z`, X-ranges `1.x` / `1.2.x`. Compound
 ranges, hyphen ranges, OR expressions, pre-release/build versions, leading

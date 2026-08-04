@@ -44,7 +44,7 @@ addon wiki kinds continue through `Addons.resolveWikiLink`.
 | `/mapa/tajemstvi` | `CloudMap.render('tajemstvi')` | |
 | `/casova-osa` | `Timeline.render()` | |
 | `/dm` | `DmDashboard.render()` | Stable DM-only shell. Effective-DM authorization runs before addon slot enumeration. Successful `dm:dashboard` contributions own the normal workflow content; without one, core renders safe addon diagnostics, DM-only content counts, and an Addon Manager recovery link. Non-DM viewers receive only the refusal view, and the sidebar entry is gated on `role: 'dm'`. |
-| `/import` | `ImportCenter.render()` | Core-owned, effective-DM-only campaign bundle workflow. Links the live schema/inventory, uploads JSON, builds a read-only exact review, projects changed location pins over the world/local map image, requires explicit confirmation, and commits the single-use preview token. |
+| `/dm-import` | addon route (`dm-tools`) | Effective-DM-only Import Center. DM Tools owns the route and composes every compatible `codex.import-adapter`; each content owner supplies its own review/editor UI and scoped job controller. With DM Tools disabled the route disappears. Core contributes only a headless campaign-data adapter. |
 | `/nastaveni` | `Settings.render()` | User-editable enums plus special panels for **Appearance**, **Language**, **Our Party**, **Maps**, **Sidebar**, **Add-ons**, **Backup**, and **Server**. Language is a per-browser English/Czech choice. Backup and Server are role-aware; campaign configuration and the Add-on Manager remain DM-only. Non-DM viewers see Language, Backup, Server, and any player-visible addon settings. Anonymous visitors are intercepted by the route guard in `navigate()` and shown the login modal. |
 
 ## Wiki list-view controls (search + sort)

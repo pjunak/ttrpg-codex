@@ -96,6 +96,20 @@ test('cardinality-many resolves every compatible provider in stable id order', (
   assert.deepEqual(servicePlan.resolved.get('consumer::codex.example'), ['provider-a', 'provider-b']);
 });
 
+test('an addon may publish and consume its own cardinality-many service without a graph self-cycle', () => {
+  const plan = planLoadOrder([{
+    id: 'owner-ui',
+    version: '1.0.0',
+    services: {
+      provides: [{ contract: 'codex.adapters', version: '1.0.0' }],
+      consumes: [{ contract: 'codex.adapters', range: '^1.0.0', cardinality: 'many', required: false }],
+    },
+  }]);
+  assert.equal(plan.blocked.size, 0);
+  assert.deepEqual(plan.order.map(addon => addon.id), ['owner-ui']);
+  assert.deepEqual(plan.services.resolved.get('owner-ui::codex.adapters'), ['owner-ui']);
+});
+
 test('required service cycles are blocked; optional cycles are ordering-only', () => {
   const addon = (id, provides, consumes, required) => ({
     id,
@@ -127,4 +141,3 @@ test('registry service bindings discard malformed keys and provider ids', () => 
     'consumer::codex.other': '../bad',
   }), { 'consumer::codex.example': 'provider' });
 });
-
