@@ -583,6 +583,7 @@ export function createMockHost(meta = {}, opts = {}) {
           contract,
           contractVersion: version,
           contentRevision: typeof meta.contentRevision === 'string' ? meta.contentRevision : '',
+          permissions: Object.freeze(Array.isArray(meta.permissions) ? meta.permissions.slice() : []),
         }),
       });
       rec.providedServices.push({ contract, version, api, handle });

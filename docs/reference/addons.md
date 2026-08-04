@@ -261,7 +261,9 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   registry/source/load order: the DM must bind one in Settings → Add-ons. Missing
   optional services return `null`/`[]`; missing or ambiguous required services
   block the consumer. Handles carry trustworthy provider addon/version,
-  contract-version, and content-revision metadata beside the API.
+  contract-version, content-revision, and granted-permissions metadata beside
+  the API, so consumers that delegate privileged work can prevent permission
+  laundering without naming individual providers.
 - **Lifecycle + reconciliation:** a successful `register(host)` may return a
   cleanup function and may also register any number of cleanup functions with
   `host.onDispose(fn)`. Each cleanup is invoked exactly once, in reverse

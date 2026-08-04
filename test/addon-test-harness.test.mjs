@@ -334,11 +334,14 @@ test('mock host mirrors declared versioned service APIs and provider metadata', 
     name: 'Provider',
     version: '2.3.4',
     apiVersion: 2,
+    permissions: ['ui:override'],
     services: { provides: [{ contract: 'codex.example', version: '1.1.0' }] },
   };
   const provider = createMockHost(providerMeta);
   const published = provider.host.provideService('codex.example', '1.1.0', { answer: 42 });
   assert.equal(published.provider.addonId, 'provider-addon');
+  assert.deepEqual(published.provider.permissions, ['ui:override']);
+  assert.ok(Object.isFrozen(published.provider.permissions));
   assert.equal(provider.rec.providedServices[0].api.answer, 42);
   assert.throws(() => provider.host.provideService('codex.other', '1.0.0', {}), /not declared/);
 

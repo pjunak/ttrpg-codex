@@ -487,6 +487,7 @@ export const Addons = (() => {
           contract,
           contractVersion: version,
           contentRevision: typeof meta.contentRevision === 'string' ? meta.contentRevision : '',
+          permissions: Object.freeze(Array.isArray(meta.permissions) ? meta.permissions.slice() : []),
         }),
       });
       providers.set(id, handle);
