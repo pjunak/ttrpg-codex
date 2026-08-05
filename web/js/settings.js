@@ -1914,15 +1914,18 @@ export const Settings = (() => {
         const option = candidate => `<option value="${esc(candidate.addon.id)}" ${selected === candidate.addon.id ? 'selected' : ''}>${esc(candidate.addon.name || candidate.addon.id)} · ${esc(candidate.declaration.version)}</option>`;
         let hint = '';
         if (issue) {
-          const hintKey = issue.reason.startsWith('multiple')
-            ? 'settings.serviceChooseProvider'
-            : (issue.reason.startsWith('configured') ? 'settings.serviceStaleBinding' : 'settings.serviceMissingProvider');
+          const hintKey = issue.reason.startsWith('exclusive service')
+            ? 'settings.serviceExclusiveConflict'
+            : (issue.reason.startsWith('multiple')
+              ? 'settings.serviceChooseProvider'
+              : (issue.reason.startsWith('configured') ? 'settings.serviceStaleBinding' : 'settings.serviceMissingProvider'));
           hint = `<div class="addon-conflict-hint">${esc(I18n.t(hintKey))}</div>`;
         }
+        const exclusiveConflict = issue && issue.reason.startsWith('exclusive service');
         rows.push(`<div class="addon-conflict${issue ? ' addon-conflict-open' : ''}">
           <div class="addon-conflict-title">${issue ? '⚠' : '✓'} ${esc(consumer.name || consumer.id)} <code>${esc(consumption.contract)}</code></div>
           ${hint}
-          <label class="settings-field" style="margin-top:var(--space-2)">
+          ${exclusiveConflict ? '' : `<label class="settings-field" style="margin-top:var(--space-2)">
             <span class="settings-field-label">${esc(I18n.t('settings.serviceProvider'))}</span>
             <select class="edit-input" ${dataOn('change', 'Settings.bindAddonService', consumer.id, consumption.contract, '$value')}>
               <option value="" ${selected ? '' : 'selected'}>${esc(I18n.t(candidates.length === 1 ? 'settings.serviceAutomatic' : 'settings.serviceNotSelected'))}</option>
@@ -1931,7 +1934,7 @@ export const Settings = (() => {
                 : ''}
               ${candidates.map(option).join('')}
             </select>
-          </label>
+          </label>`}
         </div>`);
       }
     }
@@ -2198,6 +2201,9 @@ export const Settings = (() => {
     const validationErrors = Array.isArray(p.errors)
       ? p.errors.filter(error => typeof error === 'string' && error.trim())
       : [];
+    const installConflicts = Array.isArray(p.installConflicts)
+      ? p.installConflicts.filter(conflict => conflict && typeof conflict === 'object')
+      : [];
     const permList = perms.length
       ? `<ul class="addon-perm-list">${perms.map(pr =>
           `<li><span>${esc(Addons.describePermission(pr))}</span> <code>${esc(pr)}</code></li>`).join('')}</ul>`
@@ -2208,8 +2214,16 @@ export const Settings = (() => {
       ? `<ul class="addon-validation-errors">${validationErrors.map(error =>
           `<li><code>${esc(error)}</code></li>`).join('')}</ul>`
       : '';
-    const errBox = p.ok ? ''
-      : `<div class="addon-wizard-err">⚠ ${esc(I18n.t('settings.invalidManifest'))}${validationList}</div>`;
+    const validationBox = validationErrors.length
+      ? `<div class="addon-wizard-err">⚠ ${esc(I18n.t('settings.invalidManifest'))}${validationList}</div>`
+      : '';
+    const conflictBox = installConflicts.length
+      ? `<div class="addon-wizard-err">⚠ ${esc(I18n.t('settings.exclusiveProviderTitle'))}<ul class="addon-validation-errors">${installConflicts.map(conflict =>
+          `<li>${esc(I18n.t('settings.exclusiveProviderConflict', {
+            name: conflict.addonName || conflict.addonId || '?',
+            contract: conflict.contract || '?',
+          }))}</li>`).join('')}</ul></div>`
+      : '';
     if (body) body.innerHTML = `
       <div class="addon-preview">
         <div class="addon-preview-name">${esc(m.name || m.id || '?')}
@@ -2218,7 +2232,8 @@ export const Settings = (() => {
         <div class="addon-perm-title">${esc(I18n.t('settings.addonRequestsPermissions'))}</div>
         ${permList}
         ${serverWarn}
-        ${errBox}
+        ${validationBox}
+        ${conflictBox}
       </div>
       <div class="addon-wizard-status" id="addon-wizard-status"></div>`;
     const confirmLabel = _wizardMode === 'update' ? `🔄 ${I18n.t('settings.update')}` : I18n.t('settings.installAndEnable');

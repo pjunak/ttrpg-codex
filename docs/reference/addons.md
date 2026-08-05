@@ -105,10 +105,12 @@ dependencies? (HARD — a missing/incompatible one `blocks` the addon), optional
 (same shape; **SOFT** — ordering-only: loads the dep first WHEN present + compatible, but
 NEVER blocks when it's absent/blocked/incompatible — the soft-use seam, e.g. a sheet that
   auto-fills from a rules engine when installed and hand-fills when not),
-services? (`{provides?:[{contract,version}], consumes?:[{contract,range,cardinality,required}]}` —
+services? (`{provides?:[{contract,version,exclusive?}], consumes?:[{contract,range,cardinality,required}]}` —
 API-v2 contract discovery; contracts are lowercase dot-namespaced tokens,
 providers publish strict semver versions, consumers declare a supported range,
-`cardinality` is `"one"` or `"many"`, and `required` is explicit), collections? (`[{name (^[a-z0-9][a-z0-9_]{0,39}$), keyed?, access?}]` —
+`cardinality` is `"one"` or `"many"`, and `required` is explicit; an exclusive
+provider requires the `services.exclusive-providers` capability and prevents a
+second installed provider of the same contract), collections? (`[{name (^[a-z0-9][a-z0-9_]{0,39}$), keyed?, access?}]` —
   addon-owned data collections, validated + de-duped by `normalizeCollections`;
   `access` defaults to `"public"`, while `"dm"` is API-v2-only and requires
   `collections.dm` in `capabilities.required`),
@@ -269,6 +271,12 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   contract-version, content-revision, and granted-permissions metadata beside
   the API, so consumers that delegate privileged work can prevent permission
   laundering without naming individual providers.
+  A provider may instead declare `exclusive:true` when coexistence would make
+  persisted data or system semantics ambiguous. This is an installation
+  invariant, not an active-provider selector: enabled and disabled addons both
+  count, updates of the same addon id remain allowed, and installing, updating,
+  or rolling back either side of a conflicting contract is refused until the
+  other addon is uninstalled. Explicit service bindings cannot bypass it.
 - **Lifecycle + reconciliation:** a successful `register(host)` may return a
   cleanup function and may also register any number of cleanup functions with
   `host.onDispose(fn)`. Each cleanup is invoked exactly once, in reverse

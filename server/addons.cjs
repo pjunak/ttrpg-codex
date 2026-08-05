@@ -181,7 +181,7 @@ function normalizeServices(raw) {
     if (contract.length > 80 || !SERVICE_CONTRACT_RE.test(contract) || provided.has(contract)) continue;
     if (!Compatibility.parseVersion(version)) continue;
     provided.add(contract);
-    provides.push({ contract, version });
+    provides.push({ contract, version, ...(declaration.exclusive === true ? { exclusive: true } : {}) });
   }
   for (const declaration of Array.isArray(services.consumes) ? services.consumes : []) {
     if (!declaration || typeof declaration !== 'object' || Array.isArray(declaration)) continue;
@@ -194,6 +194,32 @@ function normalizeServices(raw) {
     consumes.push({ contract, range, cardinality: declaration.cardinality, required: declaration.required });
   }
   return { provides, consumes };
+}
+
+function exclusiveServiceConflicts(candidate, installedAddons) {
+  if (!candidate || typeof candidate !== 'object') return [];
+  const candidateId = typeof candidate.id === 'string' ? candidate.id : '';
+  const candidateProvides = normalizeServices(candidate.services).provides;
+  const conflicts = [];
+  const seen = new Set();
+  for (const installed of Array.isArray(installedAddons) ? installedAddons : []) {
+    if (!installed || typeof installed !== 'object' || installed.id === candidateId) continue;
+    const installedProvides = normalizeServices(installed.services).provides;
+    for (const provision of candidateProvides) {
+      const match = installedProvides.find(existing => existing.contract === provision.contract);
+      if (!match || (!provision.exclusive && !match.exclusive)) continue;
+      const key = `${provision.contract}\0${installed.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      conflicts.push({
+        contract: provision.contract,
+        addonId: String(installed.id || ''),
+        addonName: String(installed.name || installed.id || ''),
+      });
+    }
+  }
+  return conflicts.sort((left, right) => left.contract.localeCompare(right.contract)
+    || left.addonId.localeCompare(right.addonId));
 }
 
 function normalizeServiceBindings(raw) {
@@ -494,7 +520,7 @@ function validateManifest(m) {
             continue;
           }
           const allowed = direction === 'provides'
-            ? ['contract', 'version']
+            ? ['contract', 'version', 'exclusive']
             : ['contract', 'range', 'cardinality', 'required'];
           for (const key of Object.keys(declaration)) {
             if (!allowed.includes(key)) errors.push(`services.${direction} has unknown field "${key}"`);
@@ -510,6 +536,14 @@ function validateManifest(m) {
           if (direction === 'provides') {
             if (!Compatibility.parseVersion(declaration.version)) {
               errors.push(`services.provides "${contract || '?'}" version must be semver (x.y.z)`);
+            }
+            if (declaration.exclusive !== undefined && typeof declaration.exclusive !== 'boolean') {
+              errors.push(`services.provides "${contract || '?'}" exclusive must be a boolean`);
+            }
+            if (declaration.exclusive === true &&
+                !(Array.isArray(m.capabilities?.required) &&
+                  m.capabilities.required.includes('services.exclusive-providers'))) {
+              errors.push(`services.provides "${contract || '?'}" exclusive requires capability "services.exclusive-providers"`);
             }
           } else {
             if (typeof declaration.range !== 'string' || !Compatibility.testRange('0.0.0', declaration.range).valid) {
@@ -760,6 +794,7 @@ module.exports = {
   normalizeDisabledContentGroups,
   normalizeLocales,
   normalizeServices,
+  exclusiveServiceConflicts,
   normalizeServiceBindings,
   installedOptionalMetadata,
   applyInstalledOptionalMetadata,

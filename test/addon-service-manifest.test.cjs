@@ -4,6 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   defaultRegistry,
+  exclusiveServiceConflicts,
   installedOptionalMetadata,
   normalizeRegistry,
   normalizeServiceBindings,
@@ -27,6 +28,39 @@ const manifest = overrides => ({
 
 test('service manifest accepts versioned providers and explicit consumers', () => {
   assert.deepEqual(validateManifest(manifest()), { ok: true, errors: [] });
+});
+
+test('exclusive service providers require explicit host capability negotiation', () => {
+  const services = {
+    provides: [{ contract: 'codex.rules', version: '2.0.0', exclusive: true }],
+  };
+  assert.deepEqual(validateManifest(manifest({
+    capabilities: { required: ['services.exclusive-providers'] },
+    services,
+  })), { ok: true, errors: [] });
+  assert.equal(validateManifest(manifest({ services })).ok, false);
+  assert.equal(validateManifest(manifest({
+    capabilities: { required: ['services.exclusive-providers'] },
+    services: { provides: [{ contract: 'codex.rules', version: '2.0.0', exclusive: 'yes' }] },
+  })).ok, false);
+});
+
+test('exclusive service conflicts are symmetric, deterministic, and ignore same-id updates', () => {
+  const exclusive = {
+    id: 'new-rules',
+    services: { provides: [{ contract: 'codex.rules', version: '2.0.0', exclusive: true }] },
+  };
+  const ordinary = {
+    id: 'old-rules', name: 'Old Rules',
+    services: { provides: [{ contract: 'codex.rules', version: '1.0.0' }] },
+  };
+  assert.deepEqual(exclusiveServiceConflicts(exclusive, [ordinary]), [{
+    contract: 'codex.rules', addonId: 'old-rules', addonName: 'Old Rules',
+  }]);
+  assert.deepEqual(exclusiveServiceConflicts(ordinary, [exclusive]), [{
+    contract: 'codex.rules', addonId: 'new-rules', addonName: 'new-rules',
+  }]);
+  assert.deepEqual(exclusiveServiceConflicts(exclusive, [{ ...ordinary, id: 'new-rules' }]), []);
 });
 
 test('service manifest is API-v2 only and rejects ambiguous declarations', () => {

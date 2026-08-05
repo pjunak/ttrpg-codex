@@ -1,6 +1,6 @@
 'use strict';
 
-const HOST_VERSION = '1.2.0';
+const HOST_VERSION = '1.3.0';
 const SUPPORTED_API_VERSIONS = new Set([1, 2]);
 const KNOWN_CAPABILITIES = new Set([
   'collections.dm',
@@ -11,6 +11,7 @@ const KNOWN_CAPABILITIES = new Set([
   'imports.providers',
   'imports.bundle-contributors',
   'graphs.facade',
+  'services.exclusive-providers',
 ]);
 const HOST_CAPABILITIES = new Set(KNOWN_CAPABILITIES);
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,38}$/;

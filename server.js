@@ -2662,6 +2662,13 @@ async function _stageAddon(repo, ref, pinnedSha) {
 async function _promoteAddon(staged) {
   const { repo, useRef, sha, manifest, id, hash, incoming, finalDir } = staged;
 
+  const reg = await _readAddonsRegistry();
+  const exclusiveConflicts = AddonBroker.exclusiveServiceConflicts(manifest, reg.addons);
+  if (exclusiveConflicts.length) {
+    const conflict = exclusiveConflicts[0];
+    throw new Error(`exclusive service "${conflict.contract}" is already provided by "${conflict.addonId}"; uninstall it first`);
+  }
+
   await fsp.rm(finalDir, { recursive: true, force: true }).catch(() => {});
   await fsp.rename(incoming, finalDir);
 
@@ -2670,7 +2677,6 @@ async function _promoteAddon(staged) {
 
   // Update the registry (content-addressed: activeHash selects the live
   // version, versions[] keeps the last K for rollback).
-  const reg = await _readAddonsRegistry();
   const _serverDeps   = Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [];
   const _collections  = AddonBroker.normalizeCollections(
     manifest.collections,
@@ -2745,6 +2751,17 @@ async function _promoteAddon(staged) {
   // failed prune never fails the install.
   await _pruneAddonVersions(entry).catch(() => {});
   return entry;
+}
+
+async function _promoteStagedAddon(staged) {
+  try {
+    return await withWriteLock(() => _promoteAddon(staged));
+  } catch (error) {
+    if (staged?.incoming) {
+      await fsp.rm(staged.incoming, { recursive: true, force: true }).catch(() => {});
+    }
+    throw error;
+  }
 }
 
 // Public list — readable by any caller (boot happens pre-login).
@@ -2923,7 +2940,7 @@ app.post('/api/addons/update-all', requireRealDM('Jen DM může aktualizovat dop
         const latest = await AddonBroker.resolveRefToSha(a.repo, a.ref || 'HEAD', { fetch, token });
         if (a.sha && latest === a.sha) { skipped.push({ id: a.id, reason: 'up-to-date' }); continue; }
         const staged = await _stageAddon(a.repo, a.ref || 'HEAD', latest);
-        const entry  = await withWriteLock(() => _promoteAddon(staged));
+        const entry  = await _promoteStagedAddon(staged);
         if (entry && entry.server) serverChanged = true;
         updated.push({ id: a.id, from: a.sha || null, to: latest });
       } catch (e) {
@@ -2964,6 +2981,18 @@ app.post('/api/addons/:id/rollback', requireRealDM('Jen DM může vracet verze d
         target = idx > 0 ? versions[idx - 1] : versions[versions.length - 2];   // the one before active
       }
       if (!target) return { status: 400, error: 'Cílová verze nenalezena.' };
+      const rollbackCandidate = {
+        ...entry,
+        services: target.services === undefined ? undefined : target.services,
+      };
+      const exclusiveConflicts = AddonBroker.exclusiveServiceConflicts(rollbackCandidate, reg.addons);
+      if (exclusiveConflicts.length) {
+        const conflict = exclusiveConflicts[0];
+        return {
+          status: 409,
+          error: `Exclusive service "${conflict.contract}" is already provided by "${conflict.addonId}"; uninstall it first.`,
+        };
+      }
       // Verify the code dir still exists (pruning keeps the
       // kept-K dirs, but a manual delete could have removed it).
       const codeDir = _safeJoinIn(path.join(ADDONS_DIR, id), target.contentHash);
@@ -3063,7 +3092,7 @@ app.post('/api/addons/install', requireRealDM('Jen DM může instalovat doplňky
     // Stage outside the lock (network + tests must not block other writers),
     // then promote under it (fast, disk-local registry mutation).
     const staged = await _stageAddon(repo, ref, pinnedSha);
-    const entry  = await withWriteLock(() => _promoteAddon(staged));
+    const entry  = await _promoteStagedAddon(staged);
     _broadcast('addons-changed', { at: Date.now() });
     res.json({ ok: true, addon: { id: entry.id, version: entry.version, activeHash: entry.activeHash } });
   } catch (e) {
@@ -3088,12 +3117,15 @@ app.post('/api/addons/preview', requireRealDM('Jen DM může instalovat doplňky
     const ref = String((req.body && req.body.ref) || parsed.ref || 'HEAD');
     const { sha, manifest } = await AddonBroker.fetchManifest(parsed.repo, ref, { fetch, token });
     const v = AddonBroker.validateManifest(manifest);
+    const reg = await _readAddonsRegistry();
+    const installConflicts = AddonBroker.exclusiveServiceConflicts(manifest, reg.addons);
     res.json({
       repo: parsed.repo,
       ref,                 // the original branch/tag — install stores it for update checks
       sha,
-      ok: v.ok,
+      ok: v.ok && installConflicts.length === 0,
       errors: v.errors,
+      installConflicts,
       manifest: {
         id:          manifest.id,
         name:        manifest.name,
@@ -3109,6 +3141,7 @@ app.post('/api/addons/preview', requireRealDM('Jen DM může instalovat doplňky
         ),
         dependencies: (manifest.dependencies && typeof manifest.dependencies === 'object') ? manifest.dependencies : {},
         optionalDependencies: (manifest.optionalDependencies && typeof manifest.optionalDependencies === 'object') ? manifest.optionalDependencies : {},
+        services: AddonBroker.normalizeServices(manifest.services),
         summary:     manifest.summary || '',
         server:      !!manifest.server,
       },
@@ -3235,6 +3268,9 @@ app.delete('/api/addons/:id', requireRealDM('Jen DM může spravovat doplňky.')
       reg.addons.splice(idx, 1);
       for (const k of Object.keys(reg.resolutions || {})) {
         if (reg.resolutions[k] === id) reg.resolutions[k] = null;
+      }
+      for (const [key, providerId] of Object.entries(reg.serviceBindings || {})) {
+        if (key.startsWith(`${id}::`) || providerId === id) delete reg.serviceBindings[key];
       }
       await _writeAddonsRegistry(reg);
       // Retained recovery points may restore this registry entry. Keep only

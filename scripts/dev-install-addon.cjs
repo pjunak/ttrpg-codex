@@ -66,6 +66,16 @@ try {
 const id   = manifest.id;
 const hash = Broker.contentHash(fileMap, crypto);
 const finalDir = path.join(dataDir, 'addons', id, hash);
+const regFile = path.join(dataDir, 'addons.json');
+let reg;
+try { reg = Broker.normalizeRegistry(JSON.parse(fs.readFileSync(regFile, 'utf8'))); }
+catch { reg = Broker.defaultRegistry(); }
+const exclusiveConflicts = Broker.exclusiveServiceConflicts(manifest, reg.addons);
+if (exclusiveConflicts.length) {
+  const conflict = exclusiveConflicts[0];
+  console.error(`cannot install "${id}": exclusive service "${conflict.contract}" is already provided by "${conflict.addonId}"; uninstall it first`);
+  process.exit(1);
+}
 
 fs.rmSync(finalDir, { recursive: true, force: true });
 for (const f of fileMap) {
@@ -74,11 +84,6 @@ for (const f of fileMap) {
   fs.writeFileSync(dest, f.buffer);
 }
 fs.mkdirSync(path.join(dataDir, 'addon-data', id), { recursive: true });
-
-const regFile = path.join(dataDir, 'addons.json');
-let reg;
-try { reg = Broker.normalizeRegistry(JSON.parse(fs.readFileSync(regFile, 'utf8'))); }
-catch { reg = Broker.defaultRegistry(); }
 
 const serverDeps = Array.isArray(manifest.serverDeps) ? manifest.serverDeps.filter(d => typeof d === 'string') : [];
 const capabilities = manifest.capabilities || undefined;

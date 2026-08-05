@@ -104,7 +104,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `version` | ✅ | semver `x.y.z`. Bump on every release. |
 | `apiVersion` | ✅ | `1` or `2`. Unsupported versions are rejected. API v2 is required for security-sensitive manifest semantics. |
 | `hostVersion` | v2: ✅ | Enforced against the host version. API-v1 manifests may omit it for legacy compatibility (equivalent to `"*"`). |
-| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `collections.dm`, `collections.transactions`, `lifecycle.dispose`, `content.revision`, `i18n.catalogs`, `imports.providers`, `imports.bundle-contributors`, and `graphs.facade`. |
+| `capabilities` | — | API-v2 negotiation: `{ "required": [], "optional": [] }`. Required unavailable capabilities block install/load; optional capabilities are queried through `host.capabilities.has(id)`. Advertised today: `collections.dm`, `collections.transactions`, `lifecycle.dispose`, `content.revision`, `i18n.catalogs`, `imports.providers`, `imports.bundle-contributors`, `graphs.facade`, and `services.exclusive-providers`. |
 | `entry` | ✅ | Relative `.js`/`.mjs` path to the client module (default-export `register`). |
 | `locales` | — | API-v2 declarative UI catalogs: `{ "en": "locales/en.json", "cs": "locales/cs.json" }`. Requires `i18n.catalogs`; English is mandatory and complete, translations may be partial. |
 | `server` | — | Relative `.cjs`/`.js` path to a Node module (`exports.init(serverHost)`). Needs the `server:code` permission. |
@@ -114,7 +114,7 @@ stays CSP-clean. `entry.js` is a real ES module — you may `import './vendor/x.
 | `permissions` | — | Declared + **enforced** capability tokens (see §5). The DM reviews + grants them at install. |
 | `dependencies` | — | HARD deps: `{ "<otherAddonId>": { "range": ">=1.0.0", "repo": "owner/name" } }`. A missing/incompatible one **blocks** your addon (see §12). |
 | `optionalDependencies` | — | SOFT deps, same shape — **ordering-only**: the provider loads first WHEN present, but your addon still installs/loads standalone when it's absent. Lets you `host.use()` it behind a try/catch (see §12). |
-| `services` | — | API-v2 contract discovery: `{ "provides": [{"contract":"codex.example","version":"1.0.0"}], "consumes": [{"contract":"codex.other","range":"^1.0.0","cardinality":"one","required":false}] }`. Use this when you need any compatible implementation, not a named addon (§12). |
+| `services` | — | API-v2 contract discovery: `{ "provides": [{"contract":"codex.example","version":"1.0.0","exclusive":true}], "consumes": [{"contract":"codex.other","range":"^1.0.0","cardinality":"one","required":false}] }`. `exclusive` is optional and requires `services.exclusive-providers`; use ordinary providers unless two installed implementations would make persisted data or system semantics ambiguous. Use services when you need any compatible implementation, not a named addon (§12). |
 | `collections` | — | `[{ "name": "rules", "keyed": false, "access": "public" }]` — your own data collections (see §8). `name` is `^[a-z0-9][a-z0-9_]{0,39}$`; access defaults to `public`. `dm` is API-v2-only and requires `collections.dm` in `capabilities.required`. |
 | `tests` | — | `{ "server": "tests/srv.cjs", "client": "tests/cli.mjs" }` — an explicit file path or a `string[]` of them (**not** a glob — `node --test` doesn't expand `*`, so `tests/*.cjs` runs nothing). `tests.server` is a **green-gate run at install** (see §14). |
 | `summary` | — | One line shown in the install wizard. |
@@ -708,6 +708,25 @@ uses install order, object order, or last registration wins. An explicit
 binding that becomes unavailable stays visibly stale rather than silently
 switching implementations. `required:true` blocks the consumer when unresolved;
 an optional consumer receives `null` or `[]` and must retain a standalone path.
+
+If a contract must have at most one installed provider, declare it explicitly:
+
+```jsonc
+"capabilities": { "required": ["services.exclusive-providers"] },
+"services": {
+  "provides": [{
+    "contract": "codex.example-rules-data",
+    "version": "2.0.0",
+    "exclusive": true
+  }]
+}
+```
+
+Exclusivity applies to installation, including disabled addons, because it
+protects the stored-data and compatibility boundary rather than choosing an
+active implementation. The Manager refuses conflicting installs, updates, and
+rollbacks; uninstall the existing provider first. Updating the same addon id is
+allowed. Service bindings cannot override this invariant.
 
 ### Import adapters
 

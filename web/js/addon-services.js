@@ -25,7 +25,7 @@ export function normalizeServiceDeclarations(raw) {
     if (!SERVICE_CONTRACT_RE.test(contract) || provided.has(contract)) continue;
     if (!testRange(version, version).valid) continue;
     provided.add(contract);
-    provides.push({ contract, version });
+    provides.push({ contract, version, ...(declaration.exclusive === true ? { exclusive: true } : {}) });
   }
 
   for (const declaration of Array.isArray(services.consumes) ? services.consumes : []) {
@@ -94,6 +94,8 @@ export function resolveServiceBindings(list, configuredBindings = {}, blockedIds
       if (declaration.cardinality === 'many') {
         selected = candidates;
         if (!selected.length) reason = 'no compatible provider is enabled';
+      } else if (candidates.length > 1 && candidates.some(candidate => candidate.declaration.exclusive)) {
+        reason = `exclusive service has multiple installed providers (${candidates.map(candidate => candidate.addon.id).join(', ')}); uninstall all but one`;
       } else if (Object.prototype.hasOwnProperty.call(bindings, key)) {
         const wanted = bindings[key];
         const match = candidates.find(candidate => candidate.addon.id === wanted);

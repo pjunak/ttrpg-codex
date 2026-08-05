@@ -38,6 +38,12 @@ test('service declarations normalize to a small deterministic wire shape', () =>
   });
 });
 
+test('exclusive provider metadata survives client normalization', () => {
+  assert.deepEqual(normalizeServiceDeclarations({
+    provides: [{ contract: 'codex.rules', version: '2.0.0', exclusive: true }],
+  }).provides, [{ contract: 'codex.rules', version: '2.0.0', exclusive: true }]);
+});
+
 test('one compatible provider is selected and ordered before its consumer', () => {
   const plan = planLoadOrder([consumer('consumer'), provider('provider')]);
   assert.equal(plan.blocked.size, 0);
@@ -63,6 +69,17 @@ test('an explicit binding selects one compatible provider', () => {
   assert.deepEqual(plan.services.resolved.get('consumer::codex.example'), ['provider-b']);
   const positions = Object.fromEntries(plan.order.map((addon, index) => [addon.id, index]));
   assert.ok(positions['provider-b'] < positions.consumer);
+});
+
+test('exclusive provider conflicts cannot be bypassed with an active binding', () => {
+  const exclusive = provider('provider-a');
+  exclusive.services.provides[0].exclusive = true;
+  const plan = planLoadOrder(
+    [consumer('consumer'), exclusive, provider('provider-b')],
+    { serviceBindings: { 'consumer::codex.example': 'provider-a' } },
+  );
+  assert.deepEqual(plan.services.resolved.get('consumer::codex.example'), []);
+  assert.match(plan.services.issues[0].reason, /exclusive service/);
 });
 
 test('a stale explicit binding does not silently switch to another provider', () => {

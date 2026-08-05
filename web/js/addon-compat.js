@@ -1,4 +1,4 @@
-export const HOST_VERSION = '1.2.0';
+export const HOST_VERSION = '1.3.0';
 export const SUPPORTED_API_VERSIONS = new Set([1, 2]);
 export const KNOWN_CAPABILITIES = new Set([
   'collections.dm',
@@ -9,6 +9,7 @@ export const KNOWN_CAPABILITIES = new Set([
   'imports.providers',
   'imports.bundle-contributors',
   'graphs.facade',
+  'services.exclusive-providers',
 ]);
 export const HOST_CAPABILITIES = new Set(KNOWN_CAPABILITIES);
 
