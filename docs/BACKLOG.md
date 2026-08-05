@@ -1,8 +1,8 @@
 # Project backlog
 
 This is the single durable backlog for `ttrpg-codex` and its companion addons:
-`addon-dnd-engine`, `dnd-character-sheets`, `dnd55e-compendium`, and
-`dm-tools`.
+`addon-dnd-engine`, `addon-dnd-character-sheets`,
+`addon-dnd-2024-compendium`, and `addon-dm-tools`.
 
 Repository reference documents describe current behavior and deliberate
 boundaries; they are not secondary roadmaps. Temporary implementation plans

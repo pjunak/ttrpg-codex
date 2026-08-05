@@ -212,17 +212,17 @@ test('planLoadOrder: an optional-edge cycle is broken (both load), not blocked',
   assert.equal(order.length, 2);
 });
 
-test('planLoadOrder: the sheets→core-rules→compendium chain orders correctly', () => {
-  // sheet OPTIONALLY uses core-rules; core-rules HARD-needs compendium.
+test('planLoadOrder: an optional consumer over a provider chain orders correctly', () => {
+  // The outer consumer optionally uses a service consumer with a hard provider dependency.
   const { order, blocked } = planLoadOrder([
-    { id: 'dnd55e-sheets', version: '0.1.0', optionalDependencies: { 'dnd55e-core-rules': '>=0.1.0' } },
-    { id: 'dnd55e-core-rules', version: '0.1.0', dependencies: { 'dnd55e-compendium': '>=0.1.0' } },
-    { id: 'dnd55e-compendium', version: '0.1.0' },
+    { id: 'sheet-consumer', version: '0.1.0', optionalDependencies: { 'rules-consumer': '>=0.1.0' } },
+    { id: 'rules-consumer', version: '0.1.0', dependencies: { 'rules-provider': '>=0.1.0' } },
+    { id: 'rules-provider', version: '0.1.0' },
   ]);
   assert.equal(blocked.size, 0);
   const pos = Object.fromEntries(order.map((a, i) => [a.id, i]));
-  assert.ok(pos['dnd55e-compendium'] < pos['dnd55e-core-rules'], 'compendium before core-rules');
-  assert.ok(pos['dnd55e-core-rules'] < pos['dnd55e-sheets'], 'core-rules before sheets');
+  assert.ok(pos['rules-provider'] < pos['rules-consumer'], 'provider before consumer');
+  assert.ok(pos['rules-consumer'] < pos['sheet-consumer'], 'service consumer before optional consumer');
 });
 
 test('planLoadOrder: a HARD dep still blocks even when an optional dep is also present', () => {
