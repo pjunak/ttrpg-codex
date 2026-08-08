@@ -11,6 +11,7 @@ globalThis.CustomEvent = globalThis.CustomEvent || class {
 const { StoreTransport } = await import(
   '../web/js/store-transport.js?store-transport-tests'
 );
+const { writeRevision } = await import('../web/js/write-revision.js');
 
 function response({ ok = true, status = 200, data = {} } = {}) {
   return { ok, status, json: async () => data };
@@ -218,6 +219,43 @@ test('Store transport blocks dependent writes after conflict until a confirmed r
     JSON.parse(calls[1].options.body).baseRevision,
     /^[0-9a-f]{16}$/,
   );
+});
+
+test('Store transport revisions registered keyed addon records', async () => {
+  const calls = [];
+  const revisions = ['1111111111111111', '2222222222222222'];
+  const transport = StoreTransport.create({
+    fetchImpl: async (_url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ data: { revision: revisions.shift() } });
+    },
+    eventTarget: eventRecorder().target,
+  });
+  const type = 'addon:dm-tools:planning_views';
+  const original = {
+    id: 'scope-campaign',
+    positions: { opening: { x: 72, y: 72 } },
+    updatedAt: 100,
+  };
+  transport.setCollectionShape(type, true);
+  transport.acceptDataset({
+    [type]: { 'scope-campaign': original },
+  });
+  transport.setAvailable(true);
+
+  transport.sync(type, 'save', {
+    id: 'scope-campaign',
+    data: { ...original, positions: { opening: { x: 96, y: 72 } } },
+  });
+  await transport.settled();
+  assert.equal(calls[0].baseRevision, writeRevision(original));
+
+  transport.sync(type, 'save', {
+    id: 'scope-campaign',
+    data: { ...original, positions: { opening: { x: 120, y: 72 } } },
+  });
+  await transport.settled();
+  assert.equal(calls[1].baseRevision, '1111111111111111');
 });
 
 test('Store transport reports authentication failures without sending later queued writes', async () => {

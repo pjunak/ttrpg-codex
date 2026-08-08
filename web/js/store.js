@@ -2076,6 +2076,7 @@ export const Store = (() => {
    *  before the first server round-trip. Returns the container. */
   function ensureCollection(name, keyed) {
     init();
+    _transport.setCollectionShape(name, keyed);
     // Defence in depth: never write a prototype-chain key onto `_data` (the
     // wire name is colon-namespaced so this can't happen in practice, but
     // ensureCollection is also exported for direct use).
@@ -2093,6 +2094,7 @@ export const Store = (() => {
 
   function replaceAddonCollection(addonId, name, value, keyed) {
     const type = _addonType(addonId, name);
+    _transport.setCollectionShape(type, keyed);
     if (keyed) {
       _data[type] = (value && typeof value === 'object' && !Array.isArray(value))
         ? structuredClone(value)

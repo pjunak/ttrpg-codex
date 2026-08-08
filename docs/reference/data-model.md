@@ -577,6 +577,9 @@ load.
 availability state. `Store.load()` retains domain-default merging, indexes,
 and the last-valid-state commit boundary; only a load that passes
 `shouldCommit` becomes the transport's new confirmed revision base. Add-on
+collection registration supplies each dynamic wire type's list/keyed shape to
+the same transport, so optimistic revisions are computed from the actual
+record rather than from the collection container. Add-on
 update/check/rollback and server restart requests live separately in
 `web/js/store-admin-client.js`; they are administration, not campaign-domain
 state.

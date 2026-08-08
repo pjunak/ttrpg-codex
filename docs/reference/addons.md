@@ -345,7 +345,9 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   `list`/`get`/`save`/`remove` over the addon's own collection, backed by
   `Store.{ensureCollection,getAddonCollection,saveAddonItem,deleteAddonItem}`;
   `save`/`remove` stamp `updatedAt`, fire `_sync(addon:<id>:<name>, …)`, bust the
-  markdown cache; a DM handle read after entering player view returns the empty
+  markdown cache; registration also supplies the declared list/keyed shape to
+  the optimistic write queue so record revisions use the correct projection; a
+  DM handle read after entering player view returns the empty
   shape and rejects writes) + **`store.transaction(names, callback, opts?)`**
   (API v2 + negotiated `collections.transactions` + `data:own`; captures one
   revisioned snapshot of registered own collections, exposes buffered

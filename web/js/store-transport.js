@@ -20,6 +20,16 @@ export const StoreTransport = (() => {
     let confirmed = {};
     let recoveryRequired = false;
     const revisions = new Map();
+    const collectionShapes = new Map();
+
+    function isKeyedCollection(type) {
+      return KEYED_COLLECTIONS.has(type) || collectionShapes.get(type) === 'keyed';
+    }
+
+    function setCollectionShape(type, keyed) {
+      if (typeof type !== 'string' || !type) return;
+      collectionShapes.set(type, keyed === true ? 'keyed' : 'list');
+    }
 
     function dispatch(type, detail) {
       if (!eventTarget?.dispatchEvent) return;
@@ -147,7 +157,7 @@ export const StoreTransport = (() => {
         }
         return collection.find(record => record?.id === payload?.id) || null;
       }
-      if (KEYED_COLLECTIONS.has(type)
+      if (isKeyedCollection(type)
           && collection && typeof collection === 'object') {
         return collection[payload?.id] ?? null;
       }
@@ -157,7 +167,7 @@ export const StoreTransport = (() => {
     function applyConfirmed(type, action, payload) {
       let collection = confirmed[type];
       if (!collection) {
-        collection = KEYED_COLLECTIONS.has(type) ? {} : [];
+        collection = isKeyedCollection(type) ? {} : [];
         confirmed[type] = collection;
       }
       if (Array.isArray(collection)) {
@@ -254,6 +264,7 @@ export const StoreTransport = (() => {
       acceptDataset,
       needsRecovery,
       loadDataset,
+      setCollectionShape,
       sync,
       deleteEnumItem,
       settled,
