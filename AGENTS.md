@@ -1,303 +1,166 @@
-# AGENTS.md — O Barvách Draků
+# O Barvách Draků
 
-AI-session reference. Read before exploring. **This file is the canonical,
-committed agent contract** — the gitignored root `CLAUDE.md` is only a thin
-local pointer here for tools that auto-load CLAUDE.md. Never maintain a
-duplicated copy in either direction.
+Self-hostable collaborative TTRPG wiki and API-v2 addon host. The server owns
+JSON persistence, authentication, addon installation, and role-scoped SSE; the
+browser is a vanilla ES-module SPA. Code and administration are English. UI
+source strings are English with a per-browser Czech catalog.
 
-## Approach
+## Commands and environment
 
-Think before acting. Read existing files before writing code.
-Be concise in output but thorough in reasoning.
-Prefer editing over rewriting whole files.
-Do not re-read files you have already read unless the file may have changed.
-Skip files over 100KB unless explicitly required.
-Recommend starting a new session when switching to an unrelated task.
-No sycophantic openers or closing fluff.
-Keep solutions simple, well-structured, documented, and maintainable.
-Follow established best practices and prefer clear designs over clever ones.
-Write self-documenting code. Do not add comments that narrate changes, restate
-the code, or preserve implementation history. Add a comment only when it is
-needed to explain a non-obvious invariant, constraint, or why the obvious
-solution is incorrect or unsafe.
-The durable suite backlog lives only in [`docs/BACKLOG.md`](docs/BACKLOG.md).
-Temporary implementation plans are local-only: store them under the gitignored
-`docs/plans/` directory, delete them when the task closes, and never commit
-them. Do not create additional TODO or roadmap files.
-User instructions always override this file.
+Use Windows PowerShell and Node.js 26. Node is not available in Git Bash on the
+maintainer's machine.
 
-## Environment
-
-Node is not in Git Bash PATH, but Windows-native Node 26 **is** available via
-the PowerShell tool — `npm test` (and `node --test test/<file>.test.*js`) run
-the full suite there. `npm run lint` is the zero-warning static correctness
-gate; `npm run check` runs lint followed by the full suite. Use PowerShell (not
-the Bash tool) for node/npm. The Bash tool's node calls fail, and
-`preview_start` / Docker aren't available — the app itself is still
-launched/exercised manually by the user.
-
-## Project
-
-Collaborative D&D wiki. **All code/admin in English; the UI ships
-English source strings with a per-browser Czech translation** (defaults to
-English; Czech is selected under Settings → Language).
-See [docs/reference/i18n.md](docs/reference/i18n.md).
-Players and DM view and edit characters, locations, events, mysteries, factions.
-Changes propagate to all clients in under 1 s via SSE on `/api/events`.
-
-## Deep reference — read on demand
-
-The subsystem encyclopedia lives in [`docs/reference/`](docs/reference/)
-(moved out of this file so every session doesn't pay ~50k tokens for it).
-**Those files are the same contract as AGENTS.md — read the relevant one
-BEFORE working on its area, and keep it updated exactly the same way.**
-
-| File | Read before touching |
-|---|---|
-| [i18n.md](docs/reference/i18n.md) | Any user-facing string — catalogs, t()/plural(), the two i18n test guards |
-| [ui-widgets.md](docs/reference/ui-widgets.md) | Combobox/MultiSelect/TagFilter mounts, inline create, the `data-action` dispatcher + sentinels |
-| [routing-navigation.md](docs/reference/routing-navigation.md) | Route table, list toolbars, global search, sidebar layout, mobile nav, per-page edit affordances, auth flow, prefill creation |
-| [settings.md](docs/reference/settings.md) | /nastaveni — enum categories, special tabs, attitudes contract, marker icons |
-| [data-model.md](docs/reference/data-model.md) | Collections + fields, pets, twin visibility model, entity ids, undo/trash, wiki-links, the full Store API, write queue |
-| [wiki-rendering.md](docs/reference/wiki-rendering.md) | Attitude glow, dashboard, article shell, split editors, EasyMDE, draft recovery + dirty guard |
-| [maps-timeline.md](docs/reference/maps-timeline.md) | WorldMap (pins, tile pyramid, zoom, presets, sub-maps) + the timeline kanban |
-| [cloudmap.md](docs/reference/cloudmap.md) | Mind maps — node/view registries, text scaling, edge physics (incl. tried-and-reverted approaches: do NOT retry) |
-| [server.md](docs/reference/server.md) | The API table, snapshots, write lock, path safety, proto guard, SRI, test inventory, deploy surface |
-| [addons.md](docs/reference/addons.md) | The whole CodexHost framework — manifest, host/serverHost facades, permissions, fragments, contentDir, install pipeline |
-
-Public/human docs are separate: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-(overview), [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md) (ops),
-[examples/addons/AUTHORING.md](examples/addons/AUTHORING.md) (addon authors).
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Backend | Node.js 26 + Express 5 (`server.js`) |
-| Frontend | Vanilla ES6 modules. No build step. No framework. |
-| Storage | JSON files in `data/` |
-| Mind maps | Cytoscape.js 3.34 (`cloudmap.js`); dagre layout bundled in cytoscape-dagre 4 |
-| World map | Leaflet 1.9.4 (`map.js`) |
-| Auth | HttpOnly `edit_session` cookie verified with a credential-derived SHA-256 token. Passwords in `data/auth.json` (Settings → Account) with env `DM_PASSWORD` / `PLAYER_PASSWORD` fallback (`EDIT_PASSWORD` = legacy DM alias). See docs/reference/routing-navigation.md → Auth flow. |
-| Uploads | Multer. Portraits/local maps 20 MB · world map 40 MB · logo 5 MB · marker icons 2 MB × 16 · restore ZIP 200 MB. |
-| Backup | `archiver`. `/api/backup` stages a locked point-in-time copy, then streams the ZIP outside the lock. |
-| Deploy | Docker (`docker-compose.yml`) |
-
-## Key Files
-
-```
-server.js                  Express server + REST API
-server-utils.cjs           Pure server helpers (password hashing, path
-                           safety, snapshot-pruning policy) — unit-tested.
-tiler.js                   sharp tile-pyramid builder (world + local maps).
-server/                    visibility.cjs (role filter) · migrations.cjs ·
-                           campaign-shape-migration.cjs (pure legacy-data transform) ·
-                           auth.cjs (credentials, sessions, role gates/routes) ·
-                           live-sync.cjs (role-scoped SSE clients/broadcasts) ·
-                           snapshot-service.cjs + snapshot-routes.cjs ·
-                           snapshot-migration.cjs (cross-volume legacy move) ·
-                           addons.cjs (broker) · addon-testing.cjs (test
-                           green-gate) · addon-content.cjs (contentDir) ·
-                           zip-reader.cjs (shared bounded lazy ZIP reader) ·
-                           durable-files.cjs (fsync/copy/rename primitives) ·
-                           core-write-lock.cjs (bounded FIFO mutex) ·
-                           publication-barrier.cjs (read isolation) ·
-                           collection-transactions.cjs (durable addon commits) ·
-                           campaign-restore.cjs (durable restore publication) ·
-                           campaign-bundle-contract.cjs (pure core bundle
-                           planner/inventory) · campaign-bundle-provider.cjs
-                           (host provider + restricted addon contributions) ·
-                           campaign-mutations.cjs (core cross-record invariants) ·
-                           write-revision.cjs (optimistic record revisions) ·
-                           import-contract.cjs (provider/parser/plan guards) ·
-                           import-jobs.cjs (preview/commit job lifecycle) ·
-                           addon-import-harness.cjs (published server harness).
-web/
-  index.html               SPA shell. Loads bundle.css + app.js.
-  i18n/
-    en.json cs.json        UI translation catalogs (flat dotted keys;
-                           en = source of truth). See docs/reference/i18n.md.
-  css/
-    bundle.css             Only <link> in index.html. @imports everything else.
-    main.css themes.css wiki.css cloudmap.css edit.css timeline.css
-    swordcoast.css factions.css widgets.css search.css settings.css
-  js/
-    app.js                 Router. Navigation. SSE live-sync. ACTIONS dispatcher.
-    addons.js              Addon host (CodexHost). Loads /addons/<id>/<hash>/
-                           entry modules, hands each a scoped `host` facade.
-                           Consulted by navigate()/sidebar. See docs/reference/addons.md.
-    addon-deps.js          Pure dependency resolver: semver `satisfies` +
-                           `planLoadOrder` topo-sort (blocked/cycle states).
-    addon-fragments.js     Pure fragment-override engine
-                           (applyFragmentOps + listConflicts).
-    addon-test-harness.mjs Published authoring harness (createMockHost,
-                           dryRunRegister, smokeRegistrations).
-    addon-registration-contract.js
-                           Shared register* argument validation used by the
-                           live facade and authoring harness.
-    addon-lifecycle.js     Shared bounded disposer stack used by the live host
-                           and authoring harness.
-    addon-graph.js         API-v2 graph facade v1 + host-global implementation
-                           registry and shared validation/lifecycle contract.
-    addon-graph-cytoscape.js
-                           Private adapter for the existing SRI-pinned runtime;
-                           raw Cytoscape never crosses the addon boundary.
-    addon-host-contract.js Shared host.use + collection-declaration contract.
-    addon-services.js      Pure versioned service-discovery planner and
-                           provider/consumer binding validation.
-    addon-transactions.js  Shared buffered transaction facade used by the
-                           live host and authoring harness.
-    core-import-adapter.js Headless core campaign-bundle import adapter;
-                           DM Tools owns the visible Import Center.
-    store.js               In-memory domain state, secondary indices, trash,
-                           undelete, and settings API.
-    store-transport.js     Validated loads, optimistic revisions, recovery,
-                           and the serialized retrying PATCH queue.
-    write-revision.js      Browser half of the server/browser revision hash.
-    store-admin-client.js  Add-on update/rollback and restart administration.
-    api-client.js          Shared JSON/FormData request handling, structured
-                           errors, and auth-failure signaling.
-    data.js                Defaults: FACTIONS, collections (CHARACTERS,
-                           LOCATIONS, EVENTS, MYSTERIES, PANTHEON,
-                           ARTIFACTS, HISTORICAL_EVENTS), REL_TYPES
-                           (canonical), SETTINGS_DEFAULTS,
-                           SETTINGS_USAGE_MAP.
-    constants.js           PARTY_FACTION_ID, SIDEBAR_PAGES (each carries
-                           an i18n `key`), SIDEBAR_LAYOUT_DEFAULT, THEMES.
-    collection-descriptors.js
-                           Immutable built-in collection identity, wiki-kind,
-                           alias, and article-route registry.
-    pin-types.js           Immutable built-in pin metadata and live-choice
-                           fallback helpers; data.js derives settings seeds.
-    settings-backup.js     Role-aware snapshot/backup settings controller.
-    settings-account.js    Account/password/restart settings controller.
-    edit-drafts.js         Markdown draft persistence and dirty-state guard.
-    edit-login.js          Password modal and login flow.
-    edit-lore-controller.js
-                           Pantheon, artifact, and historical-event workflows.
-    i18n.js                I18n: per-user UI language. t()/plural()/dates
-                           via native Intl.*. Catalogs in web/i18n/. See
-                           docs/reference/i18n.md.
-    utils.js               Shared helpers: esc, escapeRe, norm, debounce,
-                           slugify, extractOutline, safeColor (the shared
-                           colour sanitizer), humanTime (now a thin
-                           shim over I18n.relativeTime), renderMarkdown,
-                           expandWikiLinks + setWikiLinkResolver,
-                           breadcrumbNav (the shared wayfinding row —
-                           articles + addon pages via host.h.breadcrumb),
-                           iconGlyph (the shared stat-glyph set —
-                           host.h.icon; mirrored in the test harness),
-                           announce (SR status via the ONE persistent
-                           polite live region — host.ui.announce).
-    wiki.js                Wiki renderer. _articleShell (head panel + outline).
-    cloudmap.js            Cytoscape + HTML cloud cards + canvas word-wrap.
-    timeline.js            Timeline kanban at /casova-osa.
-    map.js                 Leaflet world map. Exports WorldMap.
-    editmode.js            Domain editors, uploads, EasyMDE composition, and
-                           toast() with action-button support.
-    edit_templates.js      HTML form templates for edit overlays.
-    search.js              Global Ctrl+K search palette (GlobalSearch).
-    role.js                Client cache of /api/auth: Role.isDM()/isPlayer(),
-                           view-as switching, body.is-dm/-player classes.
-    dm_dashboard.js        Stable DM-only /dm shell: authorization, addon
-                           dashboard slot, diagnostics, and recovery fallback.
-    settings.js            /nastaveni composition: enum/map/appearance editors
-                           and the DM Addon Manager.
-    sidebar.js             Data-driven left nav (Sidebar.render) +
-                           DM drag-drop layout editor (renderEditor).
-    widgets/
-      widgets.js           Self-mounting Combobox + MultiSelect + TagFilter.
-      tagfilter.js         Reusable search+chips primitive (AND-match).
+```powershell
+npm ci
+npm run lint            # zero-warning ESLint gate
+npm test                # complete Node test suite
+npm run check           # lint, then tests
+npm start               # local server
 ```
 
-## Module boundaries
+Run a focused test with a relative path:
 
-Use named ES-module exports. Stateful facades commonly use
-`export const Store = (() => { ... })()`, while pure modules export functions
-directly. Choose the form that makes ownership clearest; do not wrap stateless
-helpers in an IIFE just for consistency. Import shared browser helpers from
-`utils.js` and never add a private `_esc`.
+```powershell
+node --test test/addon-archive.test.cjs
+```
 
-**Escaping discipline (the app builds HTML via template strings, CSP is
-off — this is the XSS boundary):** every user-sourced string interpolated
-into HTML MUST pass `esc()` (covers `& " ' < >`; the `'` matters because
-`dataAction`/`dataOn` emit single-quoted `data-args`). Free-text colours
-MUST pass `safeColor` (utils.js — imported by wiki.js / map.js /
-edit_templates.js / settings.js; cloudmap.js keeps an equivalent private
-`_safeColor`) before landing in a style attribute. "User-sourced" includes entity names/titles/tags, faction
-`badge`/`color`, settings enum labels/icons/ids, and `I18n.t()` output
-(plain text by contract). `renderMarkdown` output is DOMPurify-sanitized
-and safe to inject as-is.
+Docker and automated browser preview are not available in the local Codex
+environment. State clearly when manual application verification remains.
 
-## CSS rules
+## Read on demand
 
-- Read [`web/css/STYLE.md`](web/css/STYLE.md) before UI work. Reuse the
-  documented tokens and components; add a token for recurring or semantic
-  values. Technical one-off dimensions are allowed when they are not
-  theme-dependent.
-- `web/index.html` links only `css/bundle.css`; component styles are imported
-  through `bundle.css`.
-- Theme overrides belong in `themes.css`. New themes add one `THEMES` entry
-  and one token-override block, not component-specific rewrites.
-- Canonical breakpoints are 768 / 1100 / 1200 px.
-- `--bg-card` is parchment. Use `--bg-raised` for dark panels.
+Read the relevant owner before changing a subsystem; keep detailed contracts
+there instead of expanding this always-loaded file.
 
-## Companion repos — the D&D addon suite
+| Reference | Read before changing |
+|---|---|
+| [`docs/reference/i18n.md`](docs/reference/i18n.md) | User-facing strings, catalogs, pluralization, locale tests |
+| [`docs/reference/ui-widgets.md`](docs/reference/ui-widgets.md) | Combobox, MultiSelect, TagFilter, actions, mount lifecycle |
+| [`docs/reference/routing-navigation.md`](docs/reference/routing-navigation.md) | Routes, search, navigation, edit affordances, authentication flow |
+| [`docs/reference/settings.md`](docs/reference/settings.md) | Settings categories, tabs, attitudes, marker icons |
+| [`docs/reference/data-model.md`](docs/reference/data-model.md) | Collections, fields, visibility, IDs, trash/undo, Store and write queue |
+| [`docs/reference/wiki-rendering.md`](docs/reference/wiki-rendering.md) | Articles, editors, Markdown, drafts, dirty guards |
+| [`docs/reference/maps-timeline.md`](docs/reference/maps-timeline.md) | World/local maps and timeline |
+| [`docs/reference/cloudmap.md`](docs/reference/cloudmap.md) | Mind-map registries, layout, physics, rejected approaches |
+| [`docs/reference/server.md`](docs/reference/server.md) | API, persistence, locks, snapshots, path safety, security, deploy surface |
+| [`docs/reference/addons.md`](docs/reference/addons.md) | Manifests, facades, permissions, services, lifecycle, install/import contracts |
 
-Four sibling repos (expected as sibling checkouts of this repo) hold the
-D&D toolkit built on the addon framework. **Each has its own
-AGENTS.md / README with full repo-local context — read those before working
-there.**
+Public documentation has separate owners:
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
+[`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md), and
+[`examples/addons/AUTHORING.md`](examples/addons/AUTHORING.md). Addon-agent
+guidance lives in [`examples/addons/AGENTS.md`](examples/addons/AGENTS.md).
 
-| Repo (sibling dir) | Addon id | What it is |
-|---|---|---|
-| `addon-dnd-engine` | `dnd-engine` | Headless, UI-free rules computation. Consumes one optional exclusive `dnd5e.rules-data` v2 service and provides `dnd5e.rules-engine` v2 for any compatible sheet or tool. Owns complete-profile validation, normalized Builder policy, deterministic hydration, detached results, and no character storage. |
-| `addon-dnd-character-sheets` | `dnd-sheets` | Tabbed, standalone hand-fillable character sheet (Overview/Character Sheet/Combat/Spellbook/Builder). Consumes one optional rules-engine service and any number of `dnd-sheets.renderer` v2 providers without naming addons. Compact is the default; Classic and Compact are built in, while universal or class/subclass-specific styles are selected per character/browser. Full engine/data/content identity reconciliation prevents silent recomputation after changes. ⚠ The addon id keys `character.addonData` — renaming it orphans sheet data without a key migration. |
-| `addon-dnd-2024-compendium` | `dnd-2024-compendium` | Structured D&D 2024 content and the exclusive `dnd5e.rules-data` v2 provider — the three core books plus Eberron, Forgotten Realms, Ravenloft, Lorwyn, and Astarion options (over 3,000 records). Canonical `book` provenance and optional `availableIn` reprint membership keep every source toggle-safe without duplicate entities. The private repository requires `CODEX_GITHUB_TOKEN` for installs and updates. |
-| `addon-dm-tools` | `dm-tools` | Game-agnostic DM-only forward planning and world-building plus the visible Import Center. Planning schema v3 models an ownership tree of local same-parent canvas DAGs; older planning records and imports are rejected without conversion. The center discovers versioned `codex.import-adapter` services, so content-owning addons supply their own preview/edit/commit workflow without DM Tools changes. DM Tools contributes its planning-document adapter; core retains `/dm` authorization, diagnostics, persistence, transactions, and recovery fallback. |
+## Repository map
 
-Working loop: edit in the addon repo → `node scripts/dev-install-addon.cjs
-<path-to-addon>` (run in THIS repo) → restart the app + refresh. ⚠ **Addon
-repo edits are invisible until re-dev-installed.** Tests per repo:
-`node --test tests/<file>.mjs` from that repo's root (RELATIVE paths — the
-directory form and absolute Windows paths false-fail on Windows).
-Production updates go through the Manager wizard; **Update all** keeps existing
-grants, so an update that adds a permission must use the per-addon wizard.
-The compendium's committed `data/` tree is the rule-content source of truth.
-`Living-scroll` is input to one merge-preserving equipment importer, not an
-authoritative replacement for curated records.
+```text
+server.js             Express composition and REST surface
+server/               Auth, visibility, SSE, durable writes, snapshots,
+                      addon broker/install/testing, imports and transactions
+server-utils.cjs      Pure security/path/snapshot helpers
+tiler.js              Sharp world/local-map tile generation
+web/index.html        SPA shell; loads bundle.css and app.js
+web/js/app.js         Router, navigation, SSE and ACTIONS composition
+web/js/store*.js      Domain state, validation, optimistic revisions, write queue
+web/js/addon*.js      Host facade and pure addon contract/lifecycle planners
+web/js/{wiki,map,cloudmap,timeline}.js
+                      Major feature renderers/controllers
+web/js/{settings,sidebar,search,role}.js
+                      Shell and role-aware product surfaces
+web/i18n/             English source and Czech translation catalogs
+web/css/              Tokenized themes, shared components and feature styles
+test/                 Unit, contract, integration and regression tests
+examples/addons/      Public addon authoring contract and fixtures
+data/                 Ignored runtime volume; never source code
+```
 
-Addon client lifecycle: API-v2 addons can require `lifecycle.dispose` and
-`content.revision`. `register(host)` may return a disposer and can add more via
-`host.onDispose(fn)`; the host runs them LIFO exactly once, bounded and
-failure-isolated, before reversing registrations. A changed `entryUrl` or
-deterministic `contentRevision` unloads the addon and loaded consumers
-consumer-first, then reloads provider-first. Content-group toggles therefore
-refresh compendium data and sheets live without a browser reload.
+## Server and persistence invariants
 
-## Backlog and planning
+- JSON files are the only database. Writes that span shared state must use the
+  established lock, durable-file, transaction, revision, and publication
+  primitives. Do not introduce uncoordinated direct writes.
+- Preserve point-in-time backup/restore behavior, bounded archive handling,
+  path containment, optimistic revisions, and role-filtered projections. Add a
+  regression test for changes near these safety boundaries.
+- `data/` and `data-snapshots/` are runtime state. Never commit or edit addon
+  code inside `data/addons/`; reinstall from the source repository instead.
+- Authentication uses an HttpOnly `edit_session` cookie and credential-derived
+  tokens. Passwords live in runtime data or documented environment variables.
+  Preserve role gates on both HTTP and long-lived SSE/addon surfaces.
+- SSE updates on `/api/events` are role-scoped and should reach clients in
+  under one second. Avoid state changes that bypass the normal broadcast path.
+- Client-controlled paths, ZIP entries, uploads, and restore targets must pass
+  the existing normalization, containment, size, and compression guards.
+- Helmet remains enabled. CSP is intentionally off because product HTML uses
+  inline style attributes; do not weaken the other security headers.
 
-[`docs/BACKLOG.md`](docs/BACKLOG.md) is the only durable backlog for the host
-and companion addons. It contains current maintenance work, product candidates,
-conditional hardening, explicit non-goals, and decisions that need the
-maintainer. Reference documents describe shipped contracts and must not grow
-independent TODO lists.
+## Browser boundaries
 
-## Constraints
+- No framework, bundler, or transpiler. Use browser-native named ES-module
+  exports and established module ownership.
+- Stateful facades may use an IIFE; pure modules export focused functions.
+  Import shared helpers rather than creating private duplicate escaping,
+  normalization, or action systems.
+- Methods referenced by `data-action="Module.method"` must be imported in
+  `app.js` and registered in `ACTIONS`; do not export them through `window`.
+- Every user or translated string inserted into HTML passes through `esc()`.
+  Free-text colors pass through `safeColor`. Sanitized `renderMarkdown()`
+  output is the documented exception.
+- English is the complete source catalog. Preserve Czech key/value shape and
+  placeholders. Follow both i18n guard tests for every user-visible string.
+- Read [`web/css/STYLE.md`](web/css/STYLE.md) before UI work. Reuse tokens and
+  shared components; add recurring or semantic values to the design system.
+  `web/index.html` links only `css/bundle.css`; themes override tokens rather
+  than components. Canonical breakpoints are 768, 1100, and 1200 px.
+- Clean up listeners, timers, observers, requests, object URLs, graph handles,
+  and mounts on rerender, role change, navigation, and disposal.
+- Comments explain only non-obvious invariants, constraints, or why an obvious
+  approach is unsafe. Do not preserve implementation history in source.
 
-- No bundler. No transpiler. Browser-native ES6 modules only.
-- No external database. JSON files only.
-- No framework. Vanilla JS.
-- Any module whose methods are referenced via `data-action="Module.method"`
-  must be imported in `app.js` and added to the `ACTIONS` map (no
-  `window.*` exports).
-- Node 24+ required (`engines: >=24`); the Docker image + local dev run **Node 26**
-  (`node:26-slim`, `.nvmrc` 26). Uses `crypto.createHash` built-in.
-- `data/` is a Docker volume. Never commit runtime data to git.
-- `helmet` middleware is wired in `server.js` with CSP off (the UI
-  uses inline `style` attributes that strict CSP would block; there are
-  no inline `<script>`s — all JS is external ES modules (the sidebar is
-  rendered by the `Sidebar` module, not pre-boot inline JS) — so
-  re-enabling `script-src 'self'` is straightforward when ready). All other
-  security headers (X-Content-Type-Options, X-Frame-Options,
-  Strict-Transport-Security in production, etc.) are on by default.
+## Addon contract
+
+- The scoped host facade is the sole addon integration boundary. Addons must
+  not depend on host globals, private modules, DOM structure, raw Cytoscape, or
+  filesystem layout.
+- Manifest IDs are permanent data namespaces. Permissions and capabilities
+  must match actual use. Optional dependencies and discoverable services must
+  fail gracefully when providers are absent or incompatible.
+- API-v2 lifecycle disposal is LIFO, once-only, bounded, and failure-isolated.
+  Changed entry/content revisions unload consumers before providers and reload
+  providers before consumers.
+- Addon package extraction is untrusted input. Keep it streaming, bounded,
+  traversal-safe, content-addressed, and free of repository-only agent/tool
+  metadata in installed runtime copies.
+- DM Tools owns the visible Import Center. Core owns authorization,
+  transactions, campaign-bundle primitives, and recovery; providers own their
+  reviewed preview/commit workflows.
+
+The sibling suite is routed by [`../AGENTS.md`](../AGENTS.md). Each addon has
+its own root instructions. For addon source changes:
+
+```powershell
+# Run in the addon repository
+node --test tests/*.mjs
+
+# Run in this host repository
+node scripts/dev-install-addon.cjs ../<addon-directory>
+```
+
+Use relative test paths on Windows. Source edits are invisible until
+reinstalled. Restart for server-module changes and refresh for client changes.
+Permission additions require the per-addon production wizard; bulk update does
+not grant new permissions.
+
+## Completion and durable planning
+
+- Run focused tests while iterating and `npm run check` before handoff for host
+  changes. Run relevant host/addon compatibility tests on both sides of a
+  contract change.
+- Update the owning reference, public docs, test inventory, and this file only
+  when their actual contracts change.
+- [`docs/BACKLOG.md`](docs/BACKLOG.md) is the only durable backlog for the host
+  and companion addons. Keep temporary plans under ignored `docs/plans/` and
+  delete them when the task closes. Do not create additional roadmap/TODO files.
+- Do not commit runtime data, secrets, generated installs, backups, or local
+  plans. The global Codex instructions govern task commits. Never push,
+  release, deploy, or change production credentials unless explicitly asked.

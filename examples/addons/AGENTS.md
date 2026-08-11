@@ -19,7 +19,8 @@ follow `AUTHORING.md` and report the mismatch.
 5. Reinstall the addon into the host before manual testing:
    `node scripts/dev-install-addon.cjs <path-to-addon>`.
 
-Do not create branches, commits, releases, or pushes unless the maintainer asks.
+The global Codex instructions govern task commits. Do not create branches,
+releases, or pushes unless the maintainer asks.
 The only durable suite backlog is [`../../docs/BACKLOG.md`](../../docs/BACKLOG.md).
 Temporary implementation plans belong only in the host repository's ignored
 `docs/plans/` directory and must be deleted when the task closes. Do not create

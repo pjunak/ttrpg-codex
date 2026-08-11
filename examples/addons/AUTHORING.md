@@ -1072,7 +1072,7 @@ every release; widen `hostVersion` only when you've tested against newer hosts.
 You can author a correct addon from this section alone. For a **standalone,
 copy-into-the-addon-repo** version of these rules (so an agent working in the
 addon's own repo has them in context), use [`AGENTS.md`](AGENTS.md) — it carries
-the same invariants + template and is named so Claude Code / Cursor pick it up
+the same invariants and template and is named so Codex and other coding agents pick it up
 automatically.
 
 **Hard invariants (violating any of these breaks the addon):**

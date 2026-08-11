@@ -24,8 +24,6 @@ Thumbs.db
 *.log
 .vscode/
 .idea/
-.claude/
-CLAUDE.md
 
 # Local planning artifacts
 /docs/plans/
