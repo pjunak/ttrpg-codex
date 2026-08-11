@@ -45,6 +45,9 @@ test('dev install preserves API-v2 capability and content lifecycle metadata', a
   try {
     await fsp.writeFile(path.join(addonDir, 'addon.json'), JSON.stringify(manifest, null, 2));
     await fsp.writeFile(path.join(addonDir, 'entry.js'), 'export default function register() {}\n');
+    await fsp.writeFile(path.join(addonDir, 'AGENTS.md'), '# Repository guidance\n');
+    await fsp.mkdir(path.join(addonDir, '.claude'));
+    await fsp.writeFile(path.join(addonDir, '.claude', 'settings.json'), '{}\n');
     await fsp.mkdir(path.join(addonDir, 'data'));
     await fsp.mkdir(path.join(addonDir, 'locales'));
     await fsp.writeFile(path.join(addonDir, 'locales', 'en.json'), '{"page.title":"Fixture"}\n');
@@ -63,6 +66,9 @@ test('dev install preserves API-v2 capability and content lifecycle metadata', a
     assert.deepEqual(entry.versions[0].contentGroups, manifest.contentGroups);
     assert.equal(entry.versions[0].contentDir, 'data');
     assert.deepEqual(entry.versions[0].locales, manifest.locales);
+    const installedDir = path.join(dataDir, 'addons', manifest.id, entry.activeHash);
+    await assert.rejects(() => fsp.access(path.join(installedDir, 'AGENTS.md')), { code: 'ENOENT' });
+    await assert.rejects(() => fsp.access(path.join(installedDir, '.claude')), { code: 'ENOENT' });
 
     entry.disabledContentGroups = ['mm'];
     await fsp.writeFile(path.join(dataDir, 'addons.json'), JSON.stringify(registry, null, 2));

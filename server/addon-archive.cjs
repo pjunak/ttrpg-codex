@@ -38,6 +38,16 @@ function _isSafeRelative(rel) {
   return parts.every(part => part && part !== '.' && part !== '..');
 }
 
+function isAgentMetadataPath(relpath) {
+  if (typeof relpath !== 'string' || !relpath) return false;
+  const parts = relpath.replace(/\\/g, '/').split('/').filter(Boolean);
+  const basename = (parts.at(-1) || '').toLowerCase();
+  if (['agents.md', 'agents.override.md', 'claude.md', 'claude.local.md'].includes(basename)) {
+    return true;
+  }
+  return parts.some((part) => ['.agents', '.claude', '.codex'].includes(part.toLowerCase()));
+}
+
 function _ratio(uncompressed, compressed) {
   if (!uncompressed) return 0;
   if (!compressed) return Infinity;
@@ -97,14 +107,19 @@ async function scanAddonZip(buffer, limitOverrides) {
   }
 
   const seen = new Set();
-  const files = raw.map((item) => {
+  const ignoredFileNames = new Set();
+  const files = raw.flatMap((item) => {
     const relpath = prefix ? item.fileName.slice(prefix.length) : item.fileName;
     if (!_isSafeRelative(relpath)) throw new Error(`unsafe archive path: ${item.fileName}`);
     if (seen.has(relpath)) throw new Error(`duplicate archive path: ${relpath}`);
     seen.add(relpath);
-    return { ...item, relpath };
+    if (isAgentMetadataPath(relpath)) {
+      ignoredFileNames.add(item.fileName);
+      return [];
+    }
+    return [{ ...item, relpath }];
   });
-  return { files, declaredTotal, compressedTotal, limits };
+  return { files, ignoredFileNames, declaredTotal, compressedTotal, limits };
 }
 
 function _target(root, relpath) {
@@ -128,6 +143,7 @@ async function extractAddonZip(buffer, targetDir, limitOverrides) {
     async onEntry(entry, zipfile) {
       if (/\/$/.test(entry.fileName)) return;
       const meta = byName.get(entry.fileName);
+      if (!meta && scan.ignoredFileNames.has(entry.fileName)) return;
       if (!meta) throw new Error(`archive changed between scan and extraction: ${entry.fileName}`);
       const dest = _target(targetDir, meta.relpath);
       if (!dest) throw new Error(`unsafe archive path: ${entry.fileName}`);
@@ -178,5 +194,6 @@ module.exports = {
   scanAddonZip,
   extractAddonZip,
   contentHashDirectory,
+  isAgentMetadataPath,
   _isSafeRelative,
 };

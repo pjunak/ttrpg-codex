@@ -20,6 +20,7 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 const Broker = require('../server/addons.cjs');
+const { isAgentMetadataPath } = require('../server/addon-archive.cjs');
 const Content = require('../server/addon-content.cjs');
 const Localization = require('../server/addon-localization.cjs');
 
@@ -36,9 +37,11 @@ function walk(dir, base) {
   for (const name of fs.readdirSync(dir)) {
     if (name === '.git' || name === 'node_modules') continue;
     const full = path.join(dir, name);
+    const relpath = path.relative(base, full).replace(/\\/g, '/');
+    if (isAgentMetadataPath(relpath)) continue;
     const st = fs.statSync(full);
     if (st.isDirectory()) out.push(...walk(full, base));
-    else out.push({ relpath: path.relative(base, full).replace(/\\/g, '/'), buffer: fs.readFileSync(full) });
+    else out.push({ relpath, buffer: fs.readFileSync(full) });
   }
   return out;
 }

@@ -65,6 +65,25 @@ test('entry-count, per-entry, and total expanded-size limits reject before writi
   }
 });
 
+test('extraction omits repository agent metadata from runtime packages', async () => {
+  const zip = await createZip({
+    'owner-repo-sha/addon.json': '{"id":"safe-addon"}',
+    'owner-repo-sha/entry.js': 'export default()=>{}',
+    'owner-repo-sha/AGENTS.md': '# Repository guidance',
+    'owner-repo-sha/nested/AGENTS.override.md': '# Nested guidance',
+    'owner-repo-sha/.claude/settings.json': '{}',
+    'owner-repo-sha/.codex/hooks.json': '{}',
+  });
+  const { root, target } = await tempTarget();
+  try {
+    const result = await extractAddonZip(zip, target);
+    assert.deepEqual([...result.files].sort(), ['addon.json', 'entry.js']);
+    await assert.rejects(() => fsp.access(path.join(target, 'AGENTS.md')), { code: 'ENOENT' });
+    await assert.rejects(() => fsp.access(path.join(target, '.claude')), { code: 'ENOENT' });
+    await assert.rejects(() => fsp.access(path.join(target, '.codex')), { code: 'ENOENT' });
+  } finally { await cleanup(root); }
+});
+
 test('default limits accept a first-party compendium-sized package', async () => {
   const entries = Object.fromEntries(
     Array.from({ length: 3100 }, (_, index) => [
