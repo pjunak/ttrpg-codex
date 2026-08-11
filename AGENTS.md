@@ -135,8 +135,9 @@ data/                 Ignored runtime volume; never source code
   transactions, campaign-bundle primitives, and recovery; providers own their
   reviewed preview/commit workflows.
 
-The sibling suite is routed by [`../AGENTS.md`](../AGENTS.md). Each addon has
-its own root instructions. For addon source changes:
+The parent TTRPG meta-folder routes cross-repository work in
+[`../AGENTS.md`](../AGENTS.md); it is not a Git root. Each addon has its own
+root instructions. For addon source changes:
 
 ```powershell
 # Run in the addon repository
