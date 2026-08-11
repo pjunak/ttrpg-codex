@@ -7,10 +7,11 @@ source strings are English with a per-browser Czech catalog.
 
 ## Commands and environment
 
-Use Windows PowerShell and Node.js 26. Node is not available in Git Bash on the
-maintainer's machine.
+Node.js 24 or newer is supported; `.nvmrc` and the Docker image use Node.js 26.
+Run these commands from the repository root in any shell where Node and npm
+are available:
 
-```powershell
+```console
 npm ci
 npm run lint            # zero-warning ESLint gate
 npm test                # complete Node test suite
@@ -20,12 +21,12 @@ npm start               # local server
 
 Run a focused test with a relative path:
 
-```powershell
+```console
 node --test test/addon-archive.test.cjs
 ```
 
-Docker and automated browser preview are not available in the local Codex
-environment. State clearly when manual application verification remains.
+Use browser or manual application verification for behavior the Node tests do
+not cover. State clearly when the active environment cannot run it.
 
 ## Read on demand
 
@@ -135,16 +136,15 @@ data/                 Ignored runtime volume; never source code
   transactions, campaign-bundle primitives, and recovery; providers own their
   reviewed preview/commit workflows.
 
-The parent TTRPG meta-folder routes cross-repository work in
-[`../AGENTS.md`](../AGENTS.md); it is not a Git root. Each addon has its own
-root instructions. For addon source changes:
+Companion addons are independent repositories and may be checked out anywhere.
+Each addon has its own root instructions. For addon source changes:
 
-```powershell
+```console
 # Run in the addon repository
 node --test tests/*.mjs
 
-# Run in this host repository
-node scripts/dev-install-addon.cjs ../<addon-directory>
+# Run in this host repository with the addon's actual source path
+node scripts/dev-install-addon.cjs <path-to-addon>
 ```
 
 Use relative test paths on Windows. Source edits are invisible until
