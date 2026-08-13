@@ -31,6 +31,44 @@ export function esc(s) {
 }
 
 /**
+ * Render a textarea that the host upgrades to its Markdown editor.
+ *
+ * Addons should use this helper instead of depending on EasyMDE classes or
+ * lifecycle details directly. The `id` remains the stable save/draft key.
+ *
+ * @param {string} id - Unique textarea id.
+ * @param {*} value - Initial Markdown source.
+ * @param {{rows?: number, placeholder?: string, name?: string,
+ *          ariaLabel?: string, className?: string}} options - Field options.
+ * @returns {string} Escaped textarea markup.
+ */
+export function markdownTextarea(id, value = '', options = {}) {
+  const editorId = String(id ?? '').trim();
+  if (!editorId) throw new TypeError('markdownTextarea requires a non-empty id');
+
+  const opts = options && typeof options === 'object' ? options : {};
+  const requestedRows = Number.parseInt(opts.rows, 10);
+  const rows = Number.isFinite(requestedRows)
+    ? Math.max(2, Math.min(40, requestedRows))
+    : 6;
+  const extraClasses = String(opts.className ?? '')
+    .split(/\s+/)
+    .filter((token) => /^[A-Za-z_][A-Za-z0-9_-]*$/.test(token));
+  const classes = [...new Set(['md-easy', ...extraClasses])];
+  const attrs = [
+    `class="${classes.join(' ')}"`,
+    `id="${esc(editorId)}"`,
+    `rows="${rows}"`,
+  ];
+
+  if (opts.name != null && String(opts.name)) attrs.push(`name="${esc(opts.name)}"`);
+  if (opts.ariaLabel != null && String(opts.ariaLabel)) attrs.push(`aria-label="${esc(opts.ariaLabel)}"`);
+  if (opts.placeholder != null && String(opts.placeholder)) attrs.push(`placeholder="${esc(opts.placeholder)}"`);
+
+  return `<textarea ${attrs.join(' ')}>${esc(value)}</textarea>`;
+}
+
+/**
  * Escape a string so it can be embedded literally inside a `RegExp` source.
  *
  * @param {*} s - Anything stringifiable.

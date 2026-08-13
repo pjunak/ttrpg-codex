@@ -26,6 +26,21 @@ function _esc(s) {
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
   ));
 }
+function _markdownTextarea(id, value = '', options = {}) {
+  const editorId = String(id ?? '').trim();
+  if (!editorId) throw new TypeError('markdownTextarea requires a non-empty id');
+  const opts = options && typeof options === 'object' ? options : {};
+  const requestedRows = Number.parseInt(opts.rows, 10);
+  const rows = Number.isFinite(requestedRows) ? Math.max(2, Math.min(40, requestedRows)) : 6;
+  const extraClasses = String(opts.className ?? '').split(/\s+/)
+    .filter(token => /^[A-Za-z_][A-Za-z0-9_-]*$/.test(token));
+  const classes = [...new Set(['md-easy', ...extraClasses])];
+  const attrs = [`class="${classes.join(' ')}"`, `id="${_esc(editorId)}"`, `rows="${rows}"`];
+  if (opts.name != null && String(opts.name)) attrs.push(`name="${_esc(opts.name)}"`);
+  if (opts.ariaLabel != null && String(opts.ariaLabel)) attrs.push(`aria-label="${_esc(opts.ariaLabel)}"`);
+  if (opts.placeholder != null && String(opts.placeholder)) attrs.push(`placeholder="${_esc(opts.placeholder)}"`);
+  return `<textarea ${attrs.join(' ')}>${_esc(value)}</textarea>`;
+}
 function _slugify(s) {
   return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -650,7 +665,8 @@ export function createMockHost(meta = {}, opts = {}) {
     // Mirrors host.asset: the content-addressed static base (mock hash).
     asset: (rel) => `/addons/${meta.id || 'addon'}/mockhash/` + String(rel == null ? '' : rel).replace(/^\/+/, ''),
     h: { esc: _esc, slugify: _slugify, dataAction: _dataAction, dataOn: _dataOn,
-         renderMarkdown: (s) => _esc(s), breadcrumb: _breadcrumb, icon: _icon },
+         renderMarkdown: (s) => _esc(s), markdownTextarea: _markdownTextarea,
+         breadcrumb: _breadcrumb, icon: _icon },
     ui: {
       toast:    (m) => { rec.toasts.push(m); },
       rerender: () => { rec.rerenders++; },

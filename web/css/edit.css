@@ -1426,6 +1426,155 @@ body.twin-picker-open { overflow: hidden; }
   border-color: rgba(var(--accent-gold-rgb), 0.45);
   color: var(--accent-gold);
 }
+.EasyMDEContainer .editor-toolbar:not(.fullscreen) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  overflow: visible;
+}
+.EasyMDEContainer .editor-toolbar button.md-format-trigger {
+  position: relative;
+  min-width: 2rem;
+  padding: 0 var(--space-2);
+  overflow: visible;
+  color: var(--text-light);
+  background: color-mix(in srgb, var(--bg-raised) 80%, transparent);
+  border-color: var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-title);
+  font-size: var(--text-sm);
+  line-height: 1;
+}
+.EasyMDEContainer .editor-toolbar button.md-format-trigger::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 0;
+  height: 0;
+  border-left: 3px solid transparent;
+  border-top: 3px solid currentColor;
+  opacity: 0.65;
+}
+.EasyMDEContainer .editor-toolbar button.md-format-color::before {
+  content: "";
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.34rem;
+  left: 0.5rem;
+  height: 2px;
+  background: var(--accent-gold);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(var(--accent-gold-rgb), 0.45);
+  transform: rotate(-3deg);
+}
+.EasyMDEContainer .editor-toolbar button.md-format-highlight {
+  color: var(--color-info);
+}
+.EasyMDEContainer .editor-toolbar button.md-format-effects {
+  color: var(--color-mystery);
+  font-size: var(--text-base);
+}
+.EasyMDEContainer .editor-toolbar button.md-format-trigger:hover,
+.EasyMDEContainer .editor-toolbar button.md-format-trigger:focus-visible,
+.EasyMDEContainer .editor-toolbar button.md-format-trigger:focus-within {
+  color: var(--accent-gold);
+  background: rgba(var(--accent-gold-rgb), 0.14);
+  border-color: rgba(var(--accent-gold-rgb), 0.5);
+}
+.EasyMDEContainer .editor-toolbar .md-format-trigger > .easymde-dropdown-content {
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  min-width: 13rem;
+  max-width: min(17rem, calc(100vw - var(--space-5)));
+  max-height: min(24rem, 65vh);
+  overflow-y: auto;
+  padding: var(--space-1);
+  color: var(--text-light);
+  background: color-mix(in srgb, var(--bg-raised) 96%, black);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.32);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+.EasyMDEContainer .editor-toolbar .easymde-dropdown-content button.md-format-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 2.75rem;
+  height: auto;
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-light);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+}
+.EasyMDEContainer .editor-toolbar .easymde-dropdown-content button.md-format-option:hover,
+.EasyMDEContainer .editor-toolbar .easymde-dropdown-content button.md-format-option:focus-visible {
+  color: var(--text-parchment);
+  background: rgba(var(--accent-gold-rgb), 0.12);
+  border-color: rgba(var(--accent-gold-rgb), 0.35);
+  outline: none;
+}
+.EasyMDEContainer .editor-toolbar button.md-heading-option::after {
+  content: none !important;
+}
+.EasyMDEContainer .editor-toolbar button.md-heading-option {
+  font-family: var(--font-title);
+}
+.EasyMDEContainer .editor-toolbar button.md-format-tone-gold::before,
+.EasyMDEContainer .editor-toolbar button.md-format-tone-danger::before,
+.EasyMDEContainer .editor-toolbar button.md-format-tone-info::before,
+.EasyMDEContainer .editor-toolbar button.md-format-tone-success::before,
+.EasyMDEContainer .editor-toolbar button.md-format-tone-mystery::before,
+.EasyMDEContainer .editor-toolbar button.md-format-tone-muted::before {
+  content: "";
+  flex: 0 0 0.85rem;
+  width: 0.85rem;
+  height: 0.85rem;
+  background: var(--md-format-swatch);
+  border: 1px solid color-mix(in srgb, var(--md-format-swatch) 65%, white);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--md-format-swatch) 20%, transparent);
+}
+.EasyMDEContainer .md-format-tone-gold    { --md-format-swatch: var(--accent-gold); }
+.EasyMDEContainer .md-format-tone-danger  { --md-format-swatch: var(--color-danger); }
+.EasyMDEContainer .md-format-tone-info    { --md-format-swatch: var(--color-info); }
+.EasyMDEContainer .md-format-tone-success { --md-format-swatch: var(--color-success); }
+.EasyMDEContainer .md-format-tone-mystery { --md-format-swatch: var(--color-mystery); }
+.EasyMDEContainer .md-format-tone-muted   { --md-format-swatch: var(--text-muted); }
+.EasyMDEContainer .editor-toolbar button.effect-underline::before,
+.EasyMDEContainer .editor-toolbar button.effect-glow::before,
+.EasyMDEContainer .editor-toolbar button.effect-small-caps::before,
+.EasyMDEContainer .editor-toolbar button.effect-spoiler::before,
+.EasyMDEContainer .editor-toolbar button.effect-superscript::before,
+.EasyMDEContainer .editor-toolbar button.effect-subscript::before,
+.EasyMDEContainer .editor-toolbar button.md-format-reset::before,
+.EasyMDEContainer .editor-toolbar button.md-format-clear::before {
+  flex: 0 0 1.2rem;
+  color: var(--accent-gold);
+  font-family: var(--font-title);
+  text-align: center;
+}
+.EasyMDEContainer .editor-toolbar button.effect-underline::before { content: "U"; text-decoration: underline; }
+.EasyMDEContainer .editor-toolbar button.effect-glow::before { content: "✦"; text-shadow: 0 0 5px currentColor; }
+.EasyMDEContainer .editor-toolbar button.effect-small-caps::before { content: "Aᴀ"; font-variant-caps: small-caps; }
+.EasyMDEContainer .editor-toolbar button.effect-spoiler::before { content: "▰"; }
+.EasyMDEContainer .editor-toolbar button.effect-superscript::before { content: "x²"; }
+.EasyMDEContainer .editor-toolbar button.effect-subscript::before { content: "x₂"; }
+.EasyMDEContainer .editor-toolbar button.md-format-reset::before { content: "↺"; }
+.EasyMDEContainer .editor-toolbar button.md-format-clear::before { content: "×"; color: var(--color-danger); }
+.EasyMDEContainer .editor-toolbar button.md-format-clear {
+  margin-top: var(--space-1);
+  border-top-color: var(--border-subtle);
+}
 .EasyMDEContainer .editor-toolbar i.separator {
   border-left: 1px solid rgba(var(--accent-gold-rgb), 0.18);
   border-right: 1px solid transparent;
@@ -1517,6 +1666,20 @@ body.twin-picker-open { overflow: hidden; }
    dark surface rather than peeking through. */
 .EasyMDEContainer.sided--no-fullscreen .CodeMirror {
   border-right: none;
+}
+
+@media (max-width: 700px) {
+  .EasyMDEContainer .editor-toolbar:not(.fullscreen) {
+    padding: var(--space-2);
+    gap: var(--space-1);
+  }
+  .EasyMDEContainer .editor-toolbar:not(.fullscreen) > button {
+    min-width: 2.75rem;
+    height: 2.75rem;
+  }
+  .EasyMDEContainer .editor-toolbar .md-format-trigger > .easymde-dropdown-content {
+    width: min(15rem, calc(100vw - var(--space-5)));
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────

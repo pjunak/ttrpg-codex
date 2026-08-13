@@ -144,7 +144,8 @@ host.action(name)  // → "<id>:<name>"  — build action strings with this
 host.asset(rel)    // → "/addons/<id>/<hash>/<rel>" — URL of a file bundled
                    //   WITH your addon (images, fonts…), version-safe. E.g.
                    //   `<img src="${esc(host.asset('images/aboleth.webp'))}">`
-host.h             // { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumb, icon }
+host.h             // { esc, dataAction, dataOn, renderMarkdown, markdownTextarea,
+                   //   slugify, breadcrumb, icon }
                    //   breadcrumb([{label, href?}, …]) renders the same horizontal
                    //   wayfinding row core articles use (last crumb = current page,
                    //   '' below 2 crumbs). Use it at the top of your pages instead
@@ -153,6 +154,9 @@ host.h             // { esc, dataAction, dataOn, renderMarkdown, slugify, breadc
                    //   (heart, shield, bolt, chevrons, medal, plus-circle, eye) as an
                    //   inline `.codex-icon` SVG — use it to label stat tiles
                    //   instead of shipping your own SVGs. '' for unknown names.
+                   //   markdownTextarea(id, value, {rows?, placeholder?, name?,
+                   //   ariaLabel?, className?}) emits an escaped field upgraded
+                   //   by the host with preview, rich formatting, and drafts.
 host.role          // { isDM(), isAnonymous() }
 host.i18n          // { locale, t, plural, formatDate, formatNumber, relativeTime }
 host.imports       // scoped provider/job client for negotiated imports.providers
@@ -334,16 +338,27 @@ host.store.patchAddonData('characters', charId, (s) => ({ ...s, hp: (s.hp ?? 10)
 
 Inject configuration into the character editor:
 ```js
+const notesFieldId = `${host.id}-notes`; // stable + unique draft key
+
 host.registerEditorFields('characters', {
   fields: (c) => {
     const s = (c?.addonData?.[host.id]) || {};
     return `<div class="edit-section">
       <div class="edit-section-title">My fields</div>
       <input id="my-maxhp" class="edit-input" type="number" value="${host.h.esc(String(s.maxHp ?? 10))}">
+      <label class="edit-label" for="my-notes">Notes</label>
+      ${host.h.markdownTextarea(notesFieldId, s.notes ?? '', {
+        rows: 5,
+        placeholder: 'Add campaign notes…',
+        ariaLabel: 'Campaign notes',
+      })}
     </div>`;
   },
   // scope = your <div class="addon-editor-section">; merged into addonData[id] on save
-  collect: (scope) => ({ maxHp: parseInt(scope.querySelector('#my-maxhp')?.value, 10) || 10 }),
+  collect: (scope) => ({
+    maxHp: parseInt(scope.querySelector('#my-maxhp')?.value, 10) || 10,
+    notes: scope.querySelector(`#${notesFieldId}`)?.value ?? '',
+  }),
 });
 // needs:  "ui:editor-fields:characters"  (+ data:write:characters.addonData to also patch it live)
 ```

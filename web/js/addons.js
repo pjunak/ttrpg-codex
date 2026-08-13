@@ -24,7 +24,10 @@
 import { Store } from './store.js';
 import { Role } from './role.js';
 import { ApiClient } from './api-client.js';
-import { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumbNav, iconGlyph, announce } from './utils.js';
+import {
+  esc, dataAction, dataOn, renderMarkdown, markdownTextarea,
+  slugify, breadcrumbNav, iconGlyph, announce,
+} from './utils.js';
 import { I18n } from './i18n.js';
 import { planLoadOrder, satisfies } from './addon-deps.js';
 import { HOST_CAPABILITIES, HOST_VERSION, compatibilityErrors } from './addon-compat.js';
@@ -694,7 +697,10 @@ export const Addons = (() => {
       // page) so addon pages don't roll their own ← back links.
       // `icon(name, opts)` = the shared stat-glyph set (utils.iconGlyph) so
       // addon stat tiles don't ship their own SVGs.
-      h: { esc, dataAction, dataOn, renderMarkdown, slugify, breadcrumb: breadcrumbNav, icon: iconGlyph },
+      h: {
+        esc, dataAction, dataOn, renderMarkdown, markdownTextarea,
+        slugify, breadcrumb: breadcrumbNav, icon: iconGlyph,
+      },
       ui: {
         toast: (m) => _services.toast(m),
         // Re-render the current route — addons call this after a write so the

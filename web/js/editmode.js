@@ -13,6 +13,7 @@ import { CollectionDescriptors } from './collection-descriptors.js';
 import { EditDrafts } from './edit-drafts.js';
 import { EditLogin } from './edit-login.js';
 import { EditLoreController } from './edit-lore-controller.js';
+import { MARKDOWN_FORMAT_GROUPS, editMarkdownSelection } from './markdown-formatting.js';
 
 const PIN_SIZE_MIN = PinTypes.sizeMin;
 const PIN_SIZE_MAX = PinTypes.sizeMax;
@@ -961,6 +962,122 @@ export const EditMode = (() => {
     });
   }
 
+  function _applyMarkdownFormat(editor, formatId) {
+    const cm = editor?.codemirror;
+    if (!cm) return;
+    const from = cm.indexFromPos(cm.getCursor('from'));
+    const to = cm.indexFromPos(cm.getCursor('to'));
+    const result = editMarkdownSelection(
+      cm.getValue(),
+      from,
+      to,
+      formatId,
+      I18n.t('markdown.placeholder.styledText'),
+    );
+
+    if (result.reason === 'inline-only') {
+      _toast(I18n.t('markdown.inlineOnly'), false);
+      cm.focus();
+      return;
+    }
+    if (!result.changed) {
+      cm.focus();
+      return;
+    }
+
+    cm.operation(() => {
+      cm.replaceRange(
+        result.replacement,
+        cm.posFromIndex(result.from),
+        cm.posFromIndex(result.to),
+        '+markdown-format',
+      );
+      cm.setSelection(
+        cm.posFromIndex(result.selectionStart),
+        cm.posFromIndex(result.selectionEnd),
+      );
+    });
+    cm.focus();
+  }
+
+  function _markdownHeadingMenu() {
+    return {
+      name: 'md-headings',
+      className: 'md-format-trigger md-format-headings',
+      title: I18n.t('markdown.toolbar.headings'),
+      text: 'H',
+      children: [1, 2, 3].map(level => ({
+        name: `heading-${level}`,
+        action: window.EasyMDE[`toggleHeading${level}`],
+        className: 'md-format-option md-heading-option',
+        title: I18n.t(`markdown.heading.level${level}`),
+        text: `H${level}`,
+      })),
+    };
+  }
+
+  function _markdownFormatMenus() {
+    return MARKDOWN_FORMAT_GROUPS.map(group => ({
+      name: `md-${group.id}`,
+      className: `md-format-trigger ${group.toolbarClass}`,
+      title: I18n.t(group.labelKey),
+      text: group.toolbarText,
+      children: group.items.map(format => ({
+        name: format.id,
+        action: editor => _applyMarkdownFormat(editor, format.id),
+        className: [
+          'md-format-option',
+          format.tone ? `md-format-tone-${format.tone}` : '',
+          format.operation !== 'wrap' ? `md-format-${format.operation}` : '',
+        ].filter(Boolean).join(' '),
+        title: I18n.t(format.labelKey),
+        text: I18n.t(format.labelKey),
+        attributes: { 'data-md-format': format.id },
+      })),
+    }));
+  }
+
+  function _enhanceMarkdownToolbar(mde) {
+    const toolbar = mde?.toolbar_div;
+    if (!toolbar) return;
+    const editorKey = String(mde.element?.id || 'markdown').replace(/[^A-Za-z0-9_-]/g, '-');
+    toolbar.querySelectorAll('.md-format-trigger').forEach((trigger, triggerIndex) => {
+      trigger.tabIndex = 0;
+      trigger.setAttribute('aria-haspopup', 'menu');
+      trigger.setAttribute('aria-expanded', 'false');
+      const menu = trigger.querySelector('.easymde-dropdown-content');
+      if (!menu) return;
+      menu.id = `${editorKey}-format-menu-${triggerIndex}`;
+      menu.setAttribute('role', 'menu');
+      trigger.setAttribute('aria-controls', menu.id);
+      trigger.addEventListener('focusin', () => trigger.setAttribute('aria-expanded', 'true'));
+      trigger.addEventListener('focusout', event => {
+        if (!trigger.contains(event.relatedTarget)) trigger.setAttribute('aria-expanded', 'false');
+      });
+      const items = [...menu.querySelectorAll('button')];
+      items.forEach((item, index) => {
+        item.tabIndex = 0;
+        item.setAttribute('role', 'menuitem');
+        item.addEventListener('keydown', event => {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            mde.codemirror.focus();
+          } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            const direction = event.key === 'ArrowDown' ? 1 : -1;
+            items[(index + direction + items.length) % items.length].focus();
+          }
+        });
+      });
+      trigger.addEventListener('keydown', event => {
+        if (event.target === trigger && (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          items[0]?.focus();
+        }
+      });
+    });
+  }
+
   function mountEasyMDE(root) {
     _cleanupOrphanedEasyMDE();
     _mountAddonEditorFields(root);
@@ -981,7 +1098,8 @@ export const EditMode = (() => {
           previewRender: (txt) => renderMarkdown(txt),
           toolbar: [
             'bold', 'italic', 'strikethrough', '|',
-            'heading-1', 'heading-2', 'heading-3', '|',
+            _markdownHeadingMenu(),
+            ..._markdownFormatMenus(), '|',
             'quote', 'unordered-list', 'ordered-list', '|',
             'link', 'image', 'table', 'code', 'horizontal-rule', '|',
             'preview', 'side-by-side', 'fullscreen', '|',
@@ -1000,6 +1118,7 @@ export const EditMode = (() => {
         });
         ta._easymde = mde;
         _mountedEasyMDE.add(mde);
+        _enhanceMarkdownToolbar(mde);
         _wireEasyMDEDraft(mde, ta);
       } catch (e) {
         console.warn('EasyMDE mount failed', e);

@@ -1,7 +1,7 @@
 import { Store } from './store.js';
 import { PinTypes } from './pin-types.js';
 // Relationship/connection kinds come from Store.getKinds('connections').
-import { esc, dataAction, dataOn, safeColor } from './utils.js';
+import { esc, dataAction, dataOn, safeColor, markdownTextarea } from './utils.js';
 import { I18n } from './i18n.js';
 import { CollectionDescriptors } from './collection-descriptors.js';
 
@@ -955,13 +955,7 @@ export const EditTemplates = (() => {
   // keystroke mirrors back into this <textarea>, so existing save
   // code reading `document.getElementById(id).value` keeps working.
   function _mdTextarea(id, value, rows = 6, placeholder = '') {
-    const v   = value == null ? '' : value;
-    const eid = esc(id);
-    return `
-      <textarea class="md-easy"
-        id="${eid}"
-        rows="${rows}"
-        placeholder="${esc(placeholder)}">${esc(v)}</textarea>`;
+    return markdownTextarea(id, value, { rows, placeholder });
   }
 
   // ── Pantheon (deity) editor ────────────────────────────────────

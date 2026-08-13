@@ -427,6 +427,61 @@
 .codex-fact-value { color: var(--text-parchment); }
 .codex-notice { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); color: var(--text-light); background: var(--bg-raised); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); }
 
+/* ── Rich Markdown inline formatting ──────────────────────────
+   Fixed data attributes are the public source contract. They are emitted by
+   the shared editor, survive renderMarkdown sanitization, and work in addon
+   output without requiring addon-specific CSS. */
+[data-md-color="gold"]    { color: var(--accent-gold); }
+[data-md-color="danger"]  { color: var(--color-danger); }
+[data-md-color="info"]    { color: var(--color-info); }
+[data-md-color="success"] { color: var(--color-success); }
+[data-md-color="mystery"] { color: var(--color-mystery); }
+[data-md-color="muted"]   { color: var(--text-muted); }
+
+mark[data-md-highlight] {
+  padding: 0.04em 0.18em;
+  color: inherit;
+  border-radius: 0.18em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+mark[data-md-highlight="gold"]    { background: color-mix(in srgb, var(--accent-gold) 34%, transparent); }
+mark[data-md-highlight="danger"]  { background: color-mix(in srgb, var(--color-danger) 28%, transparent); }
+mark[data-md-highlight="info"]    { background: color-mix(in srgb, var(--color-info) 28%, transparent); }
+mark[data-md-highlight="success"] { background: color-mix(in srgb, var(--color-success) 28%, transparent); }
+mark[data-md-highlight="mystery"] { background: color-mix(in srgb, var(--color-mystery) 30%, transparent); }
+
+[data-md-effect="underline"] {
+  text-decoration: underline solid var(--accent-gold) 0.12em;
+  text-underline-offset: 0.18em;
+}
+[data-md-effect="glow"] {
+  text-shadow: 0 0 0.32em currentColor, 0 0 0.7em color-mix(in srgb, currentColor 55%, transparent);
+}
+[data-md-effect="small-caps"] {
+  font-variant-caps: small-caps;
+  letter-spacing: 0.055em;
+}
+[data-md-effect="spoiler"] {
+  padding: 0.04em 0.18em;
+  color: transparent;
+  background: color-mix(in srgb, var(--text-muted) 78%, var(--bg-deep));
+  border-radius: 0.18em;
+  cursor: help;
+  text-shadow: none;
+  user-select: none;
+}
+[data-md-effect="spoiler"]:hover,
+[data-md-effect="spoiler"]:focus {
+  color: inherit;
+  background: color-mix(in srgb, var(--text-muted) 22%, transparent);
+  user-select: text;
+}
+[data-md-effect="spoiler"]:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
 @media (max-width: 768px) {
   .codex-detail-image { float: none; max-width: 100%; margin: 0 auto var(--space-3); }
 }

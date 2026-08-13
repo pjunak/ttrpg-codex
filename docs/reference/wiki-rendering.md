@@ -235,8 +235,15 @@ Template structure every split editor follows:
 
 ## Markdown editor (EasyMDE)
 
-`_mdTextarea(id, value, rows, placeholder)` in `edit_templates.js`
-emits a plain `<textarea class="md-easy">`. `EditMode.mountEasyMDE(root)`
+`markdownTextarea(id, value, options)` in `utils.js` emits the escaped plain
+textarea that forms the public editor boundary. Core's private
+`_mdTextarea(id, value, rows, placeholder)` delegates to it; addons use
+`host.h.markdownTextarea(...)` rather than emitting `.md-easy` themselves.
+Supported options are `rows` (clamped to 2–40), `placeholder`, `name`,
+`ariaLabel`, and additional safe class tokens in `className`.
+The id is also the draft-recovery key and must be stable and page-unique;
+addons should prefix it with `host.id`.
+`EditMode.mountEasyMDE(root)`
 walks the subtree and upgrades every un-mounted `.md-easy` textarea
 into an `EasyMDE` instance (`window.EasyMDE` loaded from CDN in
 `index.html`). `app.js:navigate()` calls it after `Widgets.mountAll`
@@ -247,10 +254,31 @@ existing save code reading `document.getElementById(id).value`
 works unchanged), `spellChecker: false`, status bar with
 lines/words, and `previewRender` wired to our sanitized
 `renderMarkdown` (marked + DOMPurify). Toolbar: bold / italic /
-strikethrough / H1-H3 / quote / lists / link / image / table /
-code / hr / preview / side-by-side / fullscreen / undo / redo /
-guide. Shortcuts: Ctrl+B, Ctrl+I, Ctrl+K (link), Ctrl+H (heading),
+strikethrough / heading dropdown (H1-H3) / text-color dropdown /
+highlight dropdown / effects dropdown / quote / lists / link / image / table /
+code / hr / preview / side-by-side / fullscreen / undo / redo / guide.
+Shortcuts: Ctrl+B, Ctrl+I, Ctrl+K (link), Ctrl+H (heading),
 Ctrl+P (preview), F9 (side-by-side), F11 (fullscreen).
+
+Rich inline formatting is data-driven by `markdown-formatting.js`. The frozen
+`MARKDOWN_FORMAT_GROUPS` registry supplies the menus and fixed wrapper syntax;
+the pure `editMarkdownSelection(...)` transform supplies toggle, same-group
+replacement, reset, and clear behavior independently of CodeMirror. Formatting
+is intentionally limited to a single line so it cannot accidentally swallow
+block/list Markdown. An empty selection inserts a localized selected
+placeholder.
+
+The persisted source contract uses semantic allowlisted values, never arbitrary
+inline styles:
+
+- text: `<span data-md-color="gold|danger|info|success|mystery|muted">…</span>`;
+- highlight: `<mark data-md-highlight="gold|danger|info|success|mystery">…</mark>`;
+- effects: `<span data-md-effect="underline|glow|small-caps|spoiler">…</span>`;
+- superscript/subscript: `<sup>…</sup>` / `<sub>…</sub>`.
+
+Shared selectors live in `widgets.css`, so sanitized Markdown rendered by core
+or an addon gets the same theme-aware result. Spoilers are revealable by hover
+and keyboard focus. Toolbar-specific dropdown styling remains in `edit.css`.
 
 Dark-theme overrides live in `edit.css` under "EasyMDE — dark theme
 overrides" — targets `.EasyMDEContainer` / `.editor-toolbar` /

@@ -176,8 +176,12 @@ files noted; this is the everyday set:
     `.codex-notice`, and `.codex-code-input`. Addons should compose these
     before adding scoped product-specific layout rules.
 
-Addons get these via `host.h` (esc/dataAction/dataOn/renderMarkdown) producing the
-same markup; build addon UI from this vocabulary so it looks native.
+Addons get these via `host.h` (including `renderMarkdown` and
+`markdownTextarea`) producing the same markup; build addon UI from this
+vocabulary so it looks native. Rich Markdown text/highlight/effect wrappers use
+the shared allowlisted `data-md-color`, `data-md-highlight`, and `data-md-effect`
+selectors in `widgets.css`; addons should not reproduce those colors or the
+EasyMDE lifecycle in addon CSS/JavaScript.
 
 ---
 

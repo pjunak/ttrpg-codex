@@ -3,6 +3,7 @@ import { strict as assert } from 'node:assert';
 
 import {
   esc,
+  markdownTextarea,
   escapeRe,
   norm,
   slugify,
@@ -27,6 +28,30 @@ describe('esc', () => {
   it('coerces null/undefined to empty string', () => {
     assert.equal(esc(null), '');
     assert.equal(esc(undefined), '');
+  });
+});
+
+describe('markdownTextarea', () => {
+  it('emits an escaped host-upgradeable field', () => {
+    const html = markdownTextarea('addon-notes', '<b>Lore</b>', {
+      rows: 9,
+      placeholder: 'Write "notes"',
+      name: 'notes',
+      ariaLabel: 'Campaign notes',
+      className: 'addon-field invalid@class md-easy',
+    });
+    assert.match(html, /^<textarea class="md-easy addon-field"/);
+    assert.match(html, /id="addon-notes" rows="9" name="notes"/);
+    assert.match(html, /aria-label="Campaign notes"/);
+    assert.match(html, /placeholder="Write &quot;notes&quot;"/);
+    assert.match(html, />&lt;b&gt;Lore&lt;\/b&gt;<\/textarea>$/);
+  });
+
+  it('bounds row counts and requires a stable id', () => {
+    assert.match(markdownTextarea('low', '', { rows: -20 }), /rows="2"/);
+    assert.match(markdownTextarea('high', '', { rows: 100 }), /rows="40"/);
+    assert.match(markdownTextarea('default'), /rows="6"/);
+    assert.throws(() => markdownTextarea(''), /non-empty id/);
   });
 });
 

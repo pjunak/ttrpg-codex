@@ -67,6 +67,32 @@ test('shared controls and addon composition primitives inherit theme-safe stylin
   }
 });
 
+test('rich Markdown formatting is a shared, theme-safe content contract', () => {
+  const widgets = read('web/css/widgets.css');
+  for (const tone of ['gold', 'danger', 'info', 'success', 'mystery', 'muted']) {
+    assert.match(widgets, new RegExp(`\\[data-md-color="${tone}"\\]`), `${tone} text color`);
+  }
+  for (const tone of ['gold', 'danger', 'info', 'success', 'mystery']) {
+    assert.match(widgets, new RegExp(`mark\\[data-md-highlight="${tone}"\\]`), `${tone} highlight`);
+  }
+  for (const effect of ['underline', 'glow', 'small-caps', 'spoiler']) {
+    assert.match(widgets, new RegExp(`\\[data-md-effect="${effect}"\\]`), `${effect} effect`);
+  }
+  assert.match(widgets, /data-md-effect="spoiler"\]:focus-visible/, 'spoilers reveal with keyboard focus');
+  assert.match(widgets, /var\(--accent-gold\)/, 'formatting follows theme tokens');
+
+  const edit = read('web/css/edit.css');
+  assert.match(edit, /\.md-format-trigger\s*>\s*\.easymde-dropdown-content/, 'shared dropdown skin');
+  assert.match(edit, /button\.md-format-option:focus-visible/, 'dropdown options have keyboard feedback');
+  assert.match(edit, /min-height:\s*2\.75rem/, 'dropdown options have 44px targets');
+
+  const editMode = read('web/js/editmode.js');
+  assert.match(editMode, /MARKDOWN_FORMAT_GROUPS\.map/, 'toolbar menus come from the shared registry');
+  assert.match(editMode, /editMarkdownSelection\(/, 'EasyMDE delegates source transforms to the pure engine');
+  assert.match(editMode, /aria-expanded/, 'custom dropdowns expose their open state');
+  assert.match(editMode, /aria-controls/, 'custom dropdown triggers identify their menu');
+});
+
 test('character-card attitude rings belong to the portrait frame', () => {
   const css = read('web/css/wiki.css');
   const card = css.match(/\.char-card\s*\{[^}]*\}/);
@@ -94,11 +120,13 @@ test('the live facade and the harness mirror stay in sync (text tripwire)', () =
   // addons.js + utils.js are browser modules (import Store/I18n) — not
   // importable headless — so pin the wiring at the source-text level.
   assert.match(read('web/js/addons.js'), /icon:\s*iconGlyph/, 'h.icon wired in the facade');
+  assert.match(read('web/js/addons.js'), /markdownTextarea/, 'h.markdownTextarea wired in the facade');
   assert.match(read('web/js/addons.js'), /announce\(m\)/, 'ui.announce wired in the facade');
   assert.match(read('web/js/addons.js'), /AddonRegistrationContract/, 'live facade uses the shared registration contract');
   assert.match(read('web/js/addon-test-harness.mjs'), /AddonRegistrationContract/, 'harness uses the shared registration contract');
   const utils = read('web/js/utils.js');
   assert.match(utils, /export function iconGlyph/, 'utils.iconGlyph exported');
+  assert.match(utils, /export function markdownTextarea/, 'utils.markdownTextarea exported');
   assert.match(utils, /export function announce/, 'utils.announce exported');
   assert.match(utils, /codex-announcer/, 'announce uses the persistent host live region');
   for (const name of ['heart', 'shield', 'bolt', 'chevrons', "'plus-circle'", 'eye']) {
