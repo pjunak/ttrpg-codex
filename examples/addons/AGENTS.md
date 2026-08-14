@@ -145,8 +145,10 @@ host.listServices(contract)
 `host.h.layoutText(text, options)` provides cached, Unicode-aware plain-text
 line breaking without DOM measurement. It returns exact line strings and
 widths; addons must materialize those strings when layout geometry depends on
-the measured breaks. Treat it as optional when retaining compatibility with a
-host version that predates the helper.
+the measured breaks. `host.h.onTextLayoutInvalidated(listener)` returns an
+unsubscribe function for mounted consumers that cache those results; release
+it with the route's other listeners. Treat both helpers as optional when
+retaining compatibility with a host version that predates them.
 
 See `AUTHORING.md` for complete method signatures, collection identity,
 transactions, dependency negotiation, fragments, slots, graph handles,

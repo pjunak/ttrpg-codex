@@ -25,7 +25,7 @@ test('createMockHost: records every register* call', () => {
 });
 
 test('mock host.h + action are pure + namespaced', () => {
-  const { host } = createMockHost({ id: 'demo' });
+  const { host, rec } = createMockHost({ id: 'demo' });
   assert.equal(host.action('roll'), 'demo:roll');
   assert.equal(host.h.esc('<a>'), '&lt;a&gt;');
   assert.match(host.h.dataAction('M.x', 1), /data-action="M\.x"/);
@@ -38,6 +38,13 @@ test('mock host.h + action are pure + namespaced', () => {
     host.h.markdownTextarea('demo-notes', '<lore>', { rows: 8, className: 'addon-notes' }),
     '<textarea class="md-easy addon-notes" id="demo-notes" rows="8">&lt;lore&gt;</textarea>',
   );
+  const invalidations = [];
+  const off = host.h.onTextLayoutInvalidated(event => invalidations.push(event));
+  rec.invalidateTextLayout('fonts');
+  off();
+  rec.invalidateTextLayout('locale');
+  assert.deepEqual(invalidations.map(event => event.reason), ['fonts']);
+  assert.equal(invalidations[0].revision, 1);
 });
 
 test('store fixtures + role flags are honoured', () => {

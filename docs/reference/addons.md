@@ -360,7 +360,7 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   (←`data:write:<collection>.addonData`; read-modify-write the addon's OWN
   namespace on a core entity — host injects the addon id; backed by
   `Store.patchAddonData`), `role`, `h`
-  (`esc`/`dataAction`/`dataOn`/`renderMarkdown`/`markdownTextarea`/`slugify`/`breadcrumb`/`icon`/`layoutText` — addons
+  (`esc`/`dataAction`/`dataOn`/`renderMarkdown`/`markdownTextarea`/`slugify`/`breadcrumb`/`icon`/`layoutText`/`onTextLayoutInvalidated` — addons
   MUST build HTML with these, never inline `onclick`; `breadcrumb(crumbs)` =
   `utils.breadcrumbNav`, the core wayfinding row, so addon pages don't roll
   their own ← back links; `icon(name, {size, label})` = `utils.iconGlyph`, the
@@ -370,7 +370,9 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   live textarea sync, preview, and draft recovery; `layoutText(text,opts)`
   returns cached Unicode-aware line strings and measured widths without DOM
   layout, and callers materialize those strings when geometry must match the
-  breaks), **`host.asset(rel)`** (always available — URL of a
+  breaks; `onTextLayoutInvalidated(listener)` returns a route-owned unsubscribe
+  function so cached geometry can refresh after font or locale changes),
+  **`host.asset(rel)`** (always available — URL of a
   file bundled with the addon: `/addons/<id>/<hash>/<rel>`, derived from the
   loaded entryUrl so it's version-safe; how book addons resolve record
   images), `ui.toast` + **`ui.rerender()`** (re-render

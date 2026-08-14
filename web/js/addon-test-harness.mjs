@@ -118,6 +118,7 @@ function _emptyRec() {
     kinds: [], connectionKinds: [], nodeKinds: [], graphViews: [], graphContributors: [],
     graphInstances: [],
     provided: undefined, providedServices: [], toasts: [], rerenders: 0, announces: [], i18nMissing: [],
+    textLayoutListeners: new Set(), textLayoutRevision: 0,
     cleanup: createDisposalStack(), disposeResult: null,
   };
 }
@@ -688,7 +689,19 @@ export function createMockHost(meta = {}, opts = {}) {
     asset: (rel) => `/addons/${meta.id || 'addon'}/mockhash/` + String(rel == null ? '' : rel).replace(/^\/+/, ''),
     h: { esc: _esc, slugify: _slugify, dataAction: _dataAction, dataOn: _dataOn,
          renderMarkdown: (s) => _esc(s), markdownTextarea: _markdownTextarea,
-         breadcrumb: _breadcrumb, icon: _icon, layoutText: opts.layoutText || _layoutText },
+         breadcrumb: _breadcrumb, icon: _icon, layoutText: opts.layoutText || _layoutText,
+         onTextLayoutInvalidated: (listener) => {
+           if (typeof listener !== 'function') {
+             throw new TypeError('onTextLayoutInvalidated requires a function');
+           }
+           rec.textLayoutListeners.add(listener);
+           let active = true;
+           return () => {
+             if (!active) return;
+             active = false;
+             rec.textLayoutListeners.delete(listener);
+           };
+         } },
     ui: {
       toast:    (m) => { rec.toasts.push(m); },
       rerender: () => { rec.rerenders++; },
@@ -697,10 +710,19 @@ export function createMockHost(meta = {}, opts = {}) {
       announce: (m) => { rec.announces.push(String(m == null ? '' : m)); },
     },
   };
+  rec.invalidateTextLayout = (reason = 'test') => {
+    const event = Object.freeze({
+      reason,
+      revision: ++rec.textLayoutRevision,
+      locale: host.i18n.locale,
+    });
+    for (const listener of [...rec.textLayoutListeners]) listener(event);
+  };
   return { host, rec, dispose: () => disposeMockHost(rec) };
 }
 
 function _clearRegistrations(rec) {
+  rec.textLayoutListeners.clear();
   for (const key of [
     'routes', 'pages', 'sidebar', 'settingsTabs', 'actions', 'collections',
     'wikiKinds', 'editorFields', 'fragmentOps', 'articleSections', 'slots',

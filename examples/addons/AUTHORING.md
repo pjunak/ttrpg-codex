@@ -145,7 +145,8 @@ host.asset(rel)    // → "/addons/<id>/<hash>/<rel>" — URL of a file bundled
                    //   WITH your addon (images, fonts…), version-safe. E.g.
                    //   `<img src="${esc(host.asset('images/aboleth.webp'))}">`
 host.h             // { esc, dataAction, dataOn, renderMarkdown, markdownTextarea,
-                   //   slugify, breadcrumb, icon, layoutText }
+                   //   slugify, breadcrumb, icon, layoutText,
+                   //   onTextLayoutInvalidated }
                    //   breadcrumb([{label, href?}, …]) renders the same horizontal
                    //   wayfinding row core articles use (last crumb = current page,
                    //   '' below 2 crumbs). Use it at the top of your pages instead
@@ -162,6 +163,9 @@ host.h             // { esc, dataAction, dataOn, renderMarkdown, markdownTextare
                    //   {lineCount, height, maxLineWidth, lines:[{text,width}]}.
                    //   Render the returned line strings when measured geometry
                    //   must exactly match visible wrapping.
+                   //   onTextLayoutInvalidated(listener) returns an unsubscribe
+                   //   function. Mounted consumers use it to refresh cached
+                   //   breaks after fonts or the active locale change.
 host.role          // { isDM(), isAnonymous() }
 host.i18n          // { locale, t, plural, formatDate, formatNumber, relativeTime }
 host.imports       // scoped provider/job client for negotiated imports.providers

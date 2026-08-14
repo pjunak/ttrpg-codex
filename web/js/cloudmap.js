@@ -12,7 +12,7 @@ import { norm, debounce, esc, dataAction, dataOn, pageEditToggle } from './utils
 // Store.getKinds('connections') — settings (seeded from REL_TYPES) + addon kinds.
 import { I18n } from './i18n.js';
 import { Addons } from './addons.js';
-import { layoutText } from './text-layout.js';
+import { layoutText, onTextLayoutInvalidated } from './text-layout.js';
 
 export const CloudMap = (() => {
 
@@ -1093,14 +1093,10 @@ export const CloudMap = (() => {
       boxSelectionEnabled: false,
     });
 
-    // Single cloud layer holding both SVG edges and HTML cards. The
-    // CSS `zoom` property is applied per-frame to give a "true" zoom
-    // (re-flows layout, re-rasterises text at the new size) instead
-    // of `transform: scale()` which would blit a cached texture and
-    // produce blurry text. Pan is applied via a separate
-    // `transform: translate()` since translate doesn't trigger
-    // texture caching. Modern browsers (Chrome/Edge/Safari forever,
-    // Firefox 126+) support `zoom` natively.
+    // Single, untransformed cloud layer holding both SVG edges and HTML
+    // cards. `_sync()` positions the HTML overlay in screen coordinates and
+    // scales its visual properties through --cm-z so text is rasterised at
+    // its native display size instead of as a cached texture.
     _cloudLayer = document.createElement('div');
     _cloudLayer.id = 'cloud-layer';
     _cloudLayer.style.cssText =
@@ -1118,9 +1114,9 @@ export const CloudMap = (() => {
       container.appendChild(empty);
     }
 
-    // SVG edge layer — first child of cloud layer so it renders below
-    // glow divs and cloud cards. Inherits the layer's `zoom` so vector
-    // paths re-rasterise crisply at any zoom level.
+    // SVG edge layer — first child of cloud layer so it renders below glow
+    // divs and cloud cards. `_sync()` applies the graph transform directly to
+    // this vector layer, which re-rasterises cleanly at each scale.
     _edgeSvg = document.createElementNS(_NS, 'svg');
     _edgeSvg.setAttribute('class', 'cm-edge-svg');
     _edgeSvg.style.cssText =
@@ -1396,6 +1392,8 @@ export const CloudMap = (() => {
         svgEls: [path1, path2],
         markerId,
         lineSignature: null,
+        layoutWidth: null,
+        layout: null,
       };
     });
   }
@@ -1556,9 +1554,14 @@ export const CloudMap = (() => {
         // layer); labelW is in graph-px so multiply by zoom.
         div.style.width = (labelW * _zoom) + 'px';
 
-        const labelLayout = _textLayout(label, EDGE_LABEL_FONT, labelW, {
-          letterSpacing: 0.24,
-        });
+        const layoutWidth = Math.round(labelW * 2) / 2;
+        if (!rec.layout || rec.layoutWidth !== layoutWidth) {
+          rec.layout = _textLayout(label, EDGE_LABEL_FONT, layoutWidth, {
+            letterSpacing: 0.24,
+          });
+          rec.layoutWidth = layoutWidth;
+        }
+        const labelLayout = rec.layout;
         const lineSignature = labelLayout.lines.map(line => line.text).join('\u0000');
         if (lineSignature !== rec.lineSignature) {
           const lineElements = labelLayout.lines.map(line => {
@@ -3084,6 +3087,16 @@ export const CloudMap = (() => {
     _clearPositions();
     if (_currentMode) render(_currentMode);
   }
+
+  onTextLayoutInvalidated(() => {
+    for (const rec of Object.values(_edgeLabels)) {
+      rec.layout = null;
+      rec.layoutWidth = null;
+    }
+    if (!_cy || !_cloudLayer) return;
+    _resizeToActual();
+    _sync();
+  });
 
   return {
     render, resetLayout, setEditing, toggleEditing,

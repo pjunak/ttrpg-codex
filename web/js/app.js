@@ -22,6 +22,7 @@ import { CollectionDescriptors } from './collection-descriptors.js';
 import { setWikiLinkResolver, norm, dataAction, esc, clearAnnouncement } from './utils.js';
 import { graphImplementationRegistry } from './addon-graph.js';
 import { createCytoscapeGraphAdapter } from './addon-graph-cytoscape.js';
+import { setTextLayoutLocale } from './text-layout.js';
 
 Addons.registerBuiltInService('codex.import-adapter', '1.0.0', CoreImportAdapter.service);
 
@@ -907,6 +908,7 @@ document.addEventListener('click', (ev) => {
   // setRerender at boot; also drained from editmode:clean when a switch
   // was deferred mid-edit.
   function _fullChromeRerender() {
+    setTextLayoutLocale(I18n.getLocale());
     I18n.hydrate(document);
     Sidebar.render();
     Settings.applyBranding();
@@ -985,6 +987,7 @@ document.addEventListener('click', (ev) => {
     // first render, so there's no flash of the wrong language. Stored
     // per-browser (localStorage), never campaign-wide / server-synced.
     await I18n.load();
+    setTextLayoutLocale(I18n.getLocale());
     I18n.hydrate(document);
     // Closure that re-renders the live UI when the user switches language.
     // Mid-edit (EditMode.isDirty) we must NOT navigate() — that rebuilds
@@ -992,6 +995,7 @@ document.addEventListener('click', (ev) => {
     // its unsaved text. So flip only the editor-free chrome, toast a
     // notice, and defer the full re-render until editmode:clean fires.
     I18n.setRerender(() => {
+      setTextLayoutLocale(I18n.getLocale());
       if (EditMode.isDirty()) {
         I18n.hydrate(document);
         Sidebar.render();

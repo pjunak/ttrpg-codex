@@ -116,6 +116,10 @@ vendored Pretext runtime, prepares each text/font/options tuple once and lays
 it out arithmetically as edge geometry changes. `_syncEdgeLabels()` renders the
 returned line strings as non-wrapping spans, so the visible breaks and measured
 edge gap cannot diverge. DOM children change only when the line strings change.
+Complete results are reused while a moving edge remains in the same half-pixel
+graph-width bucket. Font completion and locale changes invalidate both the
+shared measurements and the per-edge result, then refresh card heights and
+visible label geometry.
 
 **Per-card width via inline CSS variable.** Card HTML templates
 inline `style="--cc:…; --cw:${CW}px"` (or `--cw:${CW_HUB}px` for
