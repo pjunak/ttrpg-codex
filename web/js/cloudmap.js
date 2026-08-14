@@ -13,6 +13,11 @@ import { norm, debounce, esc, dataAction, dataOn, pageEditToggle } from './utils
 import { I18n } from './i18n.js';
 import { Addons } from './addons.js';
 import { layoutText, onTextLayoutInvalidated } from './text-layout.js';
+import {
+  CLOUDMAP_EDGE_LABEL_FONT,
+  CLOUDMAP_EDGE_LABEL_LETTER_SPACING,
+  CLOUDMAP_FACT_FONT,
+} from './cloudmap-text-style.js';
 
 export const CloudMap = (() => {
 
@@ -64,8 +69,6 @@ export const CloudMap = (() => {
   const PAD        = 10;           // inner horizontal padding
   const IW         = CW - PAD * 2; // inner text width for wrapping
 
-  const FONT_FACT  = '11px Lora, Georgia, serif';
-
   // Heights derived from actual CSS box model:
   //   .cm-cloud  → border-top:2 + padding-top:0 + padding-bottom:8 + border-bottom:1
   //   .cm-strip  → padding(5+3) + ~11px text  = 19px
@@ -102,7 +105,7 @@ export const CloudMap = (() => {
   function _charCloudH(c, mode) {
     let rows = 0;
     if (mode === 'frakce') {
-      if (c.knowledge >= 2 && c.title) rows += _wrap(c.title, FONT_FACT, IW).length;
+      if (c.knowledge >= 2 && c.title) rows += _wrap(c.title, CLOUDMAP_FACT_FONT, IW).length;
       const rels = Store.getRelationships();
       if (rels.some(r => r.source === c.id && r.type === 'commands')) rows++;
       if (rels.some(r => r.target === c.id && r.type === 'commands')) rows++;
@@ -115,7 +118,7 @@ export const CloudMap = (() => {
       const mysteries = Store.getMysteries().filter(m => (m.characters || []).includes(c.id));
       if (mysteries.length) {
         const q = (mysteries[0].questions || [])[0] || mysteries[0].name;
-        rows += Math.min(2, _wrap(q, FONT_FACT, IW).length);
+        rows += Math.min(2, _wrap(q, CLOUDMAP_FACT_FONT, IW).length);
       }
     } else if (mode === 'casova-osa') {
       rows = 1;
@@ -129,12 +132,12 @@ export const CloudMap = (() => {
     // legacy / mid-migration data).
     const first = (m.questions || [])[0];
     const q     = Store.questionText(first);
-    const qRows = q ? Math.min(2, _wrap(q, FONT_FACT, IW).length) : 0;
+    const qRows = q ? Math.min(2, _wrap(q, CLOUDMAP_FACT_FONT, IW).length) : 0;
     return _base() + (1 + qRows) * H_FACT + H_OVERHEAD;
   }
 
   function _eventCloudH(e) {
-    const rows = Math.min(2, _wrap(e.short || e.name, FONT_FACT, IW).length);
+    const rows = Math.min(2, _wrap(e.short || e.name, CLOUDMAP_FACT_FONT, IW).length);
     return _base() + rows * H_FACT + H_OVERHEAD;
   }
 
@@ -147,7 +150,7 @@ export const CloudMap = (() => {
   function _factionHubCloudH(faction, _count) {
     // strip + name + divider + 1 fact row (member count) + pill overhead
     let rows = 1;
-    if (faction.description) rows += Math.min(2, _wrap(faction.description, FONT_FACT, IW_HUB).length);
+    if (faction.description) rows += Math.min(2, _wrap(faction.description, CLOUDMAP_FACT_FONT, IW_HUB).length);
     return _base() + rows * H_FACT + H_OVERHEAD_HUB;
   }
 
@@ -269,8 +272,8 @@ export const CloudMap = (() => {
       body += `<div class="cm-fact cm-dim">${esc(I18n.plural('cloudmap.mysteries', cnt))}</div>`;
       if (mysteries.length) {
         const q = (mysteries[0].questions || [])[0] || mysteries[0].name;
-        const lines = _wrap(q, FONT_FACT, IW).slice(0, 2);
-        const snippet = lines.join(' ') + (lines.length < _wrap(q, FONT_FACT, IW).length ? '…' : '');
+        const lines = _wrap(q, CLOUDMAP_FACT_FONT, IW).slice(0, 2);
+        const snippet = lines.join(' ') + (lines.length < _wrap(q, CLOUDMAP_FACT_FONT, IW).length ? '…' : '');
         body += `<div class="cm-fact cm-hint">${esc(snippet)}</div>`;
       }
 
@@ -281,8 +284,8 @@ export const CloudMap = (() => {
       const cnt = events.length;
       body += `<div class="cm-fact cm-dim">${esc(I18n.plural('cloudmap.events', cnt))}</div>`;
       if (events.length) {
-        const lines = _wrap(events[0].name, FONT_FACT, IW).slice(0, 1);
-        body += `<div class="cm-fact">${esc(lines[0])}${_wrap(events[0].name, FONT_FACT, IW).length > 1 ? '…' : ''}</div>`;
+        const lines = _wrap(events[0].name, CLOUDMAP_FACT_FONT, IW).slice(0, 1);
+        body += `<div class="cm-fact">${esc(lines[0])}${_wrap(events[0].name, CLOUDMAP_FACT_FONT, IW).length > 1 ? '…' : ''}</div>`;
       }
     }
 
@@ -301,8 +304,8 @@ export const CloudMap = (() => {
     const q = Store.questionText((m.questions || [])[0]);
     let qHTML = '';
     if (q) {
-      const lines = _wrap(q, FONT_FACT, IW).slice(0, 2);
-      const snippet = lines.join(' ') + (lines.length < _wrap(q, FONT_FACT, IW).length ? '…' : '');
+      const lines = _wrap(q, CLOUDMAP_FACT_FONT, IW).slice(0, 2);
+      const snippet = lines.join(' ') + (lines.length < _wrap(q, CLOUDMAP_FACT_FONT, IW).length ? '…' : '');
       qHTML = `<div class="cm-fact cm-hint">${esc(snippet)}</div>`;
     }
     return `<div class="cm-cloud cm-mystery" data-id="${m.id}" data-type="mystery"
@@ -317,8 +320,8 @@ export const CloudMap = (() => {
 
   function _eventCloudHTML(e) {
     const desc = e.short || e.description || e.name;
-    const lines = _wrap(desc, FONT_FACT, IW).slice(0, 2);
-    const snippet = lines.join(' ') + (lines.length < _wrap(desc, FONT_FACT, IW).length ? '…' : '');
+    const lines = _wrap(desc, CLOUDMAP_FACT_FONT, IW).slice(0, 2);
+    const snippet = lines.join(' ') + (lines.length < _wrap(desc, CLOUDMAP_FACT_FONT, IW).length ? '…' : '');
     return `<div class="cm-cloud cm-event" data-id="${e.id}" data-type="event"
               style="--cc:${CM_NODE_COLORS.event}; --cw:${CW}px">
       <div class="cm-strip">📜 ${e.sitting ? esc(I18n.t('cloudmap.sitting', { n: e.sitting })) : esc(I18n.t('cloudmap.past'))}</div>
@@ -1244,7 +1247,6 @@ export const CloudMap = (() => {
   // Labelled edges are split into two segments with a gap for the text.
   // HTML label divs sit in that gap, centred on the edge midpoint.
 
-  const EDGE_LABEL_FONT   = '12px Inter, sans-serif';
   const LABEL_GAP_PAD     = 5;   // extra gap each side beyond text bounds
 
   function _dashArray(lineStyle, width) {
@@ -1556,8 +1558,8 @@ export const CloudMap = (() => {
 
         const layoutWidth = Math.round(labelW * 2) / 2;
         if (!rec.layout || rec.layoutWidth !== layoutWidth) {
-          rec.layout = _textLayout(label, EDGE_LABEL_FONT, layoutWidth, {
-            letterSpacing: 0.24,
+          rec.layout = _textLayout(label, CLOUDMAP_EDGE_LABEL_FONT, layoutWidth, {
+            letterSpacing: CLOUDMAP_EDGE_LABEL_LETTER_SPACING,
           });
           rec.layoutWidth = layoutWidth;
         }

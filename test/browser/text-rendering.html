@@ -29,6 +29,10 @@
       layoutText,
       onTextLayoutInvalidated,
     } from '../../web/js/text-layout.js';
+    import {
+      CLOUDMAP_EDGE_LABEL_FONT,
+      CLOUDMAP_EDGE_LABEL_LETTER_SPACING,
+    } from '../../web/js/cloudmap-text-style.js';
 
     const nextFrame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     const closeTo = (actual, expected, tolerance = 0.06) => Math.abs(actual - expected) <= tolerance;
@@ -49,7 +53,7 @@
       const fact = document.querySelector('.cm-fact');
       const edge = document.querySelector('.cm-edge-label');
 
-      for (const zoom of [0.5, 1, 2]) {
+      for (const zoom of [0.25, 0.265, 0.5, 0.9, 1, 2]) {
         layer.style.setProperty('--cm-z', String(zoom));
         edge.style.width = `${96 * zoom}px`;
         await nextFrame();
@@ -75,9 +79,15 @@
       }
 
       const text = 'Guide the party through 春天 before the sleeping dragon wakes';
-      const options = { font: '12px Inter, sans-serif', maxWidth: 96, lineHeight: 16 };
+      const options = {
+        font: CLOUDMAP_EDGE_LABEL_FONT,
+        maxWidth: 96,
+        lineHeight: 16,
+        letterSpacing: CLOUDMAP_EDGE_LABEL_LETTER_SPACING,
+      };
       const first = layoutText(text, options);
       const cached = layoutText(text, options);
+      const measuredFontFamily = CLOUDMAP_EDGE_LABEL_FONT.replace(/^\S+\s+/, '');
       edge.replaceChildren(...first.lines.map(line => {
         const span = document.createElement('span');
         span.className = 'cm-edge-label-line';
@@ -85,6 +95,12 @@
         return span;
       }));
       check('shared layout result identity is cached', first === cached, first === cached, true);
+      check(
+        'edge label measurement uses the rendered font stack',
+        getComputedStyle(edge).fontFamily.replaceAll(' ', '') === measuredFontFamily.replaceAll(' ', ''),
+        getComputedStyle(edge).fontFamily,
+        measuredFontFamily,
+      );
       check('shared layout produces multiple lines', first.lines.length > 1, first.lines.length, '> 1');
       check(
         'materialized edge lines match shared layout',

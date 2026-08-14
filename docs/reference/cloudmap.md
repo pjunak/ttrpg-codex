@@ -380,7 +380,7 @@ resulting node positions are adopted as the physics `nodeRest` and
 saved (same persistence path as Auto rozložení), so the integrator
 holds the hierarchy until the user drags.
 
-Word-wrap uses a custom canvas engine. `canvas.measureText()` with
-a `Map` cache. Call `_wrap(text, font, maxW)` returns `string[]`.
-Heights estimated pre-layout. `_resizeToActual()` corrects after
-first paint.
+Word-wrap uses the shared Pretext-backed `layoutText` adapter and its bounded
+prepared-text/result caches. `_wrap(text, font, maxW)` materializes the exact
+line strings used for pre-layout height estimates. `_resizeToActual()` still
+corrects any residual browser-layout difference after first paint.
