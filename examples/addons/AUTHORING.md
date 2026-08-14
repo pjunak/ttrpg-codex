@@ -1073,6 +1073,13 @@ test('registers + smokes clean', () => {
 
 Reference: `examples/addons/sheet/tests/sheet.addon-test.mjs`.
 
+Zoom-sensitive addons can also keep a browser fixture in their own repository
+and execute it with the host-owned `scripts/browser-rendering-check.mjs` CLI.
+The fixture exports `window.runRenderingContract()` and returns named
+`{ pass, actual, expected }` checks; the runner owns the static server,
+Chromium contexts, and DPR 1/2 execution. Borrowing this test runner does not
+make host-private browser modules part of the addon runtime contract.
+
 ---
 
 ## 15. The build → install → update → rollback loop

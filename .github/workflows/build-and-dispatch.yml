@@ -46,6 +46,11 @@ jobs:
       # don't overwhelm the 2-core runner and flake on boot timeouts.
       - run: npm run check:ci
 
+      - name: Install Chromium for rendering contracts
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run test:browser
+
   build:
     name: Build and push image
     needs: test

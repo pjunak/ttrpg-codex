@@ -8,6 +8,7 @@
     "start": "node server.js",
     "test": "node --test \"test/**/*.test.*js\"",
     "test:ci": "node --test --test-concurrency=4 \"test/**/*.test.*js\"",
+    "test:browser": "node scripts/browser-rendering-check.mjs --root . --fixture test/browser/text-rendering.html",
     "lint": "eslint . --max-warnings 0",
     "check": "npm run lint && npm test",
     "check:ci": "npm run lint && npm run test:ci"
@@ -25,6 +26,7 @@
     "yauzl": "^3.4.0"
   },
   "devDependencies": {
-    "eslint": "^10.8.0"
+    "eslint": "^10.8.0",
+    "playwright": "1.62.0"
   }
 }

@@ -205,6 +205,9 @@ return `<h1>${esc(title)}</h1>
 - Keep `tests.server` self-contained: Node built-ins and addon files only.
 - Test empty and failure states, optional-provider absence, cleanup
   idempotence, and any role-conditioned registration.
+- Keep zoom-sensitive rendering fixtures in the addon and execute them with
+  the host-owned `scripts/browser-rendering-check.mjs` runner. This is shared
+  test infrastructure, not an addon runtime import.
 - Run the addon's complete test command and relevant host addon tests.
 - Dev-install, restart when server code changed, refresh, and exercise the
   installed package. Source edits are invisible until reinstalled.

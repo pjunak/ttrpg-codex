@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Text rendering contract</title>
+  <link rel="stylesheet" href="../../web/css/bundle.css">
+  <style>
+    body { padding: 2rem; background: var(--bg-base); }
+    #cloud-layer { --cm-z: 1; position: relative; }
+    .fixture-edge { position: absolute; left: 240px; top: 40px; }
+  </style>
+</head>
+<body>
+  <main id="cloud-layer">
+    <div class="fixture-card">
+      <article class="cm-cloud" style="--cc:#c8a040;--cw:168px">
+        <div class="cm-strip">Character</div>
+        <div class="cm-name">Untitled explorer</div>
+        <div class="cm-divider"></div>
+        <div class="cm-fact">No concise summary has been added.</div>
+      </article>
+    </div>
+    <div class="cm-edge-label fixture-edge" style="transform:translate(12px, 8px) rotate(12deg)"></div>
+  </main>
+  <script type="module">
+    import {
+      clearTextLayoutCache,
+      layoutText,
+      onTextLayoutInvalidated,
+    } from '../../web/js/text-layout.js';
+
+    const nextFrame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const closeTo = (actual, expected, tolerance = 0.06) => Math.abs(actual - expected) <= tolerance;
+    const pixelValue = (element, property) => Number.parseFloat(getComputedStyle(element)[property]);
+    const transformScale = element => {
+      const value = getComputedStyle(element).transform;
+      if (value === 'none') return [1, 1];
+      const matrix = new DOMMatrix(value);
+      return [Math.hypot(matrix.a, matrix.b), Math.hypot(matrix.c, matrix.d)];
+    };
+
+    window.runRenderingContract = async ({ deviceScaleFactor }) => {
+      const checks = [];
+      const check = (name, pass, actual, expected) => checks.push({ name, pass, actual, expected });
+      const layer = document.querySelector('#cloud-layer');
+      const card = document.querySelector('.cm-cloud');
+      const name = document.querySelector('.cm-name');
+      const fact = document.querySelector('.cm-fact');
+      const edge = document.querySelector('.cm-edge-label');
+
+      for (const zoom of [0.5, 1, 2]) {
+        layer.style.setProperty('--cm-z', String(zoom));
+        edge.style.width = `${96 * zoom}px`;
+        await nextFrame();
+        const expected = {
+          cardWidth: 168 * zoom,
+          edgeFont: 12 * zoom,
+          factFont: 11 * zoom,
+          nameFont: 13 * zoom,
+        };
+        const actual = {
+          cardWidth: card.getBoundingClientRect().width,
+          edgeFont: pixelValue(edge, 'fontSize'),
+          factFont: pixelValue(fact, 'fontSize'),
+          nameFont: pixelValue(name, 'fontSize'),
+        };
+        for (const property of Object.keys(expected)) {
+          check(`cloud ${property} at ${zoom}x`, closeTo(actual[property], expected[property]), actual[property], expected[property]);
+        }
+        for (const [label, element] of [['layer', layer], ['card', card], ['edge label', edge]]) {
+          const scales = transformScale(element);
+          check(`${label} has no raster scale at ${zoom}x`, scales.every(scale => closeTo(scale, 1, 0.001)), scales, [1, 1]);
+        }
+      }
+
+      const text = 'Guide the party through 春天 before the sleeping dragon wakes';
+      const options = { font: '12px Inter, sans-serif', maxWidth: 96, lineHeight: 16 };
+      const first = layoutText(text, options);
+      const cached = layoutText(text, options);
+      edge.replaceChildren(...first.lines.map(line => {
+        const span = document.createElement('span');
+        span.className = 'cm-edge-label-line';
+        span.textContent = line.text;
+        return span;
+      }));
+      check('shared layout result identity is cached', first === cached, first === cached, true);
+      check('shared layout produces multiple lines', first.lines.length > 1, first.lines.length, '> 1');
+      check(
+        'materialized edge lines match shared layout',
+        JSON.stringify([...edge.children].map(line => line.textContent)) === JSON.stringify(first.lines.map(line => line.text)),
+        [...edge.children].map(line => line.textContent),
+        first.lines.map(line => line.text),
+      );
+
+      const events = [];
+      const unsubscribe = onTextLayoutInvalidated(event => events.push(event));
+      clearTextLayoutCache('browser-contract');
+      const refreshed = layoutText(text, options);
+      unsubscribe();
+      clearTextLayoutCache('after-unsubscribe');
+      check('cache invalidation replaces the result object', refreshed !== first, refreshed === first, false);
+      check(
+        'mounted listeners receive only subscribed invalidations',
+        events.length === 1 && events[0].reason === 'browser-contract',
+        events.map(event => event.reason),
+        ['browser-contract'],
+      );
+
+      return { name: 'host text rendering', checks, diagnostics: { deviceScaleFactor } };
+    };
+  </script>
+</body>
+</html>

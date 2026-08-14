@@ -16,8 +16,12 @@ npm ci
 npm run lint            # zero-warning ESLint gate
 npm test                # complete Node test suite
 npm run check           # lint, then tests
+npm run test:browser    # native-size text rendering contract in Chromium
 npm start               # local server
 ```
+
+Install the pinned browser once with `npx playwright install chromium` before
+running `npm run test:browser`. CI installs Chromium with its OS dependencies.
 
 Run a focused test with a relative path:
 
@@ -155,6 +159,7 @@ not grant new permissions.
 ## Completion and durable planning
 
 - Run focused tests while iterating and `npm run check` before handoff for host
+  changes. Run `npm run test:browser` for zoom, typography, or browser-rendering
   changes. Run relevant host/addon compatibility tests on both sides of a
   contract change.
 - Update the owning reference, public docs, test inventory, and this file only
