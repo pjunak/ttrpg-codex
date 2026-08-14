@@ -17,11 +17,13 @@ npm run lint            # zero-warning ESLint gate
 npm test                # complete Node test suite
 npm run check           # lint, then tests
 npm run test:browser    # native-size text rendering contract in Chromium
+npm run test:browser:all # same contract in Chromium and Firefox
 npm start               # local server
 ```
 
-Install the pinned browser once with `npx playwright install chromium` before
-running `npm run test:browser`. CI installs Chromium with its OS dependencies.
+Install the pinned browsers once with `npx playwright install chromium firefox`
+before running the cross-browser contract. CI installs Chromium for the default
+gate; local rendering changes should run both engines.
 
 Run a focused test with a relative path:
 

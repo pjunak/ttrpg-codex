@@ -9,6 +9,7 @@
     "test": "node --test \"test/**/*.test.*js\"",
     "test:ci": "node --test --test-concurrency=4 \"test/**/*.test.*js\"",
     "test:browser": "node scripts/browser-rendering-check.mjs --root . --fixture test/browser/text-rendering.html",
+    "test:browser:all": "node scripts/browser-rendering-check.mjs --root . --fixture test/browser/text-rendering.html --browser all",
     "lint": "eslint . --max-warnings 0",
     "check": "npm run lint && npm test",
     "check:ci": "npm run lint && npm run test:ci"

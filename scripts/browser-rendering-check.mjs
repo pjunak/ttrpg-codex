@@ -4,7 +4,9 @@ import { readFile, stat } from 'node:fs/promises';
 import http from 'node:http';
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { chromium } from 'playwright';
+import { chromium, firefox } from 'playwright';
+
+const BROWSER_TYPES = Object.freeze({ chromium, firefox });
 
 const MIME_TYPES = new Map([
   ['.css', 'text/css; charset=utf-8'],
@@ -23,10 +25,10 @@ function isContained(root, candidate) {
 }
 
 function parseArgs(argv) {
-  const options = { root: '.', fixture: '' };
+  const options = { root: '.', fixture: '', browser: 'chromium' };
   for (let index = 0; index < argv.length; index += 1) {
     const name = argv[index];
-    if (name !== '--root' && name !== '--fixture') {
+    if (name !== '--root' && name !== '--fixture' && name !== '--browser') {
       throw new Error(`Unknown argument: ${name}`);
     }
     const value = argv[index + 1];
@@ -35,6 +37,9 @@ function parseArgs(argv) {
     index += 1;
   }
   if (!options.fixture) throw new Error('--fixture is required');
+  if (options.browser !== 'all' && !BROWSER_TYPES[options.browser]) {
+    throw new Error('--browser must be chromium, firefox, or all');
+  }
   return options;
 }
 
@@ -91,7 +96,7 @@ function closeServer(server) {
   });
 }
 
-export async function runBrowserRenderingCheck({ root = '.', fixture }) {
+export async function runBrowserRenderingCheck({ root = '.', fixture, browser: browserName = 'chromium' }) {
   const absoluteRoot = resolve(root);
   const absoluteFixture = resolve(absoluteRoot, fixture);
   if (!isContained(absoluteRoot, absoluteFixture)) {
@@ -100,51 +105,57 @@ export async function runBrowserRenderingCheck({ root = '.', fixture }) {
   if (!(await stat(absoluteFixture)).isFile()) throw new Error(`Fixture is not a file: ${fixture}`);
 
   const server = await createStaticServer(absoluteRoot);
-  let browser;
   const failures = [];
   try {
-    browser = await chromium.launch({ headless: true });
     const url = fixtureUrl(absoluteRoot, absoluteFixture, serverPort(server));
-    for (const deviceScaleFactor of [1, 2]) {
-      const context = await browser.newContext({
-        deviceScaleFactor,
-        locale: 'en-US',
-        viewport: { width: 1280, height: 900 },
-      });
+    const browserNames = browserName === 'all' ? Object.keys(BROWSER_TYPES) : [browserName];
+    for (const currentBrowserName of browserNames) {
+      const launchedBrowser = await BROWSER_TYPES[currentBrowserName].launch({ headless: true });
       try {
-        const page = await context.newPage();
-        const pageErrors = [];
-        page.on('console', message => {
-          if (message.type() === 'error') pageErrors.push(`console: ${message.text()}`);
-        });
-        page.on('pageerror', error => pageErrors.push(`page: ${error.message}`));
-        await page.goto(url, { waitUntil: 'networkidle' });
-        await page.waitForFunction(() => typeof globalThis.runRenderingContract === 'function');
-        const result = await page.evaluate(async scale => {
-          await globalThis.document.fonts?.ready;
-          return globalThis.runRenderingContract({ deviceScaleFactor: scale });
-        }, deviceScaleFactor);
-        if (!result || !Array.isArray(result.checks) || result.checks.length === 0) {
-          failures.push(`DPR ${deviceScaleFactor}: fixture returned no checks`);
-          continue;
+        for (const deviceScaleFactor of [1, 2]) {
+          const context = await launchedBrowser.newContext({
+            deviceScaleFactor,
+            locale: 'en-US',
+            viewport: { width: 1280, height: 900 },
+          });
+          try {
+            const page = await context.newPage();
+            const pageErrors = [];
+            page.on('console', message => {
+              if (message.type() === 'error') pageErrors.push(`console: ${message.text()}`);
+            });
+            page.on('pageerror', error => pageErrors.push(`page: ${error.message}`));
+            await page.goto(url, { waitUntil: 'networkidle' });
+            await page.waitForFunction(() => typeof globalThis.runRenderingContract === 'function');
+            const result = await page.evaluate(async scale => {
+              await globalThis.document.fonts?.ready;
+              return globalThis.runRenderingContract({ deviceScaleFactor: scale });
+            }, deviceScaleFactor);
+            const prefix = `${currentBrowserName} DPR ${deviceScaleFactor}`;
+            if (!result || !Array.isArray(result.checks) || result.checks.length === 0) {
+              failures.push(`${prefix}: fixture returned no checks`);
+              continue;
+            }
+            const name = result.name || relative(absoluteRoot, absoluteFixture);
+            const failedChecks = result.checks.filter(check => check?.pass !== true);
+            for (const check of failedChecks) {
+              failures.push(
+                `${prefix} ${check?.name || 'unnamed check'}: `
+                + `expected ${JSON.stringify(check?.expected)}, got ${JSON.stringify(check?.actual)}`,
+              );
+            }
+            failures.push(...pageErrors.map(error => `${prefix} ${error}`));
+            const passed = result.checks.length - failedChecks.length;
+            console.log(`${name} ${prefix}: ${passed}/${result.checks.length} checks passed`);
+          } finally {
+            await context.close();
+          }
         }
-        const name = result.name || relative(absoluteRoot, absoluteFixture);
-        const failedChecks = result.checks.filter(check => check?.pass !== true);
-        for (const check of failedChecks) {
-          failures.push(
-            `DPR ${deviceScaleFactor} ${check?.name || 'unnamed check'}: `
-            + `expected ${JSON.stringify(check?.expected)}, got ${JSON.stringify(check?.actual)}`,
-          );
-        }
-        failures.push(...pageErrors.map(error => `DPR ${deviceScaleFactor} ${error}`));
-        const passed = result.checks.length - failedChecks.length;
-        console.log(`${name} DPR ${deviceScaleFactor}: ${passed}/${result.checks.length} checks passed`);
       } finally {
-        await context.close();
+        await launchedBrowser.close();
       }
     }
   } finally {
-    await browser?.close();
     await closeServer(server);
   }
   if (failures.length) throw new Error(`Browser rendering contract failed:\n- ${failures.join('\n- ')}`);
