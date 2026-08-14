@@ -168,13 +168,9 @@
 /*    HTML clouds that overlay invisible Cytoscape proxy nodes.   */
 /*    pointer-events:none on the layer; all gestures go to cy.    */
 
-/* All sized properties below use calc(<base>px * var(--cm-z, 1)) so
-   that zooming the mind map re-renders text at the EXACT pixel size
-   for the current zoom level rather than scaling a cached texture.
-   --cm-z is set on _cloudLayer per zoom-change frame in cloudmap.js
-   _sync(). Default value 1 keeps cards at native size if --cm-z is
-   unset (during initial paint). See docs/reference/cloudmap.md
-   "CloudMap text scaling via CSS variable" for the rationale. */
+/* Geometry follows --cm-z continuously. Typography follows --cm-type-z in
+   readable steps and never drops below its zoom-1 size. Both variables change
+   real CSS dimensions, so text is re-rasterized instead of texture-scaled. */
 
 .cm-cloud {
   /* --cc: faction/type colour set per card via inline style */
@@ -208,7 +204,8 @@
 
 /* Faction strip */
 .cm-strip {
-  font-size: calc(9px * var(--cm-z, 1));
+  font-size: calc(9px * var(--cm-type-z, 1));
+  line-height: 1.25;
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -223,7 +220,7 @@
 /* Primary name */
 .cm-name {
   font-family: var(--font-title);
-  font-size: calc(13px * var(--cm-z, 1));
+  font-size: calc(13px * var(--cm-type-z, 1));
   font-weight: 600;
   color: var(--text-parchment, #F5EDD8);
   line-height: 1.25;
@@ -243,29 +240,29 @@
 /* Fact rows */
 .cm-fact {
   font-family: var(--font-body);
-  font-size: calc(11px * var(--cm-z, 1));
+  font-size: calc(11px * var(--cm-type-z, 1));
   line-height: 1.4;
   color: var(--text-light);
   margin-bottom: calc(2px * var(--cm-z, 1));
 }
 .cm-fact.cm-dim {
   color: var(--text-muted, #806C52);
-  font-size: calc(10.5px * var(--cm-z, 1));
+  font-size: calc(10.5px * var(--cm-type-z, 1));
 }
 .cm-fact.cm-hint {
   font-style: italic;
   color: color-mix(in srgb, var(--cc) 65%, #C8B89A);
-  font-size: calc(10.5px * var(--cm-z, 1));
+  font-size: calc(10.5px * var(--cm-type-z, 1));
 }
 /* Mystery-card priority row (was inline font-size:10px in JS template) */
 .cm-fact.cm-fact-priority {
-  font-size: calc(10px * var(--cm-z, 1));
+  font-size: calc(10px * var(--cm-type-z, 1));
 }
 
 /* Status row (Vztahy mode) */
 .cm-status-row {
   font-family: var(--font-ui);
-  font-size: calc(11px * var(--cm-z, 1));
+  font-size: calc(11px * var(--cm-type-z, 1));
   color: var(--text-light);
   margin-bottom: calc(3px * var(--cm-z, 1));
   display: flex;
@@ -275,11 +272,23 @@
 
 /* Semantic zoom removes unreadable prose without collapsing card boxes. Keeping
    layout space stable preserves Cytoscape proxy geometry and edge endpoints. */
-#cloud-layer[data-cm-detail="compact"] :is(.cm-fact, .cm-status-row),
+#cloud-layer[data-cm-detail="compact"] :is(.cm-strip, .cm-divider, .cm-fact, .cm-status-row),
 #cloud-layer[data-cm-detail="compact"] .cm-edge-label,
+#cloud-layer[data-cm-detail="condensed"] :is(.cm-fact, .cm-status-row),
+#cloud-layer[data-cm-detail="condensed"] .cm-edge-label,
 #cloud-layer[data-cm-detail="overview"] :is(.cm-strip, .cm-name, .cm-divider, .cm-fact, .cm-status-row),
 #cloud-layer[data-cm-detail="overview"] .cm-edge-label {
   visibility: hidden;
+}
+
+.cm-text-line {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+[data-cm-layout-measured="false"] {
+  white-space: normal;
 }
 
 /* Dead character variant */
@@ -315,8 +324,8 @@
 .cm-cloud.cm-faction-hub::before {
   border-radius: 999px;
 }
-.cm-cloud.cm-faction-hub .cm-name {
-  font-size: calc(15px * var(--cm-z, 1));
+.cm-cloud.cm-faction-hub [data-cm-text-role="hub-name"] {
+  font-size: calc(15px * var(--cm-type-z, 1));
 }
 .cm-cloud.cm-faction-hub .cm-strip {
   text-align: center;
@@ -328,34 +337,6 @@
 /* Location node variant */
 .cm-cloud.cm-location {
   background: linear-gradient(160deg, rgba(16,22,8,0.97) 0%, rgba(8,14,5,0.99) 100%);
-}
-
-/* Character chips inside a location card (Místa mode) */
-.cm-loc-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: calc(3px * var(--cm-z, 1));
-  margin-top: calc(3px * var(--cm-z, 1));
-}
-.cm-loc-chip {
-  --cc: #888;
-  font-family: var(--font-ui);
-  font-size: calc(9.5px * var(--cm-z, 1));
-  line-height: 1.2;
-  padding: calc(1px * var(--cm-z, 1)) calc(5px * var(--cm-z, 1));
-  border-radius: calc(8px * var(--cm-z, 1));
-  background: color-mix(in srgb, var(--cc) 22%, rgba(20,18,16,0.6));
-  border: calc(1px * var(--cm-z, 1)) solid color-mix(in srgb, var(--cc) 50%, transparent);
-  color: var(--text-cream);
-  white-space: nowrap;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.cm-loc-chip-more {
-  background: rgba(255,255,255,0.05);
-  border-color: rgba(255,255,255,0.12);
-  color: var(--text-muted);
 }
 
 /* Faction territory glow — large soft radial behind hubs, smaller behind members */
@@ -397,7 +378,7 @@
 .cm-edge-label {
   position: absolute;
   font-family: var(--font-ui);
-  font-size: calc(12px * var(--cm-z, 1));
+  font-size: calc(12px * var(--cm-type-z, 1));
   line-height: 1.35;         /* unitless, scales with font-size */
   white-space: normal;
   text-align: center;

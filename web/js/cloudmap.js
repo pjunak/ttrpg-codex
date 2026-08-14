@@ -13,11 +13,12 @@ import { norm, debounce, esc, dataAction, dataOn, pageEditToggle } from './utils
 import { I18n } from './i18n.js';
 import { Addons } from './addons.js';
 import { layoutText, onTextLayoutInvalidated } from './text-layout.js';
-import { cloudMapDetailLevel } from './cloudmap-detail.js';
+import { cloudMapDetailLevel, cloudMapTypographyScale } from './cloudmap-detail.js';
 import {
   CLOUDMAP_EDGE_LABEL_FONT,
   CLOUDMAP_EDGE_LABEL_LETTER_SPACING,
   CLOUDMAP_FACT_FONT,
+  layoutCloudMapText,
 } from './cloudmap-text-style.js';
 
 export const CloudMap = (() => {
@@ -98,6 +99,28 @@ export const CloudMap = (() => {
     return lines.length ? lines : [''];
   }
 
+  function _cloudTextHTML(text, {
+    className,
+    role,
+    baseWidth = IW,
+    maxLines = 2,
+    style = '',
+  }) {
+    const value = String(text ?? '');
+    const layout = layoutCloudMapText(value, {
+      role,
+      zoom: 1,
+      baseWidth,
+      maxLines,
+    }, layoutText);
+    const content = layout.measured
+      ? layout.lines.map(line => `<span class="cm-text-line">${esc(line)}</span>`).join('')
+      : esc(layout.lines[0] || '');
+    return `<div class="${className}" data-cm-text="${esc(value)}" data-cm-text-role="${role}"
+      data-cm-text-width="${baseWidth}" data-cm-text-lines="${maxLines}"
+      data-cm-layout-key="${esc(layout.key)}" data-cm-layout-measured="${layout.measured}"${style ? ` style="${style}"` : ''}>${content}</div>`;
+  }
+
   // ── Cloud height estimation ─────────────────────────────────
   // Pre-layout estimate: counts fact rows × H_FACT, then adds fixed overhead.
   // _resizeToActual() corrects any residual error after first DOM render.
@@ -156,11 +179,17 @@ export const CloudMap = (() => {
   }
 
   function _factionHubCloudHTML(fId, faction, count) {
-    let body = `<div class="cm-fact">${esc(I18n.plural('cloudmap.characters', count))}</div>`;
+    const body = _cloudTextHTML(I18n.plural('cloudmap.characters', count), {
+      className: 'cm-fact', role: 'fact', baseWidth: IW_HUB, maxLines: 1,
+    });
     return `<div class="cm-cloud cm-faction-hub" data-id="hub_${fId}" data-type="faction"
               style="--cc:${_safeColor(faction.color)}; --cw:${CW_HUB}px">
-      <div class="cm-strip">${esc(faction.badge)} ${esc(I18n.t('cloudmap.factionStrip'))}</div>
-      <div class="cm-name">${esc(faction.name)}</div>
+      ${_cloudTextHTML(`${faction.badge} ${I18n.t('cloudmap.factionStrip')}`, {
+        className: 'cm-strip', role: 'strip', baseWidth: IW_HUB, maxLines: 1,
+      })}
+      ${_cloudTextHTML(faction.name, {
+        className: 'cm-name', role: 'hub-name', baseWidth: IW_HUB, maxLines: 2,
+      })}
       <div class="cm-divider"></div>
       ${body}
     </div>`;
@@ -175,8 +204,10 @@ export const CloudMap = (() => {
   function _locationCloudHTML(loc) {
     return `<div class="cm-cloud cm-location" data-id="${loc.id}" data-type="location"
               style="--cc:${CM_NODE_COLORS.location}; --cw:${CW}px">
-      <div class="cm-strip">📍 ${esc(I18n.t('cloudmap.placeStrip'))}</div>
-      <div class="cm-name">${esc(loc.name)}</div>
+      ${_cloudTextHTML(`📍 ${I18n.t('cloudmap.placeStrip')}`, {
+        className: 'cm-strip', role: 'strip', maxLines: 1,
+      })}
+      ${_cloudTextHTML(loc.name, { className: 'cm-name', role: 'name', maxLines: 2 })}
       <div class="cm-divider"></div>
     </div>`;
   }
@@ -238,19 +269,25 @@ export const CloudMap = (() => {
 
     if (mode === 'frakce') {
       if (c.knowledge >= 2 && c.title) {
-        body += `<div class="cm-fact">${esc(c.title)}</div>`;
+        body += _cloudTextHTML(c.title, { className: 'cm-fact', role: 'fact', maxLines: 2 });
       }
       const rels = Store.getRelationships();
       const cmdOut = rels.filter(r => r.source === c.id && r.type === 'commands');
       const cmdIn  = rels.filter(r => r.target === c.id && r.type === 'commands');
       if (cmdOut.length) {
-        body += `<div class="cm-fact cm-dim">${esc(I18n.plural('cloudmap.commandsCount', cmdOut.length))}</div>`;
+        body += _cloudTextHTML(I18n.plural('cloudmap.commandsCount', cmdOut.length), {
+          className: 'cm-fact cm-dim', role: 'dim', maxLines: 1,
+        });
       }
       if (cmdIn.length) {
         const boss = Store.getCharacter(cmdIn[0].source);
-        if (boss) body += `<div class="cm-fact cm-dim">${esc(I18n.t('cloudmap.underCommand', { name: boss.name }))}</div>`;
+        if (boss) body += _cloudTextHTML(I18n.t('cloudmap.underCommand', { name: boss.name }), {
+          className: 'cm-fact cm-dim', role: 'dim', maxLines: 2,
+        });
       }
-      if (!body) body = `<div class="cm-fact cm-dim">${esc(I18n.t('cloudmap.noCommandLinks'))}</div>`;
+      if (!body) body = _cloudTextHTML(I18n.t('cloudmap.noCommandLinks'), {
+        className: 'cm-fact cm-dim', role: 'dim', maxLines: 1,
+      });
 
     } else if (mode === 'vztahy') {
       const sIcon  = _statusIcon(c.status);
@@ -258,24 +295,26 @@ export const CloudMap = (() => {
       const sColor = _statusColor(c.status);
       body += `<div class="cm-status-row"><span style="color:${_safeColor(sColor)}">${esc(sIcon)}</span> ${esc(sLabel)}</div>`;
       const rels = Store.getRelationships().filter(r => r.source === c.id || r.target === c.id);
-      body += `<div class="cm-fact cm-dim">${esc(I18n.plural('cloudmap.relationships', rels.length))}</div>`;
+      body += _cloudTextHTML(I18n.plural('cloudmap.relationships', rels.length), {
+        className: 'cm-fact cm-dim', role: 'dim', maxLines: 1,
+      });
       if (rels.length) {
         const counts = {};
         rels.forEach(r => { counts[r.type] = (counts[r.type] || 0) + 1; });
         const top = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 2)
-          .map(([t,n]) => `${esc(Store.getKind('connections', t).label)}×${n}`).join(', ');
-        body += `<div class="cm-fact cm-dim">${top}</div>`;
+          .map(([t,n]) => `${Store.getKind('connections', t).label}×${n}`).join(', ');
+        body += _cloudTextHTML(top, { className: 'cm-fact cm-dim', role: 'dim', maxLines: 2 });
       }
 
     } else if (mode === 'tajemstvi') {
       const mysteries = Store.getMysteries().filter(m => (m.characters || []).includes(c.id));
       const cnt = mysteries.length;
-      body += `<div class="cm-fact cm-dim">${esc(I18n.plural('cloudmap.mysteries', cnt))}</div>`;
+      body += _cloudTextHTML(I18n.plural('cloudmap.mysteries', cnt), {
+        className: 'cm-fact cm-dim', role: 'dim', maxLines: 1,
+      });
       if (mysteries.length) {
         const q = (mysteries[0].questions || [])[0] || mysteries[0].name;
-        const lines = _wrap(q, CLOUDMAP_FACT_FONT, IW).slice(0, 2);
-        const snippet = lines.join(' ') + (lines.length < _wrap(q, CLOUDMAP_FACT_FONT, IW).length ? '…' : '');
-        body += `<div class="cm-fact cm-hint">${esc(snippet)}</div>`;
+        body += _cloudTextHTML(q, { className: 'cm-fact cm-hint', role: 'hint', maxLines: 2 });
       }
 
     } else if (mode === 'casova-osa') {
@@ -283,18 +322,19 @@ export const CloudMap = (() => {
         .filter(e => (e.characters || []).includes(c.id))
         .sort((a,b) => a.order - b.order);
       const cnt = events.length;
-      body += `<div class="cm-fact cm-dim">${esc(I18n.plural('cloudmap.events', cnt))}</div>`;
+      body += _cloudTextHTML(I18n.plural('cloudmap.events', cnt), {
+        className: 'cm-fact cm-dim', role: 'dim', maxLines: 1,
+      });
       if (events.length) {
-        const lines = _wrap(events[0].name, CLOUDMAP_FACT_FONT, IW).slice(0, 1);
-        body += `<div class="cm-fact">${esc(lines[0])}${_wrap(events[0].name, CLOUDMAP_FACT_FONT, IW).length > 1 ? '…' : ''}</div>`;
+        body += _cloudTextHTML(events[0].name, { className: 'cm-fact', role: 'fact', maxLines: 1 });
       }
     }
 
     const modClass  = isDead ? ' cm-dead' : '';
     return `<div class="cm-cloud${modClass}" data-id="${c.id}" data-type="character"
               style="--cc:${_safeColor(fColor)}; --cw:${CW}px">
-      <div class="cm-strip">${esc(badge)} ${esc(faction)}</div>
-      <div class="cm-name">${deadMark}${esc(name)}</div>
+      ${_cloudTextHTML(`${badge} ${faction}`, { className: 'cm-strip', role: 'strip', maxLines: 1 })}
+      ${_cloudTextHTML(`${deadMark}${name}`, { className: 'cm-name', role: 'name', maxLines: 2 })}
       <div class="cm-divider"></div>
       ${body}
     </div>`;
@@ -303,32 +343,34 @@ export const CloudMap = (() => {
   function _mysteryCloudHTML(m) {
     const priColor = CM_PRIORITY_COLORS[m.priority] || CM_PRIORITY_COLORS._default;
     const q = Store.questionText((m.questions || [])[0]);
-    let qHTML = '';
-    if (q) {
-      const lines = _wrap(q, CLOUDMAP_FACT_FONT, IW).slice(0, 2);
-      const snippet = lines.join(' ') + (lines.length < _wrap(q, CLOUDMAP_FACT_FONT, IW).length ? '…' : '');
-      qHTML = `<div class="cm-fact cm-hint">${esc(snippet)}</div>`;
-    }
+    const qHTML = q
+      ? _cloudTextHTML(q, { className: 'cm-fact cm-hint', role: 'hint', maxLines: 2 })
+      : '';
     return `<div class="cm-cloud cm-mystery" data-id="${m.id}" data-type="mystery"
               style="--cc:${CM_NODE_COLORS.mystery}; --cw:${CW}px">
-      <div class="cm-strip">❓ ${esc(I18n.t('cloudmap.mysteryStrip'))}</div>
-      <div class="cm-name">${esc(m.name)}</div>
+      ${_cloudTextHTML(`❓ ${I18n.t('cloudmap.mysteryStrip')}`, {
+        className: 'cm-strip', role: 'strip', maxLines: 1,
+      })}
+      ${_cloudTextHTML(m.name, { className: 'cm-name', role: 'name', maxLines: 2 })}
       <div class="cm-divider"></div>
-      <div class="cm-fact cm-fact-priority" style="color:${priColor}">⚑ ${esc(m.priority || I18n.t('cloudmap.priorityMedium'))}</div>
+      ${_cloudTextHTML(`⚑ ${m.priority || I18n.t('cloudmap.priorityMedium')}`, {
+        className: 'cm-fact cm-fact-priority', role: 'priority', maxLines: 1,
+        style: `color:${priColor}`,
+      })}
       ${qHTML}
     </div>`;
   }
 
   function _eventCloudHTML(e) {
     const desc = e.short || e.description || e.name;
-    const lines = _wrap(desc, CLOUDMAP_FACT_FONT, IW).slice(0, 2);
-    const snippet = lines.join(' ') + (lines.length < _wrap(desc, CLOUDMAP_FACT_FONT, IW).length ? '…' : '');
     return `<div class="cm-cloud cm-event" data-id="${e.id}" data-type="event"
               style="--cc:${CM_NODE_COLORS.event}; --cw:${CW}px">
-      <div class="cm-strip">📜 ${e.sitting ? esc(I18n.t('cloudmap.sitting', { n: e.sitting })) : esc(I18n.t('cloudmap.past'))}</div>
-      <div class="cm-name">${esc(e.name)}</div>
+      ${_cloudTextHTML(`📜 ${e.sitting ? I18n.t('cloudmap.sitting', { n: e.sitting }) : I18n.t('cloudmap.past')}`, {
+        className: 'cm-strip', role: 'strip', maxLines: 1,
+      })}
+      ${_cloudTextHTML(e.name, { className: 'cm-name', role: 'name', maxLines: 2 })}
       <div class="cm-divider"></div>
-      <div class="cm-fact cm-dim">${esc(snippet)}</div>
+      ${_cloudTextHTML(desc, { className: 'cm-fact cm-dim', role: 'dim', maxLines: 2 })}
     </div>`;
   }
 
@@ -807,7 +849,9 @@ export const CloudMap = (() => {
   // proportional to user-visible zoom changes. NaN forces the first
   // _sync() call to write.
   let _lastSyncedZoom = NaN;
+  let _lastTypographyScale = NaN;
   let _lastDetailLevel = '';
+  let _syncingCardGeometry = false;
 
   // ── Tunable physics constants ────────────────────────────────
   // All values are in node-position units (~px at zoom 1) per 16ms frame.
@@ -874,7 +918,9 @@ export const CloudMap = (() => {
     _phys.history = [];
     _phys.temp = 0;
     _lastSyncedZoom = NaN;   // force the next _sync() to write --cm-z
+    _lastTypographyScale = NaN;
     _lastDetailLevel = '';
+    _syncingCardGeometry = false;
   }
 
   function _destroy() {
@@ -1155,19 +1201,68 @@ export const CloudMap = (() => {
 
   // Proxy node helper
   function _proxy(id, type, w, h, extra) {
-    return { data: { id, type, w, h, ...extra } };
+    return { data: { id, type, w, h, baseW: w, baseH: h, ...extra } };
+  }
+
+  function _syncCloudCardTextLayouts(zoom, { force = false } = {}) {
+    for (const element of _cloudLayer.querySelectorAll('[data-cm-text-role][data-cm-text]')) {
+      const layout = layoutCloudMapText(element.dataset.cmText, {
+        role: element.dataset.cmTextRole,
+        zoom,
+        baseWidth: Number(element.dataset.cmTextWidth),
+        maxLines: Number(element.dataset.cmTextLines),
+      }, layoutText);
+      if (!force
+          && element.dataset.cmLayoutKey === layout.key
+          && element.dataset.cmLayoutMeasured === String(layout.measured)) continue;
+      if (layout.measured) {
+        const lines = layout.lines.map(line => {
+          const span = document.createElement('span');
+          span.className = 'cm-text-line';
+          span.textContent = line;
+          return span;
+        });
+        element.replaceChildren(...lines);
+      } else {
+        element.textContent = layout.lines[0] || '';
+      }
+      element.dataset.cmLayoutKey = layout.key;
+      element.dataset.cmLayoutMeasured = String(layout.measured);
+    }
+  }
+
+  function _syncRenderedCloudGeometry(zoom) {
+    if (_syncingCardGeometry || !_cy || !_cloudLayer || !(zoom > 0)) return;
+    _syncingCardGeometry = true;
+    try {
+      void _cloudLayer.offsetHeight;
+      _cy.batch(() => {
+        _cy.nodes().forEach(node => {
+          const cloud = _cloudMap[node.id()]?.firstElementChild;
+          if (!cloud) return;
+          const bounds = cloud.getBoundingClientRect();
+          const width = bounds.width / zoom;
+          const height = bounds.height / zoom;
+          if (width > 0 && Math.abs(width - node.data('w')) > 0.01) {
+            node.data('w', width);
+            node.style('width', width);
+          }
+          if (height > 0 && Math.abs(height - node.data('h')) > 0.01) {
+            node.data('h', height);
+            node.style('height', height);
+          }
+        });
+      });
+    } finally {
+      _syncingCardGeometry = false;
+    }
   }
 
   // ── Viewport sync ────────────────────────────────────────────
-  // Crisp text at any zoom: instead of CSS `zoom` or `transform: scale`
-  // on the layer (both of which can cause Chromium to texture-cache
-  // the subtree and bilinear-resample, producing the "smeared text"
-  // we kept fighting), we drive every visually-sized property in
-  // `.cm-cloud` and descendants through `calc(<base>px * var(--cm-z))`
-  // and update `--cm-z` on `_cloudLayer` whenever zoom changes. CSS
-  // variables go through the cascade and trigger a real style
-  // recomputation, so the browser MUST re-render text at the exact
-  // pixel size for the current zoom. No texture cache.
+  // Card geometry follows --cm-z continuously, while --cm-type-z changes only
+  // at readable typography steps. Both update real CSS dimensions; the card
+  // layer itself is never transformed or zoomed, so browsers rasterize the
+  // current font size instead of resampling a cached layer.
   //
   // The `--cm-z` write is gated on actual zoom delta — pan-only and
   // physics-tick frames must NOT trigger a layout recalc on the
@@ -1199,15 +1294,27 @@ export const CloudMap = (() => {
     // explicitly force a write when the cached value isn't a real
     // number. Without this guard cards stay at the fallback size of 1
     // forever (because --cm-z never gets written).
-    if (!Number.isFinite(_lastSyncedZoom) ||
-        Math.abs(zoom - _lastSyncedZoom) > 0.0005) {
+    const zoomChanged = !Number.isFinite(_lastSyncedZoom)
+      || Math.abs(zoom - _lastSyncedZoom) > 0.0005;
+    if (zoomChanged) {
       _cloudLayer.style.setProperty('--cm-z', zoom);
       _lastSyncedZoom = zoom;
+    }
+    const typographyScale = cloudMapTypographyScale(zoom);
+    const typographyChanged = !Number.isFinite(_lastTypographyScale)
+      || typographyScale !== _lastTypographyScale;
+    if (typographyChanged) {
+      _cloudLayer.style.setProperty('--cm-type-z', typographyScale);
+      _lastTypographyScale = typographyScale;
     }
     const detailLevel = cloudMapDetailLevel(zoom);
     if (detailLevel !== _lastDetailLevel) {
       _cloudLayer.dataset.cmDetail = detailLevel;
       _lastDetailLevel = detailLevel;
+    }
+    if (zoomChanged || typographyChanged) {
+      _syncCloudCardTextLayouts(zoom);
+      _syncRenderedCloudGeometry(zoom);
     }
 
     // Layer itself is no longer zoomed/transformed — clear any leftover
@@ -1230,8 +1337,8 @@ export const CloudMap = (() => {
       const pos = node.position();
       const w   = node.data('w');
       const h   = node.data('h');
-      // Visual size on screen is (w · zoom) × (h · zoom). The CSS
-      // calc handles scaling; we just centre the wrapper.
+      // Width follows geometry zoom. Height is measured after stepped text
+      // wrapping and normalized back to graph coordinates above.
       wrapper.style.left = (pos.x * zoom + pan.x - (w * zoom) / 2) + 'px';
       wrapper.style.top  = (pos.y * zoom + pan.y - (h * zoom) / 2) + 'px';
 
@@ -1441,8 +1548,8 @@ export const CloudMap = (() => {
     const parallelInfo  = _buildParallelGroups();
     // Edge label divs live in the un-zoomed _cloudLayer (cards now
     // position themselves in screen coords; see _sync). We project
-    // each label's graph-coord midpoint to screen coords and scale
-    // its width by zoom; font-size scales via the --cm-z CSS var.
+    // each label's graph-coord midpoint to screen coords and scale its width
+    // by geometry zoom; font-size follows the stepped --cm-type-z variable.
     const _pan  = _cy ? _cy.pan()  : { x: 0, y: 0 };
     const _zoom = _cy ? _cy.zoom() : 1;
 
@@ -1564,12 +1671,15 @@ export const CloudMap = (() => {
         // layer); labelW is in graph-px so multiply by zoom.
         div.style.width = (labelW * _zoom) + 'px';
 
-        const layoutWidth = Math.round(labelW * 2) / 2;
-        if (!rec.layout || rec.layoutWidth !== layoutWidth) {
-          rec.layout = _textLayout(label, CLOUDMAP_EDGE_LABEL_FONT, layoutWidth, {
-            letterSpacing: CLOUDMAP_EDGE_LABEL_LETTER_SPACING,
+        const typeScale = cloudMapTypographyScale(_zoom);
+        const layoutWidth = Math.round(labelW * _zoom * 2) / 2;
+        const font = CLOUDMAP_EDGE_LABEL_FONT.replace(/^12px/, `${12 * typeScale}px`);
+        const layoutKey = `${layoutWidth}:${typeScale}`;
+        if (!rec.layout || rec.layoutWidth !== layoutKey) {
+          rec.layout = _textLayout(label, font, layoutWidth, {
+            letterSpacing: CLOUDMAP_EDGE_LABEL_LETTER_SPACING * typeScale,
           });
-          rec.layoutWidth = layoutWidth;
+          rec.layoutWidth = layoutKey;
         }
         const labelLayout = rec.layout;
         const lineSignature = labelLayout.lines.map(line => line.text).join('\u0000');
@@ -1583,7 +1693,7 @@ export const CloudMap = (() => {
           div.replaceChildren(...lineElements);
           rec.lineSignature = lineSignature;
         }
-        const maxLineW = labelLayout.maxLineWidth;
+        const maxLineW = labelLayout.maxLineWidth / _zoom;
         const gapHalfLen = Math.min(maxLineW / 2 + LABEL_GAP_PAD, visLen / 2 - 4);
         const halfT = Math.min(0.45, gapHalfLen / Math.max(1, visLen));
         const t1 = 0.5 - halfT;
@@ -2526,46 +2636,15 @@ export const CloudMap = (() => {
     }, 0);
   }
 
-  // ── Post-render height correction ────────────────────────────
-  // Pre-layout estimates can be slightly off due to font rendering.
-  // After the first DOM paint we measure each cloud's real offsetHeight
-  // and patch both the Cytoscape node style (edge routing) and node data
-  // (used by _nodeIntersect for label positioning + FR repulsion).
-  //
-  // CRITICAL: cards now scale visually via the --cm-z CSS variable
-  // (see _sync). offsetHeight reflects the VISUALLY-SCALED height —
-  // but data('h') is graph-coord and feeds geometry-sensitive code
-  // (edge endpoints, parallel-fan, FR repulsion, hit-testing). So we
-  // temporarily force --cm-z = 1 before measuring, flush layout, take
-  // the heights at native scale, then restore the previous value.
-  // _lastSyncedZoom is reset so the next _sync() will write back the
-  // actual zoom and not skip due to the stale-cached value.
-  function _resizeToActual() {
+  // ── Post-render geometry correction ──────────────────────────
+  // Stepped fonts and Pretext line breaks make card height a view property.
+  // Measure the current native-sized card once after a zoom/font change and
+  // normalize it back into graph coordinates for edges and collision physics.
+  function _resizeToActual({ forceTextLayout = false } = {}) {
     if (!_cy || !_cloudLayer) return;
-    const prev = _cloudLayer.style.getPropertyValue('--cm-z');
-    _cloudLayer.style.setProperty('--cm-z', '1');
-    // Force a layout flush so offsetHeight reflects the temporary scale.
-    void _cloudLayer.offsetHeight;
-
-    _cy.batch(() => {
-      _cy.nodes().forEach(node => {
-        const wrapper = _cloudMap[node.id()];
-        if (!wrapper) return;
-        const cloud = wrapper.firstElementChild;
-        if (!cloud) return;
-        const h = cloud.offsetHeight;
-        if (h > 0 && h !== node.data('h')) {
-          node.data('h', h);
-          node.style('height', h);
-        }
-      });
-    });
-
-    // Restore the previous --cm-z (or remove it if none was set).
-    if (prev) _cloudLayer.style.setProperty('--cm-z', prev);
-    else      _cloudLayer.style.removeProperty('--cm-z');
-    // Force the next _sync() to re-write --cm-z (don't trust cache).
-    _lastSyncedZoom = NaN;
+    const zoom = _cy.zoom();
+    _syncCloudCardTextLayouts(zoom, { force: forceTextLayout });
+    _syncRenderedCloudGeometry(zoom);
   }
 
   // ── Shared event binding ─────────────────────────────────────
@@ -3104,7 +3183,7 @@ export const CloudMap = (() => {
       rec.layoutWidth = null;
     }
     if (!_cy || !_cloudLayer) return;
-    _resizeToActual();
+    _resizeToActual({ forceTextLayout: true });
     _sync();
   });
 

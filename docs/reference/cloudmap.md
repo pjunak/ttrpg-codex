@@ -74,74 +74,62 @@ Initial zoom: after the preset layout runs, `_cy.ready()` calls
 `_cy.fit(undefined, 60)` so all nodes are visible without moving them
 (fixes saved-position-off-viewport cases like an empty-looking Záhady).
 
-### CloudMap text scaling via CSS variable (`--cm-z` + `calc()`)
+### CloudMap native geometry and stepped typography (`--cm-z` + `--cm-type-z`)
 
-`_cloudLayer` holds both `_edgeSvg` (paths) and all cloud cards.
-Crisp text at every zoom level is achieved by **driving every
-visually-sized property in `.cm-cloud` and descendants through
-`calc(<base>px * var(--cm-z, 1))`**, with `--cm-z` set on
-`_cloudLayer` per zoom-change frame in `_sync()`. CSS variables
-go through the cascade and trigger a real style recomputation, so
-the browser is forced to re-render text at the EXACT pixel size
-for the current zoom — no GPU-texture-cache + bilinear-resample
-path. SVG edges scale via their own transform on `_edgeSvg`
-(vector graphics re-rasterise crisply at any scale).
+`_cloudLayer` holds both `_edgeSvg` (paths) and all cloud cards. Card geometry
+follows `--cm-z` continuously, while text follows `--cm-type-z`: it stays at
+its 100% size while zooming out and grows in 25% steps while zooming in. Both
+variables change real CSS dimensions, so the browser re-rasterizes glyphs at
+the selected font size instead of bilinear-resampling a transformed card
+texture. SVG edges retain their vector transform on `_edgeSvg`.
 
 **`_sync()` does:**
-1. If `Math.abs(zoom − _lastSyncedZoom) > 0.0005`, write
-   `_cloudLayer.style.setProperty('--cm-z', zoom)`. This is the
-   only line that triggers a card-subtree style invalidation —
-   pan-only and physics-tick frames don't re-flow.
+1. If `Math.abs(zoom − _lastSyncedZoom) > 0.0005`, write `--cm-z`, derive the
+   stepped typography value, and write `--cm-type-z` only if its band changed.
+   Pan-only and physics-tick frames do not reflow card text.
 2. Clear any leftover `zoom`/`transform` on `_cloudLayer`
    (defensive — older code paths may have set them).
 3. Apply `transform-origin: 0 0; transform: translate(pan.x px,
    pan.y px) scale(zoom)` to `_edgeSvg` directly. Critical that
    transform-origin is `0 0` — SVG defaults to `50% 50%` which
    would offset edges.
-4. For each node: `wrapper.style.left = pos.x · zoom + pan.x −
-   (w · zoom) / 2`, same for top. Cards positioned in **screen
-   coordinates** (not graph coords) because the layer is no
-   longer transformed. The card's CSS-driven visual width is
-   `calc(--cw * --cm-z)` which equals `w · zoom`, so this
-   centres the card on the node's rendered position.
-5. Glows: same screen-coord centring; visual size `gs · zoom`
+4. Re-run cached Pretext layouts for marked built-in card fields at their real
+   screen width. DOM line spans change only when the returned strings change.
+5. Measure the resulting native card boxes once per zoom change, normalize
+   their dimensions back into graph coordinates, and update proxy geometry so
+   connector clipping, collision physics, and centering match visible cards.
+6. Position wrappers in **screen coordinates** using the normalized dimensions.
+7. Glows: same screen-coord centring; visual size `gs · zoom`
    (CSS handles via `calc(550px * var(--cm-z))` etc.).
-6. `_syncEdgeLabels()` for label positioning.
+8. `_syncEdgeLabels()` for label positioning.
 
-**Edge labels** (HTML divs in `_cloudLayer`, also un-zoomed): set
-`div.style.left = labelGraphX · zoom + pan.x` and width
-`labelW · zoom`. Font-size scales via `.cm-edge-label`'s
-`calc(12px * var(--cm-z))`. The shared `layoutText` adapter, backed by the
-vendored Pretext runtime, prepares each text/font/options tuple once and lays
-it out arithmetically as edge geometry changes. `_syncEdgeLabels()` renders the
-returned line strings as non-wrapping spans, so the visible breaks and measured
-edge gap cannot diverge. DOM children change only when the line strings change.
-Complete results are reused while a moving edge remains in the same half-pixel
-graph-width bucket. Font completion and locale changes invalidate both the
-shared measurements and the per-edge result, then refresh card heights and
-visible label geometry.
+**Built-in card text and edge labels** use the shared `layoutText` adapter,
+backed by vendored Pretext. Each marked field declares its semantic role, base
+width, and line cap. CloudMap supplies the band-specific font descriptor and
+real screen width, renders returned strings as non-wrapping spans, and adds a
+measured ellipsis when the line cap is exceeded. Addon-provided cards keep
+their own rendering contract. Edge-label measurement also runs in screen
+coordinates; its measured width is converted back to graph coordinates when
+cutting the SVG gap. Font completion and locale changes invalidate shared
+measurements, card lines, normalized card geometry, and edge-label results.
 
 **Semantic detail levels** are derived by `cloudMapDetailLevel(zoom)` and
-written to `_cloudLayer.dataset.cmDetail` only when the level changes. At zooms
-below `0.75`, fact rows, status rows, and edge labels are hidden; below `0.45`,
-the strip, name, and divider are hidden as well so the colored graph silhouette
-remains legible without pretending that 2–6 px text can be read. CSS uses
-`visibility: hidden`, not `display: none`, so card boxes, Cytoscape proxies,
-edge endpoints, and hit regions retain identical geometry at every level.
+written only when the level changes. Below `1`, condensed hides facts, statuses,
+and edge labels. Below `0.75`, compact also hides the strip and divider while
+retaining the readable name. Below `0.45`, overview hides the name so only the
+colored graph silhouette remains. CSS uses `visibility: hidden`; normalized
+rendered bounds keep proxy geometry and edge endpoints aligned.
 
 **Per-card width via inline CSS variable.** Card HTML templates
 inline `style="--cc:…; --cw:${CW}px"` (or `--cw:${CW_HUB}px` for
 faction hubs). The base `.cm-cloud` rule has `width: calc(var(--cw,
 168px) * var(--cm-z, 1))`. Default `--cw: 168px` if not specified.
 
-**`_resizeToActual()` measures at scale 1, not the current zoom.**
-This is critical: `cloud.offsetHeight` reflects the visually-scaled
-height, but `node.data('h')` is graph-coord and feeds edge endpoint
-math, parallel-fan, FR repulsion, and hit-testing. The function
-temporarily sets `--cm-z = 1`, forces layout flush via
-`void _cloudLayer.offsetHeight`, takes measurements, restores the
-previous `--cm-z`, and resets `_lastSyncedZoom = NaN` so the next
-`_sync()` re-writes the variable.
+**`_resizeToActual()` measures the current native layout.** It refreshes
+Pretext lines when requested, reads the rendered box after stepped typography
+and wrapping, divides by the current geometry zoom, and updates Cytoscape node
+dimensions. It never temporarily changes zoom and therefore cannot measure a
+different wrapping state from the one users see.
 
 **`_lastSyncedZoom`** is module-level state (declared right after
 `_phys`). `_physResetState()` resets it to `NaN` on `render()` so a
