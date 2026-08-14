@@ -84,6 +84,7 @@ module.exports = [
       'data-snapshots/**',
       'docs/plans/**',
       'node_modules/**',
+      'web/js/vendor/**',
     ],
   },
   {

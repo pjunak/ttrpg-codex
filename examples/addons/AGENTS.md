@@ -142,6 +142,12 @@ host.useService(contract)
 host.listServices(contract)
 ```
 
+`host.h.layoutText(text, options)` provides cached, Unicode-aware plain-text
+line breaking without DOM measurement. It returns exact line strings and
+widths; addons must materialize those strings when layout geometry depends on
+the measured breaks. Treat it as optional when retaining compatibility with a
+host version that predates the helper.
+
 See `AUTHORING.md` for complete method signatures, collection identity,
 transactions, dependency negotiation, fragments, slots, graph handles,
 content trees, and server/import-provider contracts.

@@ -30,6 +30,10 @@ test('mock host.h + action are pure + namespaced', () => {
   assert.equal(host.h.esc('<a>'), '&lt;a&gt;');
   assert.match(host.h.dataAction('M.x', 1), /data-action="M\.x"/);
   assert.equal(host.h.slugify('Příliš Žluťoučký'), 'prilis-zlutoucky');
+  assert.deepEqual(
+    host.h.layoutText('abcd', { font: '10px Inter', maxWidth: 12 }).lines.map(line => line.text),
+    ['ab', 'cd'],
+  );
   assert.equal(
     host.h.markdownTextarea('demo-notes', '<lore>', { rows: 8, className: 'addon-notes' }),
     '<textarea class="md-easy addon-notes" id="demo-notes" rows="8">&lt;lore&gt;</textarea>',

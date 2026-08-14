@@ -87,6 +87,28 @@ function _icon(name, opts = {}) {
   return `<svg class="codex-icon" viewBox="0 0 24 24" width="${size}" height="${size}" ${aria}>${path}</svg>`;
 }
 
+function _layoutText(text, { maxWidth, font = '16px serif', lineHeight = 1 } = {}) {
+  const width = Number(maxWidth);
+  if (!Number.isFinite(width) || width <= 0) {
+    throw new TypeError('layoutText requires a positive maxWidth');
+  }
+  const fontSize = Number.parseFloat(String(font).match(/\d+(?:\.\d+)?px/)?.[0]) || 16;
+  const glyphWidth = Math.max(1, fontSize * 0.6);
+  const graphemes = [...String(text ?? '')];
+  const perLine = Math.max(1, Math.floor(width / glyphWidth));
+  const lines = [];
+  for (let index = 0; index < graphemes.length; index += perLine) {
+    const value = graphemes.slice(index, index + perLine).join('');
+    lines.push(Object.freeze({ text: value, width: value.length * glyphWidth }));
+  }
+  return Object.freeze({
+    lineCount: lines.length,
+    height: lines.length * lineHeight,
+    maxLineWidth: lines.reduce((largest, line) => Math.max(largest, line.width), 0),
+    lines: Object.freeze(lines),
+  });
+}
+
 /** A fresh, blank registration record. */
 function _emptyRec() {
   return {
@@ -666,7 +688,7 @@ export function createMockHost(meta = {}, opts = {}) {
     asset: (rel) => `/addons/${meta.id || 'addon'}/mockhash/` + String(rel == null ? '' : rel).replace(/^\/+/, ''),
     h: { esc: _esc, slugify: _slugify, dataAction: _dataAction, dataOn: _dataOn,
          renderMarkdown: (s) => _esc(s), markdownTextarea: _markdownTextarea,
-         breadcrumb: _breadcrumb, icon: _icon },
+         breadcrumb: _breadcrumb, icon: _icon, layoutText: opts.layoutText || _layoutText },
     ui: {
       toast:    (m) => { rec.toasts.push(m); },
       rerender: () => { rec.rerenders++; },

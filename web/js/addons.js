@@ -41,6 +41,7 @@ import { applyFragmentOps, listConflicts, resolvedExclusiveClaim } from './addon
 import { smokeRegistrations } from './addon-test-harness.mjs';
 import { createScopedI18n, loadAddonCatalogs } from './addon-i18n.js';
 import { normalizeServiceDeclarations, serviceBindingKey } from './addon-services.js';
+import { layoutText } from './text-layout.js';
 
 export const Addons = (() => {
   const HOST_API_VERSION = 2;
@@ -699,7 +700,7 @@ export const Addons = (() => {
       // addon stat tiles don't ship their own SVGs.
       h: {
         esc, dataAction, dataOn, renderMarkdown, markdownTextarea,
-        slugify, breadcrumb: breadcrumbNav, icon: iconGlyph,
+        slugify, breadcrumb: breadcrumbNav, icon: iconGlyph, layoutText,
       },
       ui: {
         toast: (m) => _services.toast(m),

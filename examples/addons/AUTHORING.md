@@ -145,7 +145,7 @@ host.asset(rel)    // → "/addons/<id>/<hash>/<rel>" — URL of a file bundled
                    //   WITH your addon (images, fonts…), version-safe. E.g.
                    //   `<img src="${esc(host.asset('images/aboleth.webp'))}">`
 host.h             // { esc, dataAction, dataOn, renderMarkdown, markdownTextarea,
-                   //   slugify, breadcrumb, icon }
+                   //   slugify, breadcrumb, icon, layoutText }
                    //   breadcrumb([{label, href?}, …]) renders the same horizontal
                    //   wayfinding row core articles use (last crumb = current page,
                    //   '' below 2 crumbs). Use it at the top of your pages instead
@@ -157,6 +157,11 @@ host.h             // { esc, dataAction, dataOn, renderMarkdown, markdownTextare
                    //   markdownTextarea(id, value, {rows?, placeholder?, name?,
                    //   ariaLabel?, className?}) emits an escaped field upgraded
                    //   by the host with preview, rich formatting, and drafts.
+                   //   layoutText(text, {font, maxWidth, lineHeight?,
+                   //   letterSpacing?, whiteSpace?, wordBreak?}) returns
+                   //   {lineCount, height, maxLineWidth, lines:[{text,width}]}.
+                   //   Render the returned line strings when measured geometry
+                   //   must exactly match visible wrapping.
 host.role          // { isDM(), isAnonymous() }
 host.i18n          // { locale, t, plural, formatDate, formatNumber, relativeTime }
 host.imports       // scoped provider/job client for negotiated imports.providers

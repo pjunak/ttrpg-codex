@@ -390,12 +390,15 @@
   font-family: var(--font-ui);
   font-size: calc(12px * var(--cm-z, 1));
   line-height: 1.35;         /* unitless, scales with font-size */
-  white-space: normal;       /* wrap within the dynamically-set width */
+  white-space: normal;
   text-align: center;
-  word-break: break-word;
   pointer-events: none;
   transform-origin: center center;
   letter-spacing: 0.02em;    /* em-relative, scales with font-size */
+}
+.cm-edge-label-line {
+  display: block;
+  white-space: pre;
 }
 
 /* ── Faction filter checkboxes in legend ──────────────────── */

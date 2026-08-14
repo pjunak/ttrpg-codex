@@ -12,6 +12,7 @@ import { norm, debounce, esc, dataAction, dataOn, pageEditToggle } from './utils
 // Store.getKinds('connections') — settings (seeded from REL_TYPES) + addon kinds.
 import { I18n } from './i18n.js';
 import { Addons } from './addons.js';
+import { layoutText } from './text-layout.js';
 
 export const CloudMap = (() => {
 
@@ -77,57 +78,20 @@ export const CloudMap = (() => {
   const H_DIVIDER  = 6;
   const H_FACT     = 18;
 
-  // ── Canvas text measurement + greedy word-wrap ──────────────
-  // Word widths come from a single offscreen 2D canvas — measuring
-  // hundreds of cards via DOM `getBoundingClientRect` would force
-  // synchronous layout for every cloud and tank the layout pass.
-  // Canvas `measureText` is essentially free in comparison and
-  // doesn't touch the document tree.
-  //
-  // Per-(font + word) results cache in `_cache` for the lifetime of
-  // the page. Key is `${font}|${word}` so changing font invalidates
-  // automatically; the typical card body has only ~50 distinct words
-  // so the cache stays small even on big graphs.
-  const _cvs = document.createElement('canvas');
-  const _ctx = _cvs.getContext('2d');
-  const _cache = new Map();
-
-  function _wordW(word, font) {
-    const key = font + '|' + word;
-    if (_cache.has(key)) return _cache.get(key);
-    _ctx.font = font;
-    const w = _ctx.measureText(word).width;
-    _cache.set(key, w);
-    return w;
+  // Text analysis is cached by the shared adapter; repeated layout at a new
+  // width is pure arithmetic and never forces synchronous DOM measurement.
+  function _textLayout(text, font, maxW, options = {}) {
+    return layoutText(text, {
+      font,
+      maxWidth: maxW,
+      lineHeight: 1,
+      ...options,
+    });
   }
 
-  /**
-   * Greedy word-wrap. Splits `text` into lines that each fit `maxW`
-   * pixels in the supplied `font`. Words that exceed `maxW` on their
-   * own end up on a single overflowing line — no mid-word break (the
-   * card uses CSS `overflow:hidden` so the visible width still caps).
-   *
-   * @param {string} text
-   * @param {string} font  - CSS shorthand (e.g. `'13px Inter'`).
-   * @param {number} maxW  - Pixel budget per line.
-   * @returns {string[]}
-   */
   function _wrap(text, font, maxW) {
-    const words = String(text || '').split(' ').filter(Boolean);
-    if (!words.length) return [''];
-    const lines = [];
-    let line = '';
-    for (const word of words) {
-      const test = line ? line + ' ' + word : word;
-      if (_wordW(test, font) <= maxW) {
-        line = test;
-      } else {
-        if (line) lines.push(line);
-        line = word;
-      }
-    }
-    if (line) lines.push(line);
-    return lines;
+    const lines = _textLayout(text, font, maxW).lines.map(line => line.text);
+    return lines.length ? lines : [''];
   }
 
   // ── Cloud height estimation ─────────────────────────────────
@@ -1426,7 +1390,13 @@ export const CloudMap = (() => {
       }
       _cloudLayer.appendChild(div);
 
-      _edgeLabels[eid] = { div, label, svgEls: [path1, path2], markerId };
+      _edgeLabels[eid] = {
+        div,
+        label,
+        svgEls: [path1, path2],
+        markerId,
+        lineSignature: null,
+      };
     });
   }
 
@@ -1574,9 +1544,8 @@ export const CloudMap = (() => {
       // For sub1 (u=0, v=t1):  Q1 = (1-t1)·P0 + t1·P1 = src·(1-t1) + cp·t1
       // For sub2 (u=t2, v=1):  Q1 = (1-t2)·P1 + t2·P2 = cp·(1-t2) + tgt·t2
 
-      // Curve midpoint (B(0.5)) in graph coords — where the label sits
-      // along the curve. Both label and edge live in the same zoomed
-      // layer, so graph coords are the right units for both.
+      // Curve midpoint (B(0.5)) in graph coords — the HTML label is projected
+      // from here into the native-sized overlay below.
       const labelX = 0.25 * srcExit.x + 0.5 * cp.x + 0.25 * tgtEntry.x;
       const labelY = 0.25 * srcExit.y + 0.5 * cp.y + 0.25 * tgtEntry.y;
 
@@ -1587,12 +1556,21 @@ export const CloudMap = (() => {
         // layer); labelW is in graph-px so multiply by zoom.
         div.style.width = (labelW * _zoom) + 'px';
 
-        const lines = _wrap(label, EDGE_LABEL_FONT, labelW);
-        let maxLineW = 0;
-        for (const ln of lines) {
-          _ctx.font = EDGE_LABEL_FONT;
-          maxLineW = Math.max(maxLineW, _ctx.measureText(ln).width);
+        const labelLayout = _textLayout(label, EDGE_LABEL_FONT, labelW, {
+          letterSpacing: 0.24,
+        });
+        const lineSignature = labelLayout.lines.map(line => line.text).join('\u0000');
+        if (lineSignature !== rec.lineSignature) {
+          const lineElements = labelLayout.lines.map(line => {
+            const span = document.createElement('span');
+            span.className = 'cm-edge-label-line';
+            span.textContent = line.text;
+            return span;
+          });
+          div.replaceChildren(...lineElements);
+          rec.lineSignature = lineSignature;
         }
+        const maxLineW = labelLayout.maxLineWidth;
         const gapHalfLen = Math.min(maxLineW / 2 + LABEL_GAP_PAD, visLen / 2 - 4);
         const halfT = Math.min(0.45, gapHalfLen / Math.max(1, visLen));
         const t1 = 0.5 - halfT;

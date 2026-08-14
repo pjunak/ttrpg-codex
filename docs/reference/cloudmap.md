@@ -111,7 +111,11 @@ path. SVG edges scale via their own transform on `_edgeSvg`
 **Edge labels** (HTML divs in `_cloudLayer`, also un-zoomed): set
 `div.style.left = labelGraphX · zoom + pan.x` and width
 `labelW · zoom`. Font-size scales via `.cm-edge-label`'s
-`calc(12px * var(--cm-z))`.
+`calc(12px * var(--cm-z))`. The shared `layoutText` adapter, backed by the
+vendored Pretext runtime, prepares each text/font/options tuple once and lays
+it out arithmetically as edge geometry changes. `_syncEdgeLabels()` renders the
+returned line strings as non-wrapping spans, so the visible breaks and measured
+edge gap cannot diverge. DOM children change only when the line strings change.
 
 **Per-card width via inline CSS variable.** Card HTML templates
 inline `style="--cc:…; --cw:${CW}px"` (or `--cw:${CW_HUB}px` for
