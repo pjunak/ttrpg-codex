@@ -13,6 +13,7 @@ import { norm, debounce, esc, dataAction, dataOn, pageEditToggle } from './utils
 import { I18n } from './i18n.js';
 import { Addons } from './addons.js';
 import { layoutText, onTextLayoutInvalidated } from './text-layout.js';
+import { cloudMapDetailLevel } from './cloudmap-detail.js';
 import {
   CLOUDMAP_EDGE_LABEL_FONT,
   CLOUDMAP_EDGE_LABEL_LETTER_SPACING,
@@ -806,6 +807,7 @@ export const CloudMap = (() => {
   // proportional to user-visible zoom changes. NaN forces the first
   // _sync() call to write.
   let _lastSyncedZoom = NaN;
+  let _lastDetailLevel = '';
 
   // ── Tunable physics constants ────────────────────────────────
   // All values are in node-position units (~px at zoom 1) per 16ms frame.
@@ -872,6 +874,7 @@ export const CloudMap = (() => {
     _phys.history = [];
     _phys.temp = 0;
     _lastSyncedZoom = NaN;   // force the next _sync() to write --cm-z
+    _lastDetailLevel = '';
   }
 
   function _destroy() {
@@ -1200,6 +1203,11 @@ export const CloudMap = (() => {
         Math.abs(zoom - _lastSyncedZoom) > 0.0005) {
       _cloudLayer.style.setProperty('--cm-z', zoom);
       _lastSyncedZoom = zoom;
+    }
+    const detailLevel = cloudMapDetailLevel(zoom);
+    if (detailLevel !== _lastDetailLevel) {
+      _cloudLayer.dataset.cmDetail = detailLevel;
+      _lastDetailLevel = detailLevel;
     }
 
     // Layer itself is no longer zoomed/transformed — clear any leftover

@@ -121,6 +121,14 @@ graph-width bucket. Font completion and locale changes invalidate both the
 shared measurements and the per-edge result, then refresh card heights and
 visible label geometry.
 
+**Semantic detail levels** are derived by `cloudMapDetailLevel(zoom)` and
+written to `_cloudLayer.dataset.cmDetail` only when the level changes. At zooms
+below `0.75`, fact rows, status rows, and edge labels are hidden; below `0.45`,
+the strip, name, and divider are hidden as well so the colored graph silhouette
+remains legible without pretending that 2–6 px text can be read. CSS uses
+`visibility: hidden`, not `display: none`, so card boxes, Cytoscape proxies,
+edge endpoints, and hit regions retain identical geometry at every level.
+
 **Per-card width via inline CSS variable.** Card HTML templates
 inline `style="--cc:…; --cw:${CW}px"` (or `--cw:${CW_HUB}px` for
 faction hubs). The base `.cm-cloud` rule has `width: calc(var(--cw,
@@ -207,10 +215,9 @@ out via the **CP target**, not via endpoint perp-shift. Each edge's
 sorted-pair so swapped source/target siblings don't cancel. Single
 edges get zero offset.
 
-Cytoscape's `minZoom` is `0.25`. Cards scale visually with zoom
-(via the layer's `zoom` CSS), and text stays crisp at every level
-because `zoom` re-rasterises text at the new effective size rather
-than scaling a cached texture.
+Cytoscape's `minZoom` is `0.25`. Cards scale visually through native-sized
+properties driven by `--cm-z`; semantic detail levels suppress text that is
+too small to read while retaining the full card geometry.
 
 ### Physics integrator
 

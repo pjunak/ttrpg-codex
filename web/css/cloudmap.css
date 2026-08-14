@@ -273,6 +273,15 @@
   gap: calc(4px * var(--cm-z, 1));
 }
 
+/* Semantic zoom removes unreadable prose without collapsing card boxes. Keeping
+   layout space stable preserves Cytoscape proxy geometry and edge endpoints. */
+#cloud-layer[data-cm-detail="compact"] :is(.cm-fact, .cm-status-row),
+#cloud-layer[data-cm-detail="compact"] .cm-edge-label,
+#cloud-layer[data-cm-detail="overview"] :is(.cm-strip, .cm-name, .cm-divider, .cm-fact, .cm-status-row),
+#cloud-layer[data-cm-detail="overview"] .cm-edge-label {
+  visibility: hidden;
+}
+
 /* Dead character variant */
 .cm-cloud.cm-dead {
   filter: grayscale(65%) brightness(0.8);

@@ -33,6 +33,7 @@
       CLOUDMAP_EDGE_LABEL_FONT,
       CLOUDMAP_EDGE_LABEL_LETTER_SPACING,
     } from '../../web/js/cloudmap-text-style.js';
+    import { cloudMapDetailLevel } from '../../web/js/cloudmap-detail.js';
 
     const nextFrame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     const closeTo = (actual, expected, tolerance = 0.06) => Math.abs(actual - expected) <= tolerance;
@@ -49,13 +50,27 @@
       const check = (name, pass, actual, expected) => checks.push({ name, pass, actual, expected });
       const layer = document.querySelector('#cloud-layer');
       const card = document.querySelector('.cm-cloud');
+      const strip = document.querySelector('.cm-strip');
       const name = document.querySelector('.cm-name');
       const fact = document.querySelector('.cm-fact');
       const edge = document.querySelector('.cm-edge-label');
+      const detailBoundaries = [0.25, 0.449, 0.45, 0.749, 0.75]
+        .map(cloudMapDetailLevel);
+      check(
+        'cloud detail thresholds are stable',
+        JSON.stringify(detailBoundaries) === JSON.stringify(['overview', 'overview', 'compact', 'compact', 'full']),
+        detailBoundaries,
+        ['overview', 'overview', 'compact', 'compact', 'full'],
+      );
 
-      for (const zoom of [0.25, 0.265, 0.5, 0.9, 1, 2]) {
+      for (const zoom of [0.25, 0.265, 0.45, 0.5, 0.749, 0.75, 0.9, 1, 2]) {
         layer.style.setProperty('--cm-z', String(zoom));
+        const detailLevel = cloudMapDetailLevel(zoom);
+        layer.dataset.cmDetail = 'full';
         edge.style.width = `${96 * zoom}px`;
+        await nextFrame();
+        const fullDetailHeight = card.getBoundingClientRect().height;
+        layer.dataset.cmDetail = detailLevel;
         await nextFrame();
         const expected = {
           cardWidth: 168 * zoom,
@@ -72,6 +87,34 @@
         for (const property of Object.keys(expected)) {
           check(`cloud ${property} at ${zoom}x`, closeTo(actual[property], expected[property]), actual[property], expected[property]);
         }
+        check(`cloud detail level at ${zoom}x`, layer.dataset.cmDetail === detailLevel, layer.dataset.cmDetail, detailLevel);
+        const expectedVisibility = {
+          strip: detailLevel === 'overview' ? 'hidden' : 'visible',
+          name: detailLevel === 'overview' ? 'hidden' : 'visible',
+          fact: detailLevel === 'full' ? 'visible' : 'hidden',
+          edge: detailLevel === 'full' ? 'visible' : 'hidden',
+        };
+        const actualVisibility = {
+          strip: getComputedStyle(strip).visibility,
+          name: getComputedStyle(name).visibility,
+          fact: getComputedStyle(fact).visibility,
+          edge: getComputedStyle(edge).visibility,
+        };
+        for (const property of Object.keys(expectedVisibility)) {
+          check(
+            `cloud ${property} visibility at ${zoom}x`,
+            actualVisibility[property] === expectedVisibility[property],
+            actualVisibility[property],
+            expectedVisibility[property],
+          );
+        }
+        const reducedDetailHeight = card.getBoundingClientRect().height;
+        check(
+          `cloud semantic detail preserves geometry at ${zoom}x`,
+          closeTo(reducedDetailHeight, fullDetailHeight, 0.01),
+          reducedDetailHeight,
+          fullDetailHeight,
+        );
         for (const [label, element] of [['layer', layer], ['card', card], ['edge label', edge]]) {
           const scales = transformScale(element);
           check(`${label} has no raster scale at ${zoom}x`, scales.every(scale => closeTo(scale, 1, 0.001)), scales, [1, 1]);
