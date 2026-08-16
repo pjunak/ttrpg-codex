@@ -402,6 +402,7 @@ export const CloudMap = (() => {
   const LS_POS_PREFIX    = 'cm_pos_';
   const LS_FILTER_PREFIX = 'cm_filter_';
   let   _currentMode     = null;
+  let   _positionsDirty  = false;
 
   function _savePosKey()    { return LS_POS_PREFIX    + _currentMode; }
   function _saveFilterKey() { return LS_FILTER_PREFIX + _currentMode; }
@@ -414,6 +415,11 @@ export const CloudMap = (() => {
       localStorage.setItem(_savePosKey(), JSON.stringify(pos));
       localStorage.setItem(_saveFilterKey(), JSON.stringify([..._hiddenFactions]));
     } catch(e) {}
+    _positionsDirty = false;
+  }
+
+  function _flushPendingPositionSave() {
+    if (_positionsDirty) _savePositions();
   }
 
   function _loadPositions() {
@@ -432,6 +438,7 @@ export const CloudMap = (() => {
     localStorage.removeItem(_savePosKey());
     localStorage.removeItem(_saveFilterKey());
     _hiddenFactions = new Set();
+    _positionsDirty = false;
   }
 
   // ── Faction filter state ─────────────────────────────────────
@@ -907,10 +914,14 @@ export const CloudMap = (() => {
     _lastDetailLevel = '';
     _syncingCardGeometry = false;
     _wheelZoomDelta = 0;
+    _positionsDirty = false;
   }
 
   function _destroy() {
     _hideCtxMenu();
+    // A route change can happen while the elastic settle is still running.
+    // Persist the last user-arranged positions before destroying Cytoscape.
+    _flushPendingPositionSave();
     _physResetState();
     Object.values(_edgeLabels).forEach(({ div, svgEls }) => {
       if (div) div.remove();
@@ -954,6 +965,7 @@ export const CloudMap = (() => {
           <a href="#/mapa/frakce"    class="map-mode-btn ${mode==='frakce'    ?'active':''}">${esc(I18n.t('cloudmap.modeFactions'))}</a>
           <a href="#/mapa/vztahy"    class="map-mode-btn ${mode==='vztahy'    ?'active':''}">${esc(I18n.t('cloudmap.modeRelations'))}</a>
           <a href="#/mapa/tajemstvi" class="map-mode-btn ${mode==='tajemstvi' ?'active':''}">${esc(I18n.t('cloudmap.modeMysteries'))}</a>
+          <span class="map-hint">${esc(I18n.t('cloudmap.toolbarHint'))}</span>
           <span class="cm-view-actions">
             <span class="cm-canvas-purpose" title="${esc(I18n.t('cloudmap.readOnlyTitle'))}">◉ ${esc(I18n.t('cloudmap.readOnly'))}</span>
             <span class="cm-visibility-indicator" data-cm-visibility role="status" hidden></span>
@@ -1155,9 +1167,9 @@ export const CloudMap = (() => {
     } else if (layout?.name === 'cose') {
       layout = {
         ...layout,
-        // Mind Palace is a read-only projection. A synchronous initial layout
-        // avoids leaving Cytoscape position animations alive across route
-        // teardown, which otherwise can notify a destroyed renderer.
+        // A synchronous initial layout avoids leaving Cytoscape position
+        // animations alive across route teardown, which otherwise can notify
+        // a destroyed renderer.
         animate: false,
         randomize: true,
         nodeOverlap: Math.max(80, Number(layout.nodeOverlap) || 0),
@@ -1208,7 +1220,9 @@ export const CloudMap = (() => {
       maxZoom: MAX_CLOUDMAP_ZOOM,
       userZoomingEnabled:  true,
       userPanningEnabled:  true,
-      autoungrabify:        true,
+      // Mind Palace content comes from campaign records, but its local visual
+      // arrangement belongs to the viewer and remains directly draggable.
+      autoungrabify:        false,
       boxSelectionEnabled: false,
     });
 
@@ -1847,6 +1861,7 @@ export const CloudMap = (() => {
     // releases, that becomes the new equilibrium.
     const p = evt.target.position();
     _phys.nodeRest.set(id, { x: p.x, y: p.y });
+    _positionsDirty = true;
     _physWake();
   }
 
@@ -1855,6 +1870,7 @@ export const CloudMap = (() => {
     if (id !== _phys.draggedId) return;
     const p = evt.target.position();
     _phys.nodeRest.set(id, { x: p.x, y: p.y });
+    _positionsDirty = true;
     _phys.draggedId = null;
     _physWake();  // continue settling
   }
@@ -1886,6 +1902,7 @@ export const CloudMap = (() => {
       );
       _phys.raf = null;
       _sync();   // one final clean redraw
+      _flushPendingPositionSave();
       return;
     }
 
@@ -1900,6 +1917,7 @@ export const CloudMap = (() => {
       } else {
         _phys.raf = null;
         _sync();   // one final clean redraw
+        _flushPendingPositionSave();
       }
     };
     _phys.raf = requestAnimationFrame(tick);
@@ -2784,7 +2802,7 @@ export const CloudMap = (() => {
           _phys.nodeVel.set(id, { vx: 0, vy: 0 });
         });
         _updateLayoutBtnStates();
-        // Positions are saved manually via the "Uložit pozice" button in edit mode
+        // Dragged layouts save after the elastic integrator settles.
       });
     });
   }

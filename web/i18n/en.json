@@ -151,8 +151,8 @@
   "cloudmap.past": "Past",
   "cloudmap.placeStrip": "Place",
   "cloudmap.priorityMedium": "medium",
-  "cloudmap.readOnly": "Read-only map",
-  "cloudmap.readOnlyTitle": "Mind Palace is derived from campaign records. Open a record to change its content.",
+  "cloudmap.readOnly": "Content read-only",
+  "cloudmap.readOnlyTitle": "Drag nodes to arrange this view. Open a record to change entities or relationships.",
   "cloudmap.relationships": {
     "one": "{n} relationship",
     "other": "{n} relationships"

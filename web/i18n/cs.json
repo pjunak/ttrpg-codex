@@ -160,8 +160,8 @@
   "cloudmap.past": "Minulost",
   "cloudmap.placeStrip": "Místo",
   "cloudmap.priorityMedium": "střední",
-  "cloudmap.readOnly": "Mapa jen pro čtení",
-  "cloudmap.readOnlyTitle": "Myšlenkový palác se odvozuje ze záznamů kampaně. Obsah změníš otevřením příslušného záznamu.",
+  "cloudmap.readOnly": "Obsah jen pro čtení",
+  "cloudmap.readOnlyTitle": "Přetažením uzlů upravíš toto zobrazení. Entity a vazby změníš otevřením příslušného záznamu.",
   "cloudmap.relationships": {
     "one": "{n} vazba",
     "few": "{n} vazby",

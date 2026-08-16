@@ -5,8 +5,11 @@ import test from 'node:test';
 const source = await readFile(new URL('../web/js/cloudmap.js', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../web/css/cloudmap.css', import.meta.url), 'utf8');
 
-test('Mind Palace is a read-only projection with planner-style zoom controls', () => {
-  assert.match(source, /autoungrabify:\s+true/);
+test('Mind Palace keeps content read-only while allowing saved node arrangements', () => {
+  assert.match(source, /autoungrabify:\s+false/);
+  assert.match(source, /_positionsDirty = true/);
+  assert.match(source, /_flushPendingPositionSave\(\)/);
+  assert.match(source, /cloudmap\.toolbarHint/);
   assert.match(source, /CloudMap\.zoomOut/);
   assert.match(source, /CloudMap\.zoomReset/);
   assert.match(source, /CloudMap\.zoomIn/);

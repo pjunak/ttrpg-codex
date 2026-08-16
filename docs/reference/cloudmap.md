@@ -56,11 +56,11 @@ Layout persistence uses localStorage:
 - `cm_filter_<mode>` faction filter. JSON array of hidden IDs.
 - `cm_vf_<mode>` visual filter. JSON `{ values[], hiddenEdgeTypes[], focusHops, focusMode }`. Legacy `{ search, statuses[], minKnowledge }` is auto-migrated on load: `search` and each status label become chip values.
 
-Legacy saved positions are still read for compatibility. Mind Palace does not
-surface layout editing, node dragging, relationship creation, or position-save
-actions; its UI is a derived, read-only projection of campaign records. Visual
-filter preferences continue to autosave on every change because they alter only
-the viewer's lens, not campaign content or graph layout.
+Mind Palace content is a derived, read-only projection of campaign records, but
+its visual arrangement belongs to the viewer. Nodes are draggable and the
+settled positions autosave to localStorage; dragging never changes entities or
+relationships. Visual filter preferences likewise autosave because they alter
+only the viewer's lens, not campaign content.
 
 Visual filter differs from faction filter. It dims instead of hides.
 Driven by a single TagFilter chip row: each chip AND-matches against
@@ -374,13 +374,14 @@ Public UI API: `render(mode)` · `zoomOut()` · `zoomIn()` · `zoomReset()` ·
 (Legacy `setSearch/toggleStatus/setMinKnowledge` removed — chip filter
 replaces all three.)
 
-The toolbar presents the three projections, a **Read-only map** purpose badge,
-the semantic-visibility indicator, and the unified zoom control. Cytoscape uses
-`autoungrabify: true`: panning, zooming, filtering, focusing, and opening source
-records remain available, while nodes and graph meaning cannot be changed on
-this page. Historical auto-layout and persistence helpers remain private
-compatibility code for existing saved arrangements and are not bound to UI
-actions.
+The toolbar presents the three projections, a **Content read-only** purpose
+badge, the drag/navigation hint, the semantic-visibility indicator, and the
+unified zoom control. Cytoscape keeps nodes grabbable: panning, zooming,
+filtering, focusing, opening source records, and arranging nodes remain
+available, while entities and relationships cannot be changed on this page.
+Drag-end persistence waits for elastic settling so collision movement is saved
+consistently. Historical auto-layout helpers remain private compatibility code
+and are not bound to UI actions.
 
 Word-wrap uses the shared Pretext-backed `layoutText` adapter and its bounded
 prepared-text/result caches. `_wrap(text, font, maxW)` materializes the exact
