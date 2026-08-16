@@ -6,14 +6,27 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { Store } from './store.js';
-import { Role } from './role.js';
-import { norm, debounce, esc, dataAction, dataOn, pageEditToggle } from './utils.js';
+import { norm, debounce, esc, dataAction, dataOn } from './utils.js';
 // Connection kinds (relationship types) come from the data-driven registry
 // Store.getKinds('connections') — settings (seeded from REL_TYPES) + addon kinds.
 import { I18n } from './i18n.js';
 import { Addons } from './addons.js';
 import { layoutText, onTextLayoutInvalidated } from './text-layout.js';
-import { cloudMapDetailLevel, cloudMapTypographyScale } from './cloudmap-detail.js';
+import {
+  cloudMapDetailLevel,
+  cloudMapHiddenDetailKey,
+  cloudMapTypographyScale,
+} from './cloudmap-detail.js';
+import {
+  DEFAULT_CLOUDMAP_FIT_MAX_ZOOM,
+  DEFAULT_CLOUDMAP_FIT_MIN_ZOOM,
+  MAX_CLOUDMAP_ZOOM,
+  MIN_CLOUDMAP_ZOOM,
+  NATIVE_CLOUDMAP_ZOOM,
+  fittedCloudMapZoom,
+  normalizeCloudMapZoom,
+  stepCloudMapZoom,
+} from './cloudmap-zoom.js';
 import {
   CLOUDMAP_EDGE_LABEL_FONT,
   CLOUDMAP_EDGE_LABEL_LETTER_SPACING,
@@ -36,35 +49,6 @@ export const CloudMap = (() => {
   function _safeColor(c) {
     return /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : 'var(--text-muted)';
   }
-
-  // Per-page edit toggle. Surfaces the `.cm-save-pos` layout-action
-  // buttons (gated by `.map-toolbar.is-editing` in cloudmap.css).
-  // Anonymous click → login modal via the `auth:prompt-login` window
-  // event (editmode.js listens).
-  let _editing = false;
-  function _renderEditToggleHtml() {
-    return pageEditToggle({
-      moduleName: 'CloudMap', isEditing: _editing, label: I18n.t('cloudmap.editToggleLabel'),
-    });
-  }
-  function setEditing(on) {
-    if (on && Role.isAnonymous()) {
-      window.dispatchEvent(new CustomEvent('auth:prompt-login'));
-      return;
-    }
-    _editing = !!on;
-    const toolbar = document.querySelector('.map-toolbar');
-    if (toolbar) toolbar.classList.toggle('is-editing', _editing);
-    // Replace the toggle button via the shared template — outerHTML
-    // keeps the in-DOM state aligned with what initial render emits.
-    // The "button only fires once" bug came from stamping the next
-    // state into data-args at render time; we now route through
-    // toggleEditing (no args) instead.
-    const btn = document.querySelector('.map-toolbar .page-edit-toggle');
-    if (btn) btn.outerHTML = _renderEditToggleHtml();
-  }
-  /** No-arg public toggle. Wired to the shared `pageEditToggle` button. */
-  function toggleEditing() { setEditing(!_editing); }
 
   // ── Layout constants ────────────────────────────────────────
   const CW         = 168;          // cloud width  (graph px = screen px at zoom 1)
@@ -852,6 +836,7 @@ export const CloudMap = (() => {
   let _lastTypographyScale = NaN;
   let _lastDetailLevel = '';
   let _syncingCardGeometry = false;
+  let _wheelZoomDelta = 0;
 
   // ── Tunable physics constants ────────────────────────────────
   // All values are in node-position units (~px at zoom 1) per 16ms frame.
@@ -921,6 +906,7 @@ export const CloudMap = (() => {
     _lastTypographyScale = NaN;
     _lastDetailLevel = '';
     _syncingCardGeometry = false;
+    _wheelZoomDelta = 0;
   }
 
   function _destroy() {
@@ -961,29 +947,27 @@ export const CloudMap = (() => {
 
     const container = document.getElementById('main-content');
     container.style.display = '';
-    // Per-page edit toggle via the shared template — same look +
-    // behaviour as /mapa/svet and /casova-osa. When on, the
-    // `.cm-save-pos` layout-action buttons appear (gated by
-    // `.map-toolbar.is-editing` in cloudmap.css).
-    const editToggle = _renderEditToggleHtml();
     container.innerHTML = `
       <div class="map-container">
-        <div class="map-toolbar ${_editing ? 'is-editing' : ''}">
+        <div class="map-toolbar">
           <h1 class="map-title">☁ ${esc(I18n.t('cloudmap.title'))}</h1>
           <a href="#/mapa/frakce"    class="map-mode-btn ${mode==='frakce'    ?'active':''}">${esc(I18n.t('cloudmap.modeFactions'))}</a>
           <a href="#/mapa/vztahy"    class="map-mode-btn ${mode==='vztahy'    ?'active':''}">${esc(I18n.t('cloudmap.modeRelations'))}</a>
           <a href="#/mapa/tajemstvi" class="map-mode-btn ${mode==='tajemstvi' ?'active':''}">${esc(I18n.t('cloudmap.modeMysteries'))}</a>
-          <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.runAutoLayout')} title="${esc(I18n.t('cloudmap.autoLayoutTitle'))}">✨ ${esc(I18n.t('cloudmap.autoLayout'))}</button>
-          ${mode === 'frakce' ? `<button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.runDagreLayout')} title="${esc(I18n.t('cloudmap.hierarchyTitle'))}">⊞ ${esc(I18n.t('cloudmap.hierarchy'))}</button>` : ''}
-          <button class="map-mode-btn cm-save-pos cm-undo-layout"${dataAction('CloudMap.undoLayout')} title="${esc(I18n.t('cloudmap.undoLayoutTitle'))}">↶ ${esc(I18n.t('cloudmap.undoLayout'))}</button>
-          <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.resetLayout')} title="${esc(I18n.t('cloudmap.resetLayoutTitle'))}">⟳ ${esc(I18n.t('cloudmap.resetLayout'))}</button>
-          <button class="map-mode-btn cm-save-pos"${dataAction('CloudMap.savePositions')} title="${esc(I18n.t('cloudmap.savePositionsTitle'))}">💾 ${esc(I18n.t('cloudmap.savePositions'))}</button>
-          <span class="map-hint">${esc(I18n.t('cloudmap.toolbarHint'))}</span>
-          ${editToggle}
+          <span class="cm-view-actions">
+            <span class="cm-canvas-purpose" title="${esc(I18n.t('cloudmap.readOnlyTitle'))}">◉ ${esc(I18n.t('cloudmap.readOnly'))}</span>
+            <span class="cm-visibility-indicator" data-cm-visibility role="status" hidden></span>
+            <span class="cm-zoom-controls" role="group" aria-label="${esc(I18n.t('cloudmap.zoomControls'))}">
+              <button type="button" data-cm-zoom-out${dataAction('CloudMap.zoomOut')} aria-label="${esc(I18n.t('cloudmap.zoomOut'))}">−</button>
+              <button type="button" class="cm-zoom-level"${dataAction('CloudMap.zoomReset')} aria-label="${esc(I18n.t('cloudmap.zoomReset'))}"><output data-cm-zoom-label>100%</output></button>
+              <button type="button" data-cm-zoom-in${dataAction('CloudMap.zoomIn')} aria-label="${esc(I18n.t('cloudmap.zoomIn'))}">+</button>
+              <button type="button" class="cm-zoom-fit"${dataAction('CloudMap.fitView')} title="${esc(I18n.t('cloudmap.zoomFitTitle'))}">${esc(I18n.t('cloudmap.zoomFit'))}</button>
+            </span>
+          </span>
         </div>
         ${_buildFilterBar(mode)}
         <div id="cy-container"></div>
-        <details class="map-legend-shell"${globalThis.matchMedia?.('(max-width: 768px)').matches ? '' : ' open'}>
+        <details class="map-legend-shell">
           <summary>${esc(I18n.t('cloudmap.legendTitle'))}</summary>
           <div class="map-legend" id="map-legend"></div>
         </details>
@@ -1004,6 +988,84 @@ export const CloudMap = (() => {
         _setFilterValues(ev.detail.values);
       }
     });
+  }
+
+  function _syncViewControls(zoom) {
+    const normalized = normalizeCloudMapZoom(zoom);
+    const output = document.querySelector('[data-cm-zoom-label]');
+    if (output) output.textContent = `${Math.round(normalized * 100)}%`;
+    const out = document.querySelector('[data-cm-zoom-out]');
+    const into = document.querySelector('[data-cm-zoom-in]');
+    if (out) out.disabled = normalized <= MIN_CLOUDMAP_ZOOM;
+    if (into) into.disabled = normalized >= MAX_CLOUDMAP_ZOOM;
+
+    const indicator = document.querySelector('[data-cm-visibility]');
+    const key = cloudMapHiddenDetailKey(normalized);
+    if (indicator) {
+      indicator.hidden = !key;
+      indicator.textContent = key ? `◐ ${I18n.t(key)}` : '';
+      indicator.title = key ? I18n.t('cloudmap.hiddenDetailsTitle') : '';
+    }
+  }
+
+  function _setZoom(nextZoom, renderedPosition = null) {
+    if (!_cy) return;
+    const current = normalizeCloudMapZoom(_cy.zoom());
+    const next = normalizeCloudMapZoom(nextZoom);
+    if (Math.abs(current - next) < 0.001) {
+      _syncViewControls(next);
+      return;
+    }
+    const container = _cy.container();
+    const rect = container?.getBoundingClientRect();
+    const anchor = renderedPosition || {
+      x: (rect?.width || 0) / 2,
+      y: (rect?.height || 0) / 2,
+    };
+    _cy.zoom({ level: next, renderedPosition: anchor });
+    _sync();
+  }
+
+  function zoomOut() {
+    _wheelZoomDelta = 0;
+    if (_cy) _setZoom(stepCloudMapZoom(_cy.zoom(), -1));
+  }
+
+  function zoomIn() {
+    _wheelZoomDelta = 0;
+    if (_cy) _setZoom(stepCloudMapZoom(_cy.zoom(), 1));
+  }
+
+  function zoomReset() {
+    _wheelZoomDelta = 0;
+    _setZoom(NATIVE_CLOUDMAP_ZOOM);
+  }
+
+  function _fitView(
+    maxZoom = NATIVE_CLOUDMAP_ZOOM,
+    minZoom = MIN_CLOUDMAP_ZOOM,
+  ) {
+    if (!_cy) return;
+    const nodes = _cy.nodes().filter(node => !node.hasClass('cm-filter-hidden'));
+    if (!nodes.nonempty()) return;
+    // Native typography can change normalized card height after the first
+    // zoom. Refit a bounded number of times so the final pan accounts for the
+    // card geometry at the chosen ladder level, not only its 100% estimate.
+    for (let pass = 0; pass < 3; pass += 1) {
+      _cy.fit(nodes, 72);
+      const fitted = fittedCloudMapZoom(_cy.zoom(), maxZoom, minZoom);
+      const rect = _cy.container()?.getBoundingClientRect();
+      _cy.zoom({
+        level: fitted,
+        renderedPosition: { x: (rect?.width || 0) / 2, y: (rect?.height || 0) / 2 },
+      });
+      _sync();
+    }
+  }
+
+  function fitView() {
+    _wheelZoomDelta = 0;
+    _fitView();
   }
 
   // Per-mode toolbar row: one TagFilter for free-text chip filters (name,
@@ -1093,6 +1155,10 @@ export const CloudMap = (() => {
     } else if (layout?.name === 'cose') {
       layout = {
         ...layout,
+        // Mind Palace is a read-only projection. A synchronous initial layout
+        // avoids leaving Cytoscape position animations alive across route
+        // teardown, which otherwise can notify a destroyed renderer.
+        animate: false,
         randomize: true,
         nodeOverlap: Math.max(80, Number(layout.nodeOverlap) || 0),
         componentSpacing: Math.max(100, Number(layout.componentSpacing) || 0),
@@ -1138,10 +1204,11 @@ export const CloudMap = (() => {
         { selector: '.cm-filter-hidden', style: { opacity: 0, 'events': 'no' } },
       ],
       layout,
-      minZoom: 0.25,
-      maxZoom: 3,
+      minZoom: MIN_CLOUDMAP_ZOOM,
+      maxZoom: MAX_CLOUDMAP_ZOOM,
       userZoomingEnabled:  true,
       userPanningEnabled:  true,
+      autoungrabify:        true,
       boxSelectionEnabled: false,
     });
 
@@ -1182,7 +1249,10 @@ export const CloudMap = (() => {
       cy.one('layoutstop', () => {
         if (_cy !== cy || cy.nodes(':visible').empty()) return;
         requestAnimationFrame(() => {
-          if (_cy === cy) cy.fit(cy.nodes(':visible'), 70);
+          if (_cy === cy) _fitView(
+            DEFAULT_CLOUDMAP_FIT_MAX_ZOOM,
+            DEFAULT_CLOUDMAP_FIT_MIN_ZOOM,
+          );
         });
       });
     }
@@ -1308,10 +1378,12 @@ export const CloudMap = (() => {
       _lastTypographyScale = typographyScale;
     }
     const detailLevel = cloudMapDetailLevel(zoom);
-    if (detailLevel !== _lastDetailLevel) {
+    const detailChanged = detailLevel !== _lastDetailLevel;
+    if (detailChanged) {
       _cloudLayer.dataset.cmDetail = detailLevel;
       _lastDetailLevel = detailLevel;
     }
+    if (zoomChanged || detailChanged) _syncViewControls(zoom);
     if (zoomChanged || typographyChanged) {
       _syncCloudCardTextLayouts(zoom);
       _syncRenderedCloudGeometry(zoom);
@@ -1552,6 +1624,7 @@ export const CloudMap = (() => {
     // by geometry zoom; font-size follows the stepped --cm-type-z variable.
     const _pan  = _cy ? _cy.pan()  : { x: 0, y: 0 };
     const _zoom = _cy ? _cy.zoom() : 1;
+    const showEdgeLabels = cloudMapDetailLevel(_zoom) === 'full';
 
     Object.entries(_edgeLabels).forEach(([eid, rec]) => {
       const { div, label, svgEls, markerId } = rec;
@@ -1664,7 +1737,7 @@ export const CloudMap = (() => {
       const labelX = 0.25 * srcExit.x + 0.5 * cp.x + 0.25 * tgtEntry.x;
       const labelY = 0.25 * srcExit.y + 0.5 * cp.y + 0.25 * tgtEntry.y;
 
-      if (label && visLen > 50) {
+      if (showEdgeLabels && label && visLen > 50) {
         // ── Labelled curve ──
         const labelW = Math.max(36, visLen - 20);
         // Width is in screen-px (label div is in the un-zoomed cloud
@@ -2570,22 +2643,6 @@ export const CloudMap = (() => {
         window.location.hash = '#/mapa/vztahy';
       }});
     }
-    if (d.type === 'character') {
-      items.push({ label: '➕ ' + I18n.t('cloudmap.addRelationHere'), action: () => {
-        // Land on the character page; in edit mode the relationship form
-        // is rendered inline and pre-focused on the new-row.
-        window.location.hash = `#/postava/${d.id}`;
-        // Best-effort: scroll to the new-row after the page renders.
-        setTimeout(() => {
-          const row = document.querySelector(`#rel-section-${d.id} .rel-add-form`);
-          if (row) {
-            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            row.querySelector('select')?.focus();
-          }
-        }, 250);
-      }});
-    }
-
     // Position menu near cursor (use rendered position from cytoscape event)
     const oe = evt.originalEvent;
     const x = oe ? oe.clientX : 100;
@@ -2663,29 +2720,30 @@ export const CloudMap = (() => {
     _cy.on('cxttap',           'node', _onCtxNode);
     _cy.on('cxttap',                  evt => { if (evt.target === _cy) _hideCtxMenu(); });
 
-    // ── Smooth zoom — override Cytoscape's coarse wheel zoom ──────
-    // Cytoscape's built-in wheel step (~15–20 % per tick) feels jumpy.
-    // We disable it and apply a finer step (6 %) ourselves, zooming
-    // toward the cursor position exactly as Cytoscape would.
+    // Use the same deterministic wheel contract as Story Planner: mouse-wheel
+    // events move at most one ladder step, small trackpad deltas accumulate,
+    // and a batched step cannot skip across the 100% detent.
     _cy.userZoomingEnabled(false);
     const _container = _cy.container();
     _container.addEventListener('wheel', evt => {
       evt.preventDefault();
-
-      const FACTOR = 0.06;                           // 6 % per scroll tick
-      const delta  = evt.deltaY < 0 ? 1 + FACTOR : 1 / (1 + FACTOR);
-      const oldZ   = _cy.zoom();
-      const newZ   = Math.min(_cy.maxZoom(), Math.max(_cy.minZoom(), oldZ * delta));
-      if (newZ === oldZ) return;
-
-      // Zoom toward the cursor (keep the graph point under the pointer fixed)
+      if (!Number.isFinite(evt.deltaY) || evt.deltaY === 0) return;
+      const threshold = 100;
+      const delta = evt.deltaMode === 0
+        ? Math.sign(evt.deltaY) * Math.min(Math.abs(evt.deltaY), threshold)
+        : Math.sign(evt.deltaY) * threshold;
+      if (_wheelZoomDelta && Math.sign(_wheelZoomDelta) !== Math.sign(delta)) {
+        _wheelZoomDelta = 0;
+      }
+      _wheelZoomDelta += delta;
+      const steps = Math.floor(Math.abs(_wheelZoomDelta) / threshold);
+      if (!steps) return;
+      const direction = _wheelZoomDelta < 0 ? 1 : -1;
+      _wheelZoomDelta -= Math.sign(_wheelZoomDelta) * steps * threshold;
       const rect  = _container.getBoundingClientRect();
-      const cx    = evt.clientX - rect.left;
-      const cy_px = evt.clientY - rect.top;
-
-      _cy.zoom({
-        level:    newZ,
-        renderedPosition: { x: cx, y: cy_px },
+      _setZoom(stepCloudMapZoom(_cy.zoom(), direction, steps), {
+        x: evt.clientX - rect.left,
+        y: evt.clientY - rect.top,
       });
     }, { passive: false });
 
@@ -2700,7 +2758,10 @@ export const CloudMap = (() => {
         // positions (or an empty viewport after container resize) don't
         // leave nodes off-screen — this is what caused the "empty" look
         // on mind palace modes like Záhady.
-        if (_cy.nodes().nonempty()) _cy.fit(undefined, 60);
+        if (_cy.nodes().nonempty()) _fitView(
+          DEFAULT_CLOUDMAP_FIT_MAX_ZOOM,
+          DEFAULT_CLOUDMAP_FIT_MIN_ZOOM,
+        );
         _sync();
         _syncFilterChipUI();
         if ((_filters.values && _filters.values.length) ||
@@ -3188,7 +3249,7 @@ export const CloudMap = (() => {
   });
 
   return {
-    render, resetLayout, setEditing, toggleEditing,
+    render, resetLayout, zoomOut, zoomIn, zoomReset, fitView,
     savePositions:   _savePositions,
     runAutoLayout:   _runAutoLayout,
     runDagreLayout:  _runDagreLayout,

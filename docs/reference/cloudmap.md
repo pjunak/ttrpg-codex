@@ -56,8 +56,11 @@ Layout persistence uses localStorage:
 - `cm_filter_<mode>` faction filter. JSON array of hidden IDs.
 - `cm_vf_<mode>` visual filter. JSON `{ values[], hiddenEdgeTypes[], focusHops, focusMode }`. Legacy `{ search, statuses[], minKnowledge }` is auto-migrated on load: `search` and each status label become chip values.
 
-Positions and faction filter save together via `savePositions()`.
-Both clear via `resetLayout()`. Visual filter autosaves on every change.
+Legacy saved positions are still read for compatibility. Mind Palace does not
+surface layout editing, node dragging, relationship creation, or position-save
+actions; its UI is a derived, read-only projection of campaign records. Visual
+filter preferences continue to autosave on every change because they alter only
+the viewer's lens, not campaign content or graph layout.
 
 Visual filter differs from faction filter. It dims instead of hides.
 Driven by a single TagFilter chip row: each chip AND-matches against
@@ -70,9 +73,18 @@ edge-type hiding and BFS focus. State lives in `_filters =
 `faded` on edges. SVG opacity mirrored by `_syncEdgeLabels`.
 Tap in focus mode does BFS-N-hop highlight, not navigation.
 
-Initial zoom: after the preset layout runs, `_cy.ready()` calls
-`_cy.fit(undefined, 60)` so all nodes are visible without moving them
-(fixes saved-position-off-viewport cases like an empty-looking Záhady).
+Initial zoom is content-aware. After layout and native card measurement,
+`_fitView(DEFAULT_CLOUDMAP_FIT_MAX_ZOOM, DEFAULT_CLOUDMAP_FIT_MIN_ZOOM)` fits
+visible nodes, snaps **down** to the fixed zoom ladder, and constrains the
+opening view to `0.45–0.8`. The 45% readability floor prevents a very large
+graph from opening as illegible slivers; the explicit Fit action can still use
+the 25% whole-structure level. The 80% cap gives campaign-wide structures more
+breathing room than Story Planner's focused per-scope canvas.
+Mind Palace uses the planner ladder plus a 25% wide-overview level:
+`25, 35, 45, 55, 60, 70, 80, 90, 100, 110, 125, 150, 175, 200%`.
+Buttons and wheel input use those exact levels, retain a 100% detent, limit a
+mouse-wheel event to one step, and accumulate small trackpad deltas. Reset is
+exactly 100%; Fit recalculates from the current visible structure.
 
 ### CloudMap native geometry and stepped typography (`--cm-z` + `--cm-type-z`)
 
@@ -115,10 +127,13 @@ measurements, card lines, normalized card geometry, and edge-label results.
 
 **Semantic detail levels** are derived by `cloudMapDetailLevel(zoom)` and
 written only when the level changes. Below `1`, condensed hides facts, statuses,
-and edge labels. Below `0.75`, compact also hides the strip and divider while
-retaining the readable name. Below `0.45`, overview hides the name so only the
-colored graph silhouette remains. CSS uses `visibility: hidden`; normalized
-rendered bounds keep proxy geometry and edge endpoints aligned.
+and edge labels. Below `0.6`, compact also hides the strip and divider. Below
+`0.45`, overview keeps names and structure visible; node titles are never
+removed. The shared-style visibility badge states which information is hidden
+at the active level and points to 100% for the complete view. Hidden relationship
+labels render as uninterrupted curves rather than retaining an empty label gap.
+CSS uses `visibility: hidden`; normalized rendered bounds keep proxy geometry
+and edge endpoints aligned.
 
 **Per-card width via inline CSS variable.** Card HTML templates
 inline `style="--cc:…; --cw:${CW}px"` (or `--cw:${CW_HUB}px` for
@@ -203,9 +218,10 @@ out via the **CP target**, not via endpoint perp-shift. Each edge's
 sorted-pair so swapped source/target siblings don't cancel. Single
 edges get zero offset.
 
-Cytoscape's `minZoom` is `0.25`. Cards scale visually through native-sized
-properties driven by `--cm-z`; semantic detail levels suppress text that is
-too small to read while retaining the full card geometry.
+Cytoscape's `minZoom` is `0.25` and maximum is `2`. Cards scale visually through
+native-sized properties driven by `--cm-z`; semantic detail levels suppress
+secondary text that is too small to read while always retaining node names and
+the full card geometry.
 
 ### Physics integrator
 
@@ -346,34 +362,25 @@ and the `_squish` keyframe helper are all removed — the integrator
 subsumes them. `cm-squish-x`/`-y` CSS keyframes are gone too.
 
 Right-click context menu via Cytoscape `cxttap` handler `_onCtxNode`.
-Items: "Otevřít detail", "Zaměřit okolí" / "Zrušit fokus", plus
-mode-aware shortcuts. Menu is a singleton `.cm-ctx-menu` div on `<body>`.
+Items are read-only navigation and focus operations: "Otevřít detail",
+"Zaměřit okolí" / "Zrušit fokus", plus mode-aware navigation. Relationship
+creation is deliberately absent. Menu is a singleton `.cm-ctx-menu` div on `<body>`.
 Dismissed on outside-click, Esc, or blur.
 
-Public API: `render(mode)` · `savePositions()` · `resetLayout()` ·
-`runAutoLayout()` · `runDagreLayout()` · `undoLayout()` · `toggleFaction(fid)` ·
+Public UI API: `render(mode)` · `zoomOut()` · `zoomIn()` · `zoomReset()` ·
+`fitView()` · `toggleFaction(fid)` ·
 `setFilterValues(arr)` · `toggleEdgeType(t)` · `toggleFocusMode()` ·
 `setFocusHops(n)` · `clearFilters()`.
 (Legacy `setSearch/toggleStatus/setMinKnowledge` removed — chip filter
 replaces all three.)
 
-Toolbar buttons (all edit-mode-only via the existing `cm-save-pos`
-class): **✨ Auto rozložení** (`runAutoLayout`) · **↶ Zpět rozložení**
-(`undoLayout`, disabled when history empty — JS toggles
-`opacity` and `pointer-events` via the `cm-undo-layout` class) ·
-**⟳ Rozložení** (`resetLayout`, clears localStorage and re-runs the
-initial Cytoscape layout) · **💾 Uložit pozice** (`savePositions`).
-The **frakce** mode additionally renders **⊞ Hierarchie**
-(`runDagreLayout`) — a one-shot dagre top-down layout (dagre is
-registered via `cytoscape.use(cytoscapeDagre)` at app.js init and
-bundled inside cytoscape-dagre 4; no standalone dagre script). It
-ranks on the STRUCTURAL hierarchy only — hub→member (`mbr_`),
-hub→location (`loc_`), and command chains (`*-commands`) — passed via
-the layout's `eles` option; lateral `ally`/`negotiates` edges still
-render but are excluded so faction hubs stay in the top rank. The
-resulting node positions are adopted as the physics `nodeRest` and
-saved (same persistence path as Auto rozložení), so the integrator
-holds the hierarchy until the user drags.
+The toolbar presents the three projections, a **Read-only map** purpose badge,
+the semantic-visibility indicator, and the unified zoom control. Cytoscape uses
+`autoungrabify: true`: panning, zooming, filtering, focusing, and opening source
+records remain available, while nodes and graph meaning cannot be changed on
+this page. Historical auto-layout and persistence helpers remain private
+compatibility code for existing saved arrangements and are not bound to UI
+actions.
 
 Word-wrap uses the shared Pretext-backed `layoutText` adapter and its bounded
 prepared-text/result caches. `_wrap(text, font, maxW)` materializes the exact

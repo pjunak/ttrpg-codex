@@ -1,4 +1,4 @@
-export const CLOUDMAP_COMPACT_ZOOM = 0.75;
+export const CLOUDMAP_COMPACT_ZOOM = 0.6;
 export const CLOUDMAP_OVERVIEW_ZOOM = 0.45;
 export const CLOUDMAP_FULL_DETAIL_ZOOM = 1;
 export const CLOUDMAP_TYPOGRAPHY_STEP = 0.25;
@@ -18,4 +18,9 @@ export function cloudMapTypographyScale(zoom) {
   if (normalized <= 1) return 1;
   return Math.floor((normalized + Number.EPSILON) / CLOUDMAP_TYPOGRAPHY_STEP)
     * CLOUDMAP_TYPOGRAPHY_STEP;
+}
+
+export function cloudMapHiddenDetailKey(zoom) {
+  const level = cloudMapDetailLevel(zoom);
+  return level === 'full' ? '' : `cloudmap.hiddenDetails.${level}`;
 }

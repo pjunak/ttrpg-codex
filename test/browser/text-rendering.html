@@ -63,7 +63,7 @@
       const hubName = document.querySelector('[data-cm-text-role="hub-name"]');
       const fact = document.querySelector('.cm-fact');
       const edge = document.querySelector('.cm-edge-label');
-      const detailBoundaries = [0.25, 0.449, 0.45, 0.749, 0.75, 0.999, 1]
+      const detailBoundaries = [0.25, 0.449, 0.45, 0.599, 0.6, 0.999, 1]
         .map(cloudMapDetailLevel);
       check(
         'cloud detail thresholds are stable',
@@ -72,7 +72,7 @@
         ['overview', 'overview', 'compact', 'compact', 'condensed', 'condensed', 'full'],
       );
 
-      for (const zoom of [0.25, 0.265, 0.45, 0.5, 0.749, 0.75, 0.9, 1, 2]) {
+      for (const zoom of [0.25, 0.265, 0.45, 0.55, 0.599, 0.6, 0.9, 1, 2]) {
         layer.style.setProperty('--cm-z', String(zoom));
         const typeScale = cloudMapTypographyScale(zoom);
         layer.style.setProperty('--cm-type-z', String(typeScale));
@@ -103,7 +103,7 @@
         check(`cloud detail level at ${zoom}x`, layer.dataset.cmDetail === detailLevel, layer.dataset.cmDetail, detailLevel);
         const expectedVisibility = {
           strip: detailLevel === 'overview' || detailLevel === 'compact' ? 'hidden' : 'visible',
-          name: detailLevel === 'overview' ? 'hidden' : 'visible',
+          name: 'visible',
           fact: detailLevel === 'full' ? 'visible' : 'hidden',
           edge: detailLevel === 'full' ? 'visible' : 'hidden',
         };

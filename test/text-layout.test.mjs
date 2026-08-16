@@ -3,8 +3,15 @@ import test from 'node:test';
 
 import {
   cloudMapDetailLevel,
+  cloudMapHiddenDetailKey,
   cloudMapTypographyScale,
 } from '../web/js/cloudmap-detail.js';
+import {
+  CLOUDMAP_ZOOM_LEVELS,
+  fittedCloudMapZoom,
+  normalizeCloudMapZoom,
+  stepCloudMapZoom,
+} from '../web/js/cloudmap-zoom.js';
 import {
   cloudMapTextMetrics,
   layoutCloudMapText,
@@ -12,8 +19,17 @@ import {
 
 test('CloudMap separates continuous geometry from readable typography bands', () => {
   assert.deepEqual(
-    [0.25, 0.449, 0.45, 0.749, 0.75, 0.999, 1, 2].map(cloudMapDetailLevel),
+    [0.25, 0.449, 0.45, 0.599, 0.6, 0.999, 1, 2].map(cloudMapDetailLevel),
     ['overview', 'overview', 'compact', 'compact', 'condensed', 'condensed', 'full', 'full'],
+  );
+  assert.deepEqual(
+    [0.35, 0.55, 0.8, 1].map(cloudMapHiddenDetailKey),
+    [
+      'cloudmap.hiddenDetails.overview',
+      'cloudmap.hiddenDetails.compact',
+      'cloudmap.hiddenDetails.condensed',
+      '',
+    ],
   );
   assert.deepEqual(
     [0.25, 0.9, 1, 1.24, 1.25, 1.99, 2].map(cloudMapTypographyScale),
@@ -39,6 +55,21 @@ test('CloudMap separates continuous geometry from readable typography bands', ()
     maxWidth: 85,
     typeScale: 1,
   });
+});
+
+test('CloudMap shares the planner zoom detents and fits down to a stable level', () => {
+  assert.deepEqual(CLOUDMAP_ZOOM_LEVELS, [
+    0.25, 0.35, 0.45, 0.55, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2,
+  ]);
+  assert.equal(Object.isFrozen(CLOUDMAP_ZOOM_LEVELS), true);
+  assert.equal(normalizeCloudMapZoom(0.77), 0.8);
+  assert.equal(stepCloudMapZoom(0.9, 1, 2), 1);
+  assert.equal(stepCloudMapZoom(1.1, -1, 2), 1);
+  assert.equal(stepCloudMapZoom(1, -1), 0.9);
+  assert.equal(fittedCloudMapZoom(0.86, 1), 0.8);
+  assert.equal(fittedCloudMapZoom(1.4, 0.8), 0.8);
+  assert.equal(fittedCloudMapZoom(0.2, 0.8), 0.25);
+  assert.equal(fittedCloudMapZoom(0.2, 0.8, 0.45), 0.45);
 });
 
 test('CloudMap card text materializes cached Pretext lines and clamps overflow', () => {
