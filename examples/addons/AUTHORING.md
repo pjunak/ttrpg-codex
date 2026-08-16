@@ -71,8 +71,8 @@ Install it locally for development from the host checkout (no GitHub needed):
 ```
 node scripts/dev-install-addon.cjs ./my-addon
 ```
-Then launch the app. The addon loads at boot and its sidebar link appears in
-the addon section.
+Then launch the app. The addon loads at boot; a DM can expose its registered
+page from **Settings → Sidebar → Add-on pages** when a sidebar shortcut is useful.
 
 ---
 
@@ -263,7 +263,7 @@ on that value.
 | Method | Permission | Purpose |
 |---|---|---|
 | `registerRoute(seg, render)` | `ui:route` | A hash route `#/<seg>/…`. `render(sub, parts) → htmlString`. |
-| `registerSidebarPage(spec)` | `ui:sidebar` | A left-nav link. `spec = {route:'/x', label, icon?, section?, role?}`. |
+| `registerSidebarPage(spec)` | `ui:sidebar` | Offer a left-nav link for the DM to enable under Settings → Sidebar. New pages start hidden. `spec = {route:'/x', label, icon?, section?, role?}`; `role:'dm'` prevents player visibility. |
 | `registerPageRenderer(kind, render)` | `ui:route` | Provide a `Wiki.renderPage(kind)` page. |
 | `registerArticleSection(kind, fn, {order?})` | `ui:article-section:<kind>` | A section on every entity article. `fn(entity) → {title, html} \| null`. ADDITIVE (stacks, ordered by `order`). |
 | `registerEditorFields(kind, spec)` | `ui:editor-fields:<kind>` | Inject fields into an editor + collect on save. `spec = {fields(entity)→html, collect(scope, entity)→obj}`. Wired for `characters`. |
@@ -307,7 +307,7 @@ Request the **least** you need. The DM sees friendly labels at install.
 | Token | Grants |
 |---|---|
 | `ui:route` | Add a page / page-renderer. |
-| `ui:sidebar` | Add a sidebar link. |
+| `ui:sidebar` | Offer an opt-in sidebar link in the DM's Sidebar settings. |
 | `ui:settings-tab` | Add a Nastavení tab. |
 | `ui:action` | Handle `data-action` clicks/events. |
 | `ui:article-section:<kind>` | Add a section to `<kind>` articles (`characters`, `locations`, `events`, `mysteries`, `factions`, …). |
@@ -401,8 +401,8 @@ handle. Identity is always `(addonId, collectionName)` and data lives at
 Public collections retain the compatibility behavior: all viewers receive
 them and any authenticated role may write. A DM collection is different:
 declare API v2, require `collections.dm`, and set `access:"dm"`. The server
-omits its data and metadata for players, anonymous visitors, and a DM using
-view-as-player; guessed writes return a non-disclosing 404. DM-only writes
+omits its data and metadata for players, anonymous visitors, and the isolated
+player-preview tab; guessed writes return a non-disclosing 404. DM-only writes
 notify only effective-DM SSE clients and do not change the player hash.
 Register a DM collection only while `host.role.isDM()` is true. Role changes
 clear addon caches, reconcile declarations, and reload through the authorized
@@ -1156,6 +1156,8 @@ export default function register(host) {
   host.registerCollection('notes');
   const notes = () => host.store.collection('notes');
 
+  // Offered under Settings → Sidebar; the DM chooses Everyone, DM only,
+  // or Hidden. New registrations start hidden.
   host.registerSidebarPage({ route: '/notes', label: 'Notes', icon: '📝' });
 
   // Factor shared logic into a local function — the host facade has no way to

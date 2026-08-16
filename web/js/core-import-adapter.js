@@ -46,7 +46,7 @@ export const CoreImportAdapter = (() => {
   function descriptor() {
     return Object.freeze({
       id: 'core-campaign-bundle',
-      label: I18n.t('import.title'),
+      label: I18n.t('import.adapterTitle'),
       description: I18n.t('import.intro'),
       accept: '.json,application/json',
       links: Object.freeze([
@@ -236,4 +236,3 @@ export const CoreImportAdapter = (() => {
   const service = Object.freeze({ apiVersion: 1, descriptor, activate, render, leave });
   return Object.freeze({ service, selectFile, preview, revalidate, setConfirmed, commit, reset, leave });
 })();
-

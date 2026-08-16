@@ -23,6 +23,7 @@ import { setWikiLinkResolver, norm, dataAction, esc, clearAnnouncement } from '.
 import { graphImplementationRegistry } from './addon-graph.js';
 import { createCytoscapeGraphAdapter } from './addon-graph-cytoscape.js';
 import { setTextLayoutLocale } from './text-layout.js';
+import { PlayerPreview } from './player-preview.js';
 
 Addons.registerBuiltInService('codex.import-adapter', '1.0.0', CoreImportAdapter.service);
 
@@ -716,7 +717,7 @@ document.addEventListener('click', (ev) => {
 
   function _startSync() {
     try { _es?.close(); } catch (_) {}
-    const es = new EventSource('/api/events');
+    const es = new EventSource(PlayerPreview.apiUrl('/api/events'));
     _es = es;
 
     es.addEventListener('hello', ev => {
@@ -921,17 +922,18 @@ document.addEventListener('click', (ev) => {
   function _renderImpersonationBanner() {
     let banner = document.getElementById('impersonation-banner');
     const impersonating = Role.isImpersonating();
-    if (!impersonating) {
+    const previewing = Role.isPlayerPreview();
+    if (!impersonating && !previewing) {
       if (banner) banner.remove();
       return;
     }
-    if (banner) return; // already shown
+    if (banner) banner.remove();
     banner = document.createElement('div');
     banner.id = 'impersonation-banner';
     banner.className = 'impersonation-banner';
     banner.innerHTML = `
-      <span>👁 ${esc(I18n.t('app.impersonating'))}</span>
-      <button type="button" data-action="Role.backToDM">← ${esc(I18n.t('app.backToDM'))}</button>
+      <span>👁 ${esc(I18n.t(previewing ? 'app.playerPreview' : 'app.impersonating'))}</span>
+      <button type="button" data-action="Role.${previewing ? 'closePlayerPreview' : 'backToDM'}">${previewing ? '×' : '←'} ${esc(I18n.t(previewing ? 'app.closePlayerPreview' : 'app.backToDM'))}</button>
     `;
     document.body.prepend(banner);
   }

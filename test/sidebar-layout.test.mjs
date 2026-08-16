@@ -15,6 +15,11 @@ globalThis.document = globalThis.document || { createElement: () => ({}) };
 
 const { Store } = await import('../web/js/store.js');
 const { SIDEBAR_PAGES, SIDEBAR_LAYOUT_DEFAULT } = await import('../web/js/constants.js');
+const {
+  addonSidebarPageKey,
+  addonSidebarPageMode,
+  addonSidebarPageVisible,
+} = await import('../web/js/sidebar-addon-pages.js');
 
 const allRoutes = (layout) => [...layout.sections.flatMap(s => s.pages), ...layout.hidden];
 const cloneDefault = () => JSON.parse(JSON.stringify(SIDEBAR_LAYOUT_DEFAULT));
@@ -111,4 +116,43 @@ test('hiddenSidebarPages shims: get reflects layout.hidden; set moves routes in/
   assert.deepEqual(Store.getHiddenSidebarPages(), [], 'un-hidden');
   assert.ok(secById(Store.getSidebarLayout(), 'kompendium').pages.includes('/historie'),
     '/historie returns to its home section (kompendium)');
+});
+
+test('addon sidebar pages default hidden and support everyone or DM-only visibility', () => {
+  const page = { addonId: 'notes', route: '/notes' };
+  const key = addonSidebarPageKey(page);
+  assert.equal(key, 'notes:/notes');
+  assert.equal(addonSidebarPageMode(page, {}), 'hidden');
+  assert.equal(addonSidebarPageVisible(page, {}, true), false);
+
+  const everyone = { [key]: 'everyone' };
+  assert.equal(addonSidebarPageVisible(page, everyone, false), true);
+  assert.equal(addonSidebarPageVisible(page, everyone, true), true);
+
+  const dmOnly = { [key]: 'dm' };
+  assert.equal(addonSidebarPageVisible(page, dmOnly, false), false);
+  assert.equal(addonSidebarPageVisible(page, dmOnly, true), true);
+});
+
+test('DM-declared addon pages cannot be widened to players', () => {
+  const page = { addonId: 'secrets', route: '/secrets', role: 'dm' };
+  const visibility = { [addonSidebarPageKey(page)]: 'everyone' };
+  assert.equal(addonSidebarPageMode(page, visibility), 'dm');
+  assert.equal(addonSidebarPageVisible(page, visibility, false), false);
+  assert.equal(addonSidebarPageVisible(page, visibility, true), true);
+});
+
+test('addon sidebar visibility persistence drops invalid modes and unsafe keys', () => {
+  Store.setAddonSidebarVisibility({
+    'notes:/notes': 'everyone',
+    'secrets:/secrets': 'dm',
+    'old:/gone': 'hidden',
+    invalid: 'sometimes',
+    constructor: 'everyone',
+  });
+  assert.deepEqual(Store.getAddonSidebarVisibility(), {
+    'notes:/notes': 'everyone',
+    'secrets:/secrets': 'dm',
+    'old:/gone': 'hidden',
+  });
 });

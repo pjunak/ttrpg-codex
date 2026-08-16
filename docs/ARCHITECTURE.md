@@ -58,7 +58,8 @@ web/js/
   constants.js      PARTY_FACTION_ID, SIDEBAR_PAGES, SIDEBAR_LAYOUT_DEFAULT, THEMES
   collection-descriptors.js Built-in collection/kind/article-route identity
   pin-types.js      Built-in map-marker metadata
-  role.js           Role state (dm / player / anonymous) + view-as impersonation
+  role.js           Role state + isolated player-preview tab controls
+  player-preview.js Tab-scoped player token transport for fetch + SSE
   i18n.js           Per-user UI language (t()/plural()/Intl dates), EN+CS catalogs
   utils.js          esc, escapeRe, norm, debounce, slugify, extractOutline,
                     humanTime, renderMarkdown, expandWikiLinks, dataAction/On
@@ -488,7 +489,8 @@ map only. Auth legend: `—` open · `any` any authenticated role · `dm` DM onl
 | POST | `/api/login` | — | Validate password, set `edit_session` cookie |
 | POST | `/api/logout` | — | Clear the cookie (idempotent) |
 | GET | `/api/auth` | — | Probe current role + impersonation state |
-| POST | `/api/view-as` · `/api/view-as-dm` | dm | Toggle "view as player" impersonation |
+| POST | `/api/player-preview` | dm | Issue a player-only token for an isolated preview tab |
+| POST | `/api/view-as` · `/api/view-as-dm` | dm | Legacy same-cookie impersonation transition |
 | GET · POST | `/api/passwords` | dm | Inspect / rotate stored DM + player credentials |
 | POST | `/api/portrait/:charId` | any | Upload character portrait |
 | DELETE | `/api/portrait/:identifier` | any | Delete portrait file or folder |

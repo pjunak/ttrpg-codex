@@ -9,6 +9,7 @@ import { I18n } from './i18n.js';
 import { CollectionDescriptors } from './collection-descriptors.js';
 import { ApiClient } from './api-client.js';
 import { StoreTransport } from './store-transport.js';
+import { normalizeAddonSidebarVisibility } from './sidebar-addon-pages.js';
 import { StoreAdminClient } from './store-admin-client.js';
 
 export const Store = (() => {
@@ -1682,6 +1683,23 @@ export const Store = (() => {
     return _sync('settings', 'save', { id: 'sidebarLayout', data: clean });
   }
 
+  /** Per-addon-page visibility is kept separate from the core layout because
+   *  addon registrations are dynamic and disappear during role changes or
+   *  lifecycle reconciliation. Unknown keys are harmless and retained until
+   *  the DM changes them; every unconfigured page defaults to hidden. */
+  function getAddonSidebarVisibility() {
+    init();
+    return normalizeAddonSidebarVisibility(_data.settings?.addonSidebarVisibility);
+  }
+
+  function setAddonSidebarVisibility(value) {
+    init();
+    if (!_data.settings) _data.settings = {};
+    const clean = normalizeAddonSidebarVisibility(value);
+    _data.settings.addonSidebarVisibility = clean;
+    return _sync('settings', 'save', { id: 'addonSidebarVisibility', data: clean });
+  }
+
   // Back-compat shims — visibility now == membership in the layout's
   // `hidden` bucket. Kept so any stray caller keeps working.
   function getHiddenSidebarPages() {
@@ -2261,6 +2279,7 @@ export const Store = (() => {
     saveEnumItem, deleteEnumItem, findEnumUsages, resetEnumCategory,
     getKinds, getKind, setAddonKindProvider,
     getSidebarLayout, setSidebarLayout,
+    getAddonSidebarVisibility, setAddonSidebarVisibility,
     getHiddenSidebarPages, setHiddenSidebarPages,
     getMapConfig, setMapConfig,
     getCampaign, setCampaign,

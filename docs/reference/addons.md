@@ -421,8 +421,10 @@ GitHub installer and `scripts/dev-install-addon.cjs` call it before promotion.
   player `addonData` over existing (no drop-by-omission)**; `settings.js
   _visibleSpecialTabs` +
   `_editorHtml` union `Addons.settingsTabs()` / `Addons.settingsTab(id)`;
-  `sidebar.js render()` appends a **"🧩 Doplňky"** section from
-  `Addons.sidebarPages()`; the SSE `addons-changed` listener calls
+  `sidebar.js` lists `Addons.sidebarPages()` in the DM's Sidebar settings;
+  registrations default hidden and render in a shared **"🧩 Doplňky"**
+  section only after the DM chooses Everyone or DM only. The SSE
+  `addons-changed` listener calls
   `Addons.reconcile()` to live-load newly-enabled addons; **app.js's wiki-link
   resolver falls through to `Addons.resolveWikiLink(label, hint)`** after every
   built-in collection misses, so `[[Label|scope]]` resolves into an
@@ -554,8 +556,9 @@ same-origin resource links; `activate({invalidate})`, `render()`, and `leave()`
 own the adapter state, escaped review/editor UI, registered actions, and job
 cleanup. The adapter uses its own scoped `host.imports`, so the composing addon
 cannot operate another addon's provider. DM Tools owns the `#/dm-import` route,
-enumerates all compatible handles with `host.listServices`, and provides only
-selection, lifecycle, and unavailable/error containment. It never parses an
+enumerates all compatible handles with `host.listServices`, and renders their
+independent workflows as one continuous review page with lifecycle and
+unavailable/error containment. It never parses an
 adapter payload or contains known addon ids.
 
 Core campaign data participates through `web/js/core-import-adapter.js`, a

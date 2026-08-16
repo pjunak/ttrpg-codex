@@ -20,6 +20,11 @@ import { SIDEBAR_PAGES, SIDEBAR_LAYOUT_DEFAULT } from './constants.js';
 import { Addons } from './addons.js';
 import { esc, dataAction, dataOn } from './utils.js';
 import { I18n } from './i18n.js';
+import {
+  addonSidebarPageKey,
+  addonSidebarPageMode,
+  addonSidebarPageVisible,
+} from './sidebar-addon-pages.js';
 
 export const Sidebar = (() => {
   const _pageByRoute = new Map(SIDEBAR_PAGES.map(p => [p.route, p]));
@@ -87,20 +92,21 @@ export const Sidebar = (() => {
       <ul class="sidebar-nav">${lis}</ul>`;
   }
 
-  // Addon-registered sidebar links are grouped
-  // under a single "Doplňky" section appended after the DM's layout;
-  // placement into the DM-configurable layout arrives in a later phase.
-  // Role-gated addon pages (spec.role === 'dm') never reach a non-DM DOM.
+  // Addon pages default to hidden. A DM opts each page into Everyone or
+  // DM-only visibility from Settings → Sidebar; enabled links share one
+  // compact Add-ons section after the curated core layout.
   function _addonPageLi(spec) {
     if (!spec || typeof spec.route !== 'string') return '';
-    if (spec.role === 'dm' && !_isDM()) return '';
     return `<li><a href="#${esc(spec.route)}" class="nav-link" data-route="${esc(spec.route)}">` +
       `<span class="nav-icon">${esc(spec.icon || '🧩')}</span> ${esc(spec.label || spec.route)}</a></li>`;
   }
   function _addonSectionHtml() {
     let pages = [];
     try { pages = Addons.sidebarPages ? Addons.sidebarPages() : []; } catch (_) {}
-    const lis = pages.map(_addonPageLi).filter(Boolean).join('');
+    const visibility = Store.getAddonSidebarVisibility();
+    const lis = pages
+      .filter(page => addonSidebarPageVisible(page, visibility, _isDM()))
+      .map(_addonPageLi).filter(Boolean).join('');
     if (!lis) return '';
     return `
       <div class="sidebar-section sidebar-section-doplnky">🧩 ${esc(I18n.t('sidebar.addonsHeader'))}</div>
@@ -230,6 +236,36 @@ export const Sidebar = (() => {
     return (layout.sections || []).map(_secCardHtml).join('') + _hiddenBucketHtml(layout.hidden);
   }
 
+  function _addonEditorHtml() {
+    let pages = [];
+    try { pages = Addons.sidebarPages ? Addons.sidebarPages() : []; } catch (_) {}
+    const visibility = Store.getAddonSidebarVisibility();
+    const rows = pages.map(page => {
+      const key = addonSidebarPageKey(page);
+      if (!key) return '';
+      const mode = addonSidebarPageMode(page, visibility);
+      const everyoneDisabled = page.role === 'dm' ? ' disabled' : '';
+      return `<div class="sb-page sb-addon-page">
+        <span class="sb-page-icon">${esc(page.icon || '🧩')}</span>
+        <span class="sb-page-label">${esc(page.label || page.route)}
+          <small class="sb-addon-owner">${esc(page.addonId || '')}</small></span>
+        <label class="sb-addon-access">
+          <select class="edit-input" aria-label="${esc(I18n.t('sidebar.addonVisibilityFor', { name: page.label || page.route }))}"
+            ${dataOn('change', 'Sidebar.setAddonPageVisibility', key, '$value')}>
+            <option value="everyone"${mode === 'everyone' ? ' selected' : ''}${everyoneDisabled}>${esc(I18n.t('sidebar.visibilityEveryone'))}</option>
+            <option value="dm"${mode === 'dm' ? ' selected' : ''}>${esc(I18n.t('sidebar.visibilityDM'))}</option>
+            <option value="hidden"${mode === 'hidden' ? ' selected' : ''}>${esc(I18n.t('sidebar.visibilityHidden'))}</option>
+          </select>
+        </label>
+      </div>`;
+    }).filter(Boolean).join('');
+    return `<div class="settings-panel sb-addon-panel">
+      <div class="settings-mapviews-group-title">🧩 ${esc(I18n.t('sidebar.addonPagesTitle'))}</div>
+      <p class="settings-hint">${esc(I18n.t('sidebar.addonPagesHint'))}</p>
+      <div class="sb-addon-pages">${rows || `<p class="settings-hint">${esc(I18n.t('sidebar.addonPagesEmpty'))}</p>`}</div>
+    </div>`;
+  }
+
   /** Full editor panel for the Settings → Postranní panel tab. */
   function renderEditor() {
     return `
@@ -246,7 +282,8 @@ export const Sidebar = (() => {
           ${esc(I18n.t('sidebar.editorHint'))}
         </p>
         <div id="sidebar-layout-editor" class="sb-editor">${_editorBodyHtml(Store.getSidebarLayout())}</div>
-      </div>`;
+      </div>
+      ${_addonEditorHtml()}`;
   }
 
   function _rerenderEditor() {
@@ -330,6 +367,17 @@ export const Sidebar = (() => {
   function resetLayout() {
     Store.setSidebarLayout(JSON.parse(JSON.stringify(SIDEBAR_LAYOUT_DEFAULT)));
     _rerenderEditor();
+  }
+
+  function setAddonPageVisibility(key, mode) {
+    const page = Addons.sidebarPages().find(candidate => addonSidebarPageKey(candidate) === key);
+    if (!page) return;
+    const nextMode = page.role === 'dm' && mode === 'everyone' ? 'dm' : mode;
+    if (!['everyone', 'dm', 'hidden'].includes(nextMode)) return;
+    const visibility = Store.getAddonSidebarVisibility();
+    visibility[key] = nextMode;
+    Store.setAddonSidebarVisibility(visibility);
+    render();
   }
 
   // ── Drag & drop (delegated document listeners, registered once) ─
@@ -425,6 +473,6 @@ export const Sidebar = (() => {
     render, toggleSection, renderEditor,
     addSection, deleteSection, resetLayout,
     setSectionLabel, setSectionIcon, setSectionFlag,
-    hidePage, showPage, movePage, moveSection,
+    hidePage, showPage, movePage, moveSection, setAddonPageVisibility,
   };
 })();

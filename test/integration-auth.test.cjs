@@ -137,6 +137,71 @@ test('view-as-dm: DM in player mode flips back to DM', async () => {
   } finally { await srv.kill(); }
 });
 
+test('player preview token scopes one tab to player access without replacing the DM cookie', async () => {
+  const srv = await startServer({ dmPassword: DM, playerPassword: PLAYER });
+  try {
+    await srv.fetch('/api/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: DM }),
+    });
+    const dmCookie = srv.cookieValue();
+    const issue = await srv.fetch('/api/player-preview', { method: 'POST' });
+    assert.equal(issue.status, 200);
+    const { token, expiresAt } = await issue.json();
+    assert.match(token, /^[A-Za-z0-9_-]{43}$/);
+    assert.equal(Number.isFinite(expiresAt), true);
+    assert.equal(srv.cookieValue(), dmCookie, 'issuing a preview does not replace the DM cookie');
+
+    const previewAuth = await srv.fetch('/api/auth', {
+      headers: { 'X-Codex-Player-Preview': token },
+    });
+    assert.deepEqual(await previewAuth.json(), {
+      role: 'player', realRole: 'player', playerPreview: true,
+    });
+    const previewQueryAuth = await srv.fetch(`/api/auth?playerPreviewToken=${encodeURIComponent(token)}`);
+    assert.deepEqual(await previewQueryAuth.json(), {
+      role: 'player', realRole: 'player', playerPreview: true,
+    });
+
+    const privileged = await srv.fetch('/api/passwords', {
+      headers: { 'X-Codex-Player-Preview': token },
+    });
+    assert.equal(privileged.status, 403, 'preview token carries no real-DM authority');
+
+    const dmAuth = await srv.fetch('/api/auth');
+    assert.deepEqual(await dmAuth.json(), { role: 'dm', realRole: 'dm' });
+    assert.equal(srv.cookieValue(), dmCookie, 'the original tab remains a DM session');
+  } finally { await srv.kill(); }
+});
+
+test('an invalid preview token fails closed instead of falling back to the DM cookie', async () => {
+  const srv = await startServer({ dmPassword: DM, playerPassword: PLAYER });
+  try {
+    await srv.fetch('/api/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: DM }),
+    });
+    const auth = await srv.fetch('/api/auth', {
+      headers: { 'X-Codex-Player-Preview': 'invalid-preview-token' },
+    });
+    assert.deepEqual(await auth.json(), { role: null, realRole: null });
+    const emptyQuery = await srv.fetch('/api/auth?playerPreviewToken=');
+    assert.deepEqual(await emptyQuery.json(), { role: null, realRole: null });
+  } finally { await srv.kill(); }
+});
+
+test('only an effective DM can issue a player preview token', async () => {
+  const srv = await startServer({ dmPassword: DM, playerPassword: PLAYER });
+  try {
+    await srv.fetch('/api/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: PLAYER }),
+    });
+    const issue = await srv.fetch('/api/player-preview', { method: 'POST' });
+    assert.equal(issue.status, 401);
+  } finally { await srv.kill(); }
+});
+
 test('logout: clears the cookie; subsequent /api/auth reports anonymous', async () => {
   const srv = await startServer({ dmPassword: DM, playerPassword: PLAYER });
   try {

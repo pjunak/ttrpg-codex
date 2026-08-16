@@ -225,7 +225,7 @@ record links, and a bounded source-JSON editor. Revalidation serializes the
 modified source into a new input, creates a new job, and obtains a fresh
 plan/token; the prior job remains intact until replacement preview succeeds.
 It contains no DM Tools schema, planning field map, story projection, or known
-addon id. DM Tools owns `#/dm-import`, adapter selection, and lifecycle; its
+addon id. DM Tools owns `#/dm-import`, continuous adapter composition, and lifecycle; its
 planning adapter owns the planning workflow. The client never mutates a
 server-held plan, and commit remains bound to one exact validated preview
 token. With DM Tools absent there is no visible Import Center route.
@@ -386,6 +386,7 @@ honest JSON 404 instead of `200` + `index.html`. Covered by
 | POST | `/api/login` | — | `{ password }` sets `edit_session` cookie. Tries DM credential first, then player. |
 | POST | `/api/logout` | — | Clear `edit_session` cookie. Idempotent. |
 | GET | `/api/auth` | — | `{ role, realRole }`. Anonymous = both null. |
+| POST | `/api/player-preview` | dm | Issue a random, bounded eight-hour player-only preview token for a separate tab. The token never changes the DM cookie. Preview API calls send it in `X-Codex-Player-Preview`; SSE uses `playerPreviewToken`. A valid token resolves as player/player with no real-DM authority, while an invalid or expired supplied token fails closed to anonymous instead of falling back to the cookie. |
 | POST | `/api/view-as` | dm | DM-only. Re-issue cookie with effective role=`player` (realRole=`dm` preserved). |
 | POST | `/api/view-as-dm` | dm | DM-only. Flip effective role back to `dm` from an active impersonation. |
 | GET | `/api/passwords` | dm | DM-only. Report presence flags for DM/player credentials (`{stored, updatedAt, envFallback, isDefault?, disabled?}`). Never reveals hash/salt. |

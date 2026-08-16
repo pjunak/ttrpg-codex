@@ -14,6 +14,9 @@ const SESSION_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX = 10;
 const LOGIN_ATTEMPTS_MAX = 5000;
+const PLAYER_PREVIEW_MAX = 128;
+const PLAYER_PREVIEW_TTL_MS = 8 * 60 * 60 * 1000;
+const PLAYER_PREVIEW_HEADER = 'x-codex-player-preview';
 
 function createAuthService({
   dataDir,
@@ -25,6 +28,7 @@ function createAuthService({
 }) {
   const authFile = path.join(dataDir, 'auth.json');
   const loginAttempts = new Map();
+  const playerPreviews = new Map();
   let authCache = null;
 
   function loadStoredCredentials() {
@@ -126,10 +130,49 @@ function createAuthService({
     return { role: parsed.role, realRole: parsed.realRole };
   }
 
+  function prunePlayerPreviews() {
+    const currentTime = now();
+    for (const [previewToken, expiresAt] of playerPreviews) {
+      if (expiresAt <= currentTime) playerPreviews.delete(previewToken);
+    }
+    while (playerPreviews.size >= PLAYER_PREVIEW_MAX) {
+      playerPreviews.delete(playerPreviews.keys().next().value);
+    }
+  }
+
+  function issuePlayerPreview() {
+    prunePlayerPreviews();
+    const previewToken = crypto.randomBytes(32).toString('base64url');
+    const expiresAt = now() + PLAYER_PREVIEW_TTL_MS;
+    playerPreviews.set(previewToken, expiresAt);
+    return { token: previewToken, expiresAt };
+  }
+
+  function requestedPlayerPreview(req) {
+    const hasHeader = Object.prototype.hasOwnProperty.call(req.headers || {}, PLAYER_PREVIEW_HEADER);
+    const hasQuery = Object.prototype.hasOwnProperty.call(req.query || {}, 'playerPreviewToken');
+    if (!hasHeader && !hasQuery) return null;
+    const value = hasHeader ? req.get?.(PLAYER_PREVIEW_HEADER) : req.query.playerPreviewToken;
+    return { value: typeof value === 'string' ? value : '' };
+  }
+
+  function resolvePlayerPreview(req) {
+    const requested = requestedPlayerPreview(req);
+    if (!requested) return null;
+    const expiresAt = playerPreviews.get(requested.value);
+    if (!expiresAt || expiresAt <= now()) {
+      playerPreviews.delete(requested.value);
+      return { role: null, realRole: null, requested: true };
+    }
+    return { role: 'player', realRole: 'player', requested: true };
+  }
+
   function attachRole(req, _res, next) {
-    const { role, realRole } = resolveRole(req);
+    const preview = resolvePlayerPreview(req);
+    const { role, realRole } = preview || resolveRole(req);
     req.role = role;
     req.realRole = realRole;
+    req.playerPreview = !!(preview && role === 'player');
     next();
   }
 
@@ -258,13 +301,22 @@ function createAuthService({
       return res.json({ ok: true, role });
     });
 
-    app.post('/api/logout', (_req, res) => {
+    app.post('/api/logout', (req, res) => {
+      if (req.playerPreview) return res.json({ ok: true, playerPreview: true });
       res.clearCookie('edit_session', { path: '/' });
-      res.json({ ok: true });
+      return res.json({ ok: true });
     });
 
     app.get('/api/auth', (req, res) => {
-      res.json({ role: req.role, realRole: req.realRole });
+      res.json({
+        role: req.role,
+        realRole: req.realRole,
+        ...(req.playerPreview ? { playerPreview: true } : {}),
+      });
+    });
+
+    app.post('/api/player-preview', requireRole('dm'), (_req, res) => {
+      res.json(issuePlayerPreview());
     });
 
     app.post('/api/view-as', requireRealDM(), (_req, res) => {

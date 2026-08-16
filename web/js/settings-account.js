@@ -32,7 +32,7 @@ export const SettingsAccount = (() => {
 
     function open() {
       passwordStatus = null;
-      if (Role.getReal() !== 'dm') return Promise.resolve();
+      if (!Role.isDM()) return Promise.resolve();
       return loadPasswordStatus().then(render);
     }
 
@@ -137,29 +137,34 @@ export const SettingsAccount = (() => {
       const role = Role.get();
       const realRole = Role.getReal();
       const logoutButton = role
-        ? `<button type="button" class="edit-delete-btn"
-             ${dataAction('Settings.logout')}>↩ ${esc(I18n.t('action.logout'))}</button>`
+        ? (Role.isPlayerPreview()
+          ? `<button type="button" class="inline-create-btn"
+               ${dataAction('Role.closePlayerPreview')}>× ${esc(I18n.t('app.closePlayerPreview'))}</button>`
+          : `<button type="button" class="edit-delete-btn"
+               ${dataAction('Settings.logout')}>↩ ${esc(I18n.t('action.logout'))}</button>`)
         : `<button type="button" class="inline-create-btn"
              ${dataAction('EditMode.promptLogin')}>🔑 ${esc(I18n.t('action.login'))}</button>`;
       const viewAsButton = (() => {
-        if (realRole !== 'dm') return '';
         if (role === 'dm') {
           return `<button type="button" class="inline-create-btn"
-                    ${dataAction('Role.viewAsPlayer')}
+                    ${dataAction('Role.openPlayerPreview')}
                     title="${esc(I18n.t('settings.viewAsPlayerTitle'))}">👁 ${esc(I18n.t('settings.viewAsPlayer'))}</button>`;
         }
-        return `<button type="button" class="inline-create-btn"
-                  ${dataAction('Role.backToDM')}
-                  title="${esc(I18n.t('settings.backToDMTitle'))}">← ${esc(I18n.t('settings.backToDM'))}</button>`;
+        if (realRole === 'dm') {
+          return `<button type="button" class="inline-create-btn"
+                    ${dataAction('Role.backToDM')}
+                    title="${esc(I18n.t('settings.backToDMTitle'))}">← ${esc(I18n.t('settings.backToDM'))}</button>`;
+        }
+        return '';
       })();
-      const passwordSection = realRole === 'dm'
+      const passwordSection = Role.isDM()
         ? passwordSectionHtml()
         : `<p class="settings-hint settings-account-dm-note">
              ${esc(I18n.t('settings.passwordDMOnly'))}
            </p>`;
 
-      if (realRole === 'dm') ensureServerInfo();
-      const serverSection = realRole === 'dm' && canRestart ? `
+      if (Role.isDM()) ensureServerInfo();
+      const serverSection = Role.isDM() && canRestart ? `
           <hr class="settings-section-divider">
           <div class="settings-mapviews-group-title">♻ ${esc(I18n.t('settings.serverOps'))}</div>
           <p class="settings-hint settings-account-server-hint">

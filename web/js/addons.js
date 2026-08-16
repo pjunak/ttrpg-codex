@@ -215,7 +215,8 @@ export const Addons = (() => {
       _undoOwnedMap(_routes, segment);
     }
 
-    /** Add a left-sidebar link (rendered under "Doplňky"). Needs `ui:sidebar`. */
+    /** Offer a left-sidebar link that the DM may enable in Sidebar settings.
+     *  New registrations start hidden. Needs `ui:sidebar`. */
     function registerSidebarPage(spec) {
       if (!has('ui:sidebar')) deny('ui:sidebar', 'registerSidebarPage');
       AddonRegistrationContract.sidebarPage(spec);

@@ -17,6 +17,7 @@
   "mapViews":          [...],
   "mapConfigs":        {...},
   "sidebarLayout":     {...},
+  "addonSidebarVisibility": {...},
   "playerParty":       {...},
   "branding":          {...},
   "appearance":        {...}
@@ -83,6 +84,10 @@ first-class collection), pantheon / artifacts (same).
   the `Sidebar` module's render + the **Sidebar** drag-drop
   editor (see **Sidebar structure**). `getHiddenSidebarPages` /
   `setHiddenSidebarPages` survive as thin shims over `layout.hidden`.
+- `getAddonSidebarVisibility()` / `setAddonSidebarVisibility(value)` —
+  per-registration `everyone | dm | hidden` choices keyed by
+  `<addonId>:<route>`. Missing entries default to hidden; this dynamic addon
+  layer does not enter the core section layout.
 - `getMapConfig(mapId)` / `setMapConfig(mapId, patch)` — per-map
   knobs (currently just `zoomScaleRatio`, 0..1). `mapId` is `'world'`
   for the main map, `'local-${locationId}'` for sub-maps (matches
@@ -295,7 +300,10 @@ Relationships) leaves the active tab outside the visible set.
   reorder sections, rename / set icon / toggle collapsible / DM-only per
   section, add / delete sections. Every change persists to
   `settings.sidebarLayout` and re-renders the live sidebar instantly.
-  See **Sidebar structure** for the model + DnD wiring.
+  Below it, **Add-on pages** lists current `registerSidebarPage`
+  registrations with Everyone / DM only / Hidden selectors. Addon pages begin
+  hidden and appear in a shared Add-ons sidebar section only after the DM opts
+  them in. See **Sidebar structure** for the model + DnD wiring.
 - `backup` — Snapshot system + ZIP download/upload. **Role-aware UI:**
   non-DM viewers see only the snapshot list (read-only — no per-row
   actions) plus the `＋ Create snapshot` and `↻ Refresh` buttons.
@@ -312,7 +320,7 @@ Relationships) leaves the active tab outside the visible set.
   bypass the role-filter — a player download would leak `visibility:
   'dm'` entities.
 - `account` (label: **Server**, icon 🖥) — Role chip + Log out +
-  (DM-only) view-as-player / back-to-DM toggles + DM-only password
+  (DM-only) separate-tab player preview + DM-only password
   rotation forms **+ the DM-only ♻ Restartovat server button** (moved
   here from the addons toolbar; gated on `/api/version canRestart`,
   `Settings.restartServer` → `POST /api/restart` with the

@@ -42,6 +42,8 @@ repo-local TODO, roadmap, or planning files.
 ## Non-negotiable implementation rules
 
 - Request only permissions and required capabilities that the code uses.
+- `registerSidebarPage` offers an opt-in page under Settings → Sidebar; it
+  starts hidden, and `role:'dm'` is a ceiling the DM cannot widen to players.
 - Namespace actions with `host.action(name)` and wire events with
   `host.h.dataAction()` or `host.h.dataOn()`. Never add inline handlers.
 - Escape every dynamic or translated string inserted into HTML with

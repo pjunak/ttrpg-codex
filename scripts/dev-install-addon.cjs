@@ -151,7 +151,7 @@ fs.writeFileSync(regFile, JSON.stringify(reg, null, 2));
 console.log(`✓ installed "${id}" v${manifest.version}`);
 console.log(`  code:      ${finalDir}`);
 console.log(`  entry URL: /addons/${id}/${hash}/${manifest.entry}`);
-console.log('  Restart / reload the app — the addon loads at boot and its sidebar link appears under "Doplňky".');
+console.log('  Restart / reload the app. Any offered navigation page starts hidden and can be enabled in Settings → Sidebar.');
 }
 
 main().catch((error) => {

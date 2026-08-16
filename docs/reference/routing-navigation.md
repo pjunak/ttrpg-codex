@@ -160,6 +160,16 @@ both the editor (`#sidebar-layout-editor` innerHTML) and the live sidebar;
 SSE propagates it. `settings.js`'s `applySidebarVisibility` is now a thin
 alias to `Sidebar.render`.
 
+Addon pages are a separate dynamic layer. `registerSidebarPage` offers a page
+to the editor but does not place it in navigation automatically. Every newly
+registered addon page starts **Hidden**. The DM chooses **Everyone**, **DM
+only**, or **Hidden** in the Add-on pages panel below the core layout editor;
+enabled pages render in one Add-ons section after the curated core sections.
+An addon declaration with `role:'dm'` cannot be widened to Everyone. Choices
+are stored in `settings.addonSidebarVisibility` by stable
+`<addonId>:<route>` key, so unloading an addon removes its live row/link
+without coupling its lifecycle to the core drag/drop layout.
+
 The old sidebar **Parta** link was removed — the dashboard's Naše parta
 section fills that role, and `/parta` stays reachable via the "Celá parta →"
 action there (and via bookmarks).
@@ -299,11 +309,10 @@ real client IP behind nginx/Caddy/Traefik — without this the login
 rate limiter would lump all clients under the proxy IP and a single
 brute-forcer could lock out everyone.
 
-### Account tab — Settings → Účet
+### Account tab — Settings → Server
 
 DM-only password management plus a role chip + logout/login for any
-signed-in viewer. The password subsection only renders when
-`Role.getReal() === 'dm'` (DMs in "view as player" mode still see it).
+signed-in viewer. The password subsection renders only for the effective DM.
 Two forms, one per role, each requiring the caller's current DM
 password as a safety check (so a stolen session can't silently rotate
 credentials). Player-password field accepts the empty string as a
@@ -322,6 +331,16 @@ DM-only addon records in search, wiki-link consumers, addon handles, or rendered
 DOM. Switching back to DM reloads those records through the authorized server
 path rather than reviving a stale cache. A real player follows the same player
 projection and never receives the hidden containers.
+
+The normal DM control opens a player preview in a **separate tab** instead of
+rewriting the shared `edit_session` cookie. `POST /api/player-preview` issues a
+bounded eight-hour, player-only token. The new tab moves it from the launch URL
+into tab-scoped `sessionStorage`, adds it to same-origin API requests, and adds
+it to the SSE URL. Server role resolution gives a valid preview token
+`role=realRole=player`; an invalid or expired token fails closed to anonymous
+even when the browser also carries a DM cookie. Closing the preview never logs
+out the original DM tab. The legacy cookie view-as endpoints remain available
+for compatibility but are no longer the primary UI flow.
 
 Hash + verify helpers live in `server-utils.cjs` (`hashPassword`,
 `verifyPassword`, `safeEqStrings`) so they're unit-testable. The

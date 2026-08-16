@@ -6,7 +6,7 @@
 //  module exists to:
 //    1. Cache `/api/auth` so the rest of the UI can branch on
 //       Role.isDM() without spinning up a fetch every time.
-//    2. Surface the "View as player" / "Back to DM" controls.
+//    2. Surface the isolated player-preview controls.
 //    3. Stamp `body.is-dm` / `body.is-impersonating` classes so
 //       CSS can hide DM-only chrome (edit toggle, DM dashboard
 //       link, etc.) without per-element JS gating.
@@ -16,6 +16,8 @@
 //  again. The cache is repopulated on every `Store.load()` indirect
 //  via `Role.refresh()` from app.js.
 // ═══════════════════════════════════════════════════════════════
+
+import { PlayerPreview } from './player-preview.js';
 
 export const Role = (() => {
   // `role` is the EFFECTIVE role used for filtering — what the DM
@@ -58,6 +60,7 @@ export const Role = (() => {
   function isPlayer()        { return _role === 'player'; }
   function isAnonymous()     { return _role === null; }
   function isImpersonating() { return _role !== _realRole && _realRole === 'dm'; }
+  function isPlayerPreview()  { return PlayerPreview.isActive(); }
   function isLoaded()        { return _loaded; }
 
   // Update _role / _realRole, restamp body classes, and fire
@@ -91,6 +94,32 @@ export const Role = (() => {
     } catch (_) { return null; }
   }
 
+  /** Open an isolated player-only session in a new tab. Its short-lived
+   *  credential is stored in that tab's sessionStorage, so the DM cookie in
+   *  this tab is never replaced. */
+  async function openPlayerPreview() {
+    if (!isDM() || typeof window === 'undefined') return null;
+    const previewWindow = window.open('about:blank', '_blank');
+    if (!previewWindow) return null;
+    try { previewWindow.opener = null; } catch (_) {}
+    try {
+      const res = await fetch('/api/player-preview', { method: 'POST', credentials: 'same-origin' });
+      if (!res.ok) throw new Error('player preview unavailable');
+      const data = await res.json();
+      if (!data?.token) throw new Error('player preview token missing');
+      previewWindow.location.replace(PlayerPreview.buildUrl(data.token));
+      return true;
+    } catch (_) {
+      try { previewWindow.close(); } catch (_) {}
+      return null;
+    }
+  }
+
+  function closePlayerPreview() {
+    if (!PlayerPreview.isActive()) return;
+    PlayerPreview.close();
+  }
+
   /** Flip back to effective role 'dm' from a player-impersonation state. */
   async function backToDM() {
     if (_realRole !== 'dm') return null;
@@ -105,6 +134,10 @@ export const Role = (() => {
 
   /** Clear the session cookie. Logs the user out without prompting. */
   async function logout() {
+    if (PlayerPreview.isActive()) {
+      PlayerPreview.close();
+      return;
+    }
     try {
       await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
     } catch (_) {}
@@ -113,7 +146,8 @@ export const Role = (() => {
 
   return {
     refresh, get, getReal,
-    isDM, isPlayer, isAnonymous, isImpersonating, isLoaded,
+    isDM, isPlayer, isAnonymous, isImpersonating, isPlayerPreview, isLoaded,
+    openPlayerPreview, closePlayerPreview,
     viewAsPlayer, backToDM, logout,
   };
 })();

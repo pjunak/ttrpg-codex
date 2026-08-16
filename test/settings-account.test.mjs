@@ -76,3 +76,21 @@ test('account controller owns status loading and restart availability', async ()
     '/api/version',
   ]);
 });
+
+test('effective player view never renders real-DM password or server controls', async () => {
+  const requests = [];
+  globalThis.fetch = async url => {
+    requests.push(String(url));
+    if (url === '/api/auth') return jsonResponse({ role: 'player', realRole: 'dm' });
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  await Role.refresh();
+  const account = SettingsAccount.create({ render() {}, flash() {}, requireDM() { return false; } });
+  await account.open();
+  const html = account.html();
+  assert.doesNotMatch(html, /Settings\.changePassword/);
+  assert.doesNotMatch(html, /Settings\.restartServer/);
+  assert.match(html, /Role\.backToDM/);
+  assert.deepEqual(requests, ['/api/auth']);
+});
