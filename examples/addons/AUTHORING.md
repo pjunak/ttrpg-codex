@@ -850,7 +850,8 @@ off-list match nothing (harmless, forward-compatible); nothing is ever
 deleted — re-ticking restores instantly. Toggle state survives updates.
 
 Installs are DM-only and work with **private GitHub repositories** when the
-operator sets `CODEX_GITHUB_TOKEN` (see `docs/SELF_HOSTING.md`).
+operator configures a repository-specific or default token in the Add-on
+Manager, or sets `CODEX_GITHUB_TOKEN` (see `docs/SELF_HOSTING.md`).
 
 ```jsonc
 // addon.json

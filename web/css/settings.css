@@ -947,6 +947,78 @@
 
 .addon-row-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
 
+/* GitHub credentials are managed in the Add-on Manager, not hidden in the
+   install flow. Token values never render; these rows show scopes only. */
+.github-token-manager {
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid rgba(var(--gold-muted), 0.2);
+  border-radius: var(--radius);
+}
+.github-token-manager-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-1);
+}
+.github-token-manager-head h3 {
+  margin: 0;
+  color: var(--text-cream);
+  font-family: var(--font-title);
+  font-size: var(--text-base);
+}
+.github-token-manager-status {
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+}
+.github-token-manager-status.is-configured { color: var(--color-success); }
+.github-token-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-3) 0;
+}
+.github-token-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+.github-token-row > div:first-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.github-token-row strong {
+  color: var(--text-parchment);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.github-token-row span { color: var(--text-muted); font-size: var(--text-xs); }
+.github-token-row-actions { display: flex; gap: var(--space-1); flex: none; }
+.github-token-form-hint { margin-bottom: var(--space-2); }
+.github-token-form {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(12rem, 1fr) auto;
+  align-items: end;
+  gap: var(--space-2);
+}
+.github-token-form .settings-field { margin: 0; }
+
+@media (max-width: 768px) {
+  .github-token-row { align-items: flex-start; flex-direction: column; }
+  .github-token-form { grid-template-columns: 1fr; }
+  .github-token-form .edit-save-btn { justify-self: start; }
+}
+
 /* Overflow menu (native <details>) for the rare row actions (roll back / remove). */
 .addon-actions-more { position: relative; margin-left: auto; }
 .addon-actions-more > summary {

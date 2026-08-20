@@ -206,15 +206,16 @@ Relationships) leaves the active tab outside the visible set.
   `＋ Instalovat z GitHubu` button opening the **install wizard** modal
   (`Settings.openAddonWizard` — paste a GitHub URL → `POST /api/addons/install`
   → the addon live-loads via the `addons-changed` SSE reconcile, no reload).
-  Under the URL field the wizard carries a collapsed **🔑 Private
-  repositories** `<details>` (`_wizardTokenSectionHtml`): status in the
-  summary (`settings.tokenState*` ← `_githubTokenSrc`), a password-type
-  input + `Settings.saveGithubToken` (POST `/api/addons/github-token`;
-  on success with a repo pasted the preview auto-retries) and
-  `Settings.clearGithubToken` when a stored token exists. A failed
-  preview with no token appends `settings.tokenPrivateHint` and
-  force-opens the section (`_refreshWizardTokenSection(true)`) — the
-  whole private-repo flow lives inside the wizard. ⚠ The section shares
+  Under the URL field the wizard carries a collapsed **🔑 Private repository
+  token** `<details>` (`_wizardTokenSectionHtml`): status in the summary, a
+  password-type input + `Settings.saveGithubToken` (POST
+  `/api/addons/github-token` with the pasted `repo`; on success the preview
+  auto-retries) and `Settings.clearGithubToken` when that exact repository has
+  a stored token. A failed
+  preview with no token appends `settings.tokenPrivateHint` and force-opens
+  the section (`_refreshWizardTokenSection(true)`). A failed preview with an
+  existing credential instead suggests replacing an expired token and opens
+  the same shortcut. ⚠ The section shares
   the `.addon-row-perms` styling but is excluded from the Manager's
   menu-close delegation (`_ADDON_MENU_SEL` has `:not(#addon-wizard-token)`)
   — menu semantics ("click inside → close") would collapse the details
@@ -223,16 +224,19 @@ Relationships) leaves the active tab outside the visible set.
   Update-check results remain visible until individually invalidated: a
   successful update, rollback, disable, or removal clears only that addon's
   result, while a bulk update clears the complete result set.
-  Toolbar also has **⬆ Update all** (`Settings.updateAllAddons` →
+  Above the addon list, the always-visible **GitHub access tokens** section
+  manages the default token and any number of repository-specific tokens.
+  Saving an existing scope replaces it; token values are never returned or
+  rendered. Lookup precedence is repository-specific → UI default → server
+  environment. Toolbar also has **⬆ Update all** (`Settings.updateAllAddons` →
   `POST /api/addons/update-all` — updates every GitHub addon at once; local addons
-  skipped). Under the intro the Manager shows a one-line **🔑 GitHub-token
-  status** (`_githubTokenLine` ← the DM-only `githubTokenConfigured` +
-  `githubTokenSource` on `GET /api/addons`): whether the server can install
-  PRIVATE addon repos and where the token came from (wizard-stored
+  skipped). The token manager status uses the DM-only aggregate/default,
+  environment, and repository-scope fields on `GET /api/addons` to show
+  whether the server can install PRIVATE addon repos and which scopes are
+  configured (stored
   `data/secrets.json` wins over `CODEX_GITHUB_TOKEN`/`GITHUB_TOKEN` env;
   see SELF_HOSTING.md) — so a DM learns it up front, not from a failed
-  install; the token itself is managed inside the install wizard (see the
-  wizard bullet above). Content addons whose manifest declares
+  install. Content addons whose manifest declares
   `contentGroups` (e.g. the compendium's `book` field) get a `<details>`
   block in their Manager card with one checkbox per group value
   (`Settings.toggleContentGroup` → `POST /api/addons/:id/content-groups`)

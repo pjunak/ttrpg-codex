@@ -31,9 +31,9 @@ async function login(srv, pw) {
   assert.equal(r.status, 200);
 }
 
-const postToken = (srv, token) => srv.fetch('/api/addons/github-token', {
+const postToken = (srv, token, repo) => srv.fetch('/api/addons/github-token', {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ token }),
+  body: JSON.stringify(repo ? { token, repo } : { token }),
 });
 
 test('github-token: DM-only set/clear; never echoed; excluded from backup + refused by restore', async () => {
@@ -57,7 +57,15 @@ test('github-token: DM-only set/clear; never echoed; excluded from backup + refu
     // Set → configured via 'stored', persisted on disk.
     const set = await postToken(srv, TOKEN);
     assert.equal(set.status, 200);
-    assert.deepEqual(await set.json(), { ok: true, configured: true, source: 'stored' });
+    assert.deepEqual(await set.json(), {
+      ok: true,
+      repo: null,
+      configured: true,
+      source: 'stored',
+      defaultSource: 'stored',
+      environmentConfigured: false,
+      repositories: [],
+    });
     const secrets = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'secrets.json'), 'utf8'));
     assert.equal(secrets.githubToken, TOKEN);
 
@@ -67,6 +75,9 @@ test('github-token: DM-only set/clear; never echoed; excluded from backup + refu
     const list = JSON.parse(listRaw);
     assert.equal(list.githubTokenConfigured, true);
     assert.equal(list.githubTokenSource, 'stored');
+    assert.equal(list.githubTokenDefaultSource, 'stored');
+    assert.equal(list.githubTokenEnvironmentConfigured, false);
+    assert.deepEqual(list.githubTokenRepositories, []);
 
     // Backup ZIP: secrets.json is excluded; the token value appears nowhere.
     const bres = await srv.fetch('/api/backup');
@@ -99,7 +110,15 @@ test('github-token: DM-only set/clear; never echoed; excluded from backup + refu
     // Clear → no stored token, and (env blanked) not configured at all.
     const clr = await postToken(srv, '');
     assert.equal(clr.status, 200);
-    assert.deepEqual(await clr.json(), { ok: true, configured: false, source: null });
+    assert.deepEqual(await clr.json(), {
+      ok: true,
+      repo: null,
+      configured: false,
+      source: null,
+      defaultSource: null,
+      environmentConfigured: false,
+      repositories: [],
+    });
     const cleared = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'secrets.json'), 'utf8'));
     assert.ok(!('githubToken' in cleared), 'clear removes the key');
   } finally { await srv.kill(); }
@@ -124,6 +143,79 @@ test('github-token: env fallback reports source "env"; stored token wins over it
 
     // Clearing falls back to the env token — still configured.
     const clr = await (await postToken(srv, '')).json();
-    assert.deepEqual(clr, { ok: true, configured: true, source: 'env' });
+    assert.deepEqual(clr, {
+      ok: true,
+      repo: null,
+      configured: true,
+      source: 'env',
+      defaultSource: 'env',
+      environmentConfigured: true,
+      repositories: [],
+    });
+  } finally { await srv.kill(); }
+});
+
+test('github-token: repository scopes coexist, replace independently, and fall back to the default', async () => {
+  const first = 'ghp_firstRepositoryToken1234567890abcd';
+  const firstReplacement = 'github_pat_firstReplacement1234567890';
+  const second = 'ghp_secondRepositoryToken123456789abcd';
+  const firstRepo = 'pjunak/addon-dnd-2024-compendium';
+  const secondRepo = 'someone/private-addon';
+  const srv = await startServer({
+    dmPassword: DM,
+    env: { CODEX_GITHUB_TOKEN: '', GITHUB_TOKEN: '' },
+  });
+  try {
+    await login(srv, DM);
+
+    assert.equal((await postToken(srv, first, 'not a github repository')).status, 400);
+    assert.equal((await postToken(srv, TOKEN)).status, 200, 'default token stored');
+
+    const scoped = await postToken(
+      srv,
+      first,
+      'https://github.com/PJUNAK/addon-dnd-2024-compendium',
+    );
+    assert.equal(scoped.status, 200);
+    assert.deepEqual(await scoped.json(), {
+      ok: true,
+      repo: firstRepo,
+      configured: true,
+      source: 'repository',
+      defaultSource: 'stored',
+      environmentConfigured: false,
+      repositories: [firstRepo],
+    });
+    assert.equal((await postToken(srv, second, secondRepo)).status, 200);
+    assert.equal((await postToken(srv, firstReplacement, firstRepo)).status, 200);
+
+    let secrets = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'secrets.json'), 'utf8'));
+    assert.equal(secrets.githubToken, TOKEN, 'legacy/default token is preserved');
+    assert.deepEqual(secrets.githubTokens, {
+      [firstRepo]: firstReplacement,
+      [secondRepo]: second,
+    });
+
+    const listRaw = await (await srv.fetch('/api/addons')).text();
+    assert.ok(!listRaw.includes(firstReplacement));
+    assert.ok(!listRaw.includes(second));
+    const list = JSON.parse(listRaw);
+    assert.deepEqual(list.githubTokenRepositories, [firstRepo, secondRepo]);
+    assert.equal(list.githubTokenDefaultSource, 'stored');
+
+    const clearedScoped = await (await postToken(srv, '', firstRepo)).json();
+    assert.equal(clearedScoped.configured, true);
+    assert.equal(clearedScoped.source, 'stored', 'repo falls back to the default token');
+    assert.deepEqual(clearedScoped.repositories, [secondRepo]);
+
+    const clearedDefault = await (await postToken(srv, '')).json();
+    assert.equal(clearedDefault.configured, true, 'the other repository token remains configured');
+    assert.equal(clearedDefault.source, 'repository');
+    assert.equal(clearedDefault.defaultSource, null);
+
+    await postToken(srv, '', secondRepo);
+    secrets = JSON.parse(await fsp.readFile(path.join(srv.dataDir, 'secrets.json'), 'utf8'));
+    assert.ok(!('githubToken' in secrets));
+    assert.ok(!('githubTokens' in secrets));
   } finally { await srv.kill(); }
 });

@@ -176,21 +176,24 @@ then **`_promoteAddon`** (atomic rename to `<hash>/`→registry mutation→colle
 wiring→prune, **under** `withWriteLock` + `_safeJoinIn`). GitHub fetches carry an
 `AbortSignal.timeout` so a hung repo can't stall the install (or wedge the lock).
 **Private repos:** every api.github.com call (preview `fetchManifest`, install
-`_stageAddon`, `check-updates`, `update-all`) threads `_githubToken()` as
-`Authorization: Bearer`. Two token sources, stored-wins: the **DM-stored
-token** — set from the install wizard's 🔑 section via
-`POST /api/addons/github-token`, persisted in `data/secrets.json`
+`_stageAddon`, `check-updates`, `update-all`) threads `_githubToken(repo)` as
+`Authorization: Bearer`. Credential precedence is exact repository scope,
+UI-managed default, then environment. The DM manages stored tokens in the
+Add-on Manager; the install wizard is a shortcut for the pasted repository.
+`POST /api/addons/github-token` accepts `{token, repo?}` and persists the
+default as `githubToken` or canonical lowercase `owner/repo` entries under
+`githubTokens` in `data/secrets.json`.
 (NON_DATA_JSON_FILES: excluded from snapshots, the data hash and restore,
 PLUS filtered out of the `/api/backup` ZIP — a live plaintext credential
-must never ride into a shareable archive; `chmod 600` best-effort) — then
-the env vars `CODEX_GITHUB_TOKEN` / alias `GITHUB_TOKEN` (see
+must never ride into a shareable archive; `chmod 600` best-effort.) The
+fallback env vars are `CODEX_GITHUB_TOKEN` / alias `GITHUB_TOKEN` (see
 SELF_HOSTING.md). The value is never echoed, logged, backed up or
 snapshotted. A 404 with no token configured gets the `_privateRepoHint`
 suffix (GitHub 404s anonymous hits on private repos, which otherwise reads
 as "repo doesn't exist") and the wizard auto-opens its token section.
-`GET /api/addons` carries DM-only `githubTokenConfigured` (boolean) +
-`githubTokenSource` (`'stored'|'env'|null`) → the Manager's 🔑 line + the
-wizard summary. Covered by `test/integration-github-token.test.cjs`.
+`GET /api/addons` carries DM-only aggregate/default status, environment status,
+and the stored repository scopes (never values) → the Manager and wizard
+summary. Covered by `test/integration-github-token.test.cjs`.
 An incompatible preview remains non-installable, but the wizard renders every
 escaped validator diagnostic returned in `errors` beneath a neutral
 compatibility message. Capability and host-version mismatches therefore point

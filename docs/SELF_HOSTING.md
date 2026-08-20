@@ -67,19 +67,22 @@ Passwords come from two sources, checked in this order:
 
 To install addons from **private repositories** (and to raise GitHub's
 anonymous rate limits) the server needs a GitHub token. The easiest path
-needs no shell access at all: the DM opens the install wizard (Settings →
-Doplňky → ＋ Instalovat z GitHubu) and pastes the token into its **🔑
-Private repositories** section — it's stored server-side in
-`data/secrets.json` and used for every install/update from then on.
+needs no shell access at all: the DM opens **Settings → Add-ons → GitHub
+access tokens**. Save a token against `owner/repository` for each private
+addon, or leave Repository blank to create a default fallback for every
+repository. The install wizard also has a **🔑 Private repository token**
+shortcut that saves a token only for the pasted repository. Tokens are stored
+server-side in `data/secrets.json`; saving the same scope replaces its old value.
 Alternatively set the env var **`CODEX_GITHUB_TOKEN`** (or the
-conventional `GITHUB_TOKEN`); a wizard-stored token takes precedence over
-the env vars. Either way the token stays server-side only: never sent to
+conventional `GITHUB_TOKEN`). Repository-specific tokens take precedence,
+then the UI-managed default, then the environment token. Either way token
+values stay server-side only: never sent to
 clients, never logged, and `secrets.json` is deliberately excluded from
 backup ZIPs, snapshots and restore — a stored credential must never ride
 into a shareable archive. A fine-grained personal access token with
 **Contents: Read-only** on the addon repositories is all it needs. The
-Addon Manager shows a 🔑 line telling the DM whether (and from where) a
-token is configured.
+Addon Manager lists the configured scopes and their source, but never their
+values.
 
 A few consequences worth knowing:
 
@@ -313,12 +316,13 @@ addon's self-tests, then activates). Operationally relevant:
 - Addon code lives under `data/addons/`, addon data under
   `data/addon-data/` — both inside the existing volume, covered by the
   ZIP backup, and survive image upgrades.
-- Private addon repo (or GitHub rate limits)? Paste a token into the
-  install wizard's 🔑 section (Settings → Doplňky → ＋ Instalovat z
-  GitHubu) — no shell needed. Env alternative: `CODEX_GITHUB_TOKEN`
+- Private addon repo (or GitHub rate limits)? Manage one or more tokens in
+  Settings → Add-ons → GitHub access tokens, or paste a repository-specific
+  token into the install wizard's 🔑 section — no shell needed. Env
+  alternative: `CODEX_GITHUB_TOKEN`
   (the server also accepts plain `GITHUB_TOKEN`, but the shipped compose
-  file only forwards `CODEX_GITHUB_TOKEN` into the container; a
-  wizard-stored token wins over both). See §2.
+  file only forwards `CODEX_GITHUB_TOKEN` into the container; UI-managed
+  tokens win over both). See §2.
 
 ## 9. Running multiple instances (separate campaigns)
 
@@ -361,7 +365,7 @@ exposed to clients and addons; core has no built-in feature flags.
 | `CODEX_RESTARTABLE` | `1` enables `POST /api/restart` + the DM "♻ Restartovat server" button (Settings → Server). Also auto-detected inside Docker via `/.dockerenv`. Only enable when a supervisor (`restart: unless-stopped`, systemd, pm2) brings the process back. |
 | `CODEX_DATA_DIR` / `CODEX_SNAPSHOTS_DIR` | Override the data / snapshot directories (default `./data` and `./data-snapshots` next to `server.js`). The seam for non-Docker hosting. |
 | `CODEX_SNAPSHOT_MIN_INTERVAL_MS` | Minimum interval between *manual* snapshots (default `3000`). |
-| `CODEX_GITHUB_TOKEN` | Optional. Used by addon installs/updates for the GitHub API — raises rate limits and allows private addon repos. (`GITHUB_TOKEN` is accepted too, but is not forwarded by the shipped compose file; a token stored via the install wizard takes precedence over both.) |
+| `CODEX_GITHUB_TOKEN` | Optional default used by addon installs/updates for the GitHub API — raises rate limits and allows private addon repos. (`GITHUB_TOKEN` is accepted too, but is not forwarded by the shipped compose file; repository-specific and default tokens stored in the Add-on Manager take precedence.) |
 
 `GET /api/version` returns `{ hash, instance, features, canRestart }`, so you
 can confirm which instance and feature set a running container serves:

@@ -1543,8 +1543,11 @@ export const Settings = (() => {
   // with enable/disable/remove + an install wizard that takes a pasted
   // GitHub URL. Built entirely on design-system tokens/classes.
   let _addonsList     = null;   // cached /api/addons projection; null = loading
-  let _githubTokenOk  = null;   // DM-only server flag: private-repo installs possible? (null = unknown / non-DM)
-  let _githubTokenSrc = null;   // 'stored' (wizard-set) | 'env' | null — where the active token comes from
+  let _githubTokenOk  = null;   // DM-only server flag: at least one GitHub credential exists (null = unknown / non-DM)
+  let _githubTokenSrc = null;   // overall source for backward-compatible status
+  let _githubTokenDefaultSrc = null; // 'stored' | 'env' | null — fallback for repos without a scoped token
+  let _githubTokenEnvOk = false;
+  let _githubTokenRepos = [];   // canonical owner/repo scopes; token values never reach the browser
   let _addonWizardEsc = null;   // keydown handler installed while the wizard is open
   let _wizardPreview  = null;   // { repo, ref, sha } captured at the wizard's preview step
   let _wizardMode     = 'install'; // 'install' | 'update' — wizard messaging
@@ -1560,6 +1563,13 @@ export const Settings = (() => {
         // so private addon repos are installable. Drives the Manager's 🔑 line.
         _githubTokenOk = (j && typeof j.githubTokenConfigured === 'boolean') ? j.githubTokenConfigured : null;
         _githubTokenSrc = (j && typeof j.githubTokenSource === 'string') ? j.githubTokenSource : null;
+        _githubTokenDefaultSrc = (j && typeof j.githubTokenDefaultSource === 'string')
+          ? j.githubTokenDefaultSource
+          : (['stored', 'env'].includes(_githubTokenSrc) ? _githubTokenSrc : null);
+        _githubTokenEnvOk = !!(j && (j.githubTokenEnvironmentConfigured || _githubTokenDefaultSrc === 'env'));
+        _githubTokenRepos = (j && Array.isArray(j.githubTokenRepositories))
+          ? j.githubTokenRepositories.filter(repo => typeof repo === 'string')
+          : [];
       })
       .catch(() => { _addonsList = []; });
   }
@@ -1674,27 +1684,109 @@ export const Settings = (() => {
           ${_account.canRestart() ? ' ' + esc(I18n.t('settings.restartMovedHint')) : ''}
         </p>
         ${_addonUpdateStatus ? `<p class="settings-operation-status">${esc(_addonUpdateStatus)}</p>` : ''}
-        ${_githubTokenLine()}
+        ${_githubTokenManagerHtml()}
         ${_serviceBindingsHtml()}
         ${_conflictsHtml()}
         ${body}
       </div>`;
   }
 
-  // One-line 🔑 status: can this server install PRIVATE addon repos? Driven
-  // by the DM-only `githubTokenConfigured` boolean from /api/addons (absent →
-  // render nothing — non-DM, or an older server). Saves the DM from learning
-  // the token is missing only when an install fails.
-  function _githubTokenLine() {
-    if (_githubTokenOk === null) return '';
-    const on = _githubTokenOk;
-    const src = (on && _githubTokenSrc)
-      ? ' ' + esc(I18n.t(_githubTokenSrc === 'stored'
-          ? 'settings.githubTokenSourceStored' : 'settings.githubTokenSourceEnv'))
+  function _githubRepoKey(input) {
+    if (typeof input !== 'string') return '';
+    const value = input.trim();
+    if (!value) return '';
+    let repo = value;
+    let match = value.match(/^https?:\/\/github\.com\/([^/\s]+)\/([^/\s]+?)(?:\.git)?(?:\/tree\/[^/?#\s]+)?\/?(?:[?#].*)?$/i);
+    if (match) {
+      repo = `${match[1]}/${match[2]}`;
+    } else {
+      match = value.match(/^git@github\.com:([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i);
+      if (match) repo = `${match[1]}/${match[2]}`;
+    }
+    return /^[A-Za-z0-9_.-]{1,39}\/[A-Za-z0-9_.-]{1,100}$/.test(repo)
+      ? repo.toLowerCase()
       : '';
-    return `<p class="settings-hint" style="margin-bottom:1rem;${on ? 'color:var(--color-success)' : ''}">
-      <span aria-hidden="true">🔑</span> ${esc(I18n.t(on ? 'settings.githubTokenOn' : 'settings.githubTokenOff'))}${src}
-    </p>`;
+  }
+
+  function _githubTokenSourceFor(repoInput) {
+    const key = _githubRepoKey(repoInput);
+    if (key && _githubTokenRepos.includes(key)) return 'repository';
+    return _githubTokenDefaultSrc;
+  }
+
+  function _githubTokenStatusText() {
+    const count = _githubTokenRepos.length;
+    if (_githubTokenDefaultSrc && count) {
+      return I18n.t('settings.githubTokensStatusDefaultAndScoped', { count });
+    }
+    if (count) return I18n.t('settings.githubTokensStatusScoped', { count });
+    if (_githubTokenDefaultSrc) {
+      const source = I18n.t(_githubTokenDefaultSrc === 'stored'
+        ? 'settings.githubTokenSourceStored' : 'settings.githubTokenSourceEnv');
+      return `${I18n.t('settings.githubTokenOn')} ${source}`;
+    }
+    return I18n.t('settings.githubTokenOff');
+  }
+
+  function _githubTokenScopeRow(scope, label, sourceKey, removable) {
+    return `<div class="github-token-row">
+      <div>
+        <strong>${esc(label)}</strong>
+        <span>${esc(I18n.t(sourceKey))}</span>
+      </div>
+      ${removable ? `<div class="github-token-row-actions">
+        <button type="button" class="inline-create-btn"
+          ${dataAction('Settings.prepareGithubToken', scope)}>${esc(I18n.t('settings.githubTokensReplace'))}</button>
+        <button type="button" class="edit-delete-btn"
+          ${dataAction('Settings.removeGithubToken', scope)}>${esc(I18n.t('settings.tokenClear'))}</button>
+      </div>` : ''}
+    </div>`;
+  }
+
+  // Always-visible token manager: the old default token remains supported,
+  // while repository-scoped entries let private addons use independent
+  // fine-grained credentials. Only scopes and sources are rendered.
+  function _githubTokenManagerHtml() {
+    if (_githubTokenOk === null) return '';
+    const rows = [];
+    if (_githubTokenDefaultSrc === 'stored') {
+      rows.push(_githubTokenScopeRow('', I18n.t('settings.githubTokensDefault'),
+        'settings.githubTokenSourceStored', true));
+    }
+    if (_githubTokenEnvOk) {
+      rows.push(_githubTokenScopeRow('', I18n.t('settings.githubTokensEnvironment'),
+        'settings.githubTokenSourceEnv', false));
+    }
+    for (const repo of _githubTokenRepos) {
+      rows.push(_githubTokenScopeRow(repo, repo, 'settings.githubTokensRepository', true));
+    }
+    return `<section class="github-token-manager" aria-labelledby="github-token-manager-title">
+      <div class="github-token-manager-head">
+        <h3 id="github-token-manager-title">🔑 ${esc(I18n.t('settings.githubTokensTitle'))}</h3>
+        <span class="github-token-manager-status${_githubTokenOk ? ' is-configured' : ''}">
+          ${esc(_githubTokenStatusText())}
+        </span>
+      </div>
+      <p class="settings-hint">${esc(I18n.t('settings.githubTokensHint'))}</p>
+      <div class="github-token-list">
+        ${rows.length ? rows.join('') : `<p class="settings-hint">${esc(I18n.t('settings.githubTokensNoneStored'))}</p>`}
+      </div>
+      <p class="settings-hint github-token-form-hint">${esc(I18n.t('settings.githubTokensRepositoryHint'))}</p>
+      <div class="github-token-form">
+        <label class="settings-field">
+          <span class="settings-field-label">${esc(I18n.t('settings.githubTokensRepositoryLabel'))}</span>
+          <input class="edit-input" id="addon-manager-token-repo" type="text" autocomplete="off"
+            placeholder="owner/repository">
+        </label>
+        <label class="settings-field">
+          <span class="settings-field-label">${esc(I18n.t('settings.githubTokensTokenLabel'))}</span>
+          <input class="edit-input" id="addon-manager-token-input" type="password" autocomplete="off"
+            placeholder="ghp_… / github_pat_…" ${dataOn('keydown', 'Settings.managedGithubTokenKey', '$ev')}>
+        </label>
+        <button type="button" class="edit-save-btn"
+          ${dataAction('Settings.saveManagedGithubToken')}>${esc(I18n.t('settings.tokenSave'))}</button>
+      </div>
+    </section>`;
   }
 
   // Fragment-override conflicts: ≥2 addons claiming an exclusive
@@ -2054,9 +2146,10 @@ export const Settings = (() => {
             <span class="settings-field-label">${esc(I18n.t('settings.githubUrl'))}</span>
             <input class="edit-input" id="addon-wizard-url" type="text" autocomplete="off"
                    placeholder="https://github.com/owner/my-addon" value="${esc(prefill)}"
+                   ${dataOn('input', 'Settings.addonWizardRepoChanged')}
                    ${dataOn('keydown', 'Settings.addonWizardKey', '$ev')}>
           </label>
-          ${_wizardTokenSectionHtml(false)}
+          ${_wizardTokenSectionHtml(false, prefill)}
           <div class="addon-wizard-status" id="addon-wizard-status"></div>
         </div>
         <div class="addon-wizard-foot" id="addon-wizard-foot">
@@ -2092,30 +2185,30 @@ export const Settings = (() => {
   }
 
   // ── Private-repo GitHub token, managed inside the wizard ───────
-  // Collapsed <details> under the URL field: status in the summary, a
-  // password-type input + save (and remove, when a stored token exists)
-  // inside. Opens automatically when a preview fails without a token —
-  // the usual "why does my private repo 404" moment. The token value goes
-  // straight to POST /api/addons/github-token and is never rendered back.
+  // This shortcut writes only the repository named in the URL field. The
+  // always-visible Add-on Manager owns default tokens and the complete list.
   // ⚠ Keep the id in sync with _ADDON_MENU_SEL's :not() — it opts this
   // details OUT of the Manager's menu-close delegation (clicking the input
   // would otherwise collapse the section).
-  function _wizardTokenSectionHtml(open) {
-    const state = _githubTokenOk
-      ? I18n.t(_githubTokenSrc === 'env' ? 'settings.tokenStateEnv' : 'settings.tokenStateStored')
-      : I18n.t('settings.tokenStateNone');
+  function _wizardTokenSectionHtml(open, repoInput) {
+    const url = document.getElementById('addon-wizard-url');
+    const source = _githubTokenSourceFor(repoInput ?? (url ? url.value : ''));
+    const stateKey = source === 'repository' ? 'settings.tokenStateRepository'
+      : source === 'env' ? 'settings.tokenStateEnv'
+      : source === 'stored' ? 'settings.tokenStateStored'
+      : 'settings.tokenStateNone';
     return `
       <details class="addon-row-perms" id="addon-wizard-token"${open ? ' open' : ''}>
-        <summary>🔑 ${esc(I18n.t('settings.tokenSection'))} — ${esc(state)}</summary>
+        <summary>🔑 ${esc(I18n.t('settings.tokenSection'))} — ${esc(I18n.t(stateKey))}</summary>
         <div style="display:flex;flex-direction:column;gap:var(--space-2);margin-top:var(--space-2)">
-          <div class="settings-hint">${esc(I18n.t('settings.tokenHint'))}</div>
+          <div class="settings-hint">${esc(I18n.t('settings.tokenWizardHint'))}</div>
           <div style="display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap">
             <input class="edit-input" id="addon-wizard-token-input" type="password"
                    autocomplete="off" placeholder="ghp_… / github_pat_…" style="flex:1;min-width:12rem"
                    ${dataOn('keydown', 'Settings.githubTokenKey', '$ev')}>
             <button type="button" class="edit-save-btn"
               ${dataAction('Settings.saveGithubToken')}>${esc(I18n.t('settings.tokenSave'))}</button>
-            ${_githubTokenSrc === 'stored'
+            ${source === 'repository'
               ? `<button type="button" class="inline-create-btn"
                    ${dataAction('Settings.clearGithubToken')}>${esc(I18n.t('settings.tokenClear'))}</button>`
               : ''}
@@ -2135,14 +2228,29 @@ export const Settings = (() => {
     if (ev && ev.key === 'Enter') { ev.preventDefault(); saveGithubToken(); }
   }
 
-  function _postGithubToken(token, doneKey) {
+  function addonWizardRepoChanged() {
+    _refreshWizardTokenSection();
+  }
+
+  function _applyGithubTokenStatus(j) {
+    _githubTokenOk = !!j.configured;
+    _githubTokenSrc = j.source || null;
+    _githubTokenDefaultSrc = j.defaultSource || null;
+    _githubTokenEnvOk = !!j.environmentConfigured;
+    _githubTokenRepos = Array.isArray(j.repositories)
+      ? j.repositories.filter(repo => typeof repo === 'string')
+      : [];
+  }
+
+  function _postGithubToken(token, repo, doneKey) {
+    const json = { token };
+    if (repo) json.repo = repo;
     return ApiClient.requestJson('/api/addons/github-token', {
       method: 'POST',
-      json: { token },
+      json,
     })
       .then(j => {
-        _githubTokenOk  = !!j.configured;
-        _githubTokenSrc = j.source || null;
+        _applyGithubTokenStatus(j);
         _flash(I18n.t(doneKey));
         _refreshWizardTokenSection();
         return true;
@@ -2152,17 +2260,55 @@ export const Settings = (() => {
 
   function saveGithubToken() {
     const input = document.getElementById('addon-wizard-token-input');
+    const url = document.getElementById('addon-wizard-url');
     const token = ((input && input.value) || '').trim();
     if (!token) { _flash(I18n.t('settings.tokenInvalid'), false); return; }
-    _postGithubToken(token, 'settings.tokenSaved').then((ok) => {
-      // A repo already pasted → retry the preview with the new credential.
-      const url = document.getElementById('addon-wizard-url');
-      if (ok && url && url.value.trim()) previewAddon();
+    const repo = ((url && url.value) || '').trim();
+    if (!_githubRepoKey(repo)) { _flash(I18n.t('settings.tokenRepoInvalid'), false); return; }
+    _postGithubToken(token, repo, 'settings.tokenSaved').then((ok) => {
+      if (ok) previewAddon();
     });
   }
 
   function clearGithubToken() {
-    _postGithubToken('', 'settings.tokenCleared');
+    const url = document.getElementById('addon-wizard-url');
+    const repo = ((url && url.value) || '').trim();
+    if (!_githubRepoKey(repo)) { _flash(I18n.t('settings.tokenRepoInvalid'), false); return; }
+    _postGithubToken('', repo, 'settings.tokenCleared');
+  }
+
+  function prepareGithubToken(repo) {
+    const repoInput = document.getElementById('addon-manager-token-repo');
+    const tokenInput = document.getElementById('addon-manager-token-input');
+    if (repoInput) repoInput.value = repo || '';
+    if (tokenInput) {
+      tokenInput.value = '';
+      tokenInput.focus();
+    }
+  }
+
+  function managedGithubTokenKey(ev) {
+    if (ev && ev.key === 'Enter') { ev.preventDefault(); saveManagedGithubToken(); }
+  }
+
+  function saveManagedGithubToken() {
+    const repoInput = document.getElementById('addon-manager-token-repo');
+    const tokenInput = document.getElementById('addon-manager-token-input');
+    const repo = ((repoInput && repoInput.value) || '').trim();
+    const token = ((tokenInput && tokenInput.value) || '').trim();
+    if (!token) { _flash(I18n.t('settings.tokenInvalid'), false); return; }
+    if (repo && !_githubRepoKey(repo)) { _flash(I18n.t('settings.tokenRepoInvalid'), false); return; }
+    _postGithubToken(token, repo, 'settings.tokenSaved').then((ok) => {
+      if (ok) _reloadAddonsIfActive();
+    });
+  }
+
+  function removeGithubToken(repo) {
+    const scope = repo || I18n.t('settings.githubTokensDefault');
+    if (!confirm(I18n.t('settings.githubTokensRemoveQ', { scope }))) return;
+    _postGithubToken('', repo || '', 'settings.tokenCleared').then((ok) => {
+      if (ok) _reloadAddonsIfActive();
+    });
   }
 
   // Step 1 — resolve addon.json for DM review (no download / install yet).
@@ -2184,11 +2330,12 @@ export const Settings = (() => {
         if (input) input.disabled = false;
         // Without any token, a private repo 404s — surface the fix in place:
         // point at the token section and open it, ready for a paste + retry.
-        const tokenHint = !_githubTokenOk
-          ? `<div class="settings-hint" style="margin-top:.4rem">🔑 ${esc(I18n.t('settings.tokenPrivateHint'))}</div>`
-          : '';
+        const tokenHintKey = _githubTokenSourceFor(url)
+          ? 'settings.tokenReplaceHint'
+          : 'settings.tokenPrivateHint';
+        const tokenHint = `<div class="settings-hint" style="margin-top:.4rem">🔑 ${esc(I18n.t(tokenHintKey))}</div>`;
         _wizardStatus(`<span class="addon-wizard-err">${esc(I18n.t('settings.previewFailed'))}</span>${tokenHint}`);
-        if (!_githubTokenOk) _refreshWizardTokenSection(true);
+        _refreshWizardTokenSection(true);
       });
   }
 
@@ -2318,6 +2465,7 @@ export const Settings = (() => {
     restartServer: _account.restartServer,
     openAddonWizard, closeAddonWizard, addonWizardKey,
     previewAddon, confirmInstallAddon,
-    saveGithubToken, clearGithubToken, githubTokenKey,
+    saveGithubToken, clearGithubToken, githubTokenKey, addonWizardRepoChanged,
+    prepareGithubToken, saveManagedGithubToken, removeGithubToken, managedGithubTokenKey,
   };
 })();

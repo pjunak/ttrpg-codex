@@ -265,9 +265,11 @@ const {
 app.use(attachRole);
 
 // ── data/secrets.json — server-held secrets settable from the UI ──
-// Today one key: { githubToken } (set/cleared by the DM from the addon
-// install wizard). Same posture as auth.json (NON_DATA_JSON_FILES → no
-// snapshots, no data hash, restore refuses it) PLUS excluded from the
+// GitHub credentials live as an optional default `githubToken` plus scoped
+// `githubTokens[owner/repo]` entries (set/cleared by the DM from the Add-on
+// Manager or install wizard). Same posture as auth.json
+// (NON_DATA_JSON_FILES → no snapshots, no data hash, restore refuses it)
+// PLUS excluded from the
 // /api/backup ZIP: a stored token is a live plaintext credential and must
 // never ride into a shareable archive. Never sent to a client, never logged.
 const SECRETS_FILE = path.join(DATA_DIR, 'secrets.json');
@@ -1989,32 +1991,59 @@ const ADDON_VERSIONS_KEEP = 5;                  // content-addressed history kep
 // callback, so early release would allow concurrent writes.
 const ADDON_LOCK_WARNING_MS = 30_000;
 
-// Server-side GitHub credential for the broker. Two sources: the DM-stored
-// token (data/secrets.json, set from the install wizard via
-// POST /api/addons/github-token) and the env vars — `CODEX_GITHUB_TOKEN` is
-// the documented name (matches the other CODEX_* knobs); plain
-// `GITHUB_TOKEN` keeps working as an alias (the pre-existing name, and what
-// CI environments export). With a token set, every api.github.com request
-// the broker makes carries `Authorization: Bearer <token>` — which raises
-// rate limits and makes PRIVATE addon repos installable/updatable. The
-// token never leaves the process: it is never logged, never sent to a
-// client, and secrets.json is excluded from the backup ZIP + snapshots +
+// Server-side GitHub credentials for the broker. Repository-scoped UI tokens
+// win for their exact `owner/repo`; the legacy/UI-managed default token comes
+// next, followed by `CODEX_GITHUB_TOKEN` / `GITHUB_TOKEN`. With a matching
+// token set, every api.github.com request the broker makes carries
+// `Authorization: Bearer <token>` — which raises rate limits and makes PRIVATE
+// addon repos installable/updatable. Credential values never leave the
+// process: they are never logged, never sent to a client, and secrets.json
+// is excluded from the backup ZIP + snapshots +
 // the data hash + restore (NON_DATA_JSON_FILES and the /api/backup filter);
 // the addon-test runner's explicit child-env allowlist also excludes both
 // token names from addon-controlled test processes.
-function _githubToken() {
-  const stored = _loadSecrets().githubToken;
-  if (typeof stored === 'string' && stored) return stored;
+function _githubRepoKey(repo) {
+  const parsed = AddonBroker.parseRepoInput(repo);
+  return parsed ? parsed.repo.toLowerCase() : '';
+}
+function _storedGithubTokens() {
+  const stored = _loadSecrets().githubTokens;
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return {};
+  return stored;
+}
+function _githubTokenRepositories() {
+  return Object.entries(_storedGithubTokens())
+    .filter(([repo, token]) => AddonBroker.REPO_RE.test(repo)
+      && typeof token === 'string' && token)
+    .map(([repo]) => repo.toLowerCase())
+    .sort();
+}
+function _githubEnvironmentToken() {
   return process.env.CODEX_GITHUB_TOKEN || process.env.GITHUB_TOKEN || '';
 }
-// 'stored' | 'env' | null — tells the Manager/wizard WHERE the active token
-// comes from (never the token itself). Stored (wizard-set, data/secrets.json)
-// wins over env: it's the most recent explicit intent, and lets a DM fix a
-// wrong env token without shell access.
-function _githubTokenSource() {
+function _githubDefaultToken() {
+  const stored = _loadSecrets().githubToken;
+  if (typeof stored === 'string' && stored) return stored;
+  return _githubEnvironmentToken();
+}
+function _githubToken(repo) {
+  const key = _githubRepoKey(repo);
+  const scoped = key ? _storedGithubTokens()[key] : '';
+  if (typeof scoped === 'string' && scoped) return scoped;
+  return _githubDefaultToken();
+}
+// 'repository' | 'stored' | 'env' | null — tells the Manager/wizard WHERE
+// the active token comes from (never the token itself).
+function _githubTokenSource(repo) {
+  const key = _githubRepoKey(repo);
+  const scoped = key ? _storedGithubTokens()[key] : '';
+  if (typeof scoped === 'string' && scoped) return 'repository';
   const stored = _loadSecrets().githubToken;
   if (typeof stored === 'string' && stored) return 'stored';
-  return (process.env.CODEX_GITHUB_TOKEN || process.env.GITHUB_TOKEN) ? 'env' : null;
+  return _githubEnvironmentToken() ? 'env' : null;
+}
+function _githubTokenConfigured() {
+  return !!_githubDefaultToken() || _githubTokenRepositories().length > 0;
 }
 
 async function _readAddonsRegistry() {
@@ -2568,7 +2597,7 @@ async function _pruneAllAddonCode() {
 // blocks other clients' saves/snapshots. Returns a staging descriptor for
 // _promoteAddon; throws (400-worthy) on any validation miss.
 async function _stageAddon(repo, ref, pinnedSha) {
-  const token  = _githubToken();
+  const token  = _githubToken(repo);
   const useRef = ref || 'HEAD';
   // Pin to the exact reviewed commit when the wizard passes the previewed sha
   // (so what installs == what the DM reviewed); otherwise resolve the ref now.
@@ -2778,15 +2807,18 @@ app.get('/api/addons', async (req, res) => {
       // The client host consults these so a DM-picked winner actually applies.
       resolutions: (reg.resolutions && typeof reg.resolutions === 'object') ? reg.resolutions : {},
       serviceBindings: AddonBroker.normalizeServiceBindings(reg.serviceBindings),
-      // Whether a server-side GitHub token is configured (wizard-stored /
-      // CODEX_GITHUB_TOKEN / GITHUB_TOKEN) and where it came from — the
-      // Manager + wizard show it so a DM knows up front whether PRIVATE
-      // addon repos will install, instead of learning from a failed fetch.
+      // GitHub credential status for the Manager/wizard. Repository names are
+      // returned so the DM can manage scoped credentials; token values never
+      // leave the server. The legacy fields remain for older clients.
       // Real-DM only (the route itself is public for boot): booleans about
       // server config, but still nobody else's business. Never the token.
       ...(req.realRole === 'dm' ? {
-        githubTokenConfigured: !!_githubToken(),
-        githubTokenSource: _githubTokenSource(),
+        githubTokenConfigured: _githubTokenConfigured(),
+        githubTokenSource: _githubTokenSource()
+          || (_githubTokenRepositories().length ? 'repository' : null),
+        githubTokenDefaultSource: _githubTokenSource(),
+        githubTokenEnvironmentConfigured: !!_githubEnvironmentToken(),
+        githubTokenRepositories: _githubTokenRepositories(),
       } : {}),
     });
   } catch (e) {
@@ -2892,7 +2924,6 @@ app.post('/api/addons/service-bindings', requireRealDM('Jen DM může vybírat p
 app.post('/api/addons/check-updates', requireRealDM('Jen DM může kontrolovat aktualizace.'), async (req, res) => {
   try {
     const reg   = await _readAddonsRegistry();
-    const token = _githubToken();
     const updates = [];
     for (const a of reg.addons) {
       if (!a || !a.repo || a.repo === 'local' || !AddonBroker.REPO_RE.test(a.repo)) {
@@ -2900,6 +2931,7 @@ app.post('/api/addons/check-updates', requireRealDM('Jen DM může kontrolovat a
         continue;
       }
       try {
+        const token = _githubToken(a.repo);
         const latest = await AddonBroker.resolveRefToSha(a.repo, a.ref || 'HEAD', { fetch, token });
         updates.push({
           id: a.id, status: 'ok', repo: a.repo, ref: a.ref || 'HEAD',
@@ -2927,7 +2959,6 @@ app.post('/api/addons/check-updates', requireRealDM('Jen DM může kontrolovat a
 app.post('/api/addons/update-all', requireRealDM('Jen DM může aktualizovat doplňky.'), async (req, res) => {
   try {
     const reg   = await _readAddonsRegistry();
-    const token = _githubToken();
     const updated = [], skipped = [], errors = [];
     let serverChanged = false;
     for (const a of reg.addons) {
@@ -2937,6 +2968,7 @@ app.post('/api/addons/update-all', requireRealDM('Jen DM může aktualizovat dop
         continue;
       }
       try {
+        const token = _githubToken(a.repo);
         const latest = await AddonBroker.resolveRefToSha(a.repo, a.ref || 'HEAD', { fetch, token });
         if (a.sha && latest === a.sha) { skipped.push({ id: a.id, reason: 'up-to-date' }); continue; }
         const staged = await _stageAddon(a.repo, a.ref || 'HEAD', latest);
@@ -3113,7 +3145,7 @@ app.post('/api/addons/preview', requireRealDM('Jen DM může instalovat doplňky
     return res.status(400).json({ error: 'Neplatná adresa (očekávám https://github.com/owner/name nebo owner/name).' });
   }
   try {
-    const token = _githubToken();
+    const token = _githubToken(parsed.repo);
     const ref = String((req.body && req.body.ref) || parsed.ref || 'HEAD');
     const { sha, manifest } = await AddonBroker.fetchManifest(parsed.repo, ref, { fetch, token });
     const v = AddonBroker.validateManifest(manifest);
@@ -3224,27 +3256,49 @@ app.post('/api/addons/:id/content-groups', requireRealDM('Jen DM může spravova
   }
 });
 
-// DM-only (realRole): set/clear the stored GitHub token from the install
-// wizard. Body { token: "<value>" } sets; { token: "" } (or no token key)
-// clears. Shape-validated only (printable ASCII, no spaces — covers ghp_*,
-// github_pat_* and future formats), written to data/secrets.json, and NEVER
-// echoed back, logged, backed up or snapshotted. A stored token wins over
-// the env vars (see _githubToken). Broadcasts addons-changed so every open
-// Manager refreshes its 🔑 line live.
+// DM-only (realRole): set/clear a stored GitHub token. Body `{ token, repo? }`
+// manages the exact repository when `repo` is supplied, otherwise the default
+// token. The optional repository accepts the same pasted forms as the install
+// wizard and is stored as lowercase `owner/repo`. Credentials are never echoed,
+// logged, backed up, or snapshotted.
 const GITHUB_TOKEN_RE = /^[\x21-\x7E]{8,255}$/;
 app.post('/api/addons/github-token', requireRealDM('Jen DM může spravovat GitHub token.'), async (req, res) => {
   const raw = (req.body && typeof req.body.token === 'string') ? req.body.token.trim() : '';
+  const hasRepo = !!(req.body && typeof req.body.repo === 'string' && req.body.repo.trim());
+  const repo = hasRepo ? _githubRepoKey(req.body.repo) : '';
   if (raw && !GITHUB_TOKEN_RE.test(raw)) {
     return res.status(400).json({ error: 'Token má neplatný tvar.' });
+  }
+  if (hasRepo && !repo) {
+    return res.status(400).json({ error: 'Neplatná adresa repozitáře.' });
   }
   try {
     await withWriteLock(async () => {
       const secrets = { ..._loadSecrets() };
-      if (raw) secrets.githubToken = raw; else delete secrets.githubToken;
+      if (repo) {
+        const githubTokens = { ..._storedGithubTokens() };
+        if (raw) githubTokens[repo] = raw; else delete githubTokens[repo];
+        if (Object.keys(githubTokens).length) secrets.githubTokens = githubTokens;
+        else delete secrets.githubTokens;
+      } else if (raw) {
+        secrets.githubToken = raw;
+      } else {
+        delete secrets.githubToken;
+      }
       await _writeSecrets(secrets);
     });
     _broadcast('addons-changed', { at: Date.now() });
-    res.json({ ok: true, configured: !!_githubToken(), source: _githubTokenSource() });
+    const repositories = _githubTokenRepositories();
+    res.json({
+      ok: true,
+      repo: repo || null,
+      configured: _githubTokenConfigured(),
+      source: repo ? _githubTokenSource(repo)
+        : (_githubTokenSource() || (repositories.length ? 'repository' : null)),
+      defaultSource: _githubTokenSource(),
+      environmentConfigured: !!_githubEnvironmentToken(),
+      repositories,
+    });
   } catch (e) {
     if (_sendWriteLockTimeout(res, e)) return;
     // e.message only — an error object could conceivably carry request body.
