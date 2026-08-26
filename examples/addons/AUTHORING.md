@@ -933,10 +933,17 @@ module.exports.init = serverHost => {
 and revisions. It must not perform writes or depend on ambient request state.
 Identity is `(addonId, providerId)`. Descriptors and output are strict:
 unknown fields, duplicate registrations, unsupported versions/formats/
-capabilities, undeclared access, foreign access, delete operations, duplicate
-writes, unsafe JSON, and protected metadata fail closed. Core reads require an
+capabilities, undeclared access, foreign access, duplicate operations, unsafe
+JSON, and protected metadata fail closed. Core reads require an
 explicit `data:read:<collection>` grant. Provider API v1 does not support core
 writes, cross-addon reads/writes, or archives.
+
+An operation is either `{target, op:"put", id, value}` or
+`{target, op:"delete", id}`. A delete may target only the same declared,
+addon-owned collections as a put and must omit `value`. Providers should emit
+deletes only from an explicit source intent, and their adapter must make every
+deletion and its collection visible before confirmation. The plan's revision
+pins and single transaction cover puts and deletes together.
 
 Input paths, requests, passwords, filesystem helpers, locks, transaction
 journals, and transaction functions are never passed to `preview`. MIME and

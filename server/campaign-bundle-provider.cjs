@@ -205,11 +205,13 @@ async function planContributions(source, context, contributions, corePlan, input
       const targetKey = collectionRefKey(operation.target);
       const targetType = contribution.targetTypesByKey.get(targetKey);
       const before = recordFromSnapshot(context.read(operation.target), targetType, operation.id);
-      const after = { id: operation.id, ...clone(operation.value) };
+      const deleting = operation.op === 'delete';
+      const after = deleting ? null : { id: operation.id, ...clone(operation.value) };
+      const status = deleting ? 'delete' : before ? 'update' : 'create';
       operations.push({
         ...operation,
         meta: {
-          status: before ? 'update' : 'create',
+          status,
           derived: false,
           contributor: {
             addonId: contribution.addonId,
@@ -220,7 +222,7 @@ async function planContributions(source, context, contributions, corePlan, input
       contributionChanges.push({
         collection: `${operation.target.addonId}:${operation.target.collection}`,
         id: operation.id,
-        status: before ? 'update' : 'create',
+        status,
         derived: false,
         contributor: {
           addonId: contribution.addonId,

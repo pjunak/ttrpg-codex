@@ -518,10 +518,11 @@ Because server addons remain trusted in-process Node code, this facade is a
 contract boundary rather than a sandbox; malicious `server:code` can still use
 Node built-ins outside the provider callback contract.
 
-The host validates provider output into plan version 1. Operations are
-put-only, target only declared writes, carry identity in `operation.id`, and
-may not set host-owned metadata in `value` (`id`, addon/namespace/access,
-revision/audit, or actor fields). Diagnostics are structured plain text
+The host validates provider output into plan version 1. Operations are exact
+`put` or `delete` actions, target only declared writes, and carry identity in
+`operation.id`. Puts may not set host-owned metadata in `value`
+(`id`, addon/namespace/access, revision/audit, or actor fields); deletes must
+omit `value`. Diagnostics are structured plain text
 (`severity`, token-shaped `code`, bounded `message`, optional path); provider
 HTML is never accepted as a renderable field.
 
@@ -580,8 +581,8 @@ campaign bundle opts in with
 `{addonId, contributorId, document}`. Exact `{"$ref":"local.name"}` objects
 inside `document` resolve to IDs reserved by the core preview before the
 provider runs. The host validates the returned plan against the original
-provider declaration, prefixes its diagnostics, includes its exact writes in
-the review, and journal-publishes core plus addon files together. Contributors
+provider declaration, prefixes its diagnostics, includes its exact operations
+in the review, and journal-publishes core plus addon files together. Contributors
 never receive core-write authority and are never rerun during commit.
 
 ### Addon graph facade

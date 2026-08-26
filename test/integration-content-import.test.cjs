@@ -41,15 +41,17 @@ module.exports.init = host => {
       const records = Array.isArray(input.data && input.data.records) ? input.data.records : [];
       return {
         schemaVersion: 1,
-        operations: records.map(record => ({
-          target,
-          op: 'put',
-          id: record.id,
-          value: {
-            name: record.name,
-            ...(typeof record.coreId === 'string' ? { coreId: record.coreId } : {})
-          }
-        })),
+        operations: records.map(record => record.operation === 'delete'
+          ? { target, op: 'delete', id: record.id }
+          : {
+            target,
+            op: 'put',
+            id: record.id,
+            value: {
+              name: record.name,
+              ...(typeof record.coreId === 'string' ? { coreId: record.coreId } : {})
+            }
+          }),
         diagnostics: []
       };
     }
@@ -98,10 +100,10 @@ function registry() {
   };
 }
 
-function seedFiles() {
+function seedFiles(items = []) {
   return {
     [`addons/${ADDON_ID}/${HASH}/server/index.cjs`]: SERVER_CODE,
-    [COLLECTION_FILE]: [],
+    [COLLECTION_FILE]: items,
   };
 }
 
@@ -218,6 +220,33 @@ test('real server import flow is DM-only, preview is read-only, and commit uses 
     });
     assert.equal(response.status, 409);
     assert.equal((await response.json()).code, 'IMPORT_TOKEN_USED');
+
+    const deleteJob = await createJob(
+      srv,
+      JSON.stringify({ records: [{ id: 'alpha', operation: 'delete' }] }),
+      'delete.json',
+      'application/json',
+    );
+    response = await srv.fetch(`/api/content-import/jobs/${deleteJob.id}/preview`, {
+      method: 'POST',
+    });
+    const deletePreview = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(deletePreview));
+    assert.deepEqual(deletePreview.plan.operations[0], {
+      target: { scope: 'addon', addonId: ADDON_ID, collection: 'items' },
+      op: 'delete',
+      id: 'alpha',
+    });
+    response = await srv.fetch(`/api/content-import/jobs/${deleteJob.id}/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ previewToken: deletePreview.previewToken }),
+    });
+    assert.equal(response.status, 200, await response.text());
+    assert.deepEqual(
+      JSON.parse(await fsp.readFile(path.join(srv.dataDir, COLLECTION_FILE), 'utf8')),
+      [],
+    );
   } finally {
     await srv.kill();
   }
@@ -416,7 +445,7 @@ test('campaign bundle resolves core refs for a restricted contributor and publis
         pinTypes: [],
       },
     },
-    seedFiles: seedFiles(),
+    seedFiles: seedFiles([{ id: 'legacy-plan', name: 'Legacy plan' }]),
   });
   try {
     await login(srv, DM_PASSWORD);
@@ -445,6 +474,9 @@ test('campaign bundle resolves core refs for a restricted contributor and publis
             id: 'plan-alpha',
             name: 'Plan for Alpha',
             coreId: { $ref: 'npc.alpha' },
+          }, {
+            id: 'legacy-plan',
+            operation: 'delete',
           }],
         },
       }],
@@ -468,9 +500,21 @@ test('campaign bundle resolves core refs for a restricted contributor and publis
     const preview = await response.json();
     assert.equal(response.status, 200, `${JSON.stringify(preview)}\n${srv.stderr()}`);
     assert.equal(preview.committable, true);
-    assert.equal(preview.plan.operations.length, 2);
+    assert.equal(preview.plan.operations.length, 3);
     assert.equal(preview.plan.review.contributions[0].addonId, ADDON_ID);
-    assert.equal(preview.plan.review.contributions[0].materializedWriteCount, 1);
+    assert.equal(preview.plan.review.contributions[0].materializedWriteCount, 2);
+    assert.deepEqual(
+      preview.plan.review.changes.find(change => change.id === 'legacy-plan'),
+      {
+        collection: `${ADDON_ID}:items`,
+        id: 'legacy-plan',
+        status: 'delete',
+        derived: false,
+        contributor: { addonId: ADDON_ID, id: 'fixture' },
+        before: { id: 'legacy-plan', name: 'Legacy plan' },
+        after: null,
+      },
+    );
     const characterId = preview.plan.review.references
       .find(entry => entry.ref === 'npc.alpha').id;
     const addonOperation = preview.plan.operations
@@ -482,7 +526,7 @@ test('campaign bundle resolves core refs for a restricted contributor and publis
     );
     assert.deepEqual(
       JSON.parse(await fsp.readFile(path.join(srv.dataDir, COLLECTION_FILE), 'utf8')),
-      [],
+      [{ id: 'legacy-plan', name: 'Legacy plan' }],
     );
 
     response = await srv.fetch(`/api/content-import/jobs/${created.job.id}/commit`, {
@@ -493,7 +537,7 @@ test('campaign bundle resolves core refs for a restricted contributor and publis
     const committed = await response.json();
     assert.equal(response.status, 200, JSON.stringify(committed));
     assert.ok(committed.commitId);
-    assert.equal(committed.operationCount, 2);
+    assert.equal(committed.operationCount, 3);
     assert.deepEqual(
       JSON.parse(await fsp.readFile(path.join(srv.dataDir, COLLECTION_FILE), 'utf8')),
       [{ id: 'plan-alpha', name: 'Plan for Alpha', coreId: characterId }],

@@ -67,6 +67,7 @@ export const CoreImportAdapter = (() => {
   }
 
   function recordLink(change) {
+    if (change.status === 'delete') return '';
     const route = CORE_ROUTES[change.collection];
     if (!route || !change.id) return '';
     return `<a class="inline-create-btn" href="#/${route}/${encodeURIComponent(change.id)}">${esc(I18n.t('import.openRecord'))}</a>`;
@@ -78,7 +79,9 @@ export const CoreImportAdapter = (() => {
       <details class="import-change">
         <summary><span class="import-change-kind">${esc(change.collection || '')}</span>
           <strong>${esc(change.after?.name || change.after?.title || change.after?.label || change.id || '')}</strong>
-          <span class="codex-badge">${esc(I18n.t(change.status === 'update' ? 'import.update' : 'import.create'))}</span>
+          <span class="codex-badge">${esc(I18n.t(change.status === 'delete'
+            ? 'import.delete'
+            : change.status === 'update' ? 'import.update' : 'import.create'))}</span>
         </summary>
         <div class="import-change-body">
           <div class="import-diff">

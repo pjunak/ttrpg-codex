@@ -948,12 +948,17 @@ async function _commitImportOperations({ provider, plan, clientAborted }) {
               500,
             );
           }
-          container[operation.id] = structuredClone(operation.value);
+          if (operation.op === 'delete') delete container[operation.id];
+          else container[operation.id] = structuredClone(operation.value);
         } else {
-          const value = { id: operation.id, ...structuredClone(operation.value) };
           const index = container.findIndex(record => record?.id === operation.id);
-          if (index >= 0) container[index] = value;
-          else container.push(value);
+          if (operation.op === 'delete') {
+            if (index >= 0) container.splice(index, 1);
+          } else {
+            const value = { id: operation.id, ...structuredClone(operation.value) };
+            if (index >= 0) container[index] = value;
+            else container.push(value);
+          }
         }
       }
       const changedContainers = [];
@@ -1015,9 +1020,9 @@ async function _commitImportOperations({ provider, plan, clientAborted }) {
         transactionId: transaction.transactionId,
         operations: plan.operations.map(operation => ({
           collection: operation.target.collection,
-          op: 'put',
+          op: operation.op,
           id: operation.id,
-          value: operation.value,
+          ...(operation.op === 'put' ? { value: operation.value } : {}),
         })),
         clientAborted,
       });

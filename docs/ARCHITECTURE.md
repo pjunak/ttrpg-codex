@@ -2,7 +2,9 @@
 
 Accepted cross-cutting design decisions are recorded under
 [`docs/decisions/`](decisions/). Campaign bundle imports are governed by
-[`ADR-0001`](decisions/0001-campaign-bundle-imports.md).
+[`ADR-0001`](decisions/0001-campaign-bundle-imports.md); reviewed destructive
+import operations are governed by
+[`ADR-0002`](decisions/0002-reviewed-import-deletes.md).
 
 A technical overview of how TTRPG Codex is put together. Aimed at
 contributors and people forking the project to extend it. For day-to-

@@ -592,8 +592,11 @@ function normalizePlan(provider, raw, targetTypesByKey) {
     if (!provider.targetTypes.includes(targetType)) {
       throw new ImportError('IMPORT_PLAN_INVALID', `operations[${index}] targets unsupported type "${targetType}"`);
     }
-    if (operation.op !== 'put') {
-      throw new ImportError('IMPORT_PLAN_INVALID', `operations[${index}].op must be "put"`);
+    if (operation.op !== 'put' && operation.op !== 'delete') {
+      throw new ImportError(
+        'IMPORT_PLAN_INVALID',
+        `operations[${index}].op must be "put" or "delete"`,
+      );
     }
     if (typeof operation.id !== 'string' || !operation.id || operation.id.length > 200
         || FORBIDDEN_KEYS.has(operation.id)) {
@@ -604,22 +607,31 @@ function normalizePlan(provider, raw, targetTypesByKey) {
       throw new ImportError('IMPORT_PLAN_INVALID', `Record "${targetKey}/${operation.id}" is written more than once`);
     }
     writeKeys.add(writeKey);
-    if (!isPlainObject(operation.value)) {
-      throw new ImportError('IMPORT_PLAN_INVALID', `operations[${index}].value must be an object`);
-    }
-    assertSafeJson(operation.value, `operations[${index}].value`);
-    for (const field of PROTECTED_FIELDS) {
-      if (Object.prototype.hasOwnProperty.call(operation.value, field)) {
-        throw new ImportError(
-          'IMPORT_PROTECTED_FIELD',
-          `operations[${index}].value attempts to set protected field "${field}"`,
-          400,
-          { operation: index, field },
-        );
+    let value;
+    if (operation.op === 'put') {
+      if (!isPlainObject(operation.value)) {
+        throw new ImportError('IMPORT_PLAN_INVALID', `operations[${index}].value must be an object`);
       }
-    }
-    if (byteLength(operation.value) > 256 * 1024) {
-      throw new ImportError('IMPORT_OPERATION_LIMIT', `operations[${index}].value exceeds 262144 bytes`);
+      assertSafeJson(operation.value, `operations[${index}].value`);
+      for (const field of PROTECTED_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(operation.value, field)) {
+          throw new ImportError(
+            'IMPORT_PROTECTED_FIELD',
+            `operations[${index}].value attempts to set protected field "${field}"`,
+            400,
+            { operation: index, field },
+          );
+        }
+      }
+      if (byteLength(operation.value) > 256 * 1024) {
+        throw new ImportError('IMPORT_OPERATION_LIMIT', `operations[${index}].value exceeds 262144 bytes`);
+      }
+      value = clone(operation.value);
+    } else if (Object.prototype.hasOwnProperty.call(operation, 'value')) {
+      throw new ImportError(
+        'IMPORT_PLAN_INVALID',
+        `operations[${index}].value is not allowed for delete operations`,
+      );
     }
     let meta;
     if (provider.hostOwned && operation.meta !== undefined) {
@@ -634,9 +646,9 @@ function normalizePlan(provider, raw, targetTypesByKey) {
     }
     return {
       target,
-      op: 'put',
+      op: operation.op,
       id: operation.id,
-      value: clone(operation.value),
+      ...(value ? { value } : {}),
       ...(meta ? { meta } : {}),
     };
   });

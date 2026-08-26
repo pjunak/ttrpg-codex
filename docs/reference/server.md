@@ -268,10 +268,11 @@ Declared read/write collections are captured consistently under the core write
 queue. Provider work runs after releasing it and receives only cloned parsed
 input, cloned declared reads/revisions, harmless metadata, stats, and an abort
 signal. Preview creates no write, revision, snapshot, hash invalidation, or SSE
-event. Host validation converts output to plan version 1, rejects undeclared
-targets/deletes/duplicates/non-JSON values/protected metadata, and stores the
-normalized plan in memory. The client receives a copy plus a random token
-whose server-held digest includes the exact plan.
+event. Host validation converts output to plan version 1, accepts exact `put`
+and `delete` actions for declared addon-owned targets, rejects undeclared
+targets, malformed deletes, duplicates, non-JSON values, and protected
+metadata, and stores the normalized plan in memory. The client receives a copy
+plus a random token whose server-held digest includes the exact plan.
 
 Commit accepts only the token. It consumes it before attempting publication,
 checks owner/expiry/provider package/schema and every participating base

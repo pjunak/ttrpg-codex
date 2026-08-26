@@ -100,12 +100,17 @@ function createMockImportHost(meta = {}, opts = {}) {
         const key = collectionRefKey(operation.target);
         const container = staged.get(key);
         if (targetType(operation.target) === 'addon-keyed') {
-          container[operation.id] = structuredClone(operation.value);
+          if (operation.op === 'delete') delete container[operation.id];
+          else container[operation.id] = structuredClone(operation.value);
         } else {
-          const value = { ...structuredClone(operation.value), id: operation.id };
           const index = container.findIndex(entry => entry?.id === operation.id);
-          if (index >= 0) container[index] = value;
-          else container.push(value);
+          if (operation.op === 'delete') {
+            if (index >= 0) container.splice(index, 1);
+          } else {
+            const value = { ...structuredClone(operation.value), id: operation.id };
+            if (index >= 0) container[index] = value;
+            else container.push(value);
+          }
         }
       }
       if (opts.failCommit) throw new Error('Injected import commit failure');

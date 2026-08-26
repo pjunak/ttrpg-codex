@@ -604,10 +604,10 @@ Import providers do not receive `Store`, `_data`, collection files, or a
 transaction handle. Preview reads are immutable clones of only the
 descriptor's declared dependencies. The host records logical SHA-256 revisions
 for the union of declared reads and writes, validates and stores the exact
-put-only plan, then maps that server-held plan to atomic collection operations
+put/delete plan, then maps that server-held plan to atomic collection operations
 at commit.
 Provider API v1 writes only the registering addon's declared list/keyed
-collections; core writes, cross-addon access, deletion, settings, campaign
+collections; core writes, cross-addon access, settings, campaign
 branding, tombstones, auth, registry data, backups, and transaction journals
 are not import targets. See `docs/reference/server.md` → **Content-import
 provider jobs**.

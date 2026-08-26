@@ -137,7 +137,7 @@ test('provider descriptor fails closed for malformed, unsupported, undeclared, a
   );
 });
 
-test('provider plans allow only declared put targets and reject protected fields', () => {
+test('provider plans allow declared put/delete targets and reject unsafe operation shapes', () => {
   const provider = normalizeProviderDescriptor(addon(), descriptor(), {
     coreCollections: new Set(['characters']),
   });
@@ -154,6 +154,20 @@ test('provider plans allow only declared put targets and reject protected fields
   }, targetTypes);
   assert.equal(valid.operations.length, 1);
   assert.equal(valid.diagnostics[0].message, '<b>plain text</b>');
+
+  const deletion = normalizePlan(provider, {
+    schemaVersion: 1,
+    operations: [{
+      target: { scope: 'addon', addonId: 'fixture-import', collection: 'items' },
+      op: 'delete',
+      id: 'old-item',
+    }],
+  }, targetTypes);
+  assert.deepEqual(deletion.operations, [{
+    target: { scope: 'addon', addonId: 'fixture-import', collection: 'items' },
+    op: 'delete',
+    id: 'old-item',
+  }]);
 
   for (const field of ['id', 'namespace', 'access', 'revision', 'audit', 'createdBy']) {
     assert.throws(
@@ -187,6 +201,18 @@ test('provider plans allow only declared put targets and reject protected fields
       operations: [{
         target: { scope: 'addon', addonId: 'fixture-import', collection: 'items' },
         op: 'delete',
+        id: 'x',
+        value: {},
+      }],
+    }, targetTypes),
+    error => error.code === 'IMPORT_PLAN_INVALID',
+  );
+  assert.throws(
+    () => normalizePlan(provider, {
+      schemaVersion: 1,
+      operations: [{
+        target: { scope: 'addon', addonId: 'fixture-import', collection: 'items' },
+        op: 'archive',
         id: 'x',
       }],
     }, targetTypes),
