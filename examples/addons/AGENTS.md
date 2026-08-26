@@ -57,6 +57,9 @@ repo-local TODO, roadmap, or planning files.
 - Keep registration deterministic. Start data loading from an action, renderer,
   or explicitly owned asynchronous task; do not depend on untracked ambient
   state during registration.
+- Importable JSON content uses `codex.import-adapter` version 1.1: declare
+  stable root `format` identities, accept the center's untouched `File` in
+  `open(file)`, and keep strict schema validation in the owning server provider.
 - Clean up every owned listener, timer, observer, request, graph handle,
   overlay, and cache with `host.onDispose()` or the disposer returned from
   `register()`. Request `lifecycle.dispose` when lifecycle cleanup is used.

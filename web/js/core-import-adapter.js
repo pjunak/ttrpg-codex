@@ -22,6 +22,7 @@ export const CoreImportAdapter = (() => {
   });
   let state = freshState();
   let invalidate = () => {};
+  let returnToChooser = () => {};
   let generation = 0;
 
   function freshState() {
@@ -48,7 +49,7 @@ export const CoreImportAdapter = (() => {
       id: 'core-campaign-bundle',
       label: I18n.t('import.adapterTitle'),
       description: I18n.t('import.intro'),
-      accept: '.json,application/json',
+      formats: Object.freeze(['ttrpg-codex-campaign-bundle']),
       links: Object.freeze([
         Object.freeze({ label: I18n.t('import.schema'), href: '/api/content-import/schemas/campaign-bundle-v1' }),
         Object.freeze({ label: I18n.t('import.inventory'), href: '/api/content-import/inventory?includeBodies=true' }),
@@ -123,17 +124,6 @@ export const CoreImportAdapter = (() => {
     </section>`;
   }
 
-  function uploadHtml() {
-    return `<section class="import-dropzone">
-      <div class="import-drop-icon" aria-hidden="true">⌁</div>
-      <div><h2>${esc(I18n.t('import.chooseTitle'))}</h2><p>${esc(I18n.t('import.chooseHint'))}</p></div>
-      <label class="inline-create-btn import-file-button">${esc(I18n.t('import.chooseFile'))}
-        <input type="file" accept=".json,application/json"${dataOn('change', 'CoreImportAdapter.selectFile', '$el')}></label>
-      ${state.file ? `<div class="import-file"><strong>${esc(state.fileName)}</strong><span>${esc(I18n.t('import.fileBytes', { count: state.file.size }))}</span></div>
-        ${button(state.busy ? I18n.t('import.reviewing') : I18n.t('import.preview'), 'CoreImportAdapter.preview', 'edit-save-btn', !!state.busy)}` : ''}
-    </section>`;
-  }
-
   function resultHtml() {
     return `<section class="import-complete" role="status"><span aria-hidden="true">✓</span><div>
       <h2>${esc(I18n.t('import.completeTitle'))}</h2>
@@ -146,19 +136,21 @@ export const CoreImportAdapter = (() => {
     if (!Role.isDM()) return `<div class="codex-notice">${esc(I18n.t('import.dmOnly'))}</div>`;
     return `<div class="import-center">
       ${state.error ? `<div class="import-error" role="alert"><strong>${esc(I18n.t('import.error'))}</strong> ${esc(state.error)}</div>` : ''}
-      ${state.result ? resultHtml() : (state.preview ? reviewHtml() : uploadHtml())}
+      ${state.result ? resultHtml() : (state.preview ? reviewHtml() : (state.busy ? `<section class="settings-panel" aria-busy="true">
+        <h3>${esc(I18n.t('import.reviewing'))}</h3><p>${esc(I18n.t('import.reviewingHint'))}</p>
+      </section>` : ''))}
     </div>`;
   }
 
   function activate(context = {}) {
     invalidate = typeof context.invalidate === 'function' ? context.invalidate : () => {};
-    return () => { invalidate = () => {}; };
-  }
-
-  function selectFile(input) {
-    state = { ...freshState(), file: input?.files?.[0] || null };
-    state.fileName = state.file?.name || '';
-    refresh();
+    returnToChooser = typeof context.returnToChooser === 'function'
+      ? context.returnToChooser
+      : () => {};
+    return () => {
+      invalidate = () => {};
+      returnToChooser = () => {};
+    };
   }
 
   async function createPreview(file) {
@@ -186,6 +178,15 @@ export const CoreImportAdapter = (() => {
     } finally {
       if (current === generation) { state.busy = ''; refresh(); }
     }
+  }
+
+  async function open(file) {
+    if (!file) return;
+    await reset(false);
+    state.file = file;
+    state.fileName = typeof file.name === 'string' ? file.name : '';
+    refresh();
+    await preview();
   }
 
   async function revalidate() {
@@ -225,17 +226,18 @@ export const CoreImportAdapter = (() => {
     }
   }
 
-  async function reset() {
+  async function reset(notifyCenter = true) {
     const jobId = state.jobId;
     const committing = state.busy === 'commit';
     generation++;
     state = freshState();
     if (jobId && !committing) await client.cancel(jobId).catch(() => {});
     refresh();
+    if (notifyCenter) returnToChooser();
   }
 
-  async function leave() { await reset(); }
+  async function leave() { await reset(false); }
 
-  const service = Object.freeze({ apiVersion: 1, descriptor, activate, render, leave });
-  return Object.freeze({ service, selectFile, preview, revalidate, setConfirmed, commit, reset, leave });
+  const service = Object.freeze({ apiVersion: 1, descriptor, activate, open, render, leave });
+  return Object.freeze({ service, preview, revalidate, setConfirmed, commit, reset, leave });
 })();

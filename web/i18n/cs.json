@@ -645,6 +645,7 @@
   "import.reviewKicker": "Upravitelná kontrola",
   "import.reviewTitle": "Publikační přehled",
   "import.reviewing": "Sestavuji kontrolu…",
+  "import.reviewingHint": "Balíček kampaně se ověřuje dříve, než budou navrženy jakékoli změny.",
   "import.removeListItem": "Odebrat",
   "import.revalidateEdits": "Znovu ověřit všechny úpravy",
   "import.openRecord": "Otevřít záznam",

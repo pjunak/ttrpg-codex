@@ -754,21 +754,25 @@ allowed. Service bindings cannot override this invariant.
 
 ### Import adapters
 
-An addon that owns importable content provides `codex.import-adapter` version
-`1.0.0`. DM Tools consumes this contract with cardinality `many`; neither DM
-Tools nor core contains a list of known content addons. The service API is:
+An addon that owns importable JSON content provides `codex.import-adapter`
+version `1.1.0`. DM Tools consumes this contract with cardinality `many`;
+neither DM Tools nor core contains a list of known content addons. The service
+API is:
 
 ```js
-host.provideService('codex.import-adapter', '1.0.0', Object.freeze({
+host.provideService('codex.import-adapter', '1.1.0', Object.freeze({
   apiVersion: 1,
   descriptor: () => ({
     id: 'my-content-json',
     label: host.i18n.t('import.label'),
     description: host.i18n.t('import.description'),
-    accept: '.json,application/json',
+    formats: ['my-addon-content'],
     links: [{ label: host.i18n.t('import.schema'), href: '/api/addon/my-addon/schema' }],
   }),
-  activate: ({ invalidate }) => { /* retain callback; return optional cleanup */ },
+  activate: ({ invalidate, returnToChooser }) => {
+    /* retain callbacks; return optional cleanup */
+  },
+  open: async file => { /* clear old state, retain file, and start preview */ },
   render: () => '<section>…owner-rendered review/edit UI…</section>',
   leave: async () => { /* cancel preview jobs and clear draft state */ },
 }));
@@ -776,13 +780,23 @@ host.provideService('codex.import-adapter', '1.0.0', Object.freeze({
 
 The content owner registers every action referenced by its HTML and uses its
 own scoped `host.imports` client, so another addon never gains authority over
-its providers or collections. `descriptor()` returns localized plain text and
-optional same-origin absolute-path resource links. `render()` returns escaped,
-owner-defined UI; the center never introspects or generically edits the
-payload. `activate({invalidate})` connects state changes to the containing
-route and its cleanup must detach that callback. `leave()` cancels nonterminal
-jobs. Server preview tokens already pin provider/package/content and collection
-revisions, so disable/update/replacement cannot publish a stale plan.
+its providers or collections. `descriptor()` returns localized plain text,
+one or more stable root JSON `format` strings, and optional same-origin
+absolute-path resource links. The center parses only that discriminator and
+calls `open(file)` on exactly one owner. The owner sends the untouched file to
+its provider and starts preview; `render()` returns escaped owner-defined UI.
+When an owner-level reset is complete, it calls `returnToChooser()` so the
+center shows the shared input again. `activate({invalidate,
+returnToChooser})` cleanup detaches retained callbacks, and `leave()` cancels
+nonterminal jobs. Server preview tokens already pin provider/package/content
+and collection revisions, so disable/update/replacement cannot publish a stale
+plan.
+
+The center rejects malformed JSON, missing or unsupported `format`, and
+multiple adapters claiming the same format before a provider job starts. It
+does not inspect `schemaVersion` or other owner fields; strict parsing and
+schema diagnostics remain server-owned. Version 1.0 adapters must adopt this
+routing contract before they can appear in the unified center.
 
 Every stable importable content type should pair this client adapter with its
 owner server import provider. Package-authored read-only content, caches,

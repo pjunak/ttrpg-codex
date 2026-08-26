@@ -553,17 +553,22 @@ exports `createMockImportHost(...)` and runs the same descriptor/parser/plan/job
 implementation in memory, including revision conflicts and atomic commit
 results.
 
-Visible import UX is adapter-owned, not broker-owned. Importable content addons
-provide the cardinality-many `codex.import-adapter` service v1 alongside their
-server provider. Its `descriptor()` returns localized plain metadata and safe
-same-origin resource links; `activate({invalidate})`, `render()`, and `leave()`
-own the adapter state, escaped review/editor UI, registered actions, and job
-cleanup. The adapter uses its own scoped `host.imports`, so the composing addon
-cannot operate another addon's provider. DM Tools owns the `#/dm-import` route,
-enumerates all compatible handles with `host.listServices`, and renders their
-independent workflows as one continuous review page with lifecycle and
-unavailable/error containment. It never parses an
-adapter payload or contains known addon ids.
+Visible import UX is shared between the center and the content owner.
+Importable content addons provide the cardinality-many
+`codex.import-adapter` service version 1.1 alongside their server provider.
+Its `descriptor()` returns localized plain metadata, exact top-level JSON
+`formats`, and safe same-origin resource links. DM Tools owns the
+`#/dm-import` route and one file chooser. It reads only the root `format`,
+rejects missing, unknown, or ambiguously owned formats, and calls the matching
+adapter's `open(file)` with the untouched browser file. It contains no known
+addon ids or payload schemas.
+
+The selected adapter alone owns its state, escaped review/editor UI,
+registered actions, and job cleanup through `activate({invalidate,
+returnToChooser})`, `open(file)`, `render()`, and `leave()`. It uses its own
+scoped `host.imports`, so the composing addon cannot operate another addon's
+provider. Server parsing remains authoritative; center routing does not replace
+duplicate-key, UTF-8, size, schema, or plan validation.
 
 Core campaign data participates through `web/js/core-import-adapter.js`, a
 generic built-in service registered by `app.js`; the normal Import Center route

@@ -25,7 +25,7 @@ import { createCytoscapeGraphAdapter } from './addon-graph-cytoscape.js';
 import { setTextLayoutLocale } from './text-layout.js';
 import { PlayerPreview } from './player-preview.js';
 
-Addons.registerBuiltInService('codex.import-adapter', '1.0.0', CoreImportAdapter.service);
+Addons.registerBuiltInService('codex.import-adapter', '1.1.0', CoreImportAdapter.service);
 
 // ── Action dispatcher (replaces inline `onclick="Module.method(...)"`) ──
 // Buttons / anchors carry `data-action="Module.method"` plus an optional

@@ -630,6 +630,7 @@
   "import.reviewKicker": "Editable review",
   "import.reviewTitle": "Publication ledger",
   "import.reviewing": "Building review…",
+  "import.reviewingHint": "The campaign bundle is being validated before any changes are proposed.",
   "import.removeListItem": "Remove",
   "import.revalidateEdits": "Revalidate all edits",
   "import.openRecord": "Open record",
