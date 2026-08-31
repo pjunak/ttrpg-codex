@@ -1,0 +1,18 @@
+{
+  "$schema": "../service-document.schema.json",
+  "contract": "codex.import-adapter",
+  "version": "2.0.0",
+  "allowsExclusive": false,
+  "methods": {
+    "preview": {
+      "requestSchema": "contracts/import-preview.request.schema.json",
+      "responseSchema": "contracts/import-preview.response.schema.json",
+      "maxDeadlineMs": 10000,
+      "idempotency": "none",
+      "errors": [
+        "INVALID_INPUT",
+        "UNAVAILABLE"
+      ]
+    }
+  }
+}

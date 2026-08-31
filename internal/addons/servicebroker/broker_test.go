@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/requestcontext"
+	"github.com/pjunak/ttrpg-codex/internal/addons/servicecontract"
 	codexsqlite "github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
 	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
@@ -188,7 +190,8 @@ func TestCatalogReplacementCannotReuseOldRuntimeGeneration(t *testing.T) {
 		t.Fatalf("old catalog handle validation = %v, want ErrStaleBinding", err)
 	}
 	caller := runtimeCallerFunc(func(context.Context, string, any, *workerrpc.Meta) (json.RawMessage, error) { return nil, nil })
-	if err := broker.ActivateRuntime(ctx, "engine-a", "generation-2", caller); err != nil {
+	declaration := testProvider("dnd5e.rules-engine", "3.2.0", false)
+	if err := broker.ActivateRuntime(ctx, "engine-a", "generation-2", testRegistry(t, declaration), caller); err != nil {
 		t.Fatal(err)
 	}
 	newHandle, err := broker.ConnectOne(ctx, requirement)
@@ -280,6 +283,7 @@ func TestBrokerCallValidatesPayloadAndCarriesHostIssuedLineage(t *testing.T) {
 	}
 	directory := NewRuntimeDirectory()
 	broker := testBroker(t, store, directory, contexts)
+	broker.now = func() time.Time { return now }
 	ctx := context.Background()
 	if err := broker.ReplaceProviders(ctx, "engine-a", "1.0.0", []ProviderDeclaration{
 		testProvider("dnd5e.rules-engine", "3.1.0", false),
@@ -305,7 +309,16 @@ func TestBrokerCallValidatesPayloadAndCarriesHostIssuedLineage(t *testing.T) {
 		}
 		return json.RawMessage(`{"result":8}`), nil
 	})
-	if err := broker.ActivateRuntime(ctx, "engine-a", "generation-a", caller); err != nil {
+	declaration := testProvider("dnd5e.rules-engine", "3.1.0", false)
+	contracts := testRegistryWithSchemas(
+		t,
+		declaration,
+		`{"type":"object","required":["value"],"properties":{"value":{"type":"integer"}},"additionalProperties":false}`,
+		`{"type":"object","required":["result"],"properties":{"result":{"type":"integer"}},"additionalProperties":false}`,
+		servicecontract.IdempotencyOptional,
+		2_000,
+	)
+	if err := broker.ActivateRuntime(ctx, "engine-a", "generation-a", contracts, caller); err != nil {
 		t.Fatal(err)
 	}
 	requirement := oneRequirement("character-sheets", "dnd5e.rules-engine", "^3.0.0")
@@ -313,19 +326,9 @@ func TestBrokerCallValidatesPayloadAndCarriesHostIssuedLineage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	requestValidated := false
-	responseValidated := false
 	result, err := broker.Call(ctx, handle, MethodCall{
 		Method: "evaluate-character",
 		Params: map[string]int{"value": 4},
-		ValidateRequest: func(body json.RawMessage) error {
-			requestValidated = string(body) == `{"value":4}`
-			return nil
-		},
-		ValidateResponse: func(body json.RawMessage) error {
-			responseValidated = string(body) == `{"result":8}`
-			return nil
-		},
 		Context: CallContext{
 			CorrelationID: "http-42", Deadline: now.Add(30 * time.Second),
 			Actor: workerrpc.Actor{Role: "player", ID: "player-7"},
@@ -334,11 +337,104 @@ func TestBrokerCallValidatesPayloadAndCarriesHostIssuedLineage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if calledMethod != "service/dnd5e.rules-engine/evaluate-character" || !requestValidated || !responseValidated || string(result) != `{"result":8}` {
-		t.Fatalf("unexpected routed call method=%q request=%v response=%v result=%s", calledMethod, requestValidated, responseValidated, result)
+	if calledMethod != "service/dnd5e.rules-engine/evaluate-character" || string(result) != `{"result":8}` {
+		t.Fatalf("unexpected routed call method=%q result=%s", calledMethod, result)
 	}
 	if snapshot := contexts.Snapshot(); snapshot.Active != 0 || snapshot.Issued != 1 || snapshot.Resolved != 1 {
 		t.Fatalf("request context leaked after call: %+v", snapshot)
+	}
+}
+
+func TestBrokerCallEnforcesCompiledMethodPolicies(t *testing.T) {
+	t.Parallel()
+
+	store, _ := testStore(t)
+	now := time.Date(2026, time.August, 31, 12, 0, 0, 0, time.UTC)
+	contexts, err := requestcontext.New(requestcontext.Config{
+		MaxLifetime: time.Minute, Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	broker := testBroker(t, store, NewRuntimeDirectory(), contexts)
+	broker.now = func() time.Time { return now }
+	declaration := testProvider("dnd5e.rules-engine", "3.1.0", false)
+	if err := broker.ReplaceProviders(context.Background(), "engine-a", "1.0.0", []ProviderDeclaration{declaration}); err != nil {
+		t.Fatal(err)
+	}
+	contracts := testRegistryWithSchemas(
+		t,
+		declaration,
+		`{"type":"object","required":["value"],"properties":{"value":{"type":"integer"}},"additionalProperties":false}`,
+		`{"type":"object","required":["result"],"properties":{"result":{"type":"integer"}},"additionalProperties":false}`,
+		servicecontract.IdempotencyRequired,
+		500,
+	)
+	called := 0
+	caller := runtimeCallerFunc(func(ctx context.Context, _ string, _ any, meta *workerrpc.Meta) (json.RawMessage, error) {
+		called++
+		wantDeadline := now.Add(500 * time.Millisecond)
+		contextDeadline, ok := ctx.Deadline()
+		if !ok || !contextDeadline.Equal(wantDeadline) || meta == nil || !meta.Deadline.Equal(wantDeadline) {
+			return nil, fmt.Errorf("method deadline was not enforced: context=%v meta=%+v", contextDeadline, meta)
+		}
+		return json.RawMessage(`{"unexpected":true}`), nil
+	})
+	if err := broker.ActivateRuntime(context.Background(), "engine-a", "generation-a", contracts, caller); err != nil {
+		t.Fatal(err)
+	}
+	handle, err := broker.ConnectOne(context.Background(), oneRequirement("character-sheets", "dnd5e.rules-engine", "^3.0.0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := MethodCall{
+		Method: "evaluate-character", Params: map[string]any{"value": 4},
+		Context: CallContext{Deadline: now.Add(10 * time.Second), Actor: workerrpc.Actor{Role: "system"}},
+	}
+	if _, err := broker.Call(context.Background(), handle, base); !errors.Is(err, ErrInvalidCall) {
+		t.Fatalf("missing idempotency key error = %v, want ErrInvalidCall", err)
+	}
+	invalid := base
+	invalid.Params = map[string]any{"value": "four"}
+	invalid.Context.IdempotencyKey = "evaluation-1"
+	if _, err := broker.Call(context.Background(), handle, invalid); err == nil {
+		t.Fatal("invalid request reached provider")
+	}
+	unknown := base
+	unknown.Method = "missing"
+	unknown.Context.IdempotencyKey = "evaluation-2"
+	if _, err := broker.Call(context.Background(), handle, unknown); !errors.Is(err, ErrMethodNotFound) {
+		t.Fatalf("unknown method error = %v, want ErrMethodNotFound", err)
+	}
+	valid := base
+	valid.Context.IdempotencyKey = "evaluation-3"
+	if _, err := broker.Call(context.Background(), handle, valid); err == nil {
+		t.Fatal("invalid provider response passed compiled schema")
+	}
+	if called != 1 {
+		t.Fatalf("provider calls = %d, want 1", called)
+	}
+	if snapshot := contexts.Snapshot(); snapshot.Active != 0 || snapshot.Issued != 1 {
+		t.Fatalf("request context leaked after invalid response: %+v", snapshot)
+	}
+}
+
+func TestActivateRuntimeRejectsRegistryThatDoesNotMatchCatalog(t *testing.T) {
+	t.Parallel()
+
+	store, _ := testStore(t)
+	broker := testBroker(t, store, NewRuntimeDirectory(), nil)
+	declaration := testProvider("dnd5e.rules-engine", "3.1.0", false)
+	if err := broker.ReplaceProviders(context.Background(), "engine-a", "1.0.0", []ProviderDeclaration{declaration}); err != nil {
+		t.Fatal(err)
+	}
+	mismatch := testProvider("dnd5e.rules-engine", "3.2.0", false)
+	err := broker.ActivateRuntime(
+		context.Background(), "engine-a", "generation-a", testRegistry(t, mismatch),
+		runtimeCallerFunc(func(context.Context, string, any, *workerrpc.Meta) (json.RawMessage, error) { return nil, nil }),
+	)
+	if !errors.Is(err, ErrInvalidDeclaration) {
+		t.Fatalf("mismatched registry activation = %v, want ErrInvalidDeclaration", err)
 	}
 }
 
@@ -349,17 +445,19 @@ func TestRuntimeDirectoryExactGenerationPreventsLateTeardown(t *testing.T) {
 	first := runtimeCallerFunc(func(context.Context, string, any, *workerrpc.Meta) (json.RawMessage, error) { return nil, nil })
 	second := runtimeCallerFunc(func(context.Context, string, any, *workerrpc.Meta) (json.RawMessage, error) { return nil, nil })
 	catalog := map[string]int64{"dnd5e.rules-engine": 1}
-	directory.activate("engine-a", "generation-1", first, catalog)
-	directory.activate("engine-a", "generation-2", second, catalog)
+	declaration := testProvider("dnd5e.rules-engine", "3.1.0", false)
+	contracts := testRegistry(t, declaration)
+	directory.activate("engine-a", "generation-1", first, catalog, contracts)
+	directory.activate("engine-a", "generation-2", second, catalog, contracts)
 	if directory.deactivate("engine-a", "generation-1") {
 		t.Fatal("late old-generation teardown removed replacement runtime")
 	}
-	caller, err := directory.lookup(Provider{
+	caller, _, err := directory.lookup(Provider{
 		AddonID:          "engine-a",
 		Contract:         "dnd5e.rules-engine",
 		ActiveGeneration: "generation-2",
 		CatalogRevision:  1,
-	})
+	}, "evaluate-character")
 	if err != nil || reflect.ValueOf(caller).Pointer() != reflect.ValueOf(second).Pointer() {
 		t.Fatalf("replacement runtime lookup = (%v, %v)", caller, err)
 	}
@@ -385,10 +483,11 @@ func TestBindingUpdateWaitsForValidatedInFlightCall(t *testing.T) {
 		<-release
 		return json.RawMessage(`{}`), nil
 	})
-	if err := broker.ActivateRuntime(ctx, "engine-a", "generation-a", blocking); err != nil {
+	declaration := testProvider("dnd5e.rules-engine", "3.1.0", false)
+	if err := broker.ActivateRuntime(ctx, "engine-a", "generation-a", testRegistry(t, declaration), blocking); err != nil {
 		t.Fatal(err)
 	}
-	if err := broker.ActivateRuntime(ctx, "engine-b", "generation-b", runtimeCallerFunc(
+	if err := broker.ActivateRuntime(ctx, "engine-b", "generation-b", testRegistry(t, declaration), runtimeCallerFunc(
 		func(context.Context, string, any, *workerrpc.Meta) (json.RawMessage, error) {
 			return json.RawMessage(`{}`), nil
 		},
@@ -408,9 +507,7 @@ func TestBindingUpdateWaitsForValidatedInFlightCall(t *testing.T) {
 	go func() {
 		_, err := broker.Call(ctx, handle, MethodCall{
 			Method: "evaluate-character", Params: map[string]any{},
-			ValidateRequest:  func(json.RawMessage) error { return nil },
-			ValidateResponse: func(json.RawMessage) error { return nil },
-			Context:          CallContext{Deadline: time.Now().Add(time.Second), Actor: workerrpc.Actor{Role: "system"}},
+			Context: CallContext{Deadline: time.Now().Add(time.Second), Actor: workerrpc.Actor{Role: "system"}},
 		})
 		callDone <- err
 	}()
@@ -510,9 +607,66 @@ func installActiveProvider(
 	caller := runtimeCallerFunc(func(context.Context, string, any, *workerrpc.Meta) (json.RawMessage, error) {
 		return nil, errors.New("test provider was not expected to receive a call")
 	})
-	if err := broker.ActivateRuntime(context.Background(), addonID, generation, caller); err != nil {
+	if err := broker.ActivateRuntime(context.Background(), addonID, generation, testRegistry(t, testProvider(contract, version, false)), caller); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func testRegistry(t *testing.T, declaration ProviderDeclaration) *servicecontract.Registry {
+	t.Helper()
+	return testRegistryWithSchemas(
+		t,
+		declaration,
+		`{"type":"object"}`,
+		`{"type":"object"}`,
+		servicecontract.IdempotencyOptional,
+		2_000,
+	)
+}
+
+func testRegistryWithSchemas(
+	t *testing.T,
+	declaration ProviderDeclaration,
+	requestSchema string,
+	responseSchema string,
+	idempotency servicecontract.Idempotency,
+	maxDeadlineMS int,
+) *servicecontract.Registry {
+	t.Helper()
+	compiler, err := servicecontract.NewCompiler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := json.Marshal(map[string]any{
+		"contract":        declaration.Contract,
+		"version":         declaration.Version,
+		"allowsExclusive": declaration.Exclusive,
+		"methods": map[string]any{
+			"evaluate-character": map[string]any{
+				"requestSchema":  "contracts/request.schema.json",
+				"responseSchema": "contracts/response.schema.json",
+				"maxDeadlineMs":  maxDeadlineMS,
+				"idempotency":    idempotency,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry, err := compiler.Compile([]servicecontract.Declaration{{
+		Contract:  declaration.Contract,
+		Version:   declaration.Version,
+		Document:  declaration.Schema,
+		Exclusive: declaration.Exclusive,
+	}}, map[string][]byte{
+		declaration.Schema:               document,
+		"contracts/request.schema.json":  []byte(requestSchema),
+		"contracts/response.schema.json": []byte(responseSchema),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return registry
 }
 
 func oneRequirement(consumer, contract, versionRange string) Requirement {

@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://junak.eu/ttrpg-codex/contracts/addons/v3/service-document.schema.json",
+  "title": "TTRPG Codex Add-on Service Document v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "version",
+    "allowsExclusive",
+    "methods"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri-reference"
+    },
+    "contract": {
+      "$ref": "#/$defs/contractId"
+    },
+    "version": {
+      "$ref": "#/$defs/version"
+    },
+    "allowsExclusive": {
+      "type": "boolean"
+    },
+    "methods": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 200,
+      "propertyNames": {
+        "$ref": "#/$defs/methodId"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/method"
+      }
+    },
+    "extensions": {
+      "$ref": "#/$defs/extensions"
+    }
+  },
+  "$defs": {
+    "contractId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$",
+      "maxLength": 120
+    },
+    "methodId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "maxLength": 100
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "schemaPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^contracts/[^/\\\\][^\\\\]*\\.json$"
+    },
+    "errorKind": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$",
+      "maxLength": 100
+    },
+    "method": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestSchema",
+        "responseSchema",
+        "maxDeadlineMs",
+        "idempotency"
+      ],
+      "properties": {
+        "requestSchema": {
+          "$ref": "#/$defs/schemaPath"
+        },
+        "responseSchema": {
+          "$ref": "#/$defs/schemaPath"
+        },
+        "maxDeadlineMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120000
+        },
+        "idempotency": {
+          "enum": ["none", "optional", "required"]
+        },
+        "errors": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/errorKind"
+          }
+        },
+        "extensions": {
+          "$ref": "#/$defs/extensions"
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)+$",
+        "maxLength": 200
+      },
+      "additionalProperties": true
+    }
+  }
+}

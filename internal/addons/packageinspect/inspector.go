@@ -18,6 +18,7 @@ import (
 	"unicode"
 
 	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
+	"github.com/pjunak/ttrpg-codex/internal/addons/servicecontract"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
@@ -51,17 +52,19 @@ type File struct {
 }
 
 type Report struct {
-	ArchiveBytes  int64    `json:"archiveBytes"`
-	ExpandedBytes uint64   `json:"expandedBytes"`
-	ArchiveSHA256 string   `json:"archiveSha256"`
-	Manifest      Manifest `json:"manifest"`
-	Files         []File   `json:"files"`
+	ArchiveBytes     int64                         `json:"archiveBytes"`
+	ExpandedBytes    uint64                        `json:"expandedBytes"`
+	ArchiveSHA256    string                        `json:"archiveSha256"`
+	Manifest         Manifest                      `json:"manifest"`
+	Files            []File                        `json:"files"`
+	ServiceContracts []servicecontract.Description `json:"serviceContracts"`
 }
 
 type Inspector struct {
 	limits          Limits
 	manifestSchema  *jsonschema.Schema
 	checksumsSchema *jsonschema.Schema
+	serviceCompiler *servicecontract.Compiler
 }
 
 func New(limits Limits) (*Inspector, error) {
@@ -74,10 +77,15 @@ func New(limits Limits) (*Inspector, error) {
 	if err != nil {
 		return nil, fmt.Errorf("compile checksums schema: %w", err)
 	}
+	serviceCompiler, err := servicecontract.NewCompiler()
+	if err != nil {
+		return nil, err
+	}
 	return &Inspector{
 		limits:          limits,
 		manifestSchema:  manifestSchema,
 		checksumsSchema: checksumsSchema,
+		serviceCompiler: serviceCompiler,
 	}, nil
 }
 
@@ -111,6 +119,7 @@ func compileSchema(name string, body []byte) (*jsonschema.Schema, error) {
 	}
 	compiler := jsonschema.NewCompiler()
 	compiler.AssertFormat()
+	compiler.UseLoader(packageOfflineLoader{})
 	if err := compiler.AddResource(name, document); err != nil {
 		return nil, err
 	}
@@ -182,28 +191,42 @@ func (i *Inspector) InspectFile(ctx context.Context, filename string) (Report, e
 	if err := validateDeclarations(manifest, entries, directories); err != nil {
 		return Report{}, err
 	}
-	if err := i.validateDeclaredSchemas(ctx, manifest, entries); err != nil {
+	serviceRegistry, err := i.validateDeclaredSchemas(ctx, manifest, entries)
+	if err != nil {
 		return Report{}, err
 	}
 
 	return Report{
-		ArchiveBytes:  stat.Size(),
-		ExpandedBytes: expandedBytes,
-		ArchiveSHA256: archiveDigest,
-		Manifest:      manifest,
-		Files:         files,
+		ArchiveBytes:     stat.Size(),
+		ExpandedBytes:    expandedBytes,
+		ArchiveSHA256:    archiveDigest,
+		Manifest:         manifest,
+		Files:            files,
+		ServiceContracts: serviceRegistry.Descriptions(),
 	}, nil
 }
 
-func (i *Inspector) validateDeclaredSchemas(ctx context.Context, manifest Manifest, entries map[string]*zip.File) error {
-	declared := declaredSchemaPaths(manifest)
-	if len(declared) == 0 {
-		return nil
-	}
-
-	resources := make(map[string]struct{}, len(declared))
+func (i *Inspector) validateDeclaredSchemas(
+	ctx context.Context,
+	manifest Manifest,
+	entries map[string]*zip.File,
+) (*servicecontract.Registry, error) {
+	declared := declaredDataSchemaPaths(manifest)
+	serviceDeclarations := make([]servicecontract.Declaration, 0, len(manifest.Services.Provides))
+	serviceDocuments := make(map[string]struct{}, len(manifest.Services.Provides))
+	resources := make(map[string]struct{}, len(declared)+len(manifest.Services.Provides))
 	for _, filename := range declared {
 		resources[filename] = struct{}{}
+	}
+	for _, service := range manifest.Services.Provides {
+		serviceDeclarations = append(serviceDeclarations, servicecontract.Declaration{
+			Contract:  service.Contract,
+			Version:   service.Version,
+			Document:  service.Schema,
+			Exclusive: service.Exclusive,
+		})
+		serviceDocuments[service.Schema] = struct{}{}
+		resources[service.Schema] = struct{}{}
 	}
 	for filename := range entries {
 		if strings.HasPrefix(filename, "contracts/") && strings.HasSuffix(filename, ".json") {
@@ -217,48 +240,63 @@ func (i *Inspector) validateDeclaredSchemas(ctx context.Context, manifest Manife
 	}
 	sort.Strings(filenames)
 
-	compiler := jsonschema.NewCompiler()
-	compiler.DefaultDraft(jsonschema.Draft2020)
-	compiler.AssertFormat()
+	resourceBodies := make(map[string][]byte, len(filenames))
+	schemaCompiler := jsonschema.NewCompiler()
+	schemaCompiler.DefaultDraft(jsonschema.Draft2020)
+	schemaCompiler.AssertFormat()
+	schemaCompiler.UseLoader(packageOfflineLoader{})
 	resourceURLs := make(map[string]string, len(filenames))
 	for _, filename := range filenames {
 		entry, ok := entries[filename]
 		if !ok {
-			return inspectionError(CodeInvalidSchema, filename, errors.New("schema resource is missing"))
+			return nil, inspectionError(CodeInvalidSchema, filename, errors.New("schema resource is missing"))
 		}
 		body, err := readEntry(ctx, entry, i.limits.MaxSchemaBytes)
 		if err != nil {
-			return inspectionError(CodeInvalidSchema, filename, err)
+			return nil, inspectionError(CodeInvalidSchema, filename, err)
+		}
+		resourceBodies[filename] = body
+		if _, isServiceDocument := serviceDocuments[filename]; isServiceDocument {
+			continue
 		}
 		document, err := jsonschema.UnmarshalJSON(bytes.NewReader(body))
 		if err != nil {
-			return inspectionError(CodeInvalidSchema, filename, err)
+			return nil, inspectionError(CodeInvalidSchema, filename, err)
 		}
 		resourceURL := packageResourceURL(filename)
-		if err := compiler.AddResource(resourceURL, document); err != nil {
-			return inspectionError(CodeInvalidSchema, filename, err)
+		if err := schemaCompiler.AddResource(resourceURL, document); err != nil {
+			return nil, inspectionError(CodeInvalidSchema, filename, err)
 		}
 		resourceURLs[filename] = resourceURL
 	}
 
 	for _, filename := range declared {
-		if _, err := compiler.Compile(resourceURLs[filename]); err != nil {
-			return inspectionError(CodeInvalidSchema, filename, err)
+		if _, err := schemaCompiler.Compile(resourceURLs[filename]); err != nil {
+			return nil, inspectionError(CodeInvalidSchema, filename, err)
 		}
 	}
-	return nil
+	serviceRegistry, err := i.serviceCompiler.Compile(serviceDeclarations, resourceBodies)
+	if err != nil {
+		code := CodeInvalidSchema
+		if errors.Is(err, servicecontract.ErrInvalidDeclaration) {
+			code = CodeInvalidDeclaration
+		}
+		var compileError *servicecontract.CompileError
+		if errors.As(err, &compileError) {
+			return nil, inspectionError(code, compileError.Path, compileError.Cause)
+		}
+		return nil, inspectionError(code, "", err)
+	}
+	return serviceRegistry, nil
 }
 
-func declaredSchemaPaths(manifest Manifest) []string {
+func declaredDataSchemaPaths(manifest Manifest) []string {
 	unique := make(map[string]struct{})
 	for _, collection := range manifest.Collections {
 		unique[collection.Schema] = struct{}{}
 	}
 	for _, extension := range manifest.RecordExtensions {
 		unique[extension.Schema] = struct{}{}
-	}
-	for _, service := range manifest.Services.Provides {
-		unique[service.Schema] = struct{}{}
 	}
 	for _, content := range manifest.Content {
 		unique[content.Schema] = struct{}{}
@@ -273,6 +311,12 @@ func declaredSchemaPaths(manifest Manifest) []string {
 
 func packageResourceURL(filename string) string {
 	return (&url.URL{Scheme: "file", Path: "/addon/" + filename}).String()
+}
+
+type packageOfflineLoader struct{}
+
+func (packageOfflineLoader) Load(location string) (any, error) {
+	return nil, fmt.Errorf("external schema resource %q is unavailable during package inspection", location)
 }
 
 func (i *Inspector) indexEntries(zipEntries []*zip.File) (map[string]*zip.File, map[string]struct{}, uint64, error) {

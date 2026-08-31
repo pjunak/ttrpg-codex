@@ -103,11 +103,11 @@ deterministic resolution, generation-safe handles, and validated worker
 service routing. The dispatcher uses that request-context contract directly;
 wire actor values remain untrusted claims.
 
-The following remain later milestones:
+Package-owned service documents and real method request/response validators
+are now compiled by the host and pinned to the exact live generation. The
+following remain later milestones:
 
-- compile real method request/response schemas and connect data, blob, event,
-  HTTP, import, and migration handlers;
-- compile package-owned service documents into the method validator registry;
+- connect data, blob, event, HTTP, import, and migration handlers;
 - wire approved background jobs and package lifecycle orchestration;
 - add redacted traces and latency/queue metrics to the Inspector;
 - decide whether measured workloads need a small bounded fair queue. The

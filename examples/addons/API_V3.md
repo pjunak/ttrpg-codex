@@ -339,6 +339,36 @@ live generations and callable transports do not. A provider is unavailable
 until the matching package generation completes activation again. This avoids
 advertising a dead pre-restart worker from durable state.
 
+Each `services.provides[].schema` path points to a service document rather than
+directly to one payload schema:
+
+```json
+{
+  "$schema": "https://junak.eu/ttrpg-codex/contracts/addons/v3/service-document.schema.json",
+  "contract": "dnd5e.rules-engine",
+  "version": "3.0.0",
+  "allowsExclusive": false,
+  "methods": {
+    "evaluate-character": {
+      "requestSchema": "contracts/evaluate-character.request.schema.json",
+      "responseSchema": "contracts/evaluate-character.response.schema.json",
+      "maxDeadlineMs": 2000,
+      "idempotency": "optional",
+      "errors": ["INVALID_INPUT", "UNAVAILABLE"]
+    }
+  }
+}
+```
+
+The manifest and document contract/version must match exactly. The host
+compiles method schemas from verified package resources before activation and
+binds that immutable registry to the exact live generation; a consumer cannot
+supply replacement validators. `maxDeadlineMs` is a hard method limit, so a
+shorter caller or parent-context deadline wins. `none` rejects an idempotency
+key, `optional` accepts one, and `required` rejects calls without one. Error
+kinds are declared contract outcomes; transport and protocol errors remain
+separate.
+
 ### Settings, navigation, events, and logs
 
 - Settings have JSON Schemas, typed values, scopes, defaults, and revisioned

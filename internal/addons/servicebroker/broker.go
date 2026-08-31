@@ -11,10 +11,9 @@ import (
 
 	semver "github.com/Masterminds/semver/v3"
 	"github.com/pjunak/ttrpg-codex/internal/addons/requestcontext"
+	"github.com/pjunak/ttrpg-codex/internal/addons/servicecontract"
 	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
 )
-
-type ValidateFunc func(json.RawMessage) error
 
 type RuntimeCaller interface {
 	Call(context.Context, string, any, *workerrpc.Meta) (json.RawMessage, error)
@@ -29,12 +28,14 @@ type runtimeEntry struct {
 	generation string
 	caller     RuntimeCaller
 	catalog    map[string]int64
+	contracts  *servicecontract.Registry
 }
 
 type Broker struct {
 	store    *Store
 	runtimes *RuntimeDirectory
 	contexts *requestcontext.Registry
+	now      func() time.Time
 	mu       sync.RWMutex
 }
 
@@ -47,18 +48,22 @@ type CallContext struct {
 }
 
 type MethodCall struct {
-	Method           string
-	Params           any
-	ValidateRequest  ValidateFunc
-	ValidateResponse ValidateFunc
-	Context          CallContext
+	Method  string
+	Params  any
+	Context CallContext
 }
 
 func NewRuntimeDirectory() *RuntimeDirectory {
 	return &RuntimeDirectory{entries: make(map[string]runtimeEntry)}
 }
 
-func (directory *RuntimeDirectory) activate(addonID, generation string, caller RuntimeCaller, catalog map[string]int64) string {
+func (directory *RuntimeDirectory) activate(
+	addonID string,
+	generation string,
+	caller RuntimeCaller,
+	catalog map[string]int64,
+	contracts *servicecontract.Registry,
+) string {
 	directory.mu.Lock()
 	defer directory.mu.Unlock()
 	previous := directory.entries[addonID].generation
@@ -66,6 +71,7 @@ func (directory *RuntimeDirectory) activate(addonID, generation string, caller R
 		generation: generation,
 		caller:     caller,
 		catalog:    cloneCatalog(catalog),
+		contracts:  contracts,
 	}
 	return previous
 }
@@ -81,23 +87,30 @@ func (directory *RuntimeDirectory) deactivate(addonID, generation string) bool {
 	return true
 }
 
-func (directory *RuntimeDirectory) lookup(provider Provider) (RuntimeCaller, error) {
+func (directory *RuntimeDirectory) lookup(provider Provider, methodName string) (RuntimeCaller, servicecontract.Method, error) {
 	if directory == nil {
-		return nil, ErrRuntimeUnavailable
+		return nil, servicecontract.Method{}, ErrRuntimeUnavailable
 	}
 	directory.mu.RLock()
 	entry, exists := directory.entries[provider.AddonID]
 	directory.mu.RUnlock()
 	if !exists {
-		return nil, ErrRuntimeUnavailable
+		return nil, servicecontract.Method{}, ErrRuntimeUnavailable
 	}
 	if entry.generation != provider.ActiveGeneration || entry.catalog[provider.Contract] != provider.CatalogRevision {
-		return nil, ErrStaleBinding
+		return nil, servicecontract.Method{}, ErrStaleBinding
 	}
 	if entry.caller == nil {
-		return nil, ErrRuntimeUnavailable
+		return nil, servicecontract.Method{}, ErrRuntimeUnavailable
 	}
-	return entry.caller, nil
+	method, err := entry.contracts.Method(provider.Contract, methodName)
+	if err != nil {
+		if errors.Is(err, servicecontract.ErrMethodNotFound) {
+			return nil, servicecontract.Method{}, fmt.Errorf("%w: %s/%s", ErrMethodNotFound, provider.Contract, methodName)
+		}
+		return nil, servicecontract.Method{}, err
+	}
+	return entry.caller, method, nil
 }
 
 func (directory *RuntimeDirectory) attach(providers []Provider) []Provider {
@@ -123,7 +136,7 @@ func New(store *Store, runtimes *RuntimeDirectory, contexts *requestcontext.Regi
 	if contexts == nil {
 		return nil, errors.New("service broker request context registry is required")
 	}
-	return &Broker{store: store, runtimes: runtimes, contexts: contexts}, nil
+	return &Broker{store: store, runtimes: runtimes, contexts: contexts, now: time.Now}, nil
 }
 
 func (broker *Broker) ReplaceProviders(
@@ -181,6 +194,7 @@ func (broker *Broker) ActivateRuntime(
 	ctx context.Context,
 	addonID string,
 	generation string,
+	contracts *servicecontract.Registry,
 	caller RuntimeCaller,
 ) error {
 	broker.mu.Lock()
@@ -198,9 +212,17 @@ func (broker *Broker) ActivateRuntime(
 	if len(providers) == 0 {
 		return ErrProviderNotFound
 	}
+	if contracts == nil || contracts.Len() != len(providers) {
+		return fmt.Errorf("%w: runtime service registry does not match provider catalog", ErrInvalidDeclaration)
+	}
 	catalog := make(map[string]int64, len(providers))
 	requiresCaller := false
 	for _, provider := range providers {
+		definition, exists := contracts.Description(provider.Contract)
+		if !exists || definition.Version != provider.ContractVersion || definition.Document != provider.Schema ||
+			(provider.Exclusive && !definition.AllowsExclusive) {
+			return fmt.Errorf("%w: compiled contract does not match provider %s", ErrInvalidDeclaration, provider.Contract)
+		}
 		catalog[provider.Contract] = provider.CatalogRevision
 		if provider.Transport == TransportWorker {
 			requiresCaller = true
@@ -209,7 +231,7 @@ func (broker *Broker) ActivateRuntime(
 	if requiresCaller && caller == nil {
 		return fmt.Errorf("%w: worker provider generation requires a caller", ErrRuntimeUnavailable)
 	}
-	previous := broker.runtimes.activate(addonID, generation, caller, catalog)
+	previous := broker.runtimes.activate(addonID, generation, caller, catalog, contracts)
 	if previous != "" {
 		broker.contexts.InvalidateGeneration(addonID, previous)
 	}
@@ -355,17 +377,14 @@ func (broker *Broker) validateHandle(ctx context.Context, handle Handle) (Provid
 	return Provider{}, ErrStaleBinding
 }
 
-// Call routes one already-declared service method. Compiled contract-specific
-// request and response validators are mandatory; the broker never forwards an
-// unvalidated payload merely because the provider is selected.
+// Call routes one package-declared service method. The exact-generation
+// runtime registry supplies the host-compiled request and response validators;
+// callers cannot replace or bypass them.
 func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) (json.RawMessage, error) {
 	broker.mu.RLock()
 	defer broker.mu.RUnlock()
 	if !methodPattern.MatchString(call.Method) || len(call.Method) > 100 {
 		return nil, fmt.Errorf("%w: invalid service method %q", ErrInvalidDeclaration, call.Method)
-	}
-	if call.ValidateRequest == nil || call.ValidateResponse == nil {
-		return nil, fmt.Errorf("%w: service calls require request and response validators", ErrInvalidDeclaration)
 	}
 	provider, err := broker.validateHandle(ctx, handle)
 	if err != nil {
@@ -374,8 +393,11 @@ func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) 
 	if provider.Transport != TransportWorker {
 		return nil, fmt.Errorf("%w: %s services require a different transport adapter", ErrRuntimeUnavailable, provider.Transport)
 	}
-	caller, err := broker.runtimes.lookup(provider)
+	caller, method, err := broker.runtimes.lookup(provider, call.Method)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateIdempotency(method.Idempotency(), call.Context.IdempotencyKey); err != nil {
 		return nil, err
 	}
 	body, err := json.Marshal(call.Params)
@@ -385,14 +407,20 @@ func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) 
 	if !objectOrArray(body) {
 		return nil, fmt.Errorf("%w: service request must be an object or array", ErrInvalidDeclaration)
 	}
-	if err := call.ValidateRequest(body); err != nil {
+	if err := method.ValidateRequest(body); err != nil {
 		return nil, fmt.Errorf("validate service request: %w", err)
 	}
+	deadline, err := broker.effectiveDeadline(ctx, call.Context.Deadline, method.MaxDeadline())
+	if err != nil {
+		return nil, err
+	}
+	callContext, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
 	lease, err := broker.contexts.Issue(requestcontext.IssueRequest{
 		AddonID:        provider.AddonID,
 		Generation:     provider.ActiveGeneration,
 		CorrelationID:  call.Context.CorrelationID,
-		Deadline:       call.Context.Deadline,
+		Deadline:       deadline,
 		Actor:          call.Context.Actor,
 		IdempotencyKey: call.Context.IdempotencyKey,
 		Traceparent:    call.Context.Traceparent,
@@ -402,14 +430,47 @@ func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) 
 	}
 	defer lease.Close()
 	meta := lease.Meta()
-	result, err := caller.Call(ctx, "service/"+handle.Contract+"/"+call.Method, json.RawMessage(body), &meta)
+	result, err := caller.Call(callContext, "service/"+handle.Contract+"/"+call.Method, json.RawMessage(body), &meta)
 	if err != nil {
 		return nil, err
 	}
-	if err := call.ValidateResponse(result); err != nil {
+	if err := method.ValidateResponse(result); err != nil {
 		return nil, fmt.Errorf("validate service response: %w", err)
 	}
 	return append(json.RawMessage(nil), result...), nil
+}
+
+func (broker *Broker) effectiveDeadline(ctx context.Context, requested time.Time, maximum time.Duration) (time.Time, error) {
+	now := broker.now().UTC()
+	deadline := now.Add(maximum)
+	if !requested.IsZero() && requested.Before(deadline) {
+		deadline = requested.UTC()
+	}
+	if contextDeadline, exists := ctx.Deadline(); exists && contextDeadline.Before(deadline) {
+		deadline = contextDeadline.UTC()
+	}
+	if maximum <= 0 || !deadline.After(now) {
+		return time.Time{}, ErrCallDeadline
+	}
+	return deadline, nil
+}
+
+func validateIdempotency(policy servicecontract.Idempotency, key string) error {
+	switch policy {
+	case servicecontract.IdempotencyNone:
+		if key != "" {
+			return fmt.Errorf("%w: method does not accept an idempotency key", ErrInvalidCall)
+		}
+	case servicecontract.IdempotencyOptional:
+		return nil
+	case servicecontract.IdempotencyRequired:
+		if key == "" {
+			return fmt.Errorf("%w: method requires an idempotency key", ErrInvalidCall)
+		}
+	default:
+		return fmt.Errorf("%w: unknown idempotency policy", ErrInvalidCall)
+	}
+	return nil
 }
 
 func compatibleProviders(providers []Provider, constraint *semver.Constraints, activeOnly bool) []Provider {

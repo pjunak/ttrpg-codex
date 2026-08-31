@@ -16,6 +16,9 @@ var (
 	ErrServiceUnavailable = errors.New("compatible service provider unavailable")
 	ErrStaleBinding       = errors.New("service binding is stale")
 	ErrRuntimeUnavailable = errors.New("service provider runtime unavailable")
+	ErrMethodNotFound     = errors.New("service method not found")
+	ErrInvalidCall        = errors.New("invalid service call")
+	ErrCallDeadline       = errors.New("service call deadline is invalid or expired")
 )
 
 var (

@@ -182,6 +182,89 @@ func TestInspectFileCompilesDeclaredSchemas(t *testing.T) {
 	assertInspectionCode(t, err, CodeInvalidSchema)
 }
 
+func TestInspectFileCompilesAndReportsServiceDocuments(t *testing.T) {
+	t.Parallel()
+
+	manifest := manifestWithWorkerService(t, "dnd5e.rules-engine", "3.1.0")
+	serviceBody, err := json.Marshal(map[string]any{
+		"contract": "dnd5e.rules-engine", "version": "3.1.0", "allowsExclusive": false,
+		"methods": map[string]any{
+			"evaluate-character": map[string]any{
+				"requestSchema": "contracts/evaluate.request.schema.json", "responseSchema": "contracts/evaluate.response.schema.json",
+				"maxDeadlineMs": 2000, "idempotency": "optional", "errors": []string{"INVALID_INPUT"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	packagePath := writePackage(t, map[string][]byte{
+		manifestFilename:                         manifest,
+		"worker/addon.wasm":                      []byte("not executed during inspection"),
+		"contracts/engine.service.json":          serviceBody,
+		"contracts/evaluate.request.schema.json": []byte(`{"$ref":"common.schema.json#/$defs/request"}`),
+		"contracts/evaluate.response.schema.json": []byte(
+			`{"type":"object","required":["total"],"properties":{"total":{"type":"integer"}}}`,
+		),
+		"contracts/common.schema.json": []byte(
+			`{"$defs":{"request":{"type":"object","required":["level"],"properties":{"level":{"type":"integer"}}}}}`,
+		),
+	})
+	report, err := newTestInspector(t).InspectFile(context.Background(), packagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.ServiceContracts) != 1 || report.ServiceContracts[0].Contract != "dnd5e.rules-engine" ||
+		len(report.ServiceContracts[0].Methods) != 1 || report.ServiceContracts[0].Methods[0].MaxDeadlineMS != 2000 {
+		t.Fatalf("unexpected service contract report: %+v", report.ServiceContracts)
+	}
+}
+
+func TestInspectFileRejectsServiceDocumentMismatchAndExternalSchemaReference(t *testing.T) {
+	t.Parallel()
+
+	t.Run("service version mismatch", func(t *testing.T) {
+		t.Parallel()
+		serviceBody := []byte(`{
+			"contract":"dnd5e.rules-engine","version":"4.0.0","allowsExclusive":false,
+			"methods":{"evaluate-character":{"requestSchema":"contracts/request.json","responseSchema":"contracts/response.json","maxDeadlineMs":2000,"idempotency":"none"}}
+		}`)
+		packagePath := writePackage(t, map[string][]byte{
+			manifestFilename:                manifestWithWorkerService(t, "dnd5e.rules-engine", "3.1.0"),
+			"worker/addon.wasm":             []byte("worker"),
+			"contracts/engine.service.json": serviceBody,
+			"contracts/request.json":        []byte(`{"type":"object"}`),
+			"contracts/response.json":       []byte(`{"type":"object"}`),
+		})
+		_, err := newTestInspector(t).InspectFile(context.Background(), packagePath)
+		assertInspectionCode(t, err, CodeInvalidDeclaration)
+	})
+
+	t.Run("external collection schema reference", func(t *testing.T) {
+		t.Parallel()
+		var manifest map[string]any
+		if err := json.Unmarshal(minimalManifest("example-addon"), &manifest); err != nil {
+			t.Fatal(err)
+		}
+		manifest["collections"] = []any{map[string]any{
+			"id": "notes", "keyed": true, "visibility": "dm",
+			"schema": "contracts/notes.schema.json", "schemaVersion": "1.0.0",
+		}}
+		manifestBody, err := json.Marshal(manifest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		packagePath := writePackage(t, map[string][]byte{
+			manifestFilename: manifestBody,
+			"contracts/notes.schema.json": []byte(
+				`{"$ref":"file:///outside/host.schema.json"}`,
+			),
+		})
+		_, err = newTestInspector(t).InspectFile(context.Background(), packagePath)
+		assertInspectionCode(t, err, CodeInvalidSchema)
+	})
+}
+
 func newTestInspector(t *testing.T) *Inspector {
 	t.Helper()
 	inspector, err := New(DefaultLimits)
@@ -210,6 +293,31 @@ func minimalManifest(id string) []byte {
 	body, err := json.Marshal(value)
 	if err != nil {
 		panic(err)
+	}
+	return body
+}
+
+func manifestWithWorkerService(t *testing.T, contract, version string) []byte {
+	t.Helper()
+	var manifest map[string]any
+	if err := json.Unmarshal(minimalManifest("engine-addon"), &manifest); err != nil {
+		t.Fatal(err)
+	}
+	manifest["compatibility"].(map[string]any)["workerProtocol"] = "^1.0.0"
+	manifest["runtime"] = map[string]any{
+		"worker": map[string]any{
+			"type": "wasi", "protocol": "^1.0.0", "entrypoint": "worker/addon.wasm",
+		},
+	}
+	manifest["services"] = map[string]any{
+		"provides": []any{map[string]any{
+			"contract": contract, "version": version, "transport": "worker",
+			"schema": "contracts/engine.service.json",
+		}},
+	}
+	body, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
 	}
 	return body
 }

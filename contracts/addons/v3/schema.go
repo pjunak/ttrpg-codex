@@ -6,7 +6,7 @@ import (
 	"embed"
 )
 
-//go:embed manifest.schema.json protocol.schema.json checksums.schema.json
+//go:embed manifest.schema.json protocol.schema.json checksums.schema.json service-document.schema.json
 var schemas embed.FS
 
 func ManifestSchema() []byte {
@@ -19,6 +19,10 @@ func ProtocolSchema() []byte {
 
 func ChecksumsSchema() []byte {
 	return schema("checksums.schema.json")
+}
+
+func ServiceDocumentSchema() []byte {
+	return schema("service-document.schema.json")
 }
 
 func schema(name string) []byte {

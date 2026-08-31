@@ -11,7 +11,11 @@ does not load it yet.
 - `checksums.schema.json` validates the complete SHA-256 file inventory.
 - `protocol.schema.json` validates individual JSON-RPC worker messages after
   frame decoding.
+- `service-document.schema.json` validates the method catalog referenced by a
+  provided service declaration.
 - `examples/reference-addon.json` exercises the main manifest features.
+- `examples/import-adapter.service.json` shows a package-owned service
+  document.
 
 All schemas use JSON Schema Draft 2020-12. They are source artifacts, not
 generated copies. Go and TypeScript types will be generated from reviewed
@@ -25,7 +29,8 @@ other packages:
 
 1. archive path normalization, collision, symlink, and size limits;
 2. file existence, hashes, executable target, and offline compilation of every
-   declared content, collection, extension, and provided-service schema;
+   declared content, collection, extension, service document, and service
+   method schema;
 3. host/Add-on API/protocol semantic-version compatibility;
 4. unique stable IDs across contributions, collections, content, and services;
 5. capability availability and structured permission definitions;
@@ -33,6 +38,14 @@ other packages:
 7. operator approval of authority and binding changes.
 
 No package code runs during these checks.
+
+`services.provides[].schema` names a service document, not a payload JSON
+Schema. The document repeats the contract ID and exact version, declares
+whether exclusivity is permitted, and owns the complete method registry. Each
+method points to package-relative request and response schemas and declares a
+maximum deadline, idempotency-key policy, and stable application error kinds.
+The host rejects external schema references; references resolve only among the
+package's inspected `contracts/**/*.json` resources.
 
 `checksums.json` lists every regular package file except itself. Directory
 entries are not listed. Paths use the exact normalized archive spelling, and

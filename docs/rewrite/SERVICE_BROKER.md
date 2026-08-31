@@ -82,17 +82,22 @@ removes the validation-to-write race without allowing unbounded calls; request
 contexts still enforce the configured deadline.
 
 `Broker.ActivateRuntime` publishes a generation against an exact snapshot of
-the installed catalog. Replacing a generation invalidates host-issued request
+the installed catalog and an immutable compiled service registry. Every
+registry contract must match the catalog's ID, exact version, document path,
+and exclusivity rule. Replacing a generation invalidates host-issued request
 contexts for the old generation. `Broker.DeactivateRuntime` removes and
 invalidates only an exact generation, so delayed teardown cannot affect its
 replacement.
 
 Worker service calls use `service/<contract>/<method>`. The broker requires
-compiled request and response validators for every call, accepts only JSON
-objects or arrays as params, issues authoritative metadata, and validates the
-response before returning it. The native supervisor exposes the active peer as
-a generation-checked caller but does not select contracts or validate domain
-schemas itself.
+the method to exist in the generation's host-compiled registry, accepts only
+JSON objects or arrays as params, validates both payload directions, enforces
+the declared idempotency-key policy, and clamps the call to the method's
+maximum deadline. A caller cannot inject or bypass validators. Package schema
+references resolve only from inspected `contracts/**/*.json` resources; the
+compiler has no filesystem or network fallback. The native supervisor exposes
+the active peer as a generation-checked caller but does not select contracts
+or validate domain schemas itself.
 
 ## Host-issued request contexts
 
@@ -111,10 +116,8 @@ and invalidated counts.
 ## Current limits and next boundary
 
 This milestone supplies provider persistence, selection, runtime identity,
-lineage, and worker routing. It does not yet:
+package-owned method contracts, lineage, and worker routing. It does not yet:
 
-- compile the package-owned service document into the method validator
-  registry used by calls;
 - wire package install/update/rollback and lifecycle orchestration to the
   catalog and runtime activation APIs;
 - expose activation diagnostics and binding editors through HTTP and the
