@@ -70,8 +70,8 @@ The transport registers browser add-on routes only when both a
 `BrowserAddonSource` and `BrowserAuthorizer` are supplied. Partial
 configuration fails at startup, and authorization runs before query, ID, or
 asset-path validation. The implemented session authorizer accepts either
-authenticated effective role; the rewrite executable still leaves these
-routes unregistered until package-manager composition lands.
+authenticated effective role, and the rewrite executable composes it with the
+recovered package manager.
 
 | Method and path | Cache contract |
 |---|---|
@@ -87,9 +87,9 @@ stale, non-web, and unlisted paths share one 404 classification.
 Graph change notification uses the implemented shared role-scoped event stream
 and its durable replay contract. Successful package activation, rollback,
 reviewed cohort activation, reload, disable, and startup recovery publish the
-exact resulting graph revision. Executable and browser-client composition are
-still pending. There is deliberately no second add-on-only SSE connection or
-reconnect policy.
+exact resulting graph revision. Browser-client composition is still pending.
+There is deliberately no second add-on-only SSE connection or reconnect
+policy.
 
 ## TypeScript transport
 
@@ -192,8 +192,6 @@ module's own disposer.
 
 ## Remaining integration
 
-- Compose the implemented authentication and package manager in the rewrite
-  executable.
 - Wire the implemented runtime coordinator into the shell.
 - Add data, service, import, event, settings, navigation, graph, and log handles
   to the implemented capability-scoped SDK as their transports land.

@@ -37,7 +37,8 @@ npm run check
 
 Start the two development processes separately:
 
-```console
+```powershell
+$env:CODEX_DM_PASSWORD = '<choose-a-local-development-password>'
 go run ./cmd/codex -listen 127.0.0.1:3001 -data-dir data/rewrite
 npm --prefix frontend run dev
 ```
@@ -128,9 +129,16 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   deterministic whole-graph browser revision without exposing package paths,
   and checksum-verifies inventory-backed `web/` assets when opened. See
   [`PACKAGE_LIFECYCLE.md`](PACKAGE_LIFECYCLE.md).
+- The rewrite executable now composes authentication, the shared event broker,
+  package inspection, service resolution, package recovery, protected add-on
+  administration, browser graph/assets, and SSE. It requires an explicit
+  `CODEX_DM_PASSWORD`, accepts optional `CODEX_PLAYER_PASSWORD`, and has no
+  default credential. Production TLS deployments must pass `-secure-cookies`.
+  Native worker capability remains unavailable until the worker-to-host
+  authorization handlers are composed; UI-only generations can recover now.
 
 These are foundation contracts, not a compatibility claim. Persistent
-credentials, core data migration, executable composition of the protected
-lifecycle and browser APIs, coordinated dependent disable, browser shell/SDK
-integration, concrete host method implementations, and import execution remain
-subsequent milestones in the dependency order in `docs/REWRITE_ARCHITECTURE.md`.
+credentials, core data migration, coordinated dependent disable, browser
+shell/SDK integration, concrete host method implementations, and import
+execution remain subsequent milestones in the dependency order in
+`docs/REWRITE_ARCHITECTURE.md`.

@@ -8,8 +8,8 @@ or upgrade it.
 
 ## Initial credential and session model
 
-The first composition uses one required DM password and one optional player
-password supplied by host configuration. The service immediately reduces each
+The executable composition uses one required `CODEX_DM_PASSWORD` and one
+optional `CODEX_PLAYER_PASSWORD`. The service immediately reduces each
 configured value to a role-separated SHA-256 comparison digest and does not
 persist the clear-text configuration. These environment-backed values are
 bootstrap credentials, not the final password store; a later versioned
@@ -54,8 +54,6 @@ session. These checks run before request path, query, or body parsing.
 
 ## Remaining authentication work
 
-- Compose credentials, the package manager, and Secure-cookie deployment
-  policy in the rewrite executable.
 - Add persistent slow-hashed credentials, password rotation, session
   revocation records, and backup/migration policy.
 - Reintroduce bounded separate-tab player preview without exposing a DM
