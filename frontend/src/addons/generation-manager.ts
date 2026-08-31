@@ -8,8 +8,12 @@ const addonIdPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
 export interface BrowserGenerationDescriptor {
   readonly addonId: string;
+  readonly addonVersion: string;
   readonly generationId: string;
+  readonly mode: "integrated" | "isolated";
   readonly entryUrl: string;
+  readonly styleUrls: readonly string[];
+  readonly sandbox: readonly ("downloads" | "forms" | "modals" | "popups")[];
   readonly dependencies: readonly string[];
 }
 
@@ -20,6 +24,7 @@ export interface BrowserGenerationSet {
 
 export interface BrowserGenerationContext {
   readonly addonId: string;
+  readonly addonVersion: string;
   readonly generationId: string;
   readonly signal: AbortSignal;
   readonly scope: GenerationScope;
@@ -31,7 +36,13 @@ export type BrowserGenerationActivator = (
 ) => void | Disposer | Promise<void | Disposer>;
 
 export interface BrowserGenerationModule {
-  activate(context: BrowserGenerationContext): void | Disposer | Promise<void | Disposer>;
+  activate(
+    context: BrowserGenerationContext,
+  ): void | BrowserGenerationDisposable | Promise<void | BrowserGenerationDisposable>;
+}
+
+export interface BrowserGenerationDisposable {
+  dispose(): void | Promise<void>;
 }
 
 export type BrowserGenerationImporter = (entryUrl: string) => Promise<unknown>;
@@ -169,6 +180,7 @@ export class BrowserGenerationManager {
       try {
         const disposer = await this.#activator(descriptor, {
           addonId,
+          addonVersion: descriptor.addonVersion,
           generationId: descriptor.generationId,
           signal: scope.signal,
           scope,
@@ -260,11 +272,23 @@ export function createModuleActivator(
   importModule: BrowserGenerationImporter,
 ): BrowserGenerationActivator {
   return async (descriptor, context) => {
+    if (descriptor.mode !== "integrated") {
+      throw new TypeError(`browser add-on ${descriptor.addonId} is not an integrated module`);
+    }
     const imported = await importModule(descriptor.entryUrl);
     if (!isBrowserGenerationModule(imported)) {
       throw new TypeError(`browser add-on module ${descriptor.entryUrl} must export activate(context)`);
     }
-    return imported.activate(context);
+    const disposable = await imported.activate(context);
+    if (disposable === undefined) {
+      return undefined;
+    }
+    if (!isBrowserGenerationDisposable(disposable)) {
+      throw new TypeError(
+        `browser add-on module ${descriptor.entryUrl} activate(context) must return { dispose() } or undefined`,
+      );
+    }
+    return () => disposable.dispose();
   };
 }
 
@@ -283,8 +307,14 @@ function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerat
     if (!validToken(input.generationId, 200)) {
       throw new BrowserGenerationPlanError(`invalid generation id for ${input.addonId}`);
     }
+    if (!validToken(input.addonVersion, 100)) {
+      throw new BrowserGenerationPlanError(`invalid add-on version for ${input.addonId}`);
+    }
     if (!validSameOriginPath(input.entryUrl)) {
       throw new BrowserGenerationPlanError(`invalid entry URL for ${input.addonId}`);
+    }
+    if (input.mode !== "integrated" && input.mode !== "isolated") {
+      throw new BrowserGenerationPlanError(`invalid UI mode for ${input.addonId}`);
     }
     if (addons.has(input.addonId)) {
       throw new BrowserGenerationPlanError(`duplicate add-on ${input.addonId}`);
@@ -301,10 +331,25 @@ function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerat
         throw new BrowserGenerationPlanError(`invalid dependency list for ${input.addonId}`);
       }
     }
+    const styleUrls = sortedUnique(input.styleUrls, (value) => validSameOriginPath(value));
+    if (styleUrls === undefined) {
+      throw new BrowserGenerationPlanError(`invalid style URL list for ${input.addonId}`);
+    }
+    const sandbox = sortedUnique(
+      input.sandbox,
+      (value) => value === "downloads" || value === "forms" || value === "modals" || value === "popups",
+    );
+    if (sandbox === undefined || input.mode === "integrated" && sandbox.length > 0) {
+      throw new BrowserGenerationPlanError(`invalid sandbox list for ${input.addonId}`);
+    }
     addons.set(input.addonId, {
       addonId: input.addonId,
+      addonVersion: input.addonVersion,
       generationId: input.generationId,
+      mode: input.mode,
       entryUrl: input.entryUrl,
+      styleUrls,
+      sandbox,
       dependencies,
     });
   }
@@ -357,16 +402,43 @@ function sameDescriptor(
 ): boolean {
   return (
     left.addonId === right.addonId &&
+    left.addonVersion === right.addonVersion &&
     left.generationId === right.generationId &&
+    left.mode === right.mode &&
     left.entryUrl === right.entryUrl &&
+    sameStrings(left.styleUrls, right.styleUrls) &&
+    sameStrings(left.sandbox, right.sandbox) &&
     left.dependencies.length === right.dependencies.length &&
     left.dependencies.every((dependencyId, index) => dependencyId === right.dependencies[index])
   );
 }
 
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function sortedUnique<T extends string>(
+  values: readonly T[],
+  validate: (value: T) => boolean,
+): T[] | undefined {
+  const result = [...values].sort();
+  for (let index = 0; index < result.length; index += 1) {
+    const value = result[index];
+    if (value === undefined || !validate(value) || index > 0 && result[index - 1] === value) {
+      return undefined;
+    }
+  }
+  return result;
+}
+
 function isBrowserGenerationModule(value: unknown): value is BrowserGenerationModule {
   return typeof value === "object" && value !== null && "activate" in value &&
     typeof value.activate === "function";
+}
+
+function isBrowserGenerationDisposable(value: unknown): value is BrowserGenerationDisposable {
+  return typeof value === "object" && value !== null && "dispose" in value &&
+    typeof value.dispose === "function";
 }
 
 function validToken(value: string, maximumLength: number): boolean {

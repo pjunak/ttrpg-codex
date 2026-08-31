@@ -101,7 +101,8 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   cold add-on-graph restart to rebind affected consumers after approval,
   reloads a runtime without invalidating generation-safe consumer handles, and
   disables even an unrecovered generation without discarding grants or
-  installed files. See
+  installed files. It also projects recovered UI generations and a deterministic
+  whole-graph browser revision without exposing package paths. See
   [`PACKAGE_LIFECYCLE.md`](PACKAGE_LIFECYCLE.md).
 
 These are foundation contracts, not a compatibility claim. Authentication,

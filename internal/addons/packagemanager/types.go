@@ -173,6 +173,22 @@ type RecoveryResult struct {
 	Error        string `json:"error,omitempty"`
 }
 
+type BrowserGraph struct {
+	GraphRevision string              `json:"graphRevision"`
+	Addons        []BrowserGeneration `json:"addons"`
+}
+
+type BrowserGeneration struct {
+	AddonID      string   `json:"addonId"`
+	AddonVersion string   `json:"addonVersion"`
+	GenerationID string   `json:"generationId"`
+	Mode         string   `json:"mode"`
+	EntryURL     string   `json:"entryUrl"`
+	StyleURLs    []string `json:"styleUrls"`
+	Sandbox      []string `json:"sandbox"`
+	Dependencies []string `json:"dependencies"`
+}
+
 type RuntimeSpec struct {
 	Identity           workersupervisor.Identity
 	RootDirectory      string

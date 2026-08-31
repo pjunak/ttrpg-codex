@@ -727,6 +727,79 @@ func TestCohortRecoveryFailureKeepsReviewedDurableSelection(t *testing.T) {
 	}
 }
 
+func TestBrowserGraphProjectsRecoveredUIGenerationsAndChangesOnReload(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	manager, _ := testManager(t, db, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	providerArchive := writeAddonPackage(t, packageSpec{
+		ID: "rules-addon", Version: "1.0.0", UIEntry: "web/rules.js",
+		UIStyles: []string{"web/theme.css", "web/rules.css"},
+	})
+	provider, err := manager.Stage(context.Background(), providerArchive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "rules-addon", GenerationID: provider.GenerationID, ExpectedStateRevision: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	consumerArchive := writeAddonPackage(t, packageSpec{
+		ID: "character-sheets", Version: "1.0.0", UIEntry: "web/sheets.js",
+		DependencyID: "rules-addon", DependencyRange: "^1.0.0",
+	})
+	consumer, err := manager.Stage(context.Background(), consumerArchive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "character-sheets", GenerationID: consumer.GenerationID, ExpectedStateRevision: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	graph, err := manager.BrowserGraph(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(graph.GraphRevision) != 64 || len(graph.Addons) != 2 {
+		t.Fatalf("browser graph = %+v", graph)
+	}
+	if graph.Addons[0].AddonID != "character-sheets" ||
+		!reflect.DeepEqual(graph.Addons[0].Dependencies, []string{"rules-addon"}) {
+		t.Fatalf("consumer browser generation = %+v", graph.Addons[0])
+	}
+	wantEntry := "/api/addons/rules-addon/generations/" + provider.GenerationID + "/assets/web/rules.js"
+	wantStyles := []string{
+		"/api/addons/rules-addon/generations/" + provider.GenerationID + "/assets/web/rules.css",
+		"/api/addons/rules-addon/generations/" + provider.GenerationID + "/assets/web/theme.css",
+	}
+	if graph.Addons[1].EntryURL != wantEntry || !reflect.DeepEqual(graph.Addons[1].StyleURLs, wantStyles) {
+		t.Fatalf("provider browser generation = %+v", graph.Addons[1])
+	}
+	if _, err := manager.Reload(context.Background(), "rules-addon", 1); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := manager.BrowserGraph(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.GraphRevision == graph.GraphRevision || !reflect.DeepEqual(reloaded.Addons, graph.Addons) {
+		t.Fatalf("reload graph = %+v, previous = %+v", reloaded, graph)
+	}
+	if err := manager.Shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	stopped, err := manager.BrowserGraph(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stopped.Addons) != 0 || stopped.GraphRevision == reloaded.GraphRevision {
+		t.Fatalf("stopped graph = %+v", stopped)
+	}
+}
+
 func TestRecoveryNeverFallsBackFromCorruptActiveGeneration(t *testing.T) {
 	t.Parallel()
 
@@ -808,6 +881,10 @@ type packageSpec struct {
 	OptionalConsume bool
 	DependencyID    string
 	DependencyRange string
+	UIEntry         string
+	UIStyles        []string
+	UIMode          string
+	UISandbox       []string
 	Worker          bool
 	Permission      bool
 }
@@ -861,16 +938,36 @@ func writeAddonPackage(t *testing.T, spec packageSpec) string {
 			"id": spec.DependencyID, "range": spec.DependencyRange, "required": true,
 		}}
 	}
+	runtime := map[string]any{}
 	if spec.Worker {
 		manifest["compatibility"].(map[string]any)["workerProtocol"] = "^1.0.0"
 		manifest["capabilities"].(map[string]any)["required"] = []string{"worker.native"}
-		manifest["runtime"] = map[string]any{
-			"worker": map[string]any{
-				"type": "native", "protocol": "^1.0.0",
-				"entrypoints": map[string]any{"windows-amd64": "worker/windows-amd64/addon.exe"},
-			},
+		runtime["worker"] = map[string]any{
+			"type": "native", "protocol": "^1.0.0",
+			"entrypoints": map[string]any{"windows-amd64": "worker/windows-amd64/addon.exe"},
 		}
 		files["worker/windows-amd64/addon.exe"] = []byte("test worker")
+	}
+	if spec.UIEntry != "" {
+		mode := spec.UIMode
+		if mode == "" {
+			mode = "integrated"
+		}
+		ui := map[string]any{"mode": mode, "entry": spec.UIEntry}
+		if len(spec.UIStyles) != 0 {
+			ui["styles"] = spec.UIStyles
+		}
+		if len(spec.UISandbox) != 0 {
+			ui["sandbox"] = spec.UISandbox
+		}
+		runtime["ui"] = ui
+		files[spec.UIEntry] = []byte("export function activate() {}")
+		for _, style := range spec.UIStyles {
+			files[style] = []byte(":host {}")
+		}
+	}
+	if len(runtime) != 0 {
+		manifest["runtime"] = runtime
 	}
 	services := map[string]any{}
 	if spec.Contract != "" {

@@ -10,8 +10,11 @@ revision and an already-authorized descriptor for each browser contribution.
 Each descriptor contains:
 
 - a stable add-on ID;
+- the add-on version;
 - an immutable package generation ID;
+- the integrated or isolated UI mode;
 - a same-origin module entry URL;
+- same-origin style URLs and isolated-frame sandbox grants;
 - required browser add-on dependencies.
 
 The graph revision is opaque. The server must change it whenever browser
@@ -23,6 +26,21 @@ The coordinator validates the complete graph before touching live UI. It
 rejects duplicate or malformed IDs, missing dependencies, self-dependencies,
 cycles, unsafe entry URLs, oversized values, and more than 100 active browser
 generations.
+
+## Host projection
+
+`packagemanager.BrowserGraph` builds the deterministic projection from durable
+active state and recovered package reports. Only the exact selected generation
+of a recovered add-on may contribute UI. Entry and stylesheet paths are
+converted to generation-addressed, same-origin asset URLs; clients never
+construct filesystem paths.
+
+The opaque revision is a SHA-256 digest over every durable active add-on ID,
+generation, and state revision plus the projected UI descriptors. Including
+worker-only state is intentional: a provider reload or cold backend cohort can
+force all browser SDK handles to rebuild even when UI assets did not change.
+Stopping a runtime removes its descriptor and changes the digest; recovery of
+the same exact durable graph restores the deterministic projection.
 
 ## Cold graph switch
 
@@ -58,14 +76,16 @@ then runs cleanup once in LIFO order with failure isolation.
 `BrowserGenerationManager` receives an injected activator. The supplied module
 adapter imports the server-provided immutable entry URL, requires an
 `activate(context)` export, passes only the generation context and scope, and
-registers a returned disposer. Dynamic import policy and the actual browser
-SDK remain composition concerns; add-on modules do not receive host globals or
-private DOM access.
+adapts the v3 `{ dispose() }` result into scope-owned cleanup. It refuses an
+isolated descriptor; iframe activation remains a separate adapter. Dynamic
+import policy and the actual browser SDK remain composition concerns; add-on
+modules do not receive host globals or private DOM access.
 
 ## Remaining integration
 
-- Define and runtime-validate the Go HTTP/SSE graph projection.
-- Serve immutable generation entry modules with authorization and cache rules.
+- Expose and runtime-validate the graph through authorized HTTP/SSE transport.
+- Serve the projected immutable generation assets with authorization and cache
+  rules.
 - Build the capability-scoped browser SDK and stable contribution slots.
 - Surface activation and disposal diagnostics in the Add-on Inspector.
 - Add Playwright coverage once real contribution modules are wired.

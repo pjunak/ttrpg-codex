@@ -123,7 +123,7 @@ describe("BrowserGenerationManager", () => {
       context.signal.addEventListener("abort", () => {
         stopReason = context.signal.reason;
       });
-      return dispose;
+      return { dispose };
     });
     const importer = vi.fn(async () => ({ activate }));
     const manager = new BrowserGenerationManager(createModuleActivator(importer));
@@ -136,6 +136,17 @@ describe("BrowserGenerationManager", () => {
     expect(dispose).toHaveBeenCalledOnce();
     expect(stopReason).toBe("uninstalled");
   });
+
+  it("isolates a module that returns an invalid disposable", async () => {
+    const importer = vi.fn(async () => ({ activate: () => null }));
+    const manager = new BrowserGenerationManager(createModuleActivator(importer));
+
+    const result = await manager.reconcile({ graphRevision: "graph-1", addons: [providerV1] });
+
+    expect(result.active).toEqual([]);
+    expect(result.activationFailures).toHaveLength(1);
+    expect(result.activationFailures[0]?.cause).toBeInstanceOf(TypeError);
+  });
 });
 
 function generation(
@@ -145,8 +156,12 @@ function generation(
 ): BrowserGenerationDescriptor {
   return {
     addonId,
+    addonVersion: "1.0.0",
     generationId,
+    mode: "integrated",
     entryUrl: `/api/addons/${addonId}/generations/${generationId}/entry.js`,
+    styleUrls: [],
+    sandbox: [],
     dependencies,
   };
 }
