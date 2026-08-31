@@ -173,7 +173,19 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 500,
-      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\.\\./)(?!.*\\\\).+$"
+      "pattern": "^[^/\\\\][^\\\\]*$",
+      "allOf": [
+        {
+          "not": {
+            "pattern": "^[A-Za-z]:"
+          }
+        },
+        {
+          "not": {
+            "pattern": "(^|/)\\.\\.?(/|$)"
+          }
+        }
+      ]
     },
     "capabilityList": {
       "type": "array",

@@ -74,7 +74,7 @@ internal/
   addons/                  packages, supervisor, broker, permissions
   imports/                 generic preview/commit/recovery coordinator
   observability/           logs, metrics, traces, support bundles
-web/
+frontend/
   src/                     TypeScript application
   test/                    unit and browser tests
 sdk/
@@ -84,6 +84,10 @@ contracts/
   http/                    OpenAPI and generated models
   addons/                  manifests, worker protocol, service schemas
 ```
+
+During the migration, the existing `web/` tree remains the v1 browser source
+and `frontend/` is the isolated v2 workspace. They do not share packages or
+runtime modules; `web/` is removed only at cutover.
 
 First-party add-on repositories keep independent release histories. Their
 common layout is:

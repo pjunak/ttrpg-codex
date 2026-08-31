@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://junak.eu/ttrpg-codex/contracts/addons/v3/checksums.schema.json",
+  "title": "TTRPG Codex Add-on Package Checksums v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["algorithm", "files"],
+  "properties": {
+    "algorithm": {
+      "const": "sha256"
+    },
+    "files": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "minLength": 1,
+        "maxLength": 500,
+        "pattern": "^[^/\\\\][^\\\\]*$",
+        "allOf": [
+          {
+            "not": {
+              "pattern": "^[A-Za-z]:"
+            }
+          },
+          {
+            "not": {
+              "pattern": "(^|/)\\.\\.?(/|$)"
+            }
+          }
+        ]
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    }
+  }
+}

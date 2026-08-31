@@ -8,6 +8,7 @@ does not load it yet.
 ## Files
 
 - `manifest.schema.json` validates the declarative package manifest.
+- `checksums.schema.json` validates the complete SHA-256 file inventory.
 - `protocol.schema.json` validates individual JSON-RPC worker messages after
   frame decoding.
 - `examples/reference-addon.json` exercises the main manifest features.
@@ -23,7 +24,8 @@ must also enforce constraints that depend on the archive, installed host, or
 other packages:
 
 1. archive path normalization, collision, symlink, and size limits;
-2. file existence, hashes, executable target, and content-schema resolution;
+2. file existence, hashes, executable target, and offline compilation of every
+   declared content, collection, extension, and provided-service schema;
 3. host/Add-on API/protocol semantic-version compatibility;
 4. unique stable IDs across contributions, collections, content, and services;
 5. capability availability and structured permission definitions;
@@ -31,6 +33,11 @@ other packages:
 7. operator approval of authority and binding changes.
 
 No package code runs during these checks.
+
+`checksums.json` lists every regular package file except itself. Directory
+entries are not listed. Paths use the exact normalized archive spelling, and
+every digest is lowercase SHA-256. An omitted, additional, or mismatched file
+rejects the whole package.
 
 ## Versioning
 

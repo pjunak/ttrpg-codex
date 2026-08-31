@@ -83,6 +83,8 @@ module.exports = [
       'data/**',
       'data-snapshots/**',
       'docs/plans/**',
+      'frontend/dist/**',
+      'frontend/node_modules/**',
       'node_modules/**',
       'web/js/vendor/**',
     ],
