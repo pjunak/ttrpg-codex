@@ -46,8 +46,10 @@ private error details.
 
 ## Remaining event work
 
-- Publish browser graph revisions from successful package activation, reload,
-  disable, and recovery boundaries.
+- Package activation, rollback, reviewed cohort activation, reload, disable,
+  and startup recovery now publish the resulting exact browser graph revision.
+  A publication failure is logged but does not claim that an already-committed
+  package transition failed; every new or reset connection reloads the graph.
 - Compose the broker and session event authorizer in the executable.
 - Add the runtime-validated TypeScript event client and reconnect policy.
 - Add retention/checkpoint policy once real change volume can be measured.

@@ -22,6 +22,7 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
 	"github.com/pjunak/ttrpg-codex/internal/addons/workersupervisor"
+	"github.com/pjunak/ttrpg-codex/internal/events"
 )
 
 const defaultMaxArchiveBytes int64 = 128 << 20
@@ -42,6 +43,11 @@ type Config struct {
 	Now                   func() time.Time
 	GenerateID            func() (string, error)
 	Logger                *slog.Logger
+	EventPublisher        EventPublisher
+}
+
+type EventPublisher interface {
+	Publish(context.Context, events.Publication) (events.Event, error)
 }
 
 type activeRuntime struct {
@@ -65,6 +71,7 @@ type Manager struct {
 	maxArchiveBytes       int64
 	generateID            func() (string, error)
 	logger                *slog.Logger
+	eventPublisher        EventPublisher
 
 	mu       sync.Mutex
 	runtimes map[string]activeRuntime
@@ -140,6 +147,7 @@ func New(config Config) (*Manager, error) {
 		maxArchiveBytes:       config.MaxArchiveBytes,
 		generateID:            config.GenerateID,
 		logger:                config.Logger,
+		eventPublisher:        config.EventPublisher,
 		runtimes:              make(map[string]activeRuntime),
 	}, nil
 }
@@ -292,6 +300,7 @@ func (manager *Manager) activateLocked(
 		services: append([]servicebroker.Handle(nil), services...),
 	}
 	stopNext = false
+	manager.publishBrowserGraphChangeLocked(ctx, plan.AddonID, eventKind)
 
 	result := ActivationResult{
 		ReviewID: reviewID, State: newState, Generation: generation, PreviousGenerationID: previousID,

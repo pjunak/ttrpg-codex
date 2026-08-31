@@ -339,6 +339,8 @@ func (manager *Manager) activateReviewedCohortLocked(
 	result.RecoveryResults, err = manager.recoverLocked(ctx)
 	if err != nil {
 		result.RecoveryError = err.Error()
+	} else {
+		manager.publishBrowserGraphChangeLocked(ctx, review.AddonID, "activated-cohort")
 	}
 	return result, nil
 }

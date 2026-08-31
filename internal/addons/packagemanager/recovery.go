@@ -24,7 +24,11 @@ type recoveryCandidate struct {
 func (manager *Manager) Recover(ctx context.Context) ([]RecoveryResult, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
-	return manager.recoverLocked(ctx)
+	results, err := manager.recoverLocked(ctx)
+	if err == nil {
+		manager.publishBrowserGraphChangeLocked(ctx, "", "recovered")
+	}
+	return results, err
 }
 
 func (manager *Manager) recoverLocked(ctx context.Context) ([]RecoveryResult, error) {

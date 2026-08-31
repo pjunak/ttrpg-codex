@@ -79,6 +79,7 @@ func (manager *Manager) Reload(
 		services: append([]servicebroker.Handle(nil), services...),
 	}
 	stopNext = false
+	manager.publishBrowserGraphChangeLocked(ctx, addonID, "reloaded")
 	result := ActivationResult{
 		State: newState, Generation: generation, PreviousGenerationID: generation.GenerationID,
 	}
@@ -128,6 +129,7 @@ func (manager *Manager) Disable(ctx context.Context, plan DisablePlan) (DisableR
 		return DisableResult{}, err
 	}
 	delete(manager.runtimes, plan.AddonID)
+	manager.publishBrowserGraphChangeLocked(ctx, plan.AddonID, "disabled")
 	result := DisableResult{State: newState, PreviousGenerationID: state.ActiveGenerationID}
 	if recovered && previous.runtime != nil {
 		if err := previous.runtime.Shutdown(ctx); err != nil {

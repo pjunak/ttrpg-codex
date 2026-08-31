@@ -23,6 +23,7 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/addons/requestcontext"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
 	"github.com/pjunak/ttrpg-codex/internal/addons/workersupervisor"
+	"github.com/pjunak/ttrpg-codex/internal/events"
 	codexsqlite "github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
 	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
@@ -734,6 +735,8 @@ func TestBrowserGraphProjectsRecoveredUIGenerationsAndChangesOnReload(t *testing
 
 	db := testDatabase(t)
 	manager, _ := testManager(t, db, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	publisher := &recordingEventPublisher{}
+	manager.eventPublisher = publisher
 	manager.capabilities["ui.contributions"] = struct{}{}
 	providerArchive := writeAddonPackage(t, packageSpec{
 		ID: "rules-addon", Version: "1.0.0", UIEntry: "web/rules.js",
@@ -784,6 +787,11 @@ func TestBrowserGraphProjectsRecoveredUIGenerationsAndChangesOnReload(t *testing
 		len(graph.GraphRevision) != 64 || len(graph.Addons) != 2 {
 		t.Fatalf("browser graph = %+v", graph)
 	}
+	if len(publisher.publications) != 2 ||
+		publisher.publications[1].Revision != graph.GraphRevision ||
+		publisher.publications[1].Topic != "browser-addons-changed" {
+		t.Fatalf("activation publications = %+v", publisher.publications)
+	}
 	if graph.Addons[0].AddonID != "character-sheets" ||
 		!reflect.DeepEqual(graph.Addons[0].Dependencies, []string{"rules-addon"}) {
 		t.Fatalf("consumer browser generation = %+v", graph.Addons[0])
@@ -821,6 +829,11 @@ func TestBrowserGraphProjectsRecoveredUIGenerationsAndChangesOnReload(t *testing
 	if reloaded.GraphRevision == graph.GraphRevision || !reflect.DeepEqual(reloaded.Addons, graph.Addons) {
 		t.Fatalf("reload graph = %+v, previous = %+v", reloaded, graph)
 	}
+	if len(publisher.publications) != 3 ||
+		publisher.publications[2].Revision != reloaded.GraphRevision ||
+		publisher.publications[2].ResourceID != "rules-addon" {
+		t.Fatalf("reload publications = %+v", publisher.publications)
+	}
 	if err := manager.Shutdown(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -831,6 +844,22 @@ func TestBrowserGraphProjectsRecoveredUIGenerationsAndChangesOnReload(t *testing
 	if len(stopped.Addons) != 0 || stopped.GraphRevision == reloaded.GraphRevision {
 		t.Fatalf("stopped graph = %+v", stopped)
 	}
+}
+
+type recordingEventPublisher struct {
+	publications []events.Publication
+	err          error
+}
+
+func (publisher *recordingEventPublisher) Publish(
+	_ context.Context,
+	publication events.Publication,
+) (events.Event, error) {
+	if publisher.err != nil {
+		return events.Event{}, publisher.err
+	}
+	publisher.publications = append(publisher.publications, publication)
+	return events.Event{Sequence: int64(len(publisher.publications))}, nil
 }
 
 func TestOpenBrowserAssetRequiresExactRecoveredGenerationAndVerifiedWebFile(t *testing.T) {

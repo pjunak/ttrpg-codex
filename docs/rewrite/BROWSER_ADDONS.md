@@ -85,9 +85,11 @@ generic 503 rather than a cached or partially trusted response; inactive,
 stale, non-web, and unlisted paths share one 404 classification.
 
 Graph change notification uses the implemented shared role-scoped event stream
-and its durable replay contract once the package manager publishes revision
-changes and executable composition lands. There is deliberately no second
-add-on-only SSE connection or reconnect policy.
+and its durable replay contract. Successful package activation, rollback,
+reviewed cohort activation, reload, disable, and startup recovery publish the
+exact resulting graph revision. Executable and browser-client composition are
+still pending. There is deliberately no second add-on-only SSE connection or
+reconnect policy.
 
 ## TypeScript transport
 
@@ -192,7 +194,6 @@ module's own disposer.
 
 - Compose the implemented authentication and package manager in the rewrite
   executable.
-- Publish graph revisions through the implemented shared SSE stream.
 - Wire the implemented runtime coordinator into the shell.
 - Add data, service, import, event, settings, navigation, graph, and log handles
   to the implemented capability-scoped SDK as their transports land.

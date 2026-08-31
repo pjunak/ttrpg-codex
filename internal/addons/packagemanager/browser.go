@@ -16,6 +16,7 @@ import (
 	"unicode"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
+	"github.com/pjunak/ttrpg-codex/internal/events"
 )
 
 type browserGraphState struct {
@@ -33,6 +34,10 @@ const BrowserGraphContractVersion = 2
 func (manager *Manager) BrowserGraph(ctx context.Context) (BrowserGraph, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
+	return manager.browserGraphLocked(ctx)
+}
+
+func (manager *Manager) browserGraphLocked(ctx context.Context) (BrowserGraph, error) {
 	states, err := manager.store.activeStates(ctx)
 	if err != nil {
 		return BrowserGraph{}, err
@@ -119,6 +124,30 @@ func (manager *Manager) BrowserGraph(ctx context.Context) (BrowserGraph, error) 
 		ContractVersion: BrowserGraphContractVersion,
 		GraphRevision:   hex.EncodeToString(digest[:]), Addons: addOns,
 	}, nil
+}
+
+func (manager *Manager) publishBrowserGraphChangeLocked(
+	ctx context.Context,
+	addonID string,
+	reason string,
+) {
+	if manager.eventPublisher == nil {
+		return
+	}
+	graph, err := manager.browserGraphLocked(ctx)
+	if err == nil {
+		_, err = manager.eventPublisher.Publish(ctx, events.Publication{
+			Audience: events.AudiencePublic, Topic: "browser-addons-changed",
+			ResourceID: addonID, Revision: graph.GraphRevision,
+			Metadata: map[string]any{"reason": reason},
+		})
+	}
+	if err != nil {
+		manager.logger.Error(
+			"publish browser add-on graph change",
+			"addonId", addonID, "reason", reason, "error", err,
+		)
+	}
 }
 
 func (manager *Manager) browserCapabilities(manifest packageinspect.Manifest) ([]string, error) {
