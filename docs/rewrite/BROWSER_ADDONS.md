@@ -91,6 +91,28 @@ canonical validator then enforces URL, sandbox, duplicate, dependency, and
 cycle semantics before the client replaces its last good graph. Reusing one
 revision for different content is a boundary failure.
 
+## Runtime composition
+
+`BrowserAddonRuntime` is the single browser owner of the complete refresh
+operation. It serializes graph transport through generation reconciliation so
+a later fetch cannot overtake activation from an earlier response. Every
+accepted response, including an unchanged 304, reaches the generation manager;
+this lets a previously failed activation retry without inventing a new server
+revision.
+
+Transport or boundary-validation failures do not call reconciliation, so the
+last successfully activated generation set keeps running. `reset()` first
+advances the coordinator's authority epoch and invalidates the graph client's
+cache, so queued work and fetched-but-unapplied responses cannot continue. It
+then queues ordered disposal of active generations. Role, session, and
+permission changes use the explicit `authority-changed` stop reason. This
+prevents an old credential context from restoring browser authority while its
+resources are being torn down.
+
+The coordinator is not yet instantiated by the application shell. It remains
+behind the same authentication composition boundary as the protected browser
+routes and future shared event stream.
+
 ## Cold graph switch
 
 Any changed graph revision deliberately rebuilds the complete contribution
@@ -134,7 +156,7 @@ modules do not receive host globals or private DOM access.
 
 - Compose rewrite authentication with the implemented browser routes.
 - Signal graph changes through the shared role-scoped SSE stream.
-- Wire the implemented graph client and generation manager into the shell.
+- Wire the implemented runtime coordinator into the shell.
 - Build the capability-scoped browser SDK and stable contribution slots.
 - Surface activation and disposal diagnostics in the Add-on Inspector.
 - Add Playwright coverage once real contribution modules are wired.

@@ -1,5 +1,6 @@
 export type GenerationStopReason =
   | "activation-failed"
+  | "authority-changed"
   | "disabled"
   | "reload"
   | "uninstalled"

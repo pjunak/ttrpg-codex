@@ -71,7 +71,10 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   graph client validates the exact versioned wire shape and generation-bound
   URLs, serializes private ETag refreshes, and preserves the last accepted
   graph across malformed or failed responses. See
-  [`BROWSER_ADDONS.md`](BROWSER_ADDONS.md).
+  [`BROWSER_ADDONS.md`](BROWSER_ADDONS.md). A runtime coordinator serializes
+  that transport through reconciliation, preserves active contributions on
+  fetch failures, and invalidates cached authority before ordered teardown on
+  role or session changes.
 - The shared Go worker codec enforces bounded canonical `Content-Length`
   framing, serializes concurrent writes, validates UTF-8/JSON/envelopes, and
   reports stable transport failure codes. The same package is usable by the
