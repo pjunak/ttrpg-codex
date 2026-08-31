@@ -212,7 +212,8 @@ payloads are not stored in the event log.
 - Planned generation bindings for add-ons that consume their own service.
 - Coordinated dependent disable and uninstall transitions.
 - Uninstall, quarantine, and separate reviewed data deletion.
-- Browser generation scopes and UI contribution switching.
+- Browser graph HTTP/SSE projection and UI SDK integration over the implemented
+  generation switch coordinator.
 - Add-on data migration planning and recoverable commit.
 - WASI runtime factory, restart/backoff wiring, OS resource enforcement, and
   redacted support-bundle diagnostics.

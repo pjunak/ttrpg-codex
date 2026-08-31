@@ -63,7 +63,10 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   failure code without executing or extracting the package.
 - The TypeScript shell validates responses at the HTTP boundary. Its
   generation scope establishes abort-first, LIFO, once-only, failure-isolated
-  add-on cleanup semantics before UI SDK handles are added.
+  cleanup. A serialized browser generation manager validates a complete
+  server-authoritative dependency graph, tears consumers down before providers,
+  and rebuilds providers before consumers for each opaque graph revision. See
+  [`BROWSER_ADDONS.md`](BROWSER_ADDONS.md).
 - The shared Go worker codec enforces bounded canonical `Content-Length`
   framing, serializes concurrent writes, validates UTF-8/JSON/envelopes, and
   reports stable transport failure codes. The same package is usable by the
@@ -103,6 +106,6 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
 
 These are foundation contracts, not a compatibility claim. Authentication,
 core data migration, production composition of the protected lifecycle API,
-coordinated dependent disable, browser generation switching, concrete host
-method implementations, and import execution remain subsequent milestones in
-the dependency order in `docs/REWRITE_ARCHITECTURE.md`.
+coordinated dependent disable, browser graph transport/SDK integration,
+concrete host method implementations, and import execution remain subsequent
+milestones in the dependency order in `docs/REWRITE_ARCHITECTURE.md`.

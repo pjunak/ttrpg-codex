@@ -197,6 +197,10 @@ Core rules:
 
 The host supplies a small design-system layer and stable contribution slots.
 Add-ons receive tokens and components, not selectors into private host DOM.
+The implemented browser coordinator treats the server graph revision as an
+opaque rebuild boundary, disposes consumers before providers, and activates
+providers before consumers. Its detailed contract is in
+[browser add-on generations](rewrite/BROWSER_ADDONS.md).
 
 ## API and contract versioning
 
