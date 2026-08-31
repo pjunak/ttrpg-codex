@@ -5,6 +5,39 @@ import {
 } from "./generation-scope.js";
 
 const addonIdPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
+const contractIdPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/;
+
+export type BrowserRole = "dm" | "player";
+
+export type BrowserContributionSurface =
+  | "route"
+  | "sidebar"
+  | "settings"
+  | "article-action"
+  | "article-section"
+  | "editor-panel"
+  | "slot"
+  | "record-renderer"
+  | "wiki-kind"
+  | "graph-node-kind"
+  | "graph-view"
+  | "graph-contributor";
+
+export interface BrowserPermissionGrant {
+  readonly id: string;
+  readonly resources: readonly string[];
+}
+
+export interface BrowserContributionDescriptor {
+  readonly id: string;
+  readonly surface: BrowserContributionSurface;
+  readonly label: string;
+  readonly roles: readonly BrowserRole[];
+  readonly order: number;
+  readonly requires: readonly string[];
+  readonly config: Readonly<Record<string, unknown>>;
+}
 
 export interface BrowserGenerationDescriptor {
   readonly addonId: string;
@@ -15,10 +48,13 @@ export interface BrowserGenerationDescriptor {
   readonly styleUrls: readonly string[];
   readonly sandbox: readonly ("downloads" | "forms" | "modals" | "popups")[];
   readonly dependencies: readonly string[];
+  readonly capabilities: readonly string[];
+  readonly permissions: readonly BrowserPermissionGrant[];
+  readonly contributions: readonly BrowserContributionDescriptor[];
 }
 
 export interface BrowserGenerationSet {
-  readonly contractVersion: 1;
+  readonly contractVersion: 2;
   readonly graphRevision: string;
   readonly addons: readonly BrowserGenerationDescriptor[];
 }
@@ -273,7 +309,7 @@ export class BrowserGenerationManager {
 export function validateBrowserGenerationSet(target: BrowserGenerationSet): BrowserGenerationSet {
   const normalized = normalizeGenerationSet(target);
   return {
-    contractVersion: 1,
+    contractVersion: 2,
     graphRevision: normalized.graphRevision,
     addons: [...normalized.addons.values()].sort((left, right) =>
       left.addonId.localeCompare(right.addonId)
@@ -306,7 +342,7 @@ export function createModuleActivator(
 }
 
 function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerationSet {
-  if (target.contractVersion !== 1) {
+  if (target.contractVersion !== 2) {
     throw new BrowserGenerationPlanError("unsupported browser graph contract version");
   }
   if (!validToken(target.graphRevision, 200)) {
@@ -358,6 +394,19 @@ function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerat
     if (sandbox === undefined || input.mode === "integrated" && sandbox.length > 0) {
       throw new BrowserGenerationPlanError(`invalid sandbox list for ${input.addonId}`);
     }
+    const capabilities = sortedUnique(
+      input.capabilities,
+      (value) => contractIdPattern.test(value) && value.length <= 120,
+    );
+    if (capabilities === undefined || capabilities.length > 200) {
+      throw new BrowserGenerationPlanError(`invalid capability list for ${input.addonId}`);
+    }
+    const permissions = normalizePermissions(input.addonId, input.permissions);
+    const contributions = normalizeContributions(
+      input.addonId,
+      input.contributions,
+      new Set(capabilities),
+    );
     addons.set(input.addonId, {
       addonId: input.addonId,
       addonVersion: input.addonVersion,
@@ -367,6 +416,9 @@ function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerat
       styleUrls,
       sandbox,
       dependencies,
+      capabilities,
+      permissions,
+      contributions,
     });
   }
   return {
@@ -424,9 +476,147 @@ function sameDescriptor(
     left.entryUrl === right.entryUrl &&
     sameStrings(left.styleUrls, right.styleUrls) &&
     sameStrings(left.sandbox, right.sandbox) &&
-    left.dependencies.length === right.dependencies.length &&
-    left.dependencies.every((dependencyId, index) => dependencyId === right.dependencies[index])
+    sameStrings(left.dependencies, right.dependencies) &&
+    sameStrings(left.capabilities, right.capabilities) &&
+    JSON.stringify(left.permissions) === JSON.stringify(right.permissions) &&
+    JSON.stringify(left.contributions) === JSON.stringify(right.contributions)
   );
+}
+
+function normalizePermissions(
+  addonId: string,
+  input: readonly BrowserPermissionGrant[],
+): BrowserPermissionGrant[] {
+  if (input.length > 100) {
+    throw new BrowserGenerationPlanError(`permission list exceeds 100 grants for ${addonId}`);
+  }
+  const result = input.map((permission) => {
+    if (!contractIdPattern.test(permission.id) || permission.id.length > 120) {
+      throw new BrowserGenerationPlanError(`invalid permission id for ${addonId}`);
+    }
+    const resources = sortedUnique(
+      permission.resources,
+      (value) => validToken(value, 300),
+    );
+    if (resources === undefined || resources.length > 200) {
+      throw new BrowserGenerationPlanError(`invalid resources for ${addonId}:${permission.id}`);
+    }
+    return { id: permission.id, resources };
+  }).sort((left, right) => left.id.localeCompare(right.id));
+  for (let index = 1; index < result.length; index += 1) {
+    if (result[index - 1]?.id === result[index]?.id) {
+      throw new BrowserGenerationPlanError(`duplicate permission for ${addonId}`);
+    }
+  }
+  return result;
+}
+
+function normalizeContributions(
+  addonId: string,
+  input: readonly BrowserContributionDescriptor[],
+  capabilities: ReadonlySet<string>,
+): BrowserContributionDescriptor[] {
+  if (input.length > 500) {
+    throw new BrowserGenerationPlanError(`contribution list exceeds 500 entries for ${addonId}`);
+  }
+  const result = input.map((contribution) => {
+    if (!localIdPattern.test(contribution.id) || contribution.id.length > 100) {
+      throw new BrowserGenerationPlanError(`invalid contribution id for ${addonId}`);
+    }
+    if (!validContributionSurface(contribution.surface)) {
+      throw new BrowserGenerationPlanError(`invalid contribution surface for ${addonId}:${contribution.id}`);
+    }
+    if (!validToken(contribution.label, 120)) {
+      throw new BrowserGenerationPlanError(`invalid contribution label for ${addonId}:${contribution.id}`);
+    }
+    if (!Number.isInteger(contribution.order) || contribution.order < -10_000 || contribution.order > 10_000) {
+      throw new BrowserGenerationPlanError(`invalid contribution order for ${addonId}:${contribution.id}`);
+    }
+    const roles = sortedUnique(
+      contribution.roles,
+      (value) => value === "dm" || value === "player",
+    );
+    const requires = sortedUnique(
+      contribution.requires,
+      (value) => contractIdPattern.test(value) && value.length <= 120 && capabilities.has(value),
+    );
+    if (roles === undefined || requires === undefined) {
+      throw new BrowserGenerationPlanError(`invalid contribution authority for ${addonId}:${contribution.id}`);
+    }
+    return {
+      id: contribution.id,
+      surface: contribution.surface,
+      label: contribution.label,
+      roles,
+      order: contribution.order,
+      requires,
+      config: normalizeJSONRecord(contribution.config, `${addonId}:${contribution.id}`),
+    };
+  }).sort((left, right) => left.id.localeCompare(right.id));
+  for (let index = 1; index < result.length; index += 1) {
+    if (result[index - 1]?.id === result[index]?.id) {
+      throw new BrowserGenerationPlanError(`duplicate contribution for ${addonId}`);
+    }
+  }
+  return result;
+}
+
+function validContributionSurface(value: string): value is BrowserContributionSurface {
+  return value === "route" || value === "sidebar" || value === "settings" ||
+    value === "article-action" || value === "article-section" || value === "editor-panel" ||
+    value === "slot" || value === "record-renderer" || value === "wiki-kind" ||
+    value === "graph-node-kind" || value === "graph-view" || value === "graph-contributor";
+}
+
+function normalizeJSONRecord(
+  input: Readonly<Record<string, unknown>>,
+  owner: string,
+): Readonly<Record<string, unknown>> {
+  const normalized = normalizeJSONValue(input, owner, 0);
+  if (typeof normalized !== "object" || normalized === null || Array.isArray(normalized)) {
+    throw new BrowserGenerationPlanError(`invalid contribution config for ${owner}`);
+  }
+  return normalized as Readonly<Record<string, unknown>>;
+}
+
+function normalizeJSONValue(value: unknown, owner: string, depth: number): unknown {
+  if (depth > 20) {
+    throw new BrowserGenerationPlanError(`contribution config is too deep for ${owner}`);
+  }
+  if (value === null || typeof value === "string" || typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new BrowserGenerationPlanError(`contribution config contains a non-finite number for ${owner}`);
+    }
+    return value;
+  }
+  if (Array.isArray(value)) {
+    if (value.length > 1_000) {
+      throw new BrowserGenerationPlanError(`contribution config array is too large for ${owner}`);
+    }
+    return value.map((item) => normalizeJSONValue(item, owner, depth + 1));
+  }
+  if (typeof value !== "object" || value === null) {
+    throw new BrowserGenerationPlanError(`contribution config contains a non-JSON value for ${owner}`);
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new BrowserGenerationPlanError(`contribution config contains a non-plain object for ${owner}`);
+  }
+  const keys = Object.keys(value).sort();
+  if (keys.length > 1_000) {
+    throw new BrowserGenerationPlanError(`contribution config object is too large for ${owner}`);
+  }
+  const result: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+  for (const key of keys) {
+    if (key === "__proto__" || key === "constructor" || key === "prototype") {
+      throw new BrowserGenerationPlanError(`contribution config contains a forbidden key for ${owner}`);
+    }
+    result[key] = normalizeJSONValue((value as Record<string, unknown>)[key], owner, depth + 1);
+  }
+  return result;
 }
 
 function sameStrings(left: readonly string[], right: readonly string[]): boolean {

@@ -144,6 +144,50 @@ func TestInspectFileRejectsInvalidManifestAndMissingDeclaration(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("contribution requires undeclared capability", func(t *testing.T) {
+		t.Parallel()
+		var manifest map[string]any
+		if err := json.Unmarshal(minimalManifest("example-addon"), &manifest); err != nil {
+			t.Fatal(err)
+		}
+		manifest["runtime"] = map[string]any{
+			"ui": map[string]any{"mode": "integrated", "entry": "web/index.js"},
+		}
+		manifest["contributions"] = []any{map[string]any{
+			"id": "planner.route", "surface": "route", "label": "Planner",
+			"requires": []string{"ui.contributions"},
+		}}
+		body, err := json.Marshal(manifest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		packagePath := writePackage(t, map[string][]byte{
+			manifestFilename: body,
+			"web/index.js":   []byte("export function activate() {}"),
+		})
+		_, err = newTestInspector(t).InspectFile(context.Background(), packagePath)
+		assertInspectionCode(t, err, CodeInvalidDeclaration)
+	})
+
+	t.Run("capability cannot be required and optional", func(t *testing.T) {
+		t.Parallel()
+		var manifest map[string]any
+		if err := json.Unmarshal(minimalManifest("example-addon"), &manifest); err != nil {
+			t.Fatal(err)
+		}
+		manifest["capabilities"] = map[string]any{
+			"required": []string{"ui.contributions"},
+			"optional": []string{"ui.contributions"},
+		}
+		body, err := json.Marshal(manifest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		packagePath := writePackage(t, map[string][]byte{manifestFilename: body})
+		_, err = newTestInspector(t).InspectFile(context.Background(), packagePath)
+		assertInspectionCode(t, err, CodeInvalidDeclaration)
+	})
 }
 
 func TestInspectFileRejectsChecksumMismatchAndIncompleteInventory(t *testing.T) {

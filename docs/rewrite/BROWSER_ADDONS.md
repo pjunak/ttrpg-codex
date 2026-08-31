@@ -7,7 +7,7 @@ revision and an already-authorized descriptor for each browser contribution.
 
 ## Graph contract
 
-The graph envelope declares browser graph contract version `1`. Each
+The graph envelope declares browser graph contract version `2`. Each
 descriptor contains:
 
 - a stable add-on ID;
@@ -16,7 +16,10 @@ descriptor contains:
 - the integrated or isolated UI mode;
 - a same-origin module entry URL;
 - same-origin style URLs and isolated-frame sandbox grants;
-- required browser add-on dependencies.
+- required browser add-on dependencies;
+- negotiated host capabilities;
+- only approved permission IDs with their bounded resource grants;
+- only UI contribution declarations whose required capabilities are active.
 
 The graph revision is opaque. The server must change it whenever browser
 contributions or their host SDK/service handles must be rebuilt, including a
@@ -39,6 +42,14 @@ active state and recovered package reports. Only the exact selected generation
 of a recovered add-on may contribute UI. Entry and stylesheet paths are
 converted to generation-addressed, same-origin asset URLs; clients never
 construct filesystem paths.
+
+The projection is also the browser's authority description. Required and
+available optional capabilities are normalized, permission reasons and
+unapproved requests are omitted, and unavailable capability-gated
+contributions are filtered out. Pure manifest kinds and worker HTTP endpoints
+never enter the browser graph. Contribution roles, order, requirements, and
+opaque configuration are copied into detached deterministic values; the
+browser still validates every field before activation.
 
 Browser files are confined to the package `web/` subtree by the v3 manifest
 schema. The asset reader additionally requires an exact recovered generation,
@@ -85,11 +96,13 @@ the cached immutable value for a 304, and never interprets an HTTP error body.
 session transition cannot repopulate stale authority.
 
 A 200 response is accepted only when it is JSON below 512 KiB, uses contract
-version 1, has exact object fields, lowercase SHA-256 revisions and generation
+version 2, has exact object fields, lowercase SHA-256 revisions and generation
 IDs, and contains only generation-bound asset URLs. The generation manager's
-canonical validator then enforces URL, sandbox, duplicate, dependency, and
-cycle semantics before the client replaces its last good graph. Reusing one
-revision for different content is a boundary failure.
+canonical validator then enforces URL, sandbox, capability, permission,
+contribution, duplicate, dependency, and cycle semantics before the client
+replaces its last good graph. Contribution configuration is bounded JSON with
+deterministic object ordering and prototype-sensitive keys rejected. Reusing
+one revision for different content is a boundary failure.
 
 ## Runtime composition
 

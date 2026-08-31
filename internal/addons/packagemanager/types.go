@@ -182,14 +182,32 @@ type BrowserGraph struct {
 }
 
 type BrowserGeneration struct {
-	AddonID      string   `json:"addonId"`
-	AddonVersion string   `json:"addonVersion"`
-	GenerationID string   `json:"generationId"`
-	Mode         string   `json:"mode"`
-	EntryURL     string   `json:"entryUrl"`
-	StyleURLs    []string `json:"styleUrls"`
-	Sandbox      []string `json:"sandbox"`
-	Dependencies []string `json:"dependencies"`
+	AddonID       string                `json:"addonId"`
+	AddonVersion  string                `json:"addonVersion"`
+	GenerationID  string                `json:"generationId"`
+	Mode          string                `json:"mode"`
+	EntryURL      string                `json:"entryUrl"`
+	StyleURLs     []string              `json:"styleUrls"`
+	Sandbox       []string              `json:"sandbox"`
+	Dependencies  []string              `json:"dependencies"`
+	Capabilities  []string              `json:"capabilities"`
+	Permissions   []BrowserPermission   `json:"permissions"`
+	Contributions []BrowserContribution `json:"contributions"`
+}
+
+type BrowserPermission struct {
+	ID        string   `json:"id"`
+	Resources []string `json:"resources"`
+}
+
+type BrowserContribution struct {
+	ID       string         `json:"id"`
+	Surface  string         `json:"surface"`
+	Label    string         `json:"label"`
+	Roles    []string       `json:"roles"`
+	Order    int            `json:"order"`
+	Requires []string       `json:"requires"`
+	Config   map[string]any `json:"config"`
 }
 
 // BrowserAsset is a checksum-verified file from the web subtree of one exact

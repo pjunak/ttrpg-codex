@@ -24,7 +24,7 @@ type browserGraphState struct {
 	Revision           int64  `json:"revision"`
 }
 
-const BrowserGraphContractVersion = 1
+const BrowserGraphContractVersion = 2
 
 // BrowserGraph projects only recovered, server-authoritative UI generations.
 // Its opaque revision also includes every durable active add-on state, so a
@@ -57,13 +57,34 @@ func (manager *Manager) BrowserGraph(ctx context.Context) (BrowserGraph, error) 
 			continue
 		}
 		ui := active.report.Manifest.Runtime.UI
+		capabilities, capabilityErr := manager.browserCapabilities(active.report.Manifest)
+		if capabilityErr != nil {
+			return BrowserGraph{}, capabilityErr
+		}
+		approved, _, permissionErr := approvedPermissions(
+			active.report.Manifest.Permissions,
+			state.GrantedPermissionIDs,
+		)
+		if permissionErr != nil {
+			return BrowserGraph{}, fmt.Errorf("project browser permissions for %s: %w", state.AddonID, permissionErr)
+		}
+		contributions, contributionErr := browserContributions(
+			active.report.Manifest.Contributions,
+			capabilities,
+		)
+		if contributionErr != nil {
+			return BrowserGraph{}, fmt.Errorf("project browser contributions for %s: %w", state.AddonID, contributionErr)
+		}
 		generation := BrowserGeneration{
 			AddonID: state.AddonID, AddonVersion: active.generation.Version,
 			GenerationID: active.generation.GenerationID, Mode: ui.Mode,
-			EntryURL:     browserAssetURL(state.AddonID, active.generation.GenerationID, ui.Entry),
-			StyleURLs:    make([]string, 0, len(ui.Styles)),
-			Sandbox:      append([]string{}, ui.Sandbox...),
-			Dependencies: make([]string, 0),
+			EntryURL:      browserAssetURL(state.AddonID, active.generation.GenerationID, ui.Entry),
+			StyleURLs:     make([]string, 0, len(ui.Styles)),
+			Sandbox:       append([]string{}, ui.Sandbox...),
+			Dependencies:  make([]string, 0),
+			Capabilities:  capabilities,
+			Permissions:   browserPermissions(approved),
+			Contributions: contributions,
 		}
 		for _, style := range ui.Styles {
 			generation.StyleURLs = append(
@@ -98,6 +119,105 @@ func (manager *Manager) BrowserGraph(ctx context.Context) (BrowserGraph, error) 
 		ContractVersion: BrowserGraphContractVersion,
 		GraphRevision:   hex.EncodeToString(digest[:]), Addons: addOns,
 	}, nil
+}
+
+func (manager *Manager) browserCapabilities(manifest packageinspect.Manifest) ([]string, error) {
+	capabilities := make([]string, 0,
+		len(manifest.Capabilities.Required)+len(manifest.Capabilities.Optional))
+	for _, capability := range manifest.Capabilities.Required {
+		if _, available := manager.capabilities[capability]; !available {
+			return nil, fmt.Errorf("project browser capabilities for %s: %w: %s",
+				manifest.ID, ErrCapability, capability)
+		}
+		capabilities = append(capabilities, capability)
+	}
+	for _, capability := range manifest.Capabilities.Optional {
+		if _, available := manager.capabilities[capability]; available {
+			capabilities = append(capabilities, capability)
+		}
+	}
+	sort.Strings(capabilities)
+	return capabilities, nil
+}
+
+func browserPermissions(permissions []packageinspect.Permission) []BrowserPermission {
+	result := make([]BrowserPermission, 0, len(permissions))
+	for _, permission := range permissions {
+		resources := append([]string{}, permission.Resources...)
+		sort.Strings(resources)
+		result = append(result, BrowserPermission{ID: permission.ID, Resources: resources})
+	}
+	sort.Slice(result, func(left, right int) bool { return result[left].ID < result[right].ID })
+	return result
+}
+
+func browserContributions(
+	contributions []packageinspect.Contribution,
+	capabilities []string,
+) ([]BrowserContribution, error) {
+	available := make(map[string]struct{}, len(capabilities))
+	for _, capability := range capabilities {
+		available[capability] = struct{}{}
+	}
+	result := make([]BrowserContribution, 0, len(contributions))
+	for _, contribution := range contributions {
+		if !isBrowserContribution(contribution.Surface) ||
+			!hasBrowserContributionCapabilities(contribution.Requires, available) {
+			continue
+		}
+		config, err := cloneBrowserContributionConfig(contribution.Config)
+		if err != nil {
+			return nil, err
+		}
+		roles := append([]string{}, contribution.Roles...)
+		requires := append([]string{}, contribution.Requires...)
+		sort.Strings(roles)
+		sort.Strings(requires)
+		result = append(result, BrowserContribution{
+			ID: contribution.ID, Surface: contribution.Surface, Label: contribution.Label,
+			Roles: roles, Order: contribution.Order, Requires: requires, Config: config,
+		})
+	}
+	sort.Slice(result, func(left, right int) bool { return result[left].ID < result[right].ID })
+	return result, nil
+}
+
+func isBrowserContribution(surface string) bool {
+	switch surface {
+	case "route", "sidebar", "settings", "article-action", "article-section",
+		"editor-panel", "slot", "record-renderer", "wiki-kind",
+		"graph-node-kind", "graph-view", "graph-contributor":
+		return true
+	default:
+		return false
+	}
+}
+
+func hasBrowserContributionCapabilities(
+	required []string,
+	available map[string]struct{},
+) bool {
+	for _, capability := range required {
+		if _, exists := available[capability]; !exists {
+			return false
+		}
+	}
+	return true
+}
+
+func cloneBrowserContributionConfig(config map[string]any) (map[string]any, error) {
+	if len(config) == 0 {
+		return map[string]any{}, nil
+	}
+	body, err := json.Marshal(config)
+	if err != nil {
+		return nil, fmt.Errorf("encode contribution config: %w", err)
+	}
+	clone := make(map[string]any, len(config))
+	if err := json.Unmarshal(body, &clone); err != nil {
+		return nil, fmt.Errorf("decode contribution config: %w", err)
+	}
+	return clone, nil
 }
 
 func browserAssetURL(addonID string, generationID string, packagePath string) string {

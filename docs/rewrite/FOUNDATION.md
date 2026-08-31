@@ -69,8 +69,9 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   server-authoritative dependency graph, tears consumers down before providers,
   and rebuilds providers before consumers for each opaque graph revision. Its
   graph client validates the exact versioned wire shape and generation-bound
-  URLs, serializes private ETag refreshes, and preserves the last accepted
-  graph across malformed or failed responses. See
+  URLs plus effective capabilities, permission resources, and contribution
+  declarations. It serializes private ETag refreshes and preserves the last
+  accepted graph across malformed or failed responses. See
   [`BROWSER_ADDONS.md`](BROWSER_ADDONS.md). A runtime coordinator serializes
   that transport through reconciliation, preserves active contributions on
   fetch failures, and invalidates cached authority before ordered teardown on

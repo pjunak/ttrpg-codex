@@ -23,15 +23,26 @@ const descriptor: BrowserGenerationDescriptor = {
   styleUrls: [`/api/addons/dm-tools/generations/${generationId}/assets/web/index.css`],
   sandbox: [],
   dependencies: [],
+  capabilities: ["ui.contributions"],
+  permissions: [{ id: "core.data.read", resources: ["characters"] }],
+  contributions: [{
+    id: "planner.route",
+    surface: "route",
+    label: "Story Planner",
+    roles: ["dm"],
+    order: 200,
+    requires: ["ui.contributions"],
+    config: { path: "planner" },
+  }],
 };
 const graph: BrowserGenerationSet = {
-  contractVersion: 1,
+  contractVersion: 2,
   graphRevision,
   addons: [descriptor],
 };
 
 describe("parseBrowserGenerationSet", () => {
-  it("accepts and copies the exact v1 wire shape", () => {
+  it("accepts and copies the exact v2 wire shape", () => {
     const parsed = parseBrowserGenerationSet(graph);
 
     expect(parsed).toEqual(graph);
@@ -40,13 +51,22 @@ describe("parseBrowserGenerationSet", () => {
   });
 
   it.each([
-    { ...graph, contractVersion: 2 },
+    { ...graph, contractVersion: 1 },
     { ...graph, graphRevision: "not-a-digest" },
     { ...graph, unexpected: true },
     { ...graph, addons: "not-an-array" },
     { ...graph, addons: [{ ...graph.addons[0], unexpected: true }] },
     { ...graph, addons: [{ ...graph.addons[0], sandbox: ["same-origin"] }] },
     { ...graph, addons: [{ ...graph.addons[0], dependencies: [1] }] },
+    { ...graph, addons: [{ ...graph.addons[0], capabilities: ["invalid"] }] },
+    { ...graph, addons: [{ ...graph.addons[0], permissions: [{ id: "read", resources: [] }] }] },
+    {
+      ...graph,
+      addons: [{
+        ...graph.addons[0],
+        contributions: [{ ...descriptor.contributions[0], surface: "raw-html" }],
+      }],
+    },
     {
       ...graph,
       addons: [{

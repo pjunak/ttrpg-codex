@@ -17,9 +17,39 @@ const descriptorKeys = new Set([
   "styleUrls",
   "sandbox",
   "dependencies",
+  "capabilities",
+  "permissions",
+  "contributions",
+]);
+const permissionKeys = new Set(["id", "resources"]);
+const contributionKeys = new Set([
+  "id",
+  "surface",
+  "label",
+  "roles",
+  "order",
+  "requires",
+  "config",
 ]);
 const sandboxValues = new Set(["downloads", "forms", "modals", "popups"] as const);
+const contributionSurfaces = new Set([
+  "route",
+  "sidebar",
+  "settings",
+  "article-action",
+  "article-section",
+  "editor-panel",
+  "slot",
+  "record-renderer",
+  "wiki-kind",
+  "graph-node-kind",
+  "graph-view",
+  "graph-contributor",
+] as const);
+const browserRoles = new Set(["dm", "player"] as const);
 const sha256Pattern = /^[0-9a-f]{64}$/;
+const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
+const contractIdPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/;
 
 export type BrowserGraphFetch = (
   input: string,
@@ -146,8 +176,8 @@ export function parseBrowserGenerationSet(value: unknown): BrowserGenerationSet 
   if (!isRecord(value) || !hasOnlyKeys(value, graphKeys)) {
     throw new BoundaryValidationError(boundary, "response must be an exact graph object");
   }
-  if (value["contractVersion"] !== 1) {
-    throw new BoundaryValidationError(boundary, "contractVersion must be 1");
+  if (value["contractVersion"] !== 2) {
+    throw new BoundaryValidationError(boundary, "contractVersion must be 2");
   }
   if (typeof value["graphRevision"] !== "string" || !sha256Pattern.test(value["graphRevision"])) {
     throw new BoundaryValidationError(boundary, "graphRevision must be a lowercase SHA-256 digest");
@@ -156,7 +186,7 @@ export function parseBrowserGenerationSet(value: unknown): BrowserGenerationSet 
     throw new BoundaryValidationError(boundary, "addons must contain at most 100 descriptors");
   }
   return {
-    contractVersion: 1,
+    contractVersion: 2,
     graphRevision: value["graphRevision"],
     addons: value["addons"].map((descriptor, index) => parseDescriptor(descriptor, index)),
   };
@@ -180,6 +210,22 @@ function parseDescriptor(value: unknown, index: number): BrowserGenerationDescri
   const entryUrl = requiredString(value["entryUrl"], `${location}.entryUrl`);
   const styleUrls = stringArray(value["styleUrls"], `${location}.styleUrls`);
   const dependencies = stringArray(value["dependencies"], `${location}.dependencies`);
+  const capabilities = stringArray(value["capabilities"], `${location}.capabilities`);
+  if (capabilities.some((capability) => !contractIdPattern.test(capability))) {
+    throw new BoundaryValidationError(boundary, `${location}.capabilities contains an invalid id`);
+  }
+  if (!Array.isArray(value["permissions"]) || !Array.isArray(value["contributions"])) {
+    throw new BoundaryValidationError(
+      boundary,
+      `${location}.permissions and ${location}.contributions must be arrays`,
+    );
+  }
+  const permissions = value["permissions"].map((permission, index) =>
+    parsePermission(permission, `${location}.permissions[${index}]`)
+  );
+  const contributions = value["contributions"].map((contribution, index) =>
+    parseContribution(contribution, `${location}.contributions[${index}]`)
+  );
   const rawSandbox = stringArray(value["sandbox"], `${location}.sandbox`);
   const sandbox: Array<BrowserGenerationDescriptor["sandbox"][number]> = [];
   for (const grant of rawSandbox) {
@@ -204,6 +250,72 @@ function parseDescriptor(value: unknown, index: number): BrowserGenerationDescri
     styleUrls,
     sandbox,
     dependencies,
+    capabilities,
+    permissions,
+    contributions,
+  };
+}
+
+function parsePermission(
+  value: unknown,
+  location: string,
+): BrowserGenerationDescriptor["permissions"][number] {
+  if (!isRecord(value) || !hasOnlyKeys(value, permissionKeys)) {
+    throw new BoundaryValidationError(boundary, `${location} must be an exact permission object`);
+  }
+  const id = requiredString(value["id"], `${location}.id`);
+  if (!contractIdPattern.test(id)) {
+    throw new BoundaryValidationError(boundary, `${location}.id is invalid`);
+  }
+  return { id, resources: stringArray(value["resources"], `${location}.resources`) };
+}
+
+function parseContribution(
+  value: unknown,
+  location: string,
+): BrowserGenerationDescriptor["contributions"][number] {
+  if (!isRecord(value) || !hasOnlyKeys(value, contributionKeys)) {
+    throw new BoundaryValidationError(boundary, `${location} must be an exact contribution object`);
+  }
+  const surface = value["surface"];
+  if (
+    typeof surface !== "string" ||
+    !contributionSurfaces.has(surface as BrowserGenerationDescriptor["contributions"][number]["surface"])
+  ) {
+    throw new BoundaryValidationError(boundary, `${location}.surface is unsupported`);
+  }
+  const rawRoles = stringArray(value["roles"], `${location}.roles`);
+  const roles: Array<BrowserGenerationDescriptor["contributions"][number]["roles"][number]> = [];
+  for (const role of rawRoles) {
+    if (!browserRoles.has(role as "dm" | "player")) {
+      throw new BoundaryValidationError(boundary, `${location}.roles contains an unsupported role`);
+    }
+    roles.push(role as "dm" | "player");
+  }
+  const order = value["order"];
+  if (typeof order !== "number" || !Number.isInteger(order)) {
+    throw new BoundaryValidationError(boundary, `${location}.order must be an integer`);
+  }
+  const config = value["config"];
+  if (!isRecord(config)) {
+    throw new BoundaryValidationError(boundary, `${location}.config must be an object`);
+  }
+  const id = requiredString(value["id"], `${location}.id`);
+  if (!localIdPattern.test(id)) {
+    throw new BoundaryValidationError(boundary, `${location}.id is invalid`);
+  }
+  const requires = stringArray(value["requires"], `${location}.requires`);
+  if (requires.some((capability) => !contractIdPattern.test(capability))) {
+    throw new BoundaryValidationError(boundary, `${location}.requires contains an invalid id`);
+  }
+  return {
+    id,
+    surface: surface as BrowserGenerationDescriptor["contributions"][number]["surface"],
+    label: requiredString(value["label"], `${location}.label`),
+    roles,
+    order,
+    requires,
+    config,
   };
 }
 

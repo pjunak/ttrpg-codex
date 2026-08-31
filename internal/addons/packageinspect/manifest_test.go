@@ -48,3 +48,33 @@ func TestManifestRetainsCapabilities(t *testing.T) {
 		t.Fatalf("incomplete capability policy: %+v", manifest.Capabilities)
 	}
 }
+
+func TestManifestRetainsCompleteContributionPolicy(t *testing.T) {
+	t.Parallel()
+
+	var manifest Manifest
+	if err := json.Unmarshal([]byte(`{
+		"contributions": [{
+			"id": "planner.route",
+			"surface": "route",
+			"label": "Story Planner",
+			"roles": ["dm"],
+			"order": 200,
+			"requires": ["ui.contributions"],
+			"config": {"path": "planner"}
+		}]
+	}`), &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.Contributions) != 1 {
+		t.Fatalf("contribution count = %d, want 1", len(manifest.Contributions))
+	}
+	contribution := manifest.Contributions[0]
+	if contribution.ID != "planner.route" || contribution.Surface != "route" ||
+		contribution.Label != "Story Planner" || len(contribution.Roles) != 1 ||
+		contribution.Roles[0] != "dm" || contribution.Order != 200 ||
+		len(contribution.Requires) != 1 || contribution.Requires[0] != "ui.contributions" ||
+		contribution.Config["path"] != "planner" {
+		t.Fatalf("incomplete contribution policy: %+v", contribution)
+	}
+}

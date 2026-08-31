@@ -575,7 +575,31 @@ func validateDeclarations(manifest Manifest, entries map[string]*zip.File, direc
 		}
 	}
 
+	declaredCapabilities := make(map[string]struct{},
+		len(manifest.Capabilities.Required)+len(manifest.Capabilities.Optional))
+	for _, capability := range manifest.Capabilities.Required {
+		declaredCapabilities[capability] = struct{}{}
+	}
+	for _, capability := range manifest.Capabilities.Optional {
+		if _, declared := declaredCapabilities[capability]; declared {
+			return inspectionError(
+				CodeInvalidDeclaration,
+				"capabilities.optional",
+				fmt.Errorf("capability %q is both required and optional", capability),
+			)
+		}
+		declaredCapabilities[capability] = struct{}{}
+	}
 	for index, contribution := range manifest.Contributions {
+		for _, capability := range contribution.Requires {
+			if _, declared := declaredCapabilities[capability]; !declared {
+				return inspectionError(
+					CodeInvalidDeclaration,
+					fmt.Sprintf("contributions[%d].requires", index),
+					fmt.Errorf("capability %q is not declared by the package", capability),
+				)
+			}
+		}
 		switch contribution.Surface {
 		case "kind":
 			// Pure manifest data needs no runtime.

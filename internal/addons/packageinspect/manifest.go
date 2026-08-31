@@ -56,10 +56,13 @@ type Permission struct {
 }
 
 type Contribution struct {
-	ID      string         `json:"id"`
-	Surface string         `json:"surface"`
-	Label   string         `json:"label"`
-	Config  map[string]any `json:"config,omitempty"`
+	ID       string         `json:"id"`
+	Surface  string         `json:"surface"`
+	Label    string         `json:"label"`
+	Roles    []string       `json:"roles,omitempty"`
+	Order    int            `json:"order,omitempty"`
+	Requires []string       `json:"requires,omitempty"`
+	Config   map[string]any `json:"config,omitempty"`
 }
 
 type Collection struct {

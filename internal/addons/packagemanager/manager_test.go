@@ -734,9 +734,23 @@ func TestBrowserGraphProjectsRecoveredUIGenerationsAndChangesOnReload(t *testing
 
 	db := testDatabase(t)
 	manager, _ := testManager(t, db, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	manager.capabilities["ui.contributions"] = struct{}{}
 	providerArchive := writeAddonPackage(t, packageSpec{
 		ID: "rules-addon", Version: "1.0.0", UIEntry: "web/rules.js",
-		UIStyles: []string{"web/theme.css", "web/rules.css"},
+		UIStyles: []string{"web/theme.css", "web/rules.css"}, Permission: true,
+		OptionalCapabilities: []string{"ui.unavailable", "ui.contributions"},
+		Contributions: []map[string]any{
+			{
+				"id": "planner.route", "surface": "route", "label": "Story Planner",
+				"roles": []string{"player", "dm"}, "order": 200,
+				"requires": []string{"ui.contributions"}, "config": map[string]any{"path": "planner"},
+			},
+			{
+				"id": "unavailable.route", "surface": "route", "label": "Unavailable",
+				"requires": []string{"ui.unavailable"},
+			},
+			{"id": "alignment.kind", "surface": "kind", "label": "Alignment"},
+		},
 	})
 	provider, err := manager.Stage(context.Background(), providerArchive)
 	if err != nil {
@@ -744,6 +758,7 @@ func TestBrowserGraphProjectsRecoveredUIGenerationsAndChangesOnReload(t *testing
 	}
 	if _, err := manager.Activate(context.Background(), ActivationPlan{
 		AddonID: "rules-addon", GenerationID: provider.GenerationID, ExpectedStateRevision: 0,
+		GrantedPermissionIDs: []string{"core.data.read"},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -780,6 +795,21 @@ func TestBrowserGraphProjectsRecoveredUIGenerationsAndChangesOnReload(t *testing
 	}
 	if graph.Addons[1].EntryURL != wantEntry || !reflect.DeepEqual(graph.Addons[1].StyleURLs, wantStyles) {
 		t.Fatalf("provider browser generation = %+v", graph.Addons[1])
+	}
+	providerBrowser := graph.Addons[1]
+	if !reflect.DeepEqual(providerBrowser.Capabilities, []string{"ui.contributions"}) ||
+		!reflect.DeepEqual(providerBrowser.Permissions, []BrowserPermission{{
+			ID: "core.data.read", Resources: []string{"characters"},
+		}}) || len(providerBrowser.Contributions) != 1 {
+		t.Fatalf("provider browser authority = %+v", providerBrowser)
+	}
+	contribution := providerBrowser.Contributions[0]
+	if contribution.ID != "planner.route" || contribution.Surface != "route" ||
+		contribution.Label != "Story Planner" || contribution.Order != 200 ||
+		!reflect.DeepEqual(contribution.Roles, []string{"dm", "player"}) ||
+		!reflect.DeepEqual(contribution.Requires, []string{"ui.contributions"}) ||
+		contribution.Config["path"] != "planner" {
+		t.Fatalf("projected contribution = %+v", contribution)
 	}
 	if _, err := manager.Reload(context.Background(), "rules-addon", 1); err != nil {
 		t.Fatal(err)
@@ -955,21 +985,24 @@ func TestActivationFailsClosedForUnplannedSelfServiceBinding(t *testing.T) {
 }
 
 type packageSpec struct {
-	ID              string
-	Version         string
-	Contract        string
-	ContractVersion string
-	ConsumeContract string
-	OptionalConsume bool
-	DependencyID    string
-	DependencyRange string
-	UIEntry         string
-	UIStyles        []string
-	UIMode          string
-	UISandbox       []string
-	ExtraFiles      map[string][]byte
-	Worker          bool
-	Permission      bool
+	ID                   string
+	Version              string
+	Contract             string
+	ContractVersion      string
+	ConsumeContract      string
+	OptionalConsume      bool
+	DependencyID         string
+	DependencyRange      string
+	UIEntry              string
+	UIStyles             []string
+	UIMode               string
+	UISandbox            []string
+	RequiredCapabilities []string
+	OptionalCapabilities []string
+	Contributions        []map[string]any
+	ExtraFiles           map[string][]byte
+	Worker               bool
+	Permission           bool
 }
 
 func stageServicePackage(t *testing.T, manager *Manager, addonID, version, contractVersion string) Generation {
@@ -1007,8 +1040,11 @@ func writeAddonPackage(t *testing.T, spec packageSpec) string {
 		"compatibility": map[string]any{
 			"host": ">=2.0.0 <3.0.0", "addonApi": "^3.0.0",
 		},
-		"capabilities": map[string]any{"required": []string{}, "optional": []string{}},
-		"permissions":  []any{},
+		"capabilities": map[string]any{
+			"required": append([]string{}, spec.RequiredCapabilities...),
+			"optional": append([]string{}, spec.OptionalCapabilities...),
+		},
+		"permissions": []any{},
 	}
 	files := make(map[string][]byte)
 	if spec.Permission {
@@ -1024,7 +1060,8 @@ func writeAddonPackage(t *testing.T, spec packageSpec) string {
 	runtime := map[string]any{}
 	if spec.Worker {
 		manifest["compatibility"].(map[string]any)["workerProtocol"] = "^1.0.0"
-		manifest["capabilities"].(map[string]any)["required"] = []string{"worker.native"}
+		required := manifest["capabilities"].(map[string]any)["required"].([]string)
+		manifest["capabilities"].(map[string]any)["required"] = append(required, "worker.native")
 		runtime["worker"] = map[string]any{
 			"type": "native", "protocol": "^1.0.0",
 			"entrypoints": map[string]any{"windows-amd64": "worker/windows-amd64/addon.exe"},
@@ -1051,6 +1088,9 @@ func writeAddonPackage(t *testing.T, spec packageSpec) string {
 	}
 	if len(runtime) != 0 {
 		manifest["runtime"] = runtime
+	}
+	if len(spec.Contributions) != 0 {
+		manifest["contributions"] = spec.Contributions
 	}
 	for name, body := range spec.ExtraFiles {
 		files[name] = append([]byte(nil), body...)

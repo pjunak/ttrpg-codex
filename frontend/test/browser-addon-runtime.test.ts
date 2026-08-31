@@ -14,7 +14,7 @@ import {
 const graphRevision = "d".repeat(64);
 const generationId = "e".repeat(64);
 const graph: BrowserGenerationSet = {
-  contractVersion: 1,
+  contractVersion: 2,
   graphRevision,
   addons: [{
     addonId: "dm-tools",
@@ -25,6 +25,9 @@ const graph: BrowserGenerationSet = {
     styleUrls: [],
     sandbox: [],
     dependencies: [],
+    capabilities: [],
+    permissions: [],
+    contributions: [],
   }],
 };
 
