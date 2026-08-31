@@ -117,6 +117,22 @@ Normal shutdown reverses the live dependency graph: consumers lose routing and
 stop before providers. Durable active pointers remain intact for the next
 recovery.
 
+## Reload and disable
+
+Reload revalidates the exact active archive and extracted tree, resolves its
+current dependencies, grants, and service bindings, then starts a replacement
+runtime. It swaps only the live caller against the existing provider catalog;
+the add-on generation and catalog revisions do not change, so already-issued
+consumer handles remain valid. The state revision and `reloaded` event still
+advance, invalidating any review prepared against the older operational state.
+
+Disable deactivates generation routing before clearing the durable active
+pointer. Installed generations, provider declarations, bindings, grants, and
+add-on data remain preserved. A failed or unrecovered generation can therefore
+be disabled without starting its code. Live dependents block disable until a
+coordinated transition is available. Successful disable increments the state
+revision, records `disabled`, and then performs bounded worker cleanup.
+
 ## Durable diagnostics
 
 Migrations `0003_addon_package_lifecycle.sql` and
@@ -139,7 +155,7 @@ payloads are not stored in the event log.
 
 - Coordinated multi-add-on update cohorts and dependent runtime rebinding.
 - Planned generation bindings for add-ons that consume their own service.
-- Disable, reload, uninstall, quarantine, and separate reviewed data deletion.
+- Uninstall, quarantine, and separate reviewed data deletion.
 - Browser generation scopes and UI contribution switching.
 - Add-on data migration planning and recoverable commit.
 - WASI runtime factory, restart/backoff wiring, OS resource enforcement, and

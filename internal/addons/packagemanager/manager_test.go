@@ -223,6 +223,102 @@ func TestActivationReviewBecomesStaleWhenStateChanges(t *testing.T) {
 	}
 }
 
+func TestReloadKeepsGenerationHandlesValidAndDisableRevokesRouting(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	factory := &fakeRuntimeFactory{}
+	manager, broker := testManager(t, db, filepath.Join(t.TempDir(), "packages"), factory)
+	generation := stageServicePackage(t, manager, "engine-addon", "1.0.0", "3.1.0")
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "engine-addon", GenerationID: generation.GenerationID,
+		ExpectedStateRevision: 0, GrantedPermissionIDs: []string{"core.data.read"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	handle, err := broker.ConnectOne(context.Background(), servicebroker.Requirement{
+		ConsumerAddonID: "sheet-addon", Contract: "dnd5e.rules-engine", Range: "^3.0.0",
+		Cardinality: servicebroker.CardinalityOne, Selection: servicebroker.SelectionOperator,
+		Scope: servicebroker.GlobalScope(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := manager.Reload(context.Background(), "engine-addon", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.State.Revision != 2 || reloaded.State.ActiveGenerationID != generation.GenerationID {
+		t.Fatalf("reload result = %+v", reloaded)
+	}
+	result, err := broker.Call(context.Background(), handle, servicebroker.MethodCall{
+		Method: "evaluate-character", Params: map[string]any{"value": 4},
+		Context: servicebroker.CallContext{
+			Deadline: time.Now().Add(time.Second), Actor: workerrpc.Actor{Role: "system"},
+		},
+	})
+	if err != nil || string(result) != `{"result":8}` {
+		t.Fatalf("pre-reload handle after reload = %s, %v", result, err)
+	}
+	disabled, err := manager.Disable(context.Background(), DisablePlan{
+		AddonID: "engine-addon", ExpectedStateRevision: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if disabled.State.Revision != 3 || disabled.State.ActiveGenerationID != "" ||
+		!reflect.DeepEqual(disabled.State.GrantedPermissionIDs, []string{"core.data.read"}) {
+		t.Fatalf("disable result = %+v", disabled)
+	}
+	if _, err := broker.Call(context.Background(), handle, servicebroker.MethodCall{
+		Method: "evaluate-character", Params: map[string]any{"value": 4},
+		Context: servicebroker.CallContext{
+			Deadline: time.Now().Add(time.Second), Actor: workerrpc.Actor{Role: "system"},
+		},
+	}); !errors.Is(err, servicebroker.ErrStaleBinding) {
+		t.Fatalf("disabled handle error = %v", err)
+	}
+	wantLog := []string{
+		"start:engine-addon:" + generation.GenerationID,
+		"start:engine-addon:" + generation.GenerationID,
+		"stop:engine-addon:" + generation.GenerationID,
+		"stop:engine-addon:" + generation.GenerationID,
+	}
+	if got := factory.Log(); !reflect.DeepEqual(got, wantLog) {
+		t.Fatalf("reload/disable runtime order = %v, want %v", got, wantLog)
+	}
+	results, err := manager.Recover(context.Background())
+	if err != nil || len(results) != 0 {
+		t.Fatalf("disabled recovery = %+v, %v", results, err)
+	}
+}
+
+func TestDisableWorksAfterRuntimeShutdownWithoutRecovery(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	manager, _ := testManager(t, db, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	generation := stageServicePackage(t, manager, "engine-addon", "1.0.0", "3.1.0")
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "engine-addon", GenerationID: generation.GenerationID,
+		ExpectedStateRevision: 0, GrantedPermissionIDs: []string{"core.data.read"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	disabled, err := manager.Disable(context.Background(), DisablePlan{
+		AddonID: "engine-addon", ExpectedStateRevision: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if disabled.State.ActiveGenerationID != "" || disabled.State.Revision != 2 {
+		t.Fatalf("unrecovered disable result = %+v", disabled)
+	}
+}
+
 func TestFailedUpdateKeepsPreviousGenerationCallable(t *testing.T) {
 	t.Parallel()
 

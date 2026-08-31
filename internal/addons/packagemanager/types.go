@@ -29,6 +29,7 @@ var (
 	ErrRecoveryRequired    = errors.New("active add-on generation requires recovery")
 	ErrActivationCohort    = errors.New("dependent add-ons require coordinated activation")
 	ErrActivationFailed    = errors.New("add-on activation failed")
+	ErrNotActive           = errors.New("add-on is not active")
 	ErrReviewNotFound      = errors.New("activation review not found")
 	ErrReviewState         = errors.New("activation review is in the wrong state")
 	ErrReviewStale         = errors.New("activation review no longer matches current state")
@@ -148,6 +149,17 @@ type ActivationResult struct {
 	Generation           Generation `json:"generation"`
 	PreviousGenerationID string     `json:"previousGenerationId,omitempty"`
 	CleanupError         string     `json:"cleanupError,omitempty"`
+}
+
+type DisablePlan struct {
+	AddonID               string `json:"addonId"`
+	ExpectedStateRevision int64  `json:"expectedStateRevision"`
+}
+
+type DisableResult struct {
+	State                State  `json:"state"`
+	PreviousGenerationID string `json:"previousGenerationId,omitempty"`
+	CleanupError         string `json:"cleanupError,omitempty"`
 }
 
 type RecoveryResult struct {

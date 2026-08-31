@@ -217,6 +217,43 @@ func (store *store) setActive(
 	return store.state(ctx, addonID)
 }
 
+func (store *store) setDisabled(
+	ctx context.Context,
+	addonID string,
+	generationID string,
+	expectedRevision int64,
+) (State, error) {
+	now := store.now().UTC()
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return State{}, fmt.Errorf("begin add-on disable: %w", err)
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `
+		UPDATE addon_package_states
+		SET active_generation_id = NULL, revision = revision + 1, updated_at = ?
+		WHERE addon_id = ? AND active_generation_id = ? AND revision = ?`,
+		now.Format(time.RFC3339Nano), addonID, generationID, expectedRevision,
+	)
+	if err != nil {
+		return State{}, fmt.Errorf("disable add-on generation: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return State{}, fmt.Errorf("read add-on disable result: %w", err)
+	}
+	if changed != 1 {
+		return State{}, ErrStaleActivationPlan
+	}
+	if err := insertEvent(ctx, tx, addonID, generationID, "disabled", "", now); err != nil {
+		return State{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return State{}, fmt.Errorf("commit add-on disable: %w", err)
+	}
+	return store.state(ctx, addonID)
+}
+
 func (store *store) recordFailure(ctx context.Context, addonID, generationID, kind string, cause error) error {
 	now := store.now().UTC()
 	message := cause.Error()

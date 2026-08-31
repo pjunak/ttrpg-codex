@@ -90,7 +90,9 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   start/switch/cleanup with the service broker, reuses the verified path for
   rollback, and reconstructs exact active generations in
   provider-before-consumer order after restart. It refuses provider changes
-  that would strand live dependent handles. See
+  that would strand live dependent handles, reloads a runtime without
+  invalidating generation-safe consumer handles, and disables even an
+  unrecovered generation without discarding grants or installed files. See
   [`PACKAGE_LIFECYCLE.md`](PACKAGE_LIFECYCLE.md).
 
 These are foundation contracts, not a compatibility claim. Authentication,
