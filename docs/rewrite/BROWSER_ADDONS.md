@@ -87,9 +87,10 @@ stale, non-web, and unlisted paths share one 404 classification.
 Graph change notification uses the implemented shared role-scoped event stream
 and its durable replay contract. Successful package activation, rollback,
 reviewed cohort activation, reload, disable, and startup recovery publish the
-exact resulting graph revision. Browser-client composition is still pending.
-There is deliberately no second add-on-only SSE connection or reconnect
-policy.
+exact resulting graph revision. `SharedEventStream` validates `hello`, `reset`,
+and `browser-addons-changed` payloads from one native EventSource and lets its
+built-in reconnect behavior own `Last-Event-ID`. There is deliberately no
+second add-on-only SSE connection or reconnect policy.
 
 ## TypeScript transport
 
@@ -126,9 +127,12 @@ permission changes use the explicit `authority-changed` stop reason. This
 prevents an old credential context from restoring browser authority while its
 resources are being torn down.
 
-The coordinator is not yet instantiated by the application shell. It remains
-behind the same authentication composition boundary as the protected browser
-routes and future shared event stream.
+`BrowserAddonSession` now instantiates the coordinator behind the authenticated
+application shell. It opens the shared stream before its initial graph refresh,
+coalesces every graph signal through the serialized runtime, and preserves live
+generations across transient transport errors. A 401/403 closes the stream,
+aborts the authority scope, clears cached graph authority, tears down active
+generations, and returns the shell to anonymous state.
 
 ## Cold graph switch
 
@@ -161,12 +165,14 @@ same dependency and disposal ordering.
 requests, observers, object URLs, and returned module cleanup. It aborts first,
 then runs cleanup once in LIFO order with failure isolation.
 
-`BrowserGenerationManager` receives an injected activator. The supplied module
-adapter imports the server-provided immutable entry URL, requires an
+`BrowserGenerationManager` receives an injected activator. The shell
+composition loads every declared stylesheet into the generation scope, imports
+the server-provided immutable entry URL, requires an
 `activate(context)` export, and adapts the v3 `{ dispose() }` result into
 scope-owned cleanup. It refuses an isolated descriptor; iframe activation
-remains a separate adapter. Dynamic import policy remains a shell composition
-concern.
+remains a separate adapter. Cleanup unpublishes contributions, invokes module
+cleanup, and then removes generation styles; partial activation retains
+fallback cleanup for every acquired resource.
 
 Integrated modules receive a public `BrowserAddonContext`, never the internal
 generation scope or graph descriptor. The context exposes immutable add-on
@@ -192,9 +198,9 @@ module's own disposer.
 
 ## Remaining integration
 
-- Wire the implemented runtime coordinator into the shell.
 - Add data, service, import, event, settings, navigation, graph, and log handles
   to the implemented capability-scoped SDK as their transports land.
 - Implement the isolated iframe bridge over the same logical SDK contract.
+- Render the stable contribution slots from the host-owned registry.
 - Surface activation and disposal diagnostics in the Add-on Inspector.
 - Add Playwright coverage once real contribution modules are wired.

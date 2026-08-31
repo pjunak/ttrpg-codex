@@ -2,9 +2,9 @@
 
 This milestone connects verified v3 packages to durable generation state, the
 service broker, native worker supervision, and an authorization-gated HTTP
-application boundary. The current executable does not register the
-administrative routes until the rewrite authentication service is available;
-the Add-on Inspector UI is still to be built on top of them.
+application boundary. The executable registers the administrative routes with
+the real-DM and CSRF authorizer; the Add-on Inspector UI is still to be built
+on top of them.
 
 ## State ownership
 
@@ -221,14 +221,10 @@ payloads are not stored in the event log.
 - Planned generation bindings for add-ons that consume their own service.
 - Coordinated dependent disable and uninstall transitions.
 - Uninstall, quarantine, and separate reviewed data deletion.
-- Shell consumption of the implemented shared SSE graph invalidation,
-  runtime-validated browser HTTP client, authority projection, switch
-  coordinator, and contribution SDK core.
 - Add-on data migration planning and recoverable commit.
 - WASI runtime factory, restart/backoff wiring, OS resource enforcement, and
   redacted support-bundle diagnostics.
-- Rewrite authentication composition for the protected administrative routes,
-  followed by the Add-on Inspector UI over the review application contract.
+- Add-on Inspector UI over the protected review application contract.
 
 These must extend this coordinator rather than bypass exact generations,
 optimistic revisions, broker bindings, or host-owned approval state.

@@ -93,6 +93,11 @@ export type BrowserAddonSDKFactory = (
   scope: GenerationScope,
 ) => BrowserAddonSDKSession;
 
+export type BrowserGenerationResourceFactory = (
+  descriptor: BrowserGenerationDescriptor,
+  scope: GenerationScope,
+) => void | Disposer | Promise<void | Disposer>;
+
 export interface BrowserActivationFailure {
   readonly addonId: string;
   readonly generationId: string;
@@ -329,11 +334,16 @@ export function validateBrowserGenerationSet(target: BrowserGenerationSet): Brow
 export function createModuleActivator(
   importModule: BrowserGenerationImporter,
   createSDK: BrowserAddonSDKFactory,
+  prepareResources: BrowserGenerationResourceFactory = () => undefined,
 ): BrowserGenerationActivator {
   return async (descriptor, context) => {
     if (descriptor.mode !== "integrated") {
       throw new TypeError(`browser add-on ${descriptor.addonId} is not an integrated module`);
     }
+    const resourceDisposer = await prepareResources(descriptor, context.scope);
+    const releaseResourceFallback = resourceDisposer === undefined
+      ? undefined
+      : context.scope.add("browser generation resources", resourceDisposer);
     const sdk = createSDK(descriptor, context.scope);
     const imported = await importModule(descriptor.entryUrl);
     if (!isBrowserGenerationModule(imported)) {
@@ -347,7 +357,12 @@ export function createModuleActivator(
     }
     return async () => {
       sdk.dispose();
-      await disposable?.dispose();
+      try {
+        await disposable?.dispose();
+      } finally {
+        releaseResourceFallback?.();
+        await resourceDisposer?.();
+      }
     };
   };
 }

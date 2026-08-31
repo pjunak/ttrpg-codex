@@ -90,7 +90,11 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   role or session changes. The browser SDK exposes immutable identity and
   effective authority without leaking the internal generation scope. Its
   host-owned registry binds only declared, surface-compatible custom elements,
-  actions, or model providers and removes them before module cleanup.
+  actions, or model providers and removes them before module cleanup. The
+  authenticated Lit shell now probes session authority, offers login/logout,
+  owns the single shared EventSource, refreshes the graph on validated events,
+  loads generation styles, and tears all browser authority down on logout or
+  HTTP authorization loss.
 - The shared Go worker codec enforces bounded canonical `Content-Length`
   framing, serializes concurrent writes, validates UTF-8/JSON/envelopes, and
   reports stable transport failure codes. The same package is usable by the
@@ -138,7 +142,7 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   authorization handlers are composed; UI-only generations can recover now.
 
 These are foundation contracts, not a compatibility claim. Persistent
-credentials, core data migration, coordinated dependent disable, browser
-shell/SDK integration, concrete host method implementations, and import
-execution remain subsequent milestones in the dependency order in
-`docs/REWRITE_ARCHITECTURE.md`.
+credentials, core data migration, coordinated dependent disable, stable
+contribution-slot rendering, remaining SDK transports, concrete host method
+implementations, and import execution remain subsequent milestones in the
+dependency order in `docs/REWRITE_ARCHITECTURE.md`.

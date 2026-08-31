@@ -140,6 +140,7 @@ describe("BrowserGenerationManager", () => {
 
   it("loads a module through the injected immutable-entry importer", async () => {
     const dispose = vi.fn();
+    const disposeResources = vi.fn();
     let stopReason: unknown;
     const activate = vi.fn((context: BrowserAddonContext) => {
       context.signal.addEventListener("abort", () => {
@@ -150,7 +151,11 @@ describe("BrowserGenerationManager", () => {
     const importer = vi.fn(async () => ({ activate }));
     const registry = new BrowserContributionRegistry();
     const manager = new BrowserGenerationManager(
-      createModuleActivator(importer, (descriptor, scope) => registry.open(descriptor, scope)),
+      createModuleActivator(
+        importer,
+        (descriptor, scope) => registry.open(descriptor, scope),
+        () => disposeResources,
+      ),
     );
 
     await manager.reconcile({ contractVersion: 2, graphRevision: "graph-1", addons: [providerV1] });
@@ -159,6 +164,7 @@ describe("BrowserGenerationManager", () => {
     expect(importer).toHaveBeenCalledWith(providerV1.entryUrl);
     expect(activate).toHaveBeenCalledOnce();
     expect(dispose).toHaveBeenCalledOnce();
+    expect(disposeResources).toHaveBeenCalledOnce();
     expect(stopReason).toBe("uninstalled");
   });
 

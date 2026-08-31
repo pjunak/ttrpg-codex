@@ -50,5 +50,6 @@ private error details.
   and startup recovery now publish the resulting exact browser graph revision.
   A publication failure is logged but does not claim that an already-committed
   package transition failed; every new or reset connection reloads the graph.
-- Add the runtime-validated TypeScript event client and reconnect policy.
+- Add additional runtime-validated topic payloads as core data, imports, and
+  background jobs move onto the shared stream.
 - Add retention/checkpoint policy once real change volume can be measured.
