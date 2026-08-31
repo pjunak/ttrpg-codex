@@ -43,10 +43,11 @@ The package manager now exposes a three-step application contract:
 3. `ActivateReviewed` revalidates the proposal and consumes it during switch.
 
 The stored proposal includes both manifests, current and target generations,
-the expected state revision, retained and required permissions, affected live
-add-ons, blockers, and stable added/changed/removed summaries for runtime,
-capabilities, contributions, dependencies, services, collections, record
-extensions, content, and locales. The full proposal is SHA-256 hashed.
+the expected state revision, retained and required permissions, directly
+affected add-ons, the complete restart set, blockers, and stable
+added/changed/removed summaries for runtime, capabilities, contributions,
+dependencies, services, collections, record extensions, content, and locales.
+The full proposal is SHA-256 hashed.
 
 Approval hashes that proposal together with the normalized grant set. A
 package, state, dependency, service, recovery, or dependent-set change makes
@@ -94,10 +95,39 @@ changes a filesystem pointer or starts an older generation without current
 compatibility, grant, dependency, service, and content checks.
 
 Provider generation changes make existing consumer handles stale by design.
-Until a multi-add-on activation cohort is implemented, the manager refuses an
-update or rollback when a live add-on has an identity dependency or resolved
-service handle to the target. This is an explicit safe stop, not a silent
-partial upgrade.
+Direct internal activation therefore still refuses an update or rollback when
+a live add-on has an identity dependency or resolved service handle to the
+target. Reviewed activation uses the cold cohort below instead of attempting a
+partial live upgrade.
+
+## Coordinated cold activation
+
+This personal deployment values a small, legible recovery model over seamless
+add-on availability. When a reviewed provider change affects a live consumer,
+the proposal records both the direct dependents and every active add-on that
+will restart. Required dependents are checked against the target add-on
+version and service-contract ranges before approval; incompatible targets are
+hard blockers.
+
+After approval, the manager:
+
+1. withdraws routing and stops the complete add-on graph, consumers first;
+2. atomically changes only the reviewed target generation, grants, state
+   revision, event, and review status;
+3. invokes the normal recovery algorithm, which republishes catalogs and
+   starts providers before consumers with new generation-bound handles.
+
+Unrelated add-ons also restart. With the suite's small fixed add-on count this
+is intentionally simpler than maintaining a shadow provider catalog and two
+simultaneous runtime graphs. Core HTTP and campaign storage remain outside the
+cohort, so add-on downtime cannot partially commit campaign files.
+
+If recovery fails after the durable switch, the activation result reports a
+per-add-on recovery outcome and leaves the exact reviewed generation selected.
+The operator may fix the package and restart the host; startup recovery uses
+the same state and never silently falls back. A process crash after the commit
+has the same recovery behavior. This choice should be revisited only if add-on
+count, restart cost, or availability requirements materially increase.
 
 ## Restart recovery
 
@@ -179,8 +209,8 @@ payloads are not stored in the event log.
 
 ## Remaining lifecycle work
 
-- Coordinated multi-add-on update cohorts and dependent runtime rebinding.
 - Planned generation bindings for add-ons that consume their own service.
+- Coordinated dependent disable and uninstall transitions.
 - Uninstall, quarantine, and separate reviewed data deletion.
 - Browser generation scopes and UI contribution switching.
 - Add-on data migration planning and recoverable commit.

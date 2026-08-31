@@ -78,6 +78,7 @@ type ReviewProposal struct {
 	SuggestedPermissionIDs         []string                 `json:"suggestedPermissionIds"`
 	RequiredPermissionIDs          []string                 `json:"requiredPermissionIds"`
 	AffectedAddonIDs               []string                 `json:"affectedAddonIds"`
+	RestartedAddonIDs              []string                 `json:"restartedAddonIds"`
 	CurrentManifest                *packageinspect.Manifest `json:"currentManifest,omitempty"`
 	TargetManifest                 packageinspect.Manifest  `json:"targetManifest"`
 	Changes                        ReviewChanges            `json:"changes"`
@@ -144,11 +145,14 @@ type ActivationPlan struct {
 }
 
 type ActivationResult struct {
-	ReviewID             string     `json:"reviewId,omitempty"`
-	State                State      `json:"state"`
-	Generation           Generation `json:"generation"`
-	PreviousGenerationID string     `json:"previousGenerationId,omitempty"`
-	CleanupError         string     `json:"cleanupError,omitempty"`
+	ReviewID             string           `json:"reviewId,omitempty"`
+	State                State            `json:"state"`
+	Generation           Generation       `json:"generation"`
+	PreviousGenerationID string           `json:"previousGenerationId,omitempty"`
+	CleanupError         string           `json:"cleanupError,omitempty"`
+	RestartedAddonIDs    []string         `json:"restartedAddonIds,omitempty"`
+	RecoveryResults      []RecoveryResult `json:"recoveryResults,omitempty"`
+	RecoveryError        string           `json:"recoveryError,omitempty"`
 }
 
 type DisablePlan struct {

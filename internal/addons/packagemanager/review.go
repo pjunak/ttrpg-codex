@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -165,6 +166,9 @@ func (manager *Manager) ActivateReviewed(
 	if approvalHash != review.ApprovalSHA256 {
 		return ActivationResult{}, ErrReviewStale
 	}
+	if len(proposal.RestartedAddonIDs) != 0 {
+		return manager.activateReviewedCohortLocked(ctx, review, proposal, normalizedGrants)
+	}
 	return manager.activateLocked(ctx, ActivationPlan{
 		AddonID: review.AddonID, GenerationID: review.GenerationID,
 		ExpectedStateRevision: review.ExpectedStateRevision,
@@ -223,14 +227,120 @@ func (manager *Manager) buildReviewProposal(
 		} else {
 			proposal.AffectedAddonIDs = manager.liveDependents(addonID)
 			if state.ActiveGenerationID != generationID && len(proposal.AffectedAddonIDs) != 0 {
-				proposal.Blockers = append(proposal.Blockers, ReviewBlocker{
-					Code:    "ACTIVATION_COHORT_REQUIRED",
-					Message: fmt.Sprintf("dependent add-ons require coordinated activation: %v", proposal.AffectedAddonIDs),
-				})
+				proposal.RestartedAddonIDs = manager.liveAddonIDs()
+				proposal.Blockers = append(
+					proposal.Blockers,
+					manager.dependentCompatibilityBlockers(report.Manifest, proposal.AffectedAddonIDs)...,
+				)
 			}
 		}
 	}
 	return proposal, nil
+}
+
+func (manager *Manager) liveAddonIDs() []string {
+	result := make([]string, 0, len(manager.runtimes))
+	for addonID := range manager.runtimes {
+		result = append(result, addonID)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func (manager *Manager) dependentCompatibilityBlockers(
+	target packageinspect.Manifest,
+	dependentAddonIDs []string,
+) []ReviewBlocker {
+	blockers := make([]ReviewBlocker, 0)
+	for _, addonID := range dependentAddonIDs {
+		dependent := manager.runtimes[addonID]
+		for _, dependency := range dependent.report.Manifest.Dependencies {
+			if dependency.ID == target.ID && dependency.Required &&
+				!versionSatisfies(target.Version, dependency.Range) {
+				blockers = append(blockers, ReviewBlocker{
+					Code: "DEPENDENT_INCOMPATIBLE",
+					Message: fmt.Sprintf(
+						"%s requires %s %s but the target version is %s",
+						addonID, target.ID, dependency.Range, target.Version,
+					),
+				})
+			}
+		}
+		for _, consumer := range dependent.report.Manifest.Services.Consumes {
+			if !consumer.Required || !runtimeUsesProvider(dependent, target.ID, consumer.Contract) ||
+				targetProvidesCompatibleService(target, consumer.Contract, consumer.Range) {
+				continue
+			}
+			blockers = append(blockers, ReviewBlocker{
+				Code: "DEPENDENT_INCOMPATIBLE",
+				Message: fmt.Sprintf(
+					"%s requires service %s %s from %s, which the target generation does not provide",
+					addonID, consumer.Contract, consumer.Range, target.ID,
+				),
+			})
+		}
+	}
+	return blockers
+}
+
+func runtimeUsesProvider(active activeRuntime, providerAddonID string, contract string) bool {
+	for _, handle := range active.services {
+		if handle.ProviderAddonID == providerAddonID && handle.Contract == contract {
+			return true
+		}
+	}
+	return false
+}
+
+func targetProvidesCompatibleService(
+	manifest packageinspect.Manifest,
+	contract string,
+	versionRange string,
+) bool {
+	for _, provider := range manifest.Services.Provides {
+		if provider.Contract == contract && versionSatisfies(provider.Version, versionRange) {
+			return true
+		}
+	}
+	return false
+}
+
+// activateReviewedCohortLocked uses a cold restart for the small personal-host
+// add-on graph. Durable state is switched once, then the normal startup
+// recovery path rebuilds every generation and service handle provider-first.
+// Core campaign data is not part of this transaction.
+func (manager *Manager) activateReviewedCohortLocked(
+	ctx context.Context,
+	review ActivationReview,
+	proposal ReviewProposal,
+	grantedPermissionIDs []string,
+) (ActivationResult, error) {
+	generation, err := manager.store.generation(ctx, review.AddonID, review.GenerationID)
+	if err != nil {
+		return ActivationResult{}, err
+	}
+	if err := manager.shutdownLocked(ctx); err != nil {
+		_ = manager.store.recordFailure(ctx, review.AddonID, review.GenerationID, "cohort-stop-failed", err)
+		return ActivationResult{}, fmt.Errorf("%w: stop add-on graph: %v", ErrActivationFailed, err)
+	}
+	newState, err := manager.store.setActive(
+		ctx, review.AddonID, review.GenerationID, review.ExpectedStateRevision,
+		grantedPermissionIDs, "activated", review.ReviewID,
+	)
+	if err != nil {
+		_, recoveryErr := manager.recoverLocked(ctx)
+		return ActivationResult{}, errors.Join(err, recoveryErr)
+	}
+	result := ActivationResult{
+		ReviewID: review.ReviewID, State: newState, Generation: generation,
+		PreviousGenerationID: proposal.CurrentGenerationID,
+		RestartedAddonIDs:    append([]string(nil), proposal.RestartedAddonIDs...),
+	}
+	result.RecoveryResults, err = manager.recoverLocked(ctx)
+	if err != nil {
+		result.RecoveryError = err.Error()
+	}
+	return result, nil
 }
 
 func reviewBlocker(code string, err error) ReviewBlocker {

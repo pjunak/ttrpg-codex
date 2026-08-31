@@ -537,7 +537,8 @@ func TestProviderUpdateRequiresCoordinatedConsumerRestart(t *testing.T) {
 	t.Parallel()
 
 	db := testDatabase(t)
-	manager, broker := testManager(t, db, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	factory := &fakeRuntimeFactory{}
+	manager, broker := testManager(t, db, filepath.Join(t.TempDir(), "packages"), factory)
 	provider := stageServicePackage(t, manager, "engine-addon", "1.0.0", "3.1.0")
 	if _, err := manager.Activate(context.Background(), ActivationPlan{
 		AddonID: "engine-addon", GenerationID: provider.GenerationID,
@@ -558,13 +559,9 @@ func TestProviderUpdateRequiresCoordinatedConsumerRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(review.Proposal.AffectedAddonIDs, []string{"sheet-addon"}) ||
-		len(review.Proposal.Blockers) == 0 || review.Proposal.Blockers[0].Code != "ACTIVATION_COHORT_REQUIRED" {
+		!reflect.DeepEqual(review.Proposal.RestartedAddonIDs, []string{"engine-addon", "sheet-addon"}) ||
+		len(review.Proposal.Blockers) != 0 {
 		t.Fatalf("dependent activation review = %+v", review.Proposal)
-	}
-	if _, err := manager.ApproveActivationReview(
-		context.Background(), review.ReviewID, []string{"core.data.read"},
-	); !errors.Is(err, ErrReviewBlocked) {
-		t.Fatalf("blocked review approval error = %v", err)
 	}
 	if _, err := manager.Activate(context.Background(), ActivationPlan{
 		AddonID: "engine-addon", GenerationID: next.GenerationID,
@@ -573,7 +570,161 @@ func TestProviderUpdateRequiresCoordinatedConsumerRestart(t *testing.T) {
 		t.Fatalf("provider update error = %v", err)
 	}
 	assertProviderGeneration(t, broker, "dnd5e.rules-engine", provider.GenerationID, "3.1.0")
+	if _, err := manager.ApproveActivationReview(
+		context.Background(), review.ReviewID, []string{"core.data.read"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	result, err := manager.ActivateReviewed(context.Background(), review.ReviewID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.State.ActiveGenerationID != next.GenerationID || result.State.Revision != 2 ||
+		!reflect.DeepEqual(result.RestartedAddonIDs, []string{"engine-addon", "sheet-addon"}) ||
+		len(result.RecoveryResults) != 2 || !result.RecoveryResults[0].Recovered || !result.RecoveryResults[1].Recovered {
+		t.Fatalf("coordinated activation result = %+v", result)
+	}
+	assertProviderGeneration(t, broker, "dnd5e.rules-engine", next.GenerationID, "3.2.0")
 	assertServiceCall(t, broker, "external-consumer", "dnd5e.rules-engine", "^3.0.0")
+	wantLog := []string{
+		"start:engine-addon:" + provider.GenerationID,
+		"start:sheet-addon:" + consumer.GenerationID,
+		"stop:sheet-addon:" + consumer.GenerationID,
+		"stop:engine-addon:" + provider.GenerationID,
+		"start:engine-addon:" + next.GenerationID,
+		"start:sheet-addon:" + consumer.GenerationID,
+	}
+	if got := factory.Log(); !reflect.DeepEqual(got, wantLog) {
+		t.Fatalf("cold cohort order = %v, want %v", got, wantLog)
+	}
+	specs := factory.Specs()
+	if len(specs) != 4 || len(specs[3].BoundServices) != 1 ||
+		specs[3].BoundServices[0].Generation != next.GenerationID {
+		t.Fatalf("consumer was not rebound to target generation: %+v", specs)
+	}
+}
+
+func TestActivationReviewBlocksIncompatibleDependentService(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	manager, broker := testManager(t, db, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	provider := stageServicePackage(t, manager, "engine-addon", "1.0.0", "3.1.0")
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "engine-addon", GenerationID: provider.GenerationID,
+		ExpectedStateRevision: 0, GrantedPermissionIDs: []string{"core.data.read"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	consumer := stageConsumerPackage(t, manager, "sheet-addon", "1.0.0")
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "sheet-addon", GenerationID: consumer.GenerationID, ExpectedStateRevision: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	incompatible := stageServicePackage(t, manager, "engine-addon", "2.0.0", "4.0.0")
+	review, err := manager.PrepareActivationReview(context.Background(), "engine-addon", incompatible.GenerationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(review.Proposal.Blockers) != 1 || review.Proposal.Blockers[0].Code != "DEPENDENT_INCOMPATIBLE" {
+		t.Fatalf("incompatible review blockers = %+v", review.Proposal.Blockers)
+	}
+	if _, err := manager.ApproveActivationReview(
+		context.Background(), review.ReviewID, []string{"core.data.read"},
+	); !errors.Is(err, ErrReviewBlocked) {
+		t.Fatalf("incompatible approval error = %v", err)
+	}
+	assertProviderGeneration(t, broker, "dnd5e.rules-engine", provider.GenerationID, "3.1.0")
+}
+
+func TestActivationReviewBlocksIncompatibleIdentityDependent(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	manager, _ := testManager(t, db, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	providerArchive := writeAddonPackage(t, packageSpec{ID: "engine-addon", Version: "1.0.0", Worker: true})
+	provider, err := manager.Stage(context.Background(), providerArchive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "engine-addon", GenerationID: provider.GenerationID, ExpectedStateRevision: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	consumerArchive := writeAddonPackage(t, packageSpec{
+		ID: "sheet-addon", Version: "1.0.0", Worker: true,
+		DependencyID: "engine-addon", DependencyRange: "^1.0.0",
+	})
+	consumer, err := manager.Stage(context.Background(), consumerArchive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "sheet-addon", GenerationID: consumer.GenerationID, ExpectedStateRevision: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	targetArchive := writeAddonPackage(t, packageSpec{ID: "engine-addon", Version: "2.0.0", Worker: true})
+	target, err := manager.Stage(context.Background(), targetArchive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := manager.PrepareActivationReview(context.Background(), "engine-addon", target.GenerationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(review.Proposal.Blockers) != 1 || review.Proposal.Blockers[0].Code != "DEPENDENT_INCOMPATIBLE" {
+		t.Fatalf("identity dependency blockers = %+v", review.Proposal.Blockers)
+	}
+}
+
+func TestCohortRecoveryFailureKeepsReviewedDurableSelection(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	factory := &fakeRuntimeFactory{}
+	manager, _ := testManager(t, db, filepath.Join(t.TempDir(), "packages"), factory)
+	provider := stageServicePackage(t, manager, "engine-addon", "1.0.0", "3.1.0")
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "engine-addon", GenerationID: provider.GenerationID,
+		ExpectedStateRevision: 0, GrantedPermissionIDs: []string{"core.data.read"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	consumer := stageConsumerPackage(t, manager, "sheet-addon", "1.0.0")
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "sheet-addon", GenerationID: consumer.GenerationID, ExpectedStateRevision: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	target := stageServicePackage(t, manager, "engine-addon", "2.0.0", "3.2.0")
+	review, err := manager.PrepareActivationReview(context.Background(), "engine-addon", target.GenerationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.ApproveActivationReview(
+		context.Background(), review.ReviewID, []string{"core.data.read"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	factory.failVersions = map[string]error{"2.0.0": errors.New("target worker failed after commit")}
+	result, err := manager.ActivateReviewed(context.Background(), review.ReviewID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.State.ActiveGenerationID != target.GenerationID || result.State.Revision != 2 ||
+		len(result.RecoveryResults) != 2 || result.RecoveryResults[0].Recovered || result.RecoveryResults[1].Recovered {
+		t.Fatalf("degraded cohort result = %+v", result)
+	}
+	consumed, err := manager.GetActivationReview(context.Background(), review.ReviewID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if consumed.Status != ReviewConsumed {
+		t.Fatalf("review status = %s", consumed.Status)
+	}
 }
 
 func TestRecoveryNeverFallsBackFromCorruptActiveGeneration(t *testing.T) {
@@ -655,6 +806,8 @@ type packageSpec struct {
 	ContractVersion string
 	ConsumeContract string
 	OptionalConsume bool
+	DependencyID    string
+	DependencyRange string
 	Worker          bool
 	Permission      bool
 }
@@ -701,6 +854,11 @@ func writeAddonPackage(t *testing.T, spec packageSpec) string {
 	if spec.Permission {
 		manifest["permissions"] = []any{map[string]any{
 			"id": "core.data.read", "resources": []string{"characters"}, "reason": "Evaluate character state.",
+		}}
+	}
+	if spec.DependencyID != "" {
+		manifest["dependencies"] = []any{map[string]any{
+			"id": spec.DependencyID, "range": spec.DependencyRange, "required": true,
 		}}
 	}
 	if spec.Worker {

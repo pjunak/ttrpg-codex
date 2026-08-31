@@ -24,6 +24,10 @@ type recoveryCandidate struct {
 func (manager *Manager) Recover(ctx context.Context) ([]RecoveryResult, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
+	return manager.recoverLocked(ctx)
+}
+
+func (manager *Manager) recoverLocked(ctx context.Context) ([]RecoveryResult, error) {
 	if len(manager.runtimes) != 0 {
 		return nil, fmt.Errorf("%w: manager already has live generations", ErrRecoveryRequired)
 	}
@@ -205,6 +209,10 @@ func sortedCandidateIDs(values map[string]recoveryCandidate) []string {
 func (manager *Manager) Shutdown(ctx context.Context) error {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
+	return manager.shutdownLocked(ctx)
+}
+
+func (manager *Manager) shutdownLocked(ctx context.Context) error {
 	order := manager.shutdownOrder()
 	var shutdownErrors []error
 	for _, addonID := range order {

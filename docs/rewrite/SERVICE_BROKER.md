@@ -116,16 +116,14 @@ and invalidated counts.
 ## Lifecycle integration and next boundary
 
 The package manager now owns catalog publication and exact runtime activation
-for initial activation, updates, rollback, and restart recovery. Its ordering
-and failure contract is in
+for initial activation, updates, rollback, reviewed cold-graph rebinding, and
+restart recovery. Its ordering and failure contract is in
 [`PACKAGE_LIFECYCLE.md`](PACKAGE_LIFECYCLE.md).
 
 The remaining broker integrations are:
 
 - expose activation diagnostics and binding editors through HTTP and the
   Add-on Inspector;
-- coordinate provider changes with dependent consumer restart/rebinding rather
-  than allowing a partial live upgrade;
 - implement UI and immutable-content service transport adapters;
 - implement the concrete data, event, import, migration, and HTTP host methods.
 
