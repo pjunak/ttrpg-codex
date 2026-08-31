@@ -159,6 +159,12 @@ supervisor owns one generation-scoped runtime per enabled add-on, applies
 limits and deadlines, restarts only according to policy, and invalidates all
 handles during teardown.
 
+The implemented package coordinator uses the archive SHA-256 as the generation
+ID, keeps the active pointer and grants revisioned in SQLite, verifies archive
+and extracted files before every activation/recovery, and starts providers
+before required consumers after restart. Detailed switch and rollback ordering
+is in [the lifecycle contract](rewrite/PACKAGE_LIFECYCLE.md).
+
 The broker resolves service contracts and persists operator bindings. It also
 routes UI and worker service calls through the same authorization, tracing,
 deadline, and schema-validation path.

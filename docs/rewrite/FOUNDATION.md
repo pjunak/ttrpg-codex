@@ -50,12 +50,13 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
 - The Go process opens SQLite with foreign keys, WAL, a bounded busy timeout,
   defensive settings, and numbered checksum-verified migrations.
 - The initial HTTP boundary exposes no-store health and version responses.
-- The v3 package inspector validates a ZIP without executing or extracting it,
+- The v3 package inspector validates a ZIP before execution,
   applies archive and expansion limits, rejects unsafe paths and entry types,
   verifies the complete SHA-256 inventory, validates the manifest, and checks
-  every declared package file and JSON Schema. The inspection CLI emits a
-  machine-readable success report or stable failure code without executing or
-  extracting the package.
+  every declared package file and JSON Schema. It can safely extract a private
+  staged copy and later reverify the exact extracted tree. The inspection CLI
+  remains read-only and emits a machine-readable success report or stable
+  failure code without executing or extracting the package.
 - The TypeScript shell validates responses at the HTTP boundary. Its
   generation scope establishes abort-first, LIFO, once-only, failure-isolated
   add-on cleanup semantics before UI SDK handles are added.
@@ -83,9 +84,15 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   request contexts, and routes schema-validated worker service calls through
   generation-safe handles. See
   [`SERVICE_BROKER.md`](SERVICE_BROKER.md).
+- The package lifecycle manager publishes immutable archive-hash generations,
+  consumes revisioned permission plans, coordinates start/switch/cleanup with
+  the service broker, reuses the verified path for rollback, and reconstructs
+  exact active generations in provider-before-consumer order after restart.
+  It refuses provider changes that would strand live dependent handles. See
+  [`PACKAGE_LIFECYCLE.md`](PACKAGE_LIFECYCLE.md).
 
 These are foundation contracts, not a compatibility claim. Authentication,
-core data migration, package/lifecycle integration, service-schema registry
-compilation, concrete host method implementations, and import execution remain
-subsequent milestones in the dependency order in
+core data migration, reviewed lifecycle HTTP APIs, coordinated dependent
+updates, browser generation switching, concrete host method implementations,
+and import execution remain subsequent milestones in the dependency order in
 `docs/REWRITE_ARCHITECTURE.md`.

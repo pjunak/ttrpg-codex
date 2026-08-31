@@ -6,6 +6,7 @@ type Manifest struct {
 	Name             string            `json:"name"`
 	Version          string            `json:"version"`
 	Compatibility    Compatibility     `json:"compatibility"`
+	Capabilities     Capabilities      `json:"capabilities"`
 	Runtime          *Runtime          `json:"runtime,omitempty"`
 	Permissions      []Permission      `json:"permissions"`
 	Contributions    []Contribution    `json:"contributions,omitempty"`
@@ -15,6 +16,11 @@ type Manifest struct {
 	Content          []ContentSet      `json:"content,omitempty"`
 	Locales          map[string]string `json:"locales,omitempty"`
 	Dependencies     []Dependency      `json:"dependencies,omitempty"`
+}
+
+type Capabilities struct {
+	Required []string `json:"required"`
+	Optional []string `json:"optional"`
 }
 
 type Compatibility struct {

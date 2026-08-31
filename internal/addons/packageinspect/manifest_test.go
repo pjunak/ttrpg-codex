@@ -31,3 +31,20 @@ func TestManifestRetainsCompleteServiceConsumerPolicy(t *testing.T) {
 		t.Fatalf("incomplete service consumer policy: %+v", consumer)
 	}
 }
+
+func TestManifestRetainsCapabilities(t *testing.T) {
+	t.Parallel()
+
+	var manifest Manifest
+	if err := json.Unmarshal([]byte(`{
+		"capabilities": {
+			"required": ["worker.native", "services.broker"],
+			"optional": ["worker.health-details"]
+		}
+	}`), &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.Capabilities.Required) != 2 || manifest.Capabilities.Optional[0] != "worker.health-details" {
+		t.Fatalf("incomplete capability policy: %+v", manifest.Capabilities)
+	}
+}

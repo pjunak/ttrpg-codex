@@ -113,15 +113,19 @@ replacement. The registry has a fixed active-context limit and no payload
 storage. Its snapshot exposes only active, issued, resolved, rejected, expired,
 and invalidated counts.
 
-## Current limits and next boundary
+## Lifecycle integration and next boundary
 
-This milestone supplies provider persistence, selection, runtime identity,
-package-owned method contracts, lineage, and worker routing. It does not yet:
+The package manager now owns catalog publication and exact runtime activation
+for initial activation, updates, rollback, and restart recovery. Its ordering
+and failure contract is in
+[`PACKAGE_LIFECYCLE.md`](PACKAGE_LIFECYCLE.md).
 
-- wire package install/update/rollback and lifecycle orchestration to the
-  catalog and runtime activation APIs;
+The remaining broker integrations are:
+
 - expose activation diagnostics and binding editors through HTTP and the
   Add-on Inspector;
+- coordinate provider changes with dependent consumer restart/rebinding rather
+  than allowing a partial live upgrade;
 - implement UI and immutable-content service transport adapters;
 - implement the concrete data, event, import, migration, and HTTP host methods.
 

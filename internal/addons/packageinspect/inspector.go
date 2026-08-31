@@ -52,12 +52,18 @@ type File struct {
 }
 
 type Report struct {
-	ArchiveBytes     int64                         `json:"archiveBytes"`
-	ExpandedBytes    uint64                        `json:"expandedBytes"`
-	ArchiveSHA256    string                        `json:"archiveSha256"`
-	Manifest         Manifest                      `json:"manifest"`
-	Files            []File                        `json:"files"`
-	ServiceContracts []servicecontract.Description `json:"serviceContracts"`
+	ArchiveBytes            int64                         `json:"archiveBytes"`
+	ExpandedBytes           uint64                        `json:"expandedBytes"`
+	ArchiveSHA256           string                        `json:"archiveSha256"`
+	ChecksumInventorySHA256 string                        `json:"checksumInventorySha256"`
+	Manifest                Manifest                      `json:"manifest"`
+	Files                   []File                        `json:"files"`
+	ServiceContracts        []servicecontract.Description `json:"serviceContracts"`
+	serviceRegistry         *servicecontract.Registry
+}
+
+func (report Report) ServiceRegistry() *servicecontract.Registry {
+	return report.serviceRegistry
 }
 
 type Inspector struct {
@@ -196,13 +202,16 @@ func (i *Inspector) InspectFile(ctx context.Context, filename string) (Report, e
 		return Report{}, err
 	}
 
+	checksumDigest := sha256.Sum256(checksumBody)
 	return Report{
-		ArchiveBytes:     stat.Size(),
-		ExpandedBytes:    expandedBytes,
-		ArchiveSHA256:    archiveDigest,
-		Manifest:         manifest,
-		Files:            files,
-		ServiceContracts: serviceRegistry.Descriptions(),
+		ArchiveBytes:            stat.Size(),
+		ExpandedBytes:           expandedBytes,
+		ArchiveSHA256:           archiveDigest,
+		ChecksumInventorySHA256: hex.EncodeToString(checksumDigest[:]),
+		Manifest:                manifest,
+		Files:                   files,
+		ServiceContracts:        serviceRegistry.Descriptions(),
+		serviceRegistry:         serviceRegistry,
 	}, nil
 }
 

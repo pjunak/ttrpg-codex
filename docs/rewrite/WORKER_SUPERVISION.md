@@ -12,8 +12,10 @@ milestones.
 
 | Component | Owns |
 |---|---|
-| Package installer | Verifying the package and selecting an exact executable for the current target |
-| Generation manager | Activation, consecutive-failure accounting, restart decisions, and replacement generations |
+| Package inspector | Verifying and extracting a content-addressed package generation |
+| Package manager | Activation, durable generation selection, grants, dependency ordering, rollback, and recovery |
+| Supervisor factory | Selecting the exact native executable for the current target and constructing one supervisor |
+| Generation manager | Consecutive-failure accounting and restart decisions (future lifecycle extension) |
 | Native worker supervisor | Exact process launch, lifecycle negotiation, health, bounded diagnostics, deadlines, and termination |
 | Worker RPC codec | Framing, UTF-8 and JSON-RPC envelope validation, and bounded I/O |
 | Worker RPC peer | Continuous reads, correlated calls, concurrency, cancellation, and transport counters |
@@ -36,10 +38,10 @@ The supervisor owns the parent pipe ends directly instead of relying on
 while the peer is still draining a final response frame.
 
 The child receives only the explicit environment map supplied by the host.
-The parent process environment is not inherited. The generation manager will
-eventually populate the small portable subset workers need, such as an
-explicit temporary directory, rather than leaking host secrets or machine
-configuration by default.
+The parent process environment is not inherited. The package manager's
+supervisor factory supplies that reviewed environment, the normalized
+permission grants, and exact generation-bound service handles; it does not
+leak host secrets or machine configuration by default.
 
 Stderr is retained as a bounded newest-byte tail for the Inspector. Stdout is
 protocol-only. The tail is raw process output at this layer; structured-log
@@ -115,8 +117,10 @@ and four seconds, capped at 30 seconds. Consecutive failures and the
 five-minute stability reset are manager-owned state, so replacing a supervisor
 cannot accidentally reset a crash loop.
 
-Automatic restart wiring is not part of this milestone. Exposing the decision
-as a pure function makes the later manager testable without sleeping.
+The package manager now owns initial start, replacement, rollback, shutdown,
+and host-restart recovery. Automatic crash restart wiring is not part of this
+milestone. Exposing the decision as a pure function keeps the later policy
+testable without sleeping.
 
 ## Current scale and revisit points
 

@@ -15,6 +15,7 @@ const (
 	CodeChecksumMismatch   = "CHECKSUM_MISMATCH"
 	CodeInvalidDeclaration = "INVALID_DECLARATION"
 	CodeInvalidSchema      = "INVALID_SCHEMA"
+	CodeExtractionFailed   = "EXTRACTION_FAILED"
 )
 
 type InspectionError struct {
