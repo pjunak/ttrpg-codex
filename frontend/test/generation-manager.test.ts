@@ -24,8 +24,8 @@ describe("BrowserGenerationManager", () => {
       };
     });
 
-    await manager.reconcile({ graphRevision: "graph-1", addons: [consumer, providerV1] });
-    const result = await manager.reconcile({ graphRevision: "graph-2", addons: [consumer, providerV2] });
+    await manager.reconcile({ contractVersion: 1, graphRevision: "graph-1", addons: [consumer, providerV1] });
+    const result = await manager.reconcile({ contractVersion: 1, graphRevision: "graph-2", addons: [consumer, providerV2] });
 
     expect(result.activationFailures).toEqual([]);
     expect(result.disposalFailures).toEqual([]);
@@ -55,6 +55,7 @@ describe("BrowserGenerationManager", () => {
     });
 
     const result = await manager.reconcile({
+      contractVersion: 1,
       graphRevision: "graph-1",
       addons: [consumer, independent, providerV1],
     });
@@ -69,11 +70,11 @@ describe("BrowserGenerationManager", () => {
   it("validates the complete graph before disposing the current one", async () => {
     const stop = vi.fn();
     const manager = new BrowserGenerationManager(() => stop);
-    await manager.reconcile({ graphRevision: "graph-1", addons: [providerV1] });
+    await manager.reconcile({ contractVersion: 1, graphRevision: "graph-1", addons: [providerV1] });
 
     const left = generation("left-addon", "left", ["right-addon"]);
     const right = generation("right-addon", "right", ["left-addon"]);
-    expect(() => manager.reconcile({ graphRevision: "graph-2", addons: [left, right] })).toThrow(
+    expect(() => manager.reconcile({ contractVersion: 1, graphRevision: "graph-2", addons: [left, right] })).toThrow(
       BrowserGenerationPlanError,
     );
 
@@ -81,10 +82,12 @@ describe("BrowserGenerationManager", () => {
     expect(manager.activeGenerations()).toEqual([providerV1]);
 
     expect(() => manager.reconcile({
+      contractVersion: 1,
       graphRevision: "graph-2",
       addons: [{ ...providerV2, entryUrl: "https://example.invalid/addon.js" }],
     })).toThrow(BrowserGenerationPlanError);
     expect(() => manager.reconcile({
+      contractVersion: 1,
       graphRevision: "graph-2",
       addons: [generation("orphan-addon", "orphan", ["missing-addon"])],
     })).toThrow(BrowserGenerationPlanError);
@@ -107,8 +110,8 @@ describe("BrowserGenerationManager", () => {
       };
     });
 
-    const first = manager.reconcile({ graphRevision: "graph-1", addons: [providerV1] });
-    const second = manager.reconcile({ graphRevision: "graph-2", addons: [providerV2] });
+    const first = manager.reconcile({ contractVersion: 1, graphRevision: "graph-1", addons: [providerV1] });
+    const second = manager.reconcile({ contractVersion: 1, graphRevision: "graph-2", addons: [providerV2] });
     releaseFirst?.();
     await Promise.all([first, second]);
 
@@ -128,7 +131,7 @@ describe("BrowserGenerationManager", () => {
     const importer = vi.fn(async () => ({ activate }));
     const manager = new BrowserGenerationManager(createModuleActivator(importer));
 
-    await manager.reconcile({ graphRevision: "graph-1", addons: [providerV1] });
+    await manager.reconcile({ contractVersion: 1, graphRevision: "graph-1", addons: [providerV1] });
     await manager.dispose("uninstalled");
 
     expect(importer).toHaveBeenCalledWith(providerV1.entryUrl);
@@ -141,7 +144,7 @@ describe("BrowserGenerationManager", () => {
     const importer = vi.fn(async () => ({ activate: () => null }));
     const manager = new BrowserGenerationManager(createModuleActivator(importer));
 
-    const result = await manager.reconcile({ graphRevision: "graph-1", addons: [providerV1] });
+    const result = await manager.reconcile({ contractVersion: 1, graphRevision: "graph-1", addons: [providerV1] });
 
     expect(result.active).toEqual([]);
     expect(result.activationFailures).toHaveLength(1);

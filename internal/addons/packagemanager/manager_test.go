@@ -765,7 +765,8 @@ func TestBrowserGraphProjectsRecoveredUIGenerationsAndChangesOnReload(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(graph.GraphRevision) != 64 || len(graph.Addons) != 2 {
+	if graph.ContractVersion != BrowserGraphContractVersion ||
+		len(graph.GraphRevision) != 64 || len(graph.Addons) != 2 {
 		t.Fatalf("browser graph = %+v", graph)
 	}
 	if graph.Addons[0].AddonID != "character-sheets" ||

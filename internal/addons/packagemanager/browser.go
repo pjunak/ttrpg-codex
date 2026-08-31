@@ -24,6 +24,8 @@ type browserGraphState struct {
 	Revision           int64  `json:"revision"`
 }
 
+const BrowserGraphContractVersion = 1
+
 // BrowserGraph projects only recovered, server-authoritative UI generations.
 // Its opaque revision also includes every durable active add-on state, so a
 // worker-only reload or provider cohort can force browser SDK handles to be
@@ -84,14 +86,18 @@ func (manager *Manager) BrowserGraph(ctx context.Context) (BrowserGraph, error) 
 	}
 	sort.Slice(addOns, func(left, right int) bool { return addOns[left].AddonID < addOns[right].AddonID })
 	body, err := json.Marshal(struct {
-		States []browserGraphState `json:"states"`
-		Addons []BrowserGeneration `json:"addons"`
-	}{States: revisionStates, Addons: addOns})
+		ContractVersion int                 `json:"contractVersion"`
+		States          []browserGraphState `json:"states"`
+		Addons          []BrowserGeneration `json:"addons"`
+	}{ContractVersion: BrowserGraphContractVersion, States: revisionStates, Addons: addOns})
 	if err != nil {
 		return BrowserGraph{}, fmt.Errorf("encode browser graph revision: %w", err)
 	}
 	digest := sha256.Sum256(body)
-	return BrowserGraph{GraphRevision: hex.EncodeToString(digest[:]), Addons: addOns}, nil
+	return BrowserGraph{
+		ContractVersion: BrowserGraphContractVersion,
+		GraphRevision:   hex.EncodeToString(digest[:]), Addons: addOns,
+	}, nil
 }
 
 func browserAssetURL(addonID string, generationID string, packagePath string) string {

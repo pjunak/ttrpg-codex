@@ -176,8 +176,9 @@ type RecoveryResult struct {
 }
 
 type BrowserGraph struct {
-	GraphRevision string              `json:"graphRevision"`
-	Addons        []BrowserGeneration `json:"addons"`
+	ContractVersion int                 `json:"contractVersion"`
+	GraphRevision   string              `json:"graphRevision"`
+	Addons          []BrowserGeneration `json:"addons"`
 }
 
 type BrowserGeneration struct {

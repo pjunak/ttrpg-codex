@@ -67,7 +67,10 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   generation scope establishes abort-first, LIFO, once-only, failure-isolated
   cleanup. A serialized browser generation manager validates a complete
   server-authoritative dependency graph, tears consumers down before providers,
-  and rebuilds providers before consumers for each opaque graph revision. See
+  and rebuilds providers before consumers for each opaque graph revision. Its
+  graph client validates the exact versioned wire shape and generation-bound
+  URLs, serializes private ETag refreshes, and preserves the last accepted
+  graph across malformed or failed responses. See
   [`BROWSER_ADDONS.md`](BROWSER_ADDONS.md).
 - The shared Go worker codec enforces bounded canonical `Content-Length`
   framing, serializes concurrent writes, validates UTF-8/JSON/envelopes, and
@@ -110,6 +113,6 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
 
 These are foundation contracts, not a compatibility claim. Authentication,
 core data migration, production composition of the protected lifecycle and
-browser APIs, coordinated dependent disable, browser graph client/SDK integration,
+browser APIs, coordinated dependent disable, browser shell/SDK integration,
 concrete host method implementations, and import execution remain subsequent
 milestones in the dependency order in `docs/REWRITE_ARCHITECTURE.md`.

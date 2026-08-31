@@ -60,8 +60,9 @@ func TestBrowserGraphUsesPrivateRevalidationContract(t *testing.T) {
 
 	revision := strings.Repeat("a", 64)
 	source := &recordingBrowserSource{graph: packagemanager.BrowserGraph{
-		GraphRevision: revision,
-		Addons:        []packagemanager.BrowserGeneration{},
+		ContractVersion: packagemanager.BrowserGraphContractVersion,
+		GraphRevision:   revision,
+		Addons:          []packagemanager.BrowserGeneration{},
 	}}
 	handler := newBrowserHandler(t, source, func(*http.Request) error { return nil })
 	response := serveBrowserRequest(handler, http.MethodGet, "/api/addons/browser-graph", "")

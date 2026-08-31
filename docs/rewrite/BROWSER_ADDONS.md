@@ -7,7 +7,8 @@ revision and an already-authorized descriptor for each browser contribution.
 
 ## Graph contract
 
-Each descriptor contains:
+The graph envelope declares browser graph contract version `1`. Each
+descriptor contains:
 
 - a stable add-on ID;
 - the add-on version;
@@ -26,6 +27,10 @@ The coordinator validates the complete graph before touching live UI. It
 rejects duplicate or malformed IDs, missing dependencies, self-dependencies,
 cycles, unsafe entry URLs, oversized values, and more than 100 active browser
 generations.
+
+The contract version is independent of the opaque graph revision and Add-on
+API version. An unsupported contract version fails before browser lifecycle
+state changes.
 
 ## Host projection
 
@@ -71,6 +76,21 @@ Graph change notification will use the shared role-scoped event stream once
 authentication and SSE replay are composed. There is deliberately no second
 add-on-only SSE connection or reconnect policy.
 
+## TypeScript transport
+
+`BrowserGraphClient` serializes refreshes and owns the strong ETag for the last
+accepted graph. It sends same-origin credentials and `If-None-Match`, returns
+the cached immutable value for a 304, and never interprets an HTTP error body.
+`reset()` invalidates both the cache and any in-flight response so a role or
+session transition cannot repopulate stale authority.
+
+A 200 response is accepted only when it is JSON below 512 KiB, uses contract
+version 1, has exact object fields, lowercase SHA-256 revisions and generation
+IDs, and contains only generation-bound asset URLs. The generation manager's
+canonical validator then enforces URL, sandbox, duplicate, dependency, and
+cycle semantics before the client replaces its last good graph. Reusing one
+revision for different content is a boundary failure.
+
 ## Cold graph switch
 
 Any changed graph revision deliberately rebuilds the complete contribution
@@ -113,8 +133,8 @@ modules do not receive host globals or private DOM access.
 ## Remaining integration
 
 - Compose rewrite authentication with the implemented browser routes.
-- Runtime-validate and conditionally fetch the graph from TypeScript.
 - Signal graph changes through the shared role-scoped SSE stream.
+- Wire the implemented graph client and generation manager into the shell.
 - Build the capability-scoped browser SDK and stable contribution slots.
 - Surface activation and disposal diagnostics in the Add-on Inspector.
 - Add Playwright coverage once real contribution modules are wired.

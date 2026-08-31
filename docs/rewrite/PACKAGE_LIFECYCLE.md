@@ -190,7 +190,7 @@ State/review conflicts use HTTP 409, rejected lifecycle inputs use 422, worker
 activation failure uses 503, and unclassified failures use a generic 500.
 
 Browser delivery is a separate read-only authorization surface. It exposes the
-private revalidated graph at `GET /api/addons/browser-graph` and exact
+versioned private revalidated graph at `GET /api/addons/browser-graph` and exact
 generation assets below
 `GET /api/addons/{addonId}/generations/{generationId}/assets/web/...`.
 Generation assets are served only while that exact package is recovered,
@@ -221,9 +221,9 @@ payloads are not stored in the event log.
 - Planned generation bindings for add-ons that consume their own service.
 - Coordinated dependent disable and uninstall transitions.
 - Uninstall, quarantine, and separate reviewed data deletion.
-- Authentication composition, runtime-validated TypeScript graph retrieval,
-  shared SSE invalidation, and UI SDK integration over the implemented browser
-  HTTP projection and switch coordinator.
+- Authentication composition, shared SSE invalidation, shell wiring, and UI
+  SDK integration over the implemented runtime-validated browser HTTP client,
+  projection, and switch coordinator.
 - Add-on data migration planning and recoverable commit.
 - WASI runtime factory, restart/backoff wiring, OS resource enforcement, and
   redacted support-bundle diagnostics.

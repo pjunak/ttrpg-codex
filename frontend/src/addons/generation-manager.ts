@@ -18,6 +18,7 @@ export interface BrowserGenerationDescriptor {
 }
 
 export interface BrowserGenerationSet {
+  readonly contractVersion: 1;
   readonly graphRevision: string;
   readonly addons: readonly BrowserGenerationDescriptor[];
 }
@@ -268,6 +269,18 @@ export class BrowserGenerationManager {
   }
 }
 
+/** Validates and returns one detached, canonical browser graph value. */
+export function validateBrowserGenerationSet(target: BrowserGenerationSet): BrowserGenerationSet {
+  const normalized = normalizeGenerationSet(target);
+  return {
+    contractVersion: 1,
+    graphRevision: normalized.graphRevision,
+    addons: [...normalized.addons.values()].sort((left, right) =>
+      left.addonId.localeCompare(right.addonId)
+    ),
+  };
+}
+
 export function createModuleActivator(
   importModule: BrowserGenerationImporter,
 ): BrowserGenerationActivator {
@@ -293,6 +306,9 @@ export function createModuleActivator(
 }
 
 function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerationSet {
+  if (target.contractVersion !== 1) {
+    throw new BrowserGenerationPlanError("unsupported browser graph contract version");
+  }
   if (!validToken(target.graphRevision, 200)) {
     throw new BrowserGenerationPlanError("graphRevision must be a non-empty bounded token");
   }

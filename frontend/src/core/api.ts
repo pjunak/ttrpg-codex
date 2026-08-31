@@ -1,15 +1,11 @@
+import { BoundaryValidationError, isRecord } from "./boundary.js";
+
 export interface Health {
   status: "ok";
   version: string;
 }
 
-export class BoundaryValidationError extends Error {
-  override readonly name = "BoundaryValidationError";
-
-  constructor(readonly boundary: string, message: string) {
-    super(`${boundary}: ${message}`);
-  }
-}
+export { BoundaryValidationError } from "./boundary.js";
 
 export function parseHealth(value: unknown): Health {
   if (!isRecord(value)) {
@@ -33,8 +29,4 @@ export async function getHealth(signal: AbortSignal): Promise<Health> {
     throw new Error(`GET /api/health returned ${response.status}`);
   }
   return parseHealth(await response.json());
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
