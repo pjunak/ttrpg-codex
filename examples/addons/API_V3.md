@@ -367,6 +367,27 @@ output before initialization terminate the generation with a precise protocol
 failure. Stdout contains only framed protocol messages. Human or structured
 diagnostic output goes to stderr.
 
+Protocol v1 accepts exactly one case-insensitive `Content-Length` header with a
+positive decimal byte count. It requires CRLF line endings and rejects every
+other header; extending the header block is therefore a negotiated protocol
+change rather than something an old host silently ignores.
+
+Framing and envelope failures use stable diagnostic codes:
+
+| Code | Meaning |
+|---|---|
+| `HEADER_TOO_LARGE` | Header bytes exceeded the negotiated limit |
+| `MALFORMED_HEADER` | Header syntax or CRLF framing is invalid |
+| `UNSUPPORTED_HEADER` | A v1 frame included a header other than `Content-Length` |
+| `MISSING_CONTENT_LENGTH` | No length header was provided |
+| `DUPLICATE_CONTENT_LENGTH` | More than one length header was provided |
+| `INVALID_CONTENT_LENGTH` | The length is empty, zero, or not decimal |
+| `FRAME_TOO_LARGE` | The declared or encoded body exceeds the negotiated limit |
+| `TRUNCATED_FRAME` | The stream ended before the declared body length |
+| `INVALID_UTF8` | The body is not UTF-8 |
+| `INVALID_JSON` | The body is not exactly one JSON value |
+| `INVALID_ENVELOPE` | JSON does not match the negotiated JSON-RPC envelope |
+
 The envelope schema is
 [`protocol.schema.json`](../../contracts/addons/v3/protocol.schema.json).
 

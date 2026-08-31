@@ -49,6 +49,9 @@ major-version decision. Adding an optional field does not.
 Protocol framing is outside `protocol.schema.json`. A message is accepted only
 after its `Content-Length` frame, UTF-8 bytes, JSON syntax, envelope, negotiated
 method, metadata, and method-specific params/result schema all validate.
+The shared Go framing and envelope implementation lives in
+[`sdk/go/workerrpc`](../../../sdk/go/workerrpc); host supervisor policy remains
+internal to the host.
 
 ## Extension rule
 
