@@ -75,7 +75,10 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   [`BROWSER_ADDONS.md`](BROWSER_ADDONS.md). A runtime coordinator serializes
   that transport through reconciliation, preserves active contributions on
   fetch failures, and invalidates cached authority before ordered teardown on
-  role or session changes.
+  role or session changes. The browser SDK exposes immutable identity and
+  effective authority without leaking the internal generation scope. Its
+  host-owned registry binds only declared, surface-compatible custom elements,
+  actions, or model providers and removes them before module cleanup.
 - The shared Go worker codec enforces bounded canonical `Content-Length`
   framing, serializes concurrent writes, validates UTF-8/JSON/envelopes, and
   reports stable transport failure codes. The same package is usable by the

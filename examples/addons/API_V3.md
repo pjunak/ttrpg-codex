@@ -209,6 +209,8 @@ interface AddonContext {
     readonly generation: string;
   };
   readonly signal: AbortSignal;
+  readonly capabilities: CapabilityApi;
+  readonly permissions: PermissionApi;
   readonly ui: UiApi;
   readonly data: DataApi;
   readonly services: ServiceApi;
@@ -235,7 +237,8 @@ custom element or handler to that declared ID:
 
 ```ts
 context.ui.bind("planner.route", {
-  element: "dm-tools-planner-page",
+  kind: "element",
+  tag: "dm-tools-planner-page",
 });
 ```
 
@@ -243,6 +246,13 @@ The host rejects undeclared IDs or surfaces. Contributions receive documented
 properties and emit documented `CustomEvent` payloads. They MUST NOT depend on
 private host selectors, global variables, string action names, or raw HTML
 injection.
+
+The initial binding shapes are discriminated and host validated:
+`{ kind: "element", tag }` for visual custom-element surfaces,
+`{ kind: "action", run }` for article actions, and
+`{ kind: "model-provider", provide }` for graph views and contributors.
+Sidebar declarations are navigation metadata and do not bind executable code.
+Every callback is wrapped in the generation abort signal.
 
 Initial surfaces cover existing suite needs:
 

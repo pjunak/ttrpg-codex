@@ -159,17 +159,40 @@ then runs cleanup once in LIFO order with failure isolation.
 
 `BrowserGenerationManager` receives an injected activator. The supplied module
 adapter imports the server-provided immutable entry URL, requires an
-`activate(context)` export, passes only the generation context and scope, and
-adapts the v3 `{ dispose() }` result into scope-owned cleanup. It refuses an
-isolated descriptor; iframe activation remains a separate adapter. Dynamic
-import policy and the actual browser SDK remain composition concerns; add-on
-modules do not receive host globals or private DOM access.
+`activate(context)` export, and adapts the v3 `{ dispose() }` result into
+scope-owned cleanup. It refuses an isolated descriptor; iframe activation
+remains a separate adapter. Dynamic import policy remains a shell composition
+concern.
+
+Integrated modules receive a public `BrowserAddonContext`, never the internal
+generation scope or graph descriptor. The context exposes immutable add-on
+identity, the generation abort signal, effective capability and permission
+queries, and the UI binding API. Those queries support conditional UI only;
+server endpoints must independently enforce every permission and resource.
+Closed sessions report no authority and reject new contribution work.
+
+`BrowserContributionRegistry` owns every live implementation by add-on,
+contribution ID, and generation. It rejects undeclared IDs, duplicate binding,
+replacement-generation theft, invalid custom-element names, and an
+implementation shape that does not match the declared surface. Visual surfaces
+bind custom elements, article actions bind action functions, and graph views or
+contributors bind model providers. Sidebar entries are declarative and cannot
+bind code. No binding accepts raw HTML or a string action dispatcher.
+
+Registry queries apply declared roles and deterministic order without exposing
+private host DOM. Action and model callbacks are wrapped with the generation
+signal so a stale registry snapshot cannot execute after revocation. A partial
+activation is held by a fallback SDK disposer; successful activation transfers
+cleanup into one composite that unpublishes contributions before calling the
+module's own disposer.
 
 ## Remaining integration
 
 - Compose rewrite authentication with the implemented browser routes.
 - Signal graph changes through the shared role-scoped SSE stream.
 - Wire the implemented runtime coordinator into the shell.
-- Build the capability-scoped browser SDK and stable contribution slots.
+- Add data, service, import, event, settings, navigation, graph, and log handles
+  to the implemented capability-scoped SDK as their transports land.
+- Implement the isolated iframe bridge over the same logical SDK contract.
 - Surface activation and disposal diagnostics in the Add-on Inspector.
 - Add Playwright coverage once real contribution modules are wired.

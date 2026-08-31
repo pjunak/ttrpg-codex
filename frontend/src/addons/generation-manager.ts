@@ -3,6 +3,10 @@ import {
   type Disposer,
   type GenerationStopReason,
 } from "./generation-scope.js";
+import type {
+  BrowserAddonContext,
+  BrowserAddonSDKSession,
+} from "./browser-sdk.js";
 
 const addonIdPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
@@ -74,7 +78,7 @@ export type BrowserGenerationActivator = (
 
 export interface BrowserGenerationModule {
   activate(
-    context: BrowserGenerationContext,
+    context: BrowserAddonContext,
   ): void | BrowserGenerationDisposable | Promise<void | BrowserGenerationDisposable>;
 }
 
@@ -83,6 +87,11 @@ export interface BrowserGenerationDisposable {
 }
 
 export type BrowserGenerationImporter = (entryUrl: string) => Promise<unknown>;
+
+export type BrowserAddonSDKFactory = (
+  descriptor: BrowserGenerationDescriptor,
+  scope: GenerationScope,
+) => BrowserAddonSDKSession;
 
 export interface BrowserActivationFailure {
   readonly addonId: string;
@@ -319,25 +328,27 @@ export function validateBrowserGenerationSet(target: BrowserGenerationSet): Brow
 
 export function createModuleActivator(
   importModule: BrowserGenerationImporter,
+  createSDK: BrowserAddonSDKFactory,
 ): BrowserGenerationActivator {
   return async (descriptor, context) => {
     if (descriptor.mode !== "integrated") {
       throw new TypeError(`browser add-on ${descriptor.addonId} is not an integrated module`);
     }
+    const sdk = createSDK(descriptor, context.scope);
     const imported = await importModule(descriptor.entryUrl);
     if (!isBrowserGenerationModule(imported)) {
       throw new TypeError(`browser add-on module ${descriptor.entryUrl} must export activate(context)`);
     }
-    const disposable = await imported.activate(context);
-    if (disposable === undefined) {
-      return undefined;
-    }
-    if (!isBrowserGenerationDisposable(disposable)) {
+    const disposable = await imported.activate(sdk.context);
+    if (disposable !== undefined && !isBrowserGenerationDisposable(disposable)) {
       throw new TypeError(
         `browser add-on module ${descriptor.entryUrl} activate(context) must return { dispose() } or undefined`,
       );
     }
-    return () => disposable.dispose();
+    return async () => {
+      sdk.dispose();
+      await disposable?.dispose();
+    };
   };
 }
 

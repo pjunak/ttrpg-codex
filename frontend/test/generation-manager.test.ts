@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  BrowserContributionRegistry,
+  type BrowserAddonContext,
+} from "../src/addons/browser-sdk.js";
+import {
   BrowserGenerationManager,
   BrowserGenerationPlanError,
   createModuleActivator,
   type BrowserGenerationDescriptor,
-  type BrowserGenerationContext,
 } from "../src/addons/generation-manager.js";
 
 const providerV1 = generation("rules-engine", "generation-1");
@@ -138,14 +141,17 @@ describe("BrowserGenerationManager", () => {
   it("loads a module through the injected immutable-entry importer", async () => {
     const dispose = vi.fn();
     let stopReason: unknown;
-    const activate = vi.fn((context: BrowserGenerationContext) => {
+    const activate = vi.fn((context: BrowserAddonContext) => {
       context.signal.addEventListener("abort", () => {
         stopReason = context.signal.reason;
       });
       return { dispose };
     });
     const importer = vi.fn(async () => ({ activate }));
-    const manager = new BrowserGenerationManager(createModuleActivator(importer));
+    const registry = new BrowserContributionRegistry();
+    const manager = new BrowserGenerationManager(
+      createModuleActivator(importer, (descriptor, scope) => registry.open(descriptor, scope)),
+    );
 
     await manager.reconcile({ contractVersion: 2, graphRevision: "graph-1", addons: [providerV1] });
     await manager.dispose("uninstalled");
@@ -158,7 +164,10 @@ describe("BrowserGenerationManager", () => {
 
   it("isolates a module that returns an invalid disposable", async () => {
     const importer = vi.fn(async () => ({ activate: () => null }));
-    const manager = new BrowserGenerationManager(createModuleActivator(importer));
+    const registry = new BrowserContributionRegistry();
+    const manager = new BrowserGenerationManager(
+      createModuleActivator(importer, (descriptor, scope) => registry.open(descriptor, scope)),
+    );
 
     const result = await manager.reconcile({ contractVersion: 2, graphRevision: "graph-1", addons: [providerV1] });
 
