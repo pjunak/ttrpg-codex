@@ -3,6 +3,8 @@ package workersupervisor
 import (
 	"fmt"
 	"time"
+
+	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
 )
 
 type State string
@@ -20,13 +22,14 @@ const (
 )
 
 const (
-	CodeInvalidState   = "INVALID_STATE"
-	CodeSpawnFailed    = "SPAWN_FAILED"
-	CodeStartupFailed  = "STARTUP_FAILED"
-	CodeStartupTimed   = "STARTUP_TIMEOUT"
-	CodeHealthFailed   = "HEALTH_FAILED"
-	CodeShutdownFailed = "SHUTDOWN_FAILED"
-	CodeProcessExited  = "PROCESS_EXITED"
+	CodeInvalidState    = "INVALID_STATE"
+	CodeSpawnFailed     = "SPAWN_FAILED"
+	CodeStartupFailed   = "STARTUP_FAILED"
+	CodeStartupTimed    = "STARTUP_TIMEOUT"
+	CodeHealthFailed    = "HEALTH_FAILED"
+	CodeShutdownFailed  = "SHUTDOWN_FAILED"
+	CodeProcessExited   = "PROCESS_EXITED"
+	CodeTransportFailed = "TRANSPORT_FAILED"
 )
 
 type LifecycleError struct {
@@ -73,16 +76,17 @@ type Negotiated struct {
 }
 
 type Snapshot struct {
-	Identity    Identity     `json:"identity"`
-	State       State        `json:"state"`
-	PID         int          `json:"pid,omitempty"`
-	StartedAt   *time.Time   `json:"startedAt,omitempty"`
-	ExitedAt    *time.Time   `json:"exitedAt,omitempty"`
-	LastError   string       `json:"lastError,omitempty"`
-	ExitError   string       `json:"exitError,omitempty"`
-	StderrTail  string       `json:"stderrTail,omitempty"`
-	Negotiated  *Negotiated  `json:"negotiated,omitempty"`
-	Transitions []Transition `json:"transitions"`
+	Identity    Identity                `json:"identity"`
+	State       State                   `json:"state"`
+	PID         int                     `json:"pid,omitempty"`
+	StartedAt   *time.Time              `json:"startedAt,omitempty"`
+	ExitedAt    *time.Time              `json:"exitedAt,omitempty"`
+	LastError   string                  `json:"lastError,omitempty"`
+	ExitError   string                  `json:"exitError,omitempty"`
+	StderrTail  string                  `json:"stderrTail,omitempty"`
+	Negotiated  *Negotiated             `json:"negotiated,omitempty"`
+	RPC         *workerrpc.PeerSnapshot `json:"rpc,omitempty"`
+	Transitions []Transition            `json:"transitions"`
 }
 
 type RestartPolicy struct {

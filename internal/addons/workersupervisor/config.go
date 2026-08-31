@@ -50,6 +50,7 @@ type Config struct {
 	ShutdownTimeout  time.Duration
 	MaxStderrBytes   int
 	Logger           *slog.Logger
+	Handler          workerrpc.RequestHandler
 }
 
 func normalizeConfig(config Config) (Config, []string, error) {

@@ -69,8 +69,16 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   Inspector-ready snapshot, and force-terminates failed generations. Its
   detailed boundary is in
   [`WORKER_SUPERVISION.md`](WORKER_SUPERVISION.md).
+- The shared worker RPC peer now owns continuous bidirectional routing,
+  response correlation, deadlines, cooperative cancellation, fixed
+  concurrency limits, late-response disposal, and Inspector-safe counters.
+  The host-only dispatcher requires request and response validation, resolves
+  host-owned authority, checks exact permissions, contains handler panics, and
+  never exposes internal failures to workers. See
+  [`WORKER_BROKER.md`](WORKER_BROKER.md).
 
 These are foundation contracts, not a compatibility claim. Authentication,
 core data migration, add-on activation and restart coordination, service
-binding, domain-call routing, and import execution remain subsequent
-milestones in the dependency order in `docs/REWRITE_ARCHITECTURE.md`.
+binding, concrete host method implementations, and import execution remain
+subsequent milestones in the dependency order in
+`docs/REWRITE_ARCHITECTURE.md`.

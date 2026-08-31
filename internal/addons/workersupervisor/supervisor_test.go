@@ -28,6 +28,9 @@ func TestSupervisorRunsReviewedLifecycle(t *testing.T) {
 	if snapshot.State != StateReady || snapshot.PID == 0 || snapshot.Negotiated == nil {
 		t.Fatalf("incomplete ready snapshot: %+v", snapshot)
 	}
+	if snapshot.RPC == nil || !snapshot.RPC.Started || snapshot.RPC.Closed {
+		t.Fatalf("runtime RPC snapshot = %+v", snapshot.RPC)
+	}
 	if snapshot.Negotiated.ProtocolVersion != "1.0.0" || !snapshot.Negotiated.HealthCheck {
 		t.Fatalf("negotiation = %+v", snapshot.Negotiated)
 	}
@@ -55,6 +58,46 @@ func TestSupervisorRunsReviewedLifecycle(t *testing.T) {
 	}
 	if snapshot := supervisor.Snapshot(); snapshot.State != StateStopped || snapshot.ExitedAt == nil {
 		t.Fatalf("stopped snapshot: %+v", snapshot)
+	}
+}
+
+func TestSupervisorRoutesWorkerHostCallsAfterReadiness(t *testing.T) {
+	t.Parallel()
+
+	called := make(chan workerrpc.Request, 1)
+	supervisor := newTestSupervisor(t, "host-callback", func(config *Config) {
+		config.Handler = workerrpc.RequestHandlerFunc(func(_ context.Context, request workerrpc.Request) (any, error) {
+			called <- request
+			return map[string]any{"accepted": true}, nil
+		})
+	})
+	if err := supervisor.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case request := <-called:
+		if request.Method != "host/test.echo" || request.Meta == nil || request.Meta.Generation != "generation-42" {
+			t.Fatalf("callback request = %+v", request)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("worker callback was not dispatched")
+	}
+	callbackDeadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(callbackDeadline) {
+		rpc := supervisor.Snapshot().RPC
+		if rpc != nil && rpc.IncomingCalls == 1 && rpc.ActiveIncoming == 0 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if rpc := supervisor.Snapshot().RPC; rpc == nil || rpc.IncomingCalls != 1 || rpc.ActiveIncoming != 0 {
+		t.Fatalf("worker callback did not settle: %+v", rpc)
+	}
+	if _, err := supervisor.Health(context.Background()); err != nil {
+		t.Fatalf("Health: %v; snapshot: %+v", err, supervisor.Snapshot())
+	}
+	if err := supervisor.Shutdown(context.Background()); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -187,6 +230,20 @@ func TestSupervisorRuntimeHealthContract(t *testing.T) {
 			t.Fatalf("invalid-health snapshot: %+v", snapshot)
 		}
 	})
+
+	t.Run("malformed runtime transport fails generation", func(t *testing.T) {
+		t.Parallel()
+		supervisor := newTestSupervisor(t, "malformed-runtime", nil)
+		if err := supervisor.Start(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		_, err := supervisor.Health(context.Background())
+		assertLifecycleCode(t, err, CodeTransportFailed)
+		snapshot := supervisor.Snapshot()
+		if snapshot.State != StateFailed || !strings.Contains(snapshot.LastError, CodeTransportFailed) || snapshot.ExitedAt == nil {
+			t.Fatalf("runtime transport snapshot: %+v", snapshot)
+		}
+	})
 }
 
 func TestSupervisorSerializesControlOperationsWithContext(t *testing.T) {
@@ -252,7 +309,15 @@ func TestSupervisorBoundsStderrDiagnostics(t *testing.T) {
 	if err := supervisor.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	tail := supervisor.Snapshot().StderrTail
+	var tail string
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		tail = supervisor.Snapshot().StderrTail
+		if strings.HasSuffix(tail, "END\n") {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
 	if len(tail) > 32 || !strings.HasSuffix(tail, "END\n") {
 		t.Fatalf("stderr tail = %q (%d bytes)", tail, len(tail))
 	}
@@ -283,6 +348,12 @@ func newTestSupervisor(t *testing.T, mode string, mutate func(*Config)) *Supervi
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = supervisor.Shutdown(ctx)
+		supervisor.terminate()
+	})
 	return supervisor
 }
 
@@ -388,6 +459,31 @@ func TestNativeWorkerHelperProcess(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		os.Exit(17)
 	}
+	if mode == "host-callback" {
+		if err := codec.Write(context.Background(), map[string]any{
+			"jsonrpc": "2.0",
+			"id":      "worker-1",
+			"method":  "host/test.echo",
+			"params":  map[string]any{"message": "ready"},
+			"meta": map[string]any{
+				"requestId":     "callback-1",
+				"correlationId": "callback-correlation-1",
+				"generation":    "generation-42",
+				"deadline":      time.Now().Add(5 * time.Second).UTC().Format(time.RFC3339Nano),
+				"actor":         map[string]any{"role": "system"},
+			},
+		}); err != nil {
+			helperExit(err.Error(), 8)
+		}
+		response, err := codec.Read(context.Background())
+		if err != nil {
+			helperExit(err.Error(), 9)
+		}
+		result, _ := response.Value["result"].(map[string]any)
+		if response.Kind != workerrpc.KindSuccess || result["accepted"] != true {
+			helperExit("host callback was rejected", 10)
+		}
+	}
 
 	for {
 		message, err := codec.Read(context.Background())
@@ -398,6 +494,10 @@ func TestNativeWorkerHelperProcess(t *testing.T) {
 		switch method {
 		case "codex/health":
 			if mode == "hang-runtime-health" {
+				time.Sleep(10 * time.Minute)
+			}
+			if mode == "malformed-runtime" {
+				_, _ = fmt.Fprint(os.Stdout, "Content-Length: broken\r\n\r\n")
 				time.Sleep(10 * time.Minute)
 			}
 			status := "ok"

@@ -470,10 +470,16 @@ interface RpcMeta {
 }
 ```
 
-Actor metadata is a host assertion, not a reusable credential. Workers MUST
-check cancellation and deadlines during long operations. Either peer sends the
-standard `$/cancelRequest` notification. A late response is discarded and
-recorded; it cannot resurrect a cancelled transaction.
+Actor metadata originates from the host and is not a reusable credential. A
+worker-to-host call only echoes claimed lineage; the host resolves that lineage
+to its own authoritative actor, deadline, and correlation context before
+authorization. Writing `actor.role = "dm"` never grants DM authority.
+
+Workers MUST check cancellation and deadlines during long operations. Either
+peer sends the standard `$/cancelRequest` notification with the JSON-RPC
+message ID in `params.id`; this is distinct from `meta.requestId`. A late
+response is discarded and recorded; it cannot resurrect a cancelled
+transaction.
 
 ### Required protocol methods
 
@@ -537,9 +543,10 @@ diagnostics.
 
 ### Backpressure and resilience
 
-The initialize response establishes frame, concurrency, queue, and deadline
-limits. Peers reject excess work with `RATE_LIMITED`; they do not grow an
-unbounded queue. A worker restart does not replay non-idempotent requests.
+The initialize response establishes frame, concurrency, and deadline limits.
+Protocol v1 has no waiting queue: peers reject excess work with `RATE_LIMITED`
+rather than growing an unbounded queue. A worker restart does not replay
+non-idempotent requests.
 Idempotent calls may be retried only within the original deadline and with the
 same idempotency key.
 

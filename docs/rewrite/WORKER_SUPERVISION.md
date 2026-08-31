@@ -4,9 +4,9 @@ This milestone turns the framed worker protocol into a real process boundary.
 The supervisor owns one immutable add-on generation and fails that generation
 closed when launch, negotiation, health, or shutdown violates its contract.
 
-It deliberately does not dispatch domain calls yet. The next broker milestone
-will own concurrent request routing, worker-to-host calls, cancellation, and
-capability enforcement without mixing those policies into process lifecycle.
+After readiness, it hands the channel to the shared RPC peer and a host-only
+dispatcher. Concrete data methods and persisted service bindings remain later
+milestones.
 
 ## Responsibility split
 
@@ -16,17 +16,24 @@ capability enforcement without mixing those policies into process lifecycle.
 | Generation manager | Activation, consecutive-failure accounting, restart decisions, and replacement generations |
 | Native worker supervisor | Exact process launch, lifecycle negotiation, health, bounded diagnostics, deadlines, and termination |
 | Worker RPC codec | Framing, UTF-8 and JSON-RPC envelope validation, and bounded I/O |
-| Service broker | Authorized domain calls, concurrency, cancellation, request metadata, and worker-to-host routing |
+| Worker RPC peer | Continuous reads, correlated calls, concurrency, cancellation, and transport counters |
+| Host dispatcher | Context resolution, schemas, authorization, handlers, and sanitized failures |
+| Service broker | Provider discovery, operator bindings, generation-safe handles, and contract routing |
 
 This keeps the reusable transport in `sdk/go/workerrpc` while host policy stays
-under `internal/addons`. A worker can use the public codec without gaining
-access to supervisor or broker internals.
+under `internal/addons`. A worker can use the public codec and peer without
+gaining access to supervisor or broker internals. The dispatcher design is in
+[`WORKER_BROKER.md`](WORKER_BROKER.md).
 
 ## Process and environment contract
 
 The supervisor accepts an already reviewed executable path and working
 directory. Both are resolved to absolute paths and must exist; it does not
 search `PATH`, invoke a shell, or execute package source.
+
+The supervisor owns the parent pipe ends directly instead of relying on
+`exec.Cmd` convenience pipes. Process waiting therefore cannot close stdout
+while the peer is still draining a final response frame.
 
 The child receives only the explicit environment map supplied by the host.
 The parent process environment is not inherited. The generation manager will
@@ -60,8 +67,8 @@ immutable generation.
 Startup uses one overall deadline and performs these calls in order:
 
 1. `codex/initialize` supplies identity, host information, grants, bound
-   services, protocol version, and negotiated limits. Framing is enforced in
-   this layer; domain concurrency is enforced by the later broker.
+   services, protocol version, and negotiated limits. Framing is enforced by
+   the codec and domain concurrency by the peer.
 2. The worker returns the exact protocol version, unique optional
    capabilities, non-empty method versions, and required health support.
 3. `codex/start` must return `{ "ready": true }`.
@@ -81,8 +88,8 @@ a clean stop. Shutdown of an already stopped or failed instance is idempotent.
 
 Snapshots contain generation identity, lifecycle state and transitions, PID,
 start and exit timestamps, negotiated features, process exit detail, the last
-lifecycle error, and the bounded stderr tail. They copy mutable negotiated
-data so Inspector callers cannot alter live state.
+lifecycle error, the bounded stderr tail, and RPC activity counters. They copy
+mutable negotiated data so Inspector callers cannot alter live state.
 
 The supervisor exposes stable lifecycle categories:
 
@@ -95,6 +102,7 @@ The supervisor exposes stable lifecycle categories:
 | `HEALTH_FAILED` | A runtime or initial health result failed its contract |
 | `SHUTDOWN_FAILED` | Graceful shutdown failed, timed out, or exited non-zero |
 | `PROCESS_EXITED` | A running worker exited without an accepted shutdown |
+| `TRANSPORT_FAILED` | Runtime framing, correlation, or transport failed |
 
 Codec failures keep their more precise framing code as the wrapped cause.
 
@@ -112,12 +120,12 @@ as a pure function makes the later manager testable without sleeping.
 
 ## Current scale and revisit points
 
-Lifecycle and health exchanges are intentionally serialized. This is correct
-for one in-flight control request, prevents health/shutdown races, and also
-rejects unexpected worker-to-host requests during startup. Waiting for another
-control operation still honors the caller's context. Before domain methods are
-enabled, the broker must add a continuous reader, response correlation,
-bounded concurrency, cancellation, and fair queues.
+Startup exchanges and supervisor control operations remain serialized. After
+the initial health response, one continuous peer reader handles runtime
+control responses and bounded worker-to-host calls. This prevents competing
+stdout readers while still permitting concurrent domain handlers. The current
+zero-queue policy rejects excess work; a fair queue is justified only by
+measurement.
 
 Revisit the boundary when one of these becomes real rather than speculative:
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"slices"
 	"sync"
@@ -26,6 +27,10 @@ type Supervisor struct {
 	transitions []Transition
 	command     *exec.Cmd
 	codec       *workerrpc.Codec
+	peer        *workerrpc.Peer
+	stdin       *os.File
+	stdout      *os.File
+	closeOnce   sync.Once
 	done        chan struct{}
 	waitError   error
 	startedAt   *time.Time
@@ -64,33 +69,44 @@ func (supervisor *Supervisor) Start(ctx context.Context) error {
 	command.Dir = supervisor.config.WorkingDirectory
 	command.Env = append([]string{}, supervisor.environment...)
 	command.Stderr = supervisor.stderr
-	stdin, err := command.StdinPipe()
+	workerStdin, hostStdin, err := os.Pipe()
 	if err != nil {
 		return supervisor.fail(CodeSpawnFailed, fmt.Errorf("open worker stdin: %w", err))
 	}
-	stdout, err := command.StdoutPipe()
+	hostStdout, workerStdout, err := os.Pipe()
 	if err != nil {
-		_ = stdin.Close()
+		_ = workerStdin.Close()
+		_ = hostStdin.Close()
 		return supervisor.fail(CodeSpawnFailed, fmt.Errorf("open worker stdout: %w", err))
 	}
-	codec, err := workerrpc.NewCodec(stdout, stdin, workerrpc.Limits{
+	closePipes := func() {
+		_ = workerStdin.Close()
+		_ = hostStdin.Close()
+		_ = hostStdout.Close()
+		_ = workerStdout.Close()
+	}
+	command.Stdin = workerStdin
+	command.Stdout = workerStdout
+	codec, err := workerrpc.NewCodec(hostStdout, hostStdin, workerrpc.Limits{
 		MaxHeaderBytes: workerrpc.DefaultLimits.MaxHeaderBytes,
 		MaxFrameBytes:  supervisor.config.Limits.MaxFrameBytes,
 	})
 	if err != nil {
-		_ = stdin.Close()
-		_ = stdout.Close()
+		closePipes()
 		return supervisor.fail(CodeSpawnFailed, err)
 	}
 	if err := command.Start(); err != nil {
-		_ = stdin.Close()
-		_ = stdout.Close()
+		closePipes()
 		return supervisor.fail(CodeSpawnFailed, fmt.Errorf("start worker: %w", err))
 	}
+	_ = workerStdin.Close()
+	_ = workerStdout.Close()
 	started := time.Now().UTC()
 	supervisor.mu.Lock()
 	supervisor.command = command
 	supervisor.codec = codec
+	supervisor.stdin = hostStdin
+	supervisor.stdout = hostStdout
 	supervisor.done = make(chan struct{})
 	supervisor.startedAt = &started
 	supervisor.mu.Unlock()
@@ -143,6 +159,24 @@ func (supervisor *Supervisor) Start(ctx context.Context) error {
 		}
 		return supervisor.fail(CodeHealthFailed, err)
 	}
+	peer, err := workerrpc.NewPeer(codec, workerrpc.PeerConfig{
+		IDPrefix:            "host-runtime",
+		Generation:          supervisor.config.Identity.Generation,
+		MaxOutgoingRequests: supervisor.config.Limits.MaxConcurrentRequests,
+		MaxIncomingRequests: supervisor.config.Limits.MaxConcurrentRequests,
+		RequireIncomingMeta: true,
+		Handler:             supervisor.config.Handler,
+		OnTerminal:          supervisor.handlePeerTerminal,
+	})
+	if err != nil {
+		return supervisor.fail(CodeStartupFailed, fmt.Errorf("create worker RPC peer: %w", err))
+	}
+	supervisor.mu.Lock()
+	supervisor.peer = peer
+	supervisor.mu.Unlock()
+	if err := peer.Start(); err != nil {
+		return supervisor.fail(CodeStartupFailed, fmt.Errorf("start worker RPC peer: %w", err))
+	}
 	if err := supervisor.transition(StateReady, "initial health check passed"); err != nil {
 		return supervisor.fail(CodeStartupFailed, err)
 	}
@@ -164,8 +198,16 @@ func (supervisor *Supervisor) Health(ctx context.Context) (Health, error) {
 	}
 	healthCtx, cancel := context.WithTimeout(ctx, supervisor.config.HealthTimeout)
 	defer cancel()
-	body, err := supervisor.exchange(healthCtx, "codex/health", map[string]any{})
+	peer := supervisor.runtimePeer()
+	if peer == nil {
+		return Health{}, supervisor.fail(CodeHealthFailed, errors.New("worker RPC peer is not active"))
+	}
+	body, err := peer.Call(healthCtx, "codex/health", map[string]any{}, nil)
 	if err != nil {
+		var protocol *workerrpc.ProtocolError
+		if errors.As(err, &protocol) {
+			return Health{}, supervisor.fail(CodeTransportFailed, err)
+		}
 		return Health{}, supervisor.fail(CodeHealthFailed, err)
 	}
 	status, err := decodeHealth(body)
@@ -196,6 +238,9 @@ func (supervisor *Supervisor) Shutdown(ctx context.Context) error {
 	case StateCreated:
 		return supervisor.transition(StateStopped, "stopped before launch")
 	case StateStopped, StateFailed:
+		if peer := supervisor.runtimePeer(); peer != nil {
+			peer.CancelIncoming()
+		}
 		supervisor.terminate()
 		return nil
 	case StateReady:
@@ -208,7 +253,15 @@ func (supervisor *Supervisor) Shutdown(ctx context.Context) error {
 
 	shutdownCtx, cancel := context.WithTimeout(ctx, supervisor.config.ShutdownTimeout)
 	defer cancel()
-	if _, err := supervisor.exchange(shutdownCtx, "codex/shutdown", map[string]any{}); err != nil {
+	peer := supervisor.runtimePeer()
+	if peer == nil {
+		failure := lifecycleError(CodeShutdownFailed, errors.New("worker RPC peer is not active"))
+		supervisor.markFailed(failure)
+		supervisor.terminate()
+		return failure
+	}
+	peer.CancelIncoming()
+	if _, err := peer.Call(shutdownCtx, "codex/shutdown", map[string]any{}, nil); err != nil {
 		failure := lifecycleError(CodeShutdownFailed, err)
 		supervisor.markFailed(failure)
 		supervisor.terminate()
@@ -220,8 +273,10 @@ func (supervisor *Supervisor) Shutdown(ctx context.Context) error {
 		if err := supervisor.rawProcessError(); err != nil {
 			failure := lifecycleError(CodeShutdownFailed, fmt.Errorf("worker exited after shutdown: %w", err))
 			supervisor.markFailed(failure)
+			supervisor.closeTransport()
 			return failure
 		}
+		supervisor.closeTransport()
 		return supervisor.transition(StateStopped, "worker exited after graceful shutdown")
 	case <-shutdownCtx.Done():
 		failure := lifecycleError(CodeShutdownFailed, shutdownCtx.Err())
@@ -302,6 +357,10 @@ func (supervisor *Supervisor) Snapshot() Snapshot {
 		value.Capabilities = append([]string(nil), value.Capabilities...)
 		value.Methods = cloneMap(value.Methods)
 		snapshot.Negotiated = &value
+	}
+	if supervisor.peer != nil {
+		value := supervisor.peer.Snapshot()
+		snapshot.RPC = &value
 	}
 	return snapshot
 }
@@ -473,10 +532,20 @@ func (supervisor *Supervisor) fail(code string, cause error) error {
 func (supervisor *Supervisor) markFailed(failure error) {
 	supervisor.mu.Lock()
 	defer supervisor.mu.Unlock()
-	supervisor.lastError = failure
-	if supervisor.state != StateFailed && supervisor.state != StateStopped {
-		_ = supervisor.transitionLocked(StateFailed, failure.Error())
+	if supervisor.state == StateFailed || supervisor.state == StateStopped {
+		return
 	}
+	supervisor.lastError = failure
+	_ = supervisor.transitionLocked(StateFailed, failure.Error())
+}
+
+func (supervisor *Supervisor) handlePeerTerminal(err error) {
+	if errors.Is(err, io.EOF) || errors.Is(err, workerrpc.ErrPeerClosed) {
+		return
+	}
+	failure := lifecycleError(CodeTransportFailed, fmt.Errorf("worker RPC peer failed: %w", err))
+	supervisor.markFailed(failure)
+	supervisor.terminate()
 }
 
 func startupCode(err error) string {
@@ -499,6 +568,15 @@ func (supervisor *Supervisor) watchProcess(command *exec.Cmd) {
 	}
 	close(supervisor.done)
 	supervisor.mu.Unlock()
+	if peer := supervisor.runtimePeer(); peer != nil {
+		timer := time.NewTimer(supervisor.config.ShutdownTimeout)
+		defer timer.Stop()
+		select {
+		case <-peer.Done():
+		case <-timer.C:
+		}
+		supervisor.closeTransport()
+	}
 }
 
 func processExitCause(err error) error {
@@ -518,17 +596,40 @@ func (supervisor *Supervisor) terminate() {
 	}
 	select {
 	case <-done:
+		supervisor.closeTransport()
 		return
 	default:
 	}
 	_ = command.Process.Kill()
 	<-done
+	supervisor.closeTransport()
+}
+
+func (supervisor *Supervisor) closeTransport() {
+	supervisor.closeOnce.Do(func() {
+		supervisor.mu.Lock()
+		stdin := supervisor.stdin
+		stdout := supervisor.stdout
+		supervisor.mu.Unlock()
+		if stdin != nil {
+			_ = stdin.Close()
+		}
+		if stdout != nil {
+			_ = stdout.Close()
+		}
+	})
 }
 
 func (supervisor *Supervisor) processDone() <-chan struct{} {
 	supervisor.mu.Lock()
 	defer supervisor.mu.Unlock()
 	return supervisor.done
+}
+
+func (supervisor *Supervisor) runtimePeer() *workerrpc.Peer {
+	supervisor.mu.Lock()
+	defer supervisor.mu.Unlock()
+	return supervisor.peer
 }
 
 func (supervisor *Supervisor) processError() error {
