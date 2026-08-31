@@ -424,10 +424,35 @@ The first request is `codex/initialize`:
 ```
 
 The worker returns its negotiated protocol version, implemented optional
-capabilities, declared method versions, and health-check support. The host then
-sends `codex/start`. No domain request is sent until start succeeds. Graceful
+capabilities, declared method versions, and health-check support:
+
+```json
+{
+  "protocolVersion": "1.0.0",
+  "capabilities": ["worker.health"],
+  "methods": {
+    "codex/health": "1.0.0"
+  },
+  "healthCheck": true
+}
+```
+
+Capabilities must be unique, method names and versions must be non-empty, and
+`codex/health` must have an explicit method version.
+
+The host then sends `codex/start`, which returns `{ "ready": true }`, followed
+by an initial `codex/health`, which must return `{ "status": "ok" }`. Later
+health checks may report `ok` or `degraded` with optional structured `details`.
+No domain request is sent until the initial health check succeeds. Graceful
 termination uses `codex/shutdown`, after which the worker must exit without new
 host calls.
+
+The native supervisor launches the exact executable selected from the
+verified package; it does not invoke a shell or search `PATH`. Workers receive
+only host-supplied environment entries and do not inherit the host process
+environment. The current supervisor serializes lifecycle and health calls.
+The service broker adds concurrent domain calls, cancellation, and
+worker-to-host routing before those methods become available.
 
 ### Message metadata
 

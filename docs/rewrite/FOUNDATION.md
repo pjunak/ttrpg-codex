@@ -62,9 +62,15 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
 - The shared Go worker codec enforces bounded canonical `Content-Length`
   framing, serializes concurrent writes, validates UTF-8/JSON/envelopes, and
   reports stable transport failure codes. The same package is usable by the
-  future host supervisor, native workers, and virtual WASI streams.
+  host supervisor, native workers, and virtual WASI streams.
+- The native worker supervisor launches an exact reviewed executable without
+  inheriting the host environment, negotiates initialize/start/health before
+  readiness, bounds lifecycle deadlines and stderr diagnostics, records an
+  Inspector-ready snapshot, and force-terminates failed generations. Its
+  detailed boundary is in
+  [`WORKER_SUPERVISION.md`](WORKER_SUPERVISION.md).
 
 These are foundation contracts, not a compatibility claim. Authentication,
-core data migration, add-on activation, worker supervision, service binding,
-and import execution remain subsequent milestones in the dependency order in
-`docs/REWRITE_ARCHITECTURE.md`.
+core data migration, add-on activation and restart coordination, service
+binding, domain-call routing, and import execution remain subsequent
+milestones in the dependency order in `docs/REWRITE_ARCHITECTURE.md`.
