@@ -222,6 +222,15 @@ func (manager *Manager) Rollback(ctx context.Context, plan ActivationPlan) (Acti
 func (manager *Manager) activate(ctx context.Context, plan ActivationPlan, eventKind string) (ActivationResult, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
+	return manager.activateLocked(ctx, plan, eventKind, "")
+}
+
+func (manager *Manager) activateLocked(
+	ctx context.Context,
+	plan ActivationPlan,
+	eventKind string,
+	reviewID string,
+) (ActivationResult, error) {
 	state, generation, report, permissions, services, normalizedIDs, err := manager.prepareActivation(ctx, plan, true)
 	if err != nil {
 		return ActivationResult{}, err
@@ -270,7 +279,7 @@ func (manager *Manager) activate(ctx context.Context, plan ActivationPlan, event
 	}
 	newState, err := manager.store.setActive(
 		ctx, plan.AddonID, plan.GenerationID, plan.ExpectedStateRevision,
-		plan.GrantedPermissionIDs, eventKind,
+		plan.GrantedPermissionIDs, eventKind, reviewID,
 	)
 	if err != nil {
 		rollbackErr := manager.restoreServices(ctx, plan.AddonID, previous, hasPrevious, plan.GenerationID)
@@ -284,7 +293,9 @@ func (manager *Manager) activate(ctx context.Context, plan ActivationPlan, event
 	}
 	stopNext = false
 
-	result := ActivationResult{State: newState, Generation: generation, PreviousGenerationID: previousID}
+	result := ActivationResult{
+		ReviewID: reviewID, State: newState, Generation: generation, PreviousGenerationID: previousID,
+	}
 	if hasPrevious && previous.runtime != nil {
 		if err := previous.runtime.Shutdown(ctx); err != nil {
 			result.CleanupError = err.Error()

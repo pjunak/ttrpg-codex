@@ -29,7 +29,74 @@ var (
 	ErrRecoveryRequired    = errors.New("active add-on generation requires recovery")
 	ErrActivationCohort    = errors.New("dependent add-ons require coordinated activation")
 	ErrActivationFailed    = errors.New("add-on activation failed")
+	ErrReviewNotFound      = errors.New("activation review not found")
+	ErrReviewState         = errors.New("activation review is in the wrong state")
+	ErrReviewStale         = errors.New("activation review no longer matches current state")
+	ErrReviewBlocked       = errors.New("activation review has unresolved blockers")
 )
+
+type ReviewStatus string
+
+const (
+	ReviewPrepared ReviewStatus = "prepared"
+	ReviewApproved ReviewStatus = "approved"
+	ReviewConsumed ReviewStatus = "consumed"
+)
+
+type ChangeSet struct {
+	Added   []string `json:"added"`
+	Removed []string `json:"removed"`
+	Changed []string `json:"changed"`
+}
+
+type ReviewChanges struct {
+	RuntimeChanged   bool      `json:"runtimeChanged"`
+	Permissions      ChangeSet `json:"permissions"`
+	Capabilities     ChangeSet `json:"capabilities"`
+	Contributions    ChangeSet `json:"contributions"`
+	Dependencies     ChangeSet `json:"dependencies"`
+	ProvidedServices ChangeSet `json:"providedServices"`
+	ConsumedServices ChangeSet `json:"consumedServices"`
+	Collections      ChangeSet `json:"collections"`
+	RecordExtensions ChangeSet `json:"recordExtensions"`
+	Content          ChangeSet `json:"content"`
+	Locales          ChangeSet `json:"locales"`
+}
+
+type ReviewBlocker struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type ReviewProposal struct {
+	AddonID                        string                   `json:"addonId"`
+	GenerationID                   string                   `json:"generationId"`
+	ExpectedStateRevision          int64                    `json:"expectedStateRevision"`
+	CurrentGenerationID            string                   `json:"currentGenerationId,omitempty"`
+	PreviouslyGrantedPermissionIDs []string                 `json:"previouslyGrantedPermissionIds"`
+	SuggestedPermissionIDs         []string                 `json:"suggestedPermissionIds"`
+	RequiredPermissionIDs          []string                 `json:"requiredPermissionIds"`
+	AffectedAddonIDs               []string                 `json:"affectedAddonIds"`
+	CurrentManifest                *packageinspect.Manifest `json:"currentManifest,omitempty"`
+	TargetManifest                 packageinspect.Manifest  `json:"targetManifest"`
+	Changes                        ReviewChanges            `json:"changes"`
+	Blockers                       []ReviewBlocker          `json:"blockers"`
+}
+
+type ActivationReview struct {
+	ReviewID              string         `json:"reviewId"`
+	AddonID               string         `json:"addonId"`
+	GenerationID          string         `json:"generationId"`
+	ExpectedStateRevision int64          `json:"expectedStateRevision"`
+	Status                ReviewStatus   `json:"status"`
+	ProposalSHA256        string         `json:"proposalSha256"`
+	Proposal              ReviewProposal `json:"proposal"`
+	GrantedPermissionIDs  []string       `json:"grantedPermissionIds"`
+	ApprovalSHA256        string         `json:"approvalSha256,omitempty"`
+	CreatedAt             time.Time      `json:"createdAt"`
+	ApprovedAt            *time.Time     `json:"approvedAt,omitempty"`
+	ConsumedAt            *time.Time     `json:"consumedAt,omitempty"`
+}
 
 type Generation struct {
 	AddonID         string     `json:"addonId"`
@@ -76,6 +143,7 @@ type ActivationPlan struct {
 }
 
 type ActivationResult struct {
+	ReviewID             string     `json:"reviewId,omitempty"`
 	State                State      `json:"state"`
 	Generation           Generation `json:"generation"`
 	PreviousGenerationID string     `json:"previousGenerationId,omitempty"`

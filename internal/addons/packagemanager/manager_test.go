@@ -140,6 +140,89 @@ func TestActivateUpdateAndRollbackUseExactReviewedGenerations(t *testing.T) {
 	}
 }
 
+func TestActivationReviewIsDurableApprovedAuthorityConsumedWithSwitch(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	manager, broker := testManager(t, db, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	generation := stageServicePackage(t, manager, "engine-addon", "1.0.0", "3.1.0")
+	review, err := manager.PrepareActivationReview(context.Background(), "engine-addon", generation.GenerationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if review.Status != ReviewPrepared || review.ProposalSHA256 == "" ||
+		review.Proposal.ExpectedStateRevision != 0 || len(review.Proposal.Blockers) != 0 {
+		t.Fatalf("prepared review = %+v", review)
+	}
+	if !reflect.DeepEqual(review.Proposal.Changes.Permissions.Added, []string{"core.data.read"}) ||
+		!reflect.DeepEqual(review.Proposal.RequiredPermissionIDs, []string{"core.data.read"}) ||
+		len(review.Proposal.SuggestedPermissionIDs) != 0 {
+		t.Fatalf("permission review = %+v", review.Proposal)
+	}
+	if _, err := manager.ApproveActivationReview(context.Background(), review.ReviewID, nil); !errors.Is(err, ErrPermission) {
+		t.Fatalf("missing required grant error = %v", err)
+	}
+	approved, err := manager.ApproveActivationReview(
+		context.Background(), review.ReviewID, []string{"core.data.read"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if approved.Status != ReviewApproved || approved.ApprovalSHA256 == "" || approved.ApprovedAt == nil {
+		t.Fatalf("approved review = %+v", approved)
+	}
+	retriedApproval, err := manager.ApproveActivationReview(
+		context.Background(), review.ReviewID, []string{"core.data.read"},
+	)
+	if err != nil || retriedApproval.ApprovalSHA256 != approved.ApprovalSHA256 {
+		t.Fatalf("idempotent approval = %+v, %v", retriedApproval, err)
+	}
+	result, err := manager.ActivateReviewed(context.Background(), review.ReviewID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ReviewID != review.ReviewID || result.State.Revision != 1 ||
+		result.State.ActiveGenerationID != generation.GenerationID {
+		t.Fatalf("reviewed activation result = %+v", result)
+	}
+	consumed, err := manager.GetActivationReview(context.Background(), review.ReviewID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if consumed.Status != ReviewConsumed || consumed.ConsumedAt == nil {
+		t.Fatalf("consumed review = %+v", consumed)
+	}
+	retriedActivation, err := manager.ActivateReviewed(context.Background(), review.ReviewID)
+	if err != nil || retriedActivation.State.Revision != result.State.Revision {
+		t.Fatalf("idempotent reviewed activation = %+v, %v", retriedActivation, err)
+	}
+	assertProviderGeneration(t, broker, "dnd5e.rules-engine", generation.GenerationID, "3.1.0")
+}
+
+func TestActivationReviewBecomesStaleWhenStateChanges(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	manager, _ := testManager(t, db, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	first := stageServicePackage(t, manager, "engine-addon", "1.0.0", "3.1.0")
+	second := stageServicePackage(t, manager, "engine-addon", "2.0.0", "3.2.0")
+	review, err := manager.PrepareActivationReview(context.Background(), "engine-addon", first.GenerationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "engine-addon", GenerationID: second.GenerationID,
+		ExpectedStateRevision: 0, GrantedPermissionIDs: []string{"core.data.read"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.ApproveActivationReview(
+		context.Background(), review.ReviewID, []string{"core.data.read"},
+	); !errors.Is(err, ErrReviewStale) {
+		t.Fatalf("stale review approval error = %v", err)
+	}
+}
+
 func TestFailedUpdateKeepsPreviousGenerationCallable(t *testing.T) {
 	t.Parallel()
 
@@ -374,6 +457,19 @@ func TestProviderUpdateRequiresCoordinatedConsumerRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := stageServicePackage(t, manager, "engine-addon", "2.0.0", "3.2.0")
+	review, err := manager.PrepareActivationReview(context.Background(), "engine-addon", next.GenerationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(review.Proposal.AffectedAddonIDs, []string{"sheet-addon"}) ||
+		len(review.Proposal.Blockers) == 0 || review.Proposal.Blockers[0].Code != "ACTIVATION_COHORT_REQUIRED" {
+		t.Fatalf("dependent activation review = %+v", review.Proposal)
+	}
+	if _, err := manager.ApproveActivationReview(
+		context.Background(), review.ReviewID, []string{"core.data.read"},
+	); !errors.Is(err, ErrReviewBlocked) {
+		t.Fatalf("blocked review approval error = %v", err)
+	}
 	if _, err := manager.Activate(context.Background(), ActivationPlan{
 		AddonID: "engine-addon", GenerationID: next.GenerationID,
 		ExpectedStateRevision: 1, GrantedPermissionIDs: []string{"core.data.read"},
@@ -618,8 +714,8 @@ func testDatabase(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.CurrentVersion != 3 {
-		t.Fatalf("migration version = %d, want 3", result.CurrentVersion)
+	if result.CurrentVersion != 4 {
+		t.Fatalf("migration version = %d, want 4", result.CurrentVersion)
 	}
 	return db
 }

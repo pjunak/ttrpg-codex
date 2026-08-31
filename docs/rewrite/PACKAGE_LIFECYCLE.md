@@ -10,7 +10,7 @@ built on top of it.
 | State | Owner | Durable |
 |---|---|---|
 | Package archive and extracted generation | Host package directory | Yes |
-| Installed generations, active pointer, grants, revision, events | SQLite | Yes |
+| Installed generations, reviews, active pointer, grants, revision, events | SQLite | Yes |
 | Provider declarations and operator bindings | Service broker store | Yes |
 | Worker processes, callable providers, resolved service handles | Package manager and broker memory | No |
 
@@ -35,7 +35,24 @@ not an operating-system security sandbox.
 
 ## Reviewed activation contract
 
-`ActivationPlan` identifies all authority consumed by one activation:
+The package manager now exposes a three-step application contract:
+
+1. `PrepareActivationReview` stores an exact manifest comparison and blockers.
+2. `ApproveActivationReview` validates and records the complete grant set.
+3. `ActivateReviewed` revalidates the proposal and consumes it during switch.
+
+The stored proposal includes both manifests, current and target generations,
+the expected state revision, retained and required permissions, affected live
+add-ons, blockers, and stable added/changed/removed summaries for runtime,
+capabilities, contributions, dependencies, services, collections, record
+extensions, content, and locales. The full proposal is SHA-256 hashed.
+
+Approval hashes that proposal together with the normalized grant set. A
+package, state, dependency, service, recovery, or dependent-set change makes
+the review stale or blocked; client input cannot silently revise an existing
+approval.
+
+The resulting `ActivationPlan` identifies all authority consumed by one activation:
 
 - exact add-on ID and archive-hash generation;
 - expected durable state revision;
@@ -47,11 +64,10 @@ versions, inactive identity dependencies, and unresolved required services.
 It passes only the normalized grants and generation-bound service handles to
 the new worker.
 
-The current internal API expects its caller to construct this plan from a
-reviewed proposal. The next HTTP/application milestone must persist and hash
-that proposal, including contribution, dependency, service, migration, and
-permission diffs; a client-supplied activation request must not become its own
-approval proof.
+The active-generation update and transition from `approved` to `consumed`
+share one SQLite transaction. A crash therefore cannot leave activated code
+with a reusable approval. Direct activation remains an internal test and
+coordinator primitive; future administrative transports must use review IDs.
 
 ## Switch and failure ordering
 
@@ -103,7 +119,8 @@ recovery.
 
 ## Durable diagnostics
 
-Migration `0003_addon_package_lifecycle.sql` stores:
+Migrations `0003_addon_package_lifecycle.sql` and
+`0004_addon_activation_reviews.sql` store:
 
 - every content-addressed generation and inspected manifest;
 - the active generation, grants, and optimistic state revision;
@@ -111,6 +128,8 @@ Migration `0003_addon_package_lifecycle.sql` stores:
 - the last bounded failure message;
 - ordered staged, activated, rolled-back, recovered, activation-failed,
   recovery-failed, and cleanup-failed events.
+- prepared, approved, and consumed review records with proposal and approval
+  hashes and separate timestamps.
 
 `Snapshot` combines that history with the live supervisor snapshot when a
 worker exists. Package bytes, process handles, service registries, and request
@@ -118,7 +137,6 @@ payloads are not stored in the event log.
 
 ## Remaining lifecycle work
 
-- Persisted review proposals and permission/contribution diff APIs.
 - Coordinated multi-add-on update cohorts and dependent runtime rebinding.
 - Planned generation bindings for add-ons that consume their own service.
 - Disable, reload, uninstall, quarantine, and separate reviewed data deletion.
@@ -126,6 +144,8 @@ payloads are not stored in the event log.
 - Add-on data migration planning and recoverable commit.
 - WASI runtime factory, restart/backoff wiring, OS resource enforcement, and
   redacted support-bundle diagnostics.
+- Authenticated administrative HTTP endpoints and the Add-on Inspector UI over
+  the review application contract.
 
 These must extend this coordinator rather than bypass exact generations,
 optimistic revisions, broker bindings, or host-owned approval state.

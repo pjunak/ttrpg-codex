@@ -85,14 +85,16 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   generation-safe handles. See
   [`SERVICE_BROKER.md`](SERVICE_BROKER.md).
 - The package lifecycle manager publishes immutable archive-hash generations,
-  consumes revisioned permission plans, coordinates start/switch/cleanup with
-  the service broker, reuses the verified path for rollback, and reconstructs
-  exact active generations in provider-before-consumer order after restart.
-  It refuses provider changes that would strand live dependent handles. See
+  persists hashed prepared/approved/consumed reviews, atomically consumes an
+  approval with its revisioned generation switch, coordinates
+  start/switch/cleanup with the service broker, reuses the verified path for
+  rollback, and reconstructs exact active generations in
+  provider-before-consumer order after restart. It refuses provider changes
+  that would strand live dependent handles. See
   [`PACKAGE_LIFECYCLE.md`](PACKAGE_LIFECYCLE.md).
 
 These are foundation contracts, not a compatibility claim. Authentication,
-core data migration, reviewed lifecycle HTTP APIs, coordinated dependent
+core data migration, authenticated lifecycle HTTP APIs, coordinated dependent
 updates, browser generation switching, concrete host method implementations,
 and import execution remain subsequent milestones in the dependency order in
 `docs/REWRITE_ARCHITECTURE.md`.

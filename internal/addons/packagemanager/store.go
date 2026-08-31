@@ -146,6 +146,7 @@ func (store *store) setActive(
 	expectedRevision int64,
 	grantedPermissions []string,
 	kind string,
+	reviewID string,
 ) (State, error) {
 	permissionsJSON, err := json.Marshal(grantedPermissions)
 	if err != nil {
@@ -186,7 +187,28 @@ func (store *store) setActive(
 	); err != nil {
 		return State{}, fmt.Errorf("mark generation activated: %w", err)
 	}
-	if err := insertEvent(ctx, tx, addonID, generationID, kind, "", now); err != nil {
+	eventMessage := ""
+	if reviewID != "" {
+		result, err := tx.ExecContext(ctx, `
+			UPDATE addon_activation_reviews
+			SET status = 'consumed', consumed_at = ?
+			WHERE review_id = ? AND addon_id = ? AND generation_id = ?
+			  AND expected_state_revision = ? AND status = 'approved'`,
+			now.Format(time.RFC3339Nano), reviewID, addonID, generationID, expectedRevision,
+		)
+		if err != nil {
+			return State{}, fmt.Errorf("consume activation review: %w", err)
+		}
+		changed, err := result.RowsAffected()
+		if err != nil {
+			return State{}, fmt.Errorf("read activation review consumption: %w", err)
+		}
+		if changed != 1 {
+			return State{}, ErrReviewStale
+		}
+		eventMessage = "review=" + reviewID
+	}
+	if err := insertEvent(ctx, tx, addonID, generationID, kind, eventMessage, now); err != nil {
 		return State{}, err
 	}
 	if err := tx.Commit(); err != nil {
