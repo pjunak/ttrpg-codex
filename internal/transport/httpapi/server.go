@@ -23,6 +23,9 @@ type Config struct {
 	BrowserAuthorizer BrowserAuthorizer
 	Authentication    *sessionauth.Service
 	SecureCookies     bool
+	Events            EventSource
+	EventAuthorizer   EventAuthorizer
+	EventHeartbeat    time.Duration
 }
 
 type server struct {
@@ -36,11 +39,17 @@ type server struct {
 	authentication    *sessionauth.Service
 	secureCookies     bool
 	loginLimiter      *loginLimiter
+	events            EventSource
+	eventAuthorizer   EventAuthorizer
+	eventHeartbeat    time.Duration
 }
 
 func New(config Config) (http.Handler, error) {
 	if (config.AddonLifecycle == nil) != (config.AdminAuthorizer == nil) ||
-		(config.BrowserAddons == nil) != (config.BrowserAuthorizer == nil) {
+		(config.BrowserAddons == nil) != (config.BrowserAuthorizer == nil) ||
+		(config.Events == nil) != (config.EventAuthorizer == nil) ||
+		config.EventHeartbeat < 0 || config.EventHeartbeat > 5*time.Minute ||
+		config.EventHeartbeat > 0 && config.EventHeartbeat < time.Second {
 		return nil, ErrInvalidConfig
 	}
 	if config.Logger == nil {
@@ -51,7 +60,8 @@ func New(config Config) (http.Handler, error) {
 		addonLifecycle: config.AddonLifecycle, adminAuthorizer: config.AdminAuthorizer,
 		browserAddons: config.BrowserAddons, browserAuthorizer: config.BrowserAuthorizer,
 		authentication: config.Authentication, secureCookies: config.SecureCookies,
-		loginLimiter: newLoginLimiter(),
+		loginLimiter: newLoginLimiter(), events: config.Events,
+		eventAuthorizer: config.EventAuthorizer, eventHeartbeat: config.EventHeartbeat,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
@@ -64,6 +74,9 @@ func New(config Config) (http.Handler, error) {
 	}
 	if s.browserAddons != nil {
 		s.registerBrowserAddonRoutes(mux)
+	}
+	if s.events != nil {
+		s.registerEventRoutes(mux)
 	}
 	handler := http.Handler(mux)
 	if s.authentication != nil {

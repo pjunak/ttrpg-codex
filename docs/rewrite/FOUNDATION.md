@@ -62,6 +62,11 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   CSRF token. HTTP composition provides login, logout, and authoritative role
   probing plus reusable authenticated-browser and real-DM authorizers. See
   [`AUTHENTICATION.md`](AUTHENTICATION.md).
+- The shared event broker durably commits bounded role-scoped events to the
+  SQLite change log before waking live subscribers. Its SSE transport supports
+  monotonic replay IDs, explicit reset recovery, bounded queues, slow-client
+  eviction, and heartbeat-aware write deadlines. See
+  [`EVENT_STREAM.md`](EVENT_STREAM.md).
 - The v3 package inspector validates a ZIP before execution,
   applies archive and expansion limits, rejects unsafe paths and entry types,
   verifies the complete SHA-256 inventory, validates the manifest, and checks
