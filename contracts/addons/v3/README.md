@@ -17,6 +17,10 @@ does not load it yet.
 - `examples/import-adapter.service.json` shows a package-owned service
   document.
 
+UI entry modules and styles are restricted to the package `web/` subtree. This
+matches the host's browser asset boundary and keeps worker, contract, content,
+locale, and metadata files outside browser delivery.
+
 All schemas use JSON Schema Draft 2020-12. They are source artifacts, not
 generated copies. Go and TypeScript types will be generated from reviewed
 boundary schemas once the rewrite toolchain is established.

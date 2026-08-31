@@ -9,10 +9,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -800,6 +802,85 @@ func TestBrowserGraphProjectsRecoveredUIGenerationsAndChangesOnReload(t *testing
 	}
 }
 
+func TestOpenBrowserAssetRequiresExactRecoveredGenerationAndVerifiedWebFile(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	packageDirectory := filepath.Join(t.TempDir(), "packages")
+	manager, _ := testManager(t, db, packageDirectory, &fakeRuntimeFactory{})
+	archive := writeAddonPackage(t, packageSpec{
+		ID: "browser-addon", Version: "1.0.0", UIEntry: "web/index.js",
+		ExtraFiles: map[string][]byte{
+			"web/chunk.js":         []byte("export const answer = 42;\n"),
+			"content/private.json": []byte(`{"dm":"not a browser asset"}`),
+		},
+	})
+	generation, err := manager.Stage(context.Background(), archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "browser-addon", GenerationID: generation.GenerationID, ExpectedStateRevision: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	asset, err := manager.OpenBrowserAsset(
+		context.Background(), "browser-addon", generation.GenerationID, "web/chunk.js",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, readErr := io.ReadAll(asset.Content)
+	closeErr := asset.Content.Close()
+	if readErr != nil || closeErr != nil {
+		t.Fatalf("read/close browser asset: %v / %v", readErr, closeErr)
+	}
+	digest := sha256.Sum256(body)
+	if string(body) != "export const answer = 42;\n" || asset.Path != "web/chunk.js" ||
+		asset.Bytes != uint64(len(body)) || asset.SHA256 != hex.EncodeToString(digest[:]) {
+		t.Fatalf("browser asset = %+v, body = %q", asset, body)
+	}
+
+	for _, request := range []struct {
+		generationID string
+		path         string
+	}{
+		{generation.GenerationID, "content/private.json"},
+		{generation.GenerationID, "web/missing.js"},
+		{generation.GenerationID, "web/../addon.json"},
+		{strings.Repeat("0", 64), "web/chunk.js"},
+	} {
+		if _, err := manager.OpenBrowserAsset(
+			context.Background(), "browser-addon", request.generationID, request.path,
+		); !errors.Is(err, ErrBrowserAssetNotFound) {
+			t.Fatalf("open generation %q path %q error = %v", request.generationID, request.path, err)
+		}
+	}
+
+	chunkPath := filepath.Join(
+		packageDirectory, "browser-addon", "generations", generation.GenerationID, "root", "web", "chunk.js",
+	)
+	if err := os.WriteFile(chunkPath, []byte("corrupt"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.OpenBrowserAsset(
+		context.Background(), "browser-addon", generation.GenerationID, "web/chunk.js",
+	); !errors.Is(err, ErrInvalidPackage) {
+		t.Fatalf("corrupt browser asset error = %v", err)
+	}
+	if _, err := manager.Disable(context.Background(), DisablePlan{
+		AddonID: "browser-addon", ExpectedStateRevision: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.OpenBrowserAsset(
+		context.Background(), "browser-addon", generation.GenerationID, "web/index.js",
+	); !errors.Is(err, ErrBrowserAssetNotFound) {
+		t.Fatalf("disabled browser asset error = %v", err)
+	}
+}
+
 func TestRecoveryNeverFallsBackFromCorruptActiveGeneration(t *testing.T) {
 	t.Parallel()
 
@@ -885,6 +966,7 @@ type packageSpec struct {
 	UIStyles        []string
 	UIMode          string
 	UISandbox       []string
+	ExtraFiles      map[string][]byte
 	Worker          bool
 	Permission      bool
 }
@@ -968,6 +1050,9 @@ func writeAddonPackage(t *testing.T, spec packageSpec) string {
 	}
 	if len(runtime) != 0 {
 		manifest["runtime"] = runtime
+	}
+	for name, body := range spec.ExtraFiles {
+		files[name] = append([]byte(nil), body...)
 	}
 	services := map[string]any{}
 	if spec.Contract != "" {

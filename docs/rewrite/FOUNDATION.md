@@ -53,7 +53,9 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   administration routes require both a lifecycle service and an administrator
   authorizer at composition time; partial configuration fails closed and the
   current executable deliberately leaves those routes unregistered until the
-  rewrite authentication service is wired.
+  rewrite authentication service is wired. Browser graph and immutable
+  generation-asset routes use the same paired fail-closed composition rule,
+  authorize before parsing, and enforce private ETag-based cache contracts.
 - The v3 package inspector validates a ZIP before execution,
   applies archive and expansion limits, rejects unsafe paths and entry types,
   verifies the complete SHA-256 inventory, validates the manifest, and checks
@@ -101,12 +103,13 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   cold add-on-graph restart to rebind affected consumers after approval,
   reloads a runtime without invalidating generation-safe consumer handles, and
   disables even an unrecovered generation without discarding grants or
-  installed files. It also projects recovered UI generations and a deterministic
-  whole-graph browser revision without exposing package paths. See
+  installed files. It also projects recovered UI generations and a
+  deterministic whole-graph browser revision without exposing package paths,
+  and checksum-verifies inventory-backed `web/` assets when opened. See
   [`PACKAGE_LIFECYCLE.md`](PACKAGE_LIFECYCLE.md).
 
 These are foundation contracts, not a compatibility claim. Authentication,
-core data migration, production composition of the protected lifecycle API,
-coordinated dependent disable, browser graph transport/SDK integration,
+core data migration, production composition of the protected lifecycle and
+browser APIs, coordinated dependent disable, browser graph client/SDK integration,
 concrete host method implementations, and import execution remain subsequent
 milestones in the dependency order in `docs/REWRITE_ARCHITECTURE.md`.

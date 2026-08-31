@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
@@ -16,24 +17,25 @@ import (
 )
 
 var (
-	ErrInvalidConfig       = errors.New("invalid package manager configuration")
-	ErrInvalidPackage      = errors.New("invalid installed package")
-	ErrGenerationNotFound  = errors.New("add-on generation not found")
-	ErrStaleActivationPlan = errors.New("stale add-on activation plan")
-	ErrCompatibility       = errors.New("add-on compatibility check failed")
-	ErrCapability          = errors.New("required add-on capability unavailable")
-	ErrPermission          = errors.New("add-on permission approval invalid")
-	ErrDependency          = errors.New("required add-on dependency unavailable")
-	ErrServiceResolution   = errors.New("required add-on service unavailable")
-	ErrRuntimeUnsupported  = errors.New("add-on runtime unsupported")
-	ErrRecoveryRequired    = errors.New("active add-on generation requires recovery")
-	ErrActivationCohort    = errors.New("dependent add-ons require coordinated activation")
-	ErrActivationFailed    = errors.New("add-on activation failed")
-	ErrNotActive           = errors.New("add-on is not active")
-	ErrReviewNotFound      = errors.New("activation review not found")
-	ErrReviewState         = errors.New("activation review is in the wrong state")
-	ErrReviewStale         = errors.New("activation review no longer matches current state")
-	ErrReviewBlocked       = errors.New("activation review has unresolved blockers")
+	ErrInvalidConfig        = errors.New("invalid package manager configuration")
+	ErrInvalidPackage       = errors.New("invalid installed package")
+	ErrGenerationNotFound   = errors.New("add-on generation not found")
+	ErrStaleActivationPlan  = errors.New("stale add-on activation plan")
+	ErrCompatibility        = errors.New("add-on compatibility check failed")
+	ErrCapability           = errors.New("required add-on capability unavailable")
+	ErrPermission           = errors.New("add-on permission approval invalid")
+	ErrDependency           = errors.New("required add-on dependency unavailable")
+	ErrServiceResolution    = errors.New("required add-on service unavailable")
+	ErrRuntimeUnsupported   = errors.New("add-on runtime unsupported")
+	ErrRecoveryRequired     = errors.New("active add-on generation requires recovery")
+	ErrActivationCohort     = errors.New("dependent add-ons require coordinated activation")
+	ErrActivationFailed     = errors.New("add-on activation failed")
+	ErrNotActive            = errors.New("add-on is not active")
+	ErrReviewNotFound       = errors.New("activation review not found")
+	ErrReviewState          = errors.New("activation review is in the wrong state")
+	ErrReviewStale          = errors.New("activation review no longer matches current state")
+	ErrReviewBlocked        = errors.New("activation review has unresolved blockers")
+	ErrBrowserAssetNotFound = errors.New("browser add-on asset not found")
 )
 
 type ReviewStatus string
@@ -187,6 +189,15 @@ type BrowserGeneration struct {
 	StyleURLs    []string `json:"styleUrls"`
 	Sandbox      []string `json:"sandbox"`
 	Dependencies []string `json:"dependencies"`
+}
+
+// BrowserAsset is a checksum-verified file from the web subtree of one exact
+// recovered generation. The caller owns Content and must close it.
+type BrowserAsset struct {
+	Path    string
+	SHA256  string
+	Bytes   uint64
+	Content io.ReadSeekCloser
 }
 
 type RuntimeSpec struct {

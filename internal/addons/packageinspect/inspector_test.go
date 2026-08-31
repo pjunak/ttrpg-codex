@@ -111,6 +111,39 @@ func TestInspectFileRejectsInvalidManifestAndMissingDeclaration(t *testing.T) {
 		_, err = newTestInspector(t).InspectFile(context.Background(), packagePath)
 		assertInspectionCode(t, err, CodeInvalidDeclaration)
 	})
+
+	t.Run("UI files outside web subtree", func(t *testing.T) {
+		t.Parallel()
+		for _, field := range []string{"entry", "styles"} {
+			field := field
+			t.Run(field, func(t *testing.T) {
+				t.Parallel()
+				var manifest map[string]any
+				if err := json.Unmarshal(minimalManifest("example-addon"), &manifest); err != nil {
+					t.Fatal(err)
+				}
+				ui := map[string]any{"mode": "integrated", "entry": "web/index.js"}
+				if field == "entry" {
+					ui["entry"] = "contracts/browser.js"
+				} else {
+					ui["styles"] = []string{"content/browser.css"}
+				}
+				manifest["runtime"] = map[string]any{"ui": ui}
+				body, err := json.Marshal(manifest)
+				if err != nil {
+					t.Fatal(err)
+				}
+				packagePath := writePackage(t, map[string][]byte{
+					manifestFilename:       body,
+					"web/index.js":         []byte("export function activate() {}"),
+					"contracts/browser.js": []byte("export function activate() {}"),
+					"content/browser.css":  []byte(":host {}"),
+				})
+				_, err = newTestInspector(t).InspectFile(context.Background(), packagePath)
+				assertInspectionCode(t, err, CodeInvalidManifest)
+			})
+		}
+	})
 }
 
 func TestInspectFileRejectsChecksumMismatchAndIncompleteInventory(t *testing.T) {

@@ -50,6 +50,12 @@ content/                      immutable content sets
 locales/                      localization catalogs
 ```
 
+Every `runtime.ui.entry` and `runtime.ui.styles` path stays under `web/`.
+Browser modules may use additional files from that subtree; the host never
+serves worker binaries, contracts, content sets, locales, or package metadata
+through the browser asset route. Production packages therefore keep browser
+imports and their static dependencies together under `web/`.
+
 Production installation MUST NOT invoke npm, Go, Python, a shell, or any other
 build tool. The release pipeline builds target artifacts before packaging.
 

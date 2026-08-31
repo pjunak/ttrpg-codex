@@ -35,12 +35,41 @@ of a recovered add-on may contribute UI. Entry and stylesheet paths are
 converted to generation-addressed, same-origin asset URLs; clients never
 construct filesystem paths.
 
+Browser files are confined to the package `web/` subtree by the v3 manifest
+schema. The asset reader additionally requires an exact recovered generation,
+an inspected inventory entry, and the original SHA-256 bytes before returning
+an open handle. Manifests, worker executables, contracts, content, and locale
+files cannot be requested through the browser asset route.
+
 The opaque revision is a SHA-256 digest over every durable active add-on ID,
 generation, and state revision plus the projected UI descriptors. Including
 worker-only state is intentional: a provider reload or cold backend cohort can
 force all browser SDK handles to rebuild even when UI assets did not change.
 Stopping a runtime removes its descriptor and changes the digest; recovery of
 the same exact durable graph restores the deterministic projection.
+
+## HTTP delivery
+
+The transport registers browser add-on routes only when both a
+`BrowserAddonSource` and `BrowserAuthorizer` are supplied. Partial
+configuration fails at startup, and authorization runs before query, ID, or
+asset-path validation. The rewrite executable deliberately leaves these
+routes unregistered until its authentication composition exists.
+
+| Method and path | Cache contract |
+|---|---|
+| `GET /api/addons/browser-graph` | `private, no-cache` with the graph revision as a strong ETag |
+| `GET /api/addons/{addonId}/generations/{generationId}/assets/{webPath}` | `private, max-age=31536000, immutable` with the inspected file digest as a strong ETag |
+
+Both responses vary on cookie and authorization credentials and use
+`nosniff`. Assets also require same-origin resource use and deterministic MIME
+types. Conditional GET and HEAD are supported. A corrupt expected asset is a
+generic 503 rather than a cached or partially trusted response; inactive,
+stale, non-web, and unlisted paths share one 404 classification.
+
+Graph change notification will use the shared role-scoped event stream once
+authentication and SSE replay are composed. There is deliberately no second
+add-on-only SSE connection or reconnect policy.
 
 ## Cold graph switch
 
@@ -83,9 +112,9 @@ modules do not receive host globals or private DOM access.
 
 ## Remaining integration
 
-- Expose and runtime-validate the graph through authorized HTTP/SSE transport.
-- Serve the projected immutable generation assets with authorization and cache
-  rules.
+- Compose rewrite authentication with the implemented browser routes.
+- Runtime-validate and conditionally fetch the graph from TypeScript.
+- Signal graph changes through the shared role-scoped SSE stream.
 - Build the capability-scoped browser SDK and stable contribution slots.
 - Surface activation and disposal diagnostics in the Add-on Inspector.
 - Add Playwright coverage once real contribution modules are wired.

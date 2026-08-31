@@ -12,23 +12,28 @@ import (
 var ErrInvalidConfig = errors.New("invalid HTTP API configuration")
 
 type Config struct {
-	Version         string
-	DB              *sql.DB
-	Logger          *slog.Logger
-	AddonLifecycle  AddonLifecycle
-	AdminAuthorizer AdminAuthorizer
+	Version           string
+	DB                *sql.DB
+	Logger            *slog.Logger
+	AddonLifecycle    AddonLifecycle
+	AdminAuthorizer   AdminAuthorizer
+	BrowserAddons     BrowserAddonSource
+	BrowserAuthorizer BrowserAuthorizer
 }
 
 type server struct {
-	version         string
-	db              *sql.DB
-	logger          *slog.Logger
-	addonLifecycle  AddonLifecycle
-	adminAuthorizer AdminAuthorizer
+	version           string
+	db                *sql.DB
+	logger            *slog.Logger
+	addonLifecycle    AddonLifecycle
+	adminAuthorizer   AdminAuthorizer
+	browserAddons     BrowserAddonSource
+	browserAuthorizer BrowserAuthorizer
 }
 
 func New(config Config) (http.Handler, error) {
-	if (config.AddonLifecycle == nil) != (config.AdminAuthorizer == nil) {
+	if (config.AddonLifecycle == nil) != (config.AdminAuthorizer == nil) ||
+		(config.BrowserAddons == nil) != (config.BrowserAuthorizer == nil) {
 		return nil, ErrInvalidConfig
 	}
 	if config.Logger == nil {
@@ -37,12 +42,16 @@ func New(config Config) (http.Handler, error) {
 	s := &server{
 		version: config.Version, db: config.DB, logger: config.Logger,
 		addonLifecycle: config.AddonLifecycle, adminAuthorizer: config.AdminAuthorizer,
+		browserAddons: config.BrowserAddons, browserAuthorizer: config.BrowserAuthorizer,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/version", s.versionInfo)
 	if s.addonLifecycle != nil {
 		s.registerAddonAdminRoutes(mux)
+	}
+	if s.browserAddons != nil {
+		s.registerBrowserAddonRoutes(mux)
 	}
 	return requestLog(config.Logger, mux), nil
 }
