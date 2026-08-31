@@ -1,0 +1,544 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://junak.eu/ttrpg-codex/contracts/addons/v3/manifest.schema.json",
+  "title": "TTRPG Codex Add-on Manifest v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "packageFormat",
+    "id",
+    "name",
+    "version",
+    "compatibility",
+    "capabilities",
+    "permissions"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri-reference"
+    },
+    "packageFormat": {
+      "const": 1
+    },
+    "id": {
+      "$ref": "#/$defs/addonId"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "version": {
+      "$ref": "#/$defs/version"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri"
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "addonApi"],
+      "properties": {
+        "host": {
+          "$ref": "#/$defs/versionRange"
+        },
+        "addonApi": {
+          "$ref": "#/$defs/versionRange"
+        },
+        "workerProtocol": {
+          "$ref": "#/$defs/versionRange"
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "optional"],
+      "properties": {
+        "required": {
+          "$ref": "#/$defs/capabilityList"
+        },
+        "optional": {
+          "$ref": "#/$defs/capabilityList"
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "ui": {
+          "$ref": "#/$defs/uiRuntime"
+        },
+        "worker": {
+          "$ref": "#/$defs/workerRuntime"
+        }
+      }
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission"
+      }
+    },
+    "contributions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/contribution"
+      }
+    },
+    "collections": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/collection"
+      }
+    },
+    "recordExtensions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/recordExtension"
+      }
+    },
+    "services": {
+      "$ref": "#/$defs/services"
+    },
+    "content": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/contentSet"
+      }
+    },
+    "locales": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/packagePath"
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/dependency"
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$"
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "addonId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "maxLength": 80
+    },
+    "localId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "maxLength": 100
+    },
+    "contractId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$",
+      "maxLength": 120
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "versionRange": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "packagePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\.\\./)(?!.*\\\\).+$"
+    },
+    "capabilityList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/contractId"
+      }
+    },
+    "uiRuntime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "entry"],
+      "properties": {
+        "mode": {
+          "enum": ["integrated", "isolated"]
+        },
+        "entry": {
+          "$ref": "#/$defs/packagePath"
+        },
+        "styles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/packagePath"
+          }
+        },
+        "sandbox": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["downloads", "forms", "modals", "popups"]
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": { "const": "integrated" }
+            }
+          },
+          "then": {
+            "not": {
+              "required": ["sandbox"]
+            }
+          }
+        }
+      ]
+    },
+    "workerRuntime": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/nativeWorker"
+        },
+        {
+          "$ref": "#/$defs/wasiWorker"
+        }
+      ]
+    },
+    "nativeWorker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "protocol", "entrypoints"],
+      "properties": {
+        "type": {
+          "const": "native"
+        },
+        "protocol": {
+          "$ref": "#/$defs/versionRange"
+        },
+        "entrypoints": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "pattern": "^[a-z0-9]+-[a-z0-9]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/packagePath"
+          }
+        }
+      }
+    },
+    "wasiWorker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "protocol", "entrypoint"],
+      "properties": {
+        "type": {
+          "const": "wasi"
+        },
+        "protocol": {
+          "$ref": "#/$defs/versionRange"
+        },
+        "entrypoint": {
+          "$ref": "#/$defs/packagePath"
+        }
+      }
+    },
+    "permission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "resources", "reason"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/contractId"
+        },
+        "resources": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "optional": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "contribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "surface", "label"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "surface": {
+          "enum": [
+            "route",
+            "sidebar",
+            "settings",
+            "article-action",
+            "article-section",
+            "editor-panel",
+            "slot",
+            "record-renderer",
+            "wiki-kind",
+            "kind",
+            "graph-node-kind",
+            "graph-view",
+            "graph-contributor",
+            "http-endpoint"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "roles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["dm", "player"]
+          }
+        },
+        "order": {
+          "type": "integer",
+          "minimum": -10000,
+          "maximum": 10000
+        },
+        "requires": {
+          "$ref": "#/$defs/capabilityList"
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "collection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "keyed", "visibility", "schema", "schemaVersion"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "keyed": {
+          "type": "boolean"
+        },
+        "visibility": {
+          "enum": ["public", "dm", "private"]
+        },
+        "schema": {
+          "$ref": "#/$defs/packagePath"
+        },
+        "schemaVersion": {
+          "$ref": "#/$defs/version"
+        },
+        "indexes": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^/",
+                "maxLength": 300
+              },
+              "unique": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "recordExtension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "target", "visibility", "schema", "schemaVersion"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "target": {
+          "$ref": "#/$defs/localId"
+        },
+        "visibility": {
+          "enum": ["public", "dm", "private"]
+        },
+        "schema": {
+          "$ref": "#/$defs/packagePath"
+        },
+        "schemaVersion": {
+          "$ref": "#/$defs/version"
+        }
+      }
+    },
+    "services": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provides": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/providedService"
+          }
+        },
+        "consumes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/consumedService"
+          }
+        }
+      }
+    },
+    "providedService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "version", "transport", "schema"],
+      "properties": {
+        "contract": {
+          "$ref": "#/$defs/contractId"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "transport": {
+          "enum": ["ui", "worker", "content"]
+        },
+        "schema": {
+          "$ref": "#/$defs/packagePath"
+        },
+        "exclusive": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "consumedService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "range", "cardinality", "required", "selection"],
+      "properties": {
+        "contract": {
+          "$ref": "#/$defs/contractId"
+        },
+        "range": {
+          "$ref": "#/$defs/versionRange"
+        },
+        "cardinality": {
+          "enum": ["one", "many"]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "selection": {
+          "enum": ["operator", "all-compatible"]
+        }
+      }
+    },
+    "contentSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "root", "schema", "revision"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "root": {
+          "$ref": "#/$defs/packagePath"
+        },
+        "schema": {
+          "$ref": "#/$defs/packagePath"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "groups": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["field", "label"],
+          "properties": {
+            "field": {
+              "type": "string",
+              "minLength": 1
+            },
+            "additionalField": {
+              "type": "string",
+              "minLength": 1
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "range", "required"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/addonId"
+        },
+        "range": {
+          "$ref": "#/$defs/versionRange"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,137 @@
+{
+  "$schema": "../manifest.schema.json",
+  "packageFormat": 1,
+  "id": "dm-tools",
+  "name": "DM Tools",
+  "version": "1.0.0",
+  "description": "DM planning and reviewed import tools.",
+  "license": "MIT",
+  "compatibility": {
+    "host": ">=2.0.0 <3.0.0",
+    "addonApi": "^3.0.0",
+    "workerProtocol": "^1.0.0"
+  },
+  "capabilities": {
+    "required": [
+      "data.transactions",
+      "imports.providers",
+      "ui.contributions",
+      "worker.native"
+    ],
+    "optional": [
+      "imports.bundle-contributors"
+    ]
+  },
+  "runtime": {
+    "ui": {
+      "mode": "integrated",
+      "entry": "web/index.js",
+      "styles": ["web/index.css"]
+    },
+    "worker": {
+      "type": "native",
+      "protocol": "^1.0.0",
+      "entrypoints": {
+        "windows-amd64": "worker/windows-amd64/dm-tools.exe",
+        "linux-amd64": "worker/linux-amd64/dm-tools",
+        "linux-arm64": "worker/linux-arm64/dm-tools"
+      }
+    }
+  },
+  "permissions": [
+    {
+      "id": "core.data.read",
+      "resources": [
+        "artifacts",
+        "characters",
+        "events",
+        "factions",
+        "locations",
+        "mysteries"
+      ],
+      "reason": "Planning references can point at existing campaign records."
+    },
+    {
+      "id": "import.provide",
+      "resources": ["campaign-bundle", "planning-document"],
+      "reason": "The Import Center previews and commits reviewed planning data."
+    }
+  ],
+  "contributions": [
+    {
+      "id": "planner.route",
+      "surface": "route",
+      "label": "Story Planner",
+      "roles": ["dm"],
+      "config": {
+        "path": "planner"
+      }
+    },
+    {
+      "id": "planner.sidebar",
+      "surface": "sidebar",
+      "label": "Story Planner",
+      "roles": ["dm"],
+      "order": 200,
+      "config": {
+        "route": "planner.route"
+      }
+    },
+    {
+      "id": "imports.route",
+      "surface": "route",
+      "label": "Import Center",
+      "roles": ["dm"],
+      "config": {
+        "path": "imports"
+      }
+    }
+  ],
+  "collections": [
+    {
+      "id": "planning_items",
+      "keyed": true,
+      "visibility": "dm",
+      "schema": "contracts/planning-item.schema.json",
+      "schemaVersion": "1.0.0",
+      "indexes": [
+        {
+          "path": "/parentId"
+        },
+        {
+          "path": "/type"
+        }
+      ]
+    },
+    {
+      "id": "planning_references",
+      "keyed": true,
+      "visibility": "dm",
+      "schema": "contracts/planning-reference.schema.json",
+      "schemaVersion": "1.0.0"
+    }
+  ],
+  "services": {
+    "provides": [
+      {
+        "contract": "codex.import-adapter",
+        "version": "2.0.0",
+        "transport": "worker",
+        "schema": "contracts/import-adapter.service.json"
+      }
+    ],
+    "consumes": [
+      {
+        "contract": "codex.import-adapter",
+        "range": "^2.0.0",
+        "cardinality": "many",
+        "required": false,
+        "selection": "operator"
+      }
+    ]
+  },
+  "locales": {
+    "en": "locales/en.json",
+    "cs": "locales/cs.json"
+  }
+}
