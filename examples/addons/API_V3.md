@@ -334,6 +334,11 @@ the selected provider, contract version, binding revision, and generation.
 When any of those becomes stale, calls fail explicitly with `STALE_BINDING`;
 the host does not silently select a different single provider.
 
+Installed provider declarations and operator bindings survive a host restart;
+live generations and callable transports do not. A provider is unavailable
+until the matching package generation completes activation again. This avoids
+advertising a dead pre-restart worker from durable state.
+
 ### Settings, navigation, events, and logs
 
 - Settings have JSON Schemas, typed values, scopes, defaults, and revisioned
@@ -593,6 +598,14 @@ must resolve before activation. Optional consumers retain useful standalone
 behavior when no provider exists or fails. Operator selection is persisted by
 consumer, contract, scope, and binding revision. Removing a selected provider
 creates a visible stale binding; it does not silently change campaign behavior.
+
+Without an explicit binding, exactly one live compatible `one` provider may be
+used automatically with binding revision `0`. Several compatible providers are
+ambiguous and remain unresolved. Adding another compatible provider makes an
+existing automatic handle stale; it does not preserve the earlier choice by
+install order. `many` consumers either receive every compatible provider in
+stable add-on-ID order or an operator-selected target set, according to their
+declared selection policy.
 
 Exclusive-provider conflicts are detected during package resolution, before
 execution. The host shows the installed providers and the exact contract major

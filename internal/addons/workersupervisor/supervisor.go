@@ -217,6 +217,33 @@ func (supervisor *Supervisor) Health(ctx context.Context) (Health, error) {
 	return status, nil
 }
 
+// Call routes one generation-scoped domain request through the active peer.
+// Contract selection and schema validation remain the service broker's job.
+func (supervisor *Supervisor) Call(
+	ctx context.Context,
+	method string,
+	params any,
+	meta *workerrpc.Meta,
+) (json.RawMessage, error) {
+	if meta == nil || meta.Generation != supervisor.config.Identity.Generation {
+		return nil, workerrpc.NewRPCError(
+			workerrpc.JSONRPCApplication,
+			workerrpc.KindStaleBinding,
+			"The service handle targets a stale worker generation.",
+			false,
+			nil,
+		)
+	}
+	if supervisor.State() != StateReady {
+		return nil, lifecycleError(CodeInvalidState, fmt.Errorf("service call requires %s state", StateReady))
+	}
+	peer := supervisor.runtimePeer()
+	if peer == nil {
+		return nil, lifecycleError(CodeInvalidState, errors.New("worker RPC peer is not active"))
+	}
+	return peer.Call(ctx, method, params, meta)
+}
+
 func decodeHealth(body json.RawMessage) (Health, error) {
 	var health Health
 	if err := json.Unmarshal(body, &health); err != nil {

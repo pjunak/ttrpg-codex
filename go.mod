@@ -3,6 +3,7 @@ module github.com/pjunak/ttrpg-codex
 go 1.26.0
 
 require (
+	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	modernc.org/sqlite v1.57.0
 )

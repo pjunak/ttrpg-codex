@@ -101,6 +101,44 @@ func TestSupervisorRoutesWorkerHostCallsAfterReadiness(t *testing.T) {
 	}
 }
 
+func TestSupervisorRoutesGenerationScopedServiceCall(t *testing.T) {
+	t.Parallel()
+
+	supervisor := newTestSupervisor(t, "service-call", nil)
+	if err := supervisor.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	meta := &workerrpc.Meta{
+		RequestID:     "request-1",
+		CorrelationID: "correlation-1",
+		Generation:    "generation-42",
+		Deadline:      time.Now().Add(time.Second),
+		Actor:         &workerrpc.Actor{Role: "system"},
+	}
+	result, err := supervisor.Call(
+		context.Background(),
+		"service/dnd5e.rules-engine/evaluate-character",
+		map[string]any{"value": 4},
+		meta,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(result) != `{"result":8}` {
+		t.Fatalf("service result = %s", result)
+	}
+	stale := *meta
+	stale.Generation = "generation-old"
+	if _, err := supervisor.Call(context.Background(), "service/dnd5e.rules-engine/evaluate-character", map[string]any{}, &stale); err == nil {
+		t.Fatal("stale generation service call succeeded")
+	} else {
+		var failure *workerrpc.RPCError
+		if !errors.As(err, &failure) || failure.Data == nil || failure.Data.Kind != workerrpc.KindStaleBinding {
+			t.Fatalf("stale generation error = %v, want STALE_BINDING", err)
+		}
+	}
+}
+
 func TestSupervisorFailsClosedDuringStartup(t *testing.T) {
 	t.Parallel()
 
@@ -432,6 +470,9 @@ func TestNativeWorkerHelperProcess(t *testing.T) {
 		protocolVersion = "9.0.0"
 	}
 	methods := map[string]string{"codex/health": "1.0.0"}
+	if mode == "service-call" {
+		methods["service/dnd5e.rules-engine/evaluate-character"] = "3.1.0"
+	}
 	if mode == "missing-health-method" {
 		methods = map[string]string{}
 	}
@@ -517,6 +558,8 @@ func TestNativeWorkerHelperProcess(t *testing.T) {
 			}
 			helperSuccess(codec, message, map[string]any{})
 			os.Exit(0)
+		case "service/dnd5e.rules-engine/evaluate-character":
+			helperSuccess(codec, message, map[string]any{"result": 8})
 		default:
 			helperFailure(codec, message, -32601, "method not found")
 		}

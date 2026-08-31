@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pjunak/ttrpg-codex/internal/addons/requestcontext"
 	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
 )
 
@@ -30,31 +31,10 @@ type Invocation struct {
 	Authority  Authority
 }
 
-type Authority struct {
-	RequestID      string
-	CorrelationID  string
-	Deadline       time.Time
-	Actor          workerrpc.Actor
-	IdempotencyKey string
-	Traceparent    string
-}
-
-type ContextRequest struct {
-	AddonID    string
-	Generation string
-	Method     string
-	WireMeta   workerrpc.Meta
-}
-
-type ContextResolver interface {
-	ResolveContext(context.Context, ContextRequest) (Authority, error)
-}
-
-type ContextResolverFunc func(context.Context, ContextRequest) (Authority, error)
-
-func (resolve ContextResolverFunc) ResolveContext(ctx context.Context, request ContextRequest) (Authority, error) {
-	return resolve(ctx, request)
-}
+type Authority = requestcontext.Authority
+type ContextRequest = requestcontext.ResolveRequest
+type ContextResolver = requestcontext.Resolver
+type ContextResolverFunc = requestcontext.ResolverFunc
 
 type Authorizer interface {
 	Authorize(context.Context, Invocation) error

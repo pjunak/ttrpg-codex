@@ -76,9 +76,16 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   host-owned authority, checks exact permissions, contains handler panics, and
   never exposes internal failures to workers. See
   [`WORKER_BROKER.md`](WORKER_BROKER.md).
+- The service broker persists installed providers and revisioned operator
+  target sets while keeping live generations in memory. It resolves semantic
+  version ranges deterministically, preserves stale bindings, prevents a new
+  catalog from reusing an old process, issues bounded host-authoritative
+  request contexts, and routes schema-validated worker service calls through
+  generation-safe handles. See
+  [`SERVICE_BROKER.md`](SERVICE_BROKER.md).
 
 These are foundation contracts, not a compatibility claim. Authentication,
-core data migration, add-on activation and restart coordination, service
-binding, concrete host method implementations, and import execution remain
+core data migration, package/lifecycle integration, service-schema registry
+compilation, concrete host method implementations, and import execution remain
 subsequent milestones in the dependency order in
 `docs/REWRITE_ARCHITECTURE.md`.

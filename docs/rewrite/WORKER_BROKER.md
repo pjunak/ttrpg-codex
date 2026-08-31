@@ -94,18 +94,21 @@ cancellations, rejected work, ignored notifications, late responses, and the
 terminal transport error. Dispatcher snapshots expose calls, in-flight work,
 successes, and stable error-kind counts. Payloads are deliberately absent.
 
-## Current limits and next boundary
+## Request contexts and service routing
 
-This is the transport and worker-to-host policy path, not the complete service
-broker. The following remain later milestones:
+The next host layer is now implemented in
+[`SERVICE_BROKER.md`](SERVICE_BROKER.md). It provides bounded host-issued
+request contexts, persisted provider declarations and operator selections,
+deterministic resolution, generation-safe handles, and validated worker
+service routing. The dispatcher uses that request-context contract directly;
+wire actor values remain untrusted claims.
+
+The following remain later milestones:
 
 - compile real method request/response schemas and connect data, blob, event,
   HTTP, import, and migration handlers;
-- maintain host-issued request-lineage and approved background-job contexts;
-- persist service providers, operator selections, binding revisions, and
-  stale-binding diagnostics;
-- expose generation-safe host-to-worker service handles and quiesce them
-  during generation replacement;
+- compile package-owned service documents into the method validator registry;
+- wire approved background jobs and package lifecycle orchestration;
 - add redacted traces and latency/queue metrics to the Inspector;
 - decide whether measured workloads need a small bounded fair queue. The
   default remains no queue.

@@ -83,8 +83,11 @@ type ProvidedService struct {
 }
 
 type ConsumedService struct {
-	Contract string `json:"contract"`
-	Range    string `json:"range"`
+	Contract    string `json:"contract"`
+	Range       string `json:"range"`
+	Cardinality string `json:"cardinality"`
+	Required    bool   `json:"required"`
+	Selection   string `json:"selection"`
 }
 
 type ContentSet struct {
