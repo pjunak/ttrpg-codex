@@ -49,9 +49,17 @@ func run() error {
 	}
 	logger.Info("database ready", "path", databasePath, "appliedMigrations", result.Applied)
 
+	handler, err := httpapi.New(httpapi.Config{
+		Version: version,
+		DB:      db,
+		Logger:  logger,
+	})
+	if err != nil {
+		return fmt.Errorf("configure HTTP API: %w", err)
+	}
 	server := &http.Server{
 		Addr:              *listenAddress,
-		Handler:           httpapi.New(version, db, logger),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

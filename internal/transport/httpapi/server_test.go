@@ -20,7 +20,14 @@ func TestHealthReportsDatabaseReadiness(t *testing.T) {
 	}
 	t.Cleanup(func() { db.Close() })
 
-	handler := New("test-version", db, slog.New(slog.DiscardHandler))
+	handler, err := New(Config{
+		Version: "test-version",
+		DB:      db,
+		Logger:  slog.New(slog.DiscardHandler),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	request := httptest.NewRequest(http.MethodGet, "/api/health", nil)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)

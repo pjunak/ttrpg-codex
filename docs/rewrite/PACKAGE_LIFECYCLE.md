@@ -1,9 +1,10 @@
 # Add-on package lifecycle
 
 This milestone connects verified v3 packages to durable generation state, the
-service broker, and native worker supervision. It is an internal application
-boundary; HTTP review endpoints and the Add-on Inspector UI are still to be
-built on top of it.
+service broker, native worker supervision, and an authorization-gated HTTP
+application boundary. The current executable does not register the
+administrative routes until the rewrite authentication service is available;
+the Add-on Inspector UI is still to be built on top of them.
 
 ## State ownership
 
@@ -133,6 +134,31 @@ be disabled without starting its code. Live dependents block disable until a
 coordinated transition is available. Successful disable increments the state
 revision, records `disabled`, and then performs bounded worker cleanup.
 
+## Administrative HTTP boundary
+
+The transport registers add-on administration only when both the lifecycle
+service and an `AdminAuthorizer` are supplied. Supplying only one is a startup
+configuration error. Authorization runs before path or body parsing, and a
+denial returns a generic response without exposing session details. The future
+cookie-backed authorizer must own administrator-role and anti-CSRF checks.
+
+| Method and path | Operation |
+|---|---|
+| `GET /api/admin/addons/{addonId}` | Read durable and live lifecycle diagnostics; optional `eventLimit` is bounded to 0-500 |
+| `POST /api/admin/addons/{addonId}/activation-reviews` | Prepare and persist an exact generation review |
+| `GET /api/admin/addon-activation-reviews/{reviewId}` | Re-read a durable review |
+| `POST /api/admin/addon-activation-reviews/{reviewId}/approval` | Approve an exact complete grant set |
+| `POST /api/admin/addon-activation-reviews/{reviewId}/activation` | Consume an approved review and switch generation |
+| `POST /api/admin/addons/{addonId}/reload` | Reload the active generation at an expected state revision |
+| `POST /api/admin/addons/{addonId}/disable` | Disable at an expected state revision without deleting files or data |
+
+Mutation bodies require `application/json`, reject unknown fields and multiple
+JSON values, and are capped at 64 KiB before lifecycle code is invoked. Path
+identifiers and diagnostic limits are bounded. Public errors expose stable
+categories and safe messages; full joined errors remain in administrator logs.
+State/review conflicts use HTTP 409, rejected lifecycle inputs use 422, worker
+activation failure uses 503, and unclassified failures use a generic 500.
+
 ## Durable diagnostics
 
 Migrations `0003_addon_package_lifecycle.sql` and
@@ -160,8 +186,8 @@ payloads are not stored in the event log.
 - Add-on data migration planning and recoverable commit.
 - WASI runtime factory, restart/backoff wiring, OS resource enforcement, and
   redacted support-bundle diagnostics.
-- Authenticated administrative HTTP endpoints and the Add-on Inspector UI over
-  the review application contract.
+- Rewrite authentication composition for the protected administrative routes,
+  followed by the Add-on Inspector UI over the review application contract.
 
 These must extend this coordinator rather than bypass exact generations,
 optimistic revisions, broker bindings, or host-owned approval state.

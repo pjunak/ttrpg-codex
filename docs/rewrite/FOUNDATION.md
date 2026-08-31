@@ -49,7 +49,11 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
 
 - The Go process opens SQLite with foreign keys, WAL, a bounded busy timeout,
   defensive settings, and numbered checksum-verified migrations.
-- The initial HTTP boundary exposes no-store health and version responses.
+- The HTTP boundary exposes no-store health and version responses. Its add-on
+  administration routes require both a lifecycle service and an administrator
+  authorizer at composition time; partial configuration fails closed and the
+  current executable deliberately leaves those routes unregistered until the
+  rewrite authentication service is wired.
 - The v3 package inspector validates a ZIP before execution,
   applies archive and expansion limits, rejects unsafe paths and entry types,
   verifies the complete SHA-256 inventory, validates the manifest, and checks
@@ -96,7 +100,7 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   [`PACKAGE_LIFECYCLE.md`](PACKAGE_LIFECYCLE.md).
 
 These are foundation contracts, not a compatibility claim. Authentication,
-core data migration, authenticated lifecycle HTTP APIs, coordinated dependent
-updates, browser generation switching, concrete host method implementations,
-and import execution remain subsequent milestones in the dependency order in
-`docs/REWRITE_ARCHITECTURE.md`.
+core data migration, production composition of the protected lifecycle API,
+coordinated dependent updates, browser generation switching, concrete host
+method implementations, and import execution remain subsequent milestones in
+the dependency order in `docs/REWRITE_ARCHITECTURE.md`.

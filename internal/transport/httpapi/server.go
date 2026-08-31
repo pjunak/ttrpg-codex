@@ -3,26 +3,48 @@ package httpapi
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
 )
 
-type server struct {
-	version string
-	db      *sql.DB
-	logger  *slog.Logger
+var ErrInvalidConfig = errors.New("invalid HTTP API configuration")
+
+type Config struct {
+	Version         string
+	DB              *sql.DB
+	Logger          *slog.Logger
+	AddonLifecycle  AddonLifecycle
+	AdminAuthorizer AdminAuthorizer
 }
 
-func New(version string, db *sql.DB, logger *slog.Logger) http.Handler {
-	if logger == nil {
-		logger = slog.Default()
+type server struct {
+	version         string
+	db              *sql.DB
+	logger          *slog.Logger
+	addonLifecycle  AddonLifecycle
+	adminAuthorizer AdminAuthorizer
+}
+
+func New(config Config) (http.Handler, error) {
+	if (config.AddonLifecycle == nil) != (config.AdminAuthorizer == nil) {
+		return nil, ErrInvalidConfig
 	}
-	s := &server{version: version, db: db, logger: logger}
+	if config.Logger == nil {
+		config.Logger = slog.Default()
+	}
+	s := &server{
+		version: config.Version, db: config.DB, logger: config.Logger,
+		addonLifecycle: config.AddonLifecycle, adminAuthorizer: config.AdminAuthorizer,
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/version", s.versionInfo)
-	return requestLog(logger, mux)
+	if s.addonLifecycle != nil {
+		s.registerAddonAdminRoutes(mux)
+	}
+	return requestLog(config.Logger, mux), nil
 }
 
 func (s *server) health(w http.ResponseWriter, r *http.Request) {
