@@ -69,8 +69,9 @@ the same exact durable graph restores the deterministic projection.
 The transport registers browser add-on routes only when both a
 `BrowserAddonSource` and `BrowserAuthorizer` are supplied. Partial
 configuration fails at startup, and authorization runs before query, ID, or
-asset-path validation. The rewrite executable deliberately leaves these
-routes unregistered until its authentication composition exists.
+asset-path validation. The implemented session authorizer accepts either
+authenticated effective role; the rewrite executable still leaves these
+routes unregistered until package-manager composition lands.
 
 | Method and path | Cache contract |
 |---|---|
@@ -188,7 +189,8 @@ module's own disposer.
 
 ## Remaining integration
 
-- Compose rewrite authentication with the implemented browser routes.
+- Compose the implemented authentication and package manager in the rewrite
+  executable.
 - Signal graph changes through the shared role-scoped SSE stream.
 - Wire the implemented runtime coordinator into the shell.
 - Add data, service, import, event, settings, navigation, graph, and log handles

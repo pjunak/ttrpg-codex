@@ -193,18 +193,22 @@ func decodeRevisionRequest(w http.ResponseWriter, r *http.Request) (string, int6
 }
 
 func decodeAdminJSON(w http.ResponseWriter, r *http.Request, destination any) bool {
+	return decodeBoundedJSON(w, r, destination, maxAdminRequestBytes, "administrative API")
+}
+
+func decodeBoundedJSON(w http.ResponseWriter, r *http.Request, destination any, maximum int64, boundary string) bool {
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
 		writeAPIError(w, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE", "Content-Type must be application/json")
 		return false
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxAdminRequestBytes)
+	r.Body = http.MaxBytesReader(w, r.Body, maximum)
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(destination); err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			writeAPIError(w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "request body exceeds the administrative API limit")
+			writeAPIError(w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "request body exceeds the "+boundary+" limit")
 			return false
 		}
 		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "request body must be valid JSON")
@@ -213,7 +217,7 @@ func decodeAdminJSON(w http.ResponseWriter, r *http.Request, destination any) bo
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			writeAPIError(w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "request body exceeds the administrative API limit")
+			writeAPIError(w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "request body exceeds the "+boundary+" limit")
 			return false
 		}
 		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "request body must contain one JSON value")

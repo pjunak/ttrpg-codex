@@ -56,6 +56,12 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   rewrite authentication service is wired. Browser graph and immutable
   generation-asset routes use the same paired fail-closed composition rule,
   authorize before parsing, and enforce private ETag-based cache contracts.
+- The authentication service accepts explicit DM and optional player bootstrap
+  credentials, issues bounded random process-local sessions, rotates authority
+  on DM view-as transitions, and binds administrative mutations to a separate
+  CSRF token. HTTP composition provides login, logout, and authoritative role
+  probing plus reusable authenticated-browser and real-DM authorizers. See
+  [`AUTHENTICATION.md`](AUTHENTICATION.md).
 - The v3 package inspector validates a ZIP before execution,
   applies archive and expansion limits, rejects unsafe paths and entry types,
   verifies the complete SHA-256 inventory, validates the manifest, and checks
@@ -118,8 +124,8 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   and checksum-verifies inventory-backed `web/` assets when opened. See
   [`PACKAGE_LIFECYCLE.md`](PACKAGE_LIFECYCLE.md).
 
-These are foundation contracts, not a compatibility claim. Authentication,
-core data migration, production composition of the protected lifecycle and
-browser APIs, coordinated dependent disable, browser shell/SDK integration,
-concrete host method implementations, and import execution remain subsequent
-milestones in the dependency order in `docs/REWRITE_ARCHITECTURE.md`.
+These are foundation contracts, not a compatibility claim. Persistent
+credentials, core data migration, executable composition of the protected
+lifecycle and browser APIs, coordinated dependent disable, browser shell/SDK
+integration, concrete host method implementations, and import execution remain
+subsequent milestones in the dependency order in `docs/REWRITE_ARCHITECTURE.md`.

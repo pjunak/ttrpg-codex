@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
 )
 
 var ErrInvalidConfig = errors.New("invalid HTTP API configuration")
@@ -19,6 +21,8 @@ type Config struct {
 	AdminAuthorizer   AdminAuthorizer
 	BrowserAddons     BrowserAddonSource
 	BrowserAuthorizer BrowserAuthorizer
+	Authentication    *sessionauth.Service
+	SecureCookies     bool
 }
 
 type server struct {
@@ -29,6 +33,9 @@ type server struct {
 	adminAuthorizer   AdminAuthorizer
 	browserAddons     BrowserAddonSource
 	browserAuthorizer BrowserAuthorizer
+	authentication    *sessionauth.Service
+	secureCookies     bool
+	loginLimiter      *loginLimiter
 }
 
 func New(config Config) (http.Handler, error) {
@@ -43,17 +50,26 @@ func New(config Config) (http.Handler, error) {
 		version: config.Version, db: config.DB, logger: config.Logger,
 		addonLifecycle: config.AddonLifecycle, adminAuthorizer: config.AdminAuthorizer,
 		browserAddons: config.BrowserAddons, browserAuthorizer: config.BrowserAuthorizer,
+		authentication: config.Authentication, secureCookies: config.SecureCookies,
+		loginLimiter: newLoginLimiter(),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/version", s.versionInfo)
+	if s.authentication != nil {
+		s.registerAuthenticationRoutes(mux)
+	}
 	if s.addonLifecycle != nil {
 		s.registerAddonAdminRoutes(mux)
 	}
 	if s.browserAddons != nil {
 		s.registerBrowserAddonRoutes(mux)
 	}
-	return requestLog(config.Logger, mux), nil
+	handler := http.Handler(mux)
+	if s.authentication != nil {
+		handler = s.attachSession(handler)
+	}
+	return requestLog(config.Logger, handler), nil
 }
 
 func (s *server) health(w http.ResponseWriter, r *http.Request) {
