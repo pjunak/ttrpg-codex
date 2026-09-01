@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -93,6 +94,43 @@ func TestAddonAdminReviewEndpoints(t *testing.T) {
 	)
 	if response.Code != http.StatusOK || lifecycle.activatedReviewID != "review-1" {
 		t.Fatalf("activate status = %d, id = %q", response.Code, lifecycle.activatedReviewID)
+	}
+}
+
+func TestAddonAdminStagesBoundedZipUpload(t *testing.T) {
+	t.Parallel()
+
+	lifecycle := &recordingLifecycle{}
+	handler := newAdminHandler(t, lifecycle, func(*http.Request) error { return nil })
+	request := httptest.NewRequest(
+		http.MethodPost, "/api/admin/addons/generations", strings.NewReader("package-bytes"),
+	)
+	request.Header.Set("Content-Type", "application/zip")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated || lifecycle.stagedBody != "package-bytes" {
+		t.Fatalf("stage response/input = %d, %q, %s", response.Code, lifecycle.stagedBody, response.Body.String())
+	}
+
+	request = httptest.NewRequest(
+		http.MethodPost, "/api/admin/addons/generations", strings.NewReader("not-a-zip"),
+	)
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("wrong media type response = %d, %s", response.Code, response.Body.String())
+	}
+
+	request = httptest.NewRequest(
+		http.MethodPost, "/api/admin/addons/generations", strings.NewReader("short"),
+	)
+	request.Header.Set("Content-Type", "application/zip")
+	request.ContentLength = maxAddonPackageBytes + 1
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized response = %d, %s", response.Code, response.Body.String())
 	}
 }
 
@@ -261,6 +299,7 @@ func serveAdminRequest(handler http.Handler, method string, path string, body st
 }
 
 type recordingLifecycle struct {
+	stagedBody           string
 	prepareCalls         int
 	preparedAddonID      string
 	preparedGenerationID string
@@ -274,6 +313,20 @@ type recordingLifecycle struct {
 	reloadAddonID        string
 	reloadRevision       int64
 	disablePlan          packagemanager.DisablePlan
+}
+
+func (lifecycle *recordingLifecycle) StageArchive(
+	_ context.Context, archive io.Reader,
+) (packagemanager.Generation, error) {
+	body, err := io.ReadAll(archive)
+	if err != nil {
+		return packagemanager.Generation{}, err
+	}
+	lifecycle.stagedBody = string(body)
+	digest := strings.Repeat("a", 64)
+	return packagemanager.Generation{
+		AddonID: "uploaded-addon", GenerationID: digest, ArchiveSHA256: digest,
+	}, nil
 }
 
 func (lifecycle *recordingLifecycle) Snapshot(

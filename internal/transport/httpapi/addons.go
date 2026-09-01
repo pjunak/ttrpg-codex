@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 )
 
@@ -20,7 +21,10 @@ const (
 	maxEventLimit        = 500
 )
 
+var maxAddonPackageBytes = packageinspect.DefaultLimits.MaxArchiveBytes
+
 type AddonLifecycle interface {
+	StageArchive(context.Context, io.Reader) (packagemanager.Generation, error)
 	Snapshot(context.Context, string, int) (packagemanager.Snapshot, error)
 	PrepareActivationReview(context.Context, string, string) (packagemanager.ActivationReview, error)
 	GetActivationReview(context.Context, string) (packagemanager.ActivationReview, error)
@@ -35,6 +39,7 @@ type AdminAuthorizer func(*http.Request) error
 var _ AddonLifecycle = (*packagemanager.Manager)(nil)
 
 func (s *server) registerAddonAdminRoutes(mux *http.ServeMux) {
+	mux.Handle("POST /api/admin/addons/generations", s.requireAdmin(http.HandlerFunc(s.stageAddonGeneration)))
 	mux.Handle("GET /api/admin/addons/{addonID}", s.requireAdmin(http.HandlerFunc(s.addonSnapshot)))
 	mux.Handle("POST /api/admin/addons/{addonID}/activation-reviews", s.requireAdmin(http.HandlerFunc(s.prepareActivationReview)))
 	mux.Handle("POST /api/admin/addons/{addonID}/reload", s.requireAdmin(http.HandlerFunc(s.reloadAddon)))
@@ -42,6 +47,37 @@ func (s *server) registerAddonAdminRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/admin/addon-activation-reviews/{reviewID}", s.requireAdmin(http.HandlerFunc(s.activationReview)))
 	mux.Handle("POST /api/admin/addon-activation-reviews/{reviewID}/approval", s.requireAdmin(http.HandlerFunc(s.approveActivationReview)))
 	mux.Handle("POST /api/admin/addon-activation-reviews/{reviewID}/activation", s.requireAdmin(http.HandlerFunc(s.activateReviewed)))
+}
+
+func (s *server) stageAddonGeneration(w http.ResponseWriter, r *http.Request) {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/zip" {
+		writeAPIError(w, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE", "Content-Type must be application/zip")
+		return
+	}
+	if r.ContentLength > maxAddonPackageBytes {
+		writeAddonPackageTooLarge(w)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxAddonPackageBytes)
+	generation, err := s.addonLifecycle.StageArchive(r.Context(), r.Body)
+	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeAddonPackageTooLarge(w)
+			return
+		}
+		s.writeLifecycleError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, generation)
+}
+
+func writeAddonPackageTooLarge(w http.ResponseWriter) {
+	writeAPIError(
+		w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE",
+		fmt.Sprintf("add-on package exceeds the %d MiB limit", maxAddonPackageBytes>>20),
+	)
 }
 
 func (s *server) requireAdmin(next http.Handler) http.Handler {

@@ -2,6 +2,7 @@ package packagemanager
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -78,6 +79,31 @@ func TestStagePublishesContentAddressedGenerationWithoutActivation(t *testing.T)
 	}
 	if len(snapshot.Generations) != 1 || len(snapshot.Events) != 1 {
 		t.Fatalf("idempotent stage duplicated durable records: %+v", snapshot)
+	}
+}
+
+func TestStageArchivePublishesUploadedBytes(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	packageDirectory := filepath.Join(t.TempDir(), "packages")
+	manager, _ := testManager(t, db, packageDirectory, &fakeRuntimeFactory{})
+	archive := writeAddonPackage(t, packageSpec{ID: "uploaded-addon", Version: "1.0.0"})
+	body, err := os.ReadFile(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generation, err := manager.StageArchive(context.Background(), bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if generation.AddonID != "uploaded-addon" || generation.GenerationID != generation.ArchiveSHA256 {
+		t.Fatalf("uploaded generation = %+v", generation)
+	}
+	if _, err := os.Stat(filepath.Join(
+		packageDirectory, generation.AddonID, "generations", generation.GenerationID, "package.zip",
+	)); err != nil {
+		t.Fatalf("uploaded archive missing: %v", err)
 	}
 }
 

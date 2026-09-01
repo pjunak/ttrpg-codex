@@ -163,6 +163,34 @@ func New(config Config) (*Manager, error) {
 // immutable generation directory. It records no grants and changes no active
 // runtime or provider catalog.
 func (manager *Manager) Stage(ctx context.Context, archivePath string) (Generation, error) {
+	input, err := os.Open(archivePath)
+	if err != nil {
+		return Generation{}, fmt.Errorf("open package source: %w", err)
+	}
+	defer input.Close()
+	info, err := input.Stat()
+	if err != nil {
+		return Generation{}, fmt.Errorf("stat package source: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return Generation{}, fmt.Errorf("package source is not a regular file")
+	}
+	if info.Size() > manager.maxArchiveBytes {
+		return Generation{}, fmt.Errorf("package source exceeds %d bytes", manager.maxArchiveBytes)
+	}
+	return manager.stageArchive(ctx, input)
+}
+
+// StageArchive validates and publishes an uploaded package without exposing a
+// caller-controlled filesystem path to the lifecycle boundary.
+func (manager *Manager) StageArchive(ctx context.Context, archive io.Reader) (Generation, error) {
+	if archive == nil {
+		return Generation{}, fmt.Errorf("%w: package archive is required", ErrInvalidPackage)
+	}
+	return manager.stageArchive(ctx, archive)
+}
+
+func (manager *Manager) stageArchive(ctx context.Context, archive io.Reader) (Generation, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 	stageID, err := manager.generateID()
@@ -183,12 +211,12 @@ func (manager *Manager) Stage(ctx context.Context, archivePath string) (Generati
 		}
 	}()
 	stagedArchive := filepath.Join(stageDirectory, "package.zip")
-	if err := copyBoundedArchive(ctx, archivePath, stagedArchive, manager.maxArchiveBytes); err != nil {
+	if err := copyBoundedArchive(ctx, archive, stagedArchive, manager.maxArchiveBytes); err != nil {
 		return Generation{}, err
 	}
 	report, err := manager.inspector.InspectAndExtractFile(ctx, stagedArchive, filepath.Join(stageDirectory, "root"))
 	if err != nil {
-		return Generation{}, err
+		return Generation{}, fmt.Errorf("%w: %v", ErrInvalidPackage, err)
 	}
 	if !validAddonPath(report.Manifest.ID) {
 		return Generation{}, fmt.Errorf("%w: add-on id is not a safe package path", ErrInvalidPackage)
@@ -748,22 +776,7 @@ func (manager *Manager) removeStage(stageDirectory string) error {
 	return nil
 }
 
-func copyBoundedArchive(ctx context.Context, source, destination string, maximum int64) error {
-	input, err := os.Open(source)
-	if err != nil {
-		return fmt.Errorf("open package source: %w", err)
-	}
-	defer input.Close()
-	info, err := input.Stat()
-	if err != nil {
-		return fmt.Errorf("stat package source: %w", err)
-	}
-	if !info.Mode().IsRegular() {
-		return fmt.Errorf("package source is not a regular file")
-	}
-	if info.Size() > maximum {
-		return fmt.Errorf("package source exceeds %d bytes", maximum)
-	}
+func copyBoundedArchive(ctx context.Context, input io.Reader, destination string, maximum int64) error {
 	output, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o640)
 	if err != nil {
 		return fmt.Errorf("create staged package: %w", err)
