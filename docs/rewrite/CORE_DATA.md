@@ -110,9 +110,19 @@ updates every affected record, removes the definition, and writes its
 `deletedDefaults` tombstone in one transaction. This avoids both silent
 dangling references and accidental re-seeding after restart.
 
+The TypeScript client now has one canonical route/descriptor registry for the
+nine user-facing record collections. Its list, search, detail, create, edit,
+and delete surfaces share optimistic-revision preparation. Common-field edits
+merge into the current record rather than replacing it, so richer fields and
+add-on namespaces survive until their specialized editor is ported. The host
+still re-applies authorization, visibility, identity, twin, reference, and
+revision policy; browser validation is only an earlier usability boundary.
+
 The rewrite does not yet implement:
 
-- reusable typed collection handles and core editors beyond campaign identity;
+- specialized typed editors for relationships, structured references, maps,
+  timelines, settings, and collection-specific fields beyond the common
+  record surface;
 - initial import publication or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and
   other domain queries.

@@ -1,4 +1,4 @@
-import { LitElement, css, html } from "lit";
+import { LitElement, css, html, nothing } from "lit";
 import {
   getAuth,
   getHealth,
@@ -21,7 +21,18 @@ import {
   type CampaignIdentitySaveDetail,
 } from "./campaign-overview.js";
 import "./campaign-overview.js";
+import {
+  type CampaignRecordDeleteDetail,
+  type CampaignRecordSaveDetail,
+} from "./campaign-record-browser.js";
+import "./campaign-record-browser.js";
 import { isRecord } from "../core/boundary.js";
+import {
+  CampaignRecordEditError,
+  prepareCampaignRecordDelete,
+  prepareCampaignRecordSave,
+  type PreparedCampaignRecordMutation,
+} from "./campaign-record-editor.js";
 import {
   createBrowserAddonComposition,
   type BrowserAddonComposition,
@@ -32,6 +43,12 @@ import {
   browserAddonRouteHash,
   isBrowserAddonRouteHash,
 } from "../addons/navigation.js";
+import {
+  campaignCollectionHash,
+  campaignPages,
+  campaignRecordHash,
+  parseCoreRoute,
+} from "./core-navigation.js";
 
 type Readiness =
   | { state: "checking" }
@@ -132,6 +149,41 @@ export class CodexApp extends LitElement {
       margin-top: 2rem;
       padding-top: 1.25rem;
       border-top: 1px solid #41433f;
+    }
+
+    .core-navigation {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid #41433f;
+    }
+
+    .core-navigation a {
+      min-height: 2.35rem;
+      padding: 0.5rem 0.7rem;
+      border: 1px solid #4a4d48;
+      border-radius: 0.3rem;
+      color: #c9c6ba;
+      background: #1b1e25;
+      text-decoration: none;
+    }
+
+    .core-navigation a:hover {
+      border-color: #7b704f;
+      color: #f0e4c5;
+    }
+
+    .core-navigation a[aria-current="page"] {
+      border-color: #a88e55;
+      color: #211d15;
+      background: #c3a464;
+    }
+
+    .core-navigation a:focus-visible {
+      outline: 2px solid #ded4bc;
+      outline-offset: 3px;
     }
 
     .indicator {
@@ -401,6 +453,7 @@ export class CodexApp extends LitElement {
           ${this.#hostStatusTemplate()}
           ${this.#authorityTemplate()}
         </div>
+        ${this.#coreNavigationTemplate()}
         ${this.#campaignTemplate()}
         ${this.#toolsTemplate()}
         ${this.errorMessage === "" ? null : html`<p class="error" role="alert">${this.errorMessage}</p>`}
@@ -642,12 +695,7 @@ export class CodexApp extends LitElement {
       case "loading":
         return html`<div class="status"><span class="indicator"></span>Loading campaign…</div>`;
       case "ready":
-        return html`<campaign-overview
-          .campaign=${this.campaignState.dataset}
-          .canEdit=${this.#canEditCampaign()}
-          .saving=${this.busy}
-          @campaign-identity-save=${this.#saveCampaignIdentity}
-        ></campaign-overview>`;
+        return this.#readyCampaignTemplate(this.campaignState.dataset);
       case "unavailable":
         return html`<p class="error" role="alert" title=${this.campaignState.message}>
           The campaign archive could not be loaded.
@@ -655,9 +703,63 @@ export class CodexApp extends LitElement {
     }
   }
 
+  #readyCampaignTemplate(dataset: CampaignDataset) {
+    const route = parseCoreRoute(window.location.hash);
+    switch (route.kind) {
+      case "overview":
+        return html`<campaign-overview
+          .campaign=${dataset}
+          .canEdit=${this.#canEditCampaign()}
+          .saving=${this.busy}
+          @campaign-identity-save=${this.#saveCampaignIdentity}
+        ></campaign-overview>`;
+      case "collection":
+      case "record":
+        return html`<campaign-record-browser
+          .campaign=${dataset}
+          .page=${route.page}
+          .recordKey=${route.kind === "record" ? route.key : undefined}
+          .canEdit=${this.#canEditRecord()}
+          .canManageVisibility=${this.#canEditCampaign()}
+          .saving=${this.busy}
+          @campaign-record-save=${this.#saveCampaignRecord}
+          @campaign-record-delete=${this.#deleteCampaignRecord}
+        ></campaign-record-browser>`;
+      case "addon":
+        return null;
+      case "not-found":
+        return html`<section>
+          <p class="error" role="alert">The page ${route.path} does not exist.</p>
+        </section>`;
+    }
+  }
+
+  #coreNavigationTemplate() {
+    if (this.campaignState.state !== "ready") {
+      return null;
+    }
+    const route = parseCoreRoute(window.location.hash);
+    return html`
+      <nav class="core-navigation" aria-label="Campaign archive">
+        <a href="#/" aria-current=${route.kind === "overview" ? "page" : nothing}>Overview</a>
+        ${campaignPages.map((page) => html`
+          <a
+            href=${campaignCollectionHash(page)}
+            aria-current=${(route.kind === "collection" || route.kind === "record") &&
+              route.page.collection === page.collection ? "page" : nothing}
+          >${page.pluralLabel}</a>
+        `)}
+      </nav>
+    `;
+  }
+
   #canEditCampaign(): boolean {
     return this.authority.state === "known" && this.authority.auth.authenticated &&
       this.authority.auth.role === "dm";
+  }
+
+  #canEditRecord(): boolean {
+    return this.authority.state === "known" && this.authority.auth.authenticated;
   }
 
   readonly #saveCampaignIdentity = async (
@@ -695,6 +797,82 @@ export class CodexApp extends LitElement {
       if (!this.#request.signal.aborted) {
         this.errorMessage = error instanceof CampaignMutationHTTPError && error.status === 409
           ? "The campaign changed while saving. Refresh and try the edit again."
+          : errorMessage(error);
+      }
+    } finally {
+      this.busy = false;
+    }
+  };
+
+  readonly #saveCampaignRecord = async (
+    event: CustomEvent<CampaignRecordSaveDetail>,
+  ): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canEditRecord() ||
+      this.authority.state !== "known" || !this.authority.auth.authenticated ||
+      this.campaignState.state !== "ready") {
+      return;
+    }
+    const detail = event.detail;
+    let prepared: PreparedCampaignRecordMutation;
+    try {
+      prepared = prepareCampaignRecordSave(
+        this.campaignState.dataset, detail, this.#canEditCampaign(),
+      );
+    } catch (error: unknown) {
+      if (error instanceof CampaignRecordEditError && error.kind === "stale") {
+        this.errorMessage = "The record changed before this edit could be saved. Refresh and try again.";
+      }
+      return;
+    }
+    this.busy = true;
+    this.errorMessage = "";
+    try {
+      await this.#campaignMutations.commit(
+        [prepared.mutation], this.authority.auth.csrfToken, this.#request.signal,
+      );
+      await this.#loadCampaign(this.#request.signal, true);
+      window.location.hash = campaignRecordHash(prepared.page, detail.key);
+    } catch (error: unknown) {
+      if (!this.#request.signal.aborted) {
+        this.errorMessage = error instanceof CampaignMutationHTTPError && error.status === 409
+          ? "The record changed while saving. Refresh and try the edit again."
+          : errorMessage(error);
+      }
+    } finally {
+      this.busy = false;
+    }
+  };
+
+  readonly #deleteCampaignRecord = async (
+    event: CustomEvent<CampaignRecordDeleteDetail>,
+  ): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canEditRecord() ||
+      this.authority.state !== "known" || !this.authority.auth.authenticated ||
+      this.campaignState.state !== "ready") {
+      return;
+    }
+    const detail = event.detail;
+    let prepared: PreparedCampaignRecordMutation;
+    try {
+      prepared = prepareCampaignRecordDelete(this.campaignState.dataset, detail);
+    } catch (error: unknown) {
+      if (error instanceof CampaignRecordEditError && error.kind === "stale") {
+        this.errorMessage = "The record changed before it could be deleted. Refresh and try again.";
+      }
+      return;
+    }
+    this.busy = true;
+    this.errorMessage = "";
+    try {
+      await this.#campaignMutations.commit(
+        [prepared.mutation], this.authority.auth.csrfToken, this.#request.signal,
+      );
+      await this.#loadCampaign(this.#request.signal, true);
+      window.location.hash = campaignCollectionHash(prepared.page);
+    } catch (error: unknown) {
+      if (!this.#request.signal.aborted) {
+        this.errorMessage = error instanceof CampaignMutationHTTPError && error.status === 409
+          ? "The record changed while deleting. Refresh and try again."
           : errorMessage(error);
       }
     } finally {
@@ -800,6 +978,7 @@ export class CodexApp extends LitElement {
       return null;
     }
     const addonRouteRequested = isBrowserAddonRouteHash(window.location.hash);
+    const coreRoute = parseCoreRoute(window.location.hash);
     const showingRoute = this.routeCount > 0;
     return html`
       <section class="tools" aria-labelledby="campaign-tools-title">
@@ -814,7 +993,7 @@ export class CodexApp extends LitElement {
         ${addonRouteRequested && !showingRoute && this.addonState.state !== "loading"
           ? html`<p class="empty-tools">This add-on page is not available for the current role.</p>`
           : null}
-        <div class="addon-dashboard" ?hidden=${showingRoute || addonRouteRequested}>
+        <div class="addon-dashboard" ?hidden=${showingRoute || addonRouteRequested || coreRoute.kind !== "overview"}>
           ${this.contributionCount === 0
             ? html`<p class="empty-tools">${this.addonState.state === "loading"
               ? "Loading the add-on panels available to this role…"
