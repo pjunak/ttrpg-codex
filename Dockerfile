@@ -20,7 +20,10 @@ RUN CGO_ENABLED=0 go build -trimpath -o /out/codex-convert-v1 ./cmd/codex-conver
 RUN CGO_ENABLED=0 go build -trimpath -o /out/codex-maintenance ./cmd/codex-maintenance
 
 FROM debian:bookworm-slim
-RUN groupadd --system codex && useradd --system --gid codex --home-dir /app codex
+# Production bind mounts were already owned by UID/GID 1000 for the Node host.
+# Keep that durable ownership contract across the runtime replacement.
+RUN groupadd --gid 1000 codex \
+  && useradd --uid 1000 --gid codex --home-dir /app --no-create-home --shell /usr/sbin/nologin codex
 WORKDIR /app
 COPY --from=host-build /out/codex /app/codex
 COPY --from=host-build /out/codex-health /app/codex-health
