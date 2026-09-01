@@ -21,6 +21,8 @@ const (
 	MaximumRecords       = 100_000
 	MaximumQueryRecords  = 200
 	MaximumIdentityBytes = 200
+	MaximumRecordBytes   = 2 << 20
+	MaximumQueryBytes    = 4 << 20
 )
 
 var (
@@ -130,6 +132,9 @@ func Compile(
 			if len(compiled.records) >= MaximumRecords {
 				return nil, fmt.Errorf("%w: content set %q exceeds %d records", ErrInvalidRecord, declaration.ID, MaximumRecords)
 			}
+			if len(file.Body) > MaximumRecordBytes {
+				return nil, fmt.Errorf("%w: %s exceeds %d bytes", ErrInvalidRecord, file.Path, MaximumRecordBytes)
+			}
 			if err := schemas.Validate(datacontract.Collection, declaration.ID, file.Body); err != nil {
 				return nil, fmt.Errorf("%w: %s: %v", ErrInvalidRecord, file.Path, err)
 			}
@@ -218,18 +223,20 @@ func (registry *Registry) Query(query Query) (QueryResult, error) {
 	}
 	result := QueryResult{Records: make([]Record, 0, query.Limit)}
 	lastPosition := -1
+	valueBytes := 0
 	for position := query.AfterPosition + 1; position < len(contentSet.records); position++ {
 		record := contentSet.records[position]
 		if query.Kind != "" && record.Kind != query.Kind {
 			continue
 		}
-		if len(result.Records) == query.Limit {
+		if len(result.Records) == query.Limit || valueBytes+len(record.Value) > MaximumQueryBytes {
 			next := lastPosition
 			result.NextPosition = &next
 			break
 		}
 		result.Records = append(result.Records, cloneRecord(record))
 		lastPosition = position
+		valueBytes += len(record.Value)
 	}
 	return result, nil
 }

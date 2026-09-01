@@ -94,6 +94,44 @@ func TestCompileRejectsInvalidSchemasIdentitiesAndDuplicates(t *testing.T) {
 	}
 }
 
+func TestCompileAndQueryEnforcePayloadBounds(t *testing.T) {
+	t.Parallel()
+	oversized := make([]byte, MaximumRecordBytes+1)
+	copy(oversized, `{"kind":"spell","id":"large","name":"`)
+	for index := len(`{"kind":"spell","id":"large","name":"`); index < len(oversized)-2; index++ {
+		oversized[index] = 'x'
+	}
+	copy(oversized[len(oversized)-2:], `"}`)
+	_, err := Compile([]Declaration{{
+		ID: "rules", Root: "content/rules", Schema: "contracts/record.schema.json", Revision: "1",
+	}}, []File{{Path: "content/rules/large.json", Body: oversized}}, testSchemas(t))
+	if !errors.Is(err, ErrInvalidRecord) {
+		t.Fatalf("oversized record error = %v", err)
+	}
+
+	padding := make([]byte, MaximumQueryBytes/2-256)
+	for index := range padding {
+		padding[index] = 'x'
+	}
+	files := make([]File, 3)
+	for index, id := range []string{"a", "b", "c"} {
+		files[index] = File{
+			Path: "content/rules/" + id + ".json",
+			Body: raw(`{"kind":"spell","id":"` + id + `","name":"` + string(padding) + `"}`),
+		}
+	}
+	registry, err := Compile([]Declaration{{
+		ID: "rules", Root: "content/rules", Schema: "contracts/record.schema.json", Revision: "1",
+	}}, files, testSchemas(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := registry.Query(Query{SetID: "rules", AfterPosition: -1, Limit: 3})
+	if err != nil || len(first.Records) != 2 || first.NextPosition == nil || *first.NextPosition != 1 {
+		t.Fatalf("bounded first page = records %d, next %v, error %v", len(first.Records), first.NextPosition, err)
+	}
+}
+
 func TestRegistryRejectsUnknownAndInvalidQueries(t *testing.T) {
 	t.Parallel()
 	registry, err := Compile([]Declaration{{
