@@ -418,6 +418,63 @@ func TestInspectFileRejectsServiceDocumentMismatchAndExternalSchemaReference(t *
 	})
 }
 
+func TestInspectFileCompilesAndValidatesImmutableContent(t *testing.T) {
+	t.Parallel()
+	manifest := contentManifest(t)
+	validEntries := map[string][]byte{
+		manifestFilename: manifest,
+		"contracts/content.schema.json": []byte(`{
+			"$schema":"https://json-schema.org/draft/2020-12/schema",
+			"type":"object","required":["kind","id","name"],
+			"properties":{"kind":{"type":"string"},"id":{"type":"string"},"name":{"type":"string"}}
+		}`),
+		"content/rules/spell/shield.json": []byte(`{"kind":"spell","id":"shield","name":"Shield"}`),
+	}
+	report, err := newTestInspector(t).InspectFile(
+		context.Background(), writePackage(t, validEntries),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.ContentContracts) != 1 || report.ContentContracts[0].RecordCount != 1 ||
+		report.ContentContracts[0].Kinds["spell"] != 1 {
+		t.Fatalf("content contracts = %+v", report.ContentContracts)
+	}
+	record, err := report.ContentRegistry().Get("rules", "spell", "shield")
+	if err != nil || record.ID != "shield" {
+		t.Fatalf("content record = %+v, %v", record, err)
+	}
+
+	invalidEntries := make(map[string][]byte, len(validEntries))
+	for filename, body := range validEntries {
+		invalidEntries[filename] = body
+	}
+	invalidEntries["content/rules/spell/shield.json"] = []byte(
+		`{"kind":"spell","id":"shield"}`,
+	)
+	_, err = newTestInspector(t).InspectFile(
+		context.Background(), writePackage(t, invalidEntries),
+	)
+	assertInspectionCode(t, err, CodeInvalidContent)
+}
+
+func contentManifest(t *testing.T) []byte {
+	t.Helper()
+	var manifest map[string]any
+	if err := json.Unmarshal(minimalManifest("content-addon"), &manifest); err != nil {
+		t.Fatal(err)
+	}
+	manifest["content"] = []any{map[string]any{
+		"id": "rules", "root": "content/rules",
+		"schema": "contracts/content.schema.json", "revision": "fixture-1",
+	}}
+	body, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return body
+}
+
 func newTestInspector(t *testing.T) *Inspector {
 	t.Helper()
 	inspector, err := New(DefaultLimits)

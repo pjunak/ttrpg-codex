@@ -15,6 +15,7 @@ const (
 	CodeChecksumMismatch   = "CHECKSUM_MISMATCH"
 	CodeInvalidDeclaration = "INVALID_DECLARATION"
 	CodeInvalidSchema      = "INVALID_SCHEMA"
+	CodeInvalidContent     = "INVALID_CONTENT"
 	CodeExtractionFailed   = "EXTRACTION_FAILED"
 )
 

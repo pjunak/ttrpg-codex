@@ -75,7 +75,7 @@ func (manager *Manager) Reload(
 		return ActivationResult{}, errors.Join(err, restoreErr)
 	}
 	manager.runtimes[addonID] = activeRuntime{
-		generation: generation, report: report, runtime: next,
+		generation: generation, report: report, content: report.ContentRegistry(), runtime: next,
 		services: append([]servicebroker.Handle(nil), services...),
 	}
 	stopNext = false

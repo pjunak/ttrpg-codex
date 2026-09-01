@@ -155,7 +155,8 @@ func (manager *Manager) recoverCandidate(
 	}
 	dataTransition.Commit()
 	return activeRuntime{
-		generation: candidate.generation, report: candidate.report, runtime: runtime,
+		generation: candidate.generation, report: candidate.report,
+		content: candidate.report.ContentRegistry(), runtime: runtime,
 		services: append([]servicebroker.Handle(nil), services...),
 	}, true, nil
 }

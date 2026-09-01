@@ -109,10 +109,17 @@ type ConsumedService struct {
 }
 
 type ContentSet struct {
-	ID       string `json:"id"`
-	Root     string `json:"root"`
-	Schema   string `json:"schema"`
-	Revision string `json:"revision"`
+	ID       string         `json:"id"`
+	Root     string         `json:"root"`
+	Schema   string         `json:"schema"`
+	Revision string         `json:"revision"`
+	Groups   *ContentGroups `json:"groups,omitempty"`
+}
+
+type ContentGroups struct {
+	Field           string `json:"field"`
+	AdditionalField string `json:"additionalField,omitempty"`
+	Label           string `json:"label"`
 }
 
 type Dependency struct {

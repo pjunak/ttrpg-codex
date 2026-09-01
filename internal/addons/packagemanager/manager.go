@@ -19,6 +19,7 @@ import (
 	"time"
 
 	semver "github.com/Masterminds/semver/v3"
+	"github.com/pjunak/ttrpg-codex/internal/addons/contentcontract"
 	"github.com/pjunak/ttrpg-codex/internal/addons/datalifecycle"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
@@ -55,6 +56,7 @@ type EventPublisher interface {
 type activeRuntime struct {
 	generation Generation
 	report     packageinspect.Report
+	content    *contentcontract.Registry
 	runtime    Runtime
 	services   []servicebroker.Handle
 }
@@ -309,7 +311,7 @@ func (manager *Manager) activateLocked(
 	}
 	dataTransition.Commit()
 	manager.runtimes[plan.AddonID] = activeRuntime{
-		generation: generation, report: report, runtime: nextRuntime,
+		generation: generation, report: report, content: report.ContentRegistry(), runtime: nextRuntime,
 		services: append([]servicebroker.Handle(nil), services...),
 	}
 	stopNext = false

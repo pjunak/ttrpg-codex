@@ -18,6 +18,7 @@ import (
 	"unicode"
 
 	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
+	"github.com/pjunak/ttrpg-codex/internal/addons/contentcontract"
 	"github.com/pjunak/ttrpg-codex/internal/addons/datacontract"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicecontract"
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -61,8 +62,10 @@ type Report struct {
 	Files                   []File                        `json:"files"`
 	DataContracts           []datacontract.Description    `json:"dataContracts"`
 	ServiceContracts        []servicecontract.Description `json:"serviceContracts"`
+	ContentContracts        []contentcontract.Description `json:"contentContracts"`
 	dataRegistry            *datacontract.Registry
 	serviceRegistry         *servicecontract.Registry
+	contentRegistry         *contentcontract.Registry
 }
 
 func (report Report) DataRegistry() *datacontract.Registry {
@@ -71,6 +74,10 @@ func (report Report) DataRegistry() *datacontract.Registry {
 
 func (report Report) ServiceRegistry() *servicecontract.Registry {
 	return report.serviceRegistry
+}
+
+func (report Report) ContentRegistry() *contentcontract.Registry {
+	return report.contentRegistry
 }
 
 type Inspector struct {
@@ -204,9 +211,19 @@ func (i *Inspector) InspectFile(ctx context.Context, filename string) (Report, e
 	if err := validateDeclarations(manifest, entries, directories); err != nil {
 		return Report{}, err
 	}
-	dataRegistry, serviceRegistry, err := i.validateDeclaredSchemas(ctx, manifest, entries)
+	dataRegistry, contentSchemas, serviceRegistry, err := i.validateDeclaredSchemas(ctx, manifest, entries)
 	if err != nil {
 		return Report{}, err
+	}
+	contentFiles, err := i.readContentFiles(ctx, manifest, entries)
+	if err != nil {
+		return Report{}, err
+	}
+	contentRegistry, err := contentcontract.Compile(
+		contentDeclarations(manifest), contentFiles, contentSchemas,
+	)
+	if err != nil {
+		return Report{}, inspectionError(CodeInvalidContent, "", err)
 	}
 
 	checksumDigest := sha256.Sum256(checksumBody)
@@ -219,8 +236,10 @@ func (i *Inspector) InspectFile(ctx context.Context, filename string) (Report, e
 		Files:                   files,
 		DataContracts:           dataRegistry.Descriptions(),
 		ServiceContracts:        serviceRegistry.Descriptions(),
+		ContentContracts:        contentRegistry.Descriptions(),
 		dataRegistry:            dataRegistry,
 		serviceRegistry:         serviceRegistry,
+		contentRegistry:         contentRegistry,
 	}, nil
 }
 
@@ -228,7 +247,7 @@ func (i *Inspector) validateDeclaredSchemas(
 	ctx context.Context,
 	manifest Manifest,
 	entries map[string]*zip.File,
-) (*datacontract.Registry, *servicecontract.Registry, error) {
+) (*datacontract.Registry, *datacontract.Registry, *servicecontract.Registry, error) {
 	declared := declaredDataSchemaPaths(manifest)
 	serviceDeclarations := make([]servicecontract.Declaration, 0, len(manifest.Services.Provides))
 	serviceDocuments := make(map[string]struct{}, len(manifest.Services.Provides))
@@ -268,11 +287,11 @@ func (i *Inspector) validateDeclaredSchemas(
 	for _, filename := range filenames {
 		entry, ok := entries[filename]
 		if !ok {
-			return nil, nil, inspectionError(CodeInvalidSchema, filename, errors.New("schema resource is missing"))
+			return nil, nil, nil, inspectionError(CodeInvalidSchema, filename, errors.New("schema resource is missing"))
 		}
 		body, err := readEntry(ctx, entry, i.limits.MaxSchemaBytes)
 		if err != nil {
-			return nil, nil, inspectionError(CodeInvalidSchema, filename, err)
+			return nil, nil, nil, inspectionError(CodeInvalidSchema, filename, err)
 		}
 		resourceBodies[filename] = body
 		if _, isServiceDocument := serviceDocuments[filename]; isServiceDocument {
@@ -281,23 +300,27 @@ func (i *Inspector) validateDeclaredSchemas(
 		schemaResourceBodies[filename] = body
 		document, err := jsonschema.UnmarshalJSON(bytes.NewReader(body))
 		if err != nil {
-			return nil, nil, inspectionError(CodeInvalidSchema, filename, err)
+			return nil, nil, nil, inspectionError(CodeInvalidSchema, filename, err)
 		}
 		resourceURL := packageResourceURL(filename)
 		if err := schemaCompiler.AddResource(resourceURL, document); err != nil {
-			return nil, nil, inspectionError(CodeInvalidSchema, filename, err)
+			return nil, nil, nil, inspectionError(CodeInvalidSchema, filename, err)
 		}
 		resourceURLs[filename] = resourceURL
 	}
 
 	for _, filename := range declared {
 		if _, err := schemaCompiler.Compile(resourceURLs[filename]); err != nil {
-			return nil, nil, inspectionError(CodeInvalidSchema, filename, err)
+			return nil, nil, nil, inspectionError(CodeInvalidSchema, filename, err)
 		}
 	}
 	dataRegistry, err := datacontract.Compile(dataDeclarations(manifest), schemaResourceBodies)
 	if err != nil {
-		return nil, nil, inspectionError(CodeInvalidSchema, "", err)
+		return nil, nil, nil, inspectionError(CodeInvalidSchema, "", err)
+	}
+	contentSchemas, err := datacontract.Compile(contentSchemaDeclarations(manifest), schemaResourceBodies)
+	if err != nil {
+		return nil, nil, nil, inspectionError(CodeInvalidSchema, "", err)
 	}
 	serviceRegistry, err := i.serviceCompiler.Compile(serviceDeclarations, resourceBodies)
 	if err != nil {
@@ -307,11 +330,11 @@ func (i *Inspector) validateDeclaredSchemas(
 		}
 		var compileError *servicecontract.CompileError
 		if errors.As(err, &compileError) {
-			return nil, nil, inspectionError(code, compileError.Path, compileError.Cause)
+			return nil, nil, nil, inspectionError(code, compileError.Path, compileError.Cause)
 		}
-		return nil, nil, inspectionError(code, "", err)
+		return nil, nil, nil, inspectionError(code, "", err)
 	}
-	return dataRegistry, serviceRegistry, nil
+	return dataRegistry, contentSchemas, serviceRegistry, nil
 }
 
 func dataDeclarations(manifest Manifest) []datacontract.Declaration {
@@ -335,6 +358,65 @@ func dataDeclarations(manifest Manifest) []datacontract.Declaration {
 		})
 	}
 	return result
+}
+
+func contentSchemaDeclarations(manifest Manifest) []datacontract.Declaration {
+	result := make([]datacontract.Declaration, 0, len(manifest.Content))
+	for _, content := range manifest.Content {
+		result = append(result, datacontract.Declaration{
+			Kind: datacontract.Collection, ID: content.ID, Keyed: true,
+			Visibility: datacontract.VisibilityPublic,
+			Schema:     content.Schema, SchemaVersion: content.Revision,
+		})
+	}
+	return result
+}
+
+func contentDeclarations(manifest Manifest) []contentcontract.Declaration {
+	result := make([]contentcontract.Declaration, 0, len(manifest.Content))
+	for _, content := range manifest.Content {
+		var groups *contentcontract.Groups
+		if content.Groups != nil {
+			groups = &contentcontract.Groups{
+				Field: content.Groups.Field, AdditionalField: content.Groups.AdditionalField,
+				Label: content.Groups.Label,
+			}
+		}
+		result = append(result, contentcontract.Declaration{
+			ID: content.ID, Root: content.Root, Schema: content.Schema, Revision: content.Revision,
+			Groups: groups,
+		})
+	}
+	return result
+}
+
+func (i *Inspector) readContentFiles(
+	ctx context.Context,
+	manifest Manifest,
+	entries map[string]*zip.File,
+) ([]contentcontract.File, error) {
+	paths := make([]string, 0)
+	for filename := range entries {
+		if !strings.HasSuffix(filename, ".json") {
+			continue
+		}
+		for _, content := range manifest.Content {
+			if strings.HasPrefix(filename, content.Root+"/") {
+				paths = append(paths, filename)
+				break
+			}
+		}
+	}
+	sort.Strings(paths)
+	files := make([]contentcontract.File, 0, len(paths))
+	for _, filename := range paths {
+		body, err := readEntry(ctx, entries[filename], i.limits.MaxFileBytes)
+		if err != nil {
+			return nil, inspectionError(CodeInvalidContent, filename, err)
+		}
+		files = append(files, contentcontract.File{Path: filename, Body: body})
+	}
+	return files, nil
 }
 
 func declaredDataSchemaPaths(manifest Manifest) []string {
