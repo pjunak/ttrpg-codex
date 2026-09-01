@@ -61,6 +61,9 @@ func TestPublicDatasetClosesReferencesWithoutChangingDMSnapshot(t *testing.T) {
 	if len(mapConfigs) != 2 || mapConfigs["local-town"] == nil || mapConfigs["world"] == nil {
 		t.Fatalf("map configs were not closed: %#v", mapConfigs)
 	}
+	if deleted := recordValue(t, public, campaign.DeletedDefaults, "settings:genders:male"); deleted != true {
+		t.Fatalf("deleted default marker changed: %#v", deleted)
+	}
 
 	dm, err := service.Dataset(context.Background(), ViewDM)
 	if err != nil {
@@ -112,6 +115,7 @@ func projectionFixture() campaign.Snapshot {
 		{Collection: campaign.Settings, Key: "relationshipTypes", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`[{"id":"travels","target":"location"}]`)},
 		{Collection: campaign.Settings, Key: "mapViews", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`[{"id":"visible","parentId":"town"},{"id":"hidden","parentId":"hidden-cave"}]`)},
 		{Collection: campaign.Settings, Key: "mapConfigs", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"world":{"zoom":1},"local-town":{"zoom":2},"local-hidden-cave":{"zoom":3},"local-":{"zoom":4}}`)},
+		{Collection: campaign.DeletedDefaults, Key: "settings:genders:male", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`true`)},
 	}}
 }
 

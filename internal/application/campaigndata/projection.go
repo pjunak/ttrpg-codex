@@ -166,6 +166,9 @@ func closeRecord(
 		value, err := closeSetting(record, ids[campaign.Locations])
 		return value, true, err
 	}
+	if record.Collection == campaign.DeletedDefaults {
+		return append(json.RawMessage(nil), record.Value...), true, nil
+	}
 
 	value, err := transformObject(record.Value, func(value map[string]any) {
 		switch record.Collection {
