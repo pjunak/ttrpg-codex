@@ -56,13 +56,20 @@ never record bodies or private keys.
 
 ## Deliberate boundaries
 
-This layer validates storage invariants, not all campaign rules. It does not
-yet implement:
+The application layer now publishes `GET /api/campaign` as
+`campaign-data.v1`. Anonymous and player requests receive a closed public
+projection: DM records are removed, `linkedTwinId` is stripped, references to
+hidden identities are removed, and relationship/map settings are filtered so
+they cannot disclose hidden records. An effective DM receives the exact stored
+snapshot. The transport never accepts a requested role; authority comes only
+from the resolved session.
 
-- the closed player visibility graph that removes dangling references and
-  strips `linkedTwinId`;
+The record store itself still validates storage invariants, not all campaign
+rules. The read application service owns visibility policy above it. The
+rewrite does not yet implement:
+
 - player write sanitization, twin pairing, or entity-specific cascade rules;
-- the authenticated HTTP query/transaction API and TypeScript data handles;
+- the HTTP transaction API or TypeScript data handles;
 - initial import publication, backup/restore, or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and
   other domain queries.

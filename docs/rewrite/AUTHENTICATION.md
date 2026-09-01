@@ -52,6 +52,13 @@ role. Administrative reads require real and effective DM. Administrative
 mutations additionally require the exact `X-Codex-CSRF` value bound to that
 session. These checks run before request path, query, or body parsing.
 
+Campaign reading deliberately differs from those protected surfaces.
+`GET /api/campaign` is available anonymously because both current websites are
+public campaign references. Anonymous users and players receive the same
+closed public projection. Authentication can only expand that projection when
+the effective session role is DM; a DM using view-as-player receives the
+public result.
+
 ## Remaining authentication work
 
 - Add persistent slow-hashed credentials, password rotation, session

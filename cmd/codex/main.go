@@ -18,6 +18,7 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/addons/requestcontext"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
+	"github.com/pjunak/ttrpg-codex/internal/application/campaigndata"
 	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
 	"github.com/pjunak/ttrpg-codex/internal/events"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
@@ -37,7 +38,7 @@ const (
 type hostRuntime struct {
 	handler  http.Handler
 	addons   *packagemanager.Manager
-	campaign *campaignstore.Store
+	campaign *campaigndata.Service
 }
 
 func main() {
@@ -148,6 +149,10 @@ func composeHost(
 	if err != nil {
 		return nil, fmt.Errorf("configure campaign record store: %w", err)
 	}
+	campaignData, err := campaigndata.New(campaignRecords)
+	if err != nil {
+		return nil, fmt.Errorf("configure campaign data service: %w", err)
+	}
 	inspector, err := packageinspect.New(packageinspect.DefaultLimits)
 	if err != nil {
 		return nil, fmt.Errorf("configure package inspector: %w", err)
@@ -196,6 +201,7 @@ func composeHost(
 	handler, err := httpapi.New(httpapi.Config{
 		Version: version, DB: db, Logger: logger,
 		Authentication: authentication, SecureCookies: secureCookies,
+		CampaignData:   campaignData,
 		AddonLifecycle: addons, AdminAuthorizer: httpapi.SessionAdminAuthorizer(authentication),
 		BrowserAddons: addons, BrowserAuthorizer: httpapi.SessionBrowserAuthorizer,
 		Events: eventBroker, EventAuthorizer: httpapi.SessionEventAuthorizer,
@@ -204,5 +210,5 @@ func composeHost(
 		_ = addons.Shutdown(context.Background())
 		return nil, fmt.Errorf("configure HTTP API: %w", err)
 	}
-	return &hostRuntime{handler: handler, addons: addons, campaign: campaignRecords}, nil
+	return &hostRuntime{handler: handler, addons: addons, campaign: campaignData}, nil
 }

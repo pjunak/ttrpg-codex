@@ -23,6 +23,7 @@ type Config struct {
 	BrowserAuthorizer BrowserAuthorizer
 	Authentication    *sessionauth.Service
 	SecureCookies     bool
+	CampaignData      CampaignData
 	Events            EventSource
 	EventAuthorizer   EventAuthorizer
 	EventHeartbeat    time.Duration
@@ -38,6 +39,7 @@ type server struct {
 	browserAuthorizer BrowserAuthorizer
 	authentication    *sessionauth.Service
 	secureCookies     bool
+	campaignData      CampaignData
 	loginLimiter      *loginLimiter
 	events            EventSource
 	eventAuthorizer   EventAuthorizer
@@ -60,6 +62,7 @@ func New(config Config) (http.Handler, error) {
 		addonLifecycle: config.AddonLifecycle, adminAuthorizer: config.AdminAuthorizer,
 		browserAddons: config.BrowserAddons, browserAuthorizer: config.BrowserAuthorizer,
 		authentication: config.Authentication, secureCookies: config.SecureCookies,
+		campaignData: config.CampaignData,
 		loginLimiter: newLoginLimiter(), events: config.Events,
 		eventAuthorizer: config.EventAuthorizer, eventHeartbeat: config.EventHeartbeat,
 	}
@@ -77,6 +80,9 @@ func New(config Config) (http.Handler, error) {
 	}
 	if s.events != nil {
 		s.registerEventRoutes(mux)
+	}
+	if s.campaignData != nil {
+		s.registerCampaignRoutes(mux)
 	}
 	handler := http.Handler(mux)
 	if s.authentication != nil {

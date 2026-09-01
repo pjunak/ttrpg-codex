@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/pjunak/ttrpg-codex/internal/application/campaigndata"
 	storage "github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
 )
@@ -33,13 +35,18 @@ func TestComposeHostWiresAuthenticatedBrowserGraphAndEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	if runtime.campaign == nil {
-		t.Fatal("campaign record store was not composed")
+		t.Fatal("campaign data service was not composed")
 	}
 	t.Cleanup(func() { _ = runtime.addons.Shutdown(context.Background()) })
 
 	anonymous := serve(runtime.handler, http.MethodGet, "/api/addons/browser-graph", "", nil)
 	if anonymous.Code != http.StatusForbidden {
 		t.Fatalf("anonymous graph status = %d", anonymous.Code)
+	}
+	publicCampaign := serve(runtime.handler, http.MethodGet, "/api/campaign", "", nil)
+	if publicCampaign.Code != http.StatusOK ||
+		!strings.Contains(publicCampaign.Body.String(), campaigndata.ContractVersion) {
+		t.Fatalf("public campaign = %d, %s", publicCampaign.Code, publicCampaign.Body.String())
 	}
 	login := serve(runtime.handler, http.MethodPost, "/api/login", `{"password":"dragon-master"}`, nil)
 	if login.Code != http.StatusOK || len(login.Result().Cookies()) != 1 {

@@ -54,7 +54,9 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   shapes, opaque record JSON, stable IDs, list order, and absent-versus-empty
   collection state. Optimistic record revisions, audit rows, collection
   invalidation, and SSE publication share one transaction. See
-  [`CORE_DATA.md`](CORE_DATA.md).
+  [`CORE_DATA.md`](CORE_DATA.md). A domain-facing application service now
+  publishes the versioned campaign dataset through `GET /api/campaign`, with
+  an exact DM snapshot and a reference-closed anonymous/player projection.
 - The HTTP boundary exposes no-store health and version responses. Its add-on
   administration routes require both a lifecycle service and an administrator
   authorizer at composition time; partial configuration fails closed and the
@@ -143,9 +145,10 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   deterministic whole-graph browser revision without exposing package paths,
   and checksum-verifies inventory-backed `web/` assets when opened. See
   [`PACKAGE_LIFECYCLE.md`](PACKAGE_LIFECYCLE.md).
-- The rewrite executable now composes authentication, the shared event broker,
-  package inspection, service resolution, package recovery, protected add-on
-  administration, browser graph/assets, and SSE. It requires an explicit
+- The rewrite executable now composes authentication, campaign reads, the
+  shared event broker, package inspection, service resolution, package
+  recovery, protected add-on administration, browser graph/assets, and SSE. It
+  requires an explicit
   `CODEX_DM_PASSWORD`, accepts optional `CODEX_PLAYER_PASSWORD`, and has no
   default credential. Production TLS deployments must pass `-secure-cookies`.
   Native worker capability remains unavailable until the worker-to-host
