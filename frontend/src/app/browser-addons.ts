@@ -22,7 +22,9 @@ export function createBrowserAddonComposition(
   document: Document,
   callbacks: BrowserAddonSessionCallbacks = {},
 ): BrowserAddonComposition {
-  const contributions = new BrowserContributionRegistry();
+  const contributions = new BrowserContributionRegistry(
+    (cause) => callbacks.onDiagnostic?.(cause),
+  );
   const manager = new BrowserGenerationManager(createModuleActivator(
     (entryUrl) => import(/* @vite-ignore */ entryUrl) as Promise<unknown>,
     (descriptor, scope) => contributions.open(descriptor, scope),

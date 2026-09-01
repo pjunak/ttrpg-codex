@@ -5,7 +5,7 @@ import type {
   BrowserPermissionGrant,
   BrowserRole,
 } from "./generation-manager.js";
-import type { GenerationScope } from "./generation-scope.js";
+import type { Disposer, GenerationScope } from "./generation-scope.js";
 
 const customElementPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$/;
 
@@ -79,6 +79,8 @@ export interface BrowserAddonSDKSession {
   dispose(): void;
 }
 
+export type BrowserContributionListener = () => void;
+
 export class BrowserSDKAuthorityError extends Error {
   override readonly name = "BrowserSDKAuthorityError";
 }
@@ -94,9 +96,20 @@ interface RegisteredContribution extends ActiveBrowserContribution {
 /** Host-owned registry of the contribution implementations active right now. */
 export class BrowserContributionRegistry {
   readonly #active = new Map<string, RegisteredContribution>();
+  readonly #listeners = new Set<BrowserContributionListener>();
+  readonly #onObserverError: (cause: unknown) => void;
+
+  constructor(onObserverError: (cause: unknown) => void = () => undefined) {
+    this.#onObserverError = onObserverError;
+  }
 
   open(descriptor: BrowserGenerationDescriptor, scope: GenerationScope): BrowserAddonSDKSession {
-    const session = new RegistrySession(this.#active, descriptor, scope.signal);
+    const session = new RegistrySession(
+      this.#active,
+      descriptor,
+      scope.signal,
+      () => this.#changed(),
+    );
     const releaseFallback = scope.add("browser SDK session", () => session.dispose());
     return {
       context: session.context,
@@ -119,6 +132,29 @@ export class BrowserContributionRegistry {
       .sort(compareActiveContributions)
       .map(({ key: _key, ...active }) => active);
   }
+
+  subscribe(listener: BrowserContributionListener): Disposer {
+    this.#listeners.add(listener);
+    let subscribed = true;
+    return () => {
+      if (!subscribed) {
+        return;
+      }
+      subscribed = false;
+      this.#listeners.delete(listener);
+    };
+  }
+
+  #changed(): void {
+    for (const listener of this.#listeners) {
+      try {
+        listener();
+      } catch (cause: unknown) {
+        // A host observer must not make an otherwise valid add-on binding fail.
+        this.#onObserverError(cause);
+      }
+    }
+  }
 }
 
 class RegistrySession {
@@ -126,6 +162,7 @@ class RegistrySession {
   readonly #global: Map<string, RegisteredContribution>;
   readonly #descriptor: BrowserGenerationDescriptor;
   readonly #declarations: ReadonlyMap<string, BrowserContributionDescriptor>;
+  readonly #changed: BrowserContributionListener;
   readonly #active = new Map<string, RegisteredContribution>();
   #closed = false;
 
@@ -133,9 +170,11 @@ class RegistrySession {
     global: Map<string, RegisteredContribution>,
     descriptor: BrowserGenerationDescriptor,
     signal: AbortSignal,
+    changed: BrowserContributionListener,
   ) {
     this.#global = global;
     this.#descriptor = descriptor;
+    this.#changed = changed;
     this.#declarations = new Map(
       descriptor.contributions.map((contribution) => {
         const frozen = freezeContribution(contribution);
@@ -172,12 +211,17 @@ class RegistrySession {
       return;
     }
     this.#closed = true;
+    let changed = false;
     for (const active of this.#active.values()) {
       if (this.#global.get(active.key) === active) {
         this.#global.delete(active.key);
+        changed = true;
       }
     }
     this.#active.clear();
+    if (changed) {
+      this.#changed();
+    }
   }
 
   #bind(
@@ -211,6 +255,7 @@ class RegistrySession {
     });
     this.#active.set(contributionId, active);
     this.#global.set(key, active);
+    this.#changed();
     let disposed = false;
     return Object.freeze({
       descriptor: declaration,
@@ -222,6 +267,7 @@ class RegistrySession {
         this.#active.delete(contributionId);
         if (this.#global.get(key) === active) {
           this.#global.delete(key);
+          this.#changed();
         }
       },
     });

@@ -11,6 +11,7 @@ import {
   createBrowserAddonComposition,
   type BrowserAddonComposition,
 } from "./browser-addons.js";
+import { BrowserContributionOutlet } from "../addons/contribution-outlet.js";
 
 type Readiness =
   | { state: "checking" }
@@ -50,6 +51,10 @@ export class CodexApp extends LitElement {
       box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 36%);
     }
 
+    main.has-tools {
+      width: min(64rem, 100%);
+    }
+
     main::before {
       position: absolute;
       inset: 0 auto 0 0.8rem;
@@ -63,6 +68,10 @@ export class CodexApp extends LitElement {
     p {
       color: #c9c6ba;
       line-height: 1.6;
+    }
+
+    .intro {
+      max-width: 42rem;
     }
 
     h1 {
@@ -171,6 +180,70 @@ export class CodexApp extends LitElement {
       font-size: 0.9rem;
     }
 
+    .tools {
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #55534a;
+    }
+
+    .tools-title {
+      display: flex;
+      gap: 1rem;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    h2 {
+      margin: 0;
+      color: #ded4bc;
+      font-family: Palatino, "Palatino Linotype", Georgia, serif;
+      font-size: 1.35rem;
+      font-weight: 500;
+    }
+
+    .tools-title span,
+    .empty-tools,
+    .addon-contribution-heading span {
+      color: #9d9b92;
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 0.76rem;
+    }
+
+    .empty-tools {
+      margin: 0;
+      padding: 1rem 0;
+    }
+
+    .addon-outlet {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .addon-contribution {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid #484b48;
+      border-radius: 0.3rem;
+      background: #1c1f27;
+    }
+
+    .addon-contribution-heading {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 0.85rem;
+      border-bottom: 1px solid #3f423f;
+      color: #d8c99f;
+      background: #20242c;
+    }
+
+    .addon-contribution > :not(.addon-contribution-heading) {
+      display: block;
+      padding: 1rem;
+    }
+
     @media (max-width: 32rem) {
       form {
         grid-template-columns: 1fr;
@@ -184,6 +257,7 @@ export class CodexApp extends LitElement {
     addonState: { state: true },
     busy: { state: true },
     errorMessage: { state: true },
+    contributionCount: { state: true },
   };
 
   declare private readiness: Readiness;
@@ -191,8 +265,10 @@ export class CodexApp extends LitElement {
   declare private addonState: AddonState;
   declare private busy: boolean;
   declare private errorMessage: string;
+  declare private contributionCount: number;
   #request: AbortController | undefined;
   #addons: BrowserAddonComposition | undefined;
+  #contributionOutlet: BrowserContributionOutlet | undefined;
   #addonOwner = 0;
 
   constructor() {
@@ -202,6 +278,7 @@ export class CodexApp extends LitElement {
     this.addonState = { state: "idle" };
     this.busy = false;
     this.errorMessage = "";
+    this.contributionCount = 0;
   }
 
   override connectedCallback(): void {
@@ -218,15 +295,19 @@ export class CodexApp extends LitElement {
   }
 
   protected override render() {
+    const authenticated = this.authority.state === "known" && this.authority.auth.authenticated;
     return html`
-      <main>
-        <p class="eyebrow">Campaign archive</p>
-        <h1>TTRPG Codex</h1>
-        <p>
-          Sign in to open the campaign tools and the add-ons available to your role.
-        </p>
-        ${this.#hostStatusTemplate()}
-        ${this.#authorityTemplate()}
+      <main class=${authenticated ? "has-tools" : ""}>
+        <div class="intro">
+          <p class="eyebrow">Campaign archive</p>
+          <h1>TTRPG Codex</h1>
+          <p>
+            Sign in to open the campaign tools and the add-ons available to your role.
+          </p>
+          ${this.#hostStatusTemplate()}
+          ${this.#authorityTemplate()}
+        </div>
+        ${this.#toolsTemplate()}
         ${this.errorMessage === "" ? null : html`<p class="error" role="alert">${this.errorMessage}</p>`}
       </main>
     `;
@@ -316,6 +397,7 @@ export class CodexApp extends LitElement {
           revision: result.lifecycle.graphRevision,
           failures: result.lifecycle.activationFailures.length,
         };
+        this.#contributionOutlet?.refresh();
       },
       onDiagnostic: (error) => {
         if (owner === this.#addonOwner) {
@@ -332,16 +414,51 @@ export class CodexApp extends LitElement {
           return;
         }
         this.#addons = undefined;
+        this.#contributionOutlet?.dispose();
+        this.#contributionOutlet = undefined;
         this.authority = { state: "known", auth: anonymousAuth() };
         this.addonState = { state: "idle" };
       },
     });
     this.#addons = composition;
-    await composition.session.start();
+    try {
+      await this.updateComplete;
+      const outletRoot = this.renderRoot.querySelector<HTMLElement>("[data-addon-outlet]");
+      const auth = this.authority.state === "known" ? this.authority.auth : anonymousAuth();
+      if (outletRoot === null || !auth.authenticated) {
+        throw new Error("authenticated browser add-on outlet is unavailable");
+      }
+      this.#contributionOutlet = new BrowserContributionOutlet({
+        document,
+        root: outletRoot,
+        registry: composition.contributions,
+        surface: "slot",
+        role: auth.role,
+        onError: (cause) => {
+          if (owner === this.#addonOwner) {
+            this.addonState = { state: "degraded", message: errorMessage(cause) };
+          }
+        },
+        onCountChange: (count) => {
+          if (owner === this.#addonOwner) {
+            this.contributionCount = count;
+          }
+        },
+      });
+      await composition.session.start();
+    } catch (cause: unknown) {
+      if (owner === this.#addonOwner) {
+        await this.#stopAddons();
+      }
+      throw cause;
+    }
   }
 
   async #stopAddons(): Promise<void> {
     this.#addonOwner += 1;
+    this.#contributionOutlet?.dispose();
+    this.#contributionOutlet = undefined;
+    this.contributionCount = 0;
     const addons = this.#addons;
     this.#addons = undefined;
     this.addonState = { state: "idle" };
@@ -417,6 +534,28 @@ export class CodexApp extends LitElement {
           <span class="indicator unavailable"></span>Browser add-ons need attention
         </div>`;
     }
+  }
+
+  #toolsTemplate() {
+    if (this.authority.state !== "known" || !this.authority.auth.authenticated) {
+      return null;
+    }
+    return html`
+      <section class="tools" aria-labelledby="campaign-tools-title">
+        <div class="tools-title">
+          <h2 id="campaign-tools-title">Campaign tools</h2>
+          <span>${this.addonState.state === "loading"
+            ? "Loading"
+            : `${this.contributionCount} ${this.contributionCount === 1 ? "add-on panel" : "add-on panels"}`}</span>
+        </div>
+        ${this.contributionCount === 0
+          ? html`<p class="empty-tools">${this.addonState.state === "loading"
+            ? "Loading the add-on panels available to this role…"
+            : "No add-on panels are active for this role."}</p>`
+          : null}
+        <div class="addon-outlet" data-addon-outlet></div>
+      </section>
+    `;
   }
 }
 

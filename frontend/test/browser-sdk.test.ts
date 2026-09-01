@@ -122,6 +122,34 @@ describe("BrowserContributionRegistry", () => {
     ]);
   });
 
+  it("notifies host observers without letting their failures break bindings", () => {
+    const observerError = vi.fn();
+    const registry = new BrowserContributionRegistry(observerError);
+    const session = registry.open(
+      descriptor("dm-tools", [route]),
+      new GenerationScope("dm-tools@generation"),
+    );
+    const changes = vi.fn();
+    const unsubscribe = registry.subscribe(changes);
+    registry.subscribe(() => {
+      throw new Error("broken host observer");
+    });
+
+    const handle = session.context.ui.bind("planner.route", {
+      kind: "element",
+      tag: "dm-tools-planner",
+    });
+    handle.dispose();
+    unsubscribe();
+    session.context.ui.bind("planner.route", {
+      kind: "element",
+      tag: "dm-tools-planner",
+    });
+
+    expect(changes).toHaveBeenCalledTimes(2);
+    expect(observerError).toHaveBeenCalledTimes(3);
+  });
+
   it("removes exact bindings on explicit disposal and generation shutdown", async () => {
     const registry = new BrowserContributionRegistry();
     const scope = new GenerationScope("dm-tools@generation");

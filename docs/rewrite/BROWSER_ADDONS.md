@@ -196,11 +196,27 @@ activation is held by a fallback SDK disposer; successful activation transfers
 cleanup into one composite that unpublishes contributions before calling the
 module's own disposer.
 
+The registry now publishes host-only change notifications after a binding is
+added or removed. Observer failures are reported through the shell diagnostic
+boundary and cannot turn a valid add-on binding into a partial failure.
+`BrowserContributionOutlet` performs a keyed projection for one host-selected
+surface and effective role. It preserves an unchanged custom-element instance,
+orders panels by the registry contract, and removes stale elements on binding,
+generation, or authority teardown. Each mounted element receives a frozen
+`codexContribution` property containing its add-on and generation identity,
+declaration, configuration, and generation abort signal; it never receives the
+registry or private host DOM.
+
+The current shell instantiates the generic outlet for the `slot` surface under
+Campaign tools and shows a direct empty state when that role has no panels.
+Routes, settings, article/editor locations, renderers, and graph surfaces will
+reuse the same registry but remain owned by their corresponding core features.
+
 ## Remaining integration
 
 - Add data, service, import, event, settings, navigation, graph, and log handles
   to the implemented capability-scoped SDK as their transports land.
 - Implement the isolated iframe bridge over the same logical SDK contract.
-- Render the stable contribution slots from the host-owned registry.
+- Connect the remaining host surfaces to their feature-owned registry outlets.
 - Surface activation and disposal diagnostics in the Add-on Inspector.
 - Add Playwright coverage once real contribution modules are wired.
