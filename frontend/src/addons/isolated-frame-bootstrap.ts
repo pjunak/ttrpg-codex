@@ -199,6 +199,27 @@ export const isolatedFrameBootstrap = String.raw`
         "data.transact", { mutations }, options.signal || controller.signal,
       ),
     });
+    const contentSet = (setId) => {
+      requireActive();
+      if (!localIdPattern.test(setId)) {
+        throw new TypeError("The isolated add-on content reference is invalid.");
+      }
+      return Object.freeze({
+        get: (kind, id, options = {}) => sdkRequest(
+          "content.get", { setId, kind, id }, options.signal || controller.signal,
+        ),
+        query: (options = {}) => {
+          const { signal = controller.signal, ...wireOptions } = options;
+          return sdkRequest("content.query", { setId, options: wireOptions }, signal);
+        },
+      });
+    };
+    const addonContent = Object.freeze({
+      catalog: (options = {}) => sdkRequest(
+        "content.catalog", {}, options.signal || controller.signal,
+      ),
+      set: contentSet,
+    });
     const ui = Object.freeze({
       declarations: () => {
         requireActive();
@@ -257,6 +278,7 @@ export const isolatedFrameBootstrap = String.raw`
       capabilities,
       permissions,
       data: addonData,
+      content: addonContent,
       ui,
     });
 

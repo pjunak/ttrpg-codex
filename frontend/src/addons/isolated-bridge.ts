@@ -7,12 +7,18 @@ import {
   type AddonQueryOptions,
 } from "./data-client.js";
 import type { BrowserContributionDescriptor } from "./generation-manager.js";
+import {
+  AddonContentHTTPError,
+  type AddonContentQueryOptions,
+  type AddonContentSet,
+} from "./content-client.js";
 
 export const isolatedFrameProtocol = "codex.browser-addon/1";
 
 const boundary = "isolated browser add-on bridge";
 const maximumMessageBytes = 64 * 1024;
 const maximumDataMessageBytes = 2 * 1024 * 1024 + 128 * 1024;
+const maximumContentMessageBytes = 5 * 1024 * 1024 + 128 * 1024;
 const maximumActivationBytes = 5 * 1024 * 1024;
 const maximumConcurrentInvocations = 32;
 const requestIdPattern = /^[A-Za-z0-9_-]{1,64}$/;
@@ -32,6 +38,9 @@ const noParameterKeys = new Set<string>();
 const dataGetKeys = new Set(["kind", "dataId", "target", "key"]);
 const dataQueryKeys = new Set(["kind", "dataId", "target", "options"]);
 const dataTransactionKeys = new Set(["mutations"]);
+const contentGetKeys = new Set(["setId", "kind", "id"]);
+const contentQueryKeys = new Set(["setId", "options"]);
+const contentQueryOptionKeys = new Set(["kind", "cursor", "limit"]);
 const queryOptionKeys = new Set(["cursor", "limit", "where"]);
 const queryConditionKeys = new Set(["path", "equals"]);
 const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
@@ -44,7 +53,10 @@ export type IsolatedSDKMethod =
   | "ui.declarations"
   | "data.get"
   | "data.query"
-  | "data.transact";
+  | "data.transact"
+  | "content.catalog"
+  | "content.get"
+  | "content.query";
 
 export interface IsolatedMessagePort {
   postMessage(message: unknown): void;
@@ -290,8 +302,9 @@ export class IsolatedFrameBridge {
       // SDK calls are valid during module activation, before the contribution
       // completes its ready handshake.
       if (value["type"] === "request") {
-        if (!this.#ready && value["method"] !== "data.get" &&
-          value["method"] !== "data.query" && value["method"] !== "data.transact") {
+        const method = value["method"];
+        if (!this.#ready && (typeof method !== "string" ||
+          !method.startsWith("data.") && !method.startsWith("content."))) {
           throw new BoundaryValidationError(boundary, "frame sent a message before ready");
         }
         void this.#answer(value);
@@ -437,7 +450,9 @@ export class IsolatedFrameBridge {
       const result = candidate instanceof Promise ? await candidate : candidate;
       const limit = value["method"].startsWith("data.")
         ? maximumDataMessageBytes
-        : maximumMessageBytes;
+        : value["method"].startsWith("content.")
+          ? maximumContentMessageBytes
+          : maximumMessageBytes;
       this.#send({ protocol: isolatedFrameProtocol, type: "response", id, ok: true, result }, limit);
     } catch (cause: unknown) {
       this.#onDiagnostic(cause);
@@ -522,6 +537,28 @@ export class IsolatedFrameBridge {
         assertJSONValue(mutations, "data transaction");
         return this.#context.data.transact(mutations as readonly AddonDataMutation[], { signal });
       }
+      case "content.catalog":
+        if (!hasOnlyKeys(params, noParameterKeys)) {
+          throw new BoundaryValidationError(boundary, "content.catalog parameters are invalid");
+        }
+        return this.#context.content.catalog({ signal });
+      case "content.get": {
+        if (!hasOnlyKeys(params, contentGetKeys)) {
+          throw new BoundaryValidationError(boundary, "content.get parameters are invalid");
+        }
+        const handle = this.#contentHandle(params);
+        return handle.get(
+          contentIdentity(params["kind"], "kind"),
+          contentIdentity(params["id"], "id"),
+          { signal },
+        );
+      }
+      case "content.query": {
+        if (!hasOnlyKeys(params, contentQueryKeys) || !isRecord(params["options"])) {
+          throw new BoundaryValidationError(boundary, "content.query parameters are invalid");
+        }
+        return this.#contentHandle(params).query(isolatedContentQueryOptions(params["options"], signal));
+      }
       default:
         throw new BoundaryValidationError(boundary, "SDK method is unsupported");
     }
@@ -538,6 +575,10 @@ export class IsolatedFrameBridge {
       return this.#context.data.recordExtension(target, dataID);
     }
     throw new BoundaryValidationError(boundary, "data reference is invalid");
+  }
+
+  #contentHandle(params: Readonly<Record<string, unknown>>): AddonContentSet<unknown> {
+    return this.#context.content.set(localID(params["setId"], "setId"));
   }
 
   #send(value: unknown, maximumBytes = maximumMessageBytes): void {
@@ -587,6 +628,17 @@ function boundedDataKey(value: unknown): string {
   return value;
 }
 
+function contentIdentity(value: unknown, name: string): string {
+  if (typeof value !== "string" || value.length < 1 ||
+    new TextEncoder().encode(value).byteLength > 200 || [...value].some((character) => {
+      const code = character.codePointAt(0) ?? 0;
+      return code <= 31 || code >= 127 && code <= 159;
+    })) {
+    throw new BoundaryValidationError(boundary, `content ${name} is invalid`);
+  }
+  return value;
+}
+
 function isolatedQueryOptions(
   value: Readonly<Record<string, unknown>>,
   signal: AbortSignal,
@@ -624,6 +676,34 @@ function isolatedQueryOptions(
   };
 }
 
+function isolatedContentQueryOptions(
+  value: Readonly<Record<string, unknown>>,
+  signal: AbortSignal,
+): AddonContentQueryOptions {
+  if (!hasOnlyKeys(value, contentQueryOptionKeys)) {
+    throw new BoundaryValidationError(boundary, "content query options are invalid");
+  }
+  const kind = value["kind"];
+  const cursor = value["cursor"];
+  const limit = value["limit"];
+  if (kind !== undefined) {
+    contentIdentity(kind, "kind");
+  }
+  if (cursor !== undefined && (typeof cursor !== "string" || !cursorPattern.test(cursor))) {
+    throw new BoundaryValidationError(boundary, "content query cursor is invalid");
+  }
+  if (limit !== undefined && (typeof limit !== "number" || !Number.isSafeInteger(limit) ||
+    limit < 1 || limit > 200)) {
+    throw new BoundaryValidationError(boundary, "content query limit is invalid");
+  }
+  return {
+    signal,
+    ...(typeof kind === "string" ? { kind } : {}),
+    ...(typeof cursor === "string" ? { cursor } : {}),
+    ...(typeof limit === "number" ? { limit } : {}),
+  };
+}
+
 function inboundMessageLimit(value: unknown): number {
   return isRecord(value) && value["type"] === "request" && value["method"] === "data.transact"
     ? maximumDataMessageBytes
@@ -644,6 +724,12 @@ function isolatedSDKError(
     return Object.freeze({
       code: `ADDON_DATA_${cause.status}`,
       message: `The add-on data request failed with status ${cause.status}.`,
+    });
+  }
+  if (cause instanceof AddonContentHTTPError) {
+    return Object.freeze({
+      code: `ADDON_CONTENT_${cause.status}`,
+      message: `The add-on content request failed with status ${cause.status}.`,
     });
   }
   if (cause instanceof DOMException && cause.name === "AbortError") {

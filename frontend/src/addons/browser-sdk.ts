@@ -7,6 +7,7 @@ import type {
 } from "./generation-manager.js";
 import type { Disposer, GenerationScope } from "./generation-scope.js";
 import type { BrowserDataAPI } from "./data-client.js";
+import type { BrowserContentAPI } from "./content-client.js";
 
 const customElementPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$/;
 
@@ -81,6 +82,7 @@ export interface BrowserAddonContext {
   readonly capabilities: BrowserCapabilityAPI;
   readonly permissions: BrowserPermissionAPI;
   readonly data: BrowserDataAPI;
+  readonly content: BrowserContentAPI;
   readonly ui: BrowserUIAPI;
 }
 
@@ -111,6 +113,10 @@ export type BrowserDataAPIFactory = (
   descriptor: BrowserGenerationDescriptor,
   signal: AbortSignal,
 ) => BrowserDataAPI;
+export type BrowserContentAPIFactory = (
+  descriptor: BrowserGenerationDescriptor,
+  signal: AbortSignal,
+) => BrowserContentAPI;
 
 export class BrowserSDKAuthorityError extends Error {
   override readonly name = "BrowserSDKAuthorityError";
@@ -130,13 +136,16 @@ export class BrowserContributionRegistry {
   readonly #listeners = new Set<BrowserContributionListener>();
   readonly #onObserverError: (cause: unknown) => void;
   readonly #createDataAPI: BrowserDataAPIFactory;
+  readonly #createContentAPI: BrowserContentAPIFactory;
 
   constructor(
     onObserverError: (cause: unknown) => void = () => undefined,
     createDataAPI: BrowserDataAPIFactory = () => unavailableDataAPI(),
+    createContentAPI: BrowserContentAPIFactory = () => unavailableContentAPI(),
   ) {
     this.#onObserverError = onObserverError;
     this.#createDataAPI = createDataAPI;
+    this.#createContentAPI = createContentAPI;
   }
 
   open(descriptor: BrowserGenerationDescriptor, scope: GenerationScope): BrowserAddonSDKSession {
@@ -145,6 +154,7 @@ export class BrowserContributionRegistry {
       descriptor,
       scope.signal,
       this.#createDataAPI(descriptor, scope.signal),
+      this.#createContentAPI(descriptor, scope.signal),
       () => this.#changed(),
     );
     const releaseFallback = scope.add("browser SDK session", () => session.dispose());
@@ -213,6 +223,7 @@ class RegistrySession {
     descriptor: BrowserGenerationDescriptor,
     signal: AbortSignal,
     data: BrowserDataAPI,
+    content: BrowserContentAPI,
     changed: BrowserContributionListener,
   ) {
     this.#global = global;
@@ -239,6 +250,7 @@ class RegistrySession {
       capabilities: capabilityAPI(capabilities, () => !this.#closed && !signal.aborted),
       permissions: permissionAPI(permissions, () => !this.#closed && !signal.aborted),
       data,
+      content,
       ui: Object.freeze({
         declarations: () => {
           this.#assertOpen();
@@ -415,6 +427,14 @@ function unavailableDataAPI(): BrowserDataAPI {
     recordExtension: () => handle,
     transact: unavailable,
   });
+}
+
+function unavailableContentAPI(): BrowserContentAPI {
+  const unavailable = (): never => {
+    throw new BrowserSDKAuthorityError("browser add-on content API is unavailable");
+  };
+  const set = Object.freeze({ get: unavailable, query: unavailable });
+  return Object.freeze({ catalog: unavailable, set: () => set });
 }
 
 function capabilityAPI(

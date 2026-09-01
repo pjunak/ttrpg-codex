@@ -176,7 +176,8 @@ partial activation retains fallback cleanup for every acquired resource.
 Integrated modules receive a public `BrowserAddonContext`, never the internal
 generation scope or graph descriptor. The context exposes immutable add-on
 identity, the generation abort signal, effective capability and permission
-queries, and the UI binding API. Those queries support conditional UI only;
+queries, generation-bound add-on data and immutable content clients, and the
+UI binding API. Those queries support conditional UI only;
 server endpoints must independently enforce every permission and resource.
 Closed sessions report no authority and reject new contribution work.
 
@@ -233,9 +234,10 @@ contract.
 The generated bootstrap imports the self-contained entry through a frame-local
 blob URL and calls the same `activate(context)` shape used by integrated
 modules. Current context support covers immutable add-on identity, generation
-cancellation, capability and permission queries, the one role-visible
-declaration represented by that frame, and surface-compatible element, action,
-or model-provider binding. The entry module and declared styles must therefore
+cancellation, capability and permission queries, generation-bound add-on data
+and immutable content, the one role-visible declaration represented by that
+frame, and surface-compatible element, action, or model-provider binding. The
+entry module and declared styles must therefore
 be `.js`/`.mjs` and `.css`; isolated entry modules cannot depend on relative
 imports or network assets.
 

@@ -248,6 +248,7 @@ interface AddonContext {
   readonly permissions: PermissionApi;
   readonly ui: UiApi;
   readonly data: DataApi;
+  readonly content: ContentApi;
   readonly services: ServiceApi;
   readonly imports: ImportApi;
   readonly graphs: GraphApi;
@@ -377,6 +378,31 @@ Subscriptions deliver revisioned change events and accept an `AbortSignal`.
 Consumers recover a gap by querying from a cursor or refreshing the affected
 collection. Events are invalidation evidence, not an alternative source of
 truth.
+
+### Immutable content handles
+
+Package-owned reference data uses a separate read-only API. The host validates
+and indexes every record before activation, then binds reads to the exact
+archive-hash generation:
+
+```ts
+const rules = context.content.set<RuleRecord>("rules");
+const shield = await rules.get("spell", "shield", {
+  signal: context.signal,
+});
+const firstPage = await rules.query({
+  kind: "spell",
+  limit: 50,
+  signal: context.signal,
+});
+```
+
+`context.content.catalog()` describes available sets, immutable revisions,
+record counts, kinds, schema digests, and optional source-group metadata.
+Queries are deterministically ordered and bounded by record count and response
+bytes. Their opaque cursor is meaningful only for that package generation and
+query filter. Content handles cannot write package files or campaign state;
+overlays and source-selection policy use host or add-on data instead.
 
 ### Services
 

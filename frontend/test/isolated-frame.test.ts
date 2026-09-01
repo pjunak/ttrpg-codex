@@ -21,6 +21,11 @@ import type {
   AddonQueryOptions,
   BrowserDataAPI,
 } from "../src/addons/data-client.js";
+import type {
+  AddonContentQueryOptions,
+  AddonContentSet,
+  BrowserContentAPI,
+} from "../src/addons/content-client.js";
 
 const generationId = "a".repeat(64);
 
@@ -141,6 +146,64 @@ describe("IsolatedFrameBridge", () => {
       error: { code: "REQUEST_ABORTED" },
     }));
     expect(sdk.context.signal.aborted).toBe(false);
+    bridge.close();
+  });
+
+  it("proxies immutable content during isolated activation", async () => {
+    const descriptor = frameDescriptor(slotContribution());
+    const catalog = vi.fn(async () => ({ sets: [] }));
+    const get = vi.fn(async () => ({
+      kind: "spell", id: "shield", value: { kind: "spell", id: "shield" },
+    }));
+    const query = vi.fn(async () => ({
+      revision: "fixture-1", records: [], nextCursor: "Mg",
+    }));
+    const setHandle: AddonContentSet<unknown> = { get, query };
+    const set = vi.fn();
+    const contentAPI: BrowserContentAPI = {
+      catalog,
+      set: <T>(id: string) => {
+        set(id);
+        return setHandle as AddonContentSet<T>;
+      },
+    };
+    const sdk = new BrowserContributionRegistry(undefined, undefined, () => contentAPI).open(
+      descriptor,
+      new GenerationScope("isolated@generation"),
+    );
+    const port = new FakePort();
+    const bridge = new IsolatedFrameBridge({
+      port,
+      context: sdk.context,
+      contribution: descriptor.contributions[0] as BrowserContributionDescriptor,
+      onResize: vi.fn(),
+      readyTimeoutMilliseconds: 60_000,
+    });
+
+    port.receive(request("catalog", "content.catalog", {}));
+    await vi.waitFor(() => expect(response(port, "catalog")).toMatchObject({
+      ok: true, result: { sets: [] },
+    }));
+    expect(catalog).toHaveBeenCalledWith({ signal: expect.any(AbortSignal) });
+
+    port.receive(request("get-rule", "content.get", {
+      setId: "rules", kind: "spell", id: "shield",
+    }));
+    await vi.waitFor(() => expect(response(port, "get-rule")).toMatchObject({
+      ok: true, result: { kind: "spell", id: "shield" },
+    }));
+    expect(set).toHaveBeenCalledWith("rules");
+    expect(get).toHaveBeenCalledWith("spell", "shield", { signal: expect.any(AbortSignal) });
+
+    port.receive(request("query-rules", "content.query", {
+      setId: "rules", options: { kind: "spell", limit: 20 },
+    }));
+    await vi.waitFor(() => expect(response(port, "query-rules")).toMatchObject({
+      ok: true, result: { revision: "fixture-1", records: [], nextCursor: "Mg" },
+    }));
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "spell", limit: 20, signal: expect.any(AbortSignal),
+    } as AddonContentQueryOptions));
     bridge.close();
   });
 
@@ -587,6 +650,8 @@ describe("isolated frame activation", () => {
     expect(document).toContain("form-action 'none'");
     expect(document).toContain("data: addonData");
     expect(document).toContain('"data.transact"');
+    expect(document).toContain('"content.query"');
+    expect(document).toContain("content: addonContent");
     expect(document).not.toContain("allow-same-origin");
     const source = document.match(/<script>([\s\S]*)<\/script>/)?.[1];
     expect(source).toBeDefined();

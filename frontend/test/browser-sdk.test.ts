@@ -12,6 +12,7 @@ import {
 } from "../src/addons/generation-manager.js";
 import { GenerationScope } from "../src/addons/generation-scope.js";
 import type { AddonDataHandle, BrowserDataAPI } from "../src/addons/data-client.js";
+import type { AddonContentSet, BrowserContentAPI } from "../src/addons/content-client.js";
 
 const generationId = "a".repeat(64);
 const route = contribution("planner.route", "route", 200, ["dm"]);
@@ -36,6 +37,25 @@ describe("BrowserContributionRegistry", () => {
 
     expect(createDataAPI).toHaveBeenCalledWith(source, scope.signal);
     expect(session.context.data.collection("dm_notes")).toBe(handle);
+  });
+
+  it("creates one generation-scoped content API for add-on code", () => {
+    const set: AddonContentSet<unknown> = { get: vi.fn(), query: vi.fn() };
+    const contentAPI: BrowserContentAPI = {
+      catalog: vi.fn(),
+      set: <T>() => set as AddonContentSet<T>,
+    };
+    const createContentAPI = vi.fn(() => contentAPI);
+    const source = descriptor("compendium", [route]);
+    const scope = new GenerationScope("compendium@generation");
+    const session = new BrowserContributionRegistry(
+      undefined,
+      undefined,
+      createContentAPI,
+    ).open(source, scope);
+
+    expect(createContentAPI).toHaveBeenCalledWith(source, scope.signal);
+    expect(session.context.content.set("rules")).toBe(set);
   });
 
   it("exposes immutable generation identity and effective authority", () => {
