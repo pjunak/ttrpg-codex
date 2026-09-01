@@ -32,8 +32,9 @@ export interface BrowserContributionOutletOptions {
 }
 
 interface MountedContribution {
-  readonly tag: string;
+  readonly identity: string;
   readonly wrapper: HTMLElement;
+  readonly dispose?: () => void;
 }
 
 /** Reconciles one host-owned UI surface without exposing its DOM to add-ons. */
@@ -68,7 +69,7 @@ export class BrowserContributionOutlet {
     const ordered: HTMLElement[] = [];
     const retained = new Set<string>();
     for (const active of this.#registry.list(this.#surface, this.#role)) {
-      if (active.binding.kind !== "element") {
+      if (active.binding.kind !== "element" && active.binding.kind !== "isolated-frame") {
         this.#onError(new TypeError(
           `host outlet ${this.#surface} cannot mount ${active.binding.kind} contribution ` +
           `${active.addonId}:${active.descriptor.id}`,
@@ -76,10 +77,18 @@ export class BrowserContributionOutlet {
         continue;
       }
       const key = contributionKey(active);
+      const identity = active.binding.kind === "element"
+        ? `element:${active.binding.tag}`
+        : "isolated-frame";
       let mounted = this.#mounted.get(key);
-      if (mounted === undefined || mounted.tag !== active.binding.tag) {
+      if (mounted === undefined || mounted.identity !== identity) {
+        if (mounted !== undefined) {
+          this.#mounted.delete(key);
+          this.#release(mounted);
+          mounted = undefined;
+        }
         try {
-          mounted = this.#create(active, active.binding.tag);
+          mounted = this.#create(active);
           this.#mounted.set(key, mounted);
         } catch (cause: unknown) {
           this.#onError(cause);
@@ -91,6 +100,7 @@ export class BrowserContributionOutlet {
     }
     for (const key of this.#mounted.keys()) {
       if (!retained.has(key)) {
+        this.#release(this.#mounted.get(key));
         this.#mounted.delete(key);
       }
     }
@@ -109,13 +119,16 @@ export class BrowserContributionOutlet {
     }
     this.#disposed = true;
     this.#unsubscribe();
+    for (const mounted of this.#mounted.values()) {
+      this.#release(mounted);
+    }
     this.#mounted.clear();
     this.#root.replaceChildren();
     this.#root.hidden = true;
     this.#onCountChange(0);
   }
 
-  #create(active: ActiveBrowserContribution, tag: string): MountedContribution {
+  #create(active: ActiveBrowserContribution): MountedContribution {
     const wrapper = this.#document.createElement("section");
     wrapper.className = "addon-contribution";
     wrapper.dataset["addonId"] = active.addonId;
@@ -130,16 +143,39 @@ export class BrowserContributionOutlet {
     owner.textContent = active.addonId;
     heading.append(label, owner);
 
-    const element = this.#document.createElement(tag) as BrowserContributionElement;
-    element.dataset["codexAddon"] = active.addonId;
-    element.dataset["codexContribution"] = active.descriptor.id;
-    element.codexContribution = Object.freeze({
-      addon: Object.freeze({ id: active.addonId, generation: active.generationId }),
-      contribution: active.descriptor,
-      signal: active.signal,
-    });
-    wrapper.append(heading, element);
-    return { tag, wrapper };
+    if (active.binding.kind === "element") {
+      const element = this.#document.createElement(active.binding.tag) as BrowserContributionElement;
+      element.dataset["codexAddon"] = active.addonId;
+      element.dataset["codexContribution"] = active.descriptor.id;
+      element.codexContribution = Object.freeze({
+        addon: Object.freeze({ id: active.addonId, generation: active.generationId }),
+        contribution: active.descriptor,
+        signal: active.signal,
+      });
+      wrapper.append(heading, element);
+      return { identity: `element:${active.binding.tag}`, wrapper };
+    }
+    if (active.binding.kind === "isolated-frame") {
+      const frameHost = this.#document.createElement("div");
+      frameHost.className = "addon-isolated-frame";
+      const dispose = active.binding.mount(frameHost);
+      wrapper.append(heading, frameHost);
+      return { identity: "isolated-frame", wrapper, dispose };
+    }
+    throw new TypeError(
+      `host outlet ${this.#surface} cannot mount ${active.binding.kind} contribution`,
+    );
+  }
+
+  #release(mounted: MountedContribution | undefined): void {
+    if (mounted?.dispose === undefined) {
+      return;
+    }
+    try {
+      mounted.dispose();
+    } catch (cause: unknown) {
+      this.#onError(cause);
+    }
   }
 }
 

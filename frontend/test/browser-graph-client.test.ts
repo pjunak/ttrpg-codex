@@ -59,6 +59,9 @@ describe("parseBrowserGenerationSet", () => {
     { ...graph, addons: [{ ...graph.addons[0], sandbox: ["same-origin"] }] },
     { ...graph, addons: [{ ...graph.addons[0], dependencies: [1] }] },
     { ...graph, addons: [{ ...graph.addons[0], capabilities: ["invalid"] }] },
+    { ...graph, addons: [{ ...graph.addons[0], entryUrl: descriptor.entryUrl.replace(".js", ".html") }] },
+    { ...graph, addons: [{ ...graph.addons[0], styleUrls: [descriptor.entryUrl] }] },
+    { ...graph, addons: [{ ...graph.addons[0], styleUrls: Array(65).fill(descriptor.styleUrls[0]) }] },
     { ...graph, addons: [{ ...graph.addons[0], permissions: [{ id: "read", resources: [] }] }] },
     {
       ...graph,

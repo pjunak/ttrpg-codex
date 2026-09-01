@@ -92,6 +92,11 @@ describe("BrowserGenerationManager", () => {
     expect(() => manager.reconcile({
       contractVersion: 2,
       graphRevision: "graph-2",
+      addons: [{ ...providerV2, entryUrl: "/api/addons/provider/assets/web/index.html" }],
+    })).toThrow(BrowserGenerationPlanError);
+    expect(() => manager.reconcile({
+      contractVersion: 2,
+      graphRevision: "graph-2",
       addons: [generation("orphan-addon", "orphan", ["missing-addon"])],
     })).toThrow(BrowserGenerationPlanError);
     expect(() => manager.reconcile({

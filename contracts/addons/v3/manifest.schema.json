@@ -204,6 +204,26 @@
         }
       ]
     },
+    "uiModulePath": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/uiAssetPath"
+        },
+        {
+          "pattern": "\\.(js|mjs)$"
+        }
+      ]
+    },
+    "uiStylePath": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/uiAssetPath"
+        },
+        {
+          "pattern": "\\.css$"
+        }
+      ]
+    },
     "uiRuntime": {
       "type": "object",
       "additionalProperties": false,
@@ -213,13 +233,14 @@
           "enum": ["integrated", "isolated"]
         },
         "entry": {
-          "$ref": "#/$defs/uiAssetPath"
+          "$ref": "#/$defs/uiModulePath"
         },
         "styles": {
           "type": "array",
+          "maxItems": 64,
           "uniqueItems": true,
           "items": {
-            "$ref": "#/$defs/uiAssetPath"
+            "$ref": "#/$defs/uiStylePath"
           }
         },
         "sandbox": {

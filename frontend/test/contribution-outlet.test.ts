@@ -76,6 +76,33 @@ describe("BrowserContributionOutlet", () => {
     expect(root.hidden).toBe(true);
     expect(root.children).toEqual([]);
   });
+
+  it("mounts and releases host-owned isolated frame bindings", () => {
+    const registry = new BrowserContributionRegistry();
+    const session = registry.open(
+      { ...descriptor("isolated-tools", contribution("frame.panel", 10)), mode: "isolated" },
+      new GenerationScope("isolated-tools@generation"),
+    );
+    const mount = vi.fn(() => dispose);
+    const dispose = vi.fn();
+    const root = new FakeElement("div");
+    const outlet = new BrowserContributionOutlet({
+      document: new FakeDocument() as unknown as Document,
+      root: root as unknown as HTMLElement,
+      registry,
+      surface: "slot",
+      role: "dm",
+    });
+
+    const handle = session.bindIsolated("frame.panel", { kind: "isolated-frame", mount });
+    expect(mount).toHaveBeenCalledOnce();
+    expect((root.children[0] as FakeElement).children[1]?.tagName).toBe("div");
+
+    handle.dispose();
+    expect(dispose).toHaveBeenCalledOnce();
+    outlet.dispose();
+    expect(dispose).toHaveBeenCalledOnce();
+  });
 });
 
 class FakeDocument {

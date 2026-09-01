@@ -24,10 +24,20 @@ export interface BrowserModelProviderBinding {
   readonly provide: (request: unknown, context: BrowserInvocationContext) => unknown | Promise<unknown>;
 }
 
+/** Host-only binding used to mount one sandboxed document into a visual outlet. */
+export interface BrowserIsolatedFrameBinding {
+  readonly kind: "isolated-frame";
+  readonly mount: (host: HTMLElement) => Disposer;
+}
+
 export type BrowserContributionBinding =
   | BrowserElementBinding
   | BrowserActionBinding
   | BrowserModelProviderBinding;
+
+export type ActiveBrowserContributionBinding =
+  | BrowserContributionBinding
+  | BrowserIsolatedFrameBinding;
 
 export interface BrowserInvocationContext {
   readonly signal: AbortSignal;
@@ -70,12 +80,16 @@ export interface ActiveBrowserContribution {
   readonly addonId: string;
   readonly generationId: string;
   readonly descriptor: BrowserContributionDescriptor;
-  readonly binding: BrowserContributionBinding;
+  readonly binding: ActiveBrowserContributionBinding;
   readonly signal: AbortSignal;
 }
 
 export interface BrowserAddonSDKSession {
   readonly context: BrowserAddonContext;
+  bindIsolated(
+    contributionId: string,
+    binding: BrowserIsolatedFrameBinding,
+  ): BrowserContributionHandle;
   dispose(): void;
 }
 
@@ -113,6 +127,8 @@ export class BrowserContributionRegistry {
     const releaseFallback = scope.add("browser SDK session", () => session.dispose());
     return {
       context: session.context,
+      bindIsolated: (contributionId, binding) =>
+        session.bindIsolated(contributionId, binding),
       dispose: () => {
         releaseFallback();
         session.dispose();
@@ -224,6 +240,38 @@ class RegistrySession {
     }
   }
 
+  bindIsolated(
+    contributionId: string,
+    binding: BrowserIsolatedFrameBinding,
+  ): BrowserContributionHandle {
+    this.#assertOpen();
+    if (this.#descriptor.mode !== "isolated") {
+      throw new BrowserContributionBindingError(
+        `integrated add-on ${this.#descriptor.addonId} cannot bind an isolated frame`,
+      );
+    }
+    const declaration = this.#declarations.get(contributionId);
+    if (declaration === undefined) {
+      throw new BrowserContributionBindingError(
+        `add-on ${this.#descriptor.addonId} did not declare contribution ${contributionId}`,
+      );
+    }
+    if (expectedBindingKind(declaration.surface) !== "element") {
+      throw new BrowserContributionBindingError(
+        `isolated contribution ${contributionId} on ${declaration.surface} is not a visual element surface`,
+      );
+    }
+    if (typeof binding.mount !== "function") {
+      throw new BrowserContributionBindingError(
+        `isolated contribution ${contributionId} requires a frame mount function`,
+      );
+    }
+    return this.#register(declaration, Object.freeze({
+      kind: "isolated-frame",
+      mount: binding.mount,
+    }));
+  }
+
   #bind(
     contributionId: string,
     binding: BrowserContributionBinding,
@@ -235,12 +283,20 @@ class RegistrySession {
         `add-on ${this.#descriptor.addonId} did not declare contribution ${contributionId}`,
       );
     }
+    const normalizedBinding = normalizeBinding(declaration, binding, this.context.signal);
+    return this.#register(declaration, normalizedBinding);
+  }
+
+  #register(
+    declaration: BrowserContributionDescriptor,
+    binding: ActiveBrowserContributionBinding,
+  ): BrowserContributionHandle {
+    const contributionId = declaration.id;
     if (this.#active.has(contributionId)) {
       throw new BrowserContributionBindingError(
         `contribution ${this.#descriptor.addonId}:${contributionId} is already bound`,
       );
     }
-    const normalizedBinding = normalizeBinding(declaration, binding, this.context.signal);
     const key = `${this.#descriptor.addonId}:${contributionId}`;
     if (this.#global.has(key)) {
       throw new BrowserContributionBindingError(`contribution ${key} is owned by another generation`);
@@ -250,7 +306,7 @@ class RegistrySession {
       addonId: this.#descriptor.addonId,
       generationId: this.#descriptor.generationId,
       descriptor: declaration,
-      binding: normalizedBinding,
+      binding,
       signal: this.context.signal,
     });
     this.#active.set(contributionId, active);

@@ -165,14 +165,13 @@ same dependency and disposal ordering.
 requests, observers, object URLs, and returned module cleanup. It aborts first,
 then runs cleanup once in LIFO order with failure isolation.
 
-`BrowserGenerationManager` receives an injected activator. The shell
-composition loads every declared stylesheet into the generation scope, imports
-the server-provided immutable entry URL, requires an
-`activate(context)` export, and adapts the v3 `{ dispose() }` result into
-scope-owned cleanup. It refuses an isolated descriptor; iframe activation
-remains a separate adapter. Cleanup unpublishes contributions, invokes module
-cleanup, and then removes generation styles; partial activation retains
-fallback cleanup for every acquired resource.
+`BrowserGenerationManager` receives an injected activator selected by the
+server-projected UI mode. The integrated adapter loads every declared
+stylesheet into the generation scope, imports the server-provided immutable
+entry URL, requires an `activate(context)` export, and adapts the v3
+`{ dispose() }` result into scope-owned cleanup. Cleanup unpublishes
+contributions, invokes module cleanup, and then removes generation styles;
+partial activation retains fallback cleanup for every acquired resource.
 
 Integrated modules receive a public `BrowserAddonContext`, never the internal
 generation scope or graph descriptor. The context exposes immutable add-on
@@ -212,11 +211,52 @@ Campaign tools and shows a direct empty state when that role has no panels.
 Routes, settings, article/editor locations, renderers, and graph surfaces will
 reuse the same registry but remain owned by their corresponding core features.
 
+## Isolated frame bridge
+
+The isolated adapter never imports package code into the host realm and never
+navigates the frame to an authenticated package URL. It fetches the immutable
+entry module and CSS through the authenticated host, applies explicit 2 MiB
+module and stylesheet limits, and transfers their text over a document-owned
+message port into a host-generated `srcdoc`. The frame has a unique opaque
+origin, a restrictive CSP that blocks
+ambient connections and external subresources, and a sandbox that always
+allows scripts but maps only the reviewed `downloads`, `forms`, `modals`, and
+`popups` grants. It never receives `allow-same-origin`, host cookies, storage,
+or usable access to the parent document. This boundary contains DOM and
+ambient browser authority; it is not a general-purpose sandbox for actively
+malicious computation. Such code belongs behind a narrower worker or WASI
+contract.
+
+The generated bootstrap imports the self-contained entry through a frame-local
+blob URL and calls the same `activate(context)` shape used by integrated
+modules. Current context support covers immutable add-on identity, generation
+cancellation, capability and permission queries, the one role-visible
+declaration represented by that frame, and visual custom-element binding. The
+entry module and declared styles must therefore be `.js`/`.mjs` and `.css`;
+isolated entry modules cannot depend on relative imports or network assets.
+
+Each mounted visual contribution owns one transferred `MessagePort` using
+`codex.browser-addon/1`. The initial document receives its private port before
+asset loading completes, so a replacement document cannot inherit the module
+bundle. Exact, bounded messages cover activation, ready, resize, diagnostic,
+revoke, and the current read-only SDK queries. The host accepts no
+global-window commands after connection, limits reported height, revokes a
+frame that misses its handshake deadline, and closes the port on outlet,
+generation, or authority teardown. Only the initial `srcdoc` load receives a
+port, so an add-on that navigates its frame cannot reconnect from another
+document.
+
+The first isolated milestone intentionally supports element-backed visual
+surfaces. Declarative sidebar entries, article actions, and graph model
+providers fail isolated activation until their corresponding message contracts
+exist; they are not silently downgraded.
+
 ## Remaining integration
 
 - Add data, service, import, event, settings, navigation, graph, and log handles
   to the implemented capability-scoped SDK as their transports land.
-- Implement the isolated iframe bridge over the same logical SDK contract.
+- Extend the isolated bridge to declarative navigation, action, and model
+  contribution shapes as their host surfaces land.
 - Connect the remaining host surfaces to their feature-owned registry outlets.
 - Surface activation and disposal diagnostics in the Add-on Inspector.
 - Add Playwright coverage once real contribution modules are wired.

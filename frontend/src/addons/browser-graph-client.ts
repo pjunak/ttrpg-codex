@@ -209,6 +209,9 @@ function parseDescriptor(value: unknown, index: number): BrowserGenerationDescri
   }
   const entryUrl = requiredString(value["entryUrl"], `${location}.entryUrl`);
   const styleUrls = stringArray(value["styleUrls"], `${location}.styleUrls`);
+  if (styleUrls.length > 64) {
+    throw new BoundaryValidationError(boundary, `${location}.styleUrls exceeds 64 entries`);
+  }
   const dependencies = stringArray(value["dependencies"], `${location}.dependencies`);
   const capabilities = stringArray(value["capabilities"], `${location}.capabilities`);
   if (capabilities.some((capability) => !contractIdPattern.test(capability))) {
@@ -237,9 +240,15 @@ function parseDescriptor(value: unknown, index: number): BrowserGenerationDescri
   const assetPrefix = `/api/addons/${encodeURIComponent(addonId)}/generations/${encodeURIComponent(generationId)}/assets/web/`;
   if (
     !validProjectedAssetURL(entryUrl, assetPrefix) ||
-    styleUrls.some((url) => !validProjectedAssetURL(url, assetPrefix))
+    !hasAssetExtension(entryUrl, ".js", ".mjs") ||
+    styleUrls.some((url) =>
+      !validProjectedAssetURL(url, assetPrefix) || !hasAssetExtension(url, ".css")
+    )
   ) {
-    throw new BoundaryValidationError(boundary, `${location} contains an asset URL for another generation`);
+    throw new BoundaryValidationError(
+      boundary,
+      `${location} contains an invalid projected asset URL or file type`,
+    );
   }
   return {
     addonId,
@@ -254,6 +263,11 @@ function parseDescriptor(value: unknown, index: number): BrowserGenerationDescri
     permissions,
     contributions,
   };
+}
+
+function hasAssetExtension(value: string, ...extensions: readonly string[]): boolean {
+  const pathname = new URL(value, "https://codex.invalid").pathname.toLowerCase();
+  return extensions.some((extension) => pathname.endsWith(extension));
 }
 
 function parsePermission(

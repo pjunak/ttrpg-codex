@@ -244,6 +244,19 @@ export class CodexApp extends LitElement {
       padding: 1rem;
     }
 
+    .addon-isolated-frame {
+      padding: 0 !important;
+      background: #15171c;
+    }
+
+    .codex-isolated-addon-frame {
+      display: block;
+      width: 100%;
+      height: 24rem;
+      border: 0;
+      background: #fff;
+    }
+
     @media (max-width: 32rem) {
       form {
         grid-template-columns: 1fr;

@@ -50,11 +50,12 @@ content/                      immutable content sets
 locales/                      localization catalogs
 ```
 
-Every `runtime.ui.entry` and `runtime.ui.styles` path stays under `web/`.
-Browser modules may use additional files from that subtree; the host never
-serves worker binaries, contracts, content sets, locales, or package metadata
-through the browser asset route. Production packages therefore keep browser
-imports and their static dependencies together under `web/`.
+Every `runtime.ui.entry` is a `.js` or `.mjs` module and every
+`runtime.ui.styles` item is CSS under `web/`. Integrated browser modules may
+use additional files from that subtree. Isolated entry modules are transferred
+into an opaque frame and must be self-contained without relative imports or
+network assets. The host never serves worker binaries, contracts, content
+sets, locales, or package metadata through the browser asset route.
 
 Production installation MUST NOT invoke npm, Go, Python, a shell, or any other
 build tool. The release pipeline builds target artifacts before packaging.
@@ -111,7 +112,25 @@ security sandbox. Integrated packages MUST be treated as trusted browser code.
 Less-trusted visual code runs in a sandboxed iframe with a separate document.
 The host supplies the same logical SDK over a versioned `postMessage` channel.
 The manifest selects explicit sandbox features; same-origin access is not
-granted by default.
+granted.
+
+The host fetches reviewed module and stylesheet text itself and transfers it
+over a document-owned message port into a generated `srcdoc`; it does not
+navigate the frame to the authenticated asset URL. A document that navigates
+away cannot inherit that port or receive the module bundle. The frame has an
+opaque origin and a CSP that blocks ambient network access and external
+resources. Its entry is therefore one self-contained ESM bundle. The baseline
+sandbox permits scripts; `downloads`, `forms`, `modals`, and `popups` add only
+their corresponding browser sandbox token.
+
+This boundary contains DOM and ambient browser authority; it is not a
+general-purpose sandbox for actively malicious computation. Code that needs
+that stronger boundary belongs behind a narrower worker or WASI contract.
+
+The initial bridge supports element-backed visual contributions. It calls
+`activate(context)` with identity, cancellation, capability, permission, and
+UI declaration/binding APIs. Other contribution shapes require their own
+versioned bridge messages before they are accepted in isolated mode.
 
 ### WASI worker
 

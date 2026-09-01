@@ -388,7 +388,10 @@ function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerat
     if (!validToken(input.addonVersion, 100)) {
       throw new BrowserGenerationPlanError(`invalid add-on version for ${input.addonId}`);
     }
-    if (!validSameOriginPath(input.entryUrl)) {
+    if (
+      !validSameOriginPath(input.entryUrl) ||
+      !hasAssetExtension(input.entryUrl, ".js", ".mjs")
+    ) {
       throw new BrowserGenerationPlanError(`invalid entry URL for ${input.addonId}`);
     }
     if (input.mode !== "integrated" && input.mode !== "isolated") {
@@ -409,8 +412,11 @@ function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerat
         throw new BrowserGenerationPlanError(`invalid dependency list for ${input.addonId}`);
       }
     }
-    const styleUrls = sortedUnique(input.styleUrls, (value) => validSameOriginPath(value));
-    if (styleUrls === undefined) {
+    const styleUrls = sortedUnique(
+      input.styleUrls,
+      (value) => validSameOriginPath(value) && hasAssetExtension(value, ".css"),
+    );
+    if (styleUrls === undefined || styleUrls.length > 64) {
       throw new BrowserGenerationPlanError(`invalid style URL list for ${input.addonId}`);
     }
     const sandbox = sortedUnique(
@@ -694,6 +700,11 @@ function validSameOriginPath(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function hasAssetExtension(value: string, ...extensions: readonly string[]): boolean {
+  const pathname = new URL(value, "https://codex.invalid").pathname.toLowerCase();
+  return extensions.some((extension) => pathname.endsWith(extension));
 }
 
 function hasControl(value: string): boolean {
