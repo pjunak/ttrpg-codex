@@ -221,8 +221,8 @@ navigates the frame to an authenticated package URL. It fetches the immutable
 entry module and CSS through the authenticated host, applies explicit 2 MiB
 module and stylesheet limits, and transfers their text over a document-owned
 message port into a host-generated `srcdoc`. The frame has a unique opaque
-origin, a restrictive CSP that blocks
-ambient connections and external subresources, and a sandbox that always
+origin, a restrictive CSP that blocks ambient connections and external
+subresources, and a sandbox that always
 allows scripts but maps only the reviewed `downloads`, `forms`, `modals`, and
 `popups` grants. It never receives `allow-same-origin`, host cookies, storage,
 or usable access to the parent document. This boundary contains DOM and
@@ -234,9 +234,10 @@ The generated bootstrap imports the self-contained entry through a frame-local
 blob URL and calls the same `activate(context)` shape used by integrated
 modules. Current context support covers immutable add-on identity, generation
 cancellation, capability and permission queries, the one role-visible
-declaration represented by that frame, and visual custom-element binding. The
-entry module and declared styles must therefore be `.js`/`.mjs` and `.css`;
-isolated entry modules cannot depend on relative imports or network assets.
+declaration represented by that frame, and surface-compatible element, action,
+or model-provider binding. The entry module and declared styles must therefore
+be `.js`/`.mjs` and `.css`; isolated entry modules cannot depend on relative
+imports or network assets.
 
 Each mounted visual contribution owns one transferred `MessagePort` using
 `codex.browser-addon/1`. The initial document receives its private port before
@@ -247,19 +248,45 @@ global-window commands after connection, limits reported height, revokes a
 frame that misses its handshake deadline, and closes the port on outlet,
 generation, or authority teardown. Only the initial `srcdoc` load receives a
 port, so an add-on that navigates its frame cannot reconnect from another
-document.
+document. Binding disposal or document unload sends an unavailable signal that
+withdraws the corresponding host registration instead of leaving a dead
+contribution visible.
 
-The first isolated milestone intentionally supports element-backed visual
-surfaces. Declarative sidebar entries, article actions, and graph model
-providers fail isolated activation until their corresponding message contracts
-exist; they are not silently downgraded.
+### Callback ownership and flow
+
+Declarative sidebar entries execute no add-on code and are published directly
+from reviewed graph metadata. Each isolated article action, graph view, or
+graph contributor instead receives one hidden opaque frame. Activation must
+bind the exact declared callback and complete its handshake before the registry
+publishes the host proxy.
+
+```text
+host feature -> registry proxy -> bounded invoke message -> callback frame
+host feature <- validated JSON <- bounded result message <- callback frame
+       cancel/deadline -------------------------------> abort signal
+generation teardown ---------------------------------> revoke and dispose
+```
+
+Requests and results must be bounded JSON inside the existing 64 KiB message
+limit. A frame accepts at most 32 concurrent calls; the host applies a ten
+second deadline, forwards caller cancellation, rejects late results, and
+removes every pending call on generation teardown. Feature owners still
+validate their request and result schemas because the bridge provides transport
+safety, not domain meaning. Activation, add-on, invalid-result, timeout, busy,
+and revoked failures remain distinguishable in diagnostics or typed host
+errors.
+
+One frame per executable contribution deliberately favors obvious ownership,
+failure isolation, and cleanup over minimum memory. The current deployment has
+a small first-party add-on set, so a pooled per-generation callback frame would
+add multiplexing complexity without demonstrated benefit. Revisit pooling only
+if browser measurements show frame startup or memory is material; preserve the
+same per-contribution cancellation and authority rules if that changes.
 
 ## Remaining integration
 
 - Add data, service, import, event, settings, navigation, graph, and log handles
   to the implemented capability-scoped SDK as their transports land.
-- Extend the isolated bridge to declarative navigation, action, and model
-  contribution shapes as their host surfaces land.
 - Connect the remaining host surfaces to their feature-owned registry outlets.
 - Surface activation and disposal diagnostics in the Add-on Inspector.
 - Add Playwright coverage once real contribution modules are wired.

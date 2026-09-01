@@ -76,20 +76,22 @@ describe("BrowserContributionRegistry", () => {
     expect(registry.list("sidebar", "player")[0]?.binding.kind).toBe("declarative");
     const activeAction = registry.list("article-action", "player")[0]?.binding;
     const activeModel = registry.list("graph-view", "player")[0]?.binding;
+    const invocation = new AbortController();
     expect(activeAction?.kind).toBe("action");
     expect(activeModel?.kind).toBe("model-provider");
     if (activeAction?.kind === "action" && activeModel?.kind === "model-provider") {
-      activeAction.run({ recordId: "character-1" }, { signal: new AbortController().signal });
-      activeModel.provide({ graphId: "story" }, { signal: new AbortController().signal });
+      activeAction.run({ recordId: "character-1" }, { signal: invocation.signal });
+      activeModel.provide({ graphId: "story" }, { signal: invocation.signal });
     }
-    expect(run).toHaveBeenCalledWith(
-      { recordId: "character-1" },
-      { signal: session.context.signal },
-    );
-    expect(provide).toHaveBeenCalledWith(
-      { graphId: "story" },
-      { signal: session.context.signal },
-    );
+    const actionSignal = run.mock.calls[0]?.[1]?.signal as AbortSignal;
+    const modelSignal = provide.mock.calls[0]?.[1]?.signal as AbortSignal;
+    expect(run.mock.calls[0]?.[0]).toEqual({ recordId: "character-1" });
+    expect(provide.mock.calls[0]?.[0]).toEqual({ graphId: "story" });
+    expect(actionSignal.aborted).toBe(false);
+    expect(modelSignal.aborted).toBe(false);
+    invocation.abort("host-cancelled");
+    expect(actionSignal.reason).toBe("host-cancelled");
+    expect(modelSignal.reason).toBe("host-cancelled");
 
     expect(() => session.context.ui.bind("missing.route", {
       kind: "element",

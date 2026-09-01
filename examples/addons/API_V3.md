@@ -127,10 +127,26 @@ This boundary contains DOM and ambient browser authority; it is not a
 general-purpose sandbox for actively malicious computation. Code that needs
 that stronger boundary belongs behind a narrower worker or WASI contract.
 
-The initial bridge supports element-backed visual contributions. It calls
-`activate(context)` with identity, cancellation, capability, permission, and
-UI declaration/binding APIs. Other contribution shapes require their own
-versioned bridge messages before they are accepted in isolated mode.
+The bridge supports element-backed visual contributions plus article actions,
+graph views, and graph contributors. It calls `activate(context)` with identity,
+cancellation, capability, permission, and UI declaration/binding APIs. Each
+frame sees exactly one declaration and MUST bind that declaration before its
+activation handshake completes. Sidebar metadata is published by the host and
+does not create a frame.
+
+Each action or model-provider call exchanges JSON through its private port.
+The complete message is limited to 64 KiB, each frame accepts at most 32 active
+calls, and the host deadline is ten seconds. Host cancellation reaches the
+callback's invocation signal. Add-ons SHOULD stop optional work promptly and
+MUST return JSON; `undefined` is normalized to `null`. Feature-specific request
+and response schemas remain owned and validated by the consuming host feature.
+Disposing the binding or navigating its document withdraws the host-side
+registration; the replacement document cannot reconnect.
+
+The host currently uses one frame per executable contribution for simple,
+deterministic ownership and cleanup. A pooled generation runtime may be
+considered later only if measured frame startup or memory cost warrants the
+additional multiplexer.
 
 ### WASI worker
 

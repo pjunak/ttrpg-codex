@@ -93,6 +93,10 @@ export interface ActiveBrowserContribution {
 export interface BrowserAddonSDKSession {
   readonly context: BrowserAddonContext;
   publishDeclarative(contributionId: string): BrowserContributionHandle;
+  bindIsolatedCallback(
+    contributionId: string,
+    binding: BrowserActionBinding | BrowserModelProviderBinding,
+  ): BrowserContributionHandle;
   bindIsolated(
     contributionId: string,
     binding: BrowserIsolatedFrameBinding,
@@ -135,6 +139,8 @@ export class BrowserContributionRegistry {
     return {
       context: session.context,
       publishDeclarative: (contributionId) => session.publishDeclarative(contributionId),
+      bindIsolatedCallback: (contributionId, binding) =>
+        session.bindIsolatedCallback(contributionId, binding),
       bindIsolated: (contributionId, binding) =>
         session.bindIsolated(contributionId, binding),
       dispose: () => {
@@ -257,6 +263,29 @@ class RegistrySession {
       );
     }
     return this.#register(declaration, Object.freeze({ kind: "declarative" }));
+  }
+
+  bindIsolatedCallback(
+    contributionId: string,
+    binding: BrowserActionBinding | BrowserModelProviderBinding,
+  ): BrowserContributionHandle {
+    this.#assertOpen();
+    if (this.#descriptor.mode !== "isolated") {
+      throw new BrowserContributionBindingError(
+        `integrated add-on ${this.#descriptor.addonId} cannot bind an isolated callback`,
+      );
+    }
+    const declaration = this.#declaration(contributionId);
+    const expected = expectedBindingKind(declaration.surface);
+    if (expected !== "action" && expected !== "model-provider") {
+      throw new BrowserContributionBindingError(
+        `isolated contribution ${contributionId} on ${declaration.surface} is not a callback surface`,
+      );
+    }
+    return this.#register(
+      declaration,
+      normalizeBinding(declaration, binding, this.context.signal),
+    );
   }
 
   bindIsolated(
@@ -429,9 +458,9 @@ function normalizeBinding(
       }
       return Object.freeze({
         kind: "action",
-        run: (request: unknown) => {
+        run: (request: unknown, context: BrowserInvocationContext) => {
           signal.throwIfAborted();
-          return binding.run(request, { signal });
+          return binding.run(request, { signal: combinedSignal(signal, context.signal) });
         },
       });
     case "model-provider":
@@ -442,12 +471,16 @@ function normalizeBinding(
       }
       return Object.freeze({
         kind: "model-provider",
-        provide: (request: unknown) => {
+        provide: (request: unknown, context: BrowserInvocationContext) => {
           signal.throwIfAborted();
-          return binding.provide(request, { signal });
+          return binding.provide(request, { signal: combinedSignal(signal, context.signal) });
         },
       });
   }
+}
+
+function combinedSignal(generation: AbortSignal, invocation: AbortSignal): AbortSignal {
+  return generation === invocation ? generation : AbortSignal.any([generation, invocation]);
 }
 
 function expectedBindingKind(
