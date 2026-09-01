@@ -1,2 +1,4 @@
 import "./styles.css";
-import "./app/codex-app.js";
+import { renderRewriteStatus } from "./rewrite-status.js";
+
+renderRewriteStatus(document);

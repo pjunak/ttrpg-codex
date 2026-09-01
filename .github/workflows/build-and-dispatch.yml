@@ -2,12 +2,13 @@ name: Build and dispatch
 
 # Drop into an app repo's .github/workflows/ directory.
 #
-# On every push to main: validates the suite and publishes a Docker image to
-# GHCR with both :latest and :sha-<commit> tags. Production deployment remains
-# an explicit manual action so a source-branch promotion can never race a
-# campaign-data cutover. A manual run validates without publishing or deploying
-# unless publishing or a deployment target is explicitly enabled; selecting a
-# deployment target publishes first and dispatches that exact image digest.
+# On every push to main: validates the suite and builds a Docker image. It
+# publishes :latest and :sha-<commit> only after the product-parity release gate
+# passes. Production deployment remains an explicit manual action so a source-
+# branch promotion can never race a campaign-data cutover. A manual run validates
+# without publishing or deploying unless publishing or a deployment target is
+# explicitly enabled; selecting a deployment target publishes first and
+# dispatches that exact image digest.
 #
 # Required configuration in the app repo (Settings → Secrets and variables → Actions):
 #   Secret   INFRA_DISPATCH_TOKEN   fine-grained PAT for the infra repo
@@ -73,10 +74,35 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
       - uses: docker/setup-buildx-action@v4
 
+      - name: Inspect product release readiness
+        id: release_readiness
+        shell: bash
+        run: |
+          set +e
+          node scripts/check-release-readiness.mjs
+          status=$?
+          set -e
+          if [[ "$status" -eq 0 ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Docker publication is disabled until the product-parity gate passes."
+          fi
+
+      - name: Refuse an explicitly requested incomplete release
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish || inputs.deploy_target != 'none') && steps.release_readiness.outputs.ready != 'true' }}
+        run: |
+          echo "::error::Publish or deployment was requested while product parity is incomplete."
+          exit 1
+
       - name: Log in to GHCR
-        if: ${{ github.event_name == 'push' || inputs.publish || inputs.deploy_target != 'none' }}
+        if: ${{ steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || inputs.publish || inputs.deploy_target != 'none') }}
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -94,7 +120,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: ${{ github.event_name == 'push' || inputs.publish || inputs.deploy_target != 'none' }}
+          push: ${{ steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || inputs.publish || inputs.deploy_target != 'none') }}
           tags: |
             ${{ steps.img.outputs.name }}:latest
             ${{ steps.img.outputs.name }}:sha-${{ github.sha }}

@@ -1,17 +1,22 @@
 # TTRPG Codex
 
 TTRPG Codex is a self-hosted campaign archive and add-on host for small tabletop
-groups. Version 2 is a clean Go and TypeScript replacement for the former
+groups. Version 2 is an active Go and TypeScript rewrite of the former
 Node/JavaScript application.
+
+> **Rewrite status:** the host, storage, conversion tools, and Add-on API v3
+> foundations are implemented, but the campaign product interface has not been
+> ported. This branch is a development platform, not a production replacement
+> for the complete v1 UI. The deprecated v1 branch remains the supported choice
+> for running campaigns until every gate in [`docs/BACKLOG.md`](docs/BACKLOG.md)
+> passes.
 
 The core stays deliberately generic: it stores campaign records, visibility,
 media, revisions, backups, and live updates. Campaign-specific planning and D&D
 features live in separately versioned Add-on API v3 packages.
 
-## Current capabilities
+## Implemented foundations
 
-- Browse and edit characters, locations, events, mysteries, factions, deities,
-  artifacts, historical events, and companions.
 - DM and optional player credentials with role-aware projections and guarded
   writes.
 - SQLite transactions, optimistic record revisions, reference-safe mutations,
@@ -24,6 +29,12 @@ features live in separately versioned Add-on API v3 packages.
   scoped cleanup.
 - One-time conversion of the two existing v1 UI backups. The running v2 host
   contains no legacy JSON compatibility mode.
+
+The browser currently displays an explicit development-status page. It does
+not pretend that the former generic record browser is equivalent to the old
+dashboard, wiki, maps, timeline, relationship views, settings, and editors.
+Those workflows and the first-party add-on presentation parity are tracked as
+release blockers in the suite backlog.
 
 ## Technology
 
@@ -58,9 +69,10 @@ Copy-Item .env.example .env
 docker compose up --build -d
 ```
 
-Open <http://localhost:3000>. Set `CODEX_SECURE_COOKIES=true` when the service
-is behind HTTPS. See [self-hosting](docs/SELF_HOSTING.md) before operating real
-campaign data.
+Open <http://localhost:3000> to confirm that the development build is running.
+Set `CODEX_SECURE_COOKIES=true` when the service is behind HTTPS. Do not replace
+a complete v1 campaign deployment with this branch yet. See
+[self-hosting](docs/SELF_HOSTING.md) before operating real campaign data.
 
 ## Repository map
 

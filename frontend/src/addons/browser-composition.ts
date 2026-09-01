@@ -1,19 +1,19 @@
-import { BrowserAddonRuntime } from "../addons/browser-addon-runtime.js";
+import { BrowserAddonRuntime } from "./browser-addon-runtime.js";
 import {
   BrowserAddonSession,
   type BrowserAddonSessionCallbacks,
-} from "../addons/browser-addon-session.js";
-import { BrowserGraphClient } from "../addons/browser-graph-client.js";
-import { BrowserContributionRegistry } from "../addons/browser-sdk.js";
-import { BrowserAddonDataClient } from "../addons/data-client.js";
-import { BrowserAddonContentClient } from "../addons/content-client.js";
-import { BrowserAddonServiceClient } from "../addons/service-client.js";
-import { createDocumentStyleLoader } from "../addons/browser-styles.js";
-import { createIsolatedFrameActivator } from "../addons/isolated-frame.js";
+} from "./browser-addon-session.js";
+import { BrowserGraphClient } from "./browser-graph-client.js";
+import { BrowserContributionRegistry } from "./browser-sdk.js";
+import { BrowserAddonDataClient } from "./data-client.js";
+import { BrowserAddonContentClient } from "./content-client.js";
+import { BrowserAddonServiceClient } from "./service-client.js";
+import { createDocumentStyleLoader } from "./browser-styles.js";
+import { createIsolatedFrameActivator } from "./isolated-frame.js";
 import {
   BrowserGenerationManager,
   createModuleActivator,
-} from "../addons/generation-manager.js";
+} from "./generation-manager.js";
 
 export interface BrowserAddonComposition {
   readonly session: BrowserAddonSession;

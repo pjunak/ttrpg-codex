@@ -127,19 +127,16 @@ under `data/rewrite/`.
   staged copy and later reverify the exact extracted tree. The inspection CLI
   remains read-only and emits a machine-readable success report or stable
   failure code without executing or extracting the package.
-- The TypeScript shell validates responses at the HTTP boundary. Its
-  bounded campaign client accepts only the complete `campaign-data.v1`
-  collection set, serializes refreshes across authority changes, and retains
-  the last accepted dataset after malformed or failed refreshes. A first
-  read-only campaign overview renders campaign identity, core counts, and
-  knowledge-aware character summaries for anonymous, player, and DM views. A
-  serialized mutation client validates payload-free commit receipts, and the
-  first DM editor updates campaign name/tagline over the full authoritative
-  record so unknown future fields survive.
-  The application shell owns the one shared SSE connection independently of
-  add-ons and refreshes the campaign on validated collection invalidations.
-  Its
-  generation scope establishes abort-first, LIFO, once-only, failure-isolated
+- The TypeScript boundary clients remain implemented and tested independently
+  of the product interface. The bounded campaign client accepts only the
+  complete `campaign-data.v1` collection set, serialized mutations validate
+  payload-free receipts, and event refreshes preserve the last accepted state
+  after malformed or failed responses. The generic campaign overview/browser/
+  editor shell was deliberately removed: it did not provide product parity and
+  must not be mistaken for the dashboard, wiki, maps, timeline, relationship
+  views, settings, and dedicated editors that still need to be rebuilt.
+- The browser add-on generation scope establishes abort-first, LIFO, once-only,
+  failure-isolated
   cleanup. A serialized browser generation manager validates a complete
   server-authoritative dependency graph, tears consumers down before providers,
   and rebuilds providers before consumers for each opaque graph revision. Its
@@ -154,15 +151,11 @@ under `data/rewrite/`.
   effective authority without leaking the internal generation scope. Its
   host-owned registry binds only declared, surface-compatible custom elements,
   actions, or model providers, automatically publishes declarative sidebar
-  metadata, and removes every registration before module cleanup. The
-  authenticated Lit shell now probes session authority, offers login/logout,
-  owns the single shared EventSource, refreshes the graph on validated events,
-  loads generation styles, renders role-filtered `slot` contributions through
-  a keyed host-owned outlet, runs isolated visual modules and bounded
-  action/model callbacks in per-contribution opaque CSP-restricted frames over
-  transferred message ports, projects exact route/sidebar metadata into a
-  host-owned hash namespace, mounts only the selected same-generation route,
-  and tears all browser authority down on logout or HTTP authorization loss.
+  metadata, and removes every registration before module cleanup. Integrated
+  modules, isolated frames, contribution outlets, route metadata, and the
+  browser composition root remain strict tested infrastructure. They are not
+  currently mounted by a host product shell; the development-status page keeps
+  that missing integration visible until the product-parity gates are closed.
 - The shared Go worker codec enforces bounded canonical `Content-Length`
   framing, serializes concurrent writes, validates UTF-8/JSON/envelopes, and
   reports stable transport failure codes. The same package is usable by the
@@ -218,5 +211,6 @@ under `data/rewrite/`.
   handlers. `-locale` and `-time-zone` define the BCP 47 locale and IANA time
   zone reported in the worker handshake; their defaults are `en` and `UTC`.
 
-These contracts define the implemented v2 minimum. Optional platform expansion
-and the supervised cutover gates live only in `docs/BACKLOG.md`.
+These contracts define implemented v2 foundations, not a complete replacement
+product. Required product parity, optional platform expansion, and supervised
+cutover gates live only in `docs/BACKLOG.md`.

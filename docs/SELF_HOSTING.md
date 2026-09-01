@@ -3,6 +3,12 @@
 This guide covers the Go/TypeScript v2 deployment. Live conversion and final
 smoke testing are intentionally performed with the maintainer present.
 
+> **Do not cut over a complete v1 campaign yet.** The v2 product interface is
+> still being rebuilt and image publication is blocked by
+> `npm run release-check`. This document remains the operational runbook for
+> disposable integration environments and for the eventual supervised cutover
+> after every product-parity gate in [`BACKLOG.md`](BACKLOG.md) passes.
+
 ## Requirements
 
 - Docker Engine with Compose for production.
@@ -72,10 +78,11 @@ counts, retired-core adjustments, package hashes, and every deferred/unknown
 entry. Generated map tiles are deliberately discarded. The source ZIP is never
 modified.
 
-During supervised cutover, stop the old service, move its existing data aside,
-place the verified converted directory at the new instance's `data/` mount,
-start v2, and retain both the original UI ZIP and old data directory until the
-campaign has been manually checked.
+During a disposable integration rehearsal, stop the test service, move its
+existing data aside, place the verified converted directory at the new
+instance's `data/` mount, start v2, and retain both the original UI ZIP and old
+data directory. Repeat this against the complete product only after the release
+gate passes and the maintainer explicitly starts the supervised cutover.
 
 ## Add-on installation
 

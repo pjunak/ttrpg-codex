@@ -145,6 +145,16 @@ source checkout into a runtime generation.
 
 ## Completion and durable planning
 
+- Architecture completion is not product completion. Never describe this
+  rewrite as a v1 replacement while any item between the product-parity markers
+  in [`docs/BACKLOG.md`](docs/BACKLOG.md) is unchecked, while the development
+  status page exists, or before supervised browser acceptance against a copied
+  real campaign passes. `npm run check` proves technical consistency;
+  `npm run release-check` separately enforces the product release boundary.
+- A generic record browser is not an acceptable substitute for the authored
+  dashboard, wiki, editors, maps, timeline, relationship views, settings, and
+  first-party add-on workflows. Port, deliberately redesign, or explicitly
+  retire each old workflow with maintainer approval and a recorded gate result.
 - Ordinary backup and restore accept only `codex-backup.v2`. The offline
   `cmd/codex-convert-v1` tool is the sole legacy boundary: keep its input
   unchanged and write a fresh v2 directory. Do not add startup-time legacy
