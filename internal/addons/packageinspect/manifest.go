@@ -66,14 +66,23 @@ type Contribution struct {
 }
 
 type Collection struct {
-	ID            string `json:"id"`
-	Schema        string `json:"schema"`
-	SchemaVersion string `json:"schemaVersion"`
+	ID            string            `json:"id"`
+	Keyed         bool              `json:"keyed"`
+	Visibility    string            `json:"visibility"`
+	Schema        string            `json:"schema"`
+	SchemaVersion string            `json:"schemaVersion"`
+	Indexes       []CollectionIndex `json:"indexes,omitempty"`
+}
+
+type CollectionIndex struct {
+	Path   string `json:"path"`
+	Unique bool   `json:"unique,omitempty"`
 }
 
 type RecordExtension struct {
 	ID            string `json:"id"`
 	Target        string `json:"target"`
+	Visibility    string `json:"visibility"`
 	Schema        string `json:"schema"`
 	SchemaVersion string `json:"schemaVersion"`
 }

@@ -79,6 +79,45 @@ func TestManifestRetainsCompleteContributionPolicy(t *testing.T) {
 	}
 }
 
+func TestManifestRetainsCompleteDataPolicy(t *testing.T) {
+	t.Parallel()
+
+	var manifest Manifest
+	if err := json.Unmarshal([]byte(`{
+		"collections": [{
+			"id": "planning_items",
+			"keyed": true,
+			"visibility": "dm",
+			"schema": "contracts/planning-item.schema.json",
+			"schemaVersion": "2.1.0",
+			"indexes": [{"path": "/parentId", "unique": true}]
+		}],
+		"recordExtensions": [{
+			"id": "sheet",
+			"target": "characters",
+			"visibility": "private",
+			"schema": "contracts/sheet.schema.json",
+			"schemaVersion": "3.0.0"
+		}]
+	}`), &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.Collections) != 1 || len(manifest.RecordExtensions) != 1 {
+		t.Fatalf("data declarations = %+v, %+v", manifest.Collections, manifest.RecordExtensions)
+	}
+	collection := manifest.Collections[0]
+	if collection.ID != "planning_items" || !collection.Keyed || collection.Visibility != "dm" ||
+		collection.Schema != "contracts/planning-item.schema.json" || collection.SchemaVersion != "2.1.0" ||
+		len(collection.Indexes) != 1 || collection.Indexes[0].Path != "/parentId" || !collection.Indexes[0].Unique {
+		t.Fatalf("incomplete collection policy: %+v", collection)
+	}
+	extension := manifest.RecordExtensions[0]
+	if extension.ID != "sheet" || extension.Target != "characters" || extension.Visibility != "private" ||
+		extension.Schema != "contracts/sheet.schema.json" || extension.SchemaVersion != "3.0.0" {
+		t.Fatalf("incomplete extension policy: %+v", extension)
+	}
+}
+
 func TestManifestSchemaRequiresCanonicalNavigationMetadata(t *testing.T) {
 	t.Parallel()
 
