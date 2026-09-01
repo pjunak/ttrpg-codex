@@ -30,13 +30,24 @@ rewrite data directory from one old UI ZIP.
   deployment configuration and must be configured afresh.
 - `secrets.json` is rejected. The old UI intentionally excluded it, so its
   presence means the archive is not the expected backup artifact.
+- Each supplied `-addon-package` ZIP is inspected twice: once before conversion
+  and once immediately before publication. The converter accepts only the v3
+  `dm-tools` and `dnd-sheets` packages and records their version and archive
+  SHA-256 in the report.
+- The six stable DM Tools collection files are validated against the target
+  package schemas and their cross-record planning invariants before they are
+  written. An explicitly empty collection remains materialized and empty.
+- Each legacy `characters.addonData["dnd-sheets"]` object is stamped as sheet
+  schema v3, validated against the target record-extension schema, written with
+  the character's creation identity, and only then removed from the core
+  character JSON. All of this happens inside the unpublished staging output;
+  any failure discards the whole staged directory.
 
-The command still inventories, but does not publish, `addon-data`, add-on
-package copies, registry/auth metadata, other files, and unreferenced media.
-Those groups are listed separately with exact file and byte counts in the JSON
-report. Their final import belongs to v3 package/data ownership rather than an
-unowned filesystem copy. Keep both original ZIPs until those owning slices and
-the supervised final conversion have been verified.
+The command still inventories unknown `addon-data`, old add-on package copies,
+registry/auth metadata, other files, unreferenced media, and embedded namespaces
+other than `dnd-sheets`. Those values are listed separately rather than guessed
+into a target package. Keep both original ZIPs until the supervised conversion
+and live comparison have been verified.
 
 ## Dry conversion
 
@@ -45,21 +56,27 @@ Run once per website into distinct new directories:
 ```powershell
 go run ./cmd/codex-convert-v1 `
   -in C:/backups/site-one-v1.zip `
-  -out C:/migration/site-one-rewrite
+  -out C:/migration/site-one-rewrite `
+  -addon-package ../addon-dm-tools/dist/dm-tools-3.0.0.zip `
+  -addon-package ../addon-dnd-character-sheets/dist/dnd-sheets-3.0.0.zip
 
 go run ./cmd/codex-convert-v1 `
   -in C:/backups/site-two-v1.zip `
-  -out C:/migration/site-two-rewrite
+  -out C:/migration/site-two-rewrite `
+  -addon-package ../addon-dm-tools/dist/dm-tools-3.0.0.zip `
+  -addon-package ../addon-dnd-character-sheets/dist/dnd-sheets-3.0.0.zip
 ```
 
-The command prints a `codex-v1-conversion-report.v2` JSON document. Its media
+The command prints a `codex-v1-conversion-report.v3` JSON document. Its media
 section separates imported source files and bindings, rewritten records, and
-discarded generated tiles; `deferred.media` contains only unreferenced media.
-Preserve that output beside the corresponding backup so source identity,
-imported counts, and deferred inventories can be compared during the
-supervised migration. If a run fails or needs to be repeated, remove or choose
-a different unused output directory after inspecting it; the converter never
-overwrites it.
+discarded generated tiles. Its add-on section records target package hashes,
+document counts, stripped core records, imported source files, and any embedded
+namespaces left for manual review. `deferred.media` contains only unreferenced
+media and `deferred.addonData` only unrecognized collection files. Preserve the
+report beside the corresponding backup so source identity, package identity,
+imported counts, and deferred inventories can be compared during the supervised
+migration. If a run fails or needs to be repeated, remove or choose a different
+unused output directory after inspecting it; the converter never overwrites it.
 
 Do not point either website at the generated directory yet. The final run and
 live smoke tests wait until the remaining rewrite surfaces and add-on-owned

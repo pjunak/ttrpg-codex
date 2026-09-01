@@ -25,6 +25,8 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer) erro
 	flags.SetOutput(stderr)
 	input := flags.String("in", "", "ZIP downloaded from the v1 website backup UI")
 	output := flags.String("out", "", "new rewrite data directory")
+	var addonPackages stringList
+	flags.Var(&addonPackages, "addon-package", "target v3 add-on ZIP; repeat for DM Tools and D&D sheets")
 	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
@@ -37,7 +39,7 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer) erro
 	}
 	defer lock.Close()
 	report, err := legacyconvert.Convert(ctx, legacyconvert.Config{
-		ArchivePath: *input, OutputDirectory: *output,
+		ArchivePath: *input, OutputDirectory: *output, AddonPackages: addonPackages,
 	})
 	if err != nil {
 		return err
@@ -48,5 +50,19 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer) erro
 	if err := encoder.Encode(report); err != nil {
 		return fmt.Errorf("write conversion report: %w", err)
 	}
+	return nil
+}
+
+type stringList []string
+
+func (values *stringList) String() string {
+	return fmt.Sprint([]string(*values))
+}
+
+func (values *stringList) Set(value string) error {
+	if value == "" {
+		return errors.New("add-on package path cannot be empty")
+	}
+	*values = append(*values, value)
 	return nil
 }

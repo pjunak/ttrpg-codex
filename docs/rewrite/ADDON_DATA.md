@@ -139,15 +139,15 @@ and metadata propagation helpers for these methods.
 
 ## Remaining public surface
 
-The package/storage/application contract and package lifecycle integration are
-implemented. The following still sit above this boundary:
+The package/storage/application contract, package lifecycle integration, and
+the deliberately narrow first-party v1 backup conversion are implemented. The
+following still sits above this boundary:
 
-- reviewed `addon/migration.plan` and `addon/migration.apply` orchestration;
-- the one-shot v1 conversion mapping from the two backed-up websites, using
-  the finished first-party v3 package schemas rather than permanent legacy
-  readers.
+- reviewed `addon/migration.plan` and `addon/migration.apply` orchestration.
 
-The converter will strip migrated per-record `addonData` from core JSON only
+The offline converter strips migrated `dnd-sheets` data from core JSON only
 after the matching extension write succeeds in the same fresh output build.
-Legacy source ZIPs remain authoritative backups until supervised comparison
-and live smoke testing complete.
+It imports the six stable DM Tools collections against the selected package's
+compiled schemas and reports everything it does not recognize. Legacy source
+ZIPs remain authoritative backups until supervised comparison and live smoke
+testing complete.

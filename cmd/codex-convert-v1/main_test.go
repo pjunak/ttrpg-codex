@@ -46,7 +46,7 @@ func TestRunConvertsOldUIBackupAndPrintsReport(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
 		t.Fatal(err)
 	}
-	if report.ContractVersion != "codex-v1-conversion-report.v2" || report.CoreRecords != 1 {
+	if report.ContractVersion != "codex-v1-conversion-report.v3" || report.CoreRecords != 1 {
 		t.Fatalf("report = %+v", report)
 	}
 	if _, err := os.Stat(filepath.Join(output, "codex.db")); err != nil {

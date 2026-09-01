@@ -35,6 +35,7 @@ var ErrInvalidLegacyBackup = errors.New("invalid v1 UI backup")
 type Config struct {
 	ArchivePath     string
 	OutputDirectory string
+	AddonPackages   []string
 	Now             func() time.Time
 }
 
@@ -50,6 +51,20 @@ type MediaReport struct {
 	DiscardedDerived InventoryGroup `json:"discardedDerived"`
 }
 
+type TargetPackageReport struct {
+	Version       string `json:"version"`
+	ArchiveSHA256 string `json:"archiveSha256"`
+}
+
+type AddonReport struct {
+	TargetPackages      map[string]TargetPackageReport `json:"targetPackages"`
+	Documents           map[string]int                 `json:"documents"`
+	ImportedSourceFiles InventoryGroup                 `json:"importedSourceFiles"`
+	StrippedCoreRecords int                            `json:"strippedCoreRecords"`
+	DeferredEmbedded    map[string]int                 `json:"deferredEmbedded"`
+	importedFiles       []*zip.File
+}
+
 type Report struct {
 	ContractVersion string                    `json:"contractVersion"`
 	SourceSHA256    string                    `json:"sourceSha256"`
@@ -58,6 +73,7 @@ type Report struct {
 	CoreCollections map[string]int            `json:"coreCollections"`
 	CoreRecords     int                       `json:"coreRecords"`
 	Media           MediaReport               `json:"media"`
+	Addons          AddonReport               `json:"addons"`
 	Deferred        map[string]InventoryGroup `json:"deferred"`
 }
 
@@ -67,6 +83,10 @@ func Convert(ctx context.Context, config Config) (Report, error) {
 	}
 	if config.Now == nil {
 		config.Now = time.Now
+	}
+	targetPackages, err := inspectTargetPackages(ctx, config.AddonPackages)
+	if err != nil {
+		return Report{}, err
 	}
 	archivePath, err := filepath.Abs(config.ArchivePath)
 	if err != nil {
@@ -127,6 +147,21 @@ func Convert(ctx context.Context, config Config) (Report, error) {
 			convertedAt,
 		)
 	}
+	if importErr == nil {
+		report.Addons, importErr = importLegacyAddons(
+			ctx,
+			database,
+			backup,
+			targetPackages,
+			convertedAt,
+		)
+		for _, imported := range report.Addons.importedFiles {
+			value := report.Deferred["addonData"]
+			value.Files--
+			value.Bytes -= imported.UncompressedSize64
+			report.Deferred["addonData"] = value
+		}
+	}
 	checkErr := error(nil)
 	if importErr == nil {
 		checkErr = errors.Join(
@@ -144,6 +179,9 @@ func Convert(ctx context.Context, config Config) (Report, error) {
 		}
 	}
 	if err := backup.VerifySource(ctx); err != nil {
+		return Report{}, err
+	}
+	if err := verifyTargetPackages(ctx, targetPackages); err != nil {
 		return Report{}, err
 	}
 	if err := os.Rename(stage, outputDirectory); err != nil {
@@ -287,7 +325,7 @@ func openLegacyBackup(ctx context.Context, filename string, now time.Time) (*leg
 	}
 	closeOnError = false
 	return &legacyBackup{source: source, sourceBytes: info.Size(), dataset: dataset, files: files, report: Report{
-		ContractVersion: "codex-v1-conversion-report.v2",
+		ContractVersion: "codex-v1-conversion-report.v3",
 		SourceSHA256:    sourceHash, ConvertedAt: now.Format(time.RFC3339Nano),
 		CoreCollections: counts, Deferred: deferred,
 	}}, nil

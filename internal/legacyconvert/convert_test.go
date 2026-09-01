@@ -5,9 +5,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -69,7 +72,7 @@ func TestConvertCreatesFreshDatabaseAndInventoriesDeferredData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.ContractVersion != "codex-v1-conversion-report.v2" ||
+	if report.ContractVersion != "codex-v1-conversion-report.v3" ||
 		report.ConvertedAt != convertedAt.Format(time.RFC3339Nano) ||
 		report.CommitID != 1 || report.CoreRecords != 6 {
 		t.Fatalf("report = %+v", report)
@@ -257,6 +260,175 @@ func TestConvertRejectsUnsafeOrSecretEntries(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConvertMigratesFirstPartyAddonDataAgainstTargetPackages(t *testing.T) {
+	t.Parallel()
+	directory := t.TempDir()
+	archive := filepath.Join(directory, "old-ui-backup.zip")
+	writeLegacyZip(t, archive, []zipEntry{
+		{name: "data/characters.json", body: `[{
+			"id":"hero","name":"Hero","visibility":"public",
+			"addonData":{"dnd-sheets":{"className":"Wizard","custom":{"kept":true}},"unknown-addon":{"value":1}}
+		}]`},
+		{name: "data/addon-data/dm-tools/planning_items.json", body: `{
+			"quest-a":{"id":"quest-a","title":"Quest A"}
+		}`},
+		{name: "data/addon-data/dm-tools/dm_notes.json", body: `{}`},
+		{name: "data/addon-data/demo/rules.json", body: `{"rule-a":{"id":"rule-a"}}`},
+	})
+	dmTools := writeTargetPackage(t, "dm-tools")
+	dndSheets := writeTargetPackage(t, "dnd-sheets")
+	output := filepath.Join(directory, "converted")
+	report, err := Convert(context.Background(), Config{
+		ArchivePath: archive, OutputDirectory: output,
+		AddonPackages: []string{dmTools, dndSheets},
+		Now:           func() time.Time { return time.Date(2026, 9, 1, 13, 0, 0, 0, time.UTC) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Addons.Documents["dm-tools/collection/planning_items"] != 1 ||
+		report.Addons.Documents["dnd-sheets/record-extension/dnd-sheets"] != 1 ||
+		report.Addons.StrippedCoreRecords != 1 ||
+		report.Addons.ImportedSourceFiles.Files != 2 ||
+		report.Addons.DeferredEmbedded["unknown-addon"] != 1 ||
+		report.Deferred["addonData"].Files != 1 {
+		t.Fatalf("add-on report = %+v, deferred = %+v", report.Addons, report.Deferred)
+	}
+	if len(report.Addons.TargetPackages["dm-tools"].ArchiveSHA256) != 64 ||
+		len(report.Addons.TargetPackages["dnd-sheets"].ArchiveSHA256) != 64 {
+		t.Fatalf("target packages = %+v", report.Addons.TargetPackages)
+	}
+
+	database, err := sql.Open("sqlite", filepath.Join(output, "codex.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	var character, sheet string
+	if err := database.QueryRow(`SELECT body_json FROM campaign_records WHERE collection_name = 'characters' AND record_key = 'hero'`).Scan(&character); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(character, "dnd-sheets") || !strings.Contains(character, "unknown-addon") {
+		t.Fatalf("converted character = %s", character)
+	}
+	if err := database.QueryRow(`
+		SELECT body_json FROM addon_documents
+		WHERE addon_id = 'dnd-sheets' AND data_kind = 'record-extension'
+		  AND data_id = 'dnd-sheets' AND document_key = 'hero'
+	`).Scan(&sheet); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sheet, `"v":3`) || !strings.Contains(sheet, `"kept":true`) {
+		t.Fatalf("converted sheet = %s", sheet)
+	}
+	var materialized, records int
+	if err := database.QueryRow(`
+		SELECT materialized FROM addon_data_sets
+		WHERE addon_id = 'dm-tools' AND data_kind = 'collection' AND data_id = 'dm_notes'
+	`).Scan(&materialized); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRow(`SELECT count(*) FROM addon_documents`).Scan(&records); err != nil {
+		t.Fatal(err)
+	}
+	if materialized != 1 || records != 2 {
+		t.Fatalf("add-on persistence = materialized %d, records %d", materialized, records)
+	}
+}
+
+func TestConvertRequiresTargetPackageForOwnedLegacyData(t *testing.T) {
+	t.Parallel()
+	directory := t.TempDir()
+	archive := filepath.Join(directory, "old-ui-backup.zip")
+	writeLegacyZip(t, archive, []zipEntry{
+		{name: "data/characters.json", body: `[{"id":"hero","addonData":{"dnd-sheets":{"className":"Wizard"}}}]`},
+	})
+	output := filepath.Join(directory, "converted")
+	_, err := Convert(context.Background(), Config{ArchivePath: archive, OutputDirectory: output})
+	if err == nil || !strings.Contains(err.Error(), "provide its v3 ZIP") {
+		t.Fatalf("conversion error = %v", err)
+	}
+	if _, statErr := os.Stat(output); !os.IsNotExist(statErr) {
+		t.Fatalf("failed conversion published output: %v", statErr)
+	}
+}
+
+func TestValidateDMPlanningRejectsCrossRecordDamage(t *testing.T) {
+	records := map[string]map[string]json.RawMessage{
+		"planning_items": {
+			"quest-a": json.RawMessage(`{"id":"quest-a","kind":"quest","parentId":null}`),
+		},
+		"planning_flow_links": {
+			"flow-a": json.RawMessage(`{"id":"flow-a","sourceId":"quest-a","targetId":"missing","kind":"continues"}`),
+		},
+	}
+	if err := validateDMPlanning(records); err == nil || !strings.Contains(err.Error(), "missing endpoint") {
+		t.Fatalf("validation error = %v", err)
+	}
+}
+
+func writeTargetPackage(t *testing.T, id string) string {
+	t.Helper()
+	manifest := map[string]any{
+		"packageFormat": 1, "id": id, "name": id, "version": "3.0.0",
+		"compatibility": map[string]any{"host": ">=2.0.0 <3.0.0", "addonApi": "^3.0.0"},
+		"capabilities":  map[string]any{"required": []string{}, "optional": []string{}},
+		"permissions":   []any{},
+	}
+	files := map[string][]byte{}
+	if id == "dm-tools" {
+		collections := make([]any, 0, len(dmToolsCollections))
+		for _, collection := range dmToolsCollections {
+			collections = append(collections, map[string]any{
+				"id": collection, "keyed": true, "visibility": "dm",
+				"schema": "contracts/planning.schema.json", "schemaVersion": "3.0.0",
+			})
+		}
+		manifest["collections"] = collections
+		files["contracts/planning.schema.json"] = []byte(`{"type":"object","required":["id"],"properties":{"id":{"type":"string"}},"additionalProperties":true}`)
+	} else {
+		manifest["recordExtensions"] = []any{map[string]any{
+			"id": "dnd-sheets", "target": "characters", "visibility": "public",
+			"schema": "contracts/sheet.schema.json", "schemaVersion": "3.0.0",
+		}}
+		files["contracts/sheet.schema.json"] = []byte(`{"type":"object","required":["v"],"properties":{"v":{"const":3}},"additionalProperties":true}`)
+	}
+	files["addon.json"], _ = json.Marshal(manifest)
+	digests := make(map[string]string, len(files))
+	for name, body := range files {
+		digest := sha256.Sum256(body)
+		digests[name] = hex.EncodeToString(digest[:])
+	}
+	files["checksums.json"], _ = json.Marshal(map[string]any{"algorithm": "sha256", "files": digests})
+	names := make([]string, 0, len(files))
+	for name := range files {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	filename := filepath.Join(t.TempDir(), id+".zip")
+	file, err := os.Create(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive := zip.NewWriter(file)
+	for _, name := range names {
+		writer, err := archive.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.Write(files[name]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := archive.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return filename
 }
 
 func writeLegacyZip(t *testing.T, filename string, entries []zipEntry) {
