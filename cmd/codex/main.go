@@ -19,12 +19,15 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/addons/requestcontext"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
 	"github.com/pjunak/ttrpg-codex/internal/application/campaigndata"
+	applicationmedia "github.com/pjunak/ttrpg-codex/internal/application/media"
 	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
 	"github.com/pjunak/ttrpg-codex/internal/backuparchive"
 	"github.com/pjunak/ttrpg-codex/internal/events"
 	"github.com/pjunak/ttrpg-codex/internal/maintenance/processlock"
+	"github.com/pjunak/ttrpg-codex/internal/storage/blobstore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/campaignstore"
+	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/mediastore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
 	"github.com/pjunak/ttrpg-codex/internal/transport/httpapi"
 )
@@ -163,6 +166,22 @@ func composeHost(
 	if err != nil {
 		return nil, fmt.Errorf("configure campaign data service: %w", err)
 	}
+	blobStorage, err := blobstore.New(
+		db, filepath.Join(dataDirectory, "blobs"), blobstore.Options{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("configure blob storage: %w", err)
+	}
+	mediaAssets, err := mediastore.New(db)
+	if err != nil {
+		return nil, fmt.Errorf("configure media asset store: %w", err)
+	}
+	mediaService, err := applicationmedia.New(applicationmedia.Config{
+		Blobs: blobStorage, Assets: mediaAssets, Records: campaignRecords,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("configure media service: %w", err)
+	}
 	backupArchives := &backuparchive.Creator{
 		Database: db, DataDirectory: dataDirectory, HostVersion: version,
 	}
@@ -223,6 +242,8 @@ func composeHost(
 		CampaignEnumWriter: httpapi.SessionCampaignTwinAuthorizer(authentication),
 		BackupArchives:     backupArchives,
 		BackupAuthorizer:   httpapi.SessionAdminAuthorizer(authentication),
+		Media:              mediaService,
+		MediaAuthorizer:    httpapi.SessionMediaAuthorizer(authentication),
 		AddonLifecycle:     addons, AdminAuthorizer: httpapi.SessionAdminAuthorizer(authentication),
 		BrowserAddons: addons, BrowserAuthorizer: httpapi.SessionBrowserAuthorizer,
 		Events: eventBroker, EventAuthorizer: httpapi.SessionEventAuthorizer,

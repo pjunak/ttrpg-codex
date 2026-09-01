@@ -27,8 +27,9 @@ func TestComposeHostWiresAuthenticatedBrowserGraphAndEvents(t *testing.T) {
 	if _, err := storage.Migrate(ctx, db, migrations.FS); err != nil {
 		t.Fatal(err)
 	}
+	dataDirectory := t.TempDir()
 	runtime, err := composeHost(
-		ctx, db, t.TempDir(), "dragon-master", "party-member", false,
+		ctx, db, dataDirectory, "dragon-master", "party-member", false,
 		slog.New(slog.DiscardHandler),
 	)
 	if err != nil {
@@ -81,6 +82,29 @@ func TestComposeHostWiresAuthenticatedBrowserGraphAndEvents(t *testing.T) {
 	publicCampaign = serve(runtime.handler, http.MethodGet, "/api/campaign", "", nil)
 	if publicCampaign.Code != http.StatusOK || !strings.Contains(publicCampaign.Body.String(), `"name":"Alice"`) {
 		t.Fatalf("mutated public campaign = %d, %s", publicCampaign.Code, publicCampaign.Body.String())
+	}
+	mediaBody := []byte("\x89PNG\r\n\x1a\nportrait")
+	mediaRequest := httptest.NewRequest(
+		http.MethodPost, "/api/media/character-portrait/alice", bytes.NewReader(mediaBody),
+	)
+	mediaRequest.Header.Set("Content-Type", "image/png")
+	mediaRequest.Header.Set("X-Codex-CSRF", loginBody.CSRFToken)
+	mediaRequest.Header.Set("X-Codex-Filename", "alice.png")
+	mediaRequest.AddCookie(cookie)
+	mediaResponse := httptest.NewRecorder()
+	runtime.handler.ServeHTTP(mediaResponse, mediaRequest)
+	if mediaResponse.Code != http.StatusCreated {
+		t.Fatalf("media upload = %d, %s", mediaResponse.Code, mediaResponse.Body.String())
+	}
+	var mediaResult struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(mediaResponse.Body.Bytes(), &mediaResult); err != nil || mediaResult.URL == "" {
+		t.Fatalf("media response = %+v, %v", mediaResult, err)
+	}
+	publicMedia := serve(runtime.handler, http.MethodGet, mediaResult.URL, "", nil)
+	if publicMedia.Code != http.StatusOK || !bytes.Equal(publicMedia.Body.Bytes(), mediaBody) {
+		t.Fatalf("public media = %d, %q", publicMedia.Code, publicMedia.Body.Bytes())
 	}
 	graph := serve(runtime.handler, http.MethodGet, "/api/addons/browser-graph", "", cookie)
 	if graph.Code != http.StatusOK {

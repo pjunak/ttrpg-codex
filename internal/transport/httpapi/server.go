@@ -32,6 +32,8 @@ type Config struct {
 	CampaignEnumWriter CampaignMutationAuthorizer
 	BackupArchives     BackupArchives
 	BackupAuthorizer   AdminAuthorizer
+	Media              MediaAssets
+	MediaAuthorizer    MediaAuthorizer
 	Events             EventSource
 	EventAuthorizer    EventAuthorizer
 	EventHeartbeat     time.Duration
@@ -56,6 +58,8 @@ type server struct {
 	campaignEnumWriter CampaignMutationAuthorizer
 	backupArchives     BackupArchives
 	backupAuthorizer   AdminAuthorizer
+	media              MediaAssets
+	mediaAuthorizer    MediaAuthorizer
 	loginLimiter       *loginLimiter
 	events             EventSource
 	eventAuthorizer    EventAuthorizer
@@ -69,6 +73,7 @@ func New(config Config) (http.Handler, error) {
 		(config.CampaignTwins == nil) != (config.CampaignTwinWriter == nil) ||
 		(config.CampaignEnums == nil) != (config.CampaignEnumWriter == nil) ||
 		(config.BackupArchives == nil) != (config.BackupAuthorizer == nil) ||
+		(config.Media == nil) != (config.MediaAuthorizer == nil) ||
 		(config.Events == nil) != (config.EventAuthorizer == nil) ||
 		config.EventHeartbeat < 0 || config.EventHeartbeat > 5*time.Minute ||
 		config.EventHeartbeat > 0 && config.EventHeartbeat < time.Second {
@@ -87,6 +92,7 @@ func New(config Config) (http.Handler, error) {
 		campaignTwins: config.CampaignTwins, campaignTwinWriter: config.CampaignTwinWriter,
 		campaignEnums: config.CampaignEnums, campaignEnumWriter: config.CampaignEnumWriter,
 		backupArchives: config.BackupArchives, backupAuthorizer: config.BackupAuthorizer,
+		media: config.Media, mediaAuthorizer: config.MediaAuthorizer,
 		loginLimiter: newLoginLimiter(), events: config.Events,
 		eventAuthorizer: config.EventAuthorizer, eventHeartbeat: config.EventHeartbeat,
 	}
@@ -110,6 +116,9 @@ func New(config Config) (http.Handler, error) {
 	}
 	if s.backupArchives != nil {
 		s.registerBackupRoutes(mux)
+	}
+	if s.media != nil {
+		s.registerMediaRoutes(mux)
 	}
 	handler := http.Handler(mux)
 	if s.authentication != nil {

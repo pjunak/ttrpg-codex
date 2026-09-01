@@ -56,8 +56,13 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   objects behind opaque, revisioned handles whose ownership and visibility
   remain authoritative in SQLite. Creation publishes and verifies bytes before
   committing metadata, while deletion is logical so shared or recovery data is
-  not removed. No runtime surface creates blobs until backup and authorization
-  composition are complete. See [`BLOBS.md`](BLOBS.md).
+  not removed. See [`BLOBS.md`](BLOBS.md).
+- Migration 0007 and the core media service bind those handles to typed
+  campaign targets, derive visibility from authoritative records, validate
+  bounded image content, and expose CSRF-protected uploads, revisioned logical
+  deletion, latest-slot lookup, and visibility-safe immutable reads. The strict
+  TypeScript client accepts only the exact path-free response. See
+  [`MEDIA.md`](MEDIA.md).
 - The native `codex-backup.v2` archive uses SQLite's online backup primitive,
   inventories immutable add-on generations and blob objects by hash, and
   verifies an isolated copy—including every database-referenced blob—before an
