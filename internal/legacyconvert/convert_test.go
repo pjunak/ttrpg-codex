@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,15 +25,29 @@ func TestConvertCreatesFreshDatabaseAndInventoriesDeferredData(t *testing.T) {
 	t.Parallel()
 	directory := t.TempDir()
 	archive := filepath.Join(directory, "old-ui-backup.zip")
+	image := string([]byte("\x89PNG\r\n\x1a\nlegacy-image"))
 	writeLegacyZip(t, archive, []zipEntry{
 		{name: "data/", mode: os.ModeDir | 0o755},
 		{name: "data/characters.json", body: `[
-			{"id":"hero","name":"Hero","visibility":"public"},
-			{"id":"villain","name":"Villain","visibility":"dm"}
+			{"id":"hero","name":"Hero","visibility":"public","portrait":"/portraits/hero/portrait.png?v=old"},
+			{"id":"villain","name":"Villain","visibility":"dm","portrait":"/portraits/villain/portrait.png"}
 		]`},
 		{name: "data/relationships.json", body: `[]`},
+		{name: "data/locations.json", body: `[
+			{"id":"village","name":"Village","localMap":"/maps/local/village/map.png"}
+		]`},
+		{name: "data/settings.json", body: `{
+			"pinTypes":[{"id":"town","iconConfig":{"strategy":"single","files":[{"id":"town.png","url":"/icons/town/town.png"}]}}],
+			"branding":{"logoUrl":"/branding/logo.png","title":"Codex"}
+		}`},
 		{name: "data/campaign.json", body: `{"main":{"name":"Aethelara"}}`},
-		{name: "data/portraits/hero/portrait.png", body: "portrait"},
+		{name: "data/portraits/hero/portrait.png", body: image},
+		{name: "data/portraits/villain/portrait.png", body: image},
+		{name: "data/maps/local/village/map.png", body: image},
+		{name: "data/maps/swordcoast/sword_coast.png", body: image},
+		{name: "data/maps/tiles/world/0/0/0.jpg", body: "derived tile"},
+		{name: "data/icons/town/town.png", body: image},
+		{name: "data/branding/logo.png", body: image},
 		{name: "data/addon-data/demo/rules.json", body: `[{"id":"rule"}]`},
 		{name: "data/addons/demo/1111111111111111/entry.js", body: "export default 1"},
 		{name: "data/addons.json", body: `{"schema":1,"addons":[]}`},
@@ -54,18 +69,25 @@ func TestConvertCreatesFreshDatabaseAndInventoriesDeferredData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.ContractVersion != "codex-v1-conversion-report.v1" ||
+	if report.ContractVersion != "codex-v1-conversion-report.v2" ||
 		report.ConvertedAt != convertedAt.Format(time.RFC3339Nano) ||
-		report.CommitID != 1 || report.CoreRecords != 3 {
+		report.CommitID != 1 || report.CoreRecords != 6 {
 		t.Fatalf("report = %+v", report)
 	}
 	if report.CoreCollections["characters"] != 2 ||
 		report.CoreCollections["relationships"] != 0 ||
-		report.CoreCollections["campaign"] != 1 {
+		report.CoreCollections["campaign"] != 1 ||
+		report.CoreCollections["locations"] != 1 ||
+		report.CoreCollections["settings"] != 2 {
 		t.Fatalf("core collection counts = %#v", report.CoreCollections)
 	}
+	if report.Media.Imported != (InventoryGroup{Files: 6, Bytes: uint64(6 * len(image))}) ||
+		report.Media.Bindings != 6 || report.Media.RewrittenRecords != 5 ||
+		report.Media.DiscardedDerived != (InventoryGroup{Files: 1, Bytes: uint64(len("derived tile"))}) {
+		t.Fatalf("media report = %+v", report.Media)
+	}
 	wantDeferred := map[string]InventoryGroup{
-		"media":         {Files: 1, Bytes: uint64(len("portrait"))},
+		"media":         {},
 		"addonData":     {Files: 1, Bytes: uint64(len(`[{"id":"rule"}]`))},
 		"addonPackages": {Files: 1, Bytes: uint64(len("export default 1"))},
 		"metadata":      {Files: 2, Bytes: uint64(len(`{"schema":1,"addons":[]}`) + len(`{"password":"not-imported"}`))},
@@ -92,8 +114,51 @@ func TestConvertCreatesFreshDatabaseAndInventoriesDeferredData(t *testing.T) {
 	`).Scan(&body, &visibility); err != nil {
 		t.Fatal(err)
 	}
-	if body != `{"id":"villain","name":"Villain","visibility":"dm"}` || visibility != "dm" {
+	if !strings.Contains(body, `"portrait":"/api/media/b_`) || visibility != "dm" {
 		t.Fatalf("villain = %s, %s", body, visibility)
+	}
+	if err := database.QueryRow(`
+		SELECT body_json FROM campaign_records
+		WHERE collection_name = 'characters' AND record_key = 'hero'
+	`).Scan(&body); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(body, `"portrait":"/api/media/b_`) || strings.Contains(body, "/portraits/") {
+		t.Fatalf("rewritten hero = %s", body)
+	}
+	var bindings, handles, objects int
+	if err := database.QueryRow(`SELECT count(*) FROM core_media_assets`).Scan(&bindings); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRow(`SELECT count(*) FROM blobs`).Scan(&handles); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRow(`SELECT count(*) FROM blob_objects`).Scan(&objects); err != nil {
+		t.Fatal(err)
+	}
+	if bindings != 6 || handles != 6 || objects != 1 {
+		t.Fatalf("media persistence = bindings %d, handles %d, objects %d", bindings, handles, objects)
+	}
+	var hiddenPortraits int
+	if err := database.QueryRow(`
+		SELECT count(*)
+		FROM core_media_assets AS asset
+		JOIN blobs AS blob ON blob.blob_id = asset.blob_id
+		WHERE asset.kind = 'character-portrait'
+		  AND asset.target_key = 'villain'
+		  AND blob.visibility = 'dm'
+	`).Scan(&hiddenPortraits); err != nil || hiddenPortraits != 1 {
+		t.Fatalf("hidden portrait bindings = %d, %v", hiddenPortraits, err)
+	}
+	var legacyURLs int
+	if err := database.QueryRow(`
+		SELECT count(*) FROM campaign_records
+		WHERE body_json LIKE '%/portraits/%'
+		   OR body_json LIKE '%/maps/local/%'
+		   OR body_json LIKE '%/icons/%'
+		   OR body_json LIKE '%/branding/%'
+	`).Scan(&legacyURLs); err != nil || legacyURLs != 0 {
+		t.Fatalf("remaining legacy media URLs = %d, %v", legacyURLs, err)
 	}
 	var materialized int
 	if err := database.QueryRow(`
@@ -157,6 +222,20 @@ func TestConvertRejectsUnsafeOrSecretEntries(t *testing.T) {
 			entries: []zipEntry{
 				{name: "data/characters.json", body: `[]`},
 				{name: "data/secrets.json", body: `{}`},
+			},
+		},
+		{
+			name: "missing referenced media",
+			entries: []zipEntry{
+				{name: "data/characters.json", body: `[{"id":"hero","portrait":"/portraits/hero/portrait.png"}]`},
+			},
+		},
+		{
+			name: "ambiguous world map",
+			entries: []zipEntry{
+				{name: "data/characters.json", body: `[]`},
+				{name: "data/maps/swordcoast/sword_coast.png", body: string([]byte("\x89PNG\r\n\x1a\none"))},
+				{name: "data/maps/swordcoast/sword_coast.webp", body: "RIFF____WEBPtwo"},
 			},
 		},
 	}

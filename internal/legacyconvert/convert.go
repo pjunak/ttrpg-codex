@@ -43,6 +43,13 @@ type InventoryGroup struct {
 	Bytes uint64 `json:"bytes"`
 }
 
+type MediaReport struct {
+	Imported         InventoryGroup `json:"imported"`
+	Bindings         int            `json:"bindings"`
+	RewrittenRecords int            `json:"rewrittenRecords"`
+	DiscardedDerived InventoryGroup `json:"discardedDerived"`
+}
+
 type Report struct {
 	ContractVersion string                    `json:"contractVersion"`
 	SourceSHA256    string                    `json:"sourceSha256"`
@@ -50,6 +57,7 @@ type Report struct {
 	CommitID        int64                     `json:"commitId"`
 	CoreCollections map[string]int            `json:"coreCollections"`
 	CoreRecords     int                       `json:"coreRecords"`
+	Media           MediaReport               `json:"media"`
 	Deferred        map[string]InventoryGroup `json:"deferred"`
 }
 
@@ -84,10 +92,13 @@ func Convert(ctx context.Context, config Config) (Report, error) {
 	}
 
 	convertedAt := config.Now().UTC()
-	dataset, report, err := readLegacyBackup(ctx, archivePath, convertedAt)
+	backup, err := openLegacyBackup(ctx, archivePath, convertedAt)
 	if err != nil {
 		return Report{}, err
 	}
+	defer backup.Close()
+	dataset := backup.dataset
+	report := backup.report
 	stage, err := os.MkdirTemp(filepath.Dir(outputDirectory), ".codex-v1-conversion-")
 	if err != nil {
 		return Report{}, fmt.Errorf("create conversion stage: %w", err)
@@ -107,9 +118,21 @@ func Convert(ctx context.Context, config Config) (Report, error) {
 		return Report{}, fmt.Errorf("migrate conversion database: %w", err)
 	}
 	importResult, importErr := campaignstore.ImportFreshLegacy(ctx, database, dataset, convertedAt)
+	if importErr == nil {
+		report.Media, report.Deferred["media"], importErr = importLegacyMedia(
+			ctx,
+			database,
+			stage,
+			backup.files,
+			convertedAt,
+		)
+	}
 	checkErr := error(nil)
 	if importErr == nil {
-		checkErr = validateDatabase(ctx, database)
+		checkErr = errors.Join(
+			validateDatabase(ctx, database),
+			validateConvertedBlobs(ctx, database, stage),
+		)
 	}
 	closeErr := database.Close()
 	if err := errors.Join(importErr, checkErr, closeErr); err != nil {
@@ -120,6 +143,9 @@ func Convert(ctx context.Context, config Config) (Report, error) {
 			return Report{}, fmt.Errorf("remove conversion database sidecar: %w", err)
 		}
 	}
+	if err := backup.VerifySource(ctx); err != nil {
+		return Report{}, err
+	}
 	if err := os.Rename(stage, outputDirectory); err != nil {
 		return Report{}, fmt.Errorf("publish fresh conversion output: %w", err)
 	}
@@ -129,25 +155,64 @@ func Convert(ctx context.Context, config Config) (Report, error) {
 	return report, nil
 }
 
-func readLegacyBackup(ctx context.Context, filename string, now time.Time) (campaign.LegacyDataset, Report, error) {
-	info, err := os.Stat(filename)
+type legacyBackup struct {
+	source      *os.File
+	sourceBytes int64
+	dataset     campaign.LegacyDataset
+	report      Report
+	files       map[string]*zip.File
+}
+
+func (backup *legacyBackup) VerifySource(ctx context.Context) error {
+	info, err := backup.source.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() != backup.sourceBytes {
+		return fmt.Errorf("%w: source archive changed during conversion", ErrInvalidLegacyBackup)
+	}
+	digest, err := hashReader(ctx, io.NewSectionReader(backup.source, 0, backup.sourceBytes))
 	if err != nil {
-		return campaign.LegacyDataset{}, Report{}, fmt.Errorf("stat legacy archive: %w", err)
+		return err
+	}
+	if digest != backup.report.SourceSHA256 {
+		return fmt.Errorf("%w: source archive changed during conversion", ErrInvalidLegacyBackup)
+	}
+	return nil
+}
+
+func (backup *legacyBackup) Close() error {
+	if backup == nil || backup.source == nil {
+		return nil
+	}
+	return backup.source.Close()
+}
+
+func openLegacyBackup(ctx context.Context, filename string, now time.Time) (*legacyBackup, error) {
+	source, err := os.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("open legacy archive: %w", err)
+	}
+	closeOnError := true
+	defer func() {
+		if closeOnError {
+			_ = source.Close()
+		}
+	}()
+	info, err := source.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("stat legacy archive: %w", err)
 	}
 	if !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > maximumArchiveBytes {
-		return campaign.LegacyDataset{}, Report{}, fmt.Errorf("%w: archive size is invalid", ErrInvalidLegacyBackup)
+		return nil, fmt.Errorf("%w: archive size is invalid", ErrInvalidLegacyBackup)
 	}
-	sourceHash, err := hashFile(ctx, filename)
+	sourceHash, err := hashReader(ctx, io.NewSectionReader(source, 0, info.Size()))
 	if err != nil {
-		return campaign.LegacyDataset{}, Report{}, err
+		return nil, err
 	}
-	archive, err := zip.OpenReader(filename)
+	archive, err := zip.NewReader(source, info.Size())
 	if err != nil {
-		return campaign.LegacyDataset{}, Report{}, fmt.Errorf("%w: open zip: %v", ErrInvalidLegacyBackup, err)
+		return nil, fmt.Errorf("%w: open zip: %v", ErrInvalidLegacyBackup, err)
 	}
-	defer archive.Close()
 	if len(archive.File) == 0 || len(archive.File) > maximumEntries {
-		return campaign.LegacyDataset{}, Report{}, fmt.Errorf("%w: entry count is invalid", ErrInvalidLegacyBackup)
+		return nil, fmt.Errorf("%w: entry count is invalid", ErrInvalidLegacyBackup)
 	}
 	known := make(map[string]campaign.Collection)
 	for _, descriptor := range campaign.Descriptors() {
@@ -155,41 +220,43 @@ func readLegacyBackup(ctx context.Context, filename string, now time.Time) (camp
 	}
 	core := make(map[string]json.RawMessage)
 	seen := make(map[string]struct{}, len(archive.File))
+	files := make(map[string]*zip.File, len(archive.File))
 	deferred := map[string]InventoryGroup{
 		"media": {}, "addonData": {}, "addonPackages": {}, "metadata": {}, "other": {},
 	}
 	var expanded uint64
 	for _, file := range archive.File {
 		if err := ctx.Err(); err != nil {
-			return campaign.LegacyDataset{}, Report{}, err
+			return nil, err
 		}
 		if !safeZipPath(file.Name) || file.Mode()&os.ModeSymlink != 0 {
-			return campaign.LegacyDataset{}, Report{}, fmt.Errorf("%w: unsafe entry %q", ErrInvalidLegacyBackup, file.Name)
+			return nil, fmt.Errorf("%w: unsafe entry %q", ErrInvalidLegacyBackup, file.Name)
 		}
 		if _, duplicate := seen[file.Name]; duplicate {
-			return campaign.LegacyDataset{}, Report{}, fmt.Errorf("%w: duplicate entry %q", ErrInvalidLegacyBackup, file.Name)
+			return nil, fmt.Errorf("%w: duplicate entry %q", ErrInvalidLegacyBackup, file.Name)
 		}
 		seen[file.Name] = struct{}{}
 		if file.FileInfo().IsDir() {
 			continue
 		}
 		if !file.Mode().IsRegular() || file.UncompressedSize64 > maximumEntryBytes {
-			return campaign.LegacyDataset{}, Report{}, fmt.Errorf("%w: invalid entry %q", ErrInvalidLegacyBackup, file.Name)
+			return nil, fmt.Errorf("%w: invalid entry %q", ErrInvalidLegacyBackup, file.Name)
 		}
+		files[file.Name] = file
 		expanded += file.UncompressedSize64
 		if expanded > maximumExpandedBytes {
-			return campaign.LegacyDataset{}, Report{}, fmt.Errorf("%w: expanded size limit exceeded", ErrInvalidLegacyBackup)
+			return nil, fmt.Errorf("%w: expanded size limit exceeded", ErrInvalidLegacyBackup)
 		}
 		if collection, ok := known[file.Name]; ok {
 			body, err := readZipFile(file, campaign.MaximumLegacyDatasetBytes)
 			if err != nil {
-				return campaign.LegacyDataset{}, Report{}, err
+				return nil, err
 			}
 			core[string(collection)] = body
 			continue
 		}
 		if file.Name == "data/secrets.json" {
-			return campaign.LegacyDataset{}, Report{}, fmt.Errorf(
+			return nil, fmt.Errorf(
 				"%w: archive unexpectedly contains live secrets",
 				ErrInvalidLegacyBackup,
 			)
@@ -201,15 +268,15 @@ func readLegacyBackup(ctx context.Context, filename string, now time.Time) (camp
 		deferred[group] = value
 	}
 	if len(core) == 0 {
-		return campaign.LegacyDataset{}, Report{}, fmt.Errorf("%w: no core campaign files found", ErrInvalidLegacyBackup)
+		return nil, fmt.Errorf("%w: no core campaign files found", ErrInvalidLegacyBackup)
 	}
 	body, err := json.Marshal(core)
 	if err != nil {
-		return campaign.LegacyDataset{}, Report{}, err
+		return nil, err
 	}
 	dataset, err := campaign.DecodeLegacyDataset(body)
 	if err != nil {
-		return campaign.LegacyDataset{}, Report{}, err
+		return nil, err
 	}
 	counts := make(map[string]int, len(dataset.Present))
 	for _, collection := range dataset.Present {
@@ -218,11 +285,12 @@ func readLegacyBackup(ctx context.Context, filename string, now time.Time) (camp
 	for _, record := range dataset.Records {
 		counts[string(record.Collection)]++
 	}
-	return dataset, Report{
-		ContractVersion: "codex-v1-conversion-report.v1",
+	closeOnError = false
+	return &legacyBackup{source: source, sourceBytes: info.Size(), dataset: dataset, files: files, report: Report{
+		ContractVersion: "codex-v1-conversion-report.v2",
 		SourceSHA256:    sourceHash, ConvertedAt: now.Format(time.RFC3339Nano),
 		CoreCollections: counts, Deferred: deferred,
-	}, nil
+	}}, nil
 }
 
 func deferredGroup(filename string) string {
@@ -279,19 +347,14 @@ func readZipFile(file *zip.File, maximum int) (json.RawMessage, error) {
 	return body, nil
 }
 
-func hashFile(ctx context.Context, filename string) (string, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
+func hashReader(ctx context.Context, reader io.Reader) (string, error) {
 	hash := sha256.New()
 	buffer := make([]byte, 128<<10)
 	for {
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
-		read, err := file.Read(buffer)
+		read, err := reader.Read(buffer)
 		if read > 0 {
 			_, _ = hash.Write(buffer[:read])
 		}

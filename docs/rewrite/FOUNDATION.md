@@ -87,11 +87,12 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   guard. The explicit enum boundary can reject, replace, or clear known usages
   while definition removal and its tombstone remain one transaction.
 - The narrow offline `codex-convert-v1` command accepts only a v1 UI backup,
-  imports known core campaign collections into a fresh SQLite database in one
-  transaction, verifies the result before atomic publication, and reports the
-  media and add-on-owned files still awaiting their rewrite owners. It never
-  merges with live state or becomes a startup compatibility mode. See
-  [`LEGACY_CONVERSION.md`](LEGACY_CONVERSION.md).
+  imports known core campaign collections into a fresh SQLite database, moves
+  owned source images through the normal opaque-media contract, rewrites known
+  media URLs, discards generated tiles, verifies the result before atomic
+  publication, and reports add-on-owned or unreferenced files still awaiting
+  an owner. It never merges with live state or becomes a startup compatibility
+  mode. See [`LEGACY_CONVERSION.md`](LEGACY_CONVERSION.md).
 - The HTTP boundary exposes no-store health and version responses. Its add-on
   administration routes require both a lifecycle service and an administrator
   authorizer at composition time; partial configuration fails closed and the

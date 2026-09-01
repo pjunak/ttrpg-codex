@@ -55,7 +55,8 @@ logically deletes the new handle. Replacing media creates a new immutable
 handle, so an interrupted campaign-record save cannot corrupt the previous
 image. Old handles can be deleted after the new campaign revision commits.
 
-The one-time v1 converter still inventories old `portraits/`, `maps/`, `icons/`,
-and `branding/` files. Its next conversion phase must create these same media
-bindings and rewrite known legacy URLs; it must not restore the old public
-directory layout.
+The one-time v1 converter creates these same bindings for record-referenced
+portraits, local maps, configured icons and branding plus the canonical world
+map. It rewrites known record URLs to opaque handles, discards generated tile
+caches, and reports unreferenced media instead of guessing ownership. It never
+restores the old public directory layout.
