@@ -18,6 +18,7 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/addons/requestcontext"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
+	"github.com/pjunak/ttrpg-codex/internal/application/addondata"
 	"github.com/pjunak/ttrpg-codex/internal/application/campaigndata"
 	applicationmedia "github.com/pjunak/ttrpg-codex/internal/application/media"
 	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
@@ -26,6 +27,7 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/maintenance/processlock"
 	"github.com/pjunak/ttrpg-codex/internal/storage/blobstore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
+	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/addondatastore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/campaignstore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/mediastore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
@@ -166,6 +168,14 @@ func composeHost(
 	if err != nil {
 		return nil, fmt.Errorf("configure campaign data service: %w", err)
 	}
+	addonRecords, err := addondatastore.New(addondatastore.Config{DB: db, Events: eventBroker})
+	if err != nil {
+		return nil, fmt.Errorf("configure add-on data store: %w", err)
+	}
+	addonData, err := addondata.New(addonRecords, campaignRecords)
+	if err != nil {
+		return nil, fmt.Errorf("configure add-on data service: %w", err)
+	}
 	blobStorage, err := blobstore.New(
 		db, filepath.Join(dataDirectory, "blobs"), blobstore.Options{},
 	)
@@ -205,7 +215,7 @@ func composeHost(
 	}
 	addons, err := packagemanager.New(packagemanager.Config{
 		DB: db, PackageDirectory: filepath.Join(dataDirectory, "addons"),
-		Inspector: inspector, Broker: serviceBroker,
+		Inspector: inspector, Broker: serviceBroker, DataLifecycle: addonData,
 		HostVersion: hostCompatibilityVersion, AddonAPIVersion: addonAPIVersion,
 		WorkerProtocolVersion: workerProtocolVersion,
 		AvailableCapabilities: []string{"ui.contributions"},

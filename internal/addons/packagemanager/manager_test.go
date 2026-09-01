@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pjunak/ttrpg-codex/internal/addons/datacontract"
+	"github.com/pjunak/ttrpg-codex/internal/addons/datalifecycle"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/requestcontext"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
@@ -76,6 +78,44 @@ func TestStagePublishesContentAddressedGenerationWithoutActivation(t *testing.T)
 	}
 	if len(snapshot.Generations) != 1 || len(snapshot.Events) != 1 {
 		t.Fatalf("idempotent stage duplicated durable records: %+v", snapshot)
+	}
+}
+
+func TestDataLifecycleParticipatesInReviewActivationAndDisable(t *testing.T) {
+	t.Parallel()
+	database := testDatabase(t)
+	manager, _ := testManager(t, database, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	lifecycle := &fakeDataLifecycle{issues: []datalifecycle.Issue{{
+		Code: "DATA_MIGRATION_REQUIRED", Message: "notes require a reviewed migration",
+	}}}
+	manager.dataLifecycle = lifecycle
+	generation, err := manager.Stage(context.Background(), writeAddonPackage(t, packageSpec{ID: "notes-addon", Version: "1.0.0"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := manager.PrepareActivationReview(context.Background(), "notes-addon", generation.GenerationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(review.Proposal.Blockers) != 1 || review.Proposal.Blockers[0].Code != "DATA_MIGRATION_REQUIRED" {
+		t.Fatalf("data blockers = %+v", review.Proposal.Blockers)
+	}
+
+	lifecycle.issues = nil
+	activated, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "notes-addon", GenerationID: generation.GenerationID, ExpectedStateRevision: 0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Disable(context.Background(), DisablePlan{
+		AddonID: "notes-addon", ExpectedStateRevision: activated.State.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	activationBegins, deactivationBegins, commits := lifecycle.counts()
+	if activationBegins != 1 || deactivationBegins != 1 || commits != 2 {
+		t.Fatalf("data lifecycle counts = activation %d, deactivation %d, commits %d", activationBegins, deactivationBegins, commits)
 	}
 }
 
@@ -1252,6 +1292,7 @@ func testManager(
 	stageCounter := 0
 	manager, err := New(Config{
 		DB: db, PackageDirectory: packageDirectory, Inspector: inspector, Broker: broker,
+		DataLifecycle:  &fakeDataLifecycle{},
 		RuntimeFactory: factory, HostVersion: "2.0.0", AddonAPIVersion: "3.0.0",
 		WorkerProtocolVersion: "1.0.0", AvailableCapabilities: []string{"worker.native"},
 		Now: func() time.Time { return time.Date(2026, time.August, 31, 12, 0, 0, 0, time.UTC) },
@@ -1264,6 +1305,63 @@ func testManager(
 		t.Fatal(err)
 	}
 	return manager, broker
+}
+
+type fakeDataLifecycle struct {
+	mu                 sync.Mutex
+	issues             []datalifecycle.Issue
+	activationBegins   int
+	deactivationBegins int
+	commits            int
+}
+
+func (lifecycle *fakeDataLifecycle) ReviewActivation(
+	context.Context, string, *datacontract.Registry,
+) ([]datalifecycle.Issue, error) {
+	lifecycle.mu.Lock()
+	defer lifecycle.mu.Unlock()
+	return append([]datalifecycle.Issue(nil), lifecycle.issues...), nil
+}
+
+func (lifecycle *fakeDataLifecycle) BeginActivation(
+	context.Context, string, string, *datacontract.Registry,
+) (datalifecycle.Transition, error) {
+	lifecycle.mu.Lock()
+	lifecycle.activationBegins++
+	lifecycle.mu.Unlock()
+	return &fakeDataTransition{commit: lifecycle.recordCommit}, nil
+}
+
+func (lifecycle *fakeDataLifecycle) BeginDeactivation(string, string) datalifecycle.Transition {
+	lifecycle.mu.Lock()
+	lifecycle.deactivationBegins++
+	lifecycle.mu.Unlock()
+	return &fakeDataTransition{commit: lifecycle.recordCommit}
+}
+
+func (lifecycle *fakeDataLifecycle) recordCommit() {
+	lifecycle.mu.Lock()
+	defer lifecycle.mu.Unlock()
+	lifecycle.commits++
+}
+
+func (lifecycle *fakeDataLifecycle) counts() (int, int, int) {
+	lifecycle.mu.Lock()
+	defer lifecycle.mu.Unlock()
+	return lifecycle.activationBegins, lifecycle.deactivationBegins, lifecycle.commits
+}
+
+type fakeDataTransition struct {
+	once   sync.Once
+	commit func()
+}
+
+func (transition *fakeDataTransition) Commit() {
+	transition.once.Do(transition.commit)
+}
+
+func (transition *fakeDataTransition) Rollback() {
+	transition.once.Do(func() {})
 }
 
 func assertProviderGeneration(

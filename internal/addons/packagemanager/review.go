@@ -220,6 +220,14 @@ func (manager *Manager) buildReviewProposal(
 	if _, err := manager.resolveServices(ctx, report.Manifest); err != nil {
 		proposal.Blockers = append(proposal.Blockers, reviewBlocker("SERVICE", err))
 	}
+	dataIssues, err := manager.dataLifecycle.ReviewActivation(ctx, addonID, report.DataRegistry())
+	if err != nil {
+		proposal.Blockers = append(proposal.Blockers, reviewBlocker("DATA_REVIEW", err))
+	} else {
+		for _, issue := range dataIssues {
+			proposal.Blockers = append(proposal.Blockers, ReviewBlocker{Code: issue.Code, Message: issue.Message})
+		}
+	}
 	if state.ActiveGenerationID != "" {
 		active, recovered := manager.runtimes[addonID]
 		if !recovered || active.generation.GenerationID != state.ActiveGenerationID {

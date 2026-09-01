@@ -19,6 +19,7 @@ import (
 	"time"
 
 	semver "github.com/Masterminds/semver/v3"
+	"github.com/pjunak/ttrpg-codex/internal/addons/datalifecycle"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
 	"github.com/pjunak/ttrpg-codex/internal/addons/workersupervisor"
@@ -34,6 +35,7 @@ type Config struct {
 	PackageDirectory      string
 	Inspector             *packageinspect.Inspector
 	Broker                *servicebroker.Broker
+	DataLifecycle         datalifecycle.Coordinator
 	RuntimeFactory        RuntimeFactory
 	HostVersion           string
 	AddonAPIVersion       string
@@ -63,6 +65,7 @@ type Manager struct {
 	stagingDirectory      string
 	inspector             *packageinspect.Inspector
 	broker                *servicebroker.Broker
+	dataLifecycle         datalifecycle.Coordinator
 	runtimeFactory        RuntimeFactory
 	hostVersion           *semver.Version
 	addonAPIVersion       *semver.Version
@@ -78,8 +81,8 @@ type Manager struct {
 }
 
 func New(config Config) (*Manager, error) {
-	if config.Inspector == nil || config.Broker == nil {
-		return nil, fmt.Errorf("%w: inspector and service broker are required", ErrInvalidConfig)
+	if config.Inspector == nil || config.Broker == nil || config.DataLifecycle == nil {
+		return nil, fmt.Errorf("%w: inspector, service broker, and data lifecycle are required", ErrInvalidConfig)
 	}
 	if config.PackageDirectory == "" {
 		return nil, fmt.Errorf("%w: package directory is required", ErrInvalidConfig)
@@ -139,6 +142,7 @@ func New(config Config) (*Manager, error) {
 		stagingDirectory:      stagingDirectory,
 		inspector:             config.Inspector,
 		broker:                config.Broker,
+		dataLifecycle:         config.DataLifecycle,
 		runtimeFactory:        config.RuntimeFactory,
 		hostVersion:           hostVersion,
 		addonAPIVersion:       addonAPIVersion,
@@ -285,6 +289,16 @@ func (manager *Manager) activateLocked(
 		_ = manager.store.recordFailure(ctx, plan.AddonID, plan.GenerationID, "activation-failed", failure)
 		return ActivationResult{}, fmt.Errorf("%w: publish services: %v", ErrActivationFailed, failure)
 	}
+	dataTransition, err := manager.dataLifecycle.BeginActivation(
+		ctx, plan.AddonID, plan.GenerationID, report.DataRegistry(),
+	)
+	if err != nil {
+		rollbackErr := manager.restoreServices(ctx, plan.AddonID, previous, hasPrevious, plan.GenerationID)
+		failure := errors.Join(err, rollbackErr)
+		_ = manager.store.recordFailure(ctx, plan.AddonID, plan.GenerationID, "activation-failed", failure)
+		return ActivationResult{}, fmt.Errorf("%w: prepare data generation: %v", ErrActivationFailed, failure)
+	}
+	defer dataTransition.Rollback()
 	newState, err := manager.store.setActive(
 		ctx, plan.AddonID, plan.GenerationID, plan.ExpectedStateRevision,
 		plan.GrantedPermissionIDs, eventKind, reviewID,
@@ -295,6 +309,7 @@ func (manager *Manager) activateLocked(
 		_ = manager.store.recordFailure(ctx, plan.AddonID, plan.GenerationID, "activation-failed", failure)
 		return ActivationResult{}, failure
 	}
+	dataTransition.Commit()
 	manager.runtimes[plan.AddonID] = activeRuntime{
 		generation: generation, report: report, runtime: nextRuntime,
 		services: append([]servicebroker.Handle(nil), services...),

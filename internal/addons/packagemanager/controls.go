@@ -115,6 +115,8 @@ func (manager *Manager) Disable(ctx context.Context, plan DisablePlan) (DisableR
 	if recovered && previous.generation.GenerationID != state.ActiveGenerationID {
 		return DisableResult{}, ErrRecoveryRequired
 	}
+	dataTransition := manager.dataLifecycle.BeginDeactivation(plan.AddonID, state.ActiveGenerationID)
+	defer dataTransition.Rollback()
 	manager.broker.DeactivateRuntime(plan.AddonID, state.ActiveGenerationID)
 	newState, err := manager.store.setDisabled(
 		ctx, plan.AddonID, state.ActiveGenerationID, plan.ExpectedStateRevision,
@@ -128,6 +130,7 @@ func (manager *Manager) Disable(ctx context.Context, plan DisablePlan) (DisableR
 		}
 		return DisableResult{}, err
 	}
+	dataTransition.Commit()
 	delete(manager.runtimes, plan.AddonID)
 	manager.publishBrowserGraphChangeLocked(ctx, plan.AddonID, "disabled")
 	result := DisableResult{State: newState, PreviousGenerationID: state.ActiveGenerationID}

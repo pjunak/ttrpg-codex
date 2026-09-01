@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/pjunak/ttrpg-codex/internal/addons/datalifecycle"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
 )
@@ -138,12 +139,21 @@ func (manager *Manager) recoverCandidate(
 	if err == nil {
 		err = manager.activatePublishedServices(ctx, candidate.report, candidate.generation, runtime)
 	}
+	var dataTransition datalifecycle.Transition
+	if err == nil {
+		dataTransition, err = manager.dataLifecycle.BeginActivation(
+			ctx, candidate.state.AddonID, candidate.generation.GenerationID,
+			candidate.report.DataRegistry(),
+		)
+	}
 	if err != nil {
+		manager.broker.DeactivateRuntime(candidate.state.AddonID, candidate.generation.GenerationID)
 		if runtime != nil {
 			_ = runtime.Shutdown(context.Background())
 		}
 		return activeRuntime{}, true, err
 	}
+	dataTransition.Commit()
 	return activeRuntime{
 		generation: candidate.generation, report: candidate.report, runtime: runtime,
 		services: append([]servicebroker.Handle(nil), services...),
@@ -221,7 +231,9 @@ func (manager *Manager) shutdownLocked(ctx context.Context) error {
 	var shutdownErrors []error
 	for _, addonID := range order {
 		active := manager.runtimes[addonID]
+		dataTransition := manager.dataLifecycle.BeginDeactivation(addonID, active.generation.GenerationID)
 		manager.broker.DeactivateRuntime(addonID, active.generation.GenerationID)
+		dataTransition.Commit()
 		if active.runtime != nil {
 			if err := active.runtime.Shutdown(ctx); err != nil {
 				shutdownErrors = append(shutdownErrors, fmt.Errorf("%s: %w", addonID, err))
