@@ -1,9 +1,9 @@
 # Add-on API v3
 
-> Normative contract for the Go/TypeScript rewrite on `rewrite/go-typescript`.
-> The Go host implements the package, browser UI/data/content/service, native
-> worker, and lifecycle foundations described here. `AUTHORING.md` remains the
-> v2 manual for packages that have not yet crossed the cutover boundary.
+> Normative contract for the Go/TypeScript Add-on API v3 implementation.
+> [`AUTHORING.md`](AUTHORING.md) is the concise authoring guide and
+> [`contracts/addons/v3`](../../contracts/addons/v3) contains the exact
+> machine-readable package and protocol schemas.
 
 Add-on API v3 is a package, browser, worker, service, and lifecycle contract.
 It is deliberately not a general-purpose plugin escape hatch. Add-ons receive
@@ -646,9 +646,10 @@ err := workerrpc.RunNativeWorker(ctx, workerrpc.NativeWorkerConfig{
 The native supervisor launches the exact executable selected from the
 verified package; it does not invoke a shell or search `PATH`. Workers receive
 only host-supplied environment entries and do not inherit the host process
-environment. The current supervisor serializes lifecycle and health calls.
-The service broker adds concurrent domain calls, cancellation, and
-worker-to-host routing before those methods become available.
+environment. The supervisor serializes lifecycle and health calls. The shared
+RPC peer and service broker provide concurrent domain calls, cancellation,
+schema-validated routing, and generation-safe worker-to-host data and service
+calls.
 
 ### Message metadata
 
@@ -939,14 +940,14 @@ V3 retains the useful feature rather than the v2 implementation mechanism:
 
 ## First-party target profiles
 
-These are starting hypotheses that the implementation must validate:
+The first-party packages currently use these profiles:
 
 | Add-on | Browser | Worker | Main contracts exercised |
 |---|---|---|---|
-| D&D 2024 Compendium | Integrated TypeScript | None initially | content sets, locales, exclusive `dnd5e.rules-data` provider |
-| D&D Rules Engine | None or diagnostics only | Go compiled to WASI | pure `dnd5e.rules-engine`, optional rules-data consumer |
-| D&D Character Sheets | Integrated TypeScript | None initially | optional engine and many-renderer consumers, character add-on data |
-| DM Tools | Integrated TypeScript | Native Go where backend work is needed | DM collections, transactions, imports, bundle coordination, routes and slots |
+| D&D 2024 Compendium | Integrated TypeScript | None | content sets, locales, exclusive `dnd5e.rules-data` v3 provider |
+| D&D Rules Engine | None | Native Go | `dnd5e.rules-engine` v3 provider, optional rules-data v3 consumer |
+| D&D Character Sheets | Integrated TypeScript | None | optional engine v3 consumer and character record extension |
+| DM Tools | Integrated TypeScript | Native Go | DM collections, transactions, import-adapter v2 provider/consumer, routes and slots |
 
 All four remain optional. Character sheets remain hand-fillable without an
 engine. The engine remains useful with no hardcoded compendium identity. The
@@ -954,7 +955,7 @@ host remains useful without any D&D-specific package.
 
 ## Conformance requirements
 
-Before an API v3 release is considered usable, the public harness must verify:
+The public harness must continue to verify:
 
 - archive traversal, collision, size, checksum, and manifest failures;
 - permission diff and approval persistence;

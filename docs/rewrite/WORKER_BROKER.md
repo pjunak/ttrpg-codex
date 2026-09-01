@@ -104,14 +104,13 @@ service routing. The dispatcher uses that request-context contract directly;
 wire actor values remain untrusted claims.
 
 Package-owned service documents and real method request/response validators
-are now compiled by the host and pinned to the exact live generation. The
-following remain later milestones:
-
-- connect data, blob, event, HTTP, import, and migration handlers;
-- wire approved background jobs and package lifecycle orchestration;
-- add redacted traces and latency/queue metrics to the Inspector;
-- decide whether measured workloads need a small bounded fair queue. The
-  default remains no queue.
+are compiled by the host and pinned to the exact live generation. The worker
+dispatcher includes the package-data and brokered-service handlers used by the
+first-party workers, and the package manager owns their lifecycle and recovery.
+Blob, event, network, progress, and migration handlers remain intentionally
+absent until a real package needs them. Richer redacted traces, latency/queue
+metrics, and a bounded fair queue are also evidence-driven follow-ups; the
+default remains no queue.
 
 Revisit the peer abstraction if a future WASI runtime cannot present equivalent
 ordered byte streams, or if measurements show a single framed connection is a

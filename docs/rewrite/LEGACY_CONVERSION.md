@@ -78,6 +78,7 @@ imported counts, and deferred inventories can be compared during the supervised
 migration. If a run fails or needs to be repeated, remove or choose a different
 unused output directory after inspecting it; the converter never overwrites it.
 
-Do not point either website at the generated directory yet. The final run and
-live smoke tests wait until the remaining rewrite surfaces and add-on-owned
-data conversion are complete.
+Do not point either website at a generated directory until its report and
+offline contents have been reviewed. Keep the old site stopped and its data
+untouched while the converted directory is first exercised under the v2 host;
+the supervised acceptance and rollback sequence is in `../SELF_HOSTING.md`.

@@ -1,23 +1,24 @@
-# AGENTS.md — CodexHost addon contract
+# TTRPG Codex Add-on API v3 contract
 
-Reference this file from an addon's repository when an AI coding tool needs the
-host contract. Keep it canonical in the host rather than copying it into each
-addon. The complete author reference is [`AUTHORING.md`](AUTHORING.md); the
-host design system is documented in
-[`web/css/STYLE.md`](../../web/css/STYLE.md). If the two references disagree,
-follow `AUTHORING.md` and report the mismatch.
+Use this file as the compact AI-agent entrypoint for add-on work. The complete
+human guide is [`AUTHORING.md`](AUTHORING.md), the normative design is
+[`API_V3.md`](API_V3.md), and exact machine contracts live under
+[`contracts/addons/v3`](../../contracts/addons/v3). If prose and a schema
+disagree, treat the schema and implemented inspector as authoritative and
+report the documentation mismatch.
 
 ## Start here
 
-1. Read `addon.json`, this file, the addon's README, and its tests.
-2. Identify the permissions, capabilities, collections, dependencies, and
-   localization catalogs already declared.
+1. Read the add-on's root instructions, README, manifest, schemas, package
+   builder, and tests.
+2. Identify its permanent IDs, runtime targets, contributions, permissions,
+   collections/extensions, services, content sets, and optional behavior.
 3. Preserve the addon's standalone behavior unless a hard dependency is
    intentional. Optional integrations must fail gracefully when absent.
-4. Make the smallest coherent change, update current documentation, and run the
-   addon tests plus relevant host compatibility tests.
-5. Reinstall the addon into the host before manual testing:
-   `node scripts/dev-install-addon.cjs <path-to-addon>`.
+4. Build and test in the add-on repository, create its deterministic ZIP, and
+   inspect that ZIP with the host CLI.
+5. For integration, use upload, inspect/stage, review, approve, activate, and
+   the relevant replacement/disposal behavior.
 
 The global Codex instructions govern task commits. Do not create branches,
 releases, or pushes unless the maintainer asks.
@@ -26,197 +27,113 @@ Temporary implementation plans belong only in the host repository's ignored
 `docs/plans/` directory and must be deleted when the task closes. Do not create
 repo-local TODO, roadmap, or planning files.
 
-## Runtime model
+## Package and runtime model
 
-- `entry.js` is a browser-native ES module that default-exports
-  `register(host)`. There is no bundler or transpiler.
-- Optional server code is CommonJS and exports `init(serverHost)`. It activates
-  after a host restart.
-- New addons use manifest API v2 and declare an enforced `hostVersion`.
-- Addon IDs match `^[a-z0-9][a-z0-9-]{1,38}$` and are stable data namespaces.
-- The host facade is the only integration boundary. Do not depend on host
-  globals, private modules, DOM structure, Cytoscape, or filesystem layout.
-- Installed addon code is trusted and runs in process. Permissions constrain
-  host APIs and make authority visible; they are not an OS sandbox.
+An Add-on API v3 release is a reviewed build artifact:
 
-## Non-negotiable implementation rules
-
-- Request only permissions and required capabilities that the code uses.
-- `registerSidebarPage` offers an opt-in page under Settings → Sidebar; it
-  starts hidden, and `role:'dm'` is a ceiling the DM cannot widen to players.
-- Namespace actions with `host.action(name)` and wire events with
-  `host.h.dataAction()` or `host.h.dataOn()`. Never add inline handlers.
-- Escape every dynamic or translated string inserted into HTML with
-  `host.h.esc()`. `host.h.renderMarkdown()` returns sanitized HTML.
-- Use host component classes and design tokens for product-facing styling.
-  Literal values are acceptable only for one-off technical geometry.
-- Renderers accept sparse or empty data and return a coherent loading, empty,
-  unavailable, or error state instead of throwing.
-- Declare addon collections in `addon.json` before registering or accessing
-  them. DM-only collections require API v2 and the `collections.dm` capability.
-- Keep registration deterministic. Start data loading from an action, renderer,
-  or explicitly owned asynchronous task; do not depend on untracked ambient
-  state during registration.
-- Importable JSON content uses `codex.import-adapter` version 1.1: declare
-  stable root `format` identities, accept the center's untouched `File` in
-  `open(file)`, and keep strict schema validation in the owning server provider.
-- Clean up every owned listener, timer, observer, request, graph handle,
-  overlay, and cache with `host.onDispose()` or the disposer returned from
-  `register()`. Request `lifecycle.dispose` when lifecycle cleanup is used.
-- Write code and English source catalogs in English. UI localization uses API
-  v2, `i18n.catalogs`, a complete `locales/en.json`, and `host.i18n`.
-- Comments explain only non-obvious constraints or invariants. Do not narrate
-  changes or preserve implementation history in source or reference docs.
-
-## Manifest essentials
-
-```json
-{
-  "id": "my-addon",
-  "name": "My Addon",
-  "version": "0.1.0",
-  "apiVersion": 2,
-  "hostVersion": ">=1.0.0",
-  "entry": "entry.js",
-  "permissions": ["ui:route", "ui:sidebar"],
-  "summary": "One line shown in the install wizard."
-}
+```text
+addon.json       strict v3 manifest
+checksums.json   hashes for every other regular package file
+contracts/       closed JSON Schemas referenced by the manifest
+web/             deterministic compiled TypeScript output, when UI exists
+worker/          declared target-specific Go executables, when backend logic exists
+locales/         declarative UI catalogs
+data/            immutable declared content
 ```
 
-Add only fields that are needed:
+- Package paths, counts, sizes, hashes, entrypoints, schema references, target
+  binaries, and case collisions are validated before extraction or execution.
+- Production never runs npm, Go, Python, a shell, or another compiler.
+- Browser entry modules export `activate(context)` and use only
+  generation-scoped SDK handles and manifest-declared contributions.
+- Integrated modules are reviewed trusted browser code. Isolated visual modules
+  run in an opaque sandboxed iframe and communicate only through the versioned
+  host bridge. Neither may import host modules, inspect host DOM, or depend on
+  filesystem layout.
+- Native workers use Go and `sdk/go/workerrpc`. Stdout is reserved for framed
+  RPC; diagnostics go to stderr. Workers are process/crash isolation, not an OS
+  security sandbox.
 
-- `capabilities`: `{ "required": [], "optional": [] }`.
-- `locales`: catalog paths; English is mandatory and complete.
-- `collections`: `{ "name", "keyed", "access" }`; access defaults to public.
-- `dependencies` and `optionalDependencies`: versioned addon APIs.
-- `services`: versioned contract discovery when any compatible provider should
-  work. Declare `provides` and/or explicit `consumes` cardinality/range entries.
-- `contentDir`: a host-served per-record JSON tree for data addons.
-- `contentGroups`: DM-toggleable content slices.
-- `server`: optional server module; requires `server:code`.
-- `serverDeps`: only host-approved server libraries.
-- `tests.server`: explicit self-contained test paths run at install; never a
-  glob and never a dependency on the host harness.
+## Permanent contracts and implementation rules
 
-The host currently advertises `collections.dm`,
-`collections.transactions`, `lifecycle.dispose`, `content.revision`,
-`i18n.catalogs`, `imports.providers`, `imports.bundle-contributors`, and
-`graphs.facade`.
+Once released, do not rename or reuse an add-on ID, contribution ID, collection
+ID, record-extension ID, content-set ID, or service contract major version for
+different semantics. Display names may change.
 
-## Common facade surfaces
+- Request only the bounded permissions the package actually uses. Capabilities
+  describe host features; they do not grant authority.
+- Collections and record extensions use closed schemas, explicit visibility,
+  schema versions, optimistic revisions, and host-owned transactions.
+- Services use namespaced contracts, semantic versions, and schema-validated
+  request/response values. Consumers target the contract and compatible range,
+  never a provider ID. Optional consumers remain useful without a provider.
+- Content records have stable `(kind, id)` identity, provenance, and immutable
+  package revisions. User choices and overlays belong in durable host/add-on
+  data, never rewritten package files.
+- Imports and migrations are reviewable two-phase operations. Preview/plan is
+  read-only and stored; commit applies only the exact accepted digest and
+  operations. Never reconstruct an accepted mutation plan at commit time.
+- Comments explain only non-obvious constraints or safety decisions. Do not
+  preserve implementation history in source or contract documentation.
 
-Registration permissions are exact:
+## Lifecycle and failure behavior
 
-| Surface | Permission |
-|---|---|
-| Route or page renderer | `ui:route` |
-| Sidebar entry | `ui:sidebar` |
-| Action | `ui:action` |
-| Settings tab | `ui:settings-tab` |
-| Article section | `ui:article-section:<kind>` |
-| Editor fields | `ui:editor-fields:<kind>` |
-| Content slot | `ui:slot:<surface>` |
-| Fragment override | `ui:override` |
-| Wiki kind | `wiki:kind` |
-| Owned collection | `data:own` |
-| Core read | `data:read:<collection>` |
-| Addon-data patch | `data:write:<collection>.addonData` |
-| Graph facade | `ui:graph` plus `graphs.facade` |
-| Server module | `server:code` |
-| Import provider | `data:import-provider` plus its documented capabilities |
+- Every UI contribution, listener, subscription, timer, request, worker call,
+  service handle, and cache belongs to one activation generation and is safe to
+  dispose more than once.
+- Cancellation, deadline, health, shutdown, crash, replacement, and stale
+  binding behavior must be explicit and bounded. Late responses cannot revive
+  a disposed generation.
+- Provider replacement stops consumers before the old provider and starts the
+  new provider before consumers. Include provider generation and content
+  revision in derived cache identity.
+- A revision-`0` service binding is a valid automatic binding when exactly one
+  compatible provider exists. Multiple candidates stay visibly unresolved.
+- Worker actor, generation, deadline, correlation, and grants originate from
+  the host. Echoed or invented metadata never grants authority.
+- Render coherent loading, empty, unavailable, retry, and error states. Test
+  optional-provider absence, malformed values, cancellation, cleanup, and
+  repeated activation.
 
-Useful members include:
+## Browser implementation
 
-```js
-host.id
-host.action(name)
-host.asset(path)
-host.capabilities.has(id)
-host.contentRevision
-host.h
-host.i18n
-host.role
-host.ui
-host.store.collection(name)
-host.store.transaction(names, callback)
-host.store.patchAddonData(collection, id, update)
-host.provide(api)
-host.use(addonId)
-host.provideService(contract, version, api)
-host.useService(contract)
-host.listServices(contract)
-```
+- Author strict TypeScript and package deterministic compiled JavaScript.
+- Use the supplied UI, navigation, model, data, content, and service SDK
+  handles. Register only contributions declared by stable manifest ID.
+- Treat all external data as untrusted. Prefer DOM nodes and `textContent`;
+  never inject raw package, translation, service, or record HTML.
+- Use host design tokens and accessible semantic interaction. Keep source UI
+  strings in English and catalogs declarative.
+- Isolated entry modules must be self-contained: no relative imports or network
+  assets. Dispose the bridge and frame state with the same generation scope.
 
-`host.h.layoutText(text, options)` provides cached, Unicode-aware plain-text
-line breaking without DOM measurement. It returns exact line strings and
-widths; addons must materialize those strings when layout geometry depends on
-the measured breaks. `host.h.onTextLayoutInvalidated(listener)` returns an
-unsubscribe function for mounted consumers that cache those results; release
-it with the route's other listeners. Treat both helpers as optional when
-retaining compatibility with a host version that predates them.
+## Worker implementation
 
-See `AUTHORING.md` for complete method signatures, collection identity,
-transactions, dependency negotiation, fragments, slots, graph handles,
-content trees, and server/import-provider contracts.
+- Keep the worker entrypoint as composition. Domain behavior belongs in
+  focused packages independent of framing and host process details.
+- Implement only declared, versioned methods. Honor initialization, start,
+  initial health, bounded domain calls, cancellation, and graceful shutdown.
+- Use host data/service clients rather than hand-authoring authority metadata.
+  Keep payloads serializable and schema validated; never return functions,
+  facades, DOM, or raw HTML.
+- Package every deployment target declared in the manifest and keep committed
+  binaries synchronized with source for a release candidate.
 
-## Optional dependencies
+## Build and verify
 
-An optional dependency controls load order only. Always retain a useful
-standalone state:
+A release candidate must pass:
 
-```js
-let provider = null;
-try {
-  provider = host.use('provider-addon');
-} catch {
-  // Standalone behavior remains available.
-}
-```
+1. the add-on repository's complete build, test, type, and vet gates;
+2. deterministic package creation;
+3. host inspection from `ttrpg-codex`:
 
-Dispose or invalidate provider-derived state when the addon is unloaded.
-Provider APIs should return data rather than host-owned DOM or private objects.
+   ```powershell
+   go run ./cmd/codex-addon-inspect <path-to-addon.zip>
+   ```
 
-## Discoverable services
+4. standalone behavior with optional providers absent;
+5. affected provider/consumer integration and activate/replace/dispose checks.
 
-Use exact dependencies only when identity matters. For extensible roles such as
-rules data, engines, renderers, or import adapters, declare a service contract.
-A cardinality-one consumer receives the sole compatible provider automatically;
-multiple providers require a DM binding. Cardinality-many consumers receive
-every compatible handle in deterministic provider-id order. Handles contain
-`{api, provider}`; provider metadata includes addon/version, contract version,
-and content revision. Optional consumers must handle `null` or `[]`.
-
-## Localization and HTML
-
-Catalog values are plain text. Resolution is exact locale, base locale,
-English, then the key. Translation entries preserve the English value shape
-and placeholder set.
-
-```js
-const { esc, dataAction } = host.h;
-const title = host.i18n.t('page.title');
-return `<h1>${esc(title)}</h1>
-  <button class="inline-create-btn"
-    ${dataAction(host.action('create'))}>${esc(host.i18n.t('action.create'))}</button>`;
-```
-
-## Testing and local installation
-
-- Use
-  [`web/js/addon-test-harness.mjs`](../../web/js/addon-test-harness.mjs) for
-  client registration, permission, dependency, role, collection,
-  localization, lifecycle, and renderer smoke tests. Pass the real manifest
-  metadata; an allow-all mock hides mistakes.
-- Keep `tests.server` self-contained: Node built-ins and addon files only.
-- Test empty and failure states, optional-provider absence, cleanup
-  idempotence, and any role-conditioned registration.
-- Keep zoom-sensitive rendering fixtures in the addon and execute them with
-  the host-owned `scripts/browser-rendering-check.mjs` runner. This is shared
-  test infrastructure, not an addon runtime import.
-- Run the addon's complete test command and relevant host addon tests.
-- Dev-install, restart when server code changed, refresh, and exercise the
-  installed package. Source edits are invisible until reinstalled.
-
-The worked examples in this directory demonstrate routes, sheets,
-localization, dependencies, fragments, content packages, server code, and
-failure isolation.
+Contract changes require relevant host conformance tests and every affected
+first-party add-on gate. Source checkouts and GitHub-generated archives are not
+install packages.

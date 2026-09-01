@@ -123,20 +123,18 @@ replacement. The registry has a fixed active-context limit and no payload
 storage. Its snapshot exposes only active, issued, resolved, rejected, expired,
 and invalidated counts.
 
-## Lifecycle integration and next boundary
+## Lifecycle and transport integration
 
 The package manager now owns catalog publication and exact runtime activation
 for initial activation, updates, rollback, reviewed cold-graph rebinding, and
 restart recovery. Its ordering and failure contract is in
 [`PACKAGE_LIFECYCLE.md`](PACKAGE_LIFECYCLE.md).
 
-The remaining broker integrations are:
-
-- expose activation diagnostics and binding editors through HTTP and the
-  Add-on Inspector;
-- implement the UI service transport adapter;
-- implement the concrete data, event, import, migration, and HTTP host methods.
-
-Those integrations must use this broker rather than holding provider objects,
-choosing official add-on IDs, or reconstructing actor authority from wire
-metadata.
+Protected HTTP endpoints expose activation diagnostics and binding revisions;
+the browser SDK and native worker dispatcher route service calls through the
+same broker. The worker host currently implements schema-checked package data
+and service calls needed by the first-party packages. Additional event, blob,
+network, progress, or migration transports are added only with a real package
+requirement and must reuse this broker and authoritative request contexts
+rather than holding provider objects, choosing official add-on IDs, or
+reconstructing actor authority from wire metadata.

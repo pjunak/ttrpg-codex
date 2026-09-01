@@ -4,9 +4,8 @@ This milestone turns the framed worker protocol into a real process boundary.
 The supervisor owns one immutable add-on generation and fails that generation
 closed when launch, negotiation, health, or shutdown violates its contract.
 
-After readiness, it hands the channel to the shared RPC peer and a host-only
-dispatcher. Concrete data methods and persisted service bindings remain later
-milestones.
+After readiness, it hands the channel to the shared RPC peer and host-only
+dispatcher for generation-scoped package data and brokered service calls.
 
 ## Responsibility split
 
@@ -15,7 +14,7 @@ milestones.
 | Package inspector | Verifying and extracting a content-addressed package generation |
 | Package manager | Activation, durable generation selection, grants, dependency ordering, rollback, and recovery |
 | Supervisor factory | Selecting the exact native executable for the current target and constructing one supervisor |
-| Generation manager | Consecutive-failure accounting and restart decisions (future lifecycle extension) |
+| Generation manager | Consecutive-failure accounting, restart decisions, and recovery diagnostics |
 | Native worker supervisor | Exact process launch, lifecycle negotiation, health, bounded diagnostics, deadlines, and termination |
 | Worker RPC codec | Framing, UTF-8 and JSON-RPC envelope validation, and bounded I/O |
 | Worker RPC peer | Continuous reads, correlated calls, concurrency, cancellation, and transport counters |

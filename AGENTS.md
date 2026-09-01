@@ -1,38 +1,35 @@
-# O Barvách Draků
+# TTRPG Codex
 
-Self-hostable collaborative TTRPG wiki and API-v2 addon host. The server owns
-JSON persistence, authentication, addon installation, and role-scoped SSE; the
-browser is a vanilla ES-module SPA. Code and administration are English. UI
-source strings are English with a per-browser Czech catalog.
+TTRPG Codex v2 is a self-hosted campaign archive and Add-on API v3 host. Go
+owns the server, SQLite persistence, package/worker runtime, and maintenance
+tools. Lit and TypeScript own the browser application. Node.js is a build and
+test dependency only; it is not part of the production runtime.
 
 ## Commands and environment
 
-Node.js 24 or newer is supported; `.nvmrc` and the Docker image use Node.js 26.
-Run these commands from the repository root in any shell where Node and npm
-are available:
+Use Go 1.26, Node.js 24 or newer, and PowerShell on Windows. Run from this
+repository root:
 
 ```console
 npm ci
-npm run lint            # zero-warning ESLint gate
-npm test                # complete Node test suite
-npm run check           # lint, then tests
-npm run test:browser    # native-size text rendering contract in Chromium
-npm run test:browser:all # same contract in Chromium and Firefox
-npm start               # local server
+npm run check
+npm start
 ```
 
-Install the pinned browsers once with `npx playwright install chromium firefox`
-before running the cross-browser contract. CI installs Chromium for the default
-gate; local rendering changes should run both engines.
+`npm run check` type-checks, tests, and builds the frontend, then runs all
+project-owned Go tests and `go vet`. Useful focused checks include:
 
-Run a focused test with a relative path:
-
-```console
-node --test test/addon-archive.test.cjs
+```powershell
+npm --workspace @ttrpg-codex/frontend test
+go test ./internal/transport/httpapi
+go test ./internal/addons/packagemanager
+go test ./sdk/go/workerrpc
 ```
 
-Use browser or manual application verification for behavior the Node tests do
-not cover. State clearly when the active environment cannot run it.
+Run `go test -race` for changed concurrent worker, broker, event, or lifecycle
+packages where supported. Use a disposable data directory and local-only
+password for manual development; never start development processes against a
+production volume.
 
 ## Read on demand
 
@@ -41,134 +38,125 @@ there instead of expanding this always-loaded file.
 
 | Reference | Read before changing |
 |---|---|
-| [`docs/reference/i18n.md`](docs/reference/i18n.md) | User-facing strings, catalogs, pluralization, locale tests |
-| [`docs/reference/ui-widgets.md`](docs/reference/ui-widgets.md) | Combobox, MultiSelect, TagFilter, actions, mount lifecycle |
-| [`docs/reference/routing-navigation.md`](docs/reference/routing-navigation.md) | Routes, search, navigation, edit affordances, authentication flow |
-| [`docs/reference/settings.md`](docs/reference/settings.md) | Settings categories, tabs, attitudes, marker icons |
-| [`docs/reference/data-model.md`](docs/reference/data-model.md) | Collections, fields, visibility, IDs, trash/undo, Store and write queue |
-| [`docs/reference/wiki-rendering.md`](docs/reference/wiki-rendering.md) | Articles, editors, Markdown, drafts, dirty guards |
-| [`docs/reference/maps-timeline.md`](docs/reference/maps-timeline.md) | World/local maps and timeline |
-| [`docs/reference/cloudmap.md`](docs/reference/cloudmap.md) | Mind-map registries, layout, physics, rejected approaches |
-| [`docs/reference/server.md`](docs/reference/server.md) | API, persistence, locks, snapshots, path safety, security, deploy surface |
-| [`docs/reference/addons.md`](docs/reference/addons.md) | Manifests, facades, permissions, services, lifecycle, install/import contracts |
+| [`README.md`](README.md) and [`CONTRIBUTING.md`](CONTRIBUTING.md) | Setup, boundaries, and complete gates |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System ownership and request/data flow |
+| [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md) | Configuration, backup, conversion, deployment, and recovery |
+| [`docs/rewrite/CORE_DATA.md`](docs/rewrite/CORE_DATA.md) | Core records, revisions, visibility, and transactions |
+| [`docs/rewrite/AUTHENTICATION.md`](docs/rewrite/AUTHENTICATION.md) | Sessions, CSRF, role authority, and credential policy |
+| [`docs/rewrite/EVENT_STREAM.md`](docs/rewrite/EVENT_STREAM.md) | Durable role-scoped event delivery |
+| [`docs/rewrite/BLOBS.md`](docs/rewrite/BLOBS.md) and [`MEDIA.md`](docs/rewrite/MEDIA.md) | Immutable file and media lifecycle |
+| [`docs/rewrite/PACKAGE_LIFECYCLE.md`](docs/rewrite/PACKAGE_LIFECYCLE.md) | Package inspection, approval, activation, update, and rollback |
+| [`docs/rewrite/WORKER_SUPERVISION.md`](docs/rewrite/WORKER_SUPERVISION.md) and [`WORKER_BROKER.md`](docs/rewrite/WORKER_BROKER.md) | Native worker process and RPC rules |
+| [`docs/rewrite/SERVICE_BROKER.md`](docs/rewrite/SERVICE_BROKER.md) | Versioned provider/consumer binding |
+| [`docs/rewrite/ADDON_DATA.md`](docs/rewrite/ADDON_DATA.md) and [`CONTENT.md`](docs/rewrite/CONTENT.md) | Package collections, extensions, content, and migrations |
+| [`docs/rewrite/BROWSER_ADDONS.md`](docs/rewrite/BROWSER_ADDONS.md) | Integrated and isolated TypeScript UI lifecycles |
+| [`docs/rewrite/BACKUP_RESTORE.md`](docs/rewrite/BACKUP_RESTORE.md) and [`LEGACY_CONVERSION.md`](docs/rewrite/LEGACY_CONVERSION.md) | Current backups and the one-time v1 conversion boundary |
 
-Public documentation has separate owners:
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
-[`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md), and
-[`examples/addons/AUTHORING.md`](examples/addons/AUTHORING.md). Addon-agent
-guidance lives in [`examples/addons/AGENTS.md`](examples/addons/AGENTS.md).
+Public add-on guidance lives in [`examples/addons/AGENTS.md`](examples/addons/AGENTS.md),
+[`AUTHORING.md`](examples/addons/AUTHORING.md),
+[`API_V3.md`](examples/addons/API_V3.md), and machine-readable
+[`contracts/addons/v3`](contracts/addons/v3). Keep those surfaces synchronized.
 
 ## Repository map
 
 ```text
-server.js             Express composition and REST surface
-server/               Auth, visibility, SSE, durable writes, snapshots,
-                      addon broker/install/testing, imports and transactions
-server-utils.cjs      Pure security/path/snapshot helpers
-tiler.js              Sharp world/local-map tile generation
-web/index.html        SPA shell; loads bundle.css and app.js
-web/js/app.js         Router, navigation, SSE and ACTIONS composition
-web/js/store*.js      Domain state, validation, optimistic revisions, write queue
-web/js/addon*.js      Host facade and pure addon contract/lifecycle planners
-web/js/{wiki,map,cloudmap,timeline}.js
-                      Major feature renderers/controllers
-web/js/{settings,sidebar,search,role}.js
-                      Shell and role-aware product surfaces
-web/i18n/             English source and Czech translation catalogs
-web/css/              Tokenized themes, shared components and feature styles
-test/                 Unit, contract, integration and regression tests
-examples/addons/      Public addon authoring contract and fixtures
-data/                 Ignored runtime volume; never source code
+cmd/                 Host, health, package inspection, conversion, and maintenance CLIs
+contracts/addons/v3/ Public manifest and protocol schemas
+frontend/src/core/   Validated host clients and application state
+frontend/src/addons/ Generation-scoped integrated and isolated add-on runtime
+internal/domain/     Stable campaign concepts and invariants
+internal/application/ Policy and multi-record commands
+internal/storage/    SQLite, migrations, blobs, packages, and backup implementation
+internal/transport/  Authenticated and validated HTTP/SSE boundary
+internal/addons/     Package, data, content, service, worker, and lifecycle ownership
+sdk/go/workerrpc/    Public native-worker RPC runtime
+examples/addons/     Public authoring contract and examples
+data/                Ignored runtime state; never source code
 ```
 
-## Server and persistence invariants
+## Durable data and security invariants
 
-- JSON files are the only database. Writes that span shared state must use the
-  established lock, durable-file, transaction, revision, and publication
-  primitives. Do not introduce uncoordinated direct writes.
-- Preserve point-in-time backup/restore behavior, bounded archive handling,
-  path containment, optimistic revisions, and role-filtered projections. Add a
-  regression test for changes near these safety boundaries.
-- `data/` and `data-snapshots/` are runtime state. Never commit or edit addon
-  code inside `data/addons/`; reinstall from the source repository instead.
-- Authentication uses an HttpOnly `edit_session` cookie and credential-derived
-  tokens. Passwords live in runtime data or documented environment variables.
-  Preserve role gates on both HTTP and long-lived SSE/addon surfaces.
-- SSE updates on `/api/events` are role-scoped and should reach clients in
-  under one second. Avoid state changes that bypass the normal broadcast path.
-- Client-controlled paths, ZIP entries, uploads, and restore targets must pass
-  the existing normalization, containment, size, and compression guards.
-- Helmet remains enabled. CSP is intentionally off because product HTML uses
-  inline style attributes; do not weaken the other security headers.
+- SQLite is the sole mutable metadata and campaign-record database. Writes use
+  established transactions, optimistic revisions, schema checks, audit
+  metadata, and event publication.
+- Unknown record fields survive ordinary edits. Add-on IDs, collection IDs,
+  extension IDs, service IDs, and durable record keys are permanent once
+  released.
+- Immutable blobs and packages are content-addressed. Archive paths, sizes,
+  counts, hashes, restore targets, and client-controlled paths remain bounded
+  and containment checked.
+- Authentication uses HttpOnly cookies and CSRF protection. The server is
+  authoritative for actors and roles; client or worker metadata never grants
+  authority.
+- SSE events are durable and role scoped. Never publish unfiltered record
+  bodies or bypass the normal commit/event sequence.
+- Runtime data, backups, package generations, credentials, support bundles,
+  generated frontend output, and conversion artifacts stay out of Git.
 
 ## Browser boundaries
 
-- No framework, bundler, or transpiler. Use browser-native named ES-module
-  exports and established module ownership.
-- Stateful facades may use an IIFE; pure modules export focused functions.
-  Import shared helpers rather than creating private duplicate escaping,
-  normalization, or action systems.
-- Methods referenced by `data-action="Module.method"` must be imported in
-  `app.js` and registered in `ACTIONS`; do not export them through `window`.
-- Every user or translated string inserted into HTML passes through `esc()`.
-  Free-text colors pass through `safeColor`. Sanitized `renderMarkdown()`
-  output is the documented exception.
-- English is the complete source catalog. Preserve Czech key/value shape and
-  placeholders. Follow both i18n guard tests for every user-visible string.
-- Read [`web/css/STYLE.md`](web/css/STYLE.md) before UI work. Reuse tokens and
-  shared components; add recurring or semantic values to the design system.
-  `web/index.html` links only `css/bundle.css`; themes override tokens rather
-  than components. Canonical breakpoints are 768, 1100, and 1200 px.
-- Clean up listeners, timers, observers, requests, object URLs, graph handles,
-  and mounts on rerender, role change, navigation, and disposal.
+- Author the application and add-on UI in strict TypeScript. Validate host wire
+  responses before they reach state or components.
+- Use Lit component ownership, existing design tokens, semantic HTML, keyboard
+  behavior, and explicit loading, empty, unavailable, and error states. Never
+  insert untrusted HTML.
+- Clean up every listener, timer, observer, subscription, request, object URL,
+  and add-on contribution with its owning component or generation scope.
+- Integrated add-ons are reviewed trusted browser code. Isolated visual add-ons
+  run in opaque sandboxed iframes and communicate only through the versioned
+  bridge. Neither mode may reach host internals.
+- Browser add-on bindings with revision `0` are valid automatic bindings, not
+  missing bindings. Generation identity remains part of handles and caches.
 - Comments explain only non-obvious invariants, constraints, or why an obvious
   approach is unsafe. Do not preserve implementation history in source.
 
-## Addon contract
+## Add-on API v3 invariants
 
-- The scoped host facade is the sole addon integration boundary. Addons must
-  not depend on host globals, private modules, DOM structure, raw Cytoscape, or
-  filesystem layout.
-- Manifest IDs are permanent data namespaces. Permissions and capabilities
-  must match actual use. Optional dependencies and discoverable services must
-  fail gracefully when providers are absent or incompatible.
-- API-v2 lifecycle disposal is LIFO, once-only, bounded, and failure-isolated.
-  Changed entry/content revisions unload consumers before providers and reload
-  providers before consumers.
-- Addon package extraction is untrusted input. Keep it streaming, bounded,
-  traversal-safe, content-addressed, and free of repository-only agent/tool
-  metadata in installed runtime copies.
+- Installation is upload -> inspect/stage -> review the exact permission and
+  compatibility diff -> approve -> activate. Production never invokes npm,
+  Go, Python, a shell, or another compiler for an add-on.
+- A package is an immutable checksummed ZIP. Entrypoints, contracts, locales,
+  content, and target workers are declared and verified before execution.
+- Services are addressed by contract and compatible semantic version, never a
+  provider add-on ID. Optional consumers remain useful without a provider;
+  ambiguous and stale bindings remain visible instead of silently changing.
+- Every browser handle, worker request, service binding, subscription, and job
+  is scoped to one activation generation. Replacement stops consumers before
+  providers and starts providers before consumers.
+- Native Go workers are crash/process isolation, not an OS security sandbox.
+  They use framed RPC on stdout, diagnostics on stderr, host-issued actor and
+  deadline metadata, bounded concurrency, health checks, cancellation, and
+  graceful shutdown.
+- Collections, record extensions, services, imports, and content use closed,
+  versioned schemas. Imports and migrations store an immutable reviewed plan
+  and commit only that exact plan.
 - DM Tools owns the visible Import Center. Core owns authorization,
-  transactions, campaign-bundle primitives, and recovery; providers own their
-  reviewed preview/commit workflows.
+  transactions, plans, campaign-bundle primitives, and recovery; providers own
+  domain-specific preview semantics.
 
-Companion addons are independent repositories and may be checked out anywhere.
-Each addon has its own root instructions. For addon source changes:
+Build an add-on in its own repository, then inspect its release archive here:
 
-```console
-# Run in the addon repository
-node --test tests/*.mjs
-
-# Run in this host repository with the addon's actual source path
-node scripts/dev-install-addon.cjs <path-to-addon>
+```powershell
+go run ./cmd/codex-addon-inspect <path-to-addon.zip>
 ```
 
-Use relative test paths on Windows. Source edits are invisible until
-reinstalled. Restart for server-module changes and refresh for client changes.
-Permission additions require the per-addon production wizard; bulk update does
-not grant new permissions.
+Integration testing uses the actual staged-package lifecycle. Never copy a
+source checkout into a runtime generation.
 
 ## Completion and durable planning
 
-- Run focused tests while iterating and `npm run check` before handoff for host
-  changes. Run `npm run test:browser` for zoom, typography, or browser-rendering
-  changes. Run relevant host/addon compatibility tests on both sides of a
-  contract change.
+- Ordinary backup and restore accept only `codex-backup.v2`. The offline
+  `cmd/codex-convert-v1` tool is the sole legacy boundary: keep its input
+  unchanged and write a fresh v2 directory. Do not add startup-time legacy
+  readers or general legacy repair tooling.
+- Run focused tests while iterating and `npm run check` before handoff. Run
+  relevant host/add-on compatibility tests on both sides of a contract change.
 - Update the owning reference, public docs, test inventory, and this file only
   when their actual contracts change.
 - [`docs/BACKLOG.md`](docs/BACKLOG.md) is the only durable backlog for the host
   and companion addons. Keep temporary plans under ignored `docs/plans/` and
   delete them when the task closes. Do not create additional roadmap/TODO files.
-- Do not commit runtime data, secrets, generated installs, backups, or local
+- Do not commit runtime data, secrets, generated packages, backups, or local
   plans. The global Codex instructions govern task commits. Never push,
-  release, deploy, or change production credentials unless explicitly asked.
+  release, deploy, replace branches, edit live data, or change production
+  credentials unless explicitly asked for that operational step.
