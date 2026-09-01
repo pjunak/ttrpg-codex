@@ -103,6 +103,12 @@ func TestCampaignMutationConfigurationFailsClosed(t *testing.T) {
 	if _, err := New(Config{CampaignWriter: writer}); err != ErrInvalidConfig {
 		t.Fatalf("writer without mutations error = %v", err)
 	}
+	if _, err := New(Config{CampaignTwins: &recordingCampaignTwins{}}); err != ErrInvalidConfig {
+		t.Fatalf("twins without writer error = %v", err)
+	}
+	if _, err := New(Config{CampaignTwinWriter: writer}); err != ErrInvalidConfig {
+		t.Fatalf("twin writer without service error = %v", err)
+	}
 }
 
 func TestCampaignTransactionAuthorizesBeforeParsingAndReturnsBoundedReceipt(t *testing.T) {
@@ -197,6 +203,10 @@ func TestSessionCampaignMutationAuthorizerRequiresBoundCSRFAndUsesEffectiveRole(
 		authority.ActorID != "session:"+session.Actor.SessionID {
 		t.Fatalf("DM authority = %+v, %v", authority, err)
 	}
+	twinAuthorize := SessionCampaignTwinAuthorizer(service)
+	if twinAuthority, err := twinAuthorize(request); err != nil || twinAuthority.Role != campaigndata.WriteDM {
+		t.Fatalf("DM twin authority = %+v, %v", twinAuthority, err)
+	}
 
 	playerView, err := service.SwitchRole(session.Token, sessionauth.RolePlayer)
 	if err != nil {
@@ -209,6 +219,49 @@ func TestSessionCampaignMutationAuthorizerRequiresBoundCSRFAndUsesEffectiveRole(
 	authority, err = authorize(request)
 	if err != nil || authority.Role != campaigndata.WritePlayer {
 		t.Fatalf("DM-as-player authority = %+v, %v", authority, err)
+	}
+	if _, err := twinAuthorize(request); !errors.Is(err, errAuthorizationRequired) {
+		t.Fatalf("DM-as-player twin error = %v", err)
+	}
+}
+
+func TestCampaignTwinMutationUsesExplicitDMContract(t *testing.T) {
+	t.Parallel()
+	twins := &recordingCampaignTwins{result: campaigndata.TwinResult{
+		TwinKey: "twin-alice",
+		Commit: campaign.Commit{
+			ID: 8, OccurredAt: time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC),
+			Results: []campaign.MutationResult{
+				{Collection: campaign.Characters, Key: "alice", BeforeRevision: 2, AfterRevision: 3},
+				{Collection: campaign.Characters, Key: "twin-alice", BeforeRevision: 0, AfterRevision: 1},
+			},
+			CollectionRevisions: map[campaign.Collection]int64{campaign.Characters: 4},
+		},
+	}}
+	handler, err := New(Config{
+		Logger: slog.New(slog.DiscardHandler), CampaignTwins: twins,
+		CampaignTwinWriter: func(*http.Request) (campaigndata.MutationAuthority, error) {
+			return campaigndata.MutationAuthority{ActorID: "session:dm", Role: campaigndata.WriteDM}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/campaign/twins", strings.NewReader(`{
+		"contractVersion":"campaign-twin.v1","action":"create",
+		"collection":"characters","sourceKey":"alice","sourceExpectedRevision":2
+	}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK ||
+		!strings.Contains(response.Body.String(), `"contractVersion":"campaign-twin-result.v1"`) ||
+		!strings.Contains(response.Body.String(), `"twinKey":"twin-alice"`) {
+		t.Fatalf("twin response = %d %s", response.Code, response.Body.String())
+	}
+	if len(twins.requests) != 1 || twins.requests[0].Action != campaigndata.TwinCreate ||
+		twins.requests[0].SourceExpectedRevision != 2 {
+		t.Fatalf("twin request = %+v", twins.requests)
 	}
 }
 
@@ -223,6 +276,21 @@ type recordingCampaignMutations struct {
 	err         error
 	authorities []campaigndata.MutationAuthority
 	requests    [][]campaign.Mutation
+}
+
+type recordingCampaignTwins struct {
+	result   campaigndata.TwinResult
+	err      error
+	requests []campaigndata.TwinRequest
+}
+
+func (service *recordingCampaignTwins) MutateTwin(
+	_ context.Context,
+	_ campaigndata.MutationAuthority,
+	request campaigndata.TwinRequest,
+) (campaigndata.TwinResult, error) {
+	service.requests = append(service.requests, request)
+	return service.result, service.err
 }
 
 func (service *recordingCampaignMutations) Mutate(

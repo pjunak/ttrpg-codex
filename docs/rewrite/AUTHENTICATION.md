@@ -71,6 +71,11 @@ player mutation policy; a DM using view-as-player deliberately receives player
 write limits. Audit identity is derived from the resolved session and cannot
 be supplied or overridden in JSON.
 
+Twin create, link, and unlink are stricter because they can expose the
+existence of a hidden counterpart. They require both the real and effective
+role to be DM, as well as the exact CSRF value. A DM using view-as-player must
+leave that mode before changing twin relationships.
+
 ## Remaining authentication work
 
 - Add persistent slow-hashed credentials, password rotation, session

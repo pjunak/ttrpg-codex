@@ -2,6 +2,8 @@ package campaigndata
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,8 +22,9 @@ type Repository interface {
 }
 
 type Service struct {
-	repository Repository
-	now        func() time.Time
+	repository     Repository
+	now            func() time.Time
+	generateTwinID func() (string, error)
 }
 
 type ViewRole string
@@ -54,7 +57,18 @@ func New(repository Repository) (*Service, error) {
 	if repository == nil {
 		return nil, ErrInvalidConfig
 	}
-	return &Service{repository: repository, now: time.Now}, nil
+	return &Service{
+		repository: repository, now: time.Now,
+		generateTwinID: randomTwinID,
+	}, nil
+}
+
+func randomTwinID() (string, error) {
+	buffer := make([]byte, 16)
+	if _, err := rand.Read(buffer); err != nil {
+		return "", err
+	}
+	return "twin-" + base64.RawURLEncoding.EncodeToString(buffer), nil
 }
 
 func (service *Service) Dataset(ctx context.Context, role ViewRole) (Dataset, error) {

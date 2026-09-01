@@ -201,10 +201,12 @@ func composeHost(
 	handler, err := httpapi.New(httpapi.Config{
 		Version: version, DB: db, Logger: logger,
 		Authentication: authentication, SecureCookies: secureCookies,
-		CampaignData:      campaignData,
-		CampaignMutations: campaignData,
-		CampaignWriter:    httpapi.SessionCampaignMutationAuthorizer(authentication),
-		AddonLifecycle:    addons, AdminAuthorizer: httpapi.SessionAdminAuthorizer(authentication),
+		CampaignData:       campaignData,
+		CampaignMutations:  campaignData,
+		CampaignWriter:     httpapi.SessionCampaignMutationAuthorizer(authentication),
+		CampaignTwins:      campaignData,
+		CampaignTwinWriter: httpapi.SessionCampaignTwinAuthorizer(authentication),
+		AddonLifecycle:     addons, AdminAuthorizer: httpapi.SessionAdminAuthorizer(authentication),
 		BrowserAddons: addons, BrowserAuthorizer: httpapi.SessionBrowserAuthorizer,
 		Events: eventBroker, EventAuthorizer: httpapi.SessionEventAuthorizer,
 	})

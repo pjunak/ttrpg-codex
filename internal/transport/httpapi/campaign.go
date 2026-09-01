@@ -15,6 +15,8 @@ const (
 	mutationContractVersion = "campaign-mutation.v1"
 	commitContractVersion   = "campaign-commit.v1"
 	maximumMutationBody     = 16 << 20
+	twinContractVersion     = "campaign-twin.v1"
+	twinResultVersion       = "campaign-twin-result.v1"
 )
 
 type CampaignData interface {
@@ -31,12 +33,36 @@ type CampaignMutations interface {
 
 type CampaignMutationAuthorizer func(*http.Request) (campaigndata.MutationAuthority, error)
 
+type CampaignTwins interface {
+	MutateTwin(
+		context.Context,
+		campaigndata.MutationAuthority,
+		campaigndata.TwinRequest,
+	) (campaigndata.TwinResult, error)
+}
+
 func (s *server) registerCampaignRoutes(mux *http.ServeMux) {
 	if s.campaignData != nil {
 		mux.HandleFunc("GET /api/campaign", s.campaignDataset)
 	}
 	if s.campaignMutations != nil {
 		mux.HandleFunc("POST /api/campaign/transactions", s.campaignTransaction)
+	}
+	if s.campaignTwins != nil {
+		mux.HandleFunc("POST /api/campaign/twins", s.campaignTwinMutation)
+	}
+}
+
+func SessionCampaignTwinAuthorizer(service *sessionauth.Service) CampaignMutationAuthorizer {
+	return func(r *http.Request) (campaigndata.MutationAuthority, error) {
+		actor, ok := sessionauth.ActorFromContext(r.Context())
+		if !ok || actor.RealRole != sessionauth.RoleDM || actor.Role != sessionauth.RoleDM ||
+			service == nil || !service.ValidateCSRF(sessionToken(r), r.Header.Get(csrfHeaderName)) {
+			return campaigndata.MutationAuthority{}, errAuthorizationRequired
+		}
+		return campaigndata.MutationAuthority{
+			ActorID: "session:" + actor.SessionID, Role: campaigndata.WriteDM,
+		}, nil
 	}
 }
 
@@ -114,6 +140,55 @@ func (s *server) campaignTransaction(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *server) campaignTwinMutation(w http.ResponseWriter, r *http.Request) {
+	authority, err := s.campaignTwinWriter(r)
+	if err != nil {
+		writeAPIError(w, http.StatusForbidden, "FORBIDDEN", "DM twin authorization is required")
+		return
+	}
+	if r.URL.RawQuery != "" {
+		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "twin mutation query parameters are not supported")
+		return
+	}
+	var request struct {
+		ContractVersion        string                  `json:"contractVersion"`
+		Action                 campaigndata.TwinAction `json:"action"`
+		Collection             campaign.Collection     `json:"collection"`
+		SourceKey              string                  `json:"sourceKey"`
+		SourceExpectedRevision *int64                  `json:"sourceExpectedRevision"`
+		TargetKey              string                  `json:"targetKey,omitempty"`
+		TargetExpectedRevision *int64                  `json:"targetExpectedRevision,omitempty"`
+	}
+	if !decodeBoundedJSON(w, r, &request, 8<<10, "campaign twin mutation") {
+		return
+	}
+	if request.ContractVersion != twinContractVersion || request.SourceExpectedRevision == nil {
+		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "campaign twin contract is invalid")
+		return
+	}
+	targetRevision := int64(0)
+	if request.TargetExpectedRevision != nil {
+		targetRevision = *request.TargetExpectedRevision
+	}
+	result, err := s.campaignTwins.MutateTwin(r.Context(), authority, campaigndata.TwinRequest{
+		Action: request.Action, Collection: request.Collection,
+		SourceKey: request.SourceKey, SourceExpectedRevision: *request.SourceExpectedRevision,
+		TargetKey: request.TargetKey, TargetExpectedRevision: targetRevision,
+	})
+	if err != nil {
+		s.writeCampaignMutationError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"contractVersion":     twinResultVersion,
+		"twinKey":             result.TwinKey,
+		"commitId":            result.Commit.ID,
+		"occurredAt":          result.Commit.OccurredAt,
+		"results":             result.Commit.Results,
+		"collectionRevisions": result.Commit.CollectionRevisions,
+	})
+}
+
 func (s *server) writeCampaignMutationError(w http.ResponseWriter, r *http.Request, err error) {
 	status, kind, message := http.StatusServiceUnavailable, "CAMPAIGN_UNAVAILABLE", "campaign data is unavailable"
 	switch {
@@ -125,6 +200,12 @@ func (s *server) writeCampaignMutationError(w http.ResponseWriter, r *http.Reque
 		status, kind, message = http.StatusConflict, "WRITE_CONFLICT", "campaign data changed; refresh before retrying"
 	case errors.Is(err, campaigndata.ErrManagedCampaignField):
 		status, kind, message = http.StatusBadRequest, "MANAGED_FIELD", "campaign mutation changes an application-managed field"
+	case errors.Is(err, campaigndata.ErrTwinExists):
+		status, kind, message = http.StatusConflict, "TWIN_EXISTS", "campaign record already has a twin"
+	case errors.Is(err, campaigndata.ErrTwinMissing):
+		status, kind, message = http.StatusConflict, "TWIN_MISSING", "campaign record does not have a valid twin"
+	case errors.Is(err, campaigndata.ErrTwinVisibility):
+		status, kind, message = http.StatusBadRequest, "TWIN_VISIBILITY", "twins must use opposite visibility"
 	case errors.Is(err, campaign.ErrInvalidTransaction),
 		errors.Is(err, campaign.ErrInvalidCollection),
 		errors.Is(err, campaign.ErrInvalidRecord),

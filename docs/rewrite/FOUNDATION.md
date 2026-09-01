@@ -59,7 +59,10 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   an exact DM snapshot and a reference-closed anonymous/player projection.
   Its CSRF-protected transaction endpoint plans requested and derived changes
   above storage, applies player/twin/reference policy, and commits compound
-  cascades with optimistic revisions as one unit.
+  cascades with optimistic revisions as one unit. A separate explicit twin
+  endpoint owns create/link/unlink, server-generated twin identities, opposite
+  visibility, and atomic reciprocal updates. The strict TypeScript mutation
+  client serializes ordinary and twin writes through one stale-base guard.
 - The HTTP boundary exposes no-store health and version responses. Its add-on
   administration routes require both a lifecycle service and an administrator
   authorizer at composition time; partial configuration fails closed and the

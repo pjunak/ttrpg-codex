@@ -14,46 +14,51 @@ import (
 var ErrInvalidConfig = errors.New("invalid HTTP API configuration")
 
 type Config struct {
-	Version           string
-	DB                *sql.DB
-	Logger            *slog.Logger
-	AddonLifecycle    AddonLifecycle
-	AdminAuthorizer   AdminAuthorizer
-	BrowserAddons     BrowserAddonSource
-	BrowserAuthorizer BrowserAuthorizer
-	Authentication    *sessionauth.Service
-	SecureCookies     bool
-	CampaignData      CampaignData
-	CampaignMutations CampaignMutations
-	CampaignWriter    CampaignMutationAuthorizer
-	Events            EventSource
-	EventAuthorizer   EventAuthorizer
-	EventHeartbeat    time.Duration
+	Version            string
+	DB                 *sql.DB
+	Logger             *slog.Logger
+	AddonLifecycle     AddonLifecycle
+	AdminAuthorizer    AdminAuthorizer
+	BrowserAddons      BrowserAddonSource
+	BrowserAuthorizer  BrowserAuthorizer
+	Authentication     *sessionauth.Service
+	SecureCookies      bool
+	CampaignData       CampaignData
+	CampaignMutations  CampaignMutations
+	CampaignWriter     CampaignMutationAuthorizer
+	CampaignTwins      CampaignTwins
+	CampaignTwinWriter CampaignMutationAuthorizer
+	Events             EventSource
+	EventAuthorizer    EventAuthorizer
+	EventHeartbeat     time.Duration
 }
 
 type server struct {
-	version           string
-	db                *sql.DB
-	logger            *slog.Logger
-	addonLifecycle    AddonLifecycle
-	adminAuthorizer   AdminAuthorizer
-	browserAddons     BrowserAddonSource
-	browserAuthorizer BrowserAuthorizer
-	authentication    *sessionauth.Service
-	secureCookies     bool
-	campaignData      CampaignData
-	campaignMutations CampaignMutations
-	campaignWriter    CampaignMutationAuthorizer
-	loginLimiter      *loginLimiter
-	events            EventSource
-	eventAuthorizer   EventAuthorizer
-	eventHeartbeat    time.Duration
+	version            string
+	db                 *sql.DB
+	logger             *slog.Logger
+	addonLifecycle     AddonLifecycle
+	adminAuthorizer    AdminAuthorizer
+	browserAddons      BrowserAddonSource
+	browserAuthorizer  BrowserAuthorizer
+	authentication     *sessionauth.Service
+	secureCookies      bool
+	campaignData       CampaignData
+	campaignMutations  CampaignMutations
+	campaignWriter     CampaignMutationAuthorizer
+	campaignTwins      CampaignTwins
+	campaignTwinWriter CampaignMutationAuthorizer
+	loginLimiter       *loginLimiter
+	events             EventSource
+	eventAuthorizer    EventAuthorizer
+	eventHeartbeat     time.Duration
 }
 
 func New(config Config) (http.Handler, error) {
 	if (config.AddonLifecycle == nil) != (config.AdminAuthorizer == nil) ||
 		(config.BrowserAddons == nil) != (config.BrowserAuthorizer == nil) ||
 		(config.CampaignMutations == nil) != (config.CampaignWriter == nil) ||
+		(config.CampaignTwins == nil) != (config.CampaignTwinWriter == nil) ||
 		(config.Events == nil) != (config.EventAuthorizer == nil) ||
 		config.EventHeartbeat < 0 || config.EventHeartbeat > 5*time.Minute ||
 		config.EventHeartbeat > 0 && config.EventHeartbeat < time.Second {
@@ -69,6 +74,7 @@ func New(config Config) (http.Handler, error) {
 		authentication: config.Authentication, secureCookies: config.SecureCookies,
 		campaignData:      config.CampaignData,
 		campaignMutations: config.CampaignMutations, campaignWriter: config.CampaignWriter,
+		campaignTwins: config.CampaignTwins, campaignTwinWriter: config.CampaignTwinWriter,
 		loginLimiter: newLoginLimiter(), events: config.Events,
 		eventAuthorizer: config.EventAuthorizer, eventHeartbeat: config.EventHeartbeat,
 	}
@@ -87,7 +93,7 @@ func New(config Config) (http.Handler, error) {
 	if s.events != nil {
 		s.registerEventRoutes(mux)
 	}
-	if s.campaignData != nil || s.campaignMutations != nil {
+	if s.campaignData != nil || s.campaignMutations != nil || s.campaignTwins != nil {
 		s.registerCampaignRoutes(mux)
 	}
 	handler := http.Handler(mux)

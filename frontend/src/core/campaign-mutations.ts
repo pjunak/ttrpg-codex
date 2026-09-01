@@ -5,6 +5,7 @@ import {
 } from "./campaign-data.js";
 
 const boundary = "POST /api/campaign/transactions";
+const twinBoundary = "POST /api/campaign/twins";
 const maximumReceiptBytes = 1024 * 1024;
 const receiptKeys = new Set([
   "contractVersion",
@@ -19,6 +20,14 @@ const resultKeys = new Set([
   "beforeRevision",
   "afterRevision",
   "deleted",
+]);
+const twinResultKeys = new Set([
+  "contractVersion",
+  "twinKey",
+  "commitId",
+  "occurredAt",
+  "results",
+  "collectionRevisions",
 ]);
 
 export type CampaignMutation =
@@ -52,6 +61,27 @@ export interface CampaignCommitReceipt {
   readonly collectionRevisions: Readonly<Partial<Record<CampaignCollectionName, number>>>;
 }
 
+export type CampaignTwinMutation =
+  | {
+    readonly action: "create" | "unlink";
+    readonly collection: CampaignCollectionName;
+    readonly sourceKey: string;
+    readonly sourceExpectedRevision: number;
+  }
+  | {
+    readonly action: "link";
+    readonly collection: CampaignCollectionName;
+    readonly sourceKey: string;
+    readonly sourceExpectedRevision: number;
+    readonly targetKey: string;
+    readonly targetExpectedRevision: number;
+  };
+
+export interface CampaignTwinResult extends Omit<CampaignCommitReceipt, "contractVersion"> {
+  readonly contractVersion: "campaign-twin-result.v1";
+  readonly twinKey: string;
+}
+
 export type CampaignMutationFetch = (
   input: string,
   init: RequestInit,
@@ -60,8 +90,8 @@ export type CampaignMutationFetch = (
 export class CampaignMutationHTTPError extends Error {
   override readonly name = "CampaignMutationHTTPError";
 
-  constructor(readonly status: number) {
-    super(`${boundary} returned ${status}`);
+  constructor(readonly status: number, readonly endpoint = boundary) {
+    super(`${endpoint} returned ${status}`);
   }
 }
 
@@ -80,6 +110,19 @@ export class CampaignMutationClient {
     signal: AbortSignal,
   ): Promise<CampaignCommitReceipt> {
     const operation = this.#tail.then(() => this.#commit(mutations, csrfToken, signal));
+    this.#tail = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return operation;
+  }
+
+  mutateTwin(
+    mutation: CampaignTwinMutation,
+    csrfToken: string,
+    signal: AbortSignal,
+  ): Promise<CampaignTwinResult> {
+    const operation = this.#tail.then(() => this.#mutateTwin(mutation, csrfToken, signal));
     this.#tail = operation.then(
       () => undefined,
       () => undefined,
@@ -127,6 +170,50 @@ export class CampaignMutationClient {
     }
     return parseCampaignCommitReceipt(value);
   }
+
+  async #mutateTwin(
+    mutation: CampaignTwinMutation,
+    csrfToken: string,
+    signal: AbortSignal,
+  ): Promise<CampaignTwinResult> {
+    signal.throwIfAborted();
+    if (csrfToken.length < 32 || mutation.sourceKey === "" ||
+      !positiveInteger(mutation.sourceExpectedRevision) ||
+      (mutation.action === "link" &&
+        (mutation.targetKey === "" || !positiveInteger(mutation.targetExpectedRevision)))) {
+      throw new BoundaryValidationError(twinBoundary, "twin mutation request is invalid");
+    }
+    const response = await this.#fetchMutation("/api/campaign/twins", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Codex-CSRF": csrfToken,
+      },
+      credentials: "same-origin",
+      cache: "no-store",
+      body: JSON.stringify({ contractVersion: "campaign-twin.v1", ...mutation }),
+      signal,
+    });
+    if (!response.ok) {
+      throw new CampaignMutationHTTPError(response.status, twinBoundary);
+    }
+    const contentType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
+    if (contentType !== "application/json") {
+      throw new BoundaryValidationError(twinBoundary, "response must be application/json");
+    }
+    const body = await response.text();
+    if (new TextEncoder().encode(body).byteLength > maximumReceiptBytes) {
+      throw new BoundaryValidationError(twinBoundary, "response exceeds 1 MiB");
+    }
+    let value: unknown;
+    try {
+      value = JSON.parse(body) as unknown;
+    } catch {
+      throw new BoundaryValidationError(twinBoundary, "response must be valid JSON");
+    }
+    return parseCampaignTwinResult(value);
+  }
 }
 
 export function parseCampaignCommitReceipt(value: unknown): CampaignCommitReceipt {
@@ -155,6 +242,29 @@ export function parseCampaignCommitReceipt(value: unknown): CampaignCommitReceip
     occurredAt: value["occurredAt"],
     results,
     collectionRevisions,
+  };
+}
+
+export function parseCampaignTwinResult(value: unknown): CampaignTwinResult {
+  if (!isRecord(value) || !hasOnlyKeys(value, twinResultKeys) ||
+    value["contractVersion"] !== "campaign-twin-result.v1" ||
+    typeof value["twinKey"] !== "string" || value["twinKey"].length === 0) {
+    throw new BoundaryValidationError(twinBoundary, "response must be an exact twin result");
+  }
+  const commit = parseCampaignCommitReceipt({
+    contractVersion: "campaign-commit.v1",
+    commitId: value["commitId"],
+    occurredAt: value["occurredAt"],
+    results: value["results"],
+    collectionRevisions: value["collectionRevisions"],
+  });
+  return {
+    contractVersion: "campaign-twin-result.v1",
+    twinKey: value["twinKey"],
+    commitId: commit.commitId,
+    occurredAt: commit.occurredAt,
+    results: commit.results,
+    collectionRevisions: commit.collectionRevisions,
   };
 }
 

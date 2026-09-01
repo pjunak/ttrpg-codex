@@ -90,9 +90,19 @@ Before one atomic SQLite transaction, the application service:
 - rechecks every requested and derived expected revision in the storage
   transaction, so a race rolls the complete plan back.
 
+Twin lifecycle is intentionally outside the generic record endpoint.
+`POST /api/campaign/twins` accepts the exact `campaign-twin.v1` create, link,
+or unlink contract. It requires a real DM who is also currently acting as DM,
+plus the session-bound CSRF token. Create uses a server-generated opaque key;
+link requires revisions for both existing records; unlink discovers and
+revision-checks the reciprocal record from the same snapshot. The application
+service enforces supported collections, opposite visibility, and reciprocal
+links, then writes both sides in one SQLite transaction. Generic campaign
+writes remain unable to edit `linkedTwinId`.
+
 The rewrite does not yet implement:
 
-- explicit twin create/link/unlink and enum replacement operations;
+- enum replacement operations;
 - reusable typed collection handles and core editors beyond campaign identity;
 - initial import publication, backup/restore, or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and

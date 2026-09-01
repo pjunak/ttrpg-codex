@@ -4,6 +4,7 @@ import {
   CampaignMutationClient,
   CampaignMutationHTTPError,
   parseCampaignCommitReceipt,
+  parseCampaignTwinResult,
   type CampaignMutationFetch,
 } from "../src/core/campaign-mutations.js";
 
@@ -34,6 +35,18 @@ describe("parseCampaignCommitReceipt", () => {
     { ...receipt, collectionRevisions: { private: 2 } },
   ])("rejects a malformed receipt %#", (value) => {
     expect(() => parseCampaignCommitReceipt(value)).toThrow(BoundaryValidationError);
+  });
+});
+
+describe("parseCampaignTwinResult", () => {
+  it("accepts a twin result built on the same commit receipt", () => {
+    const result = parseCampaignTwinResult({
+      ...receipt,
+      contractVersion: "campaign-twin-result.v1",
+      twinKey: "twin-alice",
+    });
+    expect(result.twinKey).toBe("twin-alice");
+    expect(result.results).toEqual(receipt.results);
   });
 });
 
@@ -86,6 +99,53 @@ describe("CampaignMutationClient", () => {
       operation: "delete", collection: "pets", key: "owl", expectedRevision: 1,
     }], "c".repeat(32), new AbortController().signal)).rejects.toEqual(
       new CampaignMutationHTTPError(409),
+    );
+  });
+
+  it("serializes explicit twin operations through the same write queue", async () => {
+    const calls: Array<{ input: string; init: RequestInit }> = [];
+    const client = new CampaignMutationClient(async (input, init) => {
+      calls.push({ input, init });
+      return jsonResponse({
+        ...receipt,
+        contractVersion: "campaign-twin-result.v1",
+        twinKey: "secret-town",
+      });
+    });
+    const result = await client.mutateTwin({
+      action: "link",
+      collection: "locations",
+      sourceKey: "town",
+      sourceExpectedRevision: 2,
+      targetKey: "secret-town",
+      targetExpectedRevision: 4,
+    }, "d".repeat(32), new AbortController().signal);
+
+    expect(result.twinKey).toBe("secret-town");
+    expect(calls[0]?.input).toBe("/api/campaign/twins");
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({
+      contractVersion: "campaign-twin.v1",
+      action: "link",
+      collection: "locations",
+      sourceKey: "town",
+      sourceExpectedRevision: 2,
+      targetKey: "secret-town",
+      targetExpectedRevision: 4,
+    });
+  });
+
+  it("rejects invalid twin revisions before crossing the boundary", async () => {
+    const client = new CampaignMutationClient(async () => {
+      throw new Error("fetch must not run");
+    });
+
+    await expect(client.mutateTwin({
+      action: "create",
+      collection: "characters",
+      sourceKey: "alice",
+      sourceExpectedRevision: 0,
+    }, "d".repeat(32), new AbortController().signal)).rejects.toThrow(
+      BoundaryValidationError,
     );
   });
 });
