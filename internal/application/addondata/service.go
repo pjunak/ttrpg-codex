@@ -19,7 +19,13 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/addondatastore"
 )
 
-const MaximumLifecycleIssues = 100
+const (
+	MaximumLifecycleIssues = 100
+	MaximumQueryConditions = 8
+	MaximumQueryDocuments  = 200
+	MaximumQueryScan       = 10_000
+	MaximumQueryValueBytes = 3 << 19
+)
 
 var (
 	ErrInvalidConfig       = errors.New("invalid add-on data service configuration")
@@ -35,6 +41,7 @@ var (
 type Repository interface {
 	Get(context.Context, string, datacontract.Kind, string, string) (addondatastore.Document, error)
 	List(context.Context, string, datacontract.Kind, string) ([]addondatastore.Document, error)
+	QueryPage(context.Context, string, datacontract.Kind, string, int64, int) ([]addondatastore.Document, error)
 	SnapshotAddon(context.Context, string) (addondatastore.Snapshot, error)
 	Transact(context.Context, addondatastore.Transaction) (addondatastore.Commit, error)
 }
@@ -70,6 +77,25 @@ type Mutation struct {
 type Transaction struct {
 	Access    Access
 	Mutations []Mutation
+}
+
+type QueryCondition struct {
+	Path   string
+	Equals json.RawMessage
+}
+
+type Query struct {
+	Access        Access
+	DataKind      datacontract.Kind
+	DataID        string
+	AfterPosition int64
+	Limit         int
+	Where         []QueryCondition
+}
+
+type QueryResult struct {
+	Documents    []addondatastore.Document
+	NextPosition *int64
 }
 
 type activeRegistry struct {
@@ -149,6 +175,79 @@ func (service *Service) List(
 		visible = append(visible, document)
 	}
 	return visible, nil
+}
+
+func (service *Service) Query(ctx context.Context, query Query) (QueryResult, error) {
+	service.mu.RLock()
+	defer service.mu.RUnlock()
+	if query.AfterPosition < -1 || query.Limit < 1 || query.Limit > MaximumQueryDocuments ||
+		len(query.Where) > MaximumQueryConditions {
+		return QueryResult{}, ErrInvalidRequest
+	}
+	description, err := service.authorizeDefinition(query.Access, query.DataKind, query.DataID)
+	if err != nil {
+		return QueryResult{}, err
+	}
+	conditions, err := prepareConditions(description, query.Where)
+	if err != nil {
+		return QueryResult{}, err
+	}
+	result := QueryResult{Documents: make([]addondatastore.Document, 0, query.Limit)}
+	after := query.AfterPosition
+	scanned := 0
+	valueBytes := 0
+	for scanned < MaximumQueryScan && len(result.Documents) < query.Limit {
+		pageLimit := min(addondatastore.MaximumPageDocuments, MaximumQueryScan-scanned)
+		page, err := service.repository.QueryPage(
+			ctx, query.Access.AddonID, query.DataKind, query.DataID, after, pageLimit,
+		)
+		if err != nil {
+			return QueryResult{}, err
+		}
+		if len(page) == 0 {
+			break
+		}
+		for index, document := range page {
+			previousPosition := after
+			after = document.Position
+			scanned++
+			if err := service.authorizeDocument(ctx, query.Access.Role, description, document); err != nil {
+				if errors.Is(err, ErrTargetNotFound) || errors.Is(err, ErrTargetReplaced) || errors.Is(err, ErrUnauthorized) {
+					continue
+				}
+				return QueryResult{}, err
+			}
+			matches, err := matchesConditions(document.Value, conditions)
+			if err != nil {
+				return QueryResult{}, err
+			}
+			if matches {
+				documentBytes := len(document.Key) + len(document.Value)
+				if len(result.Documents) > 0 && valueBytes+documentBytes > MaximumQueryValueBytes {
+					cursor := previousPosition
+					result.NextPosition = &cursor
+					return result, nil
+				}
+				result.Documents = append(result.Documents, document)
+				valueBytes += documentBytes
+			}
+			if len(result.Documents) == query.Limit {
+				if index+1 < len(page) || len(page) == pageLimit {
+					cursor := after
+					result.NextPosition = &cursor
+				}
+				break
+			}
+		}
+		if len(result.Documents) == query.Limit || len(page) < pageLimit {
+			break
+		}
+	}
+	if result.NextPosition == nil && scanned == MaximumQueryScan {
+		cursor := after
+		result.NextPosition = &cursor
+	}
+	return result, nil
 }
 
 func (service *Service) Transact(ctx context.Context, input Transaction) (addondatastore.Commit, error) {
@@ -514,6 +613,64 @@ func hasUniqueIndex(indexes []datacontract.Index) bool {
 		}
 	}
 	return false
+}
+
+type preparedCondition struct {
+	path      string
+	canonical string
+}
+
+func prepareConditions(
+	description datacontract.Description,
+	conditions []QueryCondition,
+) ([]preparedCondition, error) {
+	declared := make(map[string]struct{}, len(description.Indexes))
+	for _, index := range description.Indexes {
+		declared[index.Path] = struct{}{}
+	}
+	result := make([]preparedCondition, 0, len(conditions))
+	seen := make(map[string]struct{}, len(conditions))
+	for _, condition := range conditions {
+		if _, allowed := declared[condition.Path]; !allowed {
+			return nil, fmt.Errorf("%w: query path %q is not a declared index", ErrInvalidRequest, condition.Path)
+		}
+		if _, duplicate := seen[condition.Path]; duplicate || !json.Valid(condition.Equals) {
+			return nil, ErrInvalidRequest
+		}
+		seen[condition.Path] = struct{}{}
+		var value any
+		decoder := json.NewDecoder(strings.NewReader(string(condition.Equals)))
+		decoder.UseNumber()
+		if err := decoder.Decode(&value); err != nil {
+			return nil, ErrInvalidRequest
+		}
+		canonical, err := json.Marshal(value)
+		if err != nil {
+			return nil, ErrInvalidRequest
+		}
+		result = append(result, preparedCondition{path: condition.Path, canonical: string(canonical)})
+	}
+	return result, nil
+}
+
+func matchesConditions(body json.RawMessage, conditions []preparedCondition) (bool, error) {
+	for _, condition := range conditions {
+		value, found, err := jsonPointer(body, condition.path)
+		if err != nil {
+			return false, err
+		}
+		if !found {
+			return false, nil
+		}
+		canonical, err := json.Marshal(value)
+		if err != nil {
+			return false, err
+		}
+		if string(canonical) != condition.canonical {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func jsonPointer(body json.RawMessage, pointer string) (any, bool, error) {

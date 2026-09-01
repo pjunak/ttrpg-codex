@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -158,6 +159,82 @@ func TestUniqueIndexesAreEnforcedAcrossAtomicWrites(t *testing.T) {
 	documents, err := service.List(context.Background(), system, datacontract.Collection, "notes")
 	if err != nil || len(documents) != 0 {
 		t.Fatalf("conflicting transaction wrote documents: %+v, %v", documents, err)
+	}
+}
+
+func TestQueryIsBoundedPagedAndRestrictedToDeclaredIndexes(t *testing.T) {
+	t.Parallel()
+	service, _, _, _ := testService(t)
+	registry := testRegistry(t, "1.0.0", false)
+	activate(t, service, registry, generationOne)
+	system := Access{AddonID: "dm-tools", Generation: generationOne, Role: RoleSystem}
+	for _, item := range []struct{ id, title string }{{"one", "match"}, {"two", "other"}, {"three", "match"}} {
+		if _, err := service.Transact(context.Background(), Transaction{Access: system, Mutations: []Mutation{{
+			Kind: addondatastore.Put, DataKind: datacontract.Collection, DataID: "notes", Key: item.id,
+			Value: json.RawMessage(`{"id":"` + item.id + `","title":"` + item.title + `"}`),
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, err := service.Query(context.Background(), Query{
+		Access: system, DataKind: datacontract.Collection, DataID: "notes",
+		AfterPosition: -1, Limit: 1,
+		Where: []QueryCondition{{Path: "/title", Equals: json.RawMessage(`"match"`)}},
+	})
+	if err != nil || len(first.Documents) != 1 || first.Documents[0].Key != "one" || first.NextPosition == nil {
+		t.Fatalf("first query = %+v, %v", first, err)
+	}
+	second, err := service.Query(context.Background(), Query{
+		Access: system, DataKind: datacontract.Collection, DataID: "notes",
+		AfterPosition: *first.NextPosition, Limit: 2,
+		Where: []QueryCondition{{Path: "/title", Equals: json.RawMessage(`"match"`)}},
+	})
+	if err != nil || len(second.Documents) != 1 || second.Documents[0].Key != "three" || second.NextPosition != nil {
+		t.Fatalf("second query = %+v, %v", second, err)
+	}
+	_, err = service.Query(context.Background(), Query{
+		Access: system, DataKind: datacontract.Collection, DataID: "notes",
+		AfterPosition: -1, Limit: 10,
+		Where: []QueryCondition{{Path: "/undeclared", Equals: json.RawMessage(`true`)}},
+	})
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("undeclared index error = %v", err)
+	}
+}
+
+func TestQueryBoundsAggregateResponsePayload(t *testing.T) {
+	t.Parallel()
+	service, _, _, _ := testService(t)
+	registry := testRegistry(t, "1.0.0", false)
+	activate(t, service, registry, generationOne)
+	system := Access{AddonID: "dm-tools", Generation: generationOne, Role: RoleSystem}
+	largeTitle := strings.Repeat("x", 250_000)
+	for index := range 7 {
+		key := string(rune('a' + index))
+		body, err := json.Marshal(map[string]string{"id": key, "title": largeTitle})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Transact(context.Background(), Transaction{Access: system, Mutations: []Mutation{{
+			Kind: addondatastore.Put, DataKind: datacontract.Collection, DataID: "notes",
+			Key: key, Value: body,
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, err := service.Query(context.Background(), Query{
+		Access: system, DataKind: datacontract.Collection, DataID: "notes",
+		AfterPosition: -1, Limit: MaximumQueryDocuments,
+	})
+	if err != nil || len(first.Documents) != 6 || first.NextPosition == nil {
+		t.Fatalf("bounded query = %d documents, cursor %v, error %v", len(first.Documents), first.NextPosition, err)
+	}
+	second, err := service.Query(context.Background(), Query{
+		Access: system, DataKind: datacontract.Collection, DataID: "notes",
+		AfterPosition: *first.NextPosition, Limit: MaximumQueryDocuments,
+	})
+	if err != nil || len(second.Documents) != 1 || second.Documents[0].Key != "g" || second.NextPosition != nil {
+		t.Fatalf("continued query = %+v, %v", second, err)
 	}
 }
 

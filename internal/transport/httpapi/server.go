@@ -14,56 +14,60 @@ import (
 var ErrInvalidConfig = errors.New("invalid HTTP API configuration")
 
 type Config struct {
-	Version            string
-	DB                 *sql.DB
-	Logger             *slog.Logger
-	AddonLifecycle     AddonLifecycle
-	AdminAuthorizer    AdminAuthorizer
-	BrowserAddons      BrowserAddonSource
-	BrowserAuthorizer  BrowserAuthorizer
-	Authentication     *sessionauth.Service
-	SecureCookies      bool
-	CampaignData       CampaignData
-	CampaignMutations  CampaignMutations
-	CampaignWriter     CampaignMutationAuthorizer
-	CampaignTwins      CampaignTwins
-	CampaignTwinWriter CampaignMutationAuthorizer
-	CampaignEnums      CampaignEnums
-	CampaignEnumWriter CampaignMutationAuthorizer
-	BackupArchives     BackupArchives
-	BackupAuthorizer   AdminAuthorizer
-	Media              MediaAssets
-	MediaAuthorizer    MediaAuthorizer
-	Events             EventSource
-	EventAuthorizer    EventAuthorizer
-	EventHeartbeat     time.Duration
+	Version             string
+	DB                  *sql.DB
+	Logger              *slog.Logger
+	AddonLifecycle      AddonLifecycle
+	AdminAuthorizer     AdminAuthorizer
+	BrowserAddons       BrowserAddonSource
+	BrowserAuthorizer   BrowserAuthorizer
+	Authentication      *sessionauth.Service
+	SecureCookies       bool
+	CampaignData        CampaignData
+	CampaignMutations   CampaignMutations
+	CampaignWriter      CampaignMutationAuthorizer
+	CampaignTwins       CampaignTwins
+	CampaignTwinWriter  CampaignMutationAuthorizer
+	CampaignEnums       CampaignEnums
+	CampaignEnumWriter  CampaignMutationAuthorizer
+	BackupArchives      BackupArchives
+	BackupAuthorizer    AdminAuthorizer
+	Media               MediaAssets
+	MediaAuthorizer     MediaAuthorizer
+	AddonData           AddonData
+	AddonDataAuthorizer AddonDataAuthorizer
+	Events              EventSource
+	EventAuthorizer     EventAuthorizer
+	EventHeartbeat      time.Duration
 }
 
 type server struct {
-	version            string
-	db                 *sql.DB
-	logger             *slog.Logger
-	addonLifecycle     AddonLifecycle
-	adminAuthorizer    AdminAuthorizer
-	browserAddons      BrowserAddonSource
-	browserAuthorizer  BrowserAuthorizer
-	authentication     *sessionauth.Service
-	secureCookies      bool
-	campaignData       CampaignData
-	campaignMutations  CampaignMutations
-	campaignWriter     CampaignMutationAuthorizer
-	campaignTwins      CampaignTwins
-	campaignTwinWriter CampaignMutationAuthorizer
-	campaignEnums      CampaignEnums
-	campaignEnumWriter CampaignMutationAuthorizer
-	backupArchives     BackupArchives
-	backupAuthorizer   AdminAuthorizer
-	media              MediaAssets
-	mediaAuthorizer    MediaAuthorizer
-	loginLimiter       *loginLimiter
-	events             EventSource
-	eventAuthorizer    EventAuthorizer
-	eventHeartbeat     time.Duration
+	version             string
+	db                  *sql.DB
+	logger              *slog.Logger
+	addonLifecycle      AddonLifecycle
+	adminAuthorizer     AdminAuthorizer
+	browserAddons       BrowserAddonSource
+	browserAuthorizer   BrowserAuthorizer
+	authentication      *sessionauth.Service
+	secureCookies       bool
+	campaignData        CampaignData
+	campaignMutations   CampaignMutations
+	campaignWriter      CampaignMutationAuthorizer
+	campaignTwins       CampaignTwins
+	campaignTwinWriter  CampaignMutationAuthorizer
+	campaignEnums       CampaignEnums
+	campaignEnumWriter  CampaignMutationAuthorizer
+	backupArchives      BackupArchives
+	backupAuthorizer    AdminAuthorizer
+	media               MediaAssets
+	mediaAuthorizer     MediaAuthorizer
+	addonData           AddonData
+	addonDataAuthorizer AddonDataAuthorizer
+	loginLimiter        *loginLimiter
+	events              EventSource
+	eventAuthorizer     EventAuthorizer
+	eventHeartbeat      time.Duration
 }
 
 func New(config Config) (http.Handler, error) {
@@ -74,6 +78,7 @@ func New(config Config) (http.Handler, error) {
 		(config.CampaignEnums == nil) != (config.CampaignEnumWriter == nil) ||
 		(config.BackupArchives == nil) != (config.BackupAuthorizer == nil) ||
 		(config.Media == nil) != (config.MediaAuthorizer == nil) ||
+		(config.AddonData == nil) != (config.AddonDataAuthorizer == nil) ||
 		(config.Events == nil) != (config.EventAuthorizer == nil) ||
 		config.EventHeartbeat < 0 || config.EventHeartbeat > 5*time.Minute ||
 		config.EventHeartbeat > 0 && config.EventHeartbeat < time.Second {
@@ -93,6 +98,7 @@ func New(config Config) (http.Handler, error) {
 		campaignEnums: config.CampaignEnums, campaignEnumWriter: config.CampaignEnumWriter,
 		backupArchives: config.BackupArchives, backupAuthorizer: config.BackupAuthorizer,
 		media: config.Media, mediaAuthorizer: config.MediaAuthorizer,
+		addonData: config.AddonData, addonDataAuthorizer: config.AddonDataAuthorizer,
 		loginLimiter: newLoginLimiter(), events: config.Events,
 		eventAuthorizer: config.EventAuthorizer, eventHeartbeat: config.EventHeartbeat,
 	}
@@ -119,6 +125,9 @@ func New(config Config) (http.Handler, error) {
 	}
 	if s.media != nil {
 		s.registerMediaRoutes(mux)
+	}
+	if s.addonData != nil {
+		s.registerAddonDataRoutes(mux)
 	}
 	handler := http.Handler(mux)
 	if s.authentication != nil {

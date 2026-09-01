@@ -23,6 +23,7 @@ const (
 	MaximumOperations    = 256
 	MaximumDocumentBytes = 256 << 10
 	MaximumPayloadBytes  = 2 << 20
+	MaximumPageDocuments = 500
 )
 
 var (
@@ -178,6 +179,47 @@ func (store *Store) List(
 		return nil, ErrInvalidTransaction
 	}
 	return listDocuments(ctx, store.database, addonID, kind, dataID)
+}
+
+// QueryPage returns one stable insertion-order page after the supplied
+// position. Callers own visibility filtering and higher-level declared-index
+// predicates; this storage boundary never accepts raw SQL fragments.
+func (store *Store) QueryPage(
+	ctx context.Context,
+	addonID string,
+	kind datacontract.Kind,
+	dataID string,
+	afterPosition int64,
+	limit int,
+) ([]Document, error) {
+	if !validDataIdentity(addonID, kind, dataID) || afterPosition < -1 ||
+		limit < 1 || limit > MaximumPageDocuments {
+		return nil, ErrInvalidTransaction
+	}
+	rows, err := store.database.QueryContext(ctx, `
+		SELECT addon_id, data_kind, data_id, document_key, position, body_json,
+		       schema_version, schema_sha256, revision, created_at, updated_at,
+		       target_created_at
+		FROM addon_documents
+		WHERE addon_id = ? AND data_kind = ? AND data_id = ? AND position > ?
+		ORDER BY position, document_key
+		LIMIT ?`, addonID, kind, dataID, afterPosition, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query add-on document page: %w", err)
+	}
+	defer rows.Close()
+	result := make([]Document, 0, limit)
+	for rows.Next() {
+		document, err := scanDocument(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, document)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate add-on document page: %w", err)
+	}
+	return result, nil
 }
 
 func (store *Store) State(
@@ -748,8 +790,10 @@ func nextPosition(
 ) (int64, error) {
 	var position int64
 	if err := transaction.QueryRowContext(ctx, `
-		SELECT coalesce(max(position), -1) + 1 FROM addon_documents
-		WHERE addon_id = ? AND data_kind = ? AND data_id = ?`, addonID, kind, dataID,
+		UPDATE addon_data_sets
+		SET next_position = next_position + 1
+		WHERE addon_id = ? AND data_kind = ? AND data_id = ?
+		RETURNING next_position - 1`, addonID, kind, dataID,
 	).Scan(&position); err != nil {
 		return 0, fmt.Errorf("allocate add-on document position: %w", err)
 	}

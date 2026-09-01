@@ -128,6 +128,48 @@ func TestStoreKeepsTombstoneRevisionAndStableOrdering(t *testing.T) {
 	}
 }
 
+func TestQueryPageUsesExclusiveStablePositionCursor(t *testing.T) {
+	t.Parallel()
+	store, _, _ := testStore(t)
+	definition := testDefinition(datacontract.Collection, "notes", datacontract.VisibilityPublic)
+	seed(t, store, definition, "first", `{"id":"first"}`, events.AudiencePublic)
+	seed(t, store, definition, "second", `{"id":"second"}`, events.AudiencePublic)
+	seed(t, store, definition, "third", `{"id":"third"}`, events.AudiencePublic)
+
+	first, err := store.QueryPage(context.Background(), "dm-tools", datacontract.Collection, "notes", -1, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.QueryPage(context.Background(), "dm-tools", datacontract.Collection, "notes", first[1].Position, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 2 || first[0].Key != "first" || first[1].Key != "second" ||
+		len(second) != 1 || second[0].Key != "third" {
+		t.Fatalf("pages = %+v then %+v", first, second)
+	}
+	if _, err := store.Transact(context.Background(), Transaction{
+		AddonID: "dm-tools", GenerationID: testGeneration, ActorID: "worker:dm-tools",
+		Mutations: []Mutation{{
+			Kind: Delete, Definition: definition, Key: "third",
+			ExpectedRevision: 1, Audience: events.AudiencePublic,
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	seed(t, store, definition, "fourth", `{"id":"fourth"}`, events.AudiencePublic)
+	afterDeletion, err := store.QueryPage(
+		context.Background(), "dm-tools", datacontract.Collection, "notes", second[0].Position, 2,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(afterDeletion) != 1 || afterDeletion[0].Key != "fourth" ||
+		afterDeletion[0].Position <= second[0].Position {
+		t.Fatalf("cursor position was reused after deletion: %+v", afterDeletion)
+	}
+}
+
 func TestSnapshotPreservesMaterializedEmptySets(t *testing.T) {
 	t.Parallel()
 	store, _, _ := testStore(t)
@@ -214,8 +256,8 @@ func testStore(t *testing.T) (*Store, *events.Broker, *sql.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.CurrentVersion != 9 {
-		t.Fatalf("migration version = %d, want 9", result.CurrentVersion)
+	if result.CurrentVersion != 10 {
+		t.Fatalf("migration version = %d, want 10", result.CurrentVersion)
 	}
 	now := func() time.Time { return time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC) }
 	broker, err := events.New(events.Config{DB: database, Now: now})
