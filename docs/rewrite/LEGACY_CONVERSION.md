@@ -57,17 +57,21 @@ Run once per website into distinct new directories:
 go run ./cmd/codex-convert-v1 `
   -in C:/backups/site-one-v1.zip `
   -out C:/migration/site-one-rewrite `
+  -report C:/migration/site-one-conversion-report.json `
   -addon-package ../addon-dm-tools/dist/dm-tools-3.0.0.zip `
   -addon-package ../addon-dnd-character-sheets/dist/dnd-sheets-3.0.0.zip
 
 go run ./cmd/codex-convert-v1 `
   -in C:/backups/site-two-v1.zip `
   -out C:/migration/site-two-rewrite `
+  -report C:/migration/site-two-conversion-report.json `
   -addon-package ../addon-dm-tools/dist/dm-tools-3.0.0.zip `
   -addon-package ../addon-dnd-character-sheets/dist/dnd-sheets-3.0.0.zip
 ```
 
-The command prints a `codex-v1-conversion-report.v3` JSON document. Its media
+The command prints a `codex-v1-conversion-report.v3` JSON document and, when
+`-report` is supplied, creates the same document at that new path without
+overwriting an existing file. Its media
 section separates imported source files and bindings, rewritten records, and
 discarded generated tiles. Its add-on section records target package hashes,
 document counts, stripped core records, imported source files, and any embedded

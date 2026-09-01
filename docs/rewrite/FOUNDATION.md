@@ -34,6 +34,7 @@ go build ./cmd/codex
 go run ./cmd/codex-addon-inspect path/to/addon.zip
 go run ./cmd/codex-maintenance verify -in path/to/codex-backup.zip
 go run ./cmd/codex-convert-v1 -in path/to/v1-ui-backup.zip -out path/to/fresh-data `
+  -report path/to/conversion-report.json `
   -addon-package path/to/dm-tools-v3.zip -addon-package path/to/dnd-sheets-v3.zip
 ```
 

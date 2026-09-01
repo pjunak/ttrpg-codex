@@ -59,11 +59,13 @@ Convert each website independently. The output directory must not exist:
 go run ./cmd/codex-convert-v1 `
   -in D:\backups\site-a-v1.zip `
   -out D:\converted\site-a `
+  -report D:\converted\site-a-conversion-report.json `
   -addon-package ..\addon-dm-tools\dist\dm-tools-3.0.0.zip `
   -addon-package ..\addon-dnd-character-sheets\dist\dnd-sheets-3.0.0.zip
 ```
 
-Read the JSON report. Confirm the input hash, imported collection counts, media
+Read the JSON report printed to the terminal and saved at the requested new
+`-report` path. Confirm the input hash, imported collection counts, media
 counts, package hashes, and every deferred/unknown entry. Generated map tiles
 are deliberately discarded. The source ZIP is never modified.
 
