@@ -96,11 +96,11 @@ Activation review reports bounded stable issues:
 - `INVALID_STORED_DOCUMENT` when current JSON fails the target registry.
 
 The normal activation path cannot bypass these checks. It starts the candidate
-runtime while that generation still has no data authority, publishes its
-service routing, then begins a short data transition. During the transition,
-calls wait. The package manager commits its active pointer and commits the
-data transition; a failed durable update rolls both routing and data authority
-back to the previous generation.
+runtime while that generation still has no data authority, then begins a short
+data transition before publishing its service routing. Calls made through the
+new route wait at the data boundary. The package manager commits its active
+pointer and data transition together; a failed durable update rolls both
+routing and data authority back to the previous generation.
 
 Startup recovery repeats package verification and schema review before it
 grants data authority. Disable and shutdown revoke data authority before
@@ -127,13 +127,21 @@ shutdown aborts both integrated requests and in-flight iframe commands. Safe
 HTTP status classes cross the iframe boundary, while server-derived details do
 not.
 
+Native workers receive equivalent versioned `host/data.get`,
+`host/data.query`, and `host/data.transact` JSON-RPC methods. Their dispatcher
+accepts only collection and extension IDs declared by that worker's verified
+package, resolves host-issued request lineage instead of trusting wire actor
+metadata, and then applies the same generation, role, schema, target, and
+revision checks as browser requests. Expected failures use stable RPC kinds;
+database and schema internals stay in host diagnostics. The Go worker SDK
+provides typed references, query and mutation models, strict response parsing,
+and metadata propagation helpers for these methods.
+
 ## Remaining public surface
 
 The package/storage/application contract and package lifecycle integration are
 implemented. The following still sit above this boundary:
 
-- bounded `host/data.get`, `host/data.query`, and `host/data.transact` worker
-  methods with exact permission-resource checks;
 - reviewed `addon/migration.plan` and `addon/migration.apply` orchestration;
 - the one-shot v1 conversion mapping from the two backed-up websites, using
   the finished first-party v3 package schemas rather than permanent legacy

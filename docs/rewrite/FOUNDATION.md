@@ -41,7 +41,8 @@ Start the two development processes separately:
 
 ```powershell
 $env:CODEX_DM_PASSWORD = '<choose-a-local-development-password>'
-go run ./cmd/codex -listen 127.0.0.1:3001 -data-dir data/rewrite
+go run ./cmd/codex -listen 127.0.0.1:3001 -data-dir data/rewrite `
+  -locale en -time-zone Europe/Prague
 npm --prefix frontend run dev
 ```
 
@@ -205,8 +206,9 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   requires an explicit
   `CODEX_DM_PASSWORD`, accepts optional `CODEX_PLAYER_PASSWORD`, and has no
   default credential. Production TLS deployments must pass `-secure-cookies`.
-  Native worker capability remains unavailable until the worker-to-host
-  authorization handlers are composed; UI-only generations can recover now.
+  It also composes supervised native workers with generation-bound add-on data
+  handlers. `-locale` and `-time-zone` define the BCP 47 locale and IANA time
+  zone reported in the worker handshake; their defaults are `en` and `UTC`.
 
 These are foundation contracts, not a compatibility claim. Persistent
 credentials, add-on-owned one-shot conversion, coordinated dependent disable,

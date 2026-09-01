@@ -30,6 +30,7 @@ func TestComposeHostWiresAuthenticatedBrowserGraphAndEvents(t *testing.T) {
 	dataDirectory := t.TempDir()
 	runtime, err := composeHost(
 		ctx, db, dataDirectory, "dragon-master", "party-member", false,
+		"en", "Europe/Prague",
 		slog.New(slog.DiscardHandler),
 	)
 	if err != nil {

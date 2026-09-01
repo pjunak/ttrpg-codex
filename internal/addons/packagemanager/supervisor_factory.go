@@ -22,7 +22,17 @@ type SupervisorFactoryConfig struct {
 	ShutdownTimeout time.Duration
 	MaxStderrBytes  int
 	Logger          *slog.Logger
-	Handler         workerrpc.RequestHandler
+	HandlerFactory  WorkerHandlerFactory
+}
+
+type WorkerHandlerFactory interface {
+	HandlerFor(RuntimeSpec) (workerrpc.RequestHandler, error)
+}
+
+type WorkerHandlerFactoryFunc func(RuntimeSpec) (workerrpc.RequestHandler, error)
+
+func (factory WorkerHandlerFactoryFunc) HandlerFor(spec RuntimeSpec) (workerrpc.RequestHandler, error) {
+	return factory(spec)
 }
 
 type SupervisorFactory struct {
@@ -31,7 +41,7 @@ type SupervisorFactory struct {
 
 func NewSupervisorFactory(config SupervisorFactoryConfig) (*SupervisorFactory, error) {
 	if config.Host.Version == "" || config.Host.Locale == "" || config.Host.TimeZone == "" ||
-		config.ProtocolVersion == "" || config.Handler == nil {
+		config.ProtocolVersion == "" || config.HandlerFactory == nil {
 		return nil, fmt.Errorf("%w: supervisor host, protocol, and handler are required", ErrInvalidConfig)
 	}
 	if config.Target == "" {
@@ -60,6 +70,13 @@ func (factory *SupervisorFactory) New(spec RuntimeSpec) (Runtime, error) {
 		return nil, fmt.Errorf("%w: package has no worker for %s", ErrRuntimeUnsupported, factory.config.Target)
 	}
 	executable := filepath.Join(spec.RootDirectory, filepath.FromSlash(entrypoint))
+	handler, err := factory.config.HandlerFactory.HandlerFor(spec)
+	if err != nil {
+		return nil, fmt.Errorf("configure worker host methods: %w", err)
+	}
+	if handler == nil {
+		return nil, fmt.Errorf("%w: worker handler factory returned nil", ErrInvalidConfig)
+	}
 	grants := make([]any, len(spec.GrantedPermissions))
 	for index, permission := range spec.GrantedPermissions {
 		grants[index] = permission
@@ -83,7 +100,7 @@ func (factory *SupervisorFactory) New(spec RuntimeSpec) (Runtime, error) {
 		ShutdownTimeout:  factory.config.ShutdownTimeout,
 		MaxStderrBytes:   factory.config.MaxStderrBytes,
 		Logger:           factory.config.Logger,
-		Handler:          factory.config.Handler,
+		Handler:          handler,
 	})
 }
 

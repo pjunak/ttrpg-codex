@@ -18,6 +18,9 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/addons/requestcontext"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
+	"github.com/pjunak/ttrpg-codex/internal/addons/workerbroker"
+	"github.com/pjunak/ttrpg-codex/internal/addons/workerhost"
+	"github.com/pjunak/ttrpg-codex/internal/addons/workersupervisor"
 	"github.com/pjunak/ttrpg-codex/internal/application/addondata"
 	"github.com/pjunak/ttrpg-codex/internal/application/campaigndata"
 	applicationmedia "github.com/pjunak/ttrpg-codex/internal/application/media"
@@ -32,6 +35,7 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/mediastore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
 	"github.com/pjunak/ttrpg-codex/internal/transport/httpapi"
+	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
 )
 
 const version = "2.0.0-dev"
@@ -59,6 +63,8 @@ func run() error {
 	listenAddress := flag.String("listen", "127.0.0.1:3001", "HTTP listen address")
 	dataDirectory := flag.String("data-dir", filepath.Join("data", "rewrite"), "rewrite data directory")
 	secureCookies := flag.Bool("secure-cookies", false, "mark session cookies Secure (required behind production TLS)")
+	locale := flag.String("locale", "en", "BCP 47 locale reported to add-on workers")
+	timeZone := flag.String("time-zone", "UTC", "IANA time zone reported to add-on workers")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -92,7 +98,7 @@ func run() error {
 	}
 	runtime, err := composeHost(
 		ctx, db, *dataDirectory, dmPassword, os.Getenv("CODEX_PLAYER_PASSWORD"),
-		*secureCookies, logger,
+		*secureCookies, *locale, *timeZone, logger,
 	)
 	if err != nil {
 		return err
@@ -143,6 +149,8 @@ func composeHost(
 	dmPassword string,
 	playerPassword string,
 	secureCookies bool,
+	locale string,
+	timeZone string,
 	logger *slog.Logger,
 ) (*hostRuntime, error) {
 	if logger == nil {
@@ -213,12 +221,37 @@ func composeHost(
 	if err != nil {
 		return nil, fmt.Errorf("configure service broker: %w", err)
 	}
+	runtimeFactory, err := packagemanager.NewSupervisorFactory(packagemanager.SupervisorFactoryConfig{
+		Host: workersupervisor.HostInfo{
+			Version: version, Locale: locale, TimeZone: timeZone,
+		},
+		ProtocolVersion: workerProtocolVersion,
+		HandlerFactory: packagemanager.WorkerHandlerFactoryFunc(func(
+			spec packagemanager.RuntimeSpec,
+		) (workerrpc.RequestHandler, error) {
+			return workerhost.New(workerhost.Config{
+				AddonID: spec.Identity.AddonID, Generation: spec.Identity.Generation,
+				Manifest: spec.Manifest, Data: addonData, ContextResolver: requestContexts,
+				OnInternalError: func(invocation workerbroker.Invocation, cause error) {
+					logger.Error("worker host method failed",
+						"addonId", invocation.AddonID, "generationId", invocation.Generation,
+						"method", invocation.Method, "error", cause,
+					)
+				},
+			})
+		}),
+		Logger: logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("configure native worker runtime: %w", err)
+	}
 	addons, err := packagemanager.New(packagemanager.Config{
 		DB: db, PackageDirectory: filepath.Join(dataDirectory, "addons"),
 		Inspector: inspector, Broker: serviceBroker, DataLifecycle: addonData,
-		HostVersion: hostCompatibilityVersion, AddonAPIVersion: addonAPIVersion,
+		RuntimeFactory: runtimeFactory,
+		HostVersion:    hostCompatibilityVersion, AddonAPIVersion: addonAPIVersion,
 		WorkerProtocolVersion: workerProtocolVersion,
-		AvailableCapabilities: []string{"ui.contributions"},
+		AvailableCapabilities: []string{"ui.contributions", "worker.native"},
 		EventPublisher:        eventBroker, Logger: logger,
 	})
 	if err != nil {

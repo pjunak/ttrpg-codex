@@ -607,6 +607,13 @@ transaction.
 | Worker -> host | `host/http.fetch` | Perform reviewed allowlisted outbound HTTP |
 | Worker -> host | `host/progress.report` | Report bounded job progress |
 
+The implemented data methods use `host-data-get.v1`, `host-data-query.v1`, and
+`host-data-transaction.v1` request contracts. Workers must propagate the
+host-issued `Meta` from the service or job request that caused the operation;
+invented actor or generation metadata is rejected. Go workers can use
+`workerrpc.NewAddonDataClient(peer)` instead of constructing these envelopes
+by hand.
+
 Methods are independently versioned in the negotiated capability set. New
 optional methods may be added without changing the framing protocol.
 

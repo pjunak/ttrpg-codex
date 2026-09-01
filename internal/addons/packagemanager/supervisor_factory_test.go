@@ -23,14 +23,18 @@ func TestSupervisorFactorySelectsExactNativeTarget(t *testing.T) {
 	if err := os.WriteFile(executable, []byte("worker"), 0o750); err != nil {
 		t.Fatal(err)
 	}
+	var handlerSpec RuntimeSpec
 	factory, err := NewSupervisorFactory(SupervisorFactoryConfig{
 		Host: workersupervisor.HostInfo{
 			Version: "2.0.0", Locale: "en", TimeZone: "Europe/Prague",
 		},
 		ProtocolVersion: "1.0.0",
 		Target:          "windows-amd64",
-		Handler: workerrpc.RequestHandlerFunc(func(context.Context, workerrpc.Request) (any, error) {
-			return nil, nil
+		HandlerFactory: WorkerHandlerFactoryFunc(func(spec RuntimeSpec) (workerrpc.RequestHandler, error) {
+			handlerSpec = spec
+			return workerrpc.RequestHandlerFunc(func(context.Context, workerrpc.Request) (any, error) {
+				return nil, nil
+			}), nil
 		}),
 	})
 	if err != nil {
@@ -56,6 +60,48 @@ func TestSupervisorFactorySelectsExactNativeTarget(t *testing.T) {
 	if snapshot := runtime.Snapshot(); snapshot.Identity != identity || snapshot.State != workersupervisor.StateCreated {
 		t.Fatalf("factory runtime snapshot = %+v", snapshot)
 	}
+	if handlerSpec.Identity != identity || handlerSpec.RootDirectory != root {
+		t.Fatalf("handler spec = %+v", handlerSpec)
+	}
+}
+
+func TestSupervisorFactoryFailsWhenGenerationHandlerCannotBeBuilt(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	executable := filepath.Join(root, "worker", "windows-amd64", "addon.exe")
+	if err := os.MkdirAll(filepath.Dir(executable), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(executable, []byte("worker"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	want := errors.New("data dispatcher unavailable")
+	factory, err := NewSupervisorFactory(SupervisorFactoryConfig{
+		Host:            workersupervisor.HostInfo{Version: "2.0.0", Locale: "en", TimeZone: "UTC"},
+		ProtocolVersion: "1.0.0", Target: "windows-amd64",
+		HandlerFactory: WorkerHandlerFactoryFunc(func(RuntimeSpec) (workerrpc.RequestHandler, error) {
+			return nil, want
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = factory.New(RuntimeSpec{
+		Identity: workersupervisor.Identity{
+			AddonID: "engine-addon", Version: "1.0.0", Generation: "generation-1",
+		},
+		RootDirectory: root,
+		Manifest: packageinspect.Manifest{Runtime: &packageinspect.Runtime{
+			Worker: &packageinspect.WorkerRuntime{
+				Type: "native", Entrypoints: map[string]string{
+					"windows-amd64": "worker/windows-amd64/addon.exe",
+				},
+			},
+		}},
+	})
+	if !errors.Is(err, want) {
+		t.Fatalf("handler factory error = %v", err)
+	}
 }
 
 func TestSupervisorFactoryRejectsUnsupportedWorkerProfileAndTarget(t *testing.T) {
@@ -67,8 +113,10 @@ func TestSupervisorFactoryRejectsUnsupportedWorkerProfileAndTarget(t *testing.T)
 		},
 		ProtocolVersion: "1.0.0",
 		Target:          "windows-amd64",
-		Handler: workerrpc.RequestHandlerFunc(func(context.Context, workerrpc.Request) (any, error) {
-			return nil, nil
+		HandlerFactory: WorkerHandlerFactoryFunc(func(RuntimeSpec) (workerrpc.RequestHandler, error) {
+			return workerrpc.RequestHandlerFunc(func(context.Context, workerrpc.Request) (any, error) {
+				return nil, nil
+			}), nil
 		}),
 	})
 	if err != nil {

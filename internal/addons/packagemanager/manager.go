@@ -279,6 +279,14 @@ func (manager *Manager) activateLocked(
 			_ = nextRuntime.Shutdown(context.Background())
 		}
 	}()
+	dataTransition, err := manager.dataLifecycle.BeginActivation(
+		ctx, plan.AddonID, plan.GenerationID, report.DataRegistry(),
+	)
+	if err != nil {
+		_ = manager.store.recordFailure(ctx, plan.AddonID, plan.GenerationID, "activation-failed", err)
+		return ActivationResult{}, fmt.Errorf("%w: prepare data generation: %v", ErrActivationFailed, err)
+	}
+	defer dataTransition.Rollback()
 	catalogChanged, err := manager.publishServices(ctx, report, generation, nextRuntime, previousID)
 	if err != nil {
 		var rollbackErr error
@@ -289,16 +297,6 @@ func (manager *Manager) activateLocked(
 		_ = manager.store.recordFailure(ctx, plan.AddonID, plan.GenerationID, "activation-failed", failure)
 		return ActivationResult{}, fmt.Errorf("%w: publish services: %v", ErrActivationFailed, failure)
 	}
-	dataTransition, err := manager.dataLifecycle.BeginActivation(
-		ctx, plan.AddonID, plan.GenerationID, report.DataRegistry(),
-	)
-	if err != nil {
-		rollbackErr := manager.restoreServices(ctx, plan.AddonID, previous, hasPrevious, plan.GenerationID)
-		failure := errors.Join(err, rollbackErr)
-		_ = manager.store.recordFailure(ctx, plan.AddonID, plan.GenerationID, "activation-failed", failure)
-		return ActivationResult{}, fmt.Errorf("%w: prepare data generation: %v", ErrActivationFailed, failure)
-	}
-	defer dataTransition.Rollback()
 	newState, err := manager.store.setActive(
 		ctx, plan.AddonID, plan.GenerationID, plan.ExpectedStateRevision,
 		plan.GrantedPermissionIDs, eventKind, reviewID,
