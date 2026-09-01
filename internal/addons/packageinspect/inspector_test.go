@@ -192,7 +192,7 @@ func TestInspectFileRejectsInvalidManifestAndMissingDeclaration(t *testing.T) {
 		}
 		manifest["contributions"] = []any{map[string]any{
 			"id": "planner.route", "surface": "route", "label": "Planner",
-			"requires": []string{"ui.contributions"},
+			"requires": []string{"ui.contributions"}, "config": map[string]any{"path": "planner"},
 		}}
 		body, err := json.Marshal(manifest)
 		if err != nil {

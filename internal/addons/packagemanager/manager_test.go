@@ -750,7 +750,7 @@ func TestBrowserGraphProjectsRecoveredUIGenerationsAndChangesOnReload(t *testing
 			},
 			{
 				"id": "unavailable.route", "surface": "route", "label": "Unavailable",
-				"requires": []string{"ui.unavailable"},
+				"requires": []string{"ui.unavailable"}, "config": map[string]any{"path": "unavailable"},
 			},
 			{"id": "alignment.kind", "surface": "kind", "label": "Alignment"},
 		},
@@ -1220,8 +1220,8 @@ func testDatabase(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.CurrentVersion != 4 {
-		t.Fatalf("migration version = %d, want 4", result.CurrentVersion)
+	if result.CurrentVersion != 5 {
+		t.Fatalf("migration version = %d, want 5", result.CurrentVersion)
 	}
 	return db
 }

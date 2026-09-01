@@ -50,6 +50,11 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
 
 - The Go process opens SQLite with foreign keys, WAL, a bounded busy timeout,
   defensive settings, and numbered checksum-verified migrations.
+- Migration 0005 and the campaign record store preserve legacy list/keyed
+  shapes, opaque record JSON, stable IDs, list order, and absent-versus-empty
+  collection state. Optimistic record revisions, audit rows, collection
+  invalidation, and SSE publication share one transaction. See
+  [`CORE_DATA.md`](CORE_DATA.md).
 - The HTTP boundary exposes no-store health and version responses. Its add-on
   administration routes require both a lifecycle service and an administrator
   authorizer at composition time; partial configuration fails closed and the

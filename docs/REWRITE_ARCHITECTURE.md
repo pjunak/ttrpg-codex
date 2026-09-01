@@ -148,6 +148,10 @@ short and checkpoint health must be observable.
 - A monotonic change log supports SSE replay, cache invalidation, and support
   diagnostics.
 
+The implemented compatibility-first record foundation and its remaining
+domain/application boundaries are documented in
+[`rewrite/CORE_DATA.md`](rewrite/CORE_DATA.md).
+
 No add-on owns database migrations against host tables. Core schema migrations
 belong to the host. Add-on collection migrations use the supervised v3 data
 API and remain rollback-capable.

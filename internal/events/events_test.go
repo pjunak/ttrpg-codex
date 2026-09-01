@@ -109,6 +109,62 @@ func TestBrokerRejectsInvalidPublications(t *testing.T) {
 	}
 }
 
+func TestBrokerAppendsInsideCallerTransactionAndNotifiesOnlyAfterCommit(t *testing.T) {
+	t.Parallel()
+	broker := testBroker(t, Config{})
+	subscription, err := broker.Subscribe(AudiencePublic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer subscription.Close()
+
+	tx, err := broker.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	event, err := broker.Append(context.Background(), tx, Publication{
+		Audience: AudiencePublic, Topic: "campaign-data-changed",
+		ResourceID: "characters", Revision: "1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case unexpected := <-subscription.Events:
+		t.Fatalf("subscriber was notified before commit: %+v", unexpected)
+	default:
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	broker.NotifyCommitted(event)
+	if received := <-subscription.Events; received.Sequence != event.Sequence {
+		t.Fatalf("received event = %+v", received)
+	}
+	replay, err := broker.Replay(context.Background(), AudiencePublic, 0, 10)
+	if err != nil || len(replay.Events) != 1 {
+		t.Fatalf("replay = %+v, %v", replay, err)
+	}
+
+	rolledBack, err := broker.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := broker.Append(context.Background(), rolledBack, Publication{
+		Audience: AudiencePublic, Topic: "campaign-data-changed",
+		ResourceID: "locations", Revision: "1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := rolledBack.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	replay, err = broker.Replay(context.Background(), AudiencePublic, 0, 10)
+	if err != nil || len(replay.Events) != 1 {
+		t.Fatalf("rolled-back event reached replay: %+v, %v", replay, err)
+	}
+}
+
 func testBroker(t *testing.T, config Config) *Broker {
 	t.Helper()
 	db, err := storage.Open(context.Background(), filepath.Join(t.TempDir(), "codex.db"))

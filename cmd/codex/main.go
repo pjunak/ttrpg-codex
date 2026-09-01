@@ -21,6 +21,7 @@ import (
 	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
 	"github.com/pjunak/ttrpg-codex/internal/events"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
+	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/campaignstore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
 	"github.com/pjunak/ttrpg-codex/internal/transport/httpapi"
 )
@@ -34,8 +35,9 @@ const (
 )
 
 type hostRuntime struct {
-	handler http.Handler
-	addons  *packagemanager.Manager
+	handler  http.Handler
+	addons   *packagemanager.Manager
+	campaign *campaignstore.Store
 }
 
 func main() {
@@ -140,6 +142,12 @@ func composeHost(
 	if err != nil {
 		return nil, fmt.Errorf("configure event broker: %w", err)
 	}
+	campaignRecords, err := campaignstore.New(campaignstore.Config{
+		DB: db, Events: eventBroker,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("configure campaign record store: %w", err)
+	}
 	inspector, err := packageinspect.New(packageinspect.DefaultLimits)
 	if err != nil {
 		return nil, fmt.Errorf("configure package inspector: %w", err)
@@ -196,5 +204,5 @@ func composeHost(
 		_ = addons.Shutdown(context.Background())
 		return nil, fmt.Errorf("configure HTTP API: %w", err)
 	}
-	return &hostRuntime{handler: handler, addons: addons}, nil
+	return &hostRuntime{handler: handler, addons: addons, campaign: campaignRecords}, nil
 }

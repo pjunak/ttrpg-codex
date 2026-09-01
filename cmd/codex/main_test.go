@@ -32,6 +32,9 @@ func TestComposeHostWiresAuthenticatedBrowserGraphAndEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if runtime.campaign == nil {
+		t.Fatal("campaign record store was not composed")
+	}
 	t.Cleanup(func() { _ = runtime.addons.Shutdown(context.Background()) })
 
 	anonymous := serve(runtime.handler, http.MethodGet, "/api/addons/browser-graph", "", nil)

@@ -76,6 +76,10 @@ type Broker struct {
 	subscribers    map[uint64]*subscriber
 }
 
+type eventExecer interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
 type subscriber struct {
 	audience Audience
 	events   chan Event
@@ -115,6 +119,42 @@ func (broker *Broker) Publish(ctx context.Context, publication Publication) (Eve
 	if broker == nil || broker.db == nil {
 		return Event{}, ErrInvalidConfig
 	}
+	event, err := broker.append(ctx, broker.db, publication)
+	if err != nil {
+		return Event{}, err
+	}
+	broker.notify(event)
+	return cloneEvent(event), nil
+}
+
+// Append records an event inside a caller-owned transaction. The caller must
+// invoke NotifyCommitted only after that transaction commits successfully.
+func (broker *Broker) Append(
+	ctx context.Context,
+	tx *sql.Tx,
+	publication Publication,
+) (Event, error) {
+	if broker == nil || broker.db == nil || tx == nil {
+		return Event{}, ErrInvalidConfig
+	}
+	return broker.append(ctx, tx, publication)
+}
+
+// NotifyCommitted wakes live subscribers for an event already durably
+// committed by Append. Replay remains authoritative if this process stops
+// between commit and notification.
+func (broker *Broker) NotifyCommitted(event Event) {
+	if broker == nil || event.Sequence < 1 {
+		return
+	}
+	broker.notify(cloneEvent(event))
+}
+
+func (broker *Broker) append(
+	ctx context.Context,
+	execer eventExecer,
+	publication Publication,
+) (Event, error) {
 	metadata, err := normalizeMetadata(publication.Metadata)
 	if err != nil {
 		return Event{}, fmt.Errorf("%w: %v", ErrInvalidPublication, err)
@@ -123,7 +163,7 @@ func (broker *Broker) Publish(ctx context.Context, publication Publication) (Eve
 		return Event{}, ErrInvalidPublication
 	}
 	occurredAt := broker.now().UTC()
-	result, err := broker.db.ExecContext(ctx, `
+	result, err := execer.ExecContext(ctx, `
 		INSERT INTO change_log(audience, topic, resource_id, revision, occurred_at, metadata_json)
 		VALUES (?, ?, NULLIF(?, ''), ?, ?, ?)`,
 		publication.Audience, publication.Topic, publication.ResourceID,
@@ -141,7 +181,6 @@ func (broker *Broker) Publish(ctx context.Context, publication Publication) (Eve
 		ResourceID: publication.ResourceID, Revision: publication.Revision,
 		OccurredAt: occurredAt, Metadata: metadata,
 	}
-	broker.notify(event)
 	return cloneEvent(event), nil
 }
 
