@@ -18,6 +18,7 @@ import (
 	"unicode"
 
 	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
+	"github.com/pjunak/ttrpg-codex/internal/addons/datacontract"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicecontract"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -58,8 +59,14 @@ type Report struct {
 	ChecksumInventorySHA256 string                        `json:"checksumInventorySha256"`
 	Manifest                Manifest                      `json:"manifest"`
 	Files                   []File                        `json:"files"`
+	DataContracts           []datacontract.Description    `json:"dataContracts"`
 	ServiceContracts        []servicecontract.Description `json:"serviceContracts"`
+	dataRegistry            *datacontract.Registry
 	serviceRegistry         *servicecontract.Registry
+}
+
+func (report Report) DataRegistry() *datacontract.Registry {
+	return report.dataRegistry
 }
 
 func (report Report) ServiceRegistry() *servicecontract.Registry {
@@ -197,7 +204,7 @@ func (i *Inspector) InspectFile(ctx context.Context, filename string) (Report, e
 	if err := validateDeclarations(manifest, entries, directories); err != nil {
 		return Report{}, err
 	}
-	serviceRegistry, err := i.validateDeclaredSchemas(ctx, manifest, entries)
+	dataRegistry, serviceRegistry, err := i.validateDeclaredSchemas(ctx, manifest, entries)
 	if err != nil {
 		return Report{}, err
 	}
@@ -210,7 +217,9 @@ func (i *Inspector) InspectFile(ctx context.Context, filename string) (Report, e
 		ChecksumInventorySHA256: hex.EncodeToString(checksumDigest[:]),
 		Manifest:                manifest,
 		Files:                   files,
+		DataContracts:           dataRegistry.Descriptions(),
 		ServiceContracts:        serviceRegistry.Descriptions(),
+		dataRegistry:            dataRegistry,
 		serviceRegistry:         serviceRegistry,
 	}, nil
 }
@@ -219,7 +228,7 @@ func (i *Inspector) validateDeclaredSchemas(
 	ctx context.Context,
 	manifest Manifest,
 	entries map[string]*zip.File,
-) (*servicecontract.Registry, error) {
+) (*datacontract.Registry, *servicecontract.Registry, error) {
 	declared := declaredDataSchemaPaths(manifest)
 	serviceDeclarations := make([]servicecontract.Declaration, 0, len(manifest.Services.Provides))
 	serviceDocuments := make(map[string]struct{}, len(manifest.Services.Provides))
@@ -250,6 +259,7 @@ func (i *Inspector) validateDeclaredSchemas(
 	sort.Strings(filenames)
 
 	resourceBodies := make(map[string][]byte, len(filenames))
+	schemaResourceBodies := make(map[string][]byte, len(filenames))
 	schemaCompiler := jsonschema.NewCompiler()
 	schemaCompiler.DefaultDraft(jsonschema.Draft2020)
 	schemaCompiler.AssertFormat()
@@ -258,31 +268,36 @@ func (i *Inspector) validateDeclaredSchemas(
 	for _, filename := range filenames {
 		entry, ok := entries[filename]
 		if !ok {
-			return nil, inspectionError(CodeInvalidSchema, filename, errors.New("schema resource is missing"))
+			return nil, nil, inspectionError(CodeInvalidSchema, filename, errors.New("schema resource is missing"))
 		}
 		body, err := readEntry(ctx, entry, i.limits.MaxSchemaBytes)
 		if err != nil {
-			return nil, inspectionError(CodeInvalidSchema, filename, err)
+			return nil, nil, inspectionError(CodeInvalidSchema, filename, err)
 		}
 		resourceBodies[filename] = body
 		if _, isServiceDocument := serviceDocuments[filename]; isServiceDocument {
 			continue
 		}
+		schemaResourceBodies[filename] = body
 		document, err := jsonschema.UnmarshalJSON(bytes.NewReader(body))
 		if err != nil {
-			return nil, inspectionError(CodeInvalidSchema, filename, err)
+			return nil, nil, inspectionError(CodeInvalidSchema, filename, err)
 		}
 		resourceURL := packageResourceURL(filename)
 		if err := schemaCompiler.AddResource(resourceURL, document); err != nil {
-			return nil, inspectionError(CodeInvalidSchema, filename, err)
+			return nil, nil, inspectionError(CodeInvalidSchema, filename, err)
 		}
 		resourceURLs[filename] = resourceURL
 	}
 
 	for _, filename := range declared {
 		if _, err := schemaCompiler.Compile(resourceURLs[filename]); err != nil {
-			return nil, inspectionError(CodeInvalidSchema, filename, err)
+			return nil, nil, inspectionError(CodeInvalidSchema, filename, err)
 		}
+	}
+	dataRegistry, err := datacontract.Compile(dataDeclarations(manifest), schemaResourceBodies)
+	if err != nil {
+		return nil, nil, inspectionError(CodeInvalidSchema, "", err)
 	}
 	serviceRegistry, err := i.serviceCompiler.Compile(serviceDeclarations, resourceBodies)
 	if err != nil {
@@ -292,11 +307,34 @@ func (i *Inspector) validateDeclaredSchemas(
 		}
 		var compileError *servicecontract.CompileError
 		if errors.As(err, &compileError) {
-			return nil, inspectionError(code, compileError.Path, compileError.Cause)
+			return nil, nil, inspectionError(code, compileError.Path, compileError.Cause)
 		}
-		return nil, inspectionError(code, "", err)
+		return nil, nil, inspectionError(code, "", err)
 	}
-	return serviceRegistry, nil
+	return dataRegistry, serviceRegistry, nil
+}
+
+func dataDeclarations(manifest Manifest) []datacontract.Declaration {
+	result := make([]datacontract.Declaration, 0, len(manifest.Collections)+len(manifest.RecordExtensions))
+	for _, collection := range manifest.Collections {
+		indexes := make([]datacontract.Index, len(collection.Indexes))
+		for index, value := range collection.Indexes {
+			indexes[index] = datacontract.Index{Path: value.Path, Unique: value.Unique}
+		}
+		result = append(result, datacontract.Declaration{
+			Kind: datacontract.Collection, ID: collection.ID, Keyed: collection.Keyed,
+			Visibility: datacontract.Visibility(collection.Visibility), Schema: collection.Schema,
+			SchemaVersion: collection.SchemaVersion, Indexes: indexes,
+		})
+	}
+	for _, extension := range manifest.RecordExtensions {
+		result = append(result, datacontract.Declaration{
+			Kind: datacontract.RecordExtension, ID: extension.ID, Target: extension.Target,
+			Visibility: datacontract.Visibility(extension.Visibility), Schema: extension.Schema,
+			SchemaVersion: extension.SchemaVersion,
+		})
+	}
+	return result
 }
 
 func declaredDataSchemaPaths(manifest Manifest) []string {

@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+
+	"github.com/pjunak/ttrpg-codex/internal/addons/datacontract"
 )
 
 func TestInspectFileAcceptsVerifiedPackage(t *testing.T) {
@@ -293,6 +295,44 @@ func TestInspectFileCompilesDeclaredSchemas(t *testing.T) {
 
 	_, err = newTestInspector(t).InspectFile(context.Background(), packagePath)
 	assertInspectionCode(t, err, CodeInvalidSchema)
+}
+
+func TestInspectFileReportsUsableDataContracts(t *testing.T) {
+	t.Parallel()
+
+	var manifest map[string]any
+	if err := json.Unmarshal(minimalManifest("example-addon"), &manifest); err != nil {
+		t.Fatal(err)
+	}
+	manifest["collections"] = []any{map[string]any{
+		"id": "notes", "keyed": true, "visibility": "dm",
+		"schema": "contracts/notes.schema.json", "schemaVersion": "1.0.0",
+		"indexes": []any{map[string]any{"path": "/title", "unique": true}},
+	}}
+	manifestBody, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	packagePath := writePackage(t, map[string][]byte{
+		manifestFilename: manifestBody,
+		"contracts/notes.schema.json": []byte(
+			`{"type":"object","required":["title"],"properties":{"title":{"type":"string"}}}`,
+		),
+	})
+	report, err := newTestInspector(t).InspectFile(context.Background(), packagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.DataContracts) != 1 || report.DataContracts[0].ID != "notes" ||
+		report.DataContracts[0].Visibility != "dm" || !report.DataContracts[0].Keyed ||
+		len(report.DataContracts[0].Indexes) != 1 || len(report.DataContracts[0].SchemaSHA256) != 64 {
+		t.Fatalf("data contracts = %+v", report.DataContracts)
+	}
+	if err := report.DataRegistry().Validate(
+		datacontract.Collection, "notes", json.RawMessage(`{"title":"kept"}`),
+	); err != nil {
+		t.Fatalf("reported validator rejected document: %v", err)
+	}
 }
 
 func TestInspectFileCompilesAndReportsServiceDocuments(t *testing.T) {
