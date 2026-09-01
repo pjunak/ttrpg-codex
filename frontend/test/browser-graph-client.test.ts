@@ -74,6 +74,20 @@ describe("parseBrowserGenerationSet", () => {
       ...graph,
       addons: [{
         ...graph.addons[0],
+        contributions: [{ ...descriptor.contributions[0], config: { path: "/planner" } }],
+      }],
+    },
+    {
+      ...graph,
+      addons: [{
+        ...graph.addons[0],
+        contributions: [{ ...descriptor.contributions[0], config: { path: "planner", href: "https://invalid" } }],
+      }],
+    },
+    {
+      ...graph,
+      addons: [{
+        ...graph.addons[0],
         entryUrl: `/api/addons/other-addon/generations/${generationId}/assets/web/index.js`,
       }],
     },

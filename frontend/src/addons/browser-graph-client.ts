@@ -50,6 +50,7 @@ const browserRoles = new Set(["dm", "player"] as const);
 const sha256Pattern = /^[0-9a-f]{64}$/;
 const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const contractIdPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/;
+const routePathPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/;
 
 export type BrowserGraphFetch = (
   input: string,
@@ -314,6 +315,7 @@ function parseContribution(
   if (!isRecord(config)) {
     throw new BoundaryValidationError(boundary, `${location}.config must be an object`);
   }
+  validateContributionConfig(surface, config, `${location}.config`);
   const id = requiredString(value["id"], `${location}.id`);
   if (!localIdPattern.test(id)) {
     throw new BoundaryValidationError(boundary, `${location}.id is invalid`);
@@ -331,6 +333,31 @@ function parseContribution(
     requires,
     config,
   };
+}
+
+function validateContributionConfig(surface: string, config: Record<string, unknown>, location: string): void {
+  if (surface === "route") {
+    if (!hasOnlyKeys(config, new Set(["path"])) ||
+      typeof config["path"] !== "string" ||
+      config["path"].length > 200 ||
+      !routePathPattern.test(config["path"])) {
+      throw new BoundaryValidationError(
+        boundary,
+        `${location} must be exact route metadata with a canonical path`,
+      );
+    }
+    return;
+  }
+  if (surface === "sidebar" &&
+    (!hasOnlyKeys(config, new Set(["route"])) ||
+      typeof config["route"] !== "string" ||
+      config["route"].length > 100 ||
+      !localIdPattern.test(config["route"]))) {
+    throw new BoundaryValidationError(
+      boundary,
+      `${location} must be exact sidebar metadata naming a local route contribution`,
+    );
+  }
 }
 
 function validProjectedAssetURL(value: string, prefix: string): boolean {

@@ -11,6 +11,7 @@ import type {
 const addonIdPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const contractIdPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/;
+const routePathPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/;
 
 export type BrowserRole = "dm" | "player";
 
@@ -580,6 +581,8 @@ function normalizeContributions(
     if (roles === undefined || requires === undefined) {
       throw new BrowserGenerationPlanError(`invalid contribution authority for ${addonId}:${contribution.id}`);
     }
+    const config = normalizeJSONRecord(contribution.config, `${addonId}:${contribution.id}`);
+    validateContributionConfig(contribution.surface, config, `${addonId}:${contribution.id}`);
     return {
       id: contribution.id,
       surface: contribution.surface,
@@ -587,7 +590,7 @@ function normalizeContributions(
       roles,
       order: contribution.order,
       requires,
-      config: normalizeJSONRecord(contribution.config, `${addonId}:${contribution.id}`),
+      config,
     };
   }).sort((left, right) => left.id.localeCompare(right.id));
   for (let index = 1; index < result.length; index += 1) {
@@ -596,6 +599,38 @@ function normalizeContributions(
     }
   }
   return result;
+}
+
+function validateContributionConfig(
+  surface: BrowserContributionSurface,
+  config: Readonly<Record<string, unknown>>,
+  owner: string,
+): void {
+  if (surface === "route") {
+    if (!hasExactKeys(config, "path") ||
+      typeof config["path"] !== "string" ||
+      config["path"].length > 200 ||
+      !routePathPattern.test(config["path"])) {
+      throw new BrowserGenerationPlanError(
+        `route contribution ${owner} requires exact config { path: "segment[/segment]" }`,
+      );
+    }
+    return;
+  }
+  if (surface === "sidebar" &&
+    (!hasExactKeys(config, "route") ||
+      typeof config["route"] !== "string" ||
+      config["route"].length > 100 ||
+      !localIdPattern.test(config["route"]))) {
+    throw new BrowserGenerationPlanError(
+      `sidebar contribution ${owner} requires exact config { route: "local.route-id" }`,
+    );
+  }
+}
+
+function hasExactKeys(value: Readonly<Record<string, unknown>>, ...expected: readonly string[]): boolean {
+  const keys = Object.keys(value);
+  return keys.length === expected.length && expected.every((key) => Object.hasOwn(value, key));
 }
 
 function validContributionSurface(value: string): value is BrowserContributionSurface {

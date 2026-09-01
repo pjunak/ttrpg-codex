@@ -115,6 +115,38 @@ describe("BrowserGenerationManager", () => {
         }],
       }],
     })).toThrow(BrowserGenerationPlanError);
+    expect(() => manager.reconcile({
+      contractVersion: 2,
+      graphRevision: "graph-2",
+      addons: [{
+        ...providerV2,
+        contributions: [{
+          id: "planner.route",
+          surface: "route",
+          label: "Planner",
+          roles: ["dm"],
+          order: 0,
+          requires: [],
+          config: { path: "../planner" },
+        }],
+      }],
+    })).toThrow("requires exact config");
+    expect(() => manager.reconcile({
+      contractVersion: 2,
+      graphRevision: "graph-2",
+      addons: [{
+        ...providerV2,
+        contributions: [{
+          id: "planner.sidebar",
+          surface: "sidebar",
+          label: "Planner",
+          roles: ["dm"],
+          order: 0,
+          requires: [],
+          config: { route: "planner.route", href: "https://invalid" },
+        }],
+      }],
+    })).toThrow("requires exact config");
     expect(stop).not.toHaveBeenCalled();
   });
 

@@ -289,6 +289,13 @@ The initial binding shapes are discriminated and host validated:
 Sidebar declarations are navigation metadata and do not bind executable code.
 The host publishes that metadata automatically after graph validation; add-on
 modules MUST NOT call `context.ui.bind()` for sidebar declarations.
+Route metadata is exact `{ "path": "segment[/segment]" }`; paths use lowercase
+letters, digits, and internal hyphens and never start with `/`. Sidebar
+metadata is exact `{ "route": "local.route-id" }` and may only name a route
+declared by the same add-on generation. The browser exposes the resulting page
+under the host-owned `#/addons/<addon-id>/<path>` namespace. It does not accept
+manifest-provided URLs, executable click handlers, cross-add-on targets, or a
+sidebar link whose route is not active for the current role.
 Every callback is wrapped in the generation abort signal.
 
 Initial surfaces cover existing suite needs:

@@ -97,8 +97,9 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   loads generation styles, renders role-filtered `slot` contributions through
   a keyed host-owned outlet, runs isolated visual modules and bounded
   action/model callbacks in per-contribution opaque CSP-restricted frames over
-  transferred message ports, and tears all browser authority down on logout or
-  HTTP authorization loss.
+  transferred message ports, projects exact route/sidebar metadata into a
+  host-owned hash namespace, mounts only the selected same-generation route,
+  and tears all browser authority down on logout or HTTP authorization loss.
 - The shared Go worker codec enforces bounded canonical `Content-Length`
   framing, serializes concurrent writes, validates UTF-8/JSON/envelopes, and
   reports stable transport failure codes. The same package is usable by the

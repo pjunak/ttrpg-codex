@@ -27,6 +27,7 @@ export interface BrowserContributionOutletOptions {
   readonly registry: BrowserContributionRegistry;
   readonly surface: BrowserContributionSurface;
   readonly role: BrowserRole;
+  readonly include?: (active: ActiveBrowserContribution) => boolean;
   readonly onError?: (cause: unknown) => void;
   readonly onCountChange?: (count: number) => void;
 }
@@ -44,6 +45,7 @@ export class BrowserContributionOutlet {
   readonly #registry: BrowserContributionRegistry;
   readonly #surface: BrowserContributionSurface;
   readonly #role: BrowserRole;
+  readonly #include: (active: ActiveBrowserContribution) => boolean;
   readonly #onError: (cause: unknown) => void;
   readonly #onCountChange: (count: number) => void;
   readonly #mounted = new Map<string, MountedContribution>();
@@ -56,6 +58,7 @@ export class BrowserContributionOutlet {
     this.#registry = options.registry;
     this.#surface = options.surface;
     this.#role = options.role;
+    this.#include = options.include ?? (() => true);
     this.#onError = options.onError ?? (() => undefined);
     this.#onCountChange = options.onCountChange ?? (() => undefined);
     this.#unsubscribe = this.#registry.subscribe(() => this.refresh());
@@ -69,6 +72,9 @@ export class BrowserContributionOutlet {
     const ordered: HTMLElement[] = [];
     const retained = new Set<string>();
     for (const active of this.#registry.list(this.#surface, this.#role)) {
+      if (!this.#include(active)) {
+        continue;
+      }
       if (active.binding.kind !== "element" && active.binding.kind !== "isolated-frame") {
         this.#onError(new TypeError(
           `host outlet ${this.#surface} cannot mount ${active.binding.kind} contribution ` +

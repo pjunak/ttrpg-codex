@@ -103,6 +103,35 @@ describe("BrowserContributionOutlet", () => {
     outlet.dispose();
     expect(dispose).toHaveBeenCalledOnce();
   });
+
+  it("mounts only contributions selected by a feature-owned outlet", () => {
+    const registry = new BrowserContributionRegistry();
+    const first = registry.open(
+      descriptor("first-tools", contribution("first.panel", 10)),
+      new GenerationScope("first-tools@generation"),
+    );
+    const second = registry.open(
+      descriptor("second-tools", contribution("second.panel", 20)),
+      new GenerationScope("second-tools@generation"),
+    );
+    first.context.ui.bind("first.panel", { kind: "element", tag: "first-tools-panel" });
+    second.context.ui.bind("second.panel", { kind: "element", tag: "second-tools-panel" });
+    let selected = "first-tools";
+    const root = new FakeElement("div");
+    const outlet = new BrowserContributionOutlet({
+      document: new FakeDocument() as unknown as Document,
+      root: root as unknown as HTMLElement,
+      registry,
+      surface: "slot",
+      role: "dm",
+      include: (active) => active.addonId === selected,
+    });
+
+    expect(root.children.map((child) => child.dataset["addonId"])).toEqual(["first-tools"]);
+    selected = "second-tools";
+    outlet.refresh();
+    expect(root.children.map((child) => child.dataset["addonId"])).toEqual(["second-tools"]);
+  });
 });
 
 class FakeDocument {

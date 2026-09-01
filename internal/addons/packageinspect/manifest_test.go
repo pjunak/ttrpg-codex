@@ -78,3 +78,67 @@ func TestManifestRetainsCompleteContributionPolicy(t *testing.T) {
 		t.Fatalf("incomplete contribution policy: %+v", contribution)
 	}
 }
+
+func TestManifestSchemaRequiresCanonicalNavigationMetadata(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		contribution map[string]any
+		valid        bool
+	}{
+		{
+			name: "route",
+			contribution: map[string]any{
+				"id": "planner.route", "surface": "route", "label": "Planner",
+				"config": map[string]any{"path": "planning/story"},
+			},
+			valid: true,
+		},
+		{
+			name: "sidebar",
+			contribution: map[string]any{
+				"id": "planner.sidebar", "surface": "sidebar", "label": "Planner",
+				"config": map[string]any{"route": "planner.route"},
+			},
+			valid: true,
+		},
+		{
+			name: "route traversal",
+			contribution: map[string]any{
+				"id": "planner.route", "surface": "route", "label": "Planner",
+				"config": map[string]any{"path": "../planner"},
+			},
+		},
+		{
+			name: "sidebar arbitrary link",
+			contribution: map[string]any{
+				"id": "planner.sidebar", "surface": "sidebar", "label": "Planner",
+				"config": map[string]any{"route": "planner.route", "href": "https://invalid.example"},
+			},
+		},
+	}
+
+	inspector := newTestInspector(t)
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			var manifest map[string]any
+			if err := json.Unmarshal(minimalManifest("example-addon"), &manifest); err != nil {
+				t.Fatal(err)
+			}
+			manifest["contributions"] = []any{test.contribution}
+			body, err := json.Marshal(manifest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = inspector.parseManifest(body)
+			if test.valid && err != nil {
+				t.Fatalf("valid navigation metadata rejected: %v", err)
+			}
+			if !test.valid && err == nil {
+				t.Fatal("invalid navigation metadata accepted")
+			}
+		})
+	}
+}

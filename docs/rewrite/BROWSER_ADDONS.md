@@ -283,10 +283,19 @@ add multiplexing complexity without demonstrated benefit. Revisit pooling only
 if browser measurements show frame startup or memory is material; preserve the
 same per-contribution cancellation and authority rules if that changes.
 
+The browser shell projects a sidebar declaration only while its exact
+same-generation route binding is active and visible to the current role.
+Route paths are canonical manifest metadata, but the host owns the complete
+hash namespace and creates the anchors. Selecting a page filters the route
+outlet to one exact contribution; stale, disabled, role-hidden, and malformed
+targets cannot leave the previous route mounted. Direct route hashes remain
+usable even when a valid route intentionally has no sidebar declaration.
+
 ## Remaining integration
 
 - Add data, service, import, event, settings, navigation, graph, and log handles
   to the implemented capability-scoped SDK as their transports land.
-- Connect the remaining host surfaces to their feature-owned registry outlets.
+- Connect article, editor, settings, renderer, and graph surfaces to their
+  feature-owned registry outlets as those core features land.
 - Surface activation and disposal diagnostics in the Add-on Inspector.
 - Add Playwright coverage once real contribution modules are wired.

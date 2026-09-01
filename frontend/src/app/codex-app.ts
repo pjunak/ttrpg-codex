@@ -12,6 +12,11 @@ import {
   type BrowserAddonComposition,
 } from "./browser-addons.js";
 import { BrowserContributionOutlet } from "../addons/contribution-outlet.js";
+import {
+  BrowserNavigationOutlet,
+  browserAddonRouteHash,
+  isBrowserAddonRouteHash,
+} from "../addons/navigation.js";
 
 type Readiness =
   | { state: "checking" }
@@ -215,6 +220,43 @@ export class CodexApp extends LitElement {
       padding: 1rem 0;
     }
 
+    .addon-navigation {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .addon-navigation-link {
+      min-height: 2.5rem;
+      padding: 0.58rem 0.8rem;
+      border: 1px solid #4a4d48;
+      border-radius: 0.3rem;
+      color: #d5d2c8;
+      background: #1b1e25;
+      text-decoration: none;
+    }
+
+    .addon-navigation-link:hover {
+      border-color: #7b704f;
+      color: #f0e4c5;
+    }
+
+    .addon-navigation-link[aria-current="page"] {
+      border-color: #a88e55;
+      color: #211d15;
+      background: #c3a464;
+    }
+
+    .addon-navigation-link:focus-visible {
+      outline: 2px solid #ded4bc;
+      outline-offset: 3px;
+    }
+
+    .addon-dashboard[hidden] {
+      display: none;
+    }
+
     .addon-outlet {
       display: grid;
       gap: 1rem;
@@ -271,6 +313,8 @@ export class CodexApp extends LitElement {
     busy: { state: true },
     errorMessage: { state: true },
     contributionCount: { state: true },
+    navigationCount: { state: true },
+    routeCount: { state: true },
   };
 
   declare private readiness: Readiness;
@@ -279,9 +323,13 @@ export class CodexApp extends LitElement {
   declare private busy: boolean;
   declare private errorMessage: string;
   declare private contributionCount: number;
+  declare private navigationCount: number;
+  declare private routeCount: number;
   #request: AbortController | undefined;
   #addons: BrowserAddonComposition | undefined;
   #contributionOutlet: BrowserContributionOutlet | undefined;
+  #navigationOutlet: BrowserNavigationOutlet | undefined;
+  #routeOutlet: BrowserContributionOutlet | undefined;
   #addonOwner = 0;
 
   constructor() {
@@ -292,10 +340,13 @@ export class CodexApp extends LitElement {
     this.busy = false;
     this.errorMessage = "";
     this.contributionCount = 0;
+    this.navigationCount = 0;
+    this.routeCount = 0;
   }
 
   override connectedCallback(): void {
     super.connectedCallback();
+    window.addEventListener("hashchange", this.#onHashChange);
     this.#request = new AbortController();
     void this.#bootstrap(this.#request.signal);
   }
@@ -303,6 +354,7 @@ export class CodexApp extends LitElement {
   override disconnectedCallback(): void {
     this.#request?.abort("component-disconnected");
     this.#request = undefined;
+    window.removeEventListener("hashchange", this.#onHashChange);
     void this.#stopAddons();
     super.disconnectedCallback();
   }
@@ -411,6 +463,8 @@ export class CodexApp extends LitElement {
           failures: result.lifecycle.activationFailures.length,
         };
         this.#contributionOutlet?.refresh();
+        this.#navigationOutlet?.refresh();
+        this.#routeOutlet?.refresh();
       },
       onDiagnostic: (error) => {
         if (owner === this.#addonOwner) {
@@ -429,6 +483,13 @@ export class CodexApp extends LitElement {
         this.#addons = undefined;
         this.#contributionOutlet?.dispose();
         this.#contributionOutlet = undefined;
+        this.#navigationOutlet?.dispose();
+        this.#navigationOutlet = undefined;
+        this.#routeOutlet?.dispose();
+        this.#routeOutlet = undefined;
+        this.contributionCount = 0;
+        this.navigationCount = 0;
+        this.routeCount = 0;
         this.authority = { state: "known", auth: anonymousAuth() };
         this.addonState = { state: "idle" };
       },
@@ -437,21 +498,51 @@ export class CodexApp extends LitElement {
     try {
       await this.updateComplete;
       const outletRoot = this.renderRoot.querySelector<HTMLElement>("[data-addon-outlet]");
+      const navigationRoot = this.renderRoot.querySelector<HTMLElement>("[data-addon-navigation]");
+      const routeRoot = this.renderRoot.querySelector<HTMLElement>("[data-addon-route-outlet]");
       const auth = this.authority.state === "known" ? this.authority.auth : anonymousAuth();
-      if (outletRoot === null || !auth.authenticated) {
+      if (outletRoot === null || navigationRoot === null || routeRoot === null || !auth.authenticated) {
         throw new Error("authenticated browser add-on outlet is unavailable");
       }
+      const onOutletError = (cause: unknown): void => {
+        if (owner === this.#addonOwner) {
+          this.addonState = { state: "degraded", message: errorMessage(cause) };
+        }
+      };
+      this.#navigationOutlet = new BrowserNavigationOutlet({
+        document,
+        root: navigationRoot,
+        registry: composition.contributions,
+        role: auth.role,
+        currentHash: () => window.location.hash,
+        onError: onOutletError,
+        onCountChange: (count) => {
+          if (owner === this.#addonOwner) {
+            this.navigationCount = count;
+          }
+        },
+      });
+      this.#routeOutlet = new BrowserContributionOutlet({
+        document,
+        root: routeRoot,
+        registry: composition.contributions,
+        surface: "route",
+        role: auth.role,
+        include: (active) => browserAddonRouteHash(active) === window.location.hash,
+        onError: onOutletError,
+        onCountChange: (count) => {
+          if (owner === this.#addonOwner) {
+            this.routeCount = count;
+          }
+        },
+      });
       this.#contributionOutlet = new BrowserContributionOutlet({
         document,
         root: outletRoot,
         registry: composition.contributions,
         surface: "slot",
         role: auth.role,
-        onError: (cause) => {
-          if (owner === this.#addonOwner) {
-            this.addonState = { state: "degraded", message: errorMessage(cause) };
-          }
-        },
+        onError: onOutletError,
         onCountChange: (count) => {
           if (owner === this.#addonOwner) {
             this.contributionCount = count;
@@ -471,7 +562,13 @@ export class CodexApp extends LitElement {
     this.#addonOwner += 1;
     this.#contributionOutlet?.dispose();
     this.#contributionOutlet = undefined;
+    this.#navigationOutlet?.dispose();
+    this.#navigationOutlet = undefined;
+    this.#routeOutlet?.dispose();
+    this.#routeOutlet = undefined;
     this.contributionCount = 0;
+    this.navigationCount = 0;
+    this.routeCount = 0;
     const addons = this.#addons;
     this.#addons = undefined;
     this.addonState = { state: "idle" };
@@ -553,23 +650,38 @@ export class CodexApp extends LitElement {
     if (this.authority.state !== "known" || !this.authority.auth.authenticated) {
       return null;
     }
+    const addonRouteRequested = isBrowserAddonRouteHash(window.location.hash);
+    const showingRoute = this.routeCount > 0;
     return html`
       <section class="tools" aria-labelledby="campaign-tools-title">
         <div class="tools-title">
           <h2 id="campaign-tools-title">Campaign tools</h2>
           <span>${this.addonState.state === "loading"
             ? "Loading"
-            : `${this.contributionCount} ${this.contributionCount === 1 ? "add-on panel" : "add-on panels"}`}</span>
+            : `${this.navigationCount} ${this.navigationCount === 1 ? "add-on page" : "add-on pages"}`}</span>
         </div>
-        ${this.contributionCount === 0
-          ? html`<p class="empty-tools">${this.addonState.state === "loading"
-            ? "Loading the add-on panels available to this role…"
-            : "No add-on panels are active for this role."}</p>`
+        <nav class="addon-navigation" data-addon-navigation aria-label="Add-on pages"></nav>
+        <div class="addon-outlet" data-addon-route-outlet></div>
+        ${addonRouteRequested && !showingRoute && this.addonState.state !== "loading"
+          ? html`<p class="empty-tools">This add-on page is not available for the current role.</p>`
           : null}
-        <div class="addon-outlet" data-addon-outlet></div>
+        <div class="addon-dashboard" ?hidden=${showingRoute || addonRouteRequested}>
+          ${this.contributionCount === 0
+            ? html`<p class="empty-tools">${this.addonState.state === "loading"
+              ? "Loading the add-on panels available to this role…"
+              : "No add-on panels are active for this role."}</p>`
+            : null}
+          <div class="addon-outlet" data-addon-outlet></div>
+        </div>
       </section>
     `;
   }
+
+  readonly #onHashChange = (): void => {
+    this.#navigationOutlet?.refresh();
+    this.#routeOutlet?.refresh();
+    this.requestUpdate();
+  };
 }
 
 function anonymousAuth(): AuthState {

@@ -309,6 +309,11 @@ function contribution(
   order: number,
   roles: BrowserContributionDescriptor["roles"] = [],
 ): BrowserContributionDescriptor {
+  const config = surface === "route"
+    ? { path: id === "planner.route" ? "planner" : "shared" }
+    : surface === "sidebar"
+      ? { route: "planner.route" }
+      : { path: id };
   return {
     id,
     surface,
@@ -316,6 +321,6 @@ function contribution(
     roles,
     order,
     requires: ["ui.contributions"],
-    config: { path: id },
+    config,
   };
 }

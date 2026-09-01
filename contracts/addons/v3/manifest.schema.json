@@ -393,7 +393,62 @@
           "type": "object",
           "additionalProperties": true
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "surface": {
+                "const": "route"
+              }
+            },
+            "required": ["surface"]
+          },
+          "then": {
+            "required": ["config"],
+            "properties": {
+              "config": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path"],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)*$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "surface": {
+                "const": "sidebar"
+              }
+            },
+            "required": ["surface"]
+          },
+          "then": {
+            "required": ["config"],
+            "properties": {
+              "config": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["route"],
+                "properties": {
+                  "route": {
+                    "$ref": "#/$defs/localId"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "collection": {
       "type": "object",
