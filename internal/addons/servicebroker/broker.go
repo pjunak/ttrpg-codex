@@ -427,38 +427,85 @@ func (broker *Broker) validateHandle(ctx context.Context, handle Handle) (Provid
 // runtime registry supplies the host-compiled request and response validators;
 // callers cannot replace or bypass them.
 func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) (json.RawMessage, error) {
-	broker.mu.RLock()
-	defer broker.mu.RUnlock()
 	if !methodPattern.MatchString(call.Method) || len(call.Method) > 100 {
 		return nil, fmt.Errorf("%w: invalid service method %q", ErrInvalidDeclaration, call.Method)
 	}
+	prepared, err := broker.prepareCall(ctx, handle, call)
+	if err != nil {
+		return nil, err
+	}
+	defer prepared.lease.Close()
+	defer prepared.cancel()
+	result, err := prepared.caller.Call(
+		prepared.context, "service/"+handle.Contract+"/"+call.Method,
+		json.RawMessage(prepared.body), &prepared.meta,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := prepared.method.ValidateResponse(result); err != nil {
+		return nil, fmt.Errorf("validate service response: %w", err)
+	}
+
+	// Provider execution is deliberately outside the broker lock. This permits
+	// a worker provider to call one of its bound services without recursively
+	// acquiring a writer-preferring RWMutex. The result becomes authoritative
+	// only if the exact handle and runtime are still current afterwards.
+	broker.mu.RLock()
+	defer broker.mu.RUnlock()
 	provider, err := broker.validateHandle(ctx, handle)
 	if err != nil {
 		return nil, err
 	}
-	caller, method, err := broker.runtimes.lookup(provider, call.Method)
-	if err != nil {
+	if _, _, err := broker.runtimes.lookup(provider, call.Method); err != nil {
 		return nil, err
 	}
+	return append(json.RawMessage(nil), result...), nil
+}
+
+type preparedCall struct {
+	caller  RuntimeCaller
+	method  servicecontract.Method
+	body    []byte
+	context context.Context
+	cancel  context.CancelFunc
+	lease   *requestcontext.Lease
+	meta    workerrpc.Meta
+}
+
+func (broker *Broker) prepareCall(
+	ctx context.Context,
+	handle Handle,
+	call MethodCall,
+) (preparedCall, error) {
+	broker.mu.RLock()
+	defer broker.mu.RUnlock()
+	provider, err := broker.validateHandle(ctx, handle)
+	if err != nil {
+		return preparedCall{}, err
+	}
+	caller, method, err := broker.runtimes.lookup(provider, call.Method)
+	if err != nil {
+		return preparedCall{}, err
+	}
 	if err := validateIdempotency(method.Idempotency(), call.Context.IdempotencyKey); err != nil {
-		return nil, err
+		return preparedCall{}, err
 	}
 	body, err := json.Marshal(call.Params)
 	if err != nil {
-		return nil, fmt.Errorf("encode service request: %w", err)
+		return preparedCall{}, fmt.Errorf("encode service request: %w", err)
 	}
 	if !objectOrArray(body) {
-		return nil, fmt.Errorf("%w: service request must be an object or array", ErrInvalidDeclaration)
+		return preparedCall{}, fmt.Errorf("%w: service request must be an object or array", ErrInvalidDeclaration)
 	}
 	if err := method.ValidateRequest(body); err != nil {
-		return nil, fmt.Errorf("validate service request: %w", err)
+		return preparedCall{}, fmt.Errorf("%w: validate service request: %v", ErrInvalidCall, err)
 	}
 	deadline, err := broker.effectiveDeadline(ctx, call.Context.Deadline, method.MaxDeadline())
 	if err != nil {
-		return nil, err
+		return preparedCall{}, err
 	}
 	callContext, cancel := context.WithDeadline(ctx, deadline)
-	defer cancel()
 	lease, err := broker.contexts.Issue(requestcontext.IssueRequest{
 		AddonID:        provider.AddonID,
 		Generation:     provider.ActiveGeneration,
@@ -469,18 +516,13 @@ func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) 
 		Traceparent:    call.Context.Traceparent,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("issue service request context: %w", err)
+		cancel()
+		return preparedCall{}, fmt.Errorf("issue service request context: %w", err)
 	}
-	defer lease.Close()
-	meta := lease.Meta()
-	result, err := caller.Call(callContext, "service/"+handle.Contract+"/"+call.Method, json.RawMessage(body), &meta)
-	if err != nil {
-		return nil, err
-	}
-	if err := method.ValidateResponse(result); err != nil {
-		return nil, fmt.Errorf("validate service response: %w", err)
-	}
-	return append(json.RawMessage(nil), result...), nil
+	return preparedCall{
+		caller: caller, method: method, body: body, context: callContext,
+		cancel: cancel, lease: lease, meta: lease.Meta(),
+	}, nil
 }
 
 func (broker *Broker) effectiveDeadline(ctx context.Context, requested time.Time, maximum time.Duration) (time.Time, error) {

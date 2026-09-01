@@ -655,6 +655,43 @@ invented actor or generation metadata is rejected. Go workers can use
 `workerrpc.NewAddonDataClient(peer)` instead of constructing these envelopes
 by hand.
 
+`host/service.call` accepts only service handles that the package manager bound
+to the exact worker generation. Omitting `providerAddonId` is valid when the
+contract resolves to one handle; a cardinality-many consumer supplies it to
+select one of its already-bound providers. The worker does not send a version,
+transport, generation, or binding revision because those are host authority:
+
+```json
+{
+  "contractVersion": "host-service-call.v1",
+  "contract": "dnd5e.rules-data",
+  "providerAddonId": "dnd-2024-compendium",
+  "method": "query",
+  "params": { "kind": "spell" },
+  "idempotencyKey": "optional-method-specific-key"
+}
+```
+
+The result identifies the exact provider used. Include these fields in any
+derived cache identity so activation cannot mix results across generations:
+
+```json
+{
+  "contractVersion": "host-service-result.v1",
+  "contract": "dnd5e.rules-data",
+  "providerAddonId": "dnd-2024-compendium",
+  "providerContractVersion": "3.0.0",
+  "providerGeneration": "<64 lowercase hexadecimal characters>",
+  "result": { "items": [] }
+}
+```
+
+The host derives the downstream actor, deadline, correlation ID, and trace
+lineage from the authoritative incoming request context. Only the optional
+method-specific idempotency key comes from this envelope. Go workers can use
+`workerrpc.NewServiceClient(peer)` and `workerrpc.DecodeServiceResult` instead
+of constructing or decoding these envelopes directly.
+
 Methods are independently versioned in the negotiated capability set. New
 optional methods may be added without changing the framing protocol.
 

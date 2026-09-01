@@ -75,11 +75,14 @@ generation, and binding revision. Every call re-resolves and compares all of
 those facts. A changed binding, catalog, version, provider set, or generation
 returns `ErrStaleBinding` before routing.
 
-Calls hold a broker read lease through response validation. Catalog, binding,
-and runtime changes take the write lease, so they wait for already-routed calls
-to finish and become authoritative before any later call validates. This
-removes the validation-to-write race without allowing unbounded calls; request
-contexts still enforce the configured deadline.
+Calls validate and prepare under a broker read lease, then execute the provider
+without holding the broker lock. This lets a worker provider call one of its own
+bound services without recursively entering a writer-preferring read lock.
+After response validation, the broker takes a final read lease and revalidates
+the exact handle and runtime before accepting the result. A catalog, binding,
+or runtime change can therefore proceed during provider work, but invalidates
+that in-flight result with `ErrStaleBinding`. Request contexts still enforce the
+configured deadline.
 
 `Broker.ActivateRuntime` publishes a generation against an exact snapshot of
 the installed catalog and an immutable compiled service registry. Every

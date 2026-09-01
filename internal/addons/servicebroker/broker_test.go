@@ -550,7 +550,7 @@ func TestRuntimeDirectoryExactGenerationPreventsLateTeardown(t *testing.T) {
 	}
 }
 
-func TestBindingUpdateWaitsForValidatedInFlightCall(t *testing.T) {
+func TestBindingUpdateInvalidatesUnlockedInFlightCall(t *testing.T) {
 	t.Parallel()
 
 	store, _ := testStore(t)
@@ -610,18 +610,111 @@ func TestBindingUpdateWaitsForValidatedInFlightCall(t *testing.T) {
 	}()
 	select {
 	case err := <-updateDone:
-		t.Fatalf("binding update crossed in-flight call boundary: %v", err)
-	case <-time.After(50 * time.Millisecond):
+		if err != nil {
+			t.Fatalf("binding update failed during in-flight call: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("binding update waited on provider execution")
 	}
 	close(release)
-	if err := <-callDone; err != nil {
-		t.Fatalf("in-flight call failed: %v", err)
-	}
-	if err := <-updateDone; err != nil {
-		t.Fatalf("binding update failed after call: %v", err)
+	if err := <-callDone; !errors.Is(err, ErrStaleBinding) {
+		t.Fatalf("in-flight call error = %v, want ErrStaleBinding", err)
 	}
 	if _, err := broker.ValidateHandle(ctx, handle); !errors.Is(err, ErrStaleBinding) {
 		t.Fatalf("old handle after ordered binding update = %v, want ErrStaleBinding", err)
+	}
+}
+
+func TestProviderCanCallBoundServiceWhileCatalogWriteCompletes(t *testing.T) {
+	t.Parallel()
+
+	store, _ := testStore(t)
+	broker := testBroker(t, store, NewRuntimeDirectory(), nil)
+	ctx := context.Background()
+	requestSchema := `{"type":"object","required":["value"],"properties":{"value":{"type":"integer"}},"additionalProperties":false}`
+	responseSchema := `{"type":"object","required":["result"],"properties":{"result":{"type":"integer"}},"additionalProperties":false}`
+
+	dataDeclaration := testProvider("codex.test-data", "1.0.0", false)
+	if err := broker.ReplaceProviders(ctx, "data-provider", "1.0.0", []ProviderDeclaration{dataDeclaration}); err != nil {
+		t.Fatal(err)
+	}
+	dataContracts := testRegistryForMethod(
+		t, dataDeclaration, "lookup", requestSchema, responseSchema,
+		servicecontract.IdempotencyNone, 2_000,
+	)
+	if err := broker.ActivateRuntime(ctx, "data-provider", "data-generation", dataContracts,
+		runtimeCallerFunc(func(context.Context, string, any, *workerrpc.Meta) (json.RawMessage, error) {
+			return json.RawMessage(`{"result":8}`), nil
+		})); err != nil {
+		t.Fatal(err)
+	}
+	dataHandle, err := broker.ConnectOne(ctx, oneRequirement("engine", "codex.test-data", "^1.0.0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	engineDeclaration := testProvider("codex.test-engine", "1.0.0", false)
+	if err := broker.ReplaceProviders(ctx, "engine", "1.0.0", []ProviderDeclaration{engineDeclaration}); err != nil {
+		t.Fatal(err)
+	}
+	engineContracts := testRegistryForMethod(
+		t, engineDeclaration, "evaluate", requestSchema, responseSchema,
+		servicecontract.IdempotencyNone, 2_000,
+	)
+	providerStarted := make(chan struct{})
+	continueProvider := make(chan struct{})
+	engineCaller := runtimeCallerFunc(func(callCtx context.Context, _ string, _ any, _ *workerrpc.Meta) (json.RawMessage, error) {
+		close(providerStarted)
+		<-continueProvider
+		return broker.Call(callCtx, dataHandle, MethodCall{
+			Method: "lookup", Params: map[string]any{"value": 4},
+			Context: CallContext{
+				Deadline: time.Now().Add(time.Second), Actor: workerrpc.Actor{Role: "system"},
+			},
+		})
+	})
+	if err := broker.ActivateRuntime(ctx, "engine", "engine-generation", engineContracts, engineCaller); err != nil {
+		t.Fatal(err)
+	}
+	engineHandle, err := broker.ConnectOne(ctx, oneRequirement("sheets", "codex.test-engine", "^1.0.0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	callDone := make(chan error, 1)
+	go func() {
+		result, callErr := broker.Call(ctx, engineHandle, MethodCall{
+			Method: "evaluate", Params: map[string]any{"value": 4},
+			Context: CallContext{
+				Deadline: time.Now().Add(time.Second), Actor: workerrpc.Actor{Role: "system"},
+			},
+		})
+		if callErr == nil && string(result) != `{"result":8}` {
+			callErr = fmt.Errorf("nested service result = %s", result)
+		}
+		callDone <- callErr
+	}()
+	<-providerStarted
+
+	writeDone := make(chan error, 1)
+	go func() {
+		writeDone <- broker.ReplaceProviders(ctx, "unrelated-provider", "1.0.0", []ProviderDeclaration{
+			testProvider("codex.unrelated", "1.0.0", false),
+		})
+	}()
+	select {
+	case err := <-writeDone:
+		if err != nil {
+			close(continueProvider)
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		close(continueProvider)
+		t.Fatal("catalog write was blocked by provider execution")
+	}
+	close(continueProvider)
+	if err := <-callDone; err != nil {
+		t.Fatal(err)
 	}
 }
 

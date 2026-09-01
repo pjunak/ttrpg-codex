@@ -18,6 +18,7 @@ import (
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/datacontract"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
+	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
 	"github.com/pjunak/ttrpg-codex/internal/addons/workerbroker"
 	"github.com/pjunak/ttrpg-codex/internal/application/addondata"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/addondatastore"
@@ -44,6 +45,8 @@ type Config struct {
 	Generation      string
 	Manifest        packageinspect.Manifest
 	Data            Data
+	Services        ServiceCaller
+	BoundServices   []servicebroker.Handle
 	ContextResolver workerbroker.ContextResolver
 	OnInternalError func(workerbroker.Invocation, error)
 }
@@ -51,6 +54,7 @@ type Config struct {
 type declaredData struct {
 	collections map[string]struct{}
 	extensions  map[string]string
+	services    boundServices
 }
 
 type getRequest struct {
@@ -126,22 +130,30 @@ type commitResponse struct {
 
 func New(config Config) (*workerbroker.Dispatcher, error) {
 	if config.Data == nil || config.ContextResolver == nil || config.Manifest.ID != config.AddonID ||
-		!validAddonID(config.AddonID) || !validGeneration(config.Generation) {
+		!validAddonID(config.AddonID) || !validGeneration(config.Generation) ||
+		(len(config.BoundServices) > 0 && config.Services == nil) {
 		return nil, errors.New("worker host data configuration is invalid")
 	}
-	declarations := compileDeclarations(config.Manifest)
+	declarations, err := compileDeclarations(config.Manifest, config.BoundServices)
+	if err != nil {
+		return nil, err
+	}
 	authorize := workerbroker.AuthorizerFunc(func(_ context.Context, invocation workerbroker.Invocation) error {
 		return declarations.authorize(invocation)
 	})
+	methods := []workerbroker.Method{
+		dataGetMethod(config.Data),
+		dataQueryMethod(config.Data),
+		dataTransactionMethod(config.Data),
+	}
+	if config.Services != nil {
+		methods = append(methods, serviceCallMethod(config.Services, declarations.services))
+	}
 	return workerbroker.New(workerbroker.Config{
 		AddonID: config.AddonID, Generation: config.Generation,
 		ContextResolver: config.ContextResolver,
 		Authorizer:      authorize,
-		Methods: []workerbroker.Method{
-			dataGetMethod(config.Data),
-			dataQueryMethod(config.Data),
-			dataTransactionMethod(config.Data),
-		},
+		Methods:         methods,
 		OnInternalError: config.OnInternalError,
 	})
 }
@@ -274,10 +286,18 @@ func dataTransactionMethod(data Data) workerbroker.Method {
 	}
 }
 
-func compileDeclarations(manifest packageinspect.Manifest) declaredData {
+func compileDeclarations(
+	manifest packageinspect.Manifest,
+	handles []servicebroker.Handle,
+) (declaredData, error) {
+	services, err := compileBoundServices(manifest.ID, handles)
+	if err != nil {
+		return declaredData{}, err
+	}
 	result := declaredData{
 		collections: make(map[string]struct{}, len(manifest.Collections)),
 		extensions:  make(map[string]string, len(manifest.RecordExtensions)),
+		services:    services,
 	}
 	for _, declaration := range manifest.Collections {
 		result.collections[declaration.ID] = struct{}{}
@@ -285,7 +305,7 @@ func compileDeclarations(manifest packageinspect.Manifest) declaredData {
 	for _, declaration := range manifest.RecordExtensions {
 		result.extensions[declaration.ID] = declaration.Target
 	}
-	return result
+	return result, nil
 }
 
 func (declarations declaredData) authorize(invocation workerbroker.Invocation) error {
@@ -313,6 +333,13 @@ func (declarations declaredData) authorize(invocation workerbroker.Invocation) e
 			}
 		}
 		return nil
+	case "host/service.call":
+		request, err := decodeExact[serviceCallRequest](invocation.Params)
+		if err != nil {
+			return err
+		}
+		_, err = declarations.services.selectHandle(request.Contract, request.ProviderAddonID)
+		return err
 	default:
 		return errors.New("worker host method is not authorized")
 	}

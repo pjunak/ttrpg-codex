@@ -231,7 +231,9 @@ func composeHost(
 		) (workerrpc.RequestHandler, error) {
 			return workerhost.New(workerhost.Config{
 				AddonID: spec.Identity.AddonID, Generation: spec.Identity.Generation,
-				Manifest: spec.Manifest, Data: addonData, ContextResolver: requestContexts,
+				Manifest: spec.Manifest, Data: addonData,
+				Services: serviceBroker, BoundServices: spec.BoundServices,
+				ContextResolver: requestContexts,
 				OnInternalError: func(invocation workerbroker.Invocation, cause error) {
 					logger.Error("worker host method failed",
 						"addonId", invocation.AddonID, "generationId", invocation.Generation,
