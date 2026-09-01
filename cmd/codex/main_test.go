@@ -53,6 +53,35 @@ func TestComposeHostWiresAuthenticatedBrowserGraphAndEvents(t *testing.T) {
 		t.Fatalf("login = %d, %s", login.Code, login.Body.String())
 	}
 	cookie := login.Result().Cookies()[0]
+	var loginBody struct {
+		CSRFToken string `json:"csrfToken"`
+	}
+	if err := json.Unmarshal(login.Body.Bytes(), &loginBody); err != nil || loginBody.CSRFToken == "" {
+		t.Fatalf("login authority body = %+v, %v", loginBody, err)
+	}
+	mutationRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/campaign/transactions",
+		bytes.NewBufferString(`{
+			"contractVersion":"campaign-mutation.v1",
+			"mutations":[{
+				"operation":"put","collection":"characters","key":"alice",
+				"expectedRevision":0,"value":{"id":"alice","name":"Alice","visibility":"public"}
+			}]
+		}`),
+	)
+	mutationRequest.Header.Set("Content-Type", "application/json")
+	mutationRequest.Header.Set("X-Codex-CSRF", loginBody.CSRFToken)
+	mutationRequest.AddCookie(cookie)
+	mutationResponse := httptest.NewRecorder()
+	runtime.handler.ServeHTTP(mutationResponse, mutationRequest)
+	if mutationResponse.Code != http.StatusOK {
+		t.Fatalf("campaign mutation = %d, %s", mutationResponse.Code, mutationResponse.Body.String())
+	}
+	publicCampaign = serve(runtime.handler, http.MethodGet, "/api/campaign", "", nil)
+	if publicCampaign.Code != http.StatusOK || !strings.Contains(publicCampaign.Body.String(), `"name":"Alice"`) {
+		t.Fatalf("mutated public campaign = %d, %s", publicCampaign.Code, publicCampaign.Body.String())
+	}
 	graph := serve(runtime.handler, http.MethodGet, "/api/addons/browser-graph", "", cookie)
 	if graph.Code != http.StatusOK {
 		t.Fatalf("authenticated graph = %d, %s", graph.Code, graph.Body.String())

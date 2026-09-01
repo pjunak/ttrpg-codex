@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/domain/campaign"
 )
@@ -15,10 +16,12 @@ var ErrInvalidConfig = errors.New("invalid campaign data service configuration")
 
 type Repository interface {
 	Snapshot(context.Context, bool) (campaign.Snapshot, error)
+	Transact(context.Context, campaign.Transaction) (campaign.Commit, error)
 }
 
 type Service struct {
 	repository Repository
+	now        func() time.Time
 }
 
 type ViewRole string
@@ -51,7 +54,7 @@ func New(repository Repository) (*Service, error) {
 	if repository == nil {
 		return nil, ErrInvalidConfig
 	}
-	return &Service{repository: repository}, nil
+	return &Service{repository: repository, now: time.Now}, nil
 }
 
 func (service *Service) Dataset(ctx context.Context, role ViewRole) (Dataset, error) {

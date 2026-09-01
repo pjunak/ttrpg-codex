@@ -64,6 +64,8 @@ func TestDatasetRejectsInvalidRoleAndWrapsRepositoryFailure(t *testing.T) {
 type fakeRepository struct {
 	snapshot campaign.Snapshot
 	err      error
+	commit   campaign.Commit
+	writes   []campaign.Transaction
 }
 
 func (repository *fakeRepository) Snapshot(
@@ -71,6 +73,14 @@ func (repository *fakeRepository) Snapshot(
 	bool,
 ) (campaign.Snapshot, error) {
 	return repository.snapshot, repository.err
+}
+
+func (repository *fakeRepository) Transact(
+	_ context.Context,
+	transaction campaign.Transaction,
+) (campaign.Commit, error) {
+	repository.writes = append(repository.writes, transaction)
+	return repository.commit, repository.err
 }
 
 func raw(value string) json.RawMessage { return json.RawMessage(value) }

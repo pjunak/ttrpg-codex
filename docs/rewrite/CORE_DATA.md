@@ -65,11 +65,35 @@ snapshot. The transport never accepts a requested role; authority comes only
 from the resolved session.
 
 The record store itself still validates storage invariants, not all campaign
-rules. The read application service owns visibility policy above it. The
-rewrite does not yet implement:
+rules. The application service owns visibility and mutation policy above it.
 
-- player write sanitization, twin pairing, or entity-specific cascade rules;
-- the HTTP transaction API or editable TypeScript data handles;
+`POST /api/campaign/transactions` accepts the exact
+`campaign-mutation.v1` contract. Every requested put/delete carries an
+expected record revision and the authenticated session identity is supplied by
+the host, never the request body. All writes require the session-bound CSRF
+token. The response is a payload-free `campaign-commit.v1` receipt containing
+only requested record results plus affected collection revisions; derived or
+private record keys stay internal.
+
+Before one atomic SQLite transaction, the application service:
+
+- forces player-created/edited visibility to the existing public space,
+  preserves server-owned twin links, removes retired `secrets`, and merges
+  omitted add-on namespaces;
+- treats guessed hidden and missing references alike, and rejects player
+  references outside the current public identity graph;
+- prevents generic writes from creating, changing, or dropping twin links;
+- keeps location connections symmetric while preserving a player's existing
+  links to peers that are not visible/editable to that player;
+- expands character, location, and faction deletion into reference cleanup,
+  including twins, relationships, maps, settings, ownership, and audit marks;
+- rechecks every requested and derived expected revision in the storage
+  transaction, so a race rolls the complete plan back.
+
+The rewrite does not yet implement:
+
+- explicit twin create/link/unlink and enum replacement operations;
+- editable TypeScript data handles and core editors;
 - initial import publication, backup/restore, or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and
   other domain queries.

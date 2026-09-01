@@ -57,6 +57,9 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   [`CORE_DATA.md`](CORE_DATA.md). A domain-facing application service now
   publishes the versioned campaign dataset through `GET /api/campaign`, with
   an exact DM snapshot and a reference-closed anonymous/player projection.
+  Its CSRF-protected transaction endpoint plans requested and derived changes
+  above storage, applies player/twin/reference policy, and commits compound
+  cascades with optimistic revisions as one unit.
 - The HTTP boundary exposes no-store health and version responses. Its add-on
   administration routes require both a lifecycle service and an administrator
   authorizer at composition time; partial configuration fails closed and the

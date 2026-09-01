@@ -65,6 +65,12 @@ sessions also receive the public audience, while an effective DM additionally
 receives DM invalidations. The browser closes and reopens its single stream
 after an authority change so an older audience is never reused.
 
+Campaign transactions accept either authenticated role and always require the
+exact CSRF value bound to the current cookie. The effective role selects DM or
+player mutation policy; a DM using view-as-player deliberately receives player
+write limits. Audit identity is derived from the resolved session and cannot
+be supplied or overridden in JSON.
+
 ## Remaining authentication work
 
 - Add persistent slow-hashed credentials, password rotation, session
