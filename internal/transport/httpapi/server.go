@@ -36,6 +36,8 @@ type Config struct {
 	MediaAuthorizer     MediaAuthorizer
 	AddonData           AddonData
 	AddonDataAuthorizer AddonDataAuthorizer
+	AddonContent        AddonContent
+	ContentAuthorizer   BrowserAuthorizer
 	Events              EventSource
 	EventAuthorizer     EventAuthorizer
 	EventHeartbeat      time.Duration
@@ -64,6 +66,8 @@ type server struct {
 	mediaAuthorizer     MediaAuthorizer
 	addonData           AddonData
 	addonDataAuthorizer AddonDataAuthorizer
+	addonContent        AddonContent
+	contentAuthorizer   BrowserAuthorizer
 	loginLimiter        *loginLimiter
 	events              EventSource
 	eventAuthorizer     EventAuthorizer
@@ -79,6 +83,7 @@ func New(config Config) (http.Handler, error) {
 		(config.BackupArchives == nil) != (config.BackupAuthorizer == nil) ||
 		(config.Media == nil) != (config.MediaAuthorizer == nil) ||
 		(config.AddonData == nil) != (config.AddonDataAuthorizer == nil) ||
+		(config.AddonContent == nil) != (config.ContentAuthorizer == nil) ||
 		(config.Events == nil) != (config.EventAuthorizer == nil) ||
 		config.EventHeartbeat < 0 || config.EventHeartbeat > 5*time.Minute ||
 		config.EventHeartbeat > 0 && config.EventHeartbeat < time.Second {
@@ -99,6 +104,7 @@ func New(config Config) (http.Handler, error) {
 		backupArchives: config.BackupArchives, backupAuthorizer: config.BackupAuthorizer,
 		media: config.Media, mediaAuthorizer: config.MediaAuthorizer,
 		addonData: config.AddonData, addonDataAuthorizer: config.AddonDataAuthorizer,
+		addonContent: config.AddonContent, contentAuthorizer: config.ContentAuthorizer,
 		loginLimiter: newLoginLimiter(), events: config.Events,
 		eventAuthorizer: config.EventAuthorizer, eventHeartbeat: config.EventHeartbeat,
 	}
@@ -128,6 +134,9 @@ func New(config Config) (http.Handler, error) {
 	}
 	if s.addonData != nil {
 		s.registerAddonDataRoutes(mux)
+	}
+	if s.addonContent != nil {
+		s.registerAddonContentRoutes(mux)
 	}
 	handler := http.Handler(mux)
 	if s.authentication != nil {

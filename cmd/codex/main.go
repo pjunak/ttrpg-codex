@@ -289,6 +289,8 @@ func composeHost(
 		MediaAuthorizer:     httpapi.SessionMediaAuthorizer(authentication),
 		AddonData:           addonData,
 		AddonDataAuthorizer: httpapi.SessionAddonDataAuthorizer(authentication),
+		AddonContent:        addons,
+		ContentAuthorizer:   httpapi.SessionBrowserAuthorizer,
 		AddonLifecycle:      addons, AdminAuthorizer: httpapi.SessionAdminAuthorizer(authentication),
 		BrowserAddons: addons, BrowserAuthorizer: httpapi.SessionBrowserAuthorizer,
 		Events: eventBroker, EventAuthorizer: httpapi.SessionEventAuthorizer,
