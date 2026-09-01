@@ -1,84 +1,52 @@
 # Project backlog
 
-This is the single durable backlog for `ttrpg-codex` and its companion addons:
-`addon-dnd-engine`, `addon-dnd-character-sheets`,
-`addon-dnd-2024-compendium`, and `addon-dm-tools`.
+This is the only durable backlog for the host and its four companion add-ons.
+Implementation contracts describe current behavior; they are not roadmaps.
 
-Repository reference documents describe current behavior and deliberate
-boundaries; they are not secondary roadmaps. Temporary implementation plans
-belong only in the gitignored `docs/plans/` directory and must be deleted when
-their task closes. Do not create separate `TODO.md`, `ROADMAP.md`, or planning
-lists in source files or companion repositories.
+## Supervised cutover gates
 
-There are currently no known release blockers.
+These are operational acceptance tasks, not missing rewrite code:
 
-## Maintainability
+- Build the Docker image on a Docker-capable machine; Docker is unavailable on
+  the development workstation used for the final implementation pass.
+- Convert both downloaded v1 UI backups into separate fresh data directories
+  and review their reports.
+- Deploy one disposable or secondary instance, stage the four reviewed v3
+  packages, and complete the acceptance checklist in `SELF_HOSTING.md`.
+- Repeat for both websites, retain the old data and backup ZIPs, then make this
+  branch the new main branch only after the maintainer accepts the result.
 
-### Incrementally reduce the remaining large host modules
+## Platform follow-ups
 
-`server.js`, `web/js/store.js`, `web/js/settings.js`, and
-`web/js/editmode.js` still combine several domains. Extract one cohesive
-responsibility at a time when related behavior is next changed, preserving
-public module APIs and adding focused tests before moving code. Avoid a
-wholesale rewrite or splitting files solely by line count.
-
-The similar built-in entity editors should converge on shared form and
-mutation primitives after their owning controller boundaries are clear.
-Consumer-specific fields and validation should remain explicit rather than
-being forced through an abstraction that obscures behavior.
-
-### Reassess the `brace-expansion` override
-
-The dependency tree currently resolves the patched `brace-expansion@5.0.8`
-through `minimatch@10.2.5`. Remove the explicit override only after a clean
-install proves the upstream production dependency chain selects a patched
-release without it.
-
-## Conditional hardening
-
-These are not priorities under the current trusted, maintainer-reviewed addon
-model. Promote them before accepting untrusted third-party addons:
-
-- Scope action dispatch inside addon-owned DOM so addon markup cannot invoke
-  core `data-action` handlers, including deferred-action indirection.
-- Revisit process isolation for server addon code. The current permission
-  facade prevents mistakes and constrains host APIs but is not an OS sandbox.
-
-## Decisions requiring the maintainer
-
-- **Password hashing:** migrate stored password hashes to `crypto.scrypt`.
-  This needs a versioned hash migration and invalidates existing sessions.
-- **Content Security Policy:** enable a restrictive external-script policy.
-  Inline style attributes still require a separate style-policy decision.
+- Add a DM-facing package Inspector/approval UI over the existing protected
+  stage, review, approval, activation, reload, and disable APIs.
+- Add coordinated dependent disable and a separately reviewed uninstall/data-
+  deletion workflow if routine package removal becomes useful.
+- Add migration plan/apply workers when a real released add-on schema change
+  requires them; do not build speculative migration machinery.
+- Consider a WASI worker target only for a package that benefits from it.
+- Add OS-level native worker limits before accepting untrusted third-party
+  workers. The current model assumes maintainer-reviewed first-party packages.
+- Persist password hashes only if runtime credential rotation becomes a real
+  need; current credentials intentionally come from deployment configuration.
 
 ## Product candidates
 
-- Per-map-view marker visibility rules.
-- Bulk ZIP upload for marker icon variants.
-- Per-location marker icon override.
-- Strength presets in the attitude editor.
-- Segmented multi-attitude presentation for wiki portraits and cards. The
-  existing vertical marker segmentation is the reference; radial wedges are
-  an alternative design, not a separate backlog item.
-
-## D&D addon suite
-
-- Add an optional structured 2014 ruleset provider when authoritative content
-  and a real compatibility test target are available.
-- Treat combat resolution and encounter automation as a separate addon rather
-  than expanding character sheets into a combat engine.
-- Structure narrative mechanics only when a concrete consumer needs them.
-  Effects targeting other creatures, attacks, saves, areas, encounter timing,
-  renown workflows, and similar rules may remain reference prose until then.
-- Keep combat resolution, homebrew rule automation, and detailed retrospective
-  session bookkeeping outside DM Tools. Its story canvas should grow only
-  through concrete planning/world-building workflows and stored relationships,
-  never inferred edges or automatic quest progress.
+- Reintroduce specialized map, timeline, and relationship visualizations as
+  focused v3 add-ons when their desired workflows are clear. The generic core
+  record browser remains the fallback and data authority.
+- Add richer core field editors only where structured editing materially
+  improves the common workflow; preserve unknown fields and JSON portability.
+- Add an optional structured 2014 rules-data provider only with authoritative
+  content and a real compatibility target.
+- Keep combat resolution and encounter automation separate from character
+  sheets and DM Tools.
 
 ## Explicit non-goals
 
-- Offline/local play and vendoring the SRI-pinned browser libraries.
-- Duplicating content records to model reprints; canonical provenance plus
-  `availableIn` membership remains the sourcebook-toggle contract.
-- Keeping completed implementation plans or historical task ledgers in the
-  repository.
+- Permanent v1 save readers, startup migration branches, or a general legacy
+  backup UI.
+- Building add-on source in production.
+- Hardcoding first-party add-on IDs in host or consumer behavior.
+- Silently selecting among ambiguous providers.
+- Deleting old saves or branches as part of automated cutover.

@@ -41,17 +41,29 @@ jobs:
         with:
           node-version-file: ttrpg-codex/.nvmrc
 
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: ttrpg-codex/go.mod
+          cache: true
+
       - name: Test DM Tools against this host revision
-        run: node --test tests/*.mjs
+        run: npm ci && npm run check && go test ./... && go vet ./... && go run ./cmd/build-package
         working-directory: addon-dm-tools
 
       - name: Test D&D Engine against this host revision
-        run: node --test tests/*.mjs
+        run: go test ./... && go vet ./... && go run ./cmd/build-package
         working-directory: addon-dnd-engine
 
       - name: Test Character Sheets against this host revision
-        run: node --test tests/*.mjs
+        run: npm ci && npm run check && npm run package
         working-directory: addon-dnd-character-sheets
+
+      - name: Inspect public release packages
+        run: |
+          go run ./cmd/codex-addon-inspect ../addon-dm-tools/dist/dm-tools-3.0.0.zip
+          go run ./cmd/codex-addon-inspect ../addon-dnd-engine/dist/dnd-engine-3.0.0.zip
+          go run ./cmd/codex-addon-inspect ../addon-dnd-character-sheets/dist/dnd-sheets-3.0.0.zip
+        working-directory: ttrpg-codex
 
   private-compendium:
     name: Private compendium suite
@@ -75,18 +87,23 @@ jobs:
           token: ${{ env.ADDON_SUITE_TOKEN }}
           path: addon-dnd-2024-compendium
 
-      - uses: actions/checkout@v7
-        if: env.ADDON_SUITE_TOKEN != ''
-        with:
-          repository: pjunak/addon-dnd-engine
-          path: addon-dnd-engine
-
       - uses: actions/setup-node@v7
         if: env.ADDON_SUITE_TOKEN != ''
         with:
           node-version-file: ttrpg-codex/.nvmrc
 
+      - uses: actions/setup-go@v6
+        if: env.ADDON_SUITE_TOKEN != ''
+        with:
+          go-version-file: ttrpg-codex/go.mod
+          cache: true
+
       - name: Test Compendium against this host revision
         if: env.ADDON_SUITE_TOKEN != ''
-        run: node --test tests/*.mjs
+        run: npm ci && npm run check && npm run package
         working-directory: addon-dnd-2024-compendium
+
+      - name: Inspect private release package
+        if: env.ADDON_SUITE_TOKEN != ''
+        run: go run ./cmd/codex-addon-inspect ../addon-dnd-2024-compendium/dist/dnd-2024-compendium-3.0.0.zip
+        working-directory: ttrpg-codex

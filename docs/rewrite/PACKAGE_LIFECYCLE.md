@@ -174,11 +174,13 @@ revision, records `disabled`, and then performs bounded worker cleanup.
 The transport registers add-on administration only when both the lifecycle
 service and an `AdminAuthorizer` are supplied. Supplying only one is a startup
 configuration error. Authorization runs before path or body parsing, and a
-denial returns a generic response without exposing session details. The future
-cookie-backed authorizer must own administrator-role and anti-CSRF checks.
+denial returns a generic response without exposing session details. The
+cookie-backed authorizer requires a real-and-effective DM session and a bound
+CSRF token for mutations.
 
 | Method and path | Operation |
 |---|---|
+| `POST /api/admin/addons/generations` | Accept a bounded `application/zip` upload and stage an inert immutable generation |
 | `GET /api/admin/addons/{addonId}` | Read durable and live lifecycle diagnostics; optional `eventLimit` is bounded to 0-500 |
 | `POST /api/admin/addons/{addonId}/activation-reviews` | Prepare and persist an exact generation review |
 | `GET /api/admin/addon-activation-reviews/{reviewId}` | Re-read a durable review |

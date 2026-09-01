@@ -15,12 +15,18 @@ COPY internal/ ./internal/
 COPY sdk/ ./sdk/
 RUN CGO_ENABLED=0 go build -trimpath -o /out/codex ./cmd/codex
 RUN CGO_ENABLED=0 go build -trimpath -o /out/codex-health ./cmd/codex-health
+RUN CGO_ENABLED=0 go build -trimpath -o /out/codex-addon-inspect ./cmd/codex-addon-inspect
+RUN CGO_ENABLED=0 go build -trimpath -o /out/codex-convert-v1 ./cmd/codex-convert-v1
+RUN CGO_ENABLED=0 go build -trimpath -o /out/codex-maintenance ./cmd/codex-maintenance
 
 FROM debian:bookworm-slim
 RUN groupadd --system codex && useradd --system --gid codex --home-dir /app codex
 WORKDIR /app
 COPY --from=host-build /out/codex /app/codex
 COPY --from=host-build /out/codex-health /app/codex-health
+COPY --from=host-build /out/codex-addon-inspect /app/codex-addon-inspect
+COPY --from=host-build /out/codex-convert-v1 /app/codex-convert-v1
+COPY --from=host-build /out/codex-maintenance /app/codex-maintenance
 COPY --from=frontend-build /src/frontend/dist /app/frontend
 RUN mkdir /app/data && chown -R codex:codex /app
 

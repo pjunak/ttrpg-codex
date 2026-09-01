@@ -39,17 +39,13 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
       - run: npm ci
-
-      # Same gate as `npm run check`, with file-level concurrency capped so
-      # the integration tests (each spawns a real server child process)
-      # don't overwhelm the 2-core runner and flake on boot timeouts.
-      - run: npm run check:ci
-
-      - name: Install Chromium for rendering contracts
-        run: npx playwright install --with-deps chromium
-
-      - run: npm run test:browser
+      - run: npm run check
 
   build:
     name: Build and push image

@@ -1,436 +1,147 @@
-# Self-hosting guide
+# Self-hosting and cutover
 
-Step-by-step instructions for running TTRPG Codex on your own server.
-Aimed at someone who has never deployed a Docker app before; if you
-already know your way around Compose + reverse proxies, skim to the
-**At a glance** table.
+This guide covers the Go/TypeScript v2 deployment. Live conversion and final
+smoke testing are intentionally performed with the maintainer present.
 
-## At a glance
+## Requirements
 
-| Topic | Value |
+- Docker Engine with Compose for production.
+- A reverse proxy providing HTTPS for internet-facing instances.
+- Go 1.26 and Node.js 24+ only when building or converting outside Docker.
+
+## Configuration
+
+Copy `.env.example` to `.env` and set:
+
+| Variable | Purpose |
 |---|---|
-| Runtime | Node 26 inside a Docker container |
-| Memory | 512 MB / 0.5 CPU (tile builds of large maps are the peak; idle use is far lower) |
-| Disk | A few MB of code + however much your campaign grows; tile pyramids dominate (≈3-5× the source map image) |
-| Persistent volumes | `./data` and `./data-snapshots` |
-| Network | Listens on port 3000 inside the container |
-| Auth | DM password (full access) + optional player password (public content only). Set via env vars or rotated in-app — see [Passwords & roles](#passwords--roles) |
-| Required external services | None — JSON files on disk |
+| `CODEX_DM_PASSWORD` | Required full-authority password; choose a long random value |
+| `CODEX_PLAYER_PASSWORD` | Optional public-record editing password |
+| `CODEX_SECURE_COOKIES` | Set `true` behind HTTPS |
+| `CODEX_LOCALE` | Locale reported to add-on workers; default `en` |
+| `CODEX_TIME_ZONE` | IANA time zone reported to workers |
 
-## 1. Install Docker
+The host has no default credential. Password values are deployment
+configuration and are not imported from v1 backups.
 
-If you don't already have it:
+## Build and start
 
-- **Linux:** follow [Docker's official install guide](https://docs.docker.com/engine/install/)
-  for your distribution. The convenience script (`curl -fsSL https://get.docker.com | sh`)
-  works on most setups.
-- **Windows / macOS:** install [Docker Desktop](https://docs.docker.com/desktop/).
-- **Compose** ships with modern Docker installs (`docker compose`,
-  no hyphen). If `docker compose version` fails, see the
-  [Compose docs](https://docs.docker.com/compose/install/).
-
-## 2. Clone and configure
-
-```bash
-git clone https://github.com/pjunak/ttrpg-codex.git
-cd ttrpg-codex
-```
-
-Create a `.env` file with a strong **DM** password — anyone with this
-password can edit (or destroy) your campaign:
-
-```bash
-echo "DM_PASSWORD=$(openssl rand -base64 24)" > .env
-```
-
-Save the password somewhere — your password manager, a sealed
-envelope, whatever you trust.
-
-### Passwords & roles
-
-The app has three access levels:
-
-| Role | How to get it | Can do |
-|---|---|---|
-| **Anonymous** | no login | Read all public content |
-| **Player** | the player password | Read + edit **public** content; cannot see or edit DM-only lore |
-| **DM** | the DM password | Everything, including DM-only entities and Settings |
-
-Passwords come from two sources, checked in this order:
-
-1. **`data/auth.json`** — credentials set in-app from **Settings →
-   Account** by a logged-in DM. These persist across restarts and take
-   priority over the environment.
-2. **Environment variables** — `DM_PASSWORD` and `PLAYER_PASSWORD`,
-   consulted only when the matching role has no stored credential.
-   `EDIT_PASSWORD` is a legacy alias for `DM_PASSWORD`.
-
-To install addons from **private repositories** (and to raise GitHub's
-anonymous rate limits) the server needs a GitHub token. The easiest path
-needs no shell access at all: the DM opens **Settings → Add-ons → GitHub
-access tokens**. Save a token against `owner/repository` for each private
-addon, or leave Repository blank to create a default fallback for every
-repository. The install wizard also has a **🔑 Private repository token**
-shortcut that saves a token only for the pasted repository. Tokens are stored
-server-side in `data/secrets.json`; saving the same scope replaces its old value.
-Alternatively set the env var **`CODEX_GITHUB_TOKEN`** (or the
-conventional `GITHUB_TOKEN`). Repository-specific tokens take precedence,
-then the UI-managed default, then the environment token. Either way token
-values stay server-side only: never sent to
-clients, never logged, and `secrets.json` is deliberately excluded from
-backup ZIPs, snapshots and restore — a stored credential must never ride
-into a shareable archive. A fine-grained personal access token with
-**Contents: Read-only** on the addon repositories is all it needs. The
-Addon Manager lists the configured scopes and their source, but never their
-values.
-
-A few consequences worth knowing:
-
-- **A player password is optional.** Leave `PLAYER_PASSWORD` unset and
-  player login is simply disabled — anonymous visitors already get the
-  same public-only view.
-- **Rotate without redeploying.** Sign in as DM, open Settings → Account,
-  and change either password. Changing the DM password rotates the
-  cookie secret (invalidating old sessions) but re-issues your own so
-  you stay logged in.
-- **Never run with the default.** If neither `DM_PASSWORD` nor a stored
-  credential is set, the DM password falls back to `"123"` and the
-  server logs a loud warning at boot — anyone reading the open-source
-  code could then compute a valid cookie. Set a real password before
-  exposing the app.
-
-## 3. Start the container
-
-```bash
+```powershell
+docker compose build
 docker compose up -d
-```
-
-The `-d` flag runs the container in the background.
-
-Check the logs:
-
-```bash
 docker compose logs -f ttrpg-codex
 ```
 
-You should see `TTRPG Codex running on http://localhost:3000`. Hit
-Ctrl-C to stop tailing the logs (the container keeps running).
+The container listens on port 3000 and stores all durable state below
+`/app/data`, mounted from `./data`. The production image contains the Go host,
+health probe, package inspector, converter, maintenance utility, and compiled
+frontend; it does not contain Node.js.
 
-Open <http://localhost:3000>. The page loads with no campaign data.
-Click any **✏** edit pencil (or the **🔑 Přihlásit** chip in the
-top-right of the dashboard), paste the password from `.env`, and start
-filling in entities.
+The default Compose network is the existing external `proxy` network. Adjust
+that declaration for another reverse-proxy topology. Forward the original
+scheme and client address normally, terminate TLS at the proxy, and keep
+`CODEX_SECURE_COOKIES=true`.
 
-## 4. Put it behind a reverse proxy (production)
+## One-time v1 conversion
 
-Exposing port 3000 directly to the internet works, but you'll want
-HTTPS and a real domain. Two well-trodden options:
+Keep the downloaded UI backups unchanged and make an additional copy before
+conversion. Build fresh v3 ZIPs for DM Tools and Character Sheets and inspect
+them first:
 
-### Option A — Caddy (simplest, automatic HTTPS)
-
-Caddy fetches and renews Let's Encrypt certificates automatically.
-Read the [reverse proxy quick-start](https://caddyserver.com/docs/quick-starts/reverse-proxy)
-for the full walkthrough; the relevant Caddyfile snippet:
-
-```
-codex.example.com {
-    reverse_proxy ttrpg-codex:3000
-}
+```powershell
+go run ./cmd/codex-addon-inspect ../addon-dm-tools/dist/dm-tools-3.0.0.zip
+go run ./cmd/codex-addon-inspect ../addon-dnd-character-sheets/dist/dnd-sheets-3.0.0.zip
 ```
 
-The `docker-compose.yml` shipped here expects an external Docker
-network called `proxy` so the Caddy container (deployed separately)
-can reach `ttrpg-codex` by container name. Create it once:
+Convert each website independently. The output directory must not exist:
 
-```bash
-docker network create proxy
+```powershell
+go run ./cmd/codex-convert-v1 `
+  -in D:\backups\site-a-v1.zip `
+  -out D:\converted\site-a `
+  -addon-package ..\addon-dm-tools\dist\dm-tools-3.0.0.zip `
+  -addon-package ..\addon-dnd-character-sheets\dist\dnd-sheets-3.0.0.zip
 ```
 
-Then start Caddy on the same network. Restart `ttrpg-codex` so it
-joins the network too:
+Read the JSON report. Confirm the input hash, imported collection counts, media
+counts, package hashes, and every deferred/unknown entry. Generated map tiles
+are deliberately discarded. The source ZIP is never modified.
 
-```bash
-docker compose up -d
+During supervised cutover, stop the old service, move its existing data aside,
+place the verified converted directory at the new instance's `data/` mount,
+start v2, and retain both the original UI ZIP and old data directory until the
+campaign has been manually checked.
+
+## Add-on installation
+
+Build release archives in each add-on repository and validate them with
+`codex-addon-inspect`. The protected API then uses four distinct steps:
+
+| Request | Result |
+|---|---|
+| `POST /api/admin/addons/generations` with `application/zip` | Inspect and stage an inert immutable generation |
+| `POST /api/admin/addons/{id}/activation-reviews` | Produce a durable permission/dependency diff |
+| `POST /api/admin/addon-activation-reviews/{review}/approval` | Approve the exact complete grant set |
+| `POST /api/admin/addon-activation-reviews/{review}/activation` | Start, health-check, and switch the reviewed generation |
+
+All four require a real DM session; mutations require its `X-Codex-CSRF`
+token. A staged ZIP cannot execute. Keep provider order intuitive during the
+first cutover: Compendium, Engine, Character Sheets, then DM Tools. The host
+still resolves and enforces the actual dependency graph.
+
+## Backups
+
+The DM endpoint `GET /api/backup` downloads the same verified archive contract
+as the maintenance CLI. For offline operation:
+
+```powershell
+go run ./cmd/codex-maintenance backup `
+  -data-dir .\data -out D:\backups\codex-2026-09-01.zip
+
+go run ./cmd/codex-maintenance verify `
+  -in D:\backups\codex-2026-09-01.zip
 ```
 
-### Option B — nginx-proxy-manager (web UI for routes)
+Keep backups outside the mounted data directory and copy them off the server.
+Verification is read-only and should be part of the backup routine.
 
-[nginx-proxy-manager](https://nginxproxymanager.com/setup/) gives
-you a Caddy-equivalent flow with a point-and-click web UI for
-configuring proxy hosts and Let's Encrypt certificates. Add
-`ttrpg-codex:3000` as an upstream and let NPM handle the rest.
+Restore only while the host is stopped:
 
-### Option C — Roll your own nginx / Apache / Traefik
-
-If you already maintain a reverse proxy, point it at the container's
-exposed port. The app sets `app.set('trust proxy', 1)` so `req.ip`
-and the `secure` cookie attribute work correctly behind a single
-hop of proxy.
-
-## 5. Backups
-
-Your campaign content lives in two volumes: `./data` (entities,
-images, settings) and `./data-snapshots` (point-in-time history).
-Two complementary strategies:
-
-### Built-in snapshots
-
-Successful writes create coalesced recovery points under
-`./data-snapshots/snapshot-<ISO>.json`. Retention: the most recent
-50 snapshots plus the newest snapshot per UTC-day for the last 14
-days. Manage them in the Settings → **Backup** tab (labels are translated
-for the selected UI language):
-
-- **Create recovery point** — take a manual snapshot now (bypasses
-  coalescing; rate-limited to one per 3 s).
-- **Restore** on any recovery point — roll the entire dataset back to that
-  point. The handler takes a fresh `pre-restore` snapshot first so
-  the operation itself is undoable.
-- **Revert N recovery points** — restore the recovery point N positions
-  before newest. Because writes within 60 seconds may coalesce, N is not an
-  edit count.
-
-### Full ZIP backup
-
-Settings → **Backup** → **Download backup** triggers
-`GET /api/backup` and downloads a ZIP containing the entire `data/`
-directory except `secrets.json` and internal recovery journals. It includes
-`auth.json`, addon packages, and addon data. The same dialog accepts an upload
-to restore — both ZIP and the JSON export from `Store.exportJSON()` are
-accepted.
-
-For automated off-site backups, just rsync `./data` and `./data-snapshots`:
-
-```bash
-rsync -avz ./data/ ./data-snapshots/ user@offsite-host:/backups/codex/
+```powershell
+go run ./cmd/codex-maintenance restore `
+  -data-dir .\data -in D:\backups\codex-2026-09-01.zip
 ```
 
-A daily cron job is plenty for a typical campaign that updates a
-handful of times per session.
+Restore verifies the archive and an isolated database before atomically
+publishing it. Never unpack or merge backup contents by hand.
 
-## 6. Upgrades
+## Upgrade and rollback
 
-Pull the latest code and rebuild:
+1. Download a current `codex-backup.v2` archive and verify it.
+2. Build the new image without replacing the running container.
+3. Stop, replace, and start the service.
+4. Check `/api/health`, login, campaign counts, representative DM/player
+   records, media, live updates, and every active add-on.
+5. If validation fails, stop v2 and restore the verified pre-upgrade archive or
+   previous data directory before returning traffic.
 
-```bash
-git pull
-docker compose up -d --build
-```
+Database migrations are forward-only. Container rollback alone is not a data
+rollback.
 
-The container restart preserves `./data` and `./data-snapshots`. Server-owned
-schema migrations run idempotently before the listener starts. Browser-side
-normalization only supplies safe display defaults and never persists a schema
-migration. There is no manual migration step.
+## Supervised acceptance checklist
 
-If you need to roll back, the previous Docker image is still cached;
-`docker compose down && docker tag <previous-sha> ttrpg-codex && docker compose up -d`
-will revive it. Or git-checkout the previous commit and rebuild.
+- Both converted instances report the expected core and add-on record counts.
+- Representative hidden/public records are correct for anonymous, player, and
+  DM views.
+- Character-sheet extension data and DM Tools planning collections are present.
+- Portraits, maps, logos, and other migrated media load through opaque URLs.
+- All four v3 packages stage, review, activate, reload, and recover after a
+  restart.
+- Compendium browsing, rules-engine calls, sheet manual/automated paths, and DM
+  Tools routes work together.
+- Two browsers observe live edits and stale edits receive conflicts.
+- A fresh v2 backup verifies and can be restored into a disposable directory.
 
-### Post-deploy smoke check
-
-Production runs behind a real reverse proxy and persistent volumes, so a local
-browser is not a complete substitute. After an upgrade:
-
-1. confirm `GET /api/health`, `GET /api/version`, and the container health check;
-2. sign in through the public hostname and verify the expected real/effective
-   role;
-3. create one manual recovery point, refresh the list, and download a ZIP
-   backup;
-4. make a harmless edit and confirm another connected browser receives it;
-5. open every installed addon route and inspect the browser console; and
-6. check server logs for blocked addons, recovery warnings, and filesystem
-   permission errors.
-
-Run this independently for each hosted instance because its volumes, addon
-registry, credentials, and proxy route are separate.
-
-## 7. Operational notes
-
-### Monitoring
-
-The Docker `HEALTHCHECK` probes the constant-time `GET /api/health` endpoint
-every 10 s. It verifies that the Node process and Express event loop can answer
-requests without making readiness depend on campaign size. `GET /api/version`
-separately computes the role-scoped data hash used by clients.
-
-`docker compose ps` shows health status; alert when it isn't `healthy`.
-
-### Logs
-
-```bash
-docker compose logs -f ttrpg-codex
-```
-
-Notable lines:
-
-- `TTRPG Codex running on http://localhost:3000` — server is up.
-- `[snapshot] migrated legacy data/snapshots → data-snapshots` —
-  one-time relocation from a pre-A3 deployment. Separate Docker mounts are
-  handled with a durable copy followed by source deletion.
-- `[snapshot migrate] incomplete: …` — at least one legacy snapshot could not
-  be copied; its source remains intact. Check the preceding per-file error and
-  the ownership of both persistent directories before redeploying.
-- `[tiles] sharp not installed — tile generation disabled` — the required
-  package failed to load despite being in the production dependency set.
-  The app degrades to a slower single-image overlay, but rebuild the image or
-  inspect `npm ci` rather than treating this as a normal configuration.
-- `⚠  DM password is UNSET` / `… is the default ("123")` — the
-  deployment is world-editable. Set `DM_PASSWORD` (or change it from
-  Settings → Účet) immediately.
-- `ℹ  Player password is unset — player login is disabled.` — benign;
-  set `PLAYER_PASSWORD` only if you want a separate player tier.
-
-### Resource limits
-
-The shipped `docker-compose.yml` caps the container at 512 MB / 0.5
-CPU — sized so a tile-pyramid build of a large (up to 40 MB) world map
-can't OOM the container. Adjust upward if your campaign grows to
-thousands of entities. Tile generation is the only CPU/memory-heavy
-operation; entity reads and writes are cheap.
-
-### Permissions
-
-The container runs as the default Node user (UID 1000 in the official
-image). `./data` and `./data-snapshots` need to be writable by that
-UID. If you run into permission errors:
-
-```bash
-sudo chown -R 1000:1000 ./data ./data-snapshots
-```
-
-## 8. Addons — what a host operator should know
-
-The DM can install **addons** from GitHub URLs (Settings → **Doplňky**:
-a wizard shows the requested permissions, takes a snapshot, runs the
-addon's self-tests, then activates). Operationally relevant:
-
-- **Trust model: addon code runs in-process, unsandboxed.** An addon
-  granted `server:code` ships a Node module the server `require()`s —
-  it has full host access. The permission review is transparency, not
-  containment. Only install addons you'd trust to run on the server.
-- **Data-only addons are hot.** An addon that declares `contentDir`
-  (e.g. a rulebook) is served by the host itself — install/update needs
-  **no restart**. Addons with server code load at boot; the DM
-  "♻ Restartovat server" button (enabled by `CODEX_RESTARTABLE=1`,
-  already set in the shipped compose) applies them without shell access.
-- Addon code lives under `data/addons/`, addon data under
-  `data/addon-data/` — both inside the existing volume, covered by the
-  ZIP backup, and survive image upgrades.
-- Private addon repo (or GitHub rate limits)? Manage one or more tokens in
-  Settings → Add-ons → GitHub access tokens, or paste a repository-specific
-  token into the install wizard's 🔑 section — no shell needed. Env
-  alternative: `CODEX_GITHUB_TOKEN`
-  (the server also accepts plain `GITHUB_TOKEN`, but the shipped compose
-  file only forwards `CODEX_GITHUB_TOKEN` into the container; UI-managed
-  tokens win over both). See §2.
-
-## 9. Running multiple instances (separate campaigns)
-
-The image is stateless — every per-campaign thing lives in the two volumes and
-a handful of env vars — so you can run any number of independent codices side by
-side. They share the image and **never share data**; each instance needs only
-its own data directory, container name, and hostname.
-
-A second instance is just another Compose service (or another stack behind your
-reverse proxy):
-
-```yaml
-services:
-  asurai:
-    image: ghcr.io/pjunak/ttrpg-codex:latest   # same image as the first
-    container_name: asurai
-    restart: unless-stopped
-    env_file: .env                              # its own .env (separate password)
-    volumes:
-      - ./asurai-data:/app/data                 # separate data dir
-      - ./asurai-snapshots:/app/data-snapshots  # separate snapshot history
-    networks: [proxy]
-```
-
-Point a second hostname at it in your reverse proxy (Caddy:
-`asurai.example.com { reverse_proxy asurai:3000 }`). The `edit_session` cookie
-is **host-scoped** — no `domain=` is set — so logins never leak between
-hostnames even when the passwords match.
-
-### Per-instance identity and feature labels
-
-Two optional env vars let instances diverge in behavior while sharing one image,
-without forking the application. `CODEX_FEATURES` is currently an opaque list
-exposed to clients and addons; core has no built-in feature flags.
-
-| Variable         | Purpose                                                                                                          |
-|------------------|------------------------------------------------------------------------------------------------------------------|
-| `CODEX_INSTANCE` | A label for the instance — logged at boot and returned by `GET /api/version`. Defaults to `default`.             |
-| `CODEX_FEATURES` | Space/comma-separated labels returned by `/api/version`. Empty by default; only code that explicitly reads a label gives it behavior. |
-| `CODEX_RESTARTABLE` | `1` enables `POST /api/restart` + the DM "♻ Restartovat server" button (Settings → Server). Also auto-detected inside Docker via `/.dockerenv`. Only enable when a supervisor (`restart: unless-stopped`, systemd, pm2) brings the process back. |
-| `CODEX_DATA_DIR` / `CODEX_SNAPSHOTS_DIR` | Override the data / snapshot directories (default `./data` and `./data-snapshots` next to `server.js`). The seam for non-Docker hosting. |
-| `CODEX_SNAPSHOT_MIN_INTERVAL_MS` | Minimum interval between *manual* snapshots (default `3000`). |
-| `CODEX_GITHUB_TOKEN` | Optional default used by addon installs/updates for the GitHub API — raises rate limits and allows private addon repos. (`GITHUB_TOKEN` is accepted too, but is not forwarded by the shipped compose file; repository-specific and default tokens stored in the Add-on Manager take precedence.) |
-
-`GET /api/version` returns `{ hash, instance, features, canRestart }`, so you
-can confirm which instance and feature set a running container serves:
-
-```bash
-curl -s https://asurai.example.com/api/version
-# {"hash":"…","instance":"asurai","features":[],"canRestart":true}
-```
-
-## Troubleshooting
-
-**Page loads but the password is rejected.**
-Check the server logs for the password warnings at boot. If you set the
-password in `.env`, make sure Compose loaded it (`docker compose config
-| grep -E 'DM_PASSWORD|PLAYER_PASSWORD|EDIT_PASSWORD'`). Note that a
-credential stored in-app (`data/auth.json`, set via Settings → Účet)
-**overrides** the env var — if you changed it there, the old `.env`
-value no longer applies.
-
-**Markers don't appear on the world map.**
-Open the browser console. A common cause is missing tile pyramids — if
-the logs say `sharp not installed`, the fallback `imageOverlay` should
-still work; if it doesn't, check that `data/maps/swordcoast/sword_coast.{jpg,png}`
-exists.
-
-**Backup download works, but the recovery-point list is empty or old points
-disappeared after a deploy.**
-Verify that both bind mounts resolve to the intended persistent host
-directories:
-
-```bash
-docker compose config
-docker compose exec ttrpg-codex sh -c 'ls -ld /app/data /app/data-snapshots && ls -la /app/data-snapshots | head'
-```
-
-The container user must be able to write both directories. Create and repair
-ownership before restarting:
-
-```bash
-mkdir -p ./data ./data-snapshots
-sudo chown -R 1000:1000 ./data ./data-snapshots
-```
-
-An empty or newly bound `data-snapshots` directory cannot reconstruct older
-recovery points from `data/`; restore the host directory from an off-site
-backup if those files matter.
-
-**The app loses my edits when I refresh.**
-The dirty-form guard tries to prevent this — confirm dialogs warn
-before navigating away, and CodeMirror autosaves to `localStorage`
-every 500 ms. If you lost work, check Settings → **Záloha** for a
-recent snapshot.
-
-**`docker compose up` fails with `network "proxy" not found`.**
-Create it: `docker network create proxy`. Or remove the `networks`
-section from `docker-compose.yml` if you're not using a reverse proxy.
-
-**Saves silently fail.**
-The client shows a red banner "⚠ Uložení na server selhalo…" when a
-PATCH gives up after 3 retries. Check the server logs; common causes
-are a full disk or a permissions error on `./data`.
-
-## Going further
-
-- [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) — how the app is built;
-  read this if you want to extend it.
-- [`CONTRIBUTING.md`](../CONTRIBUTING.md) — local setup, module boundaries,
-  persistence rules, and extension guidance.
+Do not delete the old branch, old data directories, or downloaded UI backups
+until both sites have passed this checklist and run successfully long enough to
+make rollback unnecessary.

@@ -1,8 +1,8 @@
-# Rewrite foundation
+# V2 foundation
 
-The rewrite is deliberately runnable beside the v1 application. The current
-`server.js` and `web/` remain the stable product while the Go host and
-TypeScript frontend grow behind explicit contracts.
+The Go host and TypeScript frontend are the application. The former v1 runtime
+has been removed from this branch; legacy data enters only through the bounded
+offline converter.
 
 ## Toolchains
 
@@ -18,8 +18,14 @@ not require Node.js, JavaScript add-on servers, or Python.
 
 ## Current commands
 
-Run the focused Go packages during coexistence because the repository root
-still contains the v1 `node_modules` tree:
+The repository-level gate covers both toolchains:
+
+```console
+npm ci
+npm run check
+```
+
+Focused Go commands are still useful while iterating:
 
 ```console
 go test ./cmd/... ./contracts/... ./internal/... ./sdk/...
@@ -38,7 +44,7 @@ npm ci
 npm run check
 ```
 
-Start the two development processes separately:
+For a watch loop, start the two development processes separately:
 
 ```powershell
 $env:CODEX_DM_PASSWORD = '<choose-a-local-development-password>'
@@ -47,8 +53,8 @@ go run ./cmd/codex -listen 127.0.0.1:3001 -data-dir data/rewrite `
 npm --prefix frontend run dev
 ```
 
-Vite proxies `/api` to the local Go host. Rewrite state is isolated under
-`data/rewrite/` and is not compatible with the v1 runtime data yet.
+Vite proxies `/api` to the local Go host. Development state stays isolated
+under `data/rewrite/`.
 
 ## Implemented boundaries
 
@@ -211,8 +217,5 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   handlers. `-locale` and `-time-zone` define the BCP 47 locale and IANA time
   zone reported in the worker handshake; their defaults are `en` and `UTC`.
 
-These are foundation contracts, not a compatibility claim. Persistent
-credentials, add-on-owned one-shot conversion, coordinated dependent disable,
-remaining SDK transports, concrete host method implementations, Inspector
-surfaces, and import execution remain subsequent milestones in the dependency
-order in `docs/REWRITE_ARCHITECTURE.md`.
+These contracts define the implemented v2 minimum. Optional platform expansion
+and the supervised cutover gates live only in `docs/BACKLOG.md`.

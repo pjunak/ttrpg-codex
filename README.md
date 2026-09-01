@@ -1,142 +1,95 @@
 # TTRPG Codex
 
-A self-hostable, collaboratively-edited web codex for D&D and other
-tabletop RPG campaigns. Players and the GM read and edit the same
-characters, locations, events, mysteries, factions, and timeline —
-every change propagates to every connected client in under a second.
+TTRPG Codex is a self-hosted campaign archive and add-on host for small tabletop
+groups. Version 2 is a clean Go and TypeScript replacement for the former
+Node/JavaScript application.
 
-> **Live example:** [tiamat.junak.eu](https://tiamat.junak.eu) — the
-> maintainer's running D&D 5e campaign *O Barvách Draků*. Use it to
-> see what a populated codex looks like; the code in this repo ships
-> empty so you can fill it with your own world.
+The core stays deliberately generic: it stores campaign records, visibility,
+media, revisions, backups, and live updates. Campaign-specific planning and D&D
+features live in separately versioned Add-on API v3 packages.
 
-The UI ships in **English and Czech** — each user picks their language
-from the dashboard (defaults to the browser language, falls back to
-English), so a mixed-language group works out of the box. Visual themes
-are switchable from Settings, and an addon system lets the DM install
-extensions (rulebooks, character sheets, …) straight from GitHub — no
-fork needed to customise a campaign.
+## Current capabilities
 
-## What you get
+- Browse and edit characters, locations, events, mysteries, factions, deities,
+  artifacts, historical events, and companions.
+- DM and optional player credentials with role-aware projections and guarded
+  writes.
+- SQLite transactions, optimistic record revisions, reference-safe mutations,
+  immutable media blobs, and Server-Sent Event refreshes.
+- Verified `codex-backup.v2` archives and offline restore tooling.
+- Immutable, checksummed add-on generations with explicit permission review,
+  dependency ordering, service contracts, rollback, and supervised native Go
+  workers.
+- Integrated or iframe-isolated TypeScript browser add-ons with generation-
+  scoped cleanup.
+- One-time conversion of the two existing v1 UI backups. The running v2 host
+  contains no legacy JSON compatibility mode.
 
-- **Wiki articles** for every entity, with Markdown bodies, an
-  auto-generated outline (TOC), and `[[wiki-link]]` syntax that
-  resolves across collections.
-- **World map** (Leaflet) with sub-maps per location, custom marker
-  artwork, attitude glows that signal stance toward the party,
-  zoom-driven scaling, saved view presets, and event-path overlays
-  for replaying a game session geographically.
-- **Mind maps** (Cytoscape + a hand-rolled rope-physics integrator
-  with a worst-offender crossing-reduction post-pass): faction graph,
-  relationship graph, mystery graph.
-- **Timeline kanban** organised by game session, with
-  drag-and-drop reordering and stacked column hovering.
-- **Attitude glow system** — a single `attitudes` palette drives the
-  visual halo on character portraits, location cards, faction badges,
-  and map markers. Strength is per-attitude (one slider in Settings
-  retints every glow at once); multi-attitude markers stripe colours
-  rather than blending them muddily.
-- **Recovery points + backup**: successful writes create coalesced
-  point-in-time recovery points; Settings exposes restore, revert-last-N,
-  manual recovery points, and full ZIP backup / restore.
-- **Live sync** over Server-Sent Events. No polling, sub-second
-  propagation, dirty-form guard so a teammate's edit can't stomp
-  your in-progress changes.
-- **Auth & roles** — read access is open. Editing requires a
-  password: a **DM** password unlocks everything (including DM-only
-  lore); an optional **player** password grants edit access to public
-  content only. Set them at deploy time (`DM_PASSWORD` /
-  `PLAYER_PASSWORD`) or rotate them later from Settings → Account.
-  Sessions use HttpOnly, credential-derived cookies; login attempts are
-  rate-limited.
-- **Addons** — the DM installs extensions from a GitHub URL via a
-  guided wizard (permission review → backup → test-gate → activate,
-  with update checks and one-click rollback). Addons can add pages,
-  article sections, editor fields, data collections, mind-map node
-  kinds, and even server endpoints. See
-  [`examples/addons/AUTHORING.md`](examples/addons/AUTHORING.md) to
-  write one. Note the trust model: addon code runs **in-process,
-  unsandboxed** — install only addons you trust to run on your server.
+## Technology
 
-## Quick start (5 minutes)
+| Area | Choice |
+|---|---|
+| Host, storage, maintenance, native workers | Go 1.26 |
+| Browser application and add-on UI | TypeScript 7, Lit 3, Vite 8 |
+| Persistent metadata and campaign records | SQLite |
+| Immutable media and package files | Hash-addressed files under `data/` |
+| Deployment | One multi-stage Docker image; Node.js is build-only |
 
-You need [Docker](https://docs.docker.com/engine/install/) and
-[Docker Compose](https://docs.docker.com/compose/) installed.
-That's it — no Node toolchain on the host, no build step.
+## Local development
 
-```bash
-git clone https://github.com/pjunak/ttrpg-codex.git
-cd ttrpg-codex
+Install Go 1.26 and Node.js 24 or newer, then run:
 
-# Pick a strong DM password — anyone with it can edit everything.
-# (EDIT_PASSWORD is the legacy alias for DM_PASSWORD; both work.)
-echo "DM_PASSWORD=$(openssl rand -base64 24)" > .env
-
-docker compose up -d
+```powershell
+npm ci
+npm run check
+$env:CODEX_DM_PASSWORD = 'choose-a-local-password'
+npm start
 ```
 
-Open <http://localhost:3000>. The page loads empty — click any ✏ edit
-pencil (or the 🔑 Přihlásit chip, top-right on the dashboard), paste
-the password from `.env`, and you're editing.
+The Go host listens on `127.0.0.1:3001` and serves `frontend/dist`. For a
+frontend watch loop, run the host and `npm --workspace @ttrpg-codex/frontend
+run dev` separately; Vite proxies `/api` to the Go process.
 
-For production deployment behind a reverse proxy (HTTPS, custom
-domain, etc.), see [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md).
+## Docker
 
-## Project structure
-
+```powershell
+Copy-Item .env.example .env
+# Edit .env and choose a long CODEX_DM_PASSWORD.
+docker compose up --build -d
 ```
-server.js                Express server + REST API
-server-utils.cjs         Pure helpers (path safety, key validation)
-server/                  Focused auth, sync, persistence, addon, and import services
-tiler.js                 Map tile-pyramid generator (sharp)
-docker-compose.yml       One-service compose file
-data/                    Runtime data (gitignored, mounted as volume)
-data-snapshots/          Point-in-time snapshots (gitignored)
-web/
-  index.html             SPA shell
-  css/bundle.css         Single CSS entry point (@imports the rest)
-  js/                    Vanilla ES6 modules — see ARCHITECTURE.md
-  icons-defaults/        Bundled marker SVGs (game-icons.net, CC BY 3.0)
-test/                    node --test unit + integration tests
+
+Open <http://localhost:3000>. Set `CODEX_SECURE_COOKIES=true` when the service
+is behind HTTPS. See [self-hosting](docs/SELF_HOSTING.md) before operating real
+campaign data.
+
+## Repository map
+
+```text
+cmd/                 Host, health, inspection, conversion, and maintenance CLIs
+contracts/addons/v3/ Public Add-on API package and protocol schemas
+frontend/            Authenticated Lit application and browser add-on runtime
+internal/            Host domain, storage, package, worker, and HTTP boundaries
+sdk/go/workerrpc/    Public native-worker RPC runtime
+docs/rewrite/        Detailed implementation contracts created during the rewrite
+examples/addons/     Public v3 authoring and protocol guides
 ```
+
+The first-party add-ons are independent sibling repositories:
+
+- `addon-dm-tools`
+- `addon-dnd-2024-compendium`
+- `addon-dnd-engine`
+- `addon-dnd-character-sheets`
 
 ## Documentation
 
-- **[AGENTS.md](AGENTS.md)** — the deep internal reference (written as an
-  AI-assistant context file, equally useful to humans): every subsystem's
-  contract, invariants, gotchas, known deferred issues — plus the
-  subsystem encyclopedia it points into, [docs/reference/](docs/reference/).
-  Start here before changing code.
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — local setup, module boundaries,
-  persistence rules, extension choices, and testing.
-- **[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)** — Docker deployment
-  runbook, reverse proxy, backups, snapshots, upgrades.
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — tech stack, data
-  model, routing, sync flow, security model.
-- **[docs/REWRITE_ARCHITECTURE.md](docs/REWRITE_ARCHITECTURE.md)** — target
-  Go/TypeScript architecture and Add-on API v3 work on the rewrite branch.
-- **[docs/BACKLOG.md](docs/BACKLOG.md)** — the single current backlog and
-  open-decision list for the host and companion addons.
-- **[ATTRIBUTIONS.md](ATTRIBUTIONS.md)** — credits for the bundled
-  marker icon set (game-icons.net, CC BY 3.0).
+- [Architecture](docs/ARCHITECTURE.md)
+- [Self-hosting and one-time conversion](docs/SELF_HOSTING.md)
+- [Contributing](CONTRIBUTING.md)
+- [Add-on authoring](examples/addons/AUTHORING.md)
+- [Complete Add-on API v3 design](examples/addons/API_V3.md)
+- [Current suite backlog](docs/BACKLOG.md)
 
 ## License
 
-The original software and documentation in this repository are licensed under
-the [MIT License](LICENSE).
-
-Bundled marker icons are independently licensed under CC BY 3.0 via
-[game-icons.net](https://game-icons.net/); attribution lives in
-[ATTRIBUTIONS.md](ATTRIBUTIONS.md) and **must travel with any
-redistribution** of those files to satisfy the license's attribution
-clause.
-
-## Acknowledgements
-
-- [Cytoscape.js](https://js.cytoscape.org/) for the mind-map graph layer.
-- [Leaflet](https://leafletjs.com/) for the world map.
-- [EasyMDE](https://github.com/Ionaru/easy-markdown-editor) for the
-  Markdown editor.
-- [marked](https://marked.js.org/) + [DOMPurify](https://github.com/cure53/DOMPurify)
-  for sanitised Markdown rendering.
-- [game-icons.net](https://game-icons.net/) for the bundled marker artwork.
+The software and documentation are licensed under the [MIT License](LICENSE).
