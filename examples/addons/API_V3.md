@@ -299,6 +299,26 @@ manifest-provided URLs, executable click handlers, cross-add-on targets, or a
 sidebar link whose route is not active for the current role.
 Every callback is wrapped in the generation abort signal.
 
+An `article-section` declaration targets one core record collection with
+`config.collection`. Its custom element receives the ordinary generation and
+contribution fields plus a frozen `codexContribution.host` value:
+
+```ts
+interface RecordContributionHostContext {
+  readonly kind: "campaign-record";
+  readonly collection: string;
+  readonly key: string;
+  readonly revision: number;
+  readonly value: unknown;
+  readonly canEdit: boolean;
+}
+```
+
+The host refreshes this property when the authoritative record revision
+changes. Add-ons must persist their own state through a declared
+`recordExtension`; the projected core value is read-only and never contains
+another add-on's extension data.
+
 Initial surfaces cover existing suite needs:
 
 | Surface | Purpose |

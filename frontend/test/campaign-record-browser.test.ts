@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  contributionTargetsCollection,
   createCampaignRecordKey,
   projectCampaignRecords,
 } from "../src/app/campaign-record-browser.js";
@@ -8,6 +9,7 @@ import type {
   CampaignCollectionName,
   CampaignDataset,
 } from "../src/core/campaign-data.js";
+import type { ActiveBrowserContribution } from "../src/addons/browser-sdk.js";
 
 const shapes = {
   characters: "list",
@@ -51,6 +53,14 @@ describe("campaign record browser", () => {
     expect(createCampaignRecordKey("Chrám Chantone", "ABC-123")).toBe("chram-chantone-abc123");
     expect(createCampaignRecordKey("!!!", "x")).toBe("record-x");
     expect(createCampaignRecordKey("a".repeat(200), "token")).toHaveLength(86);
+  });
+
+  it("routes article sections only to their declared core collection", () => {
+    const active = {
+      descriptor: { config: { collection: "characters" } },
+    } as unknown as ActiveBrowserContribution;
+    expect(contributionTargetsCollection(active, "characters")).toBe(true);
+    expect(contributionTargetsCollection(active, "locations")).toBe(false);
   });
 });
 

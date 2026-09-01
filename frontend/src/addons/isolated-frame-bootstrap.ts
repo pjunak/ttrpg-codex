@@ -287,6 +287,7 @@ export const isolatedFrameBootstrap = String.raw`
             addon: data.addon,
             contribution: declaration,
             signal: controller.signal,
+            host: null,
           });
           root.replaceChildren(element);
         }

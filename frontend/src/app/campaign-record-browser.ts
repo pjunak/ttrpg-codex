@@ -1,4 +1,7 @@
 import { LitElement, css, html, type PropertyValues } from "lit";
+import type { BrowserContributionRegistry, ActiveBrowserContribution } from "../addons/browser-sdk.js";
+import { BrowserContributionOutlet } from "../addons/contribution-outlet.js";
+import type { BrowserRole } from "../addons/generation-manager.js";
 import { isRecord } from "../core/boundary.js";
 import {
   campaignCollection,
@@ -32,6 +35,15 @@ export interface CampaignRecordDeleteDetail {
   readonly collection: CampaignPageDescriptor["collection"];
   readonly key: string;
   readonly expectedRevision: number;
+}
+
+export interface RecordContributionHostContext {
+  readonly kind: "campaign-record";
+  readonly collection: CampaignPageDescriptor["collection"];
+  readonly key: string;
+  readonly revision: number;
+  readonly value: unknown;
+  readonly canEdit: boolean;
 }
 
 export function projectCampaignRecords(
@@ -68,6 +80,8 @@ export class CampaignRecordBrowser extends LitElement {
     canEdit: { type: Boolean, attribute: "can-edit" },
     canManageVisibility: { type: Boolean, attribute: "can-manage-visibility" },
     saving: { type: Boolean },
+    addonRegistry: { attribute: false },
+    addonRole: { attribute: false },
     query: { state: true },
     editor: { state: true },
   };
@@ -273,6 +287,45 @@ export class CampaignRecordBrowser extends LitElement {
       background: #1b1f26;
     }
 
+    .addon-sections {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+
+    .addon-sections[hidden] {
+      display: none;
+    }
+
+    .addon-contribution {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid #454841;
+      border-radius: 0.3rem;
+      background: #1b1f26;
+    }
+
+    .addon-contribution-heading {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 0.85rem;
+      border-bottom: 1px solid #454841;
+      color: #d8c99f;
+    }
+
+    .addon-contribution-heading span {
+      color: #88877f;
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 0.68rem;
+    }
+
+    .addon-contribution > :not(.addon-contribution-heading) {
+      display: block;
+      min-width: 0;
+    }
+
     dl {
       display: grid;
       gap: 0.75rem;
@@ -338,8 +391,14 @@ export class CampaignRecordBrowser extends LitElement {
   declare canEdit: boolean;
   declare canManageVisibility: boolean;
   declare saving: boolean;
+  declare addonRegistry: BrowserContributionRegistry | undefined;
+  declare addonRole: BrowserRole;
   declare private query: string;
   declare private editor: "closed" | "create" | "edit";
+  #addonOutlet: BrowserContributionOutlet | undefined;
+  #addonOutletRoot: HTMLElement | undefined;
+  #addonOutletRegistry: BrowserContributionRegistry | undefined;
+  #addonOutletRole: BrowserRole | undefined;
 
   constructor() {
     super();
@@ -349,6 +408,8 @@ export class CampaignRecordBrowser extends LitElement {
     this.canEdit = false;
     this.canManageVisibility = false;
     this.saving = false;
+    this.addonRegistry = undefined;
+    this.addonRole = "player";
     this.query = "";
     this.editor = "closed";
   }
@@ -358,6 +419,15 @@ export class CampaignRecordBrowser extends LitElement {
       this.editor = "closed";
       this.query = "";
     }
+  }
+
+  protected override updated(): void {
+    this.#syncAddonSections();
+  }
+
+  override disconnectedCallback(): void {
+    this.#disposeAddonSections();
+    super.disconnectedCallback();
   }
 
   protected override render() {
@@ -458,6 +528,7 @@ export class CampaignRecordBrowser extends LitElement {
             </div>
             <div class="prose">${recordText(this.page, value) || "No description has been written yet."}</div>
           </div>
+          <div class="addon-sections" data-addon-article-sections hidden></div>
         `}
       </article>
     `;
@@ -599,6 +670,68 @@ export class CampaignRecordBrowser extends LitElement {
       composed: true,
     }));
   };
+
+  #syncAddonSections(): void {
+    const root = this.renderRoot.querySelector<HTMLElement>("[data-addon-article-sections]") ?? undefined;
+    if (root === undefined || this.addonRegistry === undefined || this.page === undefined ||
+      this.recordKey === undefined || this.editor !== "closed") {
+      this.#disposeAddonSections();
+      return;
+    }
+    if (this.#addonOutlet !== undefined && this.#addonOutletRoot === root &&
+      this.#addonOutletRegistry === this.addonRegistry && this.#addonOutletRole === this.addonRole) {
+      this.#addonOutlet.refresh();
+      return;
+    }
+    this.#disposeAddonSections();
+    const page = this.page;
+    this.#addonOutletRoot = root;
+    this.#addonOutletRegistry = this.addonRegistry;
+    this.#addonOutletRole = this.addonRole;
+    this.#addonOutlet = new BrowserContributionOutlet({
+      document: this.ownerDocument,
+      root,
+      registry: this.addonRegistry,
+      surface: "article-section",
+      role: this.addonRole,
+      include: (active) => contributionTargetsCollection(active, page.collection),
+      hostContext: () => this.#recordContributionContext(),
+      onError: (cause) => this.dispatchEvent(new CustomEvent("browser-addon-diagnostic", {
+        detail: cause, bubbles: true, composed: true,
+      })),
+    });
+  }
+
+  #recordContributionContext(): RecordContributionHostContext | null {
+    if (this.campaign === undefined || this.page === undefined || this.recordKey === undefined) {
+      return null;
+    }
+    const record = campaignCollection(this.campaign, this.page.collection).records
+      .find((candidate) => candidate.key === this.recordKey);
+    return record === undefined ? null : {
+      kind: "campaign-record",
+      collection: this.page.collection,
+      key: record.key,
+      revision: record.revision,
+      value: record.value,
+      canEdit: this.canEdit,
+    };
+  }
+
+  #disposeAddonSections(): void {
+    this.#addonOutlet?.dispose();
+    this.#addonOutlet = undefined;
+    this.#addonOutletRoot = undefined;
+    this.#addonOutletRegistry = undefined;
+    this.#addonOutletRole = undefined;
+  }
+}
+
+export function contributionTargetsCollection(
+  active: ActiveBrowserContribution,
+  collection: CampaignPageDescriptor["collection"],
+): boolean {
+  return active.descriptor.config["collection"] === collection;
 }
 
 function summarizeRecord(

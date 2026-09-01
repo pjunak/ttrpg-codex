@@ -15,6 +15,8 @@ export interface BrowserContributionElementContext {
   };
   readonly contribution: BrowserContributionDescriptor;
   readonly signal: AbortSignal;
+  /** Host-owned, read-only context for the concrete outlet instance. */
+  readonly host: unknown;
 }
 
 export interface BrowserContributionElement extends HTMLElement {
@@ -28,6 +30,7 @@ export interface BrowserContributionOutletOptions {
   readonly surface: BrowserContributionSurface;
   readonly role: BrowserRole;
   readonly include?: (active: ActiveBrowserContribution) => boolean;
+  readonly hostContext?: (active: ActiveBrowserContribution) => unknown;
   readonly onError?: (cause: unknown) => void;
   readonly onCountChange?: (count: number) => void;
 }
@@ -36,6 +39,7 @@ interface MountedContribution {
   readonly identity: string;
   readonly wrapper: HTMLElement;
   readonly dispose?: () => void;
+  readonly element?: BrowserContributionElement;
 }
 
 /** Reconciles one host-owned UI surface without exposing its DOM to add-ons. */
@@ -46,6 +50,7 @@ export class BrowserContributionOutlet {
   readonly #surface: BrowserContributionSurface;
   readonly #role: BrowserRole;
   readonly #include: (active: ActiveBrowserContribution) => boolean;
+  readonly #hostContext: (active: ActiveBrowserContribution) => unknown;
   readonly #onError: (cause: unknown) => void;
   readonly #onCountChange: (count: number) => void;
   readonly #mounted = new Map<string, MountedContribution>();
@@ -59,6 +64,7 @@ export class BrowserContributionOutlet {
     this.#surface = options.surface;
     this.#role = options.role;
     this.#include = options.include ?? (() => true);
+    this.#hostContext = options.hostContext ?? (() => null);
     this.#onError = options.onError ?? (() => undefined);
     this.#onCountChange = options.onCountChange ?? (() => undefined);
     this.#unsubscribe = this.#registry.subscribe(() => this.refresh());
@@ -102,6 +108,12 @@ export class BrowserContributionOutlet {
         }
       }
       retained.add(key);
+      if (mounted.element !== undefined) {
+        mounted.element.codexContribution = contributionContext(
+          active,
+          this.#hostContext(active),
+        );
+      }
       ordered.push(mounted.wrapper);
     }
     for (const key of this.#mounted.keys()) {
@@ -153,13 +165,9 @@ export class BrowserContributionOutlet {
       const element = this.#document.createElement(active.binding.tag) as BrowserContributionElement;
       element.dataset["codexAddon"] = active.addonId;
       element.dataset["codexContribution"] = active.descriptor.id;
-      element.codexContribution = Object.freeze({
-        addon: Object.freeze({ id: active.addonId, generation: active.generationId }),
-        contribution: active.descriptor,
-        signal: active.signal,
-      });
+      element.codexContribution = contributionContext(active, this.#hostContext(active));
       wrapper.append(heading, element);
-      return { identity: `element:${active.binding.tag}`, wrapper };
+      return { identity: `element:${active.binding.tag}`, wrapper, element };
     }
     if (active.binding.kind === "isolated-frame") {
       const frameHost = this.#document.createElement("div");
@@ -187,4 +195,30 @@ export class BrowserContributionOutlet {
 
 function contributionKey(active: ActiveBrowserContribution): string {
   return `${active.addonId}:${active.generationId}:${active.descriptor.id}`;
+}
+
+function contributionContext(
+  active: ActiveBrowserContribution,
+  host: unknown,
+): BrowserContributionElementContext {
+  return Object.freeze({
+    addon: Object.freeze({ id: active.addonId, generation: active.generationId }),
+    contribution: active.descriptor,
+    signal: active.signal,
+    host: freezeJSON(host),
+  });
+}
+
+function freezeJSON(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map((item) => freezeJSON(item)));
+  }
+  if (value !== null && typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      result[key] = freezeJSON(item);
+    }
+    return Object.freeze(result);
+  }
+  return value;
 }

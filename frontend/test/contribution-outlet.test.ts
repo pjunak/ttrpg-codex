@@ -56,6 +56,43 @@ describe("BrowserContributionOutlet", () => {
     expect(counts.at(-1)).toBe(0);
   });
 
+  it("refreshes a frozen host-owned context on a stable custom element", () => {
+    const registry = new BrowserContributionRegistry();
+    const session = registry.open(
+      descriptor("dnd-sheets", {
+        ...contribution("sheet.section", 10),
+        surface: "article-section",
+        config: { collection: "characters" },
+      }),
+      new GenerationScope("dnd-sheets@generation"),
+    );
+    session.context.ui.bind("sheet.section", { kind: "element", tag: "dnd-character-sheet" });
+    const root = new FakeElement("div");
+    let revision = 3;
+    const outlet = new BrowserContributionOutlet({
+      document: new FakeDocument() as unknown as Document,
+      root: root as unknown as HTMLElement,
+      registry,
+      surface: "article-section",
+      role: "player",
+      hostContext: () => ({
+        kind: "campaign-record", collection: "characters", key: "ryn",
+        revision, value: { name: "Ryn" }, canEdit: false,
+      }),
+    });
+    const element = (root.children[0] as FakeElement).children[1] as FakeElement & {
+      codexContribution: { host: { revision: number; value: { name: string } } };
+    };
+
+    expect(element.codexContribution.host.revision).toBe(3);
+    expect(Object.isFrozen(element.codexContribution.host)).toBe(true);
+    expect(Object.isFrozen(element.codexContribution.host.value)).toBe(true);
+    revision = 4;
+    outlet.refresh();
+    expect(element.codexContribution.host.revision).toBe(4);
+    outlet.dispose();
+  });
+
   it("keeps DM-only contributions out of a player outlet", () => {
     const registry = new BrowserContributionRegistry();
     const session = registry.open(

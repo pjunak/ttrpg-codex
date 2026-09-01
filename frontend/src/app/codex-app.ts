@@ -722,8 +722,13 @@ export class CodexApp extends LitElement {
           .canEdit=${this.#canEditRecord()}
           .canManageVisibility=${this.#canEditCampaign()}
           .saving=${this.busy}
+          .addonRegistry=${this.#addons?.contributions}
+          .addonRole=${this.authority.state === "known" && this.authority.auth.authenticated
+            ? this.authority.auth.role
+            : "player"}
           @campaign-record-save=${this.#saveCampaignRecord}
           @campaign-record-delete=${this.#deleteCampaignRecord}
+          @browser-addon-diagnostic=${this.#browserAddonDiagnostic}
         ></campaign-record-browser>`;
       case "addon":
         return null;
@@ -878,6 +883,10 @@ export class CodexApp extends LitElement {
     } finally {
       this.busy = false;
     }
+  };
+
+  readonly #browserAddonDiagnostic = (event: CustomEvent<unknown>): void => {
+    this.addonState = { state: "degraded", message: errorMessage(event.detail) };
   };
 
   async #loadCampaign(signal: AbortSignal, retainCurrent = false): Promise<void> {
