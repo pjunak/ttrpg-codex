@@ -230,7 +230,7 @@ func collectAddonFiles(ctx context.Context, root string, limits Limits) ([]sourc
 			return fmt.Errorf("%w: invalid add-on backup file: %s", ErrInvalidArchive, relative)
 		}
 		archivePath := "addons/" + filepath.ToSlash(relative)
-		if !validArchivePath(ContractVersion, archivePath) {
+		if !validArchivePath(archivePath) {
 			return fmt.Errorf("%w: invalid add-on backup path: %s", ErrInvalidArchive, relative)
 		}
 		result = append(result, sourceFile{
@@ -297,7 +297,7 @@ func collectBlobFiles(ctx context.Context, root string, limits Limits) ([]source
 		}
 		archivePath := "blobs/" + filepath.ToSlash(relative)
 		if !info.Mode().IsRegular() || uint64(info.Size()) > limits.MaximumFileBytes ||
-			!validArchivePath(ContractVersion, archivePath) {
+			!validArchivePath(archivePath) {
 			return fmt.Errorf("%w: invalid blob backup file: %s", ErrInvalidArchive, relative)
 		}
 		result = append(result, sourceFile{

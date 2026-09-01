@@ -203,7 +203,7 @@ func Recover(ctx context.Context, dataDirectory string, migrations fs.FS) error 
 	}
 	parent := filepath.Dir(absolute)
 	base := filepath.Base(absolute)
-	if (journal.ContractVersion != restoreJournalVersion && journal.ContractVersion != LegacyContractVersion) ||
+	if journal.ContractVersion != restoreJournalVersion ||
 		journal.TargetName != base ||
 		!safeSiblingName(journal.StageName, "."+base+".restore-stage-") ||
 		!safeSiblingName(journal.PreviousName, "."+base+".restore-previous-") {
@@ -305,7 +305,7 @@ func decodeManifest(file *zip.File, limits Limits) (Manifest, error) {
 	if err := decoder.Decode(&manifest); err != nil || decoder.Decode(&struct{}{}) != io.EOF {
 		return Manifest{}, fmt.Errorf("%w: manifest JSON is invalid", ErrInvalidArchive)
 	}
-	if (manifest.ContractVersion != LegacyContractVersion && manifest.ContractVersion != ContractVersion) ||
+	if manifest.ContractVersion != ContractVersion ||
 		manifest.HostVersion == "" || len(manifest.HostVersion) > 100 {
 		return Manifest{}, fmt.Errorf("%w: manifest contract is invalid", ErrInvalidArchive)
 	}
@@ -319,7 +319,7 @@ func decodeManifest(file *zip.File, limits Limits) (Manifest, error) {
 	previous := ""
 	databaseFound := false
 	for _, entry := range manifest.Entries {
-		if !validArchivePath(manifest.ContractVersion, entry.Path) || entry.Path <= previous ||
+		if !validArchivePath(entry.Path) || entry.Path <= previous ||
 			entry.Bytes > limits.MaximumFileBytes ||
 			entry.Mode > 0o777 || entry.Mode == 0 {
 			return Manifest{}, fmt.Errorf("%w: manifest entry is invalid: %s", ErrInvalidArchive, entry.Path)

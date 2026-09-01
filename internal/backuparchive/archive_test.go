@@ -175,7 +175,7 @@ func TestRestoreRejectsContentThatDiffersFromManifest(t *testing.T) {
 	}
 }
 
-func TestVerifyAcceptsLegacyV1ArchiveWithoutBlobReferences(t *testing.T) {
+func TestVerifyRejectsSupersededBackupContract(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	root := t.TempDir()
@@ -198,79 +198,19 @@ func TestVerifyAcceptsLegacyV1ArchiveWithoutBlobReferences(t *testing.T) {
 	if err := database.Close(); err != nil {
 		t.Fatal(err)
 	}
-	manifest.ContractVersion = LegacyContractVersion
+	manifest.ContractVersion = "codex-backup.v1"
 	manifestJSON, err := json.Marshal(manifest)
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacyArchive := filepath.Join(root, "v1.zip")
-	if err := rewriteArchive(currentArchive, legacyArchive, "manifest.json", manifestJSON); err != nil {
-		t.Fatal(err)
-	}
-	result, err := Verify(ctx, VerifyConfig{ArchivePath: legacyArchive, Migrations: migrations.FS})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Manifest.ContractVersion != LegacyContractVersion {
-		t.Fatalf("verified contract = %s", result.Manifest.ContractVersion)
-	}
-}
-
-func TestVerifyRejectsLegacyV1DatabaseWhoseBlobObjectsAreMissing(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	root := t.TempDir()
-	sourceDirectory := filepath.Join(root, "source")
-	database, err := codexsqlite.Open(ctx, filepath.Join(sourceDirectory, "codex.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := codexsqlite.Migrate(ctx, database, migrations.FS); err != nil {
-		t.Fatal(err)
-	}
-	blobs, err := blobstore.New(database, filepath.Join(sourceDirectory, "blobs"), blobstore.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := []byte("must not be omitted")
-	if _, err := blobs.Create(ctx, blobstore.CreateRequest{
-		Content: bytes.NewReader(body), Bytes: uint64(len(body)),
-		OwnerKind: blobstore.OwnerCore, OwnerID: "campaign", Purpose: "test",
-		MediaType: "application/octet-stream", Visibility: blobstore.VisibilityDM,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	currentArchive := filepath.Join(root, "complete.zip")
-	manifest, err := Create(ctx, CreateConfig{
-		Database: database, DataDirectory: sourceDirectory,
-		OutputPath: currentArchive, HostVersion: "2.0.0-test",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := database.Close(); err != nil {
-		t.Fatal(err)
-	}
-	manifest.ContractVersion = LegacyContractVersion
-	entries := make([]Entry, 0, len(manifest.Entries))
-	for _, entry := range manifest.Entries {
-		if !strings.HasPrefix(entry.Path, "blobs/") {
-			entries = append(entries, entry)
-		}
-	}
-	manifest.Entries = entries
-	manifestJSON, err := json.Marshal(manifest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	brokenArchive := filepath.Join(root, "broken-v1.zip")
-	if err := rewriteArchiveWithoutBlobs(currentArchive, brokenArchive, manifestJSON); err != nil {
+	supersededArchive := filepath.Join(root, "v1.zip")
+	if err := rewriteArchive(currentArchive, supersededArchive, "manifest.json", manifestJSON); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Verify(ctx, VerifyConfig{
-		ArchivePath: brokenArchive, Migrations: migrations.FS,
+		ArchivePath: supersededArchive, Migrations: migrations.FS,
 	}); !errors.Is(err, ErrInvalidArchive) {
-		t.Fatalf("missing blob verification error = %v", err)
+		t.Fatalf("superseded backup verification error = %v", err)
 	}
 }
 
@@ -332,48 +272,6 @@ func rewriteArchive(source, destination, replacePath string, replacement []byte)
 		}
 		if file.Name == replacePath {
 			if _, err := writer.Write(replacement); err != nil {
-				return err
-			}
-			continue
-		}
-		reader, err := file.Open()
-		if err != nil {
-			return err
-		}
-		_, copyErr := io.Copy(writer, reader)
-		closeErr := reader.Close()
-		if copyErr != nil || closeErr != nil {
-			return errors.Join(copyErr, closeErr)
-		}
-	}
-	if err := archive.Close(); err != nil {
-		return err
-	}
-	return output.Close()
-}
-
-func rewriteArchiveWithoutBlobs(source, destination string, manifest []byte) error {
-	input, err := zip.OpenReader(source)
-	if err != nil {
-		return err
-	}
-	defer input.Close()
-	output, err := os.Create(destination)
-	if err != nil {
-		return err
-	}
-	archive := zip.NewWriter(output)
-	for _, file := range input.File {
-		if strings.HasPrefix(file.Name, "blobs/") {
-			continue
-		}
-		header := file.FileHeader
-		writer, err := archive.CreateHeader(&header)
-		if err != nil {
-			return err
-		}
-		if file.Name == "manifest.json" {
-			if _, err := writer.Write(manifest); err != nil {
 				return err
 			}
 			continue

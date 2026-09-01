@@ -9,7 +9,7 @@ func TestArchivePathsAreRestrictedToOwnedDurableRoots(t *testing.T) {
 		"addons/example/generations/abcdef/package.zip",
 		"blobs/sha256/ab/abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
 	} {
-		if !validArchivePath(ContractVersion, valid) {
+		if !validArchivePath(valid) {
 			t.Errorf("valid path rejected: %q", valid)
 		}
 	}
@@ -19,12 +19,8 @@ func TestArchivePathsAreRestrictedToOwnedDurableRoots(t *testing.T) {
 		"blobs/unowned", "blobs/sha256/ab/not-a-hash",
 		"blobs/sha256/cd/abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
 	} {
-		if validArchivePath(ContractVersion, invalid) {
+		if validArchivePath(invalid) {
 			t.Errorf("unsafe path accepted: %q", invalid)
 		}
-	}
-	if validArchivePath(LegacyContractVersion,
-		"blobs/sha256/ab/abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd") {
-		t.Fatal("v1 archive accepted a v2 blob object")
 	}
 }

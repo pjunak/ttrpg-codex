@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	LegacyContractVersion = "codex-backup.v1"
 	ContractVersion       = "codex-backup.v2"
 	restoreJournalVersion = "codex-restore-journal.v1"
 )
@@ -67,7 +66,7 @@ func normalizeLimits(limits Limits) (Limits, error) {
 	return limits, nil
 }
 
-func validArchivePath(contractVersion, value string) bool {
+func validArchivePath(value string) bool {
 	if value == "" || len(value) > 1024 || strings.Contains(value, "\\") ||
 		strings.HasPrefix(value, "/") || path.Clean(value) != value {
 		return false
@@ -85,7 +84,7 @@ func validArchivePath(contractVersion, value string) bool {
 	if value == "codex.db" || strings.HasPrefix(value, "addons/") {
 		return true
 	}
-	return contractVersion == ContractVersion && validBlobArchivePath(value)
+	return validBlobArchivePath(value)
 }
 
 func validBlobArchivePath(value string) bool {
