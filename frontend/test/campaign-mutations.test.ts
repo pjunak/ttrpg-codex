@@ -4,6 +4,7 @@ import {
   CampaignMutationClient,
   CampaignMutationHTTPError,
   parseCampaignCommitReceipt,
+  parseCampaignEnumDeleteResult,
   parseCampaignTwinResult,
   type CampaignMutationFetch,
 } from "../src/core/campaign-mutations.js";
@@ -47,6 +48,17 @@ describe("parseCampaignTwinResult", () => {
     });
     expect(result.twinKey).toBe("twin-alice");
     expect(result.results).toEqual(receipt.results);
+  });
+});
+
+describe("parseCampaignEnumDeleteResult", () => {
+  it("accepts an enum result built on the commit receipt", () => {
+    const result = parseCampaignEnumDeleteResult({
+      ...receipt,
+      contractVersion: "campaign-enum-delete-result.v1",
+      usageCount: 3,
+    });
+    expect(result.usageCount).toBe(3);
   });
 });
 
@@ -147,6 +159,36 @@ describe("CampaignMutationClient", () => {
     }, "d".repeat(32), new AbortController().signal)).rejects.toThrow(
       BoundaryValidationError,
     );
+  });
+
+  it("serializes explicit enum replacement through the shared write queue", async () => {
+    const calls: Array<{ input: string; init: RequestInit }> = [];
+    const client = new CampaignMutationClient(async (input, init) => {
+      calls.push({ input, init });
+      return jsonResponse({
+        ...receipt,
+        contractVersion: "campaign-enum-delete-result.v1",
+        usageCount: 2,
+      });
+    });
+    const result = await client.deleteEnumItem({
+      category: "genders",
+      itemId: "old",
+      expectedRevision: 2,
+      mode: "replace",
+      replacementId: "new",
+    }, "d".repeat(32), new AbortController().signal);
+
+    expect(result.usageCount).toBe(2);
+    expect(calls[0]?.input).toBe("/api/campaign/enums/delete");
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({
+      contractVersion: "campaign-enum-delete.v1",
+      category: "genders",
+      itemId: "old",
+      expectedRevision: 2,
+      mode: "replace",
+      replacementId: "new",
+    });
   });
 });
 

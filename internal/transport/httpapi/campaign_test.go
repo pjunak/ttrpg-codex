@@ -109,6 +109,12 @@ func TestCampaignMutationConfigurationFailsClosed(t *testing.T) {
 	if _, err := New(Config{CampaignTwinWriter: writer}); err != ErrInvalidConfig {
 		t.Fatalf("twin writer without service error = %v", err)
 	}
+	if _, err := New(Config{CampaignEnums: &recordingCampaignEnums{}}); err != ErrInvalidConfig {
+		t.Fatalf("enums without writer error = %v", err)
+	}
+	if _, err := New(Config{CampaignEnumWriter: writer}); err != ErrInvalidConfig {
+		t.Fatalf("enum writer without service error = %v", err)
+	}
 }
 
 func TestCampaignTransactionAuthorizesBeforeParsingAndReturnsBoundedReceipt(t *testing.T) {
@@ -265,6 +271,45 @@ func TestCampaignTwinMutationUsesExplicitDMContract(t *testing.T) {
 	}
 }
 
+func TestCampaignEnumDeleteUsesExplicitDMContract(t *testing.T) {
+	t.Parallel()
+	enums := &recordingCampaignEnums{result: campaigndata.EnumDeleteResult{
+		UsageCount: 2,
+		Commit: campaign.Commit{
+			ID: 9, OccurredAt: time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC),
+			Results: []campaign.MutationResult{{
+				Collection: campaign.Settings, Key: "genders", BeforeRevision: 2, AfterRevision: 3,
+			}},
+			CollectionRevisions: map[campaign.Collection]int64{campaign.Settings: 4},
+		},
+	}}
+	handler, err := New(Config{
+		Logger: slog.New(slog.DiscardHandler), CampaignEnums: enums,
+		CampaignEnumWriter: func(*http.Request) (campaigndata.MutationAuthority, error) {
+			return campaigndata.MutationAuthority{ActorID: "session:dm", Role: campaigndata.WriteDM}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/campaign/enums/delete", strings.NewReader(`{
+		"contractVersion":"campaign-enum-delete.v1","category":"genders",
+		"itemId":"old","expectedRevision":2,"mode":"replace","replacementId":"new"
+	}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK ||
+		!strings.Contains(response.Body.String(), `"contractVersion":"campaign-enum-delete-result.v1"`) ||
+		!strings.Contains(response.Body.String(), `"usageCount":2`) {
+		t.Fatalf("enum response = %d %s", response.Code, response.Body.String())
+	}
+	if len(enums.requests) != 1 || enums.requests[0].Category != "genders" ||
+		enums.requests[0].ExpectedRevision != 2 || enums.requests[0].ReplacementID != "new" {
+		t.Fatalf("enum request = %+v", enums.requests)
+	}
+}
+
 type recordingCampaignData struct {
 	dataset campaigndata.Dataset
 	err     error
@@ -282,6 +327,21 @@ type recordingCampaignTwins struct {
 	result   campaigndata.TwinResult
 	err      error
 	requests []campaigndata.TwinRequest
+}
+
+type recordingCampaignEnums struct {
+	result   campaigndata.EnumDeleteResult
+	err      error
+	requests []campaigndata.EnumDeleteRequest
+}
+
+func (service *recordingCampaignEnums) DeleteEnumItem(
+	_ context.Context,
+	_ campaigndata.MutationAuthority,
+	request campaigndata.EnumDeleteRequest,
+) (campaigndata.EnumDeleteResult, error) {
+	service.requests = append(service.requests, request)
+	return service.result, service.err
 }
 
 func (service *recordingCampaignTwins) MutateTwin(

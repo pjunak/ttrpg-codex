@@ -100,9 +100,18 @@ service enforces supported collections, opposite visibility, and reciprocal
 links, then writes both sides in one SQLite transaction. Generic campaign
 writes remain unable to edit `linkedTwinId`.
 
+Settings enum deletion is also an explicit DM operation rather than a generic
+settings edit. `POST /api/campaign/enums/delete` accepts the exact
+`campaign-enum-delete.v1` contract and one of three unambiguous modes:
+reject if referenced, replace every reference, or clear every reference.
+The application recognizes only the six host-owned enum categories and their
+typed usage fields. It verifies the loaded settings revision and replacement,
+updates every affected record, removes the definition, and writes its
+`deletedDefaults` tombstone in one transaction. This avoids both silent
+dangling references and accidental re-seeding after restart.
+
 The rewrite does not yet implement:
 
-- enum replacement operations;
 - reusable typed collection handles and core editors beyond campaign identity;
 - initial import publication, backup/restore, or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and

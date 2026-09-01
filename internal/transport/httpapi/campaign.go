@@ -17,6 +17,8 @@ const (
 	maximumMutationBody     = 16 << 20
 	twinContractVersion     = "campaign-twin.v1"
 	twinResultVersion       = "campaign-twin-result.v1"
+	enumDeleteVersion       = "campaign-enum-delete.v1"
+	enumDeleteResultVersion = "campaign-enum-delete-result.v1"
 )
 
 type CampaignData interface {
@@ -41,6 +43,14 @@ type CampaignTwins interface {
 	) (campaigndata.TwinResult, error)
 }
 
+type CampaignEnums interface {
+	DeleteEnumItem(
+		context.Context,
+		campaigndata.MutationAuthority,
+		campaigndata.EnumDeleteRequest,
+	) (campaigndata.EnumDeleteResult, error)
+}
+
 func (s *server) registerCampaignRoutes(mux *http.ServeMux) {
 	if s.campaignData != nil {
 		mux.HandleFunc("GET /api/campaign", s.campaignDataset)
@@ -50,6 +60,9 @@ func (s *server) registerCampaignRoutes(mux *http.ServeMux) {
 	}
 	if s.campaignTwins != nil {
 		mux.HandleFunc("POST /api/campaign/twins", s.campaignTwinMutation)
+	}
+	if s.campaignEnums != nil {
+		mux.HandleFunc("POST /api/campaign/enums/delete", s.campaignEnumDelete)
 	}
 }
 
@@ -189,6 +202,50 @@ func (s *server) campaignTwinMutation(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *server) campaignEnumDelete(w http.ResponseWriter, r *http.Request) {
+	authority, err := s.campaignEnumWriter(r)
+	if err != nil {
+		writeAPIError(w, http.StatusForbidden, "FORBIDDEN", "DM enum authorization is required")
+		return
+	}
+	if r.URL.RawQuery != "" {
+		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "enum mutation query parameters are not supported")
+		return
+	}
+	var request struct {
+		ContractVersion  string                      `json:"contractVersion"`
+		Category         string                      `json:"category"`
+		ItemID           string                      `json:"itemId"`
+		ExpectedRevision *int64                      `json:"expectedRevision"`
+		Mode             campaigndata.EnumDeleteMode `json:"mode"`
+		ReplacementID    string                      `json:"replacementId,omitempty"`
+	}
+	if !decodeBoundedJSON(w, r, &request, 8<<10, "campaign enum deletion") {
+		return
+	}
+	if request.ContractVersion != enumDeleteVersion || request.ExpectedRevision == nil {
+		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "campaign enum deletion contract is invalid")
+		return
+	}
+	result, err := s.campaignEnums.DeleteEnumItem(r.Context(), authority, campaigndata.EnumDeleteRequest{
+		Category: request.Category, ItemID: request.ItemID,
+		ExpectedRevision: *request.ExpectedRevision, Mode: request.Mode,
+		ReplacementID: request.ReplacementID,
+	})
+	if err != nil {
+		s.writeCampaignMutationError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"contractVersion":     enumDeleteResultVersion,
+		"usageCount":          result.UsageCount,
+		"commitId":            result.Commit.ID,
+		"occurredAt":          result.Commit.OccurredAt,
+		"results":             result.Commit.Results,
+		"collectionRevisions": result.Commit.CollectionRevisions,
+	})
+}
+
 func (s *server) writeCampaignMutationError(w http.ResponseWriter, r *http.Request, err error) {
 	status, kind, message := http.StatusServiceUnavailable, "CAMPAIGN_UNAVAILABLE", "campaign data is unavailable"
 	switch {
@@ -206,6 +263,12 @@ func (s *server) writeCampaignMutationError(w http.ResponseWriter, r *http.Reque
 		status, kind, message = http.StatusConflict, "TWIN_MISSING", "campaign record does not have a valid twin"
 	case errors.Is(err, campaigndata.ErrTwinVisibility):
 		status, kind, message = http.StatusBadRequest, "TWIN_VISIBILITY", "twins must use opposite visibility"
+	case errors.Is(err, campaigndata.ErrEnumInUse):
+		status, kind, message = http.StatusConflict, "ENUM_IN_USE", "campaign enum item is still in use"
+	case errors.Is(err, campaigndata.ErrEnumItemMissing):
+		status, kind, message = http.StatusNotFound, "ENUM_ITEM_NOT_FOUND", "campaign enum item was not found"
+	case errors.Is(err, campaigndata.ErrEnumReplacementMissing):
+		status, kind, message = http.StatusBadRequest, "ENUM_REPLACEMENT_NOT_FOUND", "campaign enum replacement was not found"
 	case errors.Is(err, campaign.ErrInvalidTransaction),
 		errors.Is(err, campaign.ErrInvalidCollection),
 		errors.Is(err, campaign.ErrInvalidRecord),

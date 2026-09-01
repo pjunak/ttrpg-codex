@@ -206,6 +206,8 @@ func composeHost(
 		CampaignWriter:     httpapi.SessionCampaignMutationAuthorizer(authentication),
 		CampaignTwins:      campaignData,
 		CampaignTwinWriter: httpapi.SessionCampaignTwinAuthorizer(authentication),
+		CampaignEnums:      campaignData,
+		CampaignEnumWriter: httpapi.SessionCampaignTwinAuthorizer(authentication),
 		AddonLifecycle:     addons, AdminAuthorizer: httpapi.SessionAdminAuthorizer(authentication),
 		BrowserAddons: addons, BrowserAuthorizer: httpapi.SessionBrowserAuthorizer,
 		Events: eventBroker, EventAuthorizer: httpapi.SessionEventAuthorizer,

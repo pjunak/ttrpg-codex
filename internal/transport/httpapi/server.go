@@ -28,6 +28,8 @@ type Config struct {
 	CampaignWriter     CampaignMutationAuthorizer
 	CampaignTwins      CampaignTwins
 	CampaignTwinWriter CampaignMutationAuthorizer
+	CampaignEnums      CampaignEnums
+	CampaignEnumWriter CampaignMutationAuthorizer
 	Events             EventSource
 	EventAuthorizer    EventAuthorizer
 	EventHeartbeat     time.Duration
@@ -48,6 +50,8 @@ type server struct {
 	campaignWriter     CampaignMutationAuthorizer
 	campaignTwins      CampaignTwins
 	campaignTwinWriter CampaignMutationAuthorizer
+	campaignEnums      CampaignEnums
+	campaignEnumWriter CampaignMutationAuthorizer
 	loginLimiter       *loginLimiter
 	events             EventSource
 	eventAuthorizer    EventAuthorizer
@@ -59,6 +63,7 @@ func New(config Config) (http.Handler, error) {
 		(config.BrowserAddons == nil) != (config.BrowserAuthorizer == nil) ||
 		(config.CampaignMutations == nil) != (config.CampaignWriter == nil) ||
 		(config.CampaignTwins == nil) != (config.CampaignTwinWriter == nil) ||
+		(config.CampaignEnums == nil) != (config.CampaignEnumWriter == nil) ||
 		(config.Events == nil) != (config.EventAuthorizer == nil) ||
 		config.EventHeartbeat < 0 || config.EventHeartbeat > 5*time.Minute ||
 		config.EventHeartbeat > 0 && config.EventHeartbeat < time.Second {
@@ -75,6 +80,7 @@ func New(config Config) (http.Handler, error) {
 		campaignData:      config.CampaignData,
 		campaignMutations: config.CampaignMutations, campaignWriter: config.CampaignWriter,
 		campaignTwins: config.CampaignTwins, campaignTwinWriter: config.CampaignTwinWriter,
+		campaignEnums: config.CampaignEnums, campaignEnumWriter: config.CampaignEnumWriter,
 		loginLimiter: newLoginLimiter(), events: config.Events,
 		eventAuthorizer: config.EventAuthorizer, eventHeartbeat: config.EventHeartbeat,
 	}
@@ -93,7 +99,7 @@ func New(config Config) (http.Handler, error) {
 	if s.events != nil {
 		s.registerEventRoutes(mux)
 	}
-	if s.campaignData != nil || s.campaignMutations != nil || s.campaignTwins != nil {
+	if s.campaignData != nil || s.campaignMutations != nil || s.campaignTwins != nil || s.campaignEnums != nil {
 		s.registerCampaignRoutes(mux)
 	}
 	handler := http.Handler(mux)

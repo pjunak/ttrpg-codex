@@ -74,7 +74,9 @@ be supplied or overridden in JSON.
 Twin create, link, and unlink are stricter because they can expose the
 existence of a hidden counterpart. They require both the real and effective
 role to be DM, as well as the exact CSRF value. A DM using view-as-player must
-leave that mode before changing twin relationships.
+leave that mode before changing twin relationships. Host-owned enum deletion
+uses the same stricter authority because its atomic usage rewrite spans public
+and DM-only records.
 
 ## Remaining authentication work
 

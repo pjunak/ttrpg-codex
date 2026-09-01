@@ -6,6 +6,7 @@ import {
 
 const boundary = "POST /api/campaign/transactions";
 const twinBoundary = "POST /api/campaign/twins";
+const enumBoundary = "POST /api/campaign/enums/delete";
 const maximumReceiptBytes = 1024 * 1024;
 const receiptKeys = new Set([
   "contractVersion",
@@ -24,6 +25,14 @@ const resultKeys = new Set([
 const twinResultKeys = new Set([
   "contractVersion",
   "twinKey",
+  "commitId",
+  "occurredAt",
+  "results",
+  "collectionRevisions",
+]);
+const enumResultKeys = new Set([
+  "contractVersion",
+  "usageCount",
   "commitId",
   "occurredAt",
   "results",
@@ -82,6 +91,34 @@ export interface CampaignTwinResult extends Omit<CampaignCommitReceipt, "contrac
   readonly twinKey: string;
 }
 
+export type CampaignEnumCategory =
+  | "relationshipTypes"
+  | "genders"
+  | "pinTypes"
+  | "characterStatuses"
+  | "eventPriorities"
+  | "attitudes";
+
+export type CampaignEnumDeleteMutation =
+  | {
+    readonly category: CampaignEnumCategory;
+    readonly itemId: string;
+    readonly expectedRevision: number;
+    readonly mode: "reject-if-used" | "clear";
+  }
+  | {
+    readonly category: CampaignEnumCategory;
+    readonly itemId: string;
+    readonly expectedRevision: number;
+    readonly mode: "replace";
+    readonly replacementId: string;
+  };
+
+export interface CampaignEnumDeleteResult extends Omit<CampaignCommitReceipt, "contractVersion"> {
+  readonly contractVersion: "campaign-enum-delete-result.v1";
+  readonly usageCount: number;
+}
+
 export type CampaignMutationFetch = (
   input: string,
   init: RequestInit,
@@ -123,6 +160,19 @@ export class CampaignMutationClient {
     signal: AbortSignal,
   ): Promise<CampaignTwinResult> {
     const operation = this.#tail.then(() => this.#mutateTwin(mutation, csrfToken, signal));
+    this.#tail = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return operation;
+  }
+
+  deleteEnumItem(
+    mutation: CampaignEnumDeleteMutation,
+    csrfToken: string,
+    signal: AbortSignal,
+  ): Promise<CampaignEnumDeleteResult> {
+    const operation = this.#tail.then(() => this.#deleteEnumItem(mutation, csrfToken, signal));
     this.#tail = operation.then(
       () => undefined,
       () => undefined,
@@ -214,6 +264,50 @@ export class CampaignMutationClient {
     }
     return parseCampaignTwinResult(value);
   }
+
+  async #deleteEnumItem(
+    mutation: CampaignEnumDeleteMutation,
+    csrfToken: string,
+    signal: AbortSignal,
+  ): Promise<CampaignEnumDeleteResult> {
+    signal.throwIfAborted();
+    if (csrfToken.length < 32 || mutation.itemId === "" ||
+      !positiveInteger(mutation.expectedRevision) ||
+      (mutation.mode === "replace" &&
+        (mutation.replacementId === "" || mutation.replacementId === mutation.itemId))) {
+      throw new BoundaryValidationError(enumBoundary, "enum deletion request is invalid");
+    }
+    const response = await this.#fetchMutation("/api/campaign/enums/delete", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Codex-CSRF": csrfToken,
+      },
+      credentials: "same-origin",
+      cache: "no-store",
+      body: JSON.stringify({ contractVersion: "campaign-enum-delete.v1", ...mutation }),
+      signal,
+    });
+    if (!response.ok) {
+      throw new CampaignMutationHTTPError(response.status, enumBoundary);
+    }
+    const contentType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
+    if (contentType !== "application/json") {
+      throw new BoundaryValidationError(enumBoundary, "response must be application/json");
+    }
+    const body = await response.text();
+    if (new TextEncoder().encode(body).byteLength > maximumReceiptBytes) {
+      throw new BoundaryValidationError(enumBoundary, "response exceeds 1 MiB");
+    }
+    let value: unknown;
+    try {
+      value = JSON.parse(body) as unknown;
+    } catch {
+      throw new BoundaryValidationError(enumBoundary, "response must be valid JSON");
+    }
+    return parseCampaignEnumDeleteResult(value);
+  }
 }
 
 export function parseCampaignCommitReceipt(value: unknown): CampaignCommitReceipt {
@@ -261,6 +355,29 @@ export function parseCampaignTwinResult(value: unknown): CampaignTwinResult {
   return {
     contractVersion: "campaign-twin-result.v1",
     twinKey: value["twinKey"],
+    commitId: commit.commitId,
+    occurredAt: commit.occurredAt,
+    results: commit.results,
+    collectionRevisions: commit.collectionRevisions,
+  };
+}
+
+export function parseCampaignEnumDeleteResult(value: unknown): CampaignEnumDeleteResult {
+  if (!isRecord(value) || !hasOnlyKeys(value, enumResultKeys) ||
+    value["contractVersion"] !== "campaign-enum-delete-result.v1" ||
+    !nonNegativeInteger(value["usageCount"])) {
+    throw new BoundaryValidationError(enumBoundary, "response must be an exact enum result");
+  }
+  const commit = parseCampaignCommitReceipt({
+    contractVersion: "campaign-commit.v1",
+    commitId: value["commitId"],
+    occurredAt: value["occurredAt"],
+    results: value["results"],
+    collectionRevisions: value["collectionRevisions"],
+  });
+  return {
+    contractVersion: "campaign-enum-delete-result.v1",
+    usageCount: value["usageCount"],
     commitId: commit.commitId,
     occurredAt: commit.occurredAt,
     results: commit.results,

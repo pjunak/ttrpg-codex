@@ -62,7 +62,9 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   cascades with optimistic revisions as one unit. A separate explicit twin
   endpoint owns create/link/unlink, server-generated twin identities, opposite
   visibility, and atomic reciprocal updates. The strict TypeScript mutation
-  client serializes ordinary and twin writes through one stale-base guard.
+  client serializes ordinary, twin, and enum writes through one stale-base
+  guard. The explicit enum boundary can reject, replace, or clear known usages
+  while definition removal and its tombstone remain one transaction.
 - The HTTP boundary exposes no-store health and version responses. Its add-on
   administration routes require both a lifecycle service and an administrator
   authorizer at composition time; partial configuration fails closed and the
