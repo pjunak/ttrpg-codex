@@ -20,7 +20,9 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
 	"github.com/pjunak/ttrpg-codex/internal/application/campaigndata"
 	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
+	"github.com/pjunak/ttrpg-codex/internal/backuparchive"
 	"github.com/pjunak/ttrpg-codex/internal/events"
+	"github.com/pjunak/ttrpg-codex/internal/maintenance/processlock"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/campaignstore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
@@ -57,6 +59,14 @@ func run() error {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	dataLock, err := processlock.AcquireHost(*dataDirectory)
+	if err != nil {
+		return fmt.Errorf("acquire data directory: %w", err)
+	}
+	defer dataLock.Close()
+	if err := backuparchive.Recover(ctx, *dataDirectory, migrations.FS); err != nil {
+		return fmt.Errorf("recover database restore: %w", err)
+	}
 
 	databasePath := filepath.Join(*dataDirectory, "codex.db")
 	db, err := sqlite.Open(ctx, databasePath)
@@ -153,6 +163,9 @@ func composeHost(
 	if err != nil {
 		return nil, fmt.Errorf("configure campaign data service: %w", err)
 	}
+	backupArchives := &backuparchive.Creator{
+		Database: db, DataDirectory: dataDirectory, HostVersion: version,
+	}
 	inspector, err := packageinspect.New(packageinspect.DefaultLimits)
 	if err != nil {
 		return nil, fmt.Errorf("configure package inspector: %w", err)
@@ -208,6 +221,8 @@ func composeHost(
 		CampaignTwinWriter: httpapi.SessionCampaignTwinAuthorizer(authentication),
 		CampaignEnums:      campaignData,
 		CampaignEnumWriter: httpapi.SessionCampaignTwinAuthorizer(authentication),
+		BackupArchives:     backupArchives,
+		BackupAuthorizer:   httpapi.SessionAdminAuthorizer(authentication),
 		AddonLifecycle:     addons, AdminAuthorizer: httpapi.SessionAdminAuthorizer(authentication),
 		BrowserAddons: addons, BrowserAuthorizer: httpapi.SessionBrowserAuthorizer,
 		Events: eventBroker, EventAuthorizer: httpapi.SessionEventAuthorizer,

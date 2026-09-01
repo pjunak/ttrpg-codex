@@ -1,0 +1,24 @@
+package backuparchive
+
+import "testing"
+
+func TestArchivePathsAreRestrictedToOwnedDurableRoots(t *testing.T) {
+	t.Parallel()
+	for _, valid := range []string{
+		"codex.db",
+		"addons/example/generations/abcdef/package.zip",
+	} {
+		if !validArchivePath(valid) {
+			t.Errorf("valid path rejected: %q", valid)
+		}
+	}
+	for _, invalid := range []string{
+		"", "manifest.json", "codex.db-wal", "/codex.db", "../codex.db",
+		"addons/../codex.db", `addons\example\file`, "addons//file",
+		"blobs/unowned",
+	} {
+		if validArchivePath(invalid) {
+			t.Errorf("unsafe path accepted: %q", invalid)
+		}
+	}
+}

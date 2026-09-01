@@ -30,6 +30,8 @@ type Config struct {
 	CampaignTwinWriter CampaignMutationAuthorizer
 	CampaignEnums      CampaignEnums
 	CampaignEnumWriter CampaignMutationAuthorizer
+	BackupArchives     BackupArchives
+	BackupAuthorizer   AdminAuthorizer
 	Events             EventSource
 	EventAuthorizer    EventAuthorizer
 	EventHeartbeat     time.Duration
@@ -52,6 +54,8 @@ type server struct {
 	campaignTwinWriter CampaignMutationAuthorizer
 	campaignEnums      CampaignEnums
 	campaignEnumWriter CampaignMutationAuthorizer
+	backupArchives     BackupArchives
+	backupAuthorizer   AdminAuthorizer
 	loginLimiter       *loginLimiter
 	events             EventSource
 	eventAuthorizer    EventAuthorizer
@@ -64,6 +68,7 @@ func New(config Config) (http.Handler, error) {
 		(config.CampaignMutations == nil) != (config.CampaignWriter == nil) ||
 		(config.CampaignTwins == nil) != (config.CampaignTwinWriter == nil) ||
 		(config.CampaignEnums == nil) != (config.CampaignEnumWriter == nil) ||
+		(config.BackupArchives == nil) != (config.BackupAuthorizer == nil) ||
 		(config.Events == nil) != (config.EventAuthorizer == nil) ||
 		config.EventHeartbeat < 0 || config.EventHeartbeat > 5*time.Minute ||
 		config.EventHeartbeat > 0 && config.EventHeartbeat < time.Second {
@@ -81,6 +86,7 @@ func New(config Config) (http.Handler, error) {
 		campaignMutations: config.CampaignMutations, campaignWriter: config.CampaignWriter,
 		campaignTwins: config.CampaignTwins, campaignTwinWriter: config.CampaignTwinWriter,
 		campaignEnums: config.CampaignEnums, campaignEnumWriter: config.CampaignEnumWriter,
+		backupArchives: config.BackupArchives, backupAuthorizer: config.BackupAuthorizer,
 		loginLimiter: newLoginLimiter(), events: config.Events,
 		eventAuthorizer: config.EventAuthorizer, eventHeartbeat: config.EventHeartbeat,
 	}
@@ -101,6 +107,9 @@ func New(config Config) (http.Handler, error) {
 	}
 	if s.campaignData != nil || s.campaignMutations != nil || s.campaignTwins != nil || s.campaignEnums != nil {
 		s.registerCampaignRoutes(mux)
+	}
+	if s.backupArchives != nil {
+		s.registerBackupRoutes(mux)
 	}
 	handler := http.Handler(mux)
 	if s.authentication != nil {

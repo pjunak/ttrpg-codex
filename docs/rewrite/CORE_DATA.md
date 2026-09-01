@@ -113,10 +113,14 @@ dangling references and accidental re-seeding after restart.
 The rewrite does not yet implement:
 
 - reusable typed collection handles and core editors beyond campaign identity;
-- initial import publication, backup/restore, or add-on collection migration;
+- initial import publication or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and
   other domain queries.
 
 Those policies belong in domain/application services above this lossless
 record foundation. They must not be implemented as ad hoc SQL in transport
 handlers.
+
+Native whole-host recovery archives and offline journaled restore are
+documented in [`BACKUP_RESTORE.md`](BACKUP_RESTORE.md). Legacy website backups
+remain input only to the later one-time converter.

@@ -78,6 +78,11 @@ leave that mode before changing twin relationships. Host-owned enum deletion
 uses the same stricter authority because its atomic usage rewrite spans public
 and DM-only records.
 
+`GET /api/backup` also requires both real and effective DM authority because
+the native archive contains the complete unprojected database and installed
+add-on packages. It is a read/download operation and therefore does not use a
+CSRF header; same-origin cookie policy and the strict DM check remain required.
+
 ## Remaining authentication work
 
 - Add persistent slow-hashed credentials, password rotation, session
