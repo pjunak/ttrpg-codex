@@ -335,11 +335,17 @@ Data APIs are collection and revision aware:
 const notes = context.data.collection<Note>("dm_notes");
 const current = await notes.get(noteId, { signal: context.signal });
 
-await notes.transact({
-  expectedRevision: current.revision,
-  operations: [{ op: "replace", key: noteId, value: nextNote }],
-  idempotencyKey,
+await notes.put(noteId, nextNote, current.revision, {
+  signal: context.signal,
 });
+
+await context.data.transact([{
+  operation: "delete",
+  kind: "collection",
+  dataId: "dm_notes",
+  key: obsoleteNoteId,
+  expectedRevision: obsoleteRevision,
+}], { signal: context.signal });
 ```
 
 Core collections are addressed by public contract IDs and separately granted
@@ -356,8 +362,8 @@ const sheetState = context.data.recordExtension<SheetState>(
   "sheet_state",
 );
 
-await sheetState.patch(characterId, expectedRevision, nextState, {
-  idempotencyKey,
+await sheetState.put(characterId, nextState, expectedRevision, {
+  signal: context.signal,
 });
 ```
 

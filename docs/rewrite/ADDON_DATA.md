@@ -19,6 +19,7 @@ general compatibility layer for either format.
 | Switch without an old/new write race | A lifecycle transition briefly quiesces all calls for the add-on while the package manager changes its durable active-generation pointer. Commit selects the new registry; rollback retains the old registry. |
 | Keep writes understandable | A transaction contains at most 256 operations, 256 KiB per document, and 2 MiB total JSON. Optimistic document revisions fail the whole transaction on conflict. |
 | Preserve meaningful ordering | First insertion receives a stable position. Updates retain it; a delete followed by recreation appends as a new item. |
+| Keep browsing bounded | Queries return at most 200 documents, scan at most 10,000 candidates, and stop before their JSON values exceed 1.5 MiB. Opaque cursors use monotonically allocated positions that are never reused after deletion. Predicates are exact matches on declared JSON-pointer indexes only. |
 | Retain delete history | Document-version tombstones keep revisions monotonic, so a stale writer cannot recreate deleted data at revision zero. |
 | Avoid leaking record contents through events | Durable `addon-data-changed` events contain only scope and revision. Public, DM, and system audiences are derived by the host. |
 | Keep `private` truly internal | Public data is visible to all authenticated roles, DM data to DM/system, and private data only to system/worker authority. |
@@ -46,6 +47,11 @@ add-on data service ---- validates role, schema, target, indexes
                  |
                  v
 SQLite transaction ---- documents + tombstones + audit + event
+                 ^
+                 |
+generation URL + authenticated role
+       /                         \
+integrated TypeScript     isolated iframe JSON bridge
 ```
 
 The inspector compiles schemas offline. Local `$ref` dependencies are included
@@ -105,6 +111,22 @@ uses cold cohort restarts. This favors deterministic behavior and debuggable
 failures over high write throughput or zero-downtime upgrades. Revisit that
 choice only after measured contention justifies a more complex coordinator.
 
+## Browser API
+
+Integrated and isolated browser add-ons receive the same `context.data` API.
+`collection(id)` and `recordExtension(target, id)` return immutable handles
+with `get`, bounded `query`, optimistic `put`, and `delete` operations. A
+top-level `transact` combines up to 256 writes atomically. Every request URL
+contains the exact active archive-hash generation; reads use the authenticated
+session and writes additionally require its CSRF token.
+
+The isolated iframe still has `connect-src 'none'` and no same-origin access.
+It sends bounded JSON commands over its private message port; the host owns the
+HTTP client, credentials, schema authority, and cancellation. Generation
+shutdown aborts both integrated requests and in-flight iframe commands. Safe
+HTTP status classes cross the iframe boundary, while server-derived details do
+not.
+
 ## Remaining public surface
 
 The package/storage/application contract and package lifecycle integration are
@@ -112,8 +134,6 @@ implemented. The following still sit above this boundary:
 
 - bounded `host/data.get`, `host/data.query`, and `host/data.transact` worker
   methods with exact permission-resource checks;
-- generation-bound TypeScript collection and record-extension handles for
-  integrated and isolated browser add-ons;
 - reviewed `addon/migration.plan` and `addon/migration.apply` orchestration;
 - the one-shot v1 conversion mapping from the two backed-up websites, using
   the finished first-party v3 package schemas rather than permanent legacy

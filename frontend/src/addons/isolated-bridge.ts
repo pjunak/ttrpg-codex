@@ -1,17 +1,25 @@
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
 import type { BrowserAddonContext } from "./browser-sdk.js";
+import {
+  AddonDataHTTPError,
+  type AddonDataHandle,
+  type AddonDataMutation,
+  type AddonQueryOptions,
+} from "./data-client.js";
 import type { BrowserContributionDescriptor } from "./generation-manager.js";
 
 export const isolatedFrameProtocol = "codex.browser-addon/1";
 
 const boundary = "isolated browser add-on bridge";
 const maximumMessageBytes = 64 * 1024;
+const maximumDataMessageBytes = 2 * 1024 * 1024 + 128 * 1024;
 const maximumActivationBytes = 5 * 1024 * 1024;
 const maximumConcurrentInvocations = 32;
 const requestIdPattern = /^[A-Za-z0-9_-]{1,64}$/;
 const readyKeys = new Set(["protocol", "type", "contributionId"]);
 const unavailableKeys = new Set(["protocol", "type", "contributionId"]);
 const requestKeys = new Set(["protocol", "type", "id", "method", "params"]);
+const cancelRequestKeys = new Set(["protocol", "type", "id"]);
 const resizeKeys = new Set(["protocol", "type", "height"]);
 const diagnosticKeys = new Set(["protocol", "type", "message"]);
 const resultKeys = new Set(["protocol", "type", "id", "ok", "result"]);
@@ -21,12 +29,22 @@ const capabilityKeys = new Set(["capability"]);
 const permissionKeys = new Set(["permission", "resource"]);
 const permissionResourceKeys = new Set(["permission"]);
 const noParameterKeys = new Set<string>();
+const dataGetKeys = new Set(["kind", "dataId", "target", "key"]);
+const dataQueryKeys = new Set(["kind", "dataId", "target", "options"]);
+const dataTransactionKeys = new Set(["mutations"]);
+const queryOptionKeys = new Set(["cursor", "limit", "where"]);
+const queryConditionKeys = new Set(["path", "equals"]);
+const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
+const cursorPattern = /^[A-Za-z0-9_-]{1,32}$/;
 
 export type IsolatedSDKMethod =
   | "capabilities.has"
   | "permissions.has"
   | "permissions.resources"
-  | "ui.declarations";
+  | "ui.declarations"
+  | "data.get"
+  | "data.query"
+  | "data.transact";
 
 export interface IsolatedMessagePort {
   postMessage(message: unknown): void;
@@ -75,6 +93,7 @@ export class IsolatedFrameBridge {
   readonly #onUnavailable: () => void;
   readonly #invocationTimeoutMilliseconds: number;
   readonly #pending = new Map<string, PendingInvocation>();
+  readonly #sdkRequests = new Map<string, AbortController>();
   readonly #readyPromise: Promise<void>;
   readonly #resolveReady: () => void;
   readonly #rejectReady: (cause: unknown) => void;
@@ -141,6 +160,10 @@ export class IsolatedFrameBridge {
       pending.reject(cause);
     }
     this.#pending.clear();
+    for (const request of this.#sdkRequests.values()) {
+      request.abort(reason);
+    }
+    this.#sdkRequests.clear();
     globalThis.clearTimeout(this.#readyTimer);
     this.#context.signal.removeEventListener("abort", this.#abort);
     this.#port.removeEventListener("message", this.#message);
@@ -244,7 +267,7 @@ export class IsolatedFrameBridge {
       return;
     }
     try {
-      assertBoundedMessage(value);
+      assertBoundedMessage(value, inboundMessageLimit(value));
       if (!isRecord(value) || value["protocol"] !== isolatedFrameProtocol) {
         throw new BoundaryValidationError(boundary, "message has an invalid protocol envelope");
       }
@@ -264,15 +287,25 @@ export class IsolatedFrameBridge {
         this.#acceptUnavailable(value);
         return;
       }
+      // SDK calls are valid during module activation, before the contribution
+      // completes its ready handshake.
+      if (value["type"] === "request") {
+        if (!this.#ready && value["method"] !== "data.get" &&
+          value["method"] !== "data.query" && value["method"] !== "data.transact") {
+          throw new BoundaryValidationError(boundary, "frame sent a message before ready");
+        }
+        void this.#answer(value);
+        return;
+      }
+      if (value["type"] === "cancel-request") {
+        this.#cancelSDKRequest(value);
+        return;
+      }
       if (!this.#ready) {
         throw new BoundaryValidationError(boundary, "frame sent a message before ready");
       }
       if (value["type"] === "resize") {
         this.#acceptResize(value);
-        return;
-      }
-      if (value["type"] === "request") {
-        void this.#answer(value);
         return;
       }
       if (value["type"] === "result") {
@@ -388,34 +421,57 @@ export class IsolatedFrameBridge {
 
   async #answer(value: Readonly<Record<string, unknown>>): Promise<void> {
     const id = value["id"];
+    let request: AbortController | undefined;
     try {
       if (!hasOnlyKeys(value, requestKeys) || typeof id !== "string" ||
         !requestIdPattern.test(id) || typeof value["method"] !== "string" ||
         !isRecord(value["params"])) {
         throw new BoundaryValidationError(boundary, "request has an invalid shape");
       }
-      const result = this.#invoke(value["method"], value["params"]);
-      this.#send({ protocol: isolatedFrameProtocol, type: "response", id, ok: true, result });
+      if (this.#sdkRequests.has(id) || this.#sdkRequests.size >= maximumConcurrentInvocations) {
+        throw new BoundaryValidationError(boundary, "too many active SDK requests");
+      }
+      request = new AbortController();
+      this.#sdkRequests.set(id, request);
+      const candidate = this.#invoke(value["method"], value["params"], request.signal);
+      const result = candidate instanceof Promise ? await candidate : candidate;
+      const limit = value["method"].startsWith("data.")
+        ? maximumDataMessageBytes
+        : maximumMessageBytes;
+      this.#send({ protocol: isolatedFrameProtocol, type: "response", id, ok: true, result }, limit);
     } catch (cause: unknown) {
       this.#onDiagnostic(cause);
       if (typeof id === "string" && requestIdPattern.test(id)) {
+        const error = isolatedSDKError(cause, this.#context.signal);
         this.#send({
           protocol: isolatedFrameProtocol,
           type: "response",
           id,
           ok: false,
-          error: {
-            code: this.#context.signal.aborted ? "AUTHORITY_REVOKED" : "INVALID_REQUEST",
-            message: this.#context.signal.aborted
-              ? "The add-on generation is no longer active."
-              : "The isolated SDK request is invalid.",
-          },
+          error,
         });
+      }
+    } finally {
+      if (request !== undefined && this.#sdkRequests.get(String(id)) === request) {
+        this.#sdkRequests.delete(String(id));
       }
     }
   }
 
-  #invoke(method: string, params: Readonly<Record<string, unknown>>): unknown {
+  #cancelSDKRequest(value: Readonly<Record<string, unknown>>): void {
+    const id = value["id"];
+    if (!hasOnlyKeys(value, cancelRequestKeys) || typeof id !== "string" ||
+      !requestIdPattern.test(id)) {
+      throw new BoundaryValidationError(boundary, "request cancellation is invalid");
+    }
+    this.#sdkRequests.get(id)?.abort("frame-cancelled");
+  }
+
+  #invoke(
+    method: string,
+    params: Readonly<Record<string, unknown>>,
+    signal: AbortSignal,
+  ): unknown | Promise<unknown> {
     this.#context.signal.throwIfAborted();
     switch (method as IsolatedSDKMethod) {
       case "capabilities.has": {
@@ -442,9 +498,46 @@ export class IsolatedFrameBridge {
         }
         // An opaque frame sees only the declaration represented by that frame.
         return [this.#contribution];
+      case "data.get": {
+        if (!hasOnlyKeys(params, dataGetKeys)) {
+          throw new BoundaryValidationError(boundary, "data.get parameters are invalid");
+        }
+        const handle = this.#dataHandle(params);
+        const key = boundedDataKey(params["key"]);
+        return handle.get(key, { signal });
+      }
+      case "data.query": {
+        if (!hasOnlyKeys(params, dataQueryKeys) || !isRecord(params["options"])) {
+          throw new BoundaryValidationError(boundary, "data.query parameters are invalid");
+        }
+        const handle = this.#dataHandle(params);
+        return handle.query(isolatedQueryOptions(params["options"], signal));
+      }
+      case "data.transact": {
+        const mutations = params["mutations"];
+        if (!hasOnlyKeys(params, dataTransactionKeys) || !Array.isArray(mutations) ||
+          mutations.length < 1 || mutations.length > 256) {
+          throw new BoundaryValidationError(boundary, "data.transact parameters are invalid");
+        }
+        assertJSONValue(mutations, "data transaction");
+        return this.#context.data.transact(mutations as readonly AddonDataMutation[], { signal });
+      }
       default:
         throw new BoundaryValidationError(boundary, "SDK method is unsupported");
     }
+  }
+
+  #dataHandle(params: Readonly<Record<string, unknown>>): AddonDataHandle<unknown> {
+    const kind = params["kind"];
+    const dataID = localID(params["dataId"], "dataId");
+    if (kind === "collection" && params["target"] === undefined) {
+      return this.#context.data.collection(dataID);
+    }
+    if (kind === "record-extension") {
+      const target = localID(params["target"], "target");
+      return this.#context.data.recordExtension(target, dataID);
+    }
+    throw new BoundaryValidationError(boundary, "data reference is invalid");
   }
 
   #send(value: unknown, maximumBytes = maximumMessageBytes): void {
@@ -478,6 +571,91 @@ function boundedString(value: unknown, name: string): string {
     throw new BoundaryValidationError(boundary, `${name} must be a bounded string`);
   }
   return value;
+}
+
+function localID(value: unknown, name: string): string {
+  if (typeof value !== "string" || !localIdPattern.test(value)) {
+    throw new BoundaryValidationError(boundary, `${name} must be a local identifier`);
+  }
+  return value;
+}
+
+function boundedDataKey(value: unknown): string {
+  if (typeof value !== "string" || value.length < 1 || value.length > 1_024) {
+    throw new BoundaryValidationError(boundary, "data key must be a bounded string");
+  }
+  return value;
+}
+
+function isolatedQueryOptions(
+  value: Readonly<Record<string, unknown>>,
+  signal: AbortSignal,
+): AddonQueryOptions {
+  if (!hasOnlyKeys(value, queryOptionKeys)) {
+    throw new BoundaryValidationError(boundary, "data query options are invalid");
+  }
+  const cursor = value["cursor"];
+  const limit = value["limit"];
+  const where = value["where"];
+  if (cursor !== undefined && (typeof cursor !== "string" || !cursorPattern.test(cursor))) {
+    throw new BoundaryValidationError(boundary, "data query cursor is invalid");
+  }
+  if (limit !== undefined && (typeof limit !== "number" || !Number.isSafeInteger(limit) ||
+    limit < 1 || limit > 200)) {
+    throw new BoundaryValidationError(boundary, "data query limit is invalid");
+  }
+  if (where !== undefined && (!Array.isArray(where) || where.length > 8)) {
+    throw new BoundaryValidationError(boundary, "data query conditions are invalid");
+  }
+  const conditions = where?.map((condition) => {
+    if (!isRecord(condition) || !hasOnlyKeys(condition, queryConditionKeys) ||
+      typeof condition["path"] !== "string" || !condition["path"].startsWith("/") ||
+      condition["path"].length > 300 || condition["equals"] === undefined) {
+      throw new BoundaryValidationError(boundary, "data query condition is invalid");
+    }
+    assertJSONValue(condition["equals"], "data query condition");
+    return Object.freeze({ path: condition["path"], equals: condition["equals"] });
+  });
+  return {
+    signal,
+    ...(typeof cursor === "string" ? { cursor } : {}),
+    ...(typeof limit === "number" ? { limit } : {}),
+    ...(conditions !== undefined ? { where: conditions } : {}),
+  };
+}
+
+function inboundMessageLimit(value: unknown): number {
+  return isRecord(value) && value["type"] === "request" && value["method"] === "data.transact"
+    ? maximumDataMessageBytes
+    : maximumMessageBytes;
+}
+
+function isolatedSDKError(
+  cause: unknown,
+  generationSignal: AbortSignal,
+): Readonly<{ code: string; message: string }> {
+  if (generationSignal.aborted) {
+    return Object.freeze({
+      code: "AUTHORITY_REVOKED",
+      message: "The add-on generation is no longer active.",
+    });
+  }
+  if (cause instanceof AddonDataHTTPError) {
+    return Object.freeze({
+      code: `ADDON_DATA_${cause.status}`,
+      message: `The add-on data request failed with status ${cause.status}.`,
+    });
+  }
+  if (cause instanceof DOMException && cause.name === "AbortError") {
+    return Object.freeze({
+      code: "REQUEST_ABORTED",
+      message: "The isolated SDK request was cancelled.",
+    });
+  }
+  return Object.freeze({
+    code: "INVALID_REQUEST",
+    message: "The isolated SDK request is invalid.",
+  });
 }
 
 function assertBoundedMessage(value: unknown, maximumBytes = maximumMessageBytes): void {

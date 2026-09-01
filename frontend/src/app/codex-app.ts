@@ -490,7 +490,11 @@ export class CodexApp extends LitElement {
     await this.#stopAddons();
     const owner = ++this.#addonOwner;
     this.addonState = { state: "loading" };
-    const composition = createBrowserAddonComposition(document, {
+    const auth = this.authority.state === "known" ? this.authority.auth : anonymousAuth();
+    if (!auth.authenticated) {
+      throw new Error("authenticated browser add-on authority is unavailable");
+    }
+    const composition = createBrowserAddonComposition(document, auth.csrfToken, {
       onRefresh: (_cause, result) => {
         if (owner !== this.#addonOwner) {
           return;
@@ -539,8 +543,7 @@ export class CodexApp extends LitElement {
       const outletRoot = this.renderRoot.querySelector<HTMLElement>("[data-addon-outlet]");
       const navigationRoot = this.renderRoot.querySelector<HTMLElement>("[data-addon-navigation]");
       const routeRoot = this.renderRoot.querySelector<HTMLElement>("[data-addon-route-outlet]");
-      const auth = this.authority.state === "known" ? this.authority.auth : anonymousAuth();
-      if (outletRoot === null || navigationRoot === null || routeRoot === null || !auth.authenticated) {
+      if (outletRoot === null || navigationRoot === null || routeRoot === null) {
         throw new Error("authenticated browser add-on outlet is unavailable");
       }
       const onOutletError = (cause: unknown): void => {

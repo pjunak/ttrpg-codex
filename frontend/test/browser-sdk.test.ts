@@ -11,6 +11,7 @@ import {
   type BrowserGenerationDescriptor,
 } from "../src/addons/generation-manager.js";
 import { GenerationScope } from "../src/addons/generation-scope.js";
+import type { AddonDataHandle, BrowserDataAPI } from "../src/addons/data-client.js";
 
 const generationId = "a".repeat(64);
 const route = contribution("planner.route", "route", 200, ["dm"]);
@@ -19,6 +20,24 @@ const sidebar = contribution("planner.sidebar", "sidebar", 200);
 const graphView = contribution("planner.graph", "graph-view", 300);
 
 describe("BrowserContributionRegistry", () => {
+  it("creates one generation-scoped data API for add-on code", () => {
+    const handle: AddonDataHandle<unknown> = {
+      get: vi.fn(), query: vi.fn(), put: vi.fn(), delete: vi.fn(),
+    };
+    const dataAPI: BrowserDataAPI = {
+      collection: <T>() => handle as AddonDataHandle<T>,
+      recordExtension: <T>() => handle as AddonDataHandle<T>,
+      transact: vi.fn(),
+    };
+    const createDataAPI = vi.fn(() => dataAPI);
+    const source = descriptor("dm-tools", [route]);
+    const scope = new GenerationScope("dm-tools@generation");
+    const session = new BrowserContributionRegistry(undefined, createDataAPI).open(source, scope);
+
+    expect(createDataAPI).toHaveBeenCalledWith(source, scope.signal);
+    expect(session.context.data.collection("dm_notes")).toBe(handle);
+  });
+
   it("exposes immutable generation identity and effective authority", () => {
     const source = descriptor("dm-tools", [route]);
     const registry = new BrowserContributionRegistry();

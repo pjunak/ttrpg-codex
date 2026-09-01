@@ -5,6 +5,7 @@ import {
 } from "../addons/browser-addon-session.js";
 import { BrowserGraphClient } from "../addons/browser-graph-client.js";
 import { BrowserContributionRegistry } from "../addons/browser-sdk.js";
+import { BrowserAddonDataClient } from "../addons/data-client.js";
 import { createDocumentStyleLoader } from "../addons/browser-styles.js";
 import { createIsolatedFrameActivator } from "../addons/isolated-frame.js";
 import {
@@ -20,10 +21,17 @@ export interface BrowserAddonComposition {
 /** Browser-only composition root; add-on modules never receive these owners. */
 export function createBrowserAddonComposition(
   document: Document,
+  csrfToken: string,
   callbacks: BrowserAddonSessionCallbacks = {},
 ): BrowserAddonComposition {
   const contributions = new BrowserContributionRegistry(
     (cause) => callbacks.onDiagnostic?.(cause),
+    (descriptor, signal) => new BrowserAddonDataClient({
+      addonId: descriptor.addonId,
+      generationId: descriptor.generationId,
+      csrfToken,
+      signal,
+    }).api(),
   );
   const activateModule = createModuleActivator(
     (entryUrl) => import(/* @vite-ignore */ entryUrl) as Promise<unknown>,

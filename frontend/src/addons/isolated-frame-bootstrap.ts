@@ -3,6 +3,8 @@ export const isolatedFrameBootstrap = String.raw`
   "use strict";
   const protocol = "codex.browser-addon/1";
   const tagPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$/;
+  const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
+  const maximumDataMessageBytes = 2 * 1024 * 1024 + 128 * 1024;
   let connected = false;
 
   window.addEventListener("message", (event) => {
@@ -74,17 +76,18 @@ export const isolatedFrameBootstrap = String.raw`
     const declarations = Object.freeze([...data.declarations]);
     const handles = new Map();
     const invocations = new Map();
+    const sdkRequests = new Map();
     const root = document.getElementById("codex-addon-root");
     let moduleDisposable;
     let observer;
     let revoked = false;
 
-    const post = (message) => {
+    const post = (message, maximumBytes = 64 * 1024) => {
       if (!revoked) {
         const envelope = { protocol, ...message };
         const encoded = JSON.stringify(envelope);
-        if (typeof encoded !== "string" || new TextEncoder().encode(encoded).byteLength > 64 * 1024) {
-          throw new Error("The isolated bridge message exceeds 64 KiB.");
+        if (typeof encoded !== "string" || new TextEncoder().encode(encoded).byteLength > maximumBytes) {
+          throw new Error("The isolated bridge message exceeds its byte limit.");
         }
         port.postMessage(envelope);
       }
@@ -122,6 +125,79 @@ export const isolatedFrameBootstrap = String.raw`
           throw new Error("Browser permission " + permission + " is unavailable.");
         }
       },
+    });
+    let sdkSequence = 0;
+    const sdkRequest = (method, params, requestSignal = controller.signal) => {
+      requireActive();
+      requestSignal.throwIfAborted();
+      const signal = requestSignal === controller.signal
+        ? controller.signal
+        : AbortSignal.any([controller.signal, requestSignal]);
+      const id = "sdk-" + (++sdkSequence);
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (callback) => {
+          if (settled) return;
+          settled = true;
+          signal.removeEventListener("abort", abort);
+          sdkRequests.delete(id);
+          callback();
+        };
+        const abort = () => {
+          try {
+            post({ type: "cancel-request", id });
+          } catch (_) {
+            // Revocation closes the port and rejects the local request below.
+          }
+          finish(() => reject(signal.reason));
+        };
+        sdkRequests.set(id, {
+          resolve: (value) => finish(() => resolve(value)),
+          reject: (cause) => finish(() => reject(cause)),
+        });
+        signal.addEventListener("abort", abort, { once: true });
+        try {
+          post(
+            { type: "request", id, method, params },
+            method === "data.transact" ? maximumDataMessageBytes : 64 * 1024,
+          );
+        } catch (cause) {
+          finish(() => reject(cause));
+        }
+      });
+    };
+    const dataReference = (kind, dataId, target) => {
+      requireActive();
+      if (!localIdPattern.test(dataId) ||
+        (kind === "collection" ? target !== undefined : !localIdPattern.test(target))) {
+        throw new TypeError("The isolated add-on data reference is invalid.");
+      }
+      return Object.freeze({ kind, dataId, ...(target === undefined ? {} : { target }) });
+    };
+    const dataHandle = (kind, dataId, target) => {
+      const reference = dataReference(kind, dataId, target);
+      return Object.freeze({
+        get: (key, options = {}) => sdkRequest(
+          "data.get", { ...reference, key }, options.signal || controller.signal,
+        ),
+        query: (options = {}) => {
+          const { signal = controller.signal, ...wireOptions } = options;
+          return sdkRequest("data.query", { ...reference, options: wireOptions }, signal);
+        },
+        put: (key, value, expectedRevision, options = {}) => sdkRequest("data.transact", {
+          mutations: [{ operation: "put", kind, dataId, key, expectedRevision, value }],
+        }, options.signal || controller.signal),
+        delete: (key, expectedRevision, options = {}) => sdkRequest("data.transact", {
+          mutations: [{ operation: "delete", kind, dataId, key, expectedRevision }],
+        }, options.signal || controller.signal),
+      });
+    };
+    const addonData = Object.freeze({
+      collection: (dataId) => dataHandle("collection", dataId),
+      recordExtension: (target, dataId) => dataHandle("record-extension", dataId, target),
+      transact: (mutations, options = {}) => sdkRequest(
+        "data.transact", { mutations }, options.signal || controller.signal,
+      ),
     });
     const ui = Object.freeze({
       declarations: () => {
@@ -180,6 +256,7 @@ export const isolatedFrameBootstrap = String.raw`
       signal: controller.signal,
       capabilities,
       permissions,
+      data: addonData,
       ui,
     });
 
@@ -190,6 +267,8 @@ export const isolatedFrameBootstrap = String.raw`
       observer?.disconnect();
       for (const invocation of invocations.values()) invocation.abort(reason);
       invocations.clear();
+      for (const request of sdkRequests.values()) request.reject(controller.signal.reason);
+      sdkRequests.clear();
       for (const entry of [...handles.values()]) entry.handle.dispose();
       try {
         await moduleDisposable?.dispose?.();
@@ -255,6 +334,20 @@ export const isolatedFrameBootstrap = String.raw`
         invocations.get(message.id)?.abort("host-cancelled");
       } else if (message.type === "invoke") {
         void invoke(message);
+      } else if (message.type === "response" && typeof message.id === "string") {
+        const request = sdkRequests.get(message.id);
+        if (request === undefined || typeof message.ok !== "boolean") return;
+        if (message.ok === true && Object.keys(message).length === 5 && "result" in message) {
+          request.resolve(message.result);
+        } else if (message.ok === false && Object.keys(message).length === 5 &&
+          typeof message.error === "object" && message.error !== null &&
+          typeof message.error.code === "string" && typeof message.error.message === "string") {
+          const cause = new Error(message.error.message);
+          cause.code = message.error.code;
+          request.reject(cause);
+        } else {
+          request.reject(new Error("The host returned an invalid isolated SDK response."));
+        }
       }
     });
     port.start();

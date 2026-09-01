@@ -16,10 +16,134 @@ import {
   type BrowserGenerationDescriptor,
 } from "../src/addons/generation-manager.js";
 import { GenerationScope } from "../src/addons/generation-scope.js";
+import type {
+  AddonDataHandle,
+  AddonQueryOptions,
+  BrowserDataAPI,
+} from "../src/addons/data-client.js";
 
 const generationId = "a".repeat(64);
 
 describe("IsolatedFrameBridge", () => {
+  it("proxies generation-scoped data without exposing host fetch or credentials", async () => {
+    const descriptor = frameDescriptor(slotContribution());
+    const get = vi.fn(async () => ({ key: "note-1", revision: 2, value: { text: "Ruins" } }));
+    const query = vi.fn(async () => ({ documents: [], nextCursor: "Mg" }));
+    const transact = vi.fn(async () => ({
+      contractVersion: "addon-data-commit.v1" as const,
+      commitId: 4,
+      occurredAt: "2026-09-01T12:00:00Z",
+      results: [{
+        kind: "collection" as const, dataId: "dm_notes", key: "note-1",
+        beforeRevision: 1, afterRevision: 2, deleted: true,
+      }],
+      dataSets: [{ kind: "collection" as const, dataId: "dm_notes", revision: 2 }],
+    }));
+    const handle: AddonDataHandle<unknown> = { get, query, put: vi.fn(), delete: vi.fn() };
+    const collection = vi.fn();
+    const recordExtension = vi.fn();
+    const dataAPI: BrowserDataAPI = {
+      collection: <T>(id: string) => {
+        collection(id);
+        return handle as AddonDataHandle<T>;
+      },
+      recordExtension: <T>(target: string, id: string) => {
+        recordExtension(target, id);
+        return handle as AddonDataHandle<T>;
+      },
+      transact,
+    };
+    const registry = new BrowserContributionRegistry(undefined, () => dataAPI);
+    const sdk = registry.open(descriptor, new GenerationScope("isolated@generation"));
+    const port = new FakePort();
+    const bridge = new IsolatedFrameBridge({
+      port,
+      context: sdk.context,
+      contribution: descriptor.contributions[0] as BrowserContributionDescriptor,
+      onResize: vi.fn(),
+      readyTimeoutMilliseconds: 60_000,
+    });
+
+    // Data is available while activate(context) is still running, before ready.
+    port.receive(request("get-note", "data.get", {
+      kind: "collection", dataId: "dm_notes", key: "note-1",
+    }));
+    await vi.waitFor(() => expect(response(port, "get-note")).toMatchObject({
+      ok: true,
+      result: { key: "note-1", revision: 2, value: { text: "Ruins" } },
+    }));
+    expect(collection).toHaveBeenCalledWith("dm_notes");
+    expect(get).toHaveBeenCalledWith("note-1", { signal: expect.any(AbortSignal) });
+
+    port.receive(request("query-sheet", "data.query", {
+      kind: "record-extension",
+      dataId: "sheet_state",
+      target: "characters",
+      options: { limit: 10, where: [{ path: "/level", equals: 3 }] },
+    }));
+    await vi.waitFor(() => expect(response(port, "query-sheet")).toMatchObject({
+      ok: true, result: { documents: [], nextCursor: "Mg" },
+    }));
+    expect(recordExtension).toHaveBeenCalledWith("characters", "sheet_state");
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      limit: 10,
+      where: [{ path: "/level", equals: 3 }],
+      signal: expect.any(AbortSignal),
+    } as AddonQueryOptions));
+
+    port.receive(request("delete-note", "data.transact", { mutations: [{
+      operation: "delete", kind: "collection", dataId: "dm_notes",
+      key: "note-1", expectedRevision: 1,
+    }] }));
+    await vi.waitFor(() => expect(response(port, "delete-note")).toMatchObject({
+      ok: true, result: { contractVersion: "addon-data-commit.v1", commitId: 4 },
+    }));
+    expect(transact).toHaveBeenCalledWith(expect.any(Array), {
+      signal: expect.any(AbortSignal),
+    });
+    bridge.close();
+  });
+
+  it("cancels an isolated data request without revoking its generation", async () => {
+    const descriptor = frameDescriptor(slotContribution());
+    const query = vi.fn((_options?: AddonQueryOptions) => new Promise<never>((_resolve, reject) => {
+      _options?.signal?.addEventListener("abort", () =>
+        reject(new DOMException("cancelled", "AbortError")), { once: true });
+    }));
+    const handle: AddonDataHandle<unknown> = {
+      get: vi.fn(), query, put: vi.fn(), delete: vi.fn(),
+    };
+    const dataAPI: BrowserDataAPI = {
+      collection: <T>() => handle as AddonDataHandle<T>,
+      recordExtension: <T>() => handle as AddonDataHandle<T>,
+      transact: vi.fn(),
+    };
+    const sdk = new BrowserContributionRegistry(undefined, () => dataAPI).open(
+      descriptor,
+      new GenerationScope("isolated@generation"),
+    );
+    const port = new FakePort();
+    const bridge = new IsolatedFrameBridge({
+      port,
+      context: sdk.context,
+      contribution: descriptor.contributions[0] as BrowserContributionDescriptor,
+      onResize: vi.fn(),
+      readyTimeoutMilliseconds: 60_000,
+    });
+
+    port.receive(request("slow-query", "data.query", {
+      kind: "collection", dataId: "dm_notes", options: {},
+    }));
+    await vi.waitFor(() => expect(query).toHaveBeenCalledOnce());
+    port.receive({ protocol: isolatedFrameProtocol, type: "cancel-request", id: "slow-query" });
+    await vi.waitFor(() => expect(response(port, "slow-query")).toMatchObject({
+      ok: false,
+      error: { code: "REQUEST_ABORTED" },
+    }));
+    expect(sdk.context.signal.aborted).toBe(false);
+    bridge.close();
+  });
+
   it("exposes the current read-only SDK authority over one bounded port", () => {
     const descriptor = frameDescriptor(slotContribution());
     const registry = new BrowserContributionRegistry();
@@ -461,6 +585,8 @@ describe("isolated frame activation", () => {
     const document = isolatedFrameDocument([]);
     expect(document).toContain("connect-src 'none'");
     expect(document).toContain("form-action 'none'");
+    expect(document).toContain("data: addonData");
+    expect(document).toContain('"data.transact"');
     expect(document).not.toContain("allow-same-origin");
     const source = document.match(/<script>([\s\S]*)<\/script>/)?.[1];
     expect(source).toBeDefined();
@@ -572,6 +698,12 @@ class FakeFrame {
 
 function request(id: string, method: string, params: Record<string, unknown>): unknown {
   return { protocol: isolatedFrameProtocol, type: "request", id, method, params };
+}
+
+function response(port: FakePort, id: string): unknown {
+  return port.sent.find((message) =>
+    (message as { type?: string; id?: string }).type === "response" &&
+    (message as { id?: string }).id === id);
 }
 
 function frameDescriptor(contribution: BrowserContributionDescriptor): BrowserGenerationDescriptor {
