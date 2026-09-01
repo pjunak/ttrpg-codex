@@ -1,8 +1,8 @@
 # Service broker and request lineage
 
-This milestone adds the host-owned service selection layer above the worker
-transport. It keeps three kinds of state separate because they have different
-recovery and trust rules:
+This milestone adds the host-owned service selection layer above worker and
+immutable-content transports. It keeps three kinds of state separate because
+they have different recovery and trust rules:
 
 | State | Owner | Durable |
 |---|---|---|
@@ -99,6 +99,13 @@ compiler has no filesystem or network fallback. The native supervisor exposes
 the active peer as a generation-checked caller but does not select contracts
 or validate domain schemas itself.
 
+Immutable-content providers use a host-owned adapter instead of a worker. The
+adapter exposes only `catalog`, `get`, and `query`, reads the already inspected
+generation index, and applies the same bounded ordering and cursor rules as the
+browser API. Package-owned service schemas still validate both payload
+directions through the broker. Consumers therefore resolve a contract and
+never read a provider's package files or depend on its add-on ID.
+
 ## Host-issued request contexts
 
 The bounded `requestcontext.Registry` creates random request IDs and stores the
@@ -124,7 +131,7 @@ The remaining broker integrations are:
 
 - expose activation diagnostics and binding editors through HTTP and the
   Add-on Inspector;
-- implement UI and immutable-content service transport adapters;
+- implement the UI service transport adapter;
 - implement the concrete data, event, import, migration, and HTTP host methods.
 
 Those integrations must use this broker rather than holding provider objects,

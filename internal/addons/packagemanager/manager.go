@@ -20,6 +20,7 @@ import (
 
 	semver "github.com/Masterminds/semver/v3"
 	"github.com/pjunak/ttrpg-codex/internal/addons/contentcontract"
+	"github.com/pjunak/ttrpg-codex/internal/addons/contenttransport"
 	"github.com/pjunak/ttrpg-codex/internal/addons/datalifecycle"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
@@ -624,8 +625,12 @@ func (manager *Manager) publishServices(
 		}
 		return true, nil
 	}
-	return true, manager.broker.ActivateRuntime(
-		ctx, report.Manifest.ID, generation.GenerationID, report.ServiceRegistry(), runtime,
+	adapters, err := serviceRuntimeAdapters(report, runtime)
+	if err != nil {
+		return true, err
+	}
+	return true, manager.broker.ActivateRuntimeWithAdapters(
+		ctx, report.Manifest.ID, generation.GenerationID, report.ServiceRegistry(), adapters,
 	)
 }
 
@@ -638,9 +643,32 @@ func (manager *Manager) activatePublishedServices(
 	if len(report.Manifest.Services.Provides) == 0 {
 		return nil
 	}
-	return manager.broker.ActivateRuntime(
-		ctx, report.Manifest.ID, generation.GenerationID, report.ServiceRegistry(), runtime,
+	adapters, err := serviceRuntimeAdapters(report, runtime)
+	if err != nil {
+		return err
+	}
+	return manager.broker.ActivateRuntimeWithAdapters(
+		ctx, report.Manifest.ID, generation.GenerationID, report.ServiceRegistry(), adapters,
 	)
+}
+
+func serviceRuntimeAdapters(
+	report packageinspect.Report,
+	runtime Runtime,
+) (servicebroker.RuntimeAdapters, error) {
+	adapters := servicebroker.RuntimeAdapters{Worker: runtime}
+	for _, provider := range report.Manifest.Services.Provides {
+		if provider.Transport != string(servicebroker.TransportContent) {
+			continue
+		}
+		caller, err := contenttransport.New(report.ContentRegistry())
+		if err != nil {
+			return servicebroker.RuntimeAdapters{}, fmt.Errorf("configure content service: %w", err)
+		}
+		adapters.Content = caller
+		break
+	}
+	return adapters, nil
 }
 
 func providerDeclarations(report packageinspect.Report) []servicebroker.ProviderDeclaration {
@@ -673,9 +701,13 @@ func (manager *Manager) restoreServices(
 	if len(declarations) == 0 {
 		return nil
 	}
-	return manager.broker.ActivateRuntime(
+	adapters, err := serviceRuntimeAdapters(previous.report, previous.runtime)
+	if err != nil {
+		return err
+	}
+	return manager.broker.ActivateRuntimeWithAdapters(
 		ctx, addonID, previous.generation.GenerationID,
-		previous.report.ServiceRegistry(), previous.runtime,
+		previous.report.ServiceRegistry(), adapters,
 	)
 }
 

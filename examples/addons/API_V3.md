@@ -461,6 +461,21 @@ key, `optional` accepts one, and `required` rejects calls without one. Error
 kinds are declared contract outcomes; transport and protocol errors remain
 separate.
 
+A provider with `transport: "content"` needs no worker. Its service document
+may declare only the host-owned immutable-content methods:
+
+| Method | Request | Result |
+|---|---|---|
+| `catalog` | `{}` | Set IDs, revisions, groups, schema digests, counts, and kinds |
+| `get` | `{ setId, kind, id }` | One exact immutable record |
+| `query` | `{ setId, kind?, cursor?, limit? }` | A bounded, deterministic page and optional next cursor |
+
+The host routes those methods to the already validated index for the provider's
+exact generation. The package still owns the service request and response
+schemas, so normal broker validation, deadlines, idempotency policy, stale
+handle checks, and operator selection apply. A consumer connects to the
+contract; it must not identify or inspect the provider package directly.
+
 ### Settings, navigation, events, and logs
 
 - Settings have JSON Schemas, typed values, scopes, defaults, and revisioned

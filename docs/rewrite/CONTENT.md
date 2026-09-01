@@ -55,8 +55,13 @@ cancellation, and exposes only safe HTTP status classes.
 ## Current boundary and next layers
 
 This content catalog deliberately does not yet implement source enable/disable
-policy or service-broker calls. Group metadata is retained in the catalog so a
-later host-owned policy can calculate one effective content revision without
-changing the record format. The rules-data service transport will build on
-this catalog instead of reading package files or depending on a provider
-add-on's identity.
+policy. Group metadata is retained in the catalog so a later host-owned policy
+can calculate one effective content revision without changing the record
+format.
+
+An add-on may publish the same immutable index through a `content` service
+transport. The host supplies fixed `catalog`, `get`, and `query` methods and
+routes them through the normal service broker, including contract selection,
+generation checks, deadlines, idempotency policy, and package-owned request and
+response schemas. Consumers depend on the service contract, never the provider
+add-on ID or package layout.

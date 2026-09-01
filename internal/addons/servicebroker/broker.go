@@ -19,6 +19,26 @@ type RuntimeCaller interface {
 	Call(context.Context, string, any, *workerrpc.Meta) (json.RawMessage, error)
 }
 
+type RuntimeMethodSupport interface {
+	Supports(method string) bool
+}
+
+type RuntimeAdapters struct {
+	Worker  RuntimeCaller
+	Content RuntimeCaller
+}
+
+func (adapters RuntimeAdapters) caller(transport Transport) RuntimeCaller {
+	switch transport {
+	case TransportWorker:
+		return adapters.Worker
+	case TransportContent:
+		return adapters.Content
+	default:
+		return nil
+	}
+}
+
 type RuntimeDirectory struct {
 	mu      sync.RWMutex
 	entries map[string]runtimeEntry
@@ -26,7 +46,7 @@ type RuntimeDirectory struct {
 
 type runtimeEntry struct {
 	generation string
-	caller     RuntimeCaller
+	callers    map[Transport]RuntimeCaller
 	catalog    map[string]int64
 	contracts  *servicecontract.Registry
 }
@@ -60,7 +80,7 @@ func NewRuntimeDirectory() *RuntimeDirectory {
 func (directory *RuntimeDirectory) activate(
 	addonID string,
 	generation string,
-	caller RuntimeCaller,
+	adapters RuntimeAdapters,
 	catalog map[string]int64,
 	contracts *servicecontract.Registry,
 ) string {
@@ -69,9 +89,11 @@ func (directory *RuntimeDirectory) activate(
 	previous := directory.entries[addonID].generation
 	directory.entries[addonID] = runtimeEntry{
 		generation: generation,
-		caller:     caller,
-		catalog:    cloneCatalog(catalog),
-		contracts:  contracts,
+		callers: map[Transport]RuntimeCaller{
+			TransportWorker: adapters.Worker, TransportContent: adapters.Content,
+		},
+		catalog:   cloneCatalog(catalog),
+		contracts: contracts,
 	}
 	return previous
 }
@@ -100,7 +122,8 @@ func (directory *RuntimeDirectory) lookup(provider Provider, methodName string) 
 	if entry.generation != provider.ActiveGeneration || entry.catalog[provider.Contract] != provider.CatalogRevision {
 		return nil, servicecontract.Method{}, ErrStaleBinding
 	}
-	if entry.caller == nil {
+	caller := entry.callers[provider.Transport]
+	if caller == nil {
 		return nil, servicecontract.Method{}, ErrRuntimeUnavailable
 	}
 	method, err := entry.contracts.Method(provider.Contract, methodName)
@@ -110,7 +133,7 @@ func (directory *RuntimeDirectory) lookup(provider Provider, methodName string) 
 		}
 		return nil, servicecontract.Method{}, err
 	}
-	return entry.caller, method, nil
+	return caller, method, nil
 }
 
 func (directory *RuntimeDirectory) attach(providers []Provider) []Provider {
@@ -197,6 +220,21 @@ func (broker *Broker) ActivateRuntime(
 	contracts *servicecontract.Registry,
 	caller RuntimeCaller,
 ) error {
+	return broker.ActivateRuntimeWithAdapters(
+		ctx, addonID, generation, contracts, RuntimeAdapters{Worker: caller},
+	)
+}
+
+// ActivateRuntimeWithAdapters binds transport-specific callers to one exact
+// live generation. A package may provide worker and immutable-content services
+// without routing either through the other's execution boundary.
+func (broker *Broker) ActivateRuntimeWithAdapters(
+	ctx context.Context,
+	addonID string,
+	generation string,
+	contracts *servicecontract.Registry,
+	adapters RuntimeAdapters,
+) error {
 	broker.mu.Lock()
 	defer broker.mu.Unlock()
 	if err := validateAddonID(addonID); err != nil {
@@ -216,7 +254,6 @@ func (broker *Broker) ActivateRuntime(
 		return fmt.Errorf("%w: runtime service registry does not match provider catalog", ErrInvalidDeclaration)
 	}
 	catalog := make(map[string]int64, len(providers))
-	requiresCaller := false
 	for _, provider := range providers {
 		definition, exists := contracts.Description(provider.Contract)
 		if !exists || definition.Version != provider.ContractVersion || definition.Document != provider.Schema ||
@@ -224,14 +261,23 @@ func (broker *Broker) ActivateRuntime(
 			return fmt.Errorf("%w: compiled contract does not match provider %s", ErrInvalidDeclaration, provider.Contract)
 		}
 		catalog[provider.Contract] = provider.CatalogRevision
-		if provider.Transport == TransportWorker {
-			requiresCaller = true
+		caller := adapters.caller(provider.Transport)
+		if (provider.Transport == TransportWorker || provider.Transport == TransportContent) && caller == nil {
+			return fmt.Errorf("%w: %s provider generation requires an adapter", ErrRuntimeUnavailable, provider.Transport)
+		}
+		if provider.Transport == TransportContent {
+			support, ok := caller.(RuntimeMethodSupport)
+			if !ok {
+				return fmt.Errorf("%w: content transport must declare method support", ErrInvalidDeclaration)
+			}
+			for _, method := range definition.Methods {
+				if !support.Supports(method.Name) {
+					return fmt.Errorf("%w: content transport does not support %s/%s", ErrInvalidDeclaration, provider.Contract, method.Name)
+				}
+			}
 		}
 	}
-	if requiresCaller && caller == nil {
-		return fmt.Errorf("%w: worker provider generation requires a caller", ErrRuntimeUnavailable)
-	}
-	previous := broker.runtimes.activate(addonID, generation, caller, catalog, contracts)
+	previous := broker.runtimes.activate(addonID, generation, adapters, catalog, contracts)
 	if previous != "" {
 		broker.contexts.InvalidateGeneration(addonID, previous)
 	}
@@ -389,9 +435,6 @@ func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) 
 	provider, err := broker.validateHandle(ctx, handle)
 	if err != nil {
 		return nil, err
-	}
-	if provider.Transport != TransportWorker {
-		return nil, fmt.Errorf("%w: %s services require a different transport adapter", ErrRuntimeUnavailable, provider.Transport)
 	}
 	caller, method, err := broker.runtimes.lookup(provider, call.Method)
 	if err != nil {

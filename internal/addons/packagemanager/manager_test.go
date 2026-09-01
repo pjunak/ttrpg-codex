@@ -1053,6 +1053,45 @@ func TestActivationFailsClosedForUnplannedSelfServiceBinding(t *testing.T) {
 	}
 }
 
+func TestContentServiceActivatesWithoutAWorkerAndRoutesThroughBroker(t *testing.T) {
+	t.Parallel()
+	db := testDatabase(t)
+	manager, broker := testManager(t, db, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	archive := writeAddonPackage(t, packageSpec{
+		ID: "compendium", Version: "1.0.0", Contract: "dnd5e.rules-data",
+		ContractVersion: "3.0.0", ContentService: true,
+	})
+	generation, err := manager.Stage(context.Background(), archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "compendium", GenerationID: generation.GenerationID, ExpectedStateRevision: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	assertProviderGeneration(t, broker, "dnd5e.rules-data", generation.GenerationID, "3.0.0")
+	handle, err := broker.ConnectOne(context.Background(), servicebroker.Requirement{
+		ConsumerAddonID: "engine", Contract: "dnd5e.rules-data", Range: "^3.0.0",
+		Cardinality: servicebroker.CardinalityOne, Selection: servicebroker.SelectionOperator,
+		Scope: servicebroker.GlobalScope(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := broker.Call(context.Background(), handle, servicebroker.MethodCall{
+		Method: "catalog", Params: map[string]any{},
+		Context: servicebroker.CallContext{
+			CorrelationID: "content-integration", Deadline: time.Now().Add(time.Second),
+			Actor: workerrpc.Actor{Role: "system", ID: "host"},
+		},
+	})
+	if err != nil || !strings.Contains(string(result), `"contractVersion":"content-catalog.v1"`) ||
+		!strings.Contains(string(result), `"recordCount":1`) {
+		t.Fatalf("content service result = %s, %v", result, err)
+	}
+}
+
 type packageSpec struct {
 	ID                   string
 	Version              string
@@ -1072,6 +1111,7 @@ type packageSpec struct {
 	ExtraFiles           map[string][]byte
 	Worker               bool
 	Permission           bool
+	ContentService       bool
 }
 
 func stageServicePackage(t *testing.T, manager *Manager, addonID, version, contractVersion string) Generation {
@@ -1166,21 +1206,45 @@ func writeAddonPackage(t *testing.T, spec packageSpec) string {
 	}
 	services := map[string]any{}
 	if spec.Contract != "" {
+		transport := "worker"
+		serviceDocument := "contracts/engine.service.json"
+		methodName := "evaluate-character"
+		requestSchema := []byte(`{"type":"object","required":["value"],"properties":{"value":{"type":"integer"}}}`)
+		responseSchema := []byte(`{"type":"object","required":["result"],"properties":{"result":{"type":"integer"}}}`)
+		if spec.ContentService {
+			transport = "content"
+			serviceDocument = "contracts/content.service.json"
+			methodName = "catalog"
+			requestSchema = []byte(`{"type":"object","additionalProperties":false}`)
+			responseSchema = []byte(`{
+				"type":"object","required":["contractVersion","sets"],
+				"properties":{"contractVersion":{"const":"content-catalog.v1"},"sets":{"type":"array"}}
+			}`)
+			manifest["content"] = []any{map[string]any{
+				"id": "rules", "root": "content/rules", "schema": "contracts/content-record.schema.json",
+				"revision": "fixture-1", "groups": map[string]any{"field": "book", "label": "Sourcebook"},
+			}}
+			files["contracts/content-record.schema.json"] = []byte(`{
+				"type":"object","required":["kind","id","name","book"],
+				"properties":{"kind":{"type":"string"},"id":{"type":"string"},"name":{"type":"string"},"book":{"type":"string"}}
+			}`)
+			files["content/rules/spell/shield.json"] = []byte(`{"kind":"spell","id":"shield","name":"Shield","book":"phb"}`)
+		}
 		services["provides"] = []any{map[string]any{
 			"contract": spec.Contract, "version": spec.ContractVersion,
-			"transport": "worker", "schema": "contracts/engine.service.json",
+			"transport": transport, "schema": serviceDocument,
 		}}
-		files["contracts/engine.service.json"] = mustJSON(t, map[string]any{
+		files[serviceDocument] = mustJSON(t, map[string]any{
 			"contract": spec.Contract, "version": spec.ContractVersion, "allowsExclusive": false,
 			"methods": map[string]any{
-				"evaluate-character": map[string]any{
+				methodName: map[string]any{
 					"requestSchema": "contracts/request.schema.json", "responseSchema": "contracts/response.schema.json",
 					"maxDeadlineMs": 2000, "idempotency": "optional",
 				},
 			},
 		})
-		files["contracts/request.schema.json"] = []byte(`{"type":"object","required":["value"],"properties":{"value":{"type":"integer"}}}`)
-		files["contracts/response.schema.json"] = []byte(`{"type":"object","required":["result"],"properties":{"result":{"type":"integer"}}}`)
+		files["contracts/request.schema.json"] = requestSchema
+		files["contracts/response.schema.json"] = responseSchema
 	}
 	if spec.ConsumeContract != "" {
 		services["consumes"] = []any{map[string]any{

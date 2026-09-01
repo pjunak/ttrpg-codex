@@ -438,6 +438,92 @@ func TestActivateRuntimeRejectsRegistryThatDoesNotMatchCatalog(t *testing.T) {
 	}
 }
 
+func TestBrokerRoutesContentServicesThroughTheirDedicatedAdapter(t *testing.T) {
+	t.Parallel()
+	store, _ := testStore(t)
+	now := time.Date(2026, time.September, 1, 8, 0, 0, 0, time.UTC)
+	contexts, err := requestcontext.New(requestcontext.Config{
+		MaxLifetime: time.Minute, Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	broker := testBroker(t, store, NewRuntimeDirectory(), contexts)
+	broker.now = func() time.Time { return now }
+	declaration := testProvider("dnd5e.rules-data", "3.0.0", true)
+	declaration.Transport = TransportContent
+	if err := broker.ReplaceProviders(context.Background(), "compendium", "1.0.0", []ProviderDeclaration{declaration}); err != nil {
+		t.Fatal(err)
+	}
+	contracts := testRegistryForMethod(
+		t, declaration, "catalog", `{"type":"object","additionalProperties":false}`,
+		`{"type":"object","required":["sets"],"properties":{"sets":{"type":"array"}},"additionalProperties":false}`,
+		servicecontract.IdempotencyNone, 2_000,
+	)
+	called := ""
+	adapter := supportedRuntimeCaller{
+		runtimeCallerFunc: func(_ context.Context, method string, _ any, _ *workerrpc.Meta) (json.RawMessage, error) {
+			called = method
+			return json.RawMessage(`{"sets":[]}`), nil
+		},
+		methods: map[string]bool{"catalog": true},
+	}
+	if err := broker.ActivateRuntimeWithAdapters(
+		context.Background(), "compendium", "generation-a", contracts,
+		RuntimeAdapters{Content: adapter},
+	); err != nil {
+		t.Fatal(err)
+	}
+	handle, err := broker.ConnectOne(context.Background(), oneRequirement(
+		"engine", "dnd5e.rules-data", "^3.0.0",
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := broker.Call(context.Background(), handle, MethodCall{
+		Method: "catalog", Params: map[string]any{},
+		Context: CallContext{
+			CorrelationID: "content-test", Deadline: now.Add(time.Second),
+			Actor: workerrpc.Actor{Role: "system", ID: "host"},
+		},
+	})
+	if err != nil || string(result) != `{"sets":[]}` || called != "service/dnd5e.rules-data/catalog" {
+		t.Fatalf("content call = %s, method %q, error %v", result, called, err)
+	}
+}
+
+func TestContentRuntimeRejectsMissingAndUnsupportedAdapters(t *testing.T) {
+	t.Parallel()
+	store, _ := testStore(t)
+	broker := testBroker(t, store, NewRuntimeDirectory(), nil)
+	declaration := testProvider("dnd5e.rules-data", "3.0.0", true)
+	declaration.Transport = TransportContent
+	if err := broker.ReplaceProviders(context.Background(), "compendium", "1.0.0", []ProviderDeclaration{declaration}); err != nil {
+		t.Fatal(err)
+	}
+	contracts := testRegistryForMethod(
+		t, declaration, "search", `{"type":"object"}`, `{"type":"object"}`,
+		servicecontract.IdempotencyNone, 2_000,
+	)
+	if err := broker.ActivateRuntimeWithAdapters(
+		context.Background(), "compendium", "generation-a", contracts, RuntimeAdapters{},
+	); !errors.Is(err, ErrRuntimeUnavailable) {
+		t.Fatalf("missing adapter error = %v", err)
+	}
+	adapter := supportedRuntimeCaller{
+		runtimeCallerFunc: func(context.Context, string, any, *workerrpc.Meta) (json.RawMessage, error) {
+			return nil, nil
+		},
+		methods: map[string]bool{"catalog": true},
+	}
+	if err := broker.ActivateRuntimeWithAdapters(
+		context.Background(), "compendium", "generation-a", contracts,
+		RuntimeAdapters{Content: adapter},
+	); !errors.Is(err, ErrInvalidDeclaration) {
+		t.Fatalf("unsupported method error = %v", err)
+	}
+}
+
 func TestRuntimeDirectoryExactGenerationPreventsLateTeardown(t *testing.T) {
 	t.Parallel()
 
@@ -447,14 +533,15 @@ func TestRuntimeDirectoryExactGenerationPreventsLateTeardown(t *testing.T) {
 	catalog := map[string]int64{"dnd5e.rules-engine": 1}
 	declaration := testProvider("dnd5e.rules-engine", "3.1.0", false)
 	contracts := testRegistry(t, declaration)
-	directory.activate("engine-a", "generation-1", first, catalog, contracts)
-	directory.activate("engine-a", "generation-2", second, catalog, contracts)
+	directory.activate("engine-a", "generation-1", RuntimeAdapters{Worker: first}, catalog, contracts)
+	directory.activate("engine-a", "generation-2", RuntimeAdapters{Worker: second}, catalog, contracts)
 	if directory.deactivate("engine-a", "generation-1") {
 		t.Fatal("late old-generation teardown removed replacement runtime")
 	}
 	caller, _, err := directory.lookup(Provider{
 		AddonID:          "engine-a",
 		Contract:         "dnd5e.rules-engine",
+		Transport:        TransportWorker,
 		ActiveGeneration: "generation-2",
 		CatalogRevision:  1,
 	}, "evaluate-character")
@@ -632,6 +719,21 @@ func testRegistryWithSchemas(
 	idempotency servicecontract.Idempotency,
 	maxDeadlineMS int,
 ) *servicecontract.Registry {
+	return testRegistryForMethod(
+		t, declaration, "evaluate-character", requestSchema, responseSchema,
+		idempotency, maxDeadlineMS,
+	)
+}
+
+func testRegistryForMethod(
+	t *testing.T,
+	declaration ProviderDeclaration,
+	methodName string,
+	requestSchema string,
+	responseSchema string,
+	idempotency servicecontract.Idempotency,
+	maxDeadlineMS int,
+) *servicecontract.Registry {
 	t.Helper()
 	compiler, err := servicecontract.NewCompiler()
 	if err != nil {
@@ -642,7 +744,7 @@ func testRegistryWithSchemas(
 		"version":         declaration.Version,
 		"allowsExclusive": declaration.Exclusive,
 		"methods": map[string]any{
-			"evaluate-character": map[string]any{
+			methodName: map[string]any{
 				"requestSchema":  "contracts/request.schema.json",
 				"responseSchema": "contracts/response.schema.json",
 				"maxDeadlineMs":  maxDeadlineMS,
@@ -688,3 +790,14 @@ func assertForeignKeys(t *testing.T, db *sql.DB) {
 }
 
 var _ RuntimeCaller = runtimeCallerFunc(nil)
+
+type supportedRuntimeCaller struct {
+	runtimeCallerFunc
+	methods map[string]bool
+}
+
+func (caller supportedRuntimeCaller) Supports(method string) bool {
+	return caller.methods[method]
+}
+
+var _ RuntimeMethodSupport = supportedRuntimeCaller{}
