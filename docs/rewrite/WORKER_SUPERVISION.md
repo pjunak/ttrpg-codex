@@ -122,6 +122,13 @@ and host-restart recovery. Automatic crash restart wiring is not part of this
 milestone. Exposing the decision as a pure function keeps the later policy
 testable without sleeping.
 
+Go workers use `workerrpc.RunNativeWorker` rather than reimplementing this
+lifecycle. The helper keeps startup reads serialized, switches the same codec
+to the concurrent peer only after the initial health response, requires domain
+metadata, and waits until the graceful-shutdown response is physically written
+before returning from the process composition root. Its handler factory gets a
+detached initialization snapshot plus the peer for authorized host callbacks.
+
 ## Current scale and revisit points
 
 Startup exchanges and supervisor control operations remain serialized. After

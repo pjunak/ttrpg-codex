@@ -589,6 +589,31 @@ No domain request is sent until the initial health check succeeds. Graceful
 termination uses `codex/shutdown`, after which the worker must exit without new
 host calls.
 
+Go workers should use `workerrpc.RunNativeWorker` as their process composition
+root. It validates and answers the serialized startup sequence, creates the
+concurrent generation-scoped peer, requires metadata on domain calls, serves
+runtime health, and exits only after the shutdown response has been written.
+The handler factory receives the verified initialization snapshot and the peer
+used by `NewAddonDataClient` and `NewServiceClient`; it must not make host calls
+until `codex/start`:
+
+```go
+err := workerrpc.RunNativeWorker(ctx, workerrpc.NativeWorkerConfig{
+    Reader: os.Stdin,
+    Writer: os.Stdout,
+    Methods: map[string]string{
+        "service/codex.example/evaluate": "1.0.0",
+    },
+    HandlerFactory: workerrpc.NativeWorkerHandlerFactoryFunc(
+        func(worker workerrpc.NativeWorkerContext) (workerrpc.RequestHandler, error) {
+            services, err := workerrpc.NewServiceClient(worker.Peer)
+            if err != nil { return nil, err }
+            return newHandler(services), nil
+        },
+    ),
+})
+```
+
 The native supervisor launches the exact executable selected from the
 verified package; it does not invoke a shell or search `PATH`. Workers receive
 only host-supplied environment entries and do not inherit the host process

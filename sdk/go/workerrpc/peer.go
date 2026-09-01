@@ -51,6 +51,7 @@ type PeerConfig struct {
 	RequireIncomingMeta bool
 	Handler             RequestHandler
 	OnTerminal          func(error)
+	OnResponseWritten   func(Request, error)
 }
 
 type PeerSnapshot struct {
@@ -430,13 +431,25 @@ func (peer *Peer) handleRequest(ctx context.Context, key string, cancel context.
 		peer.writeFailure(request.ID, failure)
 		return
 	}
-	if writeErr := peer.codec.Write(context.Background(), map[string]any{
+	writeErr := peer.codec.Write(context.Background(), map[string]any{
 		"jsonrpc": "2.0",
 		"id":      json.RawMessage(request.ID),
 		"result":  result,
-	}); writeErr != nil {
+	})
+	peer.notifyResponseWritten(request, writeErr)
+	if writeErr != nil {
 		peer.stop(writeErr)
 	}
+}
+
+func (peer *Peer) notifyResponseWritten(request Request, err error) {
+	if peer.config.OnResponseWritten == nil {
+		return
+	}
+	func() {
+		defer func() { _ = recover() }()
+		peer.config.OnResponseWritten(request, err)
+	}()
 }
 
 func (peer *Peer) routeNotification(message Message) {
