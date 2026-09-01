@@ -1,4 +1,0 @@
-{
-  "type": "module",
-  "_comment": "Marker so Node `--test` can import the browser ES-module sources directly. Has no effect on the browser (browsers don't read package.json) and doesn't affect server.js (different directory)."
-}
