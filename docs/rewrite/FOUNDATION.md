@@ -52,6 +52,12 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
 
 - The Go process opens SQLite with foreign keys, WAL, a bounded busy timeout,
   defensive settings, and numbered checksum-verified migrations.
+- Migration 0006 and the durable blob store publish immutable hash-addressed
+  objects behind opaque, revisioned handles whose ownership and visibility
+  remain authoritative in SQLite. Creation publishes and verifies bytes before
+  committing metadata, while deletion is logical so shared or recovery data is
+  not removed. No runtime surface creates blobs until backup and authorization
+  composition are complete. See [`BLOBS.md`](BLOBS.md).
 - The native `codex-backup.v1` archive uses SQLite's online backup primitive,
   inventories immutable add-on files by hash, and verifies an isolated copy
   before an offline journaled data-directory swap. The host holds a portable
