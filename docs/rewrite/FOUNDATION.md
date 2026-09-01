@@ -90,7 +90,10 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   collection set, serializes refreshes across authority changes, and retains
   the last accepted dataset after malformed or failed refreshes. A first
   read-only campaign overview renders campaign identity, core counts, and
-  knowledge-aware character summaries for anonymous, player, and DM views.
+  knowledge-aware character summaries for anonymous, player, and DM views. A
+  serialized mutation client validates payload-free commit receipts, and the
+  first DM editor updates campaign name/tagline over the full authoritative
+  record so unknown future fields survive.
   The application shell owns the one shared SSE connection independently of
   add-ons and refreshes the campaign on validated collection invalidations.
   Its

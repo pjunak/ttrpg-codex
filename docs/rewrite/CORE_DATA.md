@@ -93,7 +93,7 @@ Before one atomic SQLite transaction, the application service:
 The rewrite does not yet implement:
 
 - explicit twin create/link/unlink and enum replacement operations;
-- editable TypeScript data handles and core editors;
+- reusable typed collection handles and core editors beyond campaign identity;
 - initial import publication, backup/restore, or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and
   other domain queries.

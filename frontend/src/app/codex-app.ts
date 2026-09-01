@@ -8,11 +8,20 @@ import {
   type Health,
 } from "../core/api.js";
 import {
+  campaignCollection,
   CampaignDataClient,
   type CampaignDataset,
 } from "../core/campaign-data.js";
+import {
+  CampaignMutationClient,
+  CampaignMutationHTTPError,
+} from "../core/campaign-mutations.js";
 import { SharedEventStream } from "../core/event-stream.js";
+import {
+  type CampaignIdentitySaveDetail,
+} from "./campaign-overview.js";
 import "./campaign-overview.js";
+import { isRecord } from "../core/boundary.js";
 import {
   createBrowserAddonComposition,
   type BrowserAddonComposition,
@@ -340,6 +349,7 @@ export class CodexApp extends LitElement {
   declare private routeCount: number;
   #request: AbortController | undefined;
   readonly #campaignData = new CampaignDataClient();
+  readonly #campaignMutations = new CampaignMutationClient();
   readonly #events = new SharedEventStream();
   #addons: BrowserAddonComposition | undefined;
   #contributionOutlet: BrowserContributionOutlet | undefined;
@@ -629,13 +639,65 @@ export class CodexApp extends LitElement {
       case "loading":
         return html`<div class="status"><span class="indicator"></span>Loading campaign…</div>`;
       case "ready":
-        return html`<campaign-overview .campaign=${this.campaignState.dataset}></campaign-overview>`;
+        return html`<campaign-overview
+          .campaign=${this.campaignState.dataset}
+          .canEdit=${this.#canEditCampaign()}
+          .saving=${this.busy}
+          @campaign-identity-save=${this.#saveCampaignIdentity}
+        ></campaign-overview>`;
       case "unavailable":
         return html`<p class="error" role="alert" title=${this.campaignState.message}>
           The campaign archive could not be loaded.
         </p>`;
     }
   }
+
+  #canEditCampaign(): boolean {
+    return this.authority.state === "known" && this.authority.auth.authenticated &&
+      this.authority.auth.role === "dm";
+  }
+
+  readonly #saveCampaignIdentity = async (
+    event: CustomEvent<CampaignIdentitySaveDetail>,
+  ): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canEditCampaign() ||
+      this.authority.state !== "known" || !this.authority.auth.authenticated ||
+      this.campaignState.state !== "ready") {
+      return;
+    }
+    const detail = event.detail;
+    if (detail.name === "" || detail.name.length > 200 || detail.tagline.length > 500 ||
+      !Number.isSafeInteger(detail.expectedRevision) || detail.expectedRevision < 0) {
+      return;
+    }
+    const collection = campaignCollection(this.campaignState.dataset, "campaign");
+    const record = collection.records.find((candidate) => candidate.key === "main");
+    if ((record?.revision ?? 0) !== detail.expectedRevision) {
+      this.errorMessage = "The campaign changed before this edit could be saved. Please try again.";
+      return;
+    }
+    const current = isRecord(record?.value) ? record.value : {};
+    this.busy = true;
+    this.errorMessage = "";
+    try {
+      await this.#campaignMutations.commit([{
+        operation: "put",
+        collection: "campaign",
+        key: "main",
+        expectedRevision: detail.expectedRevision,
+        value: { ...current, name: detail.name, tagline: detail.tagline },
+      }], this.authority.auth.csrfToken, this.#request.signal);
+      await this.#loadCampaign(this.#request.signal, true);
+    } catch (error: unknown) {
+      if (!this.#request.signal.aborted) {
+        this.errorMessage = error instanceof CampaignMutationHTTPError && error.status === 409
+          ? "The campaign changed while saving. Refresh and try the edit again."
+          : errorMessage(error);
+      }
+    } finally {
+      this.busy = false;
+    }
+  };
 
   async #loadCampaign(signal: AbortSignal, retainCurrent = false): Promise<void> {
     if (!retainCurrent || this.campaignState.state !== "ready") {

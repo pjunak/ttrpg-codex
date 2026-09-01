@@ -36,6 +36,7 @@ describe("projectCampaignOverview", () => {
     expect(projectCampaignOverview(dataset)).toEqual({
       name: "Aethelara",
       tagline: "A world in motion",
+      identityRevision: 1,
       characters: [
         { id: "hero", name: "Ryn", title: "Pathfinder", status: "alive", partyMember: true, dmOnly: false },
         { id: "stranger", name: "Unknown figure", title: "Details unknown", status: "dead", partyMember: false, dmOnly: true },

@@ -18,6 +18,7 @@ export interface CampaignCharacterSummary {
 export interface CampaignOverviewModel {
   readonly name: string;
   readonly tagline: string;
+  readonly identityRevision: number;
   readonly characters: readonly CampaignCharacterSummary[];
   readonly locations: number;
   readonly events: number;
@@ -31,6 +32,7 @@ export function projectCampaignOverview(dataset: CampaignDataset): CampaignOverv
   return {
     name: displayString(identity["name"], "Untitled Campaign"),
     tagline: displayString(identity["tagline"], ""),
+    identityRevision: campaign?.revision ?? 0,
     characters,
     locations: campaignCollection(dataset, "locations").records.length,
     events: campaignCollection(dataset, "events").records.length,
@@ -41,6 +43,9 @@ export function projectCampaignOverview(dataset: CampaignDataset): CampaignOverv
 export class CampaignOverview extends LitElement {
   static override properties = {
     campaign: { attribute: false },
+    canEdit: { type: Boolean, attribute: "can-edit" },
+    saving: { type: Boolean },
+    editingIdentity: { state: true },
   };
 
   static override styles = css`
@@ -54,6 +59,13 @@ export class CampaignOverview extends LitElement {
     .hero {
       display: grid;
       gap: 0.4rem;
+    }
+
+    .hero-heading {
+      display: flex;
+      gap: 1rem;
+      align-items: start;
+      justify-content: space-between;
     }
 
     h2,
@@ -78,6 +90,67 @@ export class CampaignOverview extends LitElement {
     .empty {
       color: #bdb9ad;
       line-height: 1.55;
+    }
+
+    button,
+    input {
+      min-height: 2.5rem;
+      border: 1px solid #55584f;
+      border-radius: 0.3rem;
+      font: inherit;
+    }
+
+    button {
+      padding: 0.45rem 0.75rem;
+      color: #d8c99f;
+      background: #20242c;
+      cursor: pointer;
+    }
+
+    button.primary {
+      color: #211d15;
+      background: #c3a464;
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.6;
+    }
+
+    button:focus-visible,
+    input:focus-visible {
+      outline: 2px solid #ded4bc;
+      outline-offset: 3px;
+    }
+
+    form {
+      display: grid;
+      gap: 0.75rem;
+      margin-top: 0.8rem;
+      padding: 1rem;
+      border: 1px solid #4c4f49;
+      border-radius: 0.3rem;
+      background: #1a1e24;
+    }
+
+    label {
+      display: grid;
+      gap: 0.3rem;
+      color: #bdb9ad;
+      font-size: 0.8rem;
+    }
+
+    input {
+      min-width: 0;
+      padding: 0.55rem 0.65rem;
+      color: #f0eadb;
+      background: #11151a;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: end;
     }
 
     .facts {
@@ -195,10 +268,16 @@ export class CampaignOverview extends LitElement {
   `;
 
   declare campaign: CampaignDataset | undefined;
+  declare canEdit: boolean;
+  declare saving: boolean;
+  declare private editingIdentity: boolean;
 
   constructor() {
     super();
     this.campaign = undefined;
+    this.canEdit = false;
+    this.saving = false;
+    this.editingIdentity = false;
   }
 
   protected override render() {
@@ -209,8 +288,14 @@ export class CampaignOverview extends LitElement {
     return html`
       <section aria-labelledby="campaign-name">
         <div class="hero">
-          <h2 id="campaign-name">${overview.name}</h2>
+          <div class="hero-heading">
+            <h2 id="campaign-name">${overview.name}</h2>
+            ${this.canEdit ? html`<button type="button" @click=${this.#startIdentityEdit} ?disabled=${this.saving}>
+              Edit campaign
+            </button>` : null}
+          </div>
           ${overview.tagline === "" ? null : html`<p class="tagline">${overview.tagline}</p>`}
+          ${this.editingIdentity ? this.#identityForm(overview) : null}
         </div>
         <div class="facts" aria-label="Campaign contents">
           ${fact(overview.characters.length, "Characters")}
@@ -241,6 +326,62 @@ export class CampaignOverview extends LitElement {
       </section>
     `;
   }
+
+  #identityForm(overview: CampaignOverviewModel) {
+    return html`
+      <form @submit=${this.#saveIdentity}>
+        <label>
+          Campaign name
+          <input name="name" maxlength="200" .value=${overview.name} required />
+        </label>
+        <label>
+          Tagline
+          <input name="tagline" maxlength="500" .value=${overview.tagline} />
+        </label>
+        <div class="form-actions">
+          <button type="button" @click=${this.#cancelIdentityEdit} ?disabled=${this.saving}>Cancel</button>
+          <button class="primary" type="submit" ?disabled=${this.saving}>
+            ${this.saving ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </form>
+    `;
+  }
+
+  readonly #startIdentityEdit = (): void => {
+    this.editingIdentity = true;
+  };
+
+  readonly #cancelIdentityEdit = (): void => {
+    this.editingIdentity = false;
+  };
+
+  readonly #saveIdentity = (event: SubmitEvent): void => {
+    event.preventDefault();
+    if (!this.canEdit || this.saving || this.campaign === undefined) {
+      return;
+    }
+    const form = event.currentTarget as HTMLFormElement;
+    const data = new FormData(form);
+    const overview = projectCampaignOverview(this.campaign);
+    const name = String(data.get("name") ?? "").trim();
+    const tagline = String(data.get("tagline") ?? "").trim();
+    if (name === "" || name.length > 200 || tagline.length > 500) {
+      return;
+    }
+    this.editingIdentity = false;
+    this.dispatchEvent(new CustomEvent<CampaignIdentitySaveDetail>("campaign-identity-save", {
+      detail: { name, tagline, expectedRevision: overview.identityRevision },
+      bubbles: true,
+      composed: true,
+    }));
+  };
+}
+
+export interface CampaignIdentitySaveDetail {
+  readonly name: string;
+  readonly tagline: string;
+  readonly expectedRevision: number;
 }
 
 function characterSummary(record: CampaignRecord): CampaignCharacterSummary {
