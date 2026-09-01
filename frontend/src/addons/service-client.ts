@@ -234,7 +234,7 @@ function parseConnection(
       typeof candidate["contractVersion"] !== "string" || candidate["contractVersion"].length === 0 ||
       typeof candidate["generation"] !== "string" || !generationPattern.test(candidate["generation"]) ||
       typeof candidate["bindingRevision"] !== "number" ||
-      !Number.isSafeInteger(candidate["bindingRevision"]) || candidate["bindingRevision"] < 1) {
+      !Number.isSafeInteger(candidate["bindingRevision"]) || candidate["bindingRevision"] < 0) {
       throw new BoundaryValidationError("add-on service connect", `providers[${index}] is invalid`);
     }
     return Object.freeze({

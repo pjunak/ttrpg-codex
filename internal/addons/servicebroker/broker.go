@@ -311,6 +311,7 @@ func (broker *Broker) resolve(ctx context.Context, requirement Requirement) (Res
 	if err != nil {
 		return Resolution{}, err
 	}
+	providers = excludeConsumerProvider(providers, requirement.ConsumerAddonID)
 	providers = broker.runtimes.attach(providers)
 	compatible := compatibleProviders(providers, constraint, false)
 	active := compatibleProviders(providers, constraint, true)
@@ -344,6 +345,16 @@ func (broker *Broker) resolve(ctx context.Context, requirement Requirement) (Res
 		return Resolution{Status: ResolutionUnavailable, Providers: compatible}, nil
 	}
 	return Resolution{Status: ResolutionResolved, Providers: active}, nil
+}
+
+func excludeConsumerProvider(providers []Provider, consumerAddonID string) []Provider {
+	result := make([]Provider, 0, len(providers))
+	for _, provider := range providers {
+		if provider.AddonID != consumerAddonID {
+			result = append(result, provider)
+		}
+	}
+	return result
 }
 
 func (broker *Broker) ConnectOne(ctx context.Context, requirement Requirement) (Handle, error) {

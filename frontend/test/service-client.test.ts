@@ -30,7 +30,7 @@ describe("BrowserAddonServiceClient", () => {
     expect(handle.available).toBe(true);
     expect(handle.providers).toEqual([{
       addonId: "rules-engine", contractVersion: "3.1.0",
-      generation: providerGeneration, bindingRevision: 7,
+      generation: providerGeneration, bindingRevision: 0,
     }]);
     await expect(handle.call<{ sheet: { level: number } }>(
       "hydrate", { contractVersion: "rules-engine.hydrate.request.v3", character: {} },
@@ -47,7 +47,7 @@ describe("BrowserAddonServiceClient", () => {
       providerAddonId: "rules-engine",
       providerVersion: "3.1.0",
       providerGeneration,
-      bindingRevision: 7,
+      bindingRevision: 0,
       method: "hydrate",
       deadlineMs: 2000,
     });
@@ -115,7 +115,7 @@ function connection(): Record<string, unknown> & { providers: Array<Record<strin
     cardinality: "one",
     providers: [{
       addonId: "rules-engine", contractVersion: "3.1.0",
-      generation: providerGeneration, bindingRevision: 7,
+      generation: providerGeneration, bindingRevision: 0,
     }],
   };
 }

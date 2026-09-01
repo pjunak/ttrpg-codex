@@ -125,7 +125,7 @@ func (s *server) browserServiceCall(w http.ResponseWriter, r *http.Request) {
 	}
 	if request.ContractVersion != browserServiceCallVersion || request.Contract == "" ||
 		request.ProviderAddonID == "" || request.ProviderVersion == "" ||
-		!validAddonGeneration(request.ProviderGeneration) || request.BindingRevision < 1 ||
+		!validAddonGeneration(request.ProviderGeneration) || request.BindingRevision < 0 ||
 		request.Method == "" || request.DeadlineMS < 1 || request.DeadlineMS > 30_000 ||
 		!objectOrArrayJSON(request.Params) || len(request.IdempotencyKey) > 200 {
 		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "browser service call is invalid")

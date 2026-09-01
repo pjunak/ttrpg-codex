@@ -1129,14 +1129,16 @@ func TestRecoveryNeverFallsBackFromCorruptActiveGeneration(t *testing.T) {
 	}
 }
 
-func TestActivationFailsClosedForUnplannedSelfServiceBinding(t *testing.T) {
+func TestOptionalServiceAggregatorDoesNotBindItself(t *testing.T) {
 	t.Parallel()
 
 	db := testDatabase(t)
-	manager, _ := testManager(t, db, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	factory := &fakeRuntimeFactory{}
+	manager, _ := testManager(t, db, filepath.Join(t.TempDir(), "packages"), factory)
 	archive := writeAddonPackage(t, packageSpec{
 		ID: "engine-addon", Version: "1.0.0", Contract: "dnd5e.rules-engine",
-		ContractVersion: "3.1.0", ConsumeContract: "dnd5e.rules-engine", Worker: true,
+		ContractVersion: "3.1.0", ConsumeContract: "dnd5e.rules-engine",
+		OptionalConsume: true, Worker: true,
 	})
 	generation, err := manager.Stage(context.Background(), archive)
 	if err != nil {
@@ -1144,8 +1146,11 @@ func TestActivationFailsClosedForUnplannedSelfServiceBinding(t *testing.T) {
 	}
 	if _, err := manager.Activate(context.Background(), ActivationPlan{
 		AddonID: "engine-addon", GenerationID: generation.GenerationID, ExpectedStateRevision: 0,
-	}); !errors.Is(err, ErrServiceResolution) {
-		t.Fatalf("self-service activation error = %v", err)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if specs := factory.Specs(); len(specs) != 1 || len(specs[0].BoundServices) != 0 {
+		t.Fatalf("aggregator bound its own provider: %+v", specs)
 	}
 }
 

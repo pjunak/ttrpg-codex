@@ -256,7 +256,7 @@ func composeHost(
 		RuntimeFactory: runtimeFactory,
 		HostVersion:    hostCompatibilityVersion, AddonAPIVersion: addonAPIVersion,
 		WorkerProtocolVersion: workerProtocolVersion,
-		AvailableCapabilities: []string{"ui.contributions", "worker.native"},
+		AvailableCapabilities: []string{"data.transactions", "ui.contributions", "worker.native"},
 		EventPublisher:        eventBroker, Logger: logger,
 	})
 	if err != nil {

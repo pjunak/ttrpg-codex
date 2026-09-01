@@ -209,6 +209,9 @@ func (store *Store) setBinding(
 	}
 	defer tx.Rollback()
 	for _, providerAddonID := range providerAddonIDs {
+		if providerAddonID == requirement.ConsumerAddonID {
+			return Binding{}, fmt.Errorf("%w: a consumer cannot bind to itself", ErrInvalidSelection)
+		}
 		provider, err := providerForSelection(ctx, tx, providerAddonID, requirement.Contract)
 		if err != nil {
 			return Binding{}, err

@@ -233,6 +233,7 @@ func TestManyProviderSelectionIsStableAndSorted(t *testing.T) {
 	ctx := context.Background()
 	installActiveProvider(t, store, broker, "adapter-z", "codex.import-adapter", "2.0.0", "generation-z")
 	installActiveProvider(t, store, broker, "adapter-a", "codex.import-adapter", "2.1.0", "generation-a")
+	installActiveProvider(t, store, broker, "dm-tools", "codex.import-adapter", "2.0.0", "generation-self")
 
 	all := Requirement{
 		ConsumerAddonID: "dm-tools", Contract: "codex.import-adapter", Range: "^2.0.0",
@@ -245,9 +246,11 @@ func TestManyProviderSelectionIsStableAndSorted(t *testing.T) {
 	if got := []string{handles[0].ProviderAddonID, handles[1].ProviderAddonID}; !reflect.DeepEqual(got, []string{"adapter-a", "adapter-z"}) {
 		t.Fatalf("all-compatible provider order = %v", got)
 	}
-
 	operator := all
 	operator.Selection = SelectionOperator
+	if _, err := broker.SetBinding(ctx, operator, []string{"dm-tools"}, 0); !errors.Is(err, ErrInvalidSelection) {
+		t.Fatalf("self-provider binding error = %v, want ErrInvalidSelection", err)
+	}
 	if handles, err := broker.ConnectMany(ctx, operator); err != nil || len(handles) != 0 {
 		t.Fatalf("optional unbound operator-many connect = (%+v, %v), want empty standalone result", handles, err)
 	}

@@ -24,7 +24,7 @@ func TestBrowserServiceConnectAndCallPreserveHostAuthority(t *testing.T) {
 		Contract: "dnd5e.rules-engine", Range: "^3.0.0", Cardinality: "one",
 		Providers: []packagemanager.BrowserServiceProvider{{
 			AddonID: "rules-engine", ContractVersion: "3.1.0",
-			Generation: providerGeneration, BindingRevision: 7,
+			Generation: providerGeneration, BindingRevision: 0,
 		}},
 	}, result: json.RawMessage(`{"sheet":{"level":3}}`)}
 	handler := newBrowserServiceHandler(t, source, func(*http.Request) (workerrpc.Actor, error) {
@@ -47,7 +47,7 @@ func TestBrowserServiceConnectAndCallPreserveHostAuthority(t *testing.T) {
 		"/api/addons/dnd-sheets/generations/"+generation+"/services/call",
 		`{"contractVersion":"addon-service-call.v1","contract":"dnd5e.rules-engine",`+
 			`"providerAddonId":"rules-engine","providerVersion":"3.1.0",`+
-			`"providerGeneration":"`+providerGeneration+`","bindingRevision":7,`+
+			`"providerGeneration":"`+providerGeneration+`","bindingRevision":0,`+
 			`"method":"hydrate","params":{"characterId":"c1"},"deadlineMs":2000}`,
 	)
 	if call.Code != http.StatusOK || !strings.Contains(call.Body.String(), `"level":3`) {

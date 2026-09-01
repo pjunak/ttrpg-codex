@@ -516,20 +516,10 @@ func versionSatisfies(version, constraint string) bool {
 }
 
 func (manager *Manager) resolveServices(ctx context.Context, manifest packageinspect.Manifest) ([]servicebroker.Handle, error) {
-	provided := make(map[string]struct{}, len(manifest.Services.Provides))
-	for _, provider := range manifest.Services.Provides {
-		provided[provider.Contract] = struct{}{}
-	}
 	consumers := append([]packageinspect.ConsumedService(nil), manifest.Services.Consumes...)
 	sort.Slice(consumers, func(left, right int) bool { return consumers[left].Contract < consumers[right].Contract })
 	result := make([]servicebroker.Handle, 0)
 	for _, consumer := range consumers {
-		if _, consumesOwnProvider := provided[consumer.Contract]; consumesOwnProvider {
-			return nil, fmt.Errorf(
-				"%w: self-provided contract %s requires a planned generation binding",
-				ErrServiceResolution, consumer.Contract,
-			)
-		}
 		requirement := servicebroker.Requirement{
 			ConsumerAddonID: manifest.ID,
 			Contract:        consumer.Contract,
