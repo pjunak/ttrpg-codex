@@ -7,6 +7,7 @@ import {
   type AddonQueryOptions,
 } from "./data-client.js";
 import type { BrowserContributionDescriptor } from "./generation-manager.js";
+import type { BrowserServiceHandle } from "./service-client.js";
 import {
   AddonContentHTTPError,
   type AddonContentQueryOptions,
@@ -19,6 +20,7 @@ const boundary = "isolated browser add-on bridge";
 const maximumMessageBytes = 64 * 1024;
 const maximumDataMessageBytes = 2 * 1024 * 1024 + 128 * 1024;
 const maximumContentMessageBytes = 5 * 1024 * 1024 + 128 * 1024;
+const maximumServiceMessageBytes = 2 * 1024 * 1024 + 128 * 1024;
 const maximumActivationBytes = 5 * 1024 * 1024;
 const maximumConcurrentInvocations = 32;
 const requestIdPattern = /^[A-Za-z0-9_-]{1,64}$/;
@@ -41,6 +43,11 @@ const dataTransactionKeys = new Set(["mutations"]);
 const contentGetKeys = new Set(["setId", "kind", "id"]);
 const contentQueryKeys = new Set(["setId", "options"]);
 const contentQueryOptionKeys = new Set(["kind", "cursor", "limit"]);
+const serviceConnectKeys = new Set(["contract", "range", "cardinality"]);
+const serviceCallKeys = new Set(["serviceId", "method", "params", "options"]);
+const serviceCallOptionKeys = new Set([
+  "providerAddonId", "deadlineMs", "idempotencyKey",
+]);
 const queryOptionKeys = new Set(["cursor", "limit", "where"]);
 const queryConditionKeys = new Set(["path", "equals"]);
 const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
@@ -56,7 +63,9 @@ export type IsolatedSDKMethod =
   | "data.transact"
   | "content.catalog"
   | "content.get"
-  | "content.query";
+  | "content.query"
+  | "services.connect"
+  | "services.call";
 
 export interface IsolatedMessagePort {
   postMessage(message: unknown): void;
@@ -106,6 +115,7 @@ export class IsolatedFrameBridge {
   readonly #invocationTimeoutMilliseconds: number;
   readonly #pending = new Map<string, PendingInvocation>();
   readonly #sdkRequests = new Map<string, AbortController>();
+  readonly #serviceHandles = new Map<string, BrowserServiceHandle>();
   readonly #readyPromise: Promise<void>;
   readonly #resolveReady: () => void;
   readonly #rejectReady: (cause: unknown) => void;
@@ -116,6 +126,7 @@ export class IsolatedFrameBridge {
   readonly #abort = () => this.close("authority-changed");
   readonly #readyTimer: ReturnType<typeof globalThis.setTimeout>;
   #invocationSequence = 0;
+  #serviceSequence = 0;
   #ready = false;
   #closed = false;
 
@@ -176,6 +187,7 @@ export class IsolatedFrameBridge {
       request.abort(reason);
     }
     this.#sdkRequests.clear();
+    this.#serviceHandles.clear();
     globalThis.clearTimeout(this.#readyTimer);
     this.#context.signal.removeEventListener("abort", this.#abort);
     this.#port.removeEventListener("message", this.#message);
@@ -304,7 +316,8 @@ export class IsolatedFrameBridge {
       if (value["type"] === "request") {
         const method = value["method"];
         if (!this.#ready && (typeof method !== "string" ||
-          !method.startsWith("data.") && !method.startsWith("content."))) {
+          !method.startsWith("data.") && !method.startsWith("content.") &&
+          !method.startsWith("services."))) {
           throw new BoundaryValidationError(boundary, "frame sent a message before ready");
         }
         void this.#answer(value);
@@ -452,7 +465,9 @@ export class IsolatedFrameBridge {
         ? maximumDataMessageBytes
         : value["method"].startsWith("content.")
           ? maximumContentMessageBytes
-          : maximumMessageBytes;
+          : value["method"].startsWith("services.")
+            ? maximumServiceMessageBytes
+            : maximumMessageBytes;
       this.#send({ protocol: isolatedFrameProtocol, type: "response", id, ok: true, result }, limit);
     } catch (cause: unknown) {
       this.#onDiagnostic(cause);
@@ -558,6 +573,57 @@ export class IsolatedFrameBridge {
           throw new BoundaryValidationError(boundary, "content.query parameters are invalid");
         }
         return this.#contentHandle(params).query(isolatedContentQueryOptions(params["options"], signal));
+      }
+      case "services.connect": {
+        if (!hasOnlyKeys(params, serviceConnectKeys)) {
+          throw new BoundaryValidationError(boundary, "services.connect parameters are invalid");
+        }
+        const contract = boundedString(params["contract"], "contract");
+        const range = boundedString(params["range"], "range");
+        const cardinality = params["cardinality"];
+        if (cardinality !== "one" && cardinality !== "many") {
+          throw new BoundaryValidationError(boundary, "service cardinality is invalid");
+        }
+        return this.#context.services.connect(contract, { range, cardinality, signal }).then((handle) => {
+          const serviceId = `service-${++this.#serviceSequence}`;
+          this.#serviceHandles.set(serviceId, handle);
+          return Object.freeze({
+            serviceId,
+            contract: handle.contract,
+            range: handle.range,
+            cardinality: handle.cardinality,
+            providers: handle.providers,
+            available: handle.available,
+          });
+        });
+      }
+      case "services.call": {
+        if (!hasOnlyKeys(params, serviceCallKeys) || !isRecord(params["options"])) {
+          throw new BoundaryValidationError(boundary, "services.call parameters are invalid");
+        }
+        const serviceId = boundedString(params["serviceId"], "serviceId");
+        const methodName = boundedString(params["method"], "method");
+        const options = params["options"];
+        if (!hasOnlyKeys(options, serviceCallOptionKeys)) {
+          throw new BoundaryValidationError(boundary, "services.call options are invalid");
+        }
+        assertJSONValue(params["params"], "service call parameters");
+        const handle = this.#serviceHandles.get(serviceId);
+        if (handle === undefined) {
+          throw new BoundaryValidationError(boundary, "service handle is unavailable");
+        }
+        return handle.call(methodName, params["params"], {
+          ...(typeof options["providerAddonId"] === "string"
+            ? { providerAddonId: options["providerAddonId"] }
+            : {}),
+          ...(typeof options["deadlineMs"] === "number"
+            ? { deadlineMs: options["deadlineMs"] }
+            : {}),
+          ...(typeof options["idempotencyKey"] === "string"
+            ? { idempotencyKey: options["idempotencyKey"] }
+            : {}),
+          signal,
+        });
       }
       default:
         throw new BoundaryValidationError(boundary, "SDK method is unsupported");

@@ -8,6 +8,7 @@ import type {
 import type { Disposer, GenerationScope } from "./generation-scope.js";
 import type { BrowserDataAPI } from "./data-client.js";
 import type { BrowserContentAPI } from "./content-client.js";
+import type { BrowserServiceAPI } from "./service-client.js";
 
 const customElementPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$/;
 
@@ -83,6 +84,7 @@ export interface BrowserAddonContext {
   readonly permissions: BrowserPermissionAPI;
   readonly data: BrowserDataAPI;
   readonly content: BrowserContentAPI;
+  readonly services: BrowserServiceAPI;
   readonly ui: BrowserUIAPI;
 }
 
@@ -117,6 +119,10 @@ export type BrowserContentAPIFactory = (
   descriptor: BrowserGenerationDescriptor,
   signal: AbortSignal,
 ) => BrowserContentAPI;
+export type BrowserServiceAPIFactory = (
+  descriptor: BrowserGenerationDescriptor,
+  signal: AbortSignal,
+) => BrowserServiceAPI;
 
 export class BrowserSDKAuthorityError extends Error {
   override readonly name = "BrowserSDKAuthorityError";
@@ -137,15 +143,18 @@ export class BrowserContributionRegistry {
   readonly #onObserverError: (cause: unknown) => void;
   readonly #createDataAPI: BrowserDataAPIFactory;
   readonly #createContentAPI: BrowserContentAPIFactory;
+  readonly #createServiceAPI: BrowserServiceAPIFactory;
 
   constructor(
     onObserverError: (cause: unknown) => void = () => undefined,
     createDataAPI: BrowserDataAPIFactory = () => unavailableDataAPI(),
     createContentAPI: BrowserContentAPIFactory = () => unavailableContentAPI(),
+    createServiceAPI: BrowserServiceAPIFactory = () => unavailableServiceAPI(),
   ) {
     this.#onObserverError = onObserverError;
     this.#createDataAPI = createDataAPI;
     this.#createContentAPI = createContentAPI;
+    this.#createServiceAPI = createServiceAPI;
   }
 
   open(descriptor: BrowserGenerationDescriptor, scope: GenerationScope): BrowserAddonSDKSession {
@@ -155,6 +164,7 @@ export class BrowserContributionRegistry {
       scope.signal,
       this.#createDataAPI(descriptor, scope.signal),
       this.#createContentAPI(descriptor, scope.signal),
+      this.#createServiceAPI(descriptor, scope.signal),
       () => this.#changed(),
     );
     const releaseFallback = scope.add("browser SDK session", () => session.dispose());
@@ -224,6 +234,7 @@ class RegistrySession {
     signal: AbortSignal,
     data: BrowserDataAPI,
     content: BrowserContentAPI,
+    services: BrowserServiceAPI,
     changed: BrowserContributionListener,
   ) {
     this.#global = global;
@@ -251,6 +262,7 @@ class RegistrySession {
       permissions: permissionAPI(permissions, () => !this.#closed && !signal.aborted),
       data,
       content,
+      services,
       ui: Object.freeze({
         declarations: () => {
           this.#assertOpen();
@@ -435,6 +447,14 @@ function unavailableContentAPI(): BrowserContentAPI {
   };
   const set = Object.freeze({ get: unavailable, query: unavailable });
   return Object.freeze({ catalog: unavailable, set: () => set });
+}
+
+function unavailableServiceAPI(): BrowserServiceAPI {
+  return Object.freeze({
+    connect: (): never => {
+      throw new BrowserSDKAuthorityError("browser add-on service API is unavailable");
+    },
+  });
 }
 
 function capabilityAPI(

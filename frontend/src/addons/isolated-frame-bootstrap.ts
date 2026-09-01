@@ -5,6 +5,7 @@ export const isolatedFrameBootstrap = String.raw`
   const tagPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$/;
   const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
   const maximumDataMessageBytes = 2 * 1024 * 1024 + 128 * 1024;
+  const maximumServiceMessageBytes = 2 * 1024 * 1024 + 128 * 1024;
   let connected = false;
 
   window.addEventListener("message", (event) => {
@@ -159,7 +160,9 @@ export const isolatedFrameBootstrap = String.raw`
         try {
           post(
             { type: "request", id, method, params },
-            method === "data.transact" ? maximumDataMessageBytes : 64 * 1024,
+            method === "data.transact" || method === "services.call"
+              ? maximumServiceMessageBytes
+              : 64 * 1024,
           );
         } catch (cause) {
           finish(() => reject(cause));
@@ -220,6 +223,38 @@ export const isolatedFrameBootstrap = String.raw`
       ),
       set: contentSet,
     });
+    const addonServices = Object.freeze({
+      connect: async (contract, options = {}) => {
+        requireActive();
+        if (typeof contract !== "string" || contract.length === 0 ||
+          typeof options.range !== "string" || options.range.length === 0 ||
+          (options.cardinality !== "one" && options.cardinality !== "many")) {
+          throw new TypeError("The isolated add-on service request is invalid.");
+        }
+        const connection = await sdkRequest("services.connect", {
+          contract, range: options.range, cardinality: options.cardinality,
+        }, options.signal || controller.signal);
+        if (typeof connection !== "object" || connection === null ||
+          typeof connection.serviceId !== "string" || connection.contract !== contract ||
+          connection.range !== options.range || connection.cardinality !== options.cardinality ||
+          !Array.isArray(connection.providers) || typeof connection.available !== "boolean") {
+          throw new Error("The isolated add-on service connection is invalid.");
+        }
+        return Object.freeze({
+          contract: connection.contract,
+          range: connection.range,
+          cardinality: connection.cardinality,
+          providers: Object.freeze([...connection.providers]),
+          available: connection.available,
+          call: (method, params, callOptions = {}) => {
+            const { signal = controller.signal, ...wireOptions } = callOptions;
+            return sdkRequest("services.call", {
+              serviceId: connection.serviceId, method, params, options: wireOptions,
+            }, signal);
+          },
+        });
+      },
+    });
     const ui = Object.freeze({
       declarations: () => {
         requireActive();
@@ -279,6 +314,7 @@ export const isolatedFrameBootstrap = String.raw`
       permissions,
       data: addonData,
       content: addonContent,
+      services: addonServices,
       ui,
     });
 

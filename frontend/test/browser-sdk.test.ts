@@ -13,6 +13,7 @@ import {
 import { GenerationScope } from "../src/addons/generation-scope.js";
 import type { AddonDataHandle, BrowserDataAPI } from "../src/addons/data-client.js";
 import type { AddonContentSet, BrowserContentAPI } from "../src/addons/content-client.js";
+import type { BrowserServiceAPI, BrowserServiceHandle } from "../src/addons/service-client.js";
 
 const generationId = "a".repeat(64);
 const route = contribution("planner.route", "route", 200, ["dm"]);
@@ -56,6 +57,25 @@ describe("BrowserContributionRegistry", () => {
 
     expect(createContentAPI).toHaveBeenCalledWith(source, scope.signal);
     expect(session.context.content.set("rules")).toBe(set);
+  });
+
+  it("creates one generation-scoped service API for add-on code", async () => {
+    const handle = { available: true } as BrowserServiceHandle;
+    const serviceAPI: BrowserServiceAPI = { connect: vi.fn(async () => handle) };
+    const createServiceAPI = vi.fn(() => serviceAPI);
+    const source = descriptor("dnd-sheets", [route]);
+    const scope = new GenerationScope("dnd-sheets@generation");
+    const session = new BrowserContributionRegistry(
+      undefined,
+      undefined,
+      undefined,
+      createServiceAPI,
+    ).open(source, scope);
+
+    expect(createServiceAPI).toHaveBeenCalledWith(source, scope.signal);
+    await expect(session.context.services.connect("dnd5e.rules-engine", {
+      range: "^3.0.0", cardinality: "one",
+    })).resolves.toBe(handle);
   });
 
   it("exposes immutable generation identity and effective authority", () => {

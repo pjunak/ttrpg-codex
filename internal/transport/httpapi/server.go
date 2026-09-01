@@ -14,64 +14,68 @@ import (
 var ErrInvalidConfig = errors.New("invalid HTTP API configuration")
 
 type Config struct {
-	Version             string
-	DB                  *sql.DB
-	Logger              *slog.Logger
-	AddonLifecycle      AddonLifecycle
-	AdminAuthorizer     AdminAuthorizer
-	BrowserAddons       BrowserAddonSource
-	BrowserAuthorizer   BrowserAuthorizer
-	Authentication      *sessionauth.Service
-	SecureCookies       bool
-	CampaignData        CampaignData
-	CampaignMutations   CampaignMutations
-	CampaignWriter      CampaignMutationAuthorizer
-	CampaignTwins       CampaignTwins
-	CampaignTwinWriter  CampaignMutationAuthorizer
-	CampaignEnums       CampaignEnums
-	CampaignEnumWriter  CampaignMutationAuthorizer
-	BackupArchives      BackupArchives
-	BackupAuthorizer    AdminAuthorizer
-	Media               MediaAssets
-	MediaAuthorizer     MediaAuthorizer
-	AddonData           AddonData
-	AddonDataAuthorizer AddonDataAuthorizer
-	AddonContent        AddonContent
-	ContentAuthorizer   BrowserAuthorizer
-	Events              EventSource
-	EventAuthorizer     EventAuthorizer
-	EventHeartbeat      time.Duration
+	Version                  string
+	DB                       *sql.DB
+	Logger                   *slog.Logger
+	AddonLifecycle           AddonLifecycle
+	AdminAuthorizer          AdminAuthorizer
+	BrowserAddons            BrowserAddonSource
+	BrowserAuthorizer        BrowserAuthorizer
+	Authentication           *sessionauth.Service
+	SecureCookies            bool
+	CampaignData             CampaignData
+	CampaignMutations        CampaignMutations
+	CampaignWriter           CampaignMutationAuthorizer
+	CampaignTwins            CampaignTwins
+	CampaignTwinWriter       CampaignMutationAuthorizer
+	CampaignEnums            CampaignEnums
+	CampaignEnumWriter       CampaignMutationAuthorizer
+	BackupArchives           BackupArchives
+	BackupAuthorizer         AdminAuthorizer
+	Media                    MediaAssets
+	MediaAuthorizer          MediaAuthorizer
+	AddonData                AddonData
+	AddonDataAuthorizer      AddonDataAuthorizer
+	AddonContent             AddonContent
+	ContentAuthorizer        BrowserAuthorizer
+	BrowserServices          BrowserServices
+	BrowserServiceAuthorizer BrowserServiceAuthorizer
+	Events                   EventSource
+	EventAuthorizer          EventAuthorizer
+	EventHeartbeat           time.Duration
 }
 
 type server struct {
-	version             string
-	db                  *sql.DB
-	logger              *slog.Logger
-	addonLifecycle      AddonLifecycle
-	adminAuthorizer     AdminAuthorizer
-	browserAddons       BrowserAddonSource
-	browserAuthorizer   BrowserAuthorizer
-	authentication      *sessionauth.Service
-	secureCookies       bool
-	campaignData        CampaignData
-	campaignMutations   CampaignMutations
-	campaignWriter      CampaignMutationAuthorizer
-	campaignTwins       CampaignTwins
-	campaignTwinWriter  CampaignMutationAuthorizer
-	campaignEnums       CampaignEnums
-	campaignEnumWriter  CampaignMutationAuthorizer
-	backupArchives      BackupArchives
-	backupAuthorizer    AdminAuthorizer
-	media               MediaAssets
-	mediaAuthorizer     MediaAuthorizer
-	addonData           AddonData
-	addonDataAuthorizer AddonDataAuthorizer
-	addonContent        AddonContent
-	contentAuthorizer   BrowserAuthorizer
-	loginLimiter        *loginLimiter
-	events              EventSource
-	eventAuthorizer     EventAuthorizer
-	eventHeartbeat      time.Duration
+	version                  string
+	db                       *sql.DB
+	logger                   *slog.Logger
+	addonLifecycle           AddonLifecycle
+	adminAuthorizer          AdminAuthorizer
+	browserAddons            BrowserAddonSource
+	browserAuthorizer        BrowserAuthorizer
+	authentication           *sessionauth.Service
+	secureCookies            bool
+	campaignData             CampaignData
+	campaignMutations        CampaignMutations
+	campaignWriter           CampaignMutationAuthorizer
+	campaignTwins            CampaignTwins
+	campaignTwinWriter       CampaignMutationAuthorizer
+	campaignEnums            CampaignEnums
+	campaignEnumWriter       CampaignMutationAuthorizer
+	backupArchives           BackupArchives
+	backupAuthorizer         AdminAuthorizer
+	media                    MediaAssets
+	mediaAuthorizer          MediaAuthorizer
+	addonData                AddonData
+	addonDataAuthorizer      AddonDataAuthorizer
+	addonContent             AddonContent
+	contentAuthorizer        BrowserAuthorizer
+	browserServices          BrowserServices
+	browserServiceAuthorizer BrowserServiceAuthorizer
+	loginLimiter             *loginLimiter
+	events                   EventSource
+	eventAuthorizer          EventAuthorizer
+	eventHeartbeat           time.Duration
 }
 
 func New(config Config) (http.Handler, error) {
@@ -84,6 +88,7 @@ func New(config Config) (http.Handler, error) {
 		(config.Media == nil) != (config.MediaAuthorizer == nil) ||
 		(config.AddonData == nil) != (config.AddonDataAuthorizer == nil) ||
 		(config.AddonContent == nil) != (config.ContentAuthorizer == nil) ||
+		(config.BrowserServices == nil) != (config.BrowserServiceAuthorizer == nil) ||
 		(config.Events == nil) != (config.EventAuthorizer == nil) ||
 		config.EventHeartbeat < 0 || config.EventHeartbeat > 5*time.Minute ||
 		config.EventHeartbeat > 0 && config.EventHeartbeat < time.Second {
@@ -105,7 +110,9 @@ func New(config Config) (http.Handler, error) {
 		media: config.Media, mediaAuthorizer: config.MediaAuthorizer,
 		addonData: config.AddonData, addonDataAuthorizer: config.AddonDataAuthorizer,
 		addonContent: config.AddonContent, contentAuthorizer: config.ContentAuthorizer,
-		loginLimiter: newLoginLimiter(), events: config.Events,
+		browserServices:          config.BrowserServices,
+		browserServiceAuthorizer: config.BrowserServiceAuthorizer,
+		loginLimiter:             newLoginLimiter(), events: config.Events,
 		eventAuthorizer: config.EventAuthorizer, eventHeartbeat: config.EventHeartbeat,
 	}
 	mux := http.NewServeMux()
@@ -137,6 +144,9 @@ func New(config Config) (http.Handler, error) {
 	}
 	if s.addonContent != nil {
 		s.registerAddonContentRoutes(mux)
+	}
+	if s.browserServices != nil {
+		s.registerBrowserServiceRoutes(mux)
 	}
 	handler := http.Handler(mux)
 	if s.authentication != nil {

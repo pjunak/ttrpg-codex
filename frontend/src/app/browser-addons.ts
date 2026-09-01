@@ -7,6 +7,7 @@ import { BrowserGraphClient } from "../addons/browser-graph-client.js";
 import { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import { BrowserAddonDataClient } from "../addons/data-client.js";
 import { BrowserAddonContentClient } from "../addons/content-client.js";
+import { BrowserAddonServiceClient } from "../addons/service-client.js";
 import { createDocumentStyleLoader } from "../addons/browser-styles.js";
 import { createIsolatedFrameActivator } from "../addons/isolated-frame.js";
 import {
@@ -36,6 +37,12 @@ export function createBrowserAddonComposition(
     (descriptor, signal) => new BrowserAddonContentClient({
       addonId: descriptor.addonId,
       generationId: descriptor.generationId,
+      signal,
+    }).api(),
+    (descriptor, signal) => new BrowserAddonServiceClient({
+      addonId: descriptor.addonId,
+      generationId: descriptor.generationId,
+      csrfToken,
       signal,
     }).api(),
   );

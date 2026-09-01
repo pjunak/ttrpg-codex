@@ -26,10 +26,77 @@ import type {
   AddonContentSet,
   BrowserContentAPI,
 } from "../src/addons/content-client.js";
+import type {
+  BrowserServiceAPI,
+  BrowserServiceCallOptions,
+  BrowserServiceHandle,
+} from "../src/addons/service-client.js";
 
 const generationId = "a".repeat(64);
 
 describe("IsolatedFrameBridge", () => {
+  it("proxies generation-scoped service handles without exposing browser credentials", async () => {
+    const descriptor = frameDescriptor(slotContribution());
+    const call = vi.fn(async (
+      _method: string,
+      _params: unknown,
+      _options?: BrowserServiceCallOptions,
+    ) => ({ sheet: { level: 3 } }));
+    const handle: BrowserServiceHandle = {
+      contract: "dnd5e.rules-engine",
+      range: "^3.0.0",
+      cardinality: "one",
+      providers: [{
+        addonId: "rules-engine", contractVersion: "3.1.0",
+        generation: "b".repeat(64), bindingRevision: 7,
+      }],
+      available: true,
+      call: <TResponse>(method: string, params: unknown, options?: BrowserServiceCallOptions) =>
+        call(method, params, options).then((result) => result as TResponse),
+    };
+    const connect = vi.fn(async () => handle);
+    const services: BrowserServiceAPI = { connect };
+    const registry = new BrowserContributionRegistry(
+      undefined, undefined, undefined, () => services,
+    );
+    const sdk = registry.open(descriptor, new GenerationScope("isolated@generation"));
+    const port = new FakePort();
+    const bridge = new IsolatedFrameBridge({
+      port,
+      context: sdk.context,
+      contribution: descriptor.contributions[0] as BrowserContributionDescriptor,
+      onResize: vi.fn(),
+      readyTimeoutMilliseconds: 60_000,
+    });
+
+    port.receive(request("connect-engine", "services.connect", {
+      contract: "dnd5e.rules-engine", range: "^3.0.0", cardinality: "one",
+    }));
+    await vi.waitFor(() => expect(response(port, "connect-engine")).toMatchObject({
+      ok: true,
+      result: { serviceId: "service-1", available: true, providers: handle.providers },
+    }));
+    expect(connect).toHaveBeenCalledWith("dnd5e.rules-engine", {
+      range: "^3.0.0", cardinality: "one", signal: expect.any(AbortSignal),
+    });
+
+    port.receive(request("hydrate", "services.call", {
+      serviceId: "service-1",
+      method: "hydrate",
+      params: { character: { id: "c1" } },
+      options: { deadlineMs: 2000 },
+    }));
+    await vi.waitFor(() => expect(response(port, "hydrate")).toMatchObject({
+      ok: true, result: { sheet: { level: 3 } },
+    }));
+    expect(call).toHaveBeenCalledWith(
+      "hydrate",
+      { character: { id: "c1" } },
+      { deadlineMs: 2000, signal: expect.any(AbortSignal) },
+    );
+    bridge.close();
+  });
+
   it("proxies generation-scoped data without exposing host fetch or credentials", async () => {
     const descriptor = frameDescriptor(slotContribution());
     const get = vi.fn(async () => ({ key: "note-1", revision: 2, value: { text: "Ruins" } }));
@@ -651,7 +718,10 @@ describe("isolated frame activation", () => {
     expect(document).toContain("data: addonData");
     expect(document).toContain('"data.transact"');
     expect(document).toContain('"content.query"');
+    expect(document).toContain('"services.connect"');
+    expect(document).toContain('"services.call"');
     expect(document).toContain("content: addonContent");
+    expect(document).toContain("services: addonServices");
     expect(document).not.toContain("allow-same-origin");
     const source = document.match(/<script>([\s\S]*)<\/script>/)?.[1];
     expect(source).toBeDefined();

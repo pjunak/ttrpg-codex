@@ -1,9 +1,9 @@
 # Add-on API v3
 
-> Target contract for the Go/TypeScript rewrite. This API is normative for new
-> implementation work on `rewrite/go-typescript`, but is not implemented by the
-> current Node.js host. `AUTHORING.md` remains the v2 runtime manual until
-> cutover.
+> Normative contract for the Go/TypeScript rewrite on `rewrite/go-typescript`.
+> The Go host implements the package, browser UI/data/content/service, native
+> worker, and lifecycle foundations described here. `AUTHORING.md` remains the
+> v2 manual for packages that have not yet crossed the cutover boundary.
 
 Add-on API v3 is a package, browser, worker, service, and lifecycle contract.
 It is deliberately not a general-purpose plugin escape hatch. Add-ons receive
@@ -425,6 +425,15 @@ No provider object or function reference crosses the broker. A handle records
 the selected provider, contract version, binding revision, and generation.
 When any of those becomes stale, calls fail explicitly with `STALE_BINDING`;
 the host does not silently select a different single provider.
+
+An optional service with no current provider returns a handle with
+`available === false` and an empty `providers` list. Calling it fails with
+`SERVICE_UNAVAILABLE`, so packages can keep an explicit standalone path. A
+cardinality-many handle requires `providerAddonId` on each call; the ID must be
+one of the providers captured by that handle. Integrated modules call the
+same authenticated, CSRF-protected HTTP boundary used by isolated frames, and
+both routes ultimately enter the package manager's stored exact-generation
+handle and the service broker's request/response schemas.
 
 Installed provider declarations and operator bindings survive a host restart;
 live generations and callable transports do not. A provider is unavailable

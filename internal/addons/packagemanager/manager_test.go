@@ -336,6 +336,76 @@ func TestReloadKeepsGenerationHandlesValidAndDisableRevokesRouting(t *testing.T)
 	}
 }
 
+func TestBrowserServiceAccessUsesExactConsumerGenerationAndBinding(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	manager, _ := testManager(t, db, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	provider := stageServicePackage(t, manager, "engine-addon", "1.0.0", "3.1.0")
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "engine-addon", GenerationID: provider.GenerationID,
+		ExpectedStateRevision: 0, GrantedPermissionIDs: []string{"core.data.read"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	consumer, err := manager.Stage(context.Background(), writeAddonPackage(t, packageSpec{
+		ID: "sheet-addon", Version: "1.0.0", ConsumeContract: "dnd5e.rules-engine",
+		UIEntry: "web/index.js",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Activate(context.Background(), ActivationPlan{
+		AddonID: "sheet-addon", GenerationID: consumer.GenerationID, ExpectedStateRevision: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	connection, err := manager.ConnectBrowserService(
+		context.Background(), "sheet-addon", consumer.GenerationID,
+		BrowserServiceRequest{Contract: "dnd5e.rules-engine", Range: "^3.0.0", Cardinality: "one"},
+	)
+	if err != nil || len(connection.Providers) != 1 {
+		t.Fatalf("browser connection = %+v, %v", connection, err)
+	}
+	bound := connection.Providers[0]
+	result, err := manager.CallBrowserService(
+		context.Background(), "sheet-addon", consumer.GenerationID,
+		BrowserServiceTarget{
+			Contract: connection.Contract, ProviderAddonID: bound.AddonID,
+			ContractVersion: bound.ContractVersion, Generation: bound.Generation,
+			BindingRevision: bound.BindingRevision,
+		},
+		servicebroker.MethodCall{
+			Method: "evaluate-character", Params: map[string]any{"value": 4},
+			Context: servicebroker.CallContext{
+				Deadline: time.Now().Add(time.Second), Actor: workerrpc.Actor{Role: "player", ID: "session-1"},
+			},
+		},
+	)
+	if err != nil || string(result) != `{"result":8}` {
+		t.Fatalf("browser service result = %s, %v", result, err)
+	}
+	if _, err := manager.ConnectBrowserService(
+		context.Background(), "sheet-addon", consumer.GenerationID,
+		BrowserServiceRequest{Contract: "dnd5e.rules-engine", Range: "*", Cardinality: "one"},
+	); !errors.Is(err, ErrServiceResolution) {
+		t.Fatalf("widened browser requirement error = %v", err)
+	}
+	bound.BindingRevision++
+	if _, err := manager.CallBrowserService(
+		context.Background(), "sheet-addon", consumer.GenerationID,
+		BrowserServiceTarget{
+			Contract: connection.Contract, ProviderAddonID: bound.AddonID,
+			ContractVersion: bound.ContractVersion, Generation: bound.Generation,
+			BindingRevision: bound.BindingRevision,
+		},
+		servicebroker.MethodCall{Method: "evaluate-character", Params: map[string]any{"value": 4}},
+	); !errors.Is(err, servicebroker.ErrStaleBinding) {
+		t.Fatalf("forged browser binding error = %v", err)
+	}
+}
+
 func TestDisableWorksAfterRuntimeShutdownWithoutRecovery(t *testing.T) {
 	t.Parallel()
 
