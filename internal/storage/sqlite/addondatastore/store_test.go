@@ -18,6 +18,8 @@ import (
 
 const testGeneration = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
+var testTargetCreated = time.Date(2026, time.August, 31, 12, 0, 0, 0, time.UTC)
+
 func TestStoreCommitsMultipleDefinitionsAtomically(t *testing.T) {
 	t.Parallel()
 	store, broker, database := testStore(t)
@@ -29,7 +31,7 @@ func TestStoreCommitsMultipleDefinitionsAtomically(t *testing.T) {
 		AddonID: "dm-tools", GenerationID: testGeneration, ActorID: "worker:dm-tools",
 		Mutations: []Mutation{
 			{Kind: Put, Definition: public, Key: "first", Value: json.RawMessage(` { "id": "first" } `), Audience: events.AudiencePublic},
-			{Kind: Put, Definition: dm, Key: "characters/hero", Value: json.RawMessage(`{"level":3}`), Audience: events.AudienceDM},
+			{Kind: Put, Definition: dm, Key: "hero", Value: json.RawMessage(`{"level":3}`), TargetCreatedAt: &testTargetCreated, Audience: events.AudienceDM},
 		},
 	})
 	if err != nil {
@@ -47,6 +49,10 @@ func TestStoreCommitsMultipleDefinitionsAtomically(t *testing.T) {
 	if string(note.Value) != `{"id":"first"}` || note.Position != 0 || note.Revision != 1 ||
 		note.SchemaVersion != public.SchemaVersion || note.SchemaSHA256 != public.SchemaSHA256 {
 		t.Fatalf("unexpected stored document: %+v", note)
+	}
+	sheet, err := store.Get(ctx, "dm-tools", datacontract.RecordExtension, "sheet", "hero")
+	if err != nil || sheet.TargetCreatedAt == nil || !sheet.TargetCreatedAt.Equal(testTargetCreated) {
+		t.Fatalf("record lifetime was not retained: %+v, %v", sheet, err)
 	}
 	player, err := broker.Replay(ctx, events.AudiencePublic, 0, 10)
 	if err != nil || len(player.Events) != 1 || string(player.Events[0].Metadata) != `{}` {
@@ -138,8 +144,35 @@ func TestSnapshotPreservesMaterializedEmptySets(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(snapshot.States) != 1 || !snapshot.States[0].Materialized || snapshot.States[0].Revision != 2 ||
+		snapshot.States[0].SchemaVersion != definition.SchemaVersion ||
+		snapshot.States[0].SchemaSHA256 != definition.SchemaSHA256 ||
 		len(snapshot.Documents) != 0 {
 		t.Fatalf("unexpected empty snapshot: %+v", snapshot)
+	}
+}
+
+func TestStoreRefusesSchemaIdentityChangeForMaterializedSet(t *testing.T) {
+	t.Parallel()
+	store, _, _ := testStore(t)
+	definition := testDefinition(datacontract.Collection, "notes", datacontract.VisibilityDM)
+	seed(t, store, definition, "first", `{"id":"first"}`, events.AudienceDM)
+	changed := definition
+	changed.SchemaVersion = "2.0.0"
+	changed.SchemaSHA256 = strings.Repeat("b", 64)
+
+	_, err := store.Transact(context.Background(), Transaction{
+		AddonID: "dm-tools", GenerationID: testGeneration, ActorID: "worker:dm-tools",
+		Mutations: []Mutation{{
+			Kind: Put, Definition: changed, Key: "second",
+			Value: json.RawMessage(`{"id":"second"}`), Audience: events.AudienceDM,
+		}},
+	})
+	if !errors.Is(err, ErrSchemaMismatch) {
+		t.Fatalf("schema mismatch error = %v", err)
+	}
+	state, err := store.State(context.Background(), "dm-tools", datacontract.Collection, "notes")
+	if err != nil || state.SchemaVersion != definition.SchemaVersion || state.Revision != 1 {
+		t.Fatalf("stored schema identity changed: %+v, %v", state, err)
 	}
 }
 
@@ -181,8 +214,8 @@ func testStore(t *testing.T) (*Store, *events.Broker, *sql.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.CurrentVersion != 8 {
-		t.Fatalf("migration version = %d, want 8", result.CurrentVersion)
+	if result.CurrentVersion != 9 {
+		t.Fatalf("migration version = %d, want 9", result.CurrentVersion)
 	}
 	now := func() time.Time { return time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC) }
 	broker, err := events.New(events.Config{DB: database, Now: now})
@@ -197,10 +230,14 @@ func testStore(t *testing.T) (*Store, *events.Broker, *sql.DB) {
 }
 
 func testDefinition(kind datacontract.Kind, id string, visibility datacontract.Visibility) datacontract.Description {
-	return datacontract.Description{
+	result := datacontract.Description{
 		Kind: kind, ID: id, Visibility: visibility, Schema: "contracts/" + id + ".schema.json",
 		SchemaVersion: "1.0.0", SchemaSHA256: strings.Repeat("a", 64),
 	}
+	if kind == datacontract.RecordExtension {
+		result.Target = "characters"
+	}
+	return result
 }
 
 func seed(t *testing.T, store *Store, definition datacontract.Description, key, value string, audience events.Audience) {

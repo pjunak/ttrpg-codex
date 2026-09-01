@@ -30,6 +30,7 @@ var (
 	ErrInvalidTransaction = errors.New("invalid add-on data transaction")
 	ErrConflict           = errors.New("add-on document revision conflict")
 	ErrNotFound           = errors.New("add-on document not found")
+	ErrSchemaMismatch     = errors.New("add-on data schema identity mismatch")
 	ErrStorageInvariant   = errors.New("add-on document storage invariant failed")
 	addonIDPattern        = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 	localIDPattern        = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
@@ -43,26 +44,31 @@ const (
 )
 
 type Document struct {
-	AddonID       string
-	Kind          datacontract.Kind
-	DataID        string
-	Key           string
-	Position      int64
-	Value         json.RawMessage
-	SchemaVersion string
-	SchemaSHA256  string
-	Revision      int64
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	AddonID         string
+	Kind            datacontract.Kind
+	DataID          string
+	Key             string
+	Position        int64
+	Value           json.RawMessage
+	SchemaVersion   string
+	SchemaSHA256    string
+	TargetCreatedAt *time.Time
+	Revision        int64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type State struct {
-	AddonID      string
-	Kind         datacontract.Kind
-	DataID       string
-	Materialized bool
-	Revision     int64
-	UpdatedAt    *time.Time
+	AddonID       string
+	Kind          datacontract.Kind
+	DataID        string
+	Materialized  bool
+	Revision      int64
+	SchemaVersion string
+	SchemaSHA256  string
+	Target        string
+	Keyed         bool
+	UpdatedAt     *time.Time
 }
 
 type Mutation struct {
@@ -71,6 +77,7 @@ type Mutation struct {
 	Key              string
 	Value            json.RawMessage
 	ExpectedRevision int64
+	TargetCreatedAt  *time.Time
 	Audience         events.Audience
 }
 
@@ -195,7 +202,8 @@ func (store *Store) SnapshotAddon(ctx context.Context, addonID string) (Snapshot
 	}
 	defer transaction.Rollback()
 	rows, err := transaction.QueryContext(ctx, `
-		SELECT addon_id, data_kind, data_id, materialized, revision, updated_at
+		SELECT addon_id, data_kind, data_id, materialized, revision,
+		       schema_version, schema_sha256, target_collection, keyed, updated_at
 		FROM addon_data_sets WHERE addon_id = ?
 		ORDER BY data_kind, data_id`, addonID)
 	if err != nil {
@@ -247,12 +255,40 @@ func (store *Store) Transact(ctx context.Context, input Transaction) (Commit, er
 	for _, mutation := range prepared {
 		definition := mutation.Definition
 		if _, err := transaction.ExecContext(ctx, `
-			INSERT INTO addon_data_sets(addon_id, data_kind, data_id)
-			VALUES (?, ?, ?)
-			ON CONFLICT(addon_id, data_kind, data_id) DO NOTHING`,
-			input.AddonID, definition.Kind, definition.ID,
+			INSERT INTO addon_data_sets(
+				addon_id, data_kind, data_id, schema_version, schema_sha256, target_collection, keyed
+			) VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?)
+			ON CONFLICT(addon_id, data_kind, data_id) DO UPDATE SET
+				schema_version = excluded.schema_version,
+				schema_sha256 = excluded.schema_sha256,
+				target_collection = excluded.target_collection,
+				keyed = excluded.keyed
+			WHERE addon_data_sets.materialized = 0 OR (
+				addon_data_sets.schema_version = excluded.schema_version AND
+				addon_data_sets.schema_sha256 = excluded.schema_sha256 AND
+				addon_data_sets.target_collection IS excluded.target_collection AND
+				addon_data_sets.keyed = excluded.keyed
+			)`,
+			input.AddonID, definition.Kind, definition.ID, definition.SchemaVersion,
+			definition.SchemaSHA256, definition.Target, boolInt(definition.Keyed),
 		); err != nil {
 			return Commit{}, fmt.Errorf("materialize add-on data set: %w", err)
+		}
+		var storedSchemaVersion, storedSchemaSHA256 string
+		var storedTarget sql.NullString
+		var storedKeyed int
+		if err := transaction.QueryRowContext(ctx, `
+			SELECT schema_version, schema_sha256, target_collection, keyed
+			FROM addon_data_sets
+			WHERE addon_id = ? AND data_kind = ? AND data_id = ?`,
+			input.AddonID, definition.Kind, definition.ID,
+		).Scan(&storedSchemaVersion, &storedSchemaSHA256, &storedTarget, &storedKeyed); err != nil {
+			return Commit{}, fmt.Errorf("read add-on data schema identity: %w", err)
+		}
+		if storedSchemaVersion != definition.SchemaVersion || storedSchemaSHA256 != definition.SchemaSHA256 ||
+			storedTarget.String != definition.Target || storedTarget.Valid != (definition.Target != "") ||
+			storedKeyed != boolInt(definition.Keyed) {
+			return Commit{}, ErrSchemaMismatch
 		}
 		current, found, err := readDocument(
 			ctx, transaction, input.AddonID, definition.Kind, definition.ID, mutation.Key,
@@ -290,17 +326,20 @@ func (store *Store) Transact(ctx context.Context, input Transaction) (Commit, er
 			if _, err := transaction.ExecContext(ctx, `
 				INSERT INTO addon_documents(
 					addon_id, data_kind, data_id, document_key, position, body_json,
-					schema_version, schema_sha256, revision, created_at, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					schema_version, schema_sha256, revision, created_at, updated_at,
+					target_created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT(addon_id, data_kind, data_id, document_key) DO UPDATE SET
 					body_json = excluded.body_json,
 					schema_version = excluded.schema_version,
 					schema_sha256 = excluded.schema_sha256,
 					revision = excluded.revision,
-					updated_at = excluded.updated_at`,
+					updated_at = excluded.updated_at,
+					target_created_at = excluded.target_created_at`,
 				input.AddonID, definition.Kind, definition.ID, mutation.Key, position,
 				string(mutation.value), definition.SchemaVersion, definition.SchemaSHA256,
 				afterRevision, createdAt.Format(time.RFC3339Nano), timestamp,
+				nullTime(mutation.TargetCreatedAt),
 			); err != nil {
 				return Commit{}, fmt.Errorf("put add-on document: %w", err)
 			}
@@ -421,7 +460,9 @@ func prepareTransaction(input Transaction) ([]preparedMutation, error) {
 		definition := mutation.Definition
 		if !validDefinition(definition) || !validDocumentKey(mutation.Key) ||
 			mutation.ExpectedRevision < 0 || (mutation.Kind != Put && mutation.Kind != Delete) ||
-			!validAudience(definition.Visibility, mutation.Audience) {
+			!validAudience(definition.Visibility, mutation.Audience) ||
+			(definition.Kind == datacontract.Collection && mutation.TargetCreatedAt != nil) ||
+			(definition.Kind == datacontract.RecordExtension && mutation.TargetCreatedAt == nil) {
 			return nil, ErrInvalidTransaction
 		}
 		target := definitionKey(definition.Kind, definition.ID) + "\x00" + mutation.Key
@@ -451,7 +492,8 @@ func prepareTransaction(input Transaction) ([]preparedMutation, error) {
 }
 
 func validDefinition(value datacontract.Description) bool {
-	return (value.Kind == datacontract.Collection || value.Kind == datacontract.RecordExtension) &&
+	return (value.Kind == datacontract.Collection && value.Target == "" ||
+		value.Kind == datacontract.RecordExtension && localIDPattern.MatchString(value.Target)) &&
 		localIDPattern.MatchString(value.ID) && len(value.ID) <= 100 && value.SchemaVersion != "" &&
 		len(value.SchemaSHA256) == 64 && lowercaseHex(value.SchemaSHA256)
 }
@@ -539,7 +581,8 @@ func readDocument(
 ) (Document, bool, error) {
 	document, err := scanDocument(query.QueryRowContext(ctx, `
 		SELECT addon_id, data_kind, data_id, document_key, position, body_json,
-		       schema_version, schema_sha256, revision, created_at, updated_at
+		       schema_version, schema_sha256, revision, created_at, updated_at,
+		       target_created_at
 		FROM addon_documents
 		WHERE addon_id = ? AND data_kind = ? AND data_id = ? AND document_key = ?`,
 		addonID, kind, dataID, key,
@@ -562,7 +605,8 @@ func listDocuments(
 ) ([]Document, error) {
 	rows, err := query.QueryContext(ctx, `
 		SELECT addon_id, data_kind, data_id, document_key, position, body_json,
-		       schema_version, schema_sha256, revision, created_at, updated_at
+		       schema_version, schema_sha256, revision, created_at, updated_at,
+		       target_created_at
 		FROM addon_documents
 		WHERE addon_id = ? AND data_kind = ? AND data_id = ?
 		ORDER BY position, document_key`, addonID, kind, dataID)
@@ -589,16 +633,25 @@ type rowScanner interface{ Scan(...any) error }
 func scanDocument(row rowScanner) (Document, error) {
 	var document Document
 	var value, createdAt, updatedAt string
+	var targetCreatedAt sql.NullString
 	if err := row.Scan(
 		&document.AddonID, &document.Kind, &document.DataID, &document.Key,
 		&document.Position, &value, &document.SchemaVersion, &document.SchemaSHA256,
 		&document.Revision, &createdAt, &updatedAt,
+		&targetCreatedAt,
 	); err != nil {
 		return Document{}, err
 	}
 	var createdErr, updatedErr error
 	document.CreatedAt, createdErr = time.Parse(time.RFC3339Nano, createdAt)
 	document.UpdatedAt, updatedErr = time.Parse(time.RFC3339Nano, updatedAt)
+	if targetCreatedAt.Valid {
+		parsed, targetErr := time.Parse(time.RFC3339Nano, targetCreatedAt.String)
+		if targetErr != nil {
+			return Document{}, ErrStorageInvariant
+		}
+		document.TargetCreatedAt = &parsed
+	}
 	if createdErr != nil || updatedErr != nil || document.Position < 0 || document.Revision < 1 ||
 		!json.Valid([]byte(value)) || !lowercaseHex(document.SchemaSHA256) {
 		return Document{}, ErrStorageInvariant
@@ -641,7 +694,8 @@ func readState(
 	dataID string,
 ) (State, error) {
 	return scanState(query.QueryRowContext(ctx, `
-		SELECT addon_id, data_kind, data_id, materialized, revision, updated_at
+		SELECT addon_id, data_kind, data_id, materialized, revision,
+		       schema_version, schema_sha256, target_collection, keyed, updated_at
 		FROM addon_data_sets
 		WHERE addon_id = ? AND data_kind = ? AND data_id = ?`, addonID, kind, dataID))
 }
@@ -649,8 +703,13 @@ func readState(
 func scanState(row rowScanner) (State, error) {
 	var state State
 	var materialized int
+	var schemaVersion, schemaSHA256, target sql.NullString
+	var keyed sql.NullInt64
 	var updatedAt sql.NullString
-	if err := row.Scan(&state.AddonID, &state.Kind, &state.DataID, &materialized, &state.Revision, &updatedAt); err != nil {
+	if err := row.Scan(
+		&state.AddonID, &state.Kind, &state.DataID, &materialized, &state.Revision,
+		&schemaVersion, &schemaSHA256, &target, &keyed, &updatedAt,
+	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return State{}, ErrNotFound
 		}
@@ -660,6 +719,16 @@ func scanState(row rowScanner) (State, error) {
 		return State{}, ErrStorageInvariant
 	}
 	state.Materialized = materialized == 1
+	state.SchemaVersion = schemaVersion.String
+	state.SchemaSHA256 = schemaSHA256.String
+	state.Target = target.String
+	state.Keyed = keyed.Int64 == 1
+	if state.Materialized && (!schemaVersion.Valid || !schemaSHA256.Valid || len(state.SchemaSHA256) != 64 ||
+		!lowercaseHex(state.SchemaSHA256) || !keyed.Valid || (keyed.Int64 != 0 && keyed.Int64 != 1) ||
+		(state.Kind == datacontract.RecordExtension) != target.Valid ||
+		(state.Kind == datacontract.RecordExtension && state.Keyed)) {
+		return State{}, ErrStorageInvariant
+	}
 	if updatedAt.Valid {
 		parsed, err := time.Parse(time.RFC3339Nano, updatedAt.String)
 		if err != nil {
@@ -727,4 +796,18 @@ func definitionKey(kind datacontract.Kind, id string) string { return string(kin
 func splitDefinitionKey(value string) (datacontract.Kind, string) {
 	parts := strings.SplitN(value, "\x00", 2)
 	return datacontract.Kind(parts[0]), parts[1]
+}
+
+func nullTime(value *time.Time) any {
+	if value == nil {
+		return nil
+	}
+	return value.UTC().Format(time.RFC3339Nano)
+}
+
+func boolInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
 }
