@@ -1,6 +1,7 @@
 package backuparchive
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math"
@@ -9,7 +10,11 @@ import (
 	"unicode"
 )
 
-const ContractVersion = "codex-backup.v1"
+const (
+	LegacyContractVersion = "codex-backup.v1"
+	ContractVersion       = "codex-backup.v2"
+	restoreJournalVersion = "codex-restore-journal.v1"
+)
 
 var (
 	ErrInvalidArchive = errors.New("invalid Codex backup archive")
@@ -62,7 +67,7 @@ func normalizeLimits(limits Limits) (Limits, error) {
 	return limits, nil
 }
 
-func validArchivePath(value string) bool {
+func validArchivePath(contractVersion, value string) bool {
 	if value == "" || len(value) > 1024 || strings.Contains(value, "\\") ||
 		strings.HasPrefix(value, "/") || path.Clean(value) != value {
 		return false
@@ -77,5 +82,23 @@ func validArchivePath(value string) bool {
 			}
 		}
 	}
-	return value == "codex.db" || strings.HasPrefix(value, "addons/")
+	if value == "codex.db" || strings.HasPrefix(value, "addons/") {
+		return true
+	}
+	return contractVersion == ContractVersion && validBlobArchivePath(value)
+}
+
+func validBlobArchivePath(value string) bool {
+	parts := strings.Split(value, "/")
+	if len(parts) != 4 || parts[0] != "blobs" || parts[1] != "sha256" ||
+		len(parts[2]) != 2 || len(parts[3]) != sha256.Size*2 ||
+		!strings.HasPrefix(parts[3], parts[2]) {
+		return false
+	}
+	for _, character := range parts[3] {
+		if (character < '0' || character > '9') && (character < 'a' || character > 'f') {
+			return false
+		}
+	}
+	return true
 }

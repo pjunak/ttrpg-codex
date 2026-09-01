@@ -41,8 +41,8 @@ surface. Core media application operations must enforce campaign visibility;
 worker methods must additionally enforce the add-on's exact `blob.read` or
 `blob.write` grant and owner namespace.
 
-Migration 0006 and the storage tests establish the primitive. At this point no
-runtime route creates a blob, so the existing backup contract is not yet
-incomplete in practice. The next owning slice must add the immutable `blobs/`
-tree to native backup/restore before composing media uploads or worker blob
-methods.
+Migration 0006 and the storage tests establish the primitive. Native
+`codex-backup.v2` archives the immutable object tree and verifies it against the
+restored database; v1 recovery archives remain readable only when their
+database has no blob references. Runtime media uploads and worker blob methods
+still require their application authorization layers before composition.

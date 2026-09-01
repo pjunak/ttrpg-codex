@@ -58,12 +58,14 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   committing metadata, while deletion is logical so shared or recovery data is
   not removed. No runtime surface creates blobs until backup and authorization
   composition are complete. See [`BLOBS.md`](BLOBS.md).
-- The native `codex-backup.v1` archive uses SQLite's online backup primitive,
-  inventories immutable add-on files by hash, and verifies an isolated copy
-  before an offline journaled data-directory swap. The host holds a portable
-  process lock and recovers interrupted swaps before opening SQLite. See
-  [`BACKUP_RESTORE.md`](BACKUP_RESTORE.md). A real-and-effective-DM download
-  endpoint exposes this same archive contract without a second serializer.
+- The native `codex-backup.v2` archive uses SQLite's online backup primitive,
+  inventories immutable add-on generations and blob objects by hash, and
+  verifies an isolated copy—including every database-referenced blob—before an
+  offline journaled data-directory swap. Blob-free v1 archives remain accepted.
+  The host holds a portable process lock and recovers interrupted swaps before
+  opening SQLite. See [`BACKUP_RESTORE.md`](BACKUP_RESTORE.md). A
+  real-and-effective-DM download endpoint exposes this same archive contract
+  without a second serializer.
 - Migration 0005 and the campaign record store preserve legacy list/keyed
   shapes, opaque record JSON, stable IDs, list order, and absent-versus-empty
   collection state. Optimistic record revisions, audit rows, collection

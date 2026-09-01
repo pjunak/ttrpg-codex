@@ -48,6 +48,7 @@ type sourceFile struct {
 	archivePath string
 	path        string
 	mode        os.FileMode
+	expectedSHA string
 }
 
 func Create(ctx context.Context, config CreateConfig) (Manifest, error) {
@@ -104,6 +105,11 @@ func Create(ctx context.Context, config CreateConfig) (Manifest, error) {
 		return Manifest{}, err
 	}
 	sources = append(sources, addonSources...)
+	blobSources, err := collectBlobFiles(ctx, filepath.Join(dataDirectory, "blobs"), limits)
+	if err != nil {
+		return Manifest{}, err
+	}
+	sources = append(sources, blobSources...)
 	if len(sources) > limits.MaximumEntries {
 		return Manifest{}, fmt.Errorf("%w: backup contains too many files", ErrInvalidArchive)
 	}
@@ -224,7 +230,7 @@ func collectAddonFiles(ctx context.Context, root string, limits Limits) ([]sourc
 			return fmt.Errorf("%w: invalid add-on backup file: %s", ErrInvalidArchive, relative)
 		}
 		archivePath := "addons/" + filepath.ToSlash(relative)
-		if !validArchivePath(archivePath) {
+		if !validArchivePath(ContractVersion, archivePath) {
 			return fmt.Errorf("%w: invalid add-on backup path: %s", ErrInvalidArchive, relative)
 		}
 		result = append(result, sourceFile{
@@ -241,6 +247,81 @@ func collectAddonFiles(ctx context.Context, root string, limits Limits) ([]sourc
 		return nil, fmt.Errorf("collect add-on backup files: %w", err)
 	}
 	return result, nil
+}
+
+func collectBlobFiles(ctx context.Context, root string, limits Limits) ([]sourceFile, error) {
+	rootInfo, err := os.Lstat(root)
+	if os.IsNotExist(err) {
+		return nil, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("inspect blob backup root: %w", err)
+	}
+	if !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("%w: blob backup root is not a real directory", ErrInvalidArchive)
+	}
+	result := make([]sourceFile, 0)
+	err = filepath.WalkDir(root, func(filename string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(root, filename)
+		if err != nil {
+			return err
+		}
+		if relative == "." {
+			return nil
+		}
+		parts := strings.Split(filepath.ToSlash(relative), "/")
+		if parts[0] == ".staging" {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%w: blob backup contains a symbolic link: %s", ErrInvalidArchive, relative)
+		}
+		if entry.IsDir() {
+			if parts[0] != "sha256" || len(parts) > 2 ||
+				(len(parts) == 2 && (len(parts[1]) != 2 || !lowerHex(parts[1]))) {
+				return fmt.Errorf("%w: invalid blob backup directory: %s", ErrInvalidArchive, relative)
+			}
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		archivePath := "blobs/" + filepath.ToSlash(relative)
+		if !info.Mode().IsRegular() || uint64(info.Size()) > limits.MaximumFileBytes ||
+			!validArchivePath(ContractVersion, archivePath) {
+			return fmt.Errorf("%w: invalid blob backup file: %s", ErrInvalidArchive, relative)
+		}
+		result = append(result, sourceFile{
+			archivePath: archivePath, path: filename, mode: info.Mode().Perm(),
+			expectedSHA: filepath.Base(filename),
+		})
+		if len(result)+1 > limits.MaximumEntries {
+			return fmt.Errorf("%w: backup contains too many files", ErrInvalidArchive)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("collect blob backup files: %w", err)
+	}
+	return result, nil
+}
+
+func lowerHex(value string) bool {
+	for _, character := range value {
+		if (character < '0' || character > '9') && (character < 'a' || character > 'f') {
+			return false
+		}
+	}
+	return value != ""
 }
 
 func addFile(ctx context.Context, archive *zip.Writer, source sourceFile, limits Limits) (Entry, error) {
@@ -272,9 +353,13 @@ func addFile(ctx context.Context, archive *zip.Writer, source sourceFile, limits
 	if written != info.Size() {
 		return Entry{}, fmt.Errorf("%w: backup file changed while reading: %s", ErrInvalidArchive, source.archivePath)
 	}
+	digest := hex.EncodeToString(hash.Sum(nil))
+	if source.expectedSHA != "" && source.expectedSHA != digest {
+		return Entry{}, fmt.Errorf("%w: blob object differs from its address: %s", ErrInvalidArchive, source.archivePath)
+	}
 	return Entry{
 		Path: source.archivePath, Bytes: uint64(written),
-		SHA256: hex.EncodeToString(hash.Sum(nil)), Mode: uint32(source.mode.Perm()),
+		SHA256: digest, Mode: uint32(source.mode.Perm()),
 	}, nil
 }
 

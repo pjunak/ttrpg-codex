@@ -1,18 +1,24 @@
 # Native backup and restore
 
 The rewrite backup is a versioned recovery archive, not a directory copy and
-not the legacy JSON/ZIP restore format. `codex-backup.v1` contains:
+not the legacy JSON/ZIP restore format. `codex-backup.v2` contains:
 
 - one online SQLite image at `codex.db`, including committed WAL state;
 - every published immutable add-on generation under `addons/`;
+- every immutable hash-addressed blob object under `blobs/sha256/`;
 - an exact manifest with the host version, creation time, and each file's
   path, byte count, SHA-256, and portable permission mode.
 
-Transient add-on `.staging` content is excluded. Credentials currently come
-from the process environment, so the archive intentionally contains no DM or
-player password. When durable blobs or media become host-owned, they must be
-added through a new or explicitly extended backup contract rather than copied
-beside this inventory.
+Transient add-on and blob `.staging` content is excluded. Blob archive paths
+must match their content hash, and verification proves every object referenced
+by the restored database exists with the expected size and digest. Credentials
+currently come from the process environment, so the archive intentionally
+contains no DM or player password.
+
+The verifier and restore command continue to accept `codex-backup.v1` archives
+that contain only the database and add-on generations. After applying current
+migrations, such an archive is rejected if its database references a blob that
+the older format did not carry.
 
 ## Commands
 
@@ -26,10 +32,9 @@ go run ./cmd/codex-maintenance backup `
 ```
 
 The SQLite online-backup API gives one committed database image while the host
-is running. Add-on generations are safe to collect afterward because package
-publication makes a complete immutable directory visible before recording its
-database generation, and the rewrite does not yet delete published
-generations.
+is running. Add-on generations and blob objects are safe to collect afterward
+because both publish complete immutable files before recording their database
+references, and neither is physically deleted during an online backup.
 
 An authenticated real-and-effective-DM can download the same format from
 `GET /api/backup`. The handler creates the bounded archive in operating-system

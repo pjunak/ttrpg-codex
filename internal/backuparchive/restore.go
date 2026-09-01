@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -132,7 +133,7 @@ func Restore(ctx context.Context, config RestoreConfig) (RestoreResult, error) {
 	}
 
 	journal := restoreJournal{
-		ContractVersion: ContractVersion,
+		ContractVersion: restoreJournalVersion,
 		TargetName:      base,
 		StageName:       filepath.Base(stage),
 		PreviousName:    "." + base + ".restore-previous-" + strings.TrimPrefix(filepath.Base(stage), "."+base+".restore-stage-"),
@@ -202,7 +203,8 @@ func Recover(ctx context.Context, dataDirectory string, migrations fs.FS) error 
 	}
 	parent := filepath.Dir(absolute)
 	base := filepath.Base(absolute)
-	if journal.ContractVersion != ContractVersion || journal.TargetName != base ||
+	if (journal.ContractVersion != restoreJournalVersion && journal.ContractVersion != LegacyContractVersion) ||
+		journal.TargetName != base ||
 		!safeSiblingName(journal.StageName, "."+base+".restore-stage-") ||
 		!safeSiblingName(journal.PreviousName, "."+base+".restore-previous-") {
 		return fmt.Errorf("%w: restore journal paths are invalid", ErrRestorePending)
@@ -303,7 +305,8 @@ func decodeManifest(file *zip.File, limits Limits) (Manifest, error) {
 	if err := decoder.Decode(&manifest); err != nil || decoder.Decode(&struct{}{}) != io.EOF {
 		return Manifest{}, fmt.Errorf("%w: manifest JSON is invalid", ErrInvalidArchive)
 	}
-	if manifest.ContractVersion != ContractVersion || manifest.HostVersion == "" || len(manifest.HostVersion) > 100 {
+	if (manifest.ContractVersion != LegacyContractVersion && manifest.ContractVersion != ContractVersion) ||
+		manifest.HostVersion == "" || len(manifest.HostVersion) > 100 {
 		return Manifest{}, fmt.Errorf("%w: manifest contract is invalid", ErrInvalidArchive)
 	}
 	if _, err := time.Parse(time.RFC3339Nano, manifest.CreatedAt); err != nil {
@@ -316,13 +319,17 @@ func decodeManifest(file *zip.File, limits Limits) (Manifest, error) {
 	previous := ""
 	databaseFound := false
 	for _, entry := range manifest.Entries {
-		if !validArchivePath(entry.Path) || entry.Path <= previous || entry.Bytes > limits.MaximumFileBytes ||
+		if !validArchivePath(manifest.ContractVersion, entry.Path) || entry.Path <= previous ||
+			entry.Bytes > limits.MaximumFileBytes ||
 			entry.Mode > 0o777 || entry.Mode == 0 {
 			return Manifest{}, fmt.Errorf("%w: manifest entry is invalid: %s", ErrInvalidArchive, entry.Path)
 		}
 		hash, err := hex.DecodeString(entry.SHA256)
 		if err != nil || len(hash) != sha256.Size {
 			return Manifest{}, fmt.Errorf("%w: manifest hash is invalid: %s", ErrInvalidArchive, entry.Path)
+		}
+		if strings.HasPrefix(entry.Path, "blobs/") && path.Base(entry.Path) != entry.SHA256 {
+			return Manifest{}, fmt.Errorf("%w: blob path does not match content hash: %s", ErrInvalidArchive, entry.Path)
 		}
 		expanded += entry.Bytes
 		if expanded > limits.MaximumExpandedBytes {

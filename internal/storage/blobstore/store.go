@@ -227,6 +227,38 @@ func (store *Store) Open(ctx context.Context, id string) (*os.File, Blob, error)
 	return file, metadata, nil
 }
 
+// Validate checks every object referenced by the authoritative database. It
+// deliberately permits unreferenced immutable files: a crash after object
+// publication but before metadata commit can safely leave one behind.
+func (store *Store) Validate(ctx context.Context) error {
+	rows, err := store.database.QueryContext(ctx, `
+		SELECT sha256, bytes FROM blob_objects ORDER BY sha256`)
+	if err != nil {
+		return fmt.Errorf("validate blob metadata: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		var digest string
+		var size uint64
+		if err := rows.Scan(&digest, &size); err != nil {
+			return fmt.Errorf("scan blob object validation: %w", err)
+		}
+		if len(digest) != sha256.Size*2 {
+			return fmt.Errorf("%w: invalid object address", ErrCorrupt)
+		}
+		if err := validateObject(store.objectPath(digest), size, digest); err != nil {
+			return err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate blob object validation: %w", err)
+	}
+	return nil
+}
+
 func (store *Store) Delete(ctx context.Context, id string, expectedRevision int64) (Blob, error) {
 	if !validID(id) || expectedRevision < 1 {
 		return Blob{}, ErrInvalid

@@ -148,6 +148,9 @@ func TestOpenDetectsMissingOrWrongSizedObject(t *testing.T) {
 	if _, _, err := store.Open(ctx, blob.ID); !errors.Is(err, ErrCorrupt) {
 		t.Fatalf("corrupt open error = %v", err)
 	}
+	if err := store.Validate(ctx); !errors.Is(err, ErrCorrupt) {
+		t.Fatalf("corrupt validation error = %v", err)
+	}
 	if _, err := store.Metadata(ctx, "not-an-id"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("invalid id lookup = %v", err)
 	}

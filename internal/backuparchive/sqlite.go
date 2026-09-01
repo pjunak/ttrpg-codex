@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 
+	"github.com/pjunak/ttrpg-codex/internal/storage/blobstore"
 	codexsqlite "github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
 	moderncsqlite "modernc.org/sqlite"
 )
@@ -79,6 +81,20 @@ func validateAndMigrateDatabase(
 	result, migrationErr := codexsqlite.Migrate(ctx, database, migrationFS)
 	if migrationErr == nil {
 		migrationErr = integrityCheck(ctx, database)
+	}
+	if migrationErr == nil {
+		var blobs *blobstore.Store
+		blobs, migrationErr = blobstore.New(
+			database,
+			filepath.Join(filepath.Dir(databasePath), "blobs"),
+			blobstore.Options{},
+		)
+		if migrationErr == nil {
+			migrationErr = blobs.Validate(ctx)
+		}
+		if migrationErr != nil {
+			migrationErr = fmt.Errorf("%w: validate restored blobs: %v", ErrInvalidArchive, migrationErr)
+		}
 	}
 	if migrationErr == nil {
 		_, migrationErr = database.ExecContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE)`)
