@@ -26,6 +26,12 @@ rewrite data directory from one old UI ZIP.
 - Generated map tiles are counted and deliberately discarded because they are
   derived cache data. Unreferenced media is reported and left only in the
   source backup rather than guessed into campaign ownership.
+- A retired `species.json` list is used only to replace matching character
+  species IDs with their human-readable names; the v2 character field remains
+  free text and no obsolete species collection is recreated. The report counts
+  definitions and mapped characters. An exact empty retired `mapPins.json` is
+  discarded and counted because pins were previously folded into locations; a
+  non-empty or malformed map-pin file fails conversion for manual review.
 - `auth.json` is inventoried but not imported. Passwords and sessions are
   deployment configuration and must be configured afresh.
 - `secrets.json` is rejected. The old UI intentionally excluded it, so its
@@ -86,10 +92,11 @@ overwriting an existing file. Its media
 section separates imported source files and bindings, rewritten records, and
 discarded generated tiles. Its add-on section records target package hashes,
 document counts, stripped core records, imported source files, and any embedded
-namespaces left for manual review. It also counts keyed DM Tools records whose
-missing embedded ID was normalized from the authoritative storage key, schema
-v2 records stamped as v3, the exact discarded v2 completion marker, converted
-cross-scope arrows, and re-anchored consequences.
+namespaces left for manual review. `legacyAdjustments` records retired species
+mapping and empty map-pin disposal. The add-on section also counts keyed DM
+Tools records whose missing embedded ID was normalized from the authoritative
+storage key, schema v2 records stamped as v3, the exact discarded v2 completion
+marker, converted cross-scope arrows, and re-anchored consequences.
 `deferred.media` contains only unreferenced
 media and `deferred.addonData` only unrecognized collection files. Preserve the
 report beside the corresponding backup so source identity, package identity,

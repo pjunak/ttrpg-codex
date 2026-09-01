@@ -32,9 +32,11 @@ func TestConvertCreatesFreshDatabaseAndInventoriesDeferredData(t *testing.T) {
 	writeLegacyZip(t, archive, []zipEntry{
 		{name: "data/", mode: os.ModeDir | 0o755},
 		{name: "data/characters.json", body: `[
-			{"id":"hero","name":"Hero","visibility":"public","portrait":"/portraits/hero/portrait.png?v=old"},
-			{"id":"villain","name":"Villain","visibility":"dm","portrait":"/portraits/villain/portrait.png"}
+			{"id":"hero","name":"Hero","visibility":"public","species":"human","portrait":"/portraits/hero/portrait.png?v=old"},
+			{"id":"villain","name":"Villain","visibility":"dm","species":"dragon","portrait":"/portraits/villain/portrait.png"}
 		]`},
+		{name: "data/species.json", body: `[{"id":"human","name":"Human"},{"id":"dragon","name":"Dragon"}]`},
+		{name: "data/mapPins.json", body: `[]`},
 		{name: "data/relationships.json", body: `[]`},
 		{name: "data/locations.json", body: `[
 			{"id":"village","name":"Village","localMap":"/maps/local/village/map.png"}
@@ -89,6 +91,11 @@ func TestConvertCreatesFreshDatabaseAndInventoriesDeferredData(t *testing.T) {
 		report.Media.DiscardedDerived != (InventoryGroup{Files: 1, Bytes: uint64(len("derived tile"))}) {
 		t.Fatalf("media report = %+v", report.Media)
 	}
+	if report.Legacy != (LegacyAdjustmentReport{
+		SpeciesDefinitions: 2, CharacterSpecies: 2, DiscardedMapPinFile: 1,
+	}) {
+		t.Fatalf("legacy adjustments = %+v", report.Legacy)
+	}
 	wantDeferred := map[string]InventoryGroup{
 		"media":         {},
 		"addonData":     {Files: 1, Bytes: uint64(len(`[{"id":"rule"}]`))},
@@ -117,7 +124,8 @@ func TestConvertCreatesFreshDatabaseAndInventoriesDeferredData(t *testing.T) {
 	`).Scan(&body, &visibility); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(body, `"portrait":"/api/media/b_`) || visibility != "dm" {
+	if !strings.Contains(body, `"portrait":"/api/media/b_`) ||
+		!strings.Contains(body, `"species":"Dragon"`) || visibility != "dm" {
 		t.Fatalf("villain = %s, %s", body, visibility)
 	}
 	if err := database.QueryRow(`
@@ -126,7 +134,8 @@ func TestConvertCreatesFreshDatabaseAndInventoriesDeferredData(t *testing.T) {
 	`).Scan(&body); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(body, `"portrait":"/api/media/b_`) || strings.Contains(body, "/portraits/") {
+	if !strings.Contains(body, `"portrait":"/api/media/b_`) || strings.Contains(body, "/portraits/") ||
+		!strings.Contains(body, `"species":"Human"`) {
 		t.Fatalf("rewritten hero = %s", body)
 	}
 	var bindings, handles, objects int
@@ -259,6 +268,23 @@ func TestConvertRejectsUnsafeOrSecretEntries(t *testing.T) {
 				t.Fatalf("rejected archive published output: %v", statErr)
 			}
 		})
+	}
+}
+
+func TestConvertRejectsNonEmptyRetiredMapPins(t *testing.T) {
+	directory := t.TempDir()
+	archive := filepath.Join(directory, "old-ui-backup.zip")
+	writeLegacyZip(t, archive, []zipEntry{
+		{name: "data/characters.json", body: `[]`},
+		{name: "data/mapPins.json", body: `[{"id":"unmapped"}]`},
+	})
+	output := filepath.Join(directory, "converted")
+	_, err := Convert(context.Background(), Config{ArchivePath: archive, OutputDirectory: output})
+	if err == nil || !strings.Contains(err.Error(), "map pins cannot be discarded safely") {
+		t.Fatalf("conversion error = %v", err)
+	}
+	if _, statErr := os.Stat(output); !os.IsNotExist(statErr) {
+		t.Fatalf("failed conversion published output: %v", statErr)
 	}
 }
 

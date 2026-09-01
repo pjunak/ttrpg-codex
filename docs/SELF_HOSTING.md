@@ -66,8 +66,9 @@ go run ./cmd/codex-convert-v1 `
 
 Read the JSON report printed to the terminal and saved at the requested new
 `-report` path. Confirm the input hash, imported collection counts, media
-counts, package hashes, and every deferred/unknown entry. Generated map tiles
-are deliberately discarded. The source ZIP is never modified.
+counts, retired-core adjustments, package hashes, and every deferred/unknown
+entry. Generated map tiles are deliberately discarded. The source ZIP is never
+modified.
 
 During supervised cutover, stop the old service, move its existing data aside,
 place the verified converted directory at the new instance's `data/` mount,

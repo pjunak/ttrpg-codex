@@ -148,7 +148,9 @@ source checkout into a runtime generation.
 - Ordinary backup and restore accept only `codex-backup.v2`. The offline
   `cmd/codex-convert-v1` tool is the sole legacy boundary: keep its input
   unchanged and write a fresh v2 directory. Do not add startup-time legacy
-  readers or general legacy repair tooling.
+  readers or general legacy repair tooling. Preserve retired species meaning by
+  mapping known character IDs to names; discard only an exact empty retired
+  map-pin file and fail closed on non-empty pins or unknown shapes.
 - Run focused tests while iterating and `npm run check` before handoff. Run
   relevant host/add-on compatibility tests on both sides of a contract change.
 - Update the owning reference, public docs, test inventory, and this file only

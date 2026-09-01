@@ -70,6 +70,12 @@ type AddonReport struct {
 	importedFiles       []*zip.File
 }
 
+type LegacyAdjustmentReport struct {
+	SpeciesDefinitions  int `json:"speciesDefinitions"`
+	CharacterSpecies    int `json:"characterSpeciesMapped"`
+	DiscardedMapPinFile int `json:"discardedEmptyMapPinFiles"`
+}
+
 type Report struct {
 	ContractVersion string                    `json:"contractVersion"`
 	SourceSHA256    string                    `json:"sourceSha256"`
@@ -77,6 +83,7 @@ type Report struct {
 	CommitID        int64                     `json:"commitId"`
 	CoreCollections map[string]int            `json:"coreCollections"`
 	CoreRecords     int                       `json:"coreRecords"`
+	Legacy          LegacyAdjustmentReport    `json:"legacyAdjustments"`
 	Media           MediaReport               `json:"media"`
 	Addons          AddonReport               `json:"addons"`
 	Deferred        map[string]InventoryGroup `json:"deferred"`
@@ -122,6 +129,9 @@ func Convert(ctx context.Context, config Config) (Report, error) {
 		return Report{}, err
 	}
 	defer backup.Close()
+	if err := normalizeRetiredCoreData(backup); err != nil {
+		return Report{}, err
+	}
 	dataset := backup.dataset
 	report := backup.report
 	stage, err := os.MkdirTemp(filepath.Dir(outputDirectory), ".codex-v1-conversion-")
