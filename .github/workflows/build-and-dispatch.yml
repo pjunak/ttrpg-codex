@@ -2,22 +2,19 @@ name: Build and dispatch
 
 # Drop into an app repo's .github/workflows/ directory.
 #
-# On every push to main: builds a Docker image, pushes to GHCR with both
-# :latest and :sha-<commit> tags, then fires a repository_dispatch event
-# at the infrastructure repo to trigger a deploy. A manual run validates the
-# image without publishing or deploying unless publishing or a deployment
-# target is explicitly enabled. Manual runs may publish first and deploy one
-# instance later, which keeps staged campaign conversions out of the image
-# rollout itself.
+# On every push to main: validates the suite and publishes a Docker image to
+# GHCR with both :latest and :sha-<commit> tags. Production deployment remains
+# an explicit manual action so a source-branch promotion can never race a
+# campaign-data cutover. A manual run validates without publishing or deploying
+# unless publishing or a deployment target is explicitly enabled; selecting a
+# deployment target publishes first and dispatches that exact image digest.
 #
 # Required configuration in the app repo (Settings → Secrets and variables → Actions):
 #   Secret   INFRA_DISPATCH_TOKEN   fine-grained PAT for the infra repo
 #   Variable INFRA_REPO             owner/infra-repo (e.g. pjunak/junak.eu)
-#   Variable INFRA_SERVICE          stack directory name (e.g. tiamat). May be a
-#                                   space/comma-separated LIST to deploy several
-#                                   stacks from one image push (e.g. "tiamat asurai")
-#                                   — useful when multiple instances share this
-#                                   image. Each becomes its own deploy dispatch.
+#   Variable INFRA_SERVICE          manual `configured` target list. May be a
+#                                   space/comma-separated list such as
+#                                   "tiamat asurai"; each becomes one dispatch.
 
 on:
   push:
@@ -111,7 +108,7 @@ jobs:
   resolve-targets:
     name: Resolve deploy targets
     needs: build
-    if: ${{ github.event_name == 'push' || inputs.deploy_target != 'none' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_target != 'none' }}
     runs-on: ubuntu-latest
     outputs:
       services: ${{ steps.list.outputs.services }}
