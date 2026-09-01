@@ -13,7 +13,9 @@ on top of them.
 | Package archive and extracted generation | Host package directory | Yes |
 | Installed generations, reviews, active pointer, grants, revision, events | SQLite | Yes |
 | Provider declarations and operator bindings | Service broker store | Yes |
+| Add-on documents, tombstones, schema identity, and audit rows | Add-on data store | Yes |
 | Worker processes, callable providers, resolved service handles | Package manager and broker memory | No |
+| Active generation schema registries | Add-on data service | No |
 
 The archive SHA-256 is the generation ID. One installed generation lives at:
 
@@ -47,7 +49,9 @@ the expected state revision, retained and required permissions, directly
 affected add-ons, the complete restart set, blockers, and stable
 added/changed/removed summaries for runtime, capabilities, contributions,
 dependencies, services, collections, record extensions, content, and locales.
-The full proposal is SHA-256 hashed.
+It also includes blockers from the durable add-on data owner when a removed or
+changed declaration still has campaign state. The full proposal is SHA-256
+hashed. See [`ADDON_DATA.md`](ADDON_DATA.md).
 
 Approval hashes that proposal together with the normalized grant set. A
 package, state, dependency, service, recovery, or dependent-set change makes
@@ -80,9 +84,10 @@ For an activation, update, or rollback the manager performs:
 3. Create and fully start the new worker while the previous runtime remains
    callable.
 4. Publish the new provider catalog and exact generation caller.
-5. Commit the active-generation pointer, grants, revision, and lifecycle event
-   in one SQLite transaction.
-6. Make the new runtime manager-owned, then stop the previous runtime.
+5. Quiesce that add-on's data calls under a reversible generation transition.
+6. Commit the active-generation pointer, grants, revision, and lifecycle event
+   in one SQLite transaction, then select the new immutable schema registry.
+7. Make the new runtime manager-owned, then stop the previous runtime.
 
 If worker start, catalog publication, or the durable commit fails, new routing
 is withdrawn, the previous catalog/runtime is restored, the new worker is

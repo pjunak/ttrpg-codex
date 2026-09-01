@@ -95,9 +95,9 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   mode. See [`LEGACY_CONVERSION.md`](LEGACY_CONVERSION.md).
 - The HTTP boundary exposes no-store health and version responses. Its add-on
   administration routes require both a lifecycle service and an administrator
-  authorizer at composition time; partial configuration fails closed and the
-  current executable deliberately leaves those routes unregistered until the
-  rewrite authentication service is wired. Browser graph and immutable
+  authorizer at composition time; partial configuration fails closed. The
+  executable wires them to real-and-effective-DM plus CSRF authority. Browser
+  graph and immutable
   generation-asset routes use the same paired fail-closed composition rule,
   authorize before parsing, and enforce private ETag-based cache contracts.
 - The authentication service accepts explicit DM and optional player bootstrap
@@ -178,6 +178,13 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   request contexts, and routes schema-validated worker service calls through
   generation-safe handles. See
   [`SERVICE_BROKER.md`](SERVICE_BROKER.md).
+- Migrations 0008 and 0009 plus the add-on data application service persist
+  package-owned collections and record extensions with optimistic revisions,
+  deletion tombstones, stable order, audit commits, schema-closure identity,
+  core-record lifetime binding, derived visibility, and payload-free events.
+  Exact generation registries are switched under a quiescing package
+  lifecycle transition, and unsafe upgrades become activation-review blockers.
+  See [`ADDON_DATA.md`](ADDON_DATA.md).
 - The package lifecycle manager publishes immutable archive-hash generations,
   persists hashed prepared/approved/consumed reviews, atomically consumes an
   approval with its revisioned generation switch, coordinates
@@ -202,7 +209,7 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   authorization handlers are composed; UI-only generations can recover now.
 
 These are foundation contracts, not a compatibility claim. Persistent
-credentials, core data migration, coordinated dependent disable, stable
-contribution-slot rendering, remaining SDK transports, concrete host method
-implementations, and import execution remain subsequent milestones in the
-dependency order in `docs/REWRITE_ARCHITECTURE.md`.
+credentials, add-on-owned one-shot conversion, coordinated dependent disable,
+remaining SDK transports, concrete host method implementations, Inspector
+surfaces, and import execution remain subsequent milestones in the dependency
+order in `docs/REWRITE_ARCHITECTURE.md`.
