@@ -30,6 +30,11 @@ export interface BrowserIsolatedFrameBinding {
   readonly mount: (host: HTMLElement) => Disposer;
 }
 
+/** Host-only marker for a manifest contribution that contains no executable binding. */
+export interface BrowserDeclarativeBinding {
+  readonly kind: "declarative";
+}
+
 export type BrowserContributionBinding =
   | BrowserElementBinding
   | BrowserActionBinding
@@ -37,7 +42,8 @@ export type BrowserContributionBinding =
 
 export type ActiveBrowserContributionBinding =
   | BrowserContributionBinding
-  | BrowserIsolatedFrameBinding;
+  | BrowserIsolatedFrameBinding
+  | BrowserDeclarativeBinding;
 
 export interface BrowserInvocationContext {
   readonly signal: AbortSignal;
@@ -86,6 +92,7 @@ export interface ActiveBrowserContribution {
 
 export interface BrowserAddonSDKSession {
   readonly context: BrowserAddonContext;
+  publishDeclarative(contributionId: string): BrowserContributionHandle;
   bindIsolated(
     contributionId: string,
     binding: BrowserIsolatedFrameBinding,
@@ -127,6 +134,7 @@ export class BrowserContributionRegistry {
     const releaseFallback = scope.add("browser SDK session", () => session.dispose());
     return {
       context: session.context,
+      publishDeclarative: (contributionId) => session.publishDeclarative(contributionId),
       bindIsolated: (contributionId, binding) =>
         session.bindIsolated(contributionId, binding),
       dispose: () => {
@@ -240,6 +248,17 @@ class RegistrySession {
     }
   }
 
+  publishDeclarative(contributionId: string): BrowserContributionHandle {
+    this.#assertOpen();
+    const declaration = this.#declaration(contributionId);
+    if (expectedBindingKind(declaration.surface) !== undefined) {
+      throw new BrowserContributionBindingError(
+        `contribution ${contributionId} on ${declaration.surface} requires an executable binding`,
+      );
+    }
+    return this.#register(declaration, Object.freeze({ kind: "declarative" }));
+  }
+
   bindIsolated(
     contributionId: string,
     binding: BrowserIsolatedFrameBinding,
@@ -250,12 +269,7 @@ class RegistrySession {
         `integrated add-on ${this.#descriptor.addonId} cannot bind an isolated frame`,
       );
     }
-    const declaration = this.#declarations.get(contributionId);
-    if (declaration === undefined) {
-      throw new BrowserContributionBindingError(
-        `add-on ${this.#descriptor.addonId} did not declare contribution ${contributionId}`,
-      );
-    }
+    const declaration = this.#declaration(contributionId);
     if (expectedBindingKind(declaration.surface) !== "element") {
       throw new BrowserContributionBindingError(
         `isolated contribution ${contributionId} on ${declaration.surface} is not a visual element surface`,
@@ -277,12 +291,7 @@ class RegistrySession {
     binding: BrowserContributionBinding,
   ): BrowserContributionHandle {
     this.#assertOpen();
-    const declaration = this.#declarations.get(contributionId);
-    if (declaration === undefined) {
-      throw new BrowserContributionBindingError(
-        `add-on ${this.#descriptor.addonId} did not declare contribution ${contributionId}`,
-      );
-    }
+    const declaration = this.#declaration(contributionId);
     const normalizedBinding = normalizeBinding(declaration, binding, this.context.signal);
     return this.#register(declaration, normalizedBinding);
   }
@@ -335,6 +344,16 @@ class RegistrySession {
         `browser SDK session for ${this.#descriptor.addonId} is closed`,
       );
     }
+  }
+
+  #declaration(contributionId: string): BrowserContributionDescriptor {
+    const declaration = this.#declarations.get(contributionId);
+    if (declaration === undefined) {
+      throw new BrowserContributionBindingError(
+        `add-on ${this.#descriptor.addonId} did not declare contribution ${contributionId}`,
+      );
+    }
+    return declaration;
   }
 }
 

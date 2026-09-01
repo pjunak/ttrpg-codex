@@ -67,11 +67,13 @@ describe("BrowserContributionRegistry", () => {
     session.context.ui.bind("planner.route", { kind: "element", tag: "dm-tools-planner" });
     session.context.ui.bind("planner.create", { kind: "action", run });
     session.context.ui.bind("planner.graph", { kind: "model-provider", provide });
+    session.publishDeclarative("planner.sidebar");
 
     expect(registry.list("route", "dm").map((active) => active.descriptor.id)).toEqual([
       "planner.route",
     ]);
     expect(registry.list("route", "player")).toEqual([]);
+    expect(registry.list("sidebar", "player")[0]?.binding.kind).toBe("declarative");
     const activeAction = registry.list("article-action", "player")[0]?.binding;
     const activeModel = registry.list("graph-view", "player")[0]?.binding;
     expect(activeAction?.kind).toBe("action");
@@ -101,6 +103,7 @@ describe("BrowserContributionRegistry", () => {
       kind: "element",
       tag: "dm-tools-sidebar",
     })).toThrow("declarative");
+    expect(() => session.publishDeclarative("planner.route")).toThrow("executable binding");
   });
 
   it("orders contributions deterministically and namespaces local ids by add-on", () => {
@@ -257,6 +260,25 @@ describe("module SDK composition", () => {
     await manager.dispose("disabled");
 
     expect(cleanupSaw).toEqual([0]);
+  });
+
+  it("publishes sidebar metadata without asking module code to bind it", async () => {
+    const registry = new BrowserContributionRegistry();
+    const importer = vi.fn(async () => ({ activate: vi.fn() }));
+    const manager = new BrowserGenerationManager(
+      createModuleActivator(importer, (value, scope) => registry.open(value, scope)),
+    );
+
+    const result = await manager.reconcile({
+      contractVersion: 2,
+      graphRevision: "e".repeat(64),
+      addons: [descriptor("dm-tools", [sidebar])],
+    });
+
+    expect(result.activationFailures).toEqual([]);
+    expect(registry.list("sidebar", "player")[0]?.binding.kind).toBe("declarative");
+    await manager.dispose("disabled");
+    expect(registry.list("sidebar", "player")).toEqual([]);
   });
 });
 

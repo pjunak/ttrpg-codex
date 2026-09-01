@@ -186,7 +186,10 @@ replacement-generation theft, invalid custom-element names, and an
 implementation shape that does not match the declared surface. Visual surfaces
 bind custom elements, article actions bind action functions, and graph views or
 contributors bind model providers. Sidebar entries are declarative and cannot
-bind code. No binding accepts raw HTML or a string action dispatcher.
+bind code. Both activation adapters publish reviewed sidebar metadata directly
+into the registry; a feature-owned navigation surface can consume it without
+loading another renderer or accepting a route callback. No binding accepts raw
+HTML or a string action dispatcher.
 
 Registry queries apply declared roles and deterministic order without exposing
 private host DOM. Action and model callbacks are wrapped with the generation

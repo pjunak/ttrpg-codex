@@ -271,6 +271,8 @@ The initial binding shapes are discriminated and host validated:
 `{ kind: "action", run }` for article actions, and
 `{ kind: "model-provider", provide }` for graph views and contributors.
 Sidebar declarations are navigation metadata and do not bind executable code.
+The host publishes that metadata automatically after graph validation; add-on
+modules MUST NOT call `context.ui.bind()` for sidebar declarations.
 Every callback is wrapped in the generation abort signal.
 
 Initial surfaces cover existing suite needs:

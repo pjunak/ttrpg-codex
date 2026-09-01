@@ -90,7 +90,8 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   role or session changes. The browser SDK exposes immutable identity and
   effective authority without leaking the internal generation scope. Its
   host-owned registry binds only declared, surface-compatible custom elements,
-  actions, or model providers and removes them before module cleanup. The
+  actions, or model providers, automatically publishes declarative sidebar
+  metadata, and removes every registration before module cleanup. The
   authenticated Lit shell now probes session authority, offers login/logout,
   owns the single shared EventSource, refreshes the graph on validated events,
   loads generation styles, renders role-filtered `slot` contributions through

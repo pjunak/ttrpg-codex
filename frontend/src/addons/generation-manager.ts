@@ -345,6 +345,11 @@ export function createModuleActivator(
       ? undefined
       : context.scope.add("browser generation resources", resourceDisposer);
     const sdk = createSDK(descriptor, context.scope);
+    for (const contribution of sdk.context.ui.declarations()) {
+      if (contribution.surface === "sidebar") {
+        sdk.publishDeclarative(contribution.id);
+      }
+    }
     const imported = await importModule(descriptor.entryUrl);
     if (!isBrowserGenerationModule(imported)) {
       throw new TypeError(`browser add-on module ${descriptor.entryUrl} must export activate(context)`);

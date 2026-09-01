@@ -79,6 +79,10 @@ export function createIsolatedFrameActivator(
     }
     const sdk = registry.open(descriptor, activation.scope);
     for (const contribution of sdk.context.ui.declarations()) {
+      if (contribution.surface === "sidebar") {
+        sdk.publishDeclarative(contribution.id);
+        continue;
+      }
       sdk.bindIsolated(contribution.id, {
         kind: "isolated-frame",
         mount: (host) => mountIsolatedFrame({
