@@ -32,12 +32,12 @@ deduplication prevents them from being delivered twice.
 
 ## Connection behavior
 
-The HTTP route is registered only with both an event source and an authorizer.
-Session authorization happens before cursor or query parsing and maps the
-effective role to its event audience. Responses disable proxy buffering,
-retain private authorization variance, and send heartbeat comments every 20
-seconds. Write deadlines are advanced after successful output so a stalled
-client cannot hold a handler forever.
+The HTTP route is registered only with both an event source and an audience
+resolver. Anonymous requests receive the public audience. A session maps its
+effective role to the public or DM audience before cursor or query parsing.
+Responses disable proxy buffering, retain authorization variance, and send
+heartbeat comments every 20 seconds. Write deadlines are advanced after
+successful output so a stalled client cannot hold a handler forever.
 
 The broker bounds total subscriptions and each subscriber queue. A slow
 subscriber is disconnected rather than blocking publication or accumulating
@@ -50,6 +50,7 @@ private error details.
   and startup recovery now publish the resulting exact browser graph revision.
   A publication failure is logged but does not claim that an already-committed
   package transition failed; every new or reset connection reloads the graph.
-- Add additional runtime-validated topic payloads as core data, imports, and
-  background jobs move onto the shared stream.
+- Campaign collection invalidations and browser graph changes now have strict
+  runtime-validated TypeScript payloads. Add import and background-job topics
+  as those features move onto the shared stream.
 - Add retention/checkpoint policy once real change volume can be measured.

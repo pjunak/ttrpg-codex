@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
 	"github.com/pjunak/ttrpg-codex/internal/events"
 	storage "github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
@@ -24,6 +25,29 @@ func TestEventConfigurationFailsClosed(t *testing.T) {
 	}
 	if _, err := New(Config{EventAuthorizer: allow}); err != ErrInvalidConfig {
 		t.Fatalf("authorizer without source error = %v", err)
+	}
+}
+
+func TestSessionEventAuthorizerUsesEffectiveAudience(t *testing.T) {
+	t.Parallel()
+	request := httptest.NewRequest(http.MethodGet, "/api/events", nil)
+	audience, err := SessionEventAuthorizer(request)
+	if err != nil || audience != events.AudiencePublic {
+		t.Fatalf("anonymous audience = %q, %v", audience, err)
+	}
+	request = request.WithContext(sessionauth.WithActor(request.Context(), sessionauth.Actor{
+		SessionID: "dm-session", RealRole: sessionauth.RoleDM, Role: sessionauth.RolePlayer,
+	}))
+	audience, err = SessionEventAuthorizer(request)
+	if err != nil || audience != events.AudiencePublic {
+		t.Fatalf("DM-as-player audience = %q, %v", audience, err)
+	}
+	request = request.WithContext(sessionauth.WithActor(request.Context(), sessionauth.Actor{
+		SessionID: "dm-session", RealRole: sessionauth.RoleDM, Role: sessionauth.RoleDM,
+	}))
+	audience, err = SessionEventAuthorizer(request)
+	if err != nil || audience != events.AudienceDM {
+		t.Fatalf("DM audience = %q, %v", audience, err)
 	}
 }
 

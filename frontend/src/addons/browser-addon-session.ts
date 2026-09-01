@@ -6,8 +6,6 @@ import { BrowserGraphHTTPError } from "./browser-graph-client.js";
 import type { BrowserDisposalFailure } from "./generation-manager.js";
 import type {
   EventRefresh,
-  EventStreamCallbacks,
-  SharedEventStream,
 } from "../core/event-stream.js";
 
 export interface BrowserAddonRuntimePort {
@@ -15,33 +13,24 @@ export interface BrowserAddonRuntimePort {
   reset(reason: "authority-changed"): Promise<readonly BrowserDisposalFailure[]>;
 }
 
-export interface SharedEventStreamPort {
-  open(callbacks: EventStreamCallbacks): void;
-  close(): void;
-}
-
 export interface BrowserAddonSessionCallbacks {
   readonly onRefresh?: (cause: "initial" | EventRefresh["cause"], result: BrowserAddonRefreshResult) => void;
   readonly onDiagnostic?: (error: unknown) => void;
-  readonly onConnectionError?: () => void;
   readonly onAuthorityLost?: () => void;
 }
 
-/** Owns one authenticated browser add-on runtime and the one shared SSE feed. */
+/** Owns one authenticated browser add-on runtime; the application owns SSE. */
 export class BrowserAddonSession {
   readonly #runtime: BrowserAddonRuntimePort;
-  readonly #events: SharedEventStreamPort;
   readonly #callbacks: BrowserAddonSessionCallbacks;
   #controller: AbortController | undefined;
   #authorityLoss: Promise<void> | undefined;
 
   constructor(
     runtime: BrowserAddonRuntimePort | BrowserAddonRuntime,
-    events: SharedEventStreamPort | SharedEventStream,
     callbacks: BrowserAddonSessionCallbacks = {},
   ) {
     this.#runtime = runtime;
-    this.#events = events;
     this.#callbacks = callbacks;
   }
 
@@ -52,14 +41,15 @@ export class BrowserAddonSession {
     }
     const controller = new AbortController();
     this.#controller = controller;
-    this.#events.open({
-      onRefresh: (event) => {
-        void this.#refresh(event.cause, controller);
-      },
-      onBoundaryError: (error) => this.#callbacks.onDiagnostic?.(error),
-      onConnectionError: () => this.#callbacks.onConnectionError?.(),
-    });
     await this.#refresh("initial", controller);
+  }
+
+  async handleEvent(event: EventRefresh): Promise<void> {
+    const controller = this.#controller;
+    if (controller === undefined || event.cause === "campaign-data-changed") {
+      return;
+    }
+    await this.#refresh(event.cause, controller);
   }
 
   async stop(): Promise<readonly BrowserDisposalFailure[]> {
@@ -69,7 +59,6 @@ export class BrowserAddonSession {
       return [];
     }
     this.#controller = undefined;
-    this.#events.close();
     controller?.abort("authority-changed");
     const failures = await this.#runtime.reset("authority-changed");
     await this.#authorityLoss;
@@ -106,7 +95,6 @@ export class BrowserAddonSession {
       return;
     }
     this.#controller = undefined;
-    this.#events.close();
     owner.abort("authority-changed");
     const failures = await this.#runtime.reset("authority-changed");
     for (const failure of failures) {

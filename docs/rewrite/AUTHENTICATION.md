@@ -59,6 +59,12 @@ closed public projection. Authentication can only expand that projection when
 the effective session role is DM; a DM using view-as-player receives the
 public result.
 
+The shared `GET /api/events` stream follows the same projection rule.
+Anonymous callers receive only public invalidations. Player and DM-as-player
+sessions also receive the public audience, while an effective DM additionally
+receives DM invalidations. The browser closes and reopens its single stream
+after an authority change so an older audience is never reused.
+
 ## Remaining authentication work
 
 - Add persistent slow-hashed credentials, password rotation, session

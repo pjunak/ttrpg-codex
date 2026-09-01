@@ -8,6 +8,12 @@ import {
   type Health,
 } from "../core/api.js";
 import {
+  CampaignDataClient,
+  type CampaignDataset,
+} from "../core/campaign-data.js";
+import { SharedEventStream } from "../core/event-stream.js";
+import "./campaign-overview.js";
+import {
   createBrowserAddonComposition,
   type BrowserAddonComposition,
 } from "./browser-addons.js";
@@ -26,6 +32,11 @@ type Readiness =
 type Authority =
   | { state: "checking" }
   | { state: "known"; auth: AuthState };
+
+type CampaignState =
+  | { state: "loading" }
+  | { state: "ready"; dataset: CampaignDataset }
+  | { state: "unavailable"; message: string };
 
 type AddonState =
   | { state: "idle" }
@@ -56,8 +67,8 @@ export class CodexApp extends LitElement {
       box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 36%);
     }
 
-    main.has-tools {
-      width: min(64rem, 100%);
+    main.wide {
+      width: min(72rem, 100%);
     }
 
     main::before {
@@ -309,6 +320,7 @@ export class CodexApp extends LitElement {
   static override properties = {
     readiness: { state: true },
     authority: { state: true },
+    campaignState: { state: true },
     addonState: { state: true },
     busy: { state: true },
     errorMessage: { state: true },
@@ -319,6 +331,7 @@ export class CodexApp extends LitElement {
 
   declare private readiness: Readiness;
   declare private authority: Authority;
+  declare private campaignState: CampaignState;
   declare private addonState: AddonState;
   declare private busy: boolean;
   declare private errorMessage: string;
@@ -326,6 +339,8 @@ export class CodexApp extends LitElement {
   declare private navigationCount: number;
   declare private routeCount: number;
   #request: AbortController | undefined;
+  readonly #campaignData = new CampaignDataClient();
+  readonly #events = new SharedEventStream();
   #addons: BrowserAddonComposition | undefined;
   #contributionOutlet: BrowserContributionOutlet | undefined;
   #navigationOutlet: BrowserNavigationOutlet | undefined;
@@ -336,6 +351,7 @@ export class CodexApp extends LitElement {
     super();
     this.readiness = { state: "checking" };
     this.authority = { state: "checking" };
+    this.campaignState = { state: "loading" };
     this.addonState = { state: "idle" };
     this.busy = false;
     this.errorMessage = "";
@@ -354,6 +370,7 @@ export class CodexApp extends LitElement {
   override disconnectedCallback(): void {
     this.#request?.abort("component-disconnected");
     this.#request = undefined;
+    this.#events.close();
     window.removeEventListener("hashchange", this.#onHashChange);
     void this.#stopAddons();
     super.disconnectedCallback();
@@ -361,17 +378,20 @@ export class CodexApp extends LitElement {
 
   protected override render() {
     const authenticated = this.authority.state === "known" && this.authority.auth.authenticated;
+    const wide = authenticated || this.campaignState.state === "ready";
     return html`
-      <main class=${authenticated ? "has-tools" : ""}>
+      <main class=${wide ? "wide" : ""}>
         <div class="intro">
           <p class="eyebrow">Campaign archive</p>
           <h1>TTRPG Codex</h1>
           <p>
-            Sign in to open the campaign tools and the add-ons available to your role.
+            Browse the public campaign archive. Sign in to open the private view and
+            the tools available to your role.
           </p>
           ${this.#hostStatusTemplate()}
           ${this.#authorityTemplate()}
         </div>
+        ${this.#campaignTemplate()}
         ${this.#toolsTemplate()}
         ${this.errorMessage === "" ? null : html`<p class="error" role="alert">${this.errorMessage}</p>`}
       </main>
@@ -390,9 +410,11 @@ export class CodexApp extends LitElement {
       this.authority = { state: "known", auth: anonymousAuth() };
       return;
     }
+    await this.#loadCampaign(signal);
     try {
       const auth = await getAuth(signal);
       this.authority = { state: "known", auth };
+      this.#startEventStream();
       if (auth.authenticated) {
         await this.#startAddons();
       }
@@ -402,6 +424,7 @@ export class CodexApp extends LitElement {
       }
       this.authority = { state: "known", auth: anonymousAuth() };
       this.errorMessage = errorMessage(error);
+      this.#startEventStream();
     }
   }
 
@@ -418,6 +441,9 @@ export class CodexApp extends LitElement {
       const auth = await loginSession(password, this.#request.signal);
       this.authority = { state: "known", auth };
       form.reset();
+      this.#campaignData.reset();
+      await this.#loadCampaign(this.#request.signal);
+      this.#startEventStream();
       await this.#startAddons();
     } catch (error: unknown) {
       if (!this.#request.signal.aborted) {
@@ -438,6 +464,9 @@ export class CodexApp extends LitElement {
       await this.#stopAddons();
       await logoutSession(this.#request.signal);
       this.authority = { state: "known", auth: anonymousAuth() };
+      this.#campaignData.reset();
+      await this.#loadCampaign(this.#request.signal);
+      this.#startEventStream();
     } catch (error: unknown) {
       if (!this.#request.signal.aborted) {
         this.errorMessage = errorMessage(error);
@@ -471,11 +500,6 @@ export class CodexApp extends LitElement {
           this.addonState = { state: "degraded", message: errorMessage(error) };
         }
       },
-      onConnectionError: () => {
-        if (owner === this.#addonOwner && this.addonState.state === "loading") {
-          this.addonState = { state: "degraded", message: "Live updates are reconnecting." };
-        }
-      },
       onAuthorityLost: () => {
         if (owner !== this.#addonOwner) {
           return;
@@ -492,6 +516,11 @@ export class CodexApp extends LitElement {
         this.routeCount = 0;
         this.authority = { state: "known", auth: anonymousAuth() };
         this.addonState = { state: "idle" };
+        this.#campaignData.reset();
+        this.#startEventStream();
+        if (this.#request !== undefined) {
+          void this.#loadCampaign(this.#request.signal);
+        }
       },
     });
     this.#addons = composition;
@@ -593,6 +622,61 @@ export class CodexApp extends LitElement {
           <span class="indicator unavailable"></span>Host is not reachable
         </div>`;
     }
+  }
+
+  #campaignTemplate() {
+    switch (this.campaignState.state) {
+      case "loading":
+        return html`<div class="status"><span class="indicator"></span>Loading campaign…</div>`;
+      case "ready":
+        return html`<campaign-overview .campaign=${this.campaignState.dataset}></campaign-overview>`;
+      case "unavailable":
+        return html`<p class="error" role="alert" title=${this.campaignState.message}>
+          The campaign archive could not be loaded.
+        </p>`;
+    }
+  }
+
+  async #loadCampaign(signal: AbortSignal, retainCurrent = false): Promise<void> {
+    if (!retainCurrent || this.campaignState.state !== "ready") {
+      this.campaignState = { state: "loading" };
+    }
+    try {
+      const dataset = await this.#campaignData.refresh(signal);
+      if (!signal.aborted) {
+        this.campaignState = { state: "ready", dataset };
+      }
+    } catch (error: unknown) {
+      if (!signal.aborted) {
+        const current = this.#campaignData.current();
+        if (retainCurrent && current !== undefined) {
+          this.campaignState = { state: "ready", dataset: current };
+          this.errorMessage = `Campaign refresh failed: ${errorMessage(error)}`;
+        } else {
+          this.campaignState = { state: "unavailable", message: errorMessage(error) };
+        }
+      }
+    }
+  }
+
+  #startEventStream(): void {
+    this.#events.open({
+      onRefresh: (event) => {
+        if ((event.cause === "campaign-data-changed" || event.cause === "reset") &&
+          this.#request !== undefined) {
+          void this.#loadCampaign(this.#request.signal, true);
+        }
+        void this.#addons?.session.handleEvent(event);
+      },
+      onBoundaryError: (error) => {
+        this.errorMessage = errorMessage(error);
+      },
+      onConnectionError: () => {
+        if (this.#addons !== undefined && this.addonState.state === "loading") {
+          this.addonState = { state: "degraded", message: "Live updates are reconnecting." };
+        }
+      },
+    });
   }
 
   #authorityTemplate() {

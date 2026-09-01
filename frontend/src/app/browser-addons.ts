@@ -11,7 +11,6 @@ import {
   BrowserGenerationManager,
   createModuleActivator,
 } from "../addons/generation-manager.js";
-import { SharedEventStream } from "../core/event-stream.js";
 
 export interface BrowserAddonComposition {
   readonly session: BrowserAddonSession;
@@ -43,7 +42,7 @@ export function createBrowserAddonComposition(
   );
   const runtime = new BrowserAddonRuntime(new BrowserGraphClient(), manager);
   return {
-    session: new BrowserAddonSession(runtime, new SharedEventStream(), callbacks),
+    session: new BrowserAddonSession(runtime, callbacks),
     contributions,
   };
 }

@@ -29,7 +29,7 @@ var _ EventSource = (*events.Broker)(nil)
 func SessionEventAuthorizer(r *http.Request) (events.Audience, error) {
 	actor, ok := sessionauth.ActorFromContext(r.Context())
 	if !ok {
-		return "", errAuthorizationRequired
+		return events.AudiencePublic, nil
 	}
 	if actor.Role == sessionauth.RoleDM {
 		return events.AudienceDM, nil

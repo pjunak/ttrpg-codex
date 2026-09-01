@@ -83,6 +83,14 @@ Vite proxies `/api` to the local Go host. Rewrite state is isolated under
   remains read-only and emits a machine-readable success report or stable
   failure code without executing or extracting the package.
 - The TypeScript shell validates responses at the HTTP boundary. Its
+  bounded campaign client accepts only the complete `campaign-data.v1`
+  collection set, serializes refreshes across authority changes, and retains
+  the last accepted dataset after malformed or failed refreshes. A first
+  read-only campaign overview renders campaign identity, core counts, and
+  knowledge-aware character summaries for anonymous, player, and DM views.
+  The application shell owns the one shared SSE connection independently of
+  add-ons and refreshes the campaign on validated collection invalidations.
+  Its
   generation scope establishes abort-first, LIFO, once-only, failure-isolated
   cleanup. A serialized browser generation manager validates a complete
   server-authoritative dependency graph, tears consumers down before providers,

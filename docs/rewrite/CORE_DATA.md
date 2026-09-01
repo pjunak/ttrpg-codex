@@ -69,7 +69,7 @@ rules. The read application service owns visibility policy above it. The
 rewrite does not yet implement:
 
 - player write sanitization, twin pairing, or entity-specific cascade rules;
-- the HTTP transaction API or TypeScript data handles;
+- the HTTP transaction API or editable TypeScript data handles;
 - initial import publication, backup/restore, or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and
   other domain queries.

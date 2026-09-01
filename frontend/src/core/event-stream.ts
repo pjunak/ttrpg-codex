@@ -1,4 +1,8 @@
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
+import {
+  isCampaignCollectionName,
+  type CampaignCollectionName,
+} from "./campaign-data.js";
 
 const boundary = "GET /api/events";
 const maximumEventBytes = 64 * 1024;
@@ -13,14 +17,23 @@ const publicationKeys = new Set([
   "occurredAt",
   "metadata",
 ]);
+const campaignMetadataKeys = new Set(["commitId", "records"]);
 
-export type EventRefreshCause = "hello" | "reset" | "browser-addons-changed";
+export type EventRefreshCause =
+  | "hello"
+  | "reset"
+  | "browser-addons-changed"
+  | "campaign-data-changed";
 
-export interface EventRefresh {
-  readonly cause: EventRefreshCause;
-  readonly cursor: number;
-  readonly revision?: string;
-}
+export type EventRefresh =
+  | { readonly cause: "hello" | "reset"; readonly cursor: number }
+  | { readonly cause: "browser-addons-changed"; readonly cursor: number; readonly revision: string }
+  | {
+    readonly cause: "campaign-data-changed";
+    readonly cursor: number;
+    readonly collection: CampaignCollectionName;
+    readonly revision: number;
+  };
 
 export interface EventStreamCallbacks {
   readonly onRefresh: (refresh: EventRefresh) => void;
@@ -53,6 +66,7 @@ export class SharedEventStream {
     this.#listen(source, "hello", callbacks, parseHello);
     this.#listen(source, "reset", callbacks, parseReset);
     this.#listen(source, "browser-addons-changed", callbacks, parseBrowserAddonChange);
+    this.#listen(source, "campaign-data-changed", callbacks, parseCampaignDataChange);
     source.addEventListener("error", () => callbacks.onConnectionError?.());
   }
 
@@ -126,6 +140,32 @@ export function parseBrowserAddonChange(event: Event): EventRefresh {
   };
 }
 
+export function parseCampaignDataChange(event: Event): EventRefresh {
+  const message = parseMessage(event, "campaign-data-changed");
+  if (!isRecord(message.value) || !hasOnlyKeys(message.value, publicationKeys)) {
+    throw new BoundaryValidationError(boundary, "campaign data event has an invalid shape");
+  }
+  const sequence = requiredCursor(message.value["sequence"], message.lastEventId);
+  const collection = message.value["resourceId"];
+  const revisionValue = message.value["revision"];
+  const metadata = message.value["metadata"];
+  if (message.value["topic"] !== "campaign-data-changed" ||
+    !isCampaignCollectionName(collection) ||
+    typeof revisionValue !== "string" || !/^[1-9]\d*$/.test(revisionValue) ||
+    !safePositiveInteger(Number(revisionValue)) ||
+    typeof message.value["occurredAt"] !== "string" || !validTimestamp(message.value["occurredAt"]) ||
+    !isRecord(metadata) || !hasOnlyKeys(metadata, campaignMetadataKeys) ||
+    !safePositiveInteger(metadata["commitId"]) || !safePositiveInteger(metadata["records"])) {
+    throw new BoundaryValidationError(boundary, "campaign data event contains invalid values");
+  }
+  return {
+    cause: "campaign-data-changed",
+    cursor: sequence,
+    collection,
+    revision: Number(revisionValue),
+  };
+}
+
 function parseMessage(event: Event, name: string): { value: unknown; lastEventId: string } {
   const candidate = event as Event & { data?: unknown; lastEventId?: unknown };
   if (typeof candidate.data !== "string" || typeof candidate.lastEventId !== "string") {
@@ -153,4 +193,8 @@ function requiredCursor(value: unknown, lastEventId: string): number {
 
 function validTimestamp(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}T/.test(value) && Number.isFinite(Date.parse(value));
+}
+
+function safePositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
