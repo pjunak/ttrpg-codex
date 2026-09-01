@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"time"
@@ -43,6 +44,7 @@ type Config struct {
 	Events                   EventSource
 	EventAuthorizer          EventAuthorizer
 	EventHeartbeat           time.Duration
+	Frontend                 fs.FS
 }
 
 type server struct {
@@ -76,6 +78,7 @@ type server struct {
 	events                   EventSource
 	eventAuthorizer          EventAuthorizer
 	eventHeartbeat           time.Duration
+	frontend                 http.Handler
 }
 
 func New(config Config) (http.Handler, error) {
@@ -97,6 +100,10 @@ func New(config Config) (http.Handler, error) {
 	if config.Logger == nil {
 		config.Logger = slog.Default()
 	}
+	frontend, err := newFrontendHandler(config.Frontend)
+	if err != nil {
+		return nil, err
+	}
 	s := &server{
 		version: config.Version, db: config.DB, logger: config.Logger,
 		addonLifecycle: config.AddonLifecycle, adminAuthorizer: config.AdminAuthorizer,
@@ -114,6 +121,7 @@ func New(config Config) (http.Handler, error) {
 		browserServiceAuthorizer: config.BrowserServiceAuthorizer,
 		loginLimiter:             newLoginLimiter(), events: config.Events,
 		eventAuthorizer: config.EventAuthorizer, eventHeartbeat: config.EventHeartbeat,
+		frontend: frontend,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
@@ -147,6 +155,9 @@ func New(config Config) (http.Handler, error) {
 	}
 	if s.browserServices != nil {
 		s.registerBrowserServiceRoutes(mux)
+	}
+	if s.frontend != nil {
+		mux.Handle("GET /", s.frontend)
 	}
 	handler := http.Handler(mux)
 	if s.authentication != nil {

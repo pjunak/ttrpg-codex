@@ -4,9 +4,10 @@
 data/
 data-snapshots/
 
-# Dev-only — not part of the deployed surface (Dockerfile COPYs an
-# explicit list; this keeps the context upload small regardless).
+# Dev-only dependencies and generated output.
 node_modules/
+frontend/node_modules/
+frontend/dist/
 .git/
 .github/
 test/

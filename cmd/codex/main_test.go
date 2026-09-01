@@ -31,7 +31,7 @@ func TestComposeHostWiresAuthenticatedBrowserGraphAndEvents(t *testing.T) {
 	runtime, err := composeHost(
 		ctx, db, dataDirectory, "dragon-master", "party-member", false,
 		"en", "Europe/Prague",
-		slog.New(slog.DiscardHandler),
+		slog.New(slog.DiscardHandler), nil,
 	)
 	if err != nil {
 		t.Fatal(err)

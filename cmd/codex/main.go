@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -62,6 +63,7 @@ func main() {
 func run() error {
 	listenAddress := flag.String("listen", "127.0.0.1:3001", "HTTP listen address")
 	dataDirectory := flag.String("data-dir", filepath.Join("data", "rewrite"), "rewrite data directory")
+	webDirectory := flag.String("web-dir", filepath.Join("frontend", "dist"), "built TypeScript frontend directory")
 	secureCookies := flag.Bool("secure-cookies", false, "mark session cookies Secure (required behind production TLS)")
 	locale := flag.String("locale", "en", "BCP 47 locale reported to add-on workers")
 	timeZone := flag.String("time-zone", "UTC", "IANA time zone reported to add-on workers")
@@ -98,7 +100,7 @@ func run() error {
 	}
 	runtime, err := composeHost(
 		ctx, db, *dataDirectory, dmPassword, os.Getenv("CODEX_PLAYER_PASSWORD"),
-		*secureCookies, *locale, *timeZone, logger,
+		*secureCookies, *locale, *timeZone, logger, os.DirFS(*webDirectory),
 	)
 	if err != nil {
 		return err
@@ -152,6 +154,7 @@ func composeHost(
 	locale string,
 	timeZone string,
 	logger *slog.Logger,
+	frontend fs.FS,
 ) (*hostRuntime, error) {
 	if logger == nil {
 		logger = slog.Default()
@@ -298,6 +301,7 @@ func composeHost(
 		AddonLifecycle:           addons, AdminAuthorizer: httpapi.SessionAdminAuthorizer(authentication),
 		BrowserAddons: addons, BrowserAuthorizer: httpapi.SessionBrowserAuthorizer,
 		Events: eventBroker, EventAuthorizer: httpapi.SessionEventAuthorizer,
+		Frontend: frontend,
 	})
 	if err != nil {
 		_ = addons.Shutdown(context.Background())

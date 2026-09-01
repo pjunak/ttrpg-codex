@@ -1,28 +1,31 @@
-FROM node:26-slim
+FROM node:26-slim AS frontend-build
+WORKDIR /src/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+FROM golang:1.26-bookworm AS host-build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd/ ./cmd/
+COPY contracts/ ./contracts/
+COPY internal/ ./internal/
+COPY sdk/ ./sdk/
+RUN CGO_ENABLED=0 go build -trimpath -o /out/codex ./cmd/codex
+RUN CGO_ENABLED=0 go build -trimpath -o /out/codex-health ./cmd/codex-health
+
+FROM debian:bookworm-slim
+RUN groupadd --system codex && useradd --system --gid codex --home-dir /app codex
 WORKDIR /app
+COPY --from=host-build /out/codex /app/codex
+COPY --from=host-build /out/codex-health /app/codex-health
+COPY --from=frontend-build /src/frontend/dist /app/frontend
+RUN mkdir /app/data && chown -R codex:codex /app
 
-COPY package*.json ./
-# `npm ci` installs exactly the lockfile (reproducible builds — `install`
-# may resolve newer in-range versions and silently drift between builds).
-RUN npm ci --omit=dev
-
-COPY server.js .
-COPY server-utils.cjs .
-COPY tiler.js .
-COPY server ./server
-COPY schemas ./schemas
-COPY web ./web
-
-RUN mkdir data && chown -R node:node /app
-
-USER node
+USER codex
 EXPOSE 3000
-
-# Probe the constant-time readiness route. Dataset validation and role-scoped
-# hashing belong to /api/version; tying container health to campaign size made
-# large instances miss deployment deadlines. node -e is used because
-# node:26-slim doesn't ship curl/wget by default.
 HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "const r=require('http').get('http://127.0.0.1:3000/api/health',s=>process.exit(s.statusCode===200?0:1));r.setTimeout(3000,()=>r.destroy());r.on('error',()=>process.exit(1))"
-
-CMD ["node", "server.js"]
+  CMD ["/app/codex-health", "http://127.0.0.1:3000/api/health"]
+CMD ["/app/codex", "-listen", "0.0.0.0:3000", "-data-dir", "/app/data", "-web-dir", "/app/frontend"]
