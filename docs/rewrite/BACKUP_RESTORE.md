@@ -68,10 +68,10 @@ installation or restoring the previous directory.
 ## Deliberate boundary
 
 The two backups downloaded from the old websites are not accepted here. They
-will be consumed by the separate, narrowly scoped one-time v1-to-rewrite
-converter, which writes a fresh data directory and database. This keeps legacy
-shape handling out of normal startup and out of the permanent native restore
-surface.
+are consumed by the separate, narrowly scoped
+[`codex-convert-v1`](LEGACY_CONVERSION.md) command, which writes a fresh data
+directory and database. This keeps legacy shape handling out of normal startup
+and out of the permanent native restore surface.
 
 The Settings download control and restore-upload workflow are still pending.
 They must reuse this format and service rather than inventing another one.

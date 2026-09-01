@@ -19,10 +19,10 @@ individual legacy shapes.
 | An export may contain add-on collections unknown to core | The decoder returns unknown top-level values as opaque passthrough data for the later package-aware import coordinator. |
 
 The codec accepts the object produced by the v1 `Store.exportJSON()` path and
-can produce the same top-level list/keyed collection shapes. It does not yet
-publish an HTTP import or export route. Wiring that route before add-on
-collection ownership and full visibility closure are composed would risk a
-partial restore, so live migration remains a later milestone.
+can produce the same top-level list/keyed collection shapes. The offline,
+fresh-database-only conversion path is documented in
+[`LEGACY_CONVERSION.md`](LEGACY_CONVERSION.md). It deliberately does not
+publish a legacy HTTP import route.
 
 ## SQLite ownership
 
@@ -123,4 +123,4 @@ handlers.
 
 Native whole-host recovery archives and offline journaled restore are
 documented in [`BACKUP_RESTORE.md`](BACKUP_RESTORE.md). Legacy website backups
-remain input only to the later one-time converter.
+are input only to the separate one-time converter.
