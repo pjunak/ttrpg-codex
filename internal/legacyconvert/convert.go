@@ -60,6 +60,11 @@ type AddonReport struct {
 	TargetPackages      map[string]TargetPackageReport `json:"targetPackages"`
 	Documents           map[string]int                 `json:"documents"`
 	ImportedSourceFiles InventoryGroup                 `json:"importedSourceFiles"`
+	NormalizedRecordIDs int                            `json:"normalizedRecordIds"`
+	UpgradedSchemaV2    int                            `json:"upgradedSchemaV2"`
+	DiscardedMarkers    int                            `json:"discardedMigrationMarkers"`
+	ConvertedCrossFlows int                            `json:"convertedCrossScopeFlows"`
+	ReanchoredEffects   int                            `json:"reanchoredConsequences"`
 	StrippedCoreRecords int                            `json:"strippedCoreRecords"`
 	DeferredEmbedded    map[string]int                 `json:"deferredEmbedded"`
 	importedFiles       []*zip.File

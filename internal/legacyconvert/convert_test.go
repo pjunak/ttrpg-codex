@@ -272,7 +272,10 @@ func TestConvertMigratesFirstPartyAddonDataAgainstTargetPackages(t *testing.T) {
 			"addonData":{"dnd-sheets":{"className":"Wizard","custom":{"kept":true}},"unknown-addon":{"value":1}}
 		}]`},
 		{name: "data/addon-data/dm-tools/planning_items.json", body: `{
-			"quest-a":{"id":"quest-a","title":"Quest A"}
+			"quest-a":{"schemaVersion":2,"title":"Quest A"}
+		}`},
+		{name: "data/addon-data/dm-tools/planning_views.json", body: `{
+			"planner-schema-v2":{"id":"planner-schema-v2","schemaVersion":2,"completedAt":1,"updatedAt":1}
 		}`},
 		{name: "data/addon-data/dm-tools/dm_notes.json", body: `{}`},
 		{name: "data/addon-data/demo/rules.json", body: `{"rule-a":{"id":"rule-a"}}`},
@@ -290,8 +293,11 @@ func TestConvertMigratesFirstPartyAddonDataAgainstTargetPackages(t *testing.T) {
 	}
 	if report.Addons.Documents["dm-tools/collection/planning_items"] != 1 ||
 		report.Addons.Documents["dnd-sheets/record-extension/dnd-sheets"] != 1 ||
+		report.Addons.NormalizedRecordIDs != 1 ||
+		report.Addons.UpgradedSchemaV2 != 1 ||
+		report.Addons.DiscardedMarkers != 1 ||
 		report.Addons.StrippedCoreRecords != 1 ||
-		report.Addons.ImportedSourceFiles.Files != 2 ||
+		report.Addons.ImportedSourceFiles.Files != 3 ||
 		report.Addons.DeferredEmbedded["unknown-addon"] != 1 ||
 		report.Deferred["addonData"].Files != 1 {
 		t.Fatalf("add-on report = %+v, deferred = %+v", report.Addons, report.Deferred)
@@ -306,12 +312,23 @@ func TestConvertMigratesFirstPartyAddonDataAgainstTargetPackages(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	var character, sheet string
+	var character, planningItem, sheet string
 	if err := database.QueryRow(`SELECT body_json FROM campaign_records WHERE collection_name = 'characters' AND record_key = 'hero'`).Scan(&character); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(character, "dnd-sheets") || !strings.Contains(character, "unknown-addon") {
 		t.Fatalf("converted character = %s", character)
+	}
+	if err := database.QueryRow(`
+		SELECT body_json FROM addon_documents
+		WHERE addon_id = 'dm-tools' AND data_kind = 'collection'
+		  AND data_id = 'planning_items' AND document_key = 'quest-a'
+	`).Scan(&planningItem); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(planningItem, `"id":"quest-a"`) ||
+		!strings.Contains(planningItem, `"schemaVersion":3`) {
+		t.Fatalf("converted planning item = %s", planningItem)
 	}
 	if err := database.QueryRow(`
 		SELECT body_json FROM addon_documents
@@ -366,6 +383,91 @@ func TestValidateDMPlanningRejectsCrossRecordDamage(t *testing.T) {
 	}
 	if err := validateDMPlanning(records); err == nil || !strings.Contains(err.Error(), "missing endpoint") {
 		t.Fatalf("validation error = %v", err)
+	}
+}
+
+func TestNormalizeDMToolsRecordAcceptsOnlyKnownLegacyShape(t *testing.T) {
+	normalized, injected, upgraded, err := normalizeDMToolsRecord(
+		json.RawMessage(`{"schemaVersion":2,"title":"Quest"}`),
+		"quest-a",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !injected || !upgraded || !strings.Contains(string(normalized), `"id":"quest-a"`) ||
+		!strings.Contains(string(normalized), `"schemaVersion":3`) {
+		t.Fatalf("normalized record = %s, injected = %v, upgraded = %v", normalized, injected, upgraded)
+	}
+
+	for name, body := range map[string]json.RawMessage{
+		"conflicting id":      json.RawMessage(`{"id":"quest-b","schemaVersion":2}`),
+		"unsupported version": json.RawMessage(`{"id":"quest-a","schemaVersion":1}`),
+		"missing version":     json.RawMessage(`{"id":"quest-a"}`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, _, _, err := normalizeDMToolsRecord(body, "quest-a"); err == nil {
+				t.Fatal("normalization unexpectedly accepted the record")
+			}
+		})
+	}
+}
+
+func TestLegacyPlannerSchemaMarkerMustMatchExactShape(t *testing.T) {
+	valid := json.RawMessage(`{"id":"planner-schema-v2","schemaVersion":2,"completedAt":1,"updatedAt":2}`)
+	if !isLegacyPlannerSchemaMarker(valid, "planner-schema-v2") {
+		t.Fatal("exact legacy marker was rejected")
+	}
+	withPayload := json.RawMessage(`{"id":"planner-schema-v2","schemaVersion":2,"completedAt":1,"updatedAt":2,"payload":true}`)
+	if isLegacyPlannerSchemaMarker(withPayload, "planner-schema-v2") {
+		t.Fatal("marker containing user data was accepted")
+	}
+}
+
+func TestConvertLegacyCrossScopeFlowsPreservesReferenceAndConsequence(t *testing.T) {
+	records := map[string]map[string]json.RawMessage{
+		"planning_items": {
+			"source": json.RawMessage(`{"id":"source","parentId":"quest-a"}`),
+			"target": json.RawMessage(`{"id":"target","parentId":"quest-b"}`),
+		},
+		"planning_flow_links": {
+			"flow-a": json.RawMessage(`{"id":"flow-a","sourceId":"source","targetId":"target","kind":"continues","label":"Next quest","updatedAt":12}`),
+		},
+		"planning_references": {},
+		"planning_consequences": {
+			"effect-a": json.RawMessage(`{"anchor":{"scope":"flow","flowId":"flow-a"}}`),
+		},
+	}
+	converted, reanchored, err := convertLegacyCrossScopeFlows(records)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if converted != 1 || reanchored != 1 || len(records["planning_flow_links"]) != 0 {
+		t.Fatalf("conversion = flows %d, effects %d, remaining %+v", converted, reanchored, records["planning_flow_links"])
+	}
+	var reference struct {
+		ItemID string `json:"itemId"`
+		Target struct {
+			Scope  string `json:"scope"`
+			ItemID string `json:"itemId"`
+		} `json:"target"`
+	}
+	if err := json.Unmarshal(records["planning_references"]["flow-a"], &reference); err != nil {
+		t.Fatal(err)
+	}
+	if reference.ItemID != "source" || reference.Target.Scope != "planning" || reference.Target.ItemID != "target" {
+		t.Fatalf("reference = %+v", reference)
+	}
+	var consequence struct {
+		Anchor struct {
+			Scope  string `json:"scope"`
+			ItemID string `json:"itemId"`
+		} `json:"anchor"`
+	}
+	if err := json.Unmarshal(records["planning_consequences"]["effect-a"], &consequence); err != nil {
+		t.Fatal(err)
+	}
+	if consequence.Anchor.Scope != "item" || consequence.Anchor.ItemID != "target" {
+		t.Fatalf("consequence = %+v", consequence)
 	}
 }
 

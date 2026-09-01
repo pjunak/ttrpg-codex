@@ -36,7 +36,18 @@ rewrite data directory from one old UI ZIP.
   SHA-256 in the report.
 - The six stable DM Tools collection files are validated against the target
   package schemas and their cross-record planning invariants before they are
-  written. An explicitly empty collection remains materialized and empty.
+  written. Older keyed records that omitted a duplicate embedded `id` receive
+  exactly their storage key as `id`, and planning schema v2 records are stamped
+  as v3 before validation because those stored shapes differ only by the new
+  required ID. The one exact `planner-schema-v2` completion marker is discarded
+  as migration metadata. The report counts all three actions. A conflicting
+  embedded `id`, unexpected schema version, or malformed marker still fails
+  conversion. An explicitly empty collection remains materialized and empty.
+- Legacy arrows that cross two planner canvas scopes become directional
+  planning references from the old source to target; their ID, label, kind,
+  target, and timestamp remain represented. Consequences attached to such an
+  arrow are re-anchored to its target item. The report counts both operations.
+  Same-scope arrows remain flows and are validated normally.
 - Each legacy `characters.addonData["dnd-sheets"]` object is stamped as sheet
   schema v3, validated against the target record-extension schema, written with
   the character's creation identity, and only then removed from the core
@@ -75,7 +86,11 @@ overwriting an existing file. Its media
 section separates imported source files and bindings, rewritten records, and
 discarded generated tiles. Its add-on section records target package hashes,
 document counts, stripped core records, imported source files, and any embedded
-namespaces left for manual review. `deferred.media` contains only unreferenced
+namespaces left for manual review. It also counts keyed DM Tools records whose
+missing embedded ID was normalized from the authoritative storage key, schema
+v2 records stamped as v3, the exact discarded v2 completion marker, converted
+cross-scope arrows, and re-anchored consequences.
+`deferred.media` contains only unreferenced
 media and `deferred.addonData` only unrecognized collection files. Preserve the
 report beside the corresponding backup so source identity, package identity,
 imported counts, and deferred inventories can be compared during the supervised

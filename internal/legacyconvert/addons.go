@@ -11,6 +11,7 @@ import (
 	"io"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/datacontract"
@@ -187,6 +188,16 @@ func importDMTools(
 	}
 	for collection, records := range recordsByCollection {
 		filename := sourceFiles[collection].Name
+		if collection == "planning_views" {
+			const markerKey = "planner-schema-v2"
+			if marker, exists := records[markerKey]; exists {
+				if !isLegacyPlannerSchemaMarker(marker, markerKey) {
+					return fmt.Errorf("%w: %s record %q is not a recognized migration marker", ErrInvalidLegacyBackup, filename, markerKey)
+				}
+				delete(records, markerKey)
+				report.DiscardedMarkers++
+			}
+		}
 		keys := make([]string, 0, len(records))
 		for key := range records {
 			keys = append(keys, key)
@@ -194,10 +205,32 @@ func importDMTools(
 		sort.Strings(keys)
 		for _, key := range keys {
 			value := records[key]
-			if !recordIDMatches(value, key) {
-				return fmt.Errorf("%w: %s record %q has a different embedded id", ErrInvalidLegacyBackup, filename, key)
+			normalized, injected, upgraded, err := normalizeDMToolsRecord(value, key)
+			if err != nil {
+				return fmt.Errorf("%w: %s record %q: %v", ErrInvalidLegacyBackup, filename, key, err)
 			}
-			if err := target.report.DataRegistry().Validate(datacontract.Collection, collection, value); err != nil {
+			if injected {
+				report.NormalizedRecordIDs++
+			}
+			if upgraded {
+				report.UpgradedSchemaV2++
+			}
+			records[key] = normalized
+		}
+	}
+	convertedFlows, reanchoredEffects, err := convertLegacyCrossScopeFlows(recordsByCollection)
+	if err != nil {
+		return fmt.Errorf("%w: convert legacy cross-scope planning links: %v", ErrInvalidLegacyBackup, err)
+	}
+	report.ConvertedCrossFlows = convertedFlows
+	report.ReanchoredEffects = reanchoredEffects
+	for collection, records := range recordsByCollection {
+		filename := "generated " + collection
+		if file := sourceFiles[collection]; file != nil {
+			filename = file.Name
+		}
+		for _, key := range sortedRecordKeys(records) {
+			if err := target.report.DataRegistry().Validate(datacontract.Collection, collection, records[key]); err != nil {
 				return fmt.Errorf("%w: %s record %q does not match the target package: %v", ErrInvalidLegacyBackup, filename, key, err)
 			}
 		}
@@ -207,11 +240,11 @@ func importDMTools(
 	}
 	for _, collection := range dmToolsCollections {
 		file := sourceFiles[collection]
-		if file == nil {
+		records, present := recordsByCollection[collection]
+		if !present {
 			continue
 		}
 		description, _ := target.report.DataRegistry().Description(datacontract.Collection, collection)
-		records := recordsByCollection[collection]
 		keys := make([]string, 0, len(records))
 		for key := range records {
 			keys = append(keys, key)
@@ -233,9 +266,11 @@ func importDMTools(
 			return fmt.Errorf("import legacy DM Tools %s: %w", collection, err)
 		}
 		report.Documents["dm-tools/collection/"+collection] = len(mutations)
-		report.importedFiles = append(report.importedFiles, file)
-		report.ImportedSourceFiles.Files++
-		report.ImportedSourceFiles.Bytes += file.UncompressedSize64
+		if file != nil {
+			report.importedFiles = append(report.importedFiles, file)
+			report.ImportedSourceFiles.Files++
+			report.ImportedSourceFiles.Bytes += file.UncompressedSize64
+		}
 	}
 	return nil
 }
@@ -607,13 +642,149 @@ func decodeJSONObject(body []byte, destination *map[string]json.RawMessage) erro
 	return nil
 }
 
-func recordIDMatches(body json.RawMessage, key string) bool {
+func normalizeDMToolsRecord(body json.RawMessage, key string) (json.RawMessage, bool, bool, error) {
 	var object map[string]json.RawMessage
 	if json.Unmarshal(body, &object) != nil {
+		return nil, false, false, errors.New("expected a JSON object")
+	}
+	injectedID := false
+	if rawID, present := object["id"]; present {
+		var id string
+		if json.Unmarshal(rawID, &id) != nil || id != key {
+			return nil, false, false, errors.New("embedded id differs from the storage key")
+		}
+	} else {
+		rawID, _ := json.Marshal(key)
+		object["id"] = rawID
+		injectedID = true
+	}
+	var schemaVersion int
+	if json.Unmarshal(object["schemaVersion"], &schemaVersion) != nil {
+		return nil, false, false, errors.New("schemaVersion must be an integer")
+	}
+	upgraded := false
+	switch schemaVersion {
+	case 2:
+		object["schemaVersion"] = json.RawMessage("3")
+		upgraded = true
+	case 3:
+	default:
+		return nil, false, false, fmt.Errorf("unsupported schemaVersion %d", schemaVersion)
+	}
+	if !injectedID && !upgraded {
+		return body, false, false, nil
+	}
+	normalized, err := json.Marshal(object)
+	if err != nil {
+		return nil, false, false, fmt.Errorf("encode normalized record: %w", err)
+	}
+	return normalized, injectedID, upgraded, nil
+}
+
+func convertLegacyCrossScopeFlows(records map[string]map[string]json.RawMessage) (int, int, error) {
+	type itemView struct {
+		ParentID *string `json:"parentId"`
+	}
+	type flowView struct {
+		ID        string `json:"id"`
+		SourceID  string `json:"sourceId"`
+		TargetID  string `json:"targetId"`
+		Kind      string `json:"kind"`
+		Label     string `json:"label"`
+		UpdatedAt int64  `json:"updatedAt"`
+	}
+	items := make(map[string]itemView, len(records["planning_items"]))
+	for key, body := range records["planning_items"] {
+		var item itemView
+		if err := json.Unmarshal(body, &item); err != nil {
+			return 0, 0, fmt.Errorf("decode planning item %q: %w", key, err)
+		}
+		items[key] = item
+	}
+	references := records["planning_references"]
+	convertedTargets := make(map[string]string)
+	for _, key := range sortedRecordKeys(records["planning_flow_links"]) {
+		var flow flowView
+		if err := json.Unmarshal(records["planning_flow_links"][key], &flow); err != nil {
+			return 0, 0, fmt.Errorf("decode planning flow %q: %w", key, err)
+		}
+		source, sourceExists := items[flow.SourceID]
+		target, targetExists := items[flow.TargetID]
+		if !sourceExists || !targetExists {
+			return 0, 0, fmt.Errorf("flow %q has a missing endpoint", key)
+		}
+		if sameNullableString(source.ParentID, target.ParentID) {
+			continue
+		}
+		if references == nil {
+			references = make(map[string]json.RawMessage)
+			records["planning_references"] = references
+		}
+		if _, collision := references[key]; collision {
+			return 0, 0, fmt.Errorf("flow %q collides with an existing reference", key)
+		}
+		name := strings.TrimSpace(flow.Label)
+		if name == "" {
+			name = "Legacy link to " + flow.TargetID
+		}
+		reference, err := json.Marshal(map[string]any{
+			"id": key, "schemaVersion": 3, "itemId": flow.SourceID,
+			"name": name, "relation": "related",
+			"target":    map[string]any{"scope": "planning", "itemId": flow.TargetID},
+			"quantity":  1,
+			"notes":     "Converted from a legacy cross-scope " + flow.Kind + " flow.",
+			"updatedAt": flow.UpdatedAt,
+		})
+		if err != nil {
+			return 0, 0, fmt.Errorf("encode converted flow %q: %w", key, err)
+		}
+		references[key] = reference
+		delete(records["planning_flow_links"], key)
+		convertedTargets[key] = flow.TargetID
+	}
+	reanchored := 0
+	for _, key := range sortedRecordKeys(records["planning_consequences"]) {
+		body := records["planning_consequences"][key]
+		var consequence map[string]json.RawMessage
+		if err := json.Unmarshal(body, &consequence); err != nil {
+			return 0, 0, fmt.Errorf("decode planning consequence %q: %w", key, err)
+		}
+		var anchor struct {
+			Scope  string `json:"scope"`
+			FlowID string `json:"flowId"`
+		}
+		if json.Unmarshal(consequence["anchor"], &anchor) != nil || anchor.Scope != "flow" {
+			continue
+		}
+		targetID, converted := convertedTargets[anchor.FlowID]
+		if !converted {
+			continue
+		}
+		newAnchor, _ := json.Marshal(map[string]any{"scope": "item", "itemId": targetID})
+		consequence["anchor"] = newAnchor
+		normalized, err := json.Marshal(consequence)
+		if err != nil {
+			return 0, 0, fmt.Errorf("encode re-anchored consequence %q: %w", key, err)
+		}
+		records["planning_consequences"][key] = normalized
+		reanchored++
+	}
+	return len(convertedTargets), reanchored, nil
+}
+
+func isLegacyPlannerSchemaMarker(body json.RawMessage, key string) bool {
+	var object map[string]json.RawMessage
+	if json.Unmarshal(body, &object) != nil || len(object) != 4 {
 		return false
 	}
-	var id string
-	return json.Unmarshal(object["id"], &id) == nil && id == key
+	var marker struct {
+		ID            string `json:"id"`
+		SchemaVersion int    `json:"schemaVersion"`
+		CompletedAt   int64  `json:"completedAt"`
+		UpdatedAt     int64  `json:"updatedAt"`
+	}
+	return json.Unmarshal(body, &marker) == nil && marker.ID == key &&
+		marker.SchemaVersion == 2 && marker.CompletedAt >= 0 && marker.UpdatedAt >= 0
 }
 
 func boolInt(value bool) int {
