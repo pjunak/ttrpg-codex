@@ -145,6 +145,8 @@ describe("campaign record editing", () => {
     expect(editorFieldsFor("pets").map(({ key }) => key)).toEqual([
       "name", "icon", "species", "owner", "note",
     ]);
+    expect(editorFieldsFor("characters").find(({ key }) => key === "description")?.kind).toBe("markdown");
+    expect(editorFieldsFor("historicalEvents").find(({ key }) => key === "body")?.kind).toBe("markdown");
   });
 
   it("rejects stale edits, malformed numbers, extra fields, and unauthorized visibility", () => {

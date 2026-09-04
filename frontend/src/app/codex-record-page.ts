@@ -15,6 +15,13 @@ import {
   type CampaignRecordSaveDetail,
 } from "./campaign-record-editor.js";
 import {
+  campaignMarkdownOutline,
+  parseCampaignMarkdown,
+  parseCampaignMarkdownDocuments,
+  renderCampaignMarkdown,
+  type CampaignMarkdownContext,
+} from "./campaign-markdown.js";
+import {
   projectEntities,
   recordValue,
   stringList,
@@ -36,6 +43,7 @@ export class CodexRecordPage extends LitElement {
     editCompletion: { type: Number, attribute: false },
     query: { state: true },
     editor: { state: true },
+    markdownPreviews: { state: true },
   };
 
   declare campaign: CampaignDataset | undefined;
@@ -46,7 +54,9 @@ export class CodexRecordPage extends LitElement {
   declare editCompletion: number;
   declare private query: string;
   declare private editor: "closed" | "create" | "edit";
+  declare private markdownPreviews: readonly string[];
   #dirty = false;
+  readonly #markdownDrafts = new Map<string, string>();
 
   constructor() {
     super();
@@ -58,6 +68,7 @@ export class CodexRecordPage extends LitElement {
     this.editCompletion = 0;
     this.query = "";
     this.editor = "closed";
+    this.markdownPreviews = Object.freeze([]);
   }
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
@@ -68,10 +79,12 @@ export class CodexRecordPage extends LitElement {
     if (changed.has("route")) {
       this.query = "";
       this.editor = "closed";
+      this.#resetMarkdownEditor();
       this.#setDirty(false);
     }
     if (changed.has("editCompletion")) {
       this.editor = "closed";
+      this.#resetMarkdownEditor();
       this.#setDirty(false);
     }
   }
@@ -149,6 +162,13 @@ export class CodexRecordPage extends LitElement {
     }
     const facts = articleFacts(dataset, route.page.collection, value);
     const sections = articleSections(value);
+    const documents = parseCampaignMarkdownDocuments(sections.map(({ body }) => body));
+    const outline = campaignMarkdownOutline(documents);
+    const markdownContext: CampaignMarkdownContext = {
+      dataset,
+      currentCollection: route.page.collection,
+      currentKey: route.key,
+    };
     return html`
       <article class="record-article" aria-labelledby="record-title">
         <a href=${collectionHash(route.page)} class="breadcrumb-link">${route.page.plural}</a>
@@ -178,21 +198,39 @@ export class CodexRecordPage extends LitElement {
             <button class="record-action" type="button" @click=${this.#startEdit} ?disabled=${this.saving}>Edit</button>
           ` : nothing}
         </header>
-        ${facts.length === 0 ? nothing : html`
-          <dl class="record-facts">
-            ${facts.map(([label, fact]) => html`<div><dt>${label}</dt><dd>${fact}</dd></div>`)}
-          </dl>
-        `}
-        ${sections.length === 0
-          ? html`<p class="empty-state">This entry does not have article text yet.</p>`
-          : html`<div class="record-prose">
-              ${sections.map(([heading, body]) => html`
-                <section>
-                  <h2>${heading}</h2>
-                  <p>${body}</p>
-                </section>
-              `)}
-            </div>`}
+        <div class=${outline.length === 0 ? "record-reading-layout without-outline" : "record-reading-layout"}>
+          ${outline.length === 0 ? nothing : html`
+            <aside class="record-outline" aria-label="Article contents">
+              <p>In this entry</p>
+              <ol>
+                ${outline.map((item) => html`
+                  <li class=${`outline-depth-${item.depth}`}>
+                    <button type="button" data-heading=${item.id} @click=${this.#scrollToHeading}>${item.text}</button>
+                  </li>
+                `)}
+              </ol>
+            </aside>
+          `}
+          <div class="record-reading">
+            ${facts.length === 0 ? nothing : html`
+              <dl class="record-facts">
+                ${facts.map(([label, fact]) => html`<div><dt>${label}</dt><dd>${fact}</dd></div>`)}
+              </dl>
+            `}
+            ${sections.length === 0
+              ? html`<p class="empty-state">This entry does not have article text yet.</p>`
+              : html`<div class="record-prose">
+                  ${sections.map((section, index) => html`
+                    <section>
+                      <h2 class="record-section-title">${section.heading}</h2>
+                      ${documents[index] === undefined
+                        ? nothing
+                        : renderCampaignMarkdown(documents[index], markdownContext)}
+                    </section>
+                  `)}
+                </div>`}
+          </div>
+        </div>
       </article>
     `;
   }
@@ -245,8 +283,60 @@ export class CodexRecordPage extends LitElement {
     value: Readonly<Record<string, unknown>>,
     currentKey: string,
   ) {
-    const wide = ["text", "string-list", "references", "attitudes"].includes(field.kind);
+    const wide = ["text", "markdown", "string-list", "references", "attitudes"].includes(field.kind);
     const help = field.help === undefined ? nothing : html`<small class="field-help">${field.help}</small>`;
+    if (field.kind === "markdown") {
+      const source = this.#markdownDrafts.get(field.key) ?? editorValue(value[field.key]);
+      const previewing = this.markdownPreviews.includes(field.key);
+      const id = `markdown-${this.route?.page.collection ?? "record"}-${field.key}`;
+      const context: CampaignMarkdownContext = {
+        dataset: this.campaign!,
+        ...(this.route === undefined ? {} : { currentCollection: this.route.page.collection }),
+        ...(currentKey === "" ? {} : { currentKey }),
+      };
+      return html`
+        <section class="markdown-editor wide-field">
+          <div class="markdown-editor-heading">
+            <label for=${id}>${field.label}</label>
+            <div class="markdown-editor-modes" aria-label=${`${field.label} editor mode`}>
+              <button
+                type="button"
+                data-markdown-field=${field.key}
+                data-markdown-mode="write"
+                aria-pressed=${String(!previewing)}
+                @click=${this.#setMarkdownMode}
+              >Write</button>
+              <button
+                type="button"
+                data-markdown-field=${field.key}
+                data-markdown-mode="preview"
+                aria-pressed=${String(previewing)}
+                @click=${this.#setMarkdownMode}
+              >Preview</button>
+            </div>
+          </div>
+          <textarea
+            id=${id}
+            name=${field.key}
+            maxlength=${field.maximumLength}
+            .value=${source}
+            ?required=${field.required === true}
+            ?hidden=${previewing}
+            @input=${this.#captureMarkdownDraft}
+          ></textarea>
+          <div class="markdown-editor-preview" ?hidden=${!previewing}>
+            ${source.trim() === ""
+              ? html`<p class="empty-state">Nothing to preview yet.</p>`
+              : renderCampaignMarkdown(parseCampaignMarkdown(source), context)}
+          </div>
+          <small class="field-help">
+            Markdown supports headings, emphasis, lists, quotes, tables, code, images, and campaign links such as
+            <code>[[Lantern Watch]]</code>. Raw HTML is shown as text unless it uses an existing Codex formatting token.
+          </small>
+          ${help}
+        </section>
+      `;
+    }
     if (field.kind === "text" || field.kind === "string-list") {
       return html`
         <label class=${wide ? "wide-field" : ""}>
@@ -331,6 +421,7 @@ export class CodexRecordPage extends LitElement {
 
   readonly #startCreate = (): void => {
     if (this.canEdit && !this.saving) {
+      this.#resetMarkdownEditor();
       this.#setDirty(false);
       this.editor = "create";
     }
@@ -338,6 +429,7 @@ export class CodexRecordPage extends LitElement {
 
   readonly #startEdit = (): void => {
     if (this.canEdit && !this.saving) {
+      this.#resetMarkdownEditor();
       this.#setDirty(false);
       this.editor = "edit";
     }
@@ -347,8 +439,39 @@ export class CodexRecordPage extends LitElement {
     if (!this.saving && confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))) {
       this.#setDirty(false);
       this.editor = "closed";
+      this.#resetMarkdownEditor();
     }
   };
+
+  readonly #captureMarkdownDraft = (event: Event): void => {
+    const textarea = event.currentTarget as HTMLTextAreaElement;
+    this.#markdownDrafts.set(textarea.name, textarea.value);
+  };
+
+  readonly #setMarkdownMode = (event: Event): void => {
+    const button = event.currentTarget as HTMLButtonElement;
+    const field = button.dataset["markdownField"];
+    const mode = button.dataset["markdownMode"];
+    if (field === undefined || (mode !== "write" && mode !== "preview")) return;
+    const previews = new Set(this.markdownPreviews);
+    if (mode === "preview") previews.add(field);
+    else previews.delete(field);
+    this.markdownPreviews = Object.freeze([...previews]);
+  };
+
+  readonly #scrollToHeading = (event: Event): void => {
+    const id = (event.currentTarget as HTMLButtonElement).dataset["heading"];
+    if (id === undefined) return;
+    const heading = document.getElementById(id);
+    if (heading === null) return;
+    heading.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    heading.focus({ preventScroll: true });
+  };
+
+  #resetMarkdownEditor(): void {
+    this.#markdownDrafts.clear();
+    this.markdownPreviews = Object.freeze([]);
+  }
 
   readonly #markDirty = (): void => {
     if (this.editor !== "closed" && !this.saving) this.#setDirty(true);
@@ -457,7 +580,12 @@ function recordRow(entity: EntitySummary) {
   `;
 }
 
-function articleSections(value: Readonly<Record<string, unknown>>): readonly (readonly [string, string])[] {
+interface ArticleSection {
+  readonly heading: string;
+  readonly body: string;
+}
+
+function articleSections(value: Readonly<Record<string, unknown>>): readonly ArticleSection[] {
   const definitions: readonly (readonly [string, readonly string[]])[] = [
     ["Overview", ["description", "summary", "short"]],
     ["What is known", ["known", "clues"]],
@@ -466,13 +594,13 @@ function articleSections(value: Readonly<Record<string, unknown>>): readonly (re
     ["Open questions", ["questions", "unknown"]],
   ];
   const seen = new Set<string>();
-  const result: Array<readonly [string, string]> = [];
+  const result: ArticleSection[] = [];
   for (const [heading, fields] of definitions) {
     for (const field of fields) {
-      const body = articleFieldText(value[field]);
+      const body = articleFieldMarkdown(value[field]);
       if (body !== "" && !seen.has(body)) {
         seen.add(body);
-        result.push([heading, body]);
+        result.push(Object.freeze({ heading, body }));
         break;
       }
     }
@@ -530,18 +658,21 @@ function petOwnerName(dataset: CampaignDataset, value: Readonly<Record<string, u
   return "";
 }
 
-function articleFieldText(value: unknown): string {
+function articleFieldMarkdown(value: unknown): string {
   const direct = text(value);
   if (direct !== "") return direct;
   if (!Array.isArray(value)) return "";
   const lines = value.flatMap((candidate) => {
-    if (typeof candidate === "string") return candidate.trim() === "" ? [] : [`• ${candidate.trim()}`];
+    if (typeof candidate === "string") {
+      const line = candidate.trim();
+      return line === "" ? [] : [`- ${line.replace(/\r?\n/gu, "\n  ")}`];
+    }
     if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return [];
     const item = candidate as Readonly<Record<string, unknown>>;
     const question = text(item["text"] ?? item["question"]);
     const answer = text(item["answer"]);
     if (question === "") return [];
-    return [answer === "" ? `• ${question}` : `• ${question}\n  ${answer}`];
+    return [answer === "" ? `- ${question}` : `- **${question}**\n  ${answer.replace(/\r?\n/gu, "\n  ")}`];
   });
   return lines.join("\n");
 }

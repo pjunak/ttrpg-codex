@@ -57,6 +57,32 @@ npm --prefix frontend run dev
 Vite proxies `/api` to the local Go host. Development state stays isolated
 under `data/rewrite/`.
 
+## Campaign article Markdown
+
+Campaign prose remains authored as Markdown, but the frontend never inserts the
+parser's HTML output. Marked 18 tokenizes the stored text and Lit renders every
+accepted block and inline token as a typed template. Raw HTML is displayed as
+text, apart from the narrow semantic color, highlight, effect, superscript, and
+subscript tokens already stored by v1. Links reject active-content schemes and
+external links are isolated from the campaign tab.
+
+Article headings produce a duplicate-safe contents outline. Because the app
+uses the URL hash for routing, outline controls scroll to their typed heading
+targets without replacing the route hash. The record editor provides Write and
+Preview modes over the same form-owned textarea, so ordinary save, dirty-form,
+and optimistic-revision behavior remains authoritative.
+
+Wiki links preserve the v1 source forms:
+
+- `[[Lantern Watch]]` finds the first exact visible name in campaign order;
+- `[[Lantern Watch|frakce]]` limits lookup to a collection and accepts both v2
+  collection/page names and the retired Czech route scopes;
+- `[[Lantern Watch|frakce:watch]]` selects an exact visible record key.
+
+Resolution only inspects the role-projected campaign dataset. A link cannot
+reveal a DM-only target that is absent from the current view, and unresolved
+links remain visibly marked instead of becoming guessed navigation.
+
 ## Implemented boundaries
 
 - The Go process opens SQLite with foreign keys, WAL, a bounded busy timeout,
@@ -131,10 +157,11 @@ under `data/rewrite/`.
   of the product interface. The bounded campaign client accepts only the
   complete `campaign-data.v1` collection set, serialized mutations validate
   payload-free receipts, and event refreshes preserve the last accepted state
-  after malformed or failed responses. The generic campaign overview/browser/
-  editor shell was deliberately removed: it did not provide product parity and
-  must not be mistaken for the dashboard, wiki, maps, timeline, relationship
-  views, settings, and dedicated editors that still need to be rebuilt.
+  after malformed or failed responses. The rebuilt campaign shell now owns the
+  dashboard, party and archive navigation, grouped search, role-safe common
+  record editing, and the safe Markdown article experience described above.
+  Maps, timeline, relationship views, settings, and remaining specialized
+  editors are still guarded by the product backlog.
 - The browser add-on generation scope establishes abort-first, LIFO, once-only,
   failure-isolated
   cleanup. A serialized browser generation manager validates a complete

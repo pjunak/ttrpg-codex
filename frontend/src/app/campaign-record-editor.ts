@@ -13,6 +13,7 @@ export interface CampaignEditorField {
   readonly kind:
     | "line"
     | "text"
+    | "markdown"
     | "number"
     | "tags"
     | "string-list"
@@ -218,9 +219,9 @@ function field(
 }
 
 const name = field("name", "Name", { maximumLength: 200, required: true });
-const description = field("description", "Description", { kind: "text", maximumLength: 200_000 });
-const history = field("history", "History", { kind: "text", maximumLength: 200_000 });
-const summary = field("summary", "Summary", { kind: "text", maximumLength: 200_000 });
+const description = field("description", "Description", { kind: "markdown", maximumLength: 200_000 });
+const history = field("history", "History", { kind: "markdown", maximumLength: 200_000 });
+const summary = field("summary", "Summary", { kind: "markdown", maximumLength: 200_000 });
 
 const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly CampaignEditorField[]>>> = {
   characters: Object.freeze([
@@ -339,7 +340,7 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
       kind: "references", referenceCollection: "locations", maximumItems: 500,
     }),
     field("tags", "Tags", { kind: "tags", maximumLength: 100, maximumItems: 100 }),
-    field("body", "Article", { kind: "text", maximumLength: 200_000 }),
+    field("body", "Article", { kind: "markdown", maximumLength: 200_000 }),
   ]),
   pets: Object.freeze([
     name,
@@ -360,7 +361,8 @@ function applyEditorField(
 ): void {
   switch (field.kind) {
     case "line":
-    case "text": {
+    case "text":
+    case "markdown": {
       if (typeof raw !== "string" || raw.length > field.maximumLength ||
         field.required === true && raw.trim() === "") throw invalidEdit();
       const normalized = field.kind === "line" ? raw.trim() : raw;

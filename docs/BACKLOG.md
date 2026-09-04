@@ -60,7 +60,7 @@ or an explicit maintainer decision to retire the workflow.
   collection-specific map fields.
 - [x] Protect dirty record forms across archive navigation, role switching,
   sign-out, cancellation, and browser unload.
-- [ ] Restore wiki article rendering and editing, sanitized Markdown, headings
+- [x] Restore wiki article rendering and editing, sanitized Markdown, headings
   and table of contents, and cross-record wiki links.
 - [x] Restore campaign-wide search with useful type grouping and navigation.
 - [ ] Restore English and Czech UI catalogs and per-browser language selection.
