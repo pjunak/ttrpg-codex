@@ -1,12 +1,16 @@
 # Self-hosting and cutover
 
-This guide covers the Go/TypeScript v2 deployment. Live conversion and final
-smoke testing are intentionally performed with the maintainer present.
+This guide covers the Go/TypeScript v2 deployment. The owner accepts downtime,
+failed deployments, fixes after launch, and rollback for both personal sites.
+A separate full staging rehearsal, repeated conversion, zero-downtime rollout,
+and exhaustive device/language/failure matrix are not prerequisites. Keep the
+original backups and old data, review each conversion once, and use the short
+first-start checks below. Deployment still starts only when the owner requests it.
 
 > **Do not cut over a complete v1 campaign yet.** The v2 product interface is
 > still being rebuilt and image publication is blocked by
 > `npm run release-check`. This document remains the operational runbook for
-> disposable integration environments and for the eventual supervised cutover
+> disposable integration environments and for the eventual owner-requested cutover
 > after every product-parity gate in [`BACKLOG.md`](BACKLOG.md) passes.
 
 ## Requirements
@@ -78,11 +82,11 @@ counts, retired-core adjustments, package hashes, and every deferred/unknown
 entry. Generated map tiles are deliberately discarded. The source ZIP is never
 modified.
 
-During a disposable integration rehearsal, stop the test service, move its
-existing data aside, place the verified converted directory at the new
-instance's `data/` mount, start v2, and retain both the original UI ZIP and old
-data directory. Repeat this against the complete product only after the release
-gate passes and the maintainer explicitly starts the supervised cutover.
+One reviewed conversion per site is sufficient. It may happen during the
+planned outage: stop the old site, retain its data directory, convert its final
+backup into a fresh directory, review the report, and use that new directory
+for v2. Keep the original UI ZIP and old directory available for rollback.
+Do not repeat a separate staging conversion merely to satisfy a process gate.
 
 ## Add-on installation
 
@@ -140,7 +144,17 @@ publishing it. Never unpack or merge backup contents by hand.
 Database migrations are forward-only. Container rollback alone is not a data
 rollback.
 
-## Supervised acceptance checklist
+## First-start smoke check
+
+For each site, check login, anonymous/player/DM visibility, the dashboard and
+a representative record edit, a portrait and map, and the installed add-ons
+actually used by that campaign. Confirm basic visual similarity on desktop and
+one phone. If something fails, fix it while the site is down or switch back to
+the old application and its unchanged data. A full automated test matrix is not
+required before returning the personal site to use.
+
+The broader checks below remain useful follow-ups. They are not all release
+prerequisites under the owner's accepted downtime and rollback policy:
 
 - Both converted instances report the expected core and add-on record counts.
 - Representative hidden/public records are correct for anonymous, player, and
@@ -155,5 +169,4 @@ rollback.
 - A fresh v2 backup verifies and can be restored into a disposable directory.
 
 Do not delete the old branch, old data directories, or downloaded UI backups
-until both sites have passed this checklist and run successfully long enough to
-make rollback unnecessary.
+until the owner is comfortable that rollback is unnecessary.

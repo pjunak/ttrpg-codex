@@ -46,6 +46,7 @@ there instead of expanding this always-loaded file.
 | [`docs/rewrite/AUTHENTICATION.md`](docs/rewrite/AUTHENTICATION.md) | Sessions, CSRF, role authority, and credential policy |
 | [`docs/rewrite/EVENT_STREAM.md`](docs/rewrite/EVENT_STREAM.md) | Durable role-scoped event delivery |
 | [`docs/rewrite/BLOBS.md`](docs/rewrite/BLOBS.md) and [`MEDIA.md`](docs/rewrite/MEDIA.md) | Immutable file and media lifecycle |
+| [`docs/rewrite/MAPS.md`](docs/rewrite/MAPS.md) | World/local map coordinates, media, placement, and view presets |
 | [`docs/rewrite/PACKAGE_LIFECYCLE.md`](docs/rewrite/PACKAGE_LIFECYCLE.md) | Package inspection, approval, activation, update, and rollback |
 | [`docs/rewrite/WORKER_SUPERVISION.md`](docs/rewrite/WORKER_SUPERVISION.md) and [`WORKER_BROKER.md`](docs/rewrite/WORKER_BROKER.md) | Native worker process and RPC rules |
 | [`docs/rewrite/SERVICE_BROKER.md`](docs/rewrite/SERVICE_BROKER.md) | Versioned provider/consumer binding |
@@ -149,8 +150,10 @@ source checkout into a runtime generation.
 - Architecture completion is not product completion. Never describe this
   rewrite as a v1 replacement while any item between the product-parity markers
   in [`docs/BACKLOG.md`](docs/BACKLOG.md) is unchecked, while
-  `frontend/REWRITE_INCOMPLETE` exists, or before supervised browser acceptance
-  against a copied real campaign passes. `npm run check` proves technical consistency;
+  `frontend/REWRITE_INCOMPLETE` exists. The owner accepts outages, fixes after
+  launch, and rollback for the two personal sites: follow the short cutover
+  checks in `docs/SELF_HOSTING.md`, not an exhaustive pre-launch rehearsal.
+  `npm run check` proves technical consistency;
   `npm run release-check` separately enforces the product release boundary.
 - A generic record browser is not an acceptable substitute for the authored
   dashboard, wiki, editors, maps, timeline, relationship views, settings, and

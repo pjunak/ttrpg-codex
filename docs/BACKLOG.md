@@ -39,6 +39,13 @@ These items define whether v2 can replace the complete v1 product. A checkbox
 may be closed by a faithful port, an accepted redesign with equivalent utility,
 or an explicit maintainer decision to retire the workflow.
 
+The owner accepts deployment failures, outages, fixes after launch, and rollback
+for these two personal sites. Keep the requested original UI and campaign
+workflows, but do not require an exhaustive operational rehearsal to release.
+Retain the original backups and data, convert each campaign into a fresh
+directory once, and perform a short first-start smoke check. Detailed test
+matrices and repeat rehearsals are follow-up work, not release prerequisites.
+
 <!-- product-parity-gates:start -->
 
 ### Core campaign experience
@@ -120,19 +127,18 @@ or an explicit maintainer decision to retire the workflow.
 
 ### Release evidence
 
-- [ ] Maintain a route-and-workflow parity inventory that maps every v1 route
-  and significant settings action to its v2 implementation or accepted
-  retirement decision.
-- [ ] Add browser-level host regression tests for login, DM/player projection,
-  navigation, view/edit/save, live refresh, and add-on contribution mounting.
-- [ ] Build and inspect all four release ZIPs, exercise the real staged package
-  lifecycle, and test provider/consumer loss, update, restart, and rollback.
-- [ ] Convert fresh copies of both campaign backups and compare record counts,
-  media, representative entities, add-on state, and reports before cutover.
-- [ ] Complete supervised desktop and mobile acceptance on both copied campaigns,
-  including Czech/English, DM/player, all major routes, backup, and rollback.
+- [ ] Build and inspect all four release ZIPs and exercise their basic installed
+  workflows. The full provider loss/update/restart/rollback matrix can follow
+  deployment; use the real package lifecycle for installation.
+- [ ] Convert each site's backup once into a fresh directory and review its
+  report, record counts, representative media, sheets, and planning data. Keep
+  the input and old data unchanged; no second conversion rehearsal is required.
+- [x] Accept the owner's personal-site deployment policy: outages and rollback
+  are acceptable. Use a short first-start smoke check on each site; defer the
+  exhaustive desktop/mobile, language, failure, and restore rehearsal matrix.
 - [ ] Remove `frontend/REWRITE_INCOMPLETE` only after every earlier gate is
-  closed and the maintainer explicitly accepts v2 as the production replacement.
+  closed and the owner chooses to deploy the replacement. This does not require
+  the deferred operational matrix or a claim that every edge case is verified.
 
 <!-- product-parity-gates:end -->
 
@@ -179,10 +185,24 @@ creation, cancel/discard behavior, missing status definitions, and desktop/phone
 sign-in focus. The visual primitive gate also compares the original pencil and
 Add button styles. These checks do not replace real-host session acceptance.
 
-Still open: saved party/sidebar choices, collection grouping and filter controls, all maps
-and timeline/graph views, complete settings/DM screens, and installed add-on
-visual acceptance. Keep the visual and release gates open until those workflows
-are ported and both copied campaigns pass supervised comparison.
+World and local maps now use the preserved Leaflet coordinate frame and original
+toolbar, floating zoom controls, and bundled marker artwork. The map supports
+pan/zoom, search, location/article links, new and existing marker placement,
+dragging and numeric position drafts, unplacing, saved views, and world/local
+image uploads through the existing media API. Mutations retain opening
+revisions and unrelated fields. Browser coverage exercises both viewport sizes,
+map scoping, live conflicts, dragging, placement, saved views, and local uploads.
+
+Still open in maps: generated tile pyramids for large images, map configuration
+controls and zoom preferences, saved-view editing/deletion, event-path overlays,
+and exact segmented multi-attitude glow rendering. Existing attitude colors and
+glow layers already reach map markers. The spatial gates remain open for these
+remaining capabilities; source-image rendering is implemented.
+
+Still open elsewhere: saved party/sidebar choices, collection grouping and filter controls,
+timeline/graph views, complete settings/DM screens, and installed add-on
+visual acceptance. Keep the visual and release gates open until the requested
+workflows are ported; apply the lighter operational policy above at cutover.
 
 Keep the Go monolith, SQLite ownership, reviewed package lifecycle, optional
 service graph, and offline conversion boundary. The next work should complete
@@ -193,12 +213,12 @@ here before marking it complete.
 
 | Order | Slice and owner | Evidence needed before closing its remaining gates |
 |---|---|---|
-| 1 | Host editing and session behavior | Real-host browser coverage for login/logout, role changes, navigation, save/conflict recovery, SSE refresh, and add-on outlets. Include dirty drafts, remote deletion, edits during an in-flight save, and session expiry. |
+| 1 | Host editing and session behavior | Keep focused regression tests for implemented behavior. Check login, DM/player visibility, saving, and live refresh at first start; expand the full session/failure matrix after launch. |
 | 2 | Host maps and map settings | Implement map fields, immutable media preparation, coordinate editing, saved views, marker art, and path/glow rendering as one workflow; verify world and local maps plus role-filtered locations together. |
 | 3 | Host timeline and relationship views | Restore drag/reorder persistence and graph navigation using canonical record identities; test reload, stale writes, and position-only edits. |
 | 4 | First-party add-on workflows | Compare compendium browse/source/link behavior, DM planner/import review, engine calculations, and sheet play state against preserved v1 fixtures. Exercise absent/replaced providers through actual installed ZIPs. |
 | 5 | Host administration and recovery | Complete branding, party/sidebar preferences, add-on inspection/approval/rollback, recovery points, and the accepted credential workflow; retain explicit operator review. |
-| 6 | Release acceptance | Finish localization and token checks in each restored slice, then run desktop/mobile acceptance on copies of both campaigns, verify conversion reports and rollback, and obtain maintainer acceptance. |
+| 6 | Release acceptance | Review one fresh conversion per site, retain old data, and perform the short first-start smoke check. Outages, fixes after launch, and rollback are accepted; full rehearsal matrices can follow. |
 
 The September 4 review added Chromium regressions for record, enum, and theme
 forms in `frontend/test/browser/editors.browser.mjs`. They verify retained
@@ -221,7 +241,7 @@ This initial host inventory was checked against preserved v1 commit
 `web/js/settings.js`, and `web/index.html`. It maps workflow destinations, not
 an implemented legacy URL redirect contract. Current host routes are owned by
 `frontend/src/app/routes.ts`. Add-on actions and detailed editing/administration
-acceptance still need to be expanded, so the inventory release gate remains open.
+acceptance still need to be expanded as follow-up documentation.
 
 | V1 route or action | V2 destination / current state | Remaining acceptance |
 |---|---|---|
@@ -236,7 +256,7 @@ acceptance still need to be expanded, so the inventory release gate remains open
 | `/historie`, `/historicka-udalost/:id` | `/history`, `/history/:id` | Copied-campaign article/editor acceptance |
 | `/mazlicci` | `/companions` and dedicated companion records | Ownership and sheet-related workflow acceptance |
 | Global search and wiki links | `/search` and typed Markdown links | Add-on reference/linking surfaces and localized editors |
-| `/mapa/svet`, `/mapa/local/:id` | Not yet restored | Maps slice above |
+| `/mapa/svet`, `/mapa/local/:id` | `/map/world`, `/map/local/:id`; old map hashes also accepted | Large-image tiles, overlays, map preferences, and complete saved-view management |
 | `/mapa/palac`, `/mapa/frakce`, `/mapa/vztahy`, `/mapa/tajemstvi` | Not yet restored | Faction, relationship, mystery views and saved positions |
 | `/casova-osa` | Not yet restored | Timeline slice above |
 | `/dm` and player-preview action | Session role switch exists; dedicated DM dashboard and tab-isolated preview remain open | Preserve the distinction between session role switching and true preview |
@@ -248,6 +268,12 @@ acceptance still need to be expanded, so the inventory release gate remains open
 | Add-on routes and graph/settings contributions | Versioned v3 mounting infrastructure and package routes exist | Per-add-on workflow inventory and installed-package acceptance |
 
 ## Platform follow-ups
+
+- Expand the route/action inventory and real-host browser regression matrix,
+  including session expiry and edits during an in-flight save. These improve
+  coverage without blocking this personal-site launch once basic checks pass.
+- Run exhaustive desktop/mobile, Czech/English, package-provider failure,
+  restart, update, restore, and rollback rehearsals after launch as useful.
 
 - Add coordinated dependent disable and a separately reviewed uninstall/data-
   deletion workflow if routine package removal becomes useful.

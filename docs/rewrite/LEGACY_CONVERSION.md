@@ -64,7 +64,7 @@ The command still inventories unknown `addon-data`, old add-on package copies,
 registry/auth metadata, other files, unreferenced media, and embedded namespaces
 other than `dnd-sheets`. Those values are listed separately rather than guessed
 into a target package. Keep both original ZIPs until the supervised conversion
-and live comparison have been verified.
+report and first-start checks have been reviewed.
 
 ## Dry conversion
 
@@ -107,4 +107,4 @@ unused output directory after inspecting it; the converter never overwrites it.
 Do not point either website at a generated directory until its report and
 offline contents have been reviewed. Keep the old site stopped and its data
 untouched while the converted directory is first exercised under the v2 host;
-the supervised acceptance and rollback sequence is in `../SELF_HOSTING.md`.
+the owner's shortened first-start and rollback sequence is in `../SELF_HOSTING.md`.
