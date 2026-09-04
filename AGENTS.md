@@ -7,7 +7,7 @@ test dependency only; it is not part of the production runtime.
 
 ## Commands and environment
 
-Use Go 1.26, Node.js 24 or newer, and PowerShell on Windows. Run from this
+Use Go 1.27.1, Node.js 24 or newer, and PowerShell on Windows. Run from this
 repository root:
 
 ```console

@@ -6,9 +6,9 @@ offline converter.
 
 ## Toolchains
 
-- Go 1.26.x for the host, migrations, add-on package tooling, and future
-  workers. The module stays on this supported release line until a newer line
-  has completed its first patch cycle.
+- Go 1.27.1 for the host, migrations, add-on package tooling, and future
+  workers. The module, CI setup, and Docker builder resolve the same stable
+  patch release through `go.mod` and are updated together after a full gate.
 - Node.js 24 or newer for frontend development only; CI and containers use
   Node.js 26.
 - TypeScript 7, Vite 8, Lit 3, and Vitest 4 in `frontend/`.

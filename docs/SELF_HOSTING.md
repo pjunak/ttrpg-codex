@@ -13,7 +13,7 @@ smoke testing are intentionally performed with the maintainer present.
 
 - Docker Engine with Compose for production.
 - A reverse proxy providing HTTPS for internet-facing instances.
-- Go 1.26 and Node.js 24+ only when building or converting outside Docker.
+- Go 1.27.1 and Node.js 24+ only when building or converting outside Docker.
 
 ## Configuration
 

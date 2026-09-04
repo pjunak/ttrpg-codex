@@ -44,7 +44,7 @@ blockers in the suite backlog, reinforced by `frontend/REWRITE_INCOMPLETE`.
 
 | Area | Choice |
 |---|---|
-| Host, storage, maintenance, native workers | Go 1.26 |
+| Host, storage, maintenance, native workers | Go 1.27.1 |
 | Browser application and add-on UI | TypeScript 7, Lit 3, Vite 8 |
 | Persistent metadata and campaign records | SQLite |
 | Immutable media and package files | Hash-addressed files under `data/` |
@@ -52,7 +52,7 @@ blockers in the suite backlog, reinforced by `frontend/REWRITE_INCOMPLETE`.
 
 ## Local development
 
-Install Go 1.26 and Node.js 24 or newer, then run:
+Install Go 1.27.1 and Node.js 24 or newer, then run:
 
 ```powershell
 npm ci
