@@ -9,6 +9,7 @@ import {
   recordHash,
   type CampaignPageDefinition,
 } from "./routes.js";
+import { campaignEnumDisplayLabel } from "./campaign-settings.js";
 
 export interface CampaignIdentity {
   readonly name: string;
@@ -72,7 +73,7 @@ export function projectEntities(
 ): readonly EntitySummary[] {
   const context = createAttitudeContext(dataset);
   return campaignCollection(dataset, page.collection).records.map((record) =>
-    projectEntityWithContext(record, page, context)
+    projectEntityWithContext(dataset, record, page, context)
   );
 }
 
@@ -81,10 +82,11 @@ export function projectEntity(
   record: CampaignRecord,
   page: CampaignPageDefinition,
 ): EntitySummary {
-  return projectEntityWithContext(record, page, createAttitudeContext(dataset));
+  return projectEntityWithContext(dataset, record, page, createAttitudeContext(dataset));
 }
 
 function projectEntityWithContext(
+  dataset: CampaignDataset,
   record: CampaignRecord,
   page: CampaignPageDefinition,
   context: AttitudeContext,
@@ -98,7 +100,9 @@ function projectEntityWithContext(
     excerpt: firstExcerpt(value, excerptFields[page.collection] ?? ["description", "summary", "body"]),
     portrait: safeMediaURL(value["portrait"]),
     icon: shortIcon(value["icon"] ?? value["badge"]),
-    status: text(value["status"]),
+    status: page.collection === "characters"
+      ? campaignEnumDisplayLabel(dataset, "characterStatuses", value["status"])
+      : text(value["status"]),
     visibility: value["visibility"] === "dm" ? "dm" : "public",
     tags: stringList(value["tags"]),
     attitudes,

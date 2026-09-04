@@ -4,7 +4,7 @@ import {
   type CampaignCollectionName,
   type CampaignDataset,
 } from "../core/campaign-data.js";
-import type { CampaignMutation } from "../core/campaign-mutations.js";
+import type { CampaignEnumCategory, CampaignMutation } from "../core/campaign-mutations.js";
 import { campaignPages, type CampaignPageDefinition } from "./routes.js";
 
 export interface CampaignEditorField {
@@ -17,6 +17,7 @@ export interface CampaignEditorField {
     | "number"
     | "tags"
     | "string-list"
+    | "enum"
     | "reference"
     | "references"
     | "attitudes"
@@ -34,6 +35,7 @@ export interface CampaignEditorField {
   readonly placeholder?: string;
   readonly help?: string;
   readonly referenceCollection?: "characters" | "locations" | "factions";
+  readonly enumCategory?: CampaignEnumCategory;
   readonly reservedOptions?: readonly CampaignEditorOption[];
   readonly excludeCurrent?: boolean;
 }
@@ -208,6 +210,7 @@ export function editorOptionsFor(
 ): readonly CampaignEditorOption[] {
   if (field.kind === "attitudes") return attitudeOptions(campaign);
   if (field.kind === "owner") return ownerOptions(campaign);
+  if (field.kind === "enum" && field.enumCategory !== undefined) return enumOptions(campaign, field.enumCategory);
   if (field.referenceCollection === undefined) return Object.freeze([]);
   const seen = new Set<string>();
   const options: CampaignEditorOption[] = [];
@@ -244,6 +247,7 @@ function field(
     ...(options.placeholder === undefined ? {} : { placeholder: options.placeholder }),
     ...(options.help === undefined ? {} : { help: options.help }),
     ...(options.referenceCollection === undefined ? {} : { referenceCollection: options.referenceCollection }),
+    ...(options.enumCategory === undefined ? {} : { enumCategory: options.enumCategory }),
     ...(options.reservedOptions === undefined ? {} : { reservedOptions: options.reservedOptions }),
     ...(options.excludeCurrent === undefined ? {} : { excludeCurrent: options.excludeCurrent }),
   });
@@ -259,9 +263,9 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
     name,
     field("title", "Title"),
     field("species", "Species"),
-    field("gender", "Gender"),
+    field("gender", "Gender", { kind: "enum", enumCategory: "genders" }),
     field("age", "Age"),
-    field("status", "Status"),
+    field("status", "Status", { kind: "enum", enumCategory: "characterStatuses" }),
     field("circumstances", "Current circumstances", { maximumLength: 1_000 }),
     field("knowledge", "Knowledge", { kind: "number", maximumLength: 1, minimum: 0, maximum: 4 }),
     field("faction", "Faction", {
@@ -329,7 +333,7 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
     name,
     field("date", "Date"),
     field("sitting", "Session", { kind: "number", maximumLength: 12 }),
-    field("priority", "Priority"),
+    field("priority", "Priority", { kind: "enum", enumCategory: "eventPriorities" }),
     field("short", "Short summary", { maximumLength: 1_000 }),
     field("characters", "Characters", {
       kind: "references", referenceCollection: "characters", maximumItems: 500,
@@ -477,6 +481,14 @@ function applyEditorField(
         }
       }
       value[field.key] = attitudes.map((id) => ({ ...(existing.get(id) ?? {}), id }));
+      return;
+    }
+    case "enum": {
+      if (field.enumCategory === undefined) throw invalidEdit();
+      const selected = boundedLine(raw, field.maximumLength);
+      const available = new Set(enumOptions(campaign, field.enumCategory).map(({ value: option }) => option));
+      if (selected !== "" && !available.has(selected) && selected !== line(current[field.key])) throw invalidEdit();
+      value[field.key] = selected;
       return;
     }
     case "questions":
@@ -802,6 +814,24 @@ function normalizedStringArray(raw: unknown, field: CampaignEditorField): string
 
 function attitudeOptions(campaign: CampaignDataset): readonly CampaignEditorOption[] {
   const record = campaignCollection(campaign, "settings").records.find(({ key }) => key === "attitudes");
+  if (!Array.isArray(record?.value)) return Object.freeze([]);
+  const options: CampaignEditorOption[] = [];
+  const seen = new Set<string>();
+  for (const candidate of record.value) {
+    if (!isRecord(candidate)) continue;
+    const value = line(candidate["id"]);
+    if (value === "" || seen.has(value)) continue;
+    seen.add(value);
+    options.push(Object.freeze({ value, label: line(candidate["label"]) || value }));
+  }
+  return Object.freeze(options);
+}
+
+function enumOptions(
+  campaign: CampaignDataset,
+  category: CampaignEnumCategory,
+): readonly CampaignEditorOption[] {
+  const record = campaignCollection(campaign, "settings").records.find(({ key }) => key === category);
   if (!Array.isArray(record?.value)) return Object.freeze([]);
   const options: CampaignEditorOption[] = [];
   const seen = new Set<string>();

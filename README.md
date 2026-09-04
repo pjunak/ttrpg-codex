@@ -38,10 +38,12 @@ role-safe record editors cover common fields plus canonical references,
 attitudes, ownership, hierarchy, event links, tags, fact lists, question
 ledgers, faction ranks, location roles, and atomic relationship changes. Dirty
 forms are protected across navigation and session changes, and the rebuilt wiki
-renders safe Markdown with campaign links and article outlines. Maps, timeline,
-graph views, settings, localization, theming, administrative UI, and first-party
-add-on workflow acceptance remain release blockers in the suite backlog,
-reinforced by `frontend/REWRITE_INCOMPLETE`.
+renders safe Markdown with campaign links and article outlines. The first
+DM-facing settings slice manages shared campaign enumerations with stable IDs,
+usage-aware deletion, and enum-backed record fields. Maps, timeline, graph
+views, the remaining settings, localization, theming, administrative UI, and
+first-party add-on workflow acceptance remain release blockers in the suite
+backlog, reinforced by `frontend/REWRITE_INCOMPLETE`.
 
 ## Technology
 

@@ -26,6 +26,7 @@ export type AppRoute =
   | { readonly kind: "dashboard" }
   | { readonly kind: "search" }
   | { readonly kind: "party" }
+  | { readonly kind: "settings" }
   | { readonly kind: "collection"; readonly page: CampaignPageDefinition }
   | { readonly kind: "record"; readonly page: CampaignPageDefinition; readonly key: string }
   | { readonly kind: "addon" }
@@ -40,6 +41,9 @@ export function parseAppRoute(hash: string): AppRoute {
   }
   if (hash === "#/search") {
     return { kind: "search" };
+  }
+  if (hash === "#/settings") {
+    return { kind: "settings" };
   }
   if (isBrowserAddonRouteHash(hash)) {
     return { kind: "addon" };

@@ -16,6 +16,7 @@ import {
   type CampaignRecordDeleteDetail,
   type CampaignRecordSaveDetail,
 } from "./campaign-record-editor.js";
+import { campaignEnumDisplayLabel } from "./campaign-settings.js";
 import {
   factionRankChains,
   locationRoleDrafts,
@@ -385,15 +386,18 @@ export class CodexRecordPage extends LitElement {
         </label>
       `;
     }
-    if (field.kind === "reference" || field.kind === "owner") {
+    if (field.kind === "reference" || field.kind === "owner" || field.kind === "enum") {
       const options = editorOptionsFor(this.campaign!, field, currentKey);
       const stored = field.kind === "owner" ? ownerValue(value) : editorValue(value[field.key]);
       const selected = currentKey === "" && field.key === "faction" && stored === "" ? "neutral" : stored;
+      const orphaned = selected !== "" && !options.some(({ value: option }) => option === selected);
       return html`
         <label>
           <span>${field.label}</span>
           <select name=${field.key} @change=${field.key === "faction" ? this.#updateFactionEditor : nothing}>
-            ${field.kind === "reference" ? html`<option value="" ?selected=${selected === ""}>Not set</option>` : nothing}
+            ${field.kind === "reference" || field.kind === "enum"
+              ? html`<option value="" ?selected=${selected === ""}>Not set</option>` : nothing}
+            ${orphaned ? html`<option value=${selected} selected>${selected} (stored)</option>` : nothing}
             ${options.map((option) => html`
               <option value=${option.value} ?selected=${option.value === selected}>${option.label}</option>
             `)}
@@ -665,9 +669,12 @@ function articleFacts(
   const facts: Array<readonly [string, string]> = [];
   for (const [label, field, referenceCollection] of fields) {
     const raw = value[field];
-    const result = referenceCollection === undefined
-      ? printable(raw)
-      : referenceNames(dataset, referenceCollection, raw);
+    const enumCategory = articleEnumCategory(collection, field);
+    const result = enumCategory !== undefined
+      ? campaignEnumDisplayLabel(dataset, enumCategory, raw)
+      : referenceCollection === undefined
+        ? printable(raw)
+        : referenceNames(dataset, referenceCollection, raw);
     if (result !== "") facts.push([label, result]);
   }
   if (collection === "pets") {
@@ -679,6 +686,13 @@ function articleFacts(
     if (rank !== "") facts.push(["Faction rank", rank]);
   }
   return facts;
+}
+
+function articleEnumCategory(collection: string, field: string) {
+  if (collection === "characters" && field === "gender") return "genders" as const;
+  if (collection === "characters" && field === "status") return "characterStatuses" as const;
+  if (collection === "events" && field === "priority") return "eventPriorities" as const;
+  return undefined;
 }
 
 function characterRankName(dataset: CampaignDataset, value: Readonly<Record<string, unknown>>): string {

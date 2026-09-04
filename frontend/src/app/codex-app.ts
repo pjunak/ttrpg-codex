@@ -16,6 +16,8 @@ import {
 import {
   CampaignMutationClient,
   CampaignMutationHTTPError,
+  type CampaignEnumDeleteMutation,
+  type CampaignMutation,
 } from "../core/campaign-mutations.js";
 import { SharedEventStream, type EventRefresh } from "../core/event-stream.js";
 import {
@@ -38,6 +40,12 @@ import {
   type PreparedCampaignRecordTransaction,
 } from "./campaign-record-editor.js";
 import {
+  CampaignSettingsEditError,
+  prepareCampaignEnumDelete,
+  prepareCampaignEnumSave,
+  type CampaignEnumSaveDetail,
+} from "./campaign-settings.js";
+import {
   confirmDiscardUnsavedEdit,
   protectUnsavedEditBeforeUnload,
 } from "./unsaved-edit.js";
@@ -51,6 +59,7 @@ import {
 import "./codex-dashboard.js";
 import "./codex-record-page.js";
 import "./codex-search.js";
+import "./codex-settings.js";
 
 type Readiness =
   | { readonly state: "checking" }
@@ -565,6 +574,9 @@ export class CodexApp extends LitElement {
           ...campaignPages.filter(({ group }) => group === "campaign").map((page) => ({
             id: page.id, label: page.plural, icon: page.icon, hash: collectionHash(page),
           })),
+          ...(this.#canManageCampaign()
+            ? [{ id: "settings", label: "Settings", icon: "⚙", hash: "#/settings" }]
+            : []),
         ],
       },
       {
@@ -675,6 +687,19 @@ export class CodexApp extends LitElement {
         return html`<codex-search .campaign=${campaign}></codex-search>`;
       case "party":
         return html`<codex-dashboard .campaign=${campaign} .partyOnly=${true}></codex-dashboard>`;
+      case "settings":
+        if (!this.#authenticated()) {
+          return html`<section class="unavailable-page"><p class="page-kicker">Campaign settings</p><h1>Sign in to open settings.</h1><p>Campaign configuration is available inside an authenticated session.</p></section>`;
+        }
+        return html`<codex-settings
+          .campaign=${campaign}
+          .canManageCampaign=${this.#canManageCampaign()}
+          .saving=${this.busy}
+          .editCompletion=${this.editCompletion}
+          @campaign-edit-dirty=${this.#onEditDirty}
+          @campaign-enum-save=${this.#saveCampaignEnum}
+          @campaign-enum-delete=${this.#deleteCampaignEnum}
+        ></codex-settings>`;
       case "collection":
       case "record":
         return html`<codex-record-page
@@ -705,6 +730,7 @@ export class CodexApp extends LitElement {
     if (id === "dashboard") return this.route.kind === "dashboard";
     if (id === "search") return this.route.kind === "search";
     if (id === "party") return this.route.kind === "party";
+    if (id === "settings") return this.route.kind === "settings";
     return (this.route.kind === "collection" || this.route.kind === "record") && this.route.page.id === id;
   }
 
@@ -795,6 +821,74 @@ export class CodexApp extends LitElement {
         this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409
           ? "The entry changed while deleting. Reload its current version and try again."
           : `The entry could not be deleted: ${errorMessage(cause)}`;
+      }
+    } finally {
+      this.busy = false;
+    }
+  };
+
+  readonly #saveCampaignEnum = async (
+    event: CustomEvent<CampaignEnumSaveDetail>,
+  ): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canManageCampaign() ||
+      this.authority.state !== "known" || !this.authority.auth.authenticated ||
+      this.campaignState.state !== "ready") return;
+    let mutation: CampaignMutation;
+    try {
+      mutation = prepareCampaignEnumSave(this.campaignState.campaign, event.detail);
+    } catch (cause: unknown) {
+      this.errorMessage = cause instanceof CampaignSettingsEditError
+        ? "The definition contains a value that cannot be saved."
+        : `The definition could not be prepared: ${errorMessage(cause)}`;
+      return;
+    }
+    this.busy = true;
+    this.errorMessage = "";
+    try {
+      await this.#campaignMutations.commit([mutation], this.authority.auth.csrfToken, this.#request.signal);
+      await this.#loadCampaign(this.#request.signal, true);
+      this.#editDirty = false;
+      this.editCompletion += 1;
+    } catch (cause: unknown) {
+      if (!this.#request.signal.aborted) {
+        this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409
+          ? "Settings changed while saving. Reload the current definition and try again."
+          : `The definition could not be saved: ${errorMessage(cause)}`;
+      }
+    } finally {
+      this.busy = false;
+    }
+  };
+
+  readonly #deleteCampaignEnum = async (
+    event: CustomEvent<CampaignEnumDeleteMutation>,
+  ): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canManageCampaign() ||
+      this.authority.state !== "known" || !this.authority.auth.authenticated ||
+      this.campaignState.state !== "ready") return;
+    let mutation: CampaignEnumDeleteMutation;
+    try {
+      mutation = prepareCampaignEnumDelete(this.campaignState.campaign, event.detail);
+    } catch (cause: unknown) {
+      this.errorMessage = cause instanceof CampaignSettingsEditError
+        ? "The definition changed before it could be deleted."
+        : `The deletion could not be prepared: ${errorMessage(cause)}`;
+      return;
+    }
+    this.busy = true;
+    this.errorMessage = "";
+    try {
+      await this.#campaignMutations.deleteEnumItem(mutation, this.authority.auth.csrfToken, this.#request.signal);
+      await this.#loadCampaign(this.#request.signal, true);
+      this.#editDirty = false;
+      this.editCompletion += 1;
+    } catch (cause: unknown) {
+      if (!this.#request.signal.aborted) {
+        this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409
+          ? mutation.mode === "reject-if-used"
+            ? "The definition is now in use or settings changed. Review the category and try again."
+            : "Settings changed while deleting. Review the category and try again."
+          : `The definition could not be deleted: ${errorMessage(cause)}`;
       }
     } finally {
       this.busy = false;

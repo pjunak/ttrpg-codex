@@ -80,7 +80,10 @@ or an explicit maintainer decision to retire the workflow.
 
 ### Administration and recovery
 
-- [ ] Restore settings for campaign branding, enums, attitudes, map behavior,
+- [x] Restore DM-facing shared campaign enum management for relationships,
+  genders, map markers, character statuses, event priorities, and attitudes,
+  including stable IDs, usage counts, and explicit replace-or-clear deletion.
+- [ ] Restore the remaining settings for campaign branding, map behavior,
   themes, language, sidebar choices, and other persisted campaign preferences.
 - [ ] Restore the useful recovery-point workflow: manual points, coalesced write
   snapshots, restore, and revert-last-N, while retaining verified full backup.

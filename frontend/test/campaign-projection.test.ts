@@ -41,6 +41,7 @@ describe("campaign product projection", () => {
     expect(summaries[0]).toMatchObject({
       name: "Aria",
       title: "Warden",
+      status: "Living",
       visibility: "public",
       portrait: "/api/media/b_11111111111111111111111111111111",
       route: "#/characters/aria",
@@ -94,6 +95,9 @@ function records(name: CampaignCollectionName): CampaignCollection["records"] {
       id: "wardens", name: "Wardens", attitudes: [{ id: "ally" }],
     } }];
     case "settings": return [
+      { key: "characterStatuses", revision: 1, value: [
+        { id: "alive", label: "Living", color: "#4caf50", icon: "●" },
+      ] },
       { key: "attitudes", revision: 1, value: [
         { id: "ally", label: "Ally", bg: "#2E7D32", labelColor: "#4CAF50", strength: 0.6 },
         { id: "unsafe", label: "Unsafe", bg: "red; color: transparent" },

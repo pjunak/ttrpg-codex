@@ -4,6 +4,7 @@ import {
   createCampaignRecordKey,
   createRelationshipRecordKey,
   editorFieldsFor,
+  editorOptionsFor,
   prepareCampaignRecordDelete,
   prepareCampaignRecordSave,
   relationshipEditorRowsFor,
@@ -192,6 +193,33 @@ describe("campaign record editing", () => {
         rankChains: [{ id: "guard", name: "City Guard", ranks: ["Captain", "Guard"], color: "gold" }],
       },
     });
+  });
+
+  it("uses campaign enum definitions while preserving an unchanged stored orphan", () => {
+    const campaign = dataset({
+      characters: [{
+        key: "ryn", revision: 2,
+        value: { id: "ryn", name: "Ryn", gender: "female", status: "retired" },
+      }],
+      settings: [
+        { key: "genders", revision: 1, value: [{ id: "female", label: "Woman" }] },
+        { key: "characterStatuses", revision: 1, value: [{ id: "alive", label: "Alive" }] },
+        { key: "eventPriorities", revision: 1, value: [{ id: "urgent", label: "Urgent" }] },
+      ],
+    });
+    const gender = editorFieldsFor("characters").find(({ key }) => key === "gender");
+    expect(gender).toBeDefined();
+    if (gender === undefined) return;
+    expect(editorOptionsFor(campaign, gender, "ryn")).toEqual([{ value: "female", label: "Woman" }]);
+
+    expect(prepareCampaignRecordSave(campaign, {
+      collection: "characters", key: "ryn", expectedRevision: 2, creating: false,
+      fields: formFields("characters", { name: "Ryn", gender: "female", status: "retired" }),
+    }, false).mutations[0]).toMatchObject({ value: { gender: "female", status: "retired" } });
+    expect(() => prepareCampaignRecordSave(campaign, {
+      collection: "characters", key: "ryn", expectedRevision: 2, creating: false,
+      fields: formFields("characters", { name: "Ryn", gender: "female", status: "invented" }),
+    }, false)).toThrow("record edit is invalid");
   });
 
   it("saves relationship identity changes atomically with the character", () => {

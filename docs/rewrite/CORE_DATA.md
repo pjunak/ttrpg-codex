@@ -138,10 +138,17 @@ Rank-chain and location-role editors retain existing nested extension fields by
 their stable IDs while keeping player-invisible references under the server's
 preservation policy.
 
+The DM settings folio manages the six host-owned enumeration categories over
+the same optimistic campaign transaction boundary. Definition edits retain
+unknown extension fields and permanent IDs; character gender/status and event
+priority editors consume the shared definitions. Deletion uses the explicit Go
+operation above, shows current usage, and requires an intentional reject,
+replacement, or clear policy rather than creating dangling stored IDs.
+
 The rewrite does not yet implement:
 
-- collection-specific map fields, timelines, settings, and other remaining
-  specialized workflows;
+- collection-specific map fields, timelines, the remaining non-enum settings,
+  and other specialized workflows;
 - initial import publication or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and
   other domain queries.
