@@ -55,9 +55,11 @@ or an explicit maintainer decision to retire the workflow.
 - [x] Restore canonical typed fields for tags and fact lists, scalar and
   multi-record references, attitudes, companion ownership, location hierarchy,
   event links, and role-safe preservation of references hidden from players.
-- [ ] Complete the remaining structured editors for relationships, character
-  ranks and location roles, mystery questions, faction rank chains, and
-  collection-specific map fields.
+- [x] Restore structured relationship editing with atomic identity changes,
+  character ranks and location roles, mystery questions, and stable faction
+  rank chains while retaining extension data attached to stable nested IDs.
+- [ ] Complete collection-specific map fields alongside the rebuilt spatial
+  workflows so coordinate and image controls share one authoritative editor.
 - [x] Protect dirty record forms across archive navigation, role switching,
   sign-out, cancellation, and browser unload.
 - [x] Restore wiki article rendering and editing, sanitized Markdown, headings

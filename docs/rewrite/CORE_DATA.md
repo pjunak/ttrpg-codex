@@ -129,11 +129,19 @@ policies. The host also re-applies authorization, visibility, identity, twin,
 reference, and revision policy; browser validation is only an earlier usability
 boundary.
 
+The TypeScript archive editors now cover the nested campaign shapes that are
+not useful as generic text fields: question/answer ledgers, faction rank chains,
+character rank assignments and location roles, and character relationships.
+Relationship source, target, and type changes are prepared as one compound
+delete/put transaction because those three fields form the record identity.
+Rank-chain and location-role editors retain existing nested extension fields by
+their stable IDs while keeping player-invisible references under the server's
+preservation policy.
+
 The rewrite does not yet implement:
 
-- specialized typed editors for relationships, character ranks and location
-  roles, mystery questions, faction rank chains, map fields, timelines,
-  settings, and other remaining collection-specific fields;
+- collection-specific map fields, timelines, settings, and other remaining
+  specialized workflows;
 - initial import publication or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and
   other domain queries.

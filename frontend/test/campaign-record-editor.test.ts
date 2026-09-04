@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   CampaignRecordEditError,
   createCampaignRecordKey,
+  createRelationshipRecordKey,
   editorFieldsFor,
   prepareCampaignRecordDelete,
   prepareCampaignRecordSave,
+  relationshipEditorRowsFor,
 } from "../src/app/campaign-record-editor.js";
 import type {
   CampaignCollection,
@@ -40,7 +42,7 @@ describe("campaign record editing", () => {
       visibility: "public",
     }, true);
 
-    expect(prepared.mutation).toMatchObject({
+    expect(prepared.mutations[0]).toMatchObject({
       operation: "put",
       collection: "characters",
       key: "ryn",
@@ -68,10 +70,10 @@ describe("campaign record editing", () => {
       fields: formFields("events", { name: "Gate", sitting: "" }),
     }, false);
 
-    expect(prepared.mutation.operation).toBe("put");
-    if (prepared.mutation.operation !== "put") return;
-    expect(prepared.mutation.value).toMatchObject({ id: "gate", name: "Gate", order: 9 });
-    expect(prepared.mutation.value).not.toHaveProperty("sitting");
+    expect(prepared.mutations[0]?.operation).toBe("put");
+    if (prepared.mutations[0]?.operation !== "put") return;
+    expect(prepared.mutations[0].value).toMatchObject({ id: "gate", name: "Gate", order: 9 });
+    expect(prepared.mutations[0].value).not.toHaveProperty("sitting");
   });
 
   it("normalizes structured references, tags, facts, and attitudes without changing their stored shapes", () => {
@@ -101,9 +103,9 @@ describe("campaign record editing", () => {
       }),
     }, false);
 
-    expect(prepared.mutation.operation).toBe("put");
-    if (prepared.mutation.operation !== "put") return;
-    expect(prepared.mutation.value).toMatchObject({
+    expect(prepared.mutations[0]?.operation).toBe("put");
+    if (prepared.mutations[0]?.operation !== "put") return;
+    expect(prepared.mutations[0].value).toMatchObject({
       faction: "watch",
       location: "gate",
       knowledge: 3,
@@ -111,6 +113,188 @@ describe("campaign record editing", () => {
       known: ["Found the pass", "Knows the old road"],
       attitudes: [{ id: "ally" }, { id: "wary" }],
     });
+  });
+
+  it("round-trips questions, location roles, faction ranks, and nested extension data", () => {
+    const campaign = dataset({
+      characters: [{
+        key: "ryn",
+        revision: 3,
+        value: {
+          id: "ryn",
+          name: "Ryn",
+          faction: "watch",
+          rankChain: "guard",
+          rank: "Captain",
+          locationRoles: [{ locationId: "gate", role: "Warden", addonNote: "keep" }],
+          unknown: [{ text: "Who opened the vault?", answer: "", legacyMark: true }],
+        },
+      }],
+      locations: [
+        { key: "gate", revision: 1, value: { id: "gate", name: "Gate" } },
+        { key: "harbor", revision: 1, value: { id: "harbor", name: "Harbor" } },
+      ],
+      factions: [{
+        key: "watch",
+        revision: 2,
+        value: {
+          name: "Watch",
+          rankChains: [{ id: "guard", name: "Guard", ranks: ["Captain", "Guard"], color: "gold" }],
+        },
+      }],
+    });
+    const character = prepareCampaignRecordSave(campaign, {
+      collection: "characters",
+      key: "ryn",
+      expectedRevision: 3,
+      creating: false,
+      fields: formFields("characters", {
+        name: "Ryn",
+        faction: "watch",
+        rankAssignment: { chainId: "guard", rank: "Guard" },
+        locationRoles: [
+          { locationId: "gate", role: "Former warden" },
+          { locationId: "harbor", role: "Envoy" },
+        ],
+        unknown: [
+          { text: " Who opened the vault? ", answer: " The archivist " },
+          { text: "Where is the key?", answer: "" },
+        ],
+      }),
+    }, false);
+    expect(character.mutations[0]).toMatchObject({
+      value: {
+        rankChain: "guard",
+        rank: "Guard",
+        locationRoles: [
+          { locationId: "gate", role: "Former warden", addonNote: "keep" },
+          { locationId: "harbor", role: "Envoy" },
+        ],
+        unknown: [
+          { text: "Who opened the vault?", answer: "The archivist" },
+          { text: "Where is the key?", answer: "" },
+        ],
+      },
+    });
+
+    const faction = prepareCampaignRecordSave(campaign, {
+      collection: "factions",
+      key: "watch",
+      expectedRevision: 2,
+      creating: false,
+      fields: formFields("factions", {
+        name: "Watch",
+        rankChains: [{ id: "guard", name: "City Guard", ranks: ["Captain", "Guard", "Guard"] }],
+      }),
+    }, false);
+    expect(faction.mutations[0]).toMatchObject({
+      value: {
+        rankChains: [{ id: "guard", name: "City Guard", ranks: ["Captain", "Guard"], color: "gold" }],
+      },
+    });
+  });
+
+  it("saves relationship identity changes atomically with the character", () => {
+    expect(createRelationshipRecordKey("Žofie", "Město", "ally"))
+      .toBe("relationship:WyLFvW9maWUiLCJNxJtzdG8iLCJhbGx5Il0");
+    const oldKey = createRelationshipRecordKey("ryn", "bob", "ally");
+    const reverseKey = createRelationshipRecordKey("bob", "ryn", "ally");
+    const campaign = dataset({
+      characters: [
+        { key: "ryn", revision: 4, value: { id: "ryn", name: "Ryn" } },
+        { key: "bob", revision: 1, value: { id: "bob", name: "Bob" } },
+      ],
+      relationships: [{
+        key: oldKey,
+        revision: 7,
+        value: { source: "ryn", target: "bob", type: "ally", label: "Old allies", auditNote: "keep" },
+      }],
+      settings: [{
+        key: "relationshipTypes",
+        revision: 1,
+        value: [{ id: "ally", label: "Ally", dirs: ["from", "to", "both"], target: "character" }],
+      }],
+    });
+    expect(relationshipEditorRowsFor(campaign, "ryn", true)).toEqual([{
+      originalKey: oldKey,
+      expectedRevision: 7,
+      direction: "from",
+      target: "bob",
+      type: "ally",
+      label: "Old allies",
+    }]);
+    expect(prepareCampaignRecordSave(campaign, {
+      collection: "characters",
+      key: "ryn",
+      expectedRevision: 4,
+      creating: false,
+      fields: formFields("characters", { name: "Ryn" }),
+      relationships: relationshipEditorRowsFor(campaign, "ryn", false),
+    }, false).mutations).toHaveLength(1);
+
+    const prepared = prepareCampaignRecordSave(campaign, {
+      collection: "characters",
+      key: "ryn",
+      expectedRevision: 4,
+      creating: false,
+      fields: formFields("characters", { name: "Ryn" }),
+      relationships: [{
+        originalKey: oldKey,
+        expectedRevision: 7,
+        direction: "both",
+        target: "bob",
+        type: "ally",
+        label: "Trusted allies",
+        visibility: "dm",
+      }],
+    }, true);
+
+    expect(prepared.mutations).toHaveLength(3);
+    expect(prepared.mutations[1]).toMatchObject({
+      operation: "put",
+      collection: "relationships",
+      key: oldKey,
+      expectedRevision: 7,
+      value: { label: "Trusted allies", visibility: "dm", auditNote: "keep" },
+    });
+    expect(prepared.mutations[2]).toMatchObject({
+      operation: "put",
+      collection: "relationships",
+      key: reverseKey,
+      expectedRevision: 0,
+      value: { source: "bob", target: "ryn", type: "ally", label: "Trusted allies", visibility: "dm" },
+    });
+  });
+
+  it("rejects invalid structured references and relationship edits", () => {
+    const campaign = dataset({
+      characters: [
+        { key: "ryn", revision: 1, value: { id: "ryn", name: "Ryn", faction: "watch" } },
+        { key: "bob", revision: 1, value: { id: "bob", name: "Bob" } },
+      ],
+      factions: [{
+        key: "watch", revision: 1,
+        value: { name: "Watch", rankChains: [{ id: "guard", name: "Guard", ranks: ["Captain"] }] },
+      }],
+      settings: [{
+        key: "relationshipTypes", revision: 1,
+        value: [{ id: "ally", label: "Ally", dirs: ["from", "to"], target: "character" }],
+      }],
+    });
+    expect(() => prepareCampaignRecordSave(campaign, {
+      collection: "characters", key: "ryn", expectedRevision: 1, creating: false,
+      fields: formFields("characters", {
+        name: "Ryn", faction: "watch", rankAssignment: { chainId: "guard", rank: "Invented" },
+      }),
+    }, false)).toThrow("record edit is invalid");
+    expect(() => prepareCampaignRecordSave(campaign, {
+      collection: "characters", key: "ryn", expectedRevision: 1, creating: false,
+      fields: formFields("characters", { name: "Ryn" }),
+      relationships: [{
+        originalKey: null, expectedRevision: 0, direction: "both", target: "bob",
+        type: "ally", label: "", visibility: "dm",
+      }],
+    }, false)).toThrow("record edit is invalid");
   });
 
   it("rejects references and attitudes outside the role-projected campaign", () => {
@@ -144,6 +328,17 @@ describe("campaign record editing", () => {
     ]);
     expect(editorFieldsFor("pets").map(({ key }) => key)).toEqual([
       "name", "icon", "species", "owner", "note",
+    ]);
+    expect(editorFieldsFor("characters").map(({ key }) => key)).toEqual([
+      "name", "title", "species", "gender", "age", "status", "circumstances", "knowledge",
+      "faction", "rankAssignment", "location", "locationRoles", "attitudes", "tags", "description",
+      "known", "unknown",
+    ]);
+    expect(editorFieldsFor("mysteries").map(({ key }) => key)).toEqual([
+      "name", "priority", "solved", "description", "clues", "characters", "locations", "questions",
+    ]);
+    expect(editorFieldsFor("factions").map(({ key }) => key)).toEqual([
+      "name", "badge", "color", "textColor", "attitudes", "rankChains", "description",
     ]);
     expect(editorFieldsFor("characters").find(({ key }) => key === "description")?.kind).toBe("markdown");
     expect(editorFieldsFor("historicalEvents").find(({ key }) => key === "body")?.kind).toBe("markdown");
@@ -180,7 +375,7 @@ describe("campaign record editing", () => {
       creating: true,
       fields: formFields("factions", { name: "Lantern Watch", badge: "Lantern" }),
     }, false);
-    expect(prepared.mutation).toMatchObject({
+    expect(prepared.mutations[0]).toMatchObject({
       operation: "put",
       collection: "factions",
       key: "lantern-watch-token",
@@ -190,7 +385,7 @@ describe("campaign record editing", () => {
     const campaign = dataset({ pets: [{ key: "owl", revision: 3, value: { id: "owl", name: "Owl" } }] });
     expect(prepareCampaignRecordDelete(campaign, {
       collection: "pets", key: "owl", expectedRevision: 3,
-    }).mutation).toEqual({
+    }).mutations[0]).toEqual({
       operation: "delete", collection: "pets", key: "owl", expectedRevision: 3,
     });
   });
@@ -210,8 +405,8 @@ describe("campaign record editing", () => {
       creating: true,
       fields: formFields("pets", { name: "New pet" }),
     }, false);
-    expect(character.mutation).toMatchObject({ value: { faction: "neutral" } });
-    expect(pet.mutation).toMatchObject({ value: { icon: "🐾", ownerType: "none", ownerId: "" } });
+    expect(character.mutations[0]).toMatchObject({ value: { faction: "neutral" } });
+    expect(pet.mutations[0]).toMatchObject({ value: { icon: "🐾", ownerType: "none", ownerId: "" } });
   });
 });
 
@@ -222,7 +417,8 @@ function formFields(
   return Object.fromEntries(editorFieldsFor(collection).map((field) => [
     field.key,
     values[field.key] ?? (field.kind === "boolean" ? false :
-      ["tags", "string-list", "references", "attitudes"].includes(field.kind) ? [] :
+      ["tags", "string-list", "references", "attitudes", "questions", "rank-chains", "location-roles"].includes(field.kind) ? [] :
+      field.kind === "rank-assignment" ? { chainId: "", rank: "" } :
       field.kind === "owner" ? "none:" : ""),
   ]));
 }

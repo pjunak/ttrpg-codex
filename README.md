@@ -5,10 +5,11 @@ groups. Version 2 is an active Go and TypeScript rewrite of the former
 Node/JavaScript application.
 
 > **Rewrite status:** the host, storage, conversion tools, and Add-on API v3
-> foundations are implemented, but the campaign product interface has not been
-> ported. This branch is a development platform, not a production replacement
-> for the complete v1 UI. The deprecated v1 branch remains the supported choice
-> for running campaigns until every gate in [`docs/BACKLOG.md`](docs/BACKLOG.md)
+> foundations are implemented and the campaign product interface is being
+> rebuilt in verified slices. The current archive, dashboard, search, Markdown,
+> and record editors are substantial, but this branch is not yet a production
+> replacement for the complete v1 UI. The deprecated v1 branch remains the
+> supported choice until every gate in [`docs/BACKLOG.md`](docs/BACKLOG.md)
 > passes.
 
 The core stays deliberately generic: it stores campaign records, visibility,
@@ -34,11 +35,13 @@ The browser now provides the rebuilt campaign shell, public/private session
 views, live refresh, core archive routes, grouped campaign search, and safe
 add-on mounting surfaces. Its dashboard, saved attitude presentation, and
 role-safe record editors cover common fields plus canonical references,
-attitudes, ownership, hierarchy, event links, tags, and fact lists. Dirty forms
-are protected across navigation and session changes. This slice still does not
-replace the old wiki, remaining advanced editors, maps, timeline, relationship
-views, settings, or first-party add-on workflows. Those gaps remain release
-blockers in the suite backlog, reinforced by `frontend/REWRITE_INCOMPLETE`.
+attitudes, ownership, hierarchy, event links, tags, fact lists, question
+ledgers, faction ranks, location roles, and atomic relationship changes. Dirty
+forms are protected across navigation and session changes, and the rebuilt wiki
+renders safe Markdown with campaign links and article outlines. Maps, timeline,
+graph views, settings, localization, theming, administrative UI, and first-party
+add-on workflow acceptance remain release blockers in the suite backlog,
+reinforced by `frontend/REWRITE_INCOMPLETE`.
 
 ## Technology
 

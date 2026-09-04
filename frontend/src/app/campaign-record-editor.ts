@@ -20,6 +20,10 @@ export interface CampaignEditorField {
     | "reference"
     | "references"
     | "attitudes"
+    | "questions"
+    | "rank-assignment"
+    | "rank-chains"
+    | "location-roles"
     | "boolean"
     | "owner";
   readonly maximumLength: number;
@@ -46,6 +50,24 @@ export interface CampaignRecordSaveDetail {
   readonly creating: boolean;
   readonly fields: Readonly<Record<string, unknown>>;
   readonly visibility?: "public" | "dm";
+  readonly relationships?: readonly CampaignRelationshipEditDetail[];
+}
+
+export type CampaignRelationshipDirection = "from" | "to" | "both";
+
+export interface CampaignRelationshipEditDetail {
+  readonly originalKey: string | null;
+  readonly expectedRevision: number;
+  readonly direction: CampaignRelationshipDirection;
+  readonly target: string;
+  readonly type: string;
+  readonly label: string;
+  readonly visibility?: "public" | "dm";
+}
+
+export interface CampaignRelationshipTypeOption extends CampaignEditorOption {
+  readonly targetCollection: "characters" | "locations";
+  readonly directions: readonly CampaignRelationshipDirection[];
 }
 
 export interface CampaignRecordDeleteDetail {
@@ -58,9 +80,9 @@ export interface CampaignEditDirtyDetail {
   readonly dirty: boolean;
 }
 
-export interface PreparedCampaignRecordMutation {
+export interface PreparedCampaignRecordTransaction {
   readonly page: CampaignPageDefinition;
-  readonly mutation: CampaignMutation;
+  readonly mutations: readonly CampaignMutation[];
 }
 
 export class CampaignRecordEditError extends Error {
@@ -83,7 +105,7 @@ export function prepareCampaignRecordSave(
   campaign: CampaignDataset,
   detail: CampaignRecordSaveDetail,
   canManageVisibility: boolean,
-): PreparedCampaignRecordMutation {
+): PreparedCampaignRecordTransaction {
   const page = campaignPages.find(({ collection }) => collection === detail.collection);
   const fields = editorFieldsFor(detail.collection);
   if (page === undefined || fields.length === 0 || !validRecordKey(detail.key) ||
@@ -123,22 +145,31 @@ export function prepareCampaignRecordSave(
     }
     value["visibility"] = detail.visibility;
   }
-  return {
-    page,
-    mutation: {
+  if (detail.relationships !== undefined && (page.collection !== "characters" || detail.creating)) {
+    throw invalidEdit();
+  }
+  const mutations: CampaignMutation[] = [{
       operation: "put",
       collection: page.collection,
       key: detail.key,
       expectedRevision: detail.expectedRevision,
       value,
-    },
-  };
+  }];
+  if (detail.relationships !== undefined) {
+    mutations.push(...prepareRelationshipMutations(
+      campaign,
+      detail.key,
+      detail.relationships,
+      canManageVisibility,
+    ));
+  }
+  return { page, mutations: Object.freeze(mutations) };
 }
 
 export function prepareCampaignRecordDelete(
   campaign: CampaignDataset,
   detail: CampaignRecordDeleteDetail,
-): PreparedCampaignRecordMutation {
+): PreparedCampaignRecordTransaction {
   const page = campaignPages.find(({ collection }) => collection === detail.collection);
   if (page === undefined || !validRecordKey(detail.key) || !validRevision(detail.expectedRevision, true)) {
     throw invalidEdit();
@@ -149,12 +180,12 @@ export function prepareCampaignRecordDelete(
   }
   return {
     page,
-    mutation: {
+    mutations: Object.freeze([{
       operation: "delete",
       collection: page.collection,
       key: detail.key,
       expectedRevision: detail.expectedRevision,
-    },
+    }]),
   };
 }
 
@@ -241,7 +272,18 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
         Object.freeze({ value: "party", label: "Player party" }),
       ]),
     }),
+    field("rankAssignment", "Faction rank", {
+      kind: "rank-assignment",
+      maximumLength: 200,
+      help: "Ranks come from the selected faction's ordered rank chains.",
+    }),
     field("location", "Current location", { kind: "reference", referenceCollection: "locations" }),
+    field("locationRoles", "Other location roles", {
+      kind: "location-roles",
+      maximumLength: 500,
+      maximumItems: 500,
+      help: "Record recurring duties or ties outside the character's current location.",
+    }),
     field("attitudes", "Attitudes toward the party", {
       kind: "attitudes",
       maximumItems: 32,
@@ -254,6 +296,12 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
       maximumLength: 10_000,
       maximumItems: 500,
       help: "Write one fact per line.",
+    }),
+    field("unknown", "Open questions", {
+      kind: "questions",
+      maximumLength: 10_000,
+      maximumItems: 500,
+      help: "An answer closes a question without erasing the original thread.",
     }),
   ]),
   locations: Object.freeze([
@@ -296,6 +344,7 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
     name,
     field("priority", "Priority"),
     field("solved", "Solved", { kind: "boolean" }),
+    description,
     field("clues", "Clues", {
       kind: "string-list", maximumLength: 10_000, maximumItems: 500, help: "Write one clue per line.",
     }),
@@ -305,6 +354,12 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
     field("locations", "Locations", {
       kind: "references", referenceCollection: "locations", maximumItems: 500,
     }),
+    field("questions", "Questions and answers", {
+      kind: "questions",
+      maximumLength: 10_000,
+      maximumItems: 500,
+      help: "Keep the question after its answer is discovered so the investigation remains readable.",
+    }),
   ]),
   factions: Object.freeze([
     name,
@@ -312,6 +367,12 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
     field("color", "Color", { maximumLength: 20, placeholder: "#555555" }),
     field("textColor", "Text color", { maximumLength: 20, placeholder: "#ffffff" }),
     field("attitudes", "Inherited attitudes", { kind: "attitudes", maximumItems: 32 }),
+    field("rankChains", "Rank chains", {
+      kind: "rank-chains",
+      maximumLength: 200,
+      maximumItems: 100,
+      help: "Order ranks from highest to lowest. Existing chain IDs remain stable when renamed.",
+    }),
     description,
   ]),
   pantheon: Object.freeze([
@@ -418,6 +479,29 @@ function applyEditorField(
       value[field.key] = attitudes.map((id) => ({ ...(existing.get(id) ?? {}), id }));
       return;
     }
+    case "questions":
+      value[field.key] = normalizedQuestions(raw, field);
+      return;
+    case "rank-chains":
+      value[field.key] = normalizedRankChains(raw, current[field.key], field);
+      return;
+    case "location-roles":
+      value[field.key] = normalizedLocationRoles(campaign, raw, current[field.key], field);
+      return;
+    case "rank-assignment": {
+      if (!isRecord(raw)) throw invalidEdit();
+      const chainID = boundedLine(raw["chainId"], field.maximumLength);
+      const rank = boundedLine(raw["rank"], field.maximumLength);
+      if ((chainID === "") !== (rank === "")) throw invalidEdit();
+      const factionID = line(value["faction"]);
+      const currentChain = line(current["rankChain"]);
+      const currentRank = line(current["rank"]);
+      if (chainID !== "" && !validRankAssignment(campaign, factionID, chainID, rank) &&
+        (chainID !== currentChain || rank !== currentRank)) throw invalidEdit();
+      value["rankChain"] = chainID;
+      value["rank"] = rank;
+      return;
+    }
     case "boolean":
       if (typeof raw !== "boolean") throw invalidEdit();
       value[field.key] = raw;
@@ -435,6 +519,268 @@ function applyEditorField(
     }
   }
 }
+
+export function relationshipTypeOptionsFor(campaign: CampaignDataset): readonly CampaignRelationshipTypeOption[] {
+  const record = campaignCollection(campaign, "settings").records.find(({ key }) => key === "relationshipTypes");
+  const candidates = Array.isArray(record?.value) ? record.value : defaultRelationshipTypes;
+  const result: CampaignRelationshipTypeOption[] = [];
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    if (!isRecord(candidate)) continue;
+    const id = line(candidate["id"]);
+    if (!validIdentityPart(id) || seen.has(id)) continue;
+    const targetCollection = candidate["target"] === "location" ? "locations" : "characters";
+    const configuredDirections = Array.isArray(candidate["dirs"])
+      ? candidate["dirs"].filter(isRelationshipDirection)
+      : ["from", "to"] as CampaignRelationshipDirection[];
+    const directions = targetCollection === "locations"
+      ? ["from"] as CampaignRelationshipDirection[]
+      : [...new Set(configuredDirections)];
+    if (directions.length === 0) directions.push("from");
+    seen.add(id);
+    result.push(Object.freeze({
+      value: id,
+      label: line(candidate["label"]) || id,
+      targetCollection,
+      directions: Object.freeze(directions),
+    }));
+  }
+  return Object.freeze(result);
+}
+
+export function relationshipEditorRowsFor(
+  campaign: CampaignDataset,
+  characterKey: string,
+  canManageVisibility: boolean,
+): readonly CampaignRelationshipEditDetail[] {
+  const rows: CampaignRelationshipEditDetail[] = [];
+  for (const record of campaignCollection(campaign, "relationships").records) {
+    if (!isRecord(record.value)) continue;
+    const source = line(record.value["source"]);
+    const target = line(record.value["target"]);
+    if (source !== characterKey && target !== characterKey) continue;
+    rows.push(Object.freeze({
+      originalKey: record.key,
+      expectedRevision: record.revision,
+      direction: source === characterKey ? "from" : "to",
+      target: source === characterKey ? target : source,
+      type: line(record.value["type"]),
+      label: line(record.value["label"]),
+      ...(canManageVisibility && (record.value["visibility"] === "dm" || record.value["visibility"] === "public")
+        ? { visibility: record.value["visibility"] }
+        : {}),
+    }));
+  }
+  return Object.freeze(rows);
+}
+
+export function createRelationshipRecordKey(source: string, target: string, type: string): string {
+  if (!validIdentityPart(source) || !validIdentityPart(target) || !validIdentityPart(type)) throw invalidEdit();
+  const bytes = new TextEncoder().encode(JSON.stringify([source, target, type]));
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return `relationship:${btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "")}`;
+}
+
+function prepareRelationshipMutations(
+  campaign: CampaignDataset,
+  characterKey: string,
+  edits: readonly CampaignRelationshipEditDetail[],
+  canManageVisibility: boolean,
+): readonly CampaignMutation[] {
+  if (!Array.isArray(edits)) throw invalidEdit();
+  const current = new Map(campaignCollection(campaign, "relationships").records
+    .filter((record) => isRecord(record.value) &&
+      (line(record.value["source"]) === characterKey || line(record.value["target"]) === characterKey))
+    .map((record) => [record.key, record]));
+  const types = new Map(relationshipTypeOptionsFor(campaign).map((option) => [option.value, option]));
+  const seenOriginals = new Set<string>();
+  const desired = new Map<string, { readonly value: Record<string, unknown>; readonly originalKey: string | null }>();
+
+  for (const edit of edits as readonly unknown[]) {
+    if (!isRecord(edit) || (edit["originalKey"] !== null && typeof edit["originalKey"] !== "string") ||
+      !validRevision(edit["expectedRevision"], false) || !isRelationshipDirection(edit["direction"]) ||
+      typeof edit["target"] !== "string" || typeof edit["type"] !== "string" || typeof edit["label"] !== "string") {
+      throw invalidEdit();
+    }
+    const originalKey = edit["originalKey"] as string | null;
+    const original = originalKey === null ? undefined : current.get(originalKey);
+    if (originalKey === null ? edit["expectedRevision"] !== 0 :
+      original === undefined || original.revision !== edit["expectedRevision"] || seenOriginals.has(originalKey)) {
+      throw invalidEdit();
+    }
+    if (originalKey !== null) seenOriginals.add(originalKey);
+
+    const target = edit["target"].trim();
+    const type = edit["type"].trim();
+    const label = edit["label"].trim();
+    if (!validIdentityPart(target) || !validIdentityPart(type) || label.length > 500) throw invalidEdit();
+    const originalValue = isRecord(original?.value) ? original.value : {};
+    const option = types.get(type);
+    const originalType = line(originalValue["type"]);
+    const targetCollection = option?.targetCollection ?? (type === "mission" ? "locations" : "characters");
+    const directions = option?.directions ?? (type === originalType
+      ? ["from", "to"] as const
+      : Object.freeze([]));
+    if (!directions.includes(edit["direction"] as CampaignRelationshipDirection) ||
+      targetCollection === "locations" && edit["direction"] !== "from") throw invalidEdit();
+    const targetExists = campaignCollection(campaign, targetCollection).records.some(({ key }) => key === target);
+    if (!targetExists || targetCollection === "characters" && target === characterKey) throw invalidEdit();
+    if (edit["visibility"] !== undefined &&
+      (!canManageVisibility || edit["visibility"] !== "public" && edit["visibility"] !== "dm")) throw invalidEdit();
+
+    const requestedDirections = edit["direction"] === "both" ? ["from", "to"] as const : [edit["direction"]];
+    requestedDirections.forEach((direction, index) => {
+      const source = direction === "from" ? characterKey : target;
+      const relationshipTarget = direction === "from" ? target : characterKey;
+      const key = createRelationshipRecordKey(source, relationshipTarget, type);
+      if (desired.has(key)) throw invalidEdit();
+      const value: Record<string, unknown> = {
+        ...(index === 0 ? originalValue : {}),
+        source,
+        target: relationshipTarget,
+        type,
+      };
+      if (label !== "" || Object.hasOwn(originalValue, "label")) value["label"] = label;
+      if (edit["visibility"] !== undefined) value["visibility"] = edit["visibility"];
+      else if (original === undefined) value["visibility"] = "public";
+      desired.set(key, { value, originalKey: index === 0 ? originalKey : null });
+    });
+  }
+
+  const mutations: CampaignMutation[] = [];
+  for (const record of current.values()) {
+    const retained = [...desired.entries()].some(([key, item]) => item.originalKey === record.key && key === record.key);
+    if (!retained) {
+      mutations.push({
+        operation: "delete", collection: "relationships", key: record.key, expectedRevision: record.revision,
+      });
+    }
+  }
+  for (const [key, item] of desired) {
+    const existing = current.get(key);
+    if (existing !== undefined && item.originalKey !== key) throw invalidEdit();
+    if (existing !== undefined && JSON.stringify(existing.value) === JSON.stringify(item.value)) continue;
+    mutations.push({
+      operation: "put",
+      collection: "relationships",
+      key,
+      expectedRevision: existing?.revision ?? 0,
+      value: item.value,
+    });
+  }
+  // The character itself is mutation 500 at most. Reject an oversized
+  // compound edit here instead of letting the transport turn it into a
+  // less useful generic request error.
+  if (mutations.length > 499) throw invalidEdit();
+  return Object.freeze(mutations);
+}
+
+function normalizedQuestions(raw: unknown, field: CampaignEditorField): Record<string, string>[] {
+  if (!Array.isArray(raw) || raw.length > (field.maximumItems ?? 500)) throw invalidEdit();
+  return raw.flatMap((candidate) => {
+    if (!isRecord(candidate)) throw invalidEdit();
+    const text = boundedLine(candidate["text"], field.maximumLength);
+    const answer = boundedLine(candidate["answer"], 100_000);
+    return text === "" ? [] : [{ text, answer }];
+  });
+}
+
+function normalizedRankChains(raw: unknown, current: unknown, field: CampaignEditorField): Record<string, unknown>[] {
+  if (!Array.isArray(raw) || raw.length > (field.maximumItems ?? 100)) throw invalidEdit();
+  const existing = new Map<string, Readonly<Record<string, unknown>>>();
+  if (Array.isArray(current)) {
+    for (const candidate of current) if (isRecord(candidate)) existing.set(line(candidate["id"]), candidate);
+  }
+  const seen = new Set<string>();
+  return raw.flatMap((candidate) => {
+    if (!isRecord(candidate)) throw invalidEdit();
+    const name = boundedLine(candidate["name"], field.maximumLength);
+    if (name === "") return [];
+    const id = boundedLine(candidate["id"], field.maximumLength);
+    if (id === "" || seen.has(id)) throw invalidEdit();
+    seen.add(id);
+    const ranks = normalizedBoundedStrings(candidate["ranks"], 200, field.maximumLength);
+    return [{ ...(existing.get(id) ?? {}), id, name, ranks }];
+  });
+}
+
+function normalizedLocationRoles(
+  campaign: CampaignDataset,
+  raw: unknown,
+  current: unknown,
+  field: CampaignEditorField,
+): Record<string, unknown>[] {
+  if (!Array.isArray(raw) || raw.length > (field.maximumItems ?? 500)) throw invalidEdit();
+  const locations = new Set(campaignCollection(campaign, "locations").records.map(({ key }) => key));
+  const existing = new Map<string, Readonly<Record<string, unknown>>>();
+  if (Array.isArray(current)) {
+    for (const candidate of current) if (isRecord(candidate)) existing.set(line(candidate["locationId"]), candidate);
+  }
+  const seen = new Set<string>();
+  return raw.flatMap((candidate) => {
+    if (!isRecord(candidate)) throw invalidEdit();
+    const locationID = boundedLine(candidate["locationId"], 1_024);
+    const role = boundedLine(candidate["role"], field.maximumLength);
+    if (locationID === "") return [];
+    if (!locations.has(locationID) || seen.has(locationID)) throw invalidEdit();
+    seen.add(locationID);
+    return [{ ...(existing.get(locationID) ?? {}), locationId: locationID, role }];
+  });
+}
+
+function normalizedBoundedStrings(raw: unknown, maximumItems: number, maximumLength: number): string[] {
+  if (!Array.isArray(raw) || raw.length > maximumItems) throw invalidEdit();
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of raw) {
+    const value = boundedLine(candidate, maximumLength);
+    const identity = value.toLocaleLowerCase();
+    if (value !== "" && !seen.has(identity)) {
+      seen.add(identity);
+      result.push(value);
+    }
+  }
+  return result;
+}
+
+function validRankAssignment(
+  campaign: CampaignDataset,
+  factionID: string,
+  chainID: string,
+  rank: string,
+): boolean {
+  const faction = campaignCollection(campaign, "factions").records.find(({ key }) => key === factionID);
+  if (!isRecord(faction?.value) || !Array.isArray(faction.value["rankChains"])) return false;
+  return faction.value["rankChains"].some((candidate) => isRecord(candidate) &&
+    line(candidate["id"]) === chainID && Array.isArray(candidate["ranks"]) &&
+    candidate["ranks"].some((item) => line(item) === rank));
+}
+
+function boundedLine(value: unknown, maximumLength: number): string {
+  if (typeof value !== "string" || value.length > maximumLength) throw invalidEdit();
+  return value.trim();
+}
+
+function validIdentityPart(value: string): boolean {
+  return value.length > 0 && new TextEncoder().encode(value).byteLength <= 200 && !/\p{Cc}/u.test(value);
+}
+
+function isRelationshipDirection(value: unknown): value is CampaignRelationshipDirection {
+  return value === "from" || value === "to" || value === "both";
+}
+
+const defaultRelationshipTypes = Object.freeze([
+  Object.freeze({ id: "commands", label: "commands", dirs: ["from", "to"] }),
+  Object.freeze({ id: "ally", label: "ally", dirs: ["from", "to", "both"] }),
+  Object.freeze({ id: "enemy", label: "enemy", dirs: ["from", "to", "both"] }),
+  Object.freeze({ id: "mission", label: "mission", dirs: ["from"], target: "location" }),
+  Object.freeze({ id: "mystery", label: "mystery", dirs: ["from", "to", "both"] }),
+  Object.freeze({ id: "captured_by", label: "captured by", dirs: ["from", "to"] }),
+  Object.freeze({ id: "history", label: "history", dirs: ["from", "to", "both"] }),
+  Object.freeze({ id: "uncertain", label: "uncertain bond", dirs: ["from", "to", "both"] }),
+  Object.freeze({ id: "negotiates", label: "negotiates", dirs: ["from", "to", "both"] }),
+]);
 
 function normalizedStringArray(raw: unknown, field: CampaignEditorField): string[] {
   if (!Array.isArray(raw) || raw.length > (field.maximumItems ?? 500)) throw invalidEdit();

@@ -9,11 +9,20 @@ import {
   createCampaignRecordKey,
   editorFieldsFor,
   editorOptionsFor,
+  relationshipEditorRowsFor,
+  relationshipTypeOptionsFor,
   type CampaignEditDirtyDetail,
   type CampaignEditorField,
   type CampaignRecordDeleteDetail,
   type CampaignRecordSaveDetail,
 } from "./campaign-record-editor.js";
+import {
+  factionRankChains,
+  locationRoleDrafts,
+  rankChainDrafts,
+  type CampaignRelationshipEditorElement,
+  type CampaignStructuredFieldElement,
+} from "./campaign-structured-editors.js";
 import {
   campaignMarkdownOutline,
   parseCampaignMarkdown,
@@ -56,6 +65,7 @@ export class CodexRecordPage extends LitElement {
   declare private editor: "closed" | "create" | "edit";
   declare private markdownPreviews: readonly string[];
   #dirty = false;
+  #factionDraft: string | undefined;
   readonly #markdownDrafts = new Map<string, string>();
 
   constructor() {
@@ -79,12 +89,12 @@ export class CodexRecordPage extends LitElement {
     if (changed.has("route")) {
       this.query = "";
       this.editor = "closed";
-      this.#resetMarkdownEditor();
+      this.#resetEditors();
       this.#setDirty(false);
     }
     if (changed.has("editCompletion")) {
       this.editor = "closed";
-      this.#resetMarkdownEditor();
+      this.#resetEditors();
       this.#setDirty(false);
     }
   }
@@ -162,6 +172,7 @@ export class CodexRecordPage extends LitElement {
     }
     const facts = articleFacts(dataset, route.page.collection, value);
     const sections = articleSections(value);
+    const hasStructuredSections = hasStructuredArticleContent(dataset, route.page.collection, route.key, value);
     const documents = parseCampaignMarkdownDocuments(sections.map(({ body }) => body));
     const outline = campaignMarkdownOutline(documents);
     const markdownContext: CampaignMarkdownContext = {
@@ -217,9 +228,10 @@ export class CodexRecordPage extends LitElement {
                 ${facts.map(([label, fact]) => html`<div><dt>${label}</dt><dd>${fact}</dd></div>`)}
               </dl>
             `}
-            ${sections.length === 0
+            ${sections.length === 0 && !hasStructuredSections
               ? html`<p class="empty-state">This entry does not have article text yet.</p>`
               : html`<div class="record-prose">
+                  ${structuredArticleContent(dataset, route.page.collection, route.key, value)}
                   ${sections.map((section, index) => html`
                     <section>
                       <h2 class="record-section-title">${section.heading}</h2>
@@ -254,6 +266,14 @@ export class CodexRecordPage extends LitElement {
         </header>
         <div class="record-editor-fields">
           ${fields.map((field) => this.#editorField(field, value, record?.key ?? ""))}
+          ${route.page.collection === "characters" ? html`
+            <campaign-relationship-editor
+              .campaign=${this.campaign}
+              .character=${record}
+              .canManageVisibility=${this.canManageVisibility}
+              .recordIdentity=${`${record?.key ?? "new"}:${this.editCompletion}`}
+            ></campaign-relationship-editor>
+          ` : nothing}
           ${collectionManagesVisibility(route.page.collection) && this.canManageVisibility ? html`
             <label>
               <span>Visibility</span>
@@ -283,6 +303,18 @@ export class CodexRecordPage extends LitElement {
     value: Readonly<Record<string, unknown>>,
     currentKey: string,
   ) {
+    if (field.kind === "questions" || field.kind === "rank-assignment" ||
+      field.kind === "rank-chains" || field.kind === "location-roles") {
+      return html`
+        <campaign-structured-field
+          .campaign=${this.campaign}
+          .field=${field}
+          .record=${value}
+          .factionId=${this.#factionDraft ?? editorValue(value["faction"])}
+          .recordIdentity=${`${currentKey || "new"}:${field.key}:${this.editCompletion}`}
+        ></campaign-structured-field>
+      `;
+    }
     const wide = ["text", "markdown", "string-list", "references", "attitudes"].includes(field.kind);
     const help = field.help === undefined ? nothing : html`<small class="field-help">${field.help}</small>`;
     if (field.kind === "markdown") {
@@ -360,7 +392,7 @@ export class CodexRecordPage extends LitElement {
       return html`
         <label>
           <span>${field.label}</span>
-          <select name=${field.key}>
+          <select name=${field.key} @change=${field.key === "faction" ? this.#updateFactionEditor : nothing}>
             ${field.kind === "reference" ? html`<option value="" ?selected=${selected === ""}>Not set</option>` : nothing}
             ${options.map((option) => html`
               <option value=${option.value} ?selected=${option.value === selected}>${option.label}</option>
@@ -419,9 +451,16 @@ export class CodexRecordPage extends LitElement {
     `;
   }
 
+  readonly #updateFactionEditor = (event: Event): void => {
+    const factionID = (event.currentTarget as HTMLSelectElement).value;
+    this.#factionDraft = factionID;
+    this.querySelectorAll<CampaignStructuredFieldElement>("campaign-structured-field")
+      .forEach((editor) => editor.setFaction(factionID));
+  };
+
   readonly #startCreate = (): void => {
     if (this.canEdit && !this.saving) {
-      this.#resetMarkdownEditor();
+      this.#resetEditors();
       this.#setDirty(false);
       this.editor = "create";
     }
@@ -429,7 +468,7 @@ export class CodexRecordPage extends LitElement {
 
   readonly #startEdit = (): void => {
     if (this.canEdit && !this.saving) {
-      this.#resetMarkdownEditor();
+      this.#resetEditors();
       this.#setDirty(false);
       this.editor = "edit";
     }
@@ -439,7 +478,7 @@ export class CodexRecordPage extends LitElement {
     if (!this.saving && confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))) {
       this.#setDirty(false);
       this.editor = "closed";
-      this.#resetMarkdownEditor();
+      this.#resetEditors();
     }
   };
 
@@ -468,8 +507,9 @@ export class CodexRecordPage extends LitElement {
     heading.focus({ preventScroll: true });
   };
 
-  #resetMarkdownEditor(): void {
+  #resetEditors(): void {
     this.#markdownDrafts.clear();
+    this.#factionDraft = undefined;
     this.markdownPreviews = Object.freeze([]);
   }
 
@@ -492,9 +532,14 @@ export class CodexRecordPage extends LitElement {
     if (!this.canEdit || this.saving || this.campaign === undefined || this.route === undefined) return;
     const form = event.currentTarget as HTMLFormElement;
     const data = new FormData(form);
+    const structured = new Map([...form.querySelectorAll<CampaignStructuredFieldElement>("campaign-structured-field")]
+      .map((editor) => [editor.fieldKey, editor.editorValue()]));
     const fields: Record<string, unknown> = {};
     for (const field of editorFieldsFor(this.route.page.collection)) {
-      if (field.kind === "references" || field.kind === "attitudes") {
+      if (field.kind === "questions" || field.kind === "rank-assignment" ||
+        field.kind === "rank-chains" || field.kind === "location-roles") {
+        fields[field.key] = structured.get(field.key);
+      } else if (field.kind === "references" || field.kind === "attitudes") {
         fields[field.key] = data.getAll(field.key).map(String);
       } else if (field.kind === "tags") {
         fields[field.key] = String(data.get(field.key) ?? "").split(",");
@@ -521,6 +566,9 @@ export class CodexRecordPage extends LitElement {
       expectedRevision: record?.revision ?? 0,
       creating,
       fields: Object.freeze(fields),
+      ...(this.route.page.collection === "characters" && !creating
+        ? { relationships: form.querySelector<CampaignRelationshipEditorElement>("campaign-relationship-editor")?.editorValue() ?? [] }
+        : {}),
       ...(collectionManagesVisibility(this.route.page.collection) && this.canManageVisibility
         ? { visibility: data.get("visibility") === "dm" ? "dm" as const : "public" as const }
         : {}),
@@ -626,7 +674,109 @@ function articleFacts(
     const owner = petOwnerName(dataset, value);
     if (owner !== "") facts.push(["Owner", owner]);
   }
+  if (collection === "characters") {
+    const rank = characterRankName(dataset, value);
+    if (rank !== "") facts.push(["Faction rank", rank]);
+  }
   return facts;
+}
+
+function characterRankName(dataset: CampaignDataset, value: Readonly<Record<string, unknown>>): string {
+  const factionID = text(value["faction"]);
+  const chainID = text(value["rankChain"]);
+  const rank = text(value["rank"]);
+  if (chainID === "" || rank === "") return "";
+  const chain = factionRankChains(dataset, factionID).find(({ id }) => id === chainID);
+  return chain === undefined ? rank : `${chain.name} — ${rank}`;
+}
+
+function hasStructuredArticleContent(
+  dataset: CampaignDataset,
+  collection: string,
+  key: string,
+  value: Readonly<Record<string, unknown>>,
+): boolean {
+  if (collection === "characters") {
+    return locationRoleDrafts(value["locationRoles"]).length > 0 ||
+      relationshipEditorRowsFor(dataset, key, true).length > 0;
+  }
+  return collection === "factions" && rankChainDrafts(value["rankChains"]).length > 0;
+}
+
+function structuredArticleContent(
+  dataset: CampaignDataset,
+  collection: string,
+  key: string,
+  value: Readonly<Record<string, unknown>>,
+) {
+  if (collection === "characters") {
+    const roles = locationRoleDrafts(value["locationRoles"]);
+    const relationships = relationshipEditorRowsFor(dataset, key, true);
+    const relationshipTypes = relationshipTypeOptionsFor(dataset);
+    return html`
+      ${roles.length === 0 ? nothing : html`
+        <section class="record-structured-section">
+          <h2 class="record-section-title">Other location roles</h2>
+          <div class="article-structured-ledger">
+            ${roles.map((role) => html`
+              <div><strong>${resolveName(dataset, "locations", role.locationId) ?? role.locationId}</strong><span>${role.role || "Role not specified"}</span></div>
+            `)}
+          </div>
+        </section>
+      `}
+      ${relationships.length === 0 ? nothing : html`
+        <section class="record-structured-section">
+          <h2 class="record-section-title">Relationships</h2>
+          <div class="article-structured-ledger relationship-reading">
+            ${relationships.map((relationship) => {
+              const type = relationshipTypes.find(({ value: typeID }) => typeID === relationship.type);
+              const targetCollection = type?.targetCollection ?? (relationship.type === "mission" ? "locations" : "characters");
+              const targetName = resolveName(dataset, targetCollection, relationship.target) ?? relationship.target;
+              return html`
+                <div>
+                  <strong>${relationship.direction === "from" ? "This character" : targetName}</strong>
+                  <span class="relationship-reading-arrow">→</span>
+                  <span>${relationship.label || type?.label || relationship.type}</span>
+                  <span class="relationship-reading-arrow">→</span>
+                  <strong>${relationship.direction === "from" ? targetName : "This character"}</strong>
+                  ${relationship.visibility === "dm" ? html`<span class="dm-badge">DM</span>` : nothing}
+                </div>
+              `;
+            })}
+          </div>
+        </section>
+      `}
+    `;
+  }
+  if (collection === "factions") {
+    const chains = rankChainDrafts(value["rankChains"]);
+    if (chains.length === 0) return nothing;
+    const members = campaignCollection(dataset, "characters").records.map((record) => ({
+      key: record.key,
+      value: recordValue(record),
+    })).filter((member) => text(member.value["faction"]) === key);
+    return html`
+      <section class="record-structured-section">
+        <h2 class="record-section-title">Rank chains</h2>
+        <div class="rank-chain-reading-grid">
+          ${chains.map((chain) => html`
+            <section>
+              <h3>${chain.name}</h3>
+              <ol>
+                ${chain.ranks.map((rank) => {
+                  const names = members.filter(({ value: member }) =>
+                    text(member["rankChain"]) === chain.id && text(member["rank"]) === rank
+                  ).map(({ key: memberKey, value: member }) => text(member["name"]) || memberKey);
+                  return html`<li><strong>${rank}</strong>${names.length === 0 ? nothing : html`<span>${names.join(", ")}</span>`}</li>`;
+                })}
+              </ol>
+            </section>
+          `)}
+        </div>
+      </section>
+    `;
+  }
+  return nothing;
 }
 
 function resolveName(dataset: CampaignDataset, collection: string, key: string): string | undefined {

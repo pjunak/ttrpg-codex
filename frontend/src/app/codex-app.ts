@@ -35,7 +35,7 @@ import {
   type CampaignEditDirtyDetail,
   type CampaignRecordDeleteDetail,
   type CampaignRecordSaveDetail,
-  type PreparedCampaignRecordMutation,
+  type PreparedCampaignRecordTransaction,
 } from "./campaign-record-editor.js";
 import {
   confirmDiscardUnsavedEdit,
@@ -727,7 +727,7 @@ export class CodexApp extends LitElement {
     if (this.busy || this.#request === undefined || !this.#canEdit() ||
       this.authority.state !== "known" || !this.authority.auth.authenticated ||
       this.campaignState.state !== "ready") return;
-    let prepared: PreparedCampaignRecordMutation;
+    let prepared: PreparedCampaignRecordTransaction;
     try {
       prepared = prepareCampaignRecordSave(
         this.campaignState.campaign,
@@ -744,7 +744,7 @@ export class CodexApp extends LitElement {
     this.errorMessage = "";
     try {
       await this.#campaignMutations.commit(
-        [prepared.mutation],
+        prepared.mutations,
         this.authority.auth.csrfToken,
         this.#request.signal,
       );
@@ -769,7 +769,7 @@ export class CodexApp extends LitElement {
     if (this.busy || this.#request === undefined || !this.#canEdit() ||
       this.authority.state !== "known" || !this.authority.auth.authenticated ||
       this.campaignState.state !== "ready") return;
-    let prepared: PreparedCampaignRecordMutation;
+    let prepared: PreparedCampaignRecordTransaction;
     try {
       prepared = prepareCampaignRecordDelete(this.campaignState.campaign, event.detail);
     } catch (cause: unknown) {
@@ -782,7 +782,7 @@ export class CodexApp extends LitElement {
     this.errorMessage = "";
     try {
       await this.#campaignMutations.commit(
-        [prepared.mutation],
+        prepared.mutations,
         this.authority.auth.csrfToken,
         this.#request.signal,
       );
