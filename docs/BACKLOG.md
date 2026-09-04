@@ -46,7 +46,7 @@ or an explicit maintainer decision to retire the workflow.
 - [x] Mount a real responsive application shell with login/logout, DM/player
   projection switching, live refresh, safe core routes, and authenticated
   route, dashboard-slot, sidebar, and record-article add-on outlets.
-- [ ] Restore the campaign dashboard, party overview, entity cards, portraits,
+- [x] Restore the campaign dashboard, party overview, entity cards, portraits,
   badges, and attitude presentation with responsive DM/player behavior.
 - [x] Restore dedicated browsing, article viewing, and safe common-field
   create/edit/delete for characters, locations, events, mysteries, factions,

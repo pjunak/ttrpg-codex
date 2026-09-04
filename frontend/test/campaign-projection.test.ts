@@ -44,7 +44,12 @@ describe("campaign product projection", () => {
       visibility: "public",
       portrait: "/api/media/b_11111111111111111111111111111111",
       route: "#/characters/aria",
+      attitudes: [{ id: "party", label: "Ember Company", color: "#f5f0e4", strength: 1 }],
     });
+    expect(summaries[0]?.attitudeRing).toContain("rgba(245, 240, 228, 1)");
+    expect(summaries[1]?.attitudes).toEqual([
+      { id: "ally", label: "Ally", color: "#4caf50", strength: 0.6 },
+    ]);
     expect(summaries[1]?.portrait).toBeUndefined();
   });
 });
@@ -81,8 +86,20 @@ function records(name: CampaignCollectionName): CampaignCollection["records"] {
         visibility: "public", updatedAt: "2026-09-03T10:00:00Z",
       } },
       { key: "keeper", revision: 1, value: {
-        id: "keeper", name: "The Keeper", faction: "neutral", visibility: "dm",
+        id: "keeper", name: "The Keeper", faction: "wardens", visibility: "dm", attitudes: [],
         portrait: "https://tracker.example/keeper.png",
+      } },
+    ];
+    case "factions": return [{ key: "wardens", revision: 1, value: {
+      id: "wardens", name: "Wardens", attitudes: [{ id: "ally" }],
+    } }];
+    case "settings": return [
+      { key: "attitudes", revision: 1, value: [
+        { id: "ally", label: "Ally", bg: "#2E7D32", labelColor: "#4CAF50", strength: 0.6 },
+        { id: "unsafe", label: "Unsafe", bg: "red; color: transparent" },
+      ] },
+      { key: "playerParty", revision: 1, value: {
+        name: "Ember Company", color: "#F5F0E4", textColor: "#1a1410",
       } },
     ];
     case "pets": return [{ key: "moth", revision: 1, value: {

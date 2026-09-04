@@ -152,6 +152,7 @@
   background: var(--walnut-light);
   font-family: var(--book-font);
   font-size: 1.3rem;
+  box-shadow: var(--attitude-ring, 0 0 0 transparent);
 }
 
 .party-portrait img { width: 100%; height: 100%; object-fit: cover; }

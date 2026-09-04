@@ -32,8 +32,8 @@ features live in separately versioned Add-on API v3 packages.
 
 The browser now provides the rebuilt campaign shell, public/private session
 views, live refresh, core archive routes, grouped campaign search, and safe
-add-on mounting surfaces. Its dashboard and safe common-field record editors
-are the first product slice; they do not
+add-on mounting surfaces. Its dashboard, saved attitude presentation, and safe
+common-field record editors are the first product slice; they do not
 yet replace the old wiki, editors, maps, timeline, relationship views,
 settings, or first-party add-on workflows. Those gaps remain release blockers
 in the suite backlog, reinforced by `frontend/REWRITE_INCOMPLETE`.

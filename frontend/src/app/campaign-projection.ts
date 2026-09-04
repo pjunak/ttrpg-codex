@@ -25,9 +25,19 @@ export interface EntitySummary {
   readonly status: string;
   readonly visibility: "public" | "dm";
   readonly tags: readonly string[];
+  readonly attitudes: readonly AttitudePresentation[];
+  readonly attitudeRing: string | undefined;
+  readonly attitudeFilter: string | undefined;
   readonly route: string;
   readonly updatedAt: string | undefined;
   readonly raw: Readonly<Record<string, unknown>>;
+}
+
+export interface AttitudePresentation {
+  readonly id: string;
+  readonly label: string;
+  readonly color: string;
+  readonly strength: number;
 }
 
 export interface DashboardEvent extends EntitySummary {
@@ -60,16 +70,27 @@ export function projectEntities(
   dataset: CampaignDataset,
   page: CampaignPageDefinition,
 ): readonly EntitySummary[] {
+  const context = createAttitudeContext(dataset);
   return campaignCollection(dataset, page.collection).records.map((record) =>
-    projectEntity(record, page)
+    projectEntityWithContext(record, page, context)
   );
 }
 
 export function projectEntity(
+  dataset: CampaignDataset,
   record: CampaignRecord,
   page: CampaignPageDefinition,
 ): EntitySummary {
+  return projectEntityWithContext(record, page, createAttitudeContext(dataset));
+}
+
+function projectEntityWithContext(
+  record: CampaignRecord,
+  page: CampaignPageDefinition,
+  context: AttitudeContext,
+): EntitySummary {
   const value = recordValue(record);
+  const attitudes = effectiveAttitudes(context, page.collection, value);
   return Object.freeze({
     key: record.key,
     name: nonEmptyText(value["name"]) ?? nonEmptyText(value["title"]) ?? record.key,
@@ -80,10 +101,57 @@ export function projectEntity(
     status: text(value["status"]),
     visibility: value["visibility"] === "dm" ? "dm" : "public",
     tags: stringList(value["tags"]),
+    attitudes,
+    attitudeRing: attitudeRing(attitudes),
+    attitudeFilter: attitudeFilter(attitudes),
     route: recordHash(page, record.key),
     updatedAt: timestamp(value["updatedAt"]),
     raw: Object.freeze({ ...value }),
   });
+}
+
+export function projectEffectiveAttitudes(
+  dataset: CampaignDataset,
+  collection: CampaignPageDefinition["collection"],
+  value: Readonly<Record<string, unknown>>,
+): readonly AttitudePresentation[] {
+  return effectiveAttitudes(createAttitudeContext(dataset), collection, value);
+}
+
+function effectiveAttitudes(
+  context: AttitudeContext,
+  collection: CampaignPageDefinition["collection"],
+  value: Readonly<Record<string, unknown>>,
+): readonly AttitudePresentation[] {
+  if (collection !== "characters" && collection !== "locations" && collection !== "factions") {
+    return Object.freeze([]);
+  }
+  let ids = attitudeIDs(value["attitudes"]);
+  if (ids.length === 0 && collection === "characters") {
+    const faction = text(value["faction"]);
+    if (faction === "party") {
+      ids = Object.freeze(["party"]);
+    } else if (faction !== "") {
+      ids = context.factions.get(faction) ?? Object.freeze([]);
+    }
+  }
+  return Object.freeze(ids.flatMap((id) => {
+    const definition = context.definitions.get(id);
+    return definition === undefined ? [] : [definition];
+  }));
+}
+
+interface AttitudeContext {
+  readonly definitions: ReadonlyMap<string, AttitudePresentation>;
+  readonly factions: ReadonlyMap<string, readonly string[]>;
+}
+
+function createAttitudeContext(dataset: CampaignDataset): AttitudeContext {
+  const factions = new Map<string, readonly string[]>();
+  for (const record of campaignCollection(dataset, "factions").records) {
+    factions.set(record.key, attitudeIDs(recordValue(record)["attitudes"]));
+  }
+  return Object.freeze({ definitions: attitudeDefinitions(dataset), factions });
 }
 
 export function projectDashboard(dataset: CampaignDataset): DashboardModel {
@@ -186,6 +254,95 @@ function positiveInteger(value: unknown): number {
 
 function finiteNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function attitudeDefinitions(dataset: CampaignDataset): ReadonlyMap<string, AttitudePresentation> {
+  const result = new Map<string, AttitudePresentation>();
+  const settings = campaignCollection(dataset, "settings");
+  const attitudeRecord = settings.records.find(({ key }) => key === "attitudes");
+  if (Array.isArray(attitudeRecord?.value)) {
+    for (const candidate of attitudeRecord.value) {
+      if (!isRecord(candidate)) continue;
+      const id = text(candidate["id"]);
+      const color = safeHexColor(candidate["labelColor"] ?? candidate["bg"]);
+      if (id === "" || color === undefined || result.has(id)) continue;
+      result.set(id, Object.freeze({
+        id,
+        label: text(candidate["label"]) || id,
+        color,
+        strength: normalizedStrength(candidate["strength"]),
+      }));
+    }
+  }
+  const partyRecord = settings.records.find(({ key }) => key === "playerParty");
+  const party = recordValue(partyRecord);
+  const partyColor = safeHexColor(party["color"]) ?? "#f5f0e4";
+  const configuredPartyStrength = result.get("party")?.strength ?? 1;
+  if (!result.has("party")) {
+    result.set("party", Object.freeze({
+      id: "party",
+      label: text(party["name"]) || "Party",
+      color: partyColor,
+      strength: configuredPartyStrength,
+    }));
+  }
+  return result;
+}
+
+function attitudeIDs(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) return Object.freeze([]);
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const candidate of value) {
+    const id = isRecord(candidate) ? text(candidate["id"]) : "";
+    if (id !== "" && !seen.has(id)) {
+      seen.add(id);
+      ids.push(id);
+    }
+  }
+  return Object.freeze(ids);
+}
+
+function attitudeRing(attitudes: readonly AttitudePresentation[]): string | undefined {
+  const layers = attitudes.flatMap((attitude) => glowLayers(attitude, 8)
+    .map(({ blur, color }) => `0 0 ${blur}px 1px ${color}`));
+  return layers.length === 0 ? undefined : layers.join(", ");
+}
+
+function attitudeFilter(attitudes: readonly AttitudePresentation[]): string | undefined {
+  const layers = attitudes.flatMap((attitude) => glowLayers(attitude, 7)
+    .map(({ blur, color }) => `drop-shadow(0 0 ${blur}px ${color})`));
+  return layers.length === 0 ? undefined : layers.join(" ");
+}
+
+function glowLayers(
+  attitude: AttitudePresentation,
+  blur: number,
+): readonly { readonly blur: number; readonly color: string }[] {
+  if (attitude.strength <= 0) return Object.freeze([]);
+  const color = hexToRGBA(attitude.color, attitude.strength);
+  return Object.freeze([{ blur, color }, { blur: Math.max(2, Math.round(blur * 0.4)), color }]);
+}
+
+function normalizedStrength(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(1, Math.max(0, value))
+    : 1;
+}
+
+function safeHexColor(value: unknown): string | undefined {
+  const candidate = text(value);
+  return /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/iu.test(candidate) ? candidate.toLowerCase() : undefined;
+}
+
+function hexToRGBA(value: string, alpha: number): string {
+  let hex = value.slice(1);
+  if (hex.length === 3) hex = [...hex].map((part) => `${part}${part}`).join("");
+  const numeric = Number.parseInt(hex, 16);
+  const red = (numeric >> 16) & 255;
+  const green = (numeric >> 8) & 255;
+  const blue = numeric & 255;
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
 const secondaryFields: Readonly<Partial<Record<CampaignPageDefinition["collection"], readonly string[]>>> = {

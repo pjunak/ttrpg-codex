@@ -145,7 +145,12 @@ export class CodexRecordPage extends LitElement {
         <a href=${collectionHash(route.page)} class="breadcrumb-link">${route.page.plural}</a>
         <header class="record-masthead">
           ${entity.portrait === undefined ? nothing : html`
-            <img class="record-portrait" src=${entity.portrait} alt="" />
+            <img
+              class="record-portrait"
+              src=${entity.portrait}
+              alt=""
+              style=${entity.attitudeRing === undefined ? nothing : `--attitude-ring: ${entity.attitudeRing}`}
+            />
           `}
           <div>
             <span class="record-kind">${route.page.singular}</span>
@@ -154,6 +159,9 @@ export class CodexRecordPage extends LitElement {
             <div class="record-badges">
               ${entity.visibility === "dm" ? html`<span class="dm-badge">DM</span>` : nothing}
               ${entity.status === "" ? nothing : html`<span>${entity.status}</span>`}
+              ${entity.attitudes.map((attitude) => html`
+                <span class="attitude-badge" style=${`--attitude-color: ${attitude.color}`}>${attitude.label}</span>
+              `)}
               ${entity.tags.map((tag) => html`<span>${tag}</span>`)}
             </div>
           </div>
@@ -316,8 +324,18 @@ function recordRow(entity: EntitySummary) {
   return html`
     <a class="record-row" href=${entity.route}>
       ${entity.portrait === undefined
-        ? html`<span class="record-row-mark" aria-hidden="true">${entity.icon ?? initial(entity.name)}</span>`
-        : html`<img class="record-row-mark" src=${entity.portrait} alt="" loading="lazy" />`}
+        ? html`<span
+            class="record-row-mark"
+            style=${entity.attitudeFilter === undefined ? nothing : `--attitude-filter: ${entity.attitudeFilter}`}
+            aria-hidden="true"
+          >${entity.icon ?? initial(entity.name)}</span>`
+        : html`<img
+            class="record-row-mark"
+            style=${entity.attitudeRing === undefined ? nothing : `--attitude-ring: ${entity.attitudeRing}`}
+            src=${entity.portrait}
+            alt=""
+            loading="lazy"
+          />`}
       <span class="record-row-copy">
         <strong>${entity.name}</strong>
         ${entity.title === "" ? nothing : html`<span>${entity.title}</span>`}

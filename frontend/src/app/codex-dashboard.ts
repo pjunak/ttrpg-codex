@@ -179,11 +179,12 @@ export class CodexDashboard extends LitElement {
 }
 
 function portrait(entity: EntitySummary) {
+  const style = entity.attitudeRing === undefined ? nothing : `--attitude-ring: ${entity.attitudeRing}`;
   if (entity.portrait !== undefined) {
-    return html`<span class="party-portrait"><img src=${entity.portrait} alt="" loading="lazy" /></span>`;
+    return html`<span class="party-portrait" style=${style}><img src=${entity.portrait} alt="" loading="lazy" /></span>`;
   }
   const initial = [...entity.name.trim()][0]?.toLocaleUpperCase() ?? "?";
-  return html`<span class="party-portrait portrait-fallback" aria-hidden="true">${initial}</span>`;
+  return html`<span class="party-portrait portrait-fallback" style=${style} aria-hidden="true">${initial}</span>`;
 }
 
 function safeToken(value: string): string {
