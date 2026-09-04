@@ -259,13 +259,13 @@ func (planner *mutationPlanner) preserveUnavailablePlayerReferences(
 		preserveUnavailableScalar(incoming, current, "location", ids[campaign.Locations])
 		preserveUnavailableObjects(incoming, current, "locationRoles", "locationId", ids[campaign.Locations])
 	case campaign.Locations:
-		preserveUnavailableScalar(incoming, current, "parentId", ids[campaign.Locations])
+		preserveUnavailableMapPlacement(incoming, current, "parentId", "x", "y", ids[campaign.Locations])
 		preserveUnavailableStrings(incoming, current, "characters", ids[campaign.Characters])
 	case campaign.Events, campaign.Mysteries, campaign.HistoricalEvents:
 		preserveUnavailableStrings(incoming, current, "characters", ids[campaign.Characters])
 		preserveUnavailableStrings(incoming, current, "locations", ids[campaign.Locations])
 		if existing.Collection == campaign.Events {
-			preserveUnavailableScalar(incoming, current, "mapParentId", ids[campaign.Locations])
+			preserveUnavailableMapPlacement(incoming, current, "mapParentId", "mapX", "mapY", ids[campaign.Locations])
 		}
 	case campaign.Artifacts:
 		preserveUnavailableScalar(incoming, current, "ownerCharacterId", ids[campaign.Characters])
@@ -883,6 +883,22 @@ func equalStringArray(value any, expected []any) bool {
 		}
 	}
 	return true
+}
+
+func preserveUnavailableMapPlacement(incoming, current map[string]any, parent, x, y string, visible map[string]struct{}) {
+	id, _ := current[parent].(string)
+	if id == "" || validScalarReference(id, visible) {
+		return
+	}
+	// Public saves omit this entire placement, not just its hidden parent.
+	// Preserve it as a unit, including absence of coordinates on unplaced pins.
+	for _, field := range []string{parent, x, y} {
+		if value, exists := current[field]; exists {
+			incoming[field] = value
+		} else {
+			delete(incoming, field)
+		}
+	}
 }
 
 func preserveUnavailableScalar(

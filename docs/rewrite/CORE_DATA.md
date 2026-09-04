@@ -64,6 +64,12 @@ they cannot disclose hidden records. An effective DM receives the exact stored
 snapshot. The transport never accepts a requested role; authority comes only
 from the resolved session.
 
+Map placement is projected as a unit: hiding/removing a location's `parentId`
+or an event's `mapParentId` also hides its corresponding coordinates. Public
+clients must not reinterpret those local coordinates as world coordinates.
+Full-record player saves preserve the unavailable parent and coordinates,
+including absence of a placement, while applying visible field edits.
+
 The record store itself still validates storage invariants, not all campaign
 rules. The application service owns visibility and mutation policy above it.
 

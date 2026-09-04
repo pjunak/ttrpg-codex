@@ -177,13 +177,13 @@ func closeRecord(
 			removeInvalidScalar(value, "location", ids[campaign.Locations])
 			filterObjectArrayByID(value, "locationRoles", "locationId", ids[campaign.Locations])
 		case campaign.Locations:
-			removeInvalidScalar(value, "parentId", ids[campaign.Locations])
+			removeUnavailableMapPlacement(value, "parentId", "x", "y", ids[campaign.Locations])
 			filterStringArray(value, "connections", ids[campaign.Locations])
 			filterStringArray(value, "characters", ids[campaign.Characters])
 		case campaign.Events:
 			filterStringArray(value, "characters", ids[campaign.Characters])
 			filterStringArray(value, "locations", ids[campaign.Locations])
-			removeInvalidScalar(value, "mapParentId", ids[campaign.Locations])
+			removeUnavailableMapPlacement(value, "mapParentId", "mapX", "mapY", ids[campaign.Locations])
 		case campaign.Mysteries, campaign.HistoricalEvents:
 			filterStringArray(value, "characters", ids[campaign.Characters])
 			filterStringArray(value, "locations", ids[campaign.Locations])
@@ -196,6 +196,19 @@ func closeRecord(
 		closeAuditReferences(value, hiddenIDs)
 	})
 	return value, true, err
+}
+
+// Coordinates are meaningful only in their owning map. Removing just a hidden
+// parent would reinterpret a local pin as a world-map pin in public clients.
+func removeUnavailableMapPlacement(value map[string]any, parent, x, y string, visible map[string]struct{}) {
+	id, _ := value[parent].(string)
+	removeInvalidScalar(value, parent, visible)
+	if id != "" {
+		if _, available := visible[id]; !available {
+			delete(value, x)
+			delete(value, y)
+		}
+	}
 }
 
 func closeSetting(record campaign.Record, locationIDs map[string]struct{}) (json.RawMessage, error) {
