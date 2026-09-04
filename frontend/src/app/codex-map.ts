@@ -5,7 +5,8 @@ import { MediaClient, MediaHTTPError } from "../core/media.js";
 import { createCampaignRecordKey } from "./campaign-record-editor.js";
 import { recordValue, safeMediaURL, text } from "./campaign-projection.js";
 import { mapLocationRecord, mapLocations, mapViews, mapViewRecord, mapParent, locationPage, mapCoordinate,
-  type MapSaveDetail, type MapUploadDetail, type MapBounds, type MapLocation } from "./campaign-map.js";
+  mapEventPoints, eventPage, eventPathColors, validBounds,
+  type MapSaveDetail, type MapUploadDetail, type MapBounds, type MapLocation, type MapView } from "./campaign-map.js";
 import { campaignCollection } from "../core/campaign-data.js";
 import { mapHash, recordHash, type AppRoute } from "./routes.js";
 import { UiLocalizationController } from "./ui-localization.js";
@@ -13,6 +14,7 @@ import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 
 type MapRoute = Extract<AppRoute, { kind: "map" }>;
 type LocationDraft = Extract<MapSaveDetail, { kind: "location" }>;
+type ViewDraft = Extract<MapSaveDetail, { action: "create" | "update" }>;
 
 export class CodexMap extends LitElement {
   static override properties = {
@@ -20,6 +22,7 @@ export class CodexMap extends LitElement {
     canManageCampaign: { type: Boolean }, saving: { type: Boolean }, editCompletion: { type: Number },
     errorMessage: { type: String }, editing: { state: true }, placing: { state: true }, draft: { state: true },
     selected: { state: true }, query: { state: true }, status: { state: true }, zoom: { state: true },
+    viewDraft: { state: true }, viewBoundsUnavailable: { state: true }, eventsVisible: { state: true },
   };
   declare campaign: CampaignDataset | undefined;
   declare route: MapRoute | undefined;
@@ -35,8 +38,12 @@ export class CodexMap extends LitElement {
   declare private query: string;
   declare private status: "loading" | "ready" | "empty" | "error" | "missing";
   declare private zoom: number;
+  declare private viewDraft: ViewDraft | undefined;
+  declare private viewBoundsUnavailable: boolean;
+  declare private eventsVisible: boolean;
   #map: L.Map | undefined;
   #layers: L.LayerGroup | undefined;
+  #eventLayers: L.LayerGroup | undefined;
   #request: AbortController | undefined;
   #resize: ResizeObserver | undefined;
   #width = 1;
@@ -53,12 +60,16 @@ export class CodexMap extends LitElement {
     this.canEdit = false; this.canManageCampaign = false; this.saving = false; this.editCompletion = 0;
     this.errorMessage = ""; this.editing = false; this.placing = null; this.draft = undefined;
     this.selected = undefined; this.query = ""; this.status = "loading"; this.zoom = 0;
+    this.viewDraft = undefined; this.viewBoundsUnavailable = false; this.eventsVisible = false;
   }
   protected override createRenderRoot() { return this; }
   override disconnectedCallback(): void { this.#dispose(); super.disconnectedCallback(); }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
     if (changed.has("route") || changed.has("editCompletion") || (changed.has("canEdit") && !this.canEdit)) {
-      this.draft = undefined; this.placing = null; this.#setDirty(false);
+      this.draft = undefined; this.viewDraft = undefined; this.viewBoundsUnavailable = false; this.placing = null; this.#setDirty(false);
+    }
+    if (changed.has("canManageCampaign") && !this.canManageCampaign && this.viewDraft !== undefined) {
+      this.viewDraft = undefined; this.#setDirty(false);
     }
     if (changed.has("route")) { this.selected = undefined; this.query = ""; this.editing = false; }
   }
@@ -66,7 +77,10 @@ export class CodexMap extends LitElement {
     if (changed.has("route") || changed.has("editCompletion") ||
       (changed.has("campaign") && this.route?.parentId !== null && this.#localImage() !== this.#imageURL)) {
       void this.#loadMap();
-    } else if (["campaign", "draft", "editing", "saving"].some(key => changed.has(key))) this.#renderMarkers();
+    } else {
+      if (["campaign", "draft", "viewDraft", "editing", "saving"].some(key => changed.has(key))) this.#renderMarkers();
+      if (changed.has("campaign") || changed.has("eventsVisible")) this.#renderEvents();
+    }
   }
   #localImage(): string | undefined {
     return this.campaign !== undefined && this.route?.parentId
@@ -90,25 +104,29 @@ export class CodexMap extends LitElement {
           ${this.query === "" ? nothing : html`<div class="sc-search-results">${results.length === 0 ? this.#ui.t("map.noResults") : results.map(location => html`
             <button type="button" @click=${() => this.#select(location, true)}>${location.name}</button>`)}</div>`}
         </div>
+        <button class="sc-btn" aria-pressed=${this.eventsVisible} @click=${this.#toggleEvents} ?disabled=${this.status !== "ready"}>📜 ${this.#ui.t("map.eventPaths")}</button>
         <button class="sc-btn" @click=${this.#fit} ?disabled=${this.status !== "ready"}>🌐 ${this.#ui.t("map.fit")}</button>
-        ${mapViews(this.campaign, this.route.parentId).map(view => html`<button class="sc-btn" ?disabled=${this.status !== "ready"}
-          @click=${() => this.#fitView(view.bounds)}>${view.icon} ${view.label}</button>`)}
+        ${mapViews(this.campaign, this.route.parentId).map(view => html`<span class="sc-view-preset"><button class="sc-btn" ?disabled=${this.status !== "ready"}
+          @click=${() => this.#fitView(view.bounds)}>${view.icon} ${view.label}</button>
+          ${this.editing && this.canManageCampaign ? html`<button class="sc-btn sc-view-edit" aria-label=${this.#ui.t("map.editView", { name: view.label })}
+            ?disabled=${this.saving} @click=${() => this.#openView(view)}>✎</button>` : nothing}</span>`)}
         ${this.editing ? html`
           <button class="sc-btn" ?disabled=${this.saving || this.status !== "ready"} @click=${() => this.#place("")}>＋ ${this.#ui.t("map.add")}</button>
           ${unplaced.length === 0 ? nothing : html`<select class="sc-btn" aria-label=${this.#ui.t("map.placeExisting")} ?disabled=${this.saving || this.status !== "ready"}
             @change=${(event: Event) => { const select = event.target as HTMLSelectElement; if (select.value) this.#place(select.value); select.value = ""; }}>
             <option value="">${this.#ui.t("map.placeExisting")}</option>${unplaced.map(record => html`<option value=${record.key}>${text(recordValue(record)["name"]) || record.key}</option>`)}
           </select>`}
-          ${this.canManageCampaign ? html`<button class="sc-btn" ?disabled=${this.saving || this.draft !== undefined || this.status !== "ready"} @click=${this.#saveView}>✚ ${this.#ui.t("map.saveView")}</button>` : nothing}
+          ${this.canManageCampaign ? html`<button class="sc-btn" ?disabled=${this.saving || this.status !== "ready"} @click=${() => this.#openView()}>✚ ${this.#ui.t("map.saveView")}</button>` : nothing}
         ` : nothing}
         <span class="sc-hint">${this.placing !== null ? this.#ui.t("map.placeHint") : this.#ui.t("map.panHint")}</span>
         ${this.canEdit ? html`<button class="sc-btn" aria-pressed=${this.editing} ?disabled=${this.saving}
           @click=${this.#toggleEditing}>✏ ${this.#ui.t(this.editing ? "map.done" : "map.edit")}</button>` : nothing}
       </header>
       ${this.errorMessage ? html`<p class="sc-message" role="alert">${this.errorMessage}</p>` : nothing}
+      ${this.viewBoundsUnavailable ? html`<p class="sc-message" role="alert">${this.#ui.t("map.viewBoundsUnavailable")}</p>` : nothing}
       ${this.editing && (this.route.parentId !== null || this.canManageCampaign) ? html`<label class="sc-upload">
         ${this.#ui.t("map.upload")} <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-          aria-label=${this.#ui.t("map.upload")} ?disabled=${this.saving || this.draft !== undefined} @change=${this.#upload} />
+          aria-label=${this.#ui.t("map.upload")} ?disabled=${this.saving || this.draft !== undefined || this.viewDraft !== undefined} @change=${this.#upload} />
       </label>` : nothing}
       <div class="sc-stage">
         <div class="sc-map" role="region" aria-label=${this.#ui.t("map.canvas")}></div>
@@ -121,9 +139,34 @@ export class CodexMap extends LitElement {
         </div>` : html`<div class="sc-map-state" role="status">${this.#ui.t(this.status === "loading" ? "map.loading" : this.status === "empty" ? "map.empty" : this.status === "missing" ? "map.missing" : "map.failed")}
           ${this.status === "error" ? html`<button class="sc-btn" @click=${() => void this.#loadMap()}>${this.#ui.t("shell.tryAgain")}</button>` : nothing}
         </div>`}
-        ${this.#panel()}
+        ${this.eventsVisible && this.status === "ready" ? html`<aside class="sc-legend" aria-label=${this.#ui.t("map.eventPaths")}>
+          <div class="legend-title">${this.#ui.t("map.eventPaths")}</div>
+          <div class="legend-item"><span class="legend-line" style=${`border-color:${eventPathColors.path}`}></span>${this.#ui.t("map.storyPath")}</div>
+          <div class="legend-item"><span class="sc-event-marker-tiny" style=${`background:${eventPathColors.sitting}`}>S#</span>${this.#ui.t("map.inSession")}</div>
+          <div class="legend-item"><span class="sc-event-marker-tiny" style=${`background:${eventPathColors.past}`}>✦</span>${this.#ui.t("map.pastEvent")}</div>
+          ${mapEventPoints(this.campaign, this.route.parentId).length === 0 ? html`<p class="legend-hint">${this.#ui.t("map.noEvents")}</p>` : nothing}
+        </aside>` : nothing}
+        ${this.viewDraft === undefined ? this.#panel() : this.#viewPanel()}
       </div>
     </section>`;
+  }
+  #viewPanel() {
+    const draft = this.viewDraft;
+    if (draft === undefined) return nothing;
+    return html`<aside class="sc-panel" aria-label=${this.#ui.t("map.savedView")}>
+      <button class="sc-panel-close" aria-label=${this.#ui.t("map.close")} @click=${this.#closePanel} ?disabled=${this.saving}>✕</button>
+      <form @submit=${this.#saveView} @input=${this.#viewInput}>
+        <h2>${this.#ui.t("map.savedView")}</h2>
+        <label>${this.#ui.t("map.viewName")}<input name="label" required maxlength="200" .value=${draft.label} ?readonly=${this.saving} /></label>
+        <label>${this.#ui.t("map.viewIcon")}<input name="icon" maxlength="32" .value=${draft.icon} ?readonly=${this.saving} /></label>
+        <p class="sc-view-bounds">${this.#ui.t("map.viewBounds", { x1: percent(draft.bounds.x1, 1), y1: percent(draft.bounds.y1, 1), x2: percent(draft.bounds.x2, 1), y2: percent(draft.bounds.y2, 1) })}</p>
+        <button class="sc-btn" type="button" ?disabled=${this.saving || this.status !== "ready"} @click=${this.#captureView}>${this.#ui.t("map.captureView")}</button>
+        <button class="sc-btn" type="button" ?disabled=${this.status !== "ready"} @click=${() => this.#fitView(draft.bounds)}>${this.#ui.t("map.previewView")}</button>
+        <div><button class="sc-btn" type="submit" ?disabled=${this.saving}>${this.#ui.t("dashboard.save")}</button>
+          <button class="sc-btn" type="button" @click=${this.#closePanel} ?disabled=${this.saving}>${this.#ui.t("dashboard.cancel")}</button></div>
+        ${draft.action === "create" ? nothing : html`<button class="sc-btn" type="button" @click=${this.#deleteView} ?disabled=${this.saving}>${this.#ui.t("map.deleteView")}</button>`}
+      </form>
+    </aside>`;
   }
   #panel() {
     if (this.campaign === undefined || (this.selected === undefined && this.draft === undefined && this.placing === null)) return nothing;
@@ -172,6 +215,7 @@ export class CodexMap extends LitElement {
       this.#map = map;
       L.imageOverlay(url, this.#bounds()).addTo(map);
       this.#layers = L.layerGroup().addTo(map);
+      this.#eventLayers = L.layerGroup().addTo(map);
       if (previous?.url === url) map.setView(previous.center, previous.zoom);
       else map.fitBounds(this.#bounds());
       map.on("zoomend", () => { this.zoom = map.getZoom(); });
@@ -180,13 +224,14 @@ export class CodexMap extends LitElement {
       this.#resize.observe(container);
       this.zoom = map.getZoom(); this.status = "ready";
       this.#renderMarkers();
+      this.#renderEvents();
     } catch (cause) {
       if (!request.signal.aborted) this.status = cause instanceof MediaHTTPError && cause.status === 404 ? "empty" : "error";
     }
   }
   #dispose(): void {
     this.#request?.abort(); this.#resize?.disconnect(); this.#map?.remove();
-    this.#map = undefined; this.#layers = undefined;
+    this.#map = undefined; this.#layers = undefined; this.#eventLayers = undefined;
     this.#dragging = false;
   }
   #bounds(): L.LatLngBounds { return L.latLngBounds([-this.#height, 0], [0, this.#width]); }
@@ -203,11 +248,11 @@ export class CodexMap extends LitElement {
       const marker = L.marker(this.#point(draft?.x ?? location.x, draft?.y ?? location.y), {
         icon: L.divIcon({ html: node, className: "sc-marker", iconSize: [location.markerSize, location.markerSize], iconAnchor: [location.markerSize / 2, location.markerSize / 2] }),
         title: location.name, alt: location.name, keyboard: true,
-        draggable: this.editing && this.canEdit && !this.saving && (!this.#dirty || this.draft?.key === location.key),
+        draggable: this.editing && this.canEdit && !this.saving && this.viewDraft === undefined && (!this.#dirty || this.draft?.key === location.key),
       }).addTo(this.#layers);
       const label = document.createElement("span"); label.textContent = location.name;
       marker.bindTooltip(label);
-      marker.on("click", () => this.#select(location));
+      bindMarkerAction(marker, () => this.#select(location));
       marker.on("dragstart", () => {
         if (this.#dirty && this.draft?.key !== location.key) { marker.dragging?.disable(); return; }
         this.#dragging = true;
@@ -225,9 +270,39 @@ export class CodexMap extends LitElement {
       L.circleMarker(this.#point(this.draft.x, this.draft.y), { radius: 9, color: "#c8a040" }).addTo(this.#layers);
     }
   }
+  #renderEvents(): void {
+    this.#eventLayers?.clearLayers();
+    if (!this.eventsVisible || this.campaign === undefined || this.route === undefined || this.#eventLayers === undefined) return;
+    const points = mapEventPoints(this.campaign, this.route.parentId);
+    points.forEach((point, index) => {
+      const previous = points[index - 1];
+      if (previous !== undefined && (previous.x !== point.x || previous.y !== point.y)) {
+        L.polyline([this.#point(previous.x, previous.y), this.#point(point.x, point.y)], {
+          color: eventPathColors.path, weight: 2.5, opacity: .75, dashArray: "7, 5", interactive: false, className: "sc-event-path",
+        }).addTo(this.#eventLayers!);
+      }
+      const node = document.createElement("span"); node.className = "sc-event-marker";
+      node.style.background = point.sitting ? eventPathColors.sitting : eventPathColors.past;
+      const label = document.createElement("span"); label.className = "sc-event-marker-label";
+      label.textContent = point.sitting ? `S${point.sitting}` : "✦"; node.append(label);
+      const marker = L.marker(this.#point(point.x, point.y), {
+        icon: L.divIcon({ html: node, className: "sc-event-pin", iconSize: [28, 28], iconAnchor: [14, 14] }),
+        title: point.name, alt: point.name, keyboard: true, zIndexOffset: 500,
+      }).addTo(this.#eventLayers!);
+      const tooltip = document.createElement("span"); tooltip.textContent = point.name; marker.bindTooltip(tooltip);
+      bindMarkerAction(marker, () => { window.location.hash = recordHash(eventPage, point.key); });
+    });
+  }
+  readonly #toggleEvents = (): void => {
+    this.eventsVisible = !this.eventsVisible;
+    if (!this.eventsVisible || this.campaign === undefined || this.route === undefined || this.#map === undefined) return;
+    const played = mapEventPoints(this.campaign, this.route.parentId).filter(point => point.sitting > 0);
+    if (played.length) this.#map.fitBounds(L.latLngBounds(played.map(point => this.#point(point.x, point.y))), { maxZoom: 0, padding: [30, 30] });
+    else this.#fit();
+  };
   #select(location: MapLocation, pan = false): void {
     if (!this.#discard()) return;
-    this.draft = undefined; this.placing = null; this.selected = location.key; this.query = "";
+    this.draft = undefined; this.viewDraft = undefined; this.placing = null; this.selected = location.key; this.query = "";
     if (pan) this.#map?.panTo(this.#point(location.x, location.y));
   }
   #editLocation(key: string): void {
@@ -242,7 +317,7 @@ export class CodexMap extends LitElement {
   #editSelected(): void { if (this.selected !== undefined) this.#editLocation(this.selected); }
   #place(key: string): void {
     if (!this.#discard()) return;
-    this.draft = undefined; this.selected = key || undefined; this.placing = key;
+    this.draft = undefined; this.viewDraft = undefined; this.selected = key || undefined; this.placing = key;
   }
   #mapClick(point: L.LatLng): void {
     if (!this.canEdit || !this.editing || this.saving || this.placing === null || this.route === undefined) return;
@@ -263,23 +338,50 @@ export class CodexMap extends LitElement {
   readonly #saveLocation = (event: SubmitEvent): void => { event.preventDefault(); if (this.draft !== undefined && !this.saving) this.#emitSave(this.draft); };
   readonly #removePin = (): void => { if (this.draft !== undefined && !this.saving) this.#emitSave({ ...this.draft, x: null, y: null }); };
   #emitSave(detail: MapSaveDetail): void { this.dispatchEvent(new CustomEvent("campaign-map-save", { detail, bubbles: true, composed: true })); }
-  readonly #closePanel = (): void => { if (this.#discard()) { this.draft = undefined; this.selected = undefined; this.placing = null; } };
-  readonly #toggleEditing = (): void => { if (this.#discard()) { this.editing = !this.editing; this.draft = undefined; this.placing = null; } };
+  readonly #closePanel = (): void => { if (this.#discard()) { this.draft = undefined; this.viewDraft = undefined; this.selected = undefined; this.placing = null; } };
+  readonly #toggleEditing = (): void => { if (this.#discard()) { this.editing = !this.editing; this.draft = undefined; this.viewDraft = undefined; this.placing = null; } };
   #discard(): boolean {
     if (this.saving || !confirmDiscardUnsavedEdit(this.#dirty, message => window.confirm(message))) return false;
-    this.#setDirty(false); return true;
+    this.#setDirty(false); this.viewBoundsUnavailable = false; return true;
   }
   #setDirty(dirty: boolean): void { this.#dirty = dirty; this.dispatchEvent(new CustomEvent("campaign-edit-dirty", { detail: { dirty }, bubbles: true, composed: true })); }
   readonly #fit = (): void => { this.#map?.fitBounds(this.#bounds()); };
   #fitView(bounds: MapBounds): void { this.#map?.fitBounds(L.latLngBounds(this.#point(bounds.x1, bounds.y1), this.#point(bounds.x2, bounds.y2))); }
-  readonly #saveView = (): void => {
-    if (this.#map === undefined || this.campaign === undefined || this.route === undefined || !this.canManageCampaign || this.saving) return;
+  #currentViewBounds(): MapBounds | undefined {
+    if (this.#map === undefined) return undefined;
     const bounds = this.#map.getBounds();
-    const expectedRevision = mapViewRecord(this.campaign)?.revision ?? 0;
-    const label = window.prompt(this.#ui.t("map.viewName")); if (!label?.trim()) return;
-    this.#emitSave({ kind: "view", id: createCampaignRecordKey(label), label, expectedRevision, parentId: this.route.parentId,
-      bounds: { x1: clamp(bounds.getWest() / this.#width), y1: clamp(-bounds.getNorth() / this.#height),
-        x2: clamp(bounds.getEast() / this.#width), y2: clamp(-bounds.getSouth() / this.#height) } });
+    const result = { x1: clamp(bounds.getWest() / this.#width), y1: clamp(-bounds.getNorth() / this.#height),
+      x2: clamp(bounds.getEast() / this.#width), y2: clamp(-bounds.getSouth() / this.#height) };
+    this.viewBoundsUnavailable = !validBounds(result);
+    return this.viewBoundsUnavailable ? undefined : result;
+  }
+  #openView(view?: MapView): void {
+    if (this.campaign === undefined || this.route === undefined || !this.canManageCampaign || this.saving) return;
+    const bounds = view?.bounds ?? this.#currentViewBounds();
+    if (bounds === undefined || !this.#discard()) return;
+    this.draft = undefined; this.selected = undefined; this.placing = null;
+    this.viewDraft = { kind: "view", action: view === undefined ? "create" : "update", id: view?.id ?? createCampaignRecordKey("view"),
+      label: view?.label ?? "", icon: view?.icon ?? "📍", expectedRevision: mapViewRecord(this.campaign)?.revision ?? 0, parentId: this.route.parentId, bounds };
+    this.#setDirty(view === undefined);
+    void this.updateComplete.then(() => this.querySelector<HTMLInputElement>('.sc-panel input[name="label"]')?.focus());
+  }
+  readonly #viewInput = (event: Event): void => {
+    if (this.viewDraft === undefined || this.saving) return;
+    const input = event.target as HTMLInputElement;
+    if (input.name === "label" || input.name === "icon") { this.viewDraft = { ...this.viewDraft, [input.name]: input.value }; this.#setDirty(true); }
+  };
+  readonly #captureView = (): void => {
+    if (this.viewDraft === undefined || this.saving) return;
+    const bounds = this.#currentViewBounds();
+    if (bounds !== undefined) { this.viewDraft = { ...this.viewDraft, bounds }; this.#setDirty(true); }
+  };
+  readonly #saveView = (event: SubmitEvent): void => {
+    event.preventDefault();
+    if (this.viewDraft !== undefined && !this.saving) this.#emitSave(this.viewDraft);
+  };
+  readonly #deleteView = (): void => {
+    if (this.viewDraft === undefined || this.saving || !window.confirm(this.#ui.t("map.deleteViewConfirm", { name: this.viewDraft.label }))) return;
+    this.#emitSave({ kind: "view", action: "delete", id: this.viewDraft.id, parentId: this.viewDraft.parentId, expectedRevision: this.viewDraft.expectedRevision });
   };
   readonly #upload = (event: Event): void => {
     const input = event.target as HTMLInputElement, file = input.files?.[0];
@@ -292,7 +394,14 @@ export class CodexMap extends LitElement {
   };
 }
 function clamp(value: number): number { return Math.max(0, Math.min(1, value)); }
-function percent(value: number | null): string { return String(Number(((value ?? 0) * 100).toFixed(6))); }
+function percent(value: number | null, digits = 6): string { return String(Number(((value ?? 0) * 100).toFixed(digits))); }
+function bindMarkerAction(marker: L.Marker, action: () => void): void {
+  marker.on("click", action);
+  // Leaflet makes divIcon markers focusable; custom click actions still need key activation.
+  marker.on("keydown", (event: L.LeafletKeyboardEvent) => {
+    if (event.originalEvent.key === "Enter" || event.originalEvent.key === " ") { L.DomEvent.stop(event.originalEvent); action(); }
+  });
+}
 function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();

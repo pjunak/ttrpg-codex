@@ -31,5 +31,19 @@
 .sc-upload, .sc-message { display: block; margin: 0; padding: .5rem 1rem; background: var(--bg-base); font: .8rem var(--font-ui); }
 .sc-upload input { max-width: 100%; }
 .sc-message { color: var(--gold); }
+.sc-view-preset { display: inline-flex; align-items: stretch; }
+.sc-view-preset:has(.sc-view-edit) > :first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.sc-view-edit { border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.sc-view-bounds { font: .75rem var(--font-ui); color: var(--text-muted); }
+.sc-event-pin { background: transparent; border: 0; }
+.sc-event-marker { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(var(--accent-gold-rgb), .7); font-family: var(--font-ui); box-shadow: 0 2px 8px #0008, 0 0 6px rgba(var(--accent-gold-rgb), .3); cursor: pointer; line-height: 1; transition: transform .15s, box-shadow .15s; }
+.sc-event-marker:hover { transform: scale(1.15); box-shadow: 0 4px 12px #0009, 0 0 10px rgba(var(--accent-gold-rgb), .5); }
+.sc-event-marker-label { font-size: 7px; font-weight: 700; color: #ffffffe6; letter-spacing: .03em; }
+.sc-legend { position: absolute; bottom: 1.5rem; left: 1rem; max-width: calc(100% - 2rem); background: rgba(18,14,10,.88); border: 1px solid rgba(var(--gold-muted), .2); border-radius: 6px; padding: .5rem .75rem; z-index: 500; pointer-events: none; font-family: var(--font-ui); }
+.sc-legend .legend-title { color: var(--gold); font-size: .75rem; font-weight: 600; margin-bottom: .3rem; }
+.sc-legend .legend-item { display: flex; align-items: center; gap: .4rem; font-size: .72rem; margin: .2rem 0; }
+.sc-legend .legend-line { width: 20px; border-top: 2px dashed; }
+.sc-event-marker-tiny { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(var(--accent-gold-rgb), .5); font-size: 7px; color: #fffc; text-align: center; line-height: 14px; }
+.sc-legend .legend-hint { color: var(--text-muted); font-size: .72rem; font-style: italic; margin: .3rem 0 0; }
 @media (max-width: 768px) { .sc-shell { left: 0; bottom: 60px; } .sc-toolbar { padding: .5rem; } .sc-hint { display: none; } }
 @media (pointer: coarse) { .sc-zoom-btn { width: 40px; height: 40px; } .sc-zoom-slider-vertical { width: 32px; height: 120px; } }

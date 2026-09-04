@@ -35,6 +35,12 @@ async function fixture(t, { role = 'dm', mobile = false } = {}) {
   collection('settings').records.push({ key: 'mapViews', revision: 4, value: [
     { id: 'gate-view', label: 'Gate interior', parentId: 'gate', icon: '📍', bounds: { x1: 0, y1: 0, x2: .8, y2: .8 }, extension: true },
   ] });
+  collection('events').records = [
+    { key: 'travel', revision: 1, value: { id: 'travel', name: 'Road to the inn', sitting: 2, locations: ['gate', 'inn', 'missing', 'room'] } },
+    { key: 'arrival', revision: 1, value: { id: 'arrival', name: 'Camp by the river', sitting: 1, mapX: .48, mapY: .35, locations: ['gate'] } },
+    { key: 'past', revision: 1, value: { id: 'past', name: 'The old gate', locations: ['gate'] } },
+    { key: 'local-event', revision: 1, value: { id: 'local-event', name: 'Inside the gate', sitting: 3, mapParentId: 'gate', mapX: .25, mapY: .25, locations: ['room'] } },
+  ];
   const context = await browser.newContext({ locale: 'en-US', reducedMotion: 'reduce',
     viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 }, extraHTTPHeaders: { 'x-fixture-role': role } });
   t.after(() => context.close());
@@ -78,9 +84,9 @@ async function fixture(t, { role = 'dm', mobile = false } = {}) {
 }
 function blob(url, kind, target) { return { contractVersion: 'media-blob.v1', id: url.split('/').at(-1), url, kind, target,
   mediaType: 'image/svg+xml', bytes: svg.length, revision: 1, createdAt: '2026-09-05T12:00:00Z' }; }
-async function changed(page) {
+async function changed(page, resource = 'locations') {
   const refresh = page.waitForResponse(response => response.url() === `${origin}/api/campaign`);
-  const payload = { sequence: ++sequence, topic: 'campaign-data-changed', resourceId: 'locations', revision: String(++collection('locations').revision),
+  const payload = { sequence: ++sequence, topic: 'campaign-data-changed', resourceId: resource, revision: String(++collection(resource).revision),
     occurredAt: '2026-09-05T12:00:00Z', metadata: { commitId: sequence, records: 1 } };
   for (const stream of streams) stream.write(`id: ${sequence}\nevent: campaign-data-changed\ndata: ${JSON.stringify(payload)}\n\n`);
   await refresh;
@@ -103,7 +109,7 @@ for (const mobile of [false, true]) {
     assert.equal(visual.background, 'rgb(20, 16, 8)');
     assert.equal(visual.padding, mobile ? '8px' : '8px 16px');
     await page.screenshot({ path: `${artifacts}${mobile ? 'mobile' : 'desktop'}-world.png`, animations: 'disabled' });
-    await marker(page, 'Northern Gate').click();
+    await marker(page, 'Northern Gate').focus(); await page.keyboard.press('Enter');
     await page.getByRole('link', { name: 'Local map', exact: true }).click();
     await marker(page, 'Upper Room').waitFor();
     assert.equal(await page.locator('.sc-marker').count(), 1);
@@ -190,8 +196,9 @@ test('players can create and place locations without shared map administration',
 test('saved views and local map upload use the existing optimistic records and media API', async t => {
   const { page, writes, uploads } = await fixture(t);
   await page.getByRole('button', { name: 'Edit map', exact: false }).click();
-  page.once('dialog', dialog => dialog.accept('Northern coast'));
   await page.getByRole('button', { name: 'Save view', exact: false }).click();
+  await page.getByLabel('Name this map view').fill('Northern coast');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.getByRole('button', { name: '📍 Northern coast', exact: true }).waitFor();
   assert.equal(writes[0][0].expectedRevision, 4);
   assert.equal(writes[0][0].value[0].extension, true);
@@ -203,3 +210,94 @@ test('saved views and local map upload use the existing optimistic records and m
   assert.equal(record('unplaced').value.localMap, uploadedURL);
   assert.equal(record('unplaced').value.name, 'Unplaced town');
 });
+
+for (const mobile of [false, true]) {
+  test(`event paths retain original geometry, style and map scope (${mobile ? 'phone' : 'desktop'})`, async t => {
+    const { page, writes } = await fixture(t, { role: '', mobile });
+    const toggle = page.getByRole('button', { name: 'Event paths', exact: false });
+    assert.equal(await page.locator('.sc-event-pin').count(), 0);
+    await toggle.click();
+    await page.locator('.sc-event-pin').first().waitFor();
+    assert.equal(await toggle.getAttribute('aria-pressed'), 'true');
+    assert.deepEqual(await page.locator('.sc-event-pin').evaluateAll(nodes => nodes.map(node => node.title)),
+      ['The old gate', 'Camp by the river', 'Road to the inn', 'Road to the inn']);
+    assert.equal(await page.locator('.sc-event-path').count(), 3);
+    const pin = page.locator('.sc-event-pin[title="Camp by the river"]');
+    await page.waitForFunction(() => {
+      const image = document.querySelector('.leaflet-image-layer').getBoundingClientRect();
+      const pin = document.querySelector('.sc-event-pin[title="Camp by the river"]').getBoundingClientRect();
+      return Math.abs(pin.x + pin.width / 2 - image.x - image.width * .48) < 2 &&
+        Math.abs(pin.y + pin.height / 2 - image.y - image.height * .35) < 2;
+    });
+    const style = await pin.locator('.sc-event-marker').evaluate(node => ({ background: getComputedStyle(node).backgroundColor,
+      radius: getComputedStyle(node).borderRadius, width: getComputedStyle(node).width, text: node.textContent }));
+    assert.deepEqual(style, { background: 'rgb(139, 105, 20)', radius: '50%', width: '28px', text: 'S1' });
+    assert.equal(await page.locator('.sc-event-path').first().getAttribute('stroke'), '#C8A040');
+    assert.equal(await page.locator('.sc-event-path').first().getAttribute('stroke-dasharray'), '7, 5');
+    await page.screenshot({ path: `${artifacts}${mobile ? 'mobile' : 'desktop'}-events.png`, animations: 'disabled' });
+    collection('events').records = collection('events').records.filter(item => item.key !== 'past');
+    await changed(page, 'events');
+    await page.locator('.sc-event-pin[title="The old gate"]').waitFor({ state: 'detached' });
+    assert.equal(await page.locator('.sc-event-pin').count(), 3);
+    await toggle.click();
+    await page.locator('.sc-event-pin').first().waitFor({ state: 'detached' });
+    assert.equal(await page.locator('.sc-event-path').count(), 0);
+    await toggle.click();
+    await pin.focus(); await page.keyboard.press('Enter');
+    await page.waitForURL(/#\/events\/arrival$/);
+    await page.locator('.leaflet-container').waitFor({ state: 'detached' });
+    await page.goto(`${origin}/#/map/local/gate`);
+    await marker(page, 'Upper Room').waitFor();
+    await page.getByRole('button', { name: 'Event paths', exact: false }).click();
+    await page.locator('.sc-event-pin').first().waitFor();
+    assert.deepEqual(await page.locator('.sc-event-pin').evaluateAll(nodes => nodes.map(node => node.title)), ['Road to the inn', 'Inside the gate']);
+    assert.equal(await page.locator('.sc-event-path').count(), 1);
+    assert.equal(writes.length, 0);
+  });
+
+  test(`saved-view drafts preserve revisions, extension fields and other map scopes (${mobile ? 'phone' : 'desktop'})`, async t => {
+    const { page, writes } = await fixture(t, { mobile });
+    await page.goto(`${origin}/#/map/local/gate`);
+    await marker(page, 'Upper Room').waitFor();
+    await page.getByRole('button', { name: 'Edit map', exact: false }).click();
+    await page.getByRole('button', { name: 'Edit view: Gate interior', exact: true }).click();
+    await page.getByLabel('Name this map view').fill('Upper floor');
+    await page.getByLabel('View icon', { exact: true }).fill('🏰');
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    await page.getByRole('button', { name: 'Use current map area', exact: true }).click();
+    page.once('dialog', dialog => dialog.dismiss());
+    await page.keyboard.press('Control+k');
+    await page.waitForURL(/#\/map\/local\/gate$/);
+    assert.equal(await page.getByLabel('Name this map view').inputValue(), 'Upper floor');
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: `${artifacts}${mobile ? 'mobile' : 'desktop'}-view-editor.png`, animations: 'disabled' });
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByRole('button', { name: '🏰 Upper floor', exact: true }).waitFor();
+    const views = collection('settings').records.find(item => item.key === 'mapViews');
+    assert.equal(writes.length, 1);
+    assert.equal(views.value[0].id, 'gate-view');
+    assert.equal(views.value[0].extension, true);
+    assert.notDeepEqual(views.value[0].bounds, { x1: 0, y1: 0, x2: .8, y2: .8 });
+    await page.getByRole('button', { name: 'Edit view: Upper floor', exact: true }).click();
+    await page.getByLabel('Name this map view').fill('Draft name');
+    views.revision++;
+    const remote = { id: 'world-view', label: 'Remote world view', parentId: null, icon: '📍', bounds: { x1: 0, y1: 0, x2: 1, y2: 1 }, extra: true };
+    views.value.push(remote);
+    await changed(page, 'settings');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.locator('.sc-message').filter({ hasText: 'Your draft is kept' }).waitFor();
+    assert.equal(await page.getByLabel('Name this map view').inputValue(), 'Draft name');
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: 'Delete view', exact: true }).click();
+    assert.equal(writes.length, 1, 'stale deletion must not write');
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit view: Upper floor', exact: true }).click();
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: 'Delete view', exact: true }).click();
+    await page.getByLabel('Name this map view').waitFor({ state: 'detached' });
+    assert.equal(writes.length, 2);
+    assert.equal(writes[1][0].expectedRevision, 6);
+    assert.deepEqual(collection('settings').records.find(item => item.key === 'mapViews').value, [remote]);
+  });
+}
