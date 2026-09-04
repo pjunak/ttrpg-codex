@@ -7,6 +7,7 @@ import {
   type EntitySummary,
 } from "./campaign-projection.js";
 import { campaignPages, collectionHash } from "./routes.js";
+import { UiLocalizationController, uiCollectionLabel } from "./ui-localization.js";
 
 export class CodexDashboard extends LitElement {
   static override properties = {
@@ -16,6 +17,7 @@ export class CodexDashboard extends LitElement {
 
   declare campaign: CampaignDataset | undefined;
   declare partyOnly: boolean;
+  readonly #ui = new UiLocalizationController(this);
 
   constructor() {
     super();
@@ -54,9 +56,9 @@ export class CodexDashboard extends LitElement {
     return html`
       <article class="campaign-dashboard party-page" aria-labelledby="party-title">
         <header class="page-heading">
-          <a href="#/" class="breadcrumb-link">Campaign overview</a>
-          <h1 id="party-title">The party</h1>
-          <p>The adventurers and companions at the center of the campaign.</p>
+          <a href="#/" class="breadcrumb-link">${this.#ui.t("dashboard.campaignOverview")}</a>
+          <h1 id="party-title">${this.#ui.t("dashboard.partyTitle")}</h1>
+          <p>${this.#ui.t("dashboard.partyIntro")}</p>
         </header>
         ${this.#partySection(model, false)}
       </article>
@@ -68,17 +70,17 @@ export class CodexDashboard extends LitElement {
     return html`
       <section class="chronicle-section party-section" aria-labelledby="party-heading">
         <div class="section-heading">
-          <h2 id="party-heading">The company</h2>
-          ${compact ? html`<a href="#/party">Open party roster</a>` : nothing}
+          <h2 id="party-heading">${this.#ui.t("dashboard.company")}</h2>
+          ${compact ? html`<a href="#/party">${this.#ui.t("dashboard.openRoster")}</a>` : nothing}
         </div>
         ${empty
-          ? html`<p class="empty-state">No party members have been recorded yet.</p>`
+          ? html`<p class="empty-state">${this.#ui.t("dashboard.emptyParty")}</p>`
           : html`
             <div class="party-roster">
               ${model.party.map((member) => this.#partyMember(member))}
             </div>
             ${model.companions.length === 0 ? nothing : html`
-              <div class="companion-roster" aria-label="Party companions">
+              <div class="companion-roster" aria-label=${this.#ui.t("dashboard.partyCompanions")}>
                 ${model.companions.map((companion) => this.#companion(companion))}
               </div>
             `}
@@ -96,7 +98,7 @@ export class CodexDashboard extends LitElement {
           ${member.title === "" ? nothing : html`<span>${member.title}</span>`}
         </span>
         ${member.status === "" ? nothing : html`
-          <span class=${`status-mark status-${safeToken(member.status)}`} title=${member.status}></span>
+          <span class=${`status-mark status-${safeToken(member.status)}`} title=${member.statusLabel}></span>
         `}
       </a>
     `;
@@ -116,10 +118,10 @@ export class CodexDashboard extends LitElement {
     return html`
       <section class="chronicle-section session-section" aria-labelledby="session-heading">
         <div class="section-heading">
-          <h2 id="session-heading">Last session</h2>
-          <a href="#/events">Open timeline</a>
+          <h2 id="session-heading">${this.#ui.t("dashboard.lastSession")}</h2>
+          <a href="#/events">${this.#ui.t("dashboard.openTimeline")}</a>
         </div>
-        <div class="session-number">Session ${model.lastSession}</div>
+        <div class="session-number">${this.#ui.t("dashboard.session", { n: model.lastSession })}</div>
         <ol class="session-events">
           ${model.lastSessionEvents.map((event) => this.#sessionEvent(event))}
         </ol>
@@ -129,8 +131,8 @@ export class CodexDashboard extends LitElement {
 
   #sessionEvent(event: DashboardEvent) {
     const references = [
-      event.characters > 0 ? `${event.characters} ${event.characters === 1 ? "character" : "characters"}` : "",
-      event.locations > 0 ? `${event.locations} ${event.locations === 1 ? "place" : "places"}` : "",
+      event.characters > 0 ? this.#ui.plural("dashboard.characterCount", event.characters) : "",
+      event.locations > 0 ? this.#ui.plural("dashboard.placeCount", event.locations) : "",
     ].filter((value) => value !== "");
     return html`
       <li>
@@ -147,12 +149,12 @@ export class CodexDashboard extends LitElement {
     if (model.recent.length === 0) return nothing;
     return html`
       <section class="chronicle-section recent-section" aria-labelledby="recent-heading">
-        <div class="section-heading"><h2 id="recent-heading">Recently changed</h2></div>
+        <div class="section-heading"><h2 id="recent-heading">${this.#ui.t("dashboard.recent")}</h2></div>
         <div class="recent-ledger">
           ${model.recent.map((entity) => html`
             <a href=${entity.route}>
               <span>${entity.name}</span>
-              <time datetime=${entity.updatedAt ?? ""}>${relativeDate(entity.updatedAt)}</time>
+              <time datetime=${entity.updatedAt ?? ""}>${this.#ui.relativeDate(entity.updatedAt)}</time>
             </a>
           `)}
         </div>
@@ -162,13 +164,13 @@ export class CodexDashboard extends LitElement {
 
   #archiveIndex(model: DashboardModel) {
     return html`
-      <nav class="archive-index" aria-label="Campaign archive index">
-        <h2>Campaign archive</h2>
+      <nav class="archive-index" aria-label=${this.#ui.t("dashboard.archiveIndex")}>
+        <h2>${this.#ui.t("shell.campaignArchive")}</h2>
         <div>
           ${campaignPages.map((page) => html`
             <a href=${collectionHash(page)}>
               <span class="archive-index-icon" aria-hidden="true">${page.icon}</span>
-              <span>${page.plural}</span>
+              <span>${uiCollectionLabel(page.id, "other")}</span>
               <strong>${model.counts[page.id] ?? 0}</strong>
             </a>
           `)}
@@ -189,18 +191,6 @@ function portrait(entity: EntitySummary) {
 
 function safeToken(value: string): string {
   return /^[a-z][a-z0-9-]*$/u.test(value) ? value : "unknown";
-}
-
-function relativeDate(value: string | undefined): string {
-  if (value === undefined) return "";
-  const instant = Date.parse(value);
-  const elapsed = Date.now() - instant;
-  if (!Number.isFinite(elapsed) || elapsed < 0) return new Date(instant).toLocaleDateString();
-  const days = Math.floor(elapsed / 86_400_000);
-  if (days === 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 14) return `${days} days ago`;
-  return new Date(instant).toLocaleDateString();
 }
 
 if (!customElements.get("codex-dashboard")) {

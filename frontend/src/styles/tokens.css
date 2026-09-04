@@ -22,6 +22,44 @@
   --sidebar-width: 17rem;
   --reading-width: 76rem;
   --focus: #f5d77f;
+  --backdrop-glow: rgb(200 160 64 / 9%);
+  --backdrop-start: #110d07;
+  --backdrop-end: #080603;
+  --chrome-text: #e8dcc2;
+  --chrome-soft: #c9bea9;
+  --chrome-muted: #8f816a;
+  --chrome-faint: #776c5b;
+  --chrome-active: #fff4d6;
+  --chrome-hover: #fff3d4;
+  --chrome-divider: rgb(224 189 100 / 20%);
+  --chrome-divider-strong: rgb(224 189 100 / 36%);
+  --chrome-field: #100c07;
+  --chrome-field-border: #5d5039;
+  --chrome-mobile: #181107;
+}
+
+:root[data-theme="moonlit"] {
+  --night: #071018;
+  --walnut: #101c24;
+  --walnut-light: #18303a;
+  --gold: #7ea6b2;
+  --gold-bright: #add0d8;
+  --crimson: #7d344e;
+  --focus: #efd178;
+  --backdrop-glow: rgb(126 166 178 / 12%);
+  --backdrop-start: #0b151d;
+  --backdrop-end: #050a0f;
+  --chrome-text: #e2eaeb;
+  --chrome-soft: #bac9cc;
+  --chrome-muted: #849aa0;
+  --chrome-faint: #6e8389;
+  --chrome-active: #effbfc;
+  --chrome-hover: #f3fdff;
+  --chrome-divider: rgb(126 166 178 / 23%);
+  --chrome-divider-strong: rgb(126 166 178 / 42%);
+  --chrome-field: #091219;
+  --chrome-field-border: #48616a;
+  --chrome-mobile: #0b171f;
 }
 
 * {
@@ -39,8 +77,8 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(circle at 74% 5%, rgb(200 160 64 / 9%), transparent 24rem),
-    linear-gradient(135deg, #110d07, #080603 70%);
+    radial-gradient(circle at 74% 5%, var(--backdrop-glow), transparent 24rem),
+    linear-gradient(135deg, var(--backdrop-start), var(--backdrop-end) 70%);
 }
 
 button,

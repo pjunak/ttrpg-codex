@@ -1,0 +1,372 @@
+import type { ReactiveController, ReactiveControllerHost } from "lit";
+
+export type UiLocale = "en" | "cs";
+
+interface PluralForms {
+  readonly one: string;
+  readonly few?: string;
+  readonly many?: string;
+  readonly other: string;
+}
+
+type Message = string | PluralForms;
+
+const enCatalog = {
+  "shell.skip": "Skip to campaign content",
+  "shell.campaignArchive": "Campaign archive",
+  "shell.openOverview": "Open campaign overview",
+  "shell.addons": "Add-ons",
+  "shell.noAddonPages": "No add-on pages are active.",
+  "shell.signInForTools": "Sign in to open campaign tools.",
+  "shell.addonsIdle": "Add-ons are idle",
+  "shell.addonsLoading": "Loading add-ons…",
+  "shell.addonGenerationsActive": { one: "{n} add-on generation active", other: "{n} add-on generations active" },
+  "shell.addonsActiveFailed": "{active} active · {failed} failed",
+  "shell.addonsAttention": "Add-ons need attention",
+  "shell.campaignAddons": "Campaign add-ons",
+  "shell.recordAddons": "Record add-ons",
+  "shell.addonPage": "Add-on page",
+  "shell.dismiss": "Dismiss",
+  "shell.campaign": "Campaign",
+  "shell.world": "World",
+  "shell.overview": "Overview",
+  "shell.search": "Search",
+  "shell.party": "The party",
+  "shell.settings": "Settings",
+  "shell.people": "People",
+  "shell.places": "Places",
+  "shell.primaryNavigation": "Primary campaign navigation",
+  "shell.checkingSession": "Checking session…",
+  "shell.privateArchive": "Private archive",
+  "shell.passwordLabel": "DM or player password",
+  "shell.passwordPlaceholder": "Campaign password",
+  "shell.signIn": "Sign in",
+  "shell.viewingAs": "Viewing as",
+  "shell.player": "player",
+  "shell.viewAs": "View as {role}",
+  "shell.signOut": "Sign out",
+  "shell.menu": "Menu",
+  "shell.dmMenu": "DM menu",
+  "shell.playerMenu": "Player menu",
+  "shell.checkingHost": "Checking host",
+  "shell.hostUnavailable": "Host unavailable",
+  "shell.connecting": "Connecting",
+  "shell.live": "Live",
+  "shell.reconnecting": "Reconnecting",
+  "shell.openingCampaign": "Opening the campaign chronicle…",
+  "shell.campaignOpenFailed": "The chronicle could not be opened.",
+  "shell.tryAgain": "Try again",
+  "shell.signInSettings": "Sign in to open settings.",
+  "shell.settingsAuthHint": "Personal preferences are available to everyone; campaign configuration requires a DM session.",
+  "shell.signInAddon": "Sign in to open this page.",
+  "shell.addonRoleHint": "Add-on tools inherit your current campaign role.",
+  "shell.openingAddon": "Opening add-on page…",
+  "shell.pageMissing": "This page is not in the index.",
+  "shell.pageMissingHint": "The address may be old or incomplete.",
+  "shell.returnOverview": "Return to overview",
+  "collection.characters.one": "Character",
+  "collection.characters.other": "Characters",
+  "collection.locations.one": "Location",
+  "collection.locations.other": "Locations",
+  "collection.events.one": "Event",
+  "collection.events.other": "Events",
+  "collection.mysteries.one": "Mystery",
+  "collection.mysteries.other": "Mysteries",
+  "collection.factions.one": "Faction",
+  "collection.factions.other": "Factions",
+  "collection.pantheon.one": "Deity",
+  "collection.pantheon.other": "Pantheon",
+  "collection.artifacts.one": "Artifact",
+  "collection.artifacts.other": "Artifacts",
+  "collection.history.one": "Historical event",
+  "collection.history.other": "History",
+  "collection.companions.one": "Companion",
+  "collection.companions.other": "Companions",
+  "dashboard.campaignOverview": "Campaign overview",
+  "dashboard.partyTitle": "The party",
+  "dashboard.partyIntro": "The adventurers and companions at the center of the campaign.",
+  "dashboard.company": "The company",
+  "dashboard.openRoster": "Open party roster",
+  "dashboard.emptyParty": "No party members have been recorded yet.",
+  "dashboard.partyCompanions": "Party companions",
+  "dashboard.lastSession": "Last session",
+  "dashboard.openTimeline": "Open timeline",
+  "dashboard.session": "Session {n}",
+  "dashboard.characterCount": { one: "{n} character", other: "{n} characters" },
+  "dashboard.placeCount": { one: "{n} place", other: "{n} places" },
+  "dashboard.recent": "Recently changed",
+  "dashboard.archiveIndex": "Campaign archive index",
+  "dashboard.today": "today",
+  "dashboard.yesterday": "yesterday",
+  "dashboard.daysAgo": "{n} days ago",
+  "search.kicker": "Campaign index",
+  "search.title": "Search the chronicle",
+  "search.intro": "Find people, places, events, mysteries, factions, lore, and companions in your current view.",
+  "search.label": "Search the campaign",
+  "search.placeholder": "Name, title, tag, or remembered phrase",
+  "search.prompt": "Begin typing to search every visible part of the campaign archive.",
+  "search.empty": "Nothing in the current campaign view matches “{query}”.",
+  "search.count": { one: "{n} entry found", other: "{n} entries found" },
+  "settings.kicker": "Campaign administration",
+  "settings.title": "Settings folio",
+  "settings.intro": "Choose your reading language and manage the campaign’s shared presentation and vocabulary.",
+  "settings.categories": "Settings categories",
+  "settings.language": "Language",
+  "settings.languageIntro": "Choose the language used by this browser. It does not change campaign data or another player’s preference.",
+  "settings.languageLabel": "Interface language",
+  "settings.languageProgress": "The shell, dashboard, search, and personal settings are translated. Record editors and campaign configuration remain in English while their catalog migration continues.",
+  "settings.appearance": "Appearance",
+  "settings.appearanceIntro": "The campaign theme is shared by everyone. Only the DM can change it.",
+  "settings.appearanceLabel": "Campaign theme",
+  "settings.appearanceClassic": "Classic archive",
+  "settings.appearanceClassicHint": "Walnut, parchment, gold, and crimson.",
+  "settings.appearanceMoonlit": "Moonlit archive",
+  "settings.appearanceMoonlitHint": "Cool slate chrome around the same readable parchment pages.",
+  "settings.saveAppearance": "Save appearance",
+  "settings.saving": "Saving…",
+} satisfies Record<string, Message>;
+
+export type MessageKey = keyof typeof enCatalog;
+
+const csCatalog = {
+  "shell.skip": "Přeskočit na obsah kampaně",
+  "shell.campaignArchive": "Archiv kampaně",
+  "shell.openOverview": "Otevřít přehled kampaně",
+  "shell.addons": "Doplňky",
+  "shell.noAddonPages": "Nejsou aktivní žádné stránky doplňků.",
+  "shell.signInForTools": "Přihlas se pro přístup k nástrojům kampaně.",
+  "shell.addonsIdle": "Doplňky jsou nečinné",
+  "shell.addonsLoading": "Načítám doplňky…",
+  "shell.addonGenerationsActive": { one: "Aktivní je {n} generace doplňku", few: "Aktivní jsou {n} generace doplňků", other: "Aktivních generací doplňků: {n}" },
+  "shell.addonsActiveFailed": "Aktivní: {active} · selhalo: {failed}",
+  "shell.addonsAttention": "Doplňky vyžadují pozornost",
+  "shell.campaignAddons": "Doplňky kampaně",
+  "shell.recordAddons": "Doplňky záznamu",
+  "shell.addonPage": "Stránka doplňku",
+  "shell.dismiss": "Skrýt",
+  "shell.campaign": "Kampaň",
+  "shell.world": "Svět",
+  "shell.overview": "Přehled",
+  "shell.search": "Hledat",
+  "shell.party": "Družina",
+  "shell.settings": "Nastavení",
+  "shell.people": "Postavy",
+  "shell.places": "Místa",
+  "shell.primaryNavigation": "Hlavní navigace kampaně",
+  "shell.checkingSession": "Ověřuji přihlášení…",
+  "shell.privateArchive": "Soukromý archiv",
+  "shell.passwordLabel": "Heslo DM nebo hráče",
+  "shell.passwordPlaceholder": "Heslo kampaně",
+  "shell.signIn": "Přihlásit se",
+  "shell.viewingAs": "Zobrazení jako",
+  "shell.player": "hráč",
+  "shell.viewAs": "Zobrazit jako {role}",
+  "shell.signOut": "Odhlásit se",
+  "shell.menu": "Menu",
+  "shell.dmMenu": "Menu DM",
+  "shell.playerMenu": "Menu hráče",
+  "shell.checkingHost": "Ověřuji server",
+  "shell.hostUnavailable": "Server není dostupný",
+  "shell.connecting": "Připojuji",
+  "shell.live": "Živě",
+  "shell.reconnecting": "Obnovuji spojení",
+  "shell.openingCampaign": "Otevírám kroniku kampaně…",
+  "shell.campaignOpenFailed": "Kroniku se nepodařilo otevřít.",
+  "shell.tryAgain": "Zkusit znovu",
+  "shell.signInSettings": "Přihlas se pro nastavení kampaně.",
+  "shell.settingsAuthHint": "Osobní volby jsou dostupné všem; nastavení kampaně vyžaduje přihlášení DM.",
+  "shell.signInAddon": "Přihlas se pro otevření této stránky.",
+  "shell.addonRoleHint": "Nástroje doplňků používají tvou současnou roli v kampani.",
+  "shell.openingAddon": "Otevírám stránku doplňku…",
+  "shell.pageMissing": "Tato stránka není v rejstříku.",
+  "shell.pageMissingHint": "Adresa může být stará nebo neúplná.",
+  "shell.returnOverview": "Zpět na přehled",
+  "collection.characters.one": "Postava",
+  "collection.characters.other": "Postavy",
+  "collection.locations.one": "Místo",
+  "collection.locations.other": "Místa",
+  "collection.events.one": "Událost",
+  "collection.events.other": "Události",
+  "collection.mysteries.one": "Záhada",
+  "collection.mysteries.other": "Záhady",
+  "collection.factions.one": "Frakce",
+  "collection.factions.other": "Frakce",
+  "collection.pantheon.one": "Božstvo",
+  "collection.pantheon.other": "Panteon",
+  "collection.artifacts.one": "Artefakt",
+  "collection.artifacts.other": "Artefakty",
+  "collection.history.one": "Historická událost",
+  "collection.history.other": "Historie",
+  "collection.companions.one": "Společník",
+  "collection.companions.other": "Společníci",
+  "dashboard.campaignOverview": "Přehled kampaně",
+  "dashboard.partyTitle": "Družina",
+  "dashboard.partyIntro": "Dobrodruzi a společníci v centru kampaně.",
+  "dashboard.company": "Družina",
+  "dashboard.openRoster": "Otevřít seznam družiny",
+  "dashboard.emptyParty": "Zatím nejsou zapsáni žádní členové družiny.",
+  "dashboard.partyCompanions": "Společníci družiny",
+  "dashboard.lastSession": "Poslední sezení",
+  "dashboard.openTimeline": "Otevřít časovou osu",
+  "dashboard.session": "Sezení {n}",
+  "dashboard.characterCount": { one: "{n} postava", few: "{n} postavy", other: "{n} postav" },
+  "dashboard.placeCount": { one: "{n} místo", few: "{n} místa", other: "{n} míst" },
+  "dashboard.recent": "Nedávno změněno",
+  "dashboard.archiveIndex": "Rejstřík archivu kampaně",
+  "dashboard.today": "dnes",
+  "dashboard.yesterday": "včera",
+  "dashboard.daysAgo": "před {n} dny",
+  "search.kicker": "Rejstřík kampaně",
+  "search.title": "Hledat v kronice",
+  "search.intro": "Najdi postavy, místa, události, záhady, frakce, příběhy a společníky v aktuálním zobrazení.",
+  "search.label": "Hledat v kampani",
+  "search.placeholder": "Jméno, titul, štítek nebo zapamatovaná fráze",
+  "search.prompt": "Začni psát a prohledej všechny viditelné části archivu kampaně.",
+  "search.empty": "V aktuálním zobrazení kampaně nic neodpovídá „{query}“.",
+  "search.count": { one: "Nalezen {n} záznam", few: "Nalezeny {n} záznamy", other: "Nalezeno {n} záznamů" },
+  "settings.kicker": "Správa kampaně",
+  "settings.title": "Kniha nastavení",
+  "settings.intro": "Vyber jazyk rozhraní a spravuj společný vzhled a pojmy kampaně.",
+  "settings.categories": "Kategorie nastavení",
+  "settings.language": "Jazyk",
+  "settings.languageIntro": "Vyber jazyk pro tento prohlížeč. Data kampaně ani volbu jiného hráče to nezmění.",
+  "settings.languageLabel": "Jazyk rozhraní",
+  "settings.languageProgress": "Přeložen je základ aplikace, přehled, hledání a osobní nastavení. Editory záznamů a nastavení kampaně zůstávají během převodu katalogu v angličtině.",
+  "settings.appearance": "Vzhled",
+  "settings.appearanceIntro": "Vzhled kampaně je společný pro všechny. Změnit jej může pouze DM.",
+  "settings.appearanceLabel": "Vzhled kampaně",
+  "settings.appearanceClassic": "Klasický archiv",
+  "settings.appearanceClassicHint": "Ořechové dřevo, pergamen, zlato a karmínová.",
+  "settings.appearanceMoonlit": "Měsíční archiv",
+  "settings.appearanceMoonlitHint": "Chladné břidlicové okolí se stejnými dobře čitelnými pergamenovými stránkami.",
+  "settings.saveAppearance": "Uložit vzhled",
+  "settings.saving": "Ukládám…",
+} satisfies Record<MessageKey, Message>;
+
+const catalogs: Readonly<Record<UiLocale, Readonly<Record<MessageKey, Message>>>> = Object.freeze({
+  en: Object.freeze(enCatalog),
+  cs: Object.freeze(csCatalog),
+});
+
+export const availableUiLocales = Object.freeze([
+  Object.freeze({ id: "en" as const, endonym: "English" }),
+  Object.freeze({ id: "cs" as const, endonym: "Čeština" }),
+]);
+
+const localeChangeTarget = new EventTarget();
+let activeLocale: UiLocale = resolveUiLocale(readStorage("codex_lang"));
+
+export class UiLocalizationController implements ReactiveController {
+  readonly #host: ReactiveControllerHost;
+  readonly #onChange = (): void => { this.#host.requestUpdate(); };
+
+  constructor(host: ReactiveControllerHost) {
+    this.#host = host;
+    host.addController(this);
+  }
+
+  hostConnected(): void { localeChangeTarget.addEventListener("change", this.#onChange); }
+  hostDisconnected(): void { localeChangeTarget.removeEventListener("change", this.#onChange); }
+  get locale(): UiLocale { return activeLocale; }
+  t(key: MessageKey, parameters: Readonly<Record<string, string | number>> = {}): string {
+    return uiText(key, parameters);
+  }
+  plural(key: MessageKey, count: number, parameters: Readonly<Record<string, string | number>> = {}): string {
+    return uiPlural(key, count, parameters);
+  }
+  relativeDate(value: string | undefined): string { return uiRelativeDate(value); }
+  setLocale(locale: UiLocale): void { setUiLocale(locale); }
+}
+
+export function initializeUiLocalization(): void { applyLocale(); }
+
+export function resolveUiLocale(stored: string | null | undefined): UiLocale {
+  return stored === "cs" ? "cs" : "en";
+}
+
+export function currentUiLocale(): UiLocale { return activeLocale; }
+
+export function setUiLocale(locale: UiLocale): void {
+  if (locale === activeLocale) return;
+  activeLocale = locale;
+  writeStorage("codex_lang", locale);
+  applyLocale();
+  localeChangeTarget.dispatchEvent(new Event("change"));
+}
+
+export function uiText(
+  key: MessageKey,
+  parameters: Readonly<Record<string, string | number>> = {},
+): string {
+  const message = catalogs[activeLocale][key] ?? catalogs.en[key];
+  const template = typeof message === "string" ? message : message.other;
+  return interpolate(template, parameters);
+}
+
+export function uiPlural(
+  key: MessageKey,
+  count: number,
+  parameters: Readonly<Record<string, string | number>> = {},
+): string {
+  const message = catalogs[activeLocale][key] ?? catalogs.en[key];
+  if (typeof message === "string") return interpolate(message, { n: count, ...parameters });
+  const category = new Intl.PluralRules(activeLocale).select(Math.abs(count));
+  const template = category === "one" ? message.one
+    : category === "few" ? message.few ?? message.other
+      : category === "many" ? message.many ?? message.other
+        : message.other;
+  return interpolate(template, { n: count, ...parameters });
+}
+
+export function uiCollectionLabel(pageID: string, form: "one" | "other"): string {
+  const key = collectionKeys[pageID]?.[form];
+  return key === undefined ? pageID : uiText(key);
+}
+
+export function uiRelativeDate(value: string | undefined, now = Date.now()): string {
+  if (value === undefined) return "";
+  const instant = Date.parse(value);
+  const elapsed = now - instant;
+  if (!Number.isFinite(elapsed) || elapsed < 0) return formatDate(instant);
+  const days = Math.floor(elapsed / 86_400_000);
+  if (days === 0) return uiText("dashboard.today");
+  if (days === 1) return uiText("dashboard.yesterday");
+  if (days < 14) return uiText("dashboard.daysAgo", { n: days });
+  return formatDate(instant);
+}
+
+const collectionKeys: Readonly<Record<string, Readonly<Record<"one" | "other", MessageKey>>>> = Object.freeze({
+  characters: Object.freeze({ one: "collection.characters.one", other: "collection.characters.other" }),
+  locations: Object.freeze({ one: "collection.locations.one", other: "collection.locations.other" }),
+  events: Object.freeze({ one: "collection.events.one", other: "collection.events.other" }),
+  mysteries: Object.freeze({ one: "collection.mysteries.one", other: "collection.mysteries.other" }),
+  factions: Object.freeze({ one: "collection.factions.one", other: "collection.factions.other" }),
+  pantheon: Object.freeze({ one: "collection.pantheon.one", other: "collection.pantheon.other" }),
+  artifacts: Object.freeze({ one: "collection.artifacts.one", other: "collection.artifacts.other" }),
+  history: Object.freeze({ one: "collection.history.one", other: "collection.history.other" }),
+  companions: Object.freeze({ one: "collection.companions.one", other: "collection.companions.other" }),
+});
+
+function interpolate(template: string, parameters: Readonly<Record<string, string | number>>): string {
+  return template.replace(/\{([A-Za-z0-9_]+)\}/gu, (match, key: string) =>
+    Object.prototype.hasOwnProperty.call(parameters, key) ? String(parameters[key]) : match);
+}
+
+function formatDate(instant: number): string {
+  try { return new Intl.DateTimeFormat(activeLocale).format(new Date(instant)); }
+  catch { return new Date(instant).toLocaleDateString(); }
+}
+
+function applyLocale(): void {
+  if (typeof document !== "undefined") document.documentElement.lang = activeLocale;
+}
+
+function readStorage(key: string): string | null {
+  try { return typeof window === "undefined" ? null : window.localStorage.getItem(key); }
+  catch { return null; }
+}
+
+function writeStorage(key: string, value: string): void {
+  try { if (typeof window !== "undefined") window.localStorage.setItem(key, value); }
+  catch { /* A blocked preference store must not break the campaign UI. */ }
+}

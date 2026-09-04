@@ -19,6 +19,12 @@ import {
   type CampaignEnumDeleteMutation,
   type CampaignMutation,
 } from "../core/campaign-mutations.js";
+import {
+  applyCampaignTheme,
+  CampaignAppearanceEditError,
+  prepareCampaignAppearanceSave,
+  type CampaignAppearanceSaveDetail,
+} from "./campaign-appearance.js";
 import { SharedEventStream, type EventRefresh } from "../core/event-stream.js";
 import {
   createBrowserAddonComposition,
@@ -56,6 +62,11 @@ import {
   recordHash,
   type AppRoute,
 } from "./routes.js";
+import {
+  UiLocalizationController,
+  uiCollectionLabel,
+  type MessageKey,
+} from "./ui-localization.js";
 import "./codex-dashboard.js";
 import "./codex-record-page.js";
 import "./codex-search.js";
@@ -123,6 +134,7 @@ export class CodexApp extends LitElement {
   readonly #campaignData = new CampaignDataClient();
   readonly #campaignMutations = new CampaignMutationClient();
   readonly #events = new SharedEventStream();
+  readonly #ui = new UiLocalizationController(this);
   #addons: BrowserAddonComposition | undefined;
   #dashboardOutlet: BrowserContributionOutlet | undefined;
   #articleOutlet: BrowserContributionOutlet | undefined;
@@ -177,16 +189,16 @@ export class CodexApp extends LitElement {
   protected override render() {
     const identity = this.campaignState.state === "ready"
       ? projectCampaignIdentity(this.campaignState.campaign)
-      : { name: "TTRPG Codex", tagline: "Campaign archive" };
+      : { name: "TTRPG Codex", tagline: this.#ui.t("shell.campaignArchive") };
     return html`
-      <a class="skip-link" href="#campaign-content">Skip to campaign content</a>
+      <a class="skip-link" href="#campaign-content">${this.#ui.t("shell.skip")}</a>
       <div class="codex-shell">
         <aside class="campaign-sidebar">
           <header class="campaign-brand">
-            <a href="#/" aria-label="Open campaign overview">
+            <a href="#/" aria-label=${this.#ui.t("shell.openOverview")}>
               <span class="campaign-sigil" aria-hidden="true">C</span>
               <span>
-                <small>Campaign archive</small>
+                <small>${this.#ui.t("shell.campaignArchive")}</small>
                 <strong>${identity.name}</strong>
               </span>
             </a>
@@ -194,10 +206,10 @@ export class CodexApp extends LitElement {
               <summary>${this.#mobileAccountLabel()}</summary>
               <div class="mobile-core-navigation">${this.#navigationTemplate()}</div>
               <section class="mobile-addon-navigation" aria-labelledby="mobile-addon-navigation-title">
-                <h2 id="mobile-addon-navigation-title">Add-ons</h2>
+                <h2 id="mobile-addon-navigation-title">${this.#ui.t("shell.addons")}</h2>
                 <nav class="addon-navigation" data-addon-navigation-mobile hidden></nav>
                 <p class="addon-navigation-empty" ?hidden=${this.navigationCount > 0 || !this.#authenticated()}>
-                  ${this.#authenticated() ? "No add-on pages are active." : "Sign in to open campaign tools."}
+                  ${this.#authenticated() ? this.#ui.t("shell.noAddonPages") : this.#ui.t("shell.signInForTools")}
                 </p>
               </section>
               ${this.#accountTemplate()}
@@ -205,10 +217,10 @@ export class CodexApp extends LitElement {
           </header>
           ${this.#navigationTemplate()}
           <section class="addon-navigation-section" aria-labelledby="addon-navigation-title">
-            <h2 id="addon-navigation-title">Add-ons</h2>
+            <h2 id="addon-navigation-title">${this.#ui.t("shell.addons")}</h2>
             <nav class="addon-navigation" data-addon-navigation hidden></nav>
             <p class="addon-navigation-empty" ?hidden=${this.navigationCount > 0 || !this.#authenticated()}>
-              ${this.#authenticated() ? "No add-on pages are active." : "Sign in to open campaign tools."}
+              ${this.#authenticated() ? this.#ui.t("shell.noAddonPages") : this.#ui.t("shell.signInForTools")}
             </p>
           </section>
           ${this.#accountTemplate()}
@@ -218,19 +230,19 @@ export class CodexApp extends LitElement {
           <header class="content-statusbar">
             ${this.#hostStatusTemplate()}
             <span class=${`live-state live-${this.liveState}`}>
-              <span aria-hidden="true"></span>${liveLabel(this.liveState)}
+              <span aria-hidden="true"></span>${this.#ui.t(liveMessageKey(this.liveState))}
             </span>
           </header>
           ${this.errorMessage === "" ? nothing : html`
             <p class="application-alert" role="alert">
               <span>${this.errorMessage}</span>
-              <button type="button" @click=${this.#dismissError}>Dismiss</button>
+              <button type="button" @click=${this.#dismissError}>${this.#ui.t("shell.dismiss")}</button>
             </p>
           `}
           ${this.#campaignTemplate()}
-          <section class="addon-dashboard" data-addon-slot hidden aria-label="Campaign add-ons"></section>
-          <section class="addon-article" data-addon-article hidden aria-label="Record add-ons"></section>
-          <section class="addon-route" data-addon-route-outlet hidden aria-label="Add-on page"></section>
+          <section class="addon-dashboard" data-addon-slot hidden aria-label=${this.#ui.t("shell.campaignAddons")}></section>
+          <section class="addon-article" data-addon-article hidden aria-label=${this.#ui.t("shell.recordAddons")}></section>
+          <section class="addon-route" data-addon-route-outlet hidden aria-label=${this.#ui.t("shell.addonPage")}></section>
         </main>
 
         ${this.#mobileNavigationTemplate()}
@@ -273,6 +285,7 @@ export class CodexApp extends LitElement {
     try {
       const campaign = await this.#campaignData.refresh(signal);
       if (!signal.aborted) {
+        applyCampaignTheme(campaign);
         this.campaignState = { state: "ready", campaign };
         await this.updateComplete;
         this.#articleOutlet?.refresh();
@@ -281,6 +294,7 @@ export class CodexApp extends LitElement {
       if (signal.aborted) return;
       const current = this.#campaignData.current();
       if (retainCurrent && current !== undefined) {
+        applyCampaignTheme(current);
         this.campaignState = { state: "ready", campaign: current };
         this.errorMessage = `Campaign refresh failed: ${errorMessage(cause)}`;
       } else {
@@ -566,28 +580,26 @@ export class CodexApp extends LitElement {
   #navigationTemplate() {
     const groups = [
       {
-        label: "Campaign",
+        label: this.#ui.t("shell.campaign"),
         entries: [
-          { id: "dashboard", label: "Overview", icon: "⌂", hash: "#/" },
-          { id: "search", label: "Search", icon: "⌕", hash: "#/search" },
-          { id: "party", label: "The party", icon: "♜", hash: "#/party" },
+          { id: "dashboard", label: this.#ui.t("shell.overview"), icon: "⌂", hash: "#/" },
+          { id: "search", label: this.#ui.t("shell.search"), icon: "⌕", hash: "#/search" },
+          { id: "party", label: this.#ui.t("shell.party"), icon: "♜", hash: "#/party" },
           ...campaignPages.filter(({ group }) => group === "campaign").map((page) => ({
-            id: page.id, label: page.plural, icon: page.icon, hash: collectionHash(page),
+            id: page.id, label: uiCollectionLabel(page.id, "other"), icon: page.icon, hash: collectionHash(page),
           })),
-          ...(this.#canManageCampaign()
-            ? [{ id: "settings", label: "Settings", icon: "⚙", hash: "#/settings" }]
-            : []),
+          { id: "settings", label: this.#ui.t("shell.settings"), icon: "⚙", hash: "#/settings" },
         ],
       },
       {
-        label: "World",
+        label: this.#ui.t("shell.world"),
         entries: campaignPages.filter(({ group }) => group === "world").map((page) => ({
-          id: page.id, label: page.plural, icon: page.icon, hash: collectionHash(page),
+          id: page.id, label: uiCollectionLabel(page.id, "other"), icon: page.icon, hash: collectionHash(page),
         })),
       },
     ];
     return html`
-      <nav class="core-navigation" aria-label="Campaign archive">
+      <nav class="core-navigation" aria-label=${this.#ui.t("shell.campaignArchive")}>
         ${groups.map((group) => html`
           <section>
             <h2>${group.label}</h2>
@@ -606,30 +618,30 @@ export class CodexApp extends LitElement {
     const characters = campaignPages.find(({ id }) => id === "characters");
     const locations = campaignPages.find(({ id }) => id === "locations");
     return html`
-      <nav class="mobile-navigation" aria-label="Primary campaign navigation">
-        <a href="#/" aria-current=${this.#coreRouteActive("dashboard") ? "page" : nothing}><span>⌂</span>Overview</a>
-        <a href="#/search" aria-current=${this.#coreRouteActive("search") ? "page" : nothing}><span>⌕</span>Search</a>
-        <a href="#/party" aria-current=${this.#coreRouteActive("party") ? "page" : nothing}><span>♜</span>Party</a>
-        ${characters === undefined ? nothing : html`<a href=${collectionHash(characters)} aria-current=${this.#coreRouteActive("characters") ? "page" : nothing}><span>♟</span>People</a>`}
-        ${locations === undefined ? nothing : html`<a href=${collectionHash(locations)} aria-current=${this.#coreRouteActive("locations") ? "page" : nothing}><span>⌖</span>Places</a>`}
+      <nav class="mobile-navigation" aria-label=${this.#ui.t("shell.primaryNavigation")}>
+        <a href="#/" aria-current=${this.#coreRouteActive("dashboard") ? "page" : nothing}><span>⌂</span>${this.#ui.t("shell.overview")}</a>
+        <a href="#/search" aria-current=${this.#coreRouteActive("search") ? "page" : nothing}><span>⌕</span>${this.#ui.t("shell.search")}</a>
+        <a href="#/party" aria-current=${this.#coreRouteActive("party") ? "page" : nothing}><span>♜</span>${this.#ui.t("shell.party")}</a>
+        ${characters === undefined ? nothing : html`<a href=${collectionHash(characters)} aria-current=${this.#coreRouteActive("characters") ? "page" : nothing}><span>♟</span>${this.#ui.t("shell.people")}</a>`}
+        ${locations === undefined ? nothing : html`<a href=${collectionHash(locations)} aria-current=${this.#coreRouteActive("locations") ? "page" : nothing}><span>⌖</span>${this.#ui.t("shell.places")}</a>`}
       </nav>
     `;
   }
 
   #accountTemplate() {
     if (this.authority.state === "checking") {
-      return html`<section class="account-panel"><p class="loading-line">Checking session…</p></section>`;
+      return html`<section class="account-panel"><p class="loading-line">${this.#ui.t("shell.checkingSession")}</p></section>`;
     }
     if (!this.authority.auth.authenticated) {
       return html`
         <section class="account-panel">
-          <h2>Private archive</h2>
+          <h2>${this.#ui.t("shell.privateArchive")}</h2>
           <form @submit=${this.#login}>
             <label>
-              <span class="visually-hidden">DM or player password</span>
-              <input name="password" type="password" minlength="4" autocomplete="current-password" placeholder="Campaign password" required />
+              <span class="visually-hidden">${this.#ui.t("shell.passwordLabel")}</span>
+              <input name="password" type="password" minlength="4" autocomplete="current-password" placeholder=${this.#ui.t("shell.passwordPlaceholder")} required />
             </label>
-            <button type="submit" ?disabled=${this.busy}>Sign in</button>
+            <button type="submit" ?disabled=${this.busy}>${this.#ui.t("shell.signIn")}</button>
           </form>
         </section>
       `;
@@ -637,45 +649,63 @@ export class CodexApp extends LitElement {
     const auth = this.authority.auth;
     return html`
       <section class="account-panel signed-in">
-        <p><span class="authority-mark" aria-hidden="true"></span>Viewing as <strong>${auth.role === "dm" ? "DM" : "player"}</strong></p>
+        <p><span class="authority-mark" aria-hidden="true"></span>${this.#ui.t("shell.viewingAs")} <strong>${auth.role === "dm" ? "DM" : this.#ui.t("shell.player")}</strong></p>
         ${auth.realRole === "dm" ? html`
           <button class="text-button" type="button" @click=${this.#switchRole} ?disabled=${this.busy}>
-            View as ${auth.role === "dm" ? "player" : "DM"}
+            ${this.#ui.t("shell.viewAs", { role: auth.role === "dm" ? this.#ui.t("shell.player") : "DM" })}
           </button>
         ` : nothing}
-        <button class="text-button" type="button" @click=${this.#logout} ?disabled=${this.busy}>Sign out</button>
-        <small title=${addonStateTitle(this.addonState)}>${addonStateLabel(this.addonState)}</small>
+        <button class="text-button" type="button" @click=${this.#logout} ?disabled=${this.busy}>${this.#ui.t("shell.signOut")}</button>
+        <small title=${this.#addonStateTitle()}>${this.#addonStateLabel()}</small>
       </section>
     `;
   }
 
+  #addonStateLabel(): string {
+    const state = this.addonState;
+    switch (state.state) {
+      case "idle": return this.#ui.t("shell.addonsIdle");
+      case "loading": return this.#ui.t("shell.addonsLoading");
+      case "ready": return state.failures === 0
+        ? this.#ui.plural("shell.addonGenerationsActive", state.active)
+        : this.#ui.t("shell.addonsActiveFailed", { active: state.active, failed: state.failures });
+      case "degraded": return this.#ui.t("shell.addonsAttention");
+    }
+  }
+
+  #addonStateTitle(): string {
+    if (this.addonState.state === "ready") return this.addonState.revision;
+    if (this.addonState.state === "degraded") return this.addonState.message;
+    return this.#addonStateLabel();
+  }
+
   #mobileAccountLabel(): string {
-    if (this.authority.state === "checking") return "Menu";
-    if (!this.authority.auth.authenticated) return "Sign in";
-    return this.authority.auth.role === "dm" ? "DM menu" : "Player menu";
+    if (this.authority.state === "checking") return this.#ui.t("shell.menu");
+    if (!this.authority.auth.authenticated) return this.#ui.t("shell.signIn");
+    return this.authority.auth.role === "dm" ? this.#ui.t("shell.dmMenu") : this.#ui.t("shell.playerMenu");
   }
 
   #hostStatusTemplate() {
     if (this.readiness.state === "checking") {
-      return html`<span class="host-state"><span aria-hidden="true"></span>Checking host</span>`;
+      return html`<span class="host-state"><span aria-hidden="true"></span>${this.#ui.t("shell.checkingHost")}</span>`;
     }
     if (this.readiness.state === "unavailable") {
-      return html`<span class="host-state host-unavailable" title=${this.readiness.message}><span aria-hidden="true"></span>Host unavailable</span>`;
+      return html`<span class="host-state host-unavailable" title=${this.readiness.message}><span aria-hidden="true"></span>${this.#ui.t("shell.hostUnavailable")}</span>`;
     }
     return html`<span class="host-state" title=${`Codex ${this.readiness.health.version}`}><span aria-hidden="true"></span>Codex ${this.readiness.health.version}</span>`;
   }
 
   #campaignTemplate() {
     if (this.campaignState.state === "loading") {
-      return html`<section class="loading-page" aria-live="polite"><span aria-hidden="true">✦</span><p>Opening the campaign chronicle…</p></section>`;
+      return html`<section class="loading-page" aria-live="polite"><span aria-hidden="true">✦</span><p>${this.#ui.t("shell.openingCampaign")}</p></section>`;
     }
     if (this.campaignState.state === "unavailable") {
       return html`
         <section class="unavailable-page">
-          <p class="page-kicker">Campaign archive</p>
-          <h1>The chronicle could not be opened.</h1>
+          <p class="page-kicker">${this.#ui.t("shell.campaignArchive")}</p>
+          <h1>${this.#ui.t("shell.campaignOpenFailed")}</h1>
           <p>${this.campaignState.message}</p>
-          <button type="button" @click=${this.#retryCampaign} ?disabled=${this.busy}>Try again</button>
+          <button type="button" @click=${this.#retryCampaign} ?disabled=${this.busy}>${this.#ui.t("shell.tryAgain")}</button>
         </section>
       `;
     }
@@ -688,9 +718,6 @@ export class CodexApp extends LitElement {
       case "party":
         return html`<codex-dashboard .campaign=${campaign} .partyOnly=${true}></codex-dashboard>`;
       case "settings":
-        if (!this.#authenticated()) {
-          return html`<section class="unavailable-page"><p class="page-kicker">Campaign settings</p><h1>Sign in to open settings.</h1><p>Campaign configuration is available inside an authenticated session.</p></section>`;
-        }
         return html`<codex-settings
           .campaign=${campaign}
           .canManageCampaign=${this.#canManageCampaign()}
@@ -699,6 +726,7 @@ export class CodexApp extends LitElement {
           @campaign-edit-dirty=${this.#onEditDirty}
           @campaign-enum-save=${this.#saveCampaignEnum}
           @campaign-enum-delete=${this.#deleteCampaignEnum}
+          @campaign-appearance-save=${this.#saveCampaignAppearance}
         ></codex-settings>`;
       case "collection":
       case "record":
@@ -715,14 +743,14 @@ export class CodexApp extends LitElement {
         ></codex-record-page>`;
       case "addon":
         if (!this.#authenticated()) {
-          return html`<section class="unavailable-page"><p class="page-kicker">Campaign add-on</p><h1>Sign in to open this page.</h1><p>Add-on tools inherit your current campaign role.</p></section>`;
+          return html`<section class="unavailable-page"><p class="page-kicker">${this.#ui.t("shell.addonPage")}</p><h1>${this.#ui.t("shell.signInAddon")}</h1><p>${this.#ui.t("shell.addonRoleHint")}</p></section>`;
         }
         if (this.routeCount === 0) {
-          return html`<section class="loading-page"><span aria-hidden="true">✦</span><p>Opening add-on page…</p></section>`;
+          return html`<section class="loading-page"><span aria-hidden="true">✦</span><p>${this.#ui.t("shell.openingAddon")}</p></section>`;
         }
         return nothing;
       case "not-found":
-        return html`<section class="unavailable-page"><p class="page-kicker">Campaign archive</p><h1>This page is not in the index.</h1><p>The address may be old or incomplete.</p><a class="primary-link" href="#/">Return to overview</a></section>`;
+        return html`<section class="unavailable-page"><p class="page-kicker">${this.#ui.t("shell.campaignArchive")}</p><h1>${this.#ui.t("shell.pageMissing")}</h1><p>${this.#ui.t("shell.pageMissingHint")}</p><a class="primary-link" href="#/">${this.#ui.t("shell.returnOverview")}</a></section>`;
     }
   }
 
@@ -895,6 +923,39 @@ export class CodexApp extends LitElement {
     }
   };
 
+  readonly #saveCampaignAppearance = async (
+    event: CustomEvent<CampaignAppearanceSaveDetail>,
+  ): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canManageCampaign() ||
+      this.authority.state !== "known" || !this.authority.auth.authenticated ||
+      this.campaignState.state !== "ready") return;
+    let mutation: CampaignMutation;
+    try {
+      mutation = prepareCampaignAppearanceSave(this.campaignState.campaign, event.detail);
+    } catch (cause: unknown) {
+      this.errorMessage = cause instanceof CampaignAppearanceEditError
+        ? "The appearance setting changed or is invalid."
+        : `The appearance setting could not be prepared: ${errorMessage(cause)}`;
+      return;
+    }
+    this.busy = true;
+    this.errorMessage = "";
+    try {
+      await this.#campaignMutations.commit([mutation], this.authority.auth.csrfToken, this.#request.signal);
+      await this.#loadCampaign(this.#request.signal, true);
+      this.#editDirty = false;
+      this.editCompletion += 1;
+    } catch (cause: unknown) {
+      if (!this.#request.signal.aborted) {
+        this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409
+          ? "Appearance changed while saving. Review the current theme and try again."
+          : `Appearance could not be saved: ${errorMessage(cause)}`;
+      }
+    } finally {
+      this.busy = false;
+    }
+  };
+
   readonly #onHashChange = (): void => {
     const nextHash = normalizedHash(window.location.hash);
     if (nextHash !== this.#acceptedHash && !this.#confirmDiscardEdit()) {
@@ -943,29 +1004,12 @@ function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : "Unknown application failure";
 }
 
-function liveLabel(state: LiveState): string {
+function liveMessageKey(state: LiveState): MessageKey {
   switch (state) {
-    case "connecting": return "Connecting";
-    case "connected": return "Live";
-    case "reconnecting": return "Reconnecting";
+    case "connecting": return "shell.connecting";
+    case "connected": return "shell.live";
+    case "reconnecting": return "shell.reconnecting";
   }
-}
-
-function addonStateLabel(state: AddonState): string {
-  switch (state.state) {
-    case "idle": return "Add-ons are idle";
-    case "loading": return "Loading add-ons…";
-    case "ready": return state.failures === 0
-      ? `${state.active} add-on generation${state.active === 1 ? "" : "s"} active`
-      : `${state.active} active · ${state.failures} failed`;
-    case "degraded": return "Add-ons need attention";
-  }
-}
-
-function addonStateTitle(state: AddonState): string {
-  if (state.state === "ready") return state.revision;
-  if (state.state === "degraded") return state.message;
-  return addonStateLabel(state);
 }
 
 if (!customElements.get("codex-app")) {

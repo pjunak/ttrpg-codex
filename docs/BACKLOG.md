@@ -65,8 +65,16 @@ or an explicit maintainer decision to retire the workflow.
 - [x] Restore wiki article rendering and editing, sanitized Markdown, headings
   and table of contents, and cross-record wiki links.
 - [x] Restore campaign-wide search with useful type grouping and navigation.
-- [ ] Restore English and Czech UI catalogs and per-browser language selection.
-- [ ] Restore the established theme choices and accessible shared design system.
+- [x] Establish typed bundled English and Czech catalogs, per-browser language
+  selection, native plural/date handling, and migrate the shell, dashboard,
+  search, and personal settings foundation.
+- [ ] Complete the English and Czech catalog migration for record pages and
+  editors, structured campaign settings, host errors, and first-party add-on
+  surfaces.
+- [x] Restore campaign-wide appearance selection with classic and moonlit token
+  themes, flash-free cached boot, and DM-owned optimistic persistence.
+- [ ] Complete the accessible token audit across remaining hardcoded record and
+  add-on surfaces before accepting shared design-system parity.
 - [ ] Restore the DM dashboard and true player-view preview workflow.
 
 ### Spatial, temporal, and relationship workflows
@@ -84,7 +92,7 @@ or an explicit maintainer decision to retire the workflow.
   genders, map markers, character statuses, event priorities, and attitudes,
   including stable IDs, usage counts, and explicit replace-or-clear deletion.
 - [ ] Restore the remaining settings for campaign branding, map behavior,
-  themes, language, sidebar choices, and other persisted campaign preferences.
+  sidebar choices, and other persisted campaign preferences.
 - [ ] Restore the useful recovery-point workflow: manual points, coalesced write
   snapshots, restore, and revert-last-N, while retaining verified full backup.
 - [ ] Provide reviewed runtime credential rotation or explicitly accept

@@ -1,6 +1,7 @@
 import { LitElement, html, nothing } from "lit";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import { searchCampaign, type CampaignSearchResult } from "./campaign-search.js";
+import { UiLocalizationController, uiCollectionLabel } from "./ui-localization.js";
 
 export class CodexSearch extends LitElement {
   static override properties = {
@@ -10,6 +11,7 @@ export class CodexSearch extends LitElement {
 
   declare campaign: CampaignDataset | undefined;
   declare private query: string;
+  readonly #ui = new UiLocalizationController(this);
 
   constructor() {
     super();
@@ -33,16 +35,16 @@ export class CodexSearch extends LitElement {
     return html`
       <article class="search-page" aria-labelledby="search-title">
         <header class="search-heading">
-          <p class="page-kicker">Campaign index</p>
-          <h1 id="search-title">Search the chronicle</h1>
-          <p>Find people, places, events, mysteries, factions, lore, and companions in your current view.</p>
+          <p class="page-kicker">${this.#ui.t("search.kicker")}</p>
+          <h1 id="search-title">${this.#ui.t("search.title")}</h1>
+          <p>${this.#ui.t("search.intro")}</p>
           <label class="campaign-search-field">
-            <span class="visually-hidden">Search the campaign</span>
+            <span class="visually-hidden">${this.#ui.t("search.label")}</span>
             <span aria-hidden="true">⌕</span>
             <input
               type="search"
               .value=${this.query}
-              placeholder="Name, title, tag, or remembered phrase"
+              placeholder=${this.#ui.t("search.placeholder")}
               autocomplete="off"
               @input=${this.#onInput}
             />
@@ -50,15 +52,15 @@ export class CodexSearch extends LitElement {
         </header>
         <div class="search-results" aria-live="polite">
           ${!searched
-            ? html`<p class="search-prompt">Begin typing to search every visible part of the campaign archive.</p>`
+            ? html`<p class="search-prompt">${this.#ui.t("search.prompt")}</p>`
             : count === 0
-              ? html`<p class="empty-state">Nothing in the current campaign view matches “${this.query.trim()}”.</p>`
+              ? html`<p class="empty-state">${this.#ui.t("search.empty", { query: this.query.trim() })}</p>`
               : html`
-                <p class="search-count">${count} ${count === 1 ? "entry" : "entries"} found</p>
+                <p class="search-count">${this.#ui.plural("search.count", count)}</p>
                 ${groups.map((group) => html`
                   <section class="search-group" aria-labelledby=${`search-group-${group.page.id}`}>
                     <header>
-                      <h2 id=${`search-group-${group.page.id}`}><span aria-hidden="true">${group.page.icon}</span>${group.page.plural}</h2>
+                      <h2 id=${`search-group-${group.page.id}`}><span aria-hidden="true">${group.page.icon}</span>${uiCollectionLabel(group.page.id, "other")}</h2>
                       <span>${group.results.length}</span>
                     </header>
                     <div>${group.results.map((result) => searchResult(result))}</div>

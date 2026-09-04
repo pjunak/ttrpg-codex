@@ -24,6 +24,7 @@ export interface EntitySummary {
   readonly portrait: string | undefined;
   readonly icon: string | undefined;
   readonly status: string;
+  readonly statusLabel: string;
   readonly visibility: "public" | "dm";
   readonly tags: readonly string[];
   readonly attitudes: readonly AttitudePresentation[];
@@ -100,7 +101,8 @@ function projectEntityWithContext(
     excerpt: firstExcerpt(value, excerptFields[page.collection] ?? ["description", "summary", "body"]),
     portrait: safeMediaURL(value["portrait"]),
     icon: shortIcon(value["icon"] ?? value["badge"]),
-    status: page.collection === "characters"
+    status: text(value["status"]),
+    statusLabel: page.collection === "characters"
       ? campaignEnumDisplayLabel(dataset, "characterStatuses", value["status"])
       : text(value["status"]),
     visibility: value["visibility"] === "dm" ? "dm" : "public",

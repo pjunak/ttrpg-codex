@@ -13,6 +13,16 @@ import {
   type CampaignSettingField,
 } from "./campaign-settings.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
+import {
+  campaignAppearanceRecord,
+  campaignTheme,
+  campaignThemes,
+  type CampaignAppearanceSaveDetail,
+  type CampaignThemeID,
+} from "./campaign-appearance.js";
+import { UiLocalizationController, availableUiLocales } from "./ui-localization.js";
+
+type SettingsCategory = "language" | "appearance" | CampaignEnumCategory;
 
 export class CodexSettings extends LitElement {
   static override properties = {
@@ -29,9 +39,10 @@ export class CodexSettings extends LitElement {
   declare canManageCampaign: boolean;
   declare saving: boolean;
   declare editCompletion: number;
-  declare private activeCategory: CampaignEnumCategory;
+  declare private activeCategory: SettingsCategory;
   declare private editingId: string | null | "__new__";
   declare private deleteId: string | null;
+  readonly #ui = new UiLocalizationController(this);
   #dirty = false;
 
   constructor() {
@@ -40,12 +51,21 @@ export class CodexSettings extends LitElement {
     this.canManageCampaign = false;
     this.saving = false;
     this.editCompletion = 0;
-    this.activeCategory = campaignEnumDescriptors[0]!.category;
+    this.activeCategory = "language";
     this.editingId = null;
     this.deleteId = null;
   }
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment { return this; }
+
+  protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
+    if (changed.has("canManageCampaign") && !this.canManageCampaign && this.activeCategory !== "language") {
+      this.activeCategory = "language";
+      this.editingId = null;
+      this.deleteId = null;
+      this.#setDirty(false);
+    }
+  }
 
   protected override updated(changed: Map<PropertyKey, unknown>): void {
     if (changed.has("editCompletion")) {
@@ -57,12 +77,9 @@ export class CodexSettings extends LitElement {
 
   protected override render() {
     if (this.campaign === undefined) return nothing;
-    if (!this.canManageCampaign) return html`
-      <section class="unavailable-page settings-unavailable">
-        <p class="page-kicker">Campaign settings</p>
-        <h1>Return to the DM view to manage campaign definitions.</h1>
-        <p>Player view uses these choices but cannot change shared campaign data.</p>
-      </section>`;
+    if (this.activeCategory === "language") return this.#shell(this.#languagePanel());
+    if (this.activeCategory === "appearance") return this.#shell(this.#appearancePanel());
+    if (!this.canManageCampaign) return this.#shell(this.#languagePanel());
     const descriptor = campaignEnumDescriptor(this.activeCategory);
     let items: readonly CampaignEnumItem[];
     try {
@@ -101,21 +118,32 @@ export class CodexSettings extends LitElement {
   }
 
   #shell(content: unknown) {
+    const categories: readonly { readonly id: SettingsCategory; readonly label: string; readonly icon: string }[] = [
+      { id: "language", label: this.#ui.t("settings.language"), icon: "文" },
+      ...(this.canManageCampaign ? [
+        { id: "appearance" as const, label: this.#ui.t("settings.appearance"), icon: "◐" },
+        ...campaignEnumDescriptors.map((descriptor) => ({
+          id: descriptor.category as SettingsCategory,
+          label: descriptor.label,
+          icon: descriptor.icon,
+        })),
+      ] : []),
+    ];
     return html`
       <section class="settings-page">
         <header class="settings-page-heading">
-          <p class="page-kicker">Campaign administration</p>
-          <h1>Settings folio</h1>
-          <p>Keep the campaign’s shared vocabulary consistent. IDs are permanent; labels and presentation may evolve.</p>
+          <p class="page-kicker">${this.#ui.t("settings.kicker")}</p>
+          <h1>${this.#ui.t("settings.title")}</h1>
+          <p>${this.#ui.t("settings.intro")}</p>
         </header>
         <div class="settings-workspace">
-          <nav class="settings-index" aria-label="Settings categories">
-            ${campaignEnumDescriptors.map((descriptor) => html`
-              <button type="button" data-category=${descriptor.category}
-                aria-current=${descriptor.category === this.activeCategory ? "page" : nothing}
+          <nav class="settings-index" aria-label=${this.#ui.t("settings.categories")}>
+            ${categories.map((category) => html`
+              <button type="button" data-category=${category.id}
+                aria-current=${category.id === this.activeCategory ? "page" : nothing}
                 @click=${this.#selectCategory} ?disabled=${this.saving}>
-                <span aria-hidden="true">${descriptor.icon}</span>
-                <span>${descriptor.label}</span>
+                <span aria-hidden="true">${category.icon}</span>
+                <span>${category.label}</span>
               </button>
             `)}
           </nav>
@@ -124,8 +152,68 @@ export class CodexSettings extends LitElement {
       </section>`;
   }
 
+  #languagePanel() {
+    return html`
+      <section class="settings-ledger settings-personal-panel" aria-labelledby="settings-language-title">
+        <header class="settings-ledger-heading">
+          <div>
+            <span class="settings-category-mark" aria-hidden="true">文</span>
+            <div>
+              <h2 id="settings-language-title">${this.#ui.t("settings.language")}</h2>
+              <p>${this.#ui.t("settings.languageIntro")}</p>
+            </div>
+          </div>
+        </header>
+        <label class="settings-preference-field">
+          <span>${this.#ui.t("settings.languageLabel")}</span>
+          <select @change=${this.#changeLocale}>
+            ${availableUiLocales.map((locale) => html`
+              <option value=${locale.id} ?selected=${locale.id === this.#ui.locale}>${locale.endonym}</option>`)}
+          </select>
+        </label>
+        <p class="settings-progress-note">${this.#ui.t("settings.languageProgress")}</p>
+      </section>`;
+  }
+
+  #appearancePanel() {
+    if (this.campaign === undefined || !this.canManageCampaign) return nothing;
+    const record = campaignAppearanceRecord(this.campaign);
+    const current = campaignTheme(this.campaign);
+    return html`
+      <section class="settings-ledger settings-personal-panel" aria-labelledby="settings-appearance-title">
+        <header class="settings-ledger-heading">
+          <div>
+            <span class="settings-category-mark" aria-hidden="true">◐</span>
+            <div>
+              <h2 id="settings-appearance-title">${this.#ui.t("settings.appearance")}</h2>
+              <p>${this.#ui.t("settings.appearanceIntro")}</p>
+            </div>
+          </div>
+        </header>
+        <form class="settings-theme-form" @submit=${this.#saveAppearance} @input=${this.#markDirty}>
+          <fieldset>
+            <legend>${this.#ui.t("settings.appearanceLabel")}</legend>
+            <div class="settings-theme-list">
+              ${campaignThemes.map((theme) => html`
+                <label class=${`settings-theme-choice theme-sample-${theme.id}`}>
+                  <input type="radio" name="theme" value=${theme.id} .checked=${theme.id === current} />
+                  <span class="settings-theme-sample" aria-hidden="true"><i></i><b></b><em></em></span>
+                  <span><strong>${this.#ui.t(theme.labelKey)}</strong><small>${this.#ui.t(theme.hintKey)}</small></span>
+                </label>`)}
+            </div>
+          </fieldset>
+          <input type="hidden" name="expectedRevision" value=${String(record?.revision ?? 0)} />
+          <div class="settings-edit-actions">
+            <button class="primary" type="submit" ?disabled=${this.saving}>
+              ${this.saving ? this.#ui.t("settings.saving") : this.#ui.t("settings.saveAppearance")}
+            </button>
+          </div>
+        </form>
+      </section>`;
+  }
+
   #definitionRow(item: CampaignEnumItem, revision: number, items: readonly CampaignEnumItem[]) {
-    const descriptor = campaignEnumDescriptor(this.activeCategory);
+    const descriptor = campaignEnumDescriptor(this.#activeEnumCategory());
     const usage = campaignEnumUsageCount(this.campaign!, descriptor.category, item.id);
     const color = firstColor(item.value);
     return html`
@@ -147,7 +235,7 @@ export class CodexSettings extends LitElement {
   }
 
   #editForm(item: CampaignEnumItem | undefined, expectedRevision: number) {
-    const descriptor = campaignEnumDescriptor(this.activeCategory);
+    const descriptor = campaignEnumDescriptor(this.#activeEnumCategory());
     const values = item?.value ?? newItemDefaults(descriptor.category);
     return html`
       <form class="settings-edit-form" @submit=${this.#save} @input=${this.#markDirty}>
@@ -243,8 +331,9 @@ export class CodexSettings extends LitElement {
   }
 
   readonly #selectCategory = (event: Event): void => {
-    const category = (event.currentTarget as HTMLButtonElement).dataset["category"] as CampaignEnumCategory | undefined;
-    if (category === undefined || category === this.activeCategory || !this.#confirmDiscard()) return;
+    const category = (event.currentTarget as HTMLButtonElement).dataset["category"] as SettingsCategory | undefined;
+    if (category === undefined || category === this.activeCategory || !this.#visibleCategory(category) ||
+      !this.#confirmDiscard()) return;
     this.activeCategory = category;
     this.editingId = null;
     this.deleteId = null;
@@ -276,7 +365,8 @@ export class CodexSettings extends LitElement {
 
   readonly #save = (event: SubmitEvent): void => {
     event.preventDefault();
-    if (this.saving || this.campaign === undefined || this.editingId === null) return;
+    if (this.saving || this.campaign === undefined || this.editingId === null ||
+      this.activeCategory === "language" || this.activeCategory === "appearance") return;
     const form = event.currentTarget as HTMLFormElement;
     const data = new FormData(form);
     const descriptor = campaignEnumDescriptor(this.activeCategory);
@@ -299,7 +389,8 @@ export class CodexSettings extends LitElement {
   };
 
   readonly #delete = (event: Event): void => {
-    if (this.saving || this.campaign === undefined) return;
+    if (this.saving || this.campaign === undefined || this.activeCategory === "language" ||
+      this.activeCategory === "appearance") return;
     const button = event.currentTarget as HTMLButtonElement;
     const itemId = button.dataset["id"];
     const mode = button.dataset["mode"];
@@ -320,6 +411,38 @@ export class CodexSettings extends LitElement {
   };
 
   readonly #markDirty = (): void => { this.#setDirty(true); };
+
+  readonly #changeLocale = (event: Event): void => {
+    const locale = (event.currentTarget as HTMLSelectElement).value;
+    if (locale === "en" || locale === "cs") this.#ui.setLocale(locale);
+  };
+
+  readonly #saveAppearance = (event: SubmitEvent): void => {
+    event.preventDefault();
+    if (this.saving || this.campaign === undefined || !this.canManageCampaign) return;
+    const data = new FormData(event.currentTarget as HTMLFormElement);
+    const theme = String(data.get("theme") ?? "") as CampaignThemeID;
+    if (!campaignThemes.some(({ id }) => id === theme)) return;
+    const detail: CampaignAppearanceSaveDetail = Object.freeze({
+      theme,
+      expectedRevision: Number(data.get("expectedRevision")),
+    });
+    this.dispatchEvent(new CustomEvent<CampaignAppearanceSaveDetail>("campaign-appearance-save", {
+      detail, bubbles: true, composed: true,
+    }));
+  };
+
+  #visibleCategory(category: SettingsCategory): boolean {
+    return category === "language" || this.canManageCampaign &&
+      (category === "appearance" || campaignEnumDescriptors.some(({ category: id }) => id === category));
+  }
+
+  #activeEnumCategory(): CampaignEnumCategory {
+    if (this.activeCategory === "language" || this.activeCategory === "appearance") {
+      throw new CampaignSettingsEditError("campaign enum category is not active");
+    }
+    return this.activeCategory;
+  }
 
   #confirmDiscard(): boolean {
     if (!confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))) return false;

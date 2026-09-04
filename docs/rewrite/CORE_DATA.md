@@ -145,6 +145,14 @@ priority editors consume the shared definitions. Deletion uses the explicit Go
 operation above, shows current usage, and requires an intentional reject,
 replacement, or clear policy rather than creating dangling stored IDs.
 
+Language and appearance deliberately have different ownership. Interface
+language is a per-browser preference stored outside campaign data, so one
+reader cannot change another reader's language. Appearance is a shared
+campaign setting changed by the DM through the normal optimistic settings
+transaction. The browser caches only the last accepted theme ID to avoid a
+flash of the default chrome during startup; the campaign record remains
+authoritative and replaces that cache as soon as it loads.
+
 The rewrite does not yet implement:
 
 - collection-specific map fields, timelines, the remaining non-enum settings,

@@ -41,7 +41,8 @@ describe("campaign product projection", () => {
     expect(summaries[0]).toMatchObject({
       name: "Aria",
       title: "Warden",
-      status: "Living",
+      status: "alive",
+      statusLabel: "Living",
       visibility: "public",
       portrait: "/api/media/b_11111111111111111111111111111111",
       route: "#/characters/aria",
