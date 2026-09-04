@@ -1,5 +1,18 @@
 /* Frozen geometry and colors from pre-rewrite commit 3aeeacfe7adec985693f8aeb239df58c177f3da8.
    Deliberately independent of production CSS. Update only against the approved visual reference. */
+/* The per-field pencils and Add button below use the same preserved v1 revision. */
+.dash-hero-row { display: flex; align-items: center; gap: .5rem; justify-content: center; max-width: 100%; }
+.dash-hero-pen {
+  width: 26px; height: 26px; border-radius: 50%; display: inline-flex;
+  align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;
+  background: transparent; border: 1px solid rgba(var(--accent-gold-rgb), .25);
+  color: var(--accent-gold-dim); font-size: var(--text-xs); opacity: .45;
+}
+.dash-section-add {
+  font-family: var(--font-ui); font-size: .78rem; background: transparent;
+  border: 1px solid rgba(var(--accent-gold-rgb), .3); border-radius: 4px;
+  padding: .25rem .6rem; color: var(--accent-gold); cursor: pointer;
+}
 :root {
   --bg-deep:      #0E0A05;
   --bg-base:      #141008;

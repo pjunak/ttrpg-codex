@@ -161,8 +161,25 @@ It writes review screenshots to ignored `frontend/test-results/visual/`.
 contain campaign data. These are targeted fidelity checks, not pixel-level
 acceptance of every original screen or real-host package lifecycle coverage.
 
-Still open: original dashboard inline campaign editing and party-add actions,
-saved party/sidebar choices, collection grouping and filter controls, all maps
+The dashboard follow-up restores the original per-field pencil controls and
+party-add header action. DM name/tagline edits merge one field into
+`campaign/main` with the opening revision and preserve unknown fields. Inline
+forms use explicit Save/Cancel (Enter/Escape also work), retain failed drafts,
+and participate in the shell's unsaved-change guard. Anonymous actions focus
+the existing sign-in form; player mode respects the host's DM-only campaign
+identity policy. `#/party/new` reuses the character editor with party faction,
+knowledge 4, and alive status when that definition is available. An absent or
+retired alive definition leaves status unset instead of creating an unsaveable
+preset. Cancellation returns to the roster; successful creation opens the record.
+
+`frontend/test/browser/dashboard.browser.mjs` exercises the production bundle
+with synthetic HTTP writes and SSE refresh: single-field saves, preserved
+extensions, unrelated refresh, stale revisions, HTTP conflicts, player party
+creation, cancel/discard behavior, missing status definitions, and desktop/phone
+sign-in focus. The visual primitive gate also compares the original pencil and
+Add button styles. These checks do not replace real-host session acceptance.
+
+Still open: saved party/sidebar choices, collection grouping and filter controls, all maps
 and timeline/graph views, complete settings/DM screens, and installed add-on
 visual acceptance. Keep the visual and release gates open until those workflows
 are ported and both copied campaigns pass supervised comparison.

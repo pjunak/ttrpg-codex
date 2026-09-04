@@ -8,21 +8,42 @@ import {
 } from "./campaign-projection.js";
 import { campaignPages } from "./routes.js";
 import { UiLocalizationController } from "./ui-localization.js";
+import { campaignIdentityRecord, type CampaignIdentityField, type CampaignIdentitySaveDetail } from "./campaign-identity.js";
+import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 
 export class CodexDashboard extends LitElement {
   static override properties = {
     campaign: { attribute: false },
     partyOnly: { type: Boolean },
+    canManageCampaign: { type: Boolean },
+    authenticated: { type: Boolean },
+    saving: { type: Boolean },
+    editCompletion: { type: Number },
+    editing: { state: true },
   };
 
   declare campaign: CampaignDataset | undefined;
   declare partyOnly: boolean;
+  declare canManageCampaign: boolean;
+  declare authenticated: boolean;
+  declare saving: boolean;
+  declare editCompletion: number;
+  declare private editing: CampaignIdentityField | undefined;
+  #expectedRevision = 0;
+  #original = "";
+  #draft = "";
+  #dirty = false;
   readonly #ui = new UiLocalizationController(this);
 
   constructor() {
     super();
     this.campaign = undefined;
     this.partyOnly = false;
+    this.canManageCampaign = false;
+    this.authenticated = false;
+    this.saving = false;
+    this.editCompletion = 0;
+    this.editing = undefined;
   }
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
@@ -35,12 +56,20 @@ export class CodexDashboard extends LitElement {
     return this.partyOnly ? this.#partyPage(model) : this.#dashboard(model);
   }
 
+  protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
+    if (changed.has("editCompletion") || changed.has("partyOnly") ||
+      (changed.has("canManageCampaign") && !this.canManageCampaign)) {
+      this.editing = undefined;
+      this.#setDirty(false);
+    }
+  }
+
   #dashboard(model: DashboardModel) {
     return html`
       <article class="campaign-dashboard" aria-labelledby="campaign-title">
         <header class="campaign-title-page">
-          <h1 id="campaign-title">${model.identity.name}</h1>
-          <p>${model.identity.tagline || this.#ui.t("dashboard.taglinePlaceholder")}</p>
+          ${this.#identityRow("name", model.identity.name)}
+          ${this.#identityRow("tagline", model.identity.tagline)}
           <span class="campaign-title-rule" aria-hidden="true"></span>
         </header>
 
@@ -50,6 +79,98 @@ export class CodexDashboard extends LitElement {
       </article>
     `;
   }
+
+  #identityRow(field: CampaignIdentityField, value: string) {
+    const label = this.#ui.t(field === "name" ? "dashboard.editName" : "dashboard.editTagline");
+    const editing = this.editing === field;
+    const content = editing ? html`
+      <input name=${field} aria-label=${label} maxlength="500" ?required=${field === "name"}
+        .value=${this.#draft} ?readonly=${this.saving} @input=${this.#onIdentityInput} />
+    ` : value || (this.authenticated ? this.#ui.t("dashboard.taglinePlaceholder") : "");
+    const text = field === "name" ? html`<h1 id="campaign-title">${content}</h1>` : html`<p>${content}</p>`;
+    return editing ? html`
+      <form class=${`campaign-identity-form identity-${field}`} @submit=${this.#saveIdentity} @keydown=${this.#identityKey}>
+        ${text}
+        <div class="identity-actions">
+          <button type="submit" ?disabled=${this.saving}>${this.#ui.t(this.saving ? "dashboard.saving" : "dashboard.save")}</button>
+          <button type="button" @click=${this.#cancelIdentity} ?disabled=${this.saving}>${this.#ui.t("dashboard.cancel")}</button>
+        </div>
+      </form>` : html`
+      <div class="campaign-identity-row">
+        ${text}
+        <button class="campaign-identity-pen" type="button" aria-label=${label}
+          title=${this.authenticated && !this.canManageCampaign ? this.#ui.t("dashboard.dmIdentity") : label}
+          ?disabled=${this.saving || this.editing !== undefined || (this.authenticated && !this.canManageCampaign)}
+          @click=${() => this.#startIdentity(field, value)}>✏</button>
+      </div>`;
+  }
+
+  async #startIdentity(field: CampaignIdentityField, value: string): Promise<void> {
+    if (!this.authenticated) { this.#requestSignIn(); return; }
+    if (!this.canManageCampaign || this.saving || this.editing !== undefined || this.campaign === undefined) return;
+    this.#expectedRevision = campaignIdentityRecord(this.campaign)?.revision ?? 0;
+    this.#original = value;
+    this.#draft = value;
+    this.editing = field;
+    await this.updateComplete;
+    const input = this.querySelector<HTMLInputElement>(".campaign-identity-form input");
+    input?.focus();
+    input?.setSelectionRange(value.length, value.length);
+  }
+
+  readonly #onIdentityInput = (event: Event): void => {
+    this.#draft = (event.currentTarget as HTMLInputElement).value;
+    this.#setDirty(this.#draft !== this.#original);
+  };
+
+  readonly #identityKey = (event: KeyboardEvent): void => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.#cancelIdentity();
+    }
+    if (event.key === "Enter" && event.isComposing) event.preventDefault();
+  };
+
+  readonly #cancelIdentity = (): void => {
+    if (!this.saving && confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))) {
+      void this.#closeIdentity();
+    }
+  };
+
+  async #closeIdentity(): Promise<void> {
+    const field = this.editing;
+    this.editing = undefined;
+    this.#setDirty(false);
+    await this.updateComplete;
+    this.querySelector<HTMLButtonElement>(`.campaign-identity-row:${field === "name" ? "first" : "last"}-of-type .campaign-identity-pen`)?.focus();
+  }
+
+  readonly #saveIdentity = (event: SubmitEvent): void => {
+    event.preventDefault();
+    if (!this.canManageCampaign || this.saving || this.editing === undefined) return;
+    if (!this.#dirty) { void this.#closeIdentity(); return; }
+    this.dispatchEvent(new CustomEvent<CampaignIdentitySaveDetail>("campaign-identity-save", {
+      detail: Object.freeze({ field: this.editing, value: this.#draft, expectedRevision: this.#expectedRevision }),
+      bubbles: true, composed: true,
+    }));
+  };
+
+  #setDirty(dirty: boolean): void {
+    if (dirty === this.#dirty) return;
+    this.#dirty = dirty;
+    this.dispatchEvent(new CustomEvent("campaign-edit-dirty", { detail: { dirty }, bubbles: true, composed: true }));
+  }
+
+  #requestSignIn(): void {
+    this.dispatchEvent(new CustomEvent("campaign-sign-in", { bubbles: true, composed: true }));
+  }
+
+  readonly #addPartyMember = (): void => {
+    if (this.saving) return;
+    if (!this.authenticated) { this.#requestSignIn(); return; }
+    window.location.hash = "#/party/new";
+  };
 
   #partyPage(model: DashboardModel) {
     return html`
@@ -70,7 +191,11 @@ export class CodexDashboard extends LitElement {
       <section class="chronicle-section party-section" aria-labelledby="party-heading">
         <div class="section-heading">
           <h2 id="party-heading"><span aria-hidden="true">🛡</span> ${this.#ui.t("dashboard.company")}</h2>
-          ${compact ? html`<a href="#/party">${this.#ui.t("dashboard.openRoster")}</a>` : nothing}
+          <div class="party-section-actions">
+            ${compact ? html`<a href="#/party">${this.#ui.t("dashboard.openRoster")}</a>` : nothing}
+            <button class="party-add" type="button" title=${this.#ui.t("dashboard.addPartyMember")}
+              @click=${this.#addPartyMember} ?disabled=${this.saving}>＋ ${this.#ui.t("dashboard.add")}</button>
+          </div>
         </div>
         ${empty
           ? html`<p class="empty-state">${this.#ui.t("dashboard.emptyParty")}</p>`

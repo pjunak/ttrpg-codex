@@ -68,6 +68,8 @@ for (const [name, viewport] of Object.entries({ desktop: { width: 1440, height: 
     await compare(page, reference, '.campaign-sidebar', '.sidebar', ['width','background-color','border-right-color']);
     await compare(page, reference, '#campaign-title', '.dash-hero-name', ['font-family','font-size','font-weight','line-height','letter-spacing','color']);
     await compare(page, reference, '.campaign-title-page', '.dash-hero', ['padding','margin-bottom','text-align']);
+    await compare(page, reference, '.campaign-identity-pen', '.dash-hero-pen', ['width','height','border-radius','font-size','color','opacity','border-top-color']);
+    await compare(page, reference, '.party-add', '.dash-section-add', ['padding','font-family','font-size','color','background-color','border-radius','border-top-color']);
     await compare(page, reference, '.section-heading h2', '.dash-section-head h2', ['font-family','font-size','line-height','letter-spacing','color']);
     await compare(page, reference, '.party-member', '.dash-party-card', ['width','padding','gap','border-radius','background-color','border-top-color']);
     await compare(page, reference, '.party-portrait', '.dash-party-portrait', ['width','height','border-radius']);

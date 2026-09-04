@@ -38,6 +38,74 @@ codex-dashboard {
   background: linear-gradient(90deg, transparent, var(--gold), transparent);
 }
 
+.campaign-identity-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  max-width: 100%;
+}
+
+.campaign-identity-row > :first-child { min-width: 0; }
+.campaign-identity-pen {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid rgba(var(--accent-gold-rgb), .25);
+  color: var(--accent-gold-dim);
+  font-size: .75rem;
+  opacity: .45;
+  cursor: pointer;
+  transition: opacity .15s, background .15s, border-color .15s, color .15s;
+}
+.campaign-identity-row:hover .campaign-identity-pen:not(:disabled),
+.campaign-identity-pen:focus-visible {
+  opacity: 1;
+  background: rgba(var(--accent-gold-rgb), .1);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.campaign-identity-form input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: .15rem .4rem;
+  border: 1px dashed rgba(var(--accent-gold-rgb), .4);
+  border-radius: 4px;
+  background: rgba(var(--accent-gold-rgb), .05);
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: center;
+}
+.identity-actions, .party-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .75rem;
+}
+.identity-actions { justify-content: center; margin: .5rem 0; }
+.party-add, .identity-actions button {
+  font: .78rem var(--font-ui);
+  background: transparent;
+  border: 1px solid rgba(var(--accent-gold-rgb), .3);
+  border-radius: 4px;
+  padding: .25rem .6rem;
+  color: var(--gold);
+  cursor: pointer;
+}
+.party-add:hover, .identity-actions button:hover {
+  background: rgba(var(--accent-gold-rgb), .1);
+  border-color: var(--gold);
+}
+
 .chronicle-section {
   margin-bottom: 2rem;
 }

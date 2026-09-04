@@ -132,6 +132,15 @@ Chromium regressions in `frontend/test/browser/` exercise these component and
 preparation boundaries; full host/session/SSE acceptance remains a separate
 backlog gate.
 
+The dashboard's campaign name and tagline editor likewise retains its opening
+`campaign/main` revision. It prepares only the edited field, preserves the other
+identity field and unknown data, and requires the existing DM campaign-write
+authority. Live changes cannot advance its revision or replace its text. Save
+conflicts keep the draft visible; cancel/reopen reviews the latest version.
+The party creation route uses the ordinary character editor and transaction,
+with public party defaults and only a currently defined alive status. It does
+not write campaign records until the completed form is submitted.
+
 Player writes arrive as full records built from a role-filtered projection. The
 mutation planner therefore restores any existing scalar, array, object-array,
 or polymorphic-owner reference that points to a DM-only record before commit.

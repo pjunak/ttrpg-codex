@@ -11,6 +11,8 @@ describe("application routes", () => {
     expect(parseAppRoute("")).toEqual({ kind: "dashboard" });
     expect(parseAppRoute("#/search")).toEqual({ kind: "search" });
     expect(parseAppRoute("#/party")).toEqual({ kind: "party" });
+    expect(parseAppRoute("#/party/new")).toMatchObject({ kind: "create", preset: "party", page: { collection: "characters" } });
+    expect(parseAppRoute("#/characters/new")).toMatchObject({ kind: "record", key: "new" });
     expect(parseAppRoute("#/settings")).toEqual({ kind: "settings" });
     expect(parseAppRoute("#/locations")).toMatchObject({
       kind: "collection", page: { collection: "locations" },

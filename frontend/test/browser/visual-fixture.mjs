@@ -17,7 +17,7 @@ export const visualCampaign = {
 };
 
 // An isolated synthetic HTTP fixture. No Go host or campaign data directory is used.
-export function visualFixturePlugin() {
+export function visualFixturePlugin({ getCampaign = () => visualCampaign, onStream = () => {} } = {}) {
   const streams = new Set();
   const configure = (server) => {
       server.middlewares.use((request, response, next) => {
@@ -26,6 +26,7 @@ export function visualFixturePlugin() {
           response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' });
           response.write('id: 0\nevent: hello\ndata: {"cursor":0,"audience":"public"}\n\n');
           streams.add(response);
+          onStream(response);
           request.on('close', () => streams.delete(response));
           return;
         }
@@ -43,8 +44,8 @@ export function visualFixturePlugin() {
         }
         const payload = {
           '/api/health': { status: 'ok', version: 'visual-fixture' },
-          '/api/auth': role === 'dm' ? { ok: true, role, realRole: role, csrfToken: 'x'.repeat(32), expiresAt: '2099-01-01T00:00:00Z' } : { role: null, realRole: null },
-          '/api/campaign': visualCampaign,
+          '/api/auth': role === 'dm' || role === 'player' ? { ok: true, role, realRole: role, csrfToken: 'x'.repeat(32), expiresAt: '2099-01-01T00:00:00Z' } : { role: null, realRole: null },
+          '/api/campaign': getCampaign(),
           '/api/addons/browser-graph': { contractVersion: 2, graphRevision: 'a'.repeat(64), addons: addon && role === 'dm' ? [fixtureAddon] : [] },
         }[request.url];
         response.writeHead(payload === undefined ? 404 : 200, { 'Content-Type': 'application/json',

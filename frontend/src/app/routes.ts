@@ -26,6 +26,7 @@ export type AppRoute =
   | { readonly kind: "dashboard" }
   | { readonly kind: "search" }
   | { readonly kind: "party" }
+  | { readonly kind: "create"; readonly page: CampaignPageDefinition; readonly preset: "party" }
   | { readonly kind: "settings" }
   | { readonly kind: "collection"; readonly page: CampaignPageDefinition }
   | { readonly kind: "record"; readonly page: CampaignPageDefinition; readonly key: string }
@@ -38,6 +39,9 @@ export function parseAppRoute(hash: string): AppRoute {
   }
   if (hash === "#/party") {
     return { kind: "party" };
+  }
+  if (hash === "#/party/new") {
+    return { kind: "create", page: campaignPages.find(({ id }) => id === "characters")!, preset: "party" };
   }
   if (hash === "#/search") {
     return { kind: "search" };

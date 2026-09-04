@@ -71,6 +71,7 @@ import "./codex-dashboard.js";
 import "./codex-record-page.js";
 import "./codex-search.js";
 import "./codex-settings.js";
+import { CampaignIdentityEditError, prepareCampaignIdentitySave, type CampaignIdentitySaveDetail } from "./campaign-identity.js";
 
 type Readiness =
   | { readonly state: "checking" }
@@ -722,11 +723,15 @@ export class CodexApp extends LitElement {
     const campaign = this.campaignState.campaign;
     switch (this.route.kind) {
       case "dashboard":
-        return html`<codex-dashboard .campaign=${campaign}></codex-dashboard>`;
+      case "party":
+        return html`<codex-dashboard .campaign=${campaign} .partyOnly=${this.route.kind === "party"}
+          .authenticated=${this.#authenticated()} .canManageCampaign=${this.#canManageCampaign()}
+          .saving=${this.busy} .editCompletion=${this.editCompletion}
+          @campaign-edit-dirty=${this.#onEditDirty} @campaign-identity-save=${this.#saveCampaignIdentity}
+          @campaign-sign-in=${this.#showSignIn}
+        ></codex-dashboard>`;
       case "search":
         return html`<codex-search .campaign=${campaign}></codex-search>`;
-      case "party":
-        return html`<codex-dashboard .campaign=${campaign} .partyOnly=${true}></codex-dashboard>`;
       case "settings":
         return html`<codex-settings
           .campaign=${campaign}
@@ -740,6 +745,7 @@ export class CodexApp extends LitElement {
         ></codex-settings>`;
       case "collection":
       case "record":
+      case "create":
         return html`<codex-record-page
           .campaign=${campaign}
           .route=${this.route}
@@ -750,6 +756,7 @@ export class CodexApp extends LitElement {
           @campaign-edit-dirty=${this.#onEditDirty}
           @campaign-record-save=${this.#saveCampaignRecord}
           @campaign-record-delete=${this.#deleteCampaignRecord}
+          @campaign-sign-in=${this.#showSignIn}
         ></codex-record-page>`;
       case "addon":
         if (!this.#authenticated()) {
@@ -767,7 +774,7 @@ export class CodexApp extends LitElement {
   #coreRouteActive(id: string): boolean {
     if (id === "dashboard") return this.route.kind === "dashboard";
     if (id === "search") return this.route.kind === "search";
-    if (id === "party") return this.route.kind === "party";
+    if (id === "party") return this.route.kind === "party" || this.route.kind === "create";
     if (id === "settings") return this.route.kind === "settings";
     return (this.route.kind === "collection" || this.route.kind === "record") && this.route.page.id === id;
   }
@@ -929,6 +936,44 @@ export class CodexApp extends LitElement {
             ? "The definition is now in use or settings changed. Review the category and try again."
             : "Settings changed while deleting. Review the category and try again."
           : `The definition could not be deleted: ${errorMessage(cause)}`;
+      }
+    } finally {
+      this.busy = false;
+    }
+  };
+
+  readonly #showSignIn = async (): Promise<void> => {
+    if (this.#authenticated()) return;
+    if (this.mobileViewport) this.menuOpen = true;
+    await this.updateComplete;
+    const account = this.querySelector<HTMLDetailsElement>(".account-menu");
+    if (account !== null) account.open = true;
+    this.querySelector<HTMLInputElement>('.account-panel input[name="password"]')?.focus();
+  };
+
+  readonly #saveCampaignIdentity = async (event: CustomEvent<CampaignIdentitySaveDetail>): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canManageCampaign() ||
+      this.authority.state !== "known" || !this.authority.auth.authenticated ||
+      this.campaignState.state !== "ready") return;
+    let mutation: CampaignMutation;
+    try {
+      mutation = prepareCampaignIdentitySave(this.campaignState.campaign, event.detail);
+    } catch (cause: unknown) {
+      this.errorMessage = this.#ui.t(cause instanceof CampaignIdentityEditError && cause.kind === "stale"
+        ? "dashboard.identityStale" : "dashboard.identityInvalid");
+      return;
+    }
+    this.busy = true;
+    this.errorMessage = "";
+    try {
+      await this.#campaignMutations.commit([mutation], this.authority.auth.csrfToken, this.#request.signal);
+      await this.#loadCampaign(this.#request.signal, true);
+      this.#editDirty = false;
+      this.editCompletion += 1;
+    } catch (cause: unknown) {
+      if (!this.#request.signal.aborted) {
+        this.errorMessage = this.#ui.t(cause instanceof CampaignMutationHTTPError && cause.status === 409
+          ? "dashboard.identityStale" : "dashboard.identityFailed");
       }
     } finally {
       this.busy = false;

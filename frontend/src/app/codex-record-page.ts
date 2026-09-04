@@ -42,7 +42,7 @@ import {
 import { collectionHash, type AppRoute } from "./routes.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 
-type RecordRoute = Extract<AppRoute, { kind: "collection" | "record" }>;
+type RecordRoute = Extract<AppRoute, { kind: "collection" | "record" | "create" }>;
 
 export class CodexRecordPage extends LitElement {
   static override properties = {
@@ -101,11 +101,24 @@ export class CodexRecordPage extends LitElement {
       this.#resetEditors();
       this.#setDirty(false);
     }
+    if (this.route?.kind === "create" && this.canEdit && this.campaign !== undefined && this.editor === "closed") {
+      this.#editCampaign = this.campaign;
+      this.editor = "create";
+    }
   }
 
   protected override render() {
     if (this.campaign === undefined || this.route === undefined) return nothing;
     const campaign = this.#editorCampaign;
+    if (this.route.kind === "create") {
+      return html`<article class="record-article editor-article" aria-labelledby="record-editor-title">
+        <a href="#/party" class="breadcrumb-link">Back to party</a>
+        ${this.canEdit ? this.#editorForm(undefined, this.route) : html`
+          <h1 id="record-editor-title">Add party member</h1>
+          <button type="button" @click=${() => this.dispatchEvent(new CustomEvent("campaign-sign-in", { bubbles: true, composed: true }))}>Sign in</button>
+        `}
+      </article>`;
+    }
     return this.route.kind === "collection"
       ? this.#collection(campaign, this.route)
       : this.#record(campaign, this.route);
@@ -261,7 +274,11 @@ export class CodexRecordPage extends LitElement {
 
   #editorForm(record: CampaignRecord | undefined, route: RecordRoute) {
     const fields = editorFieldsFor(route.page.collection);
-    const value = recordValue(record);
+    const statusField = fields.find(({ key }) => key === "status");
+    const value: Readonly<Record<string, unknown>> = record === undefined && route.kind === "create" && route.preset === "party"
+      ? { faction: "party", knowledge: 4, status: statusField !== undefined &&
+          editorOptionsFor(this.#editorCampaign, statusField, "").some(({ value }) => value === "alive") ? "alive" : "" }
+      : recordValue(record);
     const creating = record === undefined;
     return html`
       <form class="record-editor" @submit=${this.#submitEditor} @input=${this.#markDirty} @change=${this.#markDirty}>
@@ -492,6 +509,7 @@ export class CodexRecordPage extends LitElement {
       this.#setDirty(false);
       this.editor = "closed";
       this.#resetEditors();
+      if (this.route?.kind === "create") window.location.hash = "#/party";
     }
   };
 
