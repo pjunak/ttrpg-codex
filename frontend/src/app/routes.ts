@@ -26,6 +26,7 @@ export type AppRoute =
   | { readonly kind: "dashboard" }
   | { readonly kind: "search" }
   | { readonly kind: "party" }
+  | { readonly kind: "map"; readonly parentId: string | null }
   | { readonly kind: "create"; readonly page: CampaignPageDefinition; readonly preset: "party" }
   | { readonly kind: "settings" }
   | { readonly kind: "collection"; readonly page: CampaignPageDefinition }
@@ -48,6 +49,15 @@ export function parseAppRoute(hash: string): AppRoute {
   }
   if (hash === "#/settings") {
     return { kind: "settings" };
+  }
+  if (hash === "#/map/world" || hash === "#/mapa/svet") return { kind: "map", parentId: null };
+  const localMap = /^#\/(?:map|mapa)\/local\/([^/]+)$/u.exec(hash);
+  if (localMap !== null) {
+    try {
+      const parentId = decodeURIComponent(localMap[1]!);
+      if (parentId !== "" && !/\p{Cc}/u.test(parentId)) return { kind: "map", parentId };
+    } catch { /* Malformed paths use the ordinary not-found route. */ }
+    return { kind: "not-found", path: hash };
   }
   if (isBrowserAddonRouteHash(hash)) {
     return { kind: "addon" };
@@ -73,6 +83,10 @@ export function parseAppRoute(hash: string): AppRoute {
 
 export function collectionHash(page: CampaignPageDefinition): string {
   return `#/${page.id}`;
+}
+
+export function mapHash(parentId: string | null): string {
+  return parentId === null ? "#/map/world" : `#/map/local/${encodeURIComponent(parentId)}`;
 }
 
 export function recordHash(page: CampaignPageDefinition, key: string): string {

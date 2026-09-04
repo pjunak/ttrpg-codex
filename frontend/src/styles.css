@@ -2,6 +2,7 @@
 @import "@fontsource-variable/lora";
 @import "@fontsource-variable/lora/wght-italic.css";
 @import "@fontsource-variable/inter";
+@import "leaflet/dist/leaflet.css";
 @import "./styles/tokens.css";
 @import "./styles/shell.css";
 @import "./styles/dashboard.css";
@@ -9,3 +10,4 @@
 @import "./styles/search.css";
 @import "./styles/settings.css";
 @import "./styles/addons.css";
+@import "./styles/maps.css";

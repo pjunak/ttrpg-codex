@@ -72,6 +72,9 @@ import "./codex-record-page.js";
 import "./codex-search.js";
 import "./codex-settings.js";
 import { CampaignIdentityEditError, prepareCampaignIdentitySave, type CampaignIdentitySaveDetail } from "./campaign-identity.js";
+import { MediaClient } from "../core/media.js";
+import { CampaignMapEditError, mapLocationRecord, prepareMapSave, prepareLocalMapImage, type MapSaveDetail, type MapUploadDetail } from "./campaign-map.js";
+import "./codex-map.js";
 
 type Readiness =
   | { readonly state: "checking" }
@@ -572,7 +575,10 @@ export class CodexApp extends LitElement {
         { id: "party", label: this.#ui.t("shell.party"), icon: "🛡", hash: "#/party" },
       ] },
       { id: "campaign", label: this.#ui.t("shell.campaign"), entries: entries(["events", "mysteries"]) },
-      { id: "world", label: this.#ui.t("shell.world"), entries: entries(["locations", "characters", "factions", "companions"]) },
+      { id: "world", label: this.#ui.t("shell.world"), entries: [
+        { id: "map", label: this.#ui.t("map.world"), icon: "🗺", hash: "#/map/world" },
+        ...entries(["locations", "characters", "factions", "companions"]),
+      ] },
       { id: "compendium", label: this.#ui.t("shell.compendium"), entries: entries(["pantheon", "artifacts", "history"]) },
     ];
     return html`
@@ -722,6 +728,11 @@ export class CodexApp extends LitElement {
     }
     const campaign = this.campaignState.campaign;
     switch (this.route.kind) {
+      case "map":
+        return html`<codex-map .campaign=${campaign} .route=${this.route} .canEdit=${this.#canEdit()}
+          .canManageCampaign=${this.#canManageCampaign()} .saving=${this.busy} .editCompletion=${this.editCompletion}
+          .errorMessage=${this.errorMessage} @campaign-edit-dirty=${this.#onEditDirty}
+          @campaign-map-save=${this.#saveMap} @campaign-map-upload=${this.#uploadMap}></codex-map>`;
       case "dashboard":
       case "party":
         return html`<codex-dashboard .campaign=${campaign} .partyOnly=${this.route.kind === "party"}
@@ -772,6 +783,7 @@ export class CodexApp extends LitElement {
   }
 
   #coreRouteActive(id: string): boolean {
+    if (id === "map") return this.route.kind === "map";
     if (id === "dashboard") return this.route.kind === "dashboard";
     if (id === "search") return this.route.kind === "search";
     if (id === "party") return this.route.kind === "party" || this.route.kind === "create";
@@ -941,6 +953,49 @@ export class CodexApp extends LitElement {
       this.busy = false;
     }
   };
+
+  readonly #saveMap = async (event: CustomEvent<MapSaveDetail>): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canEdit() ||
+      this.authority.state !== "known" || !this.authority.auth.authenticated || this.campaignState.state !== "ready" ||
+      (event.detail.kind === "view" && !this.#canManageCampaign())) return;
+    let mutation: CampaignMutation;
+    try { mutation = prepareMapSave(this.campaignState.campaign, event.detail); }
+    catch (cause) { this.#mapError(cause); return; }
+    this.busy = true; this.errorMessage = "";
+    try {
+      await this.#campaignMutations.commit([mutation], this.authority.auth.csrfToken, this.#request.signal);
+      await this.#loadCampaign(this.#request.signal, true);
+      this.#editDirty = false; this.editCompletion += 1;
+    } catch (cause) { if (!this.#request.signal.aborted) this.#mapError(cause); }
+    finally { this.busy = false; }
+  };
+
+  readonly #uploadMap = async (event: CustomEvent<MapUploadDetail>): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canEdit() ||
+      this.authority.state !== "known" || !this.authority.auth.authenticated || this.campaignState.state !== "ready") return;
+    const { parentId, expectedRevision, file } = event.detail;
+    if (parentId === null && !this.#canManageCampaign()) return;
+    if (parentId !== null && mapLocationRecord(this.campaignState.campaign, parentId)?.revision !== expectedRevision) {
+      this.#mapError(new CampaignMapEditError("stale")); return;
+    }
+    this.busy = true; this.errorMessage = "";
+    try {
+      const media = await new MediaClient().upload(parentId === null ? "world-map" : "location-map", parentId ?? "main",
+        file, file.name, this.authority.auth.csrfToken, this.#request.signal);
+      if (parentId !== null) {
+        const mutation = prepareLocalMapImage(this.campaignState.campaign, parentId, expectedRevision, media.url);
+        await this.#campaignMutations.commit([mutation], this.authority.auth.csrfToken, this.#request.signal);
+      }
+      await this.#loadCampaign(this.#request.signal, true);
+      this.editCompletion += 1;
+    } catch (cause) { if (!this.#request.signal.aborted) this.#mapError(cause); }
+    finally { this.busy = false; }
+  };
+
+  #mapError(cause: unknown): void {
+    this.errorMessage = this.#ui.t((cause instanceof CampaignMapEditError && cause.kind === "stale") ||
+      (cause instanceof CampaignMutationHTTPError && cause.status === 409) ? "map.stale" : "map.saveFailed");
+  }
 
   readonly #showSignIn = async (): Promise<void> => {
     if (this.#authenticated()) return;

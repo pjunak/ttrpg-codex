@@ -175,10 +175,14 @@ transaction. The browser caches only the last accepted theme ID to avoid a
 flash of the default chrome during startup; the campaign record remains
 authoritative and replaces that cache as soon as it loads.
 
+World/local map viewing and editing now use the same transaction and media
+boundaries. Coordinates, map scope, saved views, draft revisions, and image
+replacement are described in [`MAPS.md`](MAPS.md).
+
 The rewrite does not yet implement:
 
-- collection-specific map fields, timelines, the remaining non-enum settings,
-  and other specialized workflows;
+- remaining map settings and overlays, timelines, the remaining non-enum
+  settings, and other specialized workflows;
 - initial import publication or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and
   other domain queries.

@@ -1,0 +1,35 @@
+/* Ported from the preserved swordcoast.css map shell and controls. */
+.sc-shell { position: fixed; inset: 0 0 0 var(--sidebar-width); display: flex; flex-direction: column; overflow: hidden; background: var(--bg-deep); }
+.sc-toolbar { display: flex; align-items: center; gap: .5rem; padding: .5rem 1rem; background: var(--bg-base); border-bottom: 1px solid rgba(var(--gold-muted), .15); flex-shrink: 0; flex-wrap: wrap; }
+.sc-title { font-family: var(--font-title); font-size: .95rem; color: var(--text-parchment); margin: 0 .5rem 0 0; }
+.sc-btn { display: inline-block; padding: .3rem .75rem; background: var(--bg-raised); border: 1px solid rgba(var(--gold-muted), .25); border-radius: 4px; color: var(--text-parchment); font: .8rem var(--font-ui); cursor: pointer; text-decoration: none; }
+.sc-btn:hover { background: rgba(var(--gold-muted), .1); border-color: rgba(var(--gold-muted), .5); }
+.sc-btn[aria-pressed="true"] { border-color: var(--accent-gold); color: var(--accent-gold); }
+.sc-hint { font: .75rem var(--font-ui); color: var(--text-muted); margin-left: auto; }
+.sc-search-wrap { position: relative; min-width: 0; }
+.sc-search { width: 190px; max-width: 100%; padding: .35rem .6rem; border-radius: 4px; border: 1px solid rgba(var(--gold-muted), .25); background: var(--bg-surface); color: var(--text-parchment); font: .8rem var(--font-ui); }
+.sc-search-results { position: absolute; top: 100%; left: 0; min-width: 100%; max-height: 240px; overflow: auto; z-index: 2; background: var(--bg-base); border: 1px solid var(--gold); padding: .5rem; }
+.sc-search-results button { display: block; width: 100%; background: none; border: 0; color: var(--text-parchment); padding: .4rem; text-align: left; cursor: pointer; }
+.sc-stage { flex: 1; min-height: 0; position: relative; overflow: hidden; z-index: 0; }
+.sc-map { width: 100%; height: 100%; }
+.sc-map.leaflet-container { background: var(--bg-surface); font-family: var(--font-ui); }
+.sc-map-state { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 1rem; padding: 1rem; }
+.sc-pin { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 24px; }
+.sc-pin img { display: block; width: 100%; height: 100%; }
+.sc-marker { background: transparent; border: 0; }
+.sc-panel { position: absolute; inset: 0 0 0 auto; width: 280px; max-width: calc(100% - 76px); background: var(--bg-base); border-left: 1px solid rgba(var(--gold-muted), .2); overflow-y: auto; z-index: 1000; padding: 1rem; box-shadow: -4px 0 20px #0006; }
+.sc-panel h2 { font-size: 1.1rem; padding-right: 1rem; margin-top: 1rem; overflow-wrap: anywhere; }
+.sc-panel .sc-btn { margin: .25rem .15rem .25rem 0; }
+.sc-panel label { display: grid; gap: .25rem; margin-bottom: .75rem; font: .8rem var(--font-ui); }
+.sc-panel input { min-width: 0; width: 100%; background: var(--bg-surface); color: var(--text-parchment); border: 1px solid var(--border-subtle); padding: .5rem; }
+.sc-panel-close { position: absolute; top: .75rem; right: .75rem; background: none; border: none; color: var(--text-muted); cursor: pointer; }
+.sc-zoom-panel { position: absolute; top: 12px; left: 12px; z-index: 500; display: flex; flex-direction: column; align-items: center; gap: .3rem; padding: .4rem; background: rgba(18,14,10,.88); border: 1px solid rgba(var(--gold-muted), .22); border-radius: 8px; box-shadow: 0 2px 8px #0008; user-select: none; }
+.sc-zoom-btn { width: 36px; height: 36px; padding: 0; border-radius: 4px; border: 1px solid rgba(var(--gold-muted), .25); background: var(--bg-raised); color: var(--text-parchment); font: 1.05rem/1 var(--font-ui); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.sc-zoom-btn:hover { background: rgba(var(--gold-muted), .18); }
+.sc-zoom-readout-btn { font-size: .78rem; font-variant-numeric: tabular-nums; }
+.sc-zoom-slider-vertical { writing-mode: vertical-lr; direction: rtl; width: 28px; height: 100px; accent-color: var(--accent-gold); cursor: pointer; margin: 2px 0; }
+.sc-upload, .sc-message { display: block; margin: 0; padding: .5rem 1rem; background: var(--bg-base); font: .8rem var(--font-ui); }
+.sc-upload input { max-width: 100%; }
+.sc-message { color: var(--gold); }
+@media (max-width: 768px) { .sc-shell { left: 0; bottom: 60px; } .sc-toolbar { padding: .5rem; } .sc-hint { display: none; } }
+@media (pointer: coarse) { .sc-zoom-btn { width: 40px; height: 40px; } .sc-zoom-slider-vertical { width: 32px; height: 120px; } }

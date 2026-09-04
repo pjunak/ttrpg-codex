@@ -39,7 +39,8 @@ import {
   text,
   type EntitySummary,
 } from "./campaign-projection.js";
-import { collectionHash, type AppRoute } from "./routes.js";
+import { collectionHash, mapHash, type AppRoute } from "./routes.js";
+import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 
 type RecordRoute = Extract<AppRoute, { kind: "collection" | "record" | "create" }>;
@@ -67,6 +68,7 @@ export class CodexRecordPage extends LitElement {
   declare private editor: "closed" | "create" | "edit";
   declare private markdownPreviews: readonly string[];
   #dirty = false;
+  readonly #ui = new UiLocalizationController(this);
   // Live projections continue updating, but an open form owns its original base.
   #editCampaign: CampaignDataset | undefined;
   #factionDraft: string | undefined;
@@ -227,6 +229,10 @@ export class CodexRecordPage extends LitElement {
               </div>
               ${this.canEdit ? html`
                 <button class="record-action" type="button" @click=${this.#startEdit} ?disabled=${this.saving}>Edit</button>
+              ` : nothing}
+              ${route.page.collection === "locations" ? html`
+                <a class="record-action" href=${mapHash(text(value["parentId"]) || null)}>${this.#ui.t("map.show")}</a>
+                ${value["localMap"] || this.canEdit ? html`<a class="record-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>` : nothing}
               ` : nothing}
             </header>
             ${facts.length === 0 ? nothing : html`
