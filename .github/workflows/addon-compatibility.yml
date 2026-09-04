@@ -46,8 +46,12 @@ jobs:
           go-version-file: ttrpg-codex/go.mod
           cache: true
 
+      - name: Install DM Tools test dependencies
+        run: npm ci && npx playwright install --with-deps chromium
+        working-directory: addon-dm-tools
+
       - name: Test DM Tools against this host revision
-        run: npm ci && npm run check && go test ./... && go vet ./... && go run ./cmd/build-package
+        run: npm run check && go test ./... && go vet ./... && go run ./cmd/build-package
         working-directory: addon-dm-tools
 
       - name: Test D&D Engine against this host revision

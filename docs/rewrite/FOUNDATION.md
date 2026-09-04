@@ -22,6 +22,7 @@ The repository-level gate covers both toolchains:
 
 ```console
 npm ci
+npx playwright install chromium
 npm run check
 ```
 
@@ -42,6 +43,7 @@ Run the frontend gate from `frontend/`:
 
 ```console
 npm ci
+npx playwright install chromium
 npm run check
 ```
 
@@ -101,7 +103,9 @@ links remain visibly marked instead of becoming guessed navigation.
 - The native `codex-backup.v2` archive uses SQLite's online backup primitive,
   inventories immutable add-on generations and blob objects by hash, and
   verifies an isolated copy—including every database-referenced blob—before an
-  offline journaled data-directory swap. Blob-free v1 archives remain accepted.
+  offline journaled data-directory swap. Only `codex-backup.v2` is accepted by
+  ordinary backup verification and restore; legacy UI ZIPs enter through the
+  separate offline converter.
   The host holds a portable process lock and recovers interrupted swaps before
   opening SQLite. See [`BACKUP_RESTORE.md`](BACKUP_RESTORE.md). A
   real-and-effective-DM download endpoint exposes this same archive contract

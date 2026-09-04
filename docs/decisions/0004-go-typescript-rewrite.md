@@ -18,14 +18,21 @@ end state is also intentionally consistent: TypeScript for browser code and Go
 for backend or worker code, without retaining project-owned JavaScript or
 Python runtimes as compatibility layers.
 
-The existing `main` branches remain the stable implementation during the
-rewrite. Cutover, preservation of the old line, and branch renaming are
-separate release operations and are not performed by this decision.
+At acceptance, the `main` branches held the stable implementation. Cutover,
+preservation of the old line, and branch renaming were separate release
+operations and were not authorized by this decision.
 
 ## Decision
 
 Develop the next major version on the coordinated `rewrite/go-typescript`
 branch in the host and all first-party add-on repositories.
+
+Implementation status, September 4: rewrite development now occupies `main` in
+all five repositories, with the former host preserved at
+`origin/deprecated/pre-rewrite-2026-09-01`. This source-branch transition does
+not establish product parity or authorize production cutover. The current
+workflow inventory, remaining gates, and acceptance order live in the
+[suite backlog](../BACKLOG.md).
 
 The target architecture is:
 

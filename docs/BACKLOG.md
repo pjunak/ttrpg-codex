@@ -132,6 +132,71 @@ or an explicit maintainer decision to retire the workflow.
 
 <!-- product-parity-gates:end -->
 
+## Delivery order and acceptance evidence
+
+Keep the Go monolith, SQLite ownership, reviewed package lifecycle, optional
+service graph, and offline conversion boundary. The next work should complete
+campaign workflows on those foundations. A passing build or a ported manifest
+does not close a product gate. For each slice, record its implementation,
+automated coverage, remaining browser acceptance, and any approved retirement
+here before marking it complete.
+
+| Order | Slice and owner | Evidence needed before closing its remaining gates |
+|---|---|---|
+| 1 | Host editing and session behavior | Real-host browser coverage for login/logout, role changes, navigation, save/conflict recovery, SSE refresh, and add-on outlets. Include dirty drafts, remote deletion, edits during an in-flight save, and session expiry. |
+| 2 | Host maps and map settings | Implement map fields, immutable media preparation, coordinate editing, saved views, marker art, and path/glow rendering as one workflow; verify world and local maps plus role-filtered locations together. |
+| 3 | Host timeline and relationship views | Restore drag/reorder persistence and graph navigation using canonical record identities; test reload, stale writes, and position-only edits. |
+| 4 | First-party add-on workflows | Compare compendium browse/source/link behavior, DM planner/import review, engine calculations, and sheet play state against preserved v1 fixtures. Exercise absent/replaced providers through actual installed ZIPs. |
+| 5 | Host administration and recovery | Complete branding, party/sidebar preferences, add-on inspection/approval/rollback, recovery points, and the accepted credential workflow; retain explicit operator review. |
+| 6 | Release acceptance | Finish localization and token checks in each restored slice, then run desktop/mobile acceptance on copies of both campaigns, verify conversion reports and rollback, and obtain maintainer acceptance. |
+
+The September 4 review added Chromium regressions for record, enum, and theme
+forms in `frontend/test/browser/editors.browser.mjs`. They verify retained
+drafts and opening revisions after live refresh, remote deletion, reviewed
+relationship replacement, and successful saves after unrelated changes. These
+are real component tests with synthetic datasets, not a completed host/SSE or
+installed-add-on acceptance test. The corresponding release gates stay open.
+
+The technical gate now includes those browser regressions. The worker add-ons
+use the host SDK's Go 1.27.1 baseline; engine CI runs the Go suite and race
+checks, and DM Tools CI follows the host's default branch. Chromium must be
+installed before either host or planner browser checks. Package inspection
+proves archive validity; activation and campaign acceptance require separate
+evidence.
+
+## Workflow inventory
+
+This initial host inventory was checked against preserved v1 commit
+`3aeeacfe7adec985693f8aeb239df58c177f3da8`, specifically `web/js/app.js`,
+`web/js/settings.js`, and `web/index.html`. It maps workflow destinations, not
+an implemented legacy URL redirect contract. Current host routes are owned by
+`frontend/src/app/routes.ts`. Add-on actions and detailed editing/administration
+acceptance still need to be expanded, so the inventory release gate remains open.
+
+| V1 route or action | V2 destination / current state | Remaining acceptance |
+|---|---|---|
+| `/`, `/dashboard`, `/parta` | `/`, `/dashboard`, `/party`; dashboard and party projections | Real-host role changes, live refresh, and mobile navigation |
+| `/postavy`, `/postava/:id` | `/characters`, `/characters/:id` | End-to-end edit/save plus sheet mounting |
+| `/mista`, `/misto/:id` | `/locations`, `/locations/:id` | Spatial fields and local maps |
+| `/udalosti`, `/udalost/:id` | `/events`, `/events/:id` | Paths and timeline ordering |
+| `/zahady`, `/zahada/:id` | `/mysteries`, `/mysteries/:id` | Mystery graph navigation |
+| `/frakce`, `/frakce/:id` | `/factions`, `/factions/:id` | Faction graph and saved positions |
+| `/panteon`, `/buh/:id` | `/pantheon`, `/pantheon/:id` | Copied-campaign article/editor acceptance |
+| `/artefakty`, `/artefakt/:id` | `/artifacts`, `/artifacts/:id` | Copied-campaign article/editor acceptance |
+| `/historie`, `/historicka-udalost/:id` | `/history`, `/history/:id` | Copied-campaign article/editor acceptance |
+| `/mazlicci` | `/companions` and dedicated companion records | Ownership and sheet-related workflow acceptance |
+| Global search and wiki links | `/search` and typed Markdown links | Add-on reference/linking surfaces and localized editors |
+| `/mapa/svet`, `/mapa/local/:id` | Not yet restored | Maps slice above |
+| `/mapa/palac`, `/mapa/frakce`, `/mapa/vztahy`, `/mapa/tajemstvi` | Not yet restored | Faction, relationship, mystery views and saved positions |
+| `/casova-osa` | Not yet restored | Timeline slice above |
+| `/dm` and player-preview action | Session role switch exists; dedicated DM dashboard and tab-isolated preview remain open | Preserve the distinction between session role switching and true preview |
+| `/nastaveni`: six enum categories | `/settings` enum panels | Full localization and real-host save/delete/conflict coverage |
+| Settings: `language`, `appearance` | Personal language and shared theme panels | Remaining catalogs, tokens, and old appearance/branding actions |
+| Settings: `playerParty`, `worldmap`, `sidebarPages` | Not yet restored | Party, map, sidebar and shared preference controls |
+| Settings: `addons` | Lifecycle APIs exist; manager and add-on settings UI remain open | Permission review, activation, diagnostics, update and rollback |
+| Settings: `backup`, `account` | Verified backup/maintenance and session APIs exist; full recovery/server controls remain open | Recovery points, restore/revert and accepted credential rotation |
+| Add-on routes and graph/settings contributions | Versioned v3 mounting infrastructure and package routes exist | Per-add-on workflow inventory and installed-package acceptance |
+
 ## Platform follow-ups
 
 - Add coordinated dependent disable and a separately reviewed uninstall/data-
