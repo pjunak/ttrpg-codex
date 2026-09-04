@@ -324,6 +324,45 @@
   line-height: 1.55;
 }
 
+.record-editor select[multiple] {
+  min-height: 8.5rem;
+  padding: 0.3rem;
+}
+
+.record-editor select[multiple] option {
+  padding: 0.42rem 0.5rem;
+}
+
+.record-editor .boolean-field {
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  align-items: center;
+  align-self: end;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #a68f64;
+  background: #f8efd9;
+}
+
+.record-editor .boolean-field input {
+  width: 1.15rem;
+  min-height: 1.15rem;
+  margin: 0;
+  accent-color: var(--crimson);
+}
+
+.record-editor .boolean-field > span {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.record-editor .field-help {
+  color: #756346;
+  font-family: var(--ui-font);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
 .record-editor .wide-field { grid-column: 1 / -1; }
 
 .record-editor-actions {

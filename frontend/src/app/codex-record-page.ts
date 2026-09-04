@@ -8,6 +8,9 @@ import {
   collectionManagesVisibility,
   createCampaignRecordKey,
   editorFieldsFor,
+  editorOptionsFor,
+  type CampaignEditDirtyDetail,
+  type CampaignEditorField,
   type CampaignRecordDeleteDetail,
   type CampaignRecordSaveDetail,
 } from "./campaign-record-editor.js";
@@ -19,6 +22,7 @@ import {
   type EntitySummary,
 } from "./campaign-projection.js";
 import { collectionHash, type AppRoute } from "./routes.js";
+import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 
 type RecordRoute = Extract<AppRoute, { kind: "collection" | "record" }>;
 
@@ -42,6 +46,7 @@ export class CodexRecordPage extends LitElement {
   declare editCompletion: number;
   declare private query: string;
   declare private editor: "closed" | "create" | "edit";
+  #dirty = false;
 
   constructor() {
     super();
@@ -63,8 +68,12 @@ export class CodexRecordPage extends LitElement {
     if (changed.has("route")) {
       this.query = "";
       this.editor = "closed";
+      this.#setDirty(false);
     }
-    if (changed.has("editCompletion")) this.editor = "closed";
+    if (changed.has("editCompletion")) {
+      this.editor = "closed";
+      this.#setDirty(false);
+    }
   }
 
   protected override render() {
@@ -197,7 +206,7 @@ export class CodexRecordPage extends LitElement {
     const value = recordValue(record);
     const creating = record === undefined;
     return html`
-      <form class="record-editor" @submit=${this.#submitEditor}>
+      <form class="record-editor" @submit=${this.#submitEditor} @input=${this.#markDirty} @change=${this.#markDirty}>
         <header>
           <div>
             <p class="page-kicker">${creating ? "New entry" : `Revision ${record.revision}`}</p>
@@ -206,27 +215,7 @@ export class CodexRecordPage extends LitElement {
           </div>
         </header>
         <div class="record-editor-fields">
-          ${fields.map((field) => html`
-            <label class=${field.kind === "text" ? "wide-field" : ""}>
-              <span>${field.label}</span>
-              ${field.kind === "text"
-                ? html`<textarea
-                    name=${field.key}
-                    maxlength=${field.maximumLength}
-                    .value=${editorValue(value[field.key])}
-                    ?required=${field.required === true}
-                  ></textarea>`
-                : html`<input
-                    name=${field.key}
-                    type=${field.kind === "number" ? "number" : "text"}
-                    step=${field.kind === "number" ? "any" : nothing}
-                    maxlength=${field.kind === "number" ? nothing : field.maximumLength}
-                    .value=${editorValue(value[field.key])}
-                    placeholder=${field.placeholder ?? ""}
-                    ?required=${field.required === true}
-                  />`}
-            </label>
-          `)}
+          ${fields.map((field) => this.#editorField(field, value, record?.key ?? ""))}
           ${collectionManagesVisibility(route.page.collection) && this.canManageVisibility ? html`
             <label>
               <span>Visibility</span>
@@ -251,31 +240,153 @@ export class CodexRecordPage extends LitElement {
     `;
   }
 
+  #editorField(
+    field: CampaignEditorField,
+    value: Readonly<Record<string, unknown>>,
+    currentKey: string,
+  ) {
+    const wide = ["text", "string-list", "references", "attitudes"].includes(field.kind);
+    const help = field.help === undefined ? nothing : html`<small class="field-help">${field.help}</small>`;
+    if (field.kind === "text" || field.kind === "string-list") {
+      return html`
+        <label class=${wide ? "wide-field" : ""}>
+          <span>${field.label}</span>
+          <textarea
+            name=${field.key}
+            maxlength=${field.kind === "text" ? field.maximumLength : nothing}
+            .value=${field.kind === "string-list"
+              ? editorStringList(value[field.key]).join("\n")
+              : editorValue(value[field.key])}
+            ?required=${field.required === true}
+          ></textarea>
+          ${help}
+        </label>
+      `;
+    }
+    if (field.kind === "reference" || field.kind === "owner") {
+      const options = editorOptionsFor(this.campaign!, field, currentKey);
+      const stored = field.kind === "owner" ? ownerValue(value) : editorValue(value[field.key]);
+      const selected = currentKey === "" && field.key === "faction" && stored === "" ? "neutral" : stored;
+      return html`
+        <label>
+          <span>${field.label}</span>
+          <select name=${field.key}>
+            ${field.kind === "reference" ? html`<option value="" ?selected=${selected === ""}>Not set</option>` : nothing}
+            ${options.map((option) => html`
+              <option value=${option.value} ?selected=${option.value === selected}>${option.label}</option>
+            `)}
+          </select>
+          ${help}
+        </label>
+      `;
+    }
+    if (field.kind === "references" || field.kind === "attitudes") {
+      const options = editorOptionsFor(this.campaign!, field, currentKey);
+      const selected = new Set(field.kind === "attitudes"
+        ? editorAttitudes(value[field.key])
+        : editorStringList(value[field.key]));
+      return html`
+        <label class="wide-field structured-picker">
+          <span>${field.label}</span>
+          <select name=${field.key} multiple size=${Math.min(8, Math.max(3, options.length))}>
+            ${options.map((option) => html`
+              <option value=${option.value} ?selected=${selected.has(option.value)}>${option.label}</option>
+            `)}
+          </select>
+          ${field.help === undefined
+            ? html`<small class="field-help">Use Ctrl or Command to select more than one entry.</small>`
+            : help}
+        </label>
+      `;
+    }
+    if (field.kind === "boolean") {
+      return html`
+        <label class="boolean-field">
+          <input name=${field.key} type="checkbox" .checked=${value[field.key] === true} />
+          <span>${field.label}</span>
+          ${help}
+        </label>
+      `;
+    }
+    return html`
+      <label>
+        <span>${field.label}</span>
+        <input
+          name=${field.key}
+          type=${field.kind === "number" ? "number" : "text"}
+          step=${field.kind === "number" ? "any" : nothing}
+          min=${field.minimum ?? nothing}
+          max=${field.maximum ?? nothing}
+          maxlength=${field.kind === "number" ? nothing : field.maximumLength}
+          .value=${field.kind === "tags"
+            ? editorStringList(value[field.key]).join(", ")
+            : editorValue(value[field.key])}
+          placeholder=${field.placeholder ?? ""}
+          ?required=${field.required === true}
+        />
+        ${help}
+      </label>
+    `;
+  }
+
   readonly #startCreate = (): void => {
-    if (this.canEdit && !this.saving) this.editor = "create";
+    if (this.canEdit && !this.saving) {
+      this.#setDirty(false);
+      this.editor = "create";
+    }
   };
 
   readonly #startEdit = (): void => {
-    if (this.canEdit && !this.saving) this.editor = "edit";
+    if (this.canEdit && !this.saving) {
+      this.#setDirty(false);
+      this.editor = "edit";
+    }
   };
 
   readonly #closeEditor = (): void => {
-    if (!this.saving) this.editor = "closed";
+    if (!this.saving && confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))) {
+      this.#setDirty(false);
+      this.editor = "closed";
+    }
   };
+
+  readonly #markDirty = (): void => {
+    if (this.editor !== "closed" && !this.saving) this.#setDirty(true);
+  };
+
+  #setDirty(dirty: boolean): void {
+    if (this.#dirty === dirty) return;
+    this.#dirty = dirty;
+    this.dispatchEvent(new CustomEvent<CampaignEditDirtyDetail>("campaign-edit-dirty", {
+      detail: Object.freeze({ dirty }),
+      bubbles: true,
+      composed: true,
+    }));
+  }
 
   readonly #submitEditor = (event: SubmitEvent): void => {
     event.preventDefault();
     if (!this.canEdit || this.saving || this.campaign === undefined || this.route === undefined) return;
     const form = event.currentTarget as HTMLFormElement;
     const data = new FormData(form);
-    const fields: Record<string, string> = {};
+    const fields: Record<string, unknown> = {};
     for (const field of editorFieldsFor(this.route.page.collection)) {
-      const raw = String(data.get(field.key) ?? "");
-      fields[field.key] = field.kind === "line" ? raw.trim() : raw;
+      if (field.kind === "references" || field.kind === "attitudes") {
+        fields[field.key] = data.getAll(field.key).map(String);
+      } else if (field.kind === "tags") {
+        fields[field.key] = String(data.get(field.key) ?? "").split(",");
+      } else if (field.kind === "string-list") {
+        fields[field.key] = String(data.get(field.key) ?? "").split(/\r?\n/u);
+      } else if (field.kind === "boolean") {
+        fields[field.key] = data.has(field.key);
+      } else {
+        const raw = String(data.get(field.key) ?? "");
+        fields[field.key] = field.kind === "line" ? raw.trim() : raw;
+      }
     }
     const creating = this.editor === "create";
     const key = creating
-      ? createCampaignRecordKey(fields["name"] ?? this.route.page.singular)
+      ? createCampaignRecordKey(typeof fields["name"] === "string" ? fields["name"] : this.route.page.singular)
       : this.route.kind === "record" ? this.route.key : "";
     if (key === "") return;
     const record = creating ? undefined : campaignCollection(this.campaign, this.route.page.collection).records
@@ -349,16 +460,16 @@ function recordRow(entity: EntitySummary) {
 function articleSections(value: Readonly<Record<string, unknown>>): readonly (readonly [string, string])[] {
   const definitions: readonly (readonly [string, readonly string[]])[] = [
     ["Overview", ["description", "summary", "short"]],
-    ["What is known", ["known"]],
+    ["What is known", ["known", "clues"]],
     ["History", ["history"]],
-    ["Details", ["body", "notes"]],
-    ["Open questions", ["unknown"]],
+    ["Details", ["body", "note", "mapNotes"]],
+    ["Open questions", ["questions", "unknown"]],
   ];
   const seen = new Set<string>();
   const result: Array<readonly [string, string]> = [];
   for (const [heading, fields] of definitions) {
     for (const field of fields) {
-      const body = text(value[field]);
+      const body = articleFieldText(value[field]);
       if (body !== "" && !seen.has(body)) {
         seen.add(body);
         result.push([heading, body]);
@@ -378,11 +489,14 @@ function articleFacts(
   const facts: Array<readonly [string, string]> = [];
   for (const [label, field, referenceCollection] of fields) {
     const raw = value[field];
-    let result = printable(raw);
-    if (result !== "" && referenceCollection !== undefined) {
-      result = resolveName(dataset, referenceCollection, result) ?? result;
-    }
+    const result = referenceCollection === undefined
+      ? printable(raw)
+      : referenceNames(dataset, referenceCollection, raw);
     if (result !== "") facts.push([label, result]);
+  }
+  if (collection === "pets") {
+    const owner = petOwnerName(dataset, value);
+    if (owner !== "") facts.push(["Owner", owner]);
   }
   return facts;
 }
@@ -402,6 +516,36 @@ function printable(value: unknown): string {
   return "";
 }
 
+function referenceNames(dataset: CampaignDataset, collection: string, value: unknown): string {
+  const keys = typeof value === "string" ? [value] : stringList(value);
+  return keys.map((key) => resolveName(dataset, collection, key) ?? key).filter(Boolean).join(", ");
+}
+
+function petOwnerName(dataset: CampaignDataset, value: Readonly<Record<string, unknown>>): string {
+  const ownerType = text(value["ownerType"]);
+  const ownerID = text(value["ownerId"]);
+  if (ownerType === "party") return "Player party";
+  if (ownerType === "character") return resolveName(dataset, "characters", ownerID) ?? ownerID;
+  if (ownerType === "faction") return resolveName(dataset, "factions", ownerID) ?? ownerID;
+  return "";
+}
+
+function articleFieldText(value: unknown): string {
+  const direct = text(value);
+  if (direct !== "") return direct;
+  if (!Array.isArray(value)) return "";
+  const lines = value.flatMap((candidate) => {
+    if (typeof candidate === "string") return candidate.trim() === "" ? [] : [`• ${candidate.trim()}`];
+    if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return [];
+    const item = candidate as Readonly<Record<string, unknown>>;
+    const question = text(item["text"] ?? item["question"]);
+    const answer = text(item["answer"]);
+    if (question === "") return [];
+    return [answer === "" ? `• ${question}` : `• ${question}\n  ${answer}`];
+  });
+  return lines.join("\n");
+}
+
 function initial(value: string): string {
   return [...value.trim()][0]?.toLocaleUpperCase() ?? "?";
 }
@@ -410,6 +554,29 @@ function editorValue(value: unknown): string {
   if (typeof value === "string") return value;
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return "";
+}
+
+function editorStringList(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((candidate): candidate is string => typeof candidate === "string")
+    : [];
+}
+
+function editorAttitudes(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((candidate) => {
+    if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return [];
+    const id = (candidate as Readonly<Record<string, unknown>>)["id"];
+    return typeof id === "string" && id.trim() !== "" ? [id] : [];
+  });
+}
+
+function ownerValue(value: Readonly<Record<string, unknown>>): string {
+  const ownerType = text(value["ownerType"]);
+  const ownerID = text(value["ownerId"]);
+  if (ownerType === "character" || ownerType === "faction") return `${ownerType}:${ownerID}`;
+  if (ownerType === "party") return "party:";
+  return "none:";
 }
 
 const collectionIntroductions: Readonly<Record<string, string>> = {
@@ -427,13 +594,13 @@ const collectionIntroductions: Readonly<Record<string, string>> = {
 const factDefinitions: Readonly<Record<string, readonly (readonly [string, string, string?])[]>> = {
   characters: [["Species", "species"], ["Gender", "gender"], ["Age", "age"], ["Status", "status"], ["Faction", "faction", "factions"], ["Current location", "location", "locations"]],
   locations: [["Kind", "type"], ["Region", "region"], ["Parent location", "parentId", "locations"]],
-  events: [["Date", "date"], ["Session", "sitting"], ["Priority", "priority"]],
-  mysteries: [["Priority", "priority"], ["Solved", "solved"]],
-  factions: [["Kind", "type"], ["Domain", "domain"], ["Rank", "rank"]],
+  events: [["Date", "date"], ["Session", "sitting"], ["Priority", "priority"], ["Characters", "characters", "characters"], ["Locations", "locations", "locations"]],
+  mysteries: [["Priority", "priority"], ["Solved", "solved"], ["Characters", "characters", "characters"], ["Locations", "locations", "locations"]],
+  factions: [],
   pantheon: [["Domain", "domain"], ["Symbol", "symbol"], ["Alignment", "alignment"]],
-  artifacts: [["Kind", "type"], ["Holder", "holder", "characters"], ["Origin", "origin"]],
-  historicalEvents: [["Date", "date"], ["Period", "period"], ["Location", "location", "locations"]],
-  pets: [["Species", "species"], ["Owner", "ownerId", "characters"], ["Status", "status"]],
+  artifacts: [["Holder", "ownerCharacterId", "characters"], ["Location", "locationId", "locations"]],
+  historicalEvents: [["Start", "start"], ["End", "end"], ["Characters", "characters", "characters"], ["Locations", "locations", "locations"]],
+  pets: [["Species", "species"]],
 };
 
 if (!customElements.get("codex-record-page")) {

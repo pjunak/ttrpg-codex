@@ -52,11 +52,16 @@ or an explicit maintainer decision to retire the workflow.
   create/edit/delete for characters, locations, events, mysteries, factions,
   deities, artifacts, history, and companions without losing unknown or
   add-on-owned fields.
-- [ ] Complete collection-specific structured editors for references,
-  relationships, attitudes, ownership, location hierarchy, event links, and
-  other fields intentionally omitted from the common-field forms.
+- [x] Restore canonical typed fields for tags and fact lists, scalar and
+  multi-record references, attitudes, companion ownership, location hierarchy,
+  event links, and role-safe preservation of references hidden from players.
+- [ ] Complete the remaining structured editors for relationships, character
+  ranks and location roles, mystery questions, faction rank chains, and
+  collection-specific map fields.
+- [x] Protect dirty record forms across archive navigation, role switching,
+  sign-out, cancellation, and browser unload.
 - [ ] Restore wiki article rendering and editing, sanitized Markdown, headings
-  and table of contents, cross-record wiki links, and dirty-form protection.
+  and table of contents, and cross-record wiki links.
 - [x] Restore campaign-wide search with useful type grouping and navigation.
 - [ ] Restore English and Czech UI catalogs and per-browser language selection.
 - [ ] Restore the established theme choices and accessible shared design system.

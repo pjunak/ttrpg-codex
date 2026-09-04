@@ -32,10 +32,15 @@ import {
   CampaignRecordEditError,
   prepareCampaignRecordDelete,
   prepareCampaignRecordSave,
+  type CampaignEditDirtyDetail,
   type CampaignRecordDeleteDetail,
   type CampaignRecordSaveDetail,
   type PreparedCampaignRecordMutation,
 } from "./campaign-record-editor.js";
+import {
+  confirmDiscardUnsavedEdit,
+  protectUnsavedEditBeforeUnload,
+} from "./unsaved-edit.js";
 import {
   campaignPages,
   collectionHash,
@@ -116,6 +121,8 @@ export class CodexApp extends LitElement {
   #mobileNavigationOutlet: BrowserNavigationOutlet | undefined;
   #routeOutlet: BrowserContributionOutlet | undefined;
   #addonOwner = 0;
+  #editDirty = false;
+  #acceptedHash = "#/";
 
   constructor() {
     super();
@@ -140,8 +147,10 @@ export class CodexApp extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    this.#acceptedHash = normalizedHash(window.location.hash);
     this.route = parseAppRoute(window.location.hash);
     window.addEventListener("hashchange", this.#onHashChange);
+    window.addEventListener("beforeunload", this.#onBeforeUnload);
     this.#request = new AbortController();
     void this.#bootstrap(this.#request.signal);
   }
@@ -151,6 +160,7 @@ export class CodexApp extends LitElement {
     this.#request = undefined;
     this.#events.close();
     window.removeEventListener("hashchange", this.#onHashChange);
+    window.removeEventListener("beforeunload", this.#onBeforeUnload);
     void this.#stopAddons();
     super.disconnectedCallback();
   }
@@ -315,7 +325,7 @@ export class CodexApp extends LitElement {
   }
 
   async #logout(): Promise<void> {
-    if (this.busy || this.#request === undefined) return;
+    if (this.busy || this.#request === undefined || !this.#confirmDiscardEdit()) return;
     this.busy = true;
     this.errorMessage = "";
     try {
@@ -338,7 +348,8 @@ export class CodexApp extends LitElement {
 
   async #switchRole(): Promise<void> {
     if (this.busy || this.#request === undefined || this.authority.state !== "known" ||
-      !this.authority.auth.authenticated || this.authority.auth.realRole !== "dm") return;
+      !this.authority.auth.authenticated || this.authority.auth.realRole !== "dm" ||
+      !this.#confirmDiscardEdit()) return;
     const auth = this.authority.auth;
     const role = auth.role === "dm" ? "player" : "dm";
     this.busy = true;
@@ -673,6 +684,7 @@ export class CodexApp extends LitElement {
           .canManageVisibility=${this.#canManageCampaign()}
           .saving=${this.busy}
           .editCompletion=${this.editCompletion}
+          @campaign-edit-dirty=${this.#onEditDirty}
           @campaign-record-save=${this.#saveCampaignRecord}
           @campaign-record-delete=${this.#deleteCampaignRecord}
         ></codex-record-page>`;
@@ -737,6 +749,7 @@ export class CodexApp extends LitElement {
         this.#request.signal,
       );
       await this.#loadCampaign(this.#request.signal, true);
+      this.#editDirty = false;
       this.editCompletion += 1;
       window.location.hash = recordHash(prepared.page, event.detail.key);
     } catch (cause: unknown) {
@@ -774,6 +787,7 @@ export class CodexApp extends LitElement {
         this.#request.signal,
       );
       await this.#loadCampaign(this.#request.signal, true);
+      this.#editDirty = false;
       this.editCompletion += 1;
       window.location.hash = collectionHash(prepared.page);
     } catch (cause: unknown) {
@@ -788,9 +802,29 @@ export class CodexApp extends LitElement {
   };
 
   readonly #onHashChange = (): void => {
-    this.route = parseAppRoute(window.location.hash);
+    const nextHash = normalizedHash(window.location.hash);
+    if (nextHash !== this.#acceptedHash && !this.#confirmDiscardEdit()) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${this.#acceptedHash}`);
+      return;
+    }
+    this.#acceptedHash = nextHash;
+    this.route = parseAppRoute(nextHash);
     void this.updateComplete.then(() => this.#refreshOutlets());
   };
+
+  readonly #onEditDirty = (event: CustomEvent<CampaignEditDirtyDetail>): void => {
+    if (typeof event.detail?.dirty === "boolean") this.#editDirty = event.detail.dirty;
+  };
+
+  readonly #onBeforeUnload = (event: BeforeUnloadEvent): void => {
+    protectUnsavedEditBeforeUnload(this.#editDirty, event);
+  };
+
+  #confirmDiscardEdit(): boolean {
+    if (!confirmDiscardUnsavedEdit(this.#editDirty, (message) => window.confirm(message))) return false;
+    this.#editDirty = false;
+    return true;
+  }
 
   readonly #dismissError = (): void => {
     this.errorMessage = "";
@@ -805,6 +839,10 @@ export class CodexApp extends LitElement {
 
 function anonymousAuth(): AuthState {
   return { authenticated: false, role: null, realRole: null };
+}
+
+function normalizedHash(value: string): string {
+  return value === "" ? "#/" : value;
 }
 
 function errorMessage(cause: unknown): string {

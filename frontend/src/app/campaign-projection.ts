@@ -95,7 +95,7 @@ function projectEntityWithContext(
     key: record.key,
     name: nonEmptyText(value["name"]) ?? nonEmptyText(value["title"]) ?? record.key,
     title: firstText(value, secondaryFields[page.collection] ?? []),
-    excerpt: firstText(value, excerptFields[page.collection] ?? ["description", "summary", "body"]),
+    excerpt: firstExcerpt(value, excerptFields[page.collection] ?? ["description", "summary", "body"]),
     portrait: safeMediaURL(value["portrait"]),
     icon: shortIcon(value["icon"] ?? value["badge"]),
     status: text(value["status"]),
@@ -236,6 +236,22 @@ function firstText(value: Readonly<Record<string, unknown>>, fields: readonly st
   return "";
 }
 
+function firstExcerpt(value: Readonly<Record<string, unknown>>, fields: readonly string[]): string {
+  for (const field of fields) {
+    const direct = text(value[field]);
+    if (direct !== "") return direct;
+    if (!Array.isArray(value[field])) continue;
+    for (const candidate of value[field]) {
+      if (typeof candidate === "string" && candidate.trim() !== "") return candidate.trim();
+      if (isRecord(candidate)) {
+        const nested = text(candidate["text"] ?? candidate["question"] ?? candidate["answer"]);
+        if (nested !== "") return nested;
+      }
+    }
+  }
+  return "";
+}
+
 function shortIcon(value: unknown): string | undefined {
   const result = text(value);
   return result !== "" && [...result].length <= 4 ? result : undefined;
@@ -347,24 +363,24 @@ function hexToRGBA(value: string, alpha: number): string {
 
 const secondaryFields: Readonly<Partial<Record<CampaignPageDefinition["collection"], readonly string[]>>> = {
   characters: ["title", "species"],
-  locations: ["type", "region"],
+  locations: ["region", "type"],
   events: ["date", "short"],
-  mysteries: ["priority", "status"],
-  factions: ["type", "domain"],
+  mysteries: ["priority"],
+  factions: [],
   pantheon: ["domain", "title"],
-  artifacts: ["type", "holder"],
-  historicalEvents: ["date", "period"],
+  artifacts: [],
+  historicalEvents: ["start", "end"],
   pets: ["species", "ownerType"],
 };
 
 const excerptFields: Readonly<Partial<Record<CampaignPageDefinition["collection"], readonly string[]>>> = {
-  characters: ["description", "known", "summary"],
-  locations: ["description", "summary", "history"],
-  events: ["short", "description", "summary"],
-  mysteries: ["summary", "description", "known"],
-  factions: ["description", "summary", "known"],
-  pantheon: ["description", "summary", "body"],
-  artifacts: ["description", "summary", "history"],
-  historicalEvents: ["summary", "description", "body"],
-  pets: ["description", "notes", "summary"],
+  characters: ["description", "known", "circumstances"],
+  locations: ["description", "history", "mapNotes"],
+  events: ["short", "description"],
+  mysteries: ["clues", "questions"],
+  factions: ["description"],
+  pantheon: ["description"],
+  artifacts: ["description"],
+  historicalEvents: ["summary", "body"],
+  pets: ["note"],
 };

@@ -112,17 +112,28 @@ dangling references and accidental re-seeding after restart.
 
 The TypeScript client now has one canonical route/descriptor registry for the
 nine user-facing record collections. Its list, search, detail, create, edit,
-and delete surfaces share optimistic-revision preparation. Common-field edits
-merge into the current record rather than replacing it, so richer fields and
-add-on namespaces survive until their specialized editor is ported. The host
-still re-applies authorization, visibility, identity, twin, reference, and
-revision policy; browser validation is only an earlier usability boundary.
+and delete surfaces share optimistic-revision preparation. Editors use the
+canonical stored shapes for scalar and multi-record references, attitudes,
+ownership, tags, string lists, location hierarchy, and event links. Each edit
+merges into the current record, so fields not yet represented and add-on
+namespaces survive. Navigation, role switching, sign-out, cancellation, and
+browser unload protect dirty forms.
+
+Player writes arrive as full records built from a role-filtered projection. The
+mutation planner therefore restores any existing scalar, array, object-array,
+or polymorphic-owner reference that points to a DM-only record before commit.
+Unavailable values supplied by the player are ignored when that field already
+contains a hidden reference, avoiding both accidental deletion and a hidden-ID
+oracle. Visible references still use the normal validation and compound
+policies. The host also re-applies authorization, visibility, identity, twin,
+reference, and revision policy; browser validation is only an earlier usability
+boundary.
 
 The rewrite does not yet implement:
 
-- specialized typed editors for relationships, structured references, maps,
-  timelines, settings, and collection-specific fields beyond the common
-  record surface;
+- specialized typed editors for relationships, character ranks and location
+  roles, mystery questions, faction rank chains, map fields, timelines,
+  settings, and other remaining collection-specific fields;
 - initial import publication or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and
   other domain queries.
