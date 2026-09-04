@@ -32,6 +32,7 @@ import {
 } from "./routes.js";
 import "./codex-dashboard.js";
 import "./codex-record-page.js";
+import "./codex-search.js";
 
 type Readiness =
   | { readonly state: "checking" }
@@ -155,6 +156,7 @@ export class CodexApp extends LitElement {
             </a>
             <details class="mobile-archive-menu">
               <summary>${this.#mobileAccountLabel()}</summary>
+              <div class="mobile-core-navigation">${this.#navigationTemplate()}</div>
               <section class="mobile-addon-navigation" aria-labelledby="mobile-addon-navigation-title">
                 <h2 id="mobile-addon-navigation-title">Add-ons</h2>
                 <nav class="addon-navigation" data-addon-navigation-mobile hidden></nav>
@@ -530,6 +532,7 @@ export class CodexApp extends LitElement {
         label: "Campaign",
         entries: [
           { id: "dashboard", label: "Overview", icon: "⌂", hash: "#/" },
+          { id: "search", label: "Search", icon: "⌕", hash: "#/search" },
           { id: "party", label: "The party", icon: "♜", hash: "#/party" },
           ...campaignPages.filter(({ group }) => group === "campaign").map((page) => ({
             id: page.id, label: page.plural, icon: page.icon, hash: collectionHash(page),
@@ -565,10 +568,10 @@ export class CodexApp extends LitElement {
     return html`
       <nav class="mobile-navigation" aria-label="Primary campaign navigation">
         <a href="#/" aria-current=${this.#coreRouteActive("dashboard") ? "page" : nothing}><span>⌂</span>Overview</a>
+        <a href="#/search" aria-current=${this.#coreRouteActive("search") ? "page" : nothing}><span>⌕</span>Search</a>
         <a href="#/party" aria-current=${this.#coreRouteActive("party") ? "page" : nothing}><span>♜</span>Party</a>
         ${characters === undefined ? nothing : html`<a href=${collectionHash(characters)} aria-current=${this.#coreRouteActive("characters") ? "page" : nothing}><span>♟</span>People</a>`}
         ${locations === undefined ? nothing : html`<a href=${collectionHash(locations)} aria-current=${this.#coreRouteActive("locations") ? "page" : nothing}><span>⌖</span>Places</a>`}
-        <a href="#/events" aria-current=${this.#coreRouteActive("events") ? "page" : nothing}><span>◷</span>Events</a>
       </nav>
     `;
   }
@@ -640,6 +643,8 @@ export class CodexApp extends LitElement {
     switch (this.route.kind) {
       case "dashboard":
         return html`<codex-dashboard .campaign=${campaign}></codex-dashboard>`;
+      case "search":
+        return html`<codex-search .campaign=${campaign}></codex-search>`;
       case "party":
         return html`<codex-dashboard .campaign=${campaign} .partyOnly=${true}></codex-dashboard>`;
       case "collection":
@@ -660,6 +665,7 @@ export class CodexApp extends LitElement {
 
   #coreRouteActive(id: string): boolean {
     if (id === "dashboard") return this.route.kind === "dashboard";
+    if (id === "search") return this.route.kind === "search";
     if (id === "party") return this.route.kind === "party";
     return (this.route.kind === "collection" || this.route.kind === "record") && this.route.page.id === id;
   }

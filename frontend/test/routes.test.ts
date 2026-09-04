@@ -7,8 +7,9 @@ import {
 } from "../src/app/routes.js";
 
 describe("application routes", () => {
-  it("maps the campaign title page, party, collections, records, and add-ons", () => {
+  it("maps the campaign title page, search, party, collections, records, and add-ons", () => {
     expect(parseAppRoute("")).toEqual({ kind: "dashboard" });
+    expect(parseAppRoute("#/search")).toEqual({ kind: "search" });
     expect(parseAppRoute("#/party")).toEqual({ kind: "party" });
     expect(parseAppRoute("#/locations")).toMatchObject({
       kind: "collection", page: { collection: "locations" },

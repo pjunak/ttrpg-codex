@@ -31,7 +31,8 @@ features live in separately versioned Add-on API v3 packages.
   contains no legacy JSON compatibility mode.
 
 The browser now provides the rebuilt campaign shell, public/private session
-views, live refresh, core archive routes, and safe add-on mounting surfaces. Its
+views, live refresh, core archive routes, grouped campaign search, and safe
+add-on mounting surfaces. Its
 dashboard and record pages are the first read-only product slice; they do not
 yet replace the old wiki, editors, maps, timeline, relationship views,
 settings, or first-party add-on workflows. Those gaps remain release blockers

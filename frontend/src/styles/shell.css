@@ -413,6 +413,13 @@ codex-app,
 
   .mobile-addon-navigation { padding: 0.65rem 0.15rem; }
 
+  .mobile-core-navigation .core-navigation {
+    display: block;
+    max-height: min(46vh, 25rem);
+    padding: 0.65rem 0.15rem;
+    overflow-y: auto;
+  }
+
   .mobile-addon-navigation h2 {
     margin: 0 0 0.35rem 0.55rem;
     color: #8f816a;

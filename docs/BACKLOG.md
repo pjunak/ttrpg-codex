@@ -53,7 +53,7 @@ or an explicit maintainer decision to retire the workflow.
   companions without losing unknown or add-on-owned fields.
 - [ ] Restore wiki article rendering and editing, sanitized Markdown, headings
   and table of contents, cross-record wiki links, and dirty-form protection.
-- [ ] Restore campaign-wide search with useful type grouping and navigation.
+- [x] Restore campaign-wide search with useful type grouping and navigation.
 - [ ] Restore English and Czech UI catalogs and per-browser language selection.
 - [ ] Restore the established theme choices and accessible shared design system.
 - [ ] Restore the DM dashboard and true player-view preview workflow.

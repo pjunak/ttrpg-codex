@@ -24,6 +24,7 @@ export const campaignPages: readonly CampaignPageDefinition[] = Object.freeze([
 
 export type AppRoute =
   | { readonly kind: "dashboard" }
+  | { readonly kind: "search" }
   | { readonly kind: "party" }
   | { readonly kind: "collection"; readonly page: CampaignPageDefinition }
   | { readonly kind: "record"; readonly page: CampaignPageDefinition; readonly key: string }
@@ -36,6 +37,9 @@ export function parseAppRoute(hash: string): AppRoute {
   }
   if (hash === "#/party") {
     return { kind: "party" };
+  }
+  if (hash === "#/search") {
+    return { kind: "search" };
   }
   if (isBrowserAddonRouteHash(hash)) {
     return { kind: "addon" };
