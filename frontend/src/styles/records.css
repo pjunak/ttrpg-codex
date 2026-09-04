@@ -25,7 +25,7 @@
 
 .collection-heading {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   gap: 1.3rem;
   align-items: center;
   padding: 0 0 1.5rem;
@@ -182,7 +182,7 @@
 
 .record-masthead {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: clamp(1.2rem, 5vw, 3rem);
   align-items: center;
   padding-bottom: 2rem;
@@ -214,6 +214,123 @@
   font-family: var(--book-font);
   font-size: 1.15rem;
   font-style: italic;
+}
+
+.record-action,
+.record-editor-actions button {
+  min-height: 2.55rem;
+  padding: 0.55rem 0.8rem;
+  color: var(--ink);
+  border: 1px solid #9d8760;
+  border-radius: 2px;
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.record-action:disabled,
+.record-editor-actions button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.primary-record-action {
+  color: var(--walnut) !important;
+  border-color: var(--gold) !important;
+  background: var(--gold) !important;
+}
+
+.danger-record-action {
+  color: #7d1f1f !important;
+  border-color: #9b4b43 !important;
+}
+
+.record-editor {
+  margin: 1.6rem 0;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  border: 1px solid #a9956d;
+  border-top: 4px solid var(--crimson);
+  background: #eadcba;
+}
+
+.editor-article .record-editor { margin-bottom: 0; }
+
+.record-editor > header {
+  display: flex;
+  gap: 1rem;
+  align-items: start;
+  justify-content: space-between;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid #c3af84;
+}
+
+.record-editor h2 {
+  margin: 0;
+  font-family: var(--book-font);
+  font-size: clamp(1.7rem, 4vw, 2.7rem);
+  font-weight: 550;
+}
+
+.record-editor > header p:last-child {
+  max-width: 42rem;
+  margin: 0.5rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.record-editor-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.3rem;
+  margin-top: 1.3rem;
+}
+
+.record-editor label {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+}
+
+.record-editor label > span {
+  color: #6d5a3d;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.record-editor input,
+.record-editor textarea,
+.record-editor select {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.7rem;
+  color: var(--ink);
+  border: 1px solid #a68f64;
+  border-radius: 1px;
+  background: #f8efd9;
+  font: inherit;
+}
+
+.record-editor textarea {
+  min-height: 9rem;
+  resize: vertical;
+  font-family: var(--book-font);
+  line-height: 1.55;
+}
+
+.record-editor .wide-field { grid-column: 1 / -1; }
+
+.record-editor-actions {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 0.6rem;
+  margin-top: 1.4rem;
+  padding-top: 1rem;
+  border-top: 1px solid #c3af84;
 }
 
 .record-badges {
@@ -277,7 +394,13 @@
 
 @media (max-width: 35rem) {
   .collection-search,
-  .record-masthead { grid-template-columns: 1fr; }
+  .record-masthead,
+  .collection-heading,
+  .record-editor-fields { grid-template-columns: 1fr; }
   .collection-search { align-items: stretch; }
   .record-portrait { width: 7rem; }
+  .page-heading-mark { display: none; }
+  .record-editor .wide-field { grid-column: 1; }
+  .record-editor-actions { grid-template-columns: 1fr 1fr; }
+  .record-editor-actions > span { display: none; }
 }

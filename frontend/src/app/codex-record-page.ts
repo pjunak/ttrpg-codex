@@ -1,5 +1,16 @@
 import { LitElement, html, nothing } from "lit";
-import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
+import {
+  campaignCollection,
+  type CampaignDataset,
+  type CampaignRecord,
+} from "../core/campaign-data.js";
+import {
+  collectionManagesVisibility,
+  createCampaignRecordKey,
+  editorFieldsFor,
+  type CampaignRecordDeleteDetail,
+  type CampaignRecordSaveDetail,
+} from "./campaign-record-editor.js";
 import {
   projectEntities,
   recordValue,
@@ -15,18 +26,33 @@ export class CodexRecordPage extends LitElement {
   static override properties = {
     campaign: { attribute: false },
     route: { attribute: false },
+    canEdit: { type: Boolean, attribute: "can-edit" },
+    canManageVisibility: { type: Boolean, attribute: "can-manage-visibility" },
+    saving: { type: Boolean },
+    editCompletion: { type: Number, attribute: false },
     query: { state: true },
+    editor: { state: true },
   };
 
   declare campaign: CampaignDataset | undefined;
   declare route: RecordRoute | undefined;
+  declare canEdit: boolean;
+  declare canManageVisibility: boolean;
+  declare saving: boolean;
+  declare editCompletion: number;
   declare private query: string;
+  declare private editor: "closed" | "create" | "edit";
 
   constructor() {
     super();
     this.campaign = undefined;
     this.route = undefined;
+    this.canEdit = false;
+    this.canManageVisibility = false;
+    this.saving = false;
+    this.editCompletion = 0;
     this.query = "";
+    this.editor = "closed";
   }
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
@@ -34,7 +60,11 @@ export class CodexRecordPage extends LitElement {
   }
 
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    if (changed.has("route")) this.query = "";
+    if (changed.has("route")) {
+      this.query = "";
+      this.editor = "closed";
+    }
+    if (changed.has("editCompletion")) this.editor = "closed";
   }
 
   protected override render() {
@@ -59,7 +89,13 @@ export class CodexRecordPage extends LitElement {
             <h1 id="collection-title">${route.page.plural}</h1>
             <p>${collectionIntroductions[route.page.collection]}</p>
           </div>
+          ${this.canEdit ? html`
+            <button class="record-action primary-record-action" type="button" @click=${this.#startCreate} ?disabled=${this.saving}>
+              Add ${route.page.singular.toLocaleLowerCase()}
+            </button>
+          ` : nothing}
         </header>
+        ${this.editor === "create" ? this.#editorForm(undefined, route) : nothing}
         <label class="collection-search">
           <span>Filter ${route.page.plural.toLocaleLowerCase()}</span>
           <input
@@ -94,6 +130,14 @@ export class CodexRecordPage extends LitElement {
     const entity = projectEntities(dataset, route.page).find(({ key }) => key === route.key);
     if (entity === undefined) return nothing;
     const value = recordValue(record);
+    if (this.editor === "edit") {
+      return html`
+        <article class="record-article editor-article" aria-labelledby="record-editor-title">
+          <a href=${collectionHash(route.page)} class="breadcrumb-link">${route.page.plural}</a>
+          ${this.#editorForm(record, route)}
+        </article>
+      `;
+    }
     const facts = articleFacts(dataset, route.page.collection, value);
     const sections = articleSections(value);
     return html`
@@ -113,6 +157,9 @@ export class CodexRecordPage extends LitElement {
               ${entity.tags.map((tag) => html`<span>${tag}</span>`)}
             </div>
           </div>
+          ${this.canEdit ? html`
+            <button class="record-action" type="button" @click=${this.#startEdit} ?disabled=${this.saving}>Edit</button>
+          ` : nothing}
         </header>
         ${facts.length === 0 ? nothing : html`
           <dl class="record-facts">
@@ -135,6 +182,133 @@ export class CodexRecordPage extends LitElement {
 
   readonly #onSearch = (event: Event): void => {
     this.query = (event.currentTarget as HTMLInputElement).value;
+  };
+
+  #editorForm(record: CampaignRecord | undefined, route: RecordRoute) {
+    const fields = editorFieldsFor(route.page.collection);
+    const value = recordValue(record);
+    const creating = record === undefined;
+    return html`
+      <form class="record-editor" @submit=${this.#submitEditor}>
+        <header>
+          <div>
+            <p class="page-kicker">${creating ? "New entry" : `Revision ${record.revision}`}</p>
+            <h2 id="record-editor-title">${creating ? `Add ${route.page.singular.toLocaleLowerCase()}` : `Edit ${text(value["name"]) || route.page.singular.toLocaleLowerCase()}`}</h2>
+            <p>Only the fields shown here are changed. Other campaign and add-on data remains untouched.</p>
+          </div>
+        </header>
+        <div class="record-editor-fields">
+          ${fields.map((field) => html`
+            <label class=${field.kind === "text" ? "wide-field" : ""}>
+              <span>${field.label}</span>
+              ${field.kind === "text"
+                ? html`<textarea
+                    name=${field.key}
+                    maxlength=${field.maximumLength}
+                    .value=${editorValue(value[field.key])}
+                    ?required=${field.required === true}
+                  ></textarea>`
+                : html`<input
+                    name=${field.key}
+                    type=${field.kind === "number" ? "number" : "text"}
+                    step=${field.kind === "number" ? "any" : nothing}
+                    maxlength=${field.kind === "number" ? nothing : field.maximumLength}
+                    .value=${editorValue(value[field.key])}
+                    placeholder=${field.placeholder ?? ""}
+                    ?required=${field.required === true}
+                  />`}
+            </label>
+          `)}
+          ${collectionManagesVisibility(route.page.collection) && this.canManageVisibility ? html`
+            <label>
+              <span>Visibility</span>
+              <select name="visibility" .value=${value["visibility"] === "dm" ? "dm" : "public"}>
+                <option value="public">Public</option>
+                <option value="dm">DM only</option>
+              </select>
+            </label>
+          ` : nothing}
+        </div>
+        <footer class="record-editor-actions">
+          ${record === undefined ? nothing : html`
+            <button class="danger-record-action" type="button" @click=${this.#deleteRecord} ?disabled=${this.saving}>Delete</button>
+          `}
+          <span></span>
+          <button type="button" @click=${this.#closeEditor} ?disabled=${this.saving}>Cancel</button>
+          <button class="primary-record-action" type="submit" ?disabled=${this.saving}>
+            ${this.saving ? "Saving…" : "Save entry"}
+          </button>
+        </footer>
+      </form>
+    `;
+  }
+
+  readonly #startCreate = (): void => {
+    if (this.canEdit && !this.saving) this.editor = "create";
+  };
+
+  readonly #startEdit = (): void => {
+    if (this.canEdit && !this.saving) this.editor = "edit";
+  };
+
+  readonly #closeEditor = (): void => {
+    if (!this.saving) this.editor = "closed";
+  };
+
+  readonly #submitEditor = (event: SubmitEvent): void => {
+    event.preventDefault();
+    if (!this.canEdit || this.saving || this.campaign === undefined || this.route === undefined) return;
+    const form = event.currentTarget as HTMLFormElement;
+    const data = new FormData(form);
+    const fields: Record<string, string> = {};
+    for (const field of editorFieldsFor(this.route.page.collection)) {
+      const raw = String(data.get(field.key) ?? "");
+      fields[field.key] = field.kind === "line" ? raw.trim() : raw;
+    }
+    const creating = this.editor === "create";
+    const key = creating
+      ? createCampaignRecordKey(fields["name"] ?? this.route.page.singular)
+      : this.route.kind === "record" ? this.route.key : "";
+    if (key === "") return;
+    const record = creating ? undefined : campaignCollection(this.campaign, this.route.page.collection).records
+      .find(({ key: recordKey }) => recordKey === key);
+    if (!creating && record === undefined) return;
+    const detail: CampaignRecordSaveDetail = {
+      collection: this.route.page.collection,
+      key,
+      expectedRevision: record?.revision ?? 0,
+      creating,
+      fields: Object.freeze(fields),
+      ...(collectionManagesVisibility(this.route.page.collection) && this.canManageVisibility
+        ? { visibility: data.get("visibility") === "dm" ? "dm" as const : "public" as const }
+        : {}),
+    };
+    this.dispatchEvent(new CustomEvent<CampaignRecordSaveDetail>("campaign-record-save", {
+      detail,
+      bubbles: true,
+      composed: true,
+    }));
+  };
+
+  readonly #deleteRecord = (): void => {
+    if (!this.canEdit || this.saving || this.campaign === undefined || this.route?.kind !== "record") return;
+    const recordKey = this.route.key;
+    const target = campaignCollection(this.campaign, this.route.page.collection).records
+      .find(({ key }) => key === recordKey);
+    if (target === undefined ||
+      !window.confirm(`Delete this ${this.route.page.singular.toLocaleLowerCase()}? This cannot be undone from this page.`)) {
+      return;
+    }
+    const detail: CampaignRecordDeleteDetail = {
+      collection: this.route.page.collection,
+      key: target.key,
+      expectedRevision: target.revision,
+    };
+    this.dispatchEvent(new CustomEvent<CampaignRecordDeleteDetail>("campaign-record-delete", {
+      detail,
+      bubbles: true,
+      composed: true,
+    }));
   };
 }
 
@@ -212,6 +386,12 @@ function printable(value: unknown): string {
 
 function initial(value: string): string {
   return [...value.trim()][0]?.toLocaleUpperCase() ?? "?";
+}
+
+function editorValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "";
 }
 
 const collectionIntroductions: Readonly<Record<string, string>> = {

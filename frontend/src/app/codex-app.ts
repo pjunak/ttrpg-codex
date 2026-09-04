@@ -13,6 +13,10 @@ import {
   CampaignDataClient,
   type CampaignDataset,
 } from "../core/campaign-data.js";
+import {
+  CampaignMutationClient,
+  CampaignMutationHTTPError,
+} from "../core/campaign-mutations.js";
 import { SharedEventStream, type EventRefresh } from "../core/event-stream.js";
 import {
   createBrowserAddonComposition,
@@ -25,9 +29,18 @@ import {
 } from "../addons/navigation.js";
 import { projectCampaignIdentity } from "./campaign-projection.js";
 import {
+  CampaignRecordEditError,
+  prepareCampaignRecordDelete,
+  prepareCampaignRecordSave,
+  type CampaignRecordDeleteDetail,
+  type CampaignRecordSaveDetail,
+  type PreparedCampaignRecordMutation,
+} from "./campaign-record-editor.js";
+import {
   campaignPages,
   collectionHash,
   parseAppRoute,
+  recordHash,
   type AppRoute,
 } from "./routes.js";
 import "./codex-dashboard.js";
@@ -75,6 +88,7 @@ export class CodexApp extends LitElement {
     navigationCount: { state: true },
     routeCount: { state: true },
     articleCount: { state: true },
+    editCompletion: { state: true },
   };
 
   declare private readiness: Readiness;
@@ -89,9 +103,11 @@ export class CodexApp extends LitElement {
   declare private navigationCount: number;
   declare private routeCount: number;
   declare private articleCount: number;
+  declare private editCompletion: number;
 
   #request: AbortController | undefined;
   readonly #campaignData = new CampaignDataClient();
+  readonly #campaignMutations = new CampaignMutationClient();
   readonly #events = new SharedEventStream();
   #addons: BrowserAddonComposition | undefined;
   #dashboardOutlet: BrowserContributionOutlet | undefined;
@@ -115,6 +131,7 @@ export class CodexApp extends LitElement {
     this.navigationCount = 0;
     this.routeCount = 0;
     this.articleCount = 0;
+    this.editCompletion = 0;
   }
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
@@ -649,7 +666,16 @@ export class CodexApp extends LitElement {
         return html`<codex-dashboard .campaign=${campaign} .partyOnly=${true}></codex-dashboard>`;
       case "collection":
       case "record":
-        return html`<codex-record-page .campaign=${campaign} .route=${this.route}></codex-record-page>`;
+        return html`<codex-record-page
+          .campaign=${campaign}
+          .route=${this.route}
+          .canEdit=${this.#canEdit()}
+          .canManageVisibility=${this.#canManageCampaign()}
+          .saving=${this.busy}
+          .editCompletion=${this.editCompletion}
+          @campaign-record-save=${this.#saveCampaignRecord}
+          @campaign-record-delete=${this.#deleteCampaignRecord}
+        ></codex-record-page>`;
       case "addon":
         if (!this.#authenticated()) {
           return html`<section class="unavailable-page"><p class="page-kicker">Campaign add-on</p><h1>Sign in to open this page.</h1><p>Add-on tools inherit your current campaign role.</p></section>`;
@@ -675,9 +701,91 @@ export class CodexApp extends LitElement {
   }
 
   #canEdit(): boolean {
+    return this.#authenticated();
+  }
+
+  #canManageCampaign(): boolean {
     return this.authority.state === "known" && this.authority.auth.authenticated &&
       this.authority.auth.role === "dm";
   }
+
+  readonly #saveCampaignRecord = async (
+    event: CustomEvent<CampaignRecordSaveDetail>,
+  ): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canEdit() ||
+      this.authority.state !== "known" || !this.authority.auth.authenticated ||
+      this.campaignState.state !== "ready") return;
+    let prepared: PreparedCampaignRecordMutation;
+    try {
+      prepared = prepareCampaignRecordSave(
+        this.campaignState.campaign,
+        event.detail,
+        this.#canManageCampaign(),
+      );
+    } catch (cause: unknown) {
+      this.errorMessage = cause instanceof CampaignRecordEditError && cause.kind === "stale"
+        ? "The entry changed before this edit could be saved. Refresh and try again."
+        : "The entry contains a value that cannot be saved.";
+      return;
+    }
+    this.busy = true;
+    this.errorMessage = "";
+    try {
+      await this.#campaignMutations.commit(
+        [prepared.mutation],
+        this.authority.auth.csrfToken,
+        this.#request.signal,
+      );
+      await this.#loadCampaign(this.#request.signal, true);
+      this.editCompletion += 1;
+      window.location.hash = recordHash(prepared.page, event.detail.key);
+    } catch (cause: unknown) {
+      if (!this.#request.signal.aborted) {
+        this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409
+          ? "The entry changed while saving. Reload its current version and try again."
+          : `The entry could not be saved: ${errorMessage(cause)}`;
+      }
+    } finally {
+      this.busy = false;
+    }
+  };
+
+  readonly #deleteCampaignRecord = async (
+    event: CustomEvent<CampaignRecordDeleteDetail>,
+  ): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canEdit() ||
+      this.authority.state !== "known" || !this.authority.auth.authenticated ||
+      this.campaignState.state !== "ready") return;
+    let prepared: PreparedCampaignRecordMutation;
+    try {
+      prepared = prepareCampaignRecordDelete(this.campaignState.campaign, event.detail);
+    } catch (cause: unknown) {
+      this.errorMessage = cause instanceof CampaignRecordEditError && cause.kind === "stale"
+        ? "The entry changed before it could be deleted. Refresh and try again."
+        : "The delete request is no longer valid.";
+      return;
+    }
+    this.busy = true;
+    this.errorMessage = "";
+    try {
+      await this.#campaignMutations.commit(
+        [prepared.mutation],
+        this.authority.auth.csrfToken,
+        this.#request.signal,
+      );
+      await this.#loadCampaign(this.#request.signal, true);
+      this.editCompletion += 1;
+      window.location.hash = collectionHash(prepared.page);
+    } catch (cause: unknown) {
+      if (!this.#request.signal.aborted) {
+        this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409
+          ? "The entry changed while deleting. Reload its current version and try again."
+          : `The entry could not be deleted: ${errorMessage(cause)}`;
+      }
+    } finally {
+      this.busy = false;
+    }
+  };
 
   readonly #onHashChange = (): void => {
     this.route = parseAppRoute(window.location.hash);
