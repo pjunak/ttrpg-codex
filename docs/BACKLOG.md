@@ -6,15 +6,16 @@ Implementation contracts describe current behavior; they are not roadmaps.
 ## Rewrite status
 
 The Go host and Add-on API v3 are substantial working foundations, but the
-rewrite is not a production replacement for v1. The former generic campaign
-shell was removed because it obscured the missing product surface. The
-frontend now states that it is a development build until the old workflows are
-ported, deliberately redesigned, or explicitly retired by the maintainer.
+rewrite is not a production replacement for v1. A real campaign-focused shell
+now replaces the former generic browser and temporary status page. Its first
+read-only dashboard and archive slice is intentionally not presented as full
+workflow parity while the old features are ported, deliberately redesigned, or
+explicitly retired by the maintainer.
 
 `npm run check` validates implemented code. `npm run release-check` is a
 separate product gate: automatic image publication and every requested publish
 or deployment remain blocked while any checklist item in the marked section is
-open or while the development-status page exists.
+open or while `frontend/REWRITE_INCOMPLETE` exists.
 
 ## Completed rewrite foundations
 
@@ -42,6 +43,9 @@ or an explicit maintainer decision to retire the workflow.
 
 ### Core campaign experience
 
+- [x] Mount a real responsive application shell with login/logout, DM/player
+  projection switching, live refresh, safe core routes, and authenticated
+  route, dashboard-slot, sidebar, and record-article add-on outlets.
 - [ ] Restore the campaign dashboard, party overview, entity cards, portraits,
   badges, and attitude presentation with responsive DM/player behavior.
 - [ ] Restore dedicated browsing, viewing, and editing for characters,
@@ -101,8 +105,8 @@ or an explicit maintainer decision to retire the workflow.
   media, representative entities, add-on state, and reports before cutover.
 - [ ] Complete supervised desktop and mobile acceptance on both copied campaigns,
   including Czech/English, DM/player, all major routes, backup, and rollback.
-- [ ] Remove the development-status page only after every earlier gate is closed
-  and the maintainer explicitly accepts v2 as the production replacement.
+- [ ] Remove `frontend/REWRITE_INCOMPLETE` only after every earlier gate is
+  closed and the maintainer explicitly accepts v2 as the production replacement.
 
 <!-- product-parity-gates:end -->
 

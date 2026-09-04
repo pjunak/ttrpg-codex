@@ -30,11 +30,12 @@ features live in separately versioned Add-on API v3 packages.
 - One-time conversion of the two existing v1 UI backups. The running v2 host
   contains no legacy JSON compatibility mode.
 
-The browser currently displays an explicit development-status page. It does
-not pretend that the former generic record browser is equivalent to the old
-dashboard, wiki, maps, timeline, relationship views, settings, and editors.
-Those workflows and the first-party add-on presentation parity are tracked as
-release blockers in the suite backlog.
+The browser now provides the rebuilt campaign shell, public/private session
+views, live refresh, core archive routes, and safe add-on mounting surfaces. Its
+dashboard and record pages are the first read-only product slice; they do not
+yet replace the old wiki, editors, maps, timeline, relationship views,
+settings, or first-party add-on workflows. Those gaps remain release blockers
+in the suite backlog, reinforced by `frontend/REWRITE_INCOMPLETE`.
 
 ## Technology
 

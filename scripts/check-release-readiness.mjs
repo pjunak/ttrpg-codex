@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 
 const backlogPath = new URL("../docs/BACKLOG.md", import.meta.url);
-const statusPath = new URL("../frontend/src/rewrite-status.ts", import.meta.url);
+const incompleteMarkerPath = new URL("../frontend/REWRITE_INCOMPLETE", import.meta.url);
 const startMarker = "<!-- product-parity-gates:start -->";
 const endMarker = "<!-- product-parity-gates:end -->";
 const backlog = readFileSync(backlogPath, "utf8");
@@ -24,8 +24,8 @@ if (gates.length === 0) {
 if (incomplete.length > 0) {
   blockers.push(`${incomplete.length} product-parity checklist item(s) remain incomplete`);
 }
-if (existsSync(statusPath)) {
-  blockers.push("the development-only rewrite status page is still installed");
+if (existsSync(incompleteMarkerPath)) {
+  blockers.push("the rewrite-incomplete release marker is still installed");
 }
 
 if (blockers.length > 0) {

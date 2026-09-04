@@ -153,9 +153,10 @@ under `data/rewrite/`.
   actions, or model providers, automatically publishes declarative sidebar
   metadata, and removes every registration before module cleanup. Integrated
   modules, isolated frames, contribution outlets, route metadata, and the
-  browser composition root remain strict tested infrastructure. They are not
-  currently mounted by a host product shell; the development-status page keeps
-  that missing integration visible until the product-parity gates are closed.
+  browser composition root remain strict tested infrastructure. The rebuilt
+  product shell mounts sidebar, dashboard-slot, record-article, and route
+  surfaces under the authenticated session lifecycle. Product parity is still
+  guarded independently by the backlog and `frontend/REWRITE_INCOMPLETE`.
 - The shared Go worker codec enforces bounded canonical `Content-Length`
   framing, serializes concurrent writes, validates UTF-8/JSON/envelopes, and
   reports stable transport failure codes. The same package is usable by the

@@ -1,0 +1,67 @@
+.addon-dashboard,
+.addon-article,
+.addon-route {
+  display: grid;
+  max-width: var(--reading-width);
+  gap: 1rem;
+  margin: 1rem auto 0;
+}
+
+.addon-route { margin-top: 0; }
+
+.addon-contribution {
+  min-width: 0;
+  overflow: hidden;
+  color: #e9dfca;
+  border: 1px solid #665536;
+  background: #17120b;
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 24%);
+}
+
+.addon-contribution-heading {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0.9rem;
+  color: #eadbb9;
+  border-bottom: 1px solid #4c402b;
+  background: #221a0f;
+}
+
+.addon-contribution-heading strong {
+  font-family: var(--book-font);
+  font-weight: 600;
+}
+
+.addon-contribution-heading span {
+  color: #8e8069;
+  font-size: 0.66rem;
+}
+
+.addon-contribution > :not(.addon-contribution-heading) {
+  display: block;
+  padding: 1rem;
+}
+
+.addon-isolated-frame {
+  padding: 0 !important;
+  background: #fff;
+}
+
+.codex-isolated-addon-frame {
+  display: block;
+  width: 100%;
+  height: min(42rem, 72vh);
+  border: 0;
+  background: #fff;
+}
+
+.route-addon .addon-contribution,
+.addon-route .addon-contribution { min-height: calc(100vh - 6rem); }
+
+@media (max-width: 58rem) {
+  .addon-dashboard,
+  .addon-article,
+  .addon-route { margin-right: 0; margin-left: 0; }
+}

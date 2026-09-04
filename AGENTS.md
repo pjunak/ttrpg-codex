@@ -147,9 +147,9 @@ source checkout into a runtime generation.
 
 - Architecture completion is not product completion. Never describe this
   rewrite as a v1 replacement while any item between the product-parity markers
-  in [`docs/BACKLOG.md`](docs/BACKLOG.md) is unchecked, while the development
-  status page exists, or before supervised browser acceptance against a copied
-  real campaign passes. `npm run check` proves technical consistency;
+  in [`docs/BACKLOG.md`](docs/BACKLOG.md) is unchecked, while
+  `frontend/REWRITE_INCOMPLETE` exists, or before supervised browser acceptance
+  against a copied real campaign passes. `npm run check` proves technical consistency;
   `npm run release-check` separately enforces the product release boundary.
 - A generic record browser is not an acceptable substitute for the authored
   dashboard, wiki, editors, maps, timeline, relationship views, settings, and
