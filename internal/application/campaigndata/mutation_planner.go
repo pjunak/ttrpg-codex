@@ -70,7 +70,15 @@ func (planner *mutationPlanner) applyRequested(role WriteRole, mutation campaign
 
 	switch mutation.Kind {
 	case campaign.Put:
-		value, err := prepareRecordWrite(role, descriptor, existing, found, mutation.Value)
+		requestedValue := mutation.Value
+		if role == WritePlayer && found {
+			var err error
+			requestedValue, err = planner.preserveUnavailablePlayerReferences(existing, requestedValue)
+			if err != nil {
+				return fmt.Errorf("preserve %s:%s references: %w", mutation.Collection, mutation.Key, err)
+			}
+		}
+		value, err := prepareRecordWrite(role, descriptor, existing, found, requestedValue)
 		if err != nil {
 			return fmt.Errorf("prepare %s:%s: %w", mutation.Collection, mutation.Key, err)
 		}
@@ -163,32 +171,44 @@ func (planner *mutationPlanner) validatePlayerReferences() error {
 		if err != nil {
 			return err
 		}
+		originalValue := map[string]any{}
+		if original, found := planner.original[target]; found {
+			originalValue, err = objectValue(original.Value)
+			if err != nil {
+				return err
+			}
+		}
 		valid := true
 		switch record.Collection {
 		case campaign.Characters:
-			valid = validScalarReference(value["faction"], ids[campaign.Factions], "neutral", "party") &&
-				validScalarReference(value["location"], ids[campaign.Locations]) &&
-				validObjectReferences(value["locationRoles"], "locationId", ids[campaign.Locations])
+			valid = validScalarReference(value["faction"], preservedReferenceIDs(ids[campaign.Factions], originalValue["faction"]), "neutral", "party") &&
+				validScalarReference(value["location"], preservedReferenceIDs(ids[campaign.Locations], originalValue["location"])) &&
+				validObjectReferences(value["locationRoles"], "locationId", preservedObjectReferenceIDs(ids[campaign.Locations], originalValue["locationRoles"], "locationId"))
 		case campaign.Locations:
-			valid = validScalarReference(value["parentId"], ids[campaign.Locations]) &&
-				validStringReferences(value["characters"], ids[campaign.Characters])
+			valid = validScalarReference(value["parentId"], preservedReferenceIDs(ids[campaign.Locations], originalValue["parentId"])) &&
+				validStringReferences(value["characters"], preservedStringReferenceIDs(ids[campaign.Characters], originalValue["characters"]))
 		case campaign.Events, campaign.Mysteries, campaign.HistoricalEvents:
-			valid = validStringReferences(value["characters"], ids[campaign.Characters]) &&
-				validStringReferences(value["locations"], ids[campaign.Locations])
+			valid = validStringReferences(value["characters"], preservedStringReferenceIDs(ids[campaign.Characters], originalValue["characters"])) &&
+				validStringReferences(value["locations"], preservedStringReferenceIDs(ids[campaign.Locations], originalValue["locations"]))
 			if record.Collection == campaign.Events {
-				valid = valid && validScalarReference(value["mapParentId"], ids[campaign.Locations])
+				valid = valid && validScalarReference(value["mapParentId"], preservedReferenceIDs(ids[campaign.Locations], originalValue["mapParentId"]))
 			}
 		case campaign.Artifacts:
-			valid = validScalarReference(value["ownerCharacterId"], ids[campaign.Characters]) &&
-				validScalarReference(value["locationId"], ids[campaign.Locations])
+			valid = validScalarReference(value["ownerCharacterId"], preservedReferenceIDs(ids[campaign.Characters], originalValue["ownerCharacterId"])) &&
+				validScalarReference(value["locationId"], preservedReferenceIDs(ids[campaign.Locations], originalValue["locationId"]))
 		case campaign.Pets:
 			ownerType, _ := value["ownerType"].(string)
+			originalOwnerType, _ := originalValue["ownerType"].(string)
+			originalOwnerID := any(nil)
+			if ownerType == originalOwnerType {
+				originalOwnerID = originalValue["ownerId"]
+			}
 			switch ownerType {
 			case "", "none", "party":
 			case "character":
-				valid = validScalarReference(value["ownerId"], ids[campaign.Characters])
+				valid = validScalarReference(value["ownerId"], preservedReferenceIDs(ids[campaign.Characters], originalOwnerID))
 			case "faction":
-				valid = validScalarReference(value["ownerId"], ids[campaign.Factions])
+				valid = validScalarReference(value["ownerId"], preservedReferenceIDs(ids[campaign.Factions], originalOwnerID))
 			default:
 				valid = false
 			}
@@ -210,6 +230,55 @@ func (planner *mutationPlanner) validatePlayerReferences() error {
 		}
 	}
 	return nil
+}
+
+// preserveUnavailablePlayerReferences puts role-filtered references back before
+// a full-record player write. A player can edit the visible part of a record,
+// but cannot intentionally clear, replace, or probe a reference they were not
+// allowed to receive in the campaign projection.
+func (planner *mutationPlanner) preserveUnavailablePlayerReferences(
+	existing campaign.Record,
+	incomingRaw json.RawMessage,
+) (json.RawMessage, error) {
+	incoming, err := objectValue(incomingRaw)
+	if err != nil {
+		return nil, err
+	}
+	current, err := objectValue(existing.Value)
+	if err != nil {
+		return nil, err
+	}
+	ids, err := planner.visibleIdentityIDs()
+	if err != nil {
+		return nil, err
+	}
+
+	switch existing.Collection {
+	case campaign.Characters:
+		preserveUnavailableScalar(incoming, current, "faction", ids[campaign.Factions], "neutral", "party")
+		preserveUnavailableScalar(incoming, current, "location", ids[campaign.Locations])
+		preserveUnavailableObjects(incoming, current, "locationRoles", "locationId", ids[campaign.Locations])
+	case campaign.Locations:
+		preserveUnavailableScalar(incoming, current, "parentId", ids[campaign.Locations])
+		preserveUnavailableStrings(incoming, current, "characters", ids[campaign.Characters])
+	case campaign.Events, campaign.Mysteries, campaign.HistoricalEvents:
+		preserveUnavailableStrings(incoming, current, "characters", ids[campaign.Characters])
+		preserveUnavailableStrings(incoming, current, "locations", ids[campaign.Locations])
+		if existing.Collection == campaign.Events {
+			preserveUnavailableScalar(incoming, current, "mapParentId", ids[campaign.Locations])
+		}
+	case campaign.Artifacts:
+		preserveUnavailableScalar(incoming, current, "ownerCharacterId", ids[campaign.Characters])
+		preserveUnavailableScalar(incoming, current, "locationId", ids[campaign.Locations])
+	case campaign.Pets:
+		preserveUnavailableOwner(incoming, current, ids)
+	}
+
+	body, err := json.Marshal(incoming)
+	if err != nil {
+		return nil, campaign.ErrInvalidRecord
+	}
+	return body, nil
 }
 
 func (planner *mutationPlanner) visibleIdentityIDs() (
@@ -814,6 +883,211 @@ func equalStringArray(value any, expected []any) bool {
 		}
 	}
 	return true
+}
+
+func preserveUnavailableScalar(
+	incoming,
+	current map[string]any,
+	field string,
+	visible map[string]struct{},
+	reserved ...string,
+) {
+	id, ok := current[field].(string)
+	if !ok || id == "" || validScalarReference(id, visible, reserved...) {
+		return
+	}
+	incoming[field] = id
+}
+
+func preserveUnavailableStrings(
+	incoming,
+	current map[string]any,
+	field string,
+	visible map[string]struct{},
+) {
+	preserved := unavailableStringReferences(current[field], visible)
+	if len(preserved) == 0 {
+		return
+	}
+	values, ok := incoming[field].([]any)
+	if !ok && incoming[field] != nil {
+		return
+	}
+	merged := make([]any, 0, len(values)+len(preserved))
+	seen := make(map[string]struct{}, len(values)+len(preserved))
+	for _, candidate := range values {
+		id, ok := candidate.(string)
+		if !ok {
+			merged = append(merged, candidate)
+			continue
+		}
+		if _, available := visible[id]; !available {
+			continue
+		}
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		merged = append(merged, id)
+	}
+	for _, id := range preserved {
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		merged = append(merged, id)
+	}
+	incoming[field] = merged
+}
+
+func preserveUnavailableObjects(
+	incoming,
+	current map[string]any,
+	field,
+	idField string,
+	visible map[string]struct{},
+) {
+	preserved := unavailableObjectReferences(current[field], idField, visible)
+	if len(preserved) == 0 {
+		return
+	}
+	values, ok := incoming[field].([]any)
+	if !ok && incoming[field] != nil {
+		return
+	}
+	merged := make([]any, 0, len(values)+len(preserved))
+	seen := make(map[string]struct{}, len(values)+len(preserved))
+	for _, candidate := range values {
+		object, objectOK := candidate.(map[string]any)
+		id, idOK := object[idField].(string)
+		if !objectOK || !idOK {
+			merged = append(merged, candidate)
+			continue
+		}
+		if _, available := visible[id]; !available {
+			continue
+		}
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		merged = append(merged, object)
+	}
+	for _, object := range preserved {
+		id, _ := object[idField].(string)
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		merged = append(merged, object)
+	}
+	incoming[field] = merged
+}
+
+func preserveUnavailableOwner(
+	incoming,
+	current map[string]any,
+	visible map[campaign.Collection]map[string]struct{},
+) {
+	ownerType, _ := current["ownerType"].(string)
+	ownerID, _ := current["ownerId"].(string)
+	var allowed map[string]struct{}
+	switch ownerType {
+	case "character":
+		allowed = visible[campaign.Characters]
+	case "faction":
+		allowed = visible[campaign.Factions]
+	default:
+		return
+	}
+	if ownerID == "" {
+		return
+	}
+	if _, available := allowed[ownerID]; available {
+		return
+	}
+	incoming["ownerType"] = ownerType
+	incoming["ownerId"] = ownerID
+}
+
+func unavailableStringReferences(value any, visible map[string]struct{}) []string {
+	values, _ := value.([]any)
+	result := make([]string, 0, len(values))
+	for _, candidate := range values {
+		id, ok := candidate.(string)
+		if !ok || id == "" {
+			continue
+		}
+		if _, available := visible[id]; !available {
+			result = append(result, id)
+		}
+	}
+	return result
+}
+
+func unavailableObjectReferences(value any, idField string, visible map[string]struct{}) []map[string]any {
+	values, _ := value.([]any)
+	result := make([]map[string]any, 0, len(values))
+	for _, candidate := range values {
+		object, ok := candidate.(map[string]any)
+		if !ok {
+			continue
+		}
+		id, ok := object[idField].(string)
+		if !ok || id == "" {
+			continue
+		}
+		if _, available := visible[id]; !available {
+			result = append(result, object)
+		}
+	}
+	return result
+}
+
+func preservedReferenceIDs(visible map[string]struct{}, original any) map[string]struct{} {
+	result := cloneReferenceIDs(visible)
+	if id, ok := original.(string); ok && id != "" {
+		result[id] = struct{}{}
+	}
+	return result
+}
+
+func preservedStringReferenceIDs(visible map[string]struct{}, original any) map[string]struct{} {
+	result := cloneReferenceIDs(visible)
+	values, _ := original.([]any)
+	for _, candidate := range values {
+		if id, ok := candidate.(string); ok && id != "" {
+			result[id] = struct{}{}
+		}
+	}
+	return result
+}
+
+func preservedObjectReferenceIDs(
+	visible map[string]struct{},
+	original any,
+	idField string,
+) map[string]struct{} {
+	result := cloneReferenceIDs(visible)
+	values, _ := original.([]any)
+	for _, candidate := range values {
+		object, ok := candidate.(map[string]any)
+		if !ok {
+			continue
+		}
+		if id, ok := object[idField].(string); ok && id != "" {
+			result[id] = struct{}{}
+		}
+	}
+	return result
+}
+
+func cloneReferenceIDs(values map[string]struct{}) map[string]struct{} {
+	result := make(map[string]struct{}, len(values)+1)
+	for id := range values {
+		result[id] = struct{}{}
+	}
+	return result
 }
 
 func validScalarReference(

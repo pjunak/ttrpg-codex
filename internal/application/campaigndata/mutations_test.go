@@ -191,6 +191,80 @@ func TestPlayerLocationSavePreservesHiddenLinksAndSynchronizesVisiblePeers(t *te
 	}
 }
 
+func TestPlayerSavePreservesRoleFilteredReferencesAcrossCollections(t *testing.T) {
+	t.Parallel()
+	repository := &fakeRepository{snapshot: campaign.Snapshot{Records: []campaign.Record{
+		{Collection: campaign.Characters, Key: "alice", Revision: 1, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"alice","faction":"hidden-faction","location":"hidden-place","locationRoles":[{"locationId":"town","role":"visitor"},{"locationId":"hidden-place","role":"prisoner"}]}`)},
+		{Collection: campaign.Characters, Key: "secret", Revision: 2, Visibility: campaign.VisibilityDM, Value: raw(`{"id":"secret","visibility":"dm"}`)},
+		{Collection: campaign.Locations, Key: "town", Revision: 3, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"town","parentId":"hidden-place","characters":["alice","secret"]}`)},
+		{Collection: campaign.Locations, Key: "hidden-place", Revision: 4, Visibility: campaign.VisibilityDM, Value: raw(`{"id":"hidden-place","visibility":"dm"}`)},
+		{Collection: campaign.Factions, Key: "hidden-faction", Revision: 5, Visibility: campaign.VisibilityDM, Value: raw(`{"name":"Hidden","visibility":"dm"}`)},
+		{Collection: campaign.Events, Key: "arrival", Revision: 6, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"arrival","characters":["alice","secret"],"locations":["town","hidden-place"],"mapParentId":"hidden-place"}`)},
+		{Collection: campaign.Mysteries, Key: "riddle", Revision: 7, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"riddle","characters":["secret"],"locations":["hidden-place"]}`)},
+		{Collection: campaign.HistoricalEvents, Key: "war", Revision: 8, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"war","characters":["secret"],"locations":["hidden-place"]}`)},
+		{Collection: campaign.Artifacts, Key: "crown", Revision: 9, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"crown","ownerCharacterId":"secret","locationId":"hidden-place"}`)},
+		{Collection: campaign.Pets, Key: "owl", Revision: 10, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"owl","ownerType":"character","ownerId":"secret"}`)},
+	}}}
+	service, _ := New(repository)
+	_, err := service.Mutate(context.Background(), MutationAuthority{
+		ActorID: "player", Role: WritePlayer,
+	}, []campaign.Mutation{
+		{Kind: campaign.Put, Collection: campaign.Characters, Key: "alice", ExpectedRevision: 1, Value: raw(`{"id":"alice","name":"Alice","faction":"guessed","location":"guessed","locationRoles":[{"locationId":"town","role":"visitor"},{"locationId":"guessed"}]}`)},
+		{Kind: campaign.Put, Collection: campaign.Locations, Key: "town", ExpectedRevision: 3, Value: raw(`{"id":"town","name":"Town","parentId":"guessed","characters":["alice","guessed"]}`)},
+		{Kind: campaign.Put, Collection: campaign.Events, Key: "arrival", ExpectedRevision: 6, Value: raw(`{"id":"arrival","name":"Arrival","characters":["alice","guessed"],"locations":["town","guessed"],"mapParentId":"guessed"}`)},
+		{Kind: campaign.Put, Collection: campaign.Mysteries, Key: "riddle", ExpectedRevision: 7, Value: raw(`{"id":"riddle","name":"Riddle","characters":["guessed"],"locations":["guessed"]}`)},
+		{Kind: campaign.Put, Collection: campaign.HistoricalEvents, Key: "war", ExpectedRevision: 8, Value: raw(`{"id":"war","name":"War","characters":["guessed"],"locations":["guessed"]}`)},
+		{Kind: campaign.Put, Collection: campaign.Artifacts, Key: "crown", ExpectedRevision: 9, Value: raw(`{"id":"crown","name":"Crown","ownerCharacterId":"guessed","locationId":"guessed"}`)},
+		{Kind: campaign.Put, Collection: campaign.Pets, Key: "owl", ExpectedRevision: 10, Value: raw(`{"id":"owl","name":"Owl","ownerType":"faction","ownerId":"guessed"}`)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writes := repository.writes[0].Mutations
+	character := mutationObject(t, writes, campaign.Characters, "alice")
+	if character["faction"] != "hidden-faction" || character["location"] != "hidden-place" {
+		t.Fatalf("hidden character references changed: %#v", character)
+	}
+	roles := character["locationRoles"].([]any)
+	if len(roles) != 2 || roles[1].(map[string]any)["locationId"] != "hidden-place" ||
+		roles[1].(map[string]any)["role"] != "prisoner" {
+		t.Fatalf("hidden location role changed: %#v", roles)
+	}
+	location := mutationObject(t, writes, campaign.Locations, "town")
+	if location["parentId"] != "hidden-place" {
+		t.Fatalf("hidden parent changed: %#v", location)
+	}
+	assertStringValues(t, location["characters"], "alice", "secret")
+	for _, target := range []struct {
+		collection campaign.Collection
+		key        string
+	}{
+		{campaign.Events, "arrival"},
+		{campaign.Mysteries, "riddle"},
+		{campaign.HistoricalEvents, "war"},
+	} {
+		value := mutationObject(t, writes, target.collection, target.key)
+		if target.collection == campaign.Events {
+			assertStringValues(t, value["characters"], "alice", "secret")
+			assertStringValues(t, value["locations"], "town", "hidden-place")
+			if value["mapParentId"] != "hidden-place" {
+				t.Fatalf("hidden event map parent changed: %#v", value)
+			}
+		} else {
+			assertStringValues(t, value["characters"], "secret")
+			assertStringValues(t, value["locations"], "hidden-place")
+		}
+	}
+	artifact := mutationObject(t, writes, campaign.Artifacts, "crown")
+	if artifact["ownerCharacterId"] != "secret" || artifact["locationId"] != "hidden-place" {
+		t.Fatalf("hidden artifact references changed: %#v", artifact)
+	}
+	pet := mutationObject(t, writes, campaign.Pets, "owl")
+	if pet["ownerType"] != "character" || pet["ownerId"] != "secret" {
+		t.Fatalf("hidden pet owner changed: %#v", pet)
+	}
+}
+
 func TestPlayerReferencesCannotTargetHiddenOrMissingRecords(t *testing.T) {
 	t.Parallel()
 	base := campaign.Snapshot{Records: []campaign.Record{
