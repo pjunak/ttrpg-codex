@@ -35,7 +35,7 @@ import {
   BrowserNavigationOutlet,
   browserAddonRouteHash,
 } from "../addons/navigation.js";
-import { projectCampaignIdentity } from "./campaign-projection.js";
+import logoURL from "../assets/logo-default.svg";
 import {
   CampaignRecordEditError,
   prepareCampaignRecordDelete,
@@ -114,6 +114,8 @@ export class CodexApp extends LitElement {
     routeCount: { state: true },
     articleCount: { state: true },
     editCompletion: { state: true },
+    menuOpen: { state: true },
+    mobileViewport: { state: true },
   };
 
   declare private readiness: Readiness;
@@ -130,6 +132,9 @@ export class CodexApp extends LitElement {
   declare private articleCount: number;
   declare private editCompletion: number;
 
+  declare private menuOpen: boolean;
+  declare private mobileViewport: boolean;
+  readonly #mobileMedia = window.matchMedia("(max-width: 768px)");
   #request: AbortController | undefined;
   readonly #campaignData = new CampaignDataClient();
   readonly #campaignMutations = new CampaignMutationClient();
@@ -139,7 +144,6 @@ export class CodexApp extends LitElement {
   #dashboardOutlet: BrowserContributionOutlet | undefined;
   #articleOutlet: BrowserContributionOutlet | undefined;
   #navigationOutlet: BrowserNavigationOutlet | undefined;
-  #mobileNavigationOutlet: BrowserNavigationOutlet | undefined;
   #routeOutlet: BrowserContributionOutlet | undefined;
   #addonOwner = 0;
   #editDirty = false;
@@ -160,6 +164,8 @@ export class CodexApp extends LitElement {
     this.routeCount = 0;
     this.articleCount = 0;
     this.editCompletion = 0;
+    this.menuOpen = false;
+    this.mobileViewport = this.#mobileMedia.matches;
   }
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
@@ -172,6 +178,8 @@ export class CodexApp extends LitElement {
     this.route = parseAppRoute(window.location.hash);
     window.addEventListener("hashchange", this.#onHashChange);
     window.addEventListener("beforeunload", this.#onBeforeUnload);
+    window.addEventListener("keydown", this.#onKeyDown);
+    this.#mobileMedia.addEventListener("change", this.#onViewportChange);
     this.#request = new AbortController();
     void this.#bootstrap(this.#request.signal);
   }
@@ -182,57 +190,44 @@ export class CodexApp extends LitElement {
     this.#events.close();
     window.removeEventListener("hashchange", this.#onHashChange);
     window.removeEventListener("beforeunload", this.#onBeforeUnload);
+    window.removeEventListener("keydown", this.#onKeyDown);
+    this.#mobileMedia.removeEventListener("change", this.#onViewportChange);
     void this.#stopAddons();
     super.disconnectedCallback();
   }
 
   protected override render() {
-    const identity = this.campaignState.state === "ready"
-      ? projectCampaignIdentity(this.campaignState.campaign)
-      : { name: "TTRPG Codex", tagline: this.#ui.t("shell.campaignArchive") };
     return html`
-      <a class="skip-link" href="#campaign-content">${this.#ui.t("shell.skip")}</a>
+      <a class="skip-link" href="#campaign-content" @click=${this.#focusContent}>${this.#ui.t("shell.skip")}</a>
       <div class="codex-shell">
-        <aside class="campaign-sidebar">
+        <aside id="campaign-sidebar" class=${`campaign-sidebar ${this.menuOpen ? "is-open" : ""}`} .inert=${this.mobileViewport && !this.menuOpen}>
           <header class="campaign-brand">
             <a href="#/" aria-label=${this.#ui.t("shell.openOverview")}>
-              <span class="campaign-sigil" aria-hidden="true">C</span>
-              <span>
-                <small>${this.#ui.t("shell.campaignArchive")}</small>
-                <strong>${identity.name}</strong>
-              </span>
+              <img class="campaign-sigil" src=${logoURL} alt="" />
+              <span><strong>TTRPG Codex</strong><small>Wiki &amp; World Atlas</small></span>
             </a>
-            <details class="mobile-archive-menu">
-              <summary>${this.#mobileAccountLabel()}</summary>
-              <div class="mobile-core-navigation">${this.#navigationTemplate()}</div>
-              <section class="mobile-addon-navigation" aria-labelledby="mobile-addon-navigation-title">
-                <h2 id="mobile-addon-navigation-title">${this.#ui.t("shell.addons")}</h2>
-                <nav class="addon-navigation" data-addon-navigation-mobile hidden></nav>
-                <p class="addon-navigation-empty" ?hidden=${this.navigationCount > 0 || !this.#authenticated()}>
-                  ${this.#authenticated() ? this.#ui.t("shell.noAddonPages") : this.#ui.t("shell.signInForTools")}
-                </p>
-              </section>
-              ${this.#accountTemplate()}
-            </details>
           </header>
+          <a class="sidebar-search" href="#/search"><span aria-hidden="true">🔍</span>${this.#ui.t("shell.search")}…<kbd>Ctrl K</kbd></a>
           ${this.#navigationTemplate()}
-          <section class="addon-navigation-section" aria-labelledby="addon-navigation-title">
+          <section class="addon-navigation-section" aria-labelledby="addon-navigation-title" ?hidden=${this.navigationCount === 0}>
             <h2 id="addon-navigation-title">${this.#ui.t("shell.addons")}</h2>
             <nav class="addon-navigation" data-addon-navigation hidden></nav>
-            <p class="addon-navigation-empty" ?hidden=${this.navigationCount > 0 || !this.#authenticated()}>
-              ${this.#authenticated() ? this.#ui.t("shell.noAddonPages") : this.#ui.t("shell.signInForTools")}
-            </p>
           </section>
-          ${this.#accountTemplate()}
+          <footer class="sidebar-footer">
+            <a href="#/settings" aria-current=${this.#coreRouteActive("settings") ? "page" : nothing}>⚙ ${this.#ui.t("shell.settings")}</a>
+            <details class="account-menu">
+              <summary>${this.#mobileAccountLabel()}</summary>
+              ${this.#accountTemplate()}
+              <div class="content-statusbar">
+                ${this.#hostStatusTemplate()}
+                <span class=${`live-state live-${this.liveState}`}><span aria-hidden="true"></span>${this.#ui.t(liveMessageKey(this.liveState))}</span>
+              </div>
+            </details>
+          </footer>
         </aside>
-
-        <main id="campaign-content" class=${`campaign-content route-${this.route.kind}`} tabindex="-1">
-          <header class="content-statusbar">
-            ${this.#hostStatusTemplate()}
-            <span class=${`live-state live-${this.liveState}`}>
-              <span aria-hidden="true"></span>${this.#ui.t(liveMessageKey(this.liveState))}
-            </span>
-          </header>
+        <button class="sidebar-backdrop" aria-label=${this.#ui.t("shell.closeMenu")} ?hidden=${!this.mobileViewport || !this.menuOpen} @click=${this.#closeMenu}></button>
+        <main id="campaign-content" class=${`campaign-content route-${this.route.kind}`} tabindex="-1" .inert=${this.mobileViewport && this.menuOpen}>
+          ${this.liveState === "reconnecting" ? html`<p class="connection-alert" role="status">${this.#ui.t("shell.reconnecting")}</p>` : nothing}
           ${this.errorMessage === "" ? nothing : html`
             <p class="application-alert" role="alert">
               <span>${this.errorMessage}</span>
@@ -453,11 +448,10 @@ export class CodexApp extends LitElement {
     try {
       await this.updateComplete;
       const navigationRoot = this.querySelector<HTMLElement>("[data-addon-navigation]");
-      const mobileNavigationRoot = this.querySelector<HTMLElement>("[data-addon-navigation-mobile]");
       const dashboardRoot = this.querySelector<HTMLElement>("[data-addon-slot]");
       const articleRoot = this.querySelector<HTMLElement>("[data-addon-article]");
       const routeRoot = this.querySelector<HTMLElement>("[data-addon-route-outlet]");
-      if (navigationRoot === null || mobileNavigationRoot === null || dashboardRoot === null ||
+      if (navigationRoot === null || dashboardRoot === null ||
         articleRoot === null || routeRoot === null) {
         throw new Error("browser add-on mounting surfaces are unavailable");
       }
@@ -474,14 +468,6 @@ export class CodexApp extends LitElement {
         currentHash: () => window.location.hash,
         onError,
         onCountChange: (count) => { if (owner === this.#addonOwner) this.navigationCount = count; },
-      });
-      this.#mobileNavigationOutlet = new BrowserNavigationOutlet({
-        document,
-        root: mobileNavigationRoot,
-        registry: composition.contributions,
-        role: auth.role,
-        currentHash: () => window.location.hash,
-        onError,
       });
       this.#dashboardOutlet = new BrowserContributionOutlet({
         document,
@@ -540,12 +526,10 @@ export class CodexApp extends LitElement {
     this.#dashboardOutlet?.dispose();
     this.#articleOutlet?.dispose();
     this.#navigationOutlet?.dispose();
-    this.#mobileNavigationOutlet?.dispose();
     this.#routeOutlet?.dispose();
     this.#dashboardOutlet = undefined;
     this.#articleOutlet = undefined;
     this.#navigationOutlet = undefined;
-    this.#mobileNavigationOutlet = undefined;
     this.#routeOutlet = undefined;
     this.contributionCount = 0;
     this.navigationCount = 0;
@@ -555,7 +539,6 @@ export class CodexApp extends LitElement {
 
   #refreshOutlets(): void {
     this.#navigationOutlet?.refresh();
-    this.#mobileNavigationOutlet?.refresh();
     this.#dashboardOutlet?.refresh();
     this.#articleOutlet?.refresh();
     this.#routeOutlet?.refresh();
@@ -578,30 +561,23 @@ export class CodexApp extends LitElement {
   }
 
   #navigationTemplate() {
+    const entries = (ids: readonly string[]) => ids.flatMap(id => {
+      const page = campaignPages.find(page => page.id === id);
+      return page === undefined ? [] : [{ id, label: uiCollectionLabel(id, "other"), icon: page.icon, hash: collectionHash(page) }];
+    });
     const groups = [
-      {
-        label: this.#ui.t("shell.campaign"),
-        entries: [
-          { id: "dashboard", label: this.#ui.t("shell.overview"), icon: "⌂", hash: "#/" },
-          { id: "search", label: this.#ui.t("shell.search"), icon: "⌕", hash: "#/search" },
-          { id: "party", label: this.#ui.t("shell.party"), icon: "♜", hash: "#/party" },
-          ...campaignPages.filter(({ group }) => group === "campaign").map((page) => ({
-            id: page.id, label: uiCollectionLabel(page.id, "other"), icon: page.icon, hash: collectionHash(page),
-          })),
-          { id: "settings", label: this.#ui.t("shell.settings"), icon: "⚙", hash: "#/settings" },
-        ],
-      },
-      {
-        label: this.#ui.t("shell.world"),
-        entries: campaignPages.filter(({ group }) => group === "world").map((page) => ({
-          id: page.id, label: uiCollectionLabel(page.id, "other"), icon: page.icon, hash: collectionHash(page),
-        })),
-      },
+      { id: "overview", label: this.#ui.t("shell.overview"), entries: [
+        { id: "dashboard", label: this.#ui.t("shell.overview"), icon: "🏠", hash: "#/" },
+        { id: "party", label: this.#ui.t("shell.party"), icon: "🛡", hash: "#/party" },
+      ] },
+      { id: "campaign", label: this.#ui.t("shell.campaign"), entries: entries(["events", "mysteries"]) },
+      { id: "world", label: this.#ui.t("shell.world"), entries: entries(["locations", "characters", "factions", "companions"]) },
+      { id: "compendium", label: this.#ui.t("shell.compendium"), entries: entries(["pantheon", "artifacts", "history"]) },
     ];
     return html`
       <nav class="core-navigation" aria-label=${this.#ui.t("shell.campaignArchive")}>
         ${groups.map((group) => html`
-          <section>
+          <section class=${`navigation-${group.id}`}>
             <h2>${group.label}</h2>
             ${group.entries.map((entry) => html`
               <a href=${entry.hash} aria-current=${this.#coreRouteActive(entry.id) ? "page" : nothing}>
@@ -615,18 +591,52 @@ export class CodexApp extends LitElement {
   }
 
   #mobileNavigationTemplate() {
-    const characters = campaignPages.find(({ id }) => id === "characters");
-    const locations = campaignPages.find(({ id }) => id === "locations");
     return html`
       <nav class="mobile-navigation" aria-label=${this.#ui.t("shell.primaryNavigation")}>
-        <a href="#/" aria-current=${this.#coreRouteActive("dashboard") ? "page" : nothing}><span>⌂</span>${this.#ui.t("shell.overview")}</a>
-        <a href="#/search" aria-current=${this.#coreRouteActive("search") ? "page" : nothing}><span>⌕</span>${this.#ui.t("shell.search")}</a>
-        <a href="#/party" aria-current=${this.#coreRouteActive("party") ? "page" : nothing}><span>♜</span>${this.#ui.t("shell.party")}</a>
-        ${characters === undefined ? nothing : html`<a href=${collectionHash(characters)} aria-current=${this.#coreRouteActive("characters") ? "page" : nothing}><span>♟</span>${this.#ui.t("shell.people")}</a>`}
-        ${locations === undefined ? nothing : html`<a href=${collectionHash(locations)} aria-current=${this.#coreRouteActive("locations") ? "page" : nothing}><span>⌖</span>${this.#ui.t("shell.places")}</a>`}
+        <a href="#/" aria-current=${this.#coreRouteActive("dashboard") ? "page" : nothing}><span aria-hidden="true">🏠</span>${this.#ui.t("shell.overview")}</a>
+        <a href="#/party" aria-current=${this.#coreRouteActive("party") ? "page" : nothing}><span aria-hidden="true">🛡</span>${this.#ui.t("shell.party")}</a>
+        <a href="#/search" aria-current=${this.#coreRouteActive("search") ? "page" : nothing}><span aria-hidden="true">🔍</span>${this.#ui.t("shell.search")}</a>
+        <a href="#/events" aria-current=${this.#coreRouteActive("events") ? "page" : nothing}><span aria-hidden="true">⏳</span>${uiCollectionLabel("events", "other")}</a>
+        <button type="button" data-menu-toggle aria-expanded=${this.menuOpen} aria-controls="campaign-sidebar" @click=${this.#toggleMenu}><span aria-hidden="true">☰</span>${this.#ui.t("shell.menu")}</button>
       </nav>
     `;
   }
+
+  readonly #onViewportChange = (): void => {
+    this.mobileViewport = this.#mobileMedia.matches;
+    if (!this.mobileViewport) this.menuOpen = false;
+  };
+
+  readonly #focusContent = (event: Event): void => {
+    event.preventDefault();
+    this.menuOpen = false;
+    void this.updateComplete.then(() => {
+      const content = this.querySelector<HTMLElement>("#campaign-content");
+      content?.focus();
+      content?.scrollIntoView();
+    });
+  };
+
+  readonly #toggleMenu = (): void => {
+    if (this.menuOpen) { this.#closeMenu(); return; }
+    this.menuOpen = true;
+    void this.updateComplete.then(() => this.querySelector<HTMLElement>(".sidebar-search")?.focus());
+  };
+
+  readonly #closeMenu = (): void => {
+    this.menuOpen = false;
+    void this.updateComplete.then(() => this.querySelector<HTMLElement>("[data-menu-toggle]")?.focus());
+  };
+
+  readonly #onKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === "Escape" && this.menuOpen) {
+      event.preventDefault();
+      this.#closeMenu();
+    } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      window.location.hash = "#/search";
+    }
+  };
 
   #accountTemplate() {
     if (this.authority.state === "checking") {
@@ -966,6 +976,7 @@ export class CodexApp extends LitElement {
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${this.#acceptedHash}`);
       return;
     }
+    this.menuOpen = false;
     this.#acceptedHash = nextHash;
     this.route = parseAppRoute(nextHash);
     void this.updateComplete.then(() => this.#refreshOutlets());

@@ -6,8 +6,8 @@ import {
   type DashboardModel,
   type EntitySummary,
 } from "./campaign-projection.js";
-import { campaignPages, collectionHash } from "./routes.js";
-import { UiLocalizationController, uiCollectionLabel } from "./ui-localization.js";
+import { campaignPages } from "./routes.js";
+import { UiLocalizationController } from "./ui-localization.js";
 
 export class CodexDashboard extends LitElement {
   static override properties = {
@@ -40,14 +40,13 @@ export class CodexDashboard extends LitElement {
       <article class="campaign-dashboard" aria-labelledby="campaign-title">
         <header class="campaign-title-page">
           <h1 id="campaign-title">${model.identity.name}</h1>
-          ${model.identity.tagline === "" ? nothing : html`<p>${model.identity.tagline}</p>`}
+          <p>${model.identity.tagline || this.#ui.t("dashboard.taglinePlaceholder")}</p>
           <span class="campaign-title-rule" aria-hidden="true"></span>
         </header>
 
         ${this.#partySection(model, true)}
         ${this.#lastSession(model)}
         ${this.#recent(model)}
-        ${this.#archiveIndex(model)}
       </article>
     `;
   }
@@ -70,7 +69,7 @@ export class CodexDashboard extends LitElement {
     return html`
       <section class="chronicle-section party-section" aria-labelledby="party-heading">
         <div class="section-heading">
-          <h2 id="party-heading">${this.#ui.t("dashboard.company")}</h2>
+          <h2 id="party-heading"><span aria-hidden="true">🛡</span> ${this.#ui.t("dashboard.company")}</h2>
           ${compact ? html`<a href="#/party">${this.#ui.t("dashboard.openRoster")}</a>` : nothing}
         </div>
         ${empty
@@ -78,12 +77,8 @@ export class CodexDashboard extends LitElement {
           : html`
             <div class="party-roster">
               ${model.party.map((member) => this.#partyMember(member))}
+              ${model.companions.map((companion) => this.#companion(companion))}
             </div>
-            ${model.companions.length === 0 ? nothing : html`
-              <div class="companion-roster" aria-label=${this.#ui.t("dashboard.partyCompanions")}>
-                ${model.companions.map((companion) => this.#companion(companion))}
-              </div>
-            `}
           `}
       </section>
     `;
@@ -94,12 +89,9 @@ export class CodexDashboard extends LitElement {
       <a class="party-member" href=${member.route}>
         ${portrait(member)}
         <span class="party-member-copy">
-          <strong>${member.name}</strong>
+          <strong>${member.status === "" ? nothing : html`<i class=${`status-mark status-${safeToken(member.status)}`} title=${member.statusLabel}></i>`}${member.name}</strong>
           ${member.title === "" ? nothing : html`<span>${member.title}</span>`}
         </span>
-        ${member.status === "" ? nothing : html`
-          <span class=${`status-mark status-${safeToken(member.status)}`} title=${member.statusLabel}></span>
-        `}
       </a>
     `;
   }
@@ -107,24 +99,23 @@ export class CodexDashboard extends LitElement {
   #companion(companion: EntitySummary) {
     return html`
       <a class="companion" href=${companion.route}>
-        <span class="companion-mark" aria-hidden="true">${companion.icon ?? "♞"}</span>
-        <span><strong>${companion.name}</strong>${companion.title === "" ? nothing : ` · ${companion.title}`}</span>
+        <span class="companion-mark" aria-hidden="true">${companion.portrait === undefined ? companion.icon ?? "🐾" : html`<img src=${companion.portrait} alt="" loading="lazy" />`}</span>
+        <strong>${companion.name}</strong>
+        ${companion.title === "" ? nothing : html`<span>${companion.title}</span>`}
       </a>
     `;
   }
 
   #lastSession(model: DashboardModel) {
-    if (model.lastSession === undefined) return nothing;
     return html`
       <section class="chronicle-section session-section" aria-labelledby="session-heading">
         <div class="section-heading">
-          <h2 id="session-heading">${this.#ui.t("dashboard.lastSession")}</h2>
-          <a href="#/events">${this.#ui.t("dashboard.openTimeline")}</a>
+          <h2 id="session-heading"><span aria-hidden="true">🕯</span> ${this.#ui.t("dashboard.lastSession")}</h2>
+          ${model.lastSession === undefined ? nothing : html`<span class="session-number">${this.#ui.t("dashboard.session", { n: model.lastSession })}</span>`}
         </div>
-        <div class="session-number">${this.#ui.t("dashboard.session", { n: model.lastSession })}</div>
-        <ol class="session-events">
+        ${model.lastSession === undefined ? html`<p class="empty-state">${this.#ui.t("dashboard.emptySession")} <a href="#/events">${this.#ui.t("dashboard.openTimeline")}</a></p>` : html`<ol class="session-events">
           ${model.lastSessionEvents.map((event) => this.#sessionEvent(event))}
-        </ol>
+        </ol>`}
       </section>
     `;
   }
@@ -149,11 +140,11 @@ export class CodexDashboard extends LitElement {
     if (model.recent.length === 0) return nothing;
     return html`
       <section class="chronicle-section recent-section" aria-labelledby="recent-heading">
-        <div class="section-heading"><h2 id="recent-heading">${this.#ui.t("dashboard.recent")}</h2></div>
+        <div class="section-heading"><h2 id="recent-heading"><span aria-hidden="true">🕘</span> ${this.#ui.t("dashboard.recent")}</h2></div>
         <div class="recent-ledger">
           ${model.recent.map((entity) => html`
             <a href=${entity.route}>
-              <span>${entity.name}</span>
+              <span><i class="recent-kind" aria-hidden="true">${campaignPages.find(page => entity.route.startsWith(`#/${page.id}/`))?.icon ?? "📜"}</i>${entity.name}</span>
               <time datetime=${entity.updatedAt ?? ""}>${this.#ui.relativeDate(entity.updatedAt)}</time>
             </a>
           `)}
@@ -162,22 +153,6 @@ export class CodexDashboard extends LitElement {
     `;
   }
 
-  #archiveIndex(model: DashboardModel) {
-    return html`
-      <nav class="archive-index" aria-label=${this.#ui.t("dashboard.archiveIndex")}>
-        <h2>${this.#ui.t("shell.campaignArchive")}</h2>
-        <div>
-          ${campaignPages.map((page) => html`
-            <a href=${collectionHash(page)}>
-              <span class="archive-index-icon" aria-hidden="true">${page.icon}</span>
-              <span>${uiCollectionLabel(page.id, "other")}</span>
-              <strong>${model.counts[page.id] ?? 0}</strong>
-            </a>
-          `)}
-        </div>
-      </nav>
-    `;
-  }
 }
 
 function portrait(entity: EntitySummary) {
@@ -185,8 +160,7 @@ function portrait(entity: EntitySummary) {
   if (entity.portrait !== undefined) {
     return html`<span class="party-portrait" style=${style}><img src=${entity.portrait} alt="" loading="lazy" /></span>`;
   }
-  const initial = [...entity.name.trim()][0]?.toLocaleUpperCase() ?? "?";
-  return html`<span class="party-portrait portrait-fallback" style=${style} aria-hidden="true">${initial}</span>`;
+  return html`<span class="party-portrait portrait-fallback" style=${style} aria-hidden="true">${entity.icon ?? "🛡"}</span>`;
 }
 
 function safeToken(value: string): string {

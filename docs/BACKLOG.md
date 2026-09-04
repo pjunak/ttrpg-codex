@@ -75,6 +75,10 @@ or an explicit maintainer decision to retire the workflow.
   themes, flash-free cached boot, and DM-owned optimistic persistence.
 - [ ] Complete the accessible token audit across remaining hardcoded record and
   add-on surfaces before accepting shared design-system parity.
+- [ ] Verify every restored page visually against the preserved pre-rewrite UI
+  on desktop and mobile, including populated/empty states and DM/player views.
+  The rewrite must preserve that design; a new visual design needs an explicit
+  maintainer decision. Passing component checks alone does not close this gate.
 - [ ] Restore the DM dashboard and true player-view preview workflow.
 
 ### Spatial, temporal, and relationship workflows
@@ -133,6 +137,35 @@ or an explicit maintainer decision to retire the workflow.
 <!-- product-parity-gates:end -->
 
 ## Delivery order and acceptance evidence
+
+The visual reference is `origin/deprecated/pre-rewrite-2026-09-01` at
+`3aeeacfe7adec985693f8aeb239df58c177f3da8`, confirmed against the live
+`asurai.junak.eu` UI and by the maintainer on September 4–5. Preserve its dark
+brown surfaces, Cinzel/Lora/Inter typography, gold headings, bundled logo,
+240px desktop sidebar, 768px drawer breakpoint, portrait cards, stacked
+dashboard sections, and article information rail. This is a fidelity port,
+not a redesign of the campaign interface.
+
+The September 5 implementation restores those foundations in the Lit shell,
+dashboard, collection cards, article layout, search, and settings surfaces.
+Fonts and branding ship in the production assets. The same sidebar and add-on
+navigation outlet now serve desktop and mobile; Escape, focus return, hidden
+drawer focus exclusion, search shortcut, and dirty-draft navigation are covered.
+
+`frontend/test/browser/visual.browser.mjs` runs against the production build
+with synthetic HTTP/SSE fixtures. It compares computed colors, type and geometry
+to independently frozen v1 primitives in `test/browser/reference`, checks
+responsive layout and overflow, and exercises add-on navigation across resize.
+It writes review screenshots to ignored `frontend/test-results/visual/`.
+`npm run check` includes this gate; neither the fixtures nor the screenshots
+contain campaign data. These are targeted fidelity checks, not pixel-level
+acceptance of every original screen or real-host package lifecycle coverage.
+
+Still open: original dashboard inline campaign editing and party-add actions,
+saved party/sidebar choices, collection grouping and filter controls, all maps
+and timeline/graph views, complete settings/DM screens, and installed add-on
+visual acceptance. Keep the visual and release gates open until those workflows
+are ported and both copied campaigns pass supervised comparison.
 
 Keep the Go monolith, SQLite ownership, reviewed package lifecycle, optional
 service graph, and offline conversion boundary. The next work should complete

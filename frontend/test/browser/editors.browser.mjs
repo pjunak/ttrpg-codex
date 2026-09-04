@@ -11,6 +11,7 @@ before(async () => {
   server = await createServer({
     root: fileURLToPath(new URL("../../", import.meta.url)),
     configFile: false,
+    cacheDir: fileURLToPath(new URL("../../node_modules/.vite-editor-tests", import.meta.url)),
     logLevel: "error",
     server: { host: "127.0.0.1", port: 0 },
   });

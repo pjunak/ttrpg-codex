@@ -1,3 +1,7 @@
+@import "@fontsource-variable/cinzel";
+@import "@fontsource-variable/lora";
+@import "@fontsource-variable/lora/wght-italic.css";
+@import "@fontsource-variable/inter";
 @import "./styles/tokens.css";
 @import "./styles/shell.css";
 @import "./styles/dashboard.css";

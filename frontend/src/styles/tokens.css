@@ -1,68 +1,88 @@
+/* Classic is the pre-rewrite campaign design (3aeeacf), also used by add-ons. */
+
 :root {
-  color: #2b2116;
-  background: #0e0a05;
-  font-family: Inter, Aptos, "Segoe UI", sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  --ink: #2b2116;
-  --ink-soft: #675744;
-  --night: #0e0a05;
-  --walnut: #1c1509;
-  --walnut-light: #2b2113;
-  --parchment: #f3ead3;
-  --parchment-deep: #e6d8b8;
-  --paper-line: #cdbd99;
-  --gold: #c8a040;
-  --gold-bright: #e0bd64;
-  --crimson: #8b2020;
-  --moss: #56714b;
+  color-scheme: dark;
+  --bg-deep: #0e0a05;
+  --bg-base: #141008;
+  --bg-surface: #1c1509;
+  --bg-raised: #241c0d;
+  --bg-card: #f5edd8;
+  --bg-card-dark: #ede0c4;
+  --text-parchment: #f5edd8;
+  --text-light: #d4c49a;
+  --text-muted: #9a8660;
+  --text-ink: #2b1a00;
+  --text-ink-light: #5c3d14;
+  --text-cream: #f0e6d2;
+  --accent-crimson: #8b2020;
+  --accent-gold: #c8a040;
+  --accent-gold-rgb: 200, 160, 64;
+  --accent-gold-dim: #8b6914;
+  --accent-ember: #c04020;
+  --gold-muted: 212, 184, 122;
+  --border-subtle: rgb(255 255 255 / 7%);
+  --border-faint: rgb(255 255 255 / 4%);
+  --color-danger: #ef9a9a;
+  --color-success: #a5d6a7;
+  --color-info: #90caf9;
+  --color-mystery: #ce93d8;
+  --color-on-accent: #2b1a00;
+  --status-alive: #2e7d32;
+  --status-dead: #8b0000;
+  --status-unknown: #6a1b9a;
+  --font-title: "Cinzel Variable", Georgia, serif;
+  --font-body: "Lora Variable", Georgia, serif;
+  --font-ui: "Inter Variable", "Helvetica Neue", sans-serif;
+  --sidebar-width: 240px;
+  --bottom-nav-h: 60px;
+  --radius: 6px;
+  --radius-lg: 12px;
+  --shadow-card: 0 2px 12px rgb(0 0 0 / 50%), 0 1px 3px rgb(0 0 0 / 40%);
+  --shadow-md: 0 6px 20px rgb(0 0 0 / 40%);
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --text-sm: 0.85rem;
+  --text-2xl: 2rem;
+  --text-3xl: 2.6rem;
+  --ui-font: var(--font-ui);
+  --book-font: var(--font-body);
+  --reading-width: 1400px;
+  --focus: var(--accent-gold);
+  --gold: var(--accent-gold);
+  --gold-bright: var(--accent-gold);
+  --crimson: var(--accent-crimson);
+  --moss: var(--status-alive);
   --shadow: rgb(4 3 1 / 42%);
-  --ui-font: Inter, Aptos, "Segoe UI", sans-serif;
-  --book-font: Iowan Old Style, Palatino Linotype, Book Antiqua, Palatino, Georgia, serif;
-  --sidebar-width: 17rem;
-  --reading-width: 76rem;
-  --focus: #f5d77f;
-  --backdrop-glow: rgb(200 160 64 / 9%);
-  --backdrop-start: #110d07;
-  --backdrop-end: #080603;
-  --chrome-text: #e8dcc2;
-  --chrome-soft: #c9bea9;
-  --chrome-muted: #8f816a;
-  --chrome-faint: #776c5b;
-  --chrome-active: #fff4d6;
-  --chrome-hover: #fff3d4;
-  --chrome-divider: rgb(224 189 100 / 20%);
-  --chrome-divider-strong: rgb(224 189 100 / 36%);
-  --chrome-field: #100c07;
-  --chrome-field-border: #5d5039;
-  --chrome-mobile: #181107;
+  --night: var(--bg-deep);
+  --walnut: var(--bg-surface);
+  --walnut-light: var(--bg-raised);
+  --chrome-text: var(--text-parchment);
+  --chrome-soft: var(--text-light);
+  --chrome-muted: var(--text-muted);
+  --chrome-faint: var(--text-muted);
+  --chrome-active: var(--accent-gold);
+  --chrome-hover: var(--accent-gold);
+  --chrome-divider: rgba(var(--accent-gold-rgb), 0.15);
+  --chrome-divider-strong: rgba(var(--accent-gold-rgb), 0.2);
+  --chrome-field: var(--bg-base);
+  --chrome-field-border: rgba(var(--accent-gold-rgb), 0.3);
+  --chrome-mobile: var(--bg-surface);
 }
 
 :root[data-theme="moonlit"] {
-  --night: #071018;
-  --walnut: #101c24;
-  --walnut-light: #18303a;
-  --gold: #7ea6b2;
-  --gold-bright: #add0d8;
-  --crimson: #7d344e;
-  --focus: #efd178;
-  --backdrop-glow: rgb(126 166 178 / 12%);
-  --backdrop-start: #0b151d;
-  --backdrop-end: #050a0f;
-  --chrome-text: #e2eaeb;
-  --chrome-soft: #bac9cc;
-  --chrome-muted: #849aa0;
-  --chrome-faint: #6e8389;
-  --chrome-active: #effbfc;
-  --chrome-hover: #f3fdff;
-  --chrome-divider: rgb(126 166 178 / 23%);
-  --chrome-divider-strong: rgb(126 166 178 / 42%);
-  --chrome-field: #091219;
-  --chrome-field-border: #48616a;
-  --chrome-mobile: #0b171f;
+  --bg-deep: #071018;
+  --bg-base: #0b151d;
+  --bg-surface: #101c24;
+  --bg-raised: #18303a;
+  --accent-gold: #add0d8;
+  --accent-gold-rgb: 173, 208, 216;
+  --text-parchment: #e2eaeb;
+  --text-light: #bac9cc;
+  --text-muted: #849aa0;
 }
 
-* {
+*, *::before, *::after {
   box-sizing: border-box;
 }
 
@@ -76,24 +96,35 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  background:
-    radial-gradient(circle at 74% 5%, var(--backdrop-glow), transparent 24rem),
-    linear-gradient(135deg, var(--backdrop-start), var(--backdrop-end) 70%);
+  background-color: var(--bg-base);
+  background-image: radial-gradient(ellipse at 15% 40%, rgb(139 32 32 / 6%), transparent 55%),
+    radial-gradient(ellipse at 85% 15%, rgb(30 60 10 / 4%), transparent 45%),
+    radial-gradient(ellipse at 50% 90%, rgb(100 80 20 / 5%), transparent 40%);
+  color: var(--text-parchment);
+  font: 16px/1.6 var(--font-body);
 }
 
-button,
-input {
+h1, h2, h3, h4 {
+  font-family: var(--font-title);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+button, input, select, textarea {
   font: inherit;
 }
 
-button,
-a {
+button, a {
   -webkit-tap-highlight-color: transparent;
 }
 
+button {
+  cursor: pointer;
+}
+
 :focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 3px;
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .visually-hidden {
@@ -112,12 +143,15 @@ a {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--accent-gold-rgb), .25) var(--bg-deep);
 }

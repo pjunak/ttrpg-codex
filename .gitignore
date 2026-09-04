@@ -31,3 +31,6 @@ Thumbs.db
 
 # Local planning artifacts
 /docs/plans/
+
+# Browser verification output
+/frontend/test-results/

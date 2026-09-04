@@ -1,0 +1,295 @@
+/* Frozen geometry and colors from pre-rewrite commit 3aeeacfe7adec985693f8aeb239df58c177f3da8.
+   Deliberately independent of production CSS. Update only against the approved visual reference. */
+:root {
+  --bg-deep:      #0E0A05;
+  --bg-base:      #141008;
+  --bg-surface:   #1C1509;
+  --bg-raised:    #241C0D;
+  --bg-card:      #F5EDD8;
+  --bg-card-dark: #EDE0C4;
+  --text-parchment: #F5EDD8;
+  --text-light:     #D4C49A;
+  --text-muted:     #9A8660;
+  --text-ink:       #2B1A00;
+  --text-ink-light: #5C3D14;
+  --text-cream:     #F0E6D2;
+  --accent-crimson: #8B2020;
+  --accent-gold:    #C8A040;
+  --accent-gold-rgb: 200, 160, 64;
+  --accent-gold-dim:#8B6914;
+  --accent-ember:   #C04020;
+  --faction-cult-high: #8B0000;
+  --faction-cult-red:  #C04040;
+  --faction-dragon:    #1565C0;
+  --faction-party:     #2E7D32;
+  --faction-greenest:  #8B6914;
+  --faction-neutral:   #555555;
+  --faction-mystery:   #6A1B9A;
+  --status-alive:    #2E7D32;
+  --status-dead:     #8B0000;
+  --status-captured: #1565C0;
+  --status-unknown:  #6A1B9A;
+  --status-alive-rgb:    46, 125, 50;
+  --status-dead-rgb:     139, 0, 0;
+  --status-captured-rgb: 21, 101, 192;
+  --status-unknown-rgb:  106, 27, 154;
+  --color-danger:        #EF9A9A;
+  --color-danger-bright: #FF8888;
+  --color-danger-bd:     #CC4444;
+  --color-success:       #A5D6A7;
+  --color-info:          #90CAF9;
+  --color-mystery:       #CE93D8;
+  --priority-critical: #EF5350;
+  --priority-high:     #FF9800;
+  --priority-medium:   #FFD54F;
+  --priority-low:      #9CC69A;
+  --border-subtle: rgba(255,255,255,0.07);
+  --border-faint:  rgba(255,255,255,0.04);
+  --color-on-accent: #2B1A00;
+  --sidebar-width: 240px;
+  --bottom-nav-h:  60px;
+  --dm-panel-max-width: 68.75rem;
+  --dm-card-min-width: 11.25rem;
+  --dm-copy-max-width: 60ch;
+  --radius:        6px;
+  --radius-lg:     12px;
+  --shadow-card: 0 2px 12px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.4);
+  --shadow-glow-gold: 0 0 20px rgba(var(--accent-gold-rgb), 0.15);
+  --font-title: 'Cinzel', 'Georgia', serif;
+  --font-body:  'Lora', 'Georgia', serif;
+  --font-ui:    'Inter', 'Helvetica Neue', sans-serif;
+  --font-mono:  ui-monospace, 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  --gold-muted: 212, 184, 122;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --text-xs:   0.75rem;
+  --text-sm:   0.85rem;
+  --text-base: 1rem;
+  --text-lg:   1.2rem;
+  --text-xl:   1.5rem;
+  --text-2xl:  2rem;
+  --text-3xl:  2.6rem;
+  --radius-sm:   4px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 2px 6px rgba(0,0,0,0.3);
+  --shadow-md: 0 6px 20px rgba(0,0,0,0.4);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.5);
+  --z-base:     1;
+  --z-sticky:   100;
+  --z-drawer:   200;
+  --z-dropdown: 1000;
+  --z-modal:    10000;
+  --z-toast:    10001;
+  --ease-out:  cubic-bezier(0, 0, 0.25, 1);
+  --dur-fast:  0.12s;
+  --dur-base:  0.18s;
+  --dur-slow:  0.25s;
+  --graph-canvas-height: 60vh;
+  --graph-canvas-min-height: 24rem;
+}
+body {
+  background-color: var(--bg-base);
+  background-image:
+    radial-gradient(ellipse at 15% 40%, rgba(139,32,32,0.06) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 15%, rgba(30,60,10,0.04) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 90%, rgba(100,80,20,0.05) 0%, transparent 40%);
+  color: var(--text-parchment);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+h1, h2, h3, h4 { font-family: var(--font-title); font-weight: 600; line-height: 1.2; }
+.sidebar {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: var(--sidebar-width);
+  background: var(--bg-surface);
+  border-right: 1px solid rgba(var(--accent-gold-rgb), 0.15);
+  overflow-y: auto;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 2rem;
+}
+.main-content {
+  margin-left: var(--sidebar-width);
+  min-height: 100vh;
+  padding: 2rem;
+}
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 1rem 1rem;
+  border-bottom: 1px solid rgba(var(--accent-gold-rgb), 0.2);
+  margin-bottom: 0.5rem;
+}
+.logo-dragon {
+  width: 2.4rem;
+  height: 2.4rem;
+  font-size: var(--text-2xl);
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.logo-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.logo-title {
+  font-family: var(--font-title);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--accent-gold);
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+}
+.logo-sub {
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.dash-hero {
+  text-align: center;
+  padding: 1.5rem 1rem 1.25rem;
+  margin-bottom: 2rem;
+  position: relative;
+}
+.dash-hero::after {
+  content: '';
+  display: block;
+  width: 180px;
+  height: 2px;
+  margin: 1rem auto 0;
+  background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+}
+.dash-hero-name {
+  font-family: var(--font-title);
+  font-size: var(--text-3xl);
+  color: var(--accent-gold);
+  letter-spacing: 0.06em;
+  margin: 0 0 0.25rem;
+  outline: none;
+}
+.dash-hero-tagline {
+  font-family: var(--font-ui);
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  min-height: 1.2em;
+  outline: none;
+}
+.dash-section {
+  margin-bottom: 2rem;
+}
+.dash-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.dash-section-head h2 {
+  font-family: var(--font-title);
+  font-size: 1.1rem;
+  color: var(--accent-gold);
+  letter-spacing: 0.05em;
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.dash-section-action {
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.12s;
+}
+.dash-party-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+.dash-party-card {
+  flex: 0 0 auto;
+  width: 160px;
+  background: var(--bg-raised);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.2);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+  text-decoration: none;
+  color: var(--text-parchment);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+}
+.dash-party-portrait {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: var(--attitude-ring, 0 0 0 transparent), 0 0 0 2px rgba(var(--gold-muted), 0.25);
+}
+.dash-party-body { text-align: center; width: 100%; }
+.dash-party-name {
+  font-family: var(--font-title);
+  font-size: 0.92rem;
+  color: var(--text-parchment);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  justify-content: center;
+}
+.dash-party-title {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+}
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+.char-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: visible;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+  text-decoration: none;
+  box-shadow: var(--shadow-card);
+}
+.char-card-info { padding: 0.75rem; }
+.char-card-name {
+  font-family: var(--font-title);
+  font-size: 0.9rem;
+  color: var(--text-parchment);
+  margin-bottom: 0.2rem;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root { --font-title: "Cinzel Variable", Georgia, serif; --font-body: "Lora Variable", Georgia, serif; --font-ui: "Inter Variable", "Helvetica Neue", sans-serif; }
+.dash-party-portrait { background: var(--bg-surface); display: grid; place-items: center; font-size: 2.5rem; }
+@media (max-width: 768px) { .sidebar { transform: translateX(-100%); width: min(320px, 86vw); } .main-content { margin-left: 0; padding: 1rem; padding-bottom: calc(var(--bottom-nav-h) + 1rem); } }

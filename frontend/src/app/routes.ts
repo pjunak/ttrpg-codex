@@ -11,15 +11,15 @@ export interface CampaignPageDefinition {
 }
 
 export const campaignPages: readonly CampaignPageDefinition[] = Object.freeze([
-  page("characters", "characters", "Character", "Characters", "♟", "campaign"),
-  page("locations", "locations", "Location", "Locations", "⌖", "world"),
-  page("events", "events", "Event", "Events", "◷", "campaign"),
-  page("mysteries", "mysteries", "Mystery", "Mysteries", "?", "campaign"),
+  page("characters", "characters", "Character", "Characters", "👤", "campaign"),
+  page("locations", "locations", "Location", "Locations", "📍", "world"),
+  page("events", "events", "Event", "Events", "⏳", "campaign"),
+  page("mysteries", "mysteries", "Mystery", "Mysteries", "❓", "campaign"),
   page("factions", "factions", "Faction", "Factions", "⬡", "world"),
-  page("pantheon", "pantheon", "Deity", "Pantheon", "✦", "world"),
-  page("artifacts", "artifacts", "Artifact", "Artifacts", "◇", "world"),
-  page("history", "historicalEvents", "Historical event", "History", "⌛", "world"),
-  page("companions", "pets", "Companion", "Companions", "♞", "campaign"),
+  page("pantheon", "pantheon", "Deity", "Pantheon", "✨", "world"),
+  page("artifacts", "artifacts", "Artifact", "Artifacts", "🗝", "world"),
+  page("history", "historicalEvents", "Historical event", "History", "📜", "world"),
+  page("companions", "pets", "Companion", "Companions", "🐾", "campaign"),
 ]);
 
 export type AppRoute =

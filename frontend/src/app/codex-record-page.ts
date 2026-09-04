@@ -123,12 +123,11 @@ export class CodexRecordPage extends LitElement {
         .join(" ").toLocaleLowerCase().includes(needle)
     );
     return html`
-      <article class="collection-page" aria-labelledby="collection-title">
+      <article class="collection-page" data-collection=${route.page.collection} aria-labelledby="collection-title">
         <header class="page-heading collection-heading">
-          <span class="page-heading-mark" aria-hidden="true">${route.page.icon}</span>
           <div>
             <h1 id="collection-title">${route.page.plural}</h1>
-            <p>${collectionIntroductions[route.page.collection]}</p>
+            <p aria-live="polite">${visible.length} / ${entities.length} records</p>
           </div>
           ${this.canEdit ? html`
             <button class="record-action primary-record-action" type="button" @click=${this.#startCreate} ?disabled=${this.saving || this.editor !== "closed"}>
@@ -146,12 +145,9 @@ export class CodexRecordPage extends LitElement {
             @input=${this.#onSearch}
           />
         </label>
-        <p class="collection-count" aria-live="polite">
-          ${visible.length} ${visible.length === 1 ? route.page.singular.toLocaleLowerCase() : route.page.plural.toLocaleLowerCase()}
-        </p>
         ${visible.length === 0
           ? html`<p class="empty-state">No matching entries are recorded in this part of the archive.</p>`
-          : html`<div class="record-ledger">${visible.map((entity) => recordRow(entity))}</div>`}
+          : html`<div class="record-ledger">${visible.map((entity) => recordRow(entity, route.page.icon))}</div>`}
       </article>
     `;
   }
@@ -192,51 +188,54 @@ export class CodexRecordPage extends LitElement {
     return html`
       <article class="record-article" aria-labelledby="record-title">
         <a href=${collectionHash(route.page)} class="breadcrumb-link">${route.page.plural}</a>
-        <header class="record-masthead">
-          ${entity.portrait === undefined ? nothing : html`
-            <img
-              class="record-portrait"
-              src=${entity.portrait}
-              alt=""
-              style=${entity.attitudeRing === undefined ? nothing : `--attitude-ring: ${entity.attitudeRing}`}
-            />
-          `}
-          <div>
-            <span class="record-kind">${route.page.singular}</span>
-            <h1 id="record-title">${entity.name}</h1>
-            ${entity.title === "" ? nothing : html`<p>${entity.title}</p>`}
-            <div class="record-badges">
-              ${entity.visibility === "dm" ? html`<span class="dm-badge">DM</span>` : nothing}
-              ${entity.status === "" ? nothing : html`<span>${entity.status}</span>`}
-              ${entity.attitudes.map((attitude) => html`
-                <span class="attitude-badge" style=${`--attitude-color: ${attitude.color}`}>${attitude.label}</span>
-              `)}
-              ${entity.tags.map((tag) => html`<span>${tag}</span>`)}
-            </div>
-          </div>
-          ${this.canEdit ? html`
-            <button class="record-action" type="button" @click=${this.#startEdit} ?disabled=${this.saving}>Edit</button>
-          ` : nothing}
-        </header>
-        <div class=${outline.length === 0 ? "record-reading-layout without-outline" : "record-reading-layout"}>
-          ${outline.length === 0 ? nothing : html`
-            <aside class="record-outline" aria-label="Article contents">
-              <p>In this entry</p>
-              <ol>
-                ${outline.map((item) => html`
-                  <li class=${`outline-depth-${item.depth}`}>
-                    <button type="button" data-heading=${item.id} @click=${this.#scrollToHeading}>${item.text}</button>
-                  </li>
-                `)}
-              </ol>
-            </aside>
-          `}
-          <div class="record-reading">
+        <div class="record-reading-layout">
+          <aside class="record-side">
+            <header class="record-masthead">
+              ${entity.portrait === undefined ? html`<span class="record-portrait record-portrait-placeholder" aria-hidden="true">${entity.icon ?? route.page.icon}</span>` : html`
+                <img
+                  class="record-portrait"
+                  src=${entity.portrait}
+                  alt=""
+                  style=${entity.attitudeRing === undefined ? nothing : `--attitude-ring: ${entity.attitudeRing}`}
+                />
+              `}
+              <div>
+                <span class="record-kind">${route.page.singular}</span>
+                <h1 id="record-title">${entity.name}</h1>
+                ${entity.title === "" ? nothing : html`<p>${entity.title}</p>`}
+                <div class="record-badges">
+                  ${entity.visibility === "dm" ? html`<span class="dm-badge">DM</span>` : nothing}
+                  ${entity.status === "" ? nothing : html`<span>${entity.status}</span>`}
+                  ${entity.attitudes.map((attitude) => html`
+                    <span class="attitude-badge" style=${`--attitude-color: ${attitude.color}`}>${attitude.label}</span>
+                  `)}
+                  ${entity.tags.map((tag) => html`<span>${tag}</span>`)}
+                </div>
+              </div>
+              ${this.canEdit ? html`
+                <button class="record-action" type="button" @click=${this.#startEdit} ?disabled=${this.saving}>Edit</button>
+              ` : nothing}
+            </header>
             ${facts.length === 0 ? nothing : html`
               <dl class="record-facts">
                 ${facts.map(([label, fact]) => html`<div><dt>${label}</dt><dd>${fact}</dd></div>`)}
               </dl>
             `}
+
+            ${outline.length === 0 ? nothing : html`
+              <aside class="record-outline" aria-label="Article contents">
+                <p>In this entry</p>
+                <ol>
+                  ${outline.map((item) => html`
+                    <li class=${`outline-depth-${item.depth}`}>
+                      <button type="button" data-heading=${item.id} @click=${this.#scrollToHeading}>${item.text}</button>
+                    </li>
+                  `)}
+                </ol>
+              </aside>
+            `}
+          </aside>
+          <div class="record-reading">
             ${sections.length === 0 && !hasStructuredSections
               ? html`<p class="empty-state">This entry does not have article text yet.</p>`
               : html`<div class="record-prose">
@@ -620,7 +619,7 @@ export class CodexRecordPage extends LitElement {
   };
 }
 
-function recordRow(entity: EntitySummary) {
+function recordRow(entity: EntitySummary, fallback: string) {
   return html`
     <a class="record-row" href=${entity.route}>
       ${entity.portrait === undefined
@@ -628,7 +627,7 @@ function recordRow(entity: EntitySummary) {
             class="record-row-mark"
             style=${entity.attitudeFilter === undefined ? nothing : `--attitude-filter: ${entity.attitudeFilter}`}
             aria-hidden="true"
-          >${entity.icon ?? initial(entity.name)}</span>`
+          >${entity.icon ?? fallback}</span>`
         : html`<img
             class="record-row-mark"
             style=${entity.attitudeRing === undefined ? nothing : `--attitude-ring: ${entity.attitudeRing}`}
@@ -639,7 +638,7 @@ function recordRow(entity: EntitySummary) {
       <span class="record-row-copy">
         <strong>${entity.name}</strong>
         ${entity.title === "" ? nothing : html`<span>${entity.title}</span>`}
-        ${entity.excerpt === "" ? nothing : html`<small>${entity.excerpt}</small>`}
+        ${entity.excerpt === "" || entity.route.startsWith("#/characters/") ? nothing : html`<small>${entity.excerpt}</small>`}
       </span>
       ${entity.visibility === "dm" ? html`<span class="dm-badge">DM</span>` : nothing}
     </a>
@@ -855,10 +854,6 @@ function articleFieldMarkdown(value: unknown): string {
   return lines.join("\n");
 }
 
-function initial(value: string): string {
-  return [...value.trim()][0]?.toLocaleUpperCase() ?? "?";
-}
-
 function editorValue(value: unknown): string {
   if (typeof value === "string") return value;
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
@@ -887,18 +882,6 @@ function ownerValue(value: Readonly<Record<string, unknown>>): string {
   if (ownerType === "party") return "party:";
   return "none:";
 }
-
-const collectionIntroductions: Readonly<Record<string, string>> = {
-  characters: "People encountered on the road, from trusted allies to half-known adversaries.",
-  locations: "Settlements, wilderness, strongholds, and the smaller places held within them.",
-  events: "The recorded sequence of the campaign and the moments that changed its course.",
-  mysteries: "Open questions, gathered clues, and truths that have not yet come into view.",
-  factions: "Orders, households, cults, and powers pursuing their own designs.",
-  pantheon: "Gods, saints, patrons, and the beliefs carried in their names.",
-  artifacts: "Objects whose history or power makes them part of the campaign chronicle.",
-  historicalEvents: "The older events that shaped the world before the current journey.",
-  pets: "Animals, familiars, mounts, and other companions traveling with the cast.",
-};
 
 const factDefinitions: Readonly<Record<string, readonly (readonly [string, string, string?])[]>> = {
   characters: [["Species", "species"], ["Gender", "gender"], ["Age", "age"], ["Status", "status"], ["Faction", "faction", "factions"], ["Current location", "location", "locations"]],
