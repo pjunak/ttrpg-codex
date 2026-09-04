@@ -3,6 +3,7 @@ import {
   campaignCollection,
   type CampaignCollectionName,
   type CampaignDataset,
+  type CampaignRecord,
 } from "../core/campaign-data.js";
 import type { CampaignEnumCategory, CampaignMutation } from "../core/campaign-mutations.js";
 import { campaignPages, type CampaignPageDefinition } from "./routes.js";
@@ -53,6 +54,7 @@ export interface CampaignRecordSaveDetail {
   readonly fields: Readonly<Record<string, unknown>>;
   readonly visibility?: "public" | "dm";
   readonly relationships?: readonly CampaignRelationshipEditDetail[];
+  readonly relationshipBase?: readonly Pick<CampaignRecord, "key" | "revision">[];
 }
 
 export type CampaignRelationshipDirection = "from" | "to" | "both";
@@ -148,6 +150,21 @@ export function prepareCampaignRecordSave(
     value["visibility"] = detail.visibility;
   }
   if (detail.relationships !== undefined && (page.collection !== "characters" || detail.creating)) {
+    throw invalidEdit();
+  }
+  if (detail.relationships !== undefined) {
+    const currentBase = relationshipBaseFor(campaign, detail.key);
+    const base = detail.relationshipBase;
+    if (!Array.isArray(base) || base.some(item => !isRecord(item) ||
+      typeof item["key"] !== "string" || !validRevision(item["revision"], true)) ||
+      new Set(base.map(item => item.key)).size !== base.length) throw invalidEdit();
+    // Absence in the draft means deletion only for the exact set the user saw.
+    const revisions = new Map(base.map(item => [item.key, item.revision]));
+    if (base.length !== currentBase.length || currentBase.some(current =>
+      revisions.get(current.key) !== current.revision)) {
+      throw new CampaignRecordEditError("stale", "relationship revisions are stale");
+    }
+  } else if (detail.relationshipBase !== undefined) {
     throw invalidEdit();
   }
   const mutations: CampaignMutation[] = [{
@@ -594,6 +611,19 @@ export function createRelationshipRecordKey(source: string, target: string, type
   return `relationship:${btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "")}`;
 }
 
+export function relationshipBaseFor(
+  campaign: CampaignDataset,
+  characterKey: string,
+): readonly Pick<CampaignRecord, "key" | "revision">[] {
+  return Object.freeze(relationshipRecordsFor(campaign, characterKey)
+    .map(({ key, revision }) => Object.freeze({ key, revision })));
+}
+
+function relationshipRecordsFor(campaign: CampaignDataset, characterKey: string): readonly CampaignRecord[] {
+  return campaignCollection(campaign, "relationships").records.filter(record => isRecord(record.value) &&
+    (line(record.value["source"]) === characterKey || line(record.value["target"]) === characterKey));
+}
+
 function prepareRelationshipMutations(
   campaign: CampaignDataset,
   characterKey: string,
@@ -601,9 +631,7 @@ function prepareRelationshipMutations(
   canManageVisibility: boolean,
 ): readonly CampaignMutation[] {
   if (!Array.isArray(edits)) throw invalidEdit();
-  const current = new Map(campaignCollection(campaign, "relationships").records
-    .filter((record) => isRecord(record.value) &&
-      (line(record.value["source"]) === characterKey || line(record.value["target"]) === characterKey))
+  const current = new Map(relationshipRecordsFor(campaign, characterKey)
     .map((record) => [record.key, record]));
   const types = new Map(relationshipTypeOptionsFor(campaign).map((option) => [option.value, option]));
   const seenOriginals = new Set<string>();

@@ -6,18 +6,23 @@ specific behavior.
 
 ## Setup and complete gate
 
-Use Go 1.26, Node.js 24 or newer, and PowerShell on Windows.
+Use Go 1.27.1, Node.js 26, and PowerShell on Windows.
 
 ```powershell
 npm ci
+npx playwright install chromium
 npm run check
 ```
 
 `npm run check` type-checks, tests, and builds the TypeScript application, then
-runs all project-owned Go tests and `go vet`. Useful focused commands are:
+runs Chromium editor regressions, all project-owned Go tests, and `go vet`.
+Linux CI installs Chromium with `npx playwright install --with-deps chromium`.
+The browser fixtures use synthetic campaigns and a loopback Vite server; no
+running host or campaign data directory is needed. Useful focused commands are:
 
 ```powershell
 npm --workspace @ttrpg-codex/frontend test
+npm --workspace @ttrpg-codex/frontend run test:browser
 go test ./internal/transport/httpapi
 go test ./internal/addons/packagemanager
 go test ./sdk/go/workerrpc

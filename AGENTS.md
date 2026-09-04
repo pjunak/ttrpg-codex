@@ -12,11 +12,12 @@ repository root:
 
 ```console
 npm ci
+npx playwright install chromium
 npm run check
 npm start
 ```
 
-`npm run check` type-checks, tests, and builds the frontend, then runs all
+`npm run check` type-checks, unit-tests, browser-tests, and builds the frontend, then runs all
 project-owned Go tests and `go vet`. Useful focused checks include:
 
 ```powershell

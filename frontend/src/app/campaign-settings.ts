@@ -48,6 +48,8 @@ export interface CampaignEnumSaveDetail {
 
 export class CampaignSettingsEditError extends Error {
   override readonly name = "CampaignSettingsEditError";
+
+  constructor(message: string, readonly kind: "invalid" | "stale" = "invalid") { super(message); }
 }
 
 const colorField = (key: string, label: string, help?: string): CampaignSettingField => Object.freeze({
@@ -158,8 +160,9 @@ export function prepareCampaignEnumSave(
   const descriptor = campaignEnumDescriptor(detail.category);
   const record = campaignEnumRecord(campaign, detail.category);
   const expectedRevision = record?.revision ?? 0;
-  if (!Number.isSafeInteger(detail.expectedRevision) || detail.expectedRevision !== expectedRevision ||
-    (record !== undefined && !Array.isArray(record.value))) throw invalidEdit();
+  if (!Number.isSafeInteger(detail.expectedRevision)) throw invalidEdit();
+  if (detail.expectedRevision !== expectedRevision) throw staleEdit();
+  if (record !== undefined && !Array.isArray(record.value)) throw invalidEdit();
   const existingItems = campaignEnumItems(campaign, detail.category);
   const values = [...(Array.isArray(record?.value) ? record.value : [])];
   const existingIndex = detail.originalId === null ? -1 : existingItems.findIndex(({ id }) => id === detail.originalId);
@@ -187,7 +190,7 @@ export function prepareCampaignEnumDelete(
   mutation: CampaignEnumDeleteMutation,
 ): CampaignEnumDeleteMutation {
   const record = campaignEnumRecord(campaign, mutation.category);
-  if (record === undefined || record.revision !== mutation.expectedRevision) throw invalidEdit();
+  if (record === undefined || record.revision !== mutation.expectedRevision) throw staleEdit();
   const items = campaignEnumItems(campaign, mutation.category);
   if (!items.some(({ id }) => id === mutation.itemId)) throw invalidEdit();
   if (mutation.mode === "replace" && !items.some(({ id }) => id === mutation.replacementId)) throw invalidEdit();
@@ -336,6 +339,10 @@ function numericValue(value: unknown): number {
 function inRange(value: number, field: CampaignSettingField): boolean {
   return (field.minimum === undefined || value >= field.minimum) &&
     (field.maximum === undefined || value <= field.maximum);
+}
+
+function staleEdit(): CampaignSettingsEditError {
+  return new CampaignSettingsEditError("campaign settings revision is stale", "stale");
 }
 
 function invalidEdit(): CampaignSettingsEditError {

@@ -10,6 +10,7 @@ import {
   editorFieldsFor,
   editorOptionsFor,
   relationshipEditorRowsFor,
+  relationshipBaseFor,
   relationshipTypeOptionsFor,
   type CampaignEditDirtyDetail,
   type CampaignEditorField,
@@ -66,6 +67,8 @@ export class CodexRecordPage extends LitElement {
   declare private editor: "closed" | "create" | "edit";
   declare private markdownPreviews: readonly string[];
   #dirty = false;
+  // Live projections continue updating, but an open form owns its original base.
+  #editCampaign: CampaignDataset | undefined;
   #factionDraft: string | undefined;
   readonly #markdownDrafts = new Map<string, string>();
 
@@ -102,9 +105,14 @@ export class CodexRecordPage extends LitElement {
 
   protected override render() {
     if (this.campaign === undefined || this.route === undefined) return nothing;
+    const campaign = this.#editorCampaign;
     return this.route.kind === "collection"
-      ? this.#collection(this.campaign, this.route)
-      : this.#record(this.campaign, this.route);
+      ? this.#collection(campaign, this.route)
+      : this.#record(campaign, this.route);
+  }
+
+  get #editorCampaign(): CampaignDataset {
+    return this.#editCampaign ?? this.campaign!;
   }
 
   #collection(dataset: CampaignDataset, route: Extract<RecordRoute, { kind: "collection" }>) {
@@ -123,7 +131,7 @@ export class CodexRecordPage extends LitElement {
             <p>${collectionIntroductions[route.page.collection]}</p>
           </div>
           ${this.canEdit ? html`
-            <button class="record-action primary-record-action" type="button" @click=${this.#startCreate} ?disabled=${this.saving}>
+            <button class="record-action primary-record-action" type="button" @click=${this.#startCreate} ?disabled=${this.saving || this.editor !== "closed"}>
               Add ${route.page.singular.toLocaleLowerCase()}
             </button>
           ` : nothing}
@@ -269,7 +277,7 @@ export class CodexRecordPage extends LitElement {
           ${fields.map((field) => this.#editorField(field, value, record?.key ?? ""))}
           ${route.page.collection === "characters" ? html`
             <campaign-relationship-editor
-              .campaign=${this.campaign}
+              .campaign=${this.#editorCampaign}
               .character=${record}
               .canManageVisibility=${this.canManageVisibility}
               .recordIdentity=${`${record?.key ?? "new"}:${this.editCompletion}`}
@@ -308,7 +316,7 @@ export class CodexRecordPage extends LitElement {
       field.kind === "rank-chains" || field.kind === "location-roles") {
       return html`
         <campaign-structured-field
-          .campaign=${this.campaign}
+          .campaign=${this.#editorCampaign}
           .field=${field}
           .record=${value}
           .factionId=${this.#factionDraft ?? editorValue(value["faction"])}
@@ -323,7 +331,7 @@ export class CodexRecordPage extends LitElement {
       const previewing = this.markdownPreviews.includes(field.key);
       const id = `markdown-${this.route?.page.collection ?? "record"}-${field.key}`;
       const context: CampaignMarkdownContext = {
-        dataset: this.campaign!,
+        dataset: this.#editorCampaign,
         ...(this.route === undefined ? {} : { currentCollection: this.route.page.collection }),
         ...(currentKey === "" ? {} : { currentKey }),
       };
@@ -387,7 +395,7 @@ export class CodexRecordPage extends LitElement {
       `;
     }
     if (field.kind === "reference" || field.kind === "owner" || field.kind === "enum") {
-      const options = editorOptionsFor(this.campaign!, field, currentKey);
+      const options = editorOptionsFor(this.#editorCampaign, field, currentKey);
       const stored = field.kind === "owner" ? ownerValue(value) : editorValue(value[field.key]);
       const selected = currentKey === "" && field.key === "faction" && stored === "" ? "neutral" : stored;
       const orphaned = selected !== "" && !options.some(({ value: option }) => option === selected);
@@ -407,7 +415,7 @@ export class CodexRecordPage extends LitElement {
       `;
     }
     if (field.kind === "references" || field.kind === "attitudes") {
-      const options = editorOptionsFor(this.campaign!, field, currentKey);
+      const options = editorOptionsFor(this.#editorCampaign, field, currentKey);
       const selected = new Set(field.kind === "attitudes"
         ? editorAttitudes(value[field.key])
         : editorStringList(value[field.key]));
@@ -463,16 +471,18 @@ export class CodexRecordPage extends LitElement {
   };
 
   readonly #startCreate = (): void => {
-    if (this.canEdit && !this.saving) {
+    if (this.canEdit && !this.saving && this.editor === "closed") {
       this.#resetEditors();
+      this.#editCampaign = this.campaign;
       this.#setDirty(false);
       this.editor = "create";
     }
   };
 
   readonly #startEdit = (): void => {
-    if (this.canEdit && !this.saving) {
+    if (this.canEdit && !this.saving && this.editor === "closed") {
       this.#resetEditors();
+      this.#editCampaign = this.campaign;
       this.#setDirty(false);
       this.editor = "edit";
     }
@@ -512,6 +522,7 @@ export class CodexRecordPage extends LitElement {
   };
 
   #resetEditors(): void {
+    this.#editCampaign = undefined;
     this.#markdownDrafts.clear();
     this.#factionDraft = undefined;
     this.markdownPreviews = Object.freeze([]);
@@ -561,7 +572,7 @@ export class CodexRecordPage extends LitElement {
       ? createCampaignRecordKey(typeof fields["name"] === "string" ? fields["name"] : this.route.page.singular)
       : this.route.kind === "record" ? this.route.key : "";
     if (key === "") return;
-    const record = creating ? undefined : campaignCollection(this.campaign, this.route.page.collection).records
+    const record = creating ? undefined : campaignCollection(this.#editorCampaign, this.route.page.collection).records
       .find(({ key: recordKey }) => recordKey === key);
     if (!creating && record === undefined) return;
     const detail: CampaignRecordSaveDetail = {
@@ -571,7 +582,10 @@ export class CodexRecordPage extends LitElement {
       creating,
       fields: Object.freeze(fields),
       ...(this.route.page.collection === "characters" && !creating
-        ? { relationships: form.querySelector<CampaignRelationshipEditorElement>("campaign-relationship-editor")?.editorValue() ?? [] }
+        ? {
+            relationships: form.querySelector<CampaignRelationshipEditorElement>("campaign-relationship-editor")?.editorValue() ?? [],
+            relationshipBase: relationshipBaseFor(this.#editorCampaign, key),
+          }
         : {}),
       ...(collectionManagesVisibility(this.route.page.collection) && this.canManageVisibility
         ? { visibility: data.get("visibility") === "dm" ? "dm" as const : "public" as const }
@@ -587,7 +601,7 @@ export class CodexRecordPage extends LitElement {
   readonly #deleteRecord = (): void => {
     if (!this.canEdit || this.saving || this.campaign === undefined || this.route?.kind !== "record") return;
     const recordKey = this.route.key;
-    const target = campaignCollection(this.campaign, this.route.page.collection).records
+    const target = campaignCollection(this.#editorCampaign, this.route.page.collection).records
       .find(({ key }) => key === recordKey);
     if (target === undefined ||
       !window.confirm(`Delete this ${this.route.page.singular.toLocaleLowerCase()}? This cannot be undone from this page.`)) {

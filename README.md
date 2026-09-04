@@ -65,6 +65,7 @@ Install Go 1.27.1 and Node.js 24 or newer, then run:
 
 ```powershell
 npm ci
+npx playwright install chromium
 npm run check
 $env:CODEX_DM_PASSWORD = 'choose-a-local-password'
 npm start

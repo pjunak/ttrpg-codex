@@ -19,6 +19,8 @@ export interface CampaignAppearanceSaveDetail {
 
 export class CampaignAppearanceEditError extends Error {
   override readonly name = "CampaignAppearanceEditError";
+
+  constructor(message: string, readonly kind: "invalid" | "stale" = "invalid") { super(message); }
 }
 
 export const campaignThemes: readonly CampaignThemeDefinition[] = Object.freeze([
@@ -50,8 +52,10 @@ export function prepareCampaignAppearanceSave(
   detail: CampaignAppearanceSaveDetail,
 ): CampaignMutation {
   const record = campaignAppearanceRecord(campaign);
-  if (!Number.isSafeInteger(detail.expectedRevision) || detail.expectedRevision !== (record?.revision ?? 0) ||
-    !isCampaignThemeID(detail.theme)) throw invalidAppearance();
+  if (!Number.isSafeInteger(detail.expectedRevision) || !isCampaignThemeID(detail.theme)) throw invalidAppearance();
+  if (detail.expectedRevision !== (record?.revision ?? 0)) {
+    throw new CampaignAppearanceEditError("campaign appearance revision is stale", "stale");
+  }
   const current = record === undefined ? {} : record.value;
   if (!isRecord(current)) throw invalidAppearance();
   return Object.freeze({

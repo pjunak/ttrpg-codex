@@ -119,6 +119,19 @@ merges into the current record, so fields not yet represented and add-on
 namespaces survive. Navigation, role switching, sign-out, cancellation, and
 browser unload protect dirty forms.
 
+An open record, enum, or appearance form retains the campaign snapshot and
+revisions it was opened against. Live refresh still updates the shell's
+authoritative dataset, but cannot replace form inputs, remove a draft after a
+remote deletion, or silently advance the revision used by save/delete.
+Character relationship replacement additionally carries the complete reviewed
+key/revision set, including removed rows. Preparation rejects a changed set
+before constructing deletes, so a relationship added in another tab cannot be
+mistaken for a user-requested removal. Unrelated campaign changes remain
+saveable. Cancel/reopen or successful save completion releases the old base.
+Chromium regressions in `frontend/test/browser/` exercise these component and
+preparation boundaries; full host/session/SSE acceptance remains a separate
+backlog gate.
+
 Player writes arrive as full records built from a role-filtered projection. The
 mutation planner therefore restores any existing scalar, array, object-array,
 or polymorphic-owner reference that points to a DM-only record before commit.

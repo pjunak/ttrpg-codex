@@ -8,6 +8,7 @@ import {
   prepareCampaignRecordDelete,
   prepareCampaignRecordSave,
   relationshipEditorRowsFor,
+  relationshipBaseFor,
 } from "../src/app/campaign-record-editor.js";
 import type {
   CampaignCollection,
@@ -258,6 +259,7 @@ describe("campaign record editing", () => {
       creating: false,
       fields: formFields("characters", { name: "Ryn" }),
       relationships: relationshipEditorRowsFor(campaign, "ryn", false),
+      relationshipBase: relationshipBaseFor(campaign, "ryn"),
     }, false).mutations).toHaveLength(1);
 
     const prepared = prepareCampaignRecordSave(campaign, {
@@ -266,6 +268,7 @@ describe("campaign record editing", () => {
       expectedRevision: 4,
       creating: false,
       fields: formFields("characters", { name: "Ryn" }),
+      relationshipBase: relationshipBaseFor(campaign, "ryn"),
       relationships: [{
         originalKey: oldKey,
         expectedRevision: 7,
@@ -318,11 +321,38 @@ describe("campaign record editing", () => {
     expect(() => prepareCampaignRecordSave(campaign, {
       collection: "characters", key: "ryn", expectedRevision: 1, creating: false,
       fields: formFields("characters", { name: "Ryn" }),
+      relationshipBase: [],
       relationships: [{
         originalKey: null, expectedRevision: 0, direction: "both", target: "bob",
         type: "ally", label: "", visibility: "dm",
       }],
     }, false)).toThrow("record edit is invalid");
+  });
+
+  it("rejects relationship replacement when its reviewed set changes", () => {
+    const characters = [{ key: "ryn", revision: 1, value: { id: "ryn", name: "Ryn" } }];
+    const relationship = { key: "link", revision: 1, value: { source: "ryn", target: "bob", type: "ally" } };
+    const original = dataset({ characters, relationships: [relationship] });
+    const edit = {
+      collection: "characters" as const, key: "ryn", expectedRevision: 1, creating: false,
+      fields: formFields("characters", { name: "Ryn" }),
+      relationships: [], relationshipBase: relationshipBaseFor(original, "ryn"),
+    };
+    for (const relationships of [
+      [],
+      [{ ...relationship, revision: 2 }],
+      [relationship, { ...relationship, key: "new-link" }],
+    ]) {
+      expect(() => prepareCampaignRecordSave(dataset({ characters, relationships }), edit, false))
+        .toThrow("relationship revisions are stale");
+    }
+    const deletion = prepareCampaignRecordSave(original, edit, false);
+    expect(deletion.mutations[1]).toEqual({
+      operation: "delete", collection: "relationships", key: "link", expectedRevision: 1,
+    });
+    expect(() => prepareCampaignRecordSave(original, { ...edit, relationshipBase: [
+      { key: "link", revision: 1 }, { key: "link", revision: 1 },
+    ] }, false)).toThrow("record edit is invalid");
   });
 
   it("rejects references and attitudes outside the role-projected campaign", () => {

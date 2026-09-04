@@ -38,7 +38,7 @@ describe("campaign appearance", () => {
     })).toThrow("campaign appearance edit is invalid");
     expect(() => prepareCampaignAppearanceSave(dataset(), {
       expectedRevision: 1, theme: "classic",
-    })).toThrow("campaign appearance edit is invalid");
+    })).toThrow("campaign appearance revision is stale");
     expect(() => prepareCampaignAppearanceSave(dataset(), {
       expectedRevision: 0, theme: "sepia" as never,
     })).toThrow("campaign appearance edit is invalid");

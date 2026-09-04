@@ -790,7 +790,7 @@ export class CodexApp extends LitElement {
       );
     } catch (cause: unknown) {
       this.errorMessage = cause instanceof CampaignRecordEditError && cause.kind === "stale"
-        ? "The entry changed before this edit could be saved. Refresh and try again."
+        ? "The entry or its relationships changed. Your draft is kept; copy any notes you need, then cancel and reopen to review the current version."
         : "The entry contains a value that cannot be saved.";
       return;
     }
@@ -866,7 +866,9 @@ export class CodexApp extends LitElement {
       mutation = prepareCampaignEnumSave(this.campaignState.campaign, event.detail);
     } catch (cause: unknown) {
       this.errorMessage = cause instanceof CampaignSettingsEditError
-        ? "The definition contains a value that cannot be saved."
+        ? cause.kind === "stale"
+          ? "The definition changed. Your draft is kept; copy any notes you need, then cancel and reopen to review the current version."
+          : "The definition contains a value that cannot be saved."
         : `The definition could not be prepared: ${errorMessage(cause)}`;
       return;
     }
@@ -934,7 +936,9 @@ export class CodexApp extends LitElement {
       mutation = prepareCampaignAppearanceSave(this.campaignState.campaign, event.detail);
     } catch (cause: unknown) {
       this.errorMessage = cause instanceof CampaignAppearanceEditError
-        ? "The appearance setting changed or is invalid."
+        ? cause.kind === "stale"
+          ? "Appearance changed. Your choice is kept; reopen Appearance to review the current theme before saving."
+          : "The appearance setting is invalid."
         : `The appearance setting could not be prepared: ${errorMessage(cause)}`;
       return;
     }

@@ -44,6 +44,7 @@ export class CodexSettings extends LitElement {
   declare private deleteId: string | null;
   readonly #ui = new UiLocalizationController(this);
   #dirty = false;
+  #editCampaign: CampaignDataset | undefined;
 
   constructor() {
     super();
@@ -63,34 +64,34 @@ export class CodexSettings extends LitElement {
       this.activeCategory = "language";
       this.editingId = null;
       this.deleteId = null;
+      this.#editCampaign = undefined;
       this.#setDirty(false);
     }
-  }
-
-  protected override updated(changed: Map<PropertyKey, unknown>): void {
     if (changed.has("editCompletion")) {
       this.editingId = null;
       this.deleteId = null;
+      this.#editCampaign = this.activeCategory === "appearance" ? this.campaign : undefined;
       this.#setDirty(false);
     }
   }
 
   protected override render() {
     if (this.campaign === undefined) return nothing;
+    const campaign = this.#editCampaign ?? this.campaign;
     if (this.activeCategory === "language") return this.#shell(this.#languagePanel());
     if (this.activeCategory === "appearance") return this.#shell(this.#appearancePanel());
     if (!this.canManageCampaign) return this.#shell(this.#languagePanel());
     const descriptor = campaignEnumDescriptor(this.activeCategory);
     let items: readonly CampaignEnumItem[];
     try {
-      items = campaignEnumItems(this.campaign, descriptor.category);
+      items = campaignEnumItems(campaign, descriptor.category);
     } catch (cause: unknown) {
       const message = cause instanceof CampaignSettingsEditError
         ? "This category has an invalid stored shape and was left untouched."
         : "This category could not be opened.";
       return this.#shell(html`<section class="settings-invalid" role="alert"><h2>${descriptor.label}</h2><p>${message}</p></section>`);
     }
-    const record = campaignEnumRecord(this.campaign, descriptor.category);
+    const record = campaignEnumRecord(campaign, descriptor.category);
     return this.#shell(html`
       <section class="settings-ledger" aria-labelledby="settings-category-title">
         <header class="settings-ledger-heading">
@@ -177,8 +178,9 @@ export class CodexSettings extends LitElement {
 
   #appearancePanel() {
     if (this.campaign === undefined || !this.canManageCampaign) return nothing;
-    const record = campaignAppearanceRecord(this.campaign);
-    const current = campaignTheme(this.campaign);
+    const campaign = this.#editCampaign ?? this.campaign;
+    const record = campaignAppearanceRecord(campaign);
+    const current = campaignTheme(campaign);
     return html`
       <section class="settings-ledger settings-personal-panel" aria-labelledby="settings-appearance-title">
         <header class="settings-ledger-heading">
@@ -214,7 +216,7 @@ export class CodexSettings extends LitElement {
 
   #definitionRow(item: CampaignEnumItem, revision: number, items: readonly CampaignEnumItem[]) {
     const descriptor = campaignEnumDescriptor(this.#activeEnumCategory());
-    const usage = campaignEnumUsageCount(this.campaign!, descriptor.category, item.id);
+    const usage = campaignEnumUsageCount(this.#editCampaign ?? this.campaign!, descriptor.category, item.id);
     const color = firstColor(item.value);
     return html`
       <article class="settings-definition">
@@ -335,18 +337,21 @@ export class CodexSettings extends LitElement {
     if (category === undefined || category === this.activeCategory || !this.#visibleCategory(category) ||
       !this.#confirmDiscard()) return;
     this.activeCategory = category;
+    this.#editCampaign = category === "appearance" ? this.campaign : undefined;
     this.editingId = null;
     this.deleteId = null;
   };
 
   readonly #startCreate = (): void => {
     if (this.saving || this.editingId !== null) return;
+    this.#editCampaign = this.campaign;
     this.deleteId = null;
     this.editingId = "__new__";
   };
 
   readonly #startEdit = (event: Event): void => {
     if (this.saving || this.editingId !== null) return;
+    this.#editCampaign = this.campaign;
     this.deleteId = null;
     this.editingId = (event.currentTarget as HTMLButtonElement).dataset["id"] ?? null;
   };
@@ -354,14 +359,21 @@ export class CodexSettings extends LitElement {
   readonly #cancelEdit = (): void => {
     if (this.saving || !this.#confirmDiscard()) return;
     this.editingId = null;
+    this.#editCampaign = undefined;
   };
 
   readonly #requestDelete = (event: Event): void => {
     if (this.saving || this.editingId !== null) return;
+    this.#editCampaign = this.campaign;
     this.deleteId = (event.currentTarget as HTMLButtonElement).dataset["id"] ?? null;
   };
 
-  readonly #cancelDelete = (): void => { if (!this.saving) this.deleteId = null; };
+  readonly #cancelDelete = (): void => {
+    if (!this.saving) {
+      this.deleteId = null;
+      this.#editCampaign = undefined;
+    }
+  };
 
   readonly #save = (event: SubmitEvent): void => {
     event.preventDefault();

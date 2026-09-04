@@ -99,7 +99,7 @@ describe("campaign settings", () => {
     })).toMatchObject({ mode: "replace", replacementId: "new" });
     expect(() => prepareCampaignEnumDelete(campaign, {
       category: "genders", itemId: "old", expectedRevision: 2, mode: "clear",
-    })).toThrow("campaign settings edit is invalid");
+    })).toThrow("campaign settings revision is stale");
   });
 
   it("fails closed on duplicate IDs and malformed edited values", () => {
