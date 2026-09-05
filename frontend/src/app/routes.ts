@@ -25,6 +25,7 @@ export const campaignPages: readonly CampaignPageDefinition[] = Object.freeze([
 
 export type AppRoute =
   | { readonly kind: "dashboard" }
+  | { readonly kind: "dm" }
   | { readonly kind: "search" }
   | { readonly kind: "party" }
   | { readonly kind: "timeline" }
@@ -40,6 +41,7 @@ export type AppRoute =
   | { readonly kind: "not-found"; readonly path: string };
 
 export function parseAppRoute(hash: string): AppRoute {
+  if (hash === "#/dm") return { kind: "dm" };
   const addonGraph = parseAddonGraphHash(hash);
   if (addonGraph) return { kind: "campaign-graph", mode: addonGraph };
   if (["#/graph/relationships", "#/mapa/vztahy"].includes(hash)) return { kind: "campaign-graph", mode: "relationships" };

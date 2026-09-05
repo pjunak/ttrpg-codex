@@ -393,6 +393,26 @@ transaction. Author narrow widgets that fit the board's design. Isolated
 timeline widgets use transparent dark surfaces and content-based heights
 bounded to 1–2,400 CSS pixels; overflowing content needs its own scrolling.
 
+### DM dashboard
+
+The stable `#/dm` route accepts additive `slot` contributions with exact config
+`{ "contractVersion": 1, "slot": "dm:dashboard" }`. Bind an integrated custom
+element or an isolated element through the usual UI contract. The host checks
+real/effective DM authority before mounting this outlet, even if the manifest
+declares broader roles. It passes no campaign bodies or extra host context.
+These named slots do not also appear on the campaign overview.
+
+Successful contributions appear below the original DM panel heading, without
+generic contribution headings or cards. The host owns slot lifetime and keeps
+unchanged widgets connected during campaign refresh. Leaving the route,
+changing role, replacing a generation, or disabling it disposes the old outlet.
+
+When no dashboard mounts, or an add-on reports a display failure, the core
+fallback retains hidden-record counts, browser add-on status and reload, and
+links to active role-allowed add-on routes. These links are independent of the
+optional sidebar preference. This fallback does not replace the complete
+administrative package inspector or the add-on's own workflow dashboard.
+
 ### Mind Palace graph providers
 
 The implemented `graph-view` and `graph-contributor` surfaces bind

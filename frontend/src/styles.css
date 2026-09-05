@@ -6,6 +6,7 @@
 @import "./styles/tokens.css";
 @import "./styles/shell.css";
 @import "./styles/dashboard.css";
+@import "./styles/dm-dashboard.css";
 @import "./styles/records.css";
 @import "./styles/search.css";
 @import "./styles/settings.css";

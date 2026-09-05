@@ -465,6 +465,8 @@ export const isolatedFrameBootstrap = String.raw`
       if (!handles.has(data.contribution.id)) {
         throw new TypeError("The isolated module did not bind its contribution.");
       }
+      // The bridge accepts size reports only after the activation handshake.
+      post({ type: "ready", contributionId: data.contribution.id });
       if (handles.get(data.contribution.id).binding.kind === "element") {
         const resize = () => {
           const measured = compact ? Math.max(root.scrollHeight, root.getBoundingClientRect().height) : document.documentElement.scrollHeight;
@@ -475,7 +477,6 @@ export const isolatedFrameBootstrap = String.raw`
         observer.observe(compact ? root : document.documentElement);
         resize();
       }
-      post({ type: "ready", contributionId: data.contribution.id });
     } catch (cause) {
       const message = report(cause);
       post({ type: "failed", message });

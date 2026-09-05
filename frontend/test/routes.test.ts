@@ -31,6 +31,7 @@ describe("application routes", () => {
     expect(parseAppRoute("#/party/new")).toMatchObject({ kind: "create", preset: "party", page: { collection: "characters" } });
     expect(parseAppRoute("#/characters/new")).toMatchObject({ kind: "record", key: "new" });
     expect(parseAppRoute("#/settings")).toEqual({ kind: "settings" });
+    expect(parseAppRoute("#/dm")).toEqual({ kind: "dm" });
     expect(parseAppRoute("#/map/world")).toEqual({ kind: "map", parentId: null });
     expect(parseAppRoute("#/map/local/gate%2Fupper")).toEqual({ kind: "map", parentId: "gate/upper" });
     expect(parseAppRoute("#/mapa/svet")).toEqual({ kind: "map", parentId: null });

@@ -69,6 +69,8 @@ import {
   type MessageKey,
 } from "./ui-localization.js";
 import "./codex-dashboard.js";
+import { type DmAddonHealth } from "./codex-dm-dashboard.js";
+import "./codex-dm-dashboard.js";
 import "./codex-record-page.js";
 import "./codex-search.js";
 import "./codex-settings.js";
@@ -152,6 +154,7 @@ export class CodexApp extends LitElement {
   readonly #events = new SharedEventStream();
   readonly #ui = new UiLocalizationController(this);
   #addons: BrowserAddonComposition | undefined;
+  #dmAddonHealth: readonly DmAddonHealth[] = [];
   #dashboardOutlet: BrowserContributionOutlet | undefined;
   #articleOutlet: BrowserContributionOutlet | undefined;
   #navigationOutlet: BrowserNavigationOutlet | undefined;
@@ -228,6 +231,7 @@ export class CodexApp extends LitElement {
             <nav class="addon-navigation" data-addon-navigation hidden></nav>
           </section>
           <footer class="sidebar-footer">
+            ${this.#canManageCampaign() ? html`<a href="#/dm" aria-current=${this.route.kind === "dm" ? "page" : nothing}>🛡 ${this.#ui.t("dm.title")}</a>` : nothing}
             <a href="#/settings" aria-current=${this.#coreRouteActive("settings") ? "page" : nothing}>⚙ ${this.#ui.t("shell.settings")}</a>
             <details class="account-menu">
               <summary>${this.#mobileAccountLabel()}</summary>
@@ -436,6 +440,12 @@ export class CodexApp extends LitElement {
     const composition = createBrowserAddonComposition(document, auth.csrfToken, {
       onRefresh: (_cause, result) => {
         if (owner !== this.#addonOwner) return;
+        this.#dmAddonHealth = [
+          ...result.lifecycle.active.map(addon => ({ id: addon.addonId, version: addon.addonVersion, state: "ready" as const })),
+          ...result.lifecycle.activationFailures.map(failure => ({ id: failure.addonId,
+            version: result.transport.graph.addons.find(addon => addon.addonId === failure.addonId)?.addonVersion ?? "",
+            state: failure.kind === "dependency" ? "blocked" as const : "failed" as const })),
+        ];
         this.addonState = {
           state: "ready",
           active: result.lifecycle.active.length,
@@ -533,6 +543,7 @@ export class CodexApp extends LitElement {
     this.#disposeOutlets();
     const addons = this.#addons;
     this.#addons = undefined;
+    this.#dmAddonHealth = [];
     this.addonState = { state: "idle" };
     if (addons !== undefined) {
       const failures = await addons.session.stop();
@@ -749,6 +760,12 @@ export class CodexApp extends LitElement {
     }
     const campaign = this.campaignState.campaign;
     switch (this.route.kind) {
+      case "dm":
+        return html`<codex-dm-dashboard .campaign=${campaign} .canManage=${this.#canManageCampaign()}
+          .registry=${this.#addons?.contributions} .health=${this.#dmAddonHealth}
+          .loading=${this.addonState.state === "loading"}
+          .degraded=${this.addonState.state === "degraded" || this.addonState.state === "ready" && this.addonState.failures > 0}
+          @dm-retry-addons=${this.#retryDmAddons}></codex-dm-dashboard>`;
       case "campaign-graph":
         return html`<codex-campaign-graph .campaign=${campaign} .mode=${this.route.mode}
           .registry=${this.#addons?.contributions} .actorRole=${this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined}></codex-campaign-graph>`;
@@ -1055,6 +1072,12 @@ export class CodexApp extends LitElement {
     this.errorMessage = this.#ui.t((cause instanceof CampaignMapEditError && cause.kind === "stale") ||
       (cause instanceof CampaignMutationHTTPError && cause.status === 409) ? "map.stale" : "map.saveFailed");
   }
+
+  readonly #retryDmAddons = async (): Promise<void> => {
+    if (!this.#canManageCampaign() || this.busy || this.addonState.state === "loading") return;
+    try { await this.#startAddons(); }
+    catch { this.addonState = { state: "degraded", message: this.#ui.t("dm.failed") }; }
+  };
 
   readonly #showSignIn = async (): Promise<void> => {
     if (this.#authenticated()) return;

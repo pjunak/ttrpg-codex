@@ -223,6 +223,27 @@ Campaign tools and shows a direct empty state when that role has no panels.
 Routes and record outlets use the same registry. Settings, editor locations,
 and custom renderers remain owned by their corresponding core features.
 
+## DM dashboard outlet
+
+The [DM dashboard contract](../../examples/addons/API_V3.md#dm-dashboard)
+uses `codex-dm-dashboard` at `#/dm`. Only real/effective DMs mount its exact
+`dm:dashboard` slots. Empty, failed, and disabled contributions leave core
+hidden-content counts, browser lifecycle status, reload, and active route links
+available. Sidebar hiding does not prevent those workflow links. The UI uses
+the preserved panel/card geometry and bundled English/Czech messages.
+`installed-dm.browser.mjs` covers this boundary through reviewed fixture ZIPs,
+desktop/phone screenshots, live counts, both roles and anonymous access,
+integrated/isolated modes, refresh, failure, replacement, disable and retry.
+To additionally exercise the separately built first-party package, set
+`CODEX_DM_TOOLS_ZIP` to its release ZIP before running that browser test. This
+acceptance case uploads, reviews, approves and activates the package, then opens
+the planner and Import Center from the panel.
+
+The isolated bootstrap sends `ready` before its first resize report. Reversing
+those messages caused healthy widgets to emit a false protocol-failure
+diagnostic; the installed DM panel regression checks that no degraded state is
+reported for a healthy isolated widget.
+
 ## Timeline contribution outlets
 
 The timeline restores its four additive toolbar, column-header/footer, and
