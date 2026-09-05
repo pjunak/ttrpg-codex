@@ -141,10 +141,21 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
   removed-record edits remain available to copy. Installed checks cover these
   fields, note/item draft independence, conflicts, lost write responses, failed
   post-save reads and canceled drags, plus desktop/phone theme and overflow.
-  Remaining work includes original dialog/canvas controls, reparenting and flow
-  editing, complete core/external references and consequence/note targeting,
+  Flow type/label editing, visible direction/labels, and whole-item/flow
+  consequence anchors are now restored. Flow consequences appear at both
+  endpoints. Flow deletion atomically removes its anchored consequences;
+  subtree deletion cleans incoming planning references and saved positions
+  while retaining the surviving anchors of shared notes. Installed checks cover
+  retained flow drafts, cycle rejection, cancellation and stale-record conflicts
+  without partial deletion, plus desktop/phone controls.
+  Remaining work includes original dialog/canvas controls, reparenting,
+  complete core/external references and consequence targets/note anchors,
   guards when leaving the planner, live invalidation, full visual parity and
   localization, and Import Center presentation and other-provider acceptance.
+  Structural writes still rely on fetched snapshots: add guards for new
+  children, references or consequences inserted concurrently with deletion,
+  and simultaneous graph edits. Exact revisions currently protect only the
+  records already read.
 - [ ] Verify the compendium browser against the old day-to-day browsing and
   reference workflow, then restore any accepted source, linking, filtering, or
   detail behavior that is missing.
@@ -208,6 +219,16 @@ recovery checks in `installed-planner-fixture.mjs`; the full host gate passes
 behavior, not complete equivalence with the original planner's dialogs,
 navigation controls, or either real campaign. Keep the planner and visual
 release gates open.
+
+The follow-up flow batch adds a real installed-package regression in
+`installed-planner-flow-fixture.mjs`. It exercises flow edits from either
+endpoint, flow-anchored consequences, stale flow drafts, cycle rejection,
+canceled deletion, an atomic conflict after a concurrent consequence edit,
+and incoming-reference/shared-note/view cleanup. DM Tools passes 17 Node tests
+and 22 rendering checks at each of DPR 1 and 2; the rebuilt ZIP passes package
+inspection. The host gate passes 270 unit and 138 browser tests plus Go tests
+and vet. Desktop/phone screenshots retain the classic controls and no page
+overflow. Complete planner presentation and structural concurrency remain open.
 
 The visual reference is `origin/deprecated/pre-rewrite-2026-09-01` at
 `3aeeacfe7adec985693f8aeb239df58c177f3da8`, confirmed against the live
