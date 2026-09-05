@@ -1,4 +1,5 @@
 import { LitElement, html, nothing } from "lit";
+import { markerGlowLayers } from "./campaign-attitude-glow.js";
 import * as L from "leaflet";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import { MediaClient, MediaHTTPError } from "../core/media.js";
@@ -299,9 +300,16 @@ export class CodexMap extends LitElement {
     for (const location of mapLocations(this.campaign, this.route.parentId)) {
       const draft = this.draft?.key === location.key ? this.draft : undefined;
       const node = document.createElement("span"); node.className = "sc-pin";
-      if (location.attitudeFilter) node.style.filter = location.attitudeFilter;
-      if (location.markerIcon) { const image = document.createElement("img"); image.src = location.markerIcon; image.alt = ""; node.append(image); }
-      else node.textContent = location.markerGlyph;
+      node.setAttribute("aria-hidden", "true");
+      const layers = markerGlowLayers(location.attitudes, location.markerSize, Boolean(location.markerIcon));
+      for (const layer of layers) {
+        const visual = location.markerIcon ? document.createElement("img") : document.createElement("span");
+        visual.className = `sc-pin-${location.markerIcon ? "icon" : "emoji"}${layers.length > 1 ? "-segment" : ""}`;
+        visual.style.filter = layer.filter; visual.style.clipPath = layer.clipPath;
+        if (visual instanceof HTMLImageElement) { visual.src = location.markerIcon; visual.alt = ""; visual.draggable = false; }
+        else { visual.textContent = location.markerGlyph; visual.style.fontSize = `${Math.round(location.markerSize * .85)}px`; }
+        node.append(visual);
+      }
       const marker = L.marker(this.#point(draft?.x ?? location.x, draft?.y ?? location.y), {
         icon: L.divIcon({ html: node, className: "sc-marker", iconSize: [location.markerSize, location.markerSize], iconAnchor: [location.markerSize / 2, location.markerSize / 2] }),
         title: location.name, alt: location.name, keyboard: true,

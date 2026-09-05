@@ -125,6 +125,16 @@ merges into the current record, so fields not yet represented and add-on
 namespaces survive. Navigation, role switching, sign-out, cancellation, and
 browser unload protect dirty forms.
 
+Attitude presentation reads only the role-projected dataset. Explicit entries
+retain their order and take precedence over faction inheritance; a character
+without entries inherits its visible faction's attitudes or the configured
+party color. Unknown IDs do not render, duplicate IDs are collapsed, and
+strength comes from the shared definition rather than an entity entry.
+Portraits (including placeholders) use the preserved outer border rings;
+location/faction glyphs use silhouette filters on the glyph alone. Both use
+the original 10px outer and 4px inner glow. The shared glow helper also provides
+the size-dependent segmented map rendering described in [MAPS.md](MAPS.md).
+
 An open record, enum, or appearance form retains the campaign snapshot and
 revisions it was opened against. Live refresh still updates the shell's
 authoritative dataset, but cannot replace form inputs, remove a draft after a

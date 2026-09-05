@@ -108,6 +108,53 @@ async function setScale(page, value) {
 }
 
 for (const mobile of [false, true]) {
+  test(`attitude glows keep the original diagonal marker bands (${mobile ? 'phone' : 'desktop'})`, async t => {
+    const { page, writes } = await fixture(t, { mobile, role: 'player' });
+    collection('settings').records.push({ key: 'attitudes', revision: 1, value: [
+      { id: 'ally', label: 'Ally', labelColor: '#40d080', strength: .7 },
+      { id: 'danger', label: 'Danger', labelColor: '#ed4264', strength: 1 },
+      { id: 'muted', label: 'Muted', labelColor: '#0000ff', strength: 0 },
+    ] }, { key: 'playerParty', revision: 1, value: { color: '#f4b942' } },
+    { key: 'pinTypes', revision: 1, value: [{ id: 'gem', icon: '💎', size: 48 }] });
+    record('gate').value.attitudes = [{ id: 'ally', strength: 0 }, { id: 'muted' }, { id: 'unknown' }, { id: 'danger' }];
+    record('inn').value.pinType = 'gem';
+    record('inn').value.attitudes = [{ id: 'ally' }, { id: 'danger' }, { id: 'party' }];
+    record('room').value.attitudes = [{ id: 'ally' }];
+    await changed(page, 'settings');
+    await marker(page, 'Northern Gate').locator('.sc-pin-icon-segment').nth(1).waitFor();
+    await marker(page, 'Old Inn').locator('.sc-pin-emoji-segment').nth(2).waitFor();
+    const layers = await marker(page, 'Northern Gate').locator('.sc-pin-icon-segment').evaluateAll(nodes => nodes.map(node => ({
+      filter: getComputedStyle(node).filter, clip: getComputedStyle(node).clipPath,
+      pointer: getComputedStyle(node).pointerEvents, draggable: node.draggable,
+    })));
+    assert.match(layers[0].filter, /rgba\(64, 208, 128, 0.7\) 0px 0px 8px/);
+    assert.doesNotMatch(layers[0].filter, /237, 66, 100/);
+    assert.match(layers[1].filter, /rgb\(237, 66, 100\) 0px 0px 8px/);
+    assert.deepEqual(layers.map(layer => layer.clip), [
+      'polygon(-100% -100%, 147.5% -100%, -47.5% 200%, -100% 200%)',
+      'polygon(147.5% -100%, 200% -100%, 200% 200%, -47.5% 200%)',
+    ]);
+    assert.ok(layers.every(layer => layer.pointer === 'none' && layer.draggable === false));
+    assert.equal(await marker(page, 'Northern Gate').locator('.sc-pin').evaluate(node => getComputedStyle(node).filter), 'none');
+    assert.equal(await marker(page, 'Old Inn').locator('.sc-pin-emoji-segment').first().evaluate(node => getComputedStyle(node).fontSize), '41px');
+    await page.screenshot({ path: `${artifacts}${mobile ? 'mobile' : 'desktop'}-attitude-glows.png`, animations: 'disabled' });
+    await marker(page, 'Northern Gate').focus(); await page.keyboard.press('Enter');
+    await page.getByRole('heading', { name: 'Northern Gate', exact: true }).waitFor();
+    await page.goto(`${origin}/#/map/local/gate`);
+    const local = marker(page, 'Upper Room');
+    await local.locator('.sc-pin-icon').waitFor();
+    assert.equal(await local.locator('[class$="-segment"]').count(), 0);
+    assert.match(await local.locator('.sc-pin-icon').evaluate(node => getComputedStyle(node).filter), /64, 208, 128/);
+    await page.getByRole('button', { name: 'Actual image size', exact: true }).click();
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    await page.waitForFunction(() => Math.abs(Number(document.querySelector('.sc-pin').style.getPropertyValue('--sc-pin-base-scale')) - 2 ** .25) < .001);
+    const definitions = collection('settings').records.find(item => item.key === 'attitudes');
+    definitions.value[0].strength = 0; definitions.revision++;
+    await changed(page, 'settings');
+    await page.waitForFunction(() => !getComputedStyle(document.querySelector('.sc-pin-icon')).filter.includes('64, 208, 128'));
+    assert.equal(await local.locator('.sc-pin-icon').evaluate(node => (getComputedStyle(node).filter.match(/drop-shadow/g) ?? []).length), 2, 'an unknown or zero-strength stance keeps only the original dark outline');
+    assert.equal(writes.length, 0);
+  });
   test(`map preferences preserve map scope and apply marker scaling (${mobile ? 'phone' : 'desktop'})`, async t => {
     const { page, writes } = await fixture(t, { mobile });
     await page.getByRole('button', { name: 'Edit map', exact: false }).click();
@@ -218,6 +265,46 @@ for (const mobile of [false, true]) {
     await page.screenshot({ path: `${artifacts}${mobile ? 'mobile' : 'desktop'}-local.png`, animations: 'disabled' });
   });
 }
+
+test('card and article glows surround portraits and follow icon silhouettes', async t => {
+  const { page, writes } = await fixture(t);
+  collection('settings').records.push({ key: 'attitudes', revision: 1, value: [
+    { id: 'ally', label: 'Ally', labelColor: '#40d080', strength: .7 },
+    { id: 'danger', label: 'Danger', labelColor: '#ed4264', strength: 1 },
+  ] });
+  const ryn = collection('characters').records.find(item => item.key === 'ryn');
+  ryn.value.attitudes = [{ id: 'ally' }, { id: 'danger' }];
+  record('gate').value.attitudes = [{ id: 'ally' }, { id: 'danger' }];
+  await changed(page, 'settings');
+  await marker(page, 'Northern Gate').locator('.sc-pin-icon-segment').nth(1).waitFor();
+  await page.goto(`${origin}/#/characters`);
+  const card = page.locator('.record-row[href="#/characters/ryn"] .record-row-mark');
+  await card.waitFor();
+  const ring = await card.evaluate(node => getComputedStyle(node).boxShadow);
+  assert.match(ring, /rgba\(64, 208, 128, 0.7\) 0px 0px 10px 1px/);
+  assert.match(ring, /rgb\(237, 66, 100\) 0px 0px 4px 1px/);
+  assert.equal(await card.locator('.record-visual-glyph').evaluate(node => getComputedStyle(node).filter), 'none');
+  await page.goto(`${origin}/#/characters/ryn`);
+  await page.locator('.record-portrait').waitFor();
+  assert.equal(await page.locator('.record-portrait').evaluate(node => getComputedStyle(node).boxShadow), ring);
+  ryn.value.portrait = imageURL; ryn.revision++;
+  await changed(page, 'characters');
+  await page.locator('img.record-portrait').waitFor();
+  assert.equal(await page.locator('.record-portrait').evaluate(node => getComputedStyle(node).boxShadow), ring);
+  assert.equal(await page.locator('.record-portrait').evaluate(node => getComputedStyle(node).filter), 'none');
+  await page.goto(`${origin}/#/locations`);
+  const location = page.locator('.record-row[href="#/locations/gate"] .record-row-mark');
+  await location.waitFor();
+  assert.equal(await location.evaluate(node => getComputedStyle(node).filter), 'none', 'the card background must not cast the icon glow');
+  const iconGlow = await location.locator('.record-visual-glyph').evaluate(node => getComputedStyle(node).filter);
+  assert.match(iconGlow, /rgba\(64, 208, 128, 0.7\) 0px 0px 10px/);
+  assert.match(iconGlow, /rgb\(237, 66, 100\) 0px 0px 4px/);
+  await page.goto(`${origin}/#/locations/gate`);
+  await page.locator('.record-portrait-placeholder').waitFor();
+  assert.equal(await page.locator('.record-portrait-placeholder .record-visual-glyph').evaluate(node => getComputedStyle(node).filter), iconGlow);
+  await page.screenshot({ path: `${artifacts}article-attitude-glows.png`, animations: 'disabled' });
+  assert.equal(writes.length, 0);
+});
 
 test('event dragging keeps its opening revision during live refresh and remote deletion', async t => {
   const { page, writes } = await fixture(t);

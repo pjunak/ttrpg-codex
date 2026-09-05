@@ -28,7 +28,28 @@ Leaflet's image-coordinate behavior is documented in its
   Local backgrounds use the owning location's opaque `localMap` URL.
 - Marker artwork follows configured `pinTypes.iconConfig`, including stable
   random selection, then the configured bundled icon or original type icon.
-  Campaign marker sizes and the existing attitude projection are reused.
+  Campaign marker sizes and the shared attitude projection are reused.
+
+## Marker attitude glows
+
+Map markers retain the preserved v1 diagonal glow bands. Zero active attitudes
+leave only the dark artwork outline or glyph stroke; one adds a single colored
+glow; two or more render one copy of the artwork/glyph per active attitude.
+Each copy has its own glow and a sheared clip polygon, with extended outer
+edges so the halo is not cut off around the icon. The parent has no combined
+filter, which would blend the colors together again.
+
+Band order follows the entity's attitudes. Unknown IDs and zero-strength
+attitudes do not occupy a band. Colors and strengths come from shared settings,
+including the synthetic party color; retired entry-level strength is ignored.
+The outer marker blur is `max(5, round(size * 0.22))`, with a tighter inner
+blur at 40%. Glyph size is 85% of marker size. Artwork retains the two 1px
+black outline layers. These layers scale and hover together with the pin.
+
+Visual copies are hidden from accessibility APIs and ignore pointer events;
+the owning Leaflet marker remains the single click/keyboard/drag target.
+Live settings changes rebuild the visible layers through the normal campaign
+refresh, with the existing active-drag protection.
 
 ## Editing
 
@@ -146,9 +167,15 @@ Map-settings regressions cover desktop/phone layout, per-map configuration,
 marker scaling, draft conflicts, clean live refresh, category/map navigation,
 world/local uploads, malformed configuration, and DM-only access. Zoom checks
 cover fit limits and resizing in both directions.
+`campaign-attitude-glow.test.ts` locks the preserved band geometry, glow radii,
+strengths, and outline behavior. Browser fixtures exercise artwork and glyph
+bands on desktop/phone, world/local scope, keyboard activation, scaling, and
+live removal of a glow. Card/article checks distinguish portrait border rings
+from icon silhouette filters. Projection tests cover explicit/inherited
+attitudes, unknown IDs, and unavailable factions.
 `map_placement_test.go` covers public/DM projection and player-save preservation
 for visible, hidden, and missing parents. These fixtures contain no live data.
 Screenshots are written to ignored `frontend/test-results/maps/`.
 
-Generated tile pyramids and segmented attitude glows remain tracked in the
-suite backlog. The current viewer uses the original source image directly.
+Generated tile pyramids remain tracked in the suite backlog. The current
+viewer uses the original source image directly.

@@ -54,6 +54,21 @@ describe("campaign product projection", () => {
     ]);
     expect(summaries[1]?.portrait).toBeUndefined();
   });
+
+  it("keeps explicit attitude order and shared strengths while limiting inheritance to visible factions", () => {
+    const characters = campaignPages.find(page => page.collection === "characters")!;
+    const campaign = replace(fixture(), "characters", [
+      { key: "explicit", revision: 1, value: { faction: "party", attitudes: ["ally", { id: "party", strength: 0 }, { id: "ally" }, { id: "unsafe" }, { id: "missing" }] } },
+      { key: "unknown", revision: 1, value: { faction: "party", attitudes: [{ id: "missing" }] } },
+      { key: "hidden-parent", revision: 1, value: { faction: "hidden" } },
+      { key: "inherited", revision: 1, value: { faction: "wardens" } },
+    ], "list");
+    const entities = projectEntities(campaign, characters);
+    expect(entities[0]?.attitudes.map(({ id, strength }) => ({ id, strength }))).toEqual([{ id: "ally", strength: .6 }, { id: "party", strength: 1 }]);
+    expect(entities[1]?.attitudes).toEqual([]);
+    expect(entities[2]?.attitudes).toEqual([]);
+    expect(entities[3]?.attitudes.map(({ id }) => id)).toEqual(["ally"]);
+  });
 });
 
 function fixture(): CampaignDataset {

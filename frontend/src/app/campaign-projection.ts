@@ -10,6 +10,7 @@ import {
   type CampaignPageDefinition,
 } from "./routes.js";
 import { campaignEnumDisplayLabel } from "./campaign-settings.js";
+import { attitudeRing, attitudeFilter } from "./campaign-attitude-glow.js";
 
 export interface CampaignIdentity {
   readonly name: string;
@@ -316,34 +317,13 @@ function attitudeIDs(value: unknown): readonly string[] {
   const seen = new Set<string>();
   const ids: string[] = [];
   for (const candidate of value) {
-    const id = isRecord(candidate) ? text(candidate["id"]) : "";
+    const id = typeof candidate === "string" ? candidate : isRecord(candidate) ? text(candidate["id"]) : "";
     if (id !== "" && !seen.has(id)) {
       seen.add(id);
       ids.push(id);
     }
   }
   return Object.freeze(ids);
-}
-
-function attitudeRing(attitudes: readonly AttitudePresentation[]): string | undefined {
-  const layers = attitudes.flatMap((attitude) => glowLayers(attitude, 8)
-    .map(({ blur, color }) => `0 0 ${blur}px 1px ${color}`));
-  return layers.length === 0 ? undefined : layers.join(", ");
-}
-
-function attitudeFilter(attitudes: readonly AttitudePresentation[]): string | undefined {
-  const layers = attitudes.flatMap((attitude) => glowLayers(attitude, 7)
-    .map(({ blur, color }) => `drop-shadow(0 0 ${blur}px ${color})`));
-  return layers.length === 0 ? undefined : layers.join(" ");
-}
-
-function glowLayers(
-  attitude: AttitudePresentation,
-  blur: number,
-): readonly { readonly blur: number; readonly color: string }[] {
-  if (attitude.strength <= 0) return Object.freeze([]);
-  const color = hexToRGBA(attitude.color, attitude.strength);
-  return Object.freeze([{ blur, color }, { blur: Math.max(2, Math.round(blur * 0.4)), color }]);
 }
 
 function normalizedStrength(value: unknown): number {
@@ -355,16 +335,6 @@ function normalizedStrength(value: unknown): number {
 function safeHexColor(value: unknown): string | undefined {
   const candidate = text(value);
   return /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/iu.test(candidate) ? candidate.toLowerCase() : undefined;
-}
-
-function hexToRGBA(value: string, alpha: number): string {
-  let hex = value.slice(1);
-  if (hex.length === 3) hex = [...hex].map((part) => `${part}${part}`).join("");
-  const numeric = Number.parseInt(hex, 16);
-  const red = (numeric >> 16) & 255;
-  const green = (numeric >> 8) & 255;
-  const blue = numeric & 255;
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
 const secondaryFields: Readonly<Partial<Record<CampaignPageDefinition["collection"], readonly string[]>>> = {

@@ -103,8 +103,9 @@
   background: var(--bg-surface);
   font-size: 2.5rem;
   box-shadow: var(--attitude-ring, 0 0 0 transparent);
-  filter: var(--attitude-filter, none);
 }
+
+.record-visual-glyph { display: inline-block; line-height: 1; filter: var(--attitude-filter, none); }
 
 .collection-page[data-collection="characters"] .record-ledger {
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

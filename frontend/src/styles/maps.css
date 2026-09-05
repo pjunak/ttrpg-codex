@@ -14,9 +14,13 @@
 .sc-map { width: 100%; height: 100%; }
 .sc-map.leaflet-container { background: var(--bg-surface); font-family: var(--font-ui); }
 .sc-map-state { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 1rem; padding: 1rem; }
-.sc-pin { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 24px; --sc-pin-base-scale: 1; transform: scale(var(--sc-pin-base-scale)); transform-origin: center; transition: transform .15s; }
+.sc-pin { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; line-height: 1; cursor: pointer; --sc-pin-base-scale: 1; transform: scale(var(--sc-pin-base-scale)); transform-origin: center; transition: transform .15s; }
 .sc-pin:hover { transform: scale(calc(var(--sc-pin-base-scale) * 1.25)); }
-.sc-pin img { display: block; width: 100%; height: 100%; }
+.sc-pin-icon, .sc-pin-icon-segment { display: block; width: 100%; height: 100%; object-fit: contain; }
+.sc-pin-icon, .sc-pin-emoji, .sc-pin-icon-segment, .sc-pin-emoji-segment { pointer-events: none; user-select: none; }
+.sc-pin-emoji, .sc-pin-emoji-segment { line-height: 1; text-shadow: -1px 0 0 rgba(0,0,0,.75), 1px 0 0 rgba(0,0,0,.75), 0 -1px 0 rgba(0,0,0,.75), 0 1px 0 rgba(0,0,0,.75), 0 0 4px rgba(0,0,0,.55); }
+.sc-pin-icon-segment, .sc-pin-emoji-segment { position: absolute; inset: 0; width: 100%; height: 100%; }
+.sc-pin-emoji-segment { display: flex; align-items: center; justify-content: center; }
 .sc-marker { background: transparent; border: 0; }
 .sc-panel { position: absolute; inset: 0 0 0 auto; width: 280px; max-width: calc(100% - 76px); background: var(--bg-base); border-left: 1px solid rgba(var(--gold-muted), .2); overflow-y: auto; z-index: 1000; padding: 1rem; box-shadow: -4px 0 20px #0006; }
 .sc-panel h2 { font-size: 1.1rem; padding-right: 1rem; margin-top: 1rem; overflow-wrap: anywhere; }

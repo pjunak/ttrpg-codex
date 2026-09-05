@@ -92,7 +92,7 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
 
 - [ ] Restore the world map and location sub-maps, image/tile preparation,
   markers, marker artwork, saved views, zoom behavior, and map editing.
-- [ ] Restore multi-attitude marker/card glows and event-path overlays.
+- [x] Restore multi-attitude marker/card glows and event-path overlays.
 - [ ] Restore the session timeline, drag ordering, and timeline editing.
 - [ ] Restore faction, relationship, and mystery graph views with position
   persistence and their former navigation/detail behavior.
@@ -217,10 +217,17 @@ restore the original steps and wheel sensitivity, enforce the image-fit minimum,
 and keep fitted maps fitted through viewport changes. Desktop/phone browser
 checks cover scaling, navigation guards, uploads, live updates, and DM-only access.
 
-Still open in maps: generated tile pyramids for large images
-and exact segmented multi-attitude glow rendering. Existing attitude colors and
-glow layers already reach map markers. The spatial gates remain open for these
-remaining capabilities; source-image rendering is implemented.
+Map marker glows now match the preserved diagonal bands, including individual
+attitude strength, size-dependent blur, and dark artwork/glyph outlines. Card
+and article glows restore the original radii, portrait border rings, and glyph
+silhouette filters. Desktop/phone browser fixtures cover multi-attitude artwork
+and glyphs, scope, keyboard activation, scaling, live updates, and zero-strength
+settings. Unit checks lock the old band geometry and effective-attitude rules.
+Together with the existing event-path coverage, this completes the glow/overlay
+gate. Other visual and real-host acceptance gates remain open.
+
+Still open in maps: generated tile pyramids for large images; source-image
+rendering is implemented.
 
 Still open elsewhere: saved party/sidebar choices, collection grouping and filter controls,
 timeline/graph views, complete settings/DM screens, and installed add-on
@@ -279,7 +286,7 @@ acceptance still need to be expanded as follow-up documentation.
 | `/historie`, `/historicka-udalost/:id` | `/history`, `/history/:id` | Copied-campaign article/editor acceptance |
 | `/mazlicci` | `/companions` and dedicated companion records | Ownership and sheet-related workflow acceptance |
 | Global search and wiki links | `/search` and typed Markdown links | Add-on reference/linking surfaces and localized editors |
-| `/mapa/svet`, `/mapa/local/:id` | `/map/world`, `/map/local/:id`; old map hashes also accepted | Large-image tiles and segmented glows |
+| `/mapa/svet`, `/mapa/local/:id` | `/map/world`, `/map/local/:id`; old map hashes also accepted | Large-image tiles |
 | `/mapa/palac`, `/mapa/frakce`, `/mapa/vztahy`, `/mapa/tajemstvi` | Not yet restored | Faction, relationship, mystery views and saved positions |
 | `/casova-osa` | Not yet restored | Timeline slice above |
 | `/dm` and player-preview action | Session role switch exists; dedicated DM dashboard and tab-isolated preview remain open | Preserve the distinction between session role switching and true preview |
