@@ -199,6 +199,7 @@ func composeHost(
 	}
 	mediaService, err := applicationmedia.New(applicationmedia.Config{
 		Blobs: blobStorage, Assets: mediaAssets, Records: campaignRecords,
+		MapTileDirectory: filepath.Join(dataDirectory, "cache", "map-tiles-v1"),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("configure media service: %w", err)

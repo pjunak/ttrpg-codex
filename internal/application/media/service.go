@@ -16,6 +16,7 @@ import (
 
 	"github.com/pjunak/ttrpg-codex/internal/domain/campaign"
 	"github.com/pjunak/ttrpg-codex/internal/storage/blobstore"
+	"github.com/pjunak/ttrpg-codex/internal/storage/maptiles"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/mediastore"
 )
 
@@ -83,22 +84,32 @@ type RecordReader interface {
 }
 
 type Config struct {
-	Blobs   BlobStore
-	Assets  AssetStore
-	Records RecordReader
+	Blobs            BlobStore
+	Assets           AssetStore
+	Records          RecordReader
+	MapTileDirectory string
 }
 
 type Service struct {
-	blobs   BlobStore
-	assets  AssetStore
-	records RecordReader
+	blobs    BlobStore
+	assets   AssetStore
+	records  RecordReader
+	mapTiles *maptiles.Cache
 }
 
 func New(config Config) (*Service, error) {
 	if config.Blobs == nil || config.Assets == nil || config.Records == nil {
 		return nil, fmt.Errorf("%w: blob, asset, and campaign stores are required", ErrInvalid)
 	}
-	return &Service{blobs: config.Blobs, assets: config.Assets, records: config.Records}, nil
+	service := &Service{blobs: config.Blobs, assets: config.Assets, records: config.Records}
+	if config.MapTileDirectory != "" {
+		var err error
+		service.mapTiles, err = maptiles.New(config.MapTileDirectory)
+		if err != nil {
+			return nil, fmt.Errorf("configure map tile cache: %w", err)
+		}
+	}
+	return service, nil
 }
 
 func (service *Service) Upload(

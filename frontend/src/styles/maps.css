@@ -13,6 +13,8 @@
 .sc-stage { flex: 1; min-height: 0; position: relative; overflow: hidden; z-index: 0; }
 .sc-map { width: 100%; height: 100%; }
 .sc-map.leaflet-container { background: var(--bg-surface); font-family: var(--font-ui); }
+/* Overlapping map pixels already cover seams; additive blending would brighten their joins. */
+.sc-map img.leaflet-tile { mix-blend-mode: normal; }
 .sc-map-state { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 1rem; padding: 1rem; }
 .sc-pin { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; line-height: 1; cursor: pointer; --sc-pin-base-scale: 1; transform: scale(var(--sc-pin-base-scale)); transform-origin: center; transition: transform .15s; }
 .sc-pin:hover { transform: scale(calc(var(--sc-pin-base-scale) * 1.25)); }

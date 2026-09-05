@@ -5,6 +5,7 @@ import {
   MediaHTTPError,
   parseMediaBlob,
   parseMediaDeleteResult,
+  parseMapTileManifest,
   type MediaFetch,
 } from "../src/core/media.js";
 
@@ -21,6 +22,22 @@ const blob = {
 } as const;
 
 describe("media boundary parsers", () => {
+  it("validates bounded map pyramid dimensions and rejects foreign tile sources", async () => {
+    const manifest = { contractVersion: "map-tiles.v1", id: blob.id, width: 1280, height: 800, tileSize: 256, depth: 3 };
+    expect(parseMapTileManifest(manifest)).toEqual(manifest);
+    for (const invalid of [{ ...manifest, depth: 2 }, { ...manifest, tileSize: 512 }, { ...manifest, width: 32769 },
+      { ...manifest, width: 32000, height: 32000, depth: 7 }, { ...manifest, width: 0 }, { ...manifest, url: 'https://external.invalid/{z}' }]) {
+      expect(() => parseMapTileManifest(invalid)).toThrow(BoundaryValidationError);
+    }
+    const calls: string[] = [];
+    const client = new MediaClient(async (input, init) => { calls.push(input); expect(init.cache).toBe('no-store'); return jsonResponse(manifest); });
+    const signal = new AbortController().signal;
+    await expect(client.mapTiles(blob.url, signal)).resolves.toEqual(manifest);
+    expect(calls).toEqual([`${blob.url}/tiles/v1/manifest`]);
+    await expect(client.mapTiles('https://example.invalid/map.png', signal)).rejects.toThrow(BoundaryValidationError);
+    const foreign = new MediaClient(async () => jsonResponse({ ...manifest, id: 'b_' + '2'.repeat(32) }));
+    await expect(foreign.mapTiles(blob.url, signal)).rejects.toThrow(BoundaryValidationError);
+  });
   it("accepts exact blob and deletion results", () => {
     expect(parseMediaBlob(blob)).toEqual(blob);
     expect(parseMediaDeleteResult({

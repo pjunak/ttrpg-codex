@@ -245,15 +245,41 @@ export class CodexMap extends LitElement {
       const url = this.route.parentId === null ? (await this.#media.latest("world-map", "main", request.signal)).url : this.#localImage();
       this.#imageURL = url;
       if (url === undefined) { this.status = "empty"; return; }
-      const image = await loadImage(url, request.signal);
+      const tiles = await this.#media.mapTiles(url, request.signal).catch(cause => {
+        if (request.signal.aborted) throw cause;
+        return undefined;
+      });
+      const image = tiles === undefined ? await loadImage(url, request.signal) : undefined;
       await this.updateComplete;
       if (request.signal.aborted || !this.isConnected) return;
-      this.#width = image.naturalWidth; this.#height = image.naturalHeight;
+      this.#width = tiles?.width ?? image!.naturalWidth; this.#height = tiles?.height ?? image!.naturalHeight;
       const container = this.querySelector<HTMLElement>(".sc-map")!;
       const map = L.map(container, { crs: L.CRS.Simple, minZoom: -8, maxZoom: 2, zoomSnap: .25, zoomDelta: .5, wheelPxPerZoomLevel: 120,
         zoomControl: false, attributionControl: false, zoomAnimation: false });
       this.#map = map;
-      L.imageOverlay(url, this.#bounds()).addTo(map);
+      if (tiles === undefined) L.imageOverlay(url, this.#bounds()).addTo(map);
+      else {
+        const layer = L.tileLayer(`${url}/tiles/v1/{z}/{x}/{y}`, {
+          tileSize: tiles.tileSize, noWrap: true, bounds: this.#bounds(), minZoom: -8, maxZoom: 2,
+          minNativeZoom: -tiles.depth, maxNativeZoom: 0, zoomOffset: tiles.depth,
+        });
+        layer.on("tileloadstart", (event: L.TileEvent) => {
+          // v1 tiles include one real source pixel of right/bottom overlap.
+          event.tile.style.width = `${tiles.tileSize + 1}px`; event.tile.style.height = `${tiles.tileSize + 1}px`;
+        });
+        let fallingBack = false;
+        layer.on("tileerror", () => {
+          if (fallingBack || request.signal.aborted) return;
+          fallingBack = true;
+          // A broken/evicted cache must not leave a partially blank map. Keep
+          // this viewport and its edits while loading the immutable original.
+          void loadImage(url, request.signal).then(() => {
+            if (request.signal.aborted) return;
+            L.imageOverlay(url, this.#bounds()).addTo(map); layer.remove();
+          }).catch(() => { if (!request.signal.aborted) this.status = "error"; });
+        });
+        layer.addTo(map);
+      }
       this.#layers = L.layerGroup().addTo(map);
       this.#eventLayers = L.layerGroup().addTo(map);
       this.#updateFitZoom();

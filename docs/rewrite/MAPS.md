@@ -1,7 +1,7 @@
 # Campaign maps
 
-The Lit map page uses bundled Leaflet 1.9.4 with `CRS.Simple` and an immutable
-source-image overlay. The original `swordcoast.css` shell, toolbar, floating
+The Lit map page uses bundled Leaflet 1.9.4 with `CRS.Simple` and immutable
+map tiles, with an original-image fallback. The original `swordcoast.css` shell, toolbar, floating
 zoom controls, marker sizes, and marker SVGs are the visual reference.
 Leaflet's image-coordinate behavior is documented in its
 [non-geographical map guide](https://leafletjs.com/examples/crs-simple/crs-simple.html).
@@ -50,6 +50,30 @@ Visual copies are hidden from accessibility APIs and ignore pointer events;
 the owning Leaflet marker remains the single click/keyboard/drag target.
 Live settings changes rebuild the visible layers through the normal campaign
 refresh, with the existing active-drag protection.
+
+## Image tiles and fallback
+
+The viewer first requests a `map-tiles.v1` manifest for the same opaque media
+handle used by the map. The backend builds a disposable pyramid on first use;
+cache hits do not decode the source again. Uploads and converted maps use the
+same path. See [MEDIA.md](MEDIA.md) for authorization, cache ownership and limits.
+
+Tile levels run from 0 (the whole image fits in one 256px grid cell) to the
+manifest's `depth` (native pixels). Leaflet keeps its original image-coordinate
+frame: native zoom is 0, `minNativeZoom` is `-depth`, and `zoomOffset` is `depth`.
+Over-zoom scales native tiles. Saved views, fractional positions, event paths,
+marker scale, and the original toolbar work identically for both backgrounds.
+
+PNG tiles have a 256px grid with one extra source pixel on the right and bottom.
+The viewer displays all 257px at their true scale, using normal blending to
+cover fractional-zoom seams without stretching coordinates or brightening
+joins. Outside-image pixels are transparent. Replacing an image changes the
+opaque URL, disposes the old layer, and cannot mix tile generations.
+
+Missing/invalid manifests, unsupported images, and generation failures use
+the original-image overlay. A tile load failure also loads the original into
+the existing map, retaining its viewport and edit state. Route disposal aborts
+pending work; a failed original load uses the ordinary map error/retry state.
 
 ## Editing
 
@@ -177,5 +201,10 @@ attitudes, unknown IDs, and unavailable factions.
 for visible, hidden, and missing parents. These fixtures contain no live data.
 Screenshots are written to ignored `frontend/test-results/maps/`.
 
-Generated tile pyramids remain tracked in the suite backlog. The current
-viewer uses the original source image directly.
+Tile regressions verify native pixels, transparent edges, bounded decoding,
+WebP/JPEG handling, cache regeneration, concurrency and cancellation in Go.
+Application/HTTP checks verify current owner visibility even for cached and
+conditional reads. Desktop/phone browser fixtures verify matching coordinate
+geometry, zoom, image replacement, and failure fallback without downloading
+the source image on the successful tiled path. Real campaign acceptance remains
+in the suite backlog.

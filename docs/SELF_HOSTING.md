@@ -34,6 +34,12 @@ Copy `.env.example` to `.env` and set:
 The host has no default credential. Password values are deployment
 configuration and are not imported from v1 backups.
 
+Map tiles are generated on first use in `data/cache/map-tiles-v1`; the first
+open can take longer while later reads reuse the cache. Originals remain in
+the verified blob store. This cache is excluded from backups and may be removed
+while the host is stopped; it regenerates automatically. Unsupported or oversized
+images use the original-image viewer. See [media limits](rewrite/MEDIA.md#map-tile-contract-and-cache).
+
 ## Build and start
 
 ```powershell

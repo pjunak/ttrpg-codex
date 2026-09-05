@@ -12,6 +12,7 @@ import (
 	applicationmedia "github.com/pjunak/ttrpg-codex/internal/application/media"
 	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
 	"github.com/pjunak/ttrpg-codex/internal/storage/blobstore"
+	"github.com/pjunak/ttrpg-codex/internal/storage/maptiles"
 )
 
 const (
@@ -55,6 +56,8 @@ func (s *server) registerMediaRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/media/{kind}/{target}", s.uploadMedia)
 	mux.HandleFunc("GET /api/media/latest/{kind}/{target}", s.latestMedia)
 	mux.HandleFunc("GET /api/media/{blobID}", s.readMedia)
+	mux.HandleFunc("GET /api/media/{blobID}/tiles/v1/manifest", s.mapManifest)
+	mux.HandleFunc("GET /api/media/{blobID}/tiles/v1/{level}/{x}/{y}", s.readMapTile)
 	mux.HandleFunc("DELETE /api/media/{blobID}", s.deleteMedia)
 }
 
@@ -139,6 +142,11 @@ func (s *server) readMedia(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("ETag", `"`+asset.Blob.SHA256+`"`)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'")
+	setMediaCacheHeaders(w, asset)
+	http.ServeContent(w, r, filename, asset.Blob.CreatedAt, file)
+}
+
+func setMediaCacheHeaders(w http.ResponseWriter, asset applicationmedia.Asset) {
 	if asset.Blob.Visibility == blobstore.VisibilityPublic {
 		if asset.Binding.Kind == string(applicationmedia.CharacterPortrait) ||
 			asset.Binding.Kind == string(applicationmedia.LocationMap) {
@@ -149,7 +157,6 @@ func (s *server) readMedia(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.Header().Set("Cache-Control", "private, no-store")
 	}
-	http.ServeContent(w, r, filename, asset.Blob.CreatedAt, file)
 }
 
 func (s *server) deleteMedia(w http.ResponseWriter, r *http.Request) {
@@ -206,6 +213,10 @@ func (s *server) writeMediaError(w http.ResponseWriter, err error) {
 		writeAPIError(w, http.StatusForbidden, "FORBIDDEN", "media operation is forbidden")
 	case errors.Is(err, applicationmedia.ErrNotFound):
 		writeAPIError(w, http.StatusNotFound, "NOT_FOUND", "media asset was not found")
+	case errors.Is(err, maptiles.ErrNotFound):
+		writeAPIError(w, http.StatusNotFound, "NOT_FOUND", "map tile was not found")
+	case errors.Is(err, maptiles.ErrUnsupported):
+		writeAPIError(w, http.StatusUnsupportedMediaType, "MAP_TILES_UNAVAILABLE", "use the original map image")
 	case errors.Is(err, applicationmedia.ErrConflict):
 		writeAPIError(w, http.StatusConflict, "CONFLICT", "media asset revision changed")
 	default:

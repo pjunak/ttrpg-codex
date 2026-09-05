@@ -90,7 +90,7 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
 
 ### Spatial, temporal, and relationship workflows
 
-- [ ] Restore the world map and location sub-maps, image/tile preparation,
+- [x] Restore the world map and location sub-maps, image/tile preparation,
   markers, marker artwork, saved views, zoom behavior, and map editing.
 - [x] Restore multi-attitude marker/card glows and event-path overlays.
 - [ ] Restore the session timeline, drag ordering, and timeline editing.
@@ -226,8 +226,16 @@ settings. Unit checks lock the old band geometry and effective-attitude rules.
 Together with the existing event-path coverage, this completes the glow/overlay
 gate. Other visual and real-host acceptance gates remain open.
 
-Still open in maps: generated tile pyramids for large images; source-image
-rendering is implemented.
+World/local maps now generate disposable PNG tile pyramids from immutable media
+on first use, preserving the original image coordinate frame and zoom behavior.
+Every tile read checks current media visibility; replacement handles cannot mix
+generations. Bounded decoding, cancellation, complete-directory publication,
+cache reuse and original-image fallback are covered by Go and browser tests.
+One-pixel source overlaps remove fractional-zoom seams without stretching the
+map. Desktop/phone checks cover geometry, over-zoom, local image replacement,
+and tile failure fallback. This completes the map implementation gate, with
+the format/size fallback limits recorded in `docs/rewrite/MEDIA.md` and actual
+campaign acceptance still covered by the separate release gates.
 
 Still open elsewhere: saved party/sidebar choices, collection grouping and filter controls,
 timeline/graph views, complete settings/DM screens, and installed add-on
@@ -286,7 +294,7 @@ acceptance still need to be expanded as follow-up documentation.
 | `/historie`, `/historicka-udalost/:id` | `/history`, `/history/:id` | Copied-campaign article/editor acceptance |
 | `/mazlicci` | `/companions` and dedicated companion records | Ownership and sheet-related workflow acceptance |
 | Global search and wiki links | `/search` and typed Markdown links | Add-on reference/linking surfaces and localized editors |
-| `/mapa/svet`, `/mapa/local/:id` | `/map/world`, `/map/local/:id`; old map hashes also accepted | Large-image tiles |
+| `/mapa/svet`, `/mapa/local/:id` | `/map/world`, `/map/local/:id`; old map hashes also accepted | Real-host acceptance with each campaign's maps |
 | `/mapa/palac`, `/mapa/frakce`, `/mapa/vztahy`, `/mapa/tajemstvi` | Not yet restored | Faction, relationship, mystery views and saved positions |
 | `/casova-osa` | Not yet restored | Timeline slice above |
 | `/dm` and player-preview action | Session role switch exists; dedicated DM dashboard and tab-isolated preview remain open | Preserve the distinction between session role switching and true preview |

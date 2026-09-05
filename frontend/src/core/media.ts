@@ -53,6 +53,28 @@ export interface MediaDeleteResult {
   readonly deleted: true;
 }
 
+export interface MapTileManifest {
+  readonly contractVersion: "map-tiles.v1";
+  readonly id: string;
+  readonly width: number;
+  readonly height: number;
+  readonly tileSize: 256;
+  readonly depth: number;
+}
+const mapTileBoundary = "GET /api/media/{id}/tiles/v1/manifest";
+const mapTileKeys = new Set(["contractVersion", "id", "width", "height", "tileSize", "depth"]);
+
+export function parseMapTileManifest(value: unknown): MapTileManifest {
+  if (!isRecord(value) || !hasOnlyKeys(value, mapTileKeys) || value["contractVersion"] !== "map-tiles.v1" ||
+    typeof value["id"] !== "string" || !blobIDPattern.test(value["id"]) ||
+    !positiveInteger(value["width"]) || !positiveInteger(value["height"]) || value["width"] > 32768 || value["height"] > 32768 ||
+    value["width"] * value["height"] > 32 * 1024 * 1024 || value["tileSize"] !== 256 ||
+    !nonNegativeInteger(value["depth"]) || value["depth"] !== Math.max(0, Math.ceil(Math.log2(Math.max(value["width"], value["height"]) / 256)))) {
+    throw new BoundaryValidationError(mapTileBoundary, "response must be an exact bounded map pyramid");
+  }
+  return { contractVersion: "map-tiles.v1", id: value["id"], width: value["width"], height: value["height"], tileSize: 256, depth: value["depth"] };
+}
+
 export type MediaFetch = (input: string, init: RequestInit) => Promise<Response>;
 
 export class MediaHTTPError extends Error {
@@ -68,6 +90,18 @@ export class MediaClient {
 
   constructor(fetchMedia: MediaFetch = (input, init) => fetch(input, init)) {
     this.#fetchMedia = fetchMedia;
+  }
+
+  async mapTiles(url: string, signal: AbortSignal): Promise<MapTileManifest> {
+    signal.throwIfAborted();
+    const match = /^\/api\/media\/(b_[0-9a-f]{32})$/u.exec(url);
+    if (match === null) throw new BoundaryValidationError(mapTileBoundary, "map must use an opaque media URL");
+    const response = await this.#fetchMedia(`${url}/tiles/v1/manifest`, {
+      method: "GET", headers: { Accept: "application/json" }, credentials: "same-origin", cache: "no-store", signal,
+    });
+    const manifest = await parseJSONResponse(response, mapTileBoundary, parseMapTileManifest);
+    if (manifest.id !== match[1]) throw new BoundaryValidationError(mapTileBoundary, "map pyramid belongs to another image");
+    return manifest;
   }
 
   async upload(

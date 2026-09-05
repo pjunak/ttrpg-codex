@@ -25,7 +25,7 @@ before(async () => {
 });
 after(async () => { await browser?.close(); await server?.close(); });
 
-async function fixture(t, { role = 'dm', mobile = false } = {}) {
+async function fixture(t, { role = 'dm', mobile = false, tiled = false, tileFailure = false } = {}) {
   campaign = structuredClone(visualCampaign); sequence = 0;
   collection('locations').records = [
     { key: 'gate', revision: 3, value: { id: 'gate', name: 'Northern Gate', x: .25, y: .4, pinType: 'fortress', localMap: imageURL, extension: { keep: true }, visibility: 'public' } },
@@ -49,12 +49,25 @@ async function fixture(t, { role = 'dm', mobile = false } = {}) {
     viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 }, extraHTTPHeaders: { 'x-fixture-role': role } });
   t.after(() => context.close());
   const page = await context.newPage(); page.setDefaultTimeout(7000);
-  const errors = [], writes = [], uploads = [];
+  const errors = [], writes = [], uploads = [], mediaReads = [];
   page.on('pageerror', error => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, [], 'browser errors'));
   let latest = imageURL;
   await page.route('**/api/media/**', async route => {
     const request = route.request(), url = new URL(request.url());
+    if (request.method() === 'GET') mediaReads.push(url.pathname);
+    if (url.pathname.endsWith('/tiles/v1/manifest')) return tiled
+      ? route.fulfill({ json: { contractVersion: 'map-tiles.v1', id: url.pathname.split('/')[3], width: 1280, height: 800, tileSize: 256, depth: 3 } })
+      : route.fulfill({ status: 415, json: { error: 'Use original image' } });
+    const tile = /\/tiles\/v1\/(\d+)\/(\d+)\/(\d+)$/.exec(url.pathname);
+    if (tile) {
+      if (tileFailure) return route.fulfill({ status: 503, json: { error: 'Tile unavailable' } });
+      const [, level, x, y] = tile.map(Number), scale = 2 ** (3 - level);
+      const body = svg.replace('width="1280" height="800"', `width="257" height="257" viewBox="${x*256*scale} ${y*256*scale} ${257*scale} ${257*scale}"`)
+        .replace('><rect', '><defs><clipPath id="source-bounds"><rect width="1280" height="800"/></clipPath></defs><g clip-path="url(#source-bounds)"><rect')
+        .replace('</svg>', '</g></svg>');
+      return route.fulfill({ contentType: 'image/svg+xml', body });
+    }
     if (request.method() === 'POST') {
       assert.equal(request.headers()['x-codex-csrf'], 'x'.repeat(32));
       uploads.push(url.pathname);
@@ -84,7 +97,7 @@ async function fixture(t, { role = 'dm', mobile = false } = {}) {
   });
   await page.goto(`${origin}/#/map/world`);
   await page.getByRole('button', { name: 'Zoom in', exact: true }).waitFor();
-  return { page, writes, uploads };
+  return { page, writes, uploads, mediaReads };
 }
 function blob(url, kind, target) { return { contractVersion: 'media-blob.v1', id: url.split('/').at(-1), url, kind, target,
   mediaType: 'image/svg+xml', bytes: svg.length, revision: 1, createdAt: '2026-09-05T12:00:00Z' }; }
@@ -108,6 +121,37 @@ async function setScale(page, value) {
 }
 
 for (const mobile of [false, true]) {
+  test(`tiled maps preserve image coordinates and original controls (${mobile ? 'phone' : 'desktop'})`, async t => {
+    const { page, writes, mediaReads } = await fixture(t, { mobile, tiled: true });
+    await page.waitForFunction(() => {
+      const tiles = [...document.querySelectorAll('.leaflet-tile')];
+      return tiles.length > 0 && tiles.every(image => image.complete && image.naturalWidth > 0 && Number(getComputedStyle(image).opacity) === 1);
+    });
+    assert.equal(await page.locator('.leaflet-image-layer').count(), 0);
+    assert.equal(mediaReads.includes(imageURL), false, 'a tiled map must not download the full original');
+    const rendered = page.locator('.leaflet-tile[src$="/0/0"]').first();
+    const originTile = await rendered.boundingBox();
+    assert.equal(await rendered.evaluate(node => getComputedStyle(node).mixBlendMode), 'normal');
+    const level = Number((await rendered.getAttribute('src')).match(/v1\/(\d+)/)[1]);
+    const pixelScale = originTile.width / 257 / 2 ** (3 - level);
+    const pin = await marker(page, 'Northern Gate').boundingBox();
+    assert.ok(Math.abs(pin.x + pin.width / 2 - originTile.x - 1280 * .25 * pixelScale) < 2);
+    assert.ok(Math.abs(pin.y + pin.height / 2 - originTile.y - 800 * .4 * pixelScale) < 2);
+    await page.screenshot({ path: `${artifacts}${mobile ? 'mobile' : 'desktop'}-tiled-map.png`, animations: 'disabled' });
+    await page.getByRole('button', { name: 'Actual image size', exact: true }).click();
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    assert.equal(await page.getByRole('slider', { name: 'Map zoom', exact: true }).inputValue(), '0.5');
+    assert.ok((await page.locator('.leaflet-tile').evaluateAll(nodes => nodes.map(node => Number(node.src.match(/v1\/(\d+)/)[1])))).every(level => level <= 3));
+    await page.goto(`${origin}/#/map/local/gate`);
+    await marker(page, 'Upper Room').waitFor();
+    assert.equal(await page.locator('.leaflet-image-layer').count(), 0);
+    record('gate').value.localMap = uploadedURL; record('gate').revision++;
+    await changed(page, 'locations');
+    await page.locator(`.leaflet-tile[src^="${uploadedURL}/tiles/"]`).first().waitFor();
+    assert.equal(await page.locator(`.leaflet-tile[src^="${imageURL}/tiles/"]`).count(), 0, 'replacement must never mix old and new tile generations');
+    assert.equal(mediaReads.includes(uploadedURL), false);
+    assert.equal(writes.length, 0);
+  });
   test(`attitude glows keep the original diagonal marker bands (${mobile ? 'phone' : 'desktop'})`, async t => {
     const { page, writes } = await fixture(t, { mobile, role: 'player' });
     collection('settings').records.push({ key: 'attitudes', revision: 1, value: [
@@ -234,6 +278,7 @@ for (const mobile of [false, true]) {
     assert.equal(eventRecord('past').value.mapParentId, undefined);
     assert.deepEqual(eventRecord('past').value.locations, ['gate']);
     assert.deepEqual(eventRecord('past').value.extension, { keep: true });
+    await pin.waitFor();
     assert.equal(await pin.count(), 1, 'removing an explicit pin restores its linked-location marker');
   });
   test(`world/local map navigation and original controls (${mobile ? 'phone' : 'desktop'})`, async t => {
@@ -265,6 +310,15 @@ for (const mobile of [false, true]) {
     await page.screenshot({ path: `${artifacts}${mobile ? 'mobile' : 'desktop'}-local.png`, animations: 'disabled' });
   });
 }
+
+test('a tile failure falls back to the original image without losing the map', async t => {
+  const { page, writes, mediaReads } = await fixture(t, { tiled: true, tileFailure: true });
+  await page.locator('.leaflet-image-layer').waitFor();
+  await page.waitForFunction(() => document.querySelectorAll('.leaflet-tile').length === 0);
+  await marker(page, 'Northern Gate').waitFor();
+  assert.equal(mediaReads.filter(url => url === imageURL).length, 1);
+  assert.equal(writes.length, 0);
+});
 
 test('card and article glows surround portraits and follow icon silhouettes', async t => {
   const { page, writes } = await fixture(t);

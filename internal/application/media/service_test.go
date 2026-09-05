@@ -204,7 +204,7 @@ func newTestService(t *testing.T, records recordMap) (*Service, *sql.DB) {
 		database.Close()
 		t.Fatal(err)
 	}
-	service, err := New(Config{Blobs: blobs, Assets: assets, Records: records})
+	service, err := New(Config{Blobs: blobs, Assets: assets, Records: records, MapTileDirectory: filepath.Join(directory, "map-tiles-v1")})
 	if err != nil {
 		database.Close()
 		t.Fatal(err)

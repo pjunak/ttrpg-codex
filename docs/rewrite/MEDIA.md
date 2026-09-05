@@ -47,6 +47,43 @@ The strict TypeScript `MediaClient` validates requests and the complete JSON
 response at the browser boundary. The host remains authoritative for target
 existence, visibility, and role.
 
+## Map tile contract and cache
+
+`GET /api/media/{id}/tiles/v1/manifest` returns the exact `map-tiles.v1` object:
+`contractVersion`, `id`, `width`, `height`, `tileSize` (256), and `depth` (0..7).
+`GET /api/media/{id}/tiles/v1/{level}/{x}/{y}` returns PNG bytes on a 256px grid,
+with a one-pixel right/bottom overlap (257×257 PNGs). Level `depth` is native
+resolution; level 0 fits the whole image in one cell. Coordinates are canonical
+non-negative decimal integers and are checked against the level's dimensions.
+The client derives tile URLs from the reviewed opaque handle, never a supplied
+URL template or filesystem path.
+
+Only world-map and location-map handles may be tiled. Every manifest and tile
+request reuses ordinary media authorization, including cached and conditional
+requests. Hiding/deleting the owning location or deleting the handle therefore
+blocks subsequent reads. Location tiles revalidate before reuse; DM tiles use
+private/no-store caching. Fixed-public world tiles use immutable caching.
+Manifest JSON and error responses use no-store. Tile ETags include the source
+hash, format version, and coordinates, without exposing cache paths.
+
+The Go host generates PNG, JPEG and WebP pyramids on first use under
+`data/cache/map-tiles-v1/<source-sha256>/`. `golang.org/x/image` supplies the
+[WebP decoder](https://pkg.go.dev/golang.org/x/image/webp) and
+[image resampling](https://pkg.go.dev/golang.org/x/image/draw).
+Only one decoder runs at a time, and dimensions are inspected before full
+decoding: at most 32,768 pixels per axis and 33,554,432 pixels total. SVG, GIF,
+JPEGs with APP1/EXIF metadata, unsupported WebP variants, larger images, and
+decode failures retain the original-image viewer. JPEG metadata falls back so
+browser orientation cannot silently change the map's coordinate frame.
+
+Generation is cancellable, uses a private staging directory, and publishes the
+complete pyramid by rename. An `os.Root` confines cache filesystem operations.
+The cache is derived from immutable blobs, contains no authoritative records,
+and is excluded from backups. Removing it while the host is stopped is safe;
+the next map read regenerates tiles. New uploads use new handles, so an old
+image and its cached tiles remain internally consistent. No upload, migration,
+or backup format changes are needed.
+
 ## Persistence and replacement
 
 Migration 0007 records each core media binding by monotonically increasing
