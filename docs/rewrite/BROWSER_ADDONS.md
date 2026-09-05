@@ -37,6 +37,14 @@ state changes.
 
 ## Host projection
 
+The host's Sidebar settings provide a further presentation filter after the
+normal generation/role projection. Pages start hidden and may be opted into
+Everyone or DM-only navigation using the stable `<addonId>:<route>` key in
+`settings/addonSidebarVisibility`. This does not change package permissions,
+route access, activation, or contribution descriptors. Preference changes
+refresh the existing outlet; hidden links do not dispose the underlying route.
+Saved keys for inactive or renamed routes remain available for later review.
+
 `packagemanager.BrowserGraph` builds the deterministic projection from durable
 active state and recovered package reports. Only the exact selected generation
 of a recovered add-on may contribute UI. Entry and stylesheet paths are

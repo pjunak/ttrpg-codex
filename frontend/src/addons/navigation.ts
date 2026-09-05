@@ -20,6 +20,7 @@ export interface BrowserNavigationOutletOptions {
   readonly registry: BrowserContributionRegistry;
   readonly role: BrowserRole;
   readonly currentHash: () => string;
+  readonly include?: (entry: BrowserNavigationEntry) => boolean;
   readonly onError?: (cause: unknown) => void;
   readonly onCountChange?: (count: number) => void;
 }
@@ -91,6 +92,7 @@ export class BrowserNavigationOutlet {
   readonly #registry: BrowserContributionRegistry;
   readonly #role: BrowserRole;
   readonly #currentHash: () => string;
+  readonly #include: (entry: BrowserNavigationEntry) => boolean;
   readonly #onError: (cause: unknown) => void;
   readonly #onCountChange: (count: number) => void;
   readonly #mounted = new Map<string, MountedNavigationEntry>();
@@ -103,6 +105,7 @@ export class BrowserNavigationOutlet {
     this.#registry = options.registry;
     this.#role = options.role;
     this.#currentHash = options.currentHash;
+    this.#include = options.include ?? (() => true);
     this.#onError = options.onError ?? (() => undefined);
     this.#onCountChange = options.onCountChange ?? (() => undefined);
     this.#unsubscribe = this.#registry.subscribe(() => this.refresh());
@@ -118,6 +121,7 @@ export class BrowserNavigationOutlet {
       const retained = new Set<string>();
       const currentHash = this.#currentHash();
       for (const entry of listBrowserNavigation(this.#registry, this.#role)) {
+        if (!this.#include(entry)) continue;
         const key = `${entry.addonId}:${entry.generationId}:${entry.contributionId}`;
         const identity = `${entry.hash}:${entry.label}`;
         let mounted = this.#mounted.get(key);

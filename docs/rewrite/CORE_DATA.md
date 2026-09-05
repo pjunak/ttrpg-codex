@@ -209,10 +209,43 @@ ownership labels. The linked member list uses only the current role projection.
 `frontend/test/browser/party-settings.browser.mjs` cover preparation and these
 production UI paths, including desktop/phone layout and English/Czech copy.
 
+`settings/branding` now provides the shared sidebar wordmark, tab title, and
+logo/favicon. The Appearance panel retains the original branding section and
+84px preview. A selected logo remains in the draft until Save; the normal
+`branding-logo/main` media upload precedes the optimistic settings transaction.
+An upload or settings failure keeps both text and the file for retry. Resetting
+the logo clears only its reference, preserving immutable old media and unrelated
+fields. Raw or external image URLs never enter the shell. Theme and branding
+forms cannot save over each other's pending drafts.
+
+`settings/sidebarLayout` stores ordered sections and their page routes plus a
+hidden-page list. Section names, icons, collapse/default-open flags, DM-only
+visibility, moves, hiding, add/delete, reset, and drag ordering are editable.
+Section IDs and unknown fields survive ordinary edits. Preserved core routes
+resolve through the implemented page registry; unavailable routes stay in the
+editor without becoming broken links. New registry pages start hidden in a
+curated layout. Invalid stored layouts are reported, never overwritten by the
+fallback navigation. Collapse choices use the original per-browser
+`sidebar_section_open:<id>` keys.
+
+`settings/addonSidebarVisibility` holds `everyone`, `dm`, or `hidden` per
+`<addonId>:<route>` key. Installed v3 pages default to hidden; the DM opts them
+into the sidebar. An optional host navigation filter runs after the existing
+generation and role checks, so settings cannot grant access. Layout and changed
+visibility preferences save atomically with separate opening revisions, keeping
+inactive route keys. Changing a package's route identity requires reviewing its
+new opt-in entry. Retired `hiddenSidebarPages`-only backups still need explicit
+offline conversion into `sidebarLayout`; no startup compatibility reader is added.
+
+The production browser scenarios in `chrome-settings.browser.mjs` and the unit
+checks in `campaign-chrome.test.ts` cover the controls, extensions, stale/deleted
+revisions, upload retry, safe URL projection, role-filtered navigation, collapse
+persistence, page/section drag, and mobile layout. The public Add-on API and
+package descriptors are unchanged.
+
 The rewrite does not yet implement:
 
-- timelines, branding/sidebar settings, the remaining non-enum
-  settings, and other specialized workflows;
+- timelines, recovery/account settings, and other specialized workflows;
 - initial import publication or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and
   other domain queries.

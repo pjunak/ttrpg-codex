@@ -3,6 +3,7 @@ export const visualCampaign = {
   collections: ['characters','relationships','locations','events','mysteries','factions','deletedDefaults','pantheon','artifacts','settings','historicalEvents','campaign','pets'].map(name => ({
     name, shape: ['factions','deletedDefaults','settings','campaign'].includes(name) ? 'keyed' : 'list', materialized: true, revision: 1,
     records: ({
+      settings: [{ key: 'addonSidebarVisibility', revision: 1, value: { 'visual-fixture:/addons/visual-fixture/tools': 'dm' } }],
       campaign: [{ key: 'main', revision: 1, value: { name: 'Asurai', tagline: 'Beyond the northern mountains' } }],
       characters: ['Ryn','Mira','Kael','Talia'].map((name, index) => ({ key: name.toLowerCase(), revision: 1, value: {
         id: name.toLowerCase(), name, title: ['Scout','Wizard','Guardian','Ranger'][index], faction: 'party', status: 'alive', knowledge: 4,

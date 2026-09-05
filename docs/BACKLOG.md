@@ -102,8 +102,11 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
 - [x] Restore DM-facing shared campaign enum management for relationships,
   genders, map markers, character statuses, event priorities, and attitudes,
   including stable IDs, usage counts, and explicit replace-or-clear deletion.
-- [ ] Restore the remaining settings for campaign branding, map behavior,
-  sidebar choices, and other persisted campaign preferences.
+- [ ] Finish persisted-settings compatibility for converted campaigns. Branding,
+  map behavior, party identity, and core/add-on sidebar controls are restored;
+  older `hiddenSidebarPages`-only backups still need explicit offline conversion
+  into `sidebarLayout`. Review renamed add-on route preference keys during the
+  already-required package and campaign conversion checks.
 - [ ] Restore the useful recovery-point workflow: manual points, coalesced write
   snapshots, restore, and revert-last-N, while retaining verified full backup.
 - [ ] Provide reviewed runtime credential rotation or explicitly accept
@@ -246,7 +249,19 @@ retain dirty drafts during live refresh, and reject stale/deleted revisions or
 malformed settings. English/Czech desktop/phone production-browser checks cover
 these behaviors, role restrictions, clean refresh, conflicts, and navigation.
 
-Still open elsewhere: saved sidebar choices, collection grouping and filter controls,
+Branding now restores the Appearance panel's logo preview, upload/default-logo
+controls, and wordmark fields. The accepted record updates the sidebar and tab
+title/favicon; drafts keep selected files and text through upload/save failures.
+Core sidebar settings restore section names/icons, role visibility, collapse
+preferences, page/section ordering and dragging, hiding, add/delete and reset.
+Unavailable saved routes remain reviewable without exposing broken links.
+Installed add-on links default to hidden and offer Everyone/DM/Hidden choices
+after the existing role and generation checks. Layout and visibility saves use
+one revision-checked transaction and retain unknown and inactive entries.
+Production desktop/phone checks cover these controls, stale/live changes,
+file retry, role filtering, and original preview and row styling.
+
+Still open elsewhere: older hidden-page preference conversion, collection grouping and filter controls,
 timeline/graph views, complete settings/DM screens, and installed add-on
 visual acceptance. Keep the visual and release gates open until the requested
 workflows are ported; apply the lighter operational policy above at cutover.
@@ -308,9 +323,9 @@ acceptance still need to be expanded as follow-up documentation.
 | `/casova-osa` | Not yet restored | Timeline slice above |
 | `/dm` and player-preview action | Session role switch exists; dedicated DM dashboard and tab-isolated preview remain open | Preserve the distinction between session role switching and true preview |
 | `/nastaveni`: six enum categories | `/settings` enum panels | Full localization and real-host save/delete/conflict coverage |
-| Settings: `language`, `appearance` | Personal language and shared theme panels | Remaining catalogs, tokens, and old appearance/branding actions |
+| Settings: `language`, `appearance` | Personal language, shared theme and branding/logo panels | Remaining catalogs, tokens, and campaign visual acceptance |
 | Settings: `worldmap` | Maps panel at `/settings/maps`, with local-map scope links | Real-host visual acceptance with campaign maps |
-| Settings: `playerParty`, `sidebarPages` | Not yet restored | Party, sidebar and shared preference controls |
+| Settings: `playerParty`, `sidebarPages` | Party identity, curated core sidebar, and add-on visibility controls restored | Older hidden-page preference conversion and installed-route key review |
 | Settings: `addons` | Lifecycle APIs exist; manager and add-on settings UI remain open | Permission review, activation, diagnostics, update and rollback |
 | Settings: `backup`, `account` | Verified backup/maintenance and session APIs exist; full recovery/server controls remain open | Recovery points, restore/revert and accepted credential rotation |
 | Add-on routes and graph/settings contributions | Versioned v3 mounting infrastructure and package routes exist | Per-add-on workflow inventory and installed-package acceptance |

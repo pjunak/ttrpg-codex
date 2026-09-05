@@ -34,8 +34,9 @@ import { BrowserContributionOutlet } from "../addons/contribution-outlet.js";
 import {
   BrowserNavigationOutlet,
   browserAddonRouteHash,
+  listBrowserNavigation,
 } from "../addons/navigation.js";
-import logoURL from "../assets/logo-default.svg";
+import { applyBrandingFavicon, BrandingEditError, campaignBranding, defaultLogo, prepareBrandingSave, type BrandingSaveDetail } from "./campaign-branding.js";
 import {
   CampaignRecordEditError,
   prepareCampaignRecordDelete,
@@ -76,6 +77,8 @@ import { CampaignIdentityEditError, prepareCampaignIdentitySave, type CampaignId
 import { MediaClient } from "../core/media.js";
 import { CampaignMapEditError, mapLocationRecord, prepareMapSave, prepareLocalMapImage, type MapSaveDetail, type MapUploadDetail } from "./campaign-map.js";
 import "./codex-map.js";
+import { campaignSidebar, defaultSidebarLayout, prepareSidebarSave, sidebarPage, SidebarEditError, type SidebarSection, type SidebarSaveDetail } from "./campaign-sidebar.js";
+import { addonSidebarKey, addonSidebarMode, prepareAddonSidebarSave } from "./campaign-sidebar.js";
 
 type Readiness =
   | { readonly state: "checking" }
@@ -202,14 +205,17 @@ export class CodexApp extends LitElement {
   }
 
   protected override render() {
+    const branding = campaignBranding(this.campaignState.state === "ready" ? this.campaignState.campaign : undefined);
     return html`
       <a class="skip-link" href="#campaign-content" @click=${this.#focusContent}>${this.#ui.t("shell.skip")}</a>
       <div class="codex-shell">
         <aside id="campaign-sidebar" class=${`campaign-sidebar ${this.menuOpen ? "is-open" : ""}`} .inert=${this.mobileViewport && !this.menuOpen}>
           <header class="campaign-brand">
             <a href="#/" aria-label=${this.#ui.t("shell.openOverview")}>
-              <img class="campaign-sigil" src=${logoURL} alt="" />
-              <span><strong>TTRPG Codex</strong><small>Wiki &amp; World Atlas</small></span>
+              <img class="campaign-sigil" src=${branding.logoUrl || defaultLogo} alt="" @error=${(event: Event) => {
+                const image = event.currentTarget as HTMLImageElement; if (image.getAttribute("src") !== defaultLogo) image.src = defaultLogo;
+              }} />
+              <span><strong>${branding.title}</strong><small>${branding.subtitle}</small></span>
             </a>
           </header>
           <a class="sidebar-search" href="#/search"><span aria-hidden="true">🔍</span>${this.#ui.t("shell.search")}…<kbd>Ctrl K</kbd></a>
@@ -286,9 +292,11 @@ export class CodexApp extends LitElement {
       const campaign = await this.#campaignData.refresh(signal);
       if (!signal.aborted) {
         applyCampaignTheme(campaign);
+        applyBrandingFavicon(campaignBranding(campaign));
         this.campaignState = { state: "ready", campaign };
         await this.updateComplete;
         this.#articleOutlet?.refresh();
+        this.#navigationOutlet?.refresh();
       }
     } catch (cause: unknown) {
       if (signal.aborted) return;
@@ -471,8 +479,12 @@ export class CodexApp extends LitElement {
         registry: composition.contributions,
         role: auth.role,
         currentHash: () => window.location.hash,
+        include: entry => {
+          const mode = addonSidebarMode(this.campaignState.state === "ready" ? this.campaignState.campaign : undefined, addonSidebarKey(entry));
+          return mode === "everyone" || mode === "dm" && auth.role === "dm";
+        },
         onError,
-        onCountChange: (count) => { if (owner === this.#addonOwner) this.navigationCount = count; },
+        onCountChange: (count) => { if (owner === this.#addonOwner) { this.navigationCount = count; this.requestUpdate(); } },
       });
       this.#dashboardOutlet = new BrowserContributionOutlet({
         document,
@@ -566,36 +578,41 @@ export class CodexApp extends LitElement {
   }
 
   #navigationTemplate() {
-    const entries = (ids: readonly string[]) => ids.flatMap(id => {
-      const page = campaignPages.find(page => page.id === id);
-      return page === undefined ? [] : [{ id, label: uiCollectionLabel(id, "other"), icon: page.icon, hash: collectionHash(page) }];
-    });
-    const groups = [
-      { id: "overview", label: this.#ui.t("shell.overview"), entries: [
-        { id: "dashboard", label: this.#ui.t("shell.overview"), icon: "🏠", hash: "#/" },
-        { id: "party", label: this.#ui.t("shell.party"), icon: "🛡", hash: "#/party" },
-      ] },
-      { id: "campaign", label: this.#ui.t("shell.campaign"), entries: entries(["events", "mysteries"]) },
-      { id: "world", label: this.#ui.t("shell.world"), entries: [
-        { id: "map", label: this.#ui.t("map.world"), icon: "🗺", hash: "#/map/world" },
-        ...entries(["locations", "characters", "factions", "companions"]),
-      ] },
-      { id: "compendium", label: this.#ui.t("shell.compendium"), entries: entries(["pantheon", "artifacts", "history"]) },
-    ];
+    let layout;
+    try { layout = campaignSidebar(this.campaignState.state === "ready" ? this.campaignState.campaign : undefined); }
+    catch { layout = defaultSidebarLayout(); }
     return html`
       <nav class="core-navigation" aria-label=${this.#ui.t("shell.campaignArchive")}>
-        ${groups.map((group) => html`
-          <section class=${`navigation-${group.id}`}>
-            <h2>${group.label}</h2>
-            ${group.entries.map((entry) => html`
-              <a href=${entry.hash} aria-current=${this.#coreRouteActive(entry.id) ? "page" : nothing}>
+        ${layout.sections.map(group => {
+          if (group.role === "dm" && !this.#canManageCampaign()) return nothing;
+          const entries = group.pages.flatMap(route => { const page = sidebarPage(route); return page === undefined ? [] : [page]; });
+          if (entries.length === 0) return nothing;
+          const colorGroup = group.id === "kampan" ? "campaign" : group.id === "svet" ? "world" : group.id;
+          const open = !group.collapsible || this.#sidebarSectionOpen(group);
+          return html`<section class=${`navigation-${colorGroup}`} data-navigation-section=${group.id}>
+            <h2>${group.collapsible ? html`<button class="sidebar-section-toggle" aria-expanded=${open} @click=${() => this.#toggleSidebarSection(group)}>
+              <span aria-hidden="true">${open ? "▾" : "▸"}</span> ${group.icon} ${group.label}</button>` : html`${group.icon} ${group.label}`}</h2>
+            <div ?hidden=${!open}>${entries.map((entry) => html`
+              <a href=${`#${entry.route}`} aria-current=${this.#coreRouteActive(entry.id) ? "page" : nothing}>
                 <span aria-hidden="true">${entry.icon}</span>${entry.label}
               </a>
-            `)}
-          </section>
-        `)}
+            `)}</div>
+          </section>`;
+        })}
       </nav>
     `;
+  }
+
+  readonly #sidebarOpen = new Map<string, boolean>();
+  #sidebarSectionOpen(section: SidebarSection): boolean {
+    const cached = this.#sidebarOpen.get(section.id); if (cached !== undefined) return cached;
+    try { const saved = localStorage.getItem(`sidebar_section_open:${section.id}`); if (saved === "0" || saved === "1") return saved === "1"; } catch { /* Optional browser preference. */ }
+    return section.defaultOpen;
+  }
+  #toggleSidebarSection(section: SidebarSection): void {
+    const open = !this.#sidebarSectionOpen(section); this.#sidebarOpen.set(section.id, open);
+    try { localStorage.setItem(`sidebar_section_open:${section.id}`, open ? "1" : "0"); } catch { /* Keep the in-memory preference. */ }
+    this.requestUpdate();
   }
 
   #mobileNavigationTemplate() {
@@ -746,6 +763,7 @@ export class CodexApp extends LitElement {
         return html`<codex-search .campaign=${campaign}></codex-search>`;
       case "settings":
         return html`<codex-settings
+          .addonPages=${this.#canManageCampaign() && this.#addons !== undefined ? listBrowserNavigation(this.#addons.contributions, "dm") : []}
           .campaign=${campaign}
           .mapTarget=${this.route.mapParentId}
           .canManageCampaign=${this.#canManageCampaign()}
@@ -756,6 +774,8 @@ export class CodexApp extends LitElement {
           @campaign-enum-delete=${this.#deleteCampaignEnum}
           @campaign-appearance-save=${this.#saveCampaignAppearance}
           @campaign-party-save=${this.#saveCampaignParty}
+          @campaign-branding-save=${this.#saveBranding}
+          @campaign-sidebar-save=${this.#saveSidebar}
           @campaign-map-save=${this.#saveMap} @campaign-map-upload=${this.#uploadMap}
         ></codex-settings>`;
       case "collection":
@@ -1037,6 +1057,45 @@ export class CodexApp extends LitElement {
     } finally {
       this.busy = false;
     }
+  };
+
+  readonly #saveSidebar = async (event: CustomEvent<SidebarSaveDetail>): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canManageCampaign() ||
+      this.authority.state !== "known" || !this.authority.auth.authenticated || this.campaignState.state !== "ready") return;
+    this.busy = true; this.errorMessage = "";
+    try {
+      const mutation = prepareSidebarSave(this.campaignState.campaign, event.detail);
+      const mutations = [mutation];
+      if (event.detail.addonVisibility !== undefined) mutations.push(prepareAddonSidebarSave(this.campaignState.campaign, event.detail.addonVisibility));
+      await this.#campaignMutations.commit(mutations, this.authority.auth.csrfToken, this.#request.signal);
+      await this.#loadCampaign(this.#request.signal, true);
+      this.#editDirty = false; this.editCompletion += 1;
+    } catch (cause) {
+      if (!this.#request.signal.aborted) this.errorMessage = this.#ui.t(
+        (cause instanceof SidebarEditError && cause.kind === "stale") || (cause instanceof CampaignMutationHTTPError && cause.status === 409)
+          ? "sidebar.stale" : cause instanceof SidebarEditError ? "sidebar.invalid" : "sidebar.failed");
+    } finally { this.busy = false; }
+  };
+
+  readonly #saveBranding = async (event: CustomEvent<BrandingSaveDetail>): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canManageCampaign() ||
+      this.authority.state !== "known" || !this.authority.auth.authenticated || this.campaignState.state !== "ready") return;
+    this.busy = true; this.errorMessage = "";
+    try {
+      let mutation = prepareBrandingSave(this.campaignState.campaign, event.detail);
+      if (event.detail.file !== undefined) {
+        const file = event.detail.file;
+        const media = await new MediaClient().upload("branding-logo", "main", file, file.name, this.authority.auth.csrfToken, this.#request.signal);
+        mutation = prepareBrandingSave(this.campaignState.campaign, { ...event.detail, logoUrl: media.url });
+      }
+      await this.#campaignMutations.commit([mutation], this.authority.auth.csrfToken, this.#request.signal);
+      await this.#loadCampaign(this.#request.signal, true);
+      this.#editDirty = false; this.editCompletion += 1;
+    } catch (cause) {
+      if (!this.#request.signal.aborted) this.errorMessage = this.#ui.t(
+        (cause instanceof BrandingEditError && cause.kind === "stale") || (cause instanceof CampaignMutationHTTPError && cause.status === 409)
+          ? "branding.stale" : cause instanceof BrandingEditError ? "branding.invalid" : "branding.failed");
+    } finally { this.busy = false; }
   };
 
   readonly #saveCampaignParty = async (event: CustomEvent<CampaignPartySaveDetail>): Promise<void> => {

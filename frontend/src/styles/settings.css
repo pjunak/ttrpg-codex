@@ -2,6 +2,46 @@ codex-settings {
   display: block;
 }
 
+codex-branding-settings, codex-sidebar-settings { display: block; min-width: 0; }
+.settings-branding { border-top: 1px dashed rgba(var(--accent-gold-rgb), .18); margin-top: 1.5rem; padding-top: 1rem; }
+.settings-branding h3 { font-family: var(--font-title); color: var(--gold); }
+.settings-branding .settings-hint, .settings-sidebar-panel .settings-hint { color: var(--text-muted); font: .78rem/1.5 var(--font-ui); }
+.settings-branding-preview { display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 1px dashed rgba(var(--accent-gold-rgb), .25); border-radius: var(--radius); background: rgba(0, 0, 0, .18); color: var(--text-muted); font: .8rem var(--font-ui); }
+.settings-branding-preview img { width: 84px; height: 84px; object-fit: contain; border-radius: 8px; flex-shrink: 0; }
+.settings-branding-upload { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin: 1rem 0; font: .8rem var(--font-ui); }
+.settings-branding-upload input { display: block; max-width: 100%; margin-top: .4rem; }
+.settings-sidebar-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
+.sb-editor { display: grid; gap: .75rem; margin-top: 1rem; }
+.sb-sec { padding: .5rem .6rem .6rem; border: 1px solid rgba(var(--accent-gold-rgb), .18); border-radius: var(--radius); background: var(--bg-raised); min-width: 0; }
+.sb-sec.sb-hidden { border-style: dashed; border-color: rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .02); }
+.sb-sec-head { display: grid; grid-template-columns: auto minmax(0, 1fr) 3rem auto auto; gap: .4rem; align-items: center; }
+.sb-sec label { min-width: 0; }
+.sb-sec input:not([type="checkbox"]), .sb-page select { max-width: 100%; min-width: 0; color: var(--text-parchment); border: 1px solid var(--chrome-field-border); border-radius: var(--radius); background: var(--bg-base); padding: .35rem; font: .78rem var(--font-ui); }
+.sb-sec-label, .sb-sec-icon { width: 100%; }
+.sb-sec input.sb-sec-label { font-size: .9rem; font-weight: 600; border-radius: 6px; padding: .35rem .5rem; background: rgba(0, 0, 0, .25); }
+.sb-sec button { color: var(--text-light); border: 1px solid var(--chrome-field-border); border-radius: var(--radius); background: var(--bg-surface); min-width: 1.8rem; min-height: 1.8rem; cursor: pointer; }
+.sb-sec-flags { display: flex; flex-wrap: wrap; gap: .6rem; margin: .65rem 0; font: .72rem var(--font-ui); color: var(--text-muted); }
+.sb-sec-flags label { display: flex; align-items: center; gap: .25rem; }
+.sb-pages { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .3rem; min-height: 1.6rem; }
+.sb-page { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(5rem, 10rem); align-items: center; gap: .5rem; padding: .35rem .5rem; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 6px; font: .8rem var(--font-ui); }
+.sb-page-label { overflow-wrap: anywhere; color: var(--text-light); font-size: .82rem; }
+.sb-page-label small { display: block; color: var(--text-muted); }
+.sb-order-controls { display: flex; gap: .2rem; }
+.sb-grip { color: var(--text-muted); cursor: grab; padding: .2rem; }
+.sb-empty { min-height: 2.5rem; padding: .7rem; color: var(--text-muted); font: .75rem var(--font-ui); text-align: center; }
+.sb-hidden h3 { font: .8rem var(--font-ui); color: var(--text-muted); }
+.sb-addon-panel { margin-top: 1.5rem; }
+.sb-addon-panel h3 { font: .95rem var(--font-title); color: var(--gold); }
+.sb-addon-page { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .6rem; padding: .7rem 0; font: .8rem var(--font-ui); }
+.sb-addon-page small { display: block; color: var(--text-muted); }
+.sb-addon-page select { color: var(--text-parchment); border: 1px solid var(--chrome-field-border); background: var(--bg-raised); padding: .4rem; }
+@media (max-width: 48rem) {
+  .sb-sec-head { grid-template-columns: auto minmax(0, 1fr) 3rem; }
+  .sb-sec-head .sb-order-controls { grid-column: 2; }
+  .sb-page { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .sb-page select { grid-column: 2 / -1; width: 100%; }
+}
+
 codex-party-settings { display: block; min-width: 0; }
 .settings-party-panel .settings-hint { font: .78rem/1.5 var(--font-ui); color: var(--text-muted); }
 .settings-party-fields { margin: 1rem 0; }

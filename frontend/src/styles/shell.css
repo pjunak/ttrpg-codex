@@ -45,6 +45,9 @@ codex-app, .codex-shell {
   text-decoration: none;
 }
 
+.campaign-brand a > span { min-width: 0; overflow-wrap: anywhere; }
+.sidebar-section-toggle { border: 0; background: transparent; padding: 0; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; text-align: left; width: 100%; }
+
 .campaign-sigil {
   width: 2.4rem;
   height: 2.4rem;
