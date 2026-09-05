@@ -7,6 +7,11 @@ and exhaustive device/language/failure matrix are not prerequisites. Keep the
 original backups and old data, review each conversion once, and use the short
 first-start checks below. Deployment still starts only when the owner requests it.
 
+Stopping the server for the update is the intended simple deployment path.
+Keep existing authentication and data-integrity protections; additional security
+hardening and availability automation are follow-up work unless needed to fix
+a concrete exposure or data-loss defect.
+
 > **Do not cut over a complete v1 campaign yet.** The v2 product interface is
 > still being rebuilt and image publication is blocked by
 > `npm run release-check`. This document remains the operational runbook for
@@ -62,9 +67,11 @@ scheme and client address normally, terminate TLS at the proxy, and keep
 
 ## One-time v1 conversion
 
-Keep the downloaded UI backups unchanged and make an additional copy before
-conversion. Build fresh v3 ZIPs for DM Tools and Character Sheets and inspect
-them first:
+Reuse the downloaded UI backups already taken, keeping the input archives and
+old data unchanged. A repeated backup cycle is not a release requirement; if
+either site has changed since its backup, preserve those later changes before
+cutover. Build fresh v3 ZIPs for DM Tools and Character Sheets and inspect them
+first:
 
 ```powershell
 go run ./cmd/codex-addon-inspect ../addon-dm-tools/dist/dm-tools-3.0.0.zip

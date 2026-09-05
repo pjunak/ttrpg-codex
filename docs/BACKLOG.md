@@ -46,6 +46,15 @@ Retain the original backups and data, convert each campaign into a fresh
 directory once, and perform a short first-start smoke check. Detailed test
 matrices and repeat rehearsals are follow-up work, not release prerequisites.
 
+The owner reconfirmed on September 6 that the backups have already been taken.
+Use those existing archives and retain the old data for rollback. Deployment
+may stop the server: hot updates and zero-downtime rollout are not required.
+Keep existing authentication and data-integrity protections, but defer extra
+security hardening and availability work unless needed for a concrete exposure
+or data-loss defect. Focus remaining implementation on the requested UI and
+usable campaign workflows. If a site has changed since its backup, preserve
+those later changes at cutover rather than silently restoring an older state.
+
 <!-- product-parity-gates:start -->
 
 ### Core campaign experience
