@@ -16,6 +16,7 @@ import { exercisePlannerEditing } from './installed-planner-fixture.mjs';
 import { exercisePlannerFlows } from './installed-planner-flow-fixture.mjs';
 import { exercisePlannerConcurrency } from './installed-planner-concurrency-fixture.mjs';
 import { exercisePlannerNavigation, unloadBlocked, attemptHash } from './installed-planner-navigation-fixture.mjs';
+import { exercisePlannerStructure } from './installed-planner-structure-fixture.mjs';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const output = resolve(root, 'frontend/test-results/installed-dm');
@@ -269,6 +270,12 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner protects drafts on n
   await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), []);
   t.after(() => disable('dm-tools'));
   await exercisePlannerNavigation({ t, open, admin, csrf });
+});
+
+if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner changes kind and parent while preserving structure, drafts and annotations', async t => {
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), []);
+  t.after(() => disable('dm-tools'));
+  await exercisePlannerStructure({ t, open, admin, csrf, output });
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner restores item fields and retains drafts through edits, conflicts and failed saves', async t => {

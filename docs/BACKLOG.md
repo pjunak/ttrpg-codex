@@ -165,7 +165,11 @@ those later changes at cutover rather than silently restoring an older state.
   Mounted planner drafts now participate in the host's navigation, sign-out,
   and browser-unload guards. Same-planner queries retain drafts, including
   invalid targets; pending writes block navigation until their outcome is known.
-  Remaining work includes original dialog/canvas controls, reparenting,
+  Kind and parent controls are restored. Moves retain the subtree and authored
+  annotations, reject incompatible flows, and follow the saved destination.
+  Draft parent choices remain explicit when their destination disappears;
+  concurrent children prevent a stale conversion of their parent to a leaf.
+  Remaining work includes original dialog/canvas controls,
   complete core/external references and consequence targets/note anchors,
   live invalidation, full visual parity and
   localization, and Import Center presentation and other-provider acceptance.
@@ -275,6 +279,20 @@ Drafts remain local to the view; accepted reload or forced authority/package
 teardown does not persist them. The original layout and styling are unchanged.
 This closes the planner's leave-view guard slice, not broader interaction or
 visual parity, other add-ons' edit-state adoption, or either site's conversion.
+
+The item-structure batch restores the preserved planner's kind/parent form row
+and conditional event/branch fields. The installed-package regression in
+`installed-planner-structure-fixture.mjs` covers desktop/phone moves, preserved
+children and internal flows, unchanged annotations and layouts, hidden drafts,
+invalid moves/kind changes, disappeared draft parents, concurrent children,
+and recovery after a confirmed move whose following read failed. The original
+theme and responsive inspector remain in use; complete dialog/canvas parity
+is still open. Data records are preserved instead of removing links to permit
+a structural edit.
+The full host gate passes 276 unit tests, 143 browser cases, and Go tests/vet.
+DM Tools passes 22 Node tests, 22 rendering checks at each of DPR 1 and 2,
+Go tests/vet, and inspection of its rebuilt ZIP. Desktop/phone screenshots
+confirm the restored form row fits the existing responsive inspector.
 
 The visual reference is `origin/deprecated/pre-rewrite-2026-09-01` at
 `3aeeacfe7adec985693f8aeb239df58c177f3da8`, confirmed against the live
