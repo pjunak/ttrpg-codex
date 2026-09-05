@@ -299,6 +299,28 @@ manifest-provided URLs, executable click handlers, cross-add-on targets, or a
 sidebar link whose route is not active for the current role.
 Every callback is wrapped in the generation abort signal.
 
+Route elements in either UI mode receive a frozen `codexContribution.host`:
+
+```ts
+interface AddonRouteHostContext {
+  readonly contractVersion: "addon-route-context.v1";
+  readonly locale: "en" | "cs";
+  readonly query: readonly (readonly [string, string])[];
+}
+```
+
+An optional `?key=value` suffix supplies decoded, ordered query pairs; repeated
+keys remain separate. The host matches only the exact registered path before
+`?`, and keeps an unchanged route element/frame mounted across query or locale
+updates. Consumers validate their own supported parameters and must not reset
+an unchanged editor on every context assignment. Query values carry no record
+access or write authority. Reads still use the generation-scoped public SDK.
+
+The full hash is limited to 4,096 UTF-8 bytes, with at most 32 pairs, nonempty
+keys of at most 64 UTF-16 code units and values of at most 1,024. Malformed
+percent escapes/UTF-8 and decoded control characters are rejected. `+` decodes
+to a space. Parameters are navigation input and must not contain secrets.
+
 An `article-section` declaration targets one core record collection with
 `config.collection`. Its custom element receives the ordinary generation and
 contribution fields plus a frozen `codexContribution.host` value:
@@ -399,7 +421,10 @@ The stable `#/dm` route accepts additive `slot` contributions with exact config
 `{ "contractVersion": 1, "slot": "dm:dashboard" }`. Bind an integrated custom
 element or an isolated element through the usual UI contract. The host checks
 real/effective DM authority before mounting this outlet, even if the manifest
-declares broader roles. It passes no campaign bodies or extra host context.
+declares broader roles. It passes the frozen host context
+`{ contractVersion: "dm-dashboard-context.v1", locale: "en" | "cs" }` to both
+UI modes, with updates when the selected language changes. It passes no campaign
+bodies; add-ons read their own collections through the public SDK.
 These named slots do not also appear on the campaign overview.
 
 Successful contributions appear below the original DM panel heading, without

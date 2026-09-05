@@ -18,12 +18,15 @@ export function installDmPackage(request, csrf, { id, mode = 'integrated', versi
       set codexContribution(value) {
         this.context = value;
         if (${JSON.stringify(failure)} === 'mount' && value.contribution.id === 'dashboard') throw new Error('Private fixture mount error');
+        this.reflectContext();
       }
       connectedCallback() {
         const title = document.createElement('h2'); title.textContent = this.context.contribution.id === 'dashboard' ? 'Fixture DM workspace ${version}' : 'Fixture planner page';
         const input = document.createElement('input'); input.setAttribute('aria-label', 'Fixture notes'); input.style.maxWidth = '100%';
-        this.replaceChildren(title, input);
+        const output = document.createElement('output'); output.setAttribute('aria-label', 'Fixture context');
+        this.replaceChildren(title, input, output); this.reflectContext();
       }
+      reflectContext() { const output = this.querySelector('output'); if (output) output.textContent = JSON.stringify(this.context.host); }
     });
     for (const declaration of context.ui.declarations()) if (declaration.surface !== 'sidebar') context.ui.bind(declaration.id, { kind: 'element', tag });
   }`;

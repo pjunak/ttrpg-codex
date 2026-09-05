@@ -43,7 +43,20 @@ export function browserAddonRouteHash(active: ActiveBrowserContribution): string
 }
 
 export function isBrowserAddonRouteHash(value: string): boolean {
-  return value.startsWith("#/addons/");
+  return parseBrowserAddonLocation(value) !== undefined;
+}
+
+/** Query values are navigation input, never record identity or write authority. */
+export function parseBrowserAddonLocation(hash: string): { readonly routeHash: string; readonly query: readonly (readonly [string, string])[] } | undefined {
+  if (new TextEncoder().encode(hash).length > 4096) return undefined;
+  const separator = hash.indexOf("?");
+  const routeHash = separator === -1 ? hash : hash.slice(0, separator);
+  if (!/^#\/addons\/[a-z][a-z0-9]*(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/u.test(routeHash)) return undefined;
+  const raw = separator === -1 ? "" : hash.slice(separator + 1);
+  try { decodeURIComponent(raw.replace(/\+/gu, " ")); } catch { return undefined; }
+  const query = [...new URLSearchParams(raw).entries()];
+  if (query.length > 32 || query.some(([key, value]) => !key || key.length > 64 || value.length > 1024 || /\p{Cc}/u.test(key + value))) return undefined;
+  return { routeHash, query };
 }
 
 /** Projects declarative sidebar metadata only when its exact route is active. */
@@ -135,7 +148,7 @@ export class BrowserNavigationOutlet {
           mounted = { identity, anchor };
           this.#mounted.set(key, mounted);
         }
-        if (entry.hash === currentHash) {
+        if (entry.hash === parseBrowserAddonLocation(currentHash)?.routeHash) {
           mounted.anchor.setAttribute("aria-current", "page");
         } else {
           mounted.anchor.removeAttribute("aria-current");

@@ -101,6 +101,7 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} DM dashbo
   const id = `dm-${mode}`; await installDmPackage(admin, csrf, { id, mode }); t.after(() => disable(id));
   const page = await open(t, 'dm', mode === 'isolated'), slot = slotRoot(page, mode);
   await slot.getByRole('heading', { name: 'Fixture DM workspace 1.0.0' }).waitFor();
+  assert.deepEqual(JSON.parse(await slot.getByLabel('Fixture context').textContent()), { contractVersion: 'dm-dashboard-context.v1', locale: 'en' });
   assert.equal(await page.locator('codex-dm-dashboard').evaluate(element => element.degraded), false,
     JSON.stringify(await page.locator('codex-app').evaluate(element => element.addonState)));
   await page.locator('[data-dm-collection="events"]').waitFor({ state: 'detached' });
@@ -114,6 +115,15 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} DM dashbo
   assert.equal(await slot.getByLabel('Fixture notes').inputValue(), 'Keep these notes');
   const player = await open(t, 'player'); assert.equal(await player.locator('[data-dm-dashboard-slot]').count(), 0);
   await page.goto('/#/'); assert.equal(await page.locator(`[data-addon-slot] [data-addon-id="${id}"]`).count(), 0);
+  await page.goto(`/#/addons/${id}/planner?item=first`);
+  const route = mode === 'isolated' ? page.locator('[data-addon-route-outlet]').frameLocator('iframe') : page.locator('[data-addon-route-outlet]');
+  await route.getByRole('heading', { name: 'Fixture planner page' }).waitFor();
+  await route.getByLabel('Fixture notes').fill('Keep this draft');
+  assert.deepEqual(JSON.parse(await route.getByLabel('Fixture context').textContent()), { contractVersion: 'addon-route-context.v1', locale: 'en', query: [['item', 'first']] });
+  await page.goto(`/#/addons/${id}/planner?item=second&item=third`);
+  await route.getByLabel('Fixture context').filter({ hasText: 'second' }).waitFor();
+  assert.deepEqual(JSON.parse(await route.getByLabel('Fixture context').textContent()).query, [['item', 'second'], ['item', 'third']]);
+  assert.equal(await route.getByLabel('Fixture notes').inputValue(), 'Keep this draft');
   await page.goto('/#/dm'); await slotRoot(page, mode).getByRole('heading', { name: 'Fixture DM workspace 1.0.0' }).waitFor();
   await installDmPackage(admin, csrf, { id, mode, version: '1.0.1' });
   await slotRoot(page, mode).getByRole('heading', { name: 'Fixture DM workspace 1.0.1' }).waitFor();
@@ -140,14 +150,82 @@ test('failed dashboard rendering and activation retain useful DM fallback and re
   await page.locator('[data-dm-collection="events"]').waitFor({ state: 'detached' });
 });
 
-if (process.env.CODEX_DM_TOOLS_ZIP) test('reviewed DM Tools package opens its planner and Import Center from the DM fallback', async t => {
+if (process.env.CODEX_DM_TOOLS_ZIP) test('reviewed DM Tools dashboard preserves the classic layout and opens durable planner links', async t => {
   const archive = await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP));
   await installReviewedPackage(admin, csrf, 'dm-tools', archive, []); t.after(() => disable('dm-tools'));
   const page = await open(t); const panel = page.locator('.dm-panel');
-  await panel.getByRole('link', { name: /Story Planner/ }).click();
+  const dashboard = page.locator('.dm-tools-dashboard');
+  await dashboard.locator('[data-stat="total"] .dm-dashboard-value').filter({ hasText: /^0$/u }).waitFor();
+  assert.equal(await dashboard.locator('.dm-dashboard-tile').count(), 5);
+  await dashboard.getByRole('link', { name: /Story Planner/ }).click();
   await page.getByRole('heading', { name: 'Story Planner', exact: true }).waitFor();
+  await page.getByRole('button', { name: '+ Quest', exact: true }).click();
+  await page.getByLabel('Title', { exact: true }).fill('Northern trail');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  await page.getByText('Details saved.', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Enter this canvas', exact: true }).click();
+  await page.locator('.dm-planner-breadcrumbs .active').filter({ hasText: 'Northern trail' }).waitFor();
+  const questURL = page.url();
+  await page.getByRole('button', { name: '+ Event', exact: true }).click();
+  await page.getByLabel('Title', { exact: true }).fill('Hidden meeting');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  await page.getByText('Details saved.', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Add DM note', exact: true }).click();
+  await page.getByText('DM note added.', { exact: true }).waitFor();
+  await page.goto('/#/dm');
+  await dashboard.locator('[data-stat="total"] .dm-dashboard-value').filter({ hasText: /^2$/u }).waitFor();
+  assert.equal(await dashboard.locator('[data-stat="notes"] .dm-dashboard-value').textContent(), '1');
+  assert.equal(await dashboard.locator('.dm-dashboard-recent a strong').first().textContent(), 'Hidden meeting');
+  // The broker currently excludes self providers; keep that unresolved import
+  // integration visible while the planner remains usable (see BACKLOG.md).
+  await dashboard.locator('.dm-dashboard-warning').filter({ hasText: 'Planning import is currently unavailable' }).waitFor();
+  const recent = dashboard.getByRole('link', { name: /Hidden meeting/ });
+  const eventLink = await recent.getAttribute('href');
+  for (const mobile of [false, true]) {
+    const view = mobile ? await open(t, 'dm', true) : page;
+    await view.locator('.dm-tools-dashboard [data-stat="total"] .dm-dashboard-value').filter({ hasText: /^2$/u }).waitFor();
+    assert.equal(await view.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    const titleStyle = await view.locator('.dm-tools-dashboard h2').evaluate(element => ({ color: getComputedStyle(element).color, font: getComputedStyle(element).fontFamily }));
+    assert.equal(titleStyle.color, 'rgb(200, 160, 64)'); assert.match(titleStyle.font, /Cinzel/u);
+    await view.screenshot({ path: resolve(output, mobile ? 'planning-phone.png' : 'planning-desktop.png'), fullPage: true });
+    if (mobile) {
+      await view.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await view.reload();
+      await view.getByRole('heading', { name: 'Plánování kampaně', exact: true }).waitFor();
+      await view.getByRole('link', { name: /Plánovač příběhu/ }).waitFor();
+    }
+  }
+  await recent.click();
+  await page.locator('.dm-plan-card.selected h3').filter({ hasText: 'Hidden meeting' }).waitFor();
+  await page.reload(); await page.getByLabel('Title', { exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Title', { exact: true }).inputValue(), 'Hidden meeting');
+  const secondTab = await page.context().newPage(); await secondTab.goto(`/${eventLink}`);
+  await secondTab.locator('.dm-plan-card.selected h3').filter({ hasText: 'Hidden meeting' }).waitFor();
+  await secondTab.close();
+  await page.getByLabel('Title', { exact: true }).fill('Unsaved draft');
+  await page.evaluate(() => window.dispatchEvent(new HashChangeEvent('hashchange')));
+  assert.equal(await page.getByLabel('Title', { exact: true }).inputValue(), 'Unsaved draft');
+  await page.goto(questURL); await page.locator('.dm-planner-breadcrumbs .active').filter({ hasText: 'Northern trail' }).waitFor();
+  await page.getByRole('button', { name: 'Campaign', exact: true }).click();
+  await page.locator('.dm-plan-card h3').filter({ hasText: 'Northern trail' }).waitFor();
+  await page.goBack(); await page.locator('.dm-planner-breadcrumbs .active').filter({ hasText: 'Northern trail' }).waitFor();
+  await page.goto('/#/addons/dm-tools/planner?item=quest-missing'); await page.getByText('This planning item no longer exists.', { exact: true }).waitFor();
+  await page.goto('/#/addons/dm-tools/planner?item=one&item=two'); await page.getByText('Invalid planner link.', { exact: true }).waitFor();
+  await page.getByRole('link', { name: 'Open campaign canvas' }).click();
+  await page.locator('.dm-plan-card h3').filter({ hasText: 'Northern trail' }).waitFor();
+  const queryPattern = '**/api/addons/dm-tools/generations/*/data/query';
+  await page.route(queryPattern, route => route.fulfill({ status: 503, body: '{}' }));
+  await page.goto('/#/dm'); await dashboard.getByRole('alert').waitFor();
+  await dashboard.getByRole('link', { name: /Story Planner/ }).waitFor();
+  await page.unroute(queryPattern); await dashboard.getByRole('button', { name: 'Refresh overview' }).click();
+  await dashboard.locator('[data-stat="total"] .dm-dashboard-value').filter({ hasText: /^2$/u }).waitFor();
   await page.goto('/#/dm'); await panel.getByRole('link', { name: /Import Center/ }).click();
   await page.getByRole('heading', { name: 'Import Center', exact: true }).waitFor();
+  await page.getByText('No compatible import adapters are active.', { exact: true }).waitFor();
+  for (const role of ['player', '']) {
+    const visitor = await open(t, role);
+    assert.equal(await visitor.locator('.dm-tools-dashboard').count(), 0);
+    assert.equal((await visitor.locator('.dm-panel').textContent()).includes('Hidden meeting'), false);
+  }
 });
 
 after(async () => {

@@ -4,6 +4,7 @@ import {
   browserAddonRouteHash,
   isBrowserAddonRouteHash,
   listBrowserNavigation,
+  parseBrowserAddonLocation,
 } from "../src/addons/navigation.js";
 import { BrowserContributionRegistry } from "../src/addons/browser-sdk.js";
 import type {
@@ -15,6 +16,25 @@ import { GenerationScope } from "../src/addons/generation-scope.js";
 const generationId = "a".repeat(64);
 
 describe("browser add-on navigation", () => {
+  it("decodes bounded ordered query pairs without changing route ownership", () => {
+    const routeHash = "#/addons/dm-tools/planner";
+    expect(parseBrowserAddonLocation(`${routeHash}?item=quest-a&item=quest-b&label=%C4%8Caj+%26+k%C3%A1va`)).toEqual({
+      routeHash, query: [["item", "quest-a"], ["item", "quest-b"], ["label", "Čaj & káva"]],
+    });
+    expect(parseBrowserAddonLocation(`${routeHash}?route=%23%2Faddons%2Fother%2Fpage`)?.routeHash).toBe(routeHash);
+    expect(parseBrowserAddonLocation(routeHash)).toEqual({ routeHash, query: [] });
+  });
+
+  it("rejects malformed paths, escapes, controls and oversized parameters", () => {
+    const routeHash = "#/addons/dm-tools/planner";
+    for (const hash of ["#/addons/", "#/addons/dm-tools/../settings", "#/addons/dm-tools/planner/", "#/addons/dm-tools/%70lanner",
+      `${routeHash}?x=%`, `${routeHash}?x=%FF`, `${routeHash}?x=%00`, `${routeHash}?=empty`,
+      `${routeHash}?${"k".repeat(65)}=x`, `${routeHash}?x=${"v".repeat(1025)}`,
+      `${routeHash}?${Array(33).fill("x=y").join("&")}`, `${routeHash}?x=${"%E2%82%AC".repeat(500)}`]) {
+      expect(parseBrowserAddonLocation(hash), hash).toBeUndefined();
+    }
+  });
+
   it("publishes host-owned links only after their exact route is active", () => {
     const registry = new BrowserContributionRegistry();
     const session = registry.open(descriptor(), new GenerationScope("dm-tools@generation"));
@@ -48,6 +68,10 @@ describe("browser add-on navigation", () => {
       contributionId: "planner.sidebar",
     });
 
+    hash = "#/addons/dm-tools/planner?item=quest-a";
+    outlet.refresh();
+    expect(anchor.attributes.get("aria-current")).toBe("page");
+    expect(root.children[0]).toBe(anchor);
     hash = "#/";
     outlet.refresh();
     expect(anchor.attributes.has("aria-current")).toBe(false);

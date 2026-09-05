@@ -264,7 +264,7 @@ anchors and cannot start core dragging or enter its order transaction.
 Generic outlets reconcile children by identity, preserving unchanged custom
 elements and frames instead of detaching them during every refresh. Isolated
 mounts optionally accept a host context and an update handle. This is opt-in at
-the owning feature: the timeline enables it, while unrelated isolated outlets
+the owning feature: timeline, DM dashboard, and route outlets enable it, while other isolated outlets
 retain their existing null context. Updates are bounded JSON messages on the
 existing private port; a pending update keeps only the latest value until the
 frame is ready, and disposal prevents further delivery. Timeline frames measure
@@ -384,6 +384,21 @@ hash namespace and creates the anchors. Selecting a page filters the route
 outlet to one exact contribution; stale, disabled, role-hidden, and malformed
 targets cannot leave the previous route mounted. Direct route hashes remain
 usable even when a valid route intentionally has no sidebar declaration.
+
+Route selection ignores the bounded query suffix only after validating the
+whole hash with `parseBrowserAddonLocation`. The public
+`addon-route-context.v1` carries decoded ordered pairs and the selected locale
+to integrated and isolated elements. Duplicate keys remain visible to the
+consumer. Query and locale changes update the mounted contribution instead of
+recreating it. The same locale delivery uses `dm-dashboard-context.v1` for the
+guarded DM slot; neither context includes campaign bodies.
+
+`installed-dm.browser.mjs` verifies both UI modes retain drafts across route
+query updates, alongside DM slot authorization, replacement, disable and
+failure recovery. With `CODEX_DM_TOOLS_ZIP` pointing to the rebuilt first-party
+archive it also exercises dashboard counts, desktop/phone styling, Czech copy,
+planner edits and notes, recent-item links, reload/new-tab/back navigation,
+invalid/deleted targets and failed-read retry through an installed package.
 
 ## Remaining integration
 

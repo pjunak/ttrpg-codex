@@ -88,8 +88,9 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
   maintainer decision. Passing component checks alone does not close this gate.
 - [ ] Restore the DM dashboard and true player-view preview workflow.
   The core DM panel, guarded additive slots, hidden-content fallback, browser
-  diagnostics and active tool links are restored. Separate-tab preview and
-  the first-party dashboard's planning summaries/recent-item navigation remain.
+  diagnostics and active tool links are restored. The first-party planning
+  totals, workflow cards and recent-item navigation are restored in English
+  and Czech. Separate-tab player preview remains.
 
 ### Spatial, temporal, and relationship workflows
 
@@ -127,6 +128,14 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
 - [ ] Bring DM Tools planner interaction and editing to accepted parity,
   including graph navigation, card/flow authoring, annotations, and browser
   regression coverage; complete the reviewed Import Center workflow.
+  Next: resolve the verified own-provider mismatch. DM Tools provides and
+  consumes `codex.import-adapter`, but the broker deliberately excludes its
+  consumer from providers, so its installed Import Center cannot discover the
+  planning worker. Preserve worker dependency-cycle prevention and reviewed
+  exact-plan commits while adding an explicit supported browser-to-own-worker
+  path. Cover actual planning preview/commit, conflict, cancellation, and
+  generation replacement through a reviewed ZIP; do not merely hide the warning
+  or remove broker self-exclusion globally.
 - [ ] Verify the compendium browser against the old day-to-day browsing and
   reference workflow, then restore any accepted source, linking, filtering, or
   detail behavior that is missing.
@@ -161,10 +170,15 @@ effective DMs and keeps a useful fallback for empty or failed dashboards.
 Role-allowed tool links remain available when optional sidebar links are
 hidden. Fixture ZIPs verify desktop/phone layout, English/Czech copy, live
 counts, authorization, widget state, replacement/disable, failure and reload.
-The real rebuilt DM Tools ZIP also passes installation and opens its planner
-and Import Center from this fallback. Its own planning-summary/recent-item
-dashboard is still to be ported; this is entry-point acceptance, not complete
-planner/import workflow acceptance. Shared isolated startup now sends ready
+The real rebuilt DM Tools ZIP mounts its own dashboard with the preserved
+five totals, workflow cards, and twelve recent items, using English/Czech copy
+and the original dark/gold layout. Counts load on entry or explicit refresh;
+live add-on data invalidation remains part of broader planner parity. Installed
+checks create a quest, event and note, open recent leaves in their parent canvas,
+retain unchanged drafts, exercise reload/new-tab/back navigation and recover
+from invalid links and failed reads. Import Center entry works, but its own
+planning provider is currently excluded by broker resolution (tracked above).
+This is not complete planner/import workflow acceptance. Shared isolated startup now sends ready
 before resize, removing a false failure diagnostic for healthy widgets.
 
 The visual reference is `origin/deprecated/pre-rewrite-2026-09-01` at
@@ -423,7 +437,7 @@ acceptance still need to be expanded as follow-up documentation.
 | `/mapa/vztahy` | `/graph/relationships`; old hash and browser position/filter keys accepted | Campaign/add-on visual acceptance |
 | `/mapa/palac`, `/mapa/frakce`, `/mapa/tajemstvi` | `/graph/factions`, `/graph/mysteries`; old hashes and unambiguous browser positions accepted | Campaign/add-on visual acceptance |
 | `/casova-osa`, `/mapa/casova-osa` | `/timeline`; old hashes accepted, session creation, atomic order editing and four additive slots restored | Real-campaign visual review |
-| `/dm` and player-preview action | Core DM panel, additive slots, fallback counts/status and active tool links restored; session role switch also exists | First-party planning-summary dashboard and tab-isolated player preview remain open |
+| `/dm` and player-preview action | Core DM panel, first-party planning totals/recent links, additive slots, fallback counts/status and active tool links restored; session role switch also exists | Tab-isolated player preview remains open; planner/import acceptance is tracked separately |
 | `/nastaveni`: six enum categories | `/settings` enum panels | Full localization and real-host save/delete/conflict coverage |
 | Settings: `language`, `appearance` | Personal language, shared theme and branding/logo panels | Remaining catalogs, tokens, and campaign visual acceptance |
 | Settings: `worldmap` | Maps panel at `/settings/maps`, with local-map scope links | Real-host visual acceptance with campaign maps |

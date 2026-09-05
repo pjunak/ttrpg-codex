@@ -25,6 +25,7 @@ export class CodexDmDashboard extends LitElement {
   declare private count: number;
   declare private failed: boolean;
   #outlet: BrowserContributionOutlet | undefined;
+  #outletLocale = "";
   #unsubscribe: (() => void) | undefined;
   readonly #ui = new UiLocalizationController(this);
   constructor() {
@@ -39,11 +40,17 @@ export class CodexDmDashboard extends LitElement {
     if (changed.has("registry") || changed.has("canManage")) { this.#dispose(); this.failed = false; }
   }
   protected override updated(): void {
-    if (!this.isConnected || !this.canManage || !this.registry || this.#outlet) return;
+    if (!this.isConnected || !this.canManage || !this.registry) return;
+    if (this.#outlet) {
+      if (this.#outletLocale !== this.#ui.locale) { this.#outletLocale = this.#ui.locale; this.#outlet.refresh(); }
+      return;
+    }
+    this.#outletLocale = this.#ui.locale;
     // Clear the previous mount error before the outlet evaluates a changed generation.
     this.#unsubscribe = this.registry.subscribe(() => { this.failed = false; });
     this.#outlet = new BrowserContributionOutlet({ document: this.ownerDocument,
       root: this.querySelector<HTMLElement>("[data-dm-dashboard-slot]")!, registry: this.registry, surface: "slot", role: "dm", compact: true,
+      isolatedHostContext: true, hostContext: () => ({ contractVersion: "dm-dashboard-context.v1", locale: this.#ui.locale }),
       include: active => Object.keys(active.descriptor.config).length === 2 && active.descriptor.config["contractVersion"] === 1 && active.descriptor.config["slot"] === "dm:dashboard",
       onError: () => { this.failed = true; }, onCountChange: count => { this.count = count; this.requestUpdate(); },
     });

@@ -34,6 +34,7 @@ import { BrowserContributionOutlet } from "../addons/contribution-outlet.js";
 import {
   BrowserNavigationOutlet,
   browserAddonRouteHash,
+  parseBrowserAddonLocation,
   listBrowserNavigation,
 } from "../addons/navigation.js";
 import { applyBrandingFavicon, BrandingEditError, campaignBranding, defaultLogo, prepareBrandingSave, type BrandingSaveDetail } from "./campaign-branding.js";
@@ -155,6 +156,7 @@ export class CodexApp extends LitElement {
   readonly #ui = new UiLocalizationController(this);
   #addons: BrowserAddonComposition | undefined;
   #dmAddonHealth: readonly DmAddonHealth[] = [];
+  #outletLocale = "";
   #dashboardOutlet: BrowserContributionOutlet | undefined;
   #articleOutlet: BrowserContributionOutlet | undefined;
   #navigationOutlet: BrowserNavigationOutlet | undefined;
@@ -261,6 +263,13 @@ export class CodexApp extends LitElement {
         ${this.#mobileNavigationTemplate()}
       </div>
     `;
+  }
+
+  protected override updated(): void {
+    if (this.isConnected && this.#outletLocale !== this.#ui.locale) {
+      this.#outletLocale = this.#ui.locale;
+      this.#routeOutlet?.refresh();
+    }
   }
 
   async #bootstrap(signal: AbortSignal): Promise<void> {
@@ -527,7 +536,10 @@ export class CodexApp extends LitElement {
         registry: composition.contributions,
         surface: "route",
         role: auth.role,
-        include: (active) => browserAddonRouteHash(active) === window.location.hash,
+        include: (active) => browserAddonRouteHash(active) === parseBrowserAddonLocation(window.location.hash)?.routeHash,
+        isolatedHostContext: true,
+        hostContext: () => ({ contractVersion: "addon-route-context.v1", locale: this.#ui.locale,
+          query: parseBrowserAddonLocation(window.location.hash)?.query ?? [] }),
         onError,
         onCountChange: (count) => { if (owner === this.#addonOwner) this.routeCount = count; },
       });
