@@ -22,8 +22,9 @@ import {
 } from "./campaign-appearance.js";
 import { UiLocalizationController, availableUiLocales } from "./ui-localization.js";
 import "./codex-map-settings.js";
+import "./codex-party-settings.js";
 
-type SettingsCategory = "language" | "appearance" | "maps" | CampaignEnumCategory;
+type SettingsCategory = "language" | "appearance" | "maps" | "playerParty" | CampaignEnumCategory;
 
 export class CodexSettings extends LitElement {
   static override properties = {
@@ -88,6 +89,10 @@ export class CodexSettings extends LitElement {
     if (this.activeCategory === "language") return this.#shell(this.#languagePanel());
     if (this.activeCategory === "appearance") return this.#shell(this.#appearancePanel());
     if (!this.canManageCampaign) return this.#shell(this.#languagePanel());
+    if (this.activeCategory === "playerParty") return this.#shell(html`<codex-party-settings
+      .campaign=${this.campaign} .saving=${this.saving} .editCompletion=${this.editCompletion}
+      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => { this.#dirty = event.detail.dirty; }}
+    ></codex-party-settings>`);
     if (this.activeCategory === "maps") return this.#shell(html`<codex-map-settings .campaign=${this.campaign}
       .initialParentId=${this.mapTarget ?? null} .saving=${this.saving} .editCompletion=${this.editCompletion}
       @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => { this.#dirty = event.detail.dirty; }}></codex-map-settings>`);
@@ -134,6 +139,7 @@ export class CodexSettings extends LitElement {
       ...(this.canManageCampaign ? [
         { id: "appearance" as const, label: this.#ui.t("settings.appearance"), icon: "◐" },
         { id: "maps" as const, label: this.#ui.t("map.settings"), icon: "🗺" },
+        { id: "playerParty" as const, label: this.#ui.t("settings.playerParty"), icon: "🛡" },
         ...campaignEnumDescriptors.map((descriptor) => ({
           id: descriptor.category as SettingsCategory,
           label: descriptor.label,
@@ -389,7 +395,7 @@ export class CodexSettings extends LitElement {
   readonly #save = (event: SubmitEvent): void => {
     event.preventDefault();
     if (this.saving || this.campaign === undefined || this.editingId === null ||
-      this.activeCategory === "language" || this.activeCategory === "appearance" || this.activeCategory === "maps") return;
+      this.activeCategory === "language" || this.activeCategory === "appearance" || this.activeCategory === "maps" || this.activeCategory === "playerParty") return;
     const form = event.currentTarget as HTMLFormElement;
     const data = new FormData(form);
     const descriptor = campaignEnumDescriptor(this.activeCategory);
@@ -413,7 +419,7 @@ export class CodexSettings extends LitElement {
 
   readonly #delete = (event: Event): void => {
     if (this.saving || this.campaign === undefined || this.activeCategory === "language" ||
-      this.activeCategory === "appearance" || this.activeCategory === "maps") return;
+      this.activeCategory === "appearance" || this.activeCategory === "maps" || this.activeCategory === "playerParty") return;
     const button = event.currentTarget as HTMLButtonElement;
     const itemId = button.dataset["id"];
     const mode = button.dataset["mode"];
@@ -457,11 +463,11 @@ export class CodexSettings extends LitElement {
 
   #visibleCategory(category: SettingsCategory): boolean {
     return category === "language" || this.canManageCampaign &&
-      (category === "appearance" || category === "maps" || campaignEnumDescriptors.some(({ category: id }) => id === category));
+      (category === "appearance" || category === "maps" || category === "playerParty" || campaignEnumDescriptors.some(({ category: id }) => id === category));
   }
 
   #activeEnumCategory(): CampaignEnumCategory {
-    if (this.activeCategory === "language" || this.activeCategory === "appearance" || this.activeCategory === "maps") {
+    if (this.activeCategory === "language" || this.activeCategory === "appearance" || this.activeCategory === "maps" || this.activeCategory === "playerParty") {
       throw new CampaignSettingsEditError("campaign enum category is not active");
     }
     return this.activeCategory;

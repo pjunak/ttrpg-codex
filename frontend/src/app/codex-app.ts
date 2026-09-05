@@ -71,6 +71,7 @@ import "./codex-dashboard.js";
 import "./codex-record-page.js";
 import "./codex-search.js";
 import "./codex-settings.js";
+import { CampaignPartyEditError, prepareCampaignPartySave, type CampaignPartySaveDetail } from "./campaign-party.js";
 import { CampaignIdentityEditError, prepareCampaignIdentitySave, type CampaignIdentitySaveDetail } from "./campaign-identity.js";
 import { MediaClient } from "../core/media.js";
 import { CampaignMapEditError, mapLocationRecord, prepareMapSave, prepareLocalMapImage, type MapSaveDetail, type MapUploadDetail } from "./campaign-map.js";
@@ -754,6 +755,7 @@ export class CodexApp extends LitElement {
           @campaign-enum-save=${this.#saveCampaignEnum}
           @campaign-enum-delete=${this.#deleteCampaignEnum}
           @campaign-appearance-save=${this.#saveCampaignAppearance}
+          @campaign-party-save=${this.#saveCampaignParty}
           @campaign-map-save=${this.#saveMap} @campaign-map-upload=${this.#uploadMap}
         ></codex-settings>`;
       case "collection":
@@ -1035,6 +1037,28 @@ export class CodexApp extends LitElement {
     } finally {
       this.busy = false;
     }
+  };
+
+  readonly #saveCampaignParty = async (event: CustomEvent<CampaignPartySaveDetail>): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canManageCampaign() ||
+      this.authority.state !== "known" || !this.authority.auth.authenticated || this.campaignState.state !== "ready") return;
+    let mutation: CampaignMutation;
+    try {
+      mutation = prepareCampaignPartySave(this.campaignState.campaign, event.detail);
+    } catch (cause: unknown) {
+      this.errorMessage = this.#ui.t(cause instanceof CampaignPartyEditError && cause.kind === "stale"
+        ? "settings.partyStale" : "settings.partyInvalid");
+      return;
+    }
+    this.busy = true; this.errorMessage = "";
+    try {
+      await this.#campaignMutations.commit([mutation], this.authority.auth.csrfToken, this.#request.signal);
+      await this.#loadCampaign(this.#request.signal, true);
+      this.#editDirty = false; this.editCompletion += 1;
+    } catch (cause: unknown) {
+      if (!this.#request.signal.aborted) this.errorMessage = this.#ui.t(
+        cause instanceof CampaignMutationHTTPError && cause.status === 409 ? "settings.partyStale" : "settings.partyFailed");
+    } finally { this.busy = false; }
   };
 
   readonly #saveCampaignAppearance = async (

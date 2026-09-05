@@ -7,6 +7,7 @@ import {
 } from "../core/campaign-data.js";
 import type { CampaignEnumCategory, CampaignMutation } from "../core/campaign-mutations.js";
 import { campaignPages, type CampaignPageDefinition } from "./routes.js";
+import { campaignPartyIdentity } from "./campaign-party.js";
 
 export interface CampaignEditorField {
   readonly key: string;
@@ -234,7 +235,8 @@ export function editorOptionsFor(
   for (const option of field.reservedOptions ?? []) {
     if (!seen.has(option.value)) {
       seen.add(option.value);
-      options.push(option);
+      options.push(field.referenceCollection === "factions" && option.value === "party"
+        ? Object.freeze({ value: "party", label: partyOptionLabel(campaign) }) : option);
     }
   }
   for (const record of campaignCollection(campaign, field.referenceCollection).records) {
@@ -876,7 +878,7 @@ function enumOptions(
 function ownerOptions(campaign: CampaignDataset): readonly CampaignEditorOption[] {
   const options: CampaignEditorOption[] = [
     Object.freeze({ value: "none:", label: "Unassigned" }),
-    Object.freeze({ value: "party:", label: "Player party" }),
+    Object.freeze({ value: "party:", label: partyOptionLabel(campaign) }),
   ];
   for (const [collection, prefix] of [["characters", "character"], ["factions", "faction"]] as const) {
     for (const record of campaignCollection(campaign, collection).records) {
@@ -889,6 +891,11 @@ function ownerOptions(campaign: CampaignDataset): readonly CampaignEditorOption[
     }
   }
   return Object.freeze(options);
+}
+
+function partyOptionLabel(campaign: CampaignDataset): string {
+  const party = campaignPartyIdentity(campaign);
+  return `${party.badge} ${party.name}`;
 }
 
 function line(value: unknown): string {

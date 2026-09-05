@@ -2,6 +2,18 @@ codex-settings {
   display: block;
 }
 
+codex-party-settings { display: block; min-width: 0; }
+.settings-party-panel .settings-hint { font: .78rem/1.5 var(--font-ui); color: var(--text-muted); }
+.settings-party-fields { margin: 1rem 0; }
+.settings-party-fields input[type="color"] { min-height: 2.65rem; padding: .25rem; }
+.settings-party-members { border-top: 1px dashed rgba(var(--accent-gold-rgb), .18); margin-top: 1.5rem; padding-top: 1rem; }
+.settings-party-members h3 { font-family: var(--font-title); font-size: 1rem; color: var(--gold); }
+.settings-party-members ul { list-style: none; padding: 0; margin: .6rem 0 0; }
+.settings-party-members a { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; gap: .6rem;
+  padding: .65rem; color: inherit; text-decoration: none; border-bottom: 1px solid var(--chrome-field-border); overflow-wrap: anywhere; }
+.settings-party-members a:hover { background: var(--bg-surface); }
+.settings-party-open { color: var(--text-muted); font: .78rem var(--font-ui); }
+
 .settings-page {
   max-width: var(--reading-width);
   min-height: calc(100vh - 7rem);
@@ -264,6 +276,8 @@ codex-settings {
   gap: 0.75rem;
   margin-top: 1rem;
 }
+
+.settings-party-fields { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 
 .settings-edit-grid > label,
 .settings-replacement {

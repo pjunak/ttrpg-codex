@@ -11,6 +11,7 @@ import {
 } from "./routes.js";
 import { campaignEnumDisplayLabel } from "./campaign-settings.js";
 import { attitudeRing, attitudeFilter } from "./campaign-attitude-glow.js";
+import { campaignPartyIdentity, type CampaignPartyIdentity } from "./campaign-party.js";
 
 export interface CampaignIdentity {
   readonly name: string;
@@ -18,6 +19,7 @@ export interface CampaignIdentity {
 }
 
 export interface EntitySummary {
+  readonly partyIdentity: CampaignPartyIdentity | undefined;
   readonly key: string;
   readonly name: string;
   readonly title: string;
@@ -51,6 +53,7 @@ export interface DashboardEvent extends EntitySummary {
 }
 
 export interface DashboardModel {
+  readonly partyIdentity: CampaignPartyIdentity;
   readonly identity: CampaignIdentity;
   readonly party: readonly EntitySummary[];
   readonly companions: readonly EntitySummary[];
@@ -95,13 +98,15 @@ function projectEntityWithContext(
 ): EntitySummary {
   const value = recordValue(record);
   const attitudes = effectiveAttitudes(context, page.collection, value);
+  const partyIdentity = page.collection === "characters" && value["faction"] === "party" ? campaignPartyIdentity(dataset) : undefined;
   return Object.freeze({
+    partyIdentity,
     key: record.key,
     name: nonEmptyText(value["name"]) ?? nonEmptyText(value["title"]) ?? record.key,
     title: firstText(value, secondaryFields[page.collection] ?? []),
     excerpt: firstExcerpt(value, excerptFields[page.collection] ?? ["description", "summary", "body"]),
     portrait: safeMediaURL(value["portrait"]),
-    icon: shortIcon(value["icon"] ?? value["badge"]),
+    icon: partyIdentity?.badge ?? shortIcon(value["icon"] ?? value["badge"]),
     status: text(value["status"]),
     statusLabel: page.collection === "characters"
       ? campaignEnumDisplayLabel(dataset, "characterStatuses", value["status"])
@@ -188,6 +193,7 @@ export function projectDashboard(dataset: CampaignDataset): DashboardModel {
   }
   return Object.freeze({
     identity: projectCampaignIdentity(dataset),
+    partyIdentity: campaignPartyIdentity(dataset),
     party: Object.freeze(party),
     companions: Object.freeze(companions),
     lastSession: lastSession > 0 ? lastSession : undefined,
@@ -297,15 +303,13 @@ function attitudeDefinitions(dataset: CampaignDataset): ReadonlyMap<string, Atti
       }));
     }
   }
-  const partyRecord = settings.records.find(({ key }) => key === "playerParty");
-  const party = recordValue(partyRecord);
-  const partyColor = safeHexColor(party["color"]) ?? "#f5f0e4";
+  const party = campaignPartyIdentity(dataset);
   const configuredPartyStrength = result.get("party")?.strength ?? 1;
   if (!result.has("party")) {
     result.set("party", Object.freeze({
       id: "party",
-      label: text(party["name"]) || "Party",
-      color: partyColor,
+      label: party.name,
+      color: party.color,
       strength: configuredPartyStrength,
     }));
   }

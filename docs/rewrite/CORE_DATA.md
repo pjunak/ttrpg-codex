@@ -195,9 +195,23 @@ World/local map viewing and editing now use the same transaction and media
 boundaries. Coordinates, map scope, saved views, draft revisions, and image
 replacement are described in [`MAPS.md`](MAPS.md).
 
+`settings/playerParty` owns the shared party name, icon, badge, color, and text
+color. Membership remains `character.faction === "party"`; settings never store
+a second roster or create a faction record. The DM panel edits the original
+four fields and mirrors the submitted icon into `badge`, preserving unknown
+fields. Saves use the opening record revision, reject malformed record shapes,
+and keep drafts on failed or stale writes. Clean forms follow live refresh;
+cancel reloads the current values. Colors are validated hex values before use
+in CSS. The identity is shared by roster headings, character placeholders and
+badges, inherited party glows, faction options, article facts, and companion
+ownership labels. The linked member list uses only the current role projection.
+`frontend/test/campaign-party.test.ts` and
+`frontend/test/browser/party-settings.browser.mjs` cover preparation and these
+production UI paths, including desktop/phone layout and English/Czech copy.
+
 The rewrite does not yet implement:
 
-- remaining map settings and overlays, timelines, the remaining non-enum
+- timelines, branding/sidebar settings, the remaining non-enum
   settings, and other specialized workflows;
 - initial import publication or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and

@@ -237,7 +237,16 @@ and tile failure fallback. This completes the map implementation gate, with
 the format/size fallback limits recorded in `docs/rewrite/MEDIA.md` and actual
 campaign acceptance still covered by the separate release gates.
 
-Still open elsewhere: saved party/sidebar choices, collection grouping and filter controls,
+Player-party settings now restore the original name, icon, glow/chip color,
+text color, and linked member list in the shared settings panel. The accepted
+identity reaches the dashboard/roster heading, character placeholders, party
+badges and inherited glows, faction choices, article facts, and companion
+ownership labels. Saves preserve extensions and the original icon/badge mirror,
+retain dirty drafts during live refresh, and reject stale/deleted revisions or
+malformed settings. English/Czech desktop/phone production-browser checks cover
+these behaviors, role restrictions, clean refresh, conflicts, and navigation.
+
+Still open elsewhere: saved sidebar choices, collection grouping and filter controls,
 timeline/graph views, complete settings/DM screens, and installed add-on
 visual acceptance. Keep the visual and release gates open until the requested
 workflows are ported; apply the lighter operational policy above at cutover.

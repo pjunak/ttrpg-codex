@@ -190,7 +190,7 @@ export class CodexDashboard extends LitElement {
     return html`
       <section class="chronicle-section party-section" aria-labelledby="party-heading">
         <div class="section-heading">
-          <h2 id="party-heading"><span aria-hidden="true">🛡</span> ${this.#ui.t("dashboard.company")}</h2>
+          <h2 id="party-heading"><span aria-hidden="true">${model.partyIdentity.badge}</span> ${model.partyIdentity.name}</h2>
           <div class="party-section-actions">
             ${compact ? html`<a href="#/party">${this.#ui.t("dashboard.openRoster")}</a>` : nothing}
             <button class="party-add" type="button" title=${this.#ui.t("dashboard.addPartyMember")}

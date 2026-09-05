@@ -1,4 +1,5 @@
 import { LitElement, html, nothing } from "lit";
+import { campaignPartyIdentity } from "./campaign-party.js";
 import {
   campaignCollection,
   type CampaignDataset,
@@ -222,7 +223,9 @@ export class CodexRecordPage extends LitElement {
                 <div class="record-badges">
                   ${entity.visibility === "dm" ? html`<span class="dm-badge">DM</span>` : nothing}
                   ${entity.status === "" ? nothing : html`<span>${entity.status}</span>`}
-                  ${entity.attitudes.map((attitude) => html`
+                  ${entity.partyIdentity === undefined ? nothing : html`<span class="party-identity-badge"
+                    style=${`background: ${entity.partyIdentity.color}; color: ${entity.partyIdentity.textColor}`}>${entity.partyIdentity.badge} ${entity.partyIdentity.name}</span>`}
+                  ${entity.attitudes.filter(attitude => entity.partyIdentity === undefined || attitude.id !== "party").map((attitude) => html`
                     <span class="attitude-badge" style=${`--attitude-color: ${attitude.color}`}>${attitude.label}</span>
                   `)}
                   ${entity.tags.map((tag) => html`<span>${tag}</span>`)}
@@ -857,13 +860,14 @@ function printable(value: unknown): string {
 
 function referenceNames(dataset: CampaignDataset, collection: string, value: unknown): string {
   const keys = typeof value === "string" ? [value] : stringList(value);
-  return keys.map((key) => resolveName(dataset, collection, key) ?? key).filter(Boolean).join(", ");
+  return keys.map((key) => collection === "factions" && key === "party"
+    ? campaignPartyIdentity(dataset).name : resolveName(dataset, collection, key) ?? key).filter(Boolean).join(", ");
 }
 
 function petOwnerName(dataset: CampaignDataset, value: Readonly<Record<string, unknown>>): string {
   const ownerType = text(value["ownerType"]);
   const ownerID = text(value["ownerId"]);
-  if (ownerType === "party") return "Player party";
+  if (ownerType === "party") return campaignPartyIdentity(dataset).name;
   if (ownerType === "character") return resolveName(dataset, "characters", ownerID) ?? ownerID;
   if (ownerType === "faction") return resolveName(dataset, "factions", ownerID) ?? ownerID;
   return "";
