@@ -74,6 +74,7 @@ type LegacyAdjustmentReport struct {
 	SpeciesDefinitions  int `json:"speciesDefinitions"`
 	CharacterSpecies    int `json:"characterSpeciesMapped"`
 	DiscardedMapPinFile int `json:"discardedEmptyMapPinFiles"`
+	SidebarLayouts      int `json:"sidebarLayoutsCreated"`
 }
 
 type Report struct {
@@ -130,6 +131,9 @@ func Convert(ctx context.Context, config Config) (Report, error) {
 	}
 	defer backup.Close()
 	if err := normalizeRetiredCoreData(backup); err != nil {
+		return Report{}, err
+	}
+	if err := normalizeSidebarSettings(backup); err != nil {
 		return Report{}, err
 	}
 	dataset := backup.dataset

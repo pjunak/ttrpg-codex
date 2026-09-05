@@ -34,6 +34,14 @@ rewrite data directory from one old UI ZIP.
   non-empty or malformed map-pin file fails conversion for manual review.
 - `auth.json` is inventoried but not imported. Passwords and sessions are
   deployment configuration and must be configured afresh.
+- When `sidebarLayout` is absent or null, the converter materializes the
+  preserved v1 default groups, order, collapse flags, and DM section. It folds
+  `hiddenSidebarPages` into that layout using the v1 core route registry and
+  keeps the original hide-list record unchanged, including unknown routes.
+  Saved layouts take precedence and remain unchanged. Malformed hide lists
+  that would be used for conversion fail before publication. No runtime legacy
+  reader is added; the report counts the derived layouts and includes any new
+  settings record in the imported core counts.
 - `secrets.json` is rejected. The old UI intentionally excluded it, so its
   presence means the archive is not the expected backup artifact.
 - Each supplied `-addon-package` ZIP is inspected twice: once before conversion
@@ -93,7 +101,7 @@ section separates imported source files and bindings, rewritten records, and
 discarded generated tiles. Its add-on section records target package hashes,
 document counts, stripped core records, imported source files, and any embedded
 namespaces left for manual review. `legacyAdjustments` records retired species
-mapping and empty map-pin disposal. The add-on section also counts keyed DM
+mapping, empty map-pin disposal, and `sidebarLayoutsCreated`. The add-on section also counts keyed DM
 Tools records whose missing embedded ID was normalized from the authoritative
 storage key, schema v2 records stamped as v3, the exact discarded v2 completion
 marker, converted cross-scope arrows, and re-anchored consequences.

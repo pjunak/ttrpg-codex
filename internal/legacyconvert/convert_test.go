@@ -76,14 +76,14 @@ func TestConvertCreatesFreshDatabaseAndInventoriesDeferredData(t *testing.T) {
 	}
 	if report.ContractVersion != "codex-v1-conversion-report.v3" ||
 		report.ConvertedAt != convertedAt.Format(time.RFC3339Nano) ||
-		report.CommitID != 1 || report.CoreRecords != 6 {
+		report.CommitID != 1 || report.CoreRecords != 7 {
 		t.Fatalf("report = %+v", report)
 	}
 	if report.CoreCollections["characters"] != 2 ||
 		report.CoreCollections["relationships"] != 0 ||
 		report.CoreCollections["campaign"] != 1 ||
 		report.CoreCollections["locations"] != 1 ||
-		report.CoreCollections["settings"] != 2 {
+		report.CoreCollections["settings"] != 3 {
 		t.Fatalf("core collection counts = %#v", report.CoreCollections)
 	}
 	if report.Media.Imported != (InventoryGroup{Files: 6, Bytes: uint64(6 * len(image))}) ||
@@ -92,7 +92,7 @@ func TestConvertCreatesFreshDatabaseAndInventoriesDeferredData(t *testing.T) {
 		t.Fatalf("media report = %+v", report.Media)
 	}
 	if report.Legacy != (LegacyAdjustmentReport{
-		SpeciesDefinitions: 2, CharacterSpecies: 2, DiscardedMapPinFile: 1,
+		SpeciesDefinitions: 2, CharacterSpecies: 2, DiscardedMapPinFile: 1, SidebarLayouts: 1,
 	}) {
 		t.Fatalf("legacy adjustments = %+v", report.Legacy)
 	}

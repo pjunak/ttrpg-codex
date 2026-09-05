@@ -42,24 +42,23 @@ func TestRunConvertsOldUIBackupAndPrintsReport(t *testing.T) {
 	}, &stdout, &stderr); err != nil {
 		t.Fatal(err)
 	}
-	var report struct {
-		ContractVersion string `json:"contractVersion"`
-		CoreRecords     int    `json:"coreRecords"`
+	type reportSummary struct {
+		ContractVersion string                               `json:"contractVersion"`
+		CoreRecords     int                                  `json:"coreRecords"`
+		Legacy          legacyconvert.LegacyAdjustmentReport `json:"legacyAdjustments"`
 	}
+	var report reportSummary
 	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
 		t.Fatal(err)
 	}
-	if report.ContractVersion != "codex-v1-conversion-report.v3" || report.CoreRecords != 1 {
+	if report.ContractVersion != "codex-v1-conversion-report.v3" || report.CoreRecords != 2 || report.Legacy.SidebarLayouts != 1 {
 		t.Fatalf("report = %+v", report)
 	}
 	reportFile, err := os.ReadFile(reportPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var persistedReport struct {
-		ContractVersion string `json:"contractVersion"`
-		CoreRecords     int    `json:"coreRecords"`
-	}
+	var persistedReport reportSummary
 	if err := json.Unmarshal(reportFile, &persistedReport); err != nil {
 		t.Fatal(err)
 	}

@@ -234,8 +234,11 @@ into the sidebar. An optional host navigation filter runs after the existing
 generation and role checks, so settings cannot grant access. Layout and changed
 visibility preferences save atomically with separate opening revisions, keeping
 inactive route keys. Changing a package's route identity requires reviewing its
-new opt-in entry. Retired `hiddenSidebarPages`-only backups still need explicit
-offline conversion into `sidebarLayout`; no startup compatibility reader is added.
+new opt-in entry. Offline v1 conversion materializes the original default groups
+and retired `hiddenSidebarPages` preferences into `sidebarLayout` when no saved
+layout exists, retaining the old setting for inspection. Existing layouts win;
+see [`LEGACY_CONVERSION.md`](LEGACY_CONVERSION.md). No startup compatibility
+reader is added.
 
 The production browser scenarios in `chrome-settings.browser.mjs` and the unit
 checks in `campaign-chrome.test.ts` cover the controls, extensions, stale/deleted
