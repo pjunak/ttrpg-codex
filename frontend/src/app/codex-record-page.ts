@@ -39,7 +39,8 @@ import {
   text,
   type EntitySummary,
 } from "./campaign-projection.js";
-import { collectionHash, mapHash, type AppRoute } from "./routes.js";
+import { collectionHash, mapHash, eventMapHash, type AppRoute } from "./routes.js";
+import { eventMapParent, hasEventPin } from "./campaign-map.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 
@@ -233,6 +234,10 @@ export class CodexRecordPage extends LitElement {
               ${route.page.collection === "locations" ? html`
                 <a class="record-action" href=${mapHash(text(value["parentId"]) || null)}>${this.#ui.t("map.show")}</a>
                 ${value["localMap"] || this.canEdit ? html`<a class="record-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>` : nothing}
+              ` : nothing}
+              ${route.page.collection === "events" ? html`
+                ${hasEventPin(value) ? html`<a class="record-action" href=${eventMapHash(eventMapParent(value), record.key, "show")}>${this.#ui.t("map.show")}</a>` : nothing}
+                ${this.canEdit ? html`<a class="record-action" href=${eventMapHash(eventMapParent(value), record.key, "place")}>${this.#ui.t(hasEventPin(value) ? "map.moveEvent" : "map.placeEvent")}</a>` : nothing}
               ` : nothing}
             </header>
             ${facts.length === 0 ? nothing : html`

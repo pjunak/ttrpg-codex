@@ -14,6 +14,8 @@ export const eventPathColors = Object.freeze({ path: "#C8A040", sitting: "#8B691
 export type MapSaveDetail =
   | { readonly kind: "location"; readonly key: string; readonly expectedRevision: number; readonly parentId: string | null;
       readonly x: number | null; readonly y: number | null; readonly name?: string }
+  | { readonly kind: "event"; readonly key: string; readonly expectedRevision: number; readonly parentId: string | null;
+      readonly x: number | null; readonly y: number | null }
   | { readonly kind: "view"; readonly action: "create" | "update"; readonly expectedRevision: number; readonly parentId: string | null;
       readonly id: string; readonly label: string; readonly icon: string; readonly bounds: MapBounds }
   | { readonly kind: "view"; readonly action: "delete"; readonly expectedRevision: number; readonly parentId: string | null; readonly id: string };
@@ -36,6 +38,11 @@ const defaultSizes: Readonly<Record<string, number>> = Object.freeze({ major_cit
 export function mapLocationRecord(campaign: CampaignDataset, key: string): CampaignRecord | undefined {
   return campaignCollection(campaign, "locations").records.find(record => record.key === key);
 }
+export function mapEventRecord(campaign: CampaignDataset, key: string): CampaignRecord | undefined {
+  return campaignCollection(campaign, "events").records.find(record => record.key === key);
+}
+export function eventMapParent(value: Readonly<Record<string, unknown>>): string | null { return text(value["mapParentId"]) || null; }
+export function hasEventPin(value: Readonly<Record<string, unknown>>): boolean { return mapCoordinate(value["mapX"]) && mapCoordinate(value["mapY"]); }
 export function mapParent(value: Readonly<Record<string, unknown>>): string | null { return text(value["parentId"]) || null; }
 export function mapViewRecord(campaign: CampaignDataset): CampaignRecord | undefined {
   return campaignCollection(campaign, "settings").records.find(({ key }) => key === "mapViews");
@@ -72,7 +79,7 @@ export function mapEventPoints(campaign: CampaignDataset, parentId: string | nul
     .sort((a, b) => eventNumber(a.value["sitting"]) - eventNumber(b.value["sitting"]) || eventNumber(a.value["order"]) - eventNumber(b.value["order"]))
     .flatMap(({ record, value }) => {
       const event = { key: record.key, name: text(value["name"]) || record.key, sitting: eventNumber(value["sitting"]) };
-      if (mapCoordinate(value["mapX"]) && mapCoordinate(value["mapY"]) && (text(value["mapParentId"]) || null) === parentId) {
+      if (mapCoordinate(value["mapX"]) && mapCoordinate(value["mapY"]) && eventMapParent(value) === parentId) {
         return [{ ...event, x: value["mapX"], y: value["mapY"] }];
       }
       const ids = Array.isArray(value["locations"]) ? value["locations"] : [];
@@ -86,6 +93,18 @@ function eventNumber(value: unknown): number { return typeof value === "number" 
 export function prepareMapSave(campaign: CampaignDataset, detail: MapSaveDetail): CampaignMutation {
   if (!Number.isSafeInteger(detail.expectedRevision) || detail.expectedRevision < 0) throw new CampaignMapEditError("invalid");
   if (detail.parentId !== null && mapLocationRecord(campaign, detail.parentId) === undefined) throw new CampaignMapEditError("stale");
+  if (detail.kind === "event") {
+    const record = mapEventRecord(campaign, detail.key);
+    if (record === undefined || record.revision !== detail.expectedRevision) throw new CampaignMapEditError("stale");
+    const value = { ...recordValue(record) };
+    if (hasEventPin(value) && eventMapParent(value) !== detail.parentId) throw new CampaignMapEditError("stale");
+    if (mapCoordinate(detail.x) && mapCoordinate(detail.y)) {
+      value["mapX"] = detail.x; value["mapY"] = detail.y; value["mapParentId"] = detail.parentId;
+    } else if (detail.x === null && detail.y === null && hasEventPin(value)) {
+      delete value["mapX"]; delete value["mapY"]; delete value["mapParentId"];
+    } else throw new CampaignMapEditError("invalid");
+    return { operation: "put", collection: "events", key: record.key, expectedRevision: detail.expectedRevision, value };
+  }
   if (detail.kind === "location") {
     const record = mapLocationRecord(campaign, detail.key);
     if ((record?.revision ?? 0) !== detail.expectedRevision || (record !== undefined && mapParent(recordValue(record)) !== detail.parentId)) {

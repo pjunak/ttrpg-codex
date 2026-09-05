@@ -202,8 +202,15 @@ sizes, stale view saves/deletes, event geometry and scope, refresh, and teardown
 Public projection now removes coordinates together with an unavailable map
 parent; player saves preserve the original hidden placement.
 
+Event articles now link to their map pins and start placement. World/local maps
+support direct event-pin placement, dragging, coordinate edits, and removal
+with protected opening revisions. Removing the explicit pin retains the event
+and its linked locations, restoring the location-based overlay. Desktop/phone
+browser checks cover article links, scope, draft conflicts, remote deletion,
+and anonymous/missing targets.
+
 Still open in maps: generated tile pyramids for large images, map configuration
-controls and zoom preferences, direct event-pin placement/editing,
+controls and zoom preferences,
 and exact segmented multi-attitude glow rendering. Existing attitude colors and
 glow layers already reach map markers. The spatial gates remain open for these
 remaining capabilities; source-image rendering is implemented.
@@ -265,7 +272,7 @@ acceptance still need to be expanded as follow-up documentation.
 | `/historie`, `/historicka-udalost/:id` | `/history`, `/history/:id` | Copied-campaign article/editor acceptance |
 | `/mazlicci` | `/companions` and dedicated companion records | Ownership and sheet-related workflow acceptance |
 | Global search and wiki links | `/search` and typed Markdown links | Add-on reference/linking surfaces and localized editors |
-| `/mapa/svet`, `/mapa/local/:id` | `/map/world`, `/map/local/:id`; old map hashes also accepted | Large-image tiles, segmented glows, map preferences, and direct event-pin editing |
+| `/mapa/svet`, `/mapa/local/:id` | `/map/world`, `/map/local/:id`; old map hashes also accepted | Large-image tiles, segmented glows, and map preferences |
 | `/mapa/palac`, `/mapa/frakce`, `/mapa/vztahy`, `/mapa/tajemstvi` | Not yet restored | Faction, relationship, mystery views and saved positions |
 | `/casova-osa` | Not yet restored | Timeline slice above |
 | `/dm` and player-preview action | Session role switch exists; dedicated DM dashboard and tab-isolated preview remain open | Preserve the distinction between session role switching and true preview |

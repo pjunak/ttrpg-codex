@@ -26,7 +26,7 @@ export type AppRoute =
   | { readonly kind: "dashboard" }
   | { readonly kind: "search" }
   | { readonly kind: "party" }
-  | { readonly kind: "map"; readonly parentId: string | null }
+  | { readonly kind: "map"; readonly parentId: string | null; readonly event?: { readonly key: string; readonly mode: "show" | "place" } }
   | { readonly kind: "create"; readonly page: CampaignPageDefinition; readonly preset: "party" }
   | { readonly kind: "settings" }
   | { readonly kind: "collection"; readonly page: CampaignPageDefinition }
@@ -50,12 +50,15 @@ export function parseAppRoute(hash: string): AppRoute {
   if (hash === "#/settings") {
     return { kind: "settings" };
   }
-  if (hash === "#/map/world" || hash === "#/mapa/svet") return { kind: "map", parentId: null };
-  const localMap = /^#\/(?:map|mapa)\/local\/([^/]+)$/u.exec(hash);
-  if (localMap !== null) {
+  const map = /^#\/(?:map\/world|mapa\/svet|(?:map|mapa)\/local\/([^/]+))(?:\/event\/([^/]+)\/(show|place))?$/u.exec(hash);
+  if (map !== null) {
     try {
-      const parentId = decodeURIComponent(localMap[1]!);
-      if (parentId !== "" && !/\p{Cc}/u.test(parentId)) return { kind: "map", parentId };
+      const parentId = map[1] === undefined ? null : decodeURIComponent(map[1]);
+      const key = map[2] === undefined ? undefined : decodeURIComponent(map[2]);
+      if ((parentId === null || (parentId !== "" && !/\p{Cc}/u.test(parentId))) &&
+        (key === undefined || (key !== "" && !/\p{Cc}/u.test(key)))) {
+        return key === undefined ? { kind: "map", parentId } : { kind: "map", parentId, event: { key, mode: map[3] === "place" ? "place" : "show" } };
+      }
     } catch { /* Malformed paths use the ordinary not-found route. */ }
     return { kind: "not-found", path: hash };
   }
@@ -87,6 +90,9 @@ export function collectionHash(page: CampaignPageDefinition): string {
 
 export function mapHash(parentId: string | null): string {
   return parentId === null ? "#/map/world" : `#/map/local/${encodeURIComponent(parentId)}`;
+}
+export function eventMapHash(parentId: string | null, key: string, mode: "show" | "place"): string {
+  return `${mapHash(parentId)}/event/${encodeURIComponent(key)}/${mode}`;
 }
 
 export function recordHash(page: CampaignPageDefinition, key: string): string {

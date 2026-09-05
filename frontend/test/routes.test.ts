@@ -4,6 +4,7 @@ import {
   collectionHash,
   parseAppRoute,
   recordHash,
+  eventMapHash,
 } from "../src/app/routes.js";
 
 describe("application routes", () => {
@@ -39,5 +40,13 @@ describe("application routes", () => {
     expect(parseAppRoute("#/locations/%E0%A4%A").kind).toBe("not-found");
     expect(parseAppRoute("#/locations/a/extra").kind).toBe("not-found");
     expect(parseAppRoute("#/unknown").kind).toBe("not-found");
+  });
+  it("round-trips event map links with explicit show/place intent and rejects malformed targets", () => {
+    expect(parseAppRoute(eventMapHash(null, "camp/river", "show"))).toEqual({ kind: "map", parentId: null, event: { key: "camp/river", mode: "show" } });
+    expect(parseAppRoute(eventMapHash("gate/upper", "camp ?#", "place"))).toEqual({ kind: "map", parentId: "gate/upper", event: { key: "camp ?#", mode: "place" } });
+    for (const hash of ["#/map/world/event/%00/place", "#/map/world/event/%E0%A4%A/show", "#/map/local/%00/event/camp/show",
+      "#/map/world/event/camp/delete", "#/map/world/event/camp/show/extra", "#/map/world/event//place"]) {
+      expect(parseAppRoute(hash).kind).toBe("not-found");
+    }
   });
 });

@@ -14,6 +14,7 @@ const uploadedURL = `/api/media/b_${'2'.repeat(32)}`;
 const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800"><rect width="1280" height="800" fill="#988363"/><path d="M0 550 Q300 180 640 500 T1280 260" fill="none" stroke="#648894" stroke-width="60"/><path d="M70 300 L230 40 L400 300 M750 190 L870 40 L1000 190" fill="#615945"/><text x="460" y="200" fill="#302615" font-size="46">Synthetic map</text></svg>';
 const collection = name => campaign.collections.find(item => item.name === name);
 const record = key => collection('locations').records.find(item => item.key === key);
+const eventRecord = key => collection('events').records.find(item => item.key === key);
 before(async () => {
   await mkdir(artifacts, { recursive: true });
   server = await preview({ root: fileURLToPath(new URL('../../', import.meta.url)), configFile: false, logLevel: 'error',
@@ -38,7 +39,7 @@ async function fixture(t, { role = 'dm', mobile = false } = {}) {
   collection('events').records = [
     { key: 'travel', revision: 1, value: { id: 'travel', name: 'Road to the inn', sitting: 2, locations: ['gate', 'inn', 'missing', 'room'] } },
     { key: 'arrival', revision: 1, value: { id: 'arrival', name: 'Camp by the river', sitting: 1, mapX: .48, mapY: .35, locations: ['gate'] } },
-    { key: 'past', revision: 1, value: { id: 'past', name: 'The old gate', locations: ['gate'] } },
+    { key: 'past', revision: 1, value: { id: 'past', name: 'The old gate', locations: ['gate'], extension: { keep: true } } },
     { key: 'local-event', revision: 1, value: { id: 'local-event', name: 'Inside the gate', sitting: 3, mapParentId: 'gate', mapX: .25, mapY: .25, locations: ['room'] } },
   ];
   const context = await browser.newContext({ locale: 'en-US', reducedMotion: 'reduce',
@@ -92,8 +93,57 @@ async function changed(page, resource = 'locations') {
   await refresh;
 }
 const marker = (page, name) => page.locator(`.sc-marker[title="${name}"]`);
+const eventMarker = (page, name) => page.locator(`.sc-event-pin[title="${name}"]`);
+async function chooseEventPoint(page, mobile = false) {
+  const box = await page.locator('.sc-map').boundingBox();
+  await page.locator('.sc-map').click({ position: { x: mobile ? 85 : 400, y: box.height * .65 } });
+  await page.getByLabel('Horizontal position (%)').waitFor();
+}
 
 for (const mobile of [false, true]) {
+  test(`event articles place, edit and remove pins without losing event data (${mobile ? 'phone' : 'desktop'})`, async t => {
+    const { page, writes } = await fixture(t, { role: 'player', mobile });
+    await page.goto(`${origin}/#/events/past`);
+    await page.getByRole('link', { name: 'Place event pin', exact: true }).click();
+    await page.waitForURL(/#\/map\/world\/event\/past\/place$/);
+    await page.getByRole('complementary', { name: 'Event map position', exact: true }).waitFor();
+    assert.equal(writes.length, 0);
+    await chooseEventPoint(page, mobile);
+    await page.getByLabel('Horizontal position (%)').fill('41.25');
+    await page.getByLabel('Vertical position (%)').fill('62.5');
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: `${artifacts}${mobile ? 'mobile' : 'desktop'}-event-editor.png`, animations: 'disabled' });
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByRole('complementary', { name: 'Event map position', exact: true }).waitFor({ state: 'detached' });
+    assert.equal(writes.length, 1);
+    assert.equal(eventRecord('past').value.mapX, .4125);
+    assert.equal(eventRecord('past').value.mapY, .625);
+    assert.equal(eventRecord('past').value.mapParentId, null);
+    assert.deepEqual(eventRecord('past').value.locations, ['gate']);
+    assert.deepEqual(eventRecord('past').value.extension, { keep: true });
+    await page.goto(`${origin}/#/events/past`);
+    await page.getByRole('link', { name: 'Show on map', exact: true }).click();
+    const pin = eventMarker(page, 'The old gate');
+    await pin.waitFor();
+    assert.equal(await page.getByRole('complementary', { name: 'Event map position', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Edit map', exact: false }).click();
+    await pin.focus(); await page.keyboard.press('Enter');
+    assert.equal(await page.getByLabel('Horizontal position (%)').inputValue(), '41.25');
+    await page.getByLabel('Horizontal position (%)').fill('45');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByRole('complementary', { name: 'Event map position', exact: true }).waitFor({ state: 'detached' });
+    assert.equal(eventRecord('past').value.mapX, .45);
+    await pin.focus(); await page.keyboard.press('Space');
+    await page.getByRole('button', { name: 'Remove event pin', exact: true }).click();
+    await page.getByRole('complementary', { name: 'Event map position', exact: true }).waitFor({ state: 'detached' });
+    assert.equal(writes.length, 3);
+    assert.equal(eventRecord('past').value.mapX, undefined);
+    assert.equal(eventRecord('past').value.mapY, undefined);
+    assert.equal(eventRecord('past').value.mapParentId, undefined);
+    assert.deepEqual(eventRecord('past').value.locations, ['gate']);
+    assert.deepEqual(eventRecord('past').value.extension, { keep: true });
+    assert.equal(await pin.count(), 1, 'removing an explicit pin restores its linked-location marker');
+  });
   test(`world/local map navigation and original controls (${mobile ? 'phone' : 'desktop'})`, async t => {
     const { page } = await fixture(t, { role: '', mobile });
     assert.equal(await page.locator('.sc-marker').count(), 2);
@@ -123,6 +173,79 @@ for (const mobile of [false, true]) {
     await page.screenshot({ path: `${artifacts}${mobile ? 'mobile' : 'desktop'}-local.png`, animations: 'disabled' });
   });
 }
+
+test('event dragging keeps its opening revision during live refresh and remote deletion', async t => {
+  const { page, writes } = await fixture(t);
+  await page.getByRole('button', { name: 'Event paths', exact: false }).click();
+  await page.getByRole('button', { name: 'Edit map', exact: false }).click();
+  const pin = await eventMarker(page, 'Camp by the river').boundingBox();
+  await page.mouse.move(pin.x + pin.width / 2, pin.y + pin.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(pin.x + pin.width / 2 + 50, pin.y + pin.height / 2 + 35, { steps: 12 });
+  await page.mouse.up();
+  await page.getByLabel('Horizontal position (%)').waitFor();
+  const draftX = await page.getByLabel('Horizontal position (%)').inputValue();
+  assert.ok(Number(draftX) > 48);
+  assert.equal(writes.length, 0);
+  eventRecord('arrival').revision++; eventRecord('arrival').value.mapX = .3;
+  await changed(page, 'events');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.locator('.sc-message').filter({ hasText: 'Your draft is kept' }).waitFor();
+  assert.equal(await page.getByLabel('Horizontal position (%)').inputValue(), draftX);
+  await page.getByRole('button', { name: 'Remove event pin', exact: true }).click();
+  assert.equal(writes.length, 0);
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByRole('link', { name: 'Open event article', exact: true }).click();
+  await page.waitForURL(/#\/map\/world$/);
+  collection('events').records = collection('events').records.filter(record => record.key !== 'arrival');
+  await changed(page, 'events');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  assert.equal(await page.getByLabel('Horizontal position (%)').inputValue(), draftX);
+  assert.equal(writes.length, 0);
+});
+
+test('local event placement captures its revision before the map click and protects other map scopes', async t => {
+  const { page, writes } = await fixture(t, { role: 'player' });
+  await page.goto(`${origin}/#/map/local/gate`);
+  await marker(page, 'Upper Room').waitFor();
+  await page.getByRole('button', { name: 'Edit map', exact: false }).click();
+  const picker = page.getByLabel('Place an event', { exact: true });
+  assert.equal(await picker.locator('option[value="arrival"]').count(), 0, 'a world pin must be removed before moving it to another map');
+  await picker.selectOption('past');
+  eventRecord('past').revision++;
+  await changed(page, 'events');
+  await chooseEventPoint(page);
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.locator('.sc-message').filter({ hasText: 'Your draft is kept' }).waitFor();
+  assert.equal(writes.length, 0);
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await picker.selectOption('past');
+  await chooseEventPoint(page);
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('complementary', { name: 'Event map position', exact: true }).waitFor({ state: 'detached' });
+  assert.equal(writes[0][0].expectedRevision, 2);
+  assert.equal(eventRecord('past').value.mapParentId, 'gate');
+  await page.goto(`${origin}/#/events/past`);
+  assert.match(await page.getByRole('link', { name: 'Show on map', exact: true }).getAttribute('href'), /#\/map\/local\/gate\/event\/past\/show$/);
+  await page.getByRole('link', { name: 'Move event pin', exact: true }).click();
+  await page.getByRole('complementary', { name: 'Event map position', exact: true }).waitFor();
+  assert.equal(writes.length, 1, 'article navigation must not write');
+});
+
+test('anonymous and missing-event map links cannot start edits', async t => {
+  const { page, writes } = await fixture(t, { role: '' });
+  await page.goto(`${origin}/#/events/arrival`);
+  assert.equal(await page.getByRole('link', { name: 'Move event pin', exact: true }).count(), 0);
+  await page.getByRole('link', { name: 'Show on map', exact: true }).click();
+  await eventMarker(page, 'Camp by the river').waitFor();
+  await page.goto(`${origin}/#/map/world/event/arrival/place`);
+  await eventMarker(page, 'Camp by the river').waitFor();
+  assert.equal(await page.getByRole('complementary', { name: 'Event map position', exact: true }).count(), 0);
+  await page.goto(`${origin}/#/map/world/event/missing/place`);
+  await page.locator('.sc-message').filter({ hasText: 'unavailable on this map' }).waitFor();
+  assert.equal(writes.length, 0);
+});
 
 test('coordinate drafts survive live refresh and stale saves without changing other fields', async t => {
   const { page, writes } = await fixture(t);

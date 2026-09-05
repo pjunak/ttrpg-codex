@@ -93,4 +93,22 @@ describe("campaign maps", () => {
     expect(() => prepareLocalMapImage(dataset([gate]), "gate", 2, url)).toThrow("stale");
     expect(() => prepareLocalMapImage(dataset([gate]), "gate", 3, "javascript:alert(1)")).toThrow("invalid");
   });
+  it("places, moves and unplaces an existing event without changing its links or extension fields", () => {
+    const event = { key: "arrival", revision: 7, value: { id: "arrival", name: "Arrival", locations: ["gate"], characters: ["hero"], sitting: 3, addonData: { keep: true } } };
+    const detail = { kind: "event" as const, key: "arrival", expectedRevision: 7, parentId: "gate", x: -.2, y: .3 };
+    expect(prepareMapSave(dataset([gate], [], [event]), detail)).toEqual({ operation: "put", collection: "events", key: "arrival", expectedRevision: 7,
+      value: { ...event.value, mapX: -.2, mapY: .3, mapParentId: "gate" } });
+    const placed = { ...event, value: { ...event.value, mapX: .4, mapY: .5, mapParentId: "gate" } };
+    const campaign = dataset([gate], [], [placed]);
+    expect(prepareMapSave(campaign, detail)).toMatchObject({ value: { ...placed.value, mapX: -.2, mapY: .3 } });
+    expect(prepareMapSave(campaign, { ...detail, x: null, y: null })).toMatchObject({ value: event.value });
+    expect(prepareMapSave(campaign, { ...detail, x: null, y: null })).not.toHaveProperty("value.mapParentId");
+    expect(() => prepareMapSave(campaign, { ...detail, parentId: null })).toThrow("stale");
+    expect(() => prepareMapSave(campaign, { ...detail, expectedRevision: 6 })).toThrow("stale");
+    expect(() => prepareMapSave(campaign, { ...detail, key: "missing" })).toThrow("stale");
+    expect(() => prepareMapSave(dataset([], [], [placed]), detail)).toThrow("stale");
+    expect(() => prepareMapSave(campaign, { ...detail, x: NaN })).toThrow("invalid");
+    expect(() => prepareMapSave(campaign, { ...detail, y: null })).toThrow("invalid");
+    expect(() => prepareMapSave(dataset([gate], [], [event]), { ...detail, x: null, y: null })).toThrow("invalid");
+  });
 });

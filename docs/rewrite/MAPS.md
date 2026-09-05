@@ -10,6 +10,9 @@ Leaflet's image-coordinate behavior is documented in its
 
 - World map route: `#/map/world`; local map route: `#/map/local/<encoded key>`.
   The preserved `#/mapa/svet` and `#/mapa/local/<encoded key>` hashes also work.
+  Event article links append `/event/<encoded key>/show` or `/place`. Show
+  enables the overlay and centers the event; Place opens a pending placement
+  for an authenticated editor. Neither action writes data by navigating.
 - A location's `parentId` selects its map; null/empty means the world map.
   Child markers do not appear on the world map. Missing/hidden local parents
   display an unavailable state rather than another location's image.
@@ -41,6 +44,22 @@ coordinates into the current record. Other fields and add-on data survive.
 Stale saves retain the draft and use the existing navigation/unload guard.
 Pan/zoom is local UI state and does not dirty campaign data.
 
+Event articles expose Show on map and Place/Move event pin. The map's event
+picker places an existing event on the current world/local map. An event with
+an explicit pin on another map must have that pin removed before placement
+elsewhere. This prevents moving a pin between maps unintentionally.
+
+Event placement captures the opening event revision before the map click.
+The position form supports coordinates, another map click, Save/Cancel, and
+removal; existing explicit event markers can also be dragged while editing.
+Map-marker clicks open this editor in edit mode and the article in view mode.
+Saving merges only `mapX`, `mapY`, and `mapParentId`. Removal clears those three
+fields, retaining the event, linked locations, session data, and extensions;
+linked-location markers become visible again through the ordinary projection.
+Live updates and remote deletion retain the draft and reject stale saves or
+removals. Missing targets show an unavailable message, and anonymous links
+cannot start placement. A successful save ends the pending placement intent.
+
 DMs can create, edit, and delete view presets in `settings/mapViews`. The inline
 editor exposes a name, icon, preview, and explicit capture of the current map
 area. Captured bounds are clipped to the source image; an entirely off-image
@@ -68,10 +87,12 @@ on the current map. Missing or off-map locations have no rendered point. The
 trail connects consecutive rendered points and skips zero-length segments.
 Enabling it fits played-event points, capped at native image scale.
 
-Markers open their event articles; both event and location markers support
-click, Enter, and Space. The overlay is read-only and follows authoritative
-live data; position drafts do not move its points before Save. Its separate
-Leaflet layer group is cleared on toggle, live refresh, and page disposal.
+Both event and location markers support click, Enter, and Space. The story
+trail follows authoritative live data until Save; explicit markers preview
+their position draft, and a new placement displays a temporary circle.
+Linked-location markers are never draggable as event pins, so event editing
+cannot move a location. The separate Leaflet layer group is cleared on toggle,
+live refresh, and page disposal, while active drags defer marker rebuilding.
 
 ## Runtime and validation
 
@@ -87,10 +108,13 @@ production build with synthetic campaign/media responses on desktop and phone,
 including position geometry, dragging, live conflicts, creation, unplacing,
 view creation/edit/delete with stale revisions, local image uploads, and event
 ordering, geometry, appearance, keyboard links, refresh, and teardown.
+Event-pin regressions also exercise article links, world/local placement,
+coordinates, drag drafts, removal with restored location fallback, revisions
+captured before clicking the map, remote deletion, and anonymous/missing targets.
 `map_placement_test.go` covers public/DM projection and player-save preservation
 for visible, hidden, and missing parents. These fixtures contain no live data.
 Screenshots are written to ignored `frontend/test-results/maps/`.
 
-Generated tile pyramids, map configuration controls, direct event-pin editing,
+Generated tile pyramids, map configuration controls,
 and segmented attitude glows remain tracked in the
 suite backlog. The current viewer uses the original source image directly.

@@ -32,6 +32,7 @@
 .sc-upload input { max-width: 100%; }
 .sc-message { color: var(--gold); }
 .sc-view-preset { display: inline-flex; align-items: stretch; }
+.sc-event-select { max-width: min(240px, 100%); }
 .sc-view-preset:has(.sc-view-edit) > :first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .sc-view-edit { border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .sc-view-bounds { font: .75rem var(--font-ui); color: var(--text-muted); }
