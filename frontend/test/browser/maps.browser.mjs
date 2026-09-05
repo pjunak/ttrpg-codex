@@ -121,6 +121,60 @@ async function setScale(page, value) {
 }
 
 for (const mobile of [false, true]) {
+  test(`location fields and article links share map placement and local image editing (${mobile ? 'phone' : 'desktop'})`, async t => {
+    const { page, writes, uploads } = await fixture(t, { role: 'player', mobile });
+    record('inn').value.localMap = imageURL;
+    collection('settings').records.push({ key: 'pinTypes', revision: 1, value: [{ id: 'town', label: 'Town', size: 28 }] });
+    await changed(page, 'settings');
+    await page.goto(`${origin}/#/locations/gate`);
+    const show = page.getByRole('link', { name: 'Show on map', exact: true });
+    assert.match(await show.getAttribute('href'), /#\/map\/world\/location\/gate\/show$/);
+    await show.click();
+    await page.getByRole('complementary', { name: 'Map location', exact: true }).waitFor();
+    assert.equal(writes.length, 0);
+    await page.goto(`${origin}/#/locations/gate`);
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    const form = page.locator('.record-editor');
+    await form.locator('[name="pinType"]').selectOption('town');
+    await form.locator('[name="size"]').fill('42');
+    await form.locator('[name="parentId"]').selectOption('inn');
+    page.once('dialog', dialog => dialog.dismiss());
+    await form.getByRole('link', { name: 'Local map', exact: true }).click();
+    assert.equal(await form.locator('[name="size"]').inputValue(), '42', 'refusing navigation retains the form');
+    assert.equal(await form.locator('.location-map-preview').getAttribute('src'), imageURL);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.screenshot({ path: `${artifacts}${mobile ? 'mobile' : 'desktop'}-location-fields.png`, fullPage: true, animations: 'disabled' });
+    await form.getByRole('button', { name: 'Save entry', exact: true }).click();
+    await form.waitFor({ state: 'detached' });
+    assert.equal(writes.length, 1);
+    assert.equal(record('gate').value.pinType, 'town'); assert.equal(record('gate').value.size, 42);
+    assert.equal(record('gate').value.parentId, 'inn');
+    assert.equal(record('gate').value.x, undefined); assert.equal(record('gate').value.y, undefined);
+    assert.equal(record('gate').value.localMap, imageURL); assert.deepEqual(record('gate').value.extension, { keep: true });
+    const place = page.getByRole('link', { name: 'Place location pin', exact: true });
+    assert.match(await place.getAttribute('href'), /#\/map\/local\/inn\/location\/gate\/place$/);
+    await place.click();
+    await page.getByRole('complementary', { name: 'Map location', exact: true }).waitFor();
+    await chooseEventPoint(page, mobile);
+    await page.getByLabel('Horizontal position (%)').fill('31.25');
+    await page.getByLabel('Vertical position (%)').fill('62.5');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByLabel('Horizontal position (%)').waitFor({ state: 'detached' });
+    assert.equal(writes[1][0].expectedRevision, 4);
+    assert.equal(record('gate').value.x, .3125); assert.equal(record('gate').value.y, .625);
+    const pin = marker(page, 'Northern Gate'); await pin.waitFor();
+    assert.equal(await pin.evaluate(node => node.style.width), '42px');
+    await page.goto(`${origin}/#/locations/gate`);
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.locator('.record-editor').getByRole('link', { name: 'Local map', exact: true }).click();
+    await page.waitForURL(/#\/map\/local\/gate$/);
+    await page.getByRole('button', { name: 'Edit map', exact: false }).click();
+    await page.getByLabel('Upload map image').setInputFiles({ name: 'interior.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) });
+    await page.waitForFunction(() => document.querySelector('.sc-map .leaflet-image-layer')?.getAttribute('src')?.includes('b_2222'));
+    assert.equal(uploads.length, 1); assert.equal(record('gate').value.localMap, uploadedURL);
+    assert.equal(record('gate').value.x, .3125); assert.equal(record('gate').value.size, 42);
+  });
   test(`tiled maps preserve image coordinates and original controls (${mobile ? 'phone' : 'desktop'})`, async t => {
     const { page, writes, mediaReads } = await fixture(t, { mobile, tiled: true });
     await page.waitForFunction(() => {
@@ -310,6 +364,39 @@ for (const mobile of [false, true]) {
     await page.screenshot({ path: `${artifacts}${mobile ? 'mobile' : 'desktop'}-local.png`, animations: 'disabled' });
   });
 }
+
+for (const change of ['edit', 'move', 'delete']) {
+  test(`location placement retains the opening revision before a remote ${change}`, async t => {
+    const { page, writes } = await fixture(t, { role: 'player' });
+    await page.goto(`${origin}/#/map/world/location/unplaced/place`);
+    await page.getByRole('complementary', { name: 'Map location', exact: true }).waitFor();
+    if (change === 'delete') collection('locations').records = collection('locations').records.filter(item => item.key !== 'unplaced');
+    else { record('unplaced').revision++; if (change === 'move') record('unplaced').value.parentId = 'gate'; }
+    await changed(page);
+    await chooseEventPoint(page);
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.locator('.sc-message').filter({ hasText: 'Your draft is kept' }).waitFor();
+    assert.equal(writes.length, 0);
+    assert.notEqual(await page.getByLabel('Horizontal position (%)').inputValue(), '');
+  });
+}
+
+test('location map actions respect scope and anonymous access', async t => {
+  const { page, writes } = await fixture(t, { role: '' });
+  await page.goto(`${origin}/#/locations/gate`);
+  await page.getByRole('link', { name: 'Show on map', exact: true }).click();
+  await page.getByRole('complementary', { name: 'Map location', exact: true }).waitFor();
+  assert.equal(await page.getByRole('link', { name: 'Move location pin', exact: true }).count(), 0);
+  await page.goto(`${origin}/#/map/world/location/gate/place`);
+  await marker(page, 'Northern Gate').waitFor();
+  assert.equal(await page.getByRole('button', { name: /Edit map/ }).count(), 0);
+  assert.equal(await page.getByLabel('Horizontal position (%)').count(), 0);
+  for (const target of ['room', 'missing', 'unplaced']) {
+    await page.goto(`${origin}/#/map/world/location/${target}/show`);
+    await page.locator('.sc-message').filter({ hasText: 'This location or its pin is unavailable' }).waitFor();
+  }
+  assert.equal(writes.length, 0);
+});
 
 test('a tile failure falls back to the original image without losing the map', async t => {
   const { page, writes, mediaReads } = await fixture(t, { tiled: true, tileFailure: true });

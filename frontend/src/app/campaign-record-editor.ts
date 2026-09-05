@@ -140,6 +140,10 @@ export function prepareCampaignRecordSave(
     if (value["faction"] === "party") value["attitudes"] = [];
   }
   if (page.collection === "pets" && detail.creating && line(value["icon"]) === "") value["icon"] = "🐾";
+  if (page.collection === "locations" && line(value["parentId"]) !== line(current["parentId"])) {
+    // Coordinates belong to the old image's frame; a different parent needs a new placement.
+    delete value["x"]; delete value["y"];
+  }
   value["id"] = detail.key;
 
   const visibilityBearing = collectionManagesVisibility(page.collection);
@@ -330,10 +334,14 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
   locations: Object.freeze([
     name,
     field("type", "Kind"),
+    field("pinType", "Map marker", { kind: "enum", enumCategory: "pinTypes" }),
+    field("size", "Marker size", { kind: "number", maximumLength: 5, minimum: 14, maximum: 64,
+      placeholder: "Default for marker type", help: "Leave empty to follow the marker type's size (14–64 px)." }),
     field("region", "Region"),
     field("knowledge", "Knowledge", { kind: "number", maximumLength: 1, minimum: 0, maximum: 4 }),
     field("parentId", "Contained in", {
       kind: "reference", referenceCollection: "locations", excludeCurrent: true,
+      help: "Changing the parent removes the old map placement. Place the location on its new map after saving.",
     }),
     field("connections", "Connected locations", {
       kind: "references",
@@ -862,7 +870,8 @@ function enumOptions(
   category: CampaignEnumCategory,
 ): readonly CampaignEditorOption[] {
   const record = campaignCollection(campaign, "settings").records.find(({ key }) => key === category);
-  if (!Array.isArray(record?.value)) return Object.freeze([]);
+  const fallback = category === "pinTypes" ? [Object.freeze({ value: "custom", label: "Custom" })] : [];
+  if (!Array.isArray(record?.value)) return Object.freeze(fallback);
   const options: CampaignEditorOption[] = [];
   const seen = new Set<string>();
   for (const candidate of record.value) {
@@ -872,7 +881,7 @@ function enumOptions(
     seen.add(value);
     options.push(Object.freeze({ value, label: line(candidate["label"]) || value }));
   }
-  return Object.freeze(options);
+  return Object.freeze(options.length === 0 ? fallback : options);
 }
 
 function ownerOptions(campaign: CampaignDataset): readonly CampaignEditorOption[] {

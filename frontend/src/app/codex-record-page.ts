@@ -36,12 +36,13 @@ import {
 import {
   projectEntities,
   recordValue,
+  safeMediaURL,
   stringList,
   text,
   type EntitySummary,
 } from "./campaign-projection.js";
-import { collectionHash, mapHash, eventMapHash, type AppRoute } from "./routes.js";
-import { eventMapParent, hasEventPin } from "./campaign-map.js";
+import { collectionHash, mapHash, eventMapHash, locationMapHash, type AppRoute } from "./routes.js";
+import { eventMapParent, hasEventPin, mapParent, mapCoordinate } from "./campaign-map.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 
@@ -235,7 +236,7 @@ export class CodexRecordPage extends LitElement {
                 <button class="record-action" type="button" @click=${this.#startEdit} ?disabled=${this.saving}>Edit</button>
               ` : nothing}
               ${route.page.collection === "locations" ? html`
-                <a class="record-action" href=${mapHash(text(value["parentId"]) || null)}>${this.#ui.t("map.show")}</a>
+                ${this.#locationPlacementLinks(record)}
                 ${value["localMap"] || this.canEdit ? html`<a class="record-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>` : nothing}
               ` : nothing}
               ${route.page.collection === "events" ? html`
@@ -305,6 +306,17 @@ export class CodexRecordPage extends LitElement {
         </header>
         <div class="record-editor-fields">
           ${fields.map((field) => this.#editorField(field, value, record?.key ?? ""))}
+          ${route.page.collection === "locations" ? html`<section class="wide-field location-map-controls" aria-label=${this.#ui.t("map.locationControls")}>
+            <h3>${this.#ui.t("map.locationControls")}</h3>
+            ${record === undefined ? html`<p class="field-help">${this.#ui.t("map.saveLocationFirst")}</p>` : html`
+              <div class="location-map-actions">${this.#locationPlacementLinks(record)}
+                <a class="record-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>
+              </div>
+              ${safeMediaURL(value["localMap"]) === undefined ? nothing : html`
+                <img class="location-map-preview" src=${safeMediaURL(value["localMap"])} alt=${this.#ui.t("map.local")} />
+              `}
+            `}
+          </section>` : nothing}
           ${route.page.collection === "characters" ? html`
             <campaign-relationship-editor
               .campaign=${this.#editorCampaign}
@@ -334,6 +346,14 @@ export class CodexRecordPage extends LitElement {
           </button>
         </footer>
       </form>
+    `;
+  }
+
+  #locationPlacementLinks(record: CampaignRecord) {
+    const value = recordValue(record), placed = mapCoordinate(value["x"]) && mapCoordinate(value["y"]);
+    return html`
+      ${placed ? html`<a class="record-action" href=${locationMapHash(mapParent(value), record.key, "show")}>${this.#ui.t("map.show")}</a>` : nothing}
+      ${this.canEdit ? html`<a class="record-action" href=${locationMapHash(mapParent(value), record.key, "place")}>${this.#ui.t(placed ? "map.moveLocation" : "map.placeLocation")}</a>` : nothing}
     `;
   }
 

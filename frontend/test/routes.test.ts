@@ -5,6 +5,7 @@ import {
   parseAppRoute,
   recordHash,
   eventMapHash,
+  locationMapHash,
   mapSettingsHash,
 } from "../src/app/routes.js";
 
@@ -55,5 +56,13 @@ describe("application routes", () => {
     expect(parseAppRoute(mapSettingsHash("gate/upper"))).toEqual({ kind: "settings", mapParentId: "gate/upper" });
     expect(parseAppRoute("#/settings/maps/local/%00").kind).toBe("not-found");
     expect(parseAppRoute("#/settings/maps/local/%E0%A4%A").kind).toBe("not-found");
+  });
+  it("round-trips location show/place links and rejects malformed or unknown actions", () => {
+    expect(parseAppRoute(locationMapHash(null, "gate/north ?#", "show"))).toEqual({ kind: "map", parentId: null, location: { key: "gate/north ?#", mode: "show" } });
+    expect(parseAppRoute(locationMapHash("gate/upper", "room", "place"))).toEqual({ kind: "map", parentId: "gate/upper", location: { key: "room", mode: "place" } });
+    for (const hash of ["#/map/world/location/%00/place", "#/map/world/location/%E0%A4%A/show", "#/map/local/%00/location/room/show",
+      "#/map/world/location/gate/delete", "#/map/world/location/gate/show/extra", "#/map/world/location//place"]) {
+      expect(parseAppRoute(hash).kind).toBe("not-found");
+    }
   });
 });

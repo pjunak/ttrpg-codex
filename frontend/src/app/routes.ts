@@ -26,7 +26,9 @@ export type AppRoute =
   | { readonly kind: "dashboard" }
   | { readonly kind: "search" }
   | { readonly kind: "party" }
-  | { readonly kind: "map"; readonly parentId: string | null; readonly event?: { readonly key: string; readonly mode: "show" | "place" } }
+  | { readonly kind: "map"; readonly parentId: string | null;
+      readonly event?: { readonly key: string; readonly mode: "show" | "place" };
+      readonly location?: { readonly key: string; readonly mode: "show" | "place" } }
   | { readonly kind: "create"; readonly page: CampaignPageDefinition; readonly preset: "party" }
   | { readonly kind: "settings"; readonly mapParentId?: string | null }
   | { readonly kind: "collection"; readonly page: CampaignPageDefinition }
@@ -59,14 +61,16 @@ export function parseAppRoute(hash: string): AppRoute {
     } catch { /* Malformed paths use the ordinary not-found route. */ }
     return { kind: "not-found", path: hash };
   }
-  const map = /^#\/(?:map\/world|mapa\/svet|(?:map|mapa)\/local\/([^/]+))(?:\/event\/([^/]+)\/(show|place))?$/u.exec(hash);
+  const map = /^#\/(?:map\/world|mapa\/svet|(?:map|mapa)\/local\/([^/]+))(?:\/(event|location)\/([^/]+)\/(show|place))?$/u.exec(hash);
   if (map !== null) {
     try {
       const parentId = map[1] === undefined ? null : decodeURIComponent(map[1]);
-      const key = map[2] === undefined ? undefined : decodeURIComponent(map[2]);
+      const key = map[3] === undefined ? undefined : decodeURIComponent(map[3]);
       if ((parentId === null || (parentId !== "" && !/\p{Cc}/u.test(parentId))) &&
         (key === undefined || (key !== "" && !/\p{Cc}/u.test(key)))) {
-        return key === undefined ? { kind: "map", parentId } : { kind: "map", parentId, event: { key, mode: map[3] === "place" ? "place" : "show" } };
+        if (key === undefined) return { kind: "map", parentId };
+        const target = { key, mode: map[4] === "place" ? "place" as const : "show" as const };
+        return map[2] === "event" ? { kind: "map", parentId, event: target } : { kind: "map", parentId, location: target };
       }
     } catch { /* Malformed paths use the ordinary not-found route. */ }
     return { kind: "not-found", path: hash };
@@ -102,6 +106,9 @@ export function mapHash(parentId: string | null): string {
 }
 export function eventMapHash(parentId: string | null, key: string, mode: "show" | "place"): string {
   return `${mapHash(parentId)}/event/${encodeURIComponent(key)}/${mode}`;
+}
+export function locationMapHash(parentId: string | null, key: string, mode: "show" | "place"): string {
+  return `${mapHash(parentId)}/location/${encodeURIComponent(key)}/${mode}`;
 }
 export function mapSettingsHash(parentId: string | null): string {
   return parentId === null ? "#/settings/maps" : `#/settings/maps/local/${encodeURIComponent(parentId)}`;

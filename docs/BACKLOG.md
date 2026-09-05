@@ -65,7 +65,7 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
 - [x] Restore structured relationship editing with atomic identity changes,
   character ranks and location roles, mystery questions, and stable faction
   rank chains while retaining extension data attached to stable nested IDs.
-- [ ] Complete collection-specific map fields alongside the rebuilt spatial
+- [x] Complete collection-specific map fields alongside the rebuilt spatial
   workflows so coordinate and image controls share one authoritative editor.
 - [x] Protect dirty record forms across archive navigation, role switching,
   sign-out, cancellation, and browser unload.
@@ -102,11 +102,12 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
 - [x] Restore DM-facing shared campaign enum management for relationships,
   genders, map markers, character statuses, event priorities, and attitudes,
   including stable IDs, usage counts, and explicit replace-or-clear deletion.
-- [ ] Finish persisted-settings compatibility for converted campaigns. Branding,
+- [x] Finish persisted-settings compatibility for converted campaigns. Branding,
   map behavior, party identity, and core/add-on sidebar controls are restored;
-  older `hiddenSidebarPages`-only backups still need explicit offline conversion
-  into `sidebarLayout`. Review renamed add-on route preference keys during the
-  already-required package and campaign conversion checks.
+  offline conversion now retains the original default sidebar and folds older
+  `hiddenSidebarPages` preferences into `sidebarLayout`. Review renamed add-on
+  route preference keys during the already-required package and campaign
+  conversion checks.
 - [ ] Restore the useful recovery-point workflow: manual points, coalesced write
   snapshots, restore, and revert-last-N, while retaining verified full backup.
 - [ ] Provide reviewed runtime credential rotation or explicitly accept
@@ -261,7 +262,23 @@ one revision-checked transaction and retain unknown and inactive entries.
 Production desktop/phone checks cover these controls, stale/live changes,
 file retry, role filtering, and original preview and row styling.
 
-Still open elsewhere: older hidden-page preference conversion, collection grouping and filter controls,
+Offline conversion now materializes the preserved default sidebar for campaigns
+without a saved layout and folds in retired hidden-page preferences. Existing
+layouts and original hide lists survive unchanged. Conversion tests verify
+source immutability, imported counts, original group/collapse/DM flags, route
+deduplication, saved-layout precedence, and failure before publication for
+malformed hide lists.
+
+Location forms now provide shared marker-type choices, inherited or explicit
+size, local-map previews, and guarded links to the existing map/image editor.
+Changing the parent clears only the previous image's coordinate placement.
+Article Show/Place/Move links target the exact location and scope. Placement
+captures the revision before clicking the map, rejecting intervening edits,
+reparenting, and deletion without losing the draft. Desktop/phone production
+checks cover editing, navigation guards, placement, image upload, and role/scope
+restrictions; unit checks cover validation and preserved fields.
+
+Still open elsewhere: collection grouping and filter controls,
 timeline/graph views, complete settings/DM screens, and installed add-on
 visual acceptance. Keep the visual and release gates open until the requested
 workflows are ported; apply the lighter operational policy above at cutover.
@@ -309,7 +326,7 @@ acceptance still need to be expanded as follow-up documentation.
 |---|---|---|
 | `/`, `/dashboard`, `/parta` | `/`, `/dashboard`, `/party`; dashboard and party projections | Real-host role changes, live refresh, and mobile navigation |
 | `/postavy`, `/postava/:id` | `/characters`, `/characters/:id` | End-to-end edit/save plus sheet mounting |
-| `/mista`, `/misto/:id` | `/locations`, `/locations/:id` | Spatial fields and local maps |
+| `/mista`, `/misto/:id` | `/locations`, `/locations/:id` | Spatial fields restored; real-campaign visual acceptance remains |
 | `/udalosti`, `/udalost/:id` | `/events`, `/events/:id` | Paths and timeline ordering |
 | `/zahady`, `/zahada/:id` | `/mysteries`, `/mysteries/:id` | Mystery graph navigation |
 | `/frakce`, `/frakce/:id` | `/factions`, `/factions/:id` | Faction graph and saved positions |

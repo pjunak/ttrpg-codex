@@ -17,6 +17,40 @@ import type {
 } from "../src/core/campaign-data.js";
 
 describe("campaign record editing", () => {
+  it("edits marker definitions and size without changing coordinates, local images or extensions", () => {
+    const value = { id: "gate", name: "Gate", pinType: "retired", size: 30, x: .2, y: -.4,
+      localMap: `/api/media/b_${"1".repeat(32)}`, extension: { keep: true } };
+    const campaign = dataset({ locations: [{ key: "gate", revision: 3, value }],
+      settings: [{ key: "pinTypes", revision: 1, value: [{ id: "town", label: "Town", size: 28 }] }] });
+    const save = (pinType: string, size: string) => prepareCampaignRecordSave(campaign, {
+      collection: "locations", key: "gate", expectedRevision: 3, creating: false,
+      fields: formFields("locations", { name: "Gate", pinType, size }),
+    }, true).mutations[0];
+    expect(save("town", "42")).toMatchObject({ value: { ...value, pinType: "town", size: 42 } });
+    expect(save("retired", "30")).toMatchObject({ value });
+    expect(save("town", "")).toMatchObject({ value: { pinType: "town", x: .2, y: -.4, localMap: value.localMap, extension: value.extension } });
+    const inherited = save("town", "");
+    if (inherited?.operation === "put") expect(inherited.value).not.toHaveProperty("size");
+    expect(() => save("made-up", "30")).toThrow(CampaignRecordEditError);
+    expect(() => save("town", "65")).toThrow(CampaignRecordEditError);
+    expect(() => save("town", "13")).toThrow(CampaignRecordEditError);
+    const field = editorFieldsFor("locations").find(field => field.key === "pinType")!;
+    expect(editorOptionsFor(dataset({}), field, "")).toEqual([{ value: "custom", label: "Custom" }]);
+  });
+  it("clears only the old placement when moving between world and local maps", () => {
+    for (const [before, after] of [[null, "parent"], ["parent", ""], ["parent", "other"]]) {
+      const campaign = dataset({ locations: [
+        { key: "gate", revision: 3, value: { id: "gate", name: "Gate", parentId: before, x: .4, y: .8, localMap: "kept", extension: true } },
+        { key: "parent", revision: 1, value: { id: "parent", name: "Parent" } },
+        { key: "other", revision: 1, value: { id: "other", name: "Other" } },
+      ] });
+      const mutation = prepareCampaignRecordSave(campaign, { collection: "locations", key: "gate", expectedRevision: 3,
+        creating: false, fields: formFields("locations", { name: "Gate", parentId: after }) }, true).mutations[0];
+      expect(mutation).toMatchObject({ expectedRevision: 3, value: { parentId: after, localMap: "kept", extension: true } });
+      if (mutation?.operation !== "put") throw Error("expected put");
+      expect(mutation.value).not.toHaveProperty("x"); expect(mutation.value).not.toHaveProperty("y");
+    }
+  });
   it("merges collection fields without dropping unknown or add-on-owned data", () => {
     const fields = formFields("characters", {
       name: "Ryn",

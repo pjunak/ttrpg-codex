@@ -559,6 +559,9 @@ campaign-relationship-editor {
   border-top: 1px solid var(--chrome-field-border);
 }
 
+.location-map-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.location-map-preview { display: block; max-width: 100%; max-height: 180px; margin-top: 1rem; border-radius: 4px; }
+
 .record-badges {
   display: flex;
   flex-wrap: wrap;

@@ -25,7 +25,7 @@ export class CodexMap extends LitElement {
     errorMessage: { type: String }, editing: { state: true }, placing: { state: true }, draft: { state: true },
     selected: { state: true }, query: { state: true }, status: { state: true }, zoom: { state: true },
     viewDraft: { state: true }, viewBoundsUnavailable: { state: true }, eventsVisible: { state: true },
-    eventDraft: { state: true }, eventUnavailable: { state: true },
+    eventDraft: { state: true }, eventUnavailable: { state: true }, locationUnavailable: { state: true },
     minZoom: { state: true },
   };
   declare campaign: CampaignDataset | undefined;
@@ -48,7 +48,9 @@ export class CodexMap extends LitElement {
   declare private eventsVisible: boolean;
   declare private eventDraft: EventDraft | undefined;
   declare private eventUnavailable: boolean;
-  #routeEventPending = false;
+  declare private locationUnavailable: boolean;
+  #routeTargetPending = false;
+  #placementBase: { readonly key: string; readonly revision: number } | undefined;
   #map: L.Map | undefined;
   #layers: L.LayerGroup | undefined;
   #eventLayers: L.LayerGroup | undefined;
@@ -69,7 +71,7 @@ export class CodexMap extends LitElement {
     this.errorMessage = ""; this.editing = false; this.placing = null; this.draft = undefined;
     this.selected = undefined; this.query = ""; this.status = "loading"; this.zoom = 0;
     this.viewDraft = undefined; this.viewBoundsUnavailable = false; this.eventsVisible = false;
-    this.eventDraft = undefined; this.eventUnavailable = false;
+    this.eventDraft = undefined; this.eventUnavailable = false; this.locationUnavailable = false;
     this.minZoom = -8;
   }
   protected override createRenderRoot() { return this; }
@@ -83,7 +85,8 @@ export class CodexMap extends LitElement {
     }
     if (!this.canEdit) this.editing = false;
     if (changed.has("route")) {
-      this.selected = undefined; this.query = ""; this.editing = false; this.eventUnavailable = false; this.#routeEventPending = true;
+      this.selected = undefined; this.query = ""; this.editing = false; this.eventUnavailable = false;
+      this.locationUnavailable = false; this.#routeTargetPending = true; this.#placementBase = undefined;
     }
   }
   protected override updated(changed: Map<PropertyKey, unknown>): void {
@@ -147,6 +150,7 @@ export class CodexMap extends LitElement {
       ${this.errorMessage ? html`<p class="sc-message" role="alert">${this.errorMessage}</p>` : nothing}
       ${this.viewBoundsUnavailable ? html`<p class="sc-message" role="alert">${this.#ui.t("map.viewBoundsUnavailable")}</p>` : nothing}
       ${this.eventUnavailable ? html`<p class="sc-message" role="alert">${this.#ui.t("map.eventUnavailable")}</p>` : nothing}
+      ${this.locationUnavailable ? html`<p class="sc-message" role="alert">${this.#ui.t("map.locationUnavailable")}</p>` : nothing}
       ${this.editing && (this.route.parentId !== null || this.canManageCampaign) ? html`<label class="sc-upload">
         ${this.#ui.t("map.upload")} <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
           aria-label=${this.#ui.t("map.upload")} ?disabled=${this.saving || this.draft !== undefined || this.viewDraft !== undefined || this.eventDraft !== undefined} @change=${this.#upload} />
@@ -290,7 +294,7 @@ export class CodexMap extends LitElement {
       this.#resize = new ResizeObserver(() => { map.invalidateSize({ pan: false }); this.#updateFitZoom(); });
       this.#resize.observe(container);
       this.zoom = map.getZoom(); this.status = "ready";
-      this.#applyRouteEvent();
+      this.#applyRouteTarget();
       this.#renderMarkers();
       this.#renderEvents();
     } catch (cause) {
@@ -408,9 +412,19 @@ export class CodexMap extends LitElement {
       });
     });
   }
-  #applyRouteEvent(): void {
-    if (!this.#routeEventPending || this.campaign === undefined || this.route === undefined || this.#map === undefined) return;
-    this.#routeEventPending = false;
+  #applyRouteTarget(): void {
+    if (!this.#routeTargetPending || this.campaign === undefined || this.route === undefined || this.#map === undefined) return;
+    this.#routeTargetPending = false;
+    const location = this.route.location;
+    if (location !== undefined) {
+      const record = mapLocationRecord(this.campaign, location.key);
+      if (record === undefined || mapParent(recordValue(record)) !== this.route.parentId) { this.locationUnavailable = true; return; }
+      const point = mapLocations(this.campaign, this.route.parentId).find(point => point.key === location.key);
+      if (point !== undefined) { this.#map.setView(this.#point(point.x, point.y), 0); this.#select(point); }
+      if (location.mode === "place" && this.canEdit) { this.editing = true; this.#place(location.key); }
+      else if (point === undefined) this.locationUnavailable = true;
+      return;
+    }
     const target = this.route.event;
     if (target === undefined) return;
     this.eventsVisible = true;
@@ -467,13 +481,19 @@ export class CodexMap extends LitElement {
     if (this.draft?.key === key) return;
     const record = mapLocationRecord(this.campaign, key); if (record === undefined) return;
     const value = recordValue(record);
+    this.placing = null; this.#placementBase = undefined;
     this.selected = key;
     this.draft = { kind: "location", key, expectedRevision: record.revision, parentId: this.route.parentId,
       x: mapCoordinate(value["x"]) ? value["x"] : 0, y: mapCoordinate(value["y"]) ? value["y"] : 0 };
   }
   #editSelected(): void { if (this.selected !== undefined) this.#editLocation(this.selected); }
   #place(key: string): void {
+    if (!this.canEdit || this.campaign === undefined || this.route === undefined || this.saving) return;
+    const record = mapLocationRecord(this.campaign, key);
+    if (key && (record === undefined || mapParent(recordValue(record)) !== this.route.parentId)) { this.locationUnavailable = true; return; }
     if (!this.#discard()) return;
+    this.locationUnavailable = false;
+    this.#placementBase = record === undefined ? undefined : { key, revision: record.revision };
     this.draft = undefined; this.viewDraft = undefined; this.eventDraft = undefined; this.selected = key || undefined; this.placing = key;
   }
   #mapClick(point: L.LatLng): void {
@@ -484,7 +504,10 @@ export class CodexMap extends LitElement {
       this.eventDraft = { ...this.eventDraft, x, y }; this.#setDirty(true); return;
     }
     if (this.placing === null) return;
-    if (this.placing) this.#editLocation(this.placing);
+    if (this.placing) {
+      if (this.#placementBase?.key !== this.placing) return;
+      this.draft = { kind: "location", key: this.placing, expectedRevision: this.#placementBase.revision, parentId: this.route.parentId, x, y };
+    }
     else this.draft = { kind: "location", key: createCampaignRecordKey("location"), name: "", expectedRevision: 0, parentId: this.route.parentId, x, y };
     if (this.draft !== undefined) this.draft = { ...this.draft, x, y };
     this.placing = null; this.#setDirty(true);

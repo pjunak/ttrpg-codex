@@ -89,6 +89,29 @@ coordinates into the current record. Other fields and add-on data survive.
 Stale saves retain the draft and use the existing navigation/unload guard.
 Pan/zoom is local UI state and does not dirty campaign data.
 
+Location articles and edit forms expose Show/Place/Move actions targeting
+`/location/<encoded key>/show` or `/place` on their world/local map route.
+Show centers the marker and opens its details; Place starts the existing map
+position editor without writing. Missing, off-map, and anonymous targets cannot
+start a placement. Selecting an existing location captures its revision before
+the map click, so remote edits, reparenting, or deletion reject the later save
+and retain the draft. The same protection applies to the map's unplaced picker.
+
+The location form edits `pinType` through the shared marker definitions and an
+optional 14–64px `size` override. Empty size restores type inheritance; unknown
+stored marker IDs remain selectable but cannot be invented. The v1 Custom
+fallback remains available when there are no configured definitions. The free
+text Kind label remains independent metadata. Changing `parentId` clears only
+the old `x`/`y` placement, as the coordinates belong to another image frame;
+the form explains that a new placement is needed after saving. Other location
+data, extensions, and the location's own `localMap` image are retained.
+
+The form previews only opaque local media and links to the existing local-map
+viewer/upload controls. New locations must be saved first. Map navigation uses
+the ordinary unsaved-edit guard, so following a link cannot discard a pending
+record edit without the user's choice. Coordinate and image writes continue
+through their existing map handlers instead of a second set of form inputs.
+
 Event articles expose Show on map and Place/Move event pin. The map's event
 picker places an existing event on the current world/local map. An event with
 an explicit pin on another map must have that pin removed before placement
@@ -191,6 +214,11 @@ Map-settings regressions cover desktop/phone layout, per-map configuration,
 marker scaling, draft conflicts, clean live refresh, category/map navigation,
 world/local uploads, malformed configuration, and DM-only access. Zoom checks
 cover fit limits and resizing in both directions.
+Location regressions cover marker type/size editing, world/local reparenting,
+targeted article links, local image preview/upload, navigation guards, captured
+placement revisions, missing targets, and anonymous access on the production
+build. `campaign-record-editor.test.ts` covers field validation, inherited size,
+extension preservation, and clearing only coordinates when the parent changes.
 `campaign-attitude-glow.test.ts` locks the preserved band geometry, glow radii,
 strengths, and outline behavior. Browser fixtures exercise artwork and glyph
 bands on desktop/phone, world/local scope, keyboard activation, scaling, and
