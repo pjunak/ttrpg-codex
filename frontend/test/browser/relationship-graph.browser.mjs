@@ -21,7 +21,7 @@ before(async () => {
   origin = `http://127.0.0.1:${server.httpServer.address().port}`; browser = await chromium.launch({ headless: true });
 });
 after(async () => { await browser?.close(); await server?.close(); });
-async function fixture(t, { mobile = false, role = 'player', locale = 'en', blockedStorage = false, malformedStorage = false, mixed = false } = {}) {
+async function fixture(t, { mobile = false, role = 'player', locale = 'en', blockedStorage = false, malformedStorage = false, mixed = false, reducedMotion = 'reduce' } = {}) {
   campaign = structuredClone(visualCampaign); sequence = 0;
   collection('relationships').records = [
     { key: 'edge-one', revision: 1, value: { source: 'ryn', target: 'mira', type: 'ally', label: 'Trusted ally' } },
@@ -50,7 +50,7 @@ async function fixture(t, { mobile = false, role = 'player', locale = 'en', bloc
       { key: 'unresolved', revision: 1, value: { name: 'An Unresolved Question', characters: [] } },
     ];
   }
-  const context = await browser.newContext({ reducedMotion: 'reduce', hasTouch: mobile, viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+  const context = await browser.newContext({ reducedMotion, hasTouch: mobile, viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
     extraHTTPHeaders: { 'x-fixture-role': role } });
   t.after(() => context.close());
   await context.addInitScript(({ savedPositions, locale, blockedStorage, malformedStorage }) => {
@@ -314,8 +314,8 @@ test('route changes and live removal cancel a mixed graph drag without saving it
   await publish(page, () => { collection('mysteries').records = []; }); await page.getByText('No cards to display', { exact: true }).waitFor();
 });
 
-test('touch input arranges a faction card without navigating or mutating content', async t => {
-  const { page, context } = await fixture(t, { mixed: true, mobile: true }); await switchMode(page, 'factions');
+for (const reducedMotion of ['reduce', 'no-preference']) test(`touch input arranges a faction card without navigating or mutating content (${reducedMotion})`, async t => {
+  const { page, context } = await fixture(t, { mixed: true, mobile: true, reducedMotion }); await switchMode(page, 'factions');
   await page.getByRole('button', { name: 'Fit', exact: true }).click();
   const card = typedNode(page, 'character', 'mira'); await card.waitFor();
   const before = await typedPosition(page, 'character', 'mira'), rect = await card.boundingBox();
@@ -338,4 +338,143 @@ test('anonymous Czech readers can use every preserved Mind Palace URL', async t 
     await page.getByRole('region', { name: mode === 'factions' ? 'Graf frakcí' : 'Graf záhad', exact: true }).waitFor();
     assert.equal(await page.locator('.map-mode-btn[aria-current="page"]').textContent(), mode === 'factions' ? 'Frakce' : 'Záhady');
   }
+});
+
+async function holdDrag(page, key, dx, dy) {
+  const rect = await node(page, key).boundingBox();
+  const x = rect.x + 20, y = rect.y + 20;
+  await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + dx, y + dy);
+}
+async function waitForRest(page) { await page.locator('.cm-viewport[data-motion="idle"]').waitFor(); }
+
+test('elastic lines bend during pointer movement, save only after settling and sleep at rest', async t => {
+  const { page } = await fixture(t, { reducedMotion: 'no-preference' });
+  await page.evaluate(() => {
+    window.graphAnimationFrames = 0; const original = window.requestAnimationFrame;
+    window.requestAnimationFrame = callback => original.call(window, time => { window.graphAnimationFrames++; callback(time); });
+  });
+  await holdDrag(page, 'ryn', 40, 150);
+  const path = page.locator('[data-edge-key="edge-one"] > path');
+  const during = await path.getAttribute('d');
+  assert.deepEqual(await positions(page), savedPositions);
+  assert.equal(await page.locator('.cm-viewport').getAttribute('data-motion'), 'dragging');
+  await page.screenshot({ path: `${output}elastic-drag.png`, animations: 'allow' });
+  await page.mouse.up(); await waitForRest(page);
+  assert.notEqual(await path.getAttribute('d'), during);
+  assert.deepEqual((await positions(page)).ryn, { x: -260, y: -10 });
+  assert.deepEqual((await positions(page)).mira, savedPositions.mira);
+  assert.deepEqual((await positions(page)).talia, savedPositions.talia);
+  const frames = await page.evaluate(() => window.graphAnimationFrames);
+  await page.waitForTimeout(100); assert.equal(await page.evaluate(() => window.graphAnimationFrames), frames, 'settled graphs must stop requesting frames');
+  await page.reload(); await node(page, 'ryn').waitFor(); await waitForRest(page);
+  assert.deepEqual((await positions(page)).ryn, { x: -260, y: -10 });
+});
+
+for (const reducedMotion of ['reduce', 'no-preference']) test(`collision movement keeps the dropped point exact and saves displaced cards (${reducedMotion})`, async t => {
+  const { page } = await fixture(t, { reducedMotion });
+  const before = await node(page, 'mira').boundingBox();
+  await holdDrag(page, 'ryn', 330, 0);
+  await page.waitForFunction(before => document.querySelector('.cm-node[data-key="mira"]').getBoundingClientRect().x > before.x + 5, before);
+  assert.deepEqual(await positions(page), savedPositions);
+  await page.mouse.up(); await waitForRest(page);
+  const saved = await positions(page);
+  assert.deepEqual(saved.ryn, { x: 30, y: -160 });
+  assert.ok(saved.mira.x - saved.ryn.x >= 196); assert.deepEqual(saved.talia, savedPositions.talia);
+  await page.reload(); await node(page, 'mira').waitFor(); assert.deepEqual(await positions(page), saved);
+});
+
+test('Escape restores the complete pre-drag arrangement after other cards have been displaced', async t => {
+  const { page } = await fixture(t, { reducedMotion: 'no-preference' });
+  const before = await node(page, 'mira').boundingBox();
+  await holdDrag(page, 'ryn', 330, 0);
+  await page.waitForFunction(before => document.querySelector('.cm-node[data-key="mira"]').getBoundingClientRect().x > before.x + 5, before);
+  await page.keyboard.press('Escape'); await page.mouse.up(); await waitForRest(page);
+  assert.deepEqual(await positions(page), savedPositions);
+  const restored = await node(page, 'mira').boundingBox(); assert.equal(restored.x, before.x); assert.equal(restored.y, before.y);
+  await holdDrag(page, 'ryn', 330, 0); await page.mouse.up();
+  await page.keyboard.press('Escape'); await waitForRest(page);
+  assert.deepEqual(await positions(page), savedPositions, 'Escape also cancels the settling draft');
+});
+
+test('a completed drop survives an immediate mode change without writing into the destination layout', async t => {
+  const { page } = await fixture(t, { mixed: true, reducedMotion: 'no-preference' }); await switchMode(page, 'factions');
+  await holdDrag(page, typedKey('character', 'ryn'), 70, 50); await page.mouse.up();
+  await page.evaluate(() => { location.hash = '#/graph/mysteries'; }); await typedNode(page, 'mystery', 'gate').waitFor(); await waitForRest(page);
+  assert.deepEqual(await typedPosition(page, 'character', 'ryn'), { x: -300, y: 70 });
+  const saved = await page.evaluate(key => JSON.parse(localStorage.getItem('cm_pos_v2_frakce'))[key], typedKey('character', 'ryn'));
+  assert.deepEqual(saved, { x: -260, y: 50 });
+  assert.equal(await page.evaluate(() => localStorage.getItem('cm_pos_v2_tajemstvi')), null);
+  await switchMode(page, 'factions'); assert.deepEqual(await typedPosition(page, 'character', 'ryn'), saved);
+});
+
+test('live projection changes discard an active motion draft and remove its stale edge controls', async t => {
+  const { page } = await fixture(t, { reducedMotion: 'no-preference' }); await holdDrag(page, 'ryn', 330, 0);
+  await publish(page, () => { collection('characters').records = collection('characters').records.filter(record => record.key !== 'mira'); });
+  await node(page, 'mira').waitFor({ state: 'detached' }); await page.mouse.up(); await waitForRest(page);
+  assert.equal(await page.locator('[data-edge-key]').count(), 0); assert.deepEqual(await positions(page), savedPositions);
+});
+
+test('another tab wins over post-release settling without a delayed overwrite', async t => {
+  const { page, context } = await fixture(t, { reducedMotion: 'no-preference' });
+  const second = await context.newPage(); await second.goto(`${origin}/#/graph/relationships`); await node(second, 'ryn').waitFor();
+  await holdDrag(page, 'ryn', 330, 0); await page.mouse.up();
+  const replacement = { ...savedPositions, ryn: { x: -250, y: 10 } };
+  await second.evaluate(value => localStorage.setItem('cm_pos_vztahy', JSON.stringify(value)), replacement);
+  await page.locator('.cm-message').filter({ hasText: 'Another tab changed' }).waitFor(); await waitForRest(page);
+  await page.waitForTimeout(100);
+  assert.deepEqual(await positions(page), replacement);
+  assert.deepEqual(await page.locator('codex-campaign-graph').evaluate(graph => Object.fromEntries(graph.positions)), replacement);
+});
+
+test('reduced-motion changes and blur finish a released drop but cancel a held one', async t => {
+  const { page } = await fixture(t, { reducedMotion: 'no-preference' });
+  await holdDrag(page, 'ryn', 330, 0); await page.emulateMedia({ reducedMotion: 'reduce' }); await page.mouse.up(); await waitForRest(page);
+  assert.deepEqual((await positions(page)).ryn, { x: 30, y: -160 });
+  const saved = await positions(page); await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await holdDrag(page, 'ryn', 30, 50); await page.evaluate(() => window.dispatchEvent(new Event('blur'))); await page.mouse.up(); await waitForRest(page);
+  assert.deepEqual(await positions(page), saved);
+  await holdDrag(page, 'ryn', -40, -30); await page.mouse.up(); await page.evaluate(() => window.dispatchEvent(new Event('blur'))); await waitForRest(page);
+  assert.deepEqual((await positions(page)).ryn, { x: -10, y: -190 });
+});
+
+test('a failed settled save keeps the final arrangement available for retry', async t => {
+  const { page } = await fixture(t, { blockedStorage: true, reducedMotion: 'no-preference' });
+  await holdDrag(page, 'ryn', 330, 0); await page.mouse.up(); await waitForRest(page);
+  await page.locator('.cm-message[role="alert"]').waitFor();
+  const settled = await page.locator('codex-campaign-graph').evaluate(graph => Object.fromEntries(graph.positions));
+  assert.deepEqual(settled.ryn, { x: 30, y: -160 }); assert.ok(settled.mira.x >= 226);
+  assert.deepEqual(await positions(page), savedPositions);
+  await page.evaluate(() => { window.graphStorageBlocked = false; }); await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await page.locator('.cm-message[role="alert"]').waitFor({ state: 'detached' }); assert.deepEqual(await positions(page), settled);
+});
+
+test('hidden faction cards do not collide with the dragged card or change their saved positions', async t => {
+  const { page } = await fixture(t, { reducedMotion: 'no-preference' });
+  await page.getByText('Legend & filters', { exact: true }).click(); await page.getByRole('checkbox', { name: /The Watch/ }).uncheck();
+  await node(page, 'talia').waitFor({ state: 'detached' });
+  await holdDrag(page, 'ryn', 640, 350); await page.mouse.up(); await waitForRest(page);
+  assert.deepEqual((await positions(page)).ryn, savedPositions.talia);
+  assert.deepEqual((await positions(page)).talia, savedPositions.talia);
+  assert.deepEqual((await positions(page)).mira, savedPositions.mira);
+});
+
+test('leaving during settling saves the drop and does not recreate observers on the detached graph', async t => {
+  const { page } = await fixture(t, { reducedMotion: 'no-preference' });
+  await page.evaluate(() => {
+    window.detachedGraphObservations = 0; window.departedGraph = document.querySelector('codex-campaign-graph');
+    const NativeObserver = window.ResizeObserver;
+    window.ResizeObserver = class extends NativeObserver {
+      observe(element, options) {
+        if (element.classList.contains('cm-viewport') && !element.isConnected) window.detachedGraphObservations++;
+        return super.observe(element, options);
+      }
+    };
+  });
+  await holdDrag(page, 'ryn', 330, 0); await page.mouse.up();
+  await page.evaluate(() => { location.hash = '#/characters/mira'; }); await page.locator('.record-article').waitFor();
+  await page.evaluate(() => window.departedGraph.updateComplete);
+  assert.equal(await page.evaluate(() => window.departedGraph.isConnected), false);
+  assert.equal(await page.evaluate(() => window.detachedGraphObservations), 0);
+  assert.deepEqual((await positions(page)).ryn, { x: 30, y: -160 });
+  assert.ok((await positions(page)).mira.x >= 226);
 });

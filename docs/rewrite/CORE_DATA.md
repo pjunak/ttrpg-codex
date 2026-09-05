@@ -264,12 +264,31 @@ Pointer, touch, and keyboard moves save local coordinates only; no campaign
 mutation is sent.
 Valid old positions win over the deterministic initial placement of new nodes.
 Malformed or extreme coordinates are ignored, and storage failures retain the
-in-memory arrangement with an explicit retry. Escape and pointer cancellation
-restore the position at drag start. A live projection change cancels an active
-drag and removes unavailable endpoints; a concurrent browser-tab preference
-change cancels the drag before applying the saved arrangement. Changing modes
-also cancels the current drag and loads that mode's preferences, with no
-position/filter carryover to the next view.
+in-memory arrangement with an explicit retry. Pointer movement uses a disposable
+`GraphMotion` draft: edge control points lag with the original spring/damping
+values, and collisions push nearby visible cards while other cards retain their
+saved rest positions. Connected neighbours are not pulled toward the pointer.
+The dropped card stays pinned to the chosen center while touched cards settle.
+Only the settled arrangement is adopted and saved; filters never serialize a
+half-finished motion draft. Keyboard nudges remain immediate precision moves.
+
+The component runs the draft at fixed 60 Hz simulation steps with bounded
+frame catch-up and settling. Collision queries are limited to touched regions
+and bounded for dense graphs; a final bounded separation pass removes residual
+overlap in ordinary layouts. Reduced motion uses direct collision adjustment
+during dragging and finishes settling without animation. Idle graphs schedule
+no frames, and reduced-motion changes stop the animated loop immediately.
+
+Escape, pointer cancellation, and lost capture restore the complete pre-drag
+arrangement, including any displaced neighbours. A live projection change
+cancels a held drag and removes unavailable endpoints. A completed drop is
+finished and saved before navigation, mode changes, live refresh, blur, or
+page hiding; it is always written under its originating mode's preference key.
+Escape can also cancel post-release settling. A concurrent browser-tab
+preference change cancels both held and settling drafts before loading the
+other tab's saved arrangement, preventing delayed overwrites. The owning
+component cleans up animation frames, media-query listeners, and page/window
+listeners on disconnection.
 
 The views retain the original 168px cloud cards, 210px rounded faction hubs,
 faction territory glows, purple mystery and green location variants, typography
@@ -279,19 +298,24 @@ relationship-type dimming, faction visibility, neighborhood focus,
 and detail/context navigation. Text uses native CSS dimensions at each zoom
 instead of scaling a rendered canvas texture. Filter preferences retain the
 `cm_vf_<mode>` and `cm_filter_<mode>` keys with the preserved `frakce`, `vztahy`,
-and `tajemstvi` suffixes. Elastic layout motion and add-on graph contributions
-remain open in the backlog; no public Add-on API or persistence schema changes
-are introduced.
+and `tajemstvi` suffixes. Add-on graph contributions and real-campaign visual
+acceptance remain open in the backlog; no public Add-on API or persistence
+schema changes are introduced.
 
 `frontend/test/campaign-graph.test.ts` and `campaign-graph-modes.test.ts` cover
 projection, typed identity collisions, command chains, question shapes,
 unambiguous old positions, shared-node visibility, layout input, filters, focus,
-zoom, and rectangular/rounded edge geometry. Production browser scenarios in
+zoom, and rectangular/rounded edge geometry. `campaign-graph-motion.test.ts`
+covers spring settling, exact dropped points, collision separation, hidden and
+unaffected positions, bounded work, and animated edge geometry. Browser cases in
 `frontend/test/browser/relationship-graph.browser.mjs` cover desktop/phone
 geometry, pointer and keyboard arrangement, wheel/pan behavior, detail links,
 context actions, filtering, reload, live removal, cross-tab interruption,
-storage failure/retry, mode isolation, touch input, and anonymous Czech use of
-all preserved graph hashes. These synthetic cases do not replace the open
+storage failure/retry, mode isolation, touch input with and without reduced
+motion, and anonymous Czech use of all preserved graph hashes. Motion cases
+also verify deferred saves, idle frame shutdown, complete cancellation,
+navigation during settling, live projection changes, cross-tab races, and
+runtime reduced-motion changes. These synthetic cases do not replace the open
 real-campaign and installed-add-on acceptance checks.
 
 `settings/playerParty` owns the shared party name, icon, badge, color, and text

@@ -1,11 +1,12 @@
 import { LitElement, html, nothing, svg } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
-import { emptyGraphFilter, graphEdgeGeometry, graphNodeStates, graphZoomLevels, initialGraphPositions,
+import { emptyGraphFilter, graphEdgeGeometry, graphEdgeOffsets, graphNodeStates, graphZoomLevels, initialGraphPositions,
   parseGraphFilter, parseGraphPositions, stepGraphZoom, validCoordinate, wrapGraphLabel,
   type CampaignGraph, type GraphBox, type GraphFilter, type GraphNode, type GraphPoint } from "./campaign-graph.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { graphModes, graphPreferenceKeys, migrateGraphPositions, projectCampaignGraph, type GraphMode } from "./campaign-graph-modes.js";
+import { GraphMotion } from "./campaign-graph-motion.js";
 
 interface Gesture {
   readonly pointer: number; readonly key: string | undefined; readonly origin: GraphPoint;
@@ -34,6 +35,12 @@ export class CodexCampaignGraph extends LitElement {
   #sizes = new Map<string, { width: number; height: number }>();
   #observer: ResizeObserver | undefined;
   #gesture: Gesture | undefined;
+  #motion: GraphMotion | undefined;
+  #motionMode: GraphMode = "relationships";
+  #motionFrame: number | undefined;
+  #motionTime: number | undefined;
+  #motionAccumulator = 0;
+  #reducedMotion: MediaQueryList | undefined;
   #suppressClickUntil = 0;
   #wheelDelta = 0;
   #fitPasses = 3;
@@ -53,18 +60,23 @@ export class CodexCampaignGraph extends LitElement {
   override connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("storage", this.#onStorage); window.addEventListener("blur", this.#onBlur);
+    window.addEventListener("pagehide", this.#onBlur); document.addEventListener("visibilitychange", this.#onVisibility);
+    this.#reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+    this.#reducedMotion.addEventListener("change", this.#onMotionPreference);
     document.addEventListener("pointerdown", this.#dismissMenu);
     this.#textMeasure = document.createElement("canvas").getContext("2d");
     void document.fonts.ready.then(() => { if (this.isConnected) { this.#labelLayouts.clear(); this.requestUpdate(); } });
   }
   override disconnectedCallback(): void {
-    this.#cancelGesture(); this.#observer?.disconnect(); this.#observer = undefined;
+    this.#interruptMotion(); this.#observer?.disconnect(); this.#observer = undefined;
     window.removeEventListener("storage", this.#onStorage); window.removeEventListener("blur", this.#onBlur);
+    window.removeEventListener("pagehide", this.#onBlur); document.removeEventListener("visibilitychange", this.#onVisibility);
+    this.#reducedMotion?.removeEventListener("change", this.#onMotionPreference);
     document.removeEventListener("pointerdown", this.#dismissMenu); super.disconnectedCallback();
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
     if (changed.has("campaign") || changed.has("mode")) {
-      this.#cancelGesture();
+      this.#interruptMotion();
       this.#graph = this.campaign === undefined ? { nodes: [], edges: [] } : projectCampaignGraph(this.campaign, this.mode);
       this.#nodeByKey = new Map(this.#graph.nodes.map(node => [node.key, node]));
       if (changed.has("mode")) {
@@ -76,8 +88,10 @@ export class CodexCampaignGraph extends LitElement {
       if (!this.#graph.nodes.some(node => node.key === this.focusId)) this.focusId = undefined;
       if (!this.#graph.nodes.some(node => node.key === this.contextMenu?.key)) this.contextMenu = undefined;
     }
+    if (changed.has("hiddenFactions")) this.#interruptMotion();
   }
   protected override updated(): void {
+    if (!this.isConnected) return;
     const viewport = this.querySelector<HTMLElement>(".cm-viewport"); if (!viewport) return;
     if (!this.#observer) {
       this.#observer = new ResizeObserver(() => {
@@ -159,6 +173,7 @@ export class CodexCampaignGraph extends LitElement {
       <p id="cm-keyboard-help" class="visually-hidden">${this.#ui.t("graph.keyboardHelp")}</p>
       <div class="cm-viewport" tabindex="0" role="region" aria-label=${this.#ui.t(this.mode === "relationships" ? "graph.canvas" : this.mode === "factions" ? "graph.factionCanvas" : "graph.mysteryCanvas")} aria-describedby="cm-keyboard-help"
         style=${`--cm-z:${this.zoom};--cm-type-z:${typeScale}`} data-cm-detail=${detail}
+        data-motion=${this.#motion ? this.#gesture ? "dragging" : "settling" : "idle"}
         @pointerdown=${this.#pointerDown} @pointermove=${this.#pointerMove} @pointerup=${this.#pointerUp}
         @pointercancel=${this.#cancelGesture} @lostpointercapture=${this.#cancelGesture}
         @wheel=${{ handleEvent: this.#wheel, passive: false }} @keydown=${this.#keyDown}
@@ -215,12 +230,11 @@ export class CodexCampaignGraph extends LitElement {
   }
   #renderEdges(states: ReturnType<typeof graphNodeStates>, typeScale: number) {
     const edges = this.#graph.edges.filter(edge => !states.get(edge.source)?.hidden && !states.get(edge.target)?.hidden);
-    const groups = new Map<string, typeof edges>();
-    for (const edge of edges) { const key = JSON.stringify([edge.source, edge.target].sort()); const group = groups.get(key) ?? []; group.push(edge); groups.set(key, group); }
+    const offsets = graphEdgeOffsets(edges);
     return svg`<svg class="cm-edge-svg" aria-hidden="true">${edges.map((edge, index) => {
-      const group = groups.get(JSON.stringify([edge.source, edge.target].sort()))!;
-      const offset = (group.indexOf(edge) - (group.length - 1) / 2) * 36 * this.zoom * (edge.source > edge.target ? -1 : 1);
-      const source = this.#box(edge.source), target = this.#box(edge.target), geometry = graphEdgeGeometry(source, target, offset);
+      const offset = (offsets.get(edge.key) ?? 0) * this.zoom, control = this.#motion?.controls.get(edge.key);
+      const source = this.#box(edge.source), target = this.#box(edge.target), geometry = graphEdgeGeometry(source, target, offset,
+        control ? { x: this.pan.x + control.x * this.zoom, y: this.pan.y + control.y * this.zoom } : undefined);
       const dim = states.get(edge.source)?.dim || states.get(edge.target)?.dim || this.filters.hiddenEdgeTypes.includes(edge.type);
       const showLabel = Boolean(edge.label) && this.zoom >= 1 && geometry.length > 50;
       const label = this.#labelLayout(edge.label, Math.max(36, geometry.length - 20), typeScale), lineHeight = 16.2 * typeScale;
@@ -253,10 +267,10 @@ export class CodexCampaignGraph extends LitElement {
   }
   #box(key: string): GraphBox {
     const pill = this.#nodeByKey.get(key)?.kind === "faction";
-    const p = this.positions.get(key) ?? { x: 0, y: 0 }, size = this.#sizes.get(key) ?? { width: (pill ? 210 : 168) * this.zoom, height: 126 };
+    const p = this.#motion?.positions.get(key) ?? this.positions.get(key) ?? { x: 0, y: 0 }, size = this.#sizes.get(key) ?? { width: (pill ? 210 : 168) * this.zoom, height: 126 };
     return { x: this.pan.x + p.x * this.zoom, y: this.pan.y + p.y * this.zoom, ...size, pill };
   }
-  #scheduleFit(cap: number): void { this.#fitCap = cap; this.#fitPasses = 3; this.requestUpdate(); }
+  #scheduleFit(cap: number): void { this.#interruptMotion(); this.#fitCap = cap; this.#fitPasses = 3; this.requestUpdate(); }
   #fit(): void {
     const states = graphNodeStates(this.#graph, this.filters, this.hiddenFactions);
     const viewport = this.querySelector<HTMLElement>(".cm-viewport"), nodes = this.#graph.nodes.filter(node => !states.get(node.key)?.hidden);
@@ -269,7 +283,7 @@ export class CodexCampaignGraph extends LitElement {
     this.pan = { x: viewport.clientWidth / 2 - (left + right) / 2 * this.zoom, y: viewport.clientHeight / 2 - (top + bottom) / 2 * this.zoom };
   }
   #setZoom(next: number, anchor?: GraphPoint): void {
-    this.#cancelGesture(); this.#fitPasses = 0;
+    this.#interruptMotion(); this.#fitPasses = 0;
     const viewport = this.querySelector<HTMLElement>(".cm-viewport"); if (!viewport) return;
     const center = anchor ?? { x: viewport.clientWidth / 2, y: viewport.clientHeight / 2 };
     this.pan = { x: center.x - (center.x - this.pan.x) * next / this.zoom, y: center.y - (center.y - this.pan.y) * next / this.zoom }; this.zoom = next;
@@ -285,6 +299,7 @@ export class CodexCampaignGraph extends LitElement {
   };
   readonly #pointerDown = (event: PointerEvent): void => {
     if (event.button !== 0 || this.#gesture) return;
+    this.#finishMotion();
     const node = (event.target as Element).closest<HTMLElement>(".cm-node"), capture = node ?? event.currentTarget as HTMLElement;
     const key = node?.dataset["key"], before = key === undefined ? this.pan : this.positions.get(key);
     if (!before) return;
@@ -296,20 +311,29 @@ export class CodexCampaignGraph extends LitElement {
     const gesture = this.#gesture; if (!gesture || gesture.pointer !== event.pointerId) return;
     const dx = event.clientX - gesture.origin.x, dy = event.clientY - gesture.origin.y;
     if (!gesture.moved && Math.hypot(dx, dy) < 4) return;
+    if (!gesture.moved && gesture.key !== undefined) this.#startMotion(gesture.key);
     gesture.moved = true; event.preventDefault();
     if (gesture.key === undefined) this.pan = { x: gesture.before.x + dx, y: gesture.before.y + dy };
-    else this.#moveNode(gesture.key, { x: gesture.before.x + dx / this.zoom, y: gesture.before.y + dy / this.zoom });
+    else {
+      this.#motion?.move({ x: gesture.before.x + dx / this.zoom, y: gesture.before.y + dy / this.zoom });
+      if (this.#reducedMotion?.matches) this.#motion?.snap(); else this.#wakeMotion();
+      this.requestUpdate();
+    }
   };
   readonly #pointerUp = (event: PointerEvent): void => {
     const gesture = this.#gesture; if (!gesture || gesture.pointer !== event.pointerId) return;
     this.#gesture = undefined;
     if (gesture.capture.hasPointerCapture(event.pointerId)) gesture.capture.releasePointerCapture(event.pointerId);
-    if (gesture.moved) { this.#suppressClickUntil = Date.now() + 400; if (gesture.key !== undefined) this.#savePreferences(); }
+    if (gesture.moved) {
+      this.#suppressClickUntil = Date.now() + 400;
+      if (gesture.key !== undefined) { if (this.#reducedMotion?.matches) this.#finishMotion(); else this.#wakeMotion(); }
+      this.requestUpdate();
+    }
   };
   readonly #cancelGesture = (): void => {
     const gesture = this.#gesture; if (!gesture) return;
     this.#gesture = undefined;
-    if (gesture.key === undefined) this.pan = gesture.before; else this.#moveNode(gesture.key, gesture.before);
+    if (gesture.key === undefined) this.pan = gesture.before; else this.#cancelMotion();
     this.#suppressClickUntil = Date.now() + 400;
     if (gesture.capture.hasPointerCapture(gesture.pointer)) gesture.capture.releasePointerCapture(gesture.pointer);
   };
@@ -321,12 +345,12 @@ export class CodexCampaignGraph extends LitElement {
     if (this.filters.focusMode && !event.ctrlKey && !event.metaKey) { event.preventDefault(); this.focusId = node.key; }
   }
   readonly #keyDown = (event: KeyboardEvent): void => {
-    if (event.key === "Escape") { this.#cancelGesture(); this.focusId = undefined; this.#closeMenu(true); return; }
+    if (event.key === "Escape") { this.#cancelGesture(); this.#cancelMotion(); this.focusId = undefined; this.#closeMenu(true); return; }
     const node = (event.target as Element).closest<HTMLElement>(".cm-node"), key = node?.dataset["key"];
     if ((event.key === "ContextMenu" || event.shiftKey && event.key === "F10") && key && node) { event.preventDefault(); const rect = node.getBoundingClientRect(); this.#showMenu(key, rect.left, rect.bottom); return; }
     const direction: Readonly<Record<string, GraphPoint>> = { ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 }, ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 } };
     const delta = direction[event.key]; if (!delta || event.ctrlKey || event.metaKey || event.altKey) return;
-    event.preventDefault(); const step = event.shiftKey ? 20 : 5;
+    event.preventDefault(); this.#interruptMotion(); this.#fitPasses = 0; const step = event.shiftKey ? 20 : 5;
     if (key) { const point = this.positions.get(key)!; this.#moveNode(key, { x: point.x + delta.x * step, y: point.y + delta.y * step }); this.#savePreferences(); }
     else this.pan = { x: this.pan.x - delta.x * 30, y: this.pan.y - delta.y * 30 };
   };
@@ -348,7 +372,13 @@ export class CodexCampaignGraph extends LitElement {
     items[next]?.focus();
   };
   readonly #dismissMenu = (event: PointerEvent): void => { if (this.contextMenu && !(event.target instanceof Element && event.target.closest(".cm-ctx-menu"))) this.#closeMenu(); };
-  readonly #onBlur = (): void => { this.#cancelGesture(); this.#closeMenu(); };
+  readonly #onBlur = (): void => { this.#interruptMotion(); this.#closeMenu(); };
+  readonly #onVisibility = (): void => { if (document.hidden) this.#onBlur(); };
+  readonly #onMotionPreference = (): void => {
+    if (!this.#reducedMotion?.matches || !this.#motion) return;
+    this.#stopMotionFrame();
+    if (this.#gesture) { this.#motion.snap(); this.requestUpdate(); } else this.#finishMotion();
+  };
   readonly #addQuery = (): void => {
     const values = [...this.filters.values, ...this.query.split(",").map(value => value.trim()).filter(Boolean)].slice(0, 32);
     this.query = ""; this.#setFilters({ ...this.filters, values: [...new Set(values)] });
@@ -356,12 +386,15 @@ export class CodexCampaignGraph extends LitElement {
   #setFilters(filters: GraphFilter): void { this.filters = filters; this.#savePreferences(); }
   readonly #clearFilters = (): void => { this.query = ""; this.focusId = undefined; this.filters = emptyGraphFilter(); this.hiddenFactions = new Set(); this.#savePreferences(); };
   readonly #savePreferences = (): void => {
-    const keys = graphPreferenceKeys(this.mode);
+    this.#persistPreferences(this.mode);
+  };
+  #persistPreferences(mode: GraphMode): void {
+    const keys = graphPreferenceKeys(mode);
     try {
       localStorage.setItem(keys.positions, JSON.stringify(Object.fromEntries(this.positions)));
       localStorage.setItem(keys.filters, JSON.stringify(this.filters)); localStorage.setItem(keys.factions, JSON.stringify([...this.hiddenFactions])); this.storageError = false;
     } catch { this.storageError = true; }
-  };
+  }
   #readPreferences(): void {
     const keys = graphPreferenceKeys(this.mode);
     const read = (key: string): unknown => { try { return JSON.parse(localStorage.getItem(key) ?? "null"); } catch { return undefined; } };
@@ -373,8 +406,52 @@ export class CodexCampaignGraph extends LitElement {
   }
   readonly #onStorage = (event: StorageEvent): void => {
     if (event.storageArea !== localStorage || event.key !== null && !Object.values(graphPreferenceKeys(this.mode)).includes(event.key)) return;
-    const interrupted = this.#gesture !== undefined; this.#cancelGesture(); this.#readPreferences();
+    const interrupted = this.#gesture !== undefined || this.#motion !== undefined;
+    this.#cancelGesture(); this.#cancelMotion(); this.#readPreferences();
     if (interrupted) this.storageChanged = true;
+  };
+
+  #startMotion(key: string): void {
+    const states = graphNodeStates(this.#graph, this.filters, this.hiddenFactions);
+    const nodes = this.#graph.nodes.filter(node => !states.get(node.key)?.hidden);
+    const edges = this.#graph.edges.filter(edge => !states.get(edge.source)?.hidden && !states.get(edge.target)?.hidden);
+    const sizes = new Map(nodes.map(node => { const box = this.#box(node.key); return [node.key, { width: box.width / this.zoom, height: box.height / this.zoom }]; }));
+    this.#motion = new GraphMotion({ nodes, edges }, this.positions, sizes, key); this.#motionMode = this.mode;
+  }
+  #stopMotionFrame(): void {
+    if (this.#motionFrame !== undefined) cancelAnimationFrame(this.#motionFrame);
+    this.#motionFrame = undefined; this.#motionTime = undefined; this.#motionAccumulator = 0;
+  }
+  #cancelMotion(): void {
+    this.#stopMotionFrame(); this.#motion = undefined; this.requestUpdate();
+  }
+  #finishMotion(): void {
+    if (!this.#motion) return;
+    this.#stopMotionFrame(); this.#motion.settle(); this.positions = new Map(this.#motion.positions);
+    const mode = this.#motionMode; this.#motion = undefined; this.#persistPreferences(mode); this.requestUpdate();
+  }
+  #interruptMotion(): void {
+    // Held movement is a cancellable draft; a completed drop survives navigation.
+    if (this.#gesture) this.#cancelGesture(); else this.#finishMotion();
+  }
+  #wakeMotion(): void {
+    if (!this.#motion || this.#motionFrame !== undefined) return;
+    this.#motionFrame = requestAnimationFrame(this.#motionTick);
+  }
+  readonly #motionTick = (now: number): void => {
+    this.#motionFrame = undefined;
+    if (!this.#motion) return;
+    const frame = 1000 / 60;
+    this.#motionAccumulator += this.#motionTime === undefined ? frame : Math.min(frame * 4, Math.max(0, now - this.#motionTime));
+    this.#motionTime = now;
+    let moving = true;
+    while (this.#motionAccumulator >= frame && moving) { this.#motionAccumulator -= frame; moving = this.#motion.step(); }
+    this.requestUpdate();
+    if (moving) this.#wakeMotion();
+    else {
+      this.#stopMotionFrame();
+      if (!this.#gesture) this.#finishMotion();
+    }
   };
 }
 customElements.define("codex-campaign-graph", CodexCampaignGraph);

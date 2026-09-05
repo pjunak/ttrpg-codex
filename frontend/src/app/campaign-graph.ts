@@ -150,9 +150,22 @@ export function wrapGraphLabel(label: string, width: number, measure: (value: st
   if (line) lines.push(line);
   return lines;
 }
-export function graphEdgeGeometry(a: GraphBox, b: GraphBox, offset: number) {
+export function graphEdgeOffsets(edges: readonly GraphEdge[]): ReadonlyMap<string, number> {
+  const groups = new Map<string, GraphEdge[]>(), offsets = new Map<string, number>();
+  for (const edge of edges) {
+    const key = JSON.stringify([edge.source, edge.target].sort()), group = groups.get(key) ?? [];
+    group.push(edge); groups.set(key, group);
+  }
+  for (const group of groups.values()) group.forEach((edge, index) => offsets.set(edge.key,
+    (index - (group.length - 1) / 2) * 36 * (edge.source > edge.target ? -1 : 1)));
+  return offsets;
+}
+export function graphEdgeControl(a: GraphPoint, b: GraphPoint, offset: number): GraphPoint {
   const dx = b.x - a.x, dy = b.y - a.y, length = Math.max(1, Math.hypot(dx, dy));
-  const control = { x: (a.x + b.x) / 2 - dy / length * offset, y: (a.y + b.y) / 2 + dx / length * offset };
+  return { x: (a.x + b.x) / 2 - dy / length * offset, y: (a.y + b.y) / 2 + dx / length * offset };
+}
+export function graphEdgeGeometry(a: GraphBox, b: GraphBox, offset: number, control = graphEdgeControl(a, b, offset)) {
+  const length = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
   const intersect = (box: GraphBox, toward: GraphPoint) => {
     const x = toward.x - box.x, y = toward.y - box.y, fraction = 1 / Math.max(Math.abs(x) / (box.width / 2 + 4), Math.abs(y) / (box.height / 2 + 4), .001);
     if (box.pill) {
