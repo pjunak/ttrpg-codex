@@ -78,6 +78,7 @@ import { MediaClient } from "../core/media.js";
 import { CampaignMapEditError, mapLocationRecord, prepareMapSave, prepareLocalMapImage, type MapSaveDetail, type MapUploadDetail } from "./campaign-map.js";
 import "./codex-map.js";
 import "./codex-timeline.js";
+import "./codex-relationship-graph.js";
 import { prepareTimelineReorder, TimelineEditError, type TimelineDraft } from "./campaign-timeline.js";
 import { campaignSidebar, defaultSidebarLayout, prepareSidebarSave, sidebarPage, SidebarEditError, type SidebarSection, type SidebarSaveDetail } from "./campaign-sidebar.js";
 import { addonSidebarKey, addonSidebarMode, prepareAddonSidebarSave } from "./campaign-sidebar.js";
@@ -748,6 +749,8 @@ export class CodexApp extends LitElement {
     }
     const campaign = this.campaignState.campaign;
     switch (this.route.kind) {
+      case "relationship-graph":
+        return html`<codex-relationship-graph .campaign=${campaign}></codex-relationship-graph>`;
       case "timeline":
         return html`<codex-timeline .campaign=${campaign} .canEdit=${this.#canEdit()} .saving=${this.busy}
           .editCompletion=${this.editCompletion} .errorMessage=${this.errorMessage}
@@ -814,6 +817,7 @@ export class CodexApp extends LitElement {
   }
 
   #coreRouteActive(id: string): boolean {
+    if (id === "relationship-graph") return this.route.kind === "relationship-graph";
     if (id === "map") return this.route.kind === "map";
     if (id === "dashboard") return this.route.kind === "dashboard";
     if (id === "search") return this.route.kind === "search";

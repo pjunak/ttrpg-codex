@@ -229,6 +229,43 @@ anonymous access, live conflicts, failed saves, and navigation guards. Add-on
 timeline contributions and real-campaign visual acceptance remain part of the
 open suite-wide acceptance gates; the public Add-on API is unchanged.
 
+The Relationships view of Mind Palace now opens at `#/graph/relationships` or
+the preserved `#/mapa/vztahy` hash. `projectRelationshipGraph` reads characters,
+relationship records, shared enum definitions, and faction/party presentation
+from the current role projection. Canonical relationship record keys identify
+edges, including multiple relationships between the same characters. Missing
+endpoints and location-target relationships are excluded from this character
+view rather than binding to a different record that happens to share a key.
+The graph never loads a second, independently authorized record cache.
+
+Arrangement remains a browser preference under the original `cm_pos_vztahy`
+key: values are node centers keyed by permanent character IDs. Pointer and
+keyboard moves save local coordinates only; no campaign mutation is sent.
+Valid old positions win over the deterministic initial placement of new nodes.
+Malformed or extreme coordinates are ignored, and storage failures retain the
+in-memory arrangement with an explicit retry. Escape and pointer cancellation
+restore the position at drag start. A live projection change cancels an active
+drag and removes unavailable endpoints; a concurrent browser-tab preference
+change cancels the drag before applying the saved arrangement.
+
+The view retains the original 168px cloud cards, typography and edge palette,
+parallel edge routing, full wrapped/rotated labels, fixed zoom ladder with a
+100% step, zoom-dependent detail,
+chip filters, relationship-type dimming, faction visibility, neighborhood focus,
+and detail/context navigation. Text uses native CSS dimensions at each zoom
+instead of scaling a rendered canvas texture. Filter preferences retain the
+`cm_vf_vztahy` and `cm_filter_vztahy` keys. Faction and mystery graph modes,
+elastic layout motion, and add-on graph contributions remain open in the
+backlog; no public Add-on API or persistence schema changes are introduced.
+
+`frontend/test/campaign-graph.test.ts` covers projection, identity, layout input,
+filters, focus, zoom, and edge geometry. Production browser scenarios in
+`frontend/test/browser/relationship-graph.browser.mjs` cover desktop/phone
+geometry, pointer and keyboard arrangement, wheel/pan behavior, detail links,
+context actions, filtering, reload, live removal, cross-tab interruption,
+storage failure/retry, and anonymous Czech use. These synthetic cases do not
+replace the open real-campaign and installed-add-on acceptance checks.
+
 `settings/playerParty` owns the shared party name, icon, badge, color, and text
 color. Membership remains `character.faction === "party"`; settings never store
 a second roster or create a faction record. The DM panel edits the original

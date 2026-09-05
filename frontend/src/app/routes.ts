@@ -27,6 +27,7 @@ export type AppRoute =
   | { readonly kind: "search" }
   | { readonly kind: "party" }
   | { readonly kind: "timeline" }
+  | { readonly kind: "relationship-graph" }
   | { readonly kind: "map"; readonly parentId: string | null;
       readonly event?: { readonly key: string; readonly mode: "show" | "place" };
       readonly location?: { readonly key: string; readonly mode: "show" | "place" } }
@@ -38,6 +39,7 @@ export type AppRoute =
   | { readonly kind: "not-found"; readonly path: string };
 
 export function parseAppRoute(hash: string): AppRoute {
+  if (["#/graph/relationships", "#/mapa/vztahy"].includes(hash)) return { kind: "relationship-graph" };
   if (["#/timeline", "#/casova-osa", "#/mapa/casova-osa"].includes(hash)) return { kind: "timeline" };
   const newEvent = /^#\/timeline\/new\/([1-9]\d*)$/u.exec(hash);
   if (newEvent !== null && Number.isSafeInteger(Number(newEvent[1]))) {

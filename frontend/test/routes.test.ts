@@ -10,6 +10,10 @@ import {
 } from "../src/app/routes.js";
 
 describe("application routes", () => {
+  it("opens the restored relationship graph without accepting unfinished graph routes", () => {
+    for (const hash of ["#/graph/relationships", "#/mapa/vztahy"]) expect(parseAppRoute(hash)).toEqual({ kind: "relationship-graph" });
+    for (const hash of ["#/graph/relationships/extra", "#/graph/factions"]) expect(parseAppRoute(hash).kind).toBe("not-found");
+  });
   it("opens the preserved timeline aliases and session-aware shared event editor", () => {
     for (const hash of ["#/timeline", "#/casova-osa", "#/mapa/casova-osa"]) expect(parseAppRoute(hash)).toEqual({ kind: "timeline" });
     expect(parseAppRoute("#/timeline/new/3")).toMatchObject({ kind: "create", preset: "event", sitting: 3, page: { collection: "events" } });

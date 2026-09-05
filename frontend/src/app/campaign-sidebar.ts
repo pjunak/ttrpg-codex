@@ -36,6 +36,7 @@ export class SidebarEditError extends Error {
   constructor(readonly kind: "invalid" | "stale") { super(`sidebar layout is ${kind}`); }
 }
 const aliases: Readonly<Record<string, string>> = Object.freeze({
+  "/mapa/vztahy": "/graph/relationships",
   "/casova-osa": "/timeline",
   "/mapa/svet": "/map/world", "/mista": "/locations", "/postavy": "/characters", "/frakce": "/factions",
   "/mazlicci": "/companions", "/zahady": "/mysteries", "/panteon": "/pantheon", "/artefakty": "/artifacts", "/historie": "/history",
@@ -45,6 +46,7 @@ export function sidebarPage(route: string) {
   if (canonical === "/") return { id: "dashboard", route: canonical, label: uiText("shell.overview"), icon: "🏠" };
   if (canonical === "/party") return { id: "party", route: canonical, label: uiText("shell.party"), icon: "🛡" };
   if (canonical === "/timeline") return { id: "timeline", route: canonical, label: uiText("timeline.title"), icon: "⏳" };
+  if (canonical === "/graph/relationships") return { id: "relationship-graph", route: canonical, label: uiText("graph.relationships"), icon: "☁" };
   if (canonical === "/map/world") return { id: "map", route: canonical, label: uiText("map.world"), icon: "🗺" };
   const page = campaignPages.find(page => `/${page.id}` === canonical);
   return page === undefined ? undefined : { id: page.id, route: canonical, label: uiCollectionLabel(page.id, "other"), icon: page.icon };
@@ -53,7 +55,7 @@ export function defaultSidebarLayout(): SidebarLayout {
   return { sections: [
     section("overview", uiText("shell.overview"), ["/", "/party"]),
     section("campaign", uiText("shell.campaign"), ["/timeline", "/mysteries"]),
-    section("world", uiText("shell.world"), ["/map/world", "/locations", "/characters", "/factions", "/companions"]),
+    section("world", uiText("shell.world"), ["/map/world", "/graph/relationships", "/locations", "/characters", "/factions", "/companions"]),
     section("compendium", uiText("shell.compendium"), ["/pantheon", "/artifacts", "/history"]),
   ], hidden: ["/events"] };
 }
