@@ -96,10 +96,9 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
 - [x] Restore the session timeline, drag ordering, and timeline editing.
 - [ ] Restore faction, relationship, and mystery graph views with position
   persistence and their former navigation/detail behavior.
-  Relationships now has its dedicated graph, original card styling, local
-  position persistence, filters/focus, zoom, and detail navigation. Faction and
-  mystery modes, elastic layout motion, and add-on graph contributions still
-  need implementation/acceptance.
+  All three core modes now retain original cards, local position persistence,
+  filters/focus, zoom, and detail navigation. Elastic layout motion and add-on
+  graph contributions still need implementation/acceptance.
 
 ### Administration and recovery
 
@@ -301,13 +300,22 @@ moves change only the local arrangement. Unit/browser regressions cover
 malformed preferences, exact detail identities, parallel edges, focus and filter
 behavior, reload, failed storage, concurrent-tab interruption, live removal,
 and desktop/phone geometry. Screenshots were reviewed against the preserved
-styling. Long edge labels wrap in full along their connections. Remaining graph
-work includes faction/mystery modes, elastic layout motion, and installed
-add-on contributions.
+styling. Long edge labels wrap in full along their connections.
+Faction and mystery modes now share that canvas, preserving rounded faction
+hubs, command roots, territory glows, member locations, purple mystery cards,
+and involved characters with question previews. Collection-qualified node and
+generated-edge identities avoid cross-collection ID collisions. Valid,
+unambiguous old positions seed separate mode layouts without rewriting the
+original browser values. Unit/browser checks cover these joins, shared-node
+visibility, typed detail routes, storage/mode isolation, route changes during
+drag, live removal, touch movement, and all preserved Czech graph hashes.
+Desktop/phone screenshots were reviewed against the preserved styling.
+Remaining graph work includes elastic layout motion and installed add-on
+contributions; full real-campaign visual acceptance remains open.
 The combined graph gate stays open.
 
 Still open elsewhere: collection grouping and filter controls, remaining
-graph modes, complete settings/DM screens, and installed add-on
+graph layout behavior, complete settings/DM screens, and installed add-on
 visual acceptance. Keep the visual and release gates open until the requested
 workflows are ported; apply the lighter operational policy above at cutover.
 
@@ -322,7 +330,7 @@ here before marking it complete.
 |---|---|---|
 | 1 | Host editing and session behavior | Keep focused regression tests for implemented behavior. Check login, DM/player visibility, saving, and live refresh at first start; expand the full session/failure matrix after launch. |
 | 2 | Host maps and map settings | Implement map fields, immutable media preparation, coordinate editing, saved views, marker art, and path/glow rendering as one workflow; verify world and local maps plus role-filtered locations together. |
-| 3 | Host relationship views | Timeline and the Relationships graph are implemented. Restore faction/mystery graphs and remaining layout behavior; verify real-campaign and installed contributions. |
+| 3 | Host relationship views | Timeline and all three core graph modes are implemented. Restore remaining layout behavior; verify real-campaign and installed contributions. |
 | 4 | First-party add-on workflows | Compare compendium browse/source/link behavior, DM planner/import review, engine calculations, and sheet play state against preserved v1 fixtures. Exercise absent/replaced providers through actual installed ZIPs. |
 | 5 | Host administration and recovery | Complete branding, party/sidebar preferences, add-on inspection/approval/rollback, recovery points, and the accepted credential workflow; retain explicit operator review. |
 | 6 | Release acceptance | Review one fresh conversion per site, retain old data, and perform the short first-start smoke check. Outages, fixes after launch, and rollback are accepted; full rehearsal matrices can follow. |
@@ -365,7 +373,7 @@ acceptance still need to be expanded as follow-up documentation.
 | Global search and wiki links | `/search` and typed Markdown links | Add-on reference/linking surfaces and localized editors |
 | `/mapa/svet`, `/mapa/local/:id` | `/map/world`, `/map/local/:id`; old map hashes also accepted | Real-host acceptance with each campaign's maps |
 | `/mapa/vztahy` | `/graph/relationships`; old hash and browser position/filter keys accepted | Remaining layout details and campaign/add-on visual acceptance |
-| `/mapa/palac`, `/mapa/frakce`, `/mapa/tajemstvi` | Not yet restored | Faction and mystery views and saved positions |
+| `/mapa/palac`, `/mapa/frakce`, `/mapa/tajemstvi` | `/graph/factions`, `/graph/mysteries`; old hashes and unambiguous browser positions accepted | Elastic layout behavior and campaign/add-on visual acceptance |
 | `/casova-osa`, `/mapa/casova-osa` | `/timeline`; old hashes accepted, session creation and atomic order editing restored | Real-campaign visual review and add-on contribution acceptance |
 | `/dm` and player-preview action | Session role switch exists; dedicated DM dashboard and tab-isolated preview remain open | Preserve the distinction between session role switching and true preview |
 | `/nastaveni`: six enum categories | `/settings` enum panels | Full localization and real-host save/delete/conflict coverage |

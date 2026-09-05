@@ -62,7 +62,9 @@ describe("curated sidebar layout", () => {
   it("resolves preserved route aliases through the implemented registry only", () => {
     expect(sidebarPage("/postavy")?.route).toBe("/characters");
     expect(sidebarPage("/mapa/svet")?.route).toBe("/map/world");
-    expect(sidebarPage("/mapa/palac")).toBeUndefined();
+    expect(sidebarPage("/mapa/palac")).toMatchObject({ route: "/graph/factions", label: "Mind Palace" });
+    expect(sidebarPage("/mapa/frakce")).toMatchObject({ route: "/graph/factions" });
+    expect(sidebarPage("/mapa/tajemstvi")).toMatchObject({ route: "/graph/mysteries" });
     expect(sidebarPage("https://other.test")).toBeUndefined();
     expect(sidebarPage("/dm")).toBeUndefined();
   });

@@ -37,6 +37,7 @@ export class SidebarEditError extends Error {
 }
 const aliases: Readonly<Record<string, string>> = Object.freeze({
   "/mapa/vztahy": "/graph/relationships",
+  "/mapa/palac": "/graph/factions", "/mapa/frakce": "/graph/factions", "/mapa/tajemstvi": "/graph/mysteries",
   "/casova-osa": "/timeline",
   "/mapa/svet": "/map/world", "/mista": "/locations", "/postavy": "/characters", "/frakce": "/factions",
   "/mazlicci": "/companions", "/zahady": "/mysteries", "/panteon": "/pantheon", "/artefakty": "/artifacts", "/historie": "/history",
@@ -46,7 +47,9 @@ export function sidebarPage(route: string) {
   if (canonical === "/") return { id: "dashboard", route: canonical, label: uiText("shell.overview"), icon: "🏠" };
   if (canonical === "/party") return { id: "party", route: canonical, label: uiText("shell.party"), icon: "🛡" };
   if (canonical === "/timeline") return { id: "timeline", route: canonical, label: uiText("timeline.title"), icon: "⏳" };
-  if (canonical === "/graph/relationships") return { id: "relationship-graph", route: canonical, label: uiText("graph.relationships"), icon: "☁" };
+  if (canonical === "/graph/factions") return { id: "graph-factions", route: canonical, label: uiText("graph.title"), icon: "☁" };
+  if (canonical === "/graph/relationships") return { id: "graph-relationships", route: canonical, label: uiText("graph.relationships"), icon: "☁" };
+  if (canonical === "/graph/mysteries") return { id: "graph-mysteries", route: canonical, label: uiText("graph.mysteries"), icon: "☁" };
   if (canonical === "/map/world") return { id: "map", route: canonical, label: uiText("map.world"), icon: "🗺" };
   const page = campaignPages.find(page => `/${page.id}` === canonical);
   return page === undefined ? undefined : { id: page.id, route: canonical, label: uiCollectionLabel(page.id, "other"), icon: page.icon };
@@ -55,9 +58,9 @@ export function defaultSidebarLayout(): SidebarLayout {
   return { sections: [
     section("overview", uiText("shell.overview"), ["/", "/party"]),
     section("campaign", uiText("shell.campaign"), ["/timeline", "/mysteries"]),
-    section("world", uiText("shell.world"), ["/map/world", "/graph/relationships", "/locations", "/characters", "/factions", "/companions"]),
+    section("world", uiText("shell.world"), ["/map/world", "/graph/factions", "/locations", "/characters", "/factions", "/companions"]),
     section("compendium", uiText("shell.compendium"), ["/pantheon", "/artifacts", "/history"]),
-  ], hidden: ["/events"] };
+  ], hidden: ["/events", "/graph/relationships", "/graph/mysteries"] };
 }
 function section(id: string, label: string, pages: readonly string[]): SidebarSection {
   return { id, label, icon: "", collapsible: false, defaultOpen: true, role: "", pages };

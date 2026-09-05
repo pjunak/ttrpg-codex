@@ -5,10 +5,14 @@ import { recordValue, stringList, text } from "./campaign-projection.js";
 
 export interface GraphPoint { readonly x: number; readonly y: number }
 export interface GraphNode {
+  readonly kind: "character" | "faction" | "location" | "mystery";
+  readonly legacyKey: string;
   readonly key: string; readonly name: string; readonly route: string;
   readonly faction: string; readonly factionName: string; readonly badge: string; readonly color: string;
   readonly status: string; readonly statusLabel: string; readonly statusIcon: string; readonly statusColor: string;
   readonly count: number; readonly commonTypes: string; readonly search: string;
+  readonly title?: string; readonly commandCount?: number; readonly commander?: string;
+  readonly hint?: string; readonly priority?: string; readonly priorityColor?: string; readonly glow?: string;
 }
 export interface GraphEdge {
   readonly key: string; readonly source: string; readonly target: string; readonly type: string;
@@ -22,7 +26,7 @@ export interface GraphFilter {
 export const graphZoomLevels = [.25, .35, .45, .55, .6, .7, .8, .9, 1, 1.1, 1.25, 1.5, 1.75, 2] as const;
 export const emptyGraphFilter = (): GraphFilter => ({ values: [], hiddenEdgeTypes: [], focusMode: false, focusHops: 2 });
 export const graphSearch = (value: string): string => value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase();
-const graphColor = (value: unknown, fallback: string): string => typeof value === "string" && /^#(?:[a-f0-9]{3}|[a-f0-9]{6}|[a-f0-9]{8})$/iu.test(value) ? value : fallback;
+export const graphColor = (value: unknown, fallback: string): string => typeof value === "string" && /^#(?:[a-f0-9]{3}|[a-f0-9]{6}|[a-f0-9]{8})$/iu.test(value) ? value : fallback;
 
 /** Consumes only the host's current role projection; no independent data or authority cache. */
 export function projectRelationshipGraph(campaign: CampaignDataset): CampaignGraph {
@@ -51,7 +55,7 @@ export function projectRelationshipGraph(campaign: CampaignDataset): CampaignGra
     const status = text(value["status"]), statusValue = statuses.get(status), statusLabel = text(statusValue?.["label"]) || status;
     const connected = adjacency.get(record.key) ?? [], counts = new Map<string, number>();
     for (const edge of connected) counts.set(edge.type, (counts.get(edge.type) ?? 0) + 1);
-    return { key: record.key, name: typeof value["knowledge"] === "number" && value["knowledge"] >= 1 ? text(value["name"]) || record.key : "???",
+    return { kind: "character", legacyKey: record.key, key: record.key, name: typeof value["knowledge"] === "number" && value["knowledge"] >= 1 ? text(value["name"]) || record.key : "???",
       route: `#/characters/${encodeURIComponent(record.key)}`, faction, factionName,
       badge: faction === "party" ? party.badge : text(factionValue?.["badge"]),
       color: status === "dead" ? "#666666" : faction === "party" ? party.color : graphColor(factionValue?.["color"], "#444444"),
@@ -92,7 +96,14 @@ export function graphNeighborhood(graph: CampaignGraph, key: string, hops: numbe
 export function graphNodeStates(graph: CampaignGraph, filter: GraphFilter, hiddenFactions: ReadonlySet<string>, focusId?: string) {
   const neighborhood = filter.focusMode && focusId ? graphNeighborhood(graph, focusId, filter.focusHops) : undefined;
   const queries = filter.values.map(graphSearch).filter(Boolean);
-  return new Map(graph.nodes.map(node => [node.key, { hidden: hiddenFactions.has(node.faction), dim: queries.some(query => !node.search.includes(query)) || neighborhood !== undefined && !neighborhood.has(node.key) }]));
+  const factionNodes = new Map(graph.nodes.filter(node => node.kind === "character" || node.kind === "faction").map(node => [node.key, node]));
+  const linkedVisibility = new Map<string, boolean>();
+  for (const edge of graph.edges) for (const [from, to] of [[edge.source, edge.target], [edge.target, edge.source]] as const) {
+    const node = factionNodes.get(from);
+    if (node && !factionNodes.has(to)) linkedVisibility.set(to, linkedVisibility.get(to) === true || !hiddenFactions.has(node.faction));
+  }
+  return new Map(graph.nodes.map(node => [node.key, { hidden: factionNodes.has(node.key) ? hiddenFactions.has(node.faction) : linkedVisibility.get(node.key) === false,
+    dim: queries.some(query => !node.search.includes(query)) || neighborhood !== undefined && !neighborhood.has(node.key) }]));
 }
 
 /** Deterministic starting positions; existing browser arrangements always win. */
@@ -124,7 +135,7 @@ export function stepGraphZoom(current: number, direction: number): number {
   return graphZoomLevels[Math.max(0, Math.min(graphZoomLevels.length - 1, index + Math.sign(direction)))]!;
 }
 
-export interface GraphBox extends GraphPoint { readonly width: number; readonly height: number }
+export interface GraphBox extends GraphPoint { readonly width: number; readonly height: number; readonly pill?: boolean }
 export function wrapGraphLabel(label: string, width: number, measure: (value: string) => number): readonly string[] {
   const lines: string[] = []; let line = "";
   for (const word of label.trim().split(/\s+/u)) {
@@ -144,6 +155,17 @@ export function graphEdgeGeometry(a: GraphBox, b: GraphBox, offset: number) {
   const control = { x: (a.x + b.x) / 2 - dy / length * offset, y: (a.y + b.y) / 2 + dx / length * offset };
   const intersect = (box: GraphBox, toward: GraphPoint) => {
     const x = toward.x - box.x, y = toward.y - box.y, fraction = 1 / Math.max(Math.abs(x) / (box.width / 2 + 4), Math.abs(y) / (box.height / 2 + 4), .001);
+    if (box.pill) {
+      // Intersect the ray with the rounded stadium, including the edge clearance.
+      const radius = Math.min(box.width, box.height) / 2 + 4;
+      const halfX = Math.max(0, (box.width - box.height) / 2), halfY = Math.max(0, (box.height - box.width) / 2);
+      let low = 0, high = fraction;
+      for (let i = 0; i < 30; i++) {
+        const mid = (low + high) / 2;
+        if (Math.hypot(Math.max(0, Math.abs(x * mid) - halfX), Math.max(0, Math.abs(y * mid) - halfY)) <= radius) low = mid; else high = mid;
+      }
+      return { x: box.x + x * low, y: box.y + y * low };
+    }
     return { x: box.x + x * fraction, y: box.y + y * fraction };
   };
   if (length < 1.01) {

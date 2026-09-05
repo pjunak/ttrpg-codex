@@ -9,7 +9,9 @@ import { visualCampaign, visualFixturePlugin } from './visual-fixture.mjs';
 let server, browser, origin, campaign, sequence = 0;
 const streams = new Set(), output = fileURLToPath(new URL('../../test-results/relationship-graph/', import.meta.url));
 const collection = name => campaign.collections.find(item => item.name === name);
-const node = (page, key) => page.locator(`.cm-node[data-key="${key}"]`);
+const node = (page, key) => page.locator(`.cm-node[data-key=${JSON.stringify(key)}]`);
+const typedKey = (kind, key) => JSON.stringify([kind, key]);
+const typedNode = (page, kind, key) => node(page, typedKey(kind, key));
 const savedPositions = { ryn: { x: -300, y: -160 }, mira: { x: 120, y: -160 }, kael: { x: -100, y: 170 }, talia: { x: 340, y: 190 } };
 before(async () => {
   await mkdir(output, { recursive: true });
@@ -19,7 +21,7 @@ before(async () => {
   origin = `http://127.0.0.1:${server.httpServer.address().port}`; browser = await chromium.launch({ headless: true });
 });
 after(async () => { await browser?.close(); await server?.close(); });
-async function fixture(t, { mobile = false, role = 'player', locale = 'en', blockedStorage = false, malformedStorage = false } = {}) {
+async function fixture(t, { mobile = false, role = 'player', locale = 'en', blockedStorage = false, malformedStorage = false, mixed = false } = {}) {
   campaign = structuredClone(visualCampaign); sequence = 0;
   collection('relationships').records = [
     { key: 'edge-one', revision: 1, value: { source: 'ryn', target: 'mira', type: 'ally', label: 'Trusted ally' } },
@@ -34,12 +36,30 @@ async function fixture(t, { mobile = false, role = 'player', locale = 'en', bloc
     { key: 'relationshipTypes', revision: 1, value: [{ id: 'ally', label: 'Ally', color: '#448844', style: 'dashed' },
       { id: 'commands', label: 'Commands', color: '#C49A35', style: 'solid' }, { id: 'enemy', label: 'Enemy', color: '#A84444', style: 'dotted' }] },
   );
+  if (mixed) {
+    for (const record of collection('characters').records) {
+      if (['ryn', 'mira'].includes(record.key)) { record.value.faction = 'watch'; record.value.location = 'gate'; }
+      if (record.key === 'mira') record.value.locationRoles = [{ locationId: 'outpost' }, { locationId: 'gate' }];
+      if (record.key === 'talia') { record.value.faction = 'guild'; record.value.location = 'gate'; }
+    }
+    collection('factions').records.push({ key: 'guild', revision: 1, value: { name: 'Explorers Guild', color: '#336688', badge: '⚑' } });
+    collection('locations').records.push({ key: 'outpost', revision: 1, value: { name: 'Mountain Outpost' } });
+    collection('mysteries').records = [
+      { key: 'gate', revision: 1, value: { name: 'The Open Gate', characters: ['ryn', 'talia', 'secret'], priority: 'kritická', questions: [{ text: 'Who opened the northern gate?', answer: 'An answer is not a preview' }] } },
+      { key: 'veil', revision: 1, value: { name: 'The Mountain Veil', characters: ['ryn', 'mira'], questions: ['What waits beyond the mist?'] } },
+      { key: 'unresolved', revision: 1, value: { name: 'An Unresolved Question', characters: [] } },
+    ];
+  }
   const context = await browser.newContext({ reducedMotion: 'reduce', hasTouch: mobile, viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
     extraHTTPHeaders: { 'x-fixture-role': role } });
   t.after(() => context.close());
   await context.addInitScript(({ savedPositions, locale, blockedStorage, malformedStorage }) => {
     if (!localStorage.getItem('graph-test-seeded')) {
       localStorage.setItem('cm_pos_vztahy', malformedStorage ? '{broken' : JSON.stringify(savedPositions));
+      localStorage.setItem('cm_pos_frakce', JSON.stringify({ hub_watch: { x: -330, y: -250 }, hub_guild: { x: 330, y: -250 },
+        ryn: { x: -330, y: 0 }, mira: { x: 0, y: 0 }, kael: { x: 330, y: 250 }, talia: { x: 330, y: 0 }, gate: { x: 0, y: -250 }, outpost: { x: -330, y: 250 } }));
+      localStorage.setItem('cm_pos_tajemstvi', JSON.stringify({ gate: { x: -300, y: -200 }, veil: { x: 300, y: -200 },
+        unresolved: { x: 0, y: 260 }, ryn: { x: -300, y: 70 }, mira: { x: 0, y: 70 }, talia: { x: 300, y: 70 } }));
       localStorage.setItem('codex_lang', locale); localStorage.setItem('graph-test-seeded', 'true');
     }
     window.graphStorageBlocked = blockedStorage;
@@ -61,7 +81,7 @@ async function publish(page, change) {
   change(); const revision = ++collection('characters').revision;
   const payload = { sequence: ++sequence, topic: 'campaign-data-changed', resourceId: 'characters', revision: String(revision), occurredAt: '2026-09-05T12:00:00Z', metadata: { commitId: sequence, records: 1 } };
   for (const response of streams) response.write(`id: ${sequence}\nevent: campaign-data-changed\ndata: ${JSON.stringify(payload)}\n\n`);
-  await page.waitForFunction(revision => document.querySelector('codex-relationship-graph')?.campaign.collections.find(item => item.name === 'characters').revision === revision, revision);
+  await page.waitForFunction(revision => document.querySelector('codex-campaign-graph')?.campaign.collections.find(item => item.name === 'characters').revision === revision, revision);
 }
 async function drag(page, key, dx, dy) {
   const rect = await node(page, key).boundingBox(); const x = rect.x + rect.width / 2, y = rect.y + 20;
@@ -94,7 +114,7 @@ test('pointer and keyboard moves persist legacy centers and never modify campaig
   await node(page, 'ryn').focus(); await page.keyboard.press('ArrowRight'); await page.keyboard.press('Shift+ArrowDown');
   assert.deepEqual((await positions(page)).ryn, { x: -195, y: -85 }); assert.deepEqual(campaign, before);
   await page.reload(); await node(page, 'ryn').waitFor();
-  assert.deepEqual(await page.locator('codex-relationship-graph').evaluate(graph => graph.positions.get('ryn')), { x: -195, y: -85 });
+  assert.deepEqual(await page.locator('codex-campaign-graph').evaluate(graph => graph.positions.get('ryn')), { x: -195, y: -85 });
 });
 
 test('click, keyboard and context actions navigate to exact character details', async t => {
@@ -134,11 +154,11 @@ test('cancelled drags and live changes preserve stored positions and remove unav
 test('wheel zoom uses fixed steps and canvas panning does not change saved centers', async t => {
   const { page } = await fixture(t); const canvas = page.getByRole('region', { name: 'Relationship graph', exact: true });
   const rect = await canvas.boundingBox(); await page.mouse.move(rect.x + 20, rect.y + 20);
-  await page.mouse.wheel(0, 2000); await page.waitForFunction(() => document.querySelector('codex-relationship-graph').zoom === .9);
-  await page.mouse.wheel(0, -2000); await page.waitForFunction(() => document.querySelector('codex-relationship-graph').zoom === 1);
-  const before = await page.locator('codex-relationship-graph').evaluate(graph => graph.pan);
+  await page.mouse.wheel(0, 2000); await page.waitForFunction(() => document.querySelector('codex-campaign-graph').zoom === .9);
+  await page.mouse.wheel(0, -2000); await page.waitForFunction(() => document.querySelector('codex-campaign-graph').zoom === 1);
+  const before = await page.locator('codex-campaign-graph').evaluate(graph => graph.pan);
   await canvas.focus(); await page.keyboard.press('ArrowLeft');
-  assert.equal(await page.locator('codex-relationship-graph').evaluate(graph => graph.pan.x), before.x + 30);
+  assert.equal(await page.locator('codex-campaign-graph').evaluate(graph => graph.pan.x), before.x + 30);
   assert.deepEqual(await positions(page), savedPositions);
 });
 
@@ -154,9 +174,9 @@ test('long authored edge labels wrap completely along the connection', async t =
 
 test('storage failures keep the local arrangement for retry and malformed preferences remain usable', async t => {
   const { page } = await fixture(t, { blockedStorage: true, malformedStorage: true });
-  const before = await page.locator('codex-relationship-graph').evaluate(graph => graph.positions.get('ryn'));
+  const before = await page.locator('codex-campaign-graph').evaluate(graph => graph.positions.get('ryn'));
   await node(page, 'ryn').focus(); await page.keyboard.press('ArrowRight'); await page.locator('.cm-message[role="alert"]').waitFor();
-  assert.equal(await page.locator('codex-relationship-graph').evaluate(graph => graph.positions.get('ryn').x), before.x + 5);
+  assert.equal(await page.locator('codex-campaign-graph').evaluate(graph => graph.positions.get('ryn').x), before.x + 5);
   await page.evaluate(() => { window.graphStorageBlocked = false; }); await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await page.locator('.cm-message[role="alert"]').waitFor({ state: 'detached' }); assert.equal((await positions(page)).ryn.x, before.x + 5);
 });
@@ -167,7 +187,7 @@ test('another tab interrupts an active drag without overwriting its saved arrang
   await second.evaluate(() => localStorage.setItem('cm_pos_vztahy', JSON.stringify({ ryn: { x: 10, y: 20 }, mira: { x: 120, y: -160 } })));
   await page.locator('.cm-message').filter({ hasText: 'Another tab changed' }).waitFor(); await page.mouse.up();
   assert.deepEqual((await positions(page)).ryn, { x: 10, y: 20 });
-  assert.deepEqual(await page.locator('codex-relationship-graph').evaluate(graph => graph.positions.get('ryn')), { x: 10, y: 20 });
+  assert.deepEqual(await page.locator('codex-campaign-graph').evaluate(graph => graph.positions.get('ryn')), { x: 10, y: 20 });
 });
 
 test('anonymous Czech readers can arrange the read-only graph and use the preserved route', async t => {
@@ -176,4 +196,146 @@ test('anonymous Czech readers can arrange the read-only graph and use the preser
   await page.getByRole('heading', { name: /Myšlenkový palác/ }).waitFor();
   await node(page, 'ryn').focus(); await page.keyboard.press('ArrowRight'); assert.equal((await positions(page)).ryn.x, savedPositions.ryn.x + 5);
   await publish(page, () => { collection('characters').records = []; }); await page.getByText('Žádné postavy k zobrazení', { exact: true }).waitFor();
+});
+
+async function switchMode(page, mode) {
+  await page.locator(`.map-mode-btn[href="#/graph/${mode}"]`).click();
+  await page.waitForFunction(mode => document.querySelector('codex-campaign-graph')?.mode === mode, mode);
+  await page.getByRole('button', { name: 'Reset zoom to 100%', exact: true }).click();
+}
+async function typedPosition(page, kind, key) {
+  return page.locator('codex-campaign-graph').evaluate((graph, id) => graph.positions.get(id), typedKey(kind, key));
+}
+
+for (const mode of ['factions', 'mysteries']) for (const mobile of [false, true]) test(`${mode} restores original cards, links and navigation (${mobile ? 'phone' : 'desktop'})`, async t => {
+  const { page } = await fixture(t, { mixed: true, mobile, role: 'dm' });
+  await switchMode(page, mode);
+  assert.equal(await page.locator('.map-mode-btn').count(), 3);
+  assert.equal(await page.locator('.map-mode-btn[aria-current="page"]').getAttribute('href'), `#/graph/${mode}`);
+  assert.equal(await page.locator('.cm-node').count(), mode === 'factions' ? 8 : 6);
+  if (mode === 'factions') {
+    const hub = typedNode(page, 'faction', 'watch');
+    assert.equal(await hub.locator('.cm-fact').textContent(), '2 characters');
+    const style = await hub.evaluate(element => ({ width: element.offsetWidth, radius: getComputedStyle(element.querySelector('.cm-cloud')).borderRadius,
+      font: getComputedStyle(element.querySelector('.cm-name')).fontSize }));
+    assert.deepEqual(style, { width: 210, radius: '999px', font: '15px' });
+    assert.equal(await typedNode(page, 'location', 'gate').getAttribute('href'), '#/locations/gate');
+    assert.match(await typedNode(page, 'character', 'mira').textContent(), /Under command: Ryn/);
+    assert.equal(await page.locator('[data-edge-type="member"]').count(), 2);
+    assert.equal(await page.locator('[data-edge-type="located_at"]').count(), 3);
+    assert.equal(await page.locator('.cm-glow').count(), 5);
+  } else {
+    assert.equal(await page.locator('[data-edge-type="mysteryLink"]').count(), 4);
+    assert.equal(await typedNode(page, 'mystery', 'gate').getAttribute('href'), '#/mysteries/gate');
+    assert.match(await typedNode(page, 'character', 'ryn').textContent(), /2 mysteries/);
+    assert.equal(await typedNode(page, 'mystery', 'gate').locator('.cm-hint').textContent(), 'Who opened the northern gate?');
+    assert.doesNotMatch(await page.locator('.cm-shell').textContent(), /secret|An answer is not a preview|\[object Object\]/);
+    const color = await typedNode(page, 'mystery', 'gate').locator('.cm-cloud').evaluate(element => getComputedStyle(element).backgroundImage);
+    assert.match(color, /28, 10, 42/);
+  }
+  await page.getByRole('button', { name: 'Fit', exact: true }).click();
+  await page.waitForFunction(() => {
+    const graph = document.querySelector('codex-campaign-graph'), viewport = document.querySelector('.cm-viewport').getBoundingClientRect();
+    return [...graph.querySelectorAll('.cm-node')].every(node => { const box = node.getBoundingClientRect(); return box.left >= viewport.left - 1 && box.right <= viewport.right + 1 && box.top >= viewport.top - 1 && box.bottom <= viewport.bottom + 1; });
+  });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.screenshot({ path: `${output}${mode}-${mobile ? 'phone' : 'desktop'}.png`, animations: 'disabled' });
+  if (!mobile) {
+    const target = mode === 'factions' ? typedNode(page, 'faction', 'watch') : typedNode(page, 'mystery', 'gate');
+    await target.focus(); await page.keyboard.press('Enter'); await page.waitForURL(mode === 'factions' ? /#\/factions\/watch$/ : /#\/mysteries\/gate$/);
+  }
+});
+
+test('mode changes isolate filters and migrated positions while preserving the original browser values', async t => {
+  const { page } = await fixture(t, { mixed: true }); const before = structuredClone(campaign);
+  const legacy = await page.evaluate(() => localStorage.getItem('cm_pos_frakce'));
+  await switchMode(page, 'factions');
+  assert.deepEqual(await typedPosition(page, 'character', 'ryn'), { x: -330, y: 0 });
+  await typedNode(page, 'character', 'ryn').focus(); await page.keyboard.press('ArrowRight');
+  const query = page.getByRole('textbox', { name: 'Filter graph', exact: true }); await query.fill('ryn'); await query.press('Enter');
+  await switchMode(page, 'mysteries');
+  assert.deepEqual(await typedPosition(page, 'character', 'ryn'), { x: -300, y: 70 });
+  assert.equal(await page.getByRole('button', { name: 'Remove filter ryn', exact: true }).count(), 0);
+  await typedNode(page, 'character', 'ryn').focus(); await page.keyboard.press('Shift+ArrowDown');
+  await switchMode(page, 'factions');
+  assert.deepEqual(await typedPosition(page, 'character', 'ryn'), { x: -325, y: 0 });
+  await page.getByRole('button', { name: 'Remove filter ryn', exact: true }).waitFor();
+  await page.reload(); await typedNode(page, 'character', 'ryn').waitFor();
+  assert.deepEqual(await typedPosition(page, 'character', 'ryn'), { x: -325, y: 0 });
+  assert.equal(await page.evaluate(() => localStorage.getItem('cm_pos_frakce')), legacy);
+  await switchMode(page, 'relationships'); assert.deepEqual((await positions(page)).ryn, savedPositions.ryn);
+  await switchMode(page, 'mysteries'); assert.deepEqual(await typedPosition(page, 'character', 'ryn'), { x: -300, y: 90 });
+  assert.deepEqual(campaign, before);
+});
+
+test('shared places and mysteries follow faction visibility and return with exact detail routes', async t => {
+  const { page } = await fixture(t, { mixed: true }); await switchMode(page, 'factions');
+  await page.getByText('Legend & filters', { exact: true }).click();
+  await page.getByRole('checkbox', { name: /The Watch/ }).uncheck();
+  await typedNode(page, 'location', 'outpost').waitFor({ state: 'detached' }); await typedNode(page, 'location', 'gate').waitFor();
+  await page.getByRole('checkbox', { name: /Explorers Guild/ }).uncheck(); await typedNode(page, 'location', 'gate').waitFor({ state: 'detached' });
+  await switchMode(page, 'mysteries');
+  // The same component retains the open legend while loading this mode's filters.
+  await page.getByRole('checkbox', { name: /The Watch/ }).uncheck(); await typedNode(page, 'mystery', 'veil').waitFor({ state: 'detached' });
+  await typedNode(page, 'mystery', 'gate').waitFor();
+  await page.getByRole('checkbox', { name: /Explorers Guild/ }).uncheck(); await typedNode(page, 'mystery', 'gate').waitFor({ state: 'detached' });
+  await typedNode(page, 'mystery', 'unresolved').waitFor();
+  await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
+  await typedNode(page, 'mystery', 'gate').focus(); await page.keyboard.press('Shift+F10');
+  await page.getByRole('menuitem', { name: '↗ Open detail', exact: true }).click(); await page.waitForURL(/#\/mysteries\/gate$/);
+});
+
+test('same IDs in different collections keep separate cards, links and saved positions', async t => {
+  const { page } = await fixture(t, { mixed: true });
+  await publish(page, () => {
+    collection('characters').records.push({ key: 'gate', revision: 1, value: { name: 'Gatekeeper', knowledge: 4, faction: 'watch' } });
+    collection('mysteries').records[0].value.characters.push('gate');
+  });
+  await switchMode(page, 'mysteries');
+  const mystery = typedNode(page, 'mystery', 'gate'), character = typedNode(page, 'character', 'gate');
+  const mysteryBefore = await typedPosition(page, 'mystery', 'gate'), characterBefore = await typedPosition(page, 'character', 'gate');
+  assert.notDeepEqual(mysteryBefore, characterBefore);
+  await character.focus(); await page.keyboard.press('ArrowRight');
+  assert.deepEqual(await typedPosition(page, 'mystery', 'gate'), mysteryBefore);
+  await page.reload(); await mystery.waitFor();
+  assert.deepEqual(await typedPosition(page, 'character', 'gate'), { x: characterBefore.x + 5, y: characterBefore.y });
+  await character.focus(); await page.keyboard.press('Enter'); await page.waitForURL(/#\/characters\/gate$/);
+});
+
+test('route changes and live removal cancel a mixed graph drag without saving it into another mode', async t => {
+  const { page } = await fixture(t, { mixed: true }); await switchMode(page, 'factions');
+  const rect = await typedNode(page, 'character', 'ryn').boundingBox();
+  await page.mouse.move(rect.x + 20, rect.y + 20); await page.mouse.down(); await page.mouse.move(rect.x + 80, rect.y + 80, { steps: 4 });
+  await page.evaluate(() => { location.hash = '#/graph/mysteries'; }); await typedNode(page, 'mystery', 'gate').waitFor(); await page.mouse.up();
+  assert.deepEqual(await typedPosition(page, 'character', 'ryn'), { x: -300, y: 70 });
+  assert.equal(await page.evaluate(() => localStorage.getItem('cm_pos_v2_frakce')), null);
+  await publish(page, () => { collection('characters').records = collection('characters').records.filter(record => record.key !== 'ryn'); });
+  await typedNode(page, 'character', 'ryn').waitFor({ state: 'detached' }); assert.equal(await page.locator('[data-edge-key]').count(), 2);
+  await publish(page, () => { collection('mysteries').records = []; }); await page.getByText('No cards to display', { exact: true }).waitFor();
+});
+
+test('touch input arranges a faction card without navigating or mutating content', async t => {
+  const { page, context } = await fixture(t, { mixed: true, mobile: true }); await switchMode(page, 'factions');
+  await page.getByRole('button', { name: 'Fit', exact: true }).click();
+  const card = typedNode(page, 'character', 'mira'); await card.waitFor();
+  const before = await typedPosition(page, 'character', 'mira'), rect = await card.boundingBox();
+  const zoom = await page.locator('codex-campaign-graph').evaluate(graph => graph.zoom);
+  const client = await context.newCDPSession(page), x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
+  await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+  await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + 25, y: y + 30 }] });
+  await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForFunction(() => localStorage.getItem('cm_pos_v2_frakce') !== null);
+  const after = await typedPosition(page, 'character', 'mira');
+  assert.ok(Math.abs(after.x - before.x - 25 / zoom) < 1); assert.ok(Math.abs(after.y - before.y - 30 / zoom) < 1);
+  assert.match(page.url(), /#\/graph\/factions$/);
+});
+
+test('anonymous Czech readers can use every preserved Mind Palace URL', async t => {
+  const { page } = await fixture(t, { mixed: true, role: '', locale: 'cs' });
+  for (const [hash, mode] of [['palac', 'factions'], ['frakce', 'factions'], ['tajemstvi', 'mysteries']]) {
+    await page.goto(`${origin}/#/mapa/${hash}`); await page.waitForFunction(mode => document.querySelector('codex-campaign-graph')?.mode === mode, mode);
+    await page.getByRole('heading', { name: /Myšlenkový palác/ }).waitFor();
+    await page.getByRole('region', { name: mode === 'factions' ? 'Graf frakcí' : 'Graf záhad', exact: true }).waitFor();
+    assert.equal(await page.locator('.map-mode-btn[aria-current="page"]').textContent(), mode === 'factions' ? 'Frakce' : 'Záhady');
+  }
 });

@@ -1,5 +1,6 @@
 import type { CampaignCollectionName } from "../core/campaign-data.js";
 import { isBrowserAddonRouteHash } from "../addons/navigation.js";
+import type { GraphMode } from "./campaign-graph-modes.js";
 
 export interface CampaignPageDefinition {
   readonly id: string;
@@ -27,7 +28,7 @@ export type AppRoute =
   | { readonly kind: "search" }
   | { readonly kind: "party" }
   | { readonly kind: "timeline" }
-  | { readonly kind: "relationship-graph" }
+  | { readonly kind: "campaign-graph"; readonly mode: GraphMode }
   | { readonly kind: "map"; readonly parentId: string | null;
       readonly event?: { readonly key: string; readonly mode: "show" | "place" };
       readonly location?: { readonly key: string; readonly mode: "show" | "place" } }
@@ -39,7 +40,9 @@ export type AppRoute =
   | { readonly kind: "not-found"; readonly path: string };
 
 export function parseAppRoute(hash: string): AppRoute {
-  if (["#/graph/relationships", "#/mapa/vztahy"].includes(hash)) return { kind: "relationship-graph" };
+  if (["#/graph/relationships", "#/mapa/vztahy"].includes(hash)) return { kind: "campaign-graph", mode: "relationships" };
+  if (["#/graph/factions", "#/mapa/palac", "#/mapa/frakce"].includes(hash)) return { kind: "campaign-graph", mode: "factions" };
+  if (["#/graph/mysteries", "#/mapa/tajemstvi"].includes(hash)) return { kind: "campaign-graph", mode: "mysteries" };
   if (["#/timeline", "#/casova-osa", "#/mapa/casova-osa"].includes(hash)) return { kind: "timeline" };
   const newEvent = /^#\/timeline\/new\/([1-9]\d*)$/u.exec(hash);
   if (newEvent !== null && Number.isSafeInteger(Number(newEvent[1]))) {

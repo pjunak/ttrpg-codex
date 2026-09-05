@@ -11,8 +11,10 @@ import {
 
 describe("application routes", () => {
   it("opens the restored relationship graph without accepting unfinished graph routes", () => {
-    for (const hash of ["#/graph/relationships", "#/mapa/vztahy"]) expect(parseAppRoute(hash)).toEqual({ kind: "relationship-graph" });
-    for (const hash of ["#/graph/relationships/extra", "#/graph/factions"]) expect(parseAppRoute(hash).kind).toBe("not-found");
+    for (const hash of ["#/graph/relationships", "#/mapa/vztahy"]) expect(parseAppRoute(hash)).toEqual({ kind: "campaign-graph", mode: "relationships" });
+    for (const hash of ["#/graph/factions", "#/mapa/palac", "#/mapa/frakce"]) expect(parseAppRoute(hash)).toEqual({ kind: "campaign-graph", mode: "factions" });
+    for (const hash of ["#/graph/mysteries", "#/mapa/tajemstvi"]) expect(parseAppRoute(hash)).toEqual({ kind: "campaign-graph", mode: "mysteries" });
+    for (const hash of ["#/graph/relationships/extra", "#/graph/unknown", "#/mapa/tajemstvi/extra"]) expect(parseAppRoute(hash).kind).toBe("not-found");
   });
   it("opens the preserved timeline aliases and session-aware shared event editor", () => {
     for (const hash of ["#/timeline", "#/casova-osa", "#/mapa/casova-osa"]) expect(parseAppRoute(hash)).toEqual({ kind: "timeline" });

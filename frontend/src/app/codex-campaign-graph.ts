@@ -2,22 +2,23 @@ import { LitElement, html, nothing, svg } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import { emptyGraphFilter, graphEdgeGeometry, graphNodeStates, graphZoomLevels, initialGraphPositions,
-  parseGraphFilter, parseGraphPositions, projectRelationshipGraph, stepGraphZoom, validCoordinate, wrapGraphLabel,
+  parseGraphFilter, parseGraphPositions, stepGraphZoom, validCoordinate, wrapGraphLabel,
   type CampaignGraph, type GraphBox, type GraphFilter, type GraphNode, type GraphPoint } from "./campaign-graph.js";
 import { UiLocalizationController } from "./ui-localization.js";
+import { graphModes, graphPreferenceKeys, migrateGraphPositions, projectCampaignGraph, type GraphMode } from "./campaign-graph-modes.js";
 
-const positionKey = "cm_pos_vztahy", filterKey = "cm_vf_vztahy", factionKey = "cm_filter_vztahy";
 interface Gesture {
   readonly pointer: number; readonly key: string | undefined; readonly origin: GraphPoint;
   readonly before: GraphPoint; readonly capture: HTMLElement; moved: boolean;
 }
-export class CodexRelationshipGraph extends LitElement {
+export class CodexCampaignGraph extends LitElement {
   static override properties = {
-    campaign: { attribute: false }, positions: { state: true }, pan: { state: true }, zoom: { state: true },
+    campaign: { attribute: false }, mode: { attribute: false }, positions: { state: true }, pan: { state: true }, zoom: { state: true },
     filters: { state: true }, hiddenFactions: { state: true }, query: { state: true }, focusId: { state: true },
     contextMenu: { state: true }, storageError: { state: true }, storageChanged: { state: true },
   };
   declare campaign: CampaignDataset | undefined;
+  declare mode: GraphMode;
   declare private positions: ReadonlyMap<string, GraphPoint>;
   declare private pan: GraphPoint;
   declare private zoom: number;
@@ -29,6 +30,7 @@ export class CodexRelationshipGraph extends LitElement {
   declare private storageError: boolean;
   declare private storageChanged: boolean;
   #graph: CampaignGraph = { nodes: [], edges: [] };
+  #nodeByKey = new Map<string, GraphNode>();
   #sizes = new Map<string, { width: number; height: number }>();
   #observer: ResizeObserver | undefined;
   #gesture: Gesture | undefined;
@@ -43,13 +45,13 @@ export class CodexRelationshipGraph extends LitElement {
   readonly #ui = new UiLocalizationController(this);
 
   constructor() {
-    super(); this.campaign = undefined; this.positions = new Map(); this.pan = { x: 0, y: 0 }; this.zoom = 1;
+    super(); this.campaign = undefined; this.mode = "relationships"; this.positions = new Map(); this.pan = { x: 0, y: 0 }; this.zoom = 1;
     this.filters = emptyGraphFilter(); this.hiddenFactions = new Set(); this.query = ""; this.focusId = undefined;
     this.contextMenu = undefined; this.storageError = false; this.storageChanged = false;
   }
   protected override createRenderRoot() { return this; }
   override connectedCallback(): void {
-    super.connectedCallback(); this.#readPreferences();
+    super.connectedCallback();
     window.addEventListener("storage", this.#onStorage); window.addEventListener("blur", this.#onBlur);
     document.addEventListener("pointerdown", this.#dismissMenu);
     this.#textMeasure = document.createElement("canvas").getContext("2d");
@@ -61,9 +63,15 @@ export class CodexRelationshipGraph extends LitElement {
     document.removeEventListener("pointerdown", this.#dismissMenu); super.disconnectedCallback();
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    if (changed.has("campaign")) {
+    if (changed.has("campaign") || changed.has("mode")) {
       this.#cancelGesture();
-      this.#graph = this.campaign === undefined ? { nodes: [], edges: [] } : projectRelationshipGraph(this.campaign);
+      this.#graph = this.campaign === undefined ? { nodes: [], edges: [] } : projectCampaignGraph(this.campaign, this.mode);
+      this.#nodeByKey = new Map(this.#graph.nodes.map(node => [node.key, node]));
+      if (changed.has("mode")) {
+        this.#sizes.clear(); this.#wheelDelta = 0; this.#suppressClickUntil = 0;
+        this.focusId = undefined; this.contextMenu = undefined; this.query = ""; this.storageError = false; this.storageChanged = false;
+        this.#readPreferences(); this.#scheduleFit(.8);
+      }
       this.positions = initialGraphPositions(this.#graph, this.positions);
       if (!this.#graph.nodes.some(node => node.key === this.focusId)) this.focusId = undefined;
       if (!this.#graph.nodes.some(node => node.key === this.contextMenu?.key)) this.contextMenu = undefined;
@@ -101,13 +109,19 @@ export class CodexRelationshipGraph extends LitElement {
     if (Array.isArray(definitions)) for (const definition of definitions) if (definition && typeof definition === "object" && "id" in definition && "label" in definition && typeof definition.id === "string" && typeof definition.label === "string") {
       const type = types.get(definition.id); if (type) types.set(definition.id, { ...type, label: definition.label });
     }
-    const factions = new Map(this.#graph.nodes.map(node => [node.faction, { name: node.factionName, color: node.color, badge: node.badge }]));
+    const intrinsicLabels = { member: this.#ui.t("graph.member"), located_at: this.#ui.t("graph.locatedAt"), mysteryLink: this.#ui.t("graph.involved") };
+    if (this.mode !== "relationships") for (const [key, label] of Object.entries(intrinsicLabels)) {
+      const type = types.get(key); if (type) types.set(key, { ...type, label, color: key === "member" ? "#888888" : type.color });
+    }
+    const factions = new Map(this.#graph.nodes.filter(node => node.kind === "character" || node.kind === "faction")
+      .map(node => [node.faction, { name: node.factionName, color: node.color, badge: node.badge }]));
     const detail = this.zoom < .45 ? "overview" : this.zoom < .6 ? "compact" : this.zoom < 1 ? "condensed" : "full";
     const typeScale = this.zoom <= 1 ? 1 : Math.floor((this.zoom + Number.EPSILON) / .25) * .25;
     return html`<section class="cm-shell" aria-label=${this.#ui.t("graph.title")}>
       <header class="map-toolbar">
         <h1 class="map-title">☁ ${this.#ui.t("graph.title")}</h1>
-        <a class="map-mode-btn active" href="#/graph/relationships" aria-current="page">${this.#ui.t("graph.relationships")}</a>
+        ${graphModes.map(mode => html`<a class=${`map-mode-btn${this.mode === mode ? " active" : ""}`} href=${`#/graph/${mode}`}
+          aria-current=${this.mode === mode ? "page" : nothing}>${this.#ui.t(`graph.${mode}`)}</a>`)}
         <span class="map-hint">${this.#ui.t("graph.hint")}</span>
         <span class="cm-view-actions">
           <span class="cm-canvas-purpose">◉ ${this.#ui.t("graph.readOnly")}</span>
@@ -129,7 +143,7 @@ export class CodexRelationshipGraph extends LitElement {
             @keydown=${(event: KeyboardEvent) => { if (event.key === "Enter" || event.key === ",") { event.preventDefault(); this.#addQuery(); } }} @change=${this.#addQuery} />
         </div>
         <div class="cm-chip-group" role="group" aria-label=${this.#ui.t("graph.edgeTypes")}>
-          ${[...types].map(([type, value]) => html`<button class=${`cm-chip cm-chip-edge${this.filters.hiddenEdgeTypes.includes(type) ? " is-off" : ""}`}
+          ${this.mode === "mysteries" ? nothing : [...types].map(([type, value]) => html`<button class=${`cm-chip cm-chip-edge${this.filters.hiddenEdgeTypes.includes(type) ? " is-off" : ""}`}
             style=${`--chip-color:${value.color}`} aria-pressed=${!this.filters.hiddenEdgeTypes.includes(type)}
             @click=${() => this.#setFilters({ ...this.filters, hiddenEdgeTypes: this.filters.hiddenEdgeTypes.includes(type)
               ? this.filters.hiddenEdgeTypes.filter(id => id !== type) : [...this.filters.hiddenEdgeTypes, type] })}>${value.label}</button>`)}
@@ -143,27 +157,31 @@ export class CodexRelationshipGraph extends LitElement {
       ${this.storageError ? html`<p class="cm-message" role="alert">${this.#ui.t("graph.storageFailed")} <button @click=${this.#savePreferences}>${this.#ui.t("graph.retry")}</button></p>` : nothing}
       ${this.storageChanged ? html`<p class="cm-message" role="status">${this.#ui.t("graph.storageChanged")}</p>` : nothing}
       <p id="cm-keyboard-help" class="visually-hidden">${this.#ui.t("graph.keyboardHelp")}</p>
-      <div class="cm-viewport" tabindex="0" role="region" aria-label=${this.#ui.t("graph.canvas")} aria-describedby="cm-keyboard-help"
+      <div class="cm-viewport" tabindex="0" role="region" aria-label=${this.#ui.t(this.mode === "relationships" ? "graph.canvas" : this.mode === "factions" ? "graph.factionCanvas" : "graph.mysteryCanvas")} aria-describedby="cm-keyboard-help"
         style=${`--cm-z:${this.zoom};--cm-type-z:${typeScale}`} data-cm-detail=${detail}
         @pointerdown=${this.#pointerDown} @pointermove=${this.#pointerMove} @pointerup=${this.#pointerUp}
         @pointercancel=${this.#cancelGesture} @lostpointercapture=${this.#cancelGesture}
         @wheel=${{ handleEvent: this.#wheel, passive: false }} @keydown=${this.#keyDown}
         @click=${(event: MouseEvent) => { if (!(event.target as Element).closest(".cm-node")) this.focusId = undefined; }}>
+        ${this.mode === "factions" ? visible.filter(node => node.glow).map(node => {
+          const box = this.#box(node.key), size = (node.kind === "faction" ? 550 : 320) * this.zoom;
+          return html`<div class=${`cm-glow${node.kind === "faction" ? "" : " cm-glow-sm"}`} aria-hidden="true"
+            style=${`left:${box.x - size / 2}px;top:${box.y - size / 2}px;--gc:${node.glow};${states.get(node.key)?.dim ? "opacity:.02" : ""}`}></div>`;
+        }) : nothing}
         ${this.#renderEdges(states, typeScale)}
         ${repeat(visible, node => node.key, node => {
           const box = this.#box(node.key), state = states.get(node.key)!;
-          return html`<a class="cm-node" data-key=${node.key} href=${node.route} draggable="false" aria-label=${node.name} aria-describedby="cm-keyboard-help"
-            style=${`left:${Math.round(box.x - box.width / 2)}px;top:${Math.round(box.y - box.height / 2)}px;--cc:${node.color}`}
+          return html`<a class="cm-node" data-key=${node.key} data-kind=${node.kind} href=${node.route} draggable="false" aria-label=${node.name} aria-describedby="cm-keyboard-help"
+            style=${`left:${Math.round(box.x - box.width / 2)}px;top:${Math.round(box.y - box.height / 2)}px;--cc:${node.color};--cw:${node.kind === "faction" ? 210 : 168}px`}
             @click=${(event: MouseEvent) => this.#nodeClick(event, node)} @contextmenu=${(event: MouseEvent) => this.#openMenu(event, node.key)}>
-            <div class=${`cm-cloud${node.status === "dead" ? " cm-dead" : ""}${state.dim ? " cm-vfilter-dim" : ""}${this.focusId === node.key ? " cm-highlighted" : ""}`}>
-              <div class="cm-strip">${node.badge} ${node.factionName}</div><div class="cm-name">${node.status === "dead" ? "💀 " : ""}${node.name}</div>
-              <div class="cm-divider"></div><div class="cm-status-row"><span style=${`color:${node.statusColor}`}>${node.statusIcon}</span> ${node.statusLabel}</div>
-              <div class="cm-fact cm-dim">${this.#ui.plural("graph.connectionCount", node.count)}</div>
-              ${node.commonTypes ? html`<div class="cm-fact cm-dim">${node.commonTypes}</div>` : nothing}
+            <div class=${`cm-cloud${node.kind === "faction" ? " cm-faction-hub" : ` cm-${node.kind}`}${node.status === "dead" ? " cm-dead" : ""}${state.dim ? " cm-vfilter-dim" : ""}${this.focusId === node.key ? " cm-highlighted" : ""}`}>
+              <div class="cm-strip">${node.kind === "character" ? `${node.badge} ${node.factionName}` : node.kind === "faction" ? `${node.badge} ${this.#ui.t("graph.factionStrip")}` : node.kind === "location" ? `📍 ${this.#ui.t("graph.placeStrip")}` : `❓ ${this.#ui.t("graph.mysteryStrip")}`}</div>
+              <div class="cm-name">${node.status === "dead" ? "💀 " : ""}${node.name}</div>
+              <div class="cm-divider"></div>${this.#renderFacts(node)}
             </div>
           </a>`;
         })}
-        ${visible.length ? nothing : html`<div class="cm-empty-state"><div class="cm-empty-icon">☁</div><strong>${this.#ui.t("graph.empty")}</strong><span>${this.#ui.t("graph.emptyHint")}</span></div>`}
+        ${visible.length ? nothing : html`<div class="cm-empty-state"><div class="cm-empty-icon">☁</div><strong>${this.#ui.t(this.mode === "relationships" ? "graph.empty" : "graph.emptyCards")}</strong><span>${this.#ui.t(this.mode === "relationships" ? "graph.emptyHint" : "graph.emptyCardsHint")}</span></div>`}
       </div>
       <details class="map-legend-shell"><summary>${this.#ui.t("graph.legend")}</summary><div class="map-legend">
         <strong class="legend-title">${this.#ui.t("graph.edgeTypes")}</strong>
@@ -180,6 +198,21 @@ export class CodexRelationshipGraph extends LitElement {
       </div>`}
     </section>`;
   }
+  #renderFacts(node: GraphNode) {
+    if (node.kind === "location") return nothing;
+    if (node.kind === "faction") return html`<div class="cm-fact">${this.#ui.plural("graph.memberCount", node.count)}</div>`;
+    if (node.kind === "mystery") return html`<div class="cm-fact cm-fact-priority" style=${`color:${node.priorityColor}`}>⚑ ${node.priority || this.#ui.t("graph.priorityMedium")}</div>
+      ${node.hint ? html`<div class="cm-fact cm-hint">${node.hint}</div>` : nothing}`;
+    if (this.mode === "factions") return html`${node.title ? html`<div class="cm-fact">${node.title}</div>` : nothing}
+      ${node.commandCount ? html`<div class="cm-fact cm-dim">${this.#ui.plural("graph.commandCount", node.commandCount)}</div>` : nothing}
+      ${node.commander ? html`<div class="cm-fact cm-dim">${this.#ui.t("graph.underCommand", { name: node.commander })}</div>` : nothing}
+      ${!node.title && !node.commandCount && !node.commander ? html`<div class="cm-fact cm-dim">${this.#ui.t("graph.noCommands")}</div>` : nothing}`;
+    if (this.mode === "mysteries") return html`<div class="cm-fact cm-dim">${this.#ui.plural("graph.mysteryCount", node.count)}</div>
+      ${node.hint ? html`<div class="cm-fact cm-hint">${node.hint}</div>` : nothing}`;
+    return html`<div class="cm-status-row"><span style=${`color:${node.statusColor}`}>${node.statusIcon}</span> ${node.statusLabel}</div>
+      <div class="cm-fact cm-dim">${this.#ui.plural("graph.connectionCount", node.count)}</div>
+      ${node.commonTypes ? html`<div class="cm-fact cm-dim">${node.commonTypes}</div>` : nothing}`;
+  }
   #renderEdges(states: ReturnType<typeof graphNodeStates>, typeScale: number) {
     const edges = this.#graph.edges.filter(edge => !states.get(edge.source)?.hidden && !states.get(edge.target)?.hidden);
     const groups = new Map<string, typeof edges>();
@@ -189,12 +222,12 @@ export class CodexRelationshipGraph extends LitElement {
       const offset = (group.indexOf(edge) - (group.length - 1) / 2) * 36 * this.zoom * (edge.source > edge.target ? -1 : 1);
       const source = this.#box(edge.source), target = this.#box(edge.target), geometry = graphEdgeGeometry(source, target, offset);
       const dim = states.get(edge.source)?.dim || states.get(edge.target)?.dim || this.filters.hiddenEdgeTypes.includes(edge.type);
-      const showLabel = this.zoom >= 1 && geometry.length > 50;
+      const showLabel = Boolean(edge.label) && this.zoom >= 1 && geometry.length > 50;
       const label = this.#labelLayout(edge.label, Math.max(36, geometry.length - 20), typeScale), lineHeight = 16.2 * typeScale;
       let angle = Math.atan2(target.y - source.y, target.x - source.x) * 180 / Math.PI;
       if (Math.abs(angle) > 90) angle += angle > 0 ? -180 : 180;
       const rotation = `rotate(${angle} ${geometry.label.x} ${geometry.label.y})`;
-      return svg`<g data-edge-key=${edge.key} opacity=${dim ? .1 : .8}>
+      return svg`<g data-edge-key=${edge.key} data-edge-type=${edge.type} opacity=${dim ? .1 : .8}>
         <defs><marker id=${`cm-arrow-${index}`} viewBox="0 0 14 10" markerWidth="14" markerHeight="10" refX="13" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L14,5 L0,10 Z" fill=${edge.color}/></marker>
           <marker id=${`cm-circle-${index}`} viewBox="0 0 10 10" markerWidth="9" markerHeight="9" refX="5" refY="5" markerUnits="userSpaceOnUse"><circle cx="5" cy="5" r="4" fill=${edge.color}/></marker>
           <mask id=${`cm-gap-${index}`} maskUnits="userSpaceOnUse"><rect width="100%" height="100%" fill="white"/>
@@ -219,12 +252,14 @@ export class CodexRelationshipGraph extends LitElement {
     this.#labelLayouts.set(key, layout); return layout;
   }
   #box(key: string): GraphBox {
-    const p = this.positions.get(key) ?? { x: 0, y: 0 }, size = this.#sizes.get(key) ?? { width: 168 * this.zoom, height: 126 };
-    return { x: this.pan.x + p.x * this.zoom, y: this.pan.y + p.y * this.zoom, ...size };
+    const pill = this.#nodeByKey.get(key)?.kind === "faction";
+    const p = this.positions.get(key) ?? { x: 0, y: 0 }, size = this.#sizes.get(key) ?? { width: (pill ? 210 : 168) * this.zoom, height: 126 };
+    return { x: this.pan.x + p.x * this.zoom, y: this.pan.y + p.y * this.zoom, ...size, pill };
   }
   #scheduleFit(cap: number): void { this.#fitCap = cap; this.#fitPasses = 3; this.requestUpdate(); }
   #fit(): void {
-    const viewport = this.querySelector<HTMLElement>(".cm-viewport"), nodes = this.#graph.nodes.filter(node => !this.hiddenFactions.has(node.faction));
+    const states = graphNodeStates(this.#graph, this.filters, this.hiddenFactions);
+    const viewport = this.querySelector<HTMLElement>(".cm-viewport"), nodes = this.#graph.nodes.filter(node => !states.get(node.key)?.hidden);
     if (!viewport || !nodes.length) return;
     const bounds = nodes.map(node => { const p = this.positions.get(node.key)!, size = this.#box(node.key); return { x: p.x, y: p.y, w: size.width / this.zoom, h: size.height / this.zoom }; });
     const left = Math.min(...bounds.map(b => b.x - b.w / 2)), right = Math.max(...bounds.map(b => b.x + b.w / 2));
@@ -321,21 +356,25 @@ export class CodexRelationshipGraph extends LitElement {
   #setFilters(filters: GraphFilter): void { this.filters = filters; this.#savePreferences(); }
   readonly #clearFilters = (): void => { this.query = ""; this.focusId = undefined; this.filters = emptyGraphFilter(); this.hiddenFactions = new Set(); this.#savePreferences(); };
   readonly #savePreferences = (): void => {
+    const keys = graphPreferenceKeys(this.mode);
     try {
-      localStorage.setItem(positionKey, JSON.stringify(Object.fromEntries(this.positions)));
-      localStorage.setItem(filterKey, JSON.stringify(this.filters)); localStorage.setItem(factionKey, JSON.stringify([...this.hiddenFactions])); this.storageError = false;
+      localStorage.setItem(keys.positions, JSON.stringify(Object.fromEntries(this.positions)));
+      localStorage.setItem(keys.filters, JSON.stringify(this.filters)); localStorage.setItem(keys.factions, JSON.stringify([...this.hiddenFactions])); this.storageError = false;
     } catch { this.storageError = true; }
   };
   #readPreferences(): void {
+    const keys = graphPreferenceKeys(this.mode);
     const read = (key: string): unknown => { try { return JSON.parse(localStorage.getItem(key) ?? "null"); } catch { return undefined; } };
-    this.positions = initialGraphPositions(this.#graph, parseGraphPositions(read(positionKey)));
-    this.filters = parseGraphFilter(read(filterKey));
-    const factions = read(factionKey); this.hiddenFactions = new Set(Array.isArray(factions) ? factions.filter((key): key is string => typeof key === "string").slice(0, 128) : []);
+    const positions = read(keys.positions);
+    this.positions = initialGraphPositions(this.#graph, positions === null && this.mode !== "relationships"
+      ? migrateGraphPositions(this.#graph, read(keys.legacyPositions)) : parseGraphPositions(positions));
+    this.filters = parseGraphFilter(read(keys.filters));
+    const factions = read(keys.factions); this.hiddenFactions = new Set(Array.isArray(factions) ? factions.filter((key): key is string => typeof key === "string").slice(0, 128) : []);
   }
   readonly #onStorage = (event: StorageEvent): void => {
-    if (event.storageArea !== localStorage || event.key !== null && ![positionKey, filterKey, factionKey].includes(event.key)) return;
+    if (event.storageArea !== localStorage || event.key !== null && !Object.values(graphPreferenceKeys(this.mode)).includes(event.key)) return;
     const interrupted = this.#gesture !== undefined; this.#cancelGesture(); this.#readPreferences();
     if (interrupted) this.storageChanged = true;
   };
 }
-customElements.define("codex-relationship-graph", CodexRelationshipGraph);
+customElements.define("codex-campaign-graph", CodexCampaignGraph);
