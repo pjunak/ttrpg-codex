@@ -35,6 +35,22 @@ import type {
 const generationId = "a".repeat(64);
 
 describe("IsolatedFrameBridge", () => {
+  it("accepts only bounded edit flags and clears them when the frame closes", () => {
+    const descriptor = frameDescriptor(slotContribution());
+    const sdk = new BrowserContributionRegistry().open(descriptor, new GenerationScope("edits@test"));
+    const port = new FakePort(), set = vi.fn(), onDiagnostic = vi.fn();
+    const bridge = new IsolatedFrameBridge({ port, context: sdk.context, contribution: descriptor.contributions[0]!, onResize: vi.fn(), edits: { set }, onDiagnostic });
+    port.receive({ protocol: isolatedFrameProtocol, type: "edit-state", state: { dirty: true, saving: false } });
+    expect(set).toHaveBeenLastCalledWith({ dirty: true, saving: false, retainOnQueryChange: false });
+    port.receive({ protocol: isolatedFrameProtocol, type: "edit-state", state: { dirty: true, saving: false, body: "must not cross the bridge" } });
+    expect(onDiagnostic).toHaveBeenCalledOnce();
+    expect(set).toHaveBeenCalledOnce();
+    bridge.close();
+    expect(set).toHaveBeenLastCalledWith({ dirty: false, saving: false });
+    const count = set.mock.calls.length;
+    port.receive({ protocol: isolatedFrameProtocol, type: "edit-state", state: { dirty: true, saving: true } });
+    expect(set).toHaveBeenCalledTimes(count);
+  });
   it("delivers bounded instance context after readiness and stops updates on disposal", () => {
     const descriptor = frameDescriptor(slotContribution());
     const sdk = new BrowserContributionRegistry().open(descriptor, new GenerationScope("context@test"));

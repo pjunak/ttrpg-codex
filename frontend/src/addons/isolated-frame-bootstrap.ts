@@ -303,6 +303,16 @@ export const isolatedFrameBootstrap = String.raw`
             contribution: declaration,
             signal: controller.signal,
             host: hostContext,
+            edits: Object.freeze({ set: (state) => {
+              if (revoked) return;
+              if (typeof state !== "object" || state === null || Array.isArray(state) ||
+                Object.keys(state).some(key => !["dirty", "saving", "retainOnQueryChange"].includes(key)) ||
+                typeof state.dirty !== "boolean" || typeof state.saving !== "boolean" ||
+                (state.retainOnQueryChange !== undefined && typeof state.retainOnQueryChange !== "boolean")) {
+                throw new TypeError("The contribution edit state is invalid.");
+              }
+              post({ type: "edit-state", state: { dirty: state.dirty, saving: state.saving, retainOnQueryChange: state.retainOnQueryChange === true } });
+            } }),
           });
           root.replaceChildren(element);
         }

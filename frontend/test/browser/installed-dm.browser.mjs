@@ -15,6 +15,7 @@ import { importQuest, planningImport, replacementImportPackage } from './install
 import { exercisePlannerEditing } from './installed-planner-fixture.mjs';
 import { exercisePlannerFlows } from './installed-planner-flow-fixture.mjs';
 import { exercisePlannerConcurrency } from './installed-planner-concurrency-fixture.mjs';
+import { exercisePlannerNavigation, unloadBlocked, attemptHash } from './installed-planner-navigation-fixture.mjs';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const output = resolve(root, 'frontend/test-results/installed-dm');
@@ -203,6 +204,10 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('reviewed DM Tools dashboard preserves 
   assert.equal(await page.getByLabel('Title', { exact: true }).inputValue(), 'Hidden meeting');
   const secondTab = await page.context().newPage(); await secondTab.goto(`/${eventLink}`);
   await secondTab.locator('.dm-plan-card.selected h3').filter({ hasText: 'Hidden meeting' }).waitFor();
+  await secondTab.goto('/#/dm'); await secondTab.locator('.dm-tools-dashboard').waitFor();
+  await secondTab.goto('/#/addons/dm-tools/planner?item=one&item=two');
+  await secondTab.getByRole('link', { name: 'Open campaign canvas' }).click();
+  await secondTab.locator('.dm-plan-card h3').filter({ hasText: 'Northern trail' }).waitFor();
   await secondTab.close();
   await page.getByLabel('Title', { exact: true }).fill('Unsaved draft');
   await page.evaluate(() => window.dispatchEvent(new HashChangeEvent('hashchange')));
@@ -213,7 +218,11 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('reviewed DM Tools dashboard preserves 
   await page.goBack(); await page.locator('.dm-planner-breadcrumbs .active').filter({ hasText: 'Northern trail' }).waitFor();
   await page.goto('/#/addons/dm-tools/planner?item=quest-missing'); await page.getByText('This planning item no longer exists.', { exact: true }).waitFor();
   await page.goto('/#/addons/dm-tools/planner?item=one&item=two'); await page.getByText('Invalid planner link.', { exact: true }).waitFor();
-  await page.getByRole('link', { name: 'Open campaign canvas' }).click();
+  assert.equal(await unloadBlocked(page), true);
+  await page.goto(`/${eventLink}`);
+  assert.equal(await page.getByLabel('Title', { exact: true }).inputValue(), 'Unsaved draft');
+  await page.getByRole('form', { name: 'Planning item details' }).getByRole('button', { name: 'Discard edits', exact: true }).click();
+  await page.goto('/#/addons/dm-tools/planner');
   await page.locator('.dm-plan-card h3').filter({ hasText: 'Northern trail' }).waitFor();
   const queryPattern = '**/api/addons/dm-tools/generations/*/data/query';
   await page.route(queryPattern, route => route.fulfill({ status: 503, body: '{}' }));
@@ -229,6 +238,37 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('reviewed DM Tools dashboard preserves 
     assert.equal(await visitor.locator('.dm-tools-dashboard').count(), 0);
     assert.equal((await visitor.locator('.dm-panel').textContent()).includes('Hidden meeting'), false);
   }
+});
+
+for (const mode of ['integrated', 'isolated']) test(`installed ${mode} edit state protects navigation and expires with its mounted view`, async t => {
+  const id = `dm-edits-${mode}`;
+  await installDmPackage(admin, csrf, { id, mode, slot: false, edits: true }); t.after(() => disable(id));
+  const page = await open(t), hash = `#/addons/${id}/planner`;
+  page.setDefaultTimeout(10_000);
+  await page.goto(`/${hash}`);
+  const root = page.locator('[data-addon-route-outlet]');
+  const surface = mode === 'isolated' ? root.frameLocator('iframe') : root;
+  await surface.getByLabel('Fixture notes').fill('Keep this draft');
+  await page.waitForFunction(() => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; });
+  await attemptHash(page, '#/timeline'); await page.waitForURL(`**/${hash}`);
+  assert.equal(await surface.getByLabel('Fixture notes').inputValue(), 'Keep this draft');
+  // Query retention is explicit; this fixture does not opt in.
+  await attemptHash(page, `${hash}?item=another`); await page.waitForURL(`**/${hash}`);
+  await surface.getByLabel('Fixture notes').fill('');
+  await page.waitForFunction(() => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return !event.defaultPrevented; });
+  await page.evaluate(() => { location.hash = '#/timeline'; }); await page.locator('.tl-shell').waitFor();
+  assert.equal(await unloadBlocked(page), false);
+  await page.goto(`/${hash}`); await surface.getByLabel('Fixture notes').fill('Retire this generation');
+  await page.waitForFunction(() => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; });
+  await disable(id);
+  await page.locator('[data-addon-route-outlet] input, [data-addon-route-outlet] iframe').waitFor({ state: 'detached' });
+  assert.equal(await unloadBlocked(page), false);
+});
+
+if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner protects drafts on navigation, Back, sign-out and reload', async t => {
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), []);
+  t.after(() => disable('dm-tools'));
+  await exercisePlannerNavigation({ t, open, admin, csrf });
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner restores item fields and retains drafts through edits, conflicts and failed saves', async t => {

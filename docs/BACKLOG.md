@@ -153,9 +153,12 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
   simultaneous graph edits, including changes to previously empty collections;
   paginated reads pin their original collection revision. Conflicts keep
   editor drafts and require a reload or a newly reviewed import.
+  Mounted planner drafts now participate in the host's navigation, sign-out,
+  and browser-unload guards. Same-planner queries retain drafts, including
+  invalid targets; pending writes block navigation until their outcome is known.
   Remaining work includes original dialog/canvas controls, reparenting,
   complete core/external references and consequence targets/note anchors,
-  guards when leaving the planner, live invalidation, full visual parity and
+  live invalidation, full visual parity and
   localization, and Import Center presentation and other-provider acceptance.
 - [ ] Verify the compendium browser against the old day-to-day browsing and
   reference workflow, then restore any accepted source, linking, filtering, or
@@ -247,6 +250,22 @@ inspected; compendium and sheet checks and engine tests/vet/race checks pass.
 The engine's committed binaries were refreshed for the shared worker SDK.
 This batch does not change UI styling or complete the remaining planner,
 localization, administration, visual acceptance, or site-conversion gates.
+
+The September 6 navigation batch adds a per-mounted-contribution edit-state
+handle in integrated and isolated UI modes. Host unit checks cover independent
+drafts, stale handles, disposal/abort, and strict flag-only bridge messages.
+Installed ZIP checks cover canceled route and query navigation, browser Back,
+sign-out, a real canceled reload, failed writes, pending-write navigation and
+sign-out blocking, save/discard cleanup, and generation disable. The planner's
+desktop/phone checks include hidden drafts and recovery from invalid links.
+The full host gate passes 276 unit tests, 142 browser cases, Go tests and vet.
+DM Tools passes 19 Node tests, 22 rendering checks at each of DPR 1 and 2, Go
+tests and vet; its rebuilt ZIP passes host inspection. Compendium and sheets
+also pass their checks, packaging and inspection with no source changes.
+Drafts remain local to the view; accepted reload or forced authority/package
+teardown does not persist them. The original layout and styling are unchanged.
+This closes the planner's leave-view guard slice, not broader interaction or
+visual parity, other add-ons' edit-state adoption, or either site's conversion.
 
 The visual reference is `origin/deprecated/pre-rewrite-2026-09-01` at
 `3aeeacfe7adec985693f8aeb239df58c177f3da8`, confirmed against the live

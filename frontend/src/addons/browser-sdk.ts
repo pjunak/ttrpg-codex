@@ -9,6 +9,7 @@ import type { Disposer, GenerationScope } from "./generation-scope.js";
 import type { BrowserDataAPI } from "./data-client.js";
 import type { BrowserContentAPI } from "./content-client.js";
 import type { BrowserServiceAPI } from "./service-client.js";
+import { BrowserContributionEdits, type BrowserContributionEditHandle } from "./edit-state.js";
 
 const customElementPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$/;
 
@@ -30,7 +31,7 @@ export interface BrowserModelProviderBinding {
 /** Host-only binding used to mount one sandboxed document into a visual outlet. */
 export interface BrowserIsolatedFrameBinding {
   readonly kind: "isolated-frame";
-  readonly mount: (host: HTMLElement, hostContext?: unknown) => Disposer | BrowserIsolatedMount;
+  readonly mount: (host: HTMLElement, hostContext?: unknown, edits?: BrowserContributionEditHandle) => Disposer | BrowserIsolatedMount;
 }
 
 export interface BrowserIsolatedMount {
@@ -144,6 +145,7 @@ interface RegisteredContribution extends ActiveBrowserContribution {
 
 /** Host-owned registry of the contribution implementations active right now. */
 export class BrowserContributionRegistry {
+  readonly edits = new BrowserContributionEdits();
   readonly #active = new Map<string, RegisteredContribution>();
   readonly #listeners = new Set<BrowserContributionListener>();
   readonly #onObserverError: (cause: unknown) => void;

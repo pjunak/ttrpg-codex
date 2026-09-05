@@ -1261,7 +1261,7 @@ export class CodexApp extends LitElement {
 
   readonly #onHashChange = (): void => {
     const nextHash = normalizedHash(window.location.hash);
-    if (nextHash !== this.#acceptedHash && !this.#confirmDiscardEdit()) {
+    if (nextHash !== this.#acceptedHash && !this.#confirmDiscardEdit(nextHash)) {
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${this.#acceptedHash}`);
       return;
     }
@@ -1276,11 +1276,20 @@ export class CodexApp extends LitElement {
   };
 
   readonly #onBeforeUnload = (event: BeforeUnloadEvent): void => {
-    protectUnsavedEditBeforeUnload(this.#editDirty, event);
+    const edits = this.#addons?.contributions.edits.state();
+    protectUnsavedEditBeforeUnload(this.#editDirty || edits?.dirty === true || edits?.saving === true, event);
   };
 
-  #confirmDiscardEdit(): boolean {
-    if (!confirmDiscardUnsavedEdit(this.#editDirty, (message) => window.confirm(message))) return false;
+  #confirmDiscardEdit(nextHash?: string): boolean {
+    const currentRoute = parseBrowserAddonLocation(this.#acceptedHash)?.routeHash;
+    const nextRoute = nextHash === undefined ? undefined : parseBrowserAddonLocation(nextHash)?.routeHash;
+    const edits = this.#addons?.contributions.edits.state(active =>
+      currentRoute !== undefined && currentRoute === nextRoute && active.descriptor.surface === "route" && browserAddonRouteHash(active) === currentRoute);
+    if (edits?.saving) {
+      this.errorMessage = "Wait for the add-on save to finish before leaving this view.";
+      return false;
+    }
+    if (!confirmDiscardUnsavedEdit(this.#editDirty || edits?.dirty === true, (message) => window.confirm(message))) return false;
     this.#editDirty = false;
     return true;
   }

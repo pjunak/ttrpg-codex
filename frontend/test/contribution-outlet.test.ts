@@ -6,6 +6,7 @@ import type {
   BrowserGenerationDescriptor,
 } from "../src/addons/generation-manager.js";
 import { GenerationScope } from "../src/addons/generation-scope.js";
+import type { BrowserContributionEditHandle } from "../src/addons/edit-state.js";
 
 const generationId = "a".repeat(64);
 
@@ -42,15 +43,21 @@ describe("BrowserContributionOutlet", () => {
     ]);
     const firstWrapper = root.children[0] as FakeElement;
     const element = firstWrapper.children[1] as FakeElement & {
-      codexContribution: { addon: { id: string }; signal: AbortSignal };
+      codexContribution: { addon: { id: string }; signal: AbortSignal; edits: BrowserContributionEditHandle };
     };
     expect(element.tagName).toBe("a-tools-panel");
     expect(element.codexContribution.addon.id).toBe("a-tools");
     expect(Object.isFrozen(element.codexContribution)).toBe(true);
+    const edits = element.codexContribution.edits;
+    edits.set({ dirty: true, saving: false });
 
     outlet.refresh();
     expect(root.children[0]).toBe(firstWrapper);
+    expect(element.codexContribution.edits).toBe(edits);
+    expect(registry.edits.state().dirty).toBe(true);
     outlet.dispose();
+    edits.set({ dirty: true, saving: true });
+    expect(registry.edits.state()).toEqual({ dirty: false, saving: false });
     expect(root.hidden).toBe(true);
     expect(root.children).toEqual([]);
     expect(counts.at(-1)).toBe(0);

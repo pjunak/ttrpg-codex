@@ -7,8 +7,10 @@ import type {
   BrowserContributionSurface,
   BrowserRole,
 } from "./generation-manager.js";
+import type { BrowserContributionEditHandle, BrowserContributionEditRegistration } from "./edit-state.js";
 
 export interface BrowserContributionElementContext {
+  readonly edits: BrowserContributionEditHandle;
   readonly addon: {
     readonly id: string;
     readonly generation: string;
@@ -38,6 +40,7 @@ export interface BrowserContributionOutletOptions {
 }
 
 interface MountedContribution {
+  readonly edits: BrowserContributionEditRegistration;
   readonly updateHostContext?: (value: unknown) => void;
   readonly identity: string;
   readonly wrapper: HTMLElement;
@@ -115,7 +118,7 @@ export class BrowserContributionOutlet {
         }
       }
       try {
-        if (mounted.element !== undefined) mounted.element.codexContribution = contributionContext(active, this.#hostContext(active));
+        if (mounted.element !== undefined) mounted.element.codexContribution = contributionContext(active, this.#hostContext(active), mounted.edits.handle);
         else if (this.#isolatedHostContext) mounted.updateHostContext?.(freezeJSON(this.#hostContext(active)));
       } catch (cause: unknown) { this.#onError(cause); continue; }
       retained.add(key);
@@ -160,6 +163,16 @@ export class BrowserContributionOutlet {
   }
 
   #create(active: ActiveBrowserContribution): MountedContribution {
+    const edits = this.#registry.edits.open(active);
+    try {
+      return this.#mount(active, edits);
+    } catch (cause: unknown) {
+      edits.dispose();
+      throw cause;
+    }
+  }
+
+  #mount(active: ActiveBrowserContribution, edits: BrowserContributionEditRegistration): MountedContribution {
     const wrapper = this.#document.createElement("section");
     wrapper.className = "addon-contribution";
     wrapper.dataset["addonId"] = active.addonId;
@@ -178,18 +191,18 @@ export class BrowserContributionOutlet {
       const element = this.#document.createElement(active.binding.tag) as BrowserContributionElement;
       element.dataset["codexAddon"] = active.addonId;
       element.dataset["codexContribution"] = active.descriptor.id;
-      element.codexContribution = contributionContext(active, this.#hostContext(active));
+      element.codexContribution = contributionContext(active, this.#hostContext(active), edits.handle);
       if (!this.#compact) wrapper.append(heading);
       wrapper.append(element);
-      return { identity: `element:${active.binding.tag}`, wrapper, element };
+      return { identity: `element:${active.binding.tag}`, wrapper, element, edits };
     }
     if (active.binding.kind === "isolated-frame") {
       const frameHost = this.#document.createElement("div");
       frameHost.className = "addon-isolated-frame";
-      const mount = active.binding.mount(frameHost, this.#isolatedHostContext ? freezeJSON(this.#hostContext(active)) : null);
+      const mount = active.binding.mount(frameHost, this.#isolatedHostContext ? freezeJSON(this.#hostContext(active)) : null, edits.handle);
       if (!this.#compact) wrapper.append(heading);
       wrapper.append(frameHost);
-      return { identity: "isolated-frame", wrapper,
+      return { identity: "isolated-frame", wrapper, edits,
         dispose: typeof mount === "function" ? mount : () => mount.dispose(),
         ...(typeof mount === "function" ? {} : { updateHostContext: (value: unknown) => mount.updateHostContext(value) }) };
     }
@@ -199,6 +212,7 @@ export class BrowserContributionOutlet {
   }
 
   #release(mounted: MountedContribution | undefined): void {
+    mounted?.edits.dispose();
     if (mounted?.dispose === undefined) {
       return;
     }
@@ -217,11 +231,13 @@ function contributionKey(active: ActiveBrowserContribution): string {
 function contributionContext(
   active: ActiveBrowserContribution,
   host: unknown,
+  edits: BrowserContributionEditHandle,
 ): BrowserContributionElementContext {
   return Object.freeze({
     addon: Object.freeze({ id: active.addonId, generation: active.generationId }),
     contribution: active.descriptor,
     signal: active.signal,
+    edits,
     host: freezeJSON(host),
   });
 }

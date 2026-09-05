@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { zip, installReviewedPackage } from './installed-graph-fixture.mjs';
 
-export function installDmPackage(request, csrf, { id, mode = 'integrated', version = '1.0.0', failure = '', slot = true }) {
+export function installDmPackage(request, csrf, { id, mode = 'integrated', version = '1.0.0', failure = '', slot = true, edits = false }) {
   const contributions = [
     { id: 'tool', surface: 'route', label: 'Fixture planner', roles: ['dm'], config: { path: 'planner' } },
     { id: 'sidebar', surface: 'sidebar', label: 'Fixture planner', roles: ['dm'], config: { route: 'tool' } },
@@ -23,6 +23,7 @@ export function installDmPackage(request, csrf, { id, mode = 'integrated', versi
       connectedCallback() {
         const title = document.createElement('h2'); title.textContent = this.context.contribution.id === 'dashboard' ? 'Fixture DM workspace ${version}' : 'Fixture planner page';
         const input = document.createElement('input'); input.setAttribute('aria-label', 'Fixture notes'); input.style.maxWidth = '100%';
+        if (${JSON.stringify(edits)}) input.addEventListener('input', () => this.context.edits.set({ dirty: input.value !== '', saving: false }));
         const output = document.createElement('output'); output.setAttribute('aria-label', 'Fixture context');
         this.replaceChildren(title, input, output); this.reflectContext();
       }

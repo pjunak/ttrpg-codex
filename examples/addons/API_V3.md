@@ -299,6 +299,29 @@ manifest-provided URLs, executable click handlers, cross-add-on targets, or a
 sidebar link whose route is not active for the current role.
 Every callback is wrapped in the generation abort signal.
 
+Each mounted visual element, in either UI mode, receives a scoped
+`codexContribution.edits` handle:
+
+```ts
+edits.set({ dirty: true, saving: false, retainOnQueryChange: true });
+```
+
+Only `dirty`, `saving`, and optional `retainOnQueryChange` booleans are accepted.
+The host retains flags, never draft values. Publish state when a draft changes,
+is saved or discarded, and when a write starts or finishes. The shell asks
+before leaving or signing out with dirty views and blocks those actions while
+a write is in progress. Browser reload/close uses the browser's own unsaved-edit
+prompt; it is a warning, not draft persistence or a guarantee against closure.
+Forced generation or authority teardown is never delayed by these flags.
+
+Handles belong to one mounted instance, survive ordinary context refresh, and
+expire on removal or generation abort. A stale handle cannot affect another
+mount. All mounted views contribute independently to the shell guard. By
+default a route query change also requires confirmation. A route may set
+`retainOnQueryChange: true` only when it preserves all drafts across its query
+updates, including invalid targets. This exemption applies only to that same
+route's dirty state; it never exempts a pending write or another mounted view.
+
 Route elements in either UI mode receive a frozen `codexContribution.host`:
 
 ```ts

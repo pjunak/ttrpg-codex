@@ -8,6 +8,7 @@ import {
   type AddonQueryOptions,
 } from "./data-client.js";
 import type { BrowserContributionDescriptor } from "./generation-manager.js";
+import { parseContributionEditState, type BrowserContributionEditHandle } from "./edit-state.js";
 import type { BrowserServiceHandle } from "./service-client.js";
 import {
   AddonContentHTTPError,
@@ -79,6 +80,7 @@ export interface IsolatedMessagePort {
 }
 
 export interface IsolatedFrameBridgeOptions {
+  readonly edits?: BrowserContributionEditHandle;
   readonly port: IsolatedMessagePort;
   readonly context: BrowserAddonContext;
   readonly contribution: BrowserContributionDescriptor;
@@ -107,6 +109,7 @@ interface PendingInvocation {
 
 /** Owns one transferred port. The opaque frame never receives a host DOM handle. */
 export class IsolatedFrameBridge {
+  readonly #edits: BrowserContributionEditHandle | undefined;
   readonly #port: IsolatedMessagePort;
   readonly #context: BrowserAddonContext;
   readonly #contribution: BrowserContributionDescriptor;
@@ -133,6 +136,7 @@ export class IsolatedFrameBridge {
   #closed = false;
 
   constructor(options: IsolatedFrameBridgeOptions) {
+    this.#edits = options.edits;
     this.#port = options.port;
     this.#context = options.context;
     this.#contribution = options.contribution;
@@ -174,6 +178,7 @@ export class IsolatedFrameBridge {
       this.#onDiagnostic(cause);
     }
     this.#closed = true;
+    this.#edits?.set({ dirty: false, saving: false });
     const cause = new IsolatedInvocationError(
       "REVOKED",
       "The isolated add-on contribution is no longer active.",
@@ -320,6 +325,14 @@ export class IsolatedFrameBridge {
       }
       if (value["type"] === "unavailable") {
         this.#acceptUnavailable(value);
+        return;
+      }
+      if (value["type"] === "edit-state") {
+        if (!hasOnlyKeys(value, new Set(["protocol", "type", "state"]))) {
+          throw new BoundaryValidationError(boundary, "edit state message has an invalid shape");
+        }
+        const state = parseContributionEditState(value["state"]);
+        this.#edits?.set(state);
         return;
       }
       // SDK calls are valid during module activation, before the contribution

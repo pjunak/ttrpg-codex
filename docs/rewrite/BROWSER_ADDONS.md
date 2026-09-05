@@ -229,8 +229,17 @@ surface and effective role. It preserves an unchanged custom-element instance,
 orders panels by the registry contract, and removes stale elements on binding,
 generation, or authority teardown. Each mounted element receives a frozen
 `codexContribution` property containing its add-on and generation identity,
-declaration, configuration, and generation abort signal; it never receives the
-registry or private host DOM.
+declaration, configuration, generation abort signal, and a scoped `edits.set`
+handle; it never receives the registry or private host DOM.
+
+The registry aggregates edit flags per mounted instance. Dirty views join the
+shell's discard and browser-unload guards; pending writes block shell navigation
+and authentication changes. An explicit `retainOnQueryChange` flag permits
+same-route query updates only for views that keep their drafts. The isolated
+bridge validates flag-only `edit-state` messages, including during activation;
+frame closure clears the state. Outlet disposal and generation abort retire
+handles even when the element has no custom disposer. These guards cannot veto
+disable, replacement, or authority loss and do not persist draft contents.
 
 The current shell instantiates the generic outlet for the `slot` surface under
 Campaign tools and shows a direct empty state when that role has no panels.

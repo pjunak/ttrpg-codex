@@ -11,6 +11,7 @@ import type {
   BrowserGenerationDescriptor,
 } from "./generation-manager.js";
 import type { Disposer } from "./generation-scope.js";
+import type { BrowserContributionEditHandle } from "./edit-state.js";
 import {
   IsolatedFrameBridge,
   IsolatedInvocationError,
@@ -32,6 +33,7 @@ const maximumStyleBytes = 512 * 1024;
 const maximumStyleTotalBytes = 2 * 1024 * 1024;
 
 export interface IsolatedFrameMountOptions {
+  readonly edits?: BrowserContributionEditHandle;
   readonly document: Document;
   readonly host: HTMLElement;
   readonly descriptor: BrowserGenerationDescriptor;
@@ -135,7 +137,7 @@ export function createIsolatedFrameActivator(
       let registration: { dispose(): void } | undefined;
       registration = sdk.bindIsolated(contribution.id, {
         kind: "isolated-frame",
-        mount: (host, hostContext) => {
+        mount: (host, hostContext, edits) => {
           const runtime = createRuntime({
           document,
           host,
@@ -143,6 +145,7 @@ export function createIsolatedFrameActivator(
           contribution,
           context: sdk.context,
           hostContext,
+          ...(edits === undefined ? {} : { edits }),
           onDiagnostic,
           onUnavailable: () => {
             unavailable = true;
@@ -213,6 +216,7 @@ export function createIsolatedFrameRuntime(
         port: channel.port1,
         context: options.context,
         contribution: options.contribution,
+        ...(options.edits === undefined ? {} : { edits: options.edits }),
         onResize: (height) => {
           frame.style.height = `${height}px`;
         },
