@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapLocations, mapViews, mapEventPoints, prepareMapSave, prepareLocalMapImage } from "../src/app/campaign-map.js";
+import { mapLocations, mapViews, mapEventPoints, mapZoomScaleRatio, mapMarkerScale, prepareMapSave, prepareLocalMapImage } from "../src/app/campaign-map.js";
 import type { CampaignDataset, CampaignCollectionName, CampaignRecord } from "../src/core/campaign-data.js";
 
 const names: CampaignCollectionName[] = ["characters", "relationships", "locations", "events", "mysteries", "factions", "deletedDefaults", "pantheon", "artifacts", "settings", "historicalEvents", "campaign", "pets"];
@@ -11,6 +11,32 @@ function dataset(locations: readonly CampaignRecord[], settings: readonly Campai
 const gate = { key: "gate", revision: 3, value: { id: "gate", name: "Gate", x: .2, y: .7, pinType: "fortress", extra: { keep: true } } };
 
 describe("campaign maps", () => {
+  it("preserves separate map configurations and rejects stale or malformed settings", () => {
+    const value = { world: { zoomScaleRatio: .3, extension: true }, "local-gate": { zoomScaleRatio: .8, extra: { keep: true } } };
+    const config = { key: "mapConfigs", revision: 5, value };
+    const campaign = dataset([gate], [config]);
+    const detail = { kind: "config" as const, parentId: "gate", expectedRevision: 5, zoomScaleRatio: .5 };
+    expect(prepareMapSave(campaign, detail)).toEqual({ operation: "put", collection: "settings", key: "mapConfigs", expectedRevision: 5,
+      value: { ...value, "local-gate": { ...value["local-gate"], zoomScaleRatio: .5 } } });
+    expect(() => prepareMapSave(campaign, { ...detail, expectedRevision: 4 })).toThrow("stale");
+    expect(() => prepareMapSave(dataset([], [config]), detail)).toThrow("stale");
+    for (const zoomScaleRatio of [NaN, Infinity, -.1, 1.1]) expect(() => prepareMapSave(campaign, { ...detail, zoomScaleRatio })).toThrow("invalid");
+    for (const value of [null, [], false, { "local-gate": null }, { "local-gate": [] }]) {
+      expect(() => prepareMapSave(dataset([gate], [{ ...config, value }]), detail)).toThrow("invalid");
+    }
+    expect(prepareMapSave(dataset([]), { ...detail, parentId: null, expectedRevision: 0 })).toMatchObject({ value: { world: { zoomScaleRatio: .5 } } });
+  });
+  it("uses the preserved marker scaling formula with bounded per-map ratios", () => {
+    const campaign = dataset([gate], [{ key: "mapConfigs", revision: 1, value: { world: { zoomScaleRatio: .5 }, "local-gate": { zoomScaleRatio: 2 } } }]);
+    expect(mapZoomScaleRatio(campaign, null)).toBe(.5);
+    expect(mapZoomScaleRatio(campaign, "gate")).toBe(1);
+    expect(mapZoomScaleRatio(campaign, "missing")).toBe(0);
+    expect(mapMarkerScale(-2, 0)).toBe(1);
+    expect(mapMarkerScale(-2, .5)).toBe(.5);
+    expect(mapMarkerScale(2, 1)).toBe(4);
+    expect(mapMarkerScale(0, 1)).toBe(1);
+    expect(mapMarkerScale(NaN, .5)).toBe(1);
+  });
   it("projects only finite markers in the current map scope and retains original icon sizes", () => {
     const campaign = dataset([gate,
       { key: "inside", revision: 1, value: { name: "Inside", parentId: "gate", x: .4, y: .5 } },

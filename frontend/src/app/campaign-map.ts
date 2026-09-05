@@ -12,6 +12,7 @@ export interface MapEventPoint {
 }
 export const eventPathColors = Object.freeze({ path: "#C8A040", sitting: "#8B6914", past: "#5A3A5A" });
 export type MapSaveDetail =
+  | { readonly kind: "config"; readonly expectedRevision: number; readonly parentId: string | null; readonly zoomScaleRatio: number }
   | { readonly kind: "location"; readonly key: string; readonly expectedRevision: number; readonly parentId: string | null;
       readonly x: number | null; readonly y: number | null; readonly name?: string }
   | { readonly kind: "event"; readonly key: string; readonly expectedRevision: number; readonly parentId: string | null;
@@ -46,6 +47,19 @@ export function hasEventPin(value: Readonly<Record<string, unknown>>): boolean {
 export function mapParent(value: Readonly<Record<string, unknown>>): string | null { return text(value["parentId"]) || null; }
 export function mapViewRecord(campaign: CampaignDataset): CampaignRecord | undefined {
   return campaignCollection(campaign, "settings").records.find(({ key }) => key === "mapViews");
+}
+export function mapConfigRecord(campaign: CampaignDataset): CampaignRecord | undefined {
+  return campaignCollection(campaign, "settings").records.find(({ key }) => key === "mapConfigs");
+}
+export function mapConfigKey(parentId: string | null): string { return parentId === null ? "world" : `local-${parentId}`; }
+export function mapZoomScaleRatio(campaign: CampaignDataset, parentId: string | null): number {
+  const all = mapConfigRecord(campaign)?.value;
+  const config = isRecord(all) ? all[mapConfigKey(parentId)] : undefined;
+  const ratio = isRecord(config) ? config["zoomScaleRatio"] : undefined;
+  return typeof ratio === "number" && Number.isFinite(ratio) ? Math.max(0, Math.min(1, ratio)) : 0;
+}
+export function mapMarkerScale(zoom: number, ratio: number): number {
+  return Number.isFinite(zoom) && Number.isFinite(ratio) ? 2 ** (zoom * Math.max(0, Math.min(1, ratio))) : 1;
 }
 export function mapLocations(campaign: CampaignDataset, parentId: string | null): readonly MapLocation[] {
   const definitions = campaignCollection(campaign, "settings").records.find(({ key }) => key === "pinTypes")?.value;
@@ -93,6 +107,14 @@ function eventNumber(value: unknown): number { return typeof value === "number" 
 export function prepareMapSave(campaign: CampaignDataset, detail: MapSaveDetail): CampaignMutation {
   if (!Number.isSafeInteger(detail.expectedRevision) || detail.expectedRevision < 0) throw new CampaignMapEditError("invalid");
   if (detail.parentId !== null && mapLocationRecord(campaign, detail.parentId) === undefined) throw new CampaignMapEditError("stale");
+  if (detail.kind === "config") {
+    const record = mapConfigRecord(campaign), key = mapConfigKey(detail.parentId);
+    if ((record?.revision ?? 0) !== detail.expectedRevision) throw new CampaignMapEditError("stale");
+    const all = record === undefined ? {} : record.value;
+    if (!isRecord(all) || (all[key] !== undefined && !isRecord(all[key])) || !fraction(detail.zoomScaleRatio)) throw new CampaignMapEditError("invalid");
+    return { operation: "put", collection: "settings", key: "mapConfigs", expectedRevision: detail.expectedRevision,
+      value: { ...all, [key]: { ...(isRecord(all[key]) ? all[key] : {}), zoomScaleRatio: detail.zoomScaleRatio } } };
+  }
   if (detail.kind === "event") {
     const record = mapEventRecord(campaign, detail.key);
     if (record === undefined || record.revision !== detail.expectedRevision) throw new CampaignMapEditError("stale");

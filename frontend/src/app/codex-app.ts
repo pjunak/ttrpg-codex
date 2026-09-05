@@ -746,6 +746,7 @@ export class CodexApp extends LitElement {
       case "settings":
         return html`<codex-settings
           .campaign=${campaign}
+          .mapTarget=${this.route.mapParentId}
           .canManageCampaign=${this.#canManageCampaign()}
           .saving=${this.busy}
           .editCompletion=${this.editCompletion}
@@ -753,6 +754,7 @@ export class CodexApp extends LitElement {
           @campaign-enum-save=${this.#saveCampaignEnum}
           @campaign-enum-delete=${this.#deleteCampaignEnum}
           @campaign-appearance-save=${this.#saveCampaignAppearance}
+          @campaign-map-save=${this.#saveMap} @campaign-map-upload=${this.#uploadMap}
         ></codex-settings>`;
       case "collection":
       case "record":
@@ -957,7 +959,7 @@ export class CodexApp extends LitElement {
   readonly #saveMap = async (event: CustomEvent<MapSaveDetail>): Promise<void> => {
     if (this.busy || this.#request === undefined || !this.#canEdit() ||
       this.authority.state !== "known" || !this.authority.auth.authenticated || this.campaignState.state !== "ready" ||
-      (event.detail.kind === "view" && !this.#canManageCampaign())) return;
+      ((event.detail.kind === "view" || event.detail.kind === "config") && !this.#canManageCampaign())) return;
     let mutation: CampaignMutation;
     try { mutation = prepareMapSave(this.campaignState.campaign, event.detail); }
     catch (cause) { this.#mapError(cause); return; }

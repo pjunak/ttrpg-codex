@@ -5,10 +5,10 @@ import { MediaClient, MediaHTTPError } from "../core/media.js";
 import { createCampaignRecordKey } from "./campaign-record-editor.js";
 import { recordValue, safeMediaURL, text } from "./campaign-projection.js";
 import { mapLocationRecord, mapLocations, mapViews, mapViewRecord, mapParent, locationPage, mapCoordinate,
-  mapEventPoints, mapEventRecord, eventMapParent, hasEventPin, eventPage, eventPathColors, validBounds,
+  mapEventPoints, mapEventRecord, eventMapParent, hasEventPin, eventPage, eventPathColors, validBounds, mapZoomScaleRatio, mapMarkerScale,
   type MapSaveDetail, type MapUploadDetail, type MapBounds, type MapLocation, type MapView, type MapEventPoint } from "./campaign-map.js";
 import { campaignCollection } from "../core/campaign-data.js";
-import { mapHash, recordHash, type AppRoute } from "./routes.js";
+import { mapHash, mapSettingsHash, recordHash, type AppRoute } from "./routes.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 
@@ -25,6 +25,7 @@ export class CodexMap extends LitElement {
     selected: { state: true }, query: { state: true }, status: { state: true }, zoom: { state: true },
     viewDraft: { state: true }, viewBoundsUnavailable: { state: true }, eventsVisible: { state: true },
     eventDraft: { state: true }, eventUnavailable: { state: true },
+    minZoom: { state: true },
   };
   declare campaign: CampaignDataset | undefined;
   declare route: MapRoute | undefined;
@@ -40,6 +41,7 @@ export class CodexMap extends LitElement {
   declare private query: string;
   declare private status: "loading" | "ready" | "empty" | "error" | "missing";
   declare private zoom: number;
+  declare private minZoom: number;
   declare private viewDraft: ViewDraft | undefined;
   declare private viewBoundsUnavailable: boolean;
   declare private eventsVisible: boolean;
@@ -67,6 +69,7 @@ export class CodexMap extends LitElement {
     this.selected = undefined; this.query = ""; this.status = "loading"; this.zoom = 0;
     this.viewDraft = undefined; this.viewBoundsUnavailable = false; this.eventsVisible = false;
     this.eventDraft = undefined; this.eventUnavailable = false;
+    this.minZoom = -8;
   }
   protected override createRenderRoot() { return this; }
   override disconnectedCallback(): void { this.#dispose(); super.disconnectedCallback(); }
@@ -134,6 +137,7 @@ export class CodexMap extends LitElement {
             <option value="">${this.#ui.t("map.pickEvent")}</option>${events.map(record => html`<option value=${record.key}>${text(recordValue(record)["name"]) || record.key}</option>`)}
           </select>`}
           ${this.canManageCampaign ? html`<button class="sc-btn" ?disabled=${this.saving || this.status !== "ready"} @click=${() => this.#openView()}>✚ ${this.#ui.t("map.saveView")}</button>` : nothing}
+          ${this.canManageCampaign ? html`<a class="sc-btn" href=${mapSettingsHash(this.route.parentId)}>⚙ ${this.#ui.t("map.settings")}</a>` : nothing}
         ` : nothing}
         <span class="sc-hint">${this.placing !== null || this.eventDraft?.x === null ? this.#ui.t("map.placeHint") : this.#ui.t("map.panHint")}</span>
         ${this.canEdit ? html`<button class="sc-btn" aria-pressed=${this.editing} ?disabled=${this.saving}
@@ -149,10 +153,10 @@ export class CodexMap extends LitElement {
       <div class="sc-stage">
         <div class="sc-map" role="region" aria-label=${this.#ui.t("map.canvas")}></div>
         ${this.status === "ready" ? html`<div class="sc-zoom-panel">
-          <button class="sc-zoom-btn" aria-label=${this.#ui.t("map.zoomIn")} @click=${() => this.#map?.zoomIn(.25)}>+</button>
-          <input class="sc-zoom-slider-vertical" type="range" min="-8" max="2" step="0.25" .value=${String(this.zoom)} aria-label=${this.#ui.t("map.zoom")}
+          <button class="sc-zoom-btn" aria-label=${this.#ui.t("map.zoomIn")} @click=${() => this.#map?.zoomIn()}>+</button>
+          <input class="sc-zoom-slider-vertical" type="range" min=${String(this.minZoom)} max="2" step="0.25" .value=${String(this.zoom)} aria-label=${this.#ui.t("map.zoom")}
             @input=${(event: Event) => this.#map?.setZoom(Number((event.target as HTMLInputElement).value))} />
-          <button class="sc-zoom-btn" aria-label=${this.#ui.t("map.zoomOut")} @click=${() => this.#map?.zoomOut(.25)}>−</button>
+          <button class="sc-zoom-btn" aria-label=${this.#ui.t("map.zoomOut")} @click=${() => this.#map?.zoomOut()}>−</button>
           <button class="sc-zoom-btn sc-zoom-readout-btn" aria-label=${this.#ui.t("map.actualSize")} @click=${() => this.#map?.setZoom(0)}>${(2 ** this.zoom).toFixed(2)}×</button>
         </div>` : html`<div class="sc-map-state" role="status">${this.#ui.t(this.status === "loading" ? "map.loading" : this.status === "empty" ? "map.empty" : this.status === "missing" ? "map.missing" : "map.failed")}
           ${this.status === "error" ? html`<button class="sc-btn" @click=${() => void this.#loadMap()}>${this.#ui.t("shell.tryAgain")}</button>` : nothing}
@@ -245,17 +249,18 @@ export class CodexMap extends LitElement {
       if (request.signal.aborted || !this.isConnected) return;
       this.#width = image.naturalWidth; this.#height = image.naturalHeight;
       const container = this.querySelector<HTMLElement>(".sc-map")!;
-      const map = L.map(container, { crs: L.CRS.Simple, minZoom: -8, maxZoom: 2, zoomSnap: .25, zoomDelta: .25,
+      const map = L.map(container, { crs: L.CRS.Simple, minZoom: -8, maxZoom: 2, zoomSnap: .25, zoomDelta: .5, wheelPxPerZoomLevel: 120,
         zoomControl: false, attributionControl: false, zoomAnimation: false });
       this.#map = map;
       L.imageOverlay(url, this.#bounds()).addTo(map);
       this.#layers = L.layerGroup().addTo(map);
       this.#eventLayers = L.layerGroup().addTo(map);
+      this.#updateFitZoom();
       if (previous?.url === url) map.setView(previous.center, previous.zoom);
       else map.fitBounds(this.#bounds());
-      map.on("zoomend", () => { this.zoom = map.getZoom(); });
+      map.on("zoomend", () => { this.zoom = map.getZoom(); this.#applyMarkerScale(); });
       map.on("click", (event: L.LeafletMouseEvent) => this.#mapClick(event.latlng));
-      this.#resize = new ResizeObserver(() => map.invalidateSize({ pan: false }));
+      this.#resize = new ResizeObserver(() => { map.invalidateSize({ pan: false }); this.#updateFitZoom(); });
       this.#resize.observe(container);
       this.zoom = map.getZoom(); this.status = "ready";
       this.#applyRouteEvent();
@@ -272,6 +277,22 @@ export class CodexMap extends LitElement {
   }
   #bounds(): L.LatLngBounds { return L.latLngBounds([-this.#height, 0], [0, this.#width]); }
   #point(x: number, y: number): L.LatLng { return L.latLng(-y * this.#height, x * this.#width); }
+  #updateFitZoom(): void {
+    if (this.#map === undefined) return;
+    const size = this.#map.getSize();
+    if (size.x <= 0 || size.y <= 0) return;
+    const wasFit = this.#map.getZoom() <= this.minZoom;
+    // Compute independently of the current minZoom so shrinking a viewport can lower the limit again.
+    this.minZoom = Math.max(-8, Math.min(2, Math.floor(Math.log2(Math.min(size.x / this.#width, size.y / this.#height)) * 4) / 4));
+    this.#map.setMinZoom(this.minZoom);
+    // Responsive layout can resize the canvas more than once; keep a fitted map fitted throughout.
+    if (wasFit) this.#map.fitBounds(this.#bounds(), { animate: false });
+  }
+  #applyMarkerScale(): void {
+    if (this.#map === undefined || this.campaign === undefined || this.route === undefined) return;
+    const scale = mapMarkerScale(this.#map.getZoom(), mapZoomScaleRatio(this.campaign, this.route.parentId));
+    this.querySelectorAll<HTMLElement>(".sc-pin").forEach(pin => pin.style.setProperty("--sc-pin-base-scale", String(scale)));
+  }
   #renderMarkers(): void {
     if (this.campaign === undefined || this.route === undefined || this.#layers === undefined || this.#dragging) return;
     this.#layers.clearLayers();
@@ -308,6 +329,7 @@ export class CodexMap extends LitElement {
     if (this.eventDraft !== undefined && !this.eventDraft.hadPin && this.eventDraft.x !== null && this.eventDraft.y !== null) {
       L.circleMarker(this.#point(this.eventDraft.x, this.eventDraft.y), { radius: 14, color: eventPathColors.path, className: "sc-event-draft" }).addTo(this.#layers);
     }
+    this.#applyMarkerScale();
   }
   #renderEvents(): void {
     if (this.#dragging) return;

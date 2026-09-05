@@ -5,6 +5,7 @@ import {
   parseAppRoute,
   recordHash,
   eventMapHash,
+  mapSettingsHash,
 } from "../src/app/routes.js";
 
 describe("application routes", () => {
@@ -48,5 +49,11 @@ describe("application routes", () => {
       "#/map/world/event/camp/delete", "#/map/world/event/camp/show/extra", "#/map/world/event//place"]) {
       expect(parseAppRoute(hash).kind).toBe("not-found");
     }
+  });
+  it("opens map settings in the requested world or local scope", () => {
+    expect(parseAppRoute(mapSettingsHash(null))).toEqual({ kind: "settings", mapParentId: null });
+    expect(parseAppRoute(mapSettingsHash("gate/upper"))).toEqual({ kind: "settings", mapParentId: "gate/upper" });
+    expect(parseAppRoute("#/settings/maps/local/%00").kind).toBe("not-found");
+    expect(parseAppRoute("#/settings/maps/local/%E0%A4%A").kind).toBe("not-found");
   });
 });

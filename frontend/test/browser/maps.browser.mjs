@@ -36,6 +36,9 @@ async function fixture(t, { role = 'dm', mobile = false } = {}) {
   collection('settings').records.push({ key: 'mapViews', revision: 4, value: [
     { id: 'gate-view', label: 'Gate interior', parentId: 'gate', icon: '📍', bounds: { x1: 0, y1: 0, x2: .8, y2: .8 }, extension: true },
   ] });
+  collection('settings').records.push({ key: 'mapConfigs', revision: 3, value: {
+    world: { zoomScaleRatio: 0, extension: true }, 'local-gate': { zoomScaleRatio: .5, extra: { keep: true } },
+  } });
   collection('events').records = [
     { key: 'travel', revision: 1, value: { id: 'travel', name: 'Road to the inn', sitting: 2, locations: ['gate', 'inn', 'missing', 'room'] } },
     { key: 'arrival', revision: 1, value: { id: 'arrival', name: 'Camp by the river', sitting: 1, mapX: .48, mapY: .35, locations: ['gate'] } },
@@ -99,8 +102,50 @@ async function chooseEventPoint(page, mobile = false) {
   await page.locator('.sc-map').click({ position: { x: mobile ? 85 : 400, y: box.height * .65 } });
   await page.getByLabel('Horizontal position (%)').waitFor();
 }
+async function setScale(page, value) {
+  const slider = page.getByRole('slider', { name: 'Marker scaling with zoom', exact: true });
+  await slider.fill(String(value));
+}
 
 for (const mobile of [false, true]) {
+  test(`map preferences preserve map scope and apply marker scaling (${mobile ? 'phone' : 'desktop'})`, async t => {
+    const { page, writes } = await fixture(t, { mobile });
+    await page.getByRole('button', { name: 'Edit map', exact: false }).click();
+    await page.getByRole('link', { name: 'Maps', exact: false }).click();
+    await page.waitForURL(/#\/settings\/maps$/);
+    await page.getByAltText('Map image preview', { exact: true }).waitFor();
+    await setScale(page, 1);
+    await page.screenshot({ path: `${artifacts}${mobile ? 'mobile' : 'desktop'}-map-settings.png`, animations: 'disabled' });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('.settings-map-config button[type="submit"]').disabled);
+    assert.equal(writes.length, 1);
+    const config = collection('settings').records.find(item => item.key === 'mapConfigs');
+    assert.deepEqual(config.value.world, { zoomScaleRatio: 1, extension: true });
+    assert.deepEqual(config.value['local-gate'], { zoomScaleRatio: .5, extra: { keep: true } });
+    await page.getByRole('link', { name: 'Open map', exact: true }).click();
+    await marker(page, 'Northern Gate').waitFor();
+    const zoomSlider = page.getByRole('slider', { name: 'Map zoom', exact: true });
+    await page.getByRole('button', { name: 'Actual image size', exact: true }).click();
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    assert.equal(Number(await zoomSlider.inputValue()), .5);
+    await page.waitForFunction(() => Math.abs(Number(document.querySelector('.sc-pin').style.getPropertyValue('--sc-pin-base-scale')) - Math.sqrt(2)) < .001);
+    await page.getByRole('button', { name: 'Whole map', exact: false }).click();
+    const min = Number(await zoomSlider.getAttribute('min'));
+    assert.equal(Number(await zoomSlider.inputValue()), min);
+    await page.getByRole('button', { name: 'Zoom out', exact: true }).click();
+    assert.equal(Number(await zoomSlider.inputValue()), min, 'zoom-out is bounded by the image fit');
+    await page.goto(`${origin}/#/map/local/gate`);
+    await marker(page, 'Upper Room').waitFor();
+    await page.getByRole('button', { name: 'Actual image size', exact: true }).click();
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    await page.waitForFunction(() => Math.abs(Number(document.querySelector('.sc-pin').style.getPropertyValue('--sc-pin-base-scale')) - 2 ** .25) < .001);
+    await page.getByRole('button', { name: 'Edit map', exact: false }).click();
+    await page.getByRole('link', { name: 'Maps', exact: false }).click();
+    await page.waitForURL(/#\/settings\/maps\/local\/gate$/);
+    assert.equal(await page.getByRole('slider', { name: 'Marker scaling with zoom' }).inputValue(), '0.5');
+    await page.getByText('📍 Gate interior', { exact: true }).waitFor();
+  });
   test(`event articles place, edit and remove pins without losing event data (${mobile ? 'phone' : 'desktop'})`, async t => {
     const { page, writes } = await fixture(t, { role: 'player', mobile });
     await page.goto(`${origin}/#/events/past`);
@@ -247,6 +292,95 @@ test('anonymous and missing-event map links cannot start edits', async t => {
   assert.equal(writes.length, 0);
 });
 
+test('map setting drafts survive live updates and protect category and map changes', async t => {
+  const { page, writes } = await fixture(t);
+  await page.goto(`${origin}/#/settings/maps`);
+  await setScale(page, .6);
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.locator('[data-category="appearance"]').click();
+  assert.equal(await page.locator('[data-category="maps"]').getAttribute('aria-current'), 'page');
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByRole('navigation', { name: 'Select a map' }).getByRole('button', { name: 'Northern Gate', exact: false }).click();
+  assert.equal(await page.locator('.settings-maps-detail-title').innerText(), 'World map');
+  const config = collection('settings').records.find(item => item.key === 'mapConfigs');
+  config.revision++; config.value.world.zoomScaleRatio = .2;
+  await changed(page, 'settings');
+  assert.equal(await page.getByRole('slider', { name: 'Marker scaling with zoom' }).inputValue(), '0.6');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: 'Your draft is kept' }).waitFor();
+  assert.equal(writes.length, 0);
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  assert.equal(await page.getByRole('slider', { name: 'Marker scaling with zoom' }).inputValue(), '0.2');
+  await setScale(page, .4);
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.waitForFunction(() => !document.querySelector('.settings-map-config button[type="submit"]').disabled);
+  assert.equal(writes[0][0].expectedRevision, 4);
+  assert.equal(collection('settings').records.find(item => item.key === 'mapConfigs').value.world.zoomScaleRatio, .4);
+  const updated = collection('settings').records.find(item => item.key === 'mapConfigs');
+  updated.revision++; updated.value.world.zoomScaleRatio = .8;
+  await changed(page, 'settings');
+  await page.waitForFunction(() => document.querySelector('#map-marker-zoom').value === '0.8');
+});
+
+test('map settings handle world/local image uploads and malformed configuration without data loss', async t => {
+  const { page, writes, uploads } = await fixture(t);
+  await page.goto(`${origin}/#/settings/maps`);
+  await setScale(page, .4);
+  assert.equal(await page.getByLabel('Upload map image').isDisabled(), true);
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  const file = { name: 'map.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) };
+  await page.getByLabel('Upload map image').setInputFiles(file);
+  await page.locator(`.settings-worldmap-preview img[src="${uploadedURL}"]`).waitFor();
+  assert.equal(writes.length, 0);
+  await page.getByRole('navigation', { name: 'Select a map' }).getByRole('button', { name: 'Unplaced town', exact: false }).click();
+  await page.getByLabel('Upload map image').setInputFiles(file);
+  await page.locator(`.settings-worldmap-preview img[src="${uploadedURL}"]`).waitFor();
+  assert.deepEqual(uploads, ['/api/media/world-map/main', '/api/media/location-map/unplaced']);
+  assert.equal(record('unplaced').value.localMap, uploadedURL);
+  assert.equal(record('unplaced').value.name, 'Unplaced town');
+  await page.waitForFunction(() => !document.querySelector('.settings-map-config button[type="submit"]').disabled);
+  const config = collection('settings').records.find(item => item.key === 'mapConfigs');
+  config.value = []; config.revision++;
+  await changed(page, 'settings');
+  await page.getByRole('alert').filter({ hasText: 'invalid stored shape' }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Save', exact: true }).count(), 0);
+  assert.equal(writes.length, 1);
+});
+
+test('zoom fit bounds adapt both ways to viewport changes and live scale updates', async t => {
+  const { page } = await fixture(t);
+  await page.getByRole('button', { name: 'Actual image size', exact: true }).click();
+  await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  assert.equal(await marker(page, 'Northern Gate').locator('.sc-pin').evaluate(node => node.style.getPropertyValue('--sc-pin-base-scale')), '1');
+  const config = collection('settings').records.find(item => item.key === 'mapConfigs');
+  config.value.world.zoomScaleRatio = 1; config.revision++;
+  await changed(page, 'settings');
+  await page.waitForFunction(() => Math.abs(Number(document.querySelector('.sc-pin').style.getPropertyValue('--sc-pin-base-scale')) - Math.sqrt(2)) < .001);
+  const zoomSlider = page.getByRole('slider', { name: 'Map zoom', exact: true });
+  const desktopMin = Number(await zoomSlider.getAttribute('min'));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForFunction(previous => Number(document.querySelector('.sc-zoom-slider-vertical').min) < previous, desktopMin);
+  await page.getByRole('button', { name: 'Whole map', exact: false }).click();
+  const phoneMin = Number(await zoomSlider.getAttribute('min'));
+  assert.equal(Number(await zoomSlider.inputValue()), phoneMin);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.waitForFunction(previous => Number(document.querySelector('.sc-zoom-slider-vertical').min) === previous, desktopMin);
+  assert.equal(Number(await zoomSlider.inputValue()), desktopMin);
+});
+
+test('player sessions cannot open shared map configuration', async t => {
+  const { page, writes } = await fixture(t, { role: 'player' });
+  await page.getByRole('button', { name: 'Edit map', exact: false }).click();
+  assert.equal(await page.getByRole('link', { name: 'Maps', exact: false }).count(), 0);
+  await page.goto(`${origin}/#/settings/maps/local/gate`);
+  await page.locator('[data-category="language"]').waitFor();
+  assert.equal(await page.locator('[data-category="maps"]').count(), 0);
+  assert.equal(await page.getByRole('slider', { name: 'Marker scaling with zoom' }).count(), 0);
+  assert.equal(writes.length, 0);
+});
+
 test('coordinate drafts survive live refresh and stale saves without changing other fields', async t => {
   const { page, writes } = await fixture(t);
   await page.getByRole('button', { name: 'Edit map', exact: false }).click();
@@ -277,6 +411,7 @@ test('coordinate drafts survive live refresh and stale saves without changing ot
 test('marker dragging creates a reviewable draft and unplacing preserves the location', async t => {
   const { page, writes } = await fixture(t);
   await page.getByRole('button', { name: 'Edit map', exact: false }).click();
+  await marker(page, 'Northern Gate').hover();
   const pin = await marker(page, 'Northern Gate').boundingBox();
   await page.mouse.move(pin.x + pin.width / 2, pin.y + pin.height / 2);
   await page.mouse.down();

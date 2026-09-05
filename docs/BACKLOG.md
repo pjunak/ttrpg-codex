@@ -209,8 +209,15 @@ and its linked locations, restoring the location-based overlay. Desktop/phone
 browser checks cover article links, scope, draft conflicts, remote deletion,
 and anonymous/missing targets.
 
-Still open in maps: generated tile pyramids for large images, map configuration
-controls and zoom preferences,
+Maps settings now provide world/local image previews and uploads, scoped marker
+zoom scaling, and links to the map and saved-view editor in the original settings
+style. Shared configuration saves retain other maps and extensions, protect
+drafts during live refresh, and reject stale or malformed data. Zoom controls
+restore the original steps and wheel sensitivity, enforce the image-fit minimum,
+and keep fitted maps fitted through viewport changes. Desktop/phone browser
+checks cover scaling, navigation guards, uploads, live updates, and DM-only access.
+
+Still open in maps: generated tile pyramids for large images
 and exact segmented multi-attitude glow rendering. Existing attitude colors and
 glow layers already reach map markers. The spatial gates remain open for these
 remaining capabilities; source-image rendering is implemented.
@@ -272,13 +279,14 @@ acceptance still need to be expanded as follow-up documentation.
 | `/historie`, `/historicka-udalost/:id` | `/history`, `/history/:id` | Copied-campaign article/editor acceptance |
 | `/mazlicci` | `/companions` and dedicated companion records | Ownership and sheet-related workflow acceptance |
 | Global search and wiki links | `/search` and typed Markdown links | Add-on reference/linking surfaces and localized editors |
-| `/mapa/svet`, `/mapa/local/:id` | `/map/world`, `/map/local/:id`; old map hashes also accepted | Large-image tiles, segmented glows, and map preferences |
+| `/mapa/svet`, `/mapa/local/:id` | `/map/world`, `/map/local/:id`; old map hashes also accepted | Large-image tiles and segmented glows |
 | `/mapa/palac`, `/mapa/frakce`, `/mapa/vztahy`, `/mapa/tajemstvi` | Not yet restored | Faction, relationship, mystery views and saved positions |
 | `/casova-osa` | Not yet restored | Timeline slice above |
 | `/dm` and player-preview action | Session role switch exists; dedicated DM dashboard and tab-isolated preview remain open | Preserve the distinction between session role switching and true preview |
 | `/nastaveni`: six enum categories | `/settings` enum panels | Full localization and real-host save/delete/conflict coverage |
 | Settings: `language`, `appearance` | Personal language and shared theme panels | Remaining catalogs, tokens, and old appearance/branding actions |
-| Settings: `playerParty`, `worldmap`, `sidebarPages` | Not yet restored | Party, map, sidebar and shared preference controls |
+| Settings: `worldmap` | Maps panel at `/settings/maps`, with local-map scope links | Real-host visual acceptance with campaign maps |
+| Settings: `playerParty`, `sidebarPages` | Not yet restored | Party, sidebar and shared preference controls |
 | Settings: `addons` | Lifecycle APIs exist; manager and add-on settings UI remain open | Permission review, activation, diagnostics, update and rollback |
 | Settings: `backup`, `account` | Verified backup/maintenance and session APIs exist; full recovery/server controls remain open | Recovery points, restore/revert and accepted credential rotation |
 | Add-on routes and graph/settings contributions | Versioned v3 mounting infrastructure and package routes exist | Per-add-on workflow inventory and installed-package acceptance |

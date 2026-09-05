@@ -14,7 +14,8 @@
 .sc-map { width: 100%; height: 100%; }
 .sc-map.leaflet-container { background: var(--bg-surface); font-family: var(--font-ui); }
 .sc-map-state { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 1rem; padding: 1rem; }
-.sc-pin { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 24px; }
+.sc-pin { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 24px; --sc-pin-base-scale: 1; transform: scale(var(--sc-pin-base-scale)); transform-origin: center; transition: transform .15s; }
+.sc-pin:hover { transform: scale(calc(var(--sc-pin-base-scale) * 1.25)); }
 .sc-pin img { display: block; width: 100%; height: 100%; }
 .sc-marker { background: transparent; border: 0; }
 .sc-panel { position: absolute; inset: 0 0 0 auto; width: 280px; max-width: calc(100% - 76px); background: var(--bg-base); border-left: 1px solid rgba(var(--gold-muted), .2); overflow-y: auto; z-index: 1000; padding: 1rem; box-shadow: -4px 0 20px #0006; }

@@ -21,12 +21,14 @@ import {
   type CampaignThemeID,
 } from "./campaign-appearance.js";
 import { UiLocalizationController, availableUiLocales } from "./ui-localization.js";
+import "./codex-map-settings.js";
 
-type SettingsCategory = "language" | "appearance" | CampaignEnumCategory;
+type SettingsCategory = "language" | "appearance" | "maps" | CampaignEnumCategory;
 
 export class CodexSettings extends LitElement {
   static override properties = {
     campaign: { attribute: false },
+    mapTarget: { attribute: false },
     canManageCampaign: { type: Boolean, attribute: false },
     saving: { type: Boolean },
     editCompletion: { type: Number },
@@ -36,6 +38,7 @@ export class CodexSettings extends LitElement {
   };
 
   declare campaign: CampaignDataset | undefined;
+  declare mapTarget: string | null | undefined;
   declare canManageCampaign: boolean;
   declare saving: boolean;
   declare editCompletion: number;
@@ -49,6 +52,7 @@ export class CodexSettings extends LitElement {
   constructor() {
     super();
     this.campaign = undefined;
+    this.mapTarget = undefined;
     this.canManageCampaign = false;
     this.saving = false;
     this.editCompletion = 0;
@@ -60,6 +64,9 @@ export class CodexSettings extends LitElement {
   protected override createRenderRoot(): HTMLElement | DocumentFragment { return this; }
 
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
+    if ((changed.has("mapTarget") || changed.has("canManageCampaign")) && this.mapTarget !== undefined && this.canManageCampaign) {
+      this.activeCategory = "maps";
+    }
     if (changed.has("canManageCampaign") && !this.canManageCampaign && this.activeCategory !== "language") {
       this.activeCategory = "language";
       this.editingId = null;
@@ -81,6 +88,9 @@ export class CodexSettings extends LitElement {
     if (this.activeCategory === "language") return this.#shell(this.#languagePanel());
     if (this.activeCategory === "appearance") return this.#shell(this.#appearancePanel());
     if (!this.canManageCampaign) return this.#shell(this.#languagePanel());
+    if (this.activeCategory === "maps") return this.#shell(html`<codex-map-settings .campaign=${this.campaign}
+      .initialParentId=${this.mapTarget ?? null} .saving=${this.saving} .editCompletion=${this.editCompletion}
+      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => { this.#dirty = event.detail.dirty; }}></codex-map-settings>`);
     const descriptor = campaignEnumDescriptor(this.activeCategory);
     let items: readonly CampaignEnumItem[];
     try {
@@ -123,6 +133,7 @@ export class CodexSettings extends LitElement {
       { id: "language", label: this.#ui.t("settings.language"), icon: "文" },
       ...(this.canManageCampaign ? [
         { id: "appearance" as const, label: this.#ui.t("settings.appearance"), icon: "◐" },
+        { id: "maps" as const, label: this.#ui.t("map.settings"), icon: "🗺" },
         ...campaignEnumDescriptors.map((descriptor) => ({
           id: descriptor.category as SettingsCategory,
           label: descriptor.label,
@@ -378,7 +389,7 @@ export class CodexSettings extends LitElement {
   readonly #save = (event: SubmitEvent): void => {
     event.preventDefault();
     if (this.saving || this.campaign === undefined || this.editingId === null ||
-      this.activeCategory === "language" || this.activeCategory === "appearance") return;
+      this.activeCategory === "language" || this.activeCategory === "appearance" || this.activeCategory === "maps") return;
     const form = event.currentTarget as HTMLFormElement;
     const data = new FormData(form);
     const descriptor = campaignEnumDescriptor(this.activeCategory);
@@ -402,7 +413,7 @@ export class CodexSettings extends LitElement {
 
   readonly #delete = (event: Event): void => {
     if (this.saving || this.campaign === undefined || this.activeCategory === "language" ||
-      this.activeCategory === "appearance") return;
+      this.activeCategory === "appearance" || this.activeCategory === "maps") return;
     const button = event.currentTarget as HTMLButtonElement;
     const itemId = button.dataset["id"];
     const mode = button.dataset["mode"];
@@ -446,11 +457,11 @@ export class CodexSettings extends LitElement {
 
   #visibleCategory(category: SettingsCategory): boolean {
     return category === "language" || this.canManageCampaign &&
-      (category === "appearance" || campaignEnumDescriptors.some(({ category: id }) => id === category));
+      (category === "appearance" || category === "maps" || campaignEnumDescriptors.some(({ category: id }) => id === category));
   }
 
   #activeEnumCategory(): CampaignEnumCategory {
-    if (this.activeCategory === "language" || this.activeCategory === "appearance") {
+    if (this.activeCategory === "language" || this.activeCategory === "appearance" || this.activeCategory === "maps") {
       throw new CampaignSettingsEditError("campaign enum category is not active");
     }
     return this.activeCategory;

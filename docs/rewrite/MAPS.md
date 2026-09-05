@@ -75,6 +75,36 @@ location media policy for local maps. A local upload creates a new immutable
 handle, then revision-checks the location URL update. A failed update retains
 the previous referenced image; no old handle is deleted by this UI.
 
+## Map settings and zoom
+
+The DM Maps settings panel uses the original brown/gold settings layout with
+a map selector, image preview/upload, marker scaling, and links to the map and
+its saved-view editor. It includes unplaced locations so their local maps can
+be uploaded. `#/settings/maps` opens the world map configuration;
+`#/settings/maps/local/<encoded key>` opens a location's configuration.
+
+Shared `settings/mapConfigs` retains the original `world` and `local-<key>`
+entries. Each entry's `zoomScaleRatio` ranges from 0 to 1, defaulting to 0.
+Location marker scale is `2 ** (zoomScaleRatio * zoom)`: 0 keeps constant
+screen size, 1 scales with the image, and intermediate values scale gently.
+The original 1.25 hover enlargement applies on top. Event markers retain their
+original constant 28px size. Changes apply to the visible map on live refresh.
+
+Configuration drafts capture the settings revision, preserve all other maps
+and unknown fields, and use explicit Save/Cancel. Live refresh updates a clean
+form but retains an edited draft and its opening revision. Category changes,
+map changes, and navigation use the unsaved-edit guard; uploads are disabled
+while configuration changes are pending. Missing maps, stale revisions, and
+malformed stored configuration reject saves without overwriting stored data.
+Only DMs may change shared map preferences.
+
+Zoom controls use quarter-level snapping, half-level button steps, and 120
+wheel pixels per level. The minimum follows the image's fit level (bounded by
+-8 and 2), recomputed independently of the previous limit after a resize.
+A fitted map stays fitted as the responsive layout changes; zoomed views keep
+their zoom unless it is below the new minimum. The native-size button requests
+level 0, subject to these bounds.
+
 ## Event paths
 
 The toolbar's Event paths toggle restores the original 28px session/past-event
@@ -103,7 +133,8 @@ not rebuild a marker in the middle of a drag. Successful edits retain the
 viewport when the background image has not changed.
 
 `campaign-map.test.ts` checks map scoping, coordinate mutations, stale writes,
-saved views, and opaque local image binding. `maps.browser.mjs` exercises the
+saved views, configuration preservation/scaling, and opaque local image binding.
+`maps.browser.mjs` exercises the
 production build with synthetic campaign/media responses on desktop and phone,
 including position geometry, dragging, live conflicts, creation, unplacing,
 view creation/edit/delete with stale revisions, local image uploads, and event
@@ -111,10 +142,13 @@ ordering, geometry, appearance, keyboard links, refresh, and teardown.
 Event-pin regressions also exercise article links, world/local placement,
 coordinates, drag drafts, removal with restored location fallback, revisions
 captured before clicking the map, remote deletion, and anonymous/missing targets.
+Map-settings regressions cover desktop/phone layout, per-map configuration,
+marker scaling, draft conflicts, clean live refresh, category/map navigation,
+world/local uploads, malformed configuration, and DM-only access. Zoom checks
+cover fit limits and resizing in both directions.
 `map_placement_test.go` covers public/DM projection and player-save preservation
 for visible, hidden, and missing parents. These fixtures contain no live data.
 Screenshots are written to ignored `frontend/test-results/maps/`.
 
-Generated tile pyramids, map configuration controls,
-and segmented attitude glows remain tracked in the
+Generated tile pyramids and segmented attitude glows remain tracked in the
 suite backlog. The current viewer uses the original source image directly.

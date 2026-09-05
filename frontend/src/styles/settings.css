@@ -388,6 +388,25 @@ codex-settings {
   margin-right: auto;
 }
 
+.settings-maps-shell { display: grid; grid-template-columns: minmax(160px, 220px) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+.settings-maps-tree { display: flex; flex-direction: column; gap: .15rem; padding: .5rem .4rem; background: rgba(0,0,0,.18); border: 1px solid rgba(var(--gold-muted), .15); border-radius: 6px; max-height: 60vh; overflow-y: auto; }
+.settings-map-node { display: flex; align-items: center; gap: .4rem; width: 100%; padding: .35rem .55rem; background: transparent; border: 1px solid transparent; border-radius: 4px; color: var(--text-parchment); font: .8rem var(--font-ui); text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.settings-map-node:hover, .settings-map-node[aria-current="page"] { background: rgba(var(--gold-muted), .1); border-color: rgba(var(--gold-muted), .35); color: var(--gold); }
+.settings-maps-detail { min-width: 0; }
+.settings-maps-detail-title { font: 1rem var(--font-title); color: var(--accent-gold); margin: 0 0 .6rem; }
+.settings-worldmap-preview img { display: block; max-height: 300px; max-width: 100%; object-fit: contain; margin-bottom: .8rem; }
+.settings-map-upload { display: grid; gap: .4rem; margin: .8rem 0; font: .8rem var(--font-ui); }
+.settings-map-upload input { max-width: 100%; }
+.settings-map-config, .settings-map-views { border-top: 1px dashed rgba(var(--gold-muted), .18); margin-top: 1.2rem; padding-top: 1rem; }
+.settings-map-config > label { font: .85rem var(--font-ui); color: var(--text-parchment); }
+.settings-map-config .settings-strength-row { display: flex; align-items: center; gap: .6rem; margin: .8rem 0; }
+.settings-map-config input[type="range"] { flex: 1; min-width: 0; accent-color: var(--gold); }
+.settings-map-config output { font: .8rem var(--font-ui); min-width: 3ch; }
+.settings-map-config .sc-btn { margin-right: .3rem; }
+.settings-map-views h3 { font: .92rem var(--font-title); color: var(--accent-gold); }
+.settings-map-panel .settings-hint { font: .78rem/1.5 var(--font-ui); color: var(--text-muted); }
+@media (max-width: 1000px) { .settings-maps-shell { grid-template-columns: 1fr; } .settings-maps-tree { max-height: 200px; } }
+
 .settings-personal-panel {
   align-self: start;
 }

@@ -28,7 +28,7 @@ export type AppRoute =
   | { readonly kind: "party" }
   | { readonly kind: "map"; readonly parentId: string | null; readonly event?: { readonly key: string; readonly mode: "show" | "place" } }
   | { readonly kind: "create"; readonly page: CampaignPageDefinition; readonly preset: "party" }
-  | { readonly kind: "settings" }
+  | { readonly kind: "settings"; readonly mapParentId?: string | null }
   | { readonly kind: "collection"; readonly page: CampaignPageDefinition }
   | { readonly kind: "record"; readonly page: CampaignPageDefinition; readonly key: string }
   | { readonly kind: "addon" }
@@ -49,6 +49,15 @@ export function parseAppRoute(hash: string): AppRoute {
   }
   if (hash === "#/settings") {
     return { kind: "settings" };
+  }
+  if (hash === "#/settings/maps") return { kind: "settings", mapParentId: null };
+  const mapSettings = /^#\/settings\/maps\/local\/([^/]+)$/u.exec(hash);
+  if (mapSettings !== null) {
+    try {
+      const mapParentId = decodeURIComponent(mapSettings[1]!);
+      if (mapParentId && !/\p{Cc}/u.test(mapParentId)) return { kind: "settings", mapParentId };
+    } catch { /* Malformed paths use the ordinary not-found route. */ }
+    return { kind: "not-found", path: hash };
   }
   const map = /^#\/(?:map\/world|mapa\/svet|(?:map|mapa)\/local\/([^/]+))(?:\/event\/([^/]+)\/(show|place))?$/u.exec(hash);
   if (map !== null) {
@@ -93,6 +102,9 @@ export function mapHash(parentId: string | null): string {
 }
 export function eventMapHash(parentId: string | null, key: string, mode: "show" | "place"): string {
   return `${mapHash(parentId)}/event/${encodeURIComponent(key)}/${mode}`;
+}
+export function mapSettingsHash(parentId: string | null): string {
+  return parentId === null ? "#/settings/maps" : `#/settings/maps/local/${encodeURIComponent(parentId)}`;
 }
 
 export function recordHash(page: CampaignPageDefinition, key: string): string {
