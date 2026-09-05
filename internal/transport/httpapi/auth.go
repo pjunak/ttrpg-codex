@@ -83,10 +83,16 @@ func (s *server) registerAuthenticationRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/login", s.login)
 	mux.HandleFunc("POST /api/logout", s.logout)
 	mux.HandleFunc("POST /api/view-as", s.viewAs)
+	mux.HandleFunc("POST /api/player-preview", s.createPlayerPreview)
 }
 
 func (s *server) attachSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var accepted bool
+		r, accepted = s.attachPlayerPreview(w, r)
+		if !accepted {
+			return
+		}
 		token := sessionToken(r)
 		if actor, ok := s.authentication.Resolve(token); ok {
 			r = r.WithContext(sessionauth.WithActor(r.Context(), actor))
@@ -129,6 +135,10 @@ func (s *server) authState(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) login(w http.ResponseWriter, r *http.Request) {
+	if isPlayerPreview(r) {
+		writeAPIError(w, http.StatusForbidden, "FORBIDDEN", "close player preview before signing in")
+		return
+	}
 	client := authClientKey(r)
 	now := time.Now().UTC()
 	if allowed, retryAfter := s.loginLimiter.allow(client, now); !allowed {
@@ -160,7 +170,9 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) logout(w http.ResponseWriter, r *http.Request) {
 	s.authentication.Revoke(sessionToken(r))
-	s.clearSessionCookie(w)
+	if !isPlayerPreview(r) {
+		s.clearSessionCookie(w)
+	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -218,6 +230,9 @@ func (s *server) clearSessionCookie(w http.ResponseWriter) {
 }
 
 func sessionToken(r *http.Request) string {
+	if isPlayerPreview(r) {
+		return r.Header.Get(playerPreviewHeader)
+	}
 	cookie, err := r.Cookie(sessionCookieName)
 	if err != nil {
 		return ""

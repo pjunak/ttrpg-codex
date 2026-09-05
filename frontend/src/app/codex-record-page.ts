@@ -1,3 +1,4 @@
+import { previewResourceURL } from "../core/player-preview.js";
 import { LitElement, html, nothing } from "lit";
 import { campaignPartyIdentity } from "./campaign-party.js";
 import {
@@ -215,7 +216,7 @@ export class CodexRecordPage extends LitElement {
               ${entity.portrait === undefined ? recordPlaceholder(entity, route.page.icon, "record-portrait record-portrait-placeholder") : html`
                 <img
                   class="record-portrait"
-                  src=${entity.portrait}
+                  src=${previewResourceURL(entity.portrait)}
                   alt=""
                   style=${entity.attitudeRing === undefined ? nothing : `--attitude-ring: ${entity.attitudeRing}`}
                 />
@@ -316,7 +317,7 @@ export class CodexRecordPage extends LitElement {
                 <a class="record-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>
               </div>
               ${safeMediaURL(value["localMap"]) === undefined ? nothing : html`
-                <img class="location-map-preview" src=${safeMediaURL(value["localMap"])} alt=${this.#ui.t("map.local")} />
+                <img class="location-map-preview" src=${previewResourceURL(safeMediaURL(value["localMap"]))} alt=${this.#ui.t("map.local")} />
               `}
             `}
           </section>` : nothing}
@@ -683,7 +684,7 @@ function recordRow(entity: EntitySummary, fallback: string) {
         : html`<img
             class="record-row-mark"
             style=${entity.attitudeRing === undefined ? nothing : `--attitude-ring: ${entity.attitudeRing}`}
-            src=${entity.portrait}
+            src=${previewResourceURL(entity.portrait)}
             alt=""
             loading="lazy"
           />`}

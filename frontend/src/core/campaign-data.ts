@@ -1,3 +1,4 @@
+import { sessionFetch } from "./player-preview.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 
 const boundary = "GET /api/campaign";
@@ -74,7 +75,7 @@ export class CampaignDataClient {
   #epoch = 0;
   #tail: Promise<void> = Promise.resolve();
 
-  constructor(fetchData: CampaignDataFetch = (input, init) => fetch(input, init)) {
+  constructor(fetchData: CampaignDataFetch = (input, init) => sessionFetch(input, init)) {
     this.#fetchData = fetchData;
   }
 

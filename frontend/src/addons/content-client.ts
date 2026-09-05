@@ -1,3 +1,4 @@
+import { sessionFetch } from "../core/player-preview.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
 
 const maximumResponseBytes = 5 * 1024 * 1024;
@@ -97,7 +98,7 @@ export class BrowserAddonContentClient {
     this.#generationId = options.generationId;
     this.#baseURL = `/api/addons/${encodeURIComponent(options.addonId)}/generations/${options.generationId}/content`;
     this.#signal = options.signal;
-    this.#fetchContent = options.fetchContent ?? ((input, init) => fetch(input, init));
+    this.#fetchContent = options.fetchContent ?? ((input, init) => sessionFetch(input, init));
   }
 
   api(): BrowserContentAPI {

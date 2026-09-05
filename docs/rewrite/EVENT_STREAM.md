@@ -44,6 +44,13 @@ subscriber is disconnected rather than blocking publication or accumulating
 unbounded memory. Event payloads never contain credentials, session tokens, or
 private error details.
 
+Player-preview tabs open the same shared stream with their bounded preview
+credential in the `playerPreviewToken` query parameter. Authentication validates
+and removes it before the stream's otherwise-closed query check. The preview
+always receives the public audience even when the browser also carries a DM
+cookie. Preview authority is checked before live publications and heartbeats;
+expired or revoked previews close and cannot reconnect using the DM cookie.
+
 ## Remaining event work
 
 - Package activation, rollback, reviewed cohort activation, reload, disable,

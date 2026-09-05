@@ -1,3 +1,4 @@
+import { previewResourceURL } from "../core/player-preview.js";
 import { LitElement, html, nothing } from "lit";
 import { isRecord } from "../core/boundary.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
@@ -67,7 +68,7 @@ export class CodexMapSettings extends LitElement {
           <h3 class="settings-maps-detail-title">${this.parentId === null ? this.#ui.t("map.world") : text(recordValue(record)["name"]) || this.#ui.t("map.missing")}</h3>
           ${this.imageURL === undefined ? html`<p class="settings-hint" role="status">${this.#ui.t(this.preview === "loading" ? "map.loading" : this.preview === "error" ? "map.failed" : "map.empty")}</p>
             ${this.preview === "error" ? html`<button class="sc-btn" @click=${() => void this.#loadPreview()}>${this.#ui.t("shell.tryAgain")}</button>` : nothing}`
-            : html`<div class="settings-worldmap-preview"><img src=${this.imageURL} alt=${this.#ui.t("map.previewImage")} @error=${() => { this.imageURL = undefined; this.preview = "error"; }} /></div>`}
+            : html`<div class="settings-worldmap-preview"><img src=${previewResourceURL(this.imageURL)} alt=${this.#ui.t("map.previewImage")} @error=${() => { this.imageURL = undefined; this.preview = "error"; }} /></div>`}
           <a class="sc-btn" href=${mapHash(this.parentId)}>${this.#ui.t("map.openMap")}</a>
           <label class="settings-map-upload">${this.#ui.t("map.upload")}<input type="file" aria-label=${this.#ui.t("map.upload")}
             accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" ?disabled=${this.saving || this.dirty || missing} @change=${this.#upload} /></label>

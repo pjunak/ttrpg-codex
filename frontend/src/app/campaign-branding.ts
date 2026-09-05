@@ -1,3 +1,4 @@
+import { previewResourceURL } from "../core/player-preview.js";
 import { isRecord } from "../core/boundary.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
 import type { CampaignMutation } from "../core/campaign-mutations.js";
@@ -39,7 +40,7 @@ export function applyBrandingFavicon(branding: CampaignBranding): void {
   document.title = branding.title;
   let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
   if (link === null) { link = document.createElement("link"); link.rel = "icon"; document.head.append(link); }
-  link.removeAttribute("type"); link.href = branding.logoUrl || defaultLogo;
+  link.removeAttribute("type"); link.href = previewResourceURL(branding.logoUrl || defaultLogo);
 }
 function safeLogo(value: unknown): value is string { return typeof value === "string" && /^\/api\/media\/b_[0-9a-f]{32}$/u.test(value); }
 function line(value: unknown, maximum: number): string { return typeof value === "string" && value.length <= maximum && !/[\r\n]/u.test(value) ? value.trim() : ""; }

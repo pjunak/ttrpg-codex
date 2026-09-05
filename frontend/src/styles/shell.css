@@ -186,7 +186,7 @@ codex-app, .codex-shell {
   background: var(--bg-base);
 }
 
-.account-panel button, .unavailable-page button, .primary-link {
+.account-panel button, .player-preview-notice button, .unavailable-page button, .primary-link {
   padding: .55rem .8rem;
   color: var(--text-ink);
   border: 1px solid var(--gold);
@@ -200,7 +200,7 @@ codex-app, .codex-shell {
   cursor: wait;
 }
 
-.account-panel .text-button {
+.account-panel .text-button, .player-preview-notice .text-button {
   display: block;
   color: var(--text-light);
   border: 0;
@@ -248,6 +248,21 @@ codex-app, .codex-shell {
   min-height: 100vh;
   margin-left: var(--sidebar-width);
   padding: 2rem;
+}
+
+.player-preview-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  margin: 0 0 1rem;
+  padding: .65rem .8rem;
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  font: .82rem/1.5 var(--font-ui);
 }
 
 .connection-alert, .application-alert {

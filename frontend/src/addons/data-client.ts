@@ -1,3 +1,4 @@
+import { sessionFetch } from "../core/player-preview.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
 
 const maximumResponseBytes = 2 * 1024 * 1024;
@@ -129,7 +130,7 @@ export class BrowserAddonDataClient {
     this.#baseURL = `/api/addons/${encodeURIComponent(options.addonId)}/generations/${options.generationId}/data`;
     this.#csrfToken = options.csrfToken;
     this.#signal = options.signal;
-    this.#fetchData = options.fetchData ?? ((input, init) => fetch(input, init));
+    this.#fetchData = options.fetchData ?? ((input, init) => sessionFetch(input, init));
   }
 
   api(): BrowserDataAPI {

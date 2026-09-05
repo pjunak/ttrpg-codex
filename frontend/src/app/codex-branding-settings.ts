@@ -1,3 +1,4 @@
+import { previewResourceURL } from "../core/player-preview.js";
 import { LitElement, html, nothing } from "lit";
 import { isRecord } from "../core/boundary.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
@@ -28,7 +29,7 @@ export class CodexBrandingSettings extends LitElement {
       <h3 id="branding-title">🐉 ${this.#ui.t("branding.title")}</h3>
       <p class="settings-hint">${this.#ui.t("branding.intro")}</p>
       ${invalid ? html`<p role="alert">${this.#ui.t("branding.invalid")}</p>` : nothing}
-      <div class="settings-branding-preview"><img src=${this.draft.logoUrl || defaultLogo} alt=${this.#ui.t("branding.logo")}
+      <div class="settings-branding-preview"><img src=${previewResourceURL(this.draft.logoUrl || defaultLogo)} alt=${this.#ui.t("branding.logo")}
         @error=${(event: Event) => { const image = event.currentTarget as HTMLImageElement; if (image.getAttribute("src") !== defaultLogo) image.src = defaultLogo; }} />
         <span>${this.#ui.t(this.draft.logoUrl ? "branding.customLogo" : "branding.defaultLogo")}</span></div>
       ${invalid && !this.dirty ? nothing : html`

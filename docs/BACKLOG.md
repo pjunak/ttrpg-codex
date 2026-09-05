@@ -86,11 +86,14 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
   on desktop and mobile, including populated/empty states and DM/player views.
   The rewrite must preserve that design; a new visual design needs an explicit
   maintainer decision. Passing component checks alone does not close this gate.
-- [ ] Restore the DM dashboard and true player-view preview workflow.
+- [x] Restore the DM dashboard and true player-view preview workflow.
   The core DM panel, guarded additive slots, hidden-content fallback, browser
   diagnostics and active tool links are restored. The first-party planning
   totals, workflow cards and recent-item navigation are restored in English
-  and Czech. Separate-tab player preview remains.
+  and Czech. View as player now opens a separate tab with bounded player
+  authority; the DM session remains unchanged. Desktop/phone checks cover
+  reload/navigation, player data/media/live updates, revocation and failed
+  preview startup. Broader planner/import acceptance stays in its own gate.
 
 ### Spatial, temporal, and relationship workflows
 
@@ -166,6 +169,10 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
 The core `#/dm` panel now follows the preserved heading, spacing, dark cards,
 and hidden/total counts. It mounts typed `dm:dashboard` slots only for real and
 effective DMs and keeps a useful fallback for empty or failed dashboards.
+Separate-tab player preview preserves the DM cookie and uses independent,
+expiring player credentials for core and add-on requests, events, and rendered
+media. Invalid or revoked previews cannot fall back to DM authority. The account
+action and preview notice use the existing shell styles and English/Czech copy.
 Role-allowed tool links remain available when optional sidebar links are
 hidden. Fixture ZIPs verify desktop/phone layout, English/Czech copy, live
 counts, authorization, widget state, replacement/disable, failure and reload.
@@ -441,7 +448,7 @@ acceptance still need to be expanded as follow-up documentation.
 | `/mapa/vztahy` | `/graph/relationships`; old hash and browser position/filter keys accepted | Campaign/add-on visual acceptance |
 | `/mapa/palac`, `/mapa/frakce`, `/mapa/tajemstvi` | `/graph/factions`, `/graph/mysteries`; old hashes and unambiguous browser positions accepted | Campaign/add-on visual acceptance |
 | `/casova-osa`, `/mapa/casova-osa` | `/timeline`; old hashes accepted, session creation, atomic order editing and four additive slots restored | Real-campaign visual review |
-| `/dm` and player-preview action | Core DM panel, first-party planning totals/recent links, additive slots, fallback counts/status and active tool links restored; session role switch also exists | Tab-isolated player preview remains open; planner/import acceptance is tracked separately |
+| `/dm` and player-preview action | Core DM panel, planning totals/recent links, additive slots, fallback counts/status, tool links and separate-tab player preview restored | Desktop/phone preview checks pass for independent DM/player authority, reload, navigation, media, live updates and revocation; planner/import acceptance is tracked separately |
 | `/nastaveni`: six enum categories | `/settings` enum panels | Full localization and real-host save/delete/conflict coverage |
 | Settings: `language`, `appearance` | Personal language, shared theme and branding/logo panels | Remaining catalogs, tokens, and campaign visual acceptance |
 | Settings: `worldmap` | Maps panel at `/settings/maps`, with local-map scope links | Real-host visual acceptance with campaign maps |

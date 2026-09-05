@@ -1,3 +1,4 @@
+import { previewResourceURL } from "../core/player-preview.js";
 import { LitElement, html, nothing } from "lit";
 import { markerGlowLayers } from "./campaign-attitude-glow.js";
 import * as L from "leaflet";
@@ -261,9 +262,9 @@ export class CodexMap extends LitElement {
       const map = L.map(container, { crs: L.CRS.Simple, minZoom: -8, maxZoom: 2, zoomSnap: .25, zoomDelta: .5, wheelPxPerZoomLevel: 120,
         zoomControl: false, attributionControl: false, zoomAnimation: false });
       this.#map = map;
-      if (tiles === undefined) L.imageOverlay(url, this.#bounds()).addTo(map);
+      if (tiles === undefined) L.imageOverlay(previewResourceURL(url), this.#bounds()).addTo(map);
       else {
-        const layer = L.tileLayer(`${url}/tiles/v1/{z}/{x}/{y}`, {
+        const layer = L.tileLayer(previewResourceURL(`${url}/tiles/v1/{z}/{x}/{y}`), {
           tileSize: tiles.tileSize, noWrap: true, bounds: this.#bounds(), minZoom: -8, maxZoom: 2,
           minNativeZoom: -tiles.depth, maxNativeZoom: 0, zoomOffset: tiles.depth,
         });
@@ -279,7 +280,7 @@ export class CodexMap extends LitElement {
           // this viewport and its edits while loading the immutable original.
           void loadImage(url, request.signal).then(() => {
             if (request.signal.aborted) return;
-            L.imageOverlay(url, this.#bounds()).addTo(map); layer.remove();
+            L.imageOverlay(previewResourceURL(url), this.#bounds()).addTo(map); layer.remove();
           }).catch(() => { if (!request.signal.aborted) this.status = "error"; });
         });
         layer.addTo(map);
@@ -336,7 +337,7 @@ export class CodexMap extends LitElement {
         const visual = location.markerIcon ? document.createElement("img") : document.createElement("span");
         visual.className = `sc-pin-${location.markerIcon ? "icon" : "emoji"}${layers.length > 1 ? "-segment" : ""}`;
         visual.style.filter = layer.filter; visual.style.clipPath = layer.clipPath;
-        if (visual instanceof HTMLImageElement) { visual.src = location.markerIcon; visual.alt = ""; visual.draggable = false; }
+        if (visual instanceof HTMLImageElement) { visual.src = previewResourceURL(location.markerIcon); visual.alt = ""; visual.draggable = false; }
         else { visual.textContent = location.markerGlyph; visual.style.fontSize = `${Math.round(location.markerSize * .85)}px`; }
         node.append(visual);
       }
@@ -594,7 +595,7 @@ function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageElement> 
     image.onload = () => { cleanup(); image.naturalWidth && image.naturalHeight ? resolve(image) : reject(new Error("Empty image")); };
     image.onerror = () => { cleanup(); reject(new Error("Image unavailable")); };
     signal.addEventListener("abort", abort, { once: true });
-    if (signal.aborted) abort(); else image.src = url;
+    if (signal.aborted) abort(); else image.src = previewResourceURL(url);
   });
 }
 if (!customElements.get("codex-map")) customElements.define("codex-map", CodexMap);

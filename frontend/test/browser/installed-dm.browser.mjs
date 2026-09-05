@@ -87,8 +87,9 @@ test('DM panel preserves the fallback cards and hidden sidebar tool access on de
   await dm.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await dm.reload();
   await dm.getByRole('heading', { name: 'Skrytý obsah' }).waitFor();
   await dm.evaluate(() => localStorage.setItem('codex_lang', 'en')); await dm.reload();
-  await dm.locator('.account-menu summary').click();
-  await dm.getByRole('button', { name: 'View as player' }).click();
+  const currentAuth = await jsonResponse(await dm.context().request.get('/api/auth'));
+  await jsonResponse(await dm.context().request.post('/api/view-as', { headers: { 'X-Codex-CSRF': currentAuth.csrfToken }, data: { role: 'player' } }));
+  await dm.reload();
   await dm.getByText('This page is available only in DM view.').waitFor();
   assert.equal(await dm.locator('.dm-count-card').count(), 0);
   assert.equal(await dm.locator('.sidebar-footer > a[href="#/dm"]').count(), 0);
@@ -333,6 +334,96 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planning imports preview, ca
   await page.getByRole('button', { name: /^Commit replacement with \d+ deletions$/u }).click();
   await page.locator('.dm-tools-import [role="status"]').filter({ hasText: /^Import committed:/u }).waitFor();
   assert.deepEqual((await records(newBase)).map(record => record.key), ['import-replaced']);
+});
+
+test('player preview opens in a separate tab with player data, media and live updates while the DM remains signed in', async t => {
+  await jsonResponse(await admin.post('/api/campaign/transactions', { headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'campaign-mutation.v1', mutations: [
+    { operation: 'put', collection: 'characters', key: 'preview-visible', expectedRevision: 0, value: { id: 'preview-visible', name: 'Preview visible hero', visibility: 'public' } },
+    { operation: 'put', collection: 'characters', key: 'preview-hidden', expectedRevision: 0, value: { id: 'preview-hidden', name: 'Preview hidden hero', visibility: 'dm' } },
+  ] } }));
+  const upload = async key => jsonResponse(await admin.post(`/api/media/character-portrait/${key}`, {
+    headers: { 'X-Codex-CSRF': csrf, 'Content-Type': 'image/svg+xml', 'X-Codex-Filename': 'portrait.svg' },
+    data: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#c8a040"/></svg>'),
+  }));
+  const portrait = await upload('preview-visible'), hiddenPortrait = await upload('preview-hidden');
+  await jsonResponse(await admin.post('/api/campaign/transactions', { headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'campaign-mutation.v1', mutations: [
+    { operation: 'put', collection: 'characters', key: 'preview-visible', expectedRevision: 1, value: { id: 'preview-visible', name: 'Preview visible hero', portrait: portrait.url, visibility: 'public' } },
+  ] } }));
+  for (const mobile of [false, true]) {
+    const dm = await open(t, 'dm', mobile), context = dm.context();
+    const original = await jsonResponse(await context.request.get('/api/auth'));
+    if (mobile) await dm.locator('[data-menu-toggle]').click();
+    await dm.locator('.account-menu summary').click();
+    const opened = context.waitForEvent('page');
+    await dm.getByRole('button', { name: 'View as player', exact: true }).click();
+    const preview = await opened;
+    await preview.locator('.player-preview-notice').filter({ hasText: 'Your DM tab remains signed in.' }).waitFor();
+    assert.equal(await preview.evaluate(() => window.opener === null), true);
+    assert.match(preview.url(), /\?playerPreview=1#\/$/u);
+    const token = await preview.evaluate(() => sessionStorage.getItem('codex_player_preview'));
+    const headers = { 'X-Codex-Player-Preview': token };
+    const player = await jsonResponse(await context.request.get('/api/auth', { headers }));
+    assert.equal(player.role, 'player'); assert.equal(player.realRole, 'player'); assert.notEqual(player.csrfToken, original.csrfToken);
+    assert.deepEqual(await jsonResponse(await context.request.get('/api/auth')), original);
+    assert.equal(await dm.locator('#dm-page-title').count(), 1);
+    assert.equal(await preview.locator('.sidebar-footer > a[href="#/dm"]').count(), 0);
+    assert.equal(await preview.locator('.account-panel input[name="password"]').count(), 0);
+    await preview.evaluate(() => { location.hash = '#/characters/preview-visible'; });
+    await preview.getByRole('heading', { name: 'Preview visible hero', exact: true }).waitFor();
+    const image = preview.locator(`img[src^="${portrait.url}?"]`).first();
+    await image.waitFor(); await preview.waitForFunction(() => [...document.images].some(image => image.src.includes('playerPreviewToken=') && image.complete && image.naturalWidth > 0));
+    assert.equal((await context.request.get(hiddenPortrait.url)).status(), 200);
+    assert.equal((await context.request.get(`${hiddenPortrait.url}?playerPreviewToken=${token}`)).status(), 404);
+    assert.equal((await context.request.get('/api/backup', { headers })).status(), 403);
+    assert.equal((await context.request.get('/api/admin/addons/dm-tools', { headers })).status(), 403);
+    assert.equal((await context.request.post('/api/view-as', { headers: { ...headers, 'X-Codex-CSRF': player.csrfToken }, data: { role: 'dm' } })).status(), 403);
+    const campaign = await jsonResponse(await context.request.get('/api/campaign', { headers }));
+    assert.equal(campaign.collections.find(collection => collection.name === 'characters').records.some(record => record.key === 'preview-hidden'), false);
+    const hello = await preview.evaluate(async () => {
+      const response = await fetch(`/api/events?playerPreviewToken=${sessionStorage.getItem('codex_player_preview')}`);
+      const reader = response.body.getReader(); const { value } = await reader.read(); await reader.cancel(); return new TextDecoder().decode(value);
+    });
+    assert.match(hello, /"audience":"public"/u);
+    const current = (await jsonResponse(await admin.get('/api/campaign'))).collections.find(collection => collection.name === 'characters').records.find(record => record.key === 'preview-visible');
+    const nextName = mobile ? 'Preview visible phone update' : 'Preview visible desktop update';
+    await jsonResponse(await admin.post('/api/campaign/transactions', { headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'campaign-mutation.v1', mutations: [
+      { operation: 'put', collection: 'characters', key: current.key, expectedRevision: current.revision, value: { ...current.value, name: nextName } },
+    ] } }));
+    await preview.getByRole('heading', { name: nextName, exact: true }).waitFor();
+    await preview.goto('/#/characters/preview-visible'); await preview.getByRole('heading', { name: nextName, exact: true }).waitFor();
+    assert.match(preview.url(), /\?playerPreview=1#/u);
+    await preview.reload(); await preview.getByRole('heading', { name: nextName, exact: true }).waitFor();
+    await preview.screenshot({ path: resolve(output, mobile ? 'player-preview-phone.png' : 'player-preview-desktop.png'), fullPage: true });
+    assert.equal(await preview.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    const closed = preview.waitForEvent('close');
+    await preview.locator('.player-preview-notice').getByRole('button', { name: 'Close player preview', exact: true }).click(); await closed;
+    assert.equal((await context.request.get('/api/auth', { headers })).status(), 401);
+    assert.deepEqual(await jsonResponse(await context.request.get('/api/auth')), original);
+    const latest = (await jsonResponse(await admin.get('/api/campaign'))).collections.find(collection => collection.name === 'characters').records.find(record => record.key === 'preview-visible');
+    await jsonResponse(await admin.post('/api/campaign/transactions', { headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'campaign-mutation.v1', mutations: [
+      { operation: 'put', collection: 'characters', key: latest.key, expectedRevision: latest.revision, value: { ...latest.value, name: 'Preview visible hero' } },
+    ] } }));
+  }
+});
+
+test('player preview fails closed after missing storage or DM logout and reports blocked pop-ups', async t => {
+  const dm = await open(t), context = dm.context();
+  const blank = await context.newPage(); await blank.goto('/?playerPreview=1#/dm');
+  await blank.locator('.player-preview-notice').filter({ hasText: 'unavailable or expired' }).waitFor();
+  assert.equal(await blank.locator('.dm-count-card').count(), 0);
+  assert.equal(await blank.locator('.account-panel input[name="password"]').count(), 0);
+  await blank.close();
+  await dm.locator('.account-menu summary').click();
+  await dm.evaluate(() => { window.savedOpen = window.open; window.open = () => null; });
+  await dm.getByRole('button', { name: 'View as player', exact: true }).click();
+  await dm.getByRole('alert').filter({ hasText: 'Allow pop-ups' }).waitFor();
+  await dm.evaluate(() => { window.open = window.savedOpen; });
+  const opened = context.waitForEvent('page'); await dm.getByRole('button', { name: 'View as player', exact: true }).click();
+  const preview = await opened; await preview.locator('.player-preview-notice').filter({ hasText: 'Your DM tab remains signed in.' }).waitFor();
+  await jsonResponse(await context.request.post('/api/logout'));
+  await preview.reload(); await preview.locator('.player-preview-notice').filter({ hasText: 'unavailable or expired' }).waitFor();
+  assert.equal(await preview.locator('.sidebar-footer > a[href="#/dm"]').count(), 0);
+  assert.equal(await preview.locator('.account-panel input[name="password"]').count(), 0);
 });
 
 after(async () => {

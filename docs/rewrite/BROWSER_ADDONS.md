@@ -414,6 +414,13 @@ archive it also exercises dashboard counts, desktop/phone styling, Czech copy,
 planner edits and notes, recent-item links, reload/new-tab/back navigation,
 invalid/deleted targets and failed-read retry through an installed package.
 
+Core data and host-issued add-on data/content/service facades share the default
+session transport. In a player-preview tab it supplies independent player
+authority, omits the shared cookie, and retains the existing CSRF and generation
+checks. Integrated and isolated contributions therefore receive player policy
+through the same host boundary. See [authentication](AUTHENTICATION.md) for
+preview lifetime, resource requests, and separate-tab browser coverage.
+
 ## Remaining integration
 
 - Add data, service, import, event, settings, navigation, graph, and log handles

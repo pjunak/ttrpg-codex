@@ -83,11 +83,51 @@ the native archive contains the complete unprojected database and installed
 add-on packages. It is a read/download operation and therefore does not use a
 CSRF header; same-origin cookie policy and the strict DM check remain required.
 
+## Separate-tab player preview
+
+The DM account menu's **View as player** action opens a separate tab. It calls
+`POST /api/player-preview` with the current DM CSRF token and an empty body.
+The response is `player-preview.v1` with `token` and `expiresAt`; it never sets
+or rotates a cookie. The existing view-as API remains available for deliberate
+session-wide transitions and for returning an already-switched session to DM.
+
+Preview sessions have independent player/player authority and CSRF tokens.
+They can perform ordinary player actions, including permitted player edits;
+they cannot sign in, become DM, create previews, or use administration APIs.
+There are at most eight active previews per issuing DM session, within the
+ordinary session capacity. They expire after one hour or the parent session's
+expiry, whichever comes first. Revoking or rotating the parent also invalidates
+its previews. Closing a preview through its button revokes only that preview.
+Closing the browser tab directly leaves its credential to expire normally.
+
+The new tab has no opener. Its bootstrap credential travels in the URL fragment
+and is immediately replaced with a non-secret `playerPreview=1` marker before
+the app starts. The token is held in tab-local session storage; same-site
+navigation and reload retain the preview. Missing, blocked, or malformed tab
+storage with an explicit marker keeps invalid preview mode instead of using
+the shared DM cookie.
+
+Core clients and host-issued add-on facades use the preview-aware default
+transport. Preview API requests omit cookies and carry
+`X-Codex-Player-Preview`; it only accepts a preview token, never an ordinary DM
+token. Empty, expired, conflicting, or invalid preview credentials fail before
+public routes can fall back to cookie or anonymous authority. Fetch requests
+do not forward preview credentials to other origins or through redirects.
+Native EventSource and rendered media URLs use the narrowly accepted
+`playerPreviewToken` query parameter on GET event/media routes. The auth
+boundary removes that parameter before ordinary query validation; canonical
+stored media URLs never contain credentials. Preview logout never clears the
+shared cookie. Request diagnostics record paths, not token-bearing queries.
+
+Tests cover independent authority, parent expiry/rotation/revocation, bounded
+capacity, concurrency, invalid-token fallback, protected routes and stream
+revocation. Installed-host browser tests cover desktop/phone popups, reload,
+same-site navigation, public live updates and media, hidden media refusal,
+missing storage, DM logout, and blocked popups.
+
 ## Remaining authentication work
 
 - Add persistent slow-hashed credentials, password rotation, session
   revocation records, and backup/migration policy.
-- Reintroduce bounded separate-tab player preview without exposing a DM
-  session to the preview tab.
 - Add request/correlation IDs and security-event diagnostics without recording
   credentials or tokens.

@@ -1,3 +1,4 @@
+import { sessionFetch } from "../core/player-preview.js";
 import { BoundaryValidationError } from "../core/boundary.js";
 import type {
   BrowserAddonContext,
@@ -179,7 +180,7 @@ export function createIsolatedFrameRuntime(
   const assets = loadIsolatedFrameAssets(
     options.descriptor,
     assetController.signal,
-    options.fetchAsset ?? fetch,
+    options.fetchAsset ?? sessionFetch,
   ).then(
     (value) => ({ ok: true as const, value }),
     (cause: unknown) => ({ ok: false as const, cause }),

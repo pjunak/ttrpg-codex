@@ -1,4 +1,5 @@
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
+import { previewResourceURL } from "./player-preview.js";
 import {
   isCampaignCollectionName,
   type CampaignCollectionName,
@@ -61,7 +62,7 @@ export class SharedEventStream {
 
   open(callbacks: EventStreamCallbacks): void {
     this.close();
-    const source = this.#factory("/api/events", { withCredentials: true });
+    const source = this.#factory(previewResourceURL("/api/events"), { withCredentials: true });
     this.#source = source;
     this.#listen(source, "hello", callbacks, parseHello);
     this.#listen(source, "reset", callbacks, parseReset);

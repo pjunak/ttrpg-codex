@@ -70,11 +70,12 @@ type Config struct {
 }
 
 type storedSession struct {
-	actor      Actor
-	csrfToken  string
-	csrfDigest [sha256.Size]byte
-	createdAt  time.Time
-	expiresAt  time.Time
+	actor         Actor
+	csrfToken     string
+	csrfDigest    [sha256.Size]byte
+	createdAt     time.Time
+	expiresAt     time.Time
+	previewParent *[sha256.Size]byte
 }
 
 type Service struct {
@@ -167,7 +168,7 @@ func (service *Service) Inspect(token string) (Session, bool) {
 	if !exists {
 		return Session{}, false
 	}
-	if !record.expiresAt.After(now) {
+	if !service.usableLocked(record, now) {
 		delete(service.sessions, digest)
 		return Session{}, false
 	}
@@ -187,7 +188,7 @@ func (service *Service) ValidateCSRF(token, csrfToken string) bool {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	record, exists := service.sessions[digest]
-	if !exists || !record.expiresAt.After(now) {
+	if !exists || !service.usableLocked(record, now) {
 		if exists {
 			delete(service.sessions, digest)
 		}
@@ -290,7 +291,7 @@ func (service *Service) generateSessionTokens() (string, string, error) {
 
 func (service *Service) pruneExpiredLocked(now time.Time) {
 	for digest, record := range service.sessions {
-		if !record.expiresAt.After(now) {
+		if !service.usableLocked(record, now) {
 			delete(service.sessions, digest)
 		}
 	}

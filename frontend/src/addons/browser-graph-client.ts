@@ -1,3 +1,4 @@
+import { sessionFetch } from "../core/player-preview.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
 import {
   validateBrowserGenerationSet,
@@ -89,7 +90,7 @@ export class BrowserGraphClient {
   #epoch = 0;
   #tail: Promise<void> = Promise.resolve();
 
-  constructor(fetchGraph: BrowserGraphFetch = (input, init) => fetch(input, init)) {
+  constructor(fetchGraph: BrowserGraphFetch = (input, init) => sessionFetch(input, init)) {
     this.#fetchGraph = fetchGraph;
   }
 

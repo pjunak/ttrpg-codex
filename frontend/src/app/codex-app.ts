@@ -2,6 +2,7 @@ import { LitElement, html, nothing } from "lit";
 import {
   getAuth,
   getHealth,
+  createPlayerPreview,
   login as loginSession,
   logout as logoutSession,
   switchRole as switchSessionRole,
@@ -26,6 +27,7 @@ import {
   type CampaignAppearanceSaveDetail,
 } from "./campaign-appearance.js";
 import { SharedEventStream, type EventRefresh } from "../core/event-stream.js";
+import { isPlayerPreview, playerPreviewURL, previewResourceURL } from "../core/player-preview.js";
 import {
   createBrowserAddonComposition,
   type BrowserAddonComposition,
@@ -220,7 +222,7 @@ export class CodexApp extends LitElement {
         <aside id="campaign-sidebar" class=${`campaign-sidebar ${this.menuOpen ? "is-open" : ""}`} .inert=${this.mobileViewport && !this.menuOpen}>
           <header class="campaign-brand">
             <a href="#/" aria-label=${this.#ui.t("shell.openOverview")}>
-              <img class="campaign-sigil" src=${branding.logoUrl || defaultLogo} alt="" @error=${(event: Event) => {
+              <img class="campaign-sigil" src=${previewResourceURL(branding.logoUrl || defaultLogo)} alt="" @error=${(event: Event) => {
                 const image = event.currentTarget as HTMLImageElement; if (image.getAttribute("src") !== defaultLogo) image.src = defaultLogo;
               }} />
               <span><strong>${branding.title}</strong><small>${branding.subtitle}</small></span>
@@ -247,6 +249,10 @@ export class CodexApp extends LitElement {
         </aside>
         <button class="sidebar-backdrop" aria-label=${this.#ui.t("shell.closeMenu")} ?hidden=${!this.mobileViewport || !this.menuOpen} @click=${this.#closeMenu}></button>
         <main id="campaign-content" class=${`campaign-content route-${this.route.kind}`} tabindex="-1" .inert=${this.mobileViewport && this.menuOpen}>
+          ${isPlayerPreview() ? html`<div class="player-preview-notice" role="status">
+            ${this.#ui.t(this.authority.state === "checking" ? "shell.checkingSession" : this.#authenticated() ? "preview.notice" : "preview.unavailable")}
+            <button class="text-button" type="button" @click=${this.#closePreview}>${this.#ui.t("preview.close")}</button>
+          </div>` : nothing}
           ${this.liveState === "reconnecting" ? html`<p class="connection-alert" role="status">${this.#ui.t("shell.reconnecting")}</p>` : nothing}
           ${this.errorMessage === "" ? nothing : html`
             <p class="application-alert" role="alert">
@@ -629,6 +635,31 @@ export class CodexApp extends LitElement {
     `;
   }
 
+  async #openPreview(): Promise<void> {
+    if (this.busy || this.#request === undefined || this.authority.state !== "known" ||
+      !this.authority.auth.authenticated || this.authority.auth.role !== "dm") return;
+    const popup = window.open("about:blank", "_blank");
+    if (popup === null) { this.errorMessage = this.#ui.t("preview.blocked"); return; }
+    popup.opener = null;
+    this.busy = true;
+    this.errorMessage = "";
+    try {
+      const token = await createPlayerPreview(this.authority.auth.csrfToken, this.#request.signal);
+      if (!popup.closed) popup.location.replace(playerPreviewURL(token));
+    } catch {
+      popup.close();
+      if (!this.#request?.signal.aborted) this.errorMessage = this.#ui.t("preview.failed");
+    } finally { this.busy = false; }
+  }
+
+  async #closePreview(): Promise<void> {
+    if (!isPlayerPreview() || !this.#confirmDiscardEdit()) return;
+    if (this.#request !== undefined) await logoutSession(this.#request.signal).catch(() => {});
+    window.close();
+    // A manually opened tab may not be script-closable; keep it in expired preview mode.
+    if (!window.closed) window.location.reload();
+  }
+
   readonly #sidebarOpen = new Map<string, boolean>();
   #sidebarSectionOpen(section: SidebarSection): boolean {
     const cached = this.#sidebarOpen.get(section.id); if (cached !== undefined) return cached;
@@ -690,6 +721,8 @@ export class CodexApp extends LitElement {
   };
 
   #accountTemplate() {
+    if (isPlayerPreview()) return html`<section class="account-panel"><p>${this.#ui.t("shell.viewingAs")} <strong>${this.#ui.t("shell.player")}</strong></p>
+      <button class="text-button" type="button" @click=${this.#closePreview}>${this.#ui.t("preview.close")}</button></section>`;
     if (this.authority.state === "checking") {
       return html`<section class="account-panel"><p class="loading-line">${this.#ui.t("shell.checkingSession")}</p></section>`;
     }
@@ -712,7 +745,8 @@ export class CodexApp extends LitElement {
       <section class="account-panel signed-in">
         <p><span class="authority-mark" aria-hidden="true"></span>${this.#ui.t("shell.viewingAs")} <strong>${auth.role === "dm" ? "DM" : this.#ui.t("shell.player")}</strong></p>
         ${auth.realRole === "dm" ? html`
-          <button class="text-button" type="button" @click=${this.#switchRole} ?disabled=${this.busy}>
+          <button class="text-button" type="button" @click=${auth.role === "dm" ? this.#openPreview : this.#switchRole} ?disabled=${this.busy}
+            title=${auth.role === "dm" ? this.#ui.t("preview.openHint") : nothing}>
             ${this.#ui.t("shell.viewAs", { role: auth.role === "dm" ? this.#ui.t("shell.player") : "DM" })}
           </button>
         ` : nothing}

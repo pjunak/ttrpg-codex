@@ -1,3 +1,4 @@
+import { sessionFetch } from "./player-preview.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 import {
   isCampaignCollectionName,
@@ -137,7 +138,7 @@ export class CampaignMutationClient {
   readonly #fetchMutation: CampaignMutationFetch;
   #tail: Promise<void> = Promise.resolve();
 
-  constructor(fetchMutation: CampaignMutationFetch = (input, init) => fetch(input, init)) {
+  constructor(fetchMutation: CampaignMutationFetch = (input, init) => sessionFetch(input, init)) {
     this.#fetchMutation = fetchMutation;
   }
 

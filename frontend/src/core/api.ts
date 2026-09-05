@@ -1,4 +1,5 @@
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
+import { sessionFetch } from "./player-preview.js";
 
 const anonymousAuthKeys = new Set(["role", "realRole"]);
 const authenticatedAuthKeys = new Set([
@@ -41,7 +42,7 @@ export function parseHealth(value: unknown): Health {
 }
 
 export async function getHealth(signal: AbortSignal): Promise<Health> {
-  const response = await fetch("/api/health", {
+  const response = await sessionFetch("/api/health", {
     headers: { Accept: "application/json" },
     signal,
   });
@@ -119,10 +120,22 @@ export async function switchRole(
   }));
 }
 
+export async function createPlayerPreview(csrfToken: string, signal: AbortSignal): Promise<string> {
+  const value = await requestJSON("POST /api/player-preview", "/api/player-preview", {
+    method: "POST", headers: { "X-Codex-CSRF": csrfToken }, signal,
+  });
+  if (!isRecord(value) || !hasOnlyKeys(value, new Set(["contractVersion", "token", "expiresAt"])) ||
+    value["contractVersion"] !== "player-preview.v1" || typeof value["token"] !== "string" ||
+    !sessionTokenPattern.test(value["token"]) || typeof value["expiresAt"] !== "string" || !validTimestamp(value["expiresAt"])) {
+    throw new BoundaryValidationError("POST /api/player-preview", "invalid preview session");
+  }
+  return value["token"];
+}
+
 async function requestJSON(boundary: string, input: string, init: RequestInit): Promise<unknown> {
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
-  const response = await fetch(input, {
+  const response = await sessionFetch(input, {
     ...init,
     credentials: "same-origin",
     headers,

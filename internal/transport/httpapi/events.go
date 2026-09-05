@@ -102,6 +102,11 @@ func (s *server) eventStream(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case event, open := <-subscription.Events:
+			if isPlayerPreview(r) {
+				if _, valid := s.authentication.InspectPlayerPreview(sessionToken(r)); !valid {
+					return
+				}
+			}
 			if !open {
 				return
 			}
@@ -114,6 +119,11 @@ func (s *server) eventStream(w http.ResponseWriter, r *http.Request) {
 			lastSent = event.Sequence
 			_ = controller.SetWriteDeadline(time.Now().Add(heartbeat + 10*time.Second))
 		case at := <-ticker.C:
+			if isPlayerPreview(r) {
+				if _, valid := s.authentication.InspectPlayerPreview(sessionToken(r)); !valid {
+					return
+				}
+			}
 			if _, err := fmt.Fprintf(w, ": heartbeat %d\n\n", at.UTC().Unix()); err != nil {
 				return
 			}

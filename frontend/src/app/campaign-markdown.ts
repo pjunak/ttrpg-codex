@@ -1,3 +1,4 @@
+import { previewResourceURL } from "../core/player-preview.js";
 import { html, nothing, type TemplateResult } from "lit";
 import { Marked, type Token, type Tokens } from "marked";
 import {
@@ -332,7 +333,7 @@ function renderInlineToken(token: Token, context: CampaignMarkdownContext): Mark
       const content = renderInlineTokens(link.tokens, context);
       if (safe === undefined) return html`<span class="markdown-link-rejected">${content}</span>`;
       return html`<a
-        href=${safe.href}
+        href=${previewResourceURL(safe.href)}
         title=${link.title ?? nothing}
         target=${safe.external ? "_blank" : nothing}
         rel=${safe.external ? "noopener noreferrer" : nothing}
@@ -343,7 +344,7 @@ function renderInlineToken(token: Token, context: CampaignMarkdownContext): Mark
       const safe = safeCampaignMarkdownLink(image.href);
       return safe === undefined || safe.href.startsWith("mailto:") || safe.href.startsWith("#/")
         ? html`<span class="markdown-image-rejected">${image.text}</span>`
-        : html`<img src=${safe.href} alt=${image.text} title=${image.title ?? nothing} loading="lazy" />`;
+        : html`<img src=${previewResourceURL(safe.href)} alt=${image.text} title=${image.title ?? nothing} loading="lazy" />`;
     }
     case "checkbox":
       return html`<input type="checkbox" disabled .checked=${(token as Tokens.Checkbox).checked} />`;

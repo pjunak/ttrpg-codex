@@ -1,3 +1,4 @@
+import { sessionFetch } from "./player-preview.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 
 const uploadBoundary = "POST /api/media/{kind}/{target}";
@@ -88,7 +89,7 @@ export class MediaHTTPError extends Error {
 export class MediaClient {
   readonly #fetchMedia: MediaFetch;
 
-  constructor(fetchMedia: MediaFetch = (input, init) => fetch(input, init)) {
+  constructor(fetchMedia: MediaFetch = (input, init) => sessionFetch(input, init)) {
     this.#fetchMedia = fetchMedia;
   }
 
