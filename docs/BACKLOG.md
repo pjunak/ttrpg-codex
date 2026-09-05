@@ -135,9 +135,16 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
   retaining worker self-exclusion. Installed ZIP checks cover planning preview,
   cancellation, exact single-use commit, atomic conflicts, DM-only access and
   generation replacement, plus lost commit responses and reviewed replacement
-  deletions. Remaining work includes the planner's broader editing
-  and visual parity, complete Import Center presentation/localization, and
-  acceptance with the other import providers.
+  deletions. Planner item details now expose objective, setup, resolution,
+  tags and event/branch types. View-local drafts preserve opening revisions
+  across selection, canvas navigation, other saves, failed writes and refresh;
+  removed-record edits remain available to copy. Installed checks cover these
+  fields, note/item draft independence, conflicts, lost write responses, failed
+  post-save reads and canceled drags, plus desktop/phone theme and overflow.
+  Remaining work includes original dialog/canvas controls, reparenting and flow
+  editing, complete core/external references and consequence/note targeting,
+  guards when leaving the planner, live invalidation, full visual parity and
+  localization, and Import Center presentation and other-provider acceptance.
 - [ ] Verify the compendium browser against the old day-to-day browsing and
   reference workflow, then restore any accepted source, linking, filtering, or
   detail behavior that is missing.
@@ -191,6 +198,16 @@ the engine's stale indirect text dependency was aligned with the current host
 SDK so its build and test gate can run again. Broader planner/import UI parity
 remains open. Shared isolated startup now sends ready
 before resize, removing a false failure diagnostic for healthy widgets.
+
+The September 5 planner editing batch uses the original brown/gold host tokens
+and title fonts, bounds the desktop inspector, and wraps the phone Atlas without
+page overflow. Card dimensions and native text rendering remain covered at DPR
+1 and 2. The rebuilt and inspected DM Tools ZIP passes real-host editing and
+recovery checks in `installed-planner-fixture.mjs`; the full host gate passes
+270 unit and 137 browser tests. This confirms the restored fields and draft
+behavior, not complete equivalence with the original planner's dialogs,
+navigation controls, or either real campaign. Keep the planner and visual
+release gates open.
 
 The visual reference is `origin/deprecated/pre-rewrite-2026-09-01` at
 `3aeeacfe7adec985693f8aeb239df58c177f3da8`, confirmed against the live

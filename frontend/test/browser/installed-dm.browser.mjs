@@ -12,6 +12,7 @@ import { chromium, request as playwrightRequest } from 'playwright';
 import { jsonResponse, installReviewedPackage } from './installed-graph-fixture.mjs';
 import { installDmPackage } from './installed-dm-fixture.mjs';
 import { importQuest, planningImport, replacementImportPackage } from './installed-import-fixture.mjs';
+import { exercisePlannerEditing } from './installed-planner-fixture.mjs';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const output = resolve(root, 'frontend/test-results/installed-dm');
@@ -226,6 +227,12 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('reviewed DM Tools dashboard preserves 
     assert.equal(await visitor.locator('.dm-tools-dashboard').count(), 0);
     assert.equal((await visitor.locator('.dm-panel').textContent()).includes('Hidden meeting'), false);
   }
+});
+
+if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner restores item fields and retains drafts through edits, conflicts and failed saves', async t => {
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), []);
+  t.after(() => disable('dm-tools'));
+  await exercisePlannerEditing({ t, open, admin, csrf, output });
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planning imports preview, cancel, commit atomically and reject stale reviews', async t => {
