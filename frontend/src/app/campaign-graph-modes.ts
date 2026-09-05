@@ -11,7 +11,7 @@ const firstQuestion = (value: Record<string, unknown>): string => {
   return text(isRecord(question) ? question["text"] : question);
 };
 const card = (kind: GraphNode["kind"], key: string, value: Record<string, unknown>, route: string, nodeColor: string): GraphNode => ({
-  kind, key: graphNodeKey(kind, key), legacyKey: kind === "faction" ? `hub_${key}` : key, name: text(value["name"]) || key,
+  kind, key: graphNodeKey(kind, key), recordKey: key, legacyKey: kind === "faction" ? `hub_${key}` : key, name: text(value["name"]) || key,
   route: `#/${route}/${encodeURIComponent(key)}`, color: nodeColor, faction: "", factionName: "", badge: "", status: "", statusLabel: "", statusIcon: "", statusColor: "",
   count: 0, commonTypes: "", search: graphSearch([text(value["name"]), text(value["description"]), text(value["priority"]), firstQuestion(value), ...stringList(value["tags"])].join(" ")),
 });
@@ -76,7 +76,9 @@ export function projectCampaignGraph(campaign: CampaignDataset, mode: GraphMode)
   return { nodes: [...hubs, ...nodes, ...usedLocations.values()], edges };
 }
 
-export function graphPreferenceKeys(mode: GraphMode) {
+export function graphPreferenceKeys(mode: GraphMode | `addon:${string}:${string}`) {
+  if (mode.startsWith("addon:")) return { positions: `cm_pos_v3_${mode}`, legacyPositions: `cm_pos_v3_${mode}`,
+    filters: `cm_vf_v3_${mode}`, factions: `cm_filter_v3_${mode}` };
   const suffix = mode === "factions" ? "frakce" : mode === "mysteries" ? "tajemstvi" : "vztahy";
   return { positions: mode === "relationships" ? `cm_pos_${suffix}` : `cm_pos_v2_${suffix}`, legacyPositions: `cm_pos_${suffix}`,
     filters: `cm_vf_${suffix}`, factions: `cm_filter_${suffix}` };

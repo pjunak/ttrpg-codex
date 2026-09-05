@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://junak.eu/ttrpg-codex/contracts/addons/v3/graph-model.schema.json",
+  "title": "Mind Palace graph model v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "nodes", "edges"],
+  "properties": {
+    "contractVersion": { "const": 1 },
+    "nodes": { "type": "array", "maxItems": 250, "items": { "$ref": "#/$defs/node" } },
+    "edges": { "type": "array", "maxItems": 500, "items": { "$ref": "#/$defs/edge" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "maxLength": 160, "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$" },
+    "text": { "type": "string", "pattern": "^[^\u0000-\b\u000b\f\u000e-\u001f]*$" },
+    "label": { "$ref": "#/$defs/text", "maxLength": 200, "pattern": "\\S" },
+    "color": { "type": "string", "pattern": "^#(?:[a-fA-F0-9]{3}|[a-fA-F0-9]{6}|[a-fA-F0-9]{8})$" },
+    "position": {
+      "type": "object", "additionalProperties": false, "required": ["x", "y"],
+      "properties": { "x": { "type": "number", "minimum": -10000000, "maximum": 10000000 }, "y": { "type": "number", "minimum": -10000000, "maximum": 10000000 } }
+    },
+    "endpoint": {
+      "type": "object", "additionalProperties": false, "minProperties": 1, "maxProperties": 1,
+      "properties": { "node": { "$ref": "#/$defs/id" }, "core": { "type": "string" } }
+    },
+    "node": {
+      "type": "object", "additionalProperties": false, "required": ["id", "label", "summary"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "label": { "$ref": "#/$defs/label" },
+        "summary": { "$ref": "#/$defs/text", "maxLength": 1000 },
+        "color": { "$ref": "#/$defs/color" }, "badge": { "$ref": "#/$defs/text", "maxLength": 32 },
+        "position": { "$ref": "#/$defs/position" },
+        "detail": { "type": "object", "additionalProperties": false, "required": ["route"], "properties": { "route": { "$ref": "#/$defs/id" } } }
+      }
+    },
+    "edge": {
+      "type": "object", "additionalProperties": false, "required": ["id", "source", "target", "type", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "source": { "$ref": "#/$defs/endpoint" }, "target": { "$ref": "#/$defs/endpoint" },
+        "type": { "$ref": "#/$defs/text", "maxLength": 100, "pattern": "\\S" },
+        "label": { "$ref": "#/$defs/text", "maxLength": 200 }, "color": { "$ref": "#/$defs/color" },
+        "style": { "enum": ["solid", "dashed", "dotted"] }
+      }
+    }
+  }
+}

@@ -220,8 +220,38 @@ registry or private host DOM.
 
 The current shell instantiates the generic outlet for the `slot` surface under
 Campaign tools and shows a direct empty state when that role has no panels.
-Routes, settings, article/editor locations, renderers, and graph surfaces will
-reuse the same registry but remain owned by their corresponding core features.
+Routes and record outlets use the same registry. Settings, editor locations,
+and custom renderers remain owned by their corresponding core features.
+
+## Mind Palace graph models
+
+`codex-campaign-graph` consumes role-visible `graph-view` and
+`graph-contributor` model providers through `campaign-addon-graph.ts`.
+The version-1 config, request, and bounded JSON response are documented in
+[the public graph provider contract](../../examples/addons/API_V3.md#mind-palace-graph-providers).
+Provider references contain only current role-visible core identities allowed
+by that generation's approved `core.data.read` resource grants. The registry
+carries an immutable grant snapshot for this host-owned projection; providers
+never receive the registry or campaign object.
+
+Each matching provider has a ten-second host deadline and an invocation signal
+combined with its generation signal. The canvas aborts on campaign refresh,
+binding changes, role changes, view changes, and detach, and ignores late
+results even if an integrated provider ignores cancellation. It validates the
+whole model before adding any nodes or edges. One failed model does not remove
+healthy models or core cards; a localized message supports explicit retry.
+Routes must be active in the same generation and role. Provider IDs are
+namespaced, and saved browser positions take precedence over model defaults.
+Asynchronous arrival fits the initial view but preserves explicit user zoom
+and movement. Ordinary refresh does not reset a viewed add-on layout.
+
+`installed-graph.browser.mjs` builds a disposable Go host and uploads real
+checksummed integrated/isolated fixture ZIPs through stage, review, approval,
+and activation. It verifies the production frontend on desktop and phone,
+role restrictions, local movement, detail routes, invalid models, cancellation,
+replacement, and disable. The first-party packages currently declare no graph
+providers. Their other workflows and real-campaign visual acceptance remain
+separate checks.
 
 ## Isolated frame bridge
 
@@ -305,7 +335,8 @@ usable even when a valid route intentionally has no sidebar declaration.
 
 - Add data, service, import, event, settings, navigation, graph, and log handles
   to the implemented capability-scoped SDK as their transports land.
-- Connect article, editor, settings, renderer, and graph surfaces to their
-  feature-owned registry outlets as those core features land.
+- Connect remaining editor, settings, and renderer surfaces to their
+  feature-owned registry outlets as those core features land. Graph node-kind
+  renderers, a general `context.graphs` facade, timeline contribution models,
+  and provider-driven graph invalidation remain unimplemented.
 - Surface activation and disposal diagnostics in the Add-on Inspector.
-- Add Playwright coverage once real contribution modules are wired.

@@ -89,6 +89,7 @@ export interface BrowserAddonContext {
 }
 
 export interface ActiveBrowserContribution {
+  readonly permissions?: readonly BrowserPermissionGrant[];
   readonly addonId: string;
   readonly generationId: string;
   readonly descriptor: BrowserContributionDescriptor;
@@ -378,6 +379,7 @@ class RegistrySession {
       throw new BrowserContributionBindingError(`contribution ${key} is owned by another generation`);
     }
     const active: RegisteredContribution = Object.freeze({
+      permissions: Object.freeze(this.#descriptor.permissions.map(grant => Object.freeze({ id: grant.id, resources: Object.freeze([...grant.resources]) }))),
       key,
       addonId: this.#descriptor.addonId,
       generationId: this.#descriptor.generationId,

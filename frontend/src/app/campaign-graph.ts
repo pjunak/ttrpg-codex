@@ -5,8 +5,9 @@ import { recordValue, stringList, text } from "./campaign-projection.js";
 
 export interface GraphPoint { readonly x: number; readonly y: number }
 export interface GraphNode {
-  readonly kind: "character" | "faction" | "location" | "mystery";
+  readonly kind: "character" | "faction" | "location" | "mystery" | "addon";
   readonly legacyKey: string;
+  readonly recordKey?: string;
   readonly key: string; readonly name: string; readonly route: string;
   readonly faction: string; readonly factionName: string; readonly badge: string; readonly color: string;
   readonly status: string; readonly statusLabel: string; readonly statusIcon: string; readonly statusColor: string;
@@ -15,6 +16,7 @@ export interface GraphNode {
   readonly hint?: string; readonly priority?: string; readonly priorityColor?: string; readonly glow?: string;
 }
 export interface GraphEdge {
+  readonly typeLabel?: string;
   readonly key: string; readonly source: string; readonly target: string; readonly type: string;
   readonly label: string; readonly color: string; readonly style: "solid" | "dashed" | "dotted"; readonly width: number;
 }

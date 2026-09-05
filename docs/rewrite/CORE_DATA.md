@@ -315,8 +315,12 @@ storage failure/retry, mode isolation, touch input with and without reduced
 motion, and anonymous Czech use of all preserved graph hashes. Motion cases
 also verify deferred saves, idle frame shutdown, complete cancellation,
 navigation during settling, live projection changes, cross-tab races, and
-runtime reduced-motion changes. These synthetic cases do not replace the open
-real-campaign and installed-add-on acceptance checks.
+runtime reduced-motion changes. `campaign-addon-graph.test.ts` verifies model
+validation, permission-filtered references, namespaced identities, bounded
+work, and cancellation. `installed-graph.browser.mjs` exercises integrated and
+isolated graph providers on a disposable Go host through the reviewed package
+lifecycle, including local movement, role restrictions, detail navigation,
+replacement, and disable. Real-campaign visual acceptance remains open.
 
 `settings/playerParty` owns the shared party name, icon, badge, color, and text
 color. Membership remains `character.faction === "party"`; settings never store

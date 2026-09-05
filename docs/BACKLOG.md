@@ -98,7 +98,8 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
   persistence and their former navigation/detail behavior.
   All three core modes now retain original cards, local position persistence,
   filters/focus, zoom, detail navigation, and elastic drag/collision movement.
-  Add-on graph contributions and real-campaign acceptance remain open.
+  Mind Palace model providers now pass installed-package checks. Timeline
+  contributions, custom graph surfaces, and real-campaign acceptance remain open.
 
 ### Administration and recovery
 
@@ -319,8 +320,18 @@ completed drops survive immediate navigation, and cross-tab changes cancel
 pending motion before applying the winning arrangement. Browser checks cover
 animated/reduced-motion touch, collision displacement, cancellation, live
 removal, mode isolation, failed saves/retry, and frame shutdown.
-Remaining graph work is installed add-on contributions and full real-campaign
-visual acceptance.
+Named add-on views and contributions to the three core Mind Palace modes now
+use bounded model providers and the same canvas/cards. Provider identities are
+namespaced, references require approved core read grants and current role
+visibility, and detail links require a same-generation active route. Local
+positions survive reload/replacement; navigation, role changes, campaign
+refresh, disposal, and replacement cancel outstanding models. Integrated and
+isolated fixture ZIPs pass the real upload/review/approve/activate lifecycle
+with desktop/phone browser checks, invalid-model isolation, replacement, and
+disable. No first-party package currently declares graph providers.
+Remaining graph work includes timeline contribution integration, custom
+node-kind/general graph facade decisions, provider-driven invalidation, and
+full real-campaign visual acceptance.
 The combined graph gate stays open.
 
 Still open elsewhere: collection grouping and filter controls,
@@ -339,7 +350,7 @@ here before marking it complete.
 |---|---|---|
 | 1 | Host editing and session behavior | Keep focused regression tests for implemented behavior. Check login, DM/player visibility, saving, and live refresh at first start; expand the full session/failure matrix after launch. |
 | 2 | Host maps and map settings | Implement map fields, immutable media preparation, coordinate editing, saved views, marker art, and path/glow rendering as one workflow; verify world and local maps plus role-filtered locations together. |
-| 3 | Host relationship views | Timeline and all three core graph modes, including elastic drag movement, are implemented. Verify real-campaign and installed contributions. |
+| 3 | Host relationship views | Timeline and all three core graph modes, including elastic drag movement and installed Mind Palace model providers, are implemented. Finish timeline contributions and review real campaigns. |
 | 4 | First-party add-on workflows | Compare compendium browse/source/link behavior, DM planner/import review, engine calculations, and sheet play state against preserved v1 fixtures. Exercise absent/replaced providers through actual installed ZIPs. |
 | 5 | Host administration and recovery | Complete branding, party/sidebar preferences, add-on inspection/approval/rollback, recovery points, and the accepted credential workflow; retain explicit operator review. |
 | 6 | Release acceptance | Review one fresh conversion per site, retain old data, and perform the short first-start smoke check. Outages, fixes after launch, and rollback are accepted; full rehearsal matrices can follow. |

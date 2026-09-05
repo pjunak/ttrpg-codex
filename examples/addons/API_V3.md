@@ -341,12 +341,70 @@ Initial surfaces cover existing suite needs:
 An override is modeled as a replaceable renderer/service contribution with an
 explicit selection policy, not unrestricted DOM replacement.
 
-Graph contributions exchange a versioned graph model containing serializable
-nodes, edges, labels, positions, and accessible summaries. `context.graphs`
-mounts that model through a host component and returns a disposable handle for
-selection, movement, update, and destroy operations. It does not expose the
-underlying graph library or its objects. Pure enum kinds are manifest data;
-runtime graph providers are bounded and generation scoped.
+### Mind Palace graph providers
+
+The implemented `graph-view` and `graph-contributor` surfaces bind
+`{ kind: "model-provider", provide(request, { signal }) }`. The host renders
+their models with the existing Mind Palace cards, filtering, zoom, keyboard
+controls, and browser-local movement. Add-ons do not receive graph-library
+objects or modify core nodes/edges. The broader `context.graphs` mounting
+facade and `graph-node-kind` custom renderers remain unimplemented; do not
+depend on those design excerpts for the current runtime.
+
+A named view declares exact config `{ "contractVersion": 1 }`. It appears as
+a role-visible tab at `#/graph/addons/<addon-id>/<contribution-id>`.
+A contributor declares exact config
+`{ "contractVersion": 1, "view": "relationships" }`; `factions` and `mysteries`
+are the other supported targets. Contributors to the timeline or to other
+add-on views are not yet supported.
+
+The request is `{ contractVersion: 1, viewId, coreNodes }`. For named views,
+`viewId` is `addon:<addon-id>:<contribution-id>` and `coreNodes` is empty.
+For core views, each reference is `{ id, kind, key }`: an opaque endpoint ID,
+the singular core kind, and the stored record key. References are limited to
+the current role projection AND the provider's approved `core.data.read`
+resources. No record bodies or unrelated nodes are included. At most 512
+references, with a combined JSON byte size of 24,000, are sent; missing
+references must be treated as unavailable, not inferred. Providers without
+core read grants can still contribute standalone cards.
+
+The response follows
+[`graph-model.schema.json`](../../contracts/addons/v3/graph-model.schema.json):
+
+```json
+{
+  "contractVersion": 1,
+  "nodes": [{
+    "id": "clue", "label": "Northern road", "summary": "Follow the old tracks.",
+    "color": "#987442", "position": { "x": 300, "y": 0 },
+    "detail": { "route": "notes.route" }
+  }],
+  "edges": []
+}
+```
+
+Node IDs and edge IDs are unique within their respective response arrays.
+Edges require `id`, `source`, `target`, `type` (filter label), and `label`;
+optional `color` and `style` choose hex colors and solid/dashed/dotted lines.
+An endpoint is exactly `{ "node": "clue" }` for a node in the same model or
+`{ "core": "<id from request>" }`. Unknown endpoints reject the whole response.
+The host namespaces node IDs, edge IDs, and edge types by add-on and
+contribution, retaining identity across generation replacement. Optional
+`detail.route` must name an active, role-visible route in the same generation.
+Arbitrary URLs, HTML, styles, callbacks, and cross-provider endpoints are not
+accepted. `summary` is plain text and supplies both the card description and
+accessible label. Cards without a detail route remain keyboard-selectable.
+
+Each JSON response is limited to 48,000 UTF-8 bytes, 250 nodes, and 500 edges.
+The host invokes at most eight matching providers in registry order; excess,
+invalid, failed, and timed-out providers get a visible failure with Retry.
+Healthy providers and the core graph remain usable. Providers must observe
+the invocation signal and finish within ten seconds. Navigation, campaign
+refresh, role changes, disposal, and generation replacement cancel outstanding
+work; late results cannot restore stale content. Models are re-requested when
+the campaign or contribution registry changes. There is no provider-driven
+invalidation API yet. Default positions apply only to unsaved nodes; the host
+never writes node movement to campaign or add-on records.
 
 ### Data handles
 

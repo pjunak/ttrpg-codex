@@ -5,8 +5,11 @@ import { emptyGraphFilter, graphEdgeGeometry, graphEdgeOffsets, graphNodeStates,
   parseGraphFilter, parseGraphPositions, stepGraphZoom, validCoordinate, wrapGraphLabel,
   type CampaignGraph, type GraphBox, type GraphFilter, type GraphNode, type GraphPoint } from "./campaign-graph.js";
 import { UiLocalizationController } from "./ui-localization.js";
-import { graphModes, graphPreferenceKeys, migrateGraphPositions, projectCampaignGraph, type GraphMode } from "./campaign-graph-modes.js";
+import { graphModes, graphPreferenceKeys, migrateGraphPositions, projectCampaignGraph } from "./campaign-graph-modes.js";
 import { GraphMotion } from "./campaign-graph-motion.js";
+import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
+import type { BrowserRole } from "../addons/generation-manager.js";
+import { addonGraphHash, addonGraphId, graphProviders, graphViews, isCoreGraph, loadAddonGraphs, type GraphSelection } from "./campaign-addon-graph.js";
 
 interface Gesture {
   readonly pointer: number; readonly key: string | undefined; readonly origin: GraphPoint;
@@ -17,9 +20,18 @@ export class CodexCampaignGraph extends LitElement {
     campaign: { attribute: false }, mode: { attribute: false }, positions: { state: true }, pan: { state: true }, zoom: { state: true },
     filters: { state: true }, hiddenFactions: { state: true }, query: { state: true }, focusId: { state: true },
     contextMenu: { state: true }, storageError: { state: true }, storageChanged: { state: true },
+    registry: { attribute: false }, actorRole: { attribute: false }, addonRevision: { state: true },
+    addonLoading: { state: true }, addonFailures: { state: true },
   };
   declare campaign: CampaignDataset | undefined;
-  declare mode: GraphMode;
+  declare mode: GraphSelection;
+  declare registry: BrowserContributionRegistry | undefined;
+  declare actorRole: BrowserRole | undefined;
+  declare private addonRevision: number;
+  declare private addonLoading: boolean;
+  declare private addonFailures: readonly string[];
+  #unsubscribe: (() => void) | undefined;
+  #addonRequest: AbortController | undefined;
   declare private positions: ReadonlyMap<string, GraphPoint>;
   declare private pan: GraphPoint;
   declare private zoom: number;
@@ -36,7 +48,7 @@ export class CodexCampaignGraph extends LitElement {
   #observer: ResizeObserver | undefined;
   #gesture: Gesture | undefined;
   #motion: GraphMotion | undefined;
-  #motionMode: GraphMode = "relationships";
+  #motionMode: GraphSelection = "relationships";
   #motionFrame: number | undefined;
   #motionTime: number | undefined;
   #motionAccumulator = 0;
@@ -44,6 +56,7 @@ export class CodexCampaignGraph extends LitElement {
   #suppressClickUntil = 0;
   #wheelDelta = 0;
   #fitPasses = 3;
+  #fitAddonsOnArrival = true;
   #fitCap = .8;
   #viewportSize: GraphPoint | undefined;
   #windowSize = "";
@@ -55,10 +68,12 @@ export class CodexCampaignGraph extends LitElement {
     super(); this.campaign = undefined; this.mode = "relationships"; this.positions = new Map(); this.pan = { x: 0, y: 0 }; this.zoom = 1;
     this.filters = emptyGraphFilter(); this.hiddenFactions = new Set(); this.query = ""; this.focusId = undefined;
     this.contextMenu = undefined; this.storageError = false; this.storageChanged = false;
+    this.registry = undefined; this.actorRole = undefined; this.addonRevision = 0; this.addonLoading = false; this.addonFailures = [];
   }
   protected override createRenderRoot() { return this; }
   override connectedCallback(): void {
     super.connectedCallback();
+    this.#subscribeAddons(); this.addonRevision++;
     window.addEventListener("storage", this.#onStorage); window.addEventListener("blur", this.#onBlur);
     window.addEventListener("pagehide", this.#onBlur); document.addEventListener("visibilitychange", this.#onVisibility);
     this.#reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -68,6 +83,7 @@ export class CodexCampaignGraph extends LitElement {
     void document.fonts.ready.then(() => { if (this.isConnected) { this.#labelLayouts.clear(); this.requestUpdate(); } });
   }
   override disconnectedCallback(): void {
+    this.#addonRequest?.abort(); this.#unsubscribe?.(); this.#unsubscribe = undefined;
     this.#interruptMotion(); this.#observer?.disconnect(); this.#observer = undefined;
     window.removeEventListener("storage", this.#onStorage); window.removeEventListener("blur", this.#onBlur);
     window.removeEventListener("pagehide", this.#onBlur); document.removeEventListener("visibilitychange", this.#onVisibility);
@@ -75,11 +91,14 @@ export class CodexCampaignGraph extends LitElement {
     document.removeEventListener("pointerdown", this.#dismissMenu); super.disconnectedCallback();
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    if (changed.has("campaign") || changed.has("mode")) {
+    if (changed.has("registry")) this.#subscribeAddons();
+    if (changed.has("campaign") || changed.has("mode") || changed.has("registry") || changed.has("actorRole") || changed.has("addonRevision")) {
+      this.#addonRequest?.abort();
       this.#interruptMotion();
-      this.#graph = this.campaign === undefined ? { nodes: [], edges: [] } : projectCampaignGraph(this.campaign, this.mode);
+      this.#graph = this.campaign === undefined || !isCoreGraph(this.mode) ? { nodes: [], edges: [] } : projectCampaignGraph(this.campaign, this.mode);
       this.#nodeByKey = new Map(this.#graph.nodes.map(node => [node.key, node]));
       if (changed.has("mode")) {
+        this.#fitAddonsOnArrival = true;
         this.#sizes.clear(); this.#wheelDelta = 0; this.#suppressClickUntil = 0;
         this.focusId = undefined; this.contextMenu = undefined; this.query = ""; this.storageError = false; this.storageChanged = false;
         this.#readPreferences(); this.#scheduleFit(.8);
@@ -87,8 +106,36 @@ export class CodexCampaignGraph extends LitElement {
       this.positions = initialGraphPositions(this.#graph, this.positions);
       if (!this.#graph.nodes.some(node => node.key === this.focusId)) this.focusId = undefined;
       if (!this.#graph.nodes.some(node => node.key === this.contextMenu?.key)) this.contextMenu = undefined;
+      this.#loadAddons();
     }
     if (changed.has("hiddenFactions")) this.#interruptMotion();
+  }
+  #subscribeAddons(): void {
+    this.#unsubscribe?.(); this.#unsubscribe = undefined;
+    if (this.isConnected) this.#unsubscribe = this.registry?.subscribe(() => {
+      // Invalidate synchronously; a provider may finish before Lit's next update.
+      this.#addonRequest?.abort(); this.addonRevision++;
+    });
+  }
+  #loadAddons(): void {
+    this.addonFailures = []; this.addonLoading = false;
+    if (!this.isConnected) return;
+    const providers = graphProviders(this.registry, this.actorRole, this.mode);
+    if (!providers.length) return;
+    const request = new AbortController(); this.#addonRequest = request;
+    const base = this.#graph, mode = this.mode, campaign = this.campaign, role = this.actorRole, registry = this.registry;
+    this.addonLoading = true;
+    void loadAddonGraphs(providers, base, mode, role ? registry?.list("route", role) ?? [] : [], request.signal).then(results => {
+      if (request.signal.aborted || !this.isConnected || this.mode !== mode || this.campaign !== campaign || this.actorRole !== role || this.registry !== registry) return;
+      this.#interruptMotion(); this.addonLoading = false;
+      this.addonFailures = results.filter(result => !result.model).map(result => result.active.descriptor.label);
+      const models = results.flatMap(result => result.model ? [result.model] : []);
+      this.#graph = { nodes: [...base.nodes, ...models.flatMap(model => model.graph.nodes)], edges: [...base.edges, ...models.flatMap(model => model.graph.edges)] };
+      this.#nodeByKey = new Map(this.#graph.nodes.map(node => [node.key, node]));
+      this.positions = initialGraphPositions(this.#graph, new Map([...models.flatMap(model => [...model.positions]), ...this.positions]));
+      if (models.length && this.#fitAddonsOnArrival) { this.#fitAddonsOnArrival = false; this.#scheduleFit(.8); }
+      this.requestUpdate();
+    });
   }
   protected override updated(): void {
     if (!this.isConnected) return;
@@ -117,7 +164,8 @@ export class CodexCampaignGraph extends LitElement {
     const filter = this.query.trim() ? { ...this.filters, values: [...this.filters.values, this.query.trim()] } : this.filters;
     const states = graphNodeStates(this.#graph, filter, this.hiddenFactions, this.focusId);
     const visible = this.#graph.nodes.filter(node => !states.get(node.key)?.hidden);
-    const types = new Map(this.#graph.edges.map(edge => [edge.type, { label: edge.type, color: edge.color }]));
+    const types = new Map(this.#graph.edges.map(edge => [edge.type, { label: edge.typeLabel ?? edge.type, color: edge.color }]));
+    const views = graphViews(this.registry, this.actorRole), activeView = views.find(view => addonGraphId(view) === this.mode);
     // Custom labels belong to individual edges; the shared definition names the toggle.
     const definitions = this.campaign?.collections.find(collection => collection.name === "settings")?.records.find(record => record.key === "relationshipTypes")?.value;
     if (Array.isArray(definitions)) for (const definition of definitions) if (definition && typeof definition === "object" && "id" in definition && "label" in definition && typeof definition.id === "string" && typeof definition.label === "string") {
@@ -136,6 +184,8 @@ export class CodexCampaignGraph extends LitElement {
         <h1 class="map-title">☁ ${this.#ui.t("graph.title")}</h1>
         ${graphModes.map(mode => html`<a class=${`map-mode-btn${this.mode === mode ? " active" : ""}`} href=${`#/graph/${mode}`}
           aria-current=${this.mode === mode ? "page" : nothing}>${this.#ui.t(`graph.${mode}`)}</a>`)}
+        ${views.map(view => html`<a class=${`map-mode-btn${this.mode === addonGraphId(view) ? " active" : ""}`} href=${addonGraphHash(addonGraphId(view))}
+          aria-current=${this.mode === addonGraphId(view) ? "page" : nothing}>${view.descriptor.label}</a>`)}
         <span class="map-hint">${this.#ui.t("graph.hint")}</span>
         <span class="cm-view-actions">
           <span class="cm-canvas-purpose">◉ ${this.#ui.t("graph.readOnly")}</span>
@@ -170,8 +220,12 @@ export class CodexCampaignGraph extends LitElement {
       </div>
       ${this.storageError ? html`<p class="cm-message" role="alert">${this.#ui.t("graph.storageFailed")} <button @click=${this.#savePreferences}>${this.#ui.t("graph.retry")}</button></p>` : nothing}
       ${this.storageChanged ? html`<p class="cm-message" role="status">${this.#ui.t("graph.storageChanged")}</p>` : nothing}
+      ${this.addonLoading ? html`<p class="cm-message" role="status">${this.#ui.t("graph.addonLoading")}</p>` : nothing}
+      ${this.addonFailures.length ? html`<p class="cm-message" role="alert">${this.#ui.t("graph.addonFailed", { names: this.addonFailures.join(", ") })}
+        <button @click=${() => { this.addonRevision++; }}>${this.#ui.t("graph.retry")}</button></p>` : nothing}
+      ${!isCoreGraph(this.mode) && !activeView ? html`<p class="cm-message" role="status">${this.#ui.t("graph.addonUnavailable")}</p>` : nothing}
       <p id="cm-keyboard-help" class="visually-hidden">${this.#ui.t("graph.keyboardHelp")}</p>
-      <div class="cm-viewport" tabindex="0" role="region" aria-label=${this.#ui.t(this.mode === "relationships" ? "graph.canvas" : this.mode === "factions" ? "graph.factionCanvas" : "graph.mysteryCanvas")} aria-describedby="cm-keyboard-help"
+      <div class="cm-viewport" tabindex="0" role="region" aria-label=${isCoreGraph(this.mode) ? this.#ui.t(this.mode === "relationships" ? "graph.canvas" : this.mode === "factions" ? "graph.factionCanvas" : "graph.mysteryCanvas") : activeView?.descriptor.label ?? this.#ui.t("graph.title")} aria-describedby="cm-keyboard-help"
         style=${`--cm-z:${this.zoom};--cm-type-z:${typeScale}`} data-cm-detail=${detail}
         data-motion=${this.#motion ? this.#gesture ? "dragging" : "settling" : "idle"}
         @pointerdown=${this.#pointerDown} @pointermove=${this.#pointerMove} @pointerup=${this.#pointerUp}
@@ -186,11 +240,12 @@ export class CodexCampaignGraph extends LitElement {
         ${this.#renderEdges(states, typeScale)}
         ${repeat(visible, node => node.key, node => {
           const box = this.#box(node.key), state = states.get(node.key)!;
-          return html`<a class="cm-node" data-key=${node.key} data-kind=${node.kind} href=${node.route} draggable="false" aria-label=${node.name} aria-describedby="cm-keyboard-help"
+          return html`<a class="cm-node" data-key=${node.key} data-kind=${node.kind} href=${node.route || nothing} role=${node.route ? nothing : "button"} tabindex="0"
+            draggable="false" aria-label=${node.kind === "addon" ? `${node.name}. ${node.hint}` : node.name} aria-describedby="cm-keyboard-help"
             style=${`left:${Math.round(box.x - box.width / 2)}px;top:${Math.round(box.y - box.height / 2)}px;--cc:${node.color};--cw:${node.kind === "faction" ? 210 : 168}px`}
             @click=${(event: MouseEvent) => this.#nodeClick(event, node)} @contextmenu=${(event: MouseEvent) => this.#openMenu(event, node.key)}>
             <div class=${`cm-cloud${node.kind === "faction" ? " cm-faction-hub" : ` cm-${node.kind}`}${node.status === "dead" ? " cm-dead" : ""}${state.dim ? " cm-vfilter-dim" : ""}${this.focusId === node.key ? " cm-highlighted" : ""}`}>
-              <div class="cm-strip">${node.kind === "character" ? `${node.badge} ${node.factionName}` : node.kind === "faction" ? `${node.badge} ${this.#ui.t("graph.factionStrip")}` : node.kind === "location" ? `📍 ${this.#ui.t("graph.placeStrip")}` : `❓ ${this.#ui.t("graph.mysteryStrip")}`}</div>
+              <div class="cm-strip">${node.kind === "addon" ? `${node.badge} ${node.title}` : node.kind === "character" ? `${node.badge} ${node.factionName}` : node.kind === "faction" ? `${node.badge} ${this.#ui.t("graph.factionStrip")}` : node.kind === "location" ? `📍 ${this.#ui.t("graph.placeStrip")}` : `❓ ${this.#ui.t("graph.mysteryStrip")}`}</div>
               <div class="cm-name">${node.status === "dead" ? "💀 " : ""}${node.name}</div>
               <div class="cm-divider"></div>${this.#renderFacts(node)}
             </div>
@@ -208,12 +263,13 @@ export class CodexCampaignGraph extends LitElement {
       </div></details>
       ${this.contextMenu === undefined ? nothing : html`<div class="cm-ctx-menu" role="menu" style=${`left:${this.contextMenu.x}px;top:${this.contextMenu.y}px`}
         @keydown=${this.#menuKeyDown}>
-        <a class="cm-ctx-item" role="menuitem" href=${this.#graph.nodes.find(node => node.key === this.contextMenu?.key)?.route ?? "#"}>↗ ${this.#ui.t("graph.openDetail")}</a>
+        ${!this.#nodeByKey.get(this.contextMenu.key)?.route ? nothing : html`<a class="cm-ctx-item" role="menuitem" href=${this.#nodeByKey.get(this.contextMenu.key)!.route}>↗ ${this.#ui.t("graph.openDetail")}</a>`}
         <button class="cm-ctx-item" role="menuitem" @click=${() => { this.focusId = this.contextMenu?.key; this.#setFilters({ ...this.filters, focusMode: true }); this.#closeMenu(true); }}>🎯 ${this.#ui.t("graph.focusNeighborhood")}</button>
       </div>`}
     </section>`;
   }
   #renderFacts(node: GraphNode) {
+    if (node.kind === "addon") return html`<div class="cm-fact cm-hint">${node.hint}</div>`;
     if (node.kind === "location") return nothing;
     if (node.kind === "faction") return html`<div class="cm-fact">${this.#ui.plural("graph.memberCount", node.count)}</div>`;
     if (node.kind === "mystery") return html`<div class="cm-fact cm-fact-priority" style=${`color:${node.priorityColor}`}>⚑ ${node.priority || this.#ui.t("graph.priorityMedium")}</div>
@@ -283,7 +339,7 @@ export class CodexCampaignGraph extends LitElement {
     this.pan = { x: viewport.clientWidth / 2 - (left + right) / 2 * this.zoom, y: viewport.clientHeight / 2 - (top + bottom) / 2 * this.zoom };
   }
   #setZoom(next: number, anchor?: GraphPoint): void {
-    this.#interruptMotion(); this.#fitPasses = 0;
+    this.#interruptMotion(); this.#fitPasses = 0; this.#fitAddonsOnArrival = false;
     const viewport = this.querySelector<HTMLElement>(".cm-viewport"); if (!viewport) return;
     const center = anchor ?? { x: viewport.clientWidth / 2, y: viewport.clientHeight / 2 };
     this.pan = { x: center.x - (center.x - this.pan.x) * next / this.zoom, y: center.y - (center.y - this.pan.y) * next / this.zoom }; this.zoom = next;
@@ -299,6 +355,7 @@ export class CodexCampaignGraph extends LitElement {
   };
   readonly #pointerDown = (event: PointerEvent): void => {
     if (event.button !== 0 || this.#gesture) return;
+    this.#fitAddonsOnArrival = false;
     this.#finishMotion();
     const node = (event.target as Element).closest<HTMLElement>(".cm-node"), capture = node ?? event.currentTarget as HTMLElement;
     const key = node?.dataset["key"], before = key === undefined ? this.pan : this.positions.get(key);
@@ -342,15 +399,17 @@ export class CodexCampaignGraph extends LitElement {
   }
   #nodeClick(event: MouseEvent, node: GraphNode): void {
     if (Date.now() < this.#suppressClickUntil) { event.preventDefault(); return; }
+    if (!node.route) { event.preventDefault(); this.focusId = node.key; return; }
     if (this.filters.focusMode && !event.ctrlKey && !event.metaKey) { event.preventDefault(); this.focusId = node.key; }
   }
   readonly #keyDown = (event: KeyboardEvent): void => {
     if (event.key === "Escape") { this.#cancelGesture(); this.#cancelMotion(); this.focusId = undefined; this.#closeMenu(true); return; }
     const node = (event.target as Element).closest<HTMLElement>(".cm-node"), key = node?.dataset["key"];
+    if (key && !this.#nodeByKey.get(key)?.route && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); this.focusId = key; return; }
     if ((event.key === "ContextMenu" || event.shiftKey && event.key === "F10") && key && node) { event.preventDefault(); const rect = node.getBoundingClientRect(); this.#showMenu(key, rect.left, rect.bottom); return; }
     const direction: Readonly<Record<string, GraphPoint>> = { ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 }, ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 } };
     const delta = direction[event.key]; if (!delta || event.ctrlKey || event.metaKey || event.altKey) return;
-    event.preventDefault(); this.#interruptMotion(); this.#fitPasses = 0; const step = event.shiftKey ? 20 : 5;
+    event.preventDefault(); this.#interruptMotion(); this.#fitPasses = 0; this.#fitAddonsOnArrival = false; const step = event.shiftKey ? 20 : 5;
     if (key) { const point = this.positions.get(key)!; this.#moveNode(key, { x: point.x + delta.x * step, y: point.y + delta.y * step }); this.#savePreferences(); }
     else this.pan = { x: this.pan.x - delta.x * 30, y: this.pan.y - delta.y * 30 };
   };
@@ -388,7 +447,7 @@ export class CodexCampaignGraph extends LitElement {
   readonly #savePreferences = (): void => {
     this.#persistPreferences(this.mode);
   };
-  #persistPreferences(mode: GraphMode): void {
+  #persistPreferences(mode: GraphSelection): void {
     const keys = graphPreferenceKeys(mode);
     try {
       localStorage.setItem(keys.positions, JSON.stringify(Object.fromEntries(this.positions)));

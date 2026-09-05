@@ -1,6 +1,6 @@
 import type { CampaignCollectionName } from "../core/campaign-data.js";
 import { isBrowserAddonRouteHash } from "../addons/navigation.js";
-import type { GraphMode } from "./campaign-graph-modes.js";
+import { parseAddonGraphHash, type GraphSelection } from "./campaign-addon-graph.js";
 
 export interface CampaignPageDefinition {
   readonly id: string;
@@ -28,7 +28,7 @@ export type AppRoute =
   | { readonly kind: "search" }
   | { readonly kind: "party" }
   | { readonly kind: "timeline" }
-  | { readonly kind: "campaign-graph"; readonly mode: GraphMode }
+  | { readonly kind: "campaign-graph"; readonly mode: GraphSelection }
   | { readonly kind: "map"; readonly parentId: string | null;
       readonly event?: { readonly key: string; readonly mode: "show" | "place" };
       readonly location?: { readonly key: string; readonly mode: "show" | "place" } }
@@ -40,6 +40,8 @@ export type AppRoute =
   | { readonly kind: "not-found"; readonly path: string };
 
 export function parseAppRoute(hash: string): AppRoute {
+  const addonGraph = parseAddonGraphHash(hash);
+  if (addonGraph) return { kind: "campaign-graph", mode: addonGraph };
   if (["#/graph/relationships", "#/mapa/vztahy"].includes(hash)) return { kind: "campaign-graph", mode: "relationships" };
   if (["#/graph/factions", "#/mapa/palac", "#/mapa/frakce"].includes(hash)) return { kind: "campaign-graph", mode: "factions" };
   if (["#/graph/mysteries", "#/mapa/tajemstvi"].includes(hash)) return { kind: "campaign-graph", mode: "mysteries" };

@@ -750,7 +750,8 @@ export class CodexApp extends LitElement {
     const campaign = this.campaignState.campaign;
     switch (this.route.kind) {
       case "campaign-graph":
-        return html`<codex-campaign-graph .campaign=${campaign} .mode=${this.route.mode}></codex-campaign-graph>`;
+        return html`<codex-campaign-graph .campaign=${campaign} .mode=${this.route.mode}
+          .registry=${this.#addons?.contributions} .actorRole=${this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined}></codex-campaign-graph>`;
       case "timeline":
         return html`<codex-timeline .campaign=${campaign} .canEdit=${this.#canEdit()} .saving=${this.busy}
           .editCompletion=${this.editCompletion} .errorMessage=${this.errorMessage}

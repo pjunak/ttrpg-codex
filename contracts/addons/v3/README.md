@@ -1,9 +1,9 @@
 # Add-on Platform v3 contracts
 
-This directory contains the machine-readable foundation for the target add-on
+This directory contains the machine-readable foundation for the add-on
 platform described in [`examples/addons/API_V3.md`](../../../examples/addons/API_V3.md).
-It is a design contract on `rewrite/go-typescript`; the current Node.js host
-does not load it yet.
+The Go host validates package and worker contracts; feature-owned browser
+boundaries validate browser models.
 
 ## Files
 
@@ -13,6 +13,8 @@ does not load it yet.
   frame decoding.
 - `service-document.schema.json` validates the method catalog referenced by a
   provided service declaration.
+- `graph-model.schema.json` describes Mind Palace provider responses. The
+  browser also checks total bytes, unique IDs, references, and active routes.
 - `examples/reference-addon.json` exercises the main manifest features.
 - `examples/import-adapter.service.json` shows a package-owned service
   document.
@@ -25,8 +27,8 @@ be self-contained; integrated modules may use additional immutable files from
 the same generation's `web/` subtree.
 
 All schemas use JSON Schema Draft 2020-12. They are source artifacts, not
-generated copies. Go and TypeScript types will be generated from reviewed
-boundary schemas once the rewrite toolchain is established.
+generated copies. Runtime validation and public schema changes must stay
+synchronized; a schema alone does not enforce ownership or authorization.
 
 ## Validation layers
 
