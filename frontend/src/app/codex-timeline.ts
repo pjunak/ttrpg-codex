@@ -6,14 +6,25 @@ import { timelineColumns, timelineDraft, timelineRecords, timelineSessions, next
   sameTimelineOrder, type TimelineColumn, type TimelineDraft } from "./campaign-timeline.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
+import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
+import type { BrowserRole } from "../addons/generation-manager.js";
+import { isTimelineSlot, type TimelineSlot } from "./timeline-contributions.js";
+import "./codex-timeline-slot.js";
 
 export class CodexTimeline extends LitElement {
   static override properties = {
     campaign: { attribute: false }, canEdit: { type: Boolean }, saving: { type: Boolean }, editCompletion: { type: Number },
     errorMessage: { type: String }, editing: { state: true }, draft: { state: true }, expanded: { state: true },
     dragging: { state: true }, dropTarget: { state: true }, scrollMax: { state: true }, scrollPosition: { state: true },
+    registry: { attribute: false }, actorRole: { attribute: false }, addonRevision: { state: true },
   };
   declare campaign: CampaignDataset | undefined;
+  declare registry: BrowserContributionRegistry | undefined;
+  declare actorRole: BrowserRole | undefined;
+  declare private addonRevision: number;
+  #unsubscribe: (() => void) | undefined;
+  #slots = new Set<unknown>();
+  #liveEventKeys = new Set<string>();
   declare canEdit: boolean;
   declare saving: boolean;
   declare editCompletion: number;
@@ -37,14 +48,19 @@ export class CodexTimeline extends LitElement {
     super(); this.campaign = undefined; this.canEdit = false; this.saving = false; this.editCompletion = 0;
     this.errorMessage = ""; this.editing = false; this.draft = undefined; this.expanded = [];
     this.dragging = undefined; this.dropTarget = undefined; this.scrollMax = 0; this.scrollPosition = 0;
+    this.registry = undefined; this.actorRole = undefined; this.addonRevision = 0;
   }
   protected override createRenderRoot() { return this; }
-  override disconnectedCallback(): void { this.#resize?.disconnect(); this.#setDirty(false); super.disconnectedCallback(); }
+  override connectedCallback(): void { super.connectedCallback(); this.#subscribe(); this.addonRevision++; }
+  override disconnectedCallback(): void { this.#resize?.disconnect(); this.#resize = undefined; this.#unsubscribe?.(); this.#unsubscribe = undefined; this.#setDirty(false); super.disconnectedCallback(); }
+  #subscribe(): void { this.#unsubscribe?.(); this.#unsubscribe = this.isConnected ? this.registry?.subscribe(() => { this.addonRevision++; }) : undefined; }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
+    if (changed.has("registry")) this.#subscribe();
     if (changed.has("editCompletion") || changed.has("canEdit") && !this.canEdit) this.#clearDraft();
     if (!this.canEdit) this.editing = false;
   }
   protected override updated(): void {
+    if (!this.isConnected) return;
     const viewport = this.querySelector<HTMLElement>(".tl-board-viewport");
     if (viewport === null) return;
     if (this.#resize === undefined) {
@@ -61,6 +77,8 @@ export class CodexTimeline extends LitElement {
     const characters = new Map(campaignCollection(campaign, "characters").records.map(record => [record.key, recordValue(record)]));
     const locations = new Map(campaignCollection(campaign, "locations").records.map(record => [record.key, recordValue(record)]));
     const factions = new Map(campaignCollection(campaign, "factions").records.map(record => [record.key, recordValue(record)]));
+    this.#liveEventKeys = new Set(this.campaign ? campaignCollection(this.campaign, "events").records.map(record => record.key) : []);
+    this.#slots = new Set(this.actorRole ? this.registry?.list("slot", this.actorRole).filter(active => isTimelineSlot(active)).map(active => active.descriptor.config["slot"]) : []);
     return html`<section class=${`tl-shell${this.editing ? " is-editing" : ""}`} aria-label=${this.#ui.t("timeline.title")}>
       <header class="tl-toolbar">
         <h1 class="tl-title">⏳ ${this.#ui.t("timeline.title")}</h1>
@@ -71,6 +89,7 @@ export class CodexTimeline extends LitElement {
         ${this.canEdit ? html`<button class="tl-add-btn" aria-pressed=${this.editing} ?disabled=${this.saving} @click=${this.#toggleEditing}>
           ✎ ${this.#ui.t(this.editing ? "timeline.done" : "timeline.edit")}</button>` : nothing}
         ${this.editing ? html`<a class="tl-add-btn" href="#/timeline/new/1">＋ ${this.#ui.t("timeline.newEvent")}</a>` : nothing}
+        ${this.#slot("timeline:toolbar", null, [])}
       </header>
       ${this.errorMessage === "" ? nothing : html`<p class="tl-message" role="alert">${this.errorMessage}</p>`}
       <div class="tl-board-viewport" @scroll=${this.#syncScroll} @wheel=${{ handleEvent: this.#wheel, passive: false }}>
@@ -86,6 +105,7 @@ export class CodexTimeline extends LitElement {
                 ${this.#ui.t(phantom ? "timeline.newSession" : "timeline.session", { n: sitting })}</button>
               <span class="tl-col-count">${ids.length || ""}</span>
             </div>
+            ${this.#slot("timeline:column:header", sitting, ids.flatMap(key => records.get(key) ?? []))}
             <div class="tl-col-body">
               ${ids.length > 0 || phantom ? nothing : html`<p class="tl-col-empty">${this.#ui.t(this.editing ? "timeline.emptyEditing" : "timeline.empty")}</p>`}
               ${repeat(ids, key => key, (key, index) => {
@@ -107,6 +127,7 @@ export class CodexTimeline extends LitElement {
                         ${locIDs.length === 0 ? nothing : html`<div class="tl-card-loc">📍 ${locIDs.map(id => text(locations.get(id)?.["name"]) || id).join(" → ")}</div>`}
                       </div>
                     </a>
+                    ${this.#slot("timeline:card:extra", sitting, [record])}
                     ${this.editing ? html`<div class="tl-card-actions">
                       <button aria-label=${this.#ui.t("timeline.up", { name })} ?disabled=${this.saving || index === 0} @click=${() => this.#move(key, sitting, index - 1)}>↑</button>
                       <button aria-label=${this.#ui.t("timeline.down", { name })} ?disabled=${this.saving || index === ids.length - 1} @click=${() => this.#move(key, sitting, index + 1)}>↓</button>
@@ -120,6 +141,7 @@ export class CodexTimeline extends LitElement {
               })}
               ${this.#indicator(sitting, ids.filter(key => key !== this.dragging).length)}
             </div>
+            ${this.#slot("timeline:column:footer", sitting, ids.flatMap(key => records.get(key) ?? []))}
             ${this.editing ? html`<a class="tl-col-add" href=${`#/timeline/new/${sitting}`}>＋ ${this.#ui.t("timeline.newEvent")}</a>` : nothing}
           </section>`;
         })}</div>
@@ -127,6 +149,13 @@ export class CodexTimeline extends LitElement {
       <input class="tl-hscroll" type="range" min="0" max=${this.scrollMax} .value=${String(this.scrollPosition)} ?hidden=${this.scrollMax <= 0}
         aria-label=${this.#ui.t("timeline.scroll")} @input=${(event: Event) => { const viewport = this.querySelector(".tl-board-viewport"); if (viewport) viewport.scrollLeft = Number((event.target as HTMLInputElement).value); }} />
     </section>`;
+  }
+  #slot(slot: TimelineSlot, sitting: number | null, records: readonly CampaignRecord[]) {
+    if (!this.#slots.has(slot)) return nothing;
+    return html`<codex-timeline-slot data-timeline-slot=${slot} .registry=${this.registry} .actorRole=${this.actorRole}
+      .context=${{ slot, sitting, editing: this.editing, events: records.filter(record => this.#liveEventKeys.has(record.key)).map(({ key, revision }) => ({ key, revision })) }}
+      @dragstart=${(event: DragEvent) => { event.stopPropagation(); event.preventDefault(); }}
+      @keydown=${(event: KeyboardEvent) => event.stopPropagation()}></codex-timeline-slot>`;
   }
   #indicator(sitting: number, index: number) { return this.dropTarget?.sitting === sitting && this.dropTarget.index === index ? html`<div class="tl-drop-indicator"></div>` : nothing; }
   #move(key: string, sitting: number, index: number): void {
@@ -143,7 +172,7 @@ export class CodexTimeline extends LitElement {
     event.dataTransfer.setData("text/plain", record.key); event.dataTransfer.effectAllowed = "move";
   }
   #insertionIndex(event: DragEvent): number {
-    const cards = [...(event.currentTarget as Element).querySelectorAll<HTMLElement>(".tl-card")].filter(card => card.dataset["key"] !== this.dragging);
+    const cards = [...(event.currentTarget as Element).querySelectorAll<HTMLElement>(":scope > .tl-col-body > .tl-card")].filter(card => card.dataset["key"] !== this.dragging);
     const index = cards.findIndex(card => event.clientY < card.getBoundingClientRect().top + card.getBoundingClientRect().height / 2);
     return index < 0 ? cards.length : index;
   }

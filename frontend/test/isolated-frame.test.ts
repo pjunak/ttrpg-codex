@@ -35,6 +35,22 @@ import type {
 const generationId = "a".repeat(64);
 
 describe("IsolatedFrameBridge", () => {
+  it("delivers bounded instance context after readiness and stops updates on disposal", () => {
+    const descriptor = frameDescriptor(slotContribution());
+    const sdk = new BrowserContributionRegistry().open(descriptor, new GenerationScope("context@test"));
+    const port = new FakePort(), onResize = vi.fn();
+    const bridge = new IsolatedFrameBridge({ port, context: sdk.context, contribution: descriptor.contributions[0]!, onResize });
+    bridge.updateHostContext({ sitting: 1 }); bridge.updateHostContext({ sitting: 2 });
+    expect(port.sent).toEqual([]);
+    port.receive({ protocol: isolatedFrameProtocol, type: "ready", contributionId: descriptor.contributions[0]!.id });
+    expect(port.sent).toEqual([{ protocol: isolatedFrameProtocol, type: "context", host: { sitting: 2 } }]);
+    bridge.updateHostContext({ sitting: 3 });
+    expect(port.sent.at(-1)).toMatchObject({ host: { sitting: 3 } });
+    expect(() => bridge.updateHostContext({ text: "x".repeat(70_000) })).toThrow();
+    port.receive({ protocol: isolatedFrameProtocol, type: "resize", height: 32 }); expect(onResize).toHaveBeenCalledWith(32);
+    bridge.close(); const count = port.sent.length;
+    bridge.updateHostContext({ sitting: 4 }); expect(port.sent).toHaveLength(count);
+  });
   it("proxies generation-scoped service handles without exposing browser credentials", async () => {
     const descriptor = frameDescriptor(slotContribution());
     const call = vi.fn(async (

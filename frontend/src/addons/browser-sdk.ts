@@ -30,7 +30,12 @@ export interface BrowserModelProviderBinding {
 /** Host-only binding used to mount one sandboxed document into a visual outlet. */
 export interface BrowserIsolatedFrameBinding {
   readonly kind: "isolated-frame";
-  readonly mount: (host: HTMLElement) => Disposer;
+  readonly mount: (host: HTMLElement, hostContext?: unknown) => Disposer | BrowserIsolatedMount;
+}
+
+export interface BrowserIsolatedMount {
+  dispose(): void;
+  updateHostContext(value: unknown): void;
 }
 
 /** Host-only marker for a manifest contribution that contains no executable binding. */

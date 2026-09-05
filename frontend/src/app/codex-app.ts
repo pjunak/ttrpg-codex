@@ -495,7 +495,7 @@ export class CodexApp extends LitElement {
         registry: composition.contributions,
         surface: "slot",
         role: auth.role,
-        include: () => this.route.kind === "dashboard",
+        include: active => this.route.kind === "dashboard" && active.descriptor.config["slot"] === undefined,
         onError,
         onCountChange: (count) => { if (owner === this.#addonOwner) this.contributionCount = count; },
       });
@@ -754,6 +754,7 @@ export class CodexApp extends LitElement {
           .registry=${this.#addons?.contributions} .actorRole=${this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined}></codex-campaign-graph>`;
       case "timeline":
         return html`<codex-timeline .campaign=${campaign} .canEdit=${this.#canEdit()} .saving=${this.busy}
+          .registry=${this.#addons?.contributions} .actorRole=${this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined}
           .editCompletion=${this.editCompletion} .errorMessage=${this.errorMessage}
           @campaign-edit-dirty=${this.#onEditDirty} @campaign-timeline-save=${this.#saveTimeline}
           @campaign-timeline-reset=${() => { this.errorMessage = ""; }}></codex-timeline>`;

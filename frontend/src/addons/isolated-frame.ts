@@ -36,6 +36,7 @@ export interface IsolatedFrameMountOptions {
   readonly descriptor: BrowserGenerationDescriptor;
   readonly contribution: BrowserContributionDescriptor;
   readonly context: BrowserAddonContext;
+  readonly hostContext?: unknown;
   readonly onDiagnostic?: (cause: unknown) => void;
   readonly onUnavailable?: () => void;
   readonly fetchAsset?: typeof fetch;
@@ -48,6 +49,7 @@ export interface IsolatedRuntimeBridge {
 
 export interface IsolatedFrameRuntime {
   readonly bridge: IsolatedRuntimeBridge;
+  updateHostContext?(value: unknown): void;
   dispose(): void;
 }
 
@@ -132,18 +134,22 @@ export function createIsolatedFrameActivator(
       let registration: { dispose(): void } | undefined;
       registration = sdk.bindIsolated(contribution.id, {
         kind: "isolated-frame",
-        mount: (host) => createRuntime({
+        mount: (host, hostContext) => {
+          const runtime = createRuntime({
           document,
           host,
           descriptor,
           contribution,
           context: sdk.context,
+          hostContext,
           onDiagnostic,
           onUnavailable: () => {
             unavailable = true;
             registration?.dispose();
           },
-        }).dispose,
+          });
+          return { dispose: () => runtime.dispose(), updateHostContext: (value: unknown) => runtime.updateHostContext?.(value) };
+        },
       });
       if (unavailable) {
         registration.dispose();
@@ -160,6 +166,7 @@ export function mountIsolatedFrame(options: IsolatedFrameMountOptions): Disposer
 export function createIsolatedFrameRuntime(
   options: IsolatedFrameMountOptions,
 ): IsolatedFrameRuntime {
+  let hostContext: unknown = options.hostContext ?? null;
   options.context.signal.throwIfAborted();
   const frame = options.document.createElement("iframe");
   frame.className = "codex-isolated-addon-frame";
@@ -223,7 +230,7 @@ export function createIsolatedFrameRuntime(
       if (!loaded.ok) {
         throw loaded.cause;
       }
-      connectedBridge.activate(activationMessage(options, loaded.value));
+      connectedBridge.activate(activationMessage({ ...options, hostContext }, loaded.value));
     } catch (cause: unknown) {
       if (!disposed && !options.context.signal.aborted) {
         options.onDiagnostic?.(cause);
@@ -287,7 +294,11 @@ export function createIsolatedFrameRuntime(
       return connected.invoke(request, signal);
     },
   });
-  return Object.freeze({ bridge: runtimeBridge, dispose });
+  return Object.freeze({ bridge: runtimeBridge, dispose, updateHostContext: (value: unknown) => {
+    if (disposed) return;
+    hostContext = value;
+    bridge?.updateHostContext(value);
+  } });
 }
 
 export function isolatedSandboxTokens(
@@ -315,6 +326,7 @@ function activationMessage(
     type: "activate",
     addon: options.context.addon,
     contribution: options.contribution,
+    hostContext: options.hostContext ?? null,
     declarations: [options.contribution],
     capabilities: [...options.descriptor.capabilities],
     permissions: options.descriptor.permissions.map((permission) => ({

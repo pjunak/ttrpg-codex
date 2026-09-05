@@ -128,6 +128,7 @@ export class IsolatedFrameBridge {
   #invocationSequence = 0;
   #serviceSequence = 0;
   #ready = false;
+  #hostContext: unknown;
   #closed = false;
 
   constructor(options: IsolatedFrameBridgeOptions) {
@@ -199,6 +200,15 @@ export class IsolatedFrameBridge {
     return signal === undefined
       ? this.#readyPromise
       : waitForSignal(this.#readyPromise, signal);
+  }
+
+  updateHostContext(value: unknown): void {
+    assertJSONValue(value, "outlet context");
+    const message = { protocol: isolatedFrameProtocol, type: "context", host: value };
+    assertBoundedMessage(message, maximumMessageBytes);
+    if (this.#closed || this.#context.signal.aborted) return;
+    this.#hostContext = value;
+    if (this.#ready) this.#send(message);
   }
 
   async invoke(request: unknown, signal: AbortSignal): Promise<unknown> {
@@ -350,6 +360,7 @@ export class IsolatedFrameBridge {
       throw new BoundaryValidationError(boundary, "ready message has an invalid shape");
     }
     this.#ready = true;
+    if (this.#hostContext !== undefined) this.updateHostContext(this.#hostContext);
     globalThis.clearTimeout(this.#readyTimer);
     this.#resolveReady();
   }
@@ -357,7 +368,7 @@ export class IsolatedFrameBridge {
   #acceptResize(value: Readonly<Record<string, unknown>>): void {
     const height = value["height"];
     if (!hasOnlyKeys(value, resizeKeys) || typeof height !== "number" ||
-      !Number.isSafeInteger(height) || height < 120 || height > 2_400) {
+      !Number.isSafeInteger(height) || height < 1 || height > 2_400) {
       throw new BoundaryValidationError(boundary, "resize message has an invalid height");
     }
     this.#onResize(height);

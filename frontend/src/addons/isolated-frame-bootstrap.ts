@@ -71,6 +71,11 @@ export const isolatedFrameBootstrap = String.raw`
   }
 
   async function activate(data, port) {
+    const freezeJSON = value => {
+      if (value && typeof value === "object") { for (const item of Object.values(value)) freezeJSON(item); Object.freeze(value); }
+      return value;
+    };
+    let hostContext = freezeJSON(data.hostContext ?? null);
     const controller = new AbortController();
     const capabilitySet = new Set(data.capabilities);
     const permissionMap = new Map(data.permissions.map((grant) => [grant.id, [...grant.resources]]));
@@ -79,6 +84,14 @@ export const isolatedFrameBootstrap = String.raw`
     const invocations = new Map();
     const sdkRequests = new Map();
     const root = document.getElementById("codex-addon-root");
+    const compact = hostContext && hostContext.contractVersion === "timeline-context.v1";
+    if (compact) {
+      document.documentElement.style.colorScheme = "dark";
+      document.documentElement.style.backgroundColor = "transparent";
+      document.body.style.margin = "0";
+      document.body.style.backgroundColor = "transparent";
+      root.style.display = "flow-root";
+    }
     let moduleDisposable;
     let observer;
     let revoked = false;
@@ -287,7 +300,7 @@ export const isolatedFrameBootstrap = String.raw`
             addon: data.addon,
             contribution: declaration,
             signal: controller.signal,
-            host: null,
+            host: hostContext,
           });
           root.replaceChildren(element);
         }
@@ -304,7 +317,7 @@ export const isolatedFrameBootstrap = String.raw`
             }
           },
         });
-        handles.set(contributionId, { binding, handle });
+        handles.set(contributionId, { binding, handle, element });
         return handle;
       },
     });
@@ -387,6 +400,15 @@ export const isolatedFrameBootstrap = String.raw`
       if (typeof message !== "object" || message === null || message.protocol !== protocol) {
         return;
       }
+      if (message.type === "context" && !revoked && Object.keys(message).length === 3) {
+        try {
+          requireJSON(message.host);
+          if (new TextEncoder().encode(JSON.stringify(message)).length > 64 * 1024) throw new Error("Outlet context exceeds its byte limit.");
+          hostContext = freezeJSON(message.host);
+          for (const { element } of handles.values()) if (element) element.codexContribution = Object.freeze({ ...element.codexContribution, host: hostContext });
+        } catch (cause) { report(cause); }
+        return;
+      }
       if (message.type === "revoke") {
         void revoke(typeof message.reason === "string" ? message.reason : "authority-changed");
       } else if (message.type === "cancel" && typeof message.id === "string") {
@@ -445,11 +467,12 @@ export const isolatedFrameBootstrap = String.raw`
       }
       if (handles.get(data.contribution.id).binding.kind === "element") {
         const resize = () => {
-          const height = Math.max(120, Math.min(2400, Math.ceil(document.documentElement.scrollHeight)));
+          const measured = compact ? Math.max(root.scrollHeight, root.getBoundingClientRect().height) : document.documentElement.scrollHeight;
+          const height = Math.max(compact ? 1 : 120, Math.min(2400, Math.ceil(measured)));
           post({ type: "resize", height });
         };
         observer = new ResizeObserver(resize);
-        observer.observe(document.documentElement);
+        observer.observe(compact ? root : document.documentElement);
         resize();
       }
       post({ type: "ready", contributionId: data.contribution.id });

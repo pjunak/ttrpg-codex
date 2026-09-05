@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { crc32 } from 'node:zlib';
 
 // Small deterministic stored ZIPs exercise the real inspector without a package build dependency.
-function zip(files) {
+export function zip(files) {
   const local = [], central = []; let offset = 0;
   for (const [path, source] of Object.entries(files)) {
     const name = Buffer.from(path), body = Buffer.from(source), checksum = crc32(body);
@@ -61,14 +61,18 @@ export async function jsonResponse(response) {
 }
 
 export async function installGraphPackage(request, csrf, options) {
+  return installReviewedPackage(request, csrf, options.id, graphPackage(options), [{ id: 'core.data.read', resources: ['characters'], reason: 'Link clues to visible characters.' }]);
+}
+
+export async function installReviewedPackage(request, csrf, id, archive, permissions) {
   const headers = { 'X-Codex-CSRF': csrf };
   const staged = await jsonResponse(await request.post('/api/admin/addons/generations', {
-    headers: { ...headers, 'Content-Type': 'application/zip' }, data: graphPackage(options),
+    headers: { ...headers, 'Content-Type': 'application/zip' }, data: archive,
   }));
-  const review = await jsonResponse(await request.post(`/api/admin/addons/${options.id}/activation-reviews`, { headers, data: { generationId: staged.generationId } }));
+  const review = await jsonResponse(await request.post(`/api/admin/addons/${id}/activation-reviews`, { headers, data: { generationId: staged.generationId } }));
   assert.deepEqual(review.proposal.blockers, []);
-  assert.deepEqual(review.proposal.targetManifest.permissions, [{ id: 'core.data.read', resources: ['characters'], reason: 'Link clues to visible characters.' }]);
-  const approved = await jsonResponse(await request.post(`/api/admin/addon-activation-reviews/${review.reviewId}/approval`, { headers, data: { grantedPermissionIds: ['core.data.read'] } }));
+  assert.deepEqual(review.proposal.targetManifest.permissions, permissions);
+  const approved = await jsonResponse(await request.post(`/api/admin/addon-activation-reviews/${review.reviewId}/approval`, { headers, data: { grantedPermissionIds: permissions.map(permission => permission.id) } }));
   assert.equal(approved.proposalSha256, review.proposalSha256);
   return jsonResponse(await request.post(`/api/admin/addon-activation-reviews/${review.reviewId}/activation`, { headers }));
 }

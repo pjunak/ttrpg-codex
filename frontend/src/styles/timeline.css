@@ -23,6 +23,14 @@
 }
 
 /* Toolbar */
+codex-timeline-slot { display: block; min-height: 1px; }
+.tl-shell codex-timeline-slot .addon-contribution { margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.tl-shell codex-timeline-slot .addon-isolated-frame { min-height: 0; background: transparent; }
+.tl-shell codex-timeline-slot iframe { display: block; width: 100%; height: 1px; border: 0; background: transparent; }
+.tl-toolbar codex-timeline-slot { flex: 0 1 16rem; max-width: 100%; }
+.tl-card codex-timeline-slot { padding: .2rem .75rem; }
+.tl-col > codex-timeline-slot { padding: .2rem .5rem; }
+
 .tl-toolbar {
   display: flex;
   align-items: center;

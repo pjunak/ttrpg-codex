@@ -178,6 +178,16 @@ class FakeDocument {
 }
 
 class FakeElement {
+  parentNode: FakeElement | null = null;
+  insertBefore(node: FakeElement, before: FakeElement | null): void {
+    node.remove();
+    const index = before === null ? this.children.length : this.children.indexOf(before);
+    this.children.splice(index, 0, node); node.parentNode = this;
+  }
+  remove(): void {
+    if (this.parentNode) this.parentNode.children = this.parentNode.children.filter(node => node !== this);
+    this.parentNode = null;
+  }
   readonly dataset: Record<string, string> = {};
   readonly attributes = new Map<string, string>();
   children: FakeElement[] = [];

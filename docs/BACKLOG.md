@@ -98,8 +98,8 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
   persistence and their former navigation/detail behavior.
   All three core modes now retain original cards, local position persistence,
   filters/focus, zoom, detail navigation, and elastic drag/collision movement.
-  Mind Palace model providers now pass installed-package checks. Timeline
-  contributions, custom graph surfaces, and real-campaign acceptance remain open.
+  Mind Palace model providers and additive timeline slots now pass installed-
+  package checks. Custom graph surfaces and real-campaign acceptance remain open.
 
 ### Administration and recovery
 
@@ -329,9 +329,22 @@ refresh, disposal, and replacement cancel outstanding models. Integrated and
 isolated fixture ZIPs pass the real upload/review/approve/activate lifecycle
 with desktop/phone browser checks, invalid-model isolation, replacement, and
 disable. No first-party package currently declares graph providers.
-Remaining graph work includes timeline contribution integration, custom
-node-kind/general graph facade decisions, provider-driven invalidation, and
-full real-campaign visual acceptance.
+The preserved app routes its timeline through the session board, whose actual
+extension points are toolbar, column-header/footer, and card-extra slots. The
+old cloud-map timeline builder is not reached by those app routes; graph-model
+injection into the session board is not a missing day-to-day workflow.
+The four additive timeline slots are now restored with compact integrated and
+isolated elements. Widget context includes bounded, approved event references,
+intersected with the latest role projection even when an order draft is kept.
+Widgets retain state during refreshes and scrolling; core dragging and order
+transactions remain separate. Real installed-package checks cover both UI
+modes, desktop/phone, role/read grants, replacement, disable, and unsaved drafts.
+The generic outlet now preserves connected instances during ordinary refresh;
+the three existing visual add-ons pass their gates and host ZIP inspection.
+DM Tools also needed its indirect `x/text` requirement aligned with the host SDK
+before its Go gate and package build could pass.
+Remaining graph work includes custom node-kind/general graph facade decisions,
+provider-driven invalidation, and full real-campaign visual acceptance.
 The combined graph gate stays open.
 
 Still open elsewhere: collection grouping and filter controls,
@@ -350,7 +363,7 @@ here before marking it complete.
 |---|---|---|
 | 1 | Host editing and session behavior | Keep focused regression tests for implemented behavior. Check login, DM/player visibility, saving, and live refresh at first start; expand the full session/failure matrix after launch. |
 | 2 | Host maps and map settings | Implement map fields, immutable media preparation, coordinate editing, saved views, marker art, and path/glow rendering as one workflow; verify world and local maps plus role-filtered locations together. |
-| 3 | Host relationship views | Timeline and all three core graph modes, including elastic drag movement and installed Mind Palace model providers, are implemented. Finish timeline contributions and review real campaigns. |
+| 3 | Host relationship views | Timeline and all three core graph modes, including elastic drag movement, installed Mind Palace model providers, and additive timeline slots, are implemented. Review custom graph surfaces and real campaigns. |
 | 4 | First-party add-on workflows | Compare compendium browse/source/link behavior, DM planner/import review, engine calculations, and sheet play state against preserved v1 fixtures. Exercise absent/replaced providers through actual installed ZIPs. |
 | 5 | Host administration and recovery | Complete branding, party/sidebar preferences, add-on inspection/approval/rollback, recovery points, and the accepted credential workflow; retain explicit operator review. |
 | 6 | Release acceptance | Review one fresh conversion per site, retain old data, and perform the short first-start smoke check. Outages, fixes after launch, and rollback are accepted; full rehearsal matrices can follow. |
@@ -394,7 +407,7 @@ acceptance still need to be expanded as follow-up documentation.
 | `/mapa/svet`, `/mapa/local/:id` | `/map/world`, `/map/local/:id`; old map hashes also accepted | Real-host acceptance with each campaign's maps |
 | `/mapa/vztahy` | `/graph/relationships`; old hash and browser position/filter keys accepted | Campaign/add-on visual acceptance |
 | `/mapa/palac`, `/mapa/frakce`, `/mapa/tajemstvi` | `/graph/factions`, `/graph/mysteries`; old hashes and unambiguous browser positions accepted | Campaign/add-on visual acceptance |
-| `/casova-osa`, `/mapa/casova-osa` | `/timeline`; old hashes accepted, session creation and atomic order editing restored | Real-campaign visual review and add-on contribution acceptance |
+| `/casova-osa`, `/mapa/casova-osa` | `/timeline`; old hashes accepted, session creation, atomic order editing and four additive slots restored | Real-campaign visual review |
 | `/dm` and player-preview action | Session role switch exists; dedicated DM dashboard and tab-isolated preview remain open | Preserve the distinction between session role switching and true preview |
 | `/nastaveni`: six enum categories | `/settings` enum panels | Full localization and real-host save/delete/conflict coverage |
 | Settings: `language`, `appearance` | Personal language, shared theme and branding/logo panels | Remaining catalogs, tokens, and campaign visual acceptance |

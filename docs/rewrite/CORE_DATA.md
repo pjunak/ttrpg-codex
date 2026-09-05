@@ -225,9 +225,12 @@ timeline messages use the English/Czech catalogs. Preparation tests live in
 `frontend/test/campaign-timeline.test.ts`; production browser scenarios in
 `frontend/test/browser/timeline.browser.mjs` cover desktop/phone layout, native
 drag, keyboard moves, reload, empty and DM-twin views, creation/edit/deletion,
-anonymous access, live conflicts, failed saves, and navigation guards. Add-on
-timeline contributions and real-campaign visual acceptance remain part of the
-open suite-wide acceptance gates; the public Add-on API is unchanged.
+anonymous access, live conflicts, failed saves, and navigation guards.
+The four additive timeline slots now mount integrated and isolated elements
+with bounded, permission-filtered event identities. `installed-timeline.browser.mjs`
+uses real reviewed ZIPs and a disposable Go host to verify the original board,
+widget state across refreshes, role/read grants, replacement and disable, and
+protection of core order drafts. Real-campaign visual acceptance remains open.
 
 Mind Palace has faction, relationship, and mystery modes at `#/graph/factions`,
 `#/graph/relationships`, and `#/graph/mysteries`. The preserved `#/mapa/palac`

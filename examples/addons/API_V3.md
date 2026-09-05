@@ -341,6 +341,58 @@ Initial surfaces cover existing suite needs:
 An override is modeled as a replaceable renderer/service contribution with an
 explicit selection policy, not unrestricted DOM replacement.
 
+### Timeline slots
+
+Timeline extensions use the `slot` surface with exact config:
+
+```json
+{ "contractVersion": 1, "slot": "timeline:card:extra" }
+```
+
+Supported names are `timeline:toolbar`, `timeline:column:header`,
+`timeline:column:footer`, and `timeline:card:extra`. Bind a custom element in
+the usual way. The host mounts these additive slots in the existing session
+board, outside event links and core editing controls. Named timeline slots do
+not also appear in the dashboard's Campaign tools outlet. Core card replacement
+and arbitrary fragment/DOM overrides are not part of this contract.
+
+Both integrated and isolated elements receive frozen
+`codexContribution.host` values with this shape:
+
+```ts
+interface TimelineContributionHostContext {
+  readonly contractVersion: "timeline-context.v1";
+  readonly slot: "timeline:toolbar" | "timeline:column:header"
+    | "timeline:column:footer" | "timeline:card:extra";
+  readonly editing: boolean;
+  readonly sitting: number | null;
+  readonly events: readonly { readonly key: string; readonly revision: number }[];
+  readonly truncated: boolean;
+}
+```
+
+Toolbar context has `sitting: null` and no event references. Column and card
+contexts identify their displayed session and events; a card has at most one
+reference. References require an approved `core.data.read` grant for `events`
+and must still exist in the latest role projection, even while the user keeps
+an older order draft. The revision identifies the displayed record snapshot;
+`editing` and `sitting` describe the current UI, including unsaved ordering.
+They do not grant write authority or confirm that a draft has been saved.
+Record bodies, hidden references, credentials, and host DOM are never passed.
+The host limits each context to 256 references and 24,000 JSON bytes for the
+references, setting `truncated` when this bound omits references.
+
+The host reassigns the context property on changes. Use an accessor or reactive
+property to observe it, preserving the user's in-progress widget state.
+Ordinary refresh retains the mounted element/frame. Unopened columns and cards
+start their widgets when first visible; started widgets remain mounted until
+their slot is removed, navigated away from, or its role/generation changes.
+Clean up component resources on disconnection as well as generation disposal.
+Add-on controls cannot initiate core event dragging or enter the core order
+transaction. Author narrow widgets that fit the board's design. Isolated
+timeline widgets use transparent dark surfaces and content-based heights
+bounded to 1–2,400 CSS pixels; overflowing content needs its own scrolling.
+
 ### Mind Palace graph providers
 
 The implemented `graph-view` and `graph-contributor` surfaces bind
@@ -355,8 +407,8 @@ A named view declares exact config `{ "contractVersion": 1 }`. It appears as
 a role-visible tab at `#/graph/addons/<addon-id>/<contribution-id>`.
 A contributor declares exact config
 `{ "contractVersion": 1, "view": "relationships" }`; `factions` and `mysteries`
-are the other supported targets. Contributors to the timeline or to other
-add-on views are not yet supported.
+are the other supported targets. Timeline extensions use the slot contract
+above. Graph contributors to other add-on views are not yet supported.
 
 The request is `{ contractVersion: 1, viewId, coreNodes }`. For named views,
 `viewId` is `addon:<addon-id>:<contribution-id>` and `coreNodes` is empty.

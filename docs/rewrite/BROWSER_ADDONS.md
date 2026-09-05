@@ -223,6 +223,39 @@ Campaign tools and shows a direct empty state when that role has no panels.
 Routes and record outlets use the same registry. Settings, editor locations,
 and custom renderers remain owned by their corresponding core features.
 
+## Timeline contribution outlets
+
+The timeline restores its four additive toolbar, column-header/footer, and
+card-extra slots through compact `BrowserContributionOutlet` instances.
+`timeline-contributions.ts` owns slot recognition and bounded event-reference
+projection; `codex-timeline-slot` lazily starts an outlet when first visible.
+Started widgets remain connected through ordinary refresh, scrolling, and
+context updates. They leave with the slot, role, or generation. Core event
+ordering and unsaved drafts remain owned by `codex-timeline`.
+
+The public [timeline context contract](../../examples/addons/API_V3.md#timeline-slots)
+contains display metadata and permission-filtered event identities, never
+record bodies. References are intersected with the latest role projection
+even when an unsaved draft retains an older displayed snapshot. Named slots
+are excluded from the dashboard outlet. Add-on controls live outside event
+anchors and cannot start core dragging or enter its order transaction.
+
+Generic outlets reconcile children by identity, preserving unchanged custom
+elements and frames instead of detaching them during every refresh. Isolated
+mounts optionally accept a host context and an update handle. This is opt-in at
+the owning feature: the timeline enables it, while unrelated isolated outlets
+retain their existing null context. Updates are bounded JSON messages on the
+existing private port; a pending update keeps only the latest value until the
+frame is ready, and disposal prevents further delivery. Timeline frames measure
+their content root, allowing compact layouts to shrink as well as grow, with
+heights bounded to 1–2,400 pixels and transparent dark backgrounds.
+
+`installed-timeline.browser.mjs` exercises actual reviewed integrated and
+isolated ZIPs on a disposable Go host: all four slots, desktop/phone layout,
+form-state retention, context updates, role/read grants, generation replacement,
+disable, and unsaved order drafts. `timeline-contributions.test.ts` and the
+outlet/bridge unit suites cover recognition, projection bounds, and delivery.
+
 ## Mind Palace graph models
 
 `codex-campaign-graph` consumes role-visible `graph-view` and
@@ -282,7 +315,7 @@ imports or network assets.
 Each mounted visual contribution owns one transferred `MessagePort` using
 `codex.browser-addon/1`. The initial document receives its private port before
 asset loading completes, so a replacement document cannot inherit the module
-bundle. Exact, bounded messages cover activation, ready, resize, diagnostic,
+bundle. Exact, bounded messages cover activation, ready, instance-context updates, resize, diagnostic,
 revoke, and the current read-only SDK queries. The host accepts no
 global-window commands after connection, limits reported height, revokes a
 frame that misses its handshake deadline, and closes the port on outlet,
@@ -337,6 +370,6 @@ usable even when a valid route intentionally has no sidebar declaration.
   to the implemented capability-scoped SDK as their transports land.
 - Connect remaining editor, settings, and renderer surfaces to their
   feature-owned registry outlets as those core features land. Graph node-kind
-  renderers, a general `context.graphs` facade, timeline contribution models,
+  renderers, a general `context.graphs` facade,
   and provider-driven graph invalidation remain unimplemented.
 - Surface activation and disposal diagnostics in the Add-on Inspector.
