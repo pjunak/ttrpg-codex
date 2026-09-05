@@ -65,12 +65,14 @@ type getRequest struct {
 }
 
 type queryRequest struct {
-	ContractVersion string            `json:"contractVersion"`
-	Kind            datacontract.Kind `json:"kind"`
-	DataID          string            `json:"dataId"`
-	Cursor          string            `json:"cursor,omitempty"`
-	Limit           int               `json:"limit"`
-	Where           []queryCondition  `json:"where"`
+	ContractVersion      string            `json:"contractVersion"`
+	Kind                 datacontract.Kind `json:"kind"`
+	DataID               string            `json:"dataId"`
+	Cursor               string            `json:"cursor,omitempty"`
+	IncludeDataRevision  bool              `json:"includeDataRevision,omitempty"`
+	ExpectedDataRevision *int64            `json:"expectedDataRevision,omitempty"`
+	Limit                int               `json:"limit"`
+	Where                []queryCondition  `json:"where"`
 }
 
 type queryCondition struct {
@@ -79,8 +81,13 @@ type queryCondition struct {
 }
 
 type transactionRequest struct {
-	ContractVersion string            `json:"contractVersion"`
-	Mutations       []mutationRequest `json:"mutations"`
+	ContractVersion  string `json:"contractVersion"`
+	ExpectedDataSets []struct {
+		Kind     datacontract.Kind `json:"kind"`
+		DataID   string            `json:"dataId"`
+		Revision *int64            `json:"revision"`
+	} `json:"expectedDataSets,omitempty"`
+	Mutations []mutationRequest `json:"mutations"`
 }
 
 type mutationRequest struct {
@@ -100,6 +107,7 @@ type documentResponse struct {
 }
 
 type queryResponse struct {
+	DataRevision    *int64             `json:"dataRevision,omitempty"`
 	ContractVersion string             `json:"contractVersion"`
 	Documents       []documentResponse `json:"documents"`
 	NextCursor      string             `json:"nextCursor,omitempty"`
@@ -194,7 +202,7 @@ func dataQueryMethod(data Data) workerbroker.Method {
 			if err != nil || request.ContractVersion != dataQueryVersion ||
 				!validReference(request.Kind, request.DataID) || request.Limit < 1 ||
 				request.Limit > addondata.MaximumQueryDocuments ||
-				len(request.Where) > addondata.MaximumQueryConditions {
+				len(request.Where) > addondata.MaximumQueryConditions || (request.ExpectedDataRevision != nil && *request.ExpectedDataRevision < 0) {
 				return errors.New("invalid host/data.query request")
 			}
 			if _, err := decodeCursor(request.Cursor); err != nil {
@@ -226,13 +234,14 @@ func dataQueryMethod(data Data) workerbroker.Method {
 			result, err := data.Query(ctx, addondata.Query{
 				Access: dataAccess(invocation), DataKind: request.Kind, DataID: request.DataID,
 				AfterPosition: after, Limit: request.Limit, Where: conditions,
+				IncludeDataRevision: request.IncludeDataRevision, ExpectedDataRevision: request.ExpectedDataRevision,
 			})
 			if err != nil {
 				return nil, dataError(err)
 			}
 			response := queryResponse{
-				ContractVersion: dataQueryResultVersion,
-				Documents:       make([]documentResponse, 0, len(result.Documents)),
+				ContractVersion: dataQueryResultVersion, DataRevision: result.DataRevision,
+				Documents: make([]documentResponse, 0, len(result.Documents)),
 			}
 			for _, document := range result.Documents {
 				response.Documents = append(response.Documents, wireDocument("", document))
@@ -253,6 +262,20 @@ func dataTransactionMethod(data Data) workerbroker.Method {
 			if err != nil || request.ContractVersion != dataTransactionVersion ||
 				len(request.Mutations) < 1 || len(request.Mutations) > addondatastore.MaximumOperations {
 				return errors.New("invalid host/data.transact request")
+			}
+			if len(request.ExpectedDataSets) > addondatastore.MaximumOperations {
+				return errors.New("too many data set guards")
+			}
+			seen := make(map[string]struct{}, len(request.ExpectedDataSets))
+			for _, guard := range request.ExpectedDataSets {
+				if !validReference(guard.Kind, guard.DataID) || guard.Revision == nil || *guard.Revision < 0 {
+					return errors.New("invalid data set guard")
+				}
+				identity := string(guard.Kind) + "\x00" + guard.DataID
+				if _, duplicate := seen[identity]; duplicate {
+					return errors.New("duplicate data set guard")
+				}
+				seen[identity] = struct{}{}
 			}
 			for _, mutation := range request.Mutations {
 				if !validMutation(mutation) {
@@ -275,8 +298,12 @@ func dataTransactionMethod(data Data) workerbroker.Method {
 					Value: append(json.RawMessage(nil), candidate.Value...),
 				})
 			}
+			guards := make([]addondatastore.DataSetRevision, 0, len(request.ExpectedDataSets))
+			for _, guard := range request.ExpectedDataSets {
+				guards = append(guards, addondatastore.DataSetRevision{Kind: guard.Kind, DataID: guard.DataID, Revision: *guard.Revision})
+			}
 			commit, err := data.Transact(ctx, addondata.Transaction{
-				Access: dataAccess(invocation), Mutations: mutations,
+				Access: dataAccess(invocation), Mutations: mutations, ExpectedDataSets: guards,
 			})
 			if err != nil {
 				return nil, dataError(err)
@@ -326,6 +353,11 @@ func (declarations declaredData) authorize(invocation workerbroker.Invocation) e
 		request, err := decodeExact[transactionRequest](invocation.Params)
 		if err != nil {
 			return err
+		}
+		for _, guard := range request.ExpectedDataSets {
+			if err := declarations.authorizeReference(guard.Kind, guard.DataID); err != nil {
+				return err
+			}
 		}
 		for _, mutation := range request.Mutations {
 			if err := declarations.authorizeReference(mutation.Kind, mutation.DataID); err != nil {
@@ -431,7 +463,7 @@ func validateDocumentResponse(body json.RawMessage) error {
 func validateQueryResponse(body json.RawMessage) error {
 	response, err := decodeExact[queryResponse](body)
 	if err != nil || response.ContractVersion != dataQueryResultVersion ||
-		len(response.Documents) > addondata.MaximumQueryDocuments {
+		len(response.Documents) > addondata.MaximumQueryDocuments || (response.DataRevision != nil && *response.DataRevision < 0) {
 		return errors.New("invalid host/data.query response")
 	}
 	if _, err := decodeCursor(response.NextCursor); err != nil {

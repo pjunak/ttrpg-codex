@@ -529,6 +529,31 @@ permissions. Add-on-owned collection names are automatically scoped to the
 caller. Queries are structured, bounded, and schema checked; the SDK does not
 accept raw SQL or host filesystem paths.
 
+DM and system callers can protect invariants that depend on multiple documents
+or collections. Query with `includeDataRevision: true` to receive `dataRevision`
+alongside `documents` and `nextCursor`. Pass that revision as
+`expectedDataRevision` on subsequent pages; a changed collection returns a
+conflict instead of a mixed page. The revision covers the entire data set,
+including records outside a query filter. Zero means never written; emptying
+a previously written collection does not reset its revision.
+
+Pass the observed read dependencies to
+`context.data.transact(mutations, { signal, expectedDataSets })`, where
+`expectedDataSets` is an array of `{ kind, dataId, revision }`. Each of up to 256
+entries must name a distinct declared collection or record extension and carry
+a nonnegative integer revision. Dependencies need not be mutated. The host
+checks all of them in the same SQLite transaction before any write. A conflict
+publishes no documents, revision increments, audit entries, or events. Exact
+per-document `expectedRevision` values remain required. Keep the original
+read dependencies with a reviewed plan; do not refresh them at commit time.
+
+These options use the existing v1 data request contracts. Responses include
+`dataRevision` only when requested by either query option, preserving older
+strict decoders. Clients requiring guards must reject missing revision data;
+they must not retry without guards. Players cannot request data-set revisions
+or guards because these could reveal changes to hidden extension records.
+Collection guards do not cover core-record changes or package content.
+
 Per-record add-on state uses a separately declared extension handle rather than
 being merged into the core record body:
 

@@ -120,6 +120,15 @@ top-level `transact` combines up to 256 writes atomically. Every request URL
 contains the exact active archive-hash generation; reads use the authenticated
 session and writes additionally require its CSRF token.
 
+DM/system queries may opt into `dataRevision` with `includeDataRevision`, or
+pin a page to `expectedDataRevision`. The service read lock covers both the
+revision and page read. `expectedDataSets` adds up to 256 distinct declared
+read dependencies to a transaction, including collections without live
+documents. SQLite checks the entire dependency set before any mutations;
+document revisions still apply independently. Player requests cannot inspect
+these counters. Unrequested query responses retain their original shape.
+See the public [data-handle contract](../../examples/addons/API_V3.md#data-handles).
+
 The isolated iframe still has `connect-src 'none'` and no same-origin access.
 It sends bounded JSON commands over its private message port; the host owns the
 HTTP client, credentials, schema authority, and cancellation. Generation
@@ -136,6 +145,12 @@ revision checks as browser requests. Expected failures use stable RPC kinds;
 database and schema internals stay in host diagnostics. The Go worker SDK
 provides typed references, query and mutation models, strict response parsing,
 and metadata propagation helpers for these methods.
+
+The Go SDK exposes `AddonDataQuery.IncludeDataRevision`,
+`AddonDataQuery.ExpectedDataRevision`, and `AddonDataQueryResult.DataRevision`.
+`TransactGuarded` accepts the reviewed mutations plus `[]AddonDataSetRevision`;
+the existing `Transact` remains available for document-only writes. Both HTTP
+and worker transports authorize guard references and preserve revision zero.
 
 ## Remaining public surface
 

@@ -14,6 +14,7 @@ import { installDmPackage } from './installed-dm-fixture.mjs';
 import { importQuest, planningImport, replacementImportPackage } from './installed-import-fixture.mjs';
 import { exercisePlannerEditing } from './installed-planner-fixture.mjs';
 import { exercisePlannerFlows } from './installed-planner-flow-fixture.mjs';
+import { exercisePlannerConcurrency } from './installed-planner-concurrency-fixture.mjs';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const output = resolve(root, 'frontend/test-results/installed-dm');
@@ -242,6 +243,12 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner edits flows and keep
   await exercisePlannerFlows({ t, open, admin, csrf, output });
 });
 
+if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner rejects unseen children, annotations and simultaneous flow cycles', async t => {
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), []);
+  t.after(() => disable('dm-tools'));
+  await exercisePlannerConcurrency({ t, open, admin, csrf });
+});
+
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planning imports preview, cancel, commit atomically and reject stale reviews', async t => {
   const archive = await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP));
   await installReviewedPackage(admin, csrf, 'dm-tools', archive, []); t.after(() => disable('dm-tools'));
@@ -295,6 +302,15 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planning imports preview, ca
   assert.equal(await page.locator('.dm-import-preview').count(), 0);
   assert.equal((await records()).find(record => record.key === 'import-quest').value.title, 'Concurrent local edit');
   assert.equal((await records()).some(record => record.key === 'import-atomic-new'), false);
+
+  // A new annotation outside the reviewed write set also invalidates the preview.
+  await preview(planningImport([importQuest('import-unseen-conflict')], 3200));
+  await jsonResponse(await admin.post(`${base}/data/transactions`, { headers, data: { contractVersion: 'addon-data-transaction.v1', mutations: [
+    { operation: 'put', kind: 'collection', dataId: 'dm_notes', key: 'import-unseen-note', expectedRevision: 0, value: { id: 'import-unseen-note', schemaVersion: 3, title: 'Added after preview', body: '', anchorIds: ['import-quest'], updatedAt: 3201 } },
+  ] } }));
+  await page.getByRole('button', { name: 'Commit reviewed import', exact: true }).click();
+  await page.getByText('Planning data changed. Choose the file again to review a new preview.', { exact: true }).waitFor();
+  assert.equal((await records()).some(record => record.key === 'import-unseen-conflict'), false);
 
   const callPattern = '**/api/addons/dm-tools/generations/*/services/call';
   await preview(planningImport([importQuest('import-uncertain')], 3500));

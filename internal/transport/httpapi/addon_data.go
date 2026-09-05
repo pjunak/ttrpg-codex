@@ -151,12 +151,14 @@ func (s *server) addonDataQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request struct {
-		ContractVersion string            `json:"contractVersion"`
-		Kind            datacontract.Kind `json:"kind"`
-		DataID          string            `json:"dataId"`
-		Cursor          string            `json:"cursor,omitempty"`
-		Limit           int               `json:"limit"`
-		Where           []struct {
+		ContractVersion      string            `json:"contractVersion"`
+		Kind                 datacontract.Kind `json:"kind"`
+		DataID               string            `json:"dataId"`
+		Cursor               string            `json:"cursor,omitempty"`
+		IncludeDataRevision  bool              `json:"includeDataRevision,omitempty"`
+		ExpectedDataRevision *int64            `json:"expectedDataRevision,omitempty"`
+		Limit                int               `json:"limit"`
+		Where                []struct {
 			Path   string          `json:"path"`
 			Equals json.RawMessage `json:"equals"`
 		} `json:"where"`
@@ -178,6 +180,7 @@ func (s *server) addonDataQuery(w http.ResponseWriter, r *http.Request) {
 	result, err := s.addonData.Query(r.Context(), addondata.Query{
 		Access: addonDataAccessFromContext(r.Context()), DataKind: request.Kind, DataID: request.DataID,
 		AfterPosition: after, Limit: request.Limit, Where: conditions,
+		IncludeDataRevision: request.IncludeDataRevision, ExpectedDataRevision: request.ExpectedDataRevision,
 	})
 	if err != nil {
 		s.writeAddonDataError(w, r, err)
@@ -191,6 +194,9 @@ func (s *server) addonDataQuery(w http.ResponseWriter, r *http.Request) {
 		"contractVersion": addonDataQueryResultVersion,
 		"documents":       documents,
 	}
+	if result.DataRevision != nil {
+		response["dataRevision"] = *result.DataRevision
+	}
 	if result.NextPosition != nil {
 		response["nextCursor"] = encodeAddonDataCursor(*result.NextPosition)
 	}
@@ -203,8 +209,13 @@ func (s *server) addonDataTransaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request struct {
-		ContractVersion string `json:"contractVersion"`
-		Mutations       []struct {
+		ContractVersion  string `json:"contractVersion"`
+		ExpectedDataSets []struct {
+			Kind     datacontract.Kind `json:"kind"`
+			DataID   string            `json:"dataId"`
+			Revision *int64            `json:"revision"`
+		} `json:"expectedDataSets,omitempty"`
+		Mutations []struct {
 			Operation        addondatastore.OperationKind `json:"operation"`
 			Kind             datacontract.Kind            `json:"kind"`
 			DataID           string                       `json:"dataId"`
@@ -221,6 +232,14 @@ func (s *server) addonDataTransaction(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "add-on data transaction contract is invalid")
 		return
 	}
+	guards := make([]addondatastore.DataSetRevision, 0, len(request.ExpectedDataSets))
+	for _, guard := range request.ExpectedDataSets {
+		if guard.Revision == nil {
+			writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "data set revision is required")
+			return
+		}
+		guards = append(guards, addondatastore.DataSetRevision{Kind: guard.Kind, DataID: guard.DataID, Revision: *guard.Revision})
+	}
 	mutations := make([]addondata.Mutation, 0, len(request.Mutations))
 	for _, candidate := range request.Mutations {
 		if candidate.ExpectedRevision == nil {
@@ -234,7 +253,7 @@ func (s *server) addonDataTransaction(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	commit, err := s.addonData.Transact(r.Context(), addondata.Transaction{
-		Access: addonDataAccessFromContext(r.Context()), Mutations: mutations,
+		Access: addonDataAccessFromContext(r.Context()), Mutations: mutations, ExpectedDataSets: guards,
 	})
 	if err != nil {
 		s.writeAddonDataError(w, r, err)

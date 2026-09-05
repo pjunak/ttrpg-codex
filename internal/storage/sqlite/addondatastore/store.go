@@ -82,11 +82,18 @@ type Mutation struct {
 	Audience         events.Audience
 }
 
+type DataSetRevision struct {
+	Kind     datacontract.Kind
+	DataID   string
+	Revision int64
+}
+
 type Transaction struct {
-	AddonID      string
-	GenerationID string
-	ActorID      string
-	Mutations    []Mutation
+	ExpectedDataSets []DataSetRevision
+	AddonID          string
+	GenerationID     string
+	ActorID          string
+	Mutations        []Mutation
 }
 
 type MutationResult struct {
@@ -289,6 +296,16 @@ func (store *Store) Transact(ctx context.Context, input Transaction) (Commit, er
 		return Commit{}, fmt.Errorf("begin add-on data transaction: %w", err)
 	}
 	defer transaction.Rollback()
+	// Check the entire read set before touching documents, journal, or revisions.
+	for _, expected := range input.ExpectedDataSets {
+		state, err := readState(ctx, transaction, input.AddonID, expected.Kind, expected.DataID)
+		if err != nil && !errors.Is(err, ErrNotFound) {
+			return Commit{}, err
+		}
+		if state.Revision != expected.Revision {
+			return Commit{}, fmt.Errorf("%w: %s %q changed since it was read", ErrConflict, expected.Kind, expected.DataID)
+		}
+	}
 	occurredAt := store.now().UTC()
 	timestamp := occurredAt.Format(time.RFC3339Nano)
 	results := make([]MutationResult, 0, len(prepared))
@@ -494,6 +511,20 @@ func prepareTransaction(input Transaction) ([]preparedMutation, error) {
 	if !validAddonID(input.AddonID) || !validGenerationID(input.GenerationID) ||
 		!validActorID(input.ActorID) || len(input.Mutations) == 0 || len(input.Mutations) > MaximumOperations {
 		return nil, ErrInvalidTransaction
+	}
+	if len(input.ExpectedDataSets) > MaximumOperations {
+		return nil, ErrInvalidTransaction
+	}
+	guards := make(map[string]struct{}, len(input.ExpectedDataSets))
+	for _, expected := range input.ExpectedDataSets {
+		if !validDataIdentity(input.AddonID, expected.Kind, expected.DataID) || expected.Revision < 0 {
+			return nil, ErrInvalidTransaction
+		}
+		identity := definitionKey(expected.Kind, expected.DataID)
+		if _, duplicate := guards[identity]; duplicate {
+			return nil, ErrInvalidTransaction
+		}
+		guards[identity] = struct{}{}
 	}
 	prepared := make([]preparedMutation, 0, len(input.Mutations))
 	targets := make(map[string]struct{}, len(input.Mutations))

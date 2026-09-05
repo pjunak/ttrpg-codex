@@ -2,6 +2,7 @@ import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary
 import type { BrowserAddonContext } from "./browser-sdk.js";
 import {
   AddonDataHTTPError,
+  parseExpectedDataSets,
   type AddonDataHandle,
   type AddonDataMutation,
   type AddonQueryOptions,
@@ -39,7 +40,7 @@ const permissionResourceKeys = new Set(["permission"]);
 const noParameterKeys = new Set<string>();
 const dataGetKeys = new Set(["kind", "dataId", "target", "key"]);
 const dataQueryKeys = new Set(["kind", "dataId", "target", "options"]);
-const dataTransactionKeys = new Set(["mutations"]);
+const dataTransactionKeys = new Set(["mutations", "expectedDataSets"]);
 const contentGetKeys = new Set(["setId", "kind", "id"]);
 const contentQueryKeys = new Set(["setId", "options"]);
 const contentQueryOptionKeys = new Set(["kind", "cursor", "limit"]);
@@ -48,7 +49,7 @@ const serviceCallKeys = new Set(["serviceId", "method", "params", "options"]);
 const serviceCallOptionKeys = new Set([
   "providerAddonId", "deadlineMs", "idempotencyKey",
 ]);
-const queryOptionKeys = new Set(["cursor", "limit", "where"]);
+const queryOptionKeys = new Set(["cursor", "limit", "where", "includeDataRevision", "expectedDataRevision"]);
 const queryConditionKeys = new Set(["path", "equals"]);
 const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const cursorPattern = /^[A-Za-z0-9_-]{1,32}$/;
@@ -561,7 +562,9 @@ export class IsolatedFrameBridge {
           throw new BoundaryValidationError(boundary, "data.transact parameters are invalid");
         }
         assertJSONValue(mutations, "data transaction");
-        return this.#context.data.transact(mutations as readonly AddonDataMutation[], { signal });
+        return this.#context.data.transact(mutations as readonly AddonDataMutation[], { signal,
+          ...(params["expectedDataSets"] === undefined ? {} : { expectedDataSets: parseExpectedDataSets(params["expectedDataSets"]) }),
+        });
       }
       case "content.catalog":
         if (!hasOnlyKeys(params, noParameterKeys)) {
@@ -728,6 +731,12 @@ function isolatedQueryOptions(
   if (!hasOnlyKeys(value, queryOptionKeys)) {
     throw new BoundaryValidationError(boundary, "data query options are invalid");
   }
+  const includeDataRevision = value["includeDataRevision"];
+  const expectedDataRevision = value["expectedDataRevision"];
+  if ((includeDataRevision !== undefined && typeof includeDataRevision !== "boolean") ||
+    (expectedDataRevision !== undefined && (typeof expectedDataRevision !== "number" || !Number.isSafeInteger(expectedDataRevision) || expectedDataRevision < 0))) {
+    throw new BoundaryValidationError(boundary, "data query revision is invalid");
+  }
   const cursor = value["cursor"];
   const limit = value["limit"];
   const where = value["where"];
@@ -752,6 +761,8 @@ function isolatedQueryOptions(
   });
   return {
     signal,
+    ...(typeof includeDataRevision === "boolean" ? { includeDataRevision } : {}),
+    ...(typeof expectedDataRevision === "number" ? { expectedDataRevision } : {}),
     ...(typeof cursor === "string" ? { cursor } : {}),
     ...(typeof limit === "number" ? { limit } : {}),
     ...(conditions !== undefined ? { where: conditions } : {}),

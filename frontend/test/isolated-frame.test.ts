@@ -171,13 +171,14 @@ describe("IsolatedFrameBridge", () => {
       kind: "record-extension",
       dataId: "sheet_state",
       target: "characters",
-      options: { limit: 10, where: [{ path: "/level", equals: 3 }] },
+      options: { limit: 10, where: [{ path: "/level", equals: 3 }], includeDataRevision: true, expectedDataRevision: 0 },
     }));
     await vi.waitFor(() => expect(response(port, "query-sheet")).toMatchObject({
       ok: true, result: { documents: [], nextCursor: "Mg" },
     }));
     expect(recordExtension).toHaveBeenCalledWith("characters", "sheet_state");
     expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      includeDataRevision: true, expectedDataRevision: 0,
       limit: 10,
       where: [{ path: "/level", equals: 3 }],
       signal: expect.any(AbortSignal),
@@ -186,11 +187,12 @@ describe("IsolatedFrameBridge", () => {
     port.receive(request("delete-note", "data.transact", { mutations: [{
       operation: "delete", kind: "collection", dataId: "dm_notes",
       key: "note-1", expectedRevision: 1,
-    }] }));
+    }], expectedDataSets: [{ kind: "collection", dataId: "dm_notes", revision: 0 }] }));
     await vi.waitFor(() => expect(response(port, "delete-note")).toMatchObject({
       ok: true, result: { contractVersion: "addon-data-commit.v1", commitId: 4 },
     }));
     expect(transact).toHaveBeenCalledWith(expect.any(Array), {
+      expectedDataSets: [{ kind: "collection", dataId: "dm_notes", revision: 0 }],
       signal: expect.any(AbortSignal),
     });
     bridge.close();

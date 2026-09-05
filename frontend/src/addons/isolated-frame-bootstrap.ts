@@ -212,7 +212,7 @@ export const isolatedFrameBootstrap = String.raw`
       collection: (dataId) => dataHandle("collection", dataId),
       recordExtension: (target, dataId) => dataHandle("record-extension", dataId, target),
       transact: (mutations, options = {}) => sdkRequest(
-        "data.transact", { mutations }, options.signal || controller.signal,
+        "data.transact", { mutations, ...(options.expectedDataSets === undefined ? {} : { expectedDataSets: options.expectedDataSets }) }, options.signal || controller.signal,
       ),
     });
     const contentSet = (setId) => {

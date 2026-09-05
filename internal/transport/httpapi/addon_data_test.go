@@ -152,6 +152,7 @@ func TestSessionAddonDataAuthorizerRequiresCSRFOnlyForWrites(t *testing.T) {
 }
 
 type addonDataStub struct {
+	transaction  addondata.Transaction
 	calls        int
 	access       addondata.Access
 	document     addondatastore.Document
@@ -181,6 +182,7 @@ func (stub *addonDataStub) Transact(
 ) (addondatastore.Commit, error) {
 	stub.calls++
 	stub.access = transaction.Access
+	stub.transaction = transaction
 	return stub.commit, stub.err
 }
 

@@ -39,6 +39,7 @@ var (
 )
 
 type Repository interface {
+	State(context.Context, string, datacontract.Kind, string) (addondatastore.State, error)
 	Get(context.Context, string, datacontract.Kind, string, string) (addondatastore.Document, error)
 	List(context.Context, string, datacontract.Kind, string) ([]addondatastore.Document, error)
 	QueryPage(context.Context, string, datacontract.Kind, string, int64, int) ([]addondatastore.Document, error)
@@ -75,8 +76,9 @@ type Mutation struct {
 }
 
 type Transaction struct {
-	Access    Access
-	Mutations []Mutation
+	ExpectedDataSets []addondatastore.DataSetRevision
+	Access           Access
+	Mutations        []Mutation
 }
 
 type QueryCondition struct {
@@ -85,15 +87,18 @@ type QueryCondition struct {
 }
 
 type Query struct {
-	Access        Access
-	DataKind      datacontract.Kind
-	DataID        string
-	AfterPosition int64
-	Limit         int
-	Where         []QueryCondition
+	IncludeDataRevision  bool
+	ExpectedDataRevision *int64
+	Access               Access
+	DataKind             datacontract.Kind
+	DataID               string
+	AfterPosition        int64
+	Limit                int
+	Where                []QueryCondition
 }
 
 type QueryResult struct {
+	DataRevision *int64
 	Documents    []addondatastore.Document
 	NextPosition *int64
 }
@@ -181,7 +186,7 @@ func (service *Service) Query(ctx context.Context, query Query) (QueryResult, er
 	service.mu.RLock()
 	defer service.mu.RUnlock()
 	if query.AfterPosition < -1 || query.Limit < 1 || query.Limit > MaximumQueryDocuments ||
-		len(query.Where) > MaximumQueryConditions {
+		len(query.Where) > MaximumQueryConditions || (query.ExpectedDataRevision != nil && *query.ExpectedDataRevision < 0) {
 		return QueryResult{}, ErrInvalidRequest
 	}
 	description, err := service.authorizeDefinition(query.Access, query.DataKind, query.DataID)
@@ -193,6 +198,20 @@ func (service *Service) Query(ctx context.Context, query Query) (QueryResult, er
 		return QueryResult{}, err
 	}
 	result := QueryResult{Documents: make([]addondatastore.Document, 0, query.Limit)}
+	if query.IncludeDataRevision || query.ExpectedDataRevision != nil {
+		// A set revision includes changes to documents a player may not see.
+		if query.Access.Role == RolePlayer {
+			return QueryResult{}, ErrUnauthorized
+		}
+		state, err := service.repository.State(ctx, query.Access.AddonID, query.DataKind, query.DataID)
+		if err != nil && !errors.Is(err, addondatastore.ErrNotFound) {
+			return QueryResult{}, err
+		}
+		if query.ExpectedDataRevision != nil && *query.ExpectedDataRevision != state.Revision {
+			return QueryResult{}, addondatastore.ErrConflict
+		}
+		result.DataRevision = &state.Revision
+	}
 	after := query.AfterPosition
 	scanned := 0
 	valueBytes := 0
@@ -260,6 +279,26 @@ func (service *Service) Transact(ctx context.Context, input Transaction) (addond
 	if !exists || active.generation != input.Access.Generation {
 		return addondatastore.Commit{}, ErrInactiveGeneration
 	}
+	if len(input.ExpectedDataSets) > addondatastore.MaximumOperations {
+		return addondatastore.Commit{}, ErrInvalidRequest
+	}
+	if len(input.ExpectedDataSets) > 0 && input.Access.Role == RolePlayer {
+		return addondatastore.Commit{}, ErrUnauthorized
+	}
+	seen := make(map[string]struct{}, len(input.ExpectedDataSets))
+	for _, expected := range input.ExpectedDataSets {
+		if expected.Revision < 0 {
+			return addondatastore.Commit{}, ErrInvalidRequest
+		}
+		if _, err := service.authorizeDefinition(input.Access, expected.Kind, expected.DataID); err != nil {
+			return addondatastore.Commit{}, err
+		}
+		identity := string(expected.Kind) + "\x00" + expected.DataID
+		if _, duplicate := seen[identity]; duplicate {
+			return addondatastore.Commit{}, ErrInvalidRequest
+		}
+		seen[identity] = struct{}{}
+	}
 	prepared := make([]addondatastore.Mutation, 0, len(input.Mutations))
 	for _, mutation := range input.Mutations {
 		description, err := active.registry.Description(mutation.DataKind, mutation.DataID)
@@ -304,7 +343,7 @@ func (service *Service) Transact(ctx context.Context, input Transaction) (addond
 	}
 	return service.repository.Transact(ctx, addondatastore.Transaction{
 		AddonID: input.Access.AddonID, GenerationID: input.Access.Generation,
-		ActorID: actorLabel(input.Access), Mutations: prepared,
+		ActorID: actorLabel(input.Access), Mutations: prepared, ExpectedDataSets: input.ExpectedDataSets,
 	})
 }
 

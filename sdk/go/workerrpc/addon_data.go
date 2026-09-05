@@ -41,15 +41,18 @@ type AddonDataQueryCondition struct {
 }
 
 type AddonDataQuery struct {
-	Reference AddonDataReference
-	Cursor    string
-	Limit     int
-	Where     []AddonDataQueryCondition
+	IncludeDataRevision  bool
+	ExpectedDataRevision *int64
+	Reference            AddonDataReference
+	Cursor               string
+	Limit                int
+	Where                []AddonDataQueryCondition
 }
 
 type AddonDataQueryResult struct {
-	Documents  []AddonDataDocument
-	NextCursor string
+	DataRevision *int64
+	Documents    []AddonDataDocument
+	NextCursor   string
 }
 
 type AddonDataMutation struct {
@@ -129,7 +132,7 @@ func (client *AddonDataClient) Query(
 ) (AddonDataQueryResult, error) {
 	if client == nil || client.caller == nil || !validAddonDataReference(query.Reference) ||
 		query.Limit < 1 || query.Limit > 200 || len(query.Where) > 8 ||
-		!validAddonDataCursor(query.Cursor) {
+		!validAddonDataCursor(query.Cursor) || (query.ExpectedDataRevision != nil && *query.ExpectedDataRevision < 0) {
 		return AddonDataQueryResult{}, errors.New("add-on data query request is invalid")
 	}
 	where := make([]map[string]any, 0, len(query.Where))
@@ -147,6 +150,12 @@ func (client *AddonDataClient) Query(
 	if query.Cursor != "" {
 		request["cursor"] = query.Cursor
 	}
+	if query.IncludeDataRevision {
+		request["includeDataRevision"] = true
+	}
+	if query.ExpectedDataRevision != nil {
+		request["expectedDataRevision"] = *query.ExpectedDataRevision
+	}
 	body, err := client.caller.Call(ctx, "host/data.query", request, meta)
 	if err != nil {
 		return AddonDataQueryResult{}, err
@@ -155,15 +164,19 @@ func (client *AddonDataClient) Query(
 		ContractVersion string              `json:"contractVersion"`
 		Documents       []AddonDataDocument `json:"documents"`
 		NextCursor      string              `json:"nextCursor,omitempty"`
+		DataRevision    *int64              `json:"dataRevision,omitempty"`
 	}
 	if err := decodeAddonDataExact(body, &response); err != nil ||
 		response.ContractVersion != "host-data-query-result.v1" || len(response.Documents) > 200 ||
-		!validAddonDataCursor(response.NextCursor) {
+		!validAddonDataCursor(response.NextCursor) ||
+		(response.DataRevision != nil && *response.DataRevision < 0) ||
+		((query.IncludeDataRevision || query.ExpectedDataRevision != nil) && response.DataRevision == nil) ||
+		(query.ExpectedDataRevision != nil && response.DataRevision != nil && *query.ExpectedDataRevision != *response.DataRevision) {
 		return AddonDataQueryResult{}, errors.New("host returned an invalid add-on data query result")
 	}
 	result := AddonDataQueryResult{
 		Documents:  make([]AddonDataDocument, 0, len(response.Documents)),
-		NextCursor: response.NextCursor,
+		NextCursor: response.NextCursor, DataRevision: response.DataRevision,
 	}
 	for _, document := range response.Documents {
 		if !validAddonDataKey(document.Key) || document.Revision < 1 || !json.Valid(document.Value) {
@@ -180,8 +193,24 @@ func (client *AddonDataClient) Transact(
 	meta *Meta,
 	mutations []AddonDataMutation,
 ) (AddonDataCommit, error) {
-	if client == nil || client.caller == nil || len(mutations) < 1 || len(mutations) > 256 {
+	return client.TransactGuarded(ctx, meta, mutations, nil)
+}
+
+// TransactGuarded atomically rejects mutations if any observed data set changed.
+func (client *AddonDataClient) TransactGuarded(ctx context.Context, meta *Meta, mutations []AddonDataMutation, expectedDataSets []AddonDataSetRevision) (AddonDataCommit, error) {
+	if client == nil || client.caller == nil || len(mutations) < 1 || len(mutations) > 256 || len(expectedDataSets) > 256 {
 		return AddonDataCommit{}, errors.New("add-on data transaction is invalid")
+	}
+	seen := make(map[string]struct{}, len(expectedDataSets))
+	for _, guard := range expectedDataSets {
+		if !validAddonDataReference(AddonDataReference{Kind: guard.Kind, DataID: guard.DataID}) || guard.Revision < 0 {
+			return AddonDataCommit{}, errors.New("add-on data set guard is invalid")
+		}
+		identity := guard.Kind + "\x00" + guard.DataID
+		if _, duplicate := seen[identity]; duplicate {
+			return AddonDataCommit{}, errors.New("duplicate add-on data set guard")
+		}
+		seen[identity] = struct{}{}
 	}
 	wireMutations := make([]map[string]any, 0, len(mutations))
 	for _, mutation := range mutations {
@@ -207,9 +236,11 @@ func (client *AddonDataClient) Transact(
 		}
 		wireMutations = append(wireMutations, wire)
 	}
-	body, err := client.caller.Call(ctx, "host/data.transact", map[string]any{
-		"contractVersion": "host-data-transaction.v1", "mutations": wireMutations,
-	}, meta)
+	request := map[string]any{"contractVersion": "host-data-transaction.v1", "mutations": wireMutations}
+	if len(expectedDataSets) > 0 {
+		request["expectedDataSets"] = expectedDataSets
+	}
+	body, err := client.caller.Call(ctx, "host/data.transact", request, meta)
 	if err != nil {
 		return AddonDataCommit{}, err
 	}

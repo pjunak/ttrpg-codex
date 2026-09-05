@@ -148,14 +148,15 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
   while retaining the surviving anchors of shared notes. Installed checks cover
   retained flow drafts, cycle rejection, cancellation and stale-record conflicts
   without partial deletion, plus desktop/phone controls.
+  Browser writes and reviewed imports now retain all six collection revisions.
+  Atomic host guards reject unseen children, annotations, references and
+  simultaneous graph edits, including changes to previously empty collections;
+  paginated reads pin their original collection revision. Conflicts keep
+  editor drafts and require a reload or a newly reviewed import.
   Remaining work includes original dialog/canvas controls, reparenting,
   complete core/external references and consequence targets/note anchors,
   guards when leaving the planner, live invalidation, full visual parity and
   localization, and Import Center presentation and other-provider acceptance.
-  Structural writes still rely on fetched snapshots: add guards for new
-  children, references or consequences inserted concurrently with deletion,
-  and simultaneous graph edits. Exact revisions currently protect only the
-  records already read.
 - [ ] Verify the compendium browser against the old day-to-day browsing and
   reference workflow, then restore any accepted source, linking, filtering, or
   detail behavior that is missing.
@@ -228,7 +229,24 @@ and incoming-reference/shared-note/view cleanup. DM Tools passes 17 Node tests
 and 22 rendering checks at each of DPR 1 and 2; the rebuilt ZIP passes package
 inspection. The host gate passes 270 unit and 138 browser tests plus Go tests
 and vet. Desktop/phone screenshots retain the classic controls and no page
-overflow. Complete planner presentation and structural concurrency remain open.
+overflow. Complete planner presentation remains open.
+
+The structural concurrency batch adds opt-in collection revisions and atomic
+read-dependency guards to HTTP, isolated browser, and Go worker data APIs.
+Older callers retain their existing wire responses. Tests cover empty/deleted
+collections, unchanged audit/events after rejected writes, pagination changes,
+declaration and role enforcement, and retained import guards. The installed
+DM Tools ZIP rejects unseen children and flow consequences during deletion and
+simultaneous individually valid flows that would form a cycle. An import also
+conflicts when a newly added annotation was absent from its reviewed mutations.
+The host passes type checking, 272 unit tests, and all 139 browser cases (the
+new fixture's quest selection was corrected and the full installed-DM suite
+rerun), plus all Go tests and vet. DM Tools passes 19 Node tests, 22 rendering
+checks at each DPR, and Go tests/vet. All four packages were rebuilt and
+inspected; compendium and sheet checks and engine tests/vet/race checks pass.
+The engine's committed binaries were refreshed for the shared worker SDK.
+This batch does not change UI styling or complete the remaining planner,
+localization, administration, visual acceptance, or site-conversion gates.
 
 The visual reference is `origin/deprecated/pre-rewrite-2026-09-01` at
 `3aeeacfe7adec985693f8aeb239df58c177f3da8`, confirmed against the live

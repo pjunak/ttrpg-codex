@@ -156,6 +156,35 @@ describe("BrowserAddonDataClient", () => {
   });
 });
 
+it("pins query revisions and refuses missing or changed revisions", async () => {
+  for (const revision of [undefined, -1, 1, 0]) {
+    const calls: unknown[] = [];
+    const client = createClient(async (_url, init) => {
+      calls.push(JSON.parse(String(init.body)));
+      return jsonResponse({ contractVersion: "addon-data-query-result.v1", documents: [], dataRevision: revision });
+    });
+    const read = client.api().collection("dm_notes").query({ includeDataRevision: true, expectedDataRevision: 0 });
+    if (revision === 0) await expect(read).resolves.toEqual({ documents: [], dataRevision: 0 });
+    else await expect(read).rejects.toBeInstanceOf(BoundaryValidationError);
+    expect(calls[0]).toMatchObject({ includeDataRevision: true, expectedDataRevision: 0 });
+  }
+});
+
+it("copies guards before queuing and validates their exact shape", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const client = createClient(async (_url, init) => { calls.push(JSON.parse(String(init.body))); return jsonResponse(commit); });
+  const mutations = [{ operation: "delete" as const, kind: "collection" as const, dataId: "dm_notes", key: "note-1", expectedRevision: 1 }];
+  const guards = [{ kind: "collection" as const, dataId: "dm_notes", revision: 0 }];
+  const write = client.api().transact(mutations, { expectedDataSets: guards });
+  guards[0]!.revision = 99;
+  await write;
+  expect(calls[0]?.["expectedDataSets"]).toEqual([{ kind: "collection", dataId: "dm_notes", revision: 0 }]);
+  for (const invalid of [[guards[0], guards[0]], [{ kind: "collection", dataId: "dm_notes" }], [{ ...guards[0], revision: -1 }], [{ ...guards[0], extra: true }]]) {
+    expect(() => client.api().transact(mutations, { expectedDataSets: invalid as typeof guards })).toThrow(BoundaryValidationError);
+  }
+  expect(calls).toHaveLength(1);
+});
+
 function createClient(
   fetchData: AddonDataFetch,
   signal: AbortSignal = new AbortController().signal,
