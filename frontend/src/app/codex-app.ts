@@ -77,6 +77,8 @@ import { CampaignIdentityEditError, prepareCampaignIdentitySave, type CampaignId
 import { MediaClient } from "../core/media.js";
 import { CampaignMapEditError, mapLocationRecord, prepareMapSave, prepareLocalMapImage, type MapSaveDetail, type MapUploadDetail } from "./campaign-map.js";
 import "./codex-map.js";
+import "./codex-timeline.js";
+import { prepareTimelineReorder, TimelineEditError, type TimelineDraft } from "./campaign-timeline.js";
 import { campaignSidebar, defaultSidebarLayout, prepareSidebarSave, sidebarPage, SidebarEditError, type SidebarSection, type SidebarSaveDetail } from "./campaign-sidebar.js";
 import { addonSidebarKey, addonSidebarMode, prepareAddonSidebarSave } from "./campaign-sidebar.js";
 
@@ -621,7 +623,7 @@ export class CodexApp extends LitElement {
         <a href="#/" aria-current=${this.#coreRouteActive("dashboard") ? "page" : nothing}><span aria-hidden="true">🏠</span>${this.#ui.t("shell.overview")}</a>
         <a href="#/party" aria-current=${this.#coreRouteActive("party") ? "page" : nothing}><span aria-hidden="true">🛡</span>${this.#ui.t("shell.party")}</a>
         <a href="#/search" aria-current=${this.#coreRouteActive("search") ? "page" : nothing}><span aria-hidden="true">🔍</span>${this.#ui.t("shell.search")}</a>
-        <a href="#/events" aria-current=${this.#coreRouteActive("events") ? "page" : nothing}><span aria-hidden="true">⏳</span>${uiCollectionLabel("events", "other")}</a>
+        <a href="#/timeline" aria-current=${this.#coreRouteActive("timeline") ? "page" : nothing}><span aria-hidden="true">⏳</span>${this.#ui.t("timeline.title")}</a>
         <button type="button" data-menu-toggle aria-expanded=${this.menuOpen} aria-controls="campaign-sidebar" @click=${this.#toggleMenu}><span aria-hidden="true">☰</span>${this.#ui.t("shell.menu")}</button>
       </nav>
     `;
@@ -746,6 +748,11 @@ export class CodexApp extends LitElement {
     }
     const campaign = this.campaignState.campaign;
     switch (this.route.kind) {
+      case "timeline":
+        return html`<codex-timeline .campaign=${campaign} .canEdit=${this.#canEdit()} .saving=${this.busy}
+          .editCompletion=${this.editCompletion} .errorMessage=${this.errorMessage}
+          @campaign-edit-dirty=${this.#onEditDirty} @campaign-timeline-save=${this.#saveTimeline}
+          @campaign-timeline-reset=${() => { this.errorMessage = ""; }}></codex-timeline>`;
       case "map":
         return html`<codex-map .campaign=${campaign} .route=${this.route} .canEdit=${this.#canEdit()}
           .canManageCampaign=${this.#canManageCampaign()} .saving=${this.busy} .editCompletion=${this.editCompletion}
@@ -810,7 +817,8 @@ export class CodexApp extends LitElement {
     if (id === "map") return this.route.kind === "map";
     if (id === "dashboard") return this.route.kind === "dashboard";
     if (id === "search") return this.route.kind === "search";
-    if (id === "party") return this.route.kind === "party" || this.route.kind === "create";
+    if (id === "party") return this.route.kind === "party" || this.route.kind === "create" && this.route.preset === "party";
+    if (id === "timeline") return this.route.kind === "timeline" || this.route.kind === "create" && this.route.preset === "event";
     if (id === "settings") return this.route.kind === "settings";
     return (this.route.kind === "collection" || this.route.kind === "record") && this.route.page.id === id;
   }
@@ -896,7 +904,7 @@ export class CodexApp extends LitElement {
       await this.#loadCampaign(this.#request.signal, true);
       this.#editDirty = false;
       this.editCompletion += 1;
-      window.location.hash = collectionHash(prepared.page);
+      window.location.hash = prepared.page.collection === "events" ? "#/timeline" : collectionHash(prepared.page);
     } catch (cause: unknown) {
       if (!this.#request.signal.aborted) {
         this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409
@@ -992,6 +1000,27 @@ export class CodexApp extends LitElement {
       this.#editDirty = false; this.editCompletion += 1;
     } catch (cause) { if (!this.#request.signal.aborted) this.#mapError(cause); }
     finally { this.busy = false; }
+  };
+
+  readonly #saveTimeline = async (event: CustomEvent<TimelineDraft>): Promise<void> => {
+    if (this.busy || this.#request === undefined || !this.#canEdit() || this.authority.state !== "known" ||
+      !this.authority.auth.authenticated || this.campaignState.state !== "ready") return;
+    let mutations: readonly CampaignMutation[];
+    try { mutations = prepareTimelineReorder(this.campaignState.campaign, event.detail); }
+    catch (cause) {
+      this.errorMessage = this.#ui.t(cause instanceof TimelineEditError && cause.kind === "stale" ? "timeline.stale"
+        : cause instanceof TimelineEditError && cause.kind === "limit" ? "timeline.limit" : "timeline.invalid");
+      return;
+    }
+    if (mutations.length === 0) { this.#editDirty = false; this.editCompletion++; return; }
+    this.busy = true; this.errorMessage = "";
+    try {
+      await this.#campaignMutations.commit(mutations, this.authority.auth.csrfToken, this.#request.signal);
+      await this.#loadCampaign(this.#request.signal, true);
+      this.#editDirty = false; this.editCompletion++;
+    } catch (cause) {
+      if (!this.#request.signal.aborted) this.errorMessage = this.#ui.t(cause instanceof CampaignMutationHTTPError && cause.status === 409 ? "timeline.stale" : "timeline.failed");
+    } finally { this.busy = false; }
   };
 
   readonly #uploadMap = async (event: CustomEvent<MapUploadDetail>): Promise<void> => {

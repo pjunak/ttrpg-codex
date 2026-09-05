@@ -93,7 +93,7 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
 - [x] Restore the world map and location sub-maps, image/tile preparation,
   markers, marker artwork, saved views, zoom behavior, and map editing.
 - [x] Restore multi-attitude marker/card glows and event-path overlays.
-- [ ] Restore the session timeline, drag ordering, and timeline editing.
+- [x] Restore the session timeline, drag ordering, and timeline editing.
 - [ ] Restore faction, relationship, and mystery graph views with position
   persistence and their former navigation/detail behavior.
 
@@ -278,8 +278,20 @@ reparenting, and deletion without losing the draft. Desktop/phone production
 checks cover editing, navigation guards, placement, image upload, and role/scope
 restrictions; unit checks cover validation and preserved fields.
 
+The session timeline now restores the original horizontal board, session gaps,
+stacked cards, character/faction/location metadata, DM twin display, and desktop
+and phone scrolling. Dragging and keyboard/phone controls keep an order draft
+until one revision-checked transaction succeeds. Creation, editing, and deletion
+use the shared event form. Browser checks cover reload, failed writes, changes
+during drag, remote deletion, navigation guards, anonymous access, empty boards,
+and Czech labels; preparation tests retain content, map fields, and extensions
+and reject malformed or oversized orders. The preserved timeline hashes and
+sidebar preferences now reach this board. Desktop/phone screenshots were
+reviewed against the preserved styling; full campaign and add-on visual
+acceptance remains open.
+
 Still open elsewhere: collection grouping and filter controls,
-timeline/graph views, complete settings/DM screens, and installed add-on
+graph views, complete settings/DM screens, and installed add-on
 visual acceptance. Keep the visual and release gates open until the requested
 workflows are ported; apply the lighter operational policy above at cutover.
 
@@ -294,7 +306,7 @@ here before marking it complete.
 |---|---|---|
 | 1 | Host editing and session behavior | Keep focused regression tests for implemented behavior. Check login, DM/player visibility, saving, and live refresh at first start; expand the full session/failure matrix after launch. |
 | 2 | Host maps and map settings | Implement map fields, immutable media preparation, coordinate editing, saved views, marker art, and path/glow rendering as one workflow; verify world and local maps plus role-filtered locations together. |
-| 3 | Host timeline and relationship views | Restore drag/reorder persistence and graph navigation using canonical record identities; test reload, stale writes, and position-only edits. |
+| 3 | Host relationship views | Timeline ordering is restored. Restore graph navigation using canonical record identities; test reload, stale writes, and position-only edits. |
 | 4 | First-party add-on workflows | Compare compendium browse/source/link behavior, DM planner/import review, engine calculations, and sheet play state against preserved v1 fixtures. Exercise absent/replaced providers through actual installed ZIPs. |
 | 5 | Host administration and recovery | Complete branding, party/sidebar preferences, add-on inspection/approval/rollback, recovery points, and the accepted credential workflow; retain explicit operator review. |
 | 6 | Release acceptance | Review one fresh conversion per site, retain old data, and perform the short first-start smoke check. Outages, fixes after launch, and rollback are accepted; full rehearsal matrices can follow. |
@@ -327,7 +339,7 @@ acceptance still need to be expanded as follow-up documentation.
 | `/`, `/dashboard`, `/parta` | `/`, `/dashboard`, `/party`; dashboard and party projections | Real-host role changes, live refresh, and mobile navigation |
 | `/postavy`, `/postava/:id` | `/characters`, `/characters/:id` | End-to-end edit/save plus sheet mounting |
 | `/mista`, `/misto/:id` | `/locations`, `/locations/:id` | Spatial fields restored; real-campaign visual acceptance remains |
-| `/udalosti`, `/udalost/:id` | `/events`, `/events/:id` | Paths and timeline ordering |
+| `/udalosti`, `/udalost/:id` | `/events`, `/events/:id`; shared forms also open from the timeline | Real-campaign article/editor visual acceptance |
 | `/zahady`, `/zahada/:id` | `/mysteries`, `/mysteries/:id` | Mystery graph navigation |
 | `/frakce`, `/frakce/:id` | `/factions`, `/factions/:id` | Faction graph and saved positions |
 | `/panteon`, `/buh/:id` | `/pantheon`, `/pantheon/:id` | Copied-campaign article/editor acceptance |
@@ -337,7 +349,7 @@ acceptance still need to be expanded as follow-up documentation.
 | Global search and wiki links | `/search` and typed Markdown links | Add-on reference/linking surfaces and localized editors |
 | `/mapa/svet`, `/mapa/local/:id` | `/map/world`, `/map/local/:id`; old map hashes also accepted | Real-host acceptance with each campaign's maps |
 | `/mapa/palac`, `/mapa/frakce`, `/mapa/vztahy`, `/mapa/tajemstvi` | Not yet restored | Faction, relationship, mystery views and saved positions |
-| `/casova-osa` | Not yet restored | Timeline slice above |
+| `/casova-osa`, `/mapa/casova-osa` | `/timeline`; old hashes accepted, session creation and atomic order editing restored | Real-campaign visual review and add-on contribution acceptance |
 | `/dm` and player-preview action | Session role switch exists; dedicated DM dashboard and tab-isolated preview remain open | Preserve the distinction between session role switching and true preview |
 | `/nastaveni`: six enum categories | `/settings` enum panels | Full localization and real-host save/delete/conflict coverage |
 | Settings: `language`, `appearance` | Personal language, shared theme and branding/logo panels | Remaining catalogs, tokens, and campaign visual acceptance |

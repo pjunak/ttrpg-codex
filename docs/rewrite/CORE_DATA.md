@@ -195,6 +195,40 @@ World/local map viewing and editing now use the same transaction and media
 boundaries. Coordinates, map scope, saved views, draft revisions, and image
 replacement are described in [`MAPS.md`](MAPS.md).
 
+The session timeline at `#/timeline` uses the role-filtered `events` collection;
+historical events remain a separate archive. Preserved `#/casova-osa` and
+`#/mapa/casova-osa` hashes open the same board. Columns use stored `sitting`
+numbers and stable `order` sorting. Missing, zero, or invalid session numbers
+display in session 1 without rewriting the stored value. Empty columns remain
+visible through session 200; larger sparse timelines show occupied sessions
+and the first session without allocating every intervening number. A reciprocal
+DM twin represents its public counterpart only when both are in the current
+projection, matching the old board.
+
+Drag, up/down buttons, and session selectors produce a local order draft. The
+opening event keys and revisions are captured before the first move (or drag
+start); live refresh cannot replace that draft. Save checks the snapshot against
+the currently loaded projection, then submits changed records in one existing
+optimistic transaction. Only affected sessions are renumbered. Record content,
+map placement, references, twin links, and extension fields are retained; the
+server continues to enforce hidden-field preservation and write authority.
+Per-record revision checks protect writes that race after the browser's check;
+this does not add a collection-membership lock. Moves above the existing
+500-mutation limit are rejected without splitting the save. Failed or stale
+saves keep the draft, and cancellation/navigation use the unsaved-edit guard.
+
+The timeline retains the original column/card styling, stacking, horizontal
+scroll slider, and responsive shell. Editing expands stacks to expose the
+keyboard and phone move controls. Session-scoped creation and card editing use
+the common event form; deleting an event returns to the board. Navigation and
+timeline messages use the English/Czech catalogs. Preparation tests live in
+`frontend/test/campaign-timeline.test.ts`; production browser scenarios in
+`frontend/test/browser/timeline.browser.mjs` cover desktop/phone layout, native
+drag, keyboard moves, reload, empty and DM-twin views, creation/edit/deletion,
+anonymous access, live conflicts, failed saves, and navigation guards. Add-on
+timeline contributions and real-campaign visual acceptance remain part of the
+open suite-wide acceptance gates; the public Add-on API is unchanged.
+
 `settings/playerParty` owns the shared party name, icon, badge, color, and text
 color. Membership remains `character.faction === "party"`; settings never store
 a second roster or create a faction record. The DM panel edits the original
@@ -248,7 +282,7 @@ package descriptors are unchanged.
 
 The rewrite does not yet implement:
 
-- timelines, recovery/account settings, and other specialized workflows;
+- recovery/account settings and other specialized workflows;
 - initial import publication or add-on collection migration;
 - typed relational projections and indexes for search, maps, timelines, and
   other domain queries.

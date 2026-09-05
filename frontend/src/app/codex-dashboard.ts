@@ -238,7 +238,7 @@ export class CodexDashboard extends LitElement {
           <h2 id="session-heading"><span aria-hidden="true">🕯</span> ${this.#ui.t("dashboard.lastSession")}</h2>
           ${model.lastSession === undefined ? nothing : html`<span class="session-number">${this.#ui.t("dashboard.session", { n: model.lastSession })}</span>`}
         </div>
-        ${model.lastSession === undefined ? html`<p class="empty-state">${this.#ui.t("dashboard.emptySession")} <a href="#/events">${this.#ui.t("dashboard.openTimeline")}</a></p>` : html`<ol class="session-events">
+        ${model.lastSession === undefined ? html`<p class="empty-state">${this.#ui.t("dashboard.emptySession")} <a href="#/timeline">${this.#ui.t("dashboard.openTimeline")}</a></p>` : html`<ol class="session-events">
           ${model.lastSessionEvents.map((event) => this.#sessionEvent(event))}
         </ol>`}
       </section>

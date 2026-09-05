@@ -36,6 +36,7 @@ export class SidebarEditError extends Error {
   constructor(readonly kind: "invalid" | "stale") { super(`sidebar layout is ${kind}`); }
 }
 const aliases: Readonly<Record<string, string>> = Object.freeze({
+  "/casova-osa": "/timeline",
   "/mapa/svet": "/map/world", "/mista": "/locations", "/postavy": "/characters", "/frakce": "/factions",
   "/mazlicci": "/companions", "/zahady": "/mysteries", "/panteon": "/pantheon", "/artefakty": "/artifacts", "/historie": "/history",
 });
@@ -43,6 +44,7 @@ export function sidebarPage(route: string) {
   const canonical = aliases[route] ?? route;
   if (canonical === "/") return { id: "dashboard", route: canonical, label: uiText("shell.overview"), icon: "🏠" };
   if (canonical === "/party") return { id: "party", route: canonical, label: uiText("shell.party"), icon: "🛡" };
+  if (canonical === "/timeline") return { id: "timeline", route: canonical, label: uiText("timeline.title"), icon: "⏳" };
   if (canonical === "/map/world") return { id: "map", route: canonical, label: uiText("map.world"), icon: "🗺" };
   const page = campaignPages.find(page => `/${page.id}` === canonical);
   return page === undefined ? undefined : { id: page.id, route: canonical, label: uiCollectionLabel(page.id, "other"), icon: page.icon };
@@ -50,10 +52,10 @@ export function sidebarPage(route: string) {
 export function defaultSidebarLayout(): SidebarLayout {
   return { sections: [
     section("overview", uiText("shell.overview"), ["/", "/party"]),
-    section("campaign", uiText("shell.campaign"), ["/events", "/mysteries"]),
+    section("campaign", uiText("shell.campaign"), ["/timeline", "/mysteries"]),
     section("world", uiText("shell.world"), ["/map/world", "/locations", "/characters", "/factions", "/companions"]),
     section("compendium", uiText("shell.compendium"), ["/pantheon", "/artifacts", "/history"]),
-  ], hidden: [] };
+  ], hidden: ["/events"] };
 }
 function section(id: string, label: string, pages: readonly string[]): SidebarSection {
   return { id, label, icon: "", collapsible: false, defaultOpen: true, role: "", pages };
@@ -90,7 +92,7 @@ export function parseSidebarLayout(value: unknown): SidebarLayout {
   const hidden = [...pages(value["hidden"] ?? [])];
   // Pages added by the rewrite start hidden in a curated layout. Unknown saved
   // routes survive editing and can become available when their workflow returns.
-  for (const group of defaultSidebarLayout().sections) for (const route of group.pages) if (!routes.has(route)) hidden.push(route);
+  for (const route of allSidebarRoutes(defaultSidebarLayout())) if (!routes.has(route)) hidden.push(route);
   return { ...value, sections, hidden };
 }
 export function prepareSidebarSave(campaign: CampaignDataset, detail: SidebarSaveDetail): CampaignMutation {

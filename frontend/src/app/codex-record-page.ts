@@ -110,6 +110,9 @@ export class CodexRecordPage extends LitElement {
       this.#editCampaign = this.campaign;
       this.editor = "create";
     }
+    if ((changed.has("route") || changed.has("canEdit")) && this.route?.kind === "record" && this.route.editing && this.canEdit) {
+      this.#editCampaign = this.campaign; this.editor = "edit";
+    }
   }
 
   protected override render() {
@@ -117,9 +120,9 @@ export class CodexRecordPage extends LitElement {
     const campaign = this.#editorCampaign;
     if (this.route.kind === "create") {
       return html`<article class="record-article editor-article" aria-labelledby="record-editor-title">
-        <a href="#/party" class="breadcrumb-link">Back to party</a>
+        <a href=${this.route.preset === "party" ? "#/party" : "#/timeline"} class="breadcrumb-link">${this.route.preset === "party" ? "Back to party" : this.#ui.t("timeline.back")}</a>
         ${this.canEdit ? this.#editorForm(undefined, this.route) : html`
-          <h1 id="record-editor-title">Add party member</h1>
+          <h1 id="record-editor-title">${this.route.preset === "party" ? "Add party member" : this.#ui.t("timeline.newEvent")}</h1>
           <button type="button" @click=${() => this.dispatchEvent(new CustomEvent("campaign-sign-in", { bubbles: true, composed: true }))}>Sign in</button>
         `}
       </article>`;
@@ -176,7 +179,7 @@ export class CodexRecordPage extends LitElement {
     if (record === undefined) {
       return html`
         <article class="record-article missing-record">
-          <a href=${collectionHash(route.page)} class="breadcrumb-link">Back to ${route.page.plural}</a>
+          <a href=${route.page.collection === "events" ? "#/timeline" : collectionHash(route.page)} class="breadcrumb-link">${route.page.collection === "events" ? this.#ui.t("timeline.back") : `Back to ${route.page.plural}`}</a>
           <h1>Entry not found</h1>
           <p>This entry is not available in the current campaign view.</p>
         </article>
@@ -188,7 +191,7 @@ export class CodexRecordPage extends LitElement {
     if (this.editor === "edit") {
       return html`
         <article class="record-article editor-article" aria-labelledby="record-editor-title">
-          <a href=${collectionHash(route.page)} class="breadcrumb-link">${route.page.plural}</a>
+          <a href=${route.page.collection === "events" ? "#/timeline" : collectionHash(route.page)} class="breadcrumb-link">${route.page.collection === "events" ? this.#ui.t("timeline.back") : route.page.plural}</a>
           ${this.#editorForm(record, route)}
         </article>
       `;
@@ -205,7 +208,7 @@ export class CodexRecordPage extends LitElement {
     };
     return html`
       <article class="record-article" aria-labelledby="record-title">
-        <a href=${collectionHash(route.page)} class="breadcrumb-link">${route.page.plural}</a>
+        <a href=${route.page.collection === "events" ? "#/timeline" : collectionHash(route.page)} class="breadcrumb-link">${route.page.collection === "events" ? this.#ui.t("timeline.back") : route.page.plural}</a>
         <div class="record-reading-layout">
           <aside class="record-side">
             <header class="record-masthead">
@@ -293,7 +296,7 @@ export class CodexRecordPage extends LitElement {
     const value: Readonly<Record<string, unknown>> = record === undefined && route.kind === "create" && route.preset === "party"
       ? { faction: "party", knowledge: 4, status: statusField !== undefined &&
           editorOptionsFor(this.#editorCampaign, statusField, "").some(({ value }) => value === "alive") ? "alive" : "" }
-      : recordValue(record);
+      : record === undefined && route.kind === "create" && route.preset === "event" ? { sitting: route.sitting ?? 1 } : recordValue(record);
     const creating = record === undefined;
     return html`
       <form class="record-editor" @submit=${this.#submitEditor} @input=${this.#markDirty} @change=${this.#markDirty}>
@@ -543,7 +546,8 @@ export class CodexRecordPage extends LitElement {
       this.#setDirty(false);
       this.editor = "closed";
       this.#resetEditors();
-      if (this.route?.kind === "create") window.location.hash = "#/party";
+      if (this.route?.kind === "create") window.location.hash = this.route.preset === "party" ? "#/party" : "#/timeline";
+      else if (this.route?.kind === "record" && this.route.editing) window.location.hash = "#/timeline";
     }
   };
 

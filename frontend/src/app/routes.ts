@@ -26,17 +26,23 @@ export type AppRoute =
   | { readonly kind: "dashboard" }
   | { readonly kind: "search" }
   | { readonly kind: "party" }
+  | { readonly kind: "timeline" }
   | { readonly kind: "map"; readonly parentId: string | null;
       readonly event?: { readonly key: string; readonly mode: "show" | "place" };
       readonly location?: { readonly key: string; readonly mode: "show" | "place" } }
-  | { readonly kind: "create"; readonly page: CampaignPageDefinition; readonly preset: "party" }
+  | { readonly kind: "create"; readonly page: CampaignPageDefinition; readonly preset: "party" | "event"; readonly sitting?: number }
   | { readonly kind: "settings"; readonly mapParentId?: string | null }
   | { readonly kind: "collection"; readonly page: CampaignPageDefinition }
-  | { readonly kind: "record"; readonly page: CampaignPageDefinition; readonly key: string }
+  | { readonly kind: "record"; readonly page: CampaignPageDefinition; readonly key: string; readonly editing?: boolean }
   | { readonly kind: "addon" }
   | { readonly kind: "not-found"; readonly path: string };
 
 export function parseAppRoute(hash: string): AppRoute {
+  if (["#/timeline", "#/casova-osa", "#/mapa/casova-osa"].includes(hash)) return { kind: "timeline" };
+  const newEvent = /^#\/timeline\/new\/([1-9]\d*)$/u.exec(hash);
+  if (newEvent !== null && Number.isSafeInteger(Number(newEvent[1]))) {
+    return { kind: "create", preset: "event", sitting: Number(newEvent[1]), page: campaignPages.find(page => page.id === "events")! };
+  }
   if (hash === "" || hash === "#" || hash === "#/" || hash === "#/dashboard") {
     return { kind: "dashboard" };
   }
@@ -81,7 +87,8 @@ export function parseAppRoute(hash: string): AppRoute {
   const path = hash.startsWith("#/") ? hash.slice(2) : hash;
   const [pageID, encodedKey, ...rest] = path.split("/");
   const definition = campaignPages.find((candidate) => candidate.id === pageID);
-  if (definition === undefined || rest.length > 0) {
+  const editing = pageID === "events" && rest.length === 1 && rest[0] === "edit";
+  if (definition === undefined || rest.length > 0 && (!editing || !encodedKey)) {
     return { kind: "not-found", path };
   }
   if (encodedKey === undefined || encodedKey === "") {
@@ -91,7 +98,7 @@ export function parseAppRoute(hash: string): AppRoute {
     const key = decodeURIComponent(encodedKey);
     return key === "" || /\p{Cc}/u.test(key)
       ? { kind: "not-found", path }
-      : { kind: "record", page: definition, key };
+      : { kind: "record", page: definition, key, ...(editing ? { editing: true } : {}) };
   } catch {
     return { kind: "not-found", path };
   }

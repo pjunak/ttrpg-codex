@@ -10,6 +10,14 @@ import {
 } from "../src/app/routes.js";
 
 describe("application routes", () => {
+  it("opens the preserved timeline aliases and session-aware shared event editor", () => {
+    for (const hash of ["#/timeline", "#/casova-osa", "#/mapa/casova-osa"]) expect(parseAppRoute(hash)).toEqual({ kind: "timeline" });
+    expect(parseAppRoute("#/timeline/new/3")).toMatchObject({ kind: "create", preset: "event", sitting: 3, page: { collection: "events" } });
+    expect(parseAppRoute("#/events/river%2Fcamp/edit")).toMatchObject({ kind: "record", key: "river/camp", editing: true });
+    for (const hash of ["#/timeline/new/0", "#/timeline/new/2.5", "#/timeline/new/9007199254740992", "#/events/%00/edit", "#/events/river/edit/extra"]) {
+      expect(parseAppRoute(hash).kind).toBe("not-found");
+    }
+  });
   it("maps the campaign title page, search, party, collections, records, and add-ons", () => {
     expect(parseAppRoute("")).toEqual({ kind: "dashboard" });
     expect(parseAppRoute("#/search")).toEqual({ kind: "search" });
