@@ -43,7 +43,7 @@ const dataTransactionKeys = new Set(["mutations"]);
 const contentGetKeys = new Set(["setId", "kind", "id"]);
 const contentQueryKeys = new Set(["setId", "options"]);
 const contentQueryOptionKeys = new Set(["kind", "cursor", "limit"]);
-const serviceConnectKeys = new Set(["contract", "range", "cardinality"]);
+const serviceConnectKeys = new Set(["contract", "range", "cardinality", "includeOwn"]);
 const serviceCallKeys = new Set(["serviceId", "method", "params", "options"]);
 const serviceCallOptionKeys = new Set([
   "providerAddonId", "deadlineMs", "idempotencyKey",
@@ -595,7 +595,12 @@ export class IsolatedFrameBridge {
         if (cardinality !== "one" && cardinality !== "many") {
           throw new BoundaryValidationError(boundary, "service cardinality is invalid");
         }
-        return this.#context.services.connect(contract, { range, cardinality, signal }).then((handle) => {
+        const includeOwn = params["includeOwn"];
+        if (includeOwn !== undefined && typeof includeOwn !== "boolean") {
+          throw new BoundaryValidationError(boundary, "service includeOwn must be boolean");
+        }
+        return this.#context.services.connect(contract, { range, cardinality, signal,
+          ...(includeOwn === undefined ? {} : { includeOwn }) }).then((handle) => {
           const serviceId = `service-${++this.#serviceSequence}`;
           this.#serviceHandles.set(serviceId, handle);
           return Object.freeze({

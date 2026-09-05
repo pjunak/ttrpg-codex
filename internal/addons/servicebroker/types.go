@@ -128,4 +128,6 @@ type Handle struct {
 	Transport       Transport   `json:"transport"`
 	Generation      string      `json:"generation"`
 	BindingRevision int64       `json:"bindingRevision"`
+
+	ownBrowserProvider bool
 }

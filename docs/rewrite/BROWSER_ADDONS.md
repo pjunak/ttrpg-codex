@@ -74,6 +74,20 @@ the same exact durable graph restores the deterministic projection.
 
 ## HTTP delivery
 
+The generation-scoped service SDK supports `includeOwn: true` in both browser
+modes. `service-client.ts`, the opaque-frame bootstrap and bridge carry the
+boolean to the existing authenticated connection endpoint. The manager can then
+include the caller's declared native worker without adding a worker dependency
+on itself. The public service guide defines ambiguity, actor and stale-handle
+behavior. Typed worker errors map to fixed HTTP codes/messages so import
+conflicts and expired tokens remain actionable without exposing worker details.
+
+The installed DM Tools workflow test uploads the actual release ZIP, reviews
+and activates it, then checks read-only preview, cancelled review/request,
+single-use commit, atomic conflicts, DM-only access, and replacement by another
+reviewed package generation. The replacement fixture changes the test manifest
+version while retaining the real worker binaries and recomputing checksums.
+
 The transport registers browser add-on routes only when both a
 `BrowserAddonSource` and `BrowserAuthorizer` are supplied. Partial
 configuration fails at startup, and authorization runs before query, ID, or

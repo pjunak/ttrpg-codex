@@ -241,11 +241,13 @@ export const isolatedFrameBootstrap = String.raw`
         requireActive();
         if (typeof contract !== "string" || contract.length === 0 ||
           typeof options.range !== "string" || options.range.length === 0 ||
-          (options.cardinality !== "one" && options.cardinality !== "many")) {
+          (options.cardinality !== "one" && options.cardinality !== "many") ||
+          (options.includeOwn !== undefined && typeof options.includeOwn !== "boolean")) {
           throw new TypeError("The isolated add-on service request is invalid.");
         }
         const connection = await sdkRequest("services.connect", {
           contract, range: options.range, cardinality: options.cardinality,
+          ...(options.includeOwn === undefined ? {} : { includeOwn: options.includeOwn }),
         }, options.signal || controller.signal);
         if (typeof connection !== "object" || connection === null ||
           typeof connection.serviceId !== "string" || connection.contract !== contract ||

@@ -3,7 +3,9 @@ package packagemanager
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
@@ -16,6 +18,7 @@ type BrowserServiceRequest struct {
 	Contract    string
 	Range       string
 	Cardinality string
+	IncludeOwn  bool
 }
 
 type BrowserServiceProvider struct {
@@ -75,10 +78,21 @@ func (manager *Manager) ConnectBrowserService(
 			Generation: handle.Generation, BindingRevision: handle.BindingRevision,
 		})
 	}
+	if request.IncludeOwn {
+		own, err := manager.broker.ConnectOwnBrowserService(ctx, addonID, generationID, request.Contract, declaration.Range)
+		if err != nil && !errors.Is(err, servicebroker.ErrServiceUnavailable) {
+			return BrowserServiceConnection{}, err
+		}
+		if err == nil {
+			providers = append(providers, BrowserServiceProvider{AddonID: own.ProviderAddonID,
+				ContractVersion: own.ContractVersion, Generation: own.Generation, BindingRevision: own.BindingRevision})
+		}
+	}
+	sort.Slice(providers, func(i, j int) bool { return providers[i].AddonID < providers[j].AddonID })
 	if request.Cardinality == string(servicebroker.CardinalityOne) && len(providers) > 1 {
 		return BrowserServiceConnection{}, fmt.Errorf(
 			"%w: cardinality-one service has multiple bound providers",
-			ErrServiceResolution,
+			servicebroker.ErrAmbiguousProvider,
 		)
 	}
 	return BrowserServiceConnection{
@@ -107,6 +121,14 @@ func (manager *Manager) CallBrowserService(
 		return nil, ErrNotActive
 	}
 	var selected *servicebroker.Handle
+	if target.ProviderAddonID == addonID {
+		if declaration, ok := consumedService(active.report.Manifest, target.Contract); ok {
+			own, err := manager.broker.ConnectOwnBrowserService(ctx, addonID, generationID, target.Contract, declaration.Range)
+			if err == nil && own.ContractVersion == target.ContractVersion && own.Generation == target.Generation && own.BindingRevision == target.BindingRevision {
+				selected = &own
+			}
+		}
+	}
 	for index := range active.services {
 		handle := active.services[index]
 		if handle.Contract == target.Contract &&

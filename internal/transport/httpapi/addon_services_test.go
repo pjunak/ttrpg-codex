@@ -33,13 +33,13 @@ func TestBrowserServiceConnectAndCallPreserveHostAuthority(t *testing.T) {
 
 	connect := serveBrowserServiceRequest(handler,
 		"/api/addons/dnd-sheets/generations/"+generation+"/services/connect",
-		`{"contractVersion":"addon-service-connect.v1","contract":"dnd5e.rules-engine","range":"^3.0.0","cardinality":"one"}`,
+		`{"contractVersion":"addon-service-connect.v1","contract":"dnd5e.rules-engine","range":"^3.0.0","cardinality":"one","includeOwn":true}`,
 	)
 	if connect.Code != http.StatusOK || !strings.Contains(connect.Body.String(), providerGeneration) {
 		t.Fatalf("connect response = %d, %s", connect.Code, connect.Body.String())
 	}
 	if source.connectAddonID != "dnd-sheets" || source.connectGeneration != generation ||
-		source.connectRequest.Range != "^3.0.0" {
+		source.connectRequest.Range != "^3.0.0" || !source.connectRequest.IncludeOwn {
 		t.Fatalf("connect request = %q, %q, %+v", source.connectAddonID, source.connectGeneration, source.connectRequest)
 	}
 
@@ -91,6 +91,32 @@ func TestBrowserServiceBoundaryRejectsUnauthorizedMalformedAndStaleCalls(t *test
 	if stale.Code != http.StatusConflict || !strings.Contains(stale.Body.String(), "STALE_BINDING") ||
 		strings.Contains(stale.Body.String(), "private") {
 		t.Fatalf("stale response = %d, %s", stale.Code, stale.Body.String())
+	}
+}
+
+func TestBrowserServiceKeepsWorkerErrorKindsWithoutPrivateDetails(t *testing.T) {
+	t.Parallel()
+	for _, check := range []struct {
+		kind   string
+		status int
+		code   string
+	}{
+		{workerrpc.KindConflict, 409, "CONFLICT"}, {workerrpc.KindNotFound, 404, "NOT_FOUND"},
+		{workerrpc.KindUnauthorized, 403, "FORBIDDEN"}, {workerrpc.KindValidationFailed, 400, "INVALID_REQUEST"},
+		{workerrpc.KindUnavailable, 503, "SERVICE_UNAVAILABLE"}, {workerrpc.KindDeadlineExceeded, 504, "DEADLINE_EXCEEDED"},
+		{workerrpc.KindCancelled, 408, "CANCELLED"}, {workerrpc.KindRateLimited, 429, "RATE_LIMITED"},
+		{workerrpc.KindStaleBinding, 409, "STALE_BINDING"}, {workerrpc.KindInternal, 500, "INTERNAL"},
+	} {
+		t.Run(check.kind, func(t *testing.T) {
+			source := &recordingBrowserServices{callError: workerrpc.NewRPCError(workerrpc.JSONRPCApplication, check.kind, "private worker details", false, map[string]any{"private": "hidden"})}
+			handler := newBrowserServiceHandler(t, source, func(*http.Request) (workerrpc.Actor, error) { return workerrpc.Actor{Role: "dm", ID: "fixture"}, nil })
+			generation := strings.Repeat("a", 64)
+			response := serveBrowserServiceRequest(handler, "/api/addons/dm-tools/generations/"+generation+"/services/call",
+				`{"contractVersion":"addon-service-call.v1","contract":"codex.import-adapter","providerAddonId":"dm-tools","providerVersion":"2.0.0","providerGeneration":"`+generation+`","bindingRevision":0,"method":"commit","params":{},"deadlineMs":2000}`)
+			if response.Code != check.status || !strings.Contains(response.Body.String(), check.code) || strings.Contains(response.Body.String(), "private") {
+				t.Fatalf("response = %d, %s", response.Code, response.Body.String())
+			}
+		})
 	}
 }
 

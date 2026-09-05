@@ -408,6 +408,17 @@ func (broker *Broker) ValidateHandle(ctx context.Context, handle Handle) (Provid
 }
 
 func (broker *Broker) validateHandle(ctx context.Context, handle Handle) (Provider, error) {
+	if err := ctx.Err(); err != nil {
+		return Provider{}, err
+	}
+	if handle.ownBrowserProvider {
+		provider, err := broker.ownBrowserProvider(ctx, handle.ConsumerAddonID, handle.Generation, handle.Contract, handle.Range)
+		if err != nil || provider.AddonID != handle.ProviderAddonID || provider.ContractVersion != handle.ContractVersion ||
+			provider.Transport != handle.Transport || handle.BindingRevision != 0 {
+			return Provider{}, ErrStaleBinding
+		}
+		return provider, nil
+	}
 	requirement := Requirement{
 		ConsumerAddonID: handle.ConsumerAddonID,
 		Contract:        handle.Contract,

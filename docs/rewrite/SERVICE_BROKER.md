@@ -69,6 +69,21 @@ reports the exact target IDs. It never falls through to another provider.
 
 ## Generation-safe handles and calls
 
+The authenticated browser service connection accepts an explicit `includeOwn`
+boolean. After validating the active consumer declaration, the package manager
+adds a compatible worker service from that same active generation. These handles
+are created by `ConnectOwnBrowserService` and marked privately in memory; the
+marker cannot arrive through serialized worker handles. They never enter worker
+initialization, operator bindings, or dependency ordering. Ordinary resolution
+still excludes the consumer itself. External selections remain unchanged, and a
+single-provider connection with two candidates fails as ambiguous.
+
+Own handles use the same call pipeline, compiled schemas and actor leases as
+external handles. Validation checks the current catalog/runtime both before
+execution and after the response. The manager also checks the exact active UI
+generation and manifest consumer requirement for every browser call. The optional
+discovery flag does not grant authority beyond those reviewed declarations.
+
 A resolved handle captures the consumer, contract and range, cardinality,
 selection policy, scope, provider, exact contract version, transport,
 generation, and binding revision. Every call re-resolves and compares all of

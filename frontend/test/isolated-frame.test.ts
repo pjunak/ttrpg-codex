@@ -86,15 +86,19 @@ describe("IsolatedFrameBridge", () => {
     });
 
     port.receive(request("connect-engine", "services.connect", {
-      contract: "dnd5e.rules-engine", range: "^3.0.0", cardinality: "one",
+      contract: "dnd5e.rules-engine", range: "^3.0.0", cardinality: "one", includeOwn: true,
     }));
     await vi.waitFor(() => expect(response(port, "connect-engine")).toMatchObject({
       ok: true,
       result: { serviceId: "service-1", available: true, providers: handle.providers },
     }));
     expect(connect).toHaveBeenCalledWith("dnd5e.rules-engine", {
-      range: "^3.0.0", cardinality: "one", signal: expect.any(AbortSignal),
+      range: "^3.0.0", cardinality: "one", includeOwn: true, signal: expect.any(AbortSignal),
     });
+
+    port.receive(request("bad-own-provider", "services.connect", { contract: "dnd5e.rules-engine", range: "^3.0.0", cardinality: "one", includeOwn: "true" }));
+    await vi.waitFor(() => expect(response(port, "bad-own-provider")).toMatchObject({ ok: false }));
+    expect(connect).toHaveBeenCalledTimes(1);
 
     port.receive(request("hydrate", "services.call", {
       serviceId: "service-1",

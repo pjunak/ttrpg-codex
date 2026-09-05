@@ -77,6 +77,7 @@ func (s *server) browserServiceConnect(w http.ResponseWriter, r *http.Request) {
 		Contract        string `json:"contract"`
 		Range           string `json:"range"`
 		Cardinality     string `json:"cardinality"`
+		IncludeOwn      bool   `json:"includeOwn,omitempty"`
 	}
 	if !decodeBoundedJSON(w, r, &request, 16<<10, "browser service connect") {
 		return
@@ -90,6 +91,7 @@ func (s *server) browserServiceConnect(w http.ResponseWriter, r *http.Request) {
 		r.Context(), addonID, generationID,
 		packagemanager.BrowserServiceRequest{
 			Contract: request.Contract, Range: request.Range, Cardinality: request.Cardinality,
+			IncludeOwn: request.IncludeOwn,
 		},
 	)
 	if err != nil {
@@ -190,6 +192,7 @@ func objectOrArrayJSON(value json.RawMessage) bool {
 
 func (s *server) writeBrowserServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	status, kind, message := http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "the add-on service is unavailable"
+	var workerError *workerrpc.RPCError
 	switch {
 	case errors.Is(err, packagemanager.ErrNotActive):
 		status, kind, message = http.StatusConflict, "STALE_GENERATION", "the add-on generation is no longer active"
@@ -209,6 +212,30 @@ func (s *server) writeBrowserServiceError(w http.ResponseWriter, r *http.Request
 		errors.Is(err, servicebroker.ErrAmbiguousProvider),
 		errors.Is(err, servicebroker.ErrInvalidSelection):
 		// Stable unavailable response above.
+	case errors.As(err, &workerError):
+		status, kind, message = http.StatusInternalServerError, "INTERNAL", "the add-on service request failed"
+		if workerError.Data != nil {
+			switch workerError.Data.Kind {
+			case workerrpc.KindConflict:
+				status, kind, message = http.StatusConflict, "CONFLICT", "the data changed; review a new preview before committing"
+			case workerrpc.KindStaleBinding:
+				status, kind, message = http.StatusConflict, "STALE_BINDING", "the add-on service binding is stale"
+			case workerrpc.KindNotFound:
+				status, kind, message = http.StatusNotFound, "NOT_FOUND", "the requested service resource is missing or expired"
+			case workerrpc.KindUnauthorized:
+				status, kind, message = http.StatusForbidden, "FORBIDDEN", "the service operation is not allowed for this user"
+			case workerrpc.KindInvalidRequest, workerrpc.KindValidationFailed:
+				status, kind, message = http.StatusBadRequest, "INVALID_REQUEST", "the service input failed validation"
+			case workerrpc.KindRateLimited:
+				status, kind, message = http.StatusTooManyRequests, "RATE_LIMITED", "the service request limit was reached"
+			case workerrpc.KindCancelled:
+				status, kind, message = http.StatusRequestTimeout, "CANCELLED", "the service request was cancelled"
+			case workerrpc.KindDeadlineExceeded:
+				status, kind, message = http.StatusGatewayTimeout, "DEADLINE_EXCEEDED", "the service request timed out"
+			case workerrpc.KindUnavailable:
+				status, kind, message = http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "the add-on service is unavailable"
+			}
+		}
 	default:
 		status, kind, message = http.StatusInternalServerError, "INTERNAL", "the add-on service request failed"
 	}

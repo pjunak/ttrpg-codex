@@ -17,6 +17,13 @@ const resultKeys = new Set([
 
 export type BrowserServiceCardinality = "one" | "many";
 
+export interface BrowserServiceConnectOptions {
+  readonly range: string;
+  readonly cardinality: BrowserServiceCardinality;
+  readonly includeOwn?: boolean;
+  readonly signal?: AbortSignal;
+}
+
 export interface BrowserServiceProvider {
   readonly addonId: string;
   readonly contractVersion: string;
@@ -47,11 +54,7 @@ export interface BrowserServiceHandle {
 export interface BrowserServiceAPI {
   connect(
     contract: string,
-    options: {
-      readonly range: string;
-      readonly cardinality: BrowserServiceCardinality;
-      readonly signal?: AbortSignal;
-    },
+    options: BrowserServiceConnectOptions,
   ): Promise<BrowserServiceHandle>;
 }
 
@@ -92,25 +95,18 @@ export class BrowserAddonServiceClient {
     return Object.freeze({
       connect: (
         contract: string,
-        options: {
-          readonly range: string;
-          readonly cardinality: BrowserServiceCardinality;
-          readonly signal?: AbortSignal;
-        },
+        options: BrowserServiceConnectOptions,
       ) => this.connect(contract, options),
     });
   }
 
   async connect(
     contract: string,
-    options: {
-      readonly range: string;
-      readonly cardinality: BrowserServiceCardinality;
-      readonly signal?: AbortSignal;
-    },
+    options: BrowserServiceConnectOptions,
   ): Promise<BrowserServiceHandle> {
     if (!contractPattern.test(contract) || options.range.length < 1 || options.range.length > 200 ||
-      (options.cardinality !== "one" && options.cardinality !== "many")) {
+      (options.cardinality !== "one" && options.cardinality !== "many") ||
+      (options.includeOwn !== undefined && typeof options.includeOwn !== "boolean")) {
       throw new BoundaryValidationError("add-on service connect", "request is invalid");
     }
     const value = await this.#request("connect", {
@@ -118,6 +114,7 @@ export class BrowserAddonServiceClient {
       contract,
       range: options.range,
       cardinality: options.cardinality,
+      ...(options.includeOwn === undefined ? {} : { includeOwn: options.includeOwn }),
     }, options.signal);
     const connection = parseConnection(value, contract, options.range, options.cardinality);
     const providers = Object.freeze([...connection.providers]);

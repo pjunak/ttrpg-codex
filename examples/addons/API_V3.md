@@ -610,6 +610,38 @@ same authenticated, CSRF-protected HTTP boundary used by isolated frames, and
 both routes ultimately enter the package manager's stored exact-generation
 handle and the service broker's request/response schemas.
 
+Browser code may explicitly add its own worker provider to discovery:
+
+```ts
+const adapters = await context.services.connect("codex.import-adapter", {
+  range: "^2.0.0", cardinality: "many", includeOwn: true,
+  signal: context.signal,
+});
+```
+
+`includeOwn` is an optional boolean, false by default, supported in integrated
+and isolated UI. The active manifest must declare the exact consumer requirement
+and a compatible `worker` provider for that contract. The extra provider is
+always the caller's own active generation, with binding revision `0`; callers
+cannot name another package as their own. An absent own provider leaves the
+ordinary optional result intact. External provider selection and operator
+bindings remain unchanged. A `one` connection with both an external and own
+provider is ambiguous; use `many` and select from the returned handles.
+
+This is browser discovery, not an additional permission or a worker dependency.
+Workers continue to exclude themselves from service resolution and initialization
+bindings. Own-worker calls retain schema validation, deadlines, idempotency,
+host-issued actor lineage, cancellation, and generation checks before and after
+execution. The worker must enforce the method's actor requirements; an installed
+DM Tools worker accepts import methods only for a host-issued DM actor.
+
+Worker conflicts return `409 CONFLICT`, missing/expired resources return
+`404 NOT_FOUND`, and forbidden operations return `403 FORBIDDEN`. Validation,
+rate limits, cancellation, timeouts and unavailable providers also retain stable
+host error codes. Worker error messages and details are not copied into browser
+responses. After a failed or uncertain single-use commit, inspect current state
+and obtain a new preview rather than replaying a consumed token.
+
 Installed provider declarations and operator bindings survive a host restart;
 live generations and callable transports do not. A provider is unavailable
 until the matching package generation completes activation again. This avoids

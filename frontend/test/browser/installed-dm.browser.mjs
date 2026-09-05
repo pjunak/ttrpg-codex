@@ -11,6 +11,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { chromium, request as playwrightRequest } from 'playwright';
 import { jsonResponse, installReviewedPackage } from './installed-graph-fixture.mjs';
 import { installDmPackage } from './installed-dm-fixture.mjs';
+import { importQuest, planningImport, replacementImportPackage } from './installed-import-fixture.mjs';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const output = resolve(root, 'frontend/test-results/installed-dm');
@@ -176,9 +177,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('reviewed DM Tools dashboard preserves 
   await dashboard.locator('[data-stat="total"] .dm-dashboard-value').filter({ hasText: /^2$/u }).waitFor();
   assert.equal(await dashboard.locator('[data-stat="notes"] .dm-dashboard-value').textContent(), '1');
   assert.equal(await dashboard.locator('.dm-dashboard-recent a strong').first().textContent(), 'Hidden meeting');
-  // The broker currently excludes self providers; keep that unresolved import
-  // integration visible while the planner remains usable (see BACKLOG.md).
-  await dashboard.locator('.dm-dashboard-warning').filter({ hasText: 'Planning import is currently unavailable' }).waitFor();
+  assert.equal(await dashboard.locator('.dm-dashboard-warning').count(), 0);
   const recent = dashboard.getByRole('link', { name: /Hidden meeting/ });
   const eventLink = await recent.getAttribute('href');
   for (const mobile of [false, true]) {
@@ -220,12 +219,120 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('reviewed DM Tools dashboard preserves 
   await dashboard.locator('[data-stat="total"] .dm-dashboard-value').filter({ hasText: /^2$/u }).waitFor();
   await page.goto('/#/dm'); await panel.getByRole('link', { name: /Import Center/ }).click();
   await page.getByRole('heading', { name: 'Import Center', exact: true }).waitFor();
-  await page.getByText('No compatible import adapters are active.', { exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'DM Tools planning', exact: true }).waitFor();
   for (const role of ['player', '']) {
     const visitor = await open(t, role);
     assert.equal(await visitor.locator('.dm-tools-dashboard').count(), 0);
     assert.equal((await visitor.locator('.dm-panel').textContent()).includes('Hidden meeting'), false);
   }
+});
+
+if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planning imports preview, cancel, commit atomically and reject stale reviews', async t => {
+  const archive = await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP));
+  await installReviewedPackage(admin, csrf, 'dm-tools', archive, []); t.after(() => disable('dm-tools'));
+  const generation = (await jsonResponse(await admin.get('/api/admin/addons/dm-tools'))).state.activeGenerationId;
+  const base = `/api/addons/dm-tools/generations/${generation}`;
+  const headers = { 'X-Codex-CSRF': csrf };
+  const records = async (dataBase = base) => (await jsonResponse(await admin.post(`${dataBase}/data/query`, { headers,
+    data: { contractVersion: 'addon-data-query.v1', kind: 'collection', dataId: 'planning_items', limit: 200, where: [] } }))).documents;
+  const page = await open(t); await page.goto('/#/addons/dm-tools/imports');
+  await page.getByRole('heading', { name: 'DM Tools planning', exact: true }).waitFor();
+  const chooser = page.locator('.dm-tools-import input[type="file"]');
+  const select = async document => chooser.setInputFiles({ name: 'planning.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(document)) });
+  const preview = async document => {
+    const response = page.waitForResponse(response => response.url().endsWith('/services/call') && response.request().postDataJSON().method === 'preview');
+    await select(document);
+    const body = await jsonResponse(await response);
+    await page.getByText('Preview ready. No campaign data has changed.', { exact: true }).waitFor();
+    return body.result;
+  };
+  const document = planningImport([importQuest('import-quest', 'Imported northern trail')]);
+  const before = await records();
+  const player = await open(t, 'player');
+  const playerSession = await jsonResponse(await player.context().request.post('/api/login', { data: { password: 'local-graph-fixture-player' } }));
+  const forbidden = await player.context().request.post(`${base}/services/call`, { headers: { 'X-Codex-CSRF': playerSession.csrfToken },
+    data: { contractVersion: 'addon-service-call.v1', contract: 'codex.import-adapter', providerAddonId: 'dm-tools', providerVersion: '2.0.0', providerGeneration: generation, bindingRevision: 0,
+      method: 'preview', params: { contractVersion: 'import-preview.v1', format: 'dm-tools-planning', document }, deadlineMs: 3000 } });
+  assert.equal(forbidden.status(), 403); assert.deepEqual(await records(), before);
+  await preview(document); assert.deepEqual(await records(), before);
+  await page.evaluate(() => window.dispatchEvent(new HashChangeEvent('hashchange')));
+  await page.getByRole('button', { name: 'Cancel preview', exact: true }).click();
+  assert.equal(await page.locator('.dm-import-preview').count(), 0); assert.deepEqual(await records(), before);
+  const reviewed = await preview(document);
+  assert.equal(reviewed.summary.creates, 1);
+  const commitResponse = page.waitForResponse(response => response.url().endsWith('/services/call') && response.request().postDataJSON().method === 'commit');
+  await page.getByRole('button', { name: 'Commit reviewed import', exact: true }).click();
+  const committed = await jsonResponse(await commitResponse); assert.equal(committed.result.writes, 1);
+  await page.getByText('Import committed: 1 writes and 0 deletions.', { exact: true }).waitFor();
+  const stored = (await records()).find(record => record.key === 'import-quest');
+  assert.equal(stored.value.title, 'Imported northern trail'); assert.equal(stored.value.updatedAt, 1000);
+  const replay = await admin.post(`${base}/services/call`, { headers, data: { contractVersion: 'addon-service-call.v1', contract: 'codex.import-adapter', providerAddonId: 'dm-tools', providerVersion: '2.0.0', providerGeneration: generation, bindingRevision: 0,
+    method: 'commit', params: { contractVersion: 'import-commit.v1', token: reviewed.token }, deadlineMs: 3000, idempotencyKey: reviewed.token } });
+  assert.equal(replay.status(), 404); assert.deepEqual((await records()).find(record => record.key === stored.key), stored);
+
+  const update = { ...importQuest('import-quest', 'Overwritten by import'), operation: 'update', expectedUpdatedAt: 1000 };
+  await preview(planningImport([update, importQuest('import-atomic-new')], 2000));
+  await jsonResponse(await admin.post(`${base}/data/transactions`, { headers, data: { contractVersion: 'addon-data-transaction.v1', mutations: [
+    { operation: 'put', kind: 'collection', dataId: 'planning_items', key: stored.key, expectedRevision: stored.revision, value: { ...stored.value, title: 'Concurrent local edit', updatedAt: 3000 } },
+  ] } }));
+  await page.getByRole('button', { name: 'Commit reviewed import', exact: true }).click();
+  await page.getByText('Planning data changed. Choose the file again to review a new preview.', { exact: true }).waitFor();
+  assert.equal(await page.locator('.dm-import-preview').count(), 0);
+  assert.equal((await records()).find(record => record.key === 'import-quest').value.title, 'Concurrent local edit');
+  assert.equal((await records()).some(record => record.key === 'import-atomic-new'), false);
+
+  const callPattern = '**/api/addons/dm-tools/generations/*/services/call';
+  await preview(planningImport([importQuest('import-uncertain')], 3500));
+  await page.route(callPattern, async route => {
+    if (route.request().postDataJSON().method !== 'commit') return route.continue();
+    const response = await route.fetch(); assert.equal(response.ok(), true);
+    await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'SERVICE_UNAVAILABLE' } }) });
+  });
+  await page.getByRole('button', { name: 'Commit reviewed import', exact: true }).click();
+  await page.getByText('Could not confirm the import. Check planning data before choosing the file again for a new preview.', { exact: true }).waitFor();
+  await page.unroute(callPattern);
+  assert.equal((await records()).some(record => record.key === 'import-uncertain'), true);
+  assert.equal(await page.locator('.dm-import-preview').count(), 0);
+
+  let releaseResponse, receivedResponse;
+  const held = new Promise(resolve => { releaseResponse = resolve; }), received = new Promise(resolve => { receivedResponse = resolve; });
+  t.after(() => releaseResponse());
+  await page.route(callPattern, async route => {
+    if (route.request().postDataJSON().method !== 'preview') return route.continue();
+    const response = await route.fetch(); receivedResponse(); await held;
+    await route.fulfill({ response }).catch(() => {});
+  });
+  await select(planningImport([importQuest('import-cancelled')], 4000)); await received;
+  await page.goto('/#/dm'); releaseResponse(); await page.unroute(callPattern);
+  await page.goto('/#/addons/dm-tools/imports');
+  await page.getByRole('heading', { name: 'DM Tools planning', exact: true }).waitFor();
+  assert.equal(await page.locator('.dm-import-preview').count(), 0);
+  assert.equal((await records()).some(record => record.key === 'import-cancelled'), false);
+
+  await preview(planningImport([importQuest('import-replaced')], 5000));
+  await installReviewedPackage(admin, csrf, 'dm-tools', replacementImportPackage(archive), []);
+  const newGeneration = (await jsonResponse(await admin.get('/api/admin/addons/dm-tools'))).state.activeGenerationId;
+  assert.notEqual(newGeneration, generation);
+  await page.locator(`dm-tools-import-center-${newGeneration}`).waitFor();
+  await page.getByRole('heading', { name: 'DM Tools planning', exact: true }).waitFor();
+  assert.equal(await page.locator('.dm-import-preview').count(), 0);
+  const stale = await admin.post(`${base}/services/connect`, { headers, data: { contractVersion: 'addon-service-connect.v1', contract: 'codex.import-adapter', range: '^2.0.0', cardinality: 'many', includeOwn: true } });
+  assert.equal(stale.status(), 409);
+  await preview(planningImport([importQuest('import-replaced')], 5000));
+  await page.getByRole('button', { name: 'Commit reviewed import', exact: true }).click();
+  await page.getByText('Import committed: 1 writes and 0 deletions.', { exact: true }).waitFor();
+  const newBase = `/api/addons/dm-tools/generations/${newGeneration}`;
+  const beforeReplacement = await records(newBase);
+  const replacement = planningImport([importQuest('import-replaced')], 6000, 'replace');
+  const deletionReview = await preview(replacement);
+  assert.ok(deletionReview.summary.deletes > 0);
+  await page.getByRole('button', { name: `Commit replacement with ${deletionReview.summary.deletes} deletions`, exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Cancel preview', exact: true }).click();
+  assert.deepEqual(await records(newBase), beforeReplacement);
+  await preview(replacement);
+  await page.getByRole('button', { name: /^Commit replacement with \d+ deletions$/u }).click();
+  await page.locator('.dm-tools-import [role="status"]').filter({ hasText: /^Import committed:/u }).waitFor();
+  assert.deepEqual((await records(newBase)).map(record => record.key), ['import-replaced']);
 });
 
 after(async () => {

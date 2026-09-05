@@ -11,6 +11,17 @@ const providerGeneration = "b".repeat(64);
 const csrfToken = "c".repeat(32);
 
 describe("BrowserAddonServiceClient", () => {
+  it("sends own-provider discovery only when explicitly requested", async () => {
+    const fetchService = vi.fn<AddonServiceFetch>(async () => jsonResponse(connection()));
+    const client = createClient(fetchService).api();
+    await client.connect("dnd5e.rules-engine", { range: "^3.0.0", cardinality: "one" });
+    expect(JSON.parse(String(fetchService.mock.calls[0]?.[1].body))).not.toHaveProperty("includeOwn");
+    await client.connect("dnd5e.rules-engine", { range: "^3.0.0", cardinality: "one", includeOwn: true });
+    expect(JSON.parse(String(fetchService.mock.calls[1]?.[1].body))).toHaveProperty("includeOwn", true);
+    await expect(client.connect("dnd5e.rules-engine", { range: "^3.0.0", cardinality: "one", includeOwn: "true" as unknown as boolean })).rejects.toThrow(BoundaryValidationError);
+    expect(fetchService).toHaveBeenCalledTimes(2);
+  });
+
   it("connects and calls one exact schema-validated provider binding", async () => {
     const fetchService = vi.fn<AddonServiceFetch>(async (_input, init) => {
       const request = JSON.parse(String(init.body)) as { contractVersion: string };

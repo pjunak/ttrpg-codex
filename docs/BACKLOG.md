@@ -128,14 +128,13 @@ matrices and repeat rehearsals are follow-up work, not release prerequisites.
 - [ ] Bring DM Tools planner interaction and editing to accepted parity,
   including graph navigation, card/flow authoring, annotations, and browser
   regression coverage; complete the reviewed Import Center workflow.
-  Next: resolve the verified own-provider mismatch. DM Tools provides and
-  consumes `codex.import-adapter`, but the broker deliberately excludes its
-  consumer from providers, so its installed Import Center cannot discover the
-  planning worker. Preserve worker dependency-cycle prevention and reviewed
-  exact-plan commits while adding an explicit supported browser-to-own-worker
-  path. Cover actual planning preview/commit, conflict, cancellation, and
-  generation replacement through a reviewed ZIP; do not merely hide the warning
-  or remove broker self-exclusion globally.
+  Own-worker discovery now uses explicit browser `includeOwn` access while
+  retaining worker self-exclusion. Installed ZIP checks cover planning preview,
+  cancellation, exact single-use commit, atomic conflicts, DM-only access and
+  generation replacement, plus lost commit responses and reviewed replacement
+  deletions. Remaining work includes the planner's broader editing
+  and visual parity, complete Import Center presentation/localization, and
+  acceptance with the other import providers.
 - [ ] Verify the compendium browser against the old day-to-day browsing and
   reference workflow, then restore any accepted source, linking, filtering, or
   detail behavior that is missing.
@@ -176,9 +175,14 @@ and the original dark/gold layout. Counts load on entry or explicit refresh;
 live add-on data invalidation remains part of broader planner parity. Installed
 checks create a quest, event and note, open recent leaves in their parent canvas,
 retain unchanged drafts, exercise reload/new-tab/back navigation and recover
-from invalid links and failed reads. Import Center entry works, but its own
-planning provider is currently excluded by broker resolution (tracked above).
-This is not complete planner/import workflow acceptance. Shared isolated startup now sends ready
+from invalid links and failed reads. Import Center now discovers its own planning
+worker through a browser-only opt-in. Real installed checks cover preview and
+commit, cancellation without writes, consumed tokens, concurrent changes without
+partial writes, and generation replacement. A submitted review cannot be retried
+blindly after a failed/uncertain commit. All four add-on archives pass inspection;
+the engine's stale indirect text dependency was aligned with the current host
+SDK so its build and test gate can run again. Broader planner/import UI parity
+remains open. Shared isolated startup now sends ready
 before resize, removing a false failure diagnostic for healthy widgets.
 
 The visual reference is `origin/deprecated/pre-rewrite-2026-09-01` at
