@@ -25,9 +25,10 @@ import "./codex-map-settings.js";
 import "./codex-party-settings.js";
 import "./codex-branding-settings.js";
 import "./codex-sidebar-settings.js";
+import "./codex-addon-manager.js";
 import type { BrowserNavigationEntry } from "../addons/navigation.js";
 
-type SettingsCategory = "language" | "appearance" | "maps" | "playerParty" | "sidebar" | CampaignEnumCategory;
+type SettingsCategory = "language" | "appearance" | "maps" | "playerParty" | "sidebar" | "addons" | CampaignEnumCategory;
 
 export class CodexSettings extends LitElement {
   static override properties = {
@@ -38,6 +39,7 @@ export class CodexSettings extends LitElement {
     editCompletion: { type: Number },
     activeCategory: { state: true },
     addonPages: { attribute: false },
+    csrfToken: { attribute: false },
     editingId: { state: true },
     deleteId: { state: true },
   };
@@ -51,6 +53,7 @@ export class CodexSettings extends LitElement {
   declare private editingId: string | null | "__new__";
   declare private deleteId: string | null;
   declare addonPages: readonly BrowserNavigationEntry[];
+  declare csrfToken: string;
   readonly #ui = new UiLocalizationController(this);
   #dirty = false;
   #brandingDirty = false;
@@ -96,6 +99,7 @@ export class CodexSettings extends LitElement {
     if (this.activeCategory === "language") return this.#shell(this.#languagePanel());
     if (this.activeCategory === "appearance") return this.#shell(this.#appearancePanel());
     if (!this.canManageCampaign) return this.#shell(this.#languagePanel());
+    if (this.activeCategory === "addons") return this.#shell(html`<codex-addon-manager .csrfToken=${this.csrfToken}></codex-addon-manager>`);
     if (this.activeCategory === "sidebar") return this.#shell(html`<codex-sidebar-settings .campaign=${this.campaign} .addonPages=${this.addonPages} .saving=${this.saving} .editCompletion=${this.editCompletion}
       @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => { this.#dirty = event.detail.dirty; }}></codex-sidebar-settings>`);
     if (this.activeCategory === "playerParty") return this.#shell(html`<codex-party-settings
@@ -150,6 +154,7 @@ export class CodexSettings extends LitElement {
         { id: "maps" as const, label: this.#ui.t("map.settings"), icon: "🗺" },
         { id: "playerParty" as const, label: this.#ui.t("settings.playerParty"), icon: "🛡" },
         { id: "sidebar" as const, label: this.#ui.t("sidebar.title"), icon: "🧭" },
+        { id: "addons" as const, label: this.#ui.t("addons.title"), icon: "🧩" },
         ...campaignEnumDescriptors.map((descriptor) => ({
           id: descriptor.category as SettingsCategory,
           label: descriptor.label,
@@ -478,7 +483,7 @@ export class CodexSettings extends LitElement {
 
   #visibleCategory(category: SettingsCategory): boolean {
     return category === "language" || this.canManageCampaign &&
-      (category === "appearance" || category === "maps" || category === "playerParty" || category === "sidebar" || isEnumCategory(category));
+      (category === "appearance" || category === "maps" || category === "playerParty" || category === "sidebar" || category === "addons" || isEnumCategory(category));
   }
 
   #activeEnumCategory(): CampaignEnumCategory {

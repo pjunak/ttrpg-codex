@@ -121,6 +121,23 @@ func (store *store) activeStates(ctx context.Context) ([]State, error) {
 	return result, nil
 }
 
+func (store *store) installedAddonIDs(ctx context.Context) ([]string, error) {
+	rows, err := store.db.QueryContext(ctx, `SELECT DISTINCT addon_id FROM addon_package_generations ORDER BY addon_id`)
+	if err != nil {
+		return nil, fmt.Errorf("list installed add-ons: %w", err)
+	}
+	defer rows.Close()
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (store *store) activeVersion(ctx context.Context, addonID string) (string, bool, error) {
 	row := store.db.QueryRowContext(ctx, `
 		SELECT generation.addon_version

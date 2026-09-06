@@ -24,6 +24,7 @@ const (
 var maxAddonPackageBytes = packageinspect.DefaultLimits.MaxArchiveBytes
 
 type AddonLifecycle interface {
+	InstalledAddonIDs(context.Context) ([]string, error)
 	StageArchive(context.Context, io.Reader) (packagemanager.Generation, error)
 	Snapshot(context.Context, string, int) (packagemanager.Snapshot, error)
 	PrepareActivationReview(context.Context, string, string) (packagemanager.ActivationReview, error)
@@ -39,6 +40,7 @@ type AdminAuthorizer func(*http.Request) error
 var _ AddonLifecycle = (*packagemanager.Manager)(nil)
 
 func (s *server) registerAddonAdminRoutes(mux *http.ServeMux) {
+	mux.Handle("GET /api/admin/addons", s.requireAdmin(http.HandlerFunc(s.installedAddons)))
 	mux.Handle("POST /api/admin/addons/generations", s.requireAdmin(http.HandlerFunc(s.stageAddonGeneration)))
 	mux.Handle("GET /api/admin/addons/{addonID}", s.requireAdmin(http.HandlerFunc(s.addonSnapshot)))
 	mux.Handle("POST /api/admin/addons/{addonID}/activation-reviews", s.requireAdmin(http.HandlerFunc(s.prepareActivationReview)))
@@ -47,6 +49,22 @@ func (s *server) registerAddonAdminRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/admin/addon-activation-reviews/{reviewID}", s.requireAdmin(http.HandlerFunc(s.activationReview)))
 	mux.Handle("POST /api/admin/addon-activation-reviews/{reviewID}/approval", s.requireAdmin(http.HandlerFunc(s.approveActivationReview)))
 	mux.Handle("POST /api/admin/addon-activation-reviews/{reviewID}/activation", s.requireAdmin(http.HandlerFunc(s.activateReviewed)))
+}
+
+func (s *server) installedAddons(w http.ResponseWriter, r *http.Request) {
+	if r.URL.RawQuery != "" {
+		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "inventory query parameters are not supported")
+		return
+	}
+	ids, err := s.addonLifecycle.InstalledAddonIDs(r.Context())
+	if err != nil {
+		s.writeLifecycleError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, struct {
+		ContractVersion string   `json:"contractVersion"`
+		AddonIDs        []string `json:"addonIds"`
+	}{"addon-inventory.v1", ids})
 }
 
 func (s *server) stageAddonGeneration(w http.ResponseWriter, r *http.Request) {

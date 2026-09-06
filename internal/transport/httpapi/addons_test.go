@@ -315,6 +315,23 @@ type recordingLifecycle struct {
 	disablePlan          packagemanager.DisablePlan
 }
 
+func (lifecycle *recordingLifecycle) InstalledAddonIDs(context.Context) ([]string, error) {
+	return []string{"disabled-addon", "staged-addon"}, nil
+}
+
+func TestInstalledAddonInventoryAuthorization(t *testing.T) {
+	t.Parallel()
+	handler := newAdminHandler(t, &recordingLifecycle{}, func(*http.Request) error { return nil })
+	response := serveAdminRequest(handler, http.MethodGet, "/api/admin/addons", "")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"staged-addon"`) {
+		t.Fatalf("inventory = %d %s", response.Code, response.Body.String())
+	}
+	denied := newAdminHandler(t, &recordingLifecycle{}, func(*http.Request) error { return errors.New("denied") })
+	if response := serveAdminRequest(denied, http.MethodGet, "/api/admin/addons", ""); response.Code != http.StatusForbidden {
+		t.Fatal(response.Code)
+	}
+}
+
 func (lifecycle *recordingLifecycle) StageArchive(
 	_ context.Context, archive io.Reader,
 ) (packagemanager.Generation, error) {

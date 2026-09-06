@@ -1,3 +1,4 @@
+import { exerciseAddonManager } from './installed-addon-manager-fixture.mjs';
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
 import { mkdir, mkdtemp, rm, readFile } from 'node:fs/promises';
@@ -549,4 +550,8 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} route ref
       assert.equal(await route.getByLabel('Fixture notes').inputValue(), 'Retain mounted draft');
     }
   }
+});
+
+for (const mobile of [false, true]) test(`add-on manager completes package review, update and rollback on ${mobile ? 'phone' : 'desktop'}`, async t => {
+  await exerciseAddonManager({ t, open, admin, csrf, output, mobile });
 });

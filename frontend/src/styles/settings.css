@@ -64,6 +64,30 @@ codex-party-settings { display: block; min-width: 0; }
   box-shadow: none;
 }
 
+codex-addon-manager { display: block; min-width: 0; }
+.addon-manager { min-width: 0; font-family: var(--font-ui); }
+.addon-manager button { cursor: pointer; border: 1px solid var(--chrome-field-border); border-radius: var(--radius); color: var(--gold); background: var(--bg-raised); padding: .5rem .7rem; font: inherit; }
+.addon-manager button:disabled { opacity: .5; cursor: default; }
+.addon-upload, .addon-actions { display: flex; align-items: end; flex-wrap: wrap; gap: .6rem; margin: .8rem 0; }
+.addon-upload label { flex: 1; min-width: 0; }
+.addon-upload input { display: block; max-width: 100%; margin-top: .4rem; }
+.addon-list { display: grid; gap: .7rem; }
+.addon-row, .addon-review { border: 1px solid var(--border-subtle); border-radius: var(--radius); background: var(--bg-surface); padding: 1rem; min-width: 0; overflow-wrap: anywhere; }
+.addon-row > header { display: flex; justify-content: space-between; align-items: start; gap: .75rem; flex-wrap: wrap; }
+.addon-row h3, .addon-review h3 { margin: 0; color: var(--gold); font: 1.05rem var(--font-title); }
+.addon-manager p { font: .8rem/1.5 var(--font-ui); }
+.addon-manager small { display: block; color: var(--text-muted); font-size: .75rem; margin: .3rem 0; }
+.addon-manager summary { color: var(--gold); cursor: pointer; margin: .5rem 0; }
+.addon-manager ul { list-style: none; margin: .6rem 0; padding: 0; }
+.addon-manager li { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: .5rem; padding: .5rem 0; border-bottom: 1px solid var(--border-subtle); font-size: .8rem; }
+.addon-manager code { word-break: break-all; font-size: .7rem; }
+.addon-review { margin: 1rem 0; border-color: var(--gold); }
+.addon-review fieldset { min-width: 0; border: 1px solid var(--chrome-field-border); }
+.addon-permission { display: flex; gap: .6rem; align-items: start; padding: .6rem 0; font-size: .8rem; }
+.addon-permission input { flex: none; margin-top: .25rem; accent-color: var(--gold); }
+.addon-permission > span > span { display: block; }
+.addon-manager [role="alert"] { color: var(--danger, #f4a6a6); }
+
 .settings-page-heading {
   padding: 0 0 1rem;
   margin-bottom: 1.5rem;

@@ -402,6 +402,13 @@ func (manager *Manager) Snapshot(ctx context.Context, addonID string, eventLimit
 	return snapshot, nil
 }
 
+// InstalledAddonIDs includes disabled and staged-only packages, unlike the active browser graph.
+func (manager *Manager) InstalledAddonIDs(ctx context.Context) ([]string, error) {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	return manager.store.installedAddonIDs(ctx)
+}
+
 func (manager *Manager) prepareActivation(
 	ctx context.Context,
 	plan ActivationPlan,

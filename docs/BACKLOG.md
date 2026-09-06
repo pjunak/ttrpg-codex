@@ -132,8 +132,13 @@ those later changes at cutover rather than silently restoring an older state.
   snapshots, restore, and revert-last-N, while retaining verified full backup.
 - [ ] Provide reviewed runtime credential rotation or explicitly accept
   deployment-only credential changes as the replacement workflow.
-- [ ] Provide the DM-facing add-on inspector, permission approval, activation,
+- [x] Provide the DM-facing add-on inspector, permission approval, activation,
   update/reload, failure diagnosis, and rollback UI over the implemented APIs.
+  Settings → Add-ons now lists active, disabled and staged packages; inspects
+  release ZIPs; displays exact permission/change reviews and blockers; and
+  activates, updates, rolls back, reloads or disables without deleting data.
+  English/Czech desktop/phone installed checks include cancellation, stale
+  reviews, lost responses, invalid ZIPs, persisted generations and player denial.
 
 ### First-party add-ons
 
@@ -203,6 +208,13 @@ those later changes at cutover rather than silently restoring an older state.
 <!-- product-parity-gates:end -->
 
 ## Delivery order and acceptance evidence
+
+The add-on settings workflow passes the full host gate: 279 unit tests,
+149 browser cases, Go tests and vet. The new installed manager cases exercise
+both viewport sizes and languages with real staged packages. They confirm
+forward/reverse generation switches and retained disabled versions, rather than
+only testing component markup. This closes the add-on administration UI gate;
+it does not close the separate first-party workflow or visual acceptance gates.
 
 The core `#/dm` panel now follows the preserved heading, spacing, dark cards,
 and hidden/total counts. It mounts typed `dm:dashboard` slots only for real and

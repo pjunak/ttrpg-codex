@@ -844,6 +844,8 @@ export class CodexApp extends LitElement {
       case "settings":
         return html`<codex-settings
           .addonPages=${this.#canManageCampaign() && this.#addons !== undefined ? listBrowserNavigation(this.#addons.contributions, "dm") : []}
+          .csrfToken=${this.authority.state === "known" && this.authority.auth.authenticated ? this.authority.auth.csrfToken : ""}
+          @addon-admin-busy=${(event: CustomEvent<boolean>) => { this.busy = event.detail; }}
           .campaign=${campaign}
           .mapTarget=${this.route.mapParentId}
           .canManageCampaign=${this.#canManageCampaign()}
@@ -1282,10 +1284,11 @@ export class CodexApp extends LitElement {
 
   readonly #onBeforeUnload = (event: BeforeUnloadEvent): void => {
     const edits = this.#addons?.contributions.edits.state();
-    protectUnsavedEditBeforeUnload(this.#editDirty || edits?.dirty === true || edits?.saving === true, event);
+    protectUnsavedEditBeforeUnload(this.#editDirty || this.busy || edits?.dirty === true || edits?.saving === true, event);
   };
 
   #confirmDiscardEdit(nextHash?: string): boolean {
+    if (this.busy) return false;
     const currentRoute = parseBrowserAddonLocation(this.#acceptedHash)?.routeHash;
     const nextRoute = nextHash === undefined ? undefined : parseBrowserAddonLocation(nextHash)?.routeHash;
     const edits = this.#addons?.contributions.edits.state(active =>

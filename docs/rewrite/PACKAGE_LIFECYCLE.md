@@ -3,8 +3,19 @@
 This milestone connects verified v3 packages to durable generation state, the
 service broker, native worker supervision, and an authorization-gated HTTP
 application boundary. The executable registers the administrative routes with
-the real-DM and CSRF authorizer; the Add-on Inspector UI is still to be built
-on top of them.
+the real-DM and CSRF authorizer. Settings → Add-ons exposes ZIP inspection,
+permission/change review, activation, update, rollback, reload, disable, and
+recent lifecycle diagnostics in English and Czech using the existing settings
+layout. Disabling preserves package generations and campaign data.
+
+`GET /api/admin/addons` returns `addon-inventory.v1` with sorted `addonIds`,
+including staged-only and disabled packages. The manager loads each package's
+snapshot, then reviews an exact generation before granting permissions and
+activating that review. Required grants are explicit checkboxes. Stale reviews
+or uncertain responses discard the browser's review; refresh reads current
+state before a new review. The server remains authoritative for every action.
+Installed desktop/phone browser checks cover the complete workflow, invalid
+ZIPs, concurrent state changes, lost responses, persistence and player denial.
 
 ## State ownership
 
