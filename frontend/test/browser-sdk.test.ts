@@ -22,6 +22,19 @@ const sidebar = contribution("planner.sidebar", "sidebar", 200);
 const graphView = contribution("planner.graph", "graph-view", 300);
 
 describe("BrowserContributionRegistry", () => {
+  it("binds wiki providers as generation-scoped callbacks rather than visual elements", () => {
+    const registry = new BrowserContributionRegistry();
+    const declaration = { ...contribution("library.wiki", "wiki-kind", 0), config: { contractVersion: 1, kinds: ["spell"] } };
+    const scope = new GenerationScope("library@generation");
+    const session = registry.open(descriptor("library", [declaration]), scope);
+    expect(() => session.context.ui.bind(declaration.id, { kind: "element", tag: "library-wiki" })).toThrow("requires a model-provider binding");
+    const provide = vi.fn(); session.context.ui.bind(declaration.id, { kind: "model-provider", provide });
+    const binding = registry.list("wiki-kind", "player")[0]?.binding;
+    if (binding?.kind !== "model-provider") throw Error("Wiki binding missing");
+    binding.provide({ references: [] }, { signal: new AbortController().signal });
+    expect(provide).toHaveBeenCalledOnce(); session.dispose();
+    expect(registry.list("wiki-kind", "player")).toEqual([]);
+  });
   it("creates one generation-scoped data API for add-on code", () => {
     const handle: AddonDataHandle<unknown> = {
       get: vi.fn(), query: vi.fn(), put: vi.fn(), delete: vi.fn(),

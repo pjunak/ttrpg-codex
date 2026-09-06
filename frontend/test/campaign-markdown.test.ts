@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   campaignMarkdownOutline,
   parseCampaignMarkdown,
@@ -14,6 +14,14 @@ import type {
 } from "../src/core/campaign-data.js";
 
 describe("campaign markdown", () => {
+  it("offers only unresolved visible wiki references to the add-on resolver", () => {
+    const addonWiki = vi.fn(() => ({ status: "resolved" as const, href: "#/addons/library/page?kind=spell&id=shield" }));
+    const rendered = renderCampaignMarkdown(parseCampaignMarkdown("[[Captain]] and [[Ward|spell:shield]]. Private prose is not a reference."), {
+      dataset: dataset({ characters: [{ key: "captain", revision: 1, value: { id: "captain", name: "Captain" } }] }), addonWiki,
+    });
+    expect(addonWiki.mock.calls).toEqual([["Ward", "spell:shield"]]);
+    expect(templateStructure(rendered)).toContain('<a class="wiki-link"');
+  });
   it("builds a stable, duplicate-safe outline across article sections", () => {
     const documents = parseCampaignMarkdownDocuments([
       "# First steps\n\n## Clues\n\n#### Not in the outline",

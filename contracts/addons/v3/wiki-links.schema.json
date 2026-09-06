@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://junak.eu/ttrpg-codex/contracts/addons/v3/wiki-links.schema.json",
+  "title": "Wiki links v1 requests and responses",
+  "oneOf": [{ "$ref": "#/$defs/resolve" }, { "$ref": "#/$defs/search" }, { "$ref": "#/$defs/response" }],
+  "$defs": {
+    "reference": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["label", "hint"], "properties": {
+          "label": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "hint": { "type": "string", "maxLength": 300 }
+        } },
+        { "type": "object", "additionalProperties": false, "required": ["path"], "properties": {
+          "path": { "type": "string", "maxLength": 2048, "pattern": "^#/" }
+        } }
+      ]
+    },
+    "resolve": {
+      "type": "object", "additionalProperties": false, "required": ["contractVersion", "operation", "references"], "properties": {
+        "contractVersion": { "const": "wiki-links.v1" }, "operation": { "const": "resolve" },
+        "references": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/reference" } }
+      }
+    },
+    "search": {
+      "type": "object", "additionalProperties": false, "required": ["contractVersion", "operation", "query", "limit"], "properties": {
+        "contractVersion": { "const": "wiki-links.v1" }, "operation": { "const": "search" },
+        "query": { "type": "string", "maxLength": 200 }, "limit": { "type": "integer", "minimum": 1, "maximum": 20 }
+      }
+    },
+    "response": {
+      "type": "object", "additionalProperties": false, "required": ["contractVersion", "matches"], "properties": {
+        "contractVersion": { "const": "wiki-links.v1" },
+        "matches": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/match" } }
+      }
+    },
+    "match": {
+      "type": "object", "additionalProperties": false, "required": ["index", "target"], "properties": {
+        "index": { "type": "integer", "minimum": 0, "maximum": 99 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 500 },
+        "target": { "$ref": "#/$defs/target" }
+      }
+    },
+    "target": {
+      "type": "object", "additionalProperties": false, "required": ["route", "query"], "properties": {
+        "route": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "query": { "type": "array", "maxItems": 32, "items": {
+          "type": "array", "minItems": 2, "maxItems": 2, "prefixItems": [
+            { "type": "string", "minLength": 1, "maxLength": 64 }, { "type": "string", "maxLength": 1024 }
+          ], "items": false
+        } }
+      }
+    }
+  }
+}

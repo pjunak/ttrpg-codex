@@ -81,6 +81,8 @@ those later changes at cutover rather than silently restoring an older state.
 - [x] Restore wiki article rendering and editing, sanitized Markdown, headings
   and table of contents, and cross-record wiki links.
 - [x] Restore campaign-wide search with useful type grouping and navigation.
+  Optional reference libraries now add bounded result groups through the
+  public wiki provider contract, preserving ordinary campaign results.
 - [x] Establish typed bundled English and Czech catalogs, per-browser language
   selection, native plural/date handling, and migrate the shell, dashboard,
   search, and personal settings foundation.
@@ -199,10 +201,20 @@ those later changes at cutover rather than silently restoring an older state.
   Validation: 53 compendium checks, rebuilt/inspected ZIP, seven installed
   browser cases, and the full host gate (279 unit tests, 158 browser cases,
   Go tests and vet). The final package also passed its focused installed suite.
-- [ ] Restore campaign-article compendium wiki references and external v1
-  compendium hashes through a documented v3 host linking surface. The package
-  already translates typed links within its own Markdown. Real-campaign visual
-  acceptance remains part of the shared gate above.
+- [x] Restore campaign-article compendium wiki references and external v1
+  compendium hashes through the documented `wiki-kind` / `wiki-links.v1`
+  provider. Articles and editor previews resolve names, kind hints and typed
+  IDs; core links retain priority, and ambiguous names stay unresolved.
+  Classic library/list/detail/bestiary bookmarks become canonical add-on URLs
+  without a Back loop. Global search adds Compendium results using the same
+  lazy repository. Failed content loads expose Retry instead of appearing as
+  missing records. Both UI modes cover role visibility, replacement,
+  disable/reactivation and late-result cleanup through actual reviewed ZIPs.
+  Validation: 57 Compendium checks, rebuilt/inspected ZIP, 10 installed
+  Compendium browser cases, two integrated/isolated reference-provider cases,
+  and the full host gate (288 unit tests, 163 browser cases, Go tests and vet).
+  Desktop/phone article and search screenshots retain the current styling;
+  real-campaign visual acceptance remains in the shared gate above.
 - [ ] Differentially validate the Go rules engine against preserved v1 rules and
   builder fixtures, including missing-provider and changed-provider behavior.
 - [ ] Bring character sheets to accepted presentation and workflow parity,

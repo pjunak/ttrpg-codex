@@ -12,6 +12,10 @@ interface PluralForms {
 type Message = string | PluralForms;
 
 const enCatalog = {
+  "wiki.loading": "Loading reference links…",
+  "wiki.failed": "Some add-on references could not be loaded.",
+  "wiki.missing": "No unique visible entry matches this link. Check its kind or record ID.",
+  "wiki.retry": "Retry references",
   "addons.title": "Add-ons",
   "addons.intro": "Install a reviewed release ZIP, or manage the versions already on this server.",
   "addons.refresh": "Refresh list",
@@ -408,6 +412,10 @@ const enCatalog = {
 export type MessageKey = keyof typeof enCatalog;
 
 const csCatalog = {
+  "wiki.loading": "Načítání odkazů na příručky…",
+  "wiki.failed": "Některé odkazy doplňků se nepodařilo načíst.",
+  "wiki.missing": "Odkazu neodpovídá jediný dostupný záznam. Zkontroluj druh nebo ID záznamu.",
+  "wiki.retry": "Zkusit odkazy znovu",
   "addons.title": "Doplňky",
   "addons.intro": "Nainstalujte vydaný ZIP balíček nebo spravujte verze uložené na serveru.",
   "addons.refresh": "Obnovit seznam",

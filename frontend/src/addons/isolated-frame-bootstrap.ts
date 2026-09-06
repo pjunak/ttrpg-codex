@@ -284,7 +284,7 @@ export const isolatedFrameBootstrap = String.raw`
         }
         const expected = declaration.surface === "article-action"
           ? "action"
-          : declaration.surface === "graph-view" || declaration.surface === "graph-contributor"
+          : declaration.surface === "graph-view" || declaration.surface === "graph-contributor" || declaration.surface === "wiki-kind"
             ? "model-provider"
             : "element";
         const valid = expected === "element"

@@ -152,6 +152,47 @@ function replacement(archive) {
   delete files['checksums.json']; files['checksums.json'] = JSON.stringify({ algorithm: 'sha256', files: Object.fromEntries(Object.entries(files).map(([name, body]) => [name, createHash('sha256').update(body).digest('hex')])) });
   return zip(files);
 }
+
+for (const mobile of [false, true]) test(`campaign references and old Compendium bookmarks work on ${mobile ? 'phone' : 'desktop'}`, { skip: !archivePath }, async t => {
+  const key = `library-notes-${mobile}`;
+  await jsonResponse(await admin.post('/api/campaign/transactions', { headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'campaign-mutation.v1', mutations: [
+    { operation: 'put', collection: 'characters', key, expectedRevision: 0, value: { id: key, name: 'Library notes', knowledge: 4, visibility: 'public', description:
+      '[[Fireball|spell]] and [[Ward|spell:shield]] and [[Equipment|armor:shield]]. Ambiguous: [[Shield]]. [Old monster](#/bestiary/monster:aboleth).' } },
+  ] } }));
+  const page = await open(t, 'dm', mobile, 'en', false);
+  await page.goto(`/#/characters/${key}`);
+  await page.locator('a.wiki-link').filter({ hasText: 'Ward' }).waitFor();
+  assert.equal(await page.locator('a.wiki-link').filter({ hasText: 'Ward' }).getAttribute('href'), `${route}?kind=spell&id=shield`);
+  assert.equal(await page.locator('a.wiki-link').filter({ hasText: 'Equipment' }).getAttribute('href'), `${route}?kind=armor&id=shield`);
+  assert.equal(await page.locator('.wiki-link-missing').filter({ hasText: 'Shield' }).count(), 1);
+  await page.screenshot({ path: resolve(output, `article-links-${mobile ? 'phone' : 'desktop'}.png`), fullPage: true });
+  await page.locator('a.wiki-link').filter({ hasText: 'Fireball' }).click(); await page.locator('.comp-reading-pane h1').filter({ hasText: 'Fireball' }).waitFor();
+  await page.goBack(); await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.locator('[data-markdown-field="description"][data-markdown-mode="preview"]').click();
+  await page.locator('.markdown-editor-preview a.wiki-link').filter({ hasText: 'Ward' }).waitFor();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByRole('link', { name: 'Old monster', exact: true }).click();
+  await page.locator('.comp-reading-pane h1').filter({ hasText: 'Aboleth' }).waitFor(); assert.match(page.url(), /\/bestiary\?kind=monster&id=aboleth$/u);
+  await page.goto('/#/compendium/spell:shield'); await page.locator('.comp-reading-pane h1').filter({ hasText: 'Shield' }).waitFor();
+  assert.ok(page.url().endsWith(`${route}?kind=spell&id=shield`));
+  await page.goto('/#/compendium/spell'); await page.locator('[data-filter="level"]').waitFor();
+  await page.goto('/#/compendium'); await page.locator('.comp-reading-pane .codex-link-tile').first().waitFor();
+  await page.goto('/#/search'); await page.locator('.campaign-search-field input').fill('shield');
+  const results = page.locator('.search-group[aria-label="Compendium"]'); await results.locator('a').first().waitFor();
+  assert.equal(await results.locator('a[href$="kind=armor&id=shield"]').count(), 1);
+  await page.screenshot({ path: resolve(output, `library-search-${mobile ? 'phone' : 'desktop'}.png`), fullPage: true });
+  await results.locator('a[href$="kind=spell&id=shield"]').click(); await page.locator('.comp-reading-pane h1').filter({ hasText: 'Shield' }).waitFor(); await fits(page);
+});
+
+test('campaign reference failures offer Retry without making broken links clickable', { skip: !archivePath }, async t => {
+  const page = await open(t, 'player', false, 'en', false);
+  let attempts = 0;
+  await page.route('**/content/query?*', route => { attempts++; return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":{"kind":"UNAVAILABLE","message":"fixture unavailable"}}' }); });
+  await page.goto('/#/characters/library-notes-false');
+  await page.getByRole('button', { name: 'Retry references' }).waitFor(); assert.equal(await page.locator('a.wiki-link').count(), 0); assert.equal(attempts, 1);
+  await page.unroute('**/content/query?*'); await page.getByRole('button', { name: 'Retry references' }).click();
+  await page.locator('a.wiki-link').filter({ hasText: 'Fireball' }).waitFor();
+});
 test('installed compendium replaces constructors and can reactivate the same generation', { skip: !archivePath }, async t => {
   const page = await open(t); await go(page, '?kind=spell&id=fireball');
   const first = await page.locator('.dnd-compendium').evaluate(node => node.localName);

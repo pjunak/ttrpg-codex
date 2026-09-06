@@ -286,7 +286,7 @@ injection.
 The initial binding shapes are discriminated and host validated:
 `{ kind: "element", tag }` for visual custom-element surfaces,
 `{ kind: "action", run }` for article actions, and
-`{ kind: "model-provider", provide }` for graph views and contributors.
+`{ kind: "model-provider", provide }` for graph views, contributors, and wiki kinds.
 Sidebar declarations are navigation metadata and do not bind executable code.
 The host publishes that metadata automatically after graph validation; add-on
 modules MUST NOT call `context.ui.bind()` for sidebar declarations.
@@ -393,7 +393,7 @@ Initial surfaces cover existing suite needs:
 | `editor-panel` | Structured editor extension |
 | `slot` | Named host composition point |
 | `record-renderer` | Renderer selected through a versioned renderer contract |
-| `wiki-kind` | Schema-backed wiki/content kind |
+| `wiki-kind` | Bounded wiki reference, legacy bookmark, and optional search provider |
 | `kind` | Pure-data enum kind in a declared domain |
 | `graph-node-kind` | Visual and accessible definition for a graph node type |
 | `graph-view` | Named graph view with a bounded model provider |
@@ -402,6 +402,65 @@ Initial surfaces cover existing suite needs:
 
 An override is modeled as a replaceable renderer/service contribution with an
 explicit selection policy, not unrestricted DOM replacement.
+
+### Wiki references and library search
+
+Declare a `wiki-kind` contribution with exact config:
+
+```json
+{ "contractVersion": 1, "kinds": ["spell", "armor"], "legacyRoots": ["old-library"], "search": true }
+```
+
+`kinds` contains 1–64 unique lowercase kind slugs; optional `legacyRoots`
+contains at most 16 unique root slugs. `search` defaults to false. Bind
+`{ kind: "model-provider", provide(request, { signal }) }` in either UI mode.
+The [wiki-links schema](../../contracts/addons/v3/wiki-links.schema.json)
+defines the versioned JSON boundary. The host sends one of:
+
+```ts
+{ contractVersion: "wiki-links.v1", operation: "resolve", references: [
+  { label: "Shield", hint: "spell" },
+  { label: "My ward", hint: "spell:shield" },
+  { path: "#/old-library/spell:shield" }
+] }
+{ contractVersion: "wiki-links.v1", operation: "search", query: "shield", limit: 20 }
+```
+
+References are requested only for displayed article text/editor previews after
+the core wiki resolver finds no match. Typed hints are offered only to providers
+declaring that kind; untyped labels are offered to all active wiki providers.
+Providers receive the requested label/hint, never the article, campaign, or
+record key. The host routes old bookmarks only when the core route is unknown
+and a declared root matches a complete first path segment. Existing core routes
+always win. Legacy resolution replaces the history entry with the canonical
+route, so Back does not loop through the old bookmark.
+
+Return only unique matches (omit missing/ambiguous references):
+
+```json
+{ "contractVersion": "wiki-links.v1", "matches": [
+  { "index": 0, "target": { "route": "library.route", "query": [["kind", "spell"], ["id", "shield"]] } }
+] }
+```
+
+For resolve, `index` is the reference's position. Search uses unique indices
+below the requested limit and requires a plain-text `label` (1–200 characters);
+optional `description` is at most 500 characters. All returned targets must name
+an active, role-visible route contribution in the provider's own generation.
+The host constructs and validates the URL; providers cannot supply arbitrary
+URLs. Query strings follow the ordinary route query limits. Responses are
+bounded to 48,000 UTF-8 bytes; duplicate/out-of-range indices, invalid targets,
+control characters and unknown fields reject the response as a whole.
+
+Only one matching provider may resolve a reference. Multiple matches remain
+unresolved instead of choosing an installation-order winner. Failures offer
+Retry, while ordinary campaign links and healthy search groups remain usable.
+Requests have a ten-second deadline, combine view/generation abort signals,
+and discard late results after replacement, role changes, or detach. The host
+batches references (up to 100 per request), caches them for the mounted view,
+and clears results on binding changes. Search is debounced, limited to 20
+results per provider, and cancels superseded terms. No library integration is
+hard-coded to an add-on ID.
 
 ### Timeline slots
 

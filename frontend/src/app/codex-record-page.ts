@@ -46,12 +46,16 @@ import { collectionHash, mapHash, eventMapHash, locationMapHash, type AppRoute }
 import { eventMapParent, hasEventPin, mapParent, mapCoordinate } from "./campaign-map.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
+import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
+import type { BrowserRole } from "../addons/generation-manager.js";
+import { AddonLinksController } from "./addon-links-controller.js";
 
 type RecordRoute = Extract<AppRoute, { kind: "collection" | "record" | "create" }>;
 
 export class CodexRecordPage extends LitElement {
   static override properties = {
     campaign: { attribute: false },
+    registry: { attribute: false }, actorRole: { attribute: false },
     route: { attribute: false },
     canEdit: { type: Boolean, attribute: "can-edit" },
     canManageVisibility: { type: Boolean, attribute: "can-manage-visibility" },
@@ -63,6 +67,9 @@ export class CodexRecordPage extends LitElement {
   };
 
   declare campaign: CampaignDataset | undefined;
+  declare registry: BrowserContributionRegistry | undefined;
+  declare actorRole: BrowserRole | undefined;
+  readonly #links = new AddonLinksController(this, () => ({ registry: this.registry, role: this.actorRole }));
   declare route: RecordRoute | undefined;
   declare canEdit: boolean;
   declare canManageVisibility: boolean;
@@ -97,6 +104,7 @@ export class CodexRecordPage extends LitElement {
 
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
     if (changed.has("route")) {
+      this.#links.retry();
       this.query = "";
       this.editor = "closed";
       this.#resetEditors();
@@ -206,9 +214,11 @@ export class CodexRecordPage extends LitElement {
       dataset,
       currentCollection: route.page.collection,
       currentKey: route.key,
+      addonWiki: this.#links.wiki,
     };
     return html`
       <article class="record-article" aria-labelledby="record-title">
+        ${this.#linkFailure()}
         <a href=${route.page.collection === "events" ? "#/timeline" : collectionHash(route.page)} class="breadcrumb-link">${route.page.collection === "events" ? this.#ui.t("timeline.back") : route.page.plural}</a>
         <div class="record-reading-layout">
           <aside class="record-side">
@@ -386,6 +396,7 @@ export class CodexRecordPage extends LitElement {
       const id = `markdown-${this.route?.page.collection ?? "record"}-${field.key}`;
       const context: CampaignMarkdownContext = {
         dataset: this.#editorCampaign,
+        ...(previewing ? { addonWiki: this.#links.wiki } : {}),
         ...(this.route === undefined ? {} : { currentCollection: this.route.page.collection }),
         ...(currentKey === "" ? {} : { currentKey }),
       };
@@ -420,6 +431,7 @@ export class CodexRecordPage extends LitElement {
             @input=${this.#captureMarkdownDraft}
           ></textarea>
           <div class="markdown-editor-preview" ?hidden=${!previewing}>
+            ${previewing ? this.#linkFailure() : nothing}
             ${source.trim() === ""
               ? html`<p class="empty-state">Nothing to preview yet.</p>`
               : renderCampaignMarkdown(parseCampaignMarkdown(source), context)}
@@ -515,6 +527,11 @@ export class CodexRecordPage extends LitElement {
         ${help}
       </label>
     `;
+  }
+
+  #linkFailure() {
+    return this.#links.failed ? html`<p class="connection-alert" role="status">${this.#ui.t("wiki.failed")}
+      <button type="button" @click=${this.#links.retry}>${this.#ui.t("wiki.retry")}</button></p>` : nothing;
   }
 
   readonly #updateFactionEditor = (event: Event): void => {

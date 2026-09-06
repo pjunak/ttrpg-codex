@@ -76,6 +76,7 @@ import "./codex-dashboard.js";
 import { type DmAddonHealth } from "./codex-dm-dashboard.js";
 import "./codex-dm-dashboard.js";
 import "./codex-record-page.js";
+import { AddonLinksController } from "./addon-links-controller.js";
 import "./codex-search.js";
 import "./codex-settings.js";
 import { CampaignPartyEditError, prepareCampaignPartySave, type CampaignPartySaveDetail } from "./campaign-party.js";
@@ -158,6 +159,8 @@ export class CodexApp extends LitElement {
   readonly #events = new SharedEventStream();
   readonly #ui = new UiLocalizationController(this);
   #addons: BrowserAddonComposition | undefined;
+  readonly #links = new AddonLinksController(this, () => ({ registry: this.#addons?.contributions,
+    role: this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined }));
   #dmAddonHealth: readonly DmAddonHealth[] = [];
   #outletLocale = "";
   #dashboardOutlet: BrowserContributionOutlet | undefined;
@@ -273,6 +276,13 @@ export class CodexApp extends LitElement {
   }
 
   protected override updated(): void {
+    if (this.isConnected && this.route.kind === "not-found") {
+      const target = this.#links.resolve({ path: window.location.hash });
+      if (target.status === "resolved") {
+        window.history.replaceState(null, "", target.href);
+        this.#onHashChange();
+      }
+    }
     if (this.isConnected && this.#outletLocale !== this.#ui.locale) {
       this.#outletLocale = this.#ui.locale;
       this.#routeOutlet?.refresh();
@@ -840,7 +850,8 @@ export class CodexApp extends LitElement {
           @campaign-sign-in=${this.#showSignIn}
         ></codex-dashboard>`;
       case "search":
-        return html`<codex-search .campaign=${campaign}></codex-search>`;
+        return html`<codex-search .campaign=${campaign} .registry=${this.#addons?.contributions}
+          .actorRole=${this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined}></codex-search>`;
       case "settings":
         return html`<codex-settings
           .addonPages=${this.#canManageCampaign() && this.#addons !== undefined ? listBrowserNavigation(this.#addons.contributions, "dm") : []}
@@ -865,6 +876,8 @@ export class CodexApp extends LitElement {
       case "create":
         return html`<codex-record-page
           .campaign=${campaign}
+          .registry=${this.#addons?.contributions}
+          .actorRole=${this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined}
           .route=${this.route}
           .canEdit=${this.#canEdit()}
           .canManageVisibility=${this.#canManageCampaign()}
@@ -884,6 +897,13 @@ export class CodexApp extends LitElement {
         }
         return nothing;
       case "not-found":
+        if (this.#links.resolve({ path: window.location.hash }).status === "loading") {
+          return html`<section class="loading-page" role="status"><p>${this.#ui.t("shell.openingAddon")}</p></section>`;
+        }
+        if (this.#links.resolve({ path: window.location.hash }).status === "failed") {
+          return html`<section class="unavailable-page" role="status"><p>${this.#ui.t("wiki.failed")}</p>
+            <button type="button" @click=${this.#links.retry}>${this.#ui.t("wiki.retry")}</button></section>`;
+        }
         return html`<section class="unavailable-page"><p class="page-kicker">${this.#ui.t("shell.campaignArchive")}</p><h1>${this.#ui.t("shell.pageMissing")}</h1><p>${this.#ui.t("shell.pageMissingHint")}</p><a class="primary-link" href="#/">${this.#ui.t("shell.returnOverview")}</a></section>`;
     }
   }

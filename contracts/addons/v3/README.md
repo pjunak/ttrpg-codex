@@ -15,6 +15,9 @@ boundaries validate browser models.
   provided service declaration.
 - `graph-model.schema.json` describes Mind Palace provider responses. The
   browser also checks total bytes, unique IDs, references, and active routes.
+- `wiki-links.schema.json` describes reference resolution, legacy bookmarks,
+  and library search. The browser also checks response bytes, request-relative
+  indices and same-generation, role-visible route targets.
 - `examples/reference-addon.json` exercises the main manifest features.
 - `examples/import-adapter.service.json` shows a package-owned service
   document.

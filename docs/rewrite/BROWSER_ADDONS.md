@@ -300,6 +300,24 @@ form-state retention, context updates, role/read grants, generation replacement,
 disable, and unsaved order drafts. `timeline-contributions.test.ts` and the
 outlet/bridge unit suites cover recognition, projection bounds, and delivery.
 
+## Wiki references and library search
+
+`wiki-links.ts` validates the public `wiki-links.v1` provider protocol and
+constructs same-generation route targets. `AddonLinksController` owns batching,
+view caches, search debounce, retries, and cancellation. Record articles and
+Markdown previews preserve core resolution priority; global search appends
+provider groups to existing campaign results. The app only offers unknown
+hashes to providers claiming that complete legacy root, then replaces the
+history entry with the canonical URL. Disabling/replacing a binding clears all
+cached results synchronously. Both integrated callbacks and isolated callback
+frames use the same boundary and ten-second deadline.
+
+`installed-wiki.browser.mjs` exercises real reviewed integrated/isolated ZIPs,
+roles, core priority, search, old hashes, replacement, disable and reactivation.
+With `CODEX_COMPENDIUM_ZIP`, `installed-compendium.browser.mjs` also checks real
+typed spell/armor identities, Markdown previews, failed-load Retry and classic
+bookmarks on desktop/phone. See the [public contract](../../examples/addons/API_V3.md#wiki-references-and-library-search).
+
 ## Mind Palace graph models
 
 `codex-campaign-graph` consumes role-visible `graph-view` and

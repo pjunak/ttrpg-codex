@@ -53,6 +53,11 @@ navigation contributions. Isolated visual contributions run in an opaque
 iframe and communicate only through the host bridge. Either mode must tolerate
 empty data, missing optional services, abort, reload, and repeated disposal.
 
+Reference libraries use the public `wiki-kind` model provider for campaign wiki
+links, declared old bookmark roots, and optional global search. Return local
+route IDs plus query pairs; the host owns URLs, role filtering, and lifetime.
+See [Wiki references and library search](API_V3.md#wiki-references-and-library-search).
+
 ## Worker code
 
 Native workers are Go executables using `sdk/go/workerrpc`. Stdout is reserved

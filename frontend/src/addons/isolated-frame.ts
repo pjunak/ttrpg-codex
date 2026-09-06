@@ -82,6 +82,7 @@ export function createIsolatedFrameActivator(
         continue;
       }
       if (contribution.surface === "article-action" ||
+        contribution.surface === "wiki-kind" ||
         contribution.surface === "graph-view" ||
         contribution.surface === "graph-contributor") {
         let unavailable = false;

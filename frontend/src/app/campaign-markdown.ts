@@ -8,6 +8,8 @@ import {
 } from "../core/campaign-data.js";
 import { isRecord } from "../core/boundary.js";
 import { campaignPages, recordHash, type CampaignPageDefinition } from "./routes.js";
+import type { AddonLinkState } from "./addon-links-controller.js";
+import { uiText } from "./ui-localization.js";
 
 const wikiTokenType = "campaign-wiki-link";
 const markdown = new Marked({
@@ -53,6 +55,7 @@ export interface CampaignMarkdownContext {
   readonly dataset: CampaignDataset;
   readonly currentCollection?: CampaignCollectionName;
   readonly currentKey?: string;
+  readonly addonWiki?: (label: string, hint: string) => AddonLinkState;
 }
 
 export interface CampaignWikiLink {
@@ -306,9 +309,11 @@ function renderInlineTokens(tokens: readonly Token[], context: CampaignMarkdownC
 function renderInlineToken(token: Token, context: CampaignMarkdownContext): MarkdownRenderable {
   if (isWikiToken(token)) {
     const target = resolveCampaignWikiLink(context, token.label, token.hint);
-    return target === undefined
-      ? html`<span class="wiki-link-missing" title="No visible campaign entry matches this link">[[${token.label}]]</span>`
-      : html`<a class="wiki-link" href=${target.href}>${token.label}</a>`;
+    const addon = target ? undefined : context.addonWiki?.(token.label, token.hint ?? "");
+    const href = target?.href ?? (addon?.status === "resolved" ? addon.href : undefined);
+    return href === undefined
+      ? html`<span class="wiki-link-missing" title=${uiText(addon?.status === "loading" ? "wiki.loading" : addon?.status === "failed" ? "wiki.failed" : "wiki.missing")}>[[${token.label}]]</span>`
+      : html`<a class="wiki-link" href=${href}>${token.label}</a>`;
   }
   switch (token.type) {
     case "text": {

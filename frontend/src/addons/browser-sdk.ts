@@ -573,6 +573,7 @@ function expectedBindingKind(
       return "action";
     case "graph-view":
     case "graph-contributor":
+    case "wiki-kind":
       return "model-provider";
     default:
       return "element";
