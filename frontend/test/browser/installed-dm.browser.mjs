@@ -10,12 +10,13 @@ import { once } from 'node:events';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { chromium, request as playwrightRequest } from 'playwright';
 import { jsonResponse, installReviewedPackage } from './installed-graph-fixture.mjs';
-import { installDmPackage } from './installed-dm-fixture.mjs';
+import { installDmPackage, dmToolsPermissions } from './installed-dm-fixture.mjs';
 import { importQuest, planningImport, replacementImportPackage } from './installed-import-fixture.mjs';
 import { exercisePlannerEditing } from './installed-planner-fixture.mjs';
 import { exercisePlannerFlows } from './installed-planner-flow-fixture.mjs';
 import { exercisePlannerConcurrency } from './installed-planner-concurrency-fixture.mjs';
 import { exercisePlannerNavigation, unloadBlocked, attemptHash } from './installed-planner-navigation-fixture.mjs';
+import { exercisePlannerAnnotations } from './installed-planner-annotation-fixture.mjs';
 import { exercisePlannerStructure } from './installed-planner-structure-fixture.mjs';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -57,7 +58,7 @@ async function open(t, role = 'dm', mobile = false) {
     isMobile: mobile, hasTouch: mobile, reducedMotion: 'reduce' });
   t.after(() => context.close());
   if (role) await jsonResponse(await context.request.post('/api/login', { data: { password: `local-graph-fixture-${role}` } }));
-  await context.addInitScript(() => { if (!localStorage.getItem('codex_lang')) localStorage.setItem('codex_lang', 'en'); });
+  await context.addInitScript(() => { if (window === window.top && !localStorage.getItem('codex_lang')) localStorage.setItem('codex_lang', 'en'); });
   const page = await context.newPage(); await page.goto('/#/dm'); await page.locator('#dm-page-title').waitFor(); return page;
 }
 function slotRoot(page, mode) {
@@ -159,7 +160,7 @@ test('failed dashboard rendering and activation retain useful DM fallback and re
 
 if (process.env.CODEX_DM_TOOLS_ZIP) test('reviewed DM Tools dashboard preserves the classic layout and opens durable planner links', async t => {
   const archive = await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP));
-  await installReviewedPackage(admin, csrf, 'dm-tools', archive, []); t.after(() => disable('dm-tools'));
+  await installReviewedPackage(admin, csrf, 'dm-tools', archive, dmToolsPermissions); t.after(() => disable('dm-tools'));
   const page = await open(t); const panel = page.locator('.dm-panel');
   const dashboard = page.locator('.dm-tools-dashboard');
   await dashboard.locator('[data-stat="total"] .dm-dashboard-value').filter({ hasText: /^0$/u }).waitFor();
@@ -267,38 +268,38 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} edit stat
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner protects drafts on navigation, Back, sign-out and reload', async t => {
-  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), []);
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), dmToolsPermissions);
   t.after(() => disable('dm-tools'));
   await exercisePlannerNavigation({ t, open, admin, csrf });
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner changes kind and parent while preserving structure, drafts and annotations', async t => {
-  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), []);
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), dmToolsPermissions);
   t.after(() => disable('dm-tools'));
   await exercisePlannerStructure({ t, open, admin, csrf, output });
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner restores item fields and retains drafts through edits, conflicts and failed saves', async t => {
-  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), []);
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), dmToolsPermissions);
   t.after(() => disable('dm-tools'));
   await exercisePlannerEditing({ t, open, admin, csrf, output });
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner edits flows and keeps consequence deletion atomic', async t => {
-  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), []);
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), dmToolsPermissions);
   t.after(() => disable('dm-tools'));
   await exercisePlannerFlows({ t, open, admin, csrf, output });
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner rejects unseen children, annotations and simultaneous flow cycles', async t => {
-  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), []);
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), dmToolsPermissions);
   t.after(() => disable('dm-tools'));
   await exercisePlannerConcurrency({ t, open, admin, csrf });
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planning imports preview, cancel, commit atomically and reject stale reviews', async t => {
   const archive = await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP));
-  await installReviewedPackage(admin, csrf, 'dm-tools', archive, []); t.after(() => disable('dm-tools'));
+  await installReviewedPackage(admin, csrf, 'dm-tools', archive, dmToolsPermissions); t.after(() => disable('dm-tools'));
   const generation = (await jsonResponse(await admin.get('/api/admin/addons/dm-tools'))).state.activeGenerationId;
   const base = `/api/addons/dm-tools/generations/${generation}`;
   const headers = { 'X-Codex-CSRF': csrf };
@@ -388,7 +389,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planning imports preview, ca
   assert.equal((await records()).some(record => record.key === 'import-cancelled'), false);
 
   await preview(planningImport([importQuest('import-replaced')], 5000));
-  await installReviewedPackage(admin, csrf, 'dm-tools', replacementImportPackage(archive), []);
+  await installReviewedPackage(admin, csrf, 'dm-tools', replacementImportPackage(archive), dmToolsPermissions);
   const newGeneration = (await jsonResponse(await admin.get('/api/admin/addons/dm-tools'))).state.activeGenerationId;
   assert.notEqual(newGeneration, generation);
   await page.locator(`dm-tools-import-center-${newGeneration}`).waitFor();
@@ -510,5 +511,42 @@ after(async () => {
     const child = relative(output, directory);
     assert.ok(child && !child.startsWith('..') && !isAbsolute(child));
     await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+if (process.env.CODEX_DM_TOOLS_ZIP) for (const mobile of [false, true]) test(`reviewed planner annotations edit targets, quantities and shared notes on ${mobile ? 'phone' : 'desktop'}`, async t => {
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), dmToolsPermissions);
+  t.after(() => disable('dm-tools'));
+  await exercisePlannerAnnotations({ t, open, admin, csrf, output, mobile });
+});
+
+
+for (const mode of ['integrated', 'isolated']) test(`installed ${mode} route reference catalogs respect grants and player visibility`, async t => {
+  const id = `reference-${mode}`, secret = `private-${mode}`;
+  await jsonResponse(await admin.post('/api/campaign/transactions', { headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'campaign-mutation.v1', mutations: [
+    { operation: 'put', collection: 'events', key: secret, expectedRevision: 0, value: { id: secret, name: 'Private reference event', visibility: 'dm' } },
+    ...(mode === 'isolated' ? Array.from({ length: 200 }, (_, index) => ({ operation: 'put', collection: 'events', key: `zz-reference-${index}`, expectedRevision: 0,
+      value: { id: `zz-reference-${index}`, name: 'é'.repeat(200), visibility: 'public' } })) : []),
+  ] } }));
+  await installDmPackage(admin, csrf, { id, mode, slot: false, references: true }); t.after(() => disable(id));
+  for (const role of ['dm', 'player']) {
+    const page = await open(t, role); await page.goto(`/#/addons/${id}/planner`);
+    const route = mode === 'isolated' ? page.locator('[data-addon-route-outlet]').frameLocator('iframe') : page.locator('[data-addon-route-outlet]');
+    const context = route.getByLabel('Fixture context'); await context.filter({ hasText: '"ready":true' }).waitFor();
+    const catalog = JSON.parse(await context.textContent()).recordReferences;
+    if (mode === 'isolated') assert.equal(catalog.truncated, true);
+    assert.ok(catalog.records.some(record => record.id === 'arrival'));
+    assert.equal(catalog.records.some(record => record.id === secret), role === 'dm');
+    assert.ok(catalog.records.every(record => record.collection === 'events' && Object.keys(record).sort().join(',') === 'collection,href,id,label'));
+    await route.getByLabel('Fixture notes').fill('Retain mounted draft');
+    if (role === 'dm') {
+      const campaign = await jsonResponse(await admin.get('/api/campaign'));
+      const event = campaign.collections.find(collection => collection.name === 'events').records.find(record => record.key === secret);
+      await jsonResponse(await admin.post('/api/campaign/transactions', { headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'campaign-mutation.v1', mutations: [
+        { operation: 'put', collection: 'events', key: secret, expectedRevision: event.revision, value: { ...event.value, name: 'Updated private reference' } },
+      ] } }));
+      await context.filter({ hasText: 'Updated private reference' }).waitFor();
+      assert.equal(await route.getByLabel('Fixture notes').inputValue(), 'Retain mounted draft');
+    }
   }
 });

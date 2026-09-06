@@ -1,4 +1,5 @@
 import { LitElement, html, nothing } from "lit";
+import { routeRecordReferences } from "./route-record-references.js";
 import {
   getAuth,
   getHealth,
@@ -319,6 +320,7 @@ export class CodexApp extends LitElement {
         await this.updateComplete;
         this.#articleOutlet?.refresh();
         this.#navigationOutlet?.refresh();
+        this.#routeOutlet?.refresh();
       }
     } catch (cause: unknown) {
       if (signal.aborted) return;
@@ -544,8 +546,11 @@ export class CodexApp extends LitElement {
         role: auth.role,
         include: (active) => browserAddonRouteHash(active) === parseBrowserAddonLocation(window.location.hash)?.routeHash,
         isolatedHostContext: true,
-        hostContext: () => ({ contractVersion: "addon-route-context.v1", locale: this.#ui.locale,
-          query: parseBrowserAddonLocation(window.location.hash)?.query ?? [] }),
+        hostContext: active => {
+          const recordReferences = routeRecordReferences(this.campaignState.state === "ready" ? this.campaignState.campaign : undefined, active);
+          return { contractVersion: "addon-route-context.v1", locale: this.#ui.locale,
+            query: parseBrowserAddonLocation(window.location.hash)?.query ?? [], ...(recordReferences ? { recordReferences } : {}) };
+        },
         onError,
         onCountChange: (count) => { if (owner === this.#addonOwner) this.routeCount = count; },
       });

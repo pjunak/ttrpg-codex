@@ -329,6 +329,11 @@ interface AddonRouteHostContext {
   readonly contractVersion: "addon-route-context.v1";
   readonly locale: "en" | "cs";
   readonly query: readonly (readonly [string, string])[];
+  readonly recordReferences?: {
+    readonly ready: boolean;
+    readonly truncated: boolean;
+    readonly records: readonly { readonly collection: string; readonly id: string; readonly label: string; readonly href: string }[];
+  };
 }
 ```
 
@@ -338,6 +343,18 @@ keys remain separate. The host matches only the exact registered path before
 updates. Consumers validate their own supported parameters and must not reset
 an unchanged editor on every context assignment. Query values carry no record
 access or write authority. Reads still use the generation-scoped public SDK.
+
+`recordReferences` is present only for routes with approved `core.data.read`
+grants for supported campaign collections. It contains names and host-built
+hash links from the current role-visible campaign snapshot, restricted to those
+grants. It includes no record bodies, revisions, or write authority. The host
+refreshes the context when that snapshot changes without replacing the mounted
+editor. `ready: false` means no campaign snapshot is available; an empty ready
+list means there are no matching visible records. At most 1,000 records and
+48,000 UTF-8 bytes of serialized entries are included, with labels limited to
+200 UTF-16 code units; `truncated` reports omissions. This is a bounded picker
+catalog, not proof that an omitted record was deleted. Consumers must preserve
+unavailable saved references when editing unrelated fields.
 
 The full hash is limited to 4,096 UTF-8 bytes, with at most 32 pairs, nonempty
 keys of at most 64 UTF-16 code units and values of at most 1,024. Malformed

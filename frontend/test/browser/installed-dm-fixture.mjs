@@ -1,16 +1,18 @@
 import { createHash } from 'node:crypto';
 import { zip, installReviewedPackage } from './installed-graph-fixture.mjs';
 
-export function installDmPackage(request, csrf, { id, mode = 'integrated', version = '1.0.0', failure = '', slot = true, edits = false }) {
+export const dmToolsPermissions = [{ id: 'core.data.read', resources: ['characters', 'factions', 'locations', 'mysteries', 'artifacts', 'events'], reason: 'Choose visible campaign records for planning references and consequence targets.' }];
+
+export function installDmPackage(request, csrf, { id, mode = 'integrated', version = '1.0.0', failure = '', slot = true, edits = false, references = false }) {
   const contributions = [
-    { id: 'tool', surface: 'route', label: 'Fixture planner', roles: ['dm'], config: { path: 'planner' } },
+    { id: 'tool', surface: 'route', label: 'Fixture planner', roles: references ? ['dm', 'player'] : ['dm'], config: { path: 'planner' } },
     { id: 'sidebar', surface: 'sidebar', label: 'Fixture planner', roles: ['dm'], config: { route: 'tool' } },
     // Deliberately broader declaration: the host still owns DM panel authorization.
     ...(slot ? [{ id: 'dashboard', surface: 'slot', label: 'Fixture dashboard', roles: ['dm', 'player'], config: { contractVersion: 1, slot: 'dm:dashboard' } }] : []),
   ];
   const manifest = { packageFormat: 1, id, name: 'DM panel fixture', version,
     compatibility: { host: '^2.0.0', addonApi: '^3.0.0' }, capabilities: { required: ['ui.contributions'], optional: [] },
-    permissions: [], runtime: { ui: { mode, entry: 'web/index.js' } }, contributions };
+    permissions: references ? [{ id: 'core.data.read', resources: ['events'], reason: 'Choose event targets.' }] : [], runtime: { ui: { mode, entry: 'web/index.js' } }, contributions };
   const entry = `export function activate(context) {
     if (${JSON.stringify(failure)} === 'activation') throw new Error('Private fixture error must not be shown');
     const tag = 'fixture-dm-' + context.addon.id + '-' + context.addon.generation.slice(0, 8);
@@ -33,5 +35,5 @@ export function installDmPackage(request, csrf, { id, mode = 'integrated', versi
   }`;
   const files = { 'addon.json': JSON.stringify(manifest), 'web/index.js': entry };
   files['checksums.json'] = JSON.stringify({ algorithm: 'sha256', files: Object.fromEntries(Object.entries(files).map(([name, source]) => [name, createHash('sha256').update(source).digest('hex')])) });
-  return installReviewedPackage(request, csrf, id, zip(files), []);
+  return installReviewedPackage(request, csrf, id, zip(files), manifest.permissions);
 }

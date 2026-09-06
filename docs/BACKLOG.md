@@ -169,8 +169,11 @@ those later changes at cutover rather than silently restoring an older state.
   annotations, reject incompatible flows, and follow the saved destination.
   Draft parent choices remain explicit when their destination disappears;
   concurrent children prevent a stale conversion of their parent to a leaf.
+  References now support planning/core/external targets, names, relations and
+  quantities. Consequences expose optional targets, and shared notes expose
+  editable anchors; unanchored notes remain available for relinking. The host
+  supplies bounded, role-visible campaign choices through approved read grants.
   Remaining work includes original dialog/canvas controls,
-  complete core/external references and consequence targets/note anchors,
   live invalidation, full visual parity and
   localization, and Import Center presentation and other-provider acceptance.
 - [ ] Verify the compendium browser against the old day-to-day browsing and
@@ -293,6 +296,17 @@ The full host gate passes 276 unit tests, 143 browser cases, and Go tests/vet.
 DM Tools passes 22 Node tests, 22 rendering checks at each of DPR 1 and 2,
 Go tests/vet, and inspection of its rebuilt ZIP. Desktop/phone screenshots
 confirm the restored form row fits the existing responsive inspector.
+
+The annotation batch adds `installed-planner-annotation-fixture.mjs` for
+desktop/phone creation, target changes, quantities, unavailable saved targets,
+optional consequence targets, shared/unanchored notes and failed-save recovery.
+Integrated and isolated route fixtures verify permission/role filtering,
+retained mounted drafts during catalog refresh and a large truncated catalog
+within the existing bridge limit. DM Tools passes 26 Node tests, 22 rendering
+checks at each DPR, Go tests/vet, and inspection of its rebuilt ZIP. The host
+passes 279 unit tests, 147 browser cases and Go tests/vet. Screenshots retain the
+classic responsive controls; full pre-rewrite visual equivalence and real-site
+conversion remain open. No deployment, backup or live data was changed.
 
 The visual reference is `origin/deprecated/pre-rewrite-2026-09-01` at
 `3aeeacfe7adec985693f8aeb239df58c177f3da8`, confirmed against the live

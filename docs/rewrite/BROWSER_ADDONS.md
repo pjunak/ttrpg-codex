@@ -416,12 +416,24 @@ consumer. Query and locale changes update the mounted contribution instead of
 recreating it. The same locale delivery uses `dm-dashboard-context.v1` for the
 guarded DM slot; neither context includes campaign bodies.
 
+Route context optionally includes `recordReferences`, projected by
+`route-record-references.ts` from the role-visible campaign snapshot and the
+generation's approved `core.data.read` collection grants. The catalog contains
+only collection/key identities, bounded labels and host-built hash links. Its
+ready/truncated flags distinguish unavailable snapshots and omitted records;
+the exact limits are in the public API guide. Campaign refresh updates the
+mounted route context in both UI modes without resetting its local draft.
+
 `installed-dm.browser.mjs` verifies both UI modes retain drafts across route
 query updates, alongside DM slot authorization, replacement, disable and
 failure recovery. With `CODEX_DM_TOOLS_ZIP` pointing to the rebuilt first-party
 archive it also exercises dashboard counts, desktop/phone styling, Czech copy,
 planner edits and notes, recent-item links, reload/new-tab/back navigation,
 invalid/deleted targets and failed-read retry through an installed package.
+`installed-planner-annotation-fixture.mjs` covers core/planning/external targets,
+quantities, optional consequence targets, shared/unanchored notes, retained
+drafts, failed writes and phone layout. Separate installed route fixtures check
+grant and player filtering plus context refresh in both UI modes.
 
 Core data and host-issued add-on data/content/service facades share the default
 session transport. In a player-preview tab it supplies independent player
