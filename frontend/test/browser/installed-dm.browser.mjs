@@ -1,3 +1,4 @@
+import { exercisePlannerCanvas } from './installed-planner-canvas-fixture.mjs';
 import { exerciseAddonManager } from './installed-addon-manager-fixture.mjs';
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
@@ -554,4 +555,10 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} route ref
 
 for (const mobile of [false, true]) test(`add-on manager completes package review, update and rollback on ${mobile ? 'phone' : 'desktop'}`, async t => {
   await exerciseAddonManager({ t, open, admin, csrf, output, mobile });
+});
+
+if (process.env.CODEX_DM_TOOLS_ZIP) for (const mobile of [false, true]) test(`planner canvas restores navigation and scaled dragging on ${mobile ? 'phone' : 'desktop'}`, async t => {
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), dmToolsPermissions);
+  t.after(() => disable('dm-tools'));
+  await exercisePlannerCanvas({ t, open, admin, csrf, output, mobile });
 });

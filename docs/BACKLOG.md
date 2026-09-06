@@ -178,7 +178,11 @@ those later changes at cutover rather than silently restoring an older state.
   quantities. Consequences expose optional targets, and shared notes expose
   editable anchors; unanchored notes remain available for relinking. The host
   supplies bounded, role-visible campaign choices through approved read grants.
-  Remaining work includes original dialog/canvas controls,
+  Canvas controls now restore the fixed zoom ladder, native 100% reset, fit,
+  focus, keyboard/mouse panning and browser fullscreen. Zoom and scroll survive
+  selection, saves, reload and same-planner canvas navigation. Zoomed dragging
+  converts back to saved coordinates; negative/distant positions stay reachable.
+  Remaining work includes original dialog and selection behavior,
   live invalidation, full visual parity and
   localization, and Import Center presentation and other-provider acceptance.
 - [ ] Verify the compendium browser against the old day-to-day browsing and
@@ -208,6 +212,13 @@ those later changes at cutover rather than silently restoring an older state.
 <!-- product-parity-gates:end -->
 
 ## Delivery order and acceptance evidence
+
+The canvas navigation batch passes installed desktop/phone checks for zoom,
+fit, keyboard panning, fullscreen, retained drafts and per-scope views, and
+correct saved coordinates after a 200% drag. The full host gate passes 279 unit
+tests, 151 browser cases, Go tests and vet. DM Tools passes 28 Node tests,
+22 rendering checks at each DPR, Go tests/vet and rebuilt ZIP inspection.
+The restored toolbar keeps the existing theme and fits the phone layout.
 
 The add-on settings workflow passes the full host gate: 279 unit tests,
 149 browser cases, Go tests and vet. The new installed manager cases exercise
