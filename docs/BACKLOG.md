@@ -185,9 +185,24 @@ those later changes at cutover rather than silently restoring an older state.
   Remaining work includes original dialog and selection behavior,
   live invalidation, full visual parity and
   localization, and Import Center presentation and other-provider acceptance.
-- [ ] Verify the compendium browser against the old day-to-day browsing and
-  reference workflow, then restore any accepted source, linking, filtering, or
-  detail behavior that is missing.
+- [x] Restore standalone compendium browsing and reading: the preserved topic/
+  source tree, class/subclass/level nesting, tiles, deep cross-kind search,
+  counted filters and sorting, complete Markdown/tables, composed class features,
+  monster stat blocks, related records and sourcebook links. Genuine reprints
+  participate in source filters without changing provenance or record identity.
+  Typed query links retain filters and expanded results through detail navigation
+  and Back. Host refresh keeps the mounted view; retry, generation replacement,
+  disable/reactivation, English/Czech controls and DM/player desktop/phone
+  workflows pass the actual installed ZIP suite. The standalone v1/v3 comparison
+  also verifies matching desktop/phone library grid widths and heading metrics;
+  preserved styling replaces the rewrite's generic cards.
+  Validation: 53 compendium checks, rebuilt/inspected ZIP, seven installed
+  browser cases, and the full host gate (279 unit tests, 158 browser cases,
+  Go tests and vet). The final package also passed its focused installed suite.
+- [ ] Restore campaign-article compendium wiki references and external v1
+  compendium hashes through a documented v3 host linking surface. The package
+  already translates typed links within its own Markdown. Real-campaign visual
+  acceptance remains part of the shared gate above.
 - [ ] Differentially validate the Go rules engine against preserved v1 rules and
   builder fixtures, including missing-provider and changed-provider behavior.
 - [ ] Bring character sheets to accepted presentation and workflow parity,
@@ -592,7 +607,7 @@ acceptance still need to be expanded as follow-up documentation.
 | Settings: `language`, `appearance` | Personal language, shared theme and branding/logo panels | Remaining catalogs, tokens, and campaign visual acceptance |
 | Settings: `worldmap` | Maps panel at `/settings/maps`, with local-map scope links | Real-host visual acceptance with campaign maps |
 | Settings: `playerParty`, `sidebarPages` | Party identity, curated core sidebar, and add-on visibility controls restored | Older hidden-page preference conversion and installed-route key review |
-| Settings: `addons` | Lifecycle APIs exist; manager and add-on settings UI remain open | Permission review, activation, diagnostics, update and rollback |
+| Settings: `addons` | Reviewed manager restores inspection, permission approval, activation, diagnostics, update, disable and rollback | Installed desktop/phone tests pass; campaign acceptance remains |
 | Settings: `backup`, `account` | Verified backup/maintenance and session APIs exist; full recovery/server controls remain open | Recovery points, restore/revert and accepted credential rotation |
 | Add-on routes and graph/settings contributions | Versioned v3 mounting infrastructure and package routes exist | Per-add-on workflow inventory and installed-package acceptance |
 
