@@ -6,6 +6,14 @@ import { zip } from './installed-graph-fixture.mjs';
 // Repackage a locally built test archive with a new manifest version; never
 // extract it or alter its worker binaries. The real inspector reviews the ZIP.
 export function replacementImportPackage(archive) {
+  const files = importPackageFiles(archive);
+  const manifest = JSON.parse(files['addon.json'].toString()); manifest.version = '3.0.1';
+  files['addon.json'] = JSON.stringify(manifest); delete files['checksums.json'];
+  files['checksums.json'] = JSON.stringify({ algorithm: 'sha256', files: Object.fromEntries(Object.entries(files).map(([name, body]) => [name, createHash('sha256').update(body).digest('hex')])) });
+  return zip(files);
+}
+
+export function importPackageFiles(archive) {
   const end = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
   assert.ok(end >= 0);
   const count = archive.readUInt16LE(end + 10), files = Object.create(null);
@@ -23,10 +31,7 @@ export function replacementImportPackage(archive) {
     expanded += body.length; assert.ok(expanded < 64 * 1024 * 1024);
     files[name] = body; cursor += 46 + nameSize + extra + comment;
   }
-  const manifest = JSON.parse(files['addon.json'].toString()); manifest.version = '3.0.1';
-  files['addon.json'] = JSON.stringify(manifest); delete files['checksums.json'];
-  files['checksums.json'] = JSON.stringify({ algorithm: 'sha256', files: Object.fromEntries(Object.entries(files).map(([name, body]) => [name, createHash('sha256').update(body).digest('hex')])) });
-  return zip(files);
+  return files;
 }
 
 export function planningImport(items, generatedAt = 1000, mode = 'merge') {

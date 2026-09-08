@@ -1,5 +1,6 @@
 import { exercisePlannerCanvas } from './installed-planner-canvas-fixture.mjs';
 import { exercisePlannerLive } from './installed-planner-live-fixture.mjs';
+import { exerciseImportCenter } from './installed-import-center-fixture.mjs';
 import { exerciseAddonManager } from './installed-addon-manager-fixture.mjs';
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
@@ -320,6 +321,10 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner rejects unseen child
   await exercisePlannerConcurrency({ t, open, admin, csrf });
 });
 
+if (process.env.CODEX_DM_TOOLS_ZIP) for (const mobile of [false, true]) test(`Import Center restores routing, review and provider-independent imports on ${mobile ? 'phone' : 'desktop'}`, async t => {
+  await exerciseImportCenter({ t, root, output, open, admin, csrf, disable, mobile });
+});
+
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planning imports preview, cancel, commit atomically and reject stale reviews', async t => {
   const archive = await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP));
   await installReviewedPackage(admin, csrf, 'dm-tools', archive, dmToolsPermissions); t.after(() => disable('dm-tools'));
@@ -376,7 +381,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planning imports preview, ca
     { operation: 'put', kind: 'collection', dataId: 'planning_items', key: stored.key, expectedRevision: stored.revision, value: { ...stored.value, title: 'Concurrent local edit', updatedAt: 3000 } },
   ] } }));
   await page.getByRole('button', { name: 'Commit reviewed import', exact: true }).click();
-  await page.getByText('Planning data changed. Choose the file again to review a new preview.', { exact: true }).waitFor();
+  await page.getByText('Data changed. Choose the file again to review a new preview.', { exact: true }).waitFor();
   assert.equal(await page.locator('.dm-import-preview').count(), 0);
   assert.equal((await records()).find(record => record.key === 'import-quest').value.title, 'Concurrent local edit');
   assert.equal((await records()).some(record => record.key === 'import-atomic-new'), false);
@@ -387,7 +392,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planning imports preview, ca
     { operation: 'put', kind: 'collection', dataId: 'dm_notes', key: 'import-unseen-note', expectedRevision: 0, value: { id: 'import-unseen-note', schemaVersion: 3, title: 'Added after preview', body: '', anchorIds: ['import-quest'], updatedAt: 3201 } },
   ] } }));
   await page.getByRole('button', { name: 'Commit reviewed import', exact: true }).click();
-  await page.getByText('Planning data changed. Choose the file again to review a new preview.', { exact: true }).waitFor();
+  await page.getByText('Data changed. Choose the file again to review a new preview.', { exact: true }).waitFor();
   assert.equal((await records()).some(record => record.key === 'import-unseen-conflict'), false);
 
   const callPattern = '**/api/addons/dm-tools/generations/*/services/call';
@@ -398,7 +403,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planning imports preview, ca
     await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'SERVICE_UNAVAILABLE' } }) });
   });
   await page.getByRole('button', { name: 'Commit reviewed import', exact: true }).click();
-  await page.getByText('Could not confirm the import. Check planning data before choosing the file again for a new preview.', { exact: true }).waitFor();
+  await page.getByText('Could not confirm the import. Check the destination data before choosing the file again for a new preview.', { exact: true }).waitFor();
   await page.unroute(callPattern);
   assert.equal((await records()).some(record => record.key === 'import-uncertain'), true);
   assert.equal(await page.locator('.dm-import-preview').count(), 0);

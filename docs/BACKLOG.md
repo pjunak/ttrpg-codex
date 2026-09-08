@@ -221,8 +221,18 @@ those later changes at cutover rather than silently restoring an older state.
   Validation: 304 host unit tests, all 194 browser cases with the four release
   ZIPs, host Go tests/vet, 30 DM Tools tests, DPR 1/2 rendering checks, add-on
   Go tests/vet, and a rebuilt/inspected DM Tools ZIP. No deployment is implied.
-  Remaining work includes original dialog and selection behavior, full visual parity and
-  localization, and Import Center presentation and other-provider acceptance.
+  Import Center now restores the preserved file chooser, supported-format rows,
+  document/provider strip and change ledger with English/Czech controls.
+  Discovery retries retain healthy providers; invalid or ambiguous formats and
+  inconsistent previews cannot enable Commit. Pending previews can be cancelled;
+  commits participate in navigation/unload protection and never auto-retry.
+  Installed desktop/phone checks also exercise an independent native provider's
+  reviewed writes, duplicate claims, discovery failure/retry and late responses.
+  Validation: 33 DM Tools tests, DPR 1/2 rendering checks, package rebuild and
+  inspection, 304 host unit tests, all 196 browser cases with four add-on ZIPs,
+  and host/add-on Go tests and vet. Imported/provider-authored text is preserved.
+  Remaining work includes original planner dialog and selection behavior,
+  planner localization, and final real-campaign visual acceptance.
 - [x] Restore standalone compendium browsing and reading: the preserved topic/
   source tree, class/subclass/level nesting, tiles, deep cross-kind search,
   counted filters and sorting, complete Markdown/tables, composed class features,

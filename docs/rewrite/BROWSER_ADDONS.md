@@ -274,6 +274,13 @@ To additionally exercise the separately built first-party package, set
 acceptance case uploads, reviews, approves and activates the package, then opens
 the planner and Import Center from the panel.
 
+The Import Center acceptance also installs an independent native test provider
+through the same reviewed lifecycle. Desktop/phone cases cover routing by
+format, provider-owned writes, duplicate format claims, partial/all-provider
+discovery failure and retry, rejected mismatched reviews, preview cancellation,
+pending-commit navigation protection, and English/Czech review presentation.
+The provider fixture is test-only; production installation never compiles it.
+
 The isolated bootstrap sends `ready` before its first resize report. Reversing
 those messages caused healthy widgets to emit a false protocol-failure
 diagnostic; the installed DM panel regression checks that no degraded state is
