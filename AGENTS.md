@@ -7,8 +7,9 @@ test dependency only; it is not part of the production runtime.
 
 ## Commands and environment
 
-Use Go 1.27.1, Node.js 24 or newer, and PowerShell on Windows. Run from this
-repository root:
+Use the Go version in go.mod. Node.js 24+ is the supported minimum; .nvmrc
+pins Node 26 for development/CI. Run from this repository root in the current
+shell. Install dependencies/browser only when missing or stale:
 
 ```console
 npm ci
@@ -147,25 +148,22 @@ source checkout into a runtime generation.
 
 ## Completion and durable planning
 
-- Architecture completion is not product completion. Never describe this
-  rewrite as a v1 replacement while any item between the product-parity markers
-  in [`docs/BACKLOG.md`](docs/BACKLOG.md) is unchecked, while
-  `frontend/REWRITE_INCOMPLETE` exists. The owner accepts outages, fixes after
-  launch, and rollback for the two personal sites: follow the short cutover
-  checks in `docs/SELF_HOSTING.md`, not an exhaustive pre-launch rehearsal.
-  `npm run check` proves technical consistency;
-  `npm run release-check` separately enforces the product release boundary.
+- Architecture completion is not product completion. The product-parity gates
+  in [the backlog](docs/BACKLOG.md), frontend/REWRITE_INCOMPLETE and
+  npm run release-check define the release boundary. npm run check proves
+  technical consistency. Follow [the self-hosting runbook](docs/SELF_HOSTING.md)
+  for the owner-authorized cutover; do not invent additional launch blockers.
 - A generic record browser is not an acceptable substitute for the authored
   dashboard, wiki, editors, maps, timeline, relationship views, settings, and
   first-party add-on workflows. Port, deliberately redesign, or explicitly
   retire each old workflow with maintainer approval and a recorded gate result.
-- Ordinary backup and restore accept only `codex-backup.v2`. The offline
-  `cmd/codex-convert-v1` tool is the sole legacy boundary: keep its input
-  unchanged and write a fresh v2 directory. Do not add startup-time legacy
-  readers or general legacy repair tooling. Preserve retired species meaning by
-  mapping known character IDs to names; discard only an exact empty retired
-  map-pin file and fail closed on non-empty pins or unknown shapes.
-- Run focused tests while iterating and `npm run check` before handoff. Run
+- Ordinary backup and restore accept only codex-backup.v2. The offline
+  cmd/codex-convert-v1 tool preserves its input and writes a fresh directory.
+  [The legacy conversion contract](docs/rewrite/LEGACY_CONVERSION.md) owns
+  retired-data handling; do not add startup readers or general legacy repair.
+- For runtime/build changes, run focused tests while iterating and `npm run check`
+  before handoff. For prose or agent guidance, review the diff, local links and
+  changed claims; no application rebuild is needed solely for documentation. Run
   relevant host/add-on compatibility tests on both sides of a contract change.
 - Update the owning reference, public docs, test inventory, and this file only
   when their actual contracts change.

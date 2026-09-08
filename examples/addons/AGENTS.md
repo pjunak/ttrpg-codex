@@ -9,8 +9,10 @@ report the documentation mismatch.
 
 ## Start here
 
-1. Read the add-on's root instructions, README, manifest, schemas, package
-   builder, and tests.
+1. Read the add-on's root instructions. Use its README for setup/product work,
+   schemas and tests for data/service changes, and manifest/package builder
+   for permissions, lifecycle or package changes. Read this guide's matching
+   sections rather than loading every reference for an unrelated edit.
 2. Identify its permanent IDs, runtime targets, contributions, permissions,
    collections/extensions, services, content sets, and optional behavior.
 3. Preserve the addon's standalone behavior unless a hard dependency is
@@ -20,8 +22,10 @@ report the documentation mismatch.
 5. For integration, use upload, inspect/stage, review, approve, activate, and
    the relevant replacement/disposal behavior.
 
-The global Codex instructions govern task commits. Do not create branches,
-releases, or pushes unless the maintainer asks.
+Follow the active task's local-commit policy. A local branch/worktree may isolate
+implementation when authorized by that task; it does not authorize replacing
+shared branches, publishing releases or pushing. External contributors need
+the public contracts for the target host version, not the maintainer's workspace.
 The only durable suite backlog is [`../../docs/BACKLOG.md`](../../docs/BACKLOG.md).
 Temporary implementation plans belong only in the host repository's ignored
 `docs/plans/` directory and must be deleted when the task closes. Do not create
@@ -120,6 +124,16 @@ different semantics. Display names may change.
   binaries synchronized with source for a release candidate.
 
 ## Build and verify
+
+For prose or agent-guidance-only changes, review the diff, check local links,
+and verify changed commands or contract claims. Runtime builds and operational
+acceptance are required only for the affected behavior below. Reuse successful
+checks on unchanged inputs; preserve complete CI and release gates.
+
+Run the add-on's applicable runtime gates for implementation changes. Build and
+inspect artifacts for package/manifest/schema/worker changes or release
+candidates; exercise affected lifecycle and optional-provider behavior in an
+isolated host when integration changes.
 
 A release candidate must pass:
 
