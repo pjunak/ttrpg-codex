@@ -36,6 +36,7 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/credentialstore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/mediastore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
+	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/recoverystore"
 	"github.com/pjunak/ttrpg-codex/internal/transport/httpapi"
 	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
 )
@@ -176,8 +177,9 @@ func composeHost(
 	if err != nil {
 		return nil, fmt.Errorf("configure event broker: %w", err)
 	}
+	recoveryPoints := &recoverystore.Store{DB: db, Events: eventBroker}
 	campaignRecords, err := campaignstore.New(campaignstore.Config{
-		DB: db, Events: eventBroker,
+		DB: db, Events: eventBroker, BeforeWrite: recoveryPoints.BeforeWrite,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("configure campaign record store: %w", err)
@@ -186,7 +188,7 @@ func composeHost(
 	if err != nil {
 		return nil, fmt.Errorf("configure campaign data service: %w", err)
 	}
-	addonRecords, err := addondatastore.New(addondatastore.Config{DB: db, Events: eventBroker})
+	addonRecords, err := addondatastore.New(addondatastore.Config{DB: db, Events: eventBroker, BeforeWrite: recoveryPoints.BeforeWrite})
 	if err != nil {
 		return nil, fmt.Errorf("configure add-on data store: %w", err)
 	}
@@ -195,7 +197,7 @@ func composeHost(
 		return nil, fmt.Errorf("configure add-on data service: %w", err)
 	}
 	blobStorage, err := blobstore.New(
-		db, filepath.Join(dataDirectory, "blobs"), blobstore.Options{},
+		db, filepath.Join(dataDirectory, "blobs"), blobstore.Options{BeforeWrite: recoveryPoints.BeforeWrite},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("configure blob storage: %w", err)
@@ -297,6 +299,7 @@ func composeHost(
 		CampaignEnums:            campaignData,
 		CampaignEnumWriter:       httpapi.SessionCampaignTwinAuthorizer(authentication),
 		BackupArchives:           backupArchives,
+		RecoveryPoints:           recoveryPoints,
 		BackupAuthorizer:         httpapi.SessionAdminAuthorizer(authentication),
 		Media:                    mediaService,
 		MediaAuthorizer:          httpapi.SessionMediaAuthorizer(authentication),

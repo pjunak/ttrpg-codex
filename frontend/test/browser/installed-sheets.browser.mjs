@@ -64,6 +64,34 @@ async function seed(key) {
 }
 async function put(key, value, revision) { return jsonResponse(await admin.post(`${base}/transactions`, { headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'addon-data-transaction.v1', mutations: [{ operation: 'put', kind: 'record-extension', dataId: 'dnd-sheets', key, expectedRevision: revision, value }] } })); }
 async function get(key) { return jsonResponse(await admin.post(`${base}/get`, { data: { contractVersion: 'addon-data-get.v1', kind: 'record-extension', dataId: 'dnd-sheets', key } })); }
+
+test('campaign recovery refreshes installed Sheets and preserves unsaved add-on drafts', { skip: !archivePath }, async t => {
+  const key = 'campaign-recovery'; await seed(key);
+  const point = (await jsonResponse(await admin.post('/api/recovery', { headers: { 'X-Codex-CSRF': csrf }, data: {} }))).points[0];
+  const original = await get(key); await put(key, { ...original.value, hp: 5 }, original.revision);
+  const changed = await get(key);
+  const page = await open(t, key), sheet = page.locator('.addon-dnd-sheets');
+  assert.equal(await sheet.locator('.dse-hp .dse-number').first().textContent(), '5');
+  const restore = async () => {
+    const current = await jsonResponse(await admin.get('/api/recovery'));
+    return jsonResponse(await admin.post('/api/recovery/restore', { headers: { 'X-Codex-CSRF': csrf }, data: { id: point.id, expectedRevision: current.revision } }));
+  };
+  await restore();
+  await page.waitForFunction(() => document.querySelector('.dse-hp .dse-number')?.textContent === '21');
+  assert.ok((await get(key)).revision > changed.revision);
+  assert.deepEqual((await get(key)).value.homebrew, { clue: 'blue lantern' });
+  await sheet.getByRole('button', { name: 'Edit sheet', exact: true }).click();
+  await sheet.getByRole('tab', { name: 'Notes', exact: true }).click();
+  await page.route(writes, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { kind: 'UNAVAILABLE', message: 'offline' } }) }));
+  await sheet.getByRole('textbox', { name: 'Sheet notes' }).fill('Draft survives campaign recovery.');
+  await sheet.getByRole('tab', { name: 'Combat', exact: true }).click();
+  await sheet.getByRole('button', { name: 'Retry save', exact: true }).waitFor();
+  await restore(); await page.getByRole('alert').filter({ hasText: 'Your unsaved edits are still open' }).waitFor();
+  await sheet.getByRole('tab', { name: 'Notes', exact: true }).click();
+  assert.equal(await sheet.getByRole('textbox', { name: 'Sheet notes' }).inputValue(), 'Draft survives campaign recovery.');
+  assert.equal(await unloadBlocked(page), true);
+  assert.equal((await get(key)).value.notes, 'Keep the promise.');
+});
 async function open(t, key, mobile = false, role = 'dm') {
   const context = await browser.newContext({ baseURL: origin, viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1100 }, isMobile: mobile, hasTouch: mobile, reducedMotion: 'reduce' });
   t.after(() => context.close()); await jsonResponse(await context.request.post('/api/login', { data: { password: `local-sheets-${role}` } }));

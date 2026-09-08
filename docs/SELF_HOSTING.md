@@ -151,8 +151,17 @@ still resolves and enforces the actual dependency graph.
 
 ## Backups
 
+Settings → Backup & recovery provides manual points, automatic edit groups,
+restore/delete review, revert-last-N, and full ZIP download. Points cover
+campaign records, add-on documents and uploaded media; they preserve current
+passwords and installed add-ons. Each restore keeps a safety copy. Points live
+in the same database and retain only the newest 50, so keep an independent ZIP
+for recovery from disk loss. Restore a point with the same active add-on versions;
+use full offline restore when recovering packages or the entire host.
+See the [recovery contract](rewrite/BACKUP_RESTORE.md#campaign-recovery-points).
+
 The DM endpoint `GET /api/backup` downloads the same verified archive contract
-as the maintenance CLI. For offline operation:
+as the maintenance CLI. For command-line operation:
 
 ```powershell
 go run ./cmd/codex-maintenance backup `

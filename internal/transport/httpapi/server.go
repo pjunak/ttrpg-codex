@@ -32,6 +32,7 @@ type Config struct {
 	CampaignEnums            CampaignEnums
 	CampaignEnumWriter       CampaignMutationAuthorizer
 	BackupArchives           BackupArchives
+	RecoveryPoints           RecoveryPoints
 	BackupAuthorizer         AdminAuthorizer
 	Media                    MediaAssets
 	MediaAuthorizer          MediaAuthorizer
@@ -65,6 +66,7 @@ type server struct {
 	campaignEnums            CampaignEnums
 	campaignEnumWriter       CampaignMutationAuthorizer
 	backupArchives           BackupArchives
+	recoveryPoints           RecoveryPoints
 	backupAuthorizer         AdminAuthorizer
 	media                    MediaAssets
 	mediaAuthorizer          MediaAuthorizer
@@ -88,6 +90,7 @@ func New(config Config) (http.Handler, error) {
 		(config.CampaignTwins == nil) != (config.CampaignTwinWriter == nil) ||
 		(config.CampaignEnums == nil) != (config.CampaignEnumWriter == nil) ||
 		(config.BackupArchives == nil) != (config.BackupAuthorizer == nil) ||
+		config.RecoveryPoints != nil && config.Authentication == nil ||
 		(config.Media == nil) != (config.MediaAuthorizer == nil) ||
 		(config.AddonData == nil) != (config.AddonDataAuthorizer == nil) ||
 		(config.AddonContent == nil) != (config.ContentAuthorizer == nil) ||
@@ -114,7 +117,8 @@ func New(config Config) (http.Handler, error) {
 		campaignTwins: config.CampaignTwins, campaignTwinWriter: config.CampaignTwinWriter,
 		campaignEnums: config.CampaignEnums, campaignEnumWriter: config.CampaignEnumWriter,
 		backupArchives: config.BackupArchives, backupAuthorizer: config.BackupAuthorizer,
-		media: config.Media, mediaAuthorizer: config.MediaAuthorizer,
+		recoveryPoints: config.RecoveryPoints,
+		media:          config.Media, mediaAuthorizer: config.MediaAuthorizer,
 		addonData: config.AddonData, addonDataAuthorizer: config.AddonDataAuthorizer,
 		addonContent: config.AddonContent, contentAuthorizer: config.ContentAuthorizer,
 		browserServices:          config.BrowserServices,
@@ -143,6 +147,9 @@ func New(config Config) (http.Handler, error) {
 	}
 	if s.backupArchives != nil {
 		s.registerBackupRoutes(mux)
+	}
+	if s.recoveryPoints != nil {
+		s.registerRecoveryRoutes(mux)
 	}
 	if s.media != nil {
 		s.registerMediaRoutes(mux)

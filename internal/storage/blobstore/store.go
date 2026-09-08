@@ -72,12 +72,14 @@ type CreateRequest struct {
 }
 
 type Options struct {
+	BeforeWrite  func(context.Context, *sql.Tx) error
 	MaximumBytes uint64
 	Now          func() time.Time
 	Random       io.Reader
 }
 
 type Store struct {
+	beforeWrite  func(context.Context, *sql.Tx) error
 	database     *sql.DB
 	root         string
 	maximumBytes uint64
@@ -118,7 +120,8 @@ func New(database *sql.DB, root string, options Options) (*Store, error) {
 		return nil, fmt.Errorf("%w: blob schema is unavailable: %v", ErrUnavailable, err)
 	}
 	return &Store{
-		database: database, root: absolute, maximumBytes: options.MaximumBytes,
+		beforeWrite: options.BeforeWrite,
+		database:    database, root: absolute, maximumBytes: options.MaximumBytes,
 		now: options.Now, random: options.Random,
 	}, nil
 }
@@ -264,7 +267,17 @@ func (store *Store) Delete(ctx context.Context, id string, expectedRevision int6
 		return Blob{}, ErrInvalid
 	}
 	now := store.now().UTC().Format(time.RFC3339Nano)
-	result, err := store.database.ExecContext(ctx, `
+	transaction, err := store.database.BeginTx(ctx, nil)
+	if err != nil {
+		return Blob{}, err
+	}
+	defer transaction.Rollback()
+	if store.beforeWrite != nil {
+		if err := store.beforeWrite(ctx, transaction); err != nil {
+			return Blob{}, err
+		}
+	}
+	result, err := transaction.ExecContext(ctx, `
 		UPDATE blobs
 		SET deleted = 1, revision = revision + 1, updated_at = ?
 		WHERE blob_id = ? AND revision = ? AND deleted = 0`, now, id, expectedRevision)
@@ -276,10 +289,16 @@ func (store *Store) Delete(ctx context.Context, id string, expectedRevision int6
 		return Blob{}, fmt.Errorf("read blob deletion: %w", err)
 	}
 	if changed != 1 {
+		// Release the transaction connection before looking up the conflict.
+		// This also discards a recovery point made for the rejected deletion.
+		_ = transaction.Rollback()
 		if _, metadataErr := store.Metadata(ctx, id); errors.Is(metadataErr, ErrNotFound) {
 			return Blob{}, ErrNotFound
 		}
 		return Blob{}, ErrConflict
+	}
+	if err := transaction.Commit(); err != nil {
+		return Blob{}, err
 	}
 	return store.Metadata(ctx, id)
 }
@@ -292,6 +311,11 @@ func (store *Store) insertMetadata(ctx context.Context, blob Blob) (Blob, error)
 		return Blob{}, fmt.Errorf("begin blob metadata write: %w", err)
 	}
 	defer transaction.Rollback()
+	if store.beforeWrite != nil {
+		if err := store.beforeWrite(ctx, transaction); err != nil {
+			return Blob{}, err
+		}
+	}
 	if _, err := transaction.ExecContext(ctx, `
 		INSERT INTO blob_objects(sha256, bytes, created_at)
 		VALUES (?, ?, ?)

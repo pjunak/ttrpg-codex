@@ -81,7 +81,66 @@ are consumed by the separate, narrowly scoped
 directory and database. This keeps legacy shape handling out of normal startup
 and out of the permanent native restore surface.
 
-The Settings download control and restore-upload workflow are still pending.
-They must reuse this format and service rather than inventing another one.
-Uploaded restore candidates should be staged and verified while the host runs,
-but publication must still happen through the offline restart boundary.
+Settings → Backup & recovery downloads this same full archive. Archive upload
+and publication remain an offline maintenance operation; campaign recovery
+points below are available without restarting the host.
+
+## Campaign recovery points
+
+The original Settings history workflow is available in English and Czech:
+manual points, coalesced automatic points, reviewed restore/delete, and revert
+of the last N retained automatic edit groups. The newest 50 points are retained
+across all three kinds (`manual`, `save`, `pre-restore`). A point contains at
+most 64 MiB of campaign metadata, not copies of the immutable file bytes.
+Manual points do not delay the next automatic group. After a restore, the next
+edit starts a new group. Revert counts automatic groups, not individual field
+changes, manual points or safety points; its review shows the selected date.
+
+Migration 0012 stores core collection materialization, ordered records with
+unknown fields and creation identities, add-on datasets/documents and their
+ownership metadata, logical blob deletion state, and core media bindings.
+Media files and opaque handles remain in immutable storage, allowing recovery
+of a deleted portrait or an older world-map slot. Passwords, sessions, package
+installations, permissions, service bindings, and audit history are excluded.
+The existing native full backup includes these recovery points in its SQLite
+image and retains their immutable objects.
+
+The host wires `recoverystore.BeforeWrite` into core/add-on transactions and
+blob creation/deletion. It captures once before the first mutation, at most
+once per minute, in the same transaction. A failed edit rolls back its point.
+Per-row triggers advance the review revision without taking intermediate
+snapshots. Offline conversion does not capture partly converted states;
+package lifecycle transitions use the full backup/rollback boundary.
+
+Restore acquires the SQLite write transaction with the exact reviewed revision,
+checks the point's format, active add-on generations and existing dataset
+definitions, and first captures a `pre-restore` safety point. All campaign,
+add-on and media changes, the payload-free restore audit, and the durable
+`campaign-restored` publication commit together. A failure rolls back all of
+them. Restored live records get fresh revisions; removed keys keep deletion
+tombstones, so stale editors and reviewed import plans cannot overwrite the
+recovered data. Collection/dataset revisions also advance, including empty
+collections. Immutable record creation identities are restored with their
+extensions. Recovery across different active add-on versions or data schemas
+is refused; use matching package versions or a full offline backup restore.
+
+The HTTP surface requires a real and effective DM, plus CSRF for writes:
+
+| Route | Request / response |
+| --- | --- |
+| `GET /api/recovery` | `recovery-points.v1`: review revision and newest-first metadata only |
+| `POST /api/recovery` | Exact `{}` creates a manual point and returns the list |
+| `POST /api/recovery/restore` | `expectedRevision` plus either positive `id` or `count` (1–50) |
+| `POST /api/recovery/delete` | Positive `id` and `expectedRevision` |
+
+All responses are no-store. A changed campaign/list returns `RECOVERY_CONFLICT`;
+different add-on versions/definitions return `RECOVERY_COMPATIBILITY`. Missing
+retained points/groups return 404. After an uncertain network result the UI
+requires a fresh list and review before another restore/delete.
+
+Storage regression tests cover failed writes/restores, concurrent reviews,
+retention, tombstones, unknown fields, empty datasets, extensions and media.
+`recovery.browser.mjs` covers desktop/phone Settings, English/Czech copy, stale
+reviews, uncertain responses, pending navigation, undo and private ZIP download.
+`installed-sheets.browser.mjs` verifies recovery in a real installed package and
+retention of an unsaved add-on draft in another tab.

@@ -123,15 +123,17 @@ type EventJournal interface {
 }
 
 type Config struct {
-	DB     *sql.DB
-	Events EventJournal
-	Now    func() time.Time
+	BeforeWrite func(context.Context, *sql.Tx) error
+	DB          *sql.DB
+	Events      EventJournal
+	Now         func() time.Time
 }
 
 type Store struct {
-	database *sql.DB
-	events   EventJournal
-	now      func() time.Time
+	beforeWrite func(context.Context, *sql.Tx) error
+	database    *sql.DB
+	events      EventJournal
+	now         func() time.Time
 }
 
 type preparedMutation struct {
@@ -153,7 +155,7 @@ func New(config Config) (*Store, error) {
 	if _, err := config.DB.Exec(`SELECT addon_id FROM addon_data_sets LIMIT 0`); err != nil {
 		return nil, fmt.Errorf("%w: add-on data schema is unavailable: %v", ErrInvalidConfig, err)
 	}
-	return &Store{database: config.DB, events: config.Events, now: config.Now}, nil
+	return &Store{database: config.DB, events: config.Events, now: config.Now, beforeWrite: config.BeforeWrite}, nil
 }
 
 func (store *Store) Get(
@@ -296,6 +298,11 @@ func (store *Store) Transact(ctx context.Context, input Transaction) (Commit, er
 		return Commit{}, fmt.Errorf("begin add-on data transaction: %w", err)
 	}
 	defer transaction.Rollback()
+	if store.beforeWrite != nil {
+		if err := store.beforeWrite(ctx, transaction); err != nil {
+			return Commit{}, err
+		}
+	}
 	// Check the entire read set before touching documents, journal, or revisions.
 	for _, expected := range input.ExpectedDataSets {
 		state, err := readState(ctx, transaction, input.AddonID, expected.Kind, expected.DataID)

@@ -27,9 +27,10 @@ import "./codex-branding-settings.js";
 import "./codex-sidebar-settings.js";
 import "./codex-addon-manager.js";
 import "./codex-credential-settings.js";
+import "./codex-recovery-settings.js";
 import type { BrowserNavigationEntry } from "../addons/navigation.js";
 
-type SettingsCategory = "language" | "appearance" | "maps" | "playerParty" | "sidebar" | "addons" | "account" | CampaignEnumCategory;
+type SettingsCategory = "language" | "appearance" | "maps" | "playerParty" | "sidebar" | "addons" | "account" | "backup" | CampaignEnumCategory;
 
 export class CodexSettings extends LitElement {
   static override properties = {
@@ -105,6 +106,10 @@ export class CodexSettings extends LitElement {
       @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean; saving?: boolean }>) => {
         this.#dirty = event.detail.dirty; this.#credentialsSaving = event.detail.saving === true; this.requestUpdate();
       }}></codex-credential-settings>`);
+    if (this.activeCategory === "backup") return this.#shell(html`<codex-recovery-settings .csrfToken=${this.csrfToken}
+      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean; saving?: boolean }>) => {
+        this.#dirty = event.detail.dirty; this.#credentialsSaving = event.detail.saving === true; this.requestUpdate();
+      }}></codex-recovery-settings>`);
     if (this.activeCategory === "addons") return this.#shell(html`<codex-addon-manager .csrfToken=${this.csrfToken}></codex-addon-manager>`);
     if (this.activeCategory === "sidebar") return this.#shell(html`<codex-sidebar-settings .campaign=${this.campaign} .addonPages=${this.addonPages} .saving=${this.saving} .editCompletion=${this.editCompletion}
       @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => { this.#dirty = event.detail.dirty; }}></codex-sidebar-settings>`);
@@ -162,6 +167,7 @@ export class CodexSettings extends LitElement {
         { id: "sidebar" as const, label: this.#ui.t("sidebar.title"), icon: "🧭" },
         { id: "addons" as const, label: this.#ui.t("addons.title"), icon: "🧩" },
         { id: "account" as const, label: this.#ui.t("credentials.title"), icon: "🖥" },
+        { id: "backup" as const, label: this.#ui.t("recovery.title"), icon: "💾" },
         ...campaignEnumDescriptors.map((descriptor) => ({
           id: descriptor.category as SettingsCategory,
           label: descriptor.label,
@@ -490,7 +496,7 @@ export class CodexSettings extends LitElement {
 
   #visibleCategory(category: SettingsCategory): boolean {
     return category === "language" || this.canManageCampaign &&
-      (category === "appearance" || category === "maps" || category === "playerParty" || category === "sidebar" || category === "addons" || category === "account" || isEnumCategory(category));
+      (category === "appearance" || category === "maps" || category === "playerParty" || category === "sidebar" || category === "addons" || category === "account" || category === "backup" || isEnumCategory(category));
   }
 
   #activeEnumCategory(): CampaignEnumCategory {

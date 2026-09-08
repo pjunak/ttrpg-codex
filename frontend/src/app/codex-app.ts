@@ -363,6 +363,17 @@ export class CodexApp extends LitElement {
   }
 
   async #handleEvent(event: EventRefresh): Promise<void> {
+    if (event.cause === "campaign-restored" && this.#request !== undefined) {
+      const edits = this.#addons?.contributions.edits.state();
+      this.#campaignData.reset();
+      await this.#loadCampaign(this.#request.signal, true);
+      if (this.#editDirty || edits?.dirty || edits?.saving) {
+        this.errorMessage = this.#ui.t("recovery.openEdits");
+      } else {
+        await this.#recoverAddons();
+      }
+      return;
+    }
     if ((event.cause === "campaign-data-changed" || event.cause === "reset") &&
       this.#request !== undefined) {
       await this.#loadCampaign(this.#request.signal, true);

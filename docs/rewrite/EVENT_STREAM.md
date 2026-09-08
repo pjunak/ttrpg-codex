@@ -54,6 +54,16 @@ always receives the public audience even when the browser also carries a DM
 cookie. Preview authority is checked before live publications and heartbeats;
 expired or revoked previews close and cannot reconnect using the DM cookie.
 
+## Campaign recovery
+
+Campaign recovery publishes `campaign-restored` in the same transaction as its
+data and audit changes. This public invalidation contains only a monotonically
+increasing recovery revision and empty metadata, never point IDs, record keys
+or private content. The browser validates it, reloads core campaign state, and
+restarts clean add-on views to discard cached documents. Open core/add-on drafts
+remain visible with a reload notice; their old revisions cannot overwrite the
+restored state. Durable replay covers missed notifications as usual.
+
 ## Remaining event work
 
 - Package activation, rollback, reviewed cohort activation, reload, disable,

@@ -2,6 +2,34 @@ codex-settings {
   display: block;
 }
 
+codex-recovery-settings { display: block; min-width: 0; }
+.settings-recovery-panel .settings-hint { color: var(--text-muted); font: .8rem/1.6 var(--font-ui); margin-bottom: .8rem; }
+.settings-recovery-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.settings-recovery-actions a { text-decoration: none; font: .8rem var(--font-ui); color: var(--accent-gold); }
+.settings-recovery-panel .settings-ledger-heading { flex-wrap: wrap; }
+.settings-recovery-panel .settings-ledger-heading > .settings-recovery-actions { display: flex; }
+.settings-recovery-panel button, .settings-recovery-panel .inline-create-btn { min-height: 2.3rem; padding: .5rem .7rem; border: 1px solid var(--chrome-field-border); border-radius: var(--radius); color: var(--text-light); background: var(--bg-raised); font: .75rem var(--font-ui); cursor: pointer; }
+.settings-recovery-panel .inline-create-btn { display: inline-flex; align-items: center; }
+.settings-recovery-panel .settings-snapshot-row button { min-height: 26px; width: 28px; height: 26px; padding: 0; background: transparent; color: var(--text-muted); border-radius: 4px; }
+.settings-recovery-panel button:hover, .settings-recovery-panel .inline-create-btn:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
+.settings-recovery-panel .settings-btn-del:hover { color: var(--color-danger); }
+.settings-revert-row { display: flex; align-items: end; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; font: .8rem var(--font-ui); }
+.settings-revert-row label { display: grid; gap: .4rem; }
+.settings-revert-row input { width: 5rem; padding: .5rem; color: var(--text-parchment); background: var(--bg-base); border: 1px solid var(--chrome-field-border); border-radius: var(--radius); }
+.settings-snapshot-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; gap: .75rem; align-items: center; padding: .65rem .5rem; border-bottom: 1px solid var(--chrome-field-border); font: .8rem var(--font-ui); }
+.settings-snapshot-reason, .settings-snapshot-row .settings-row-usage { color: var(--text-muted); font-size: .72rem; }
+.settings-snapshots-older { margin-top: .75rem; }
+.settings-snapshots-older summary { cursor: pointer; color: var(--text-muted); font: .8rem var(--font-ui); }
+.settings-recovery-review { margin: 1rem 0; padding: 1rem; border: 1px solid var(--chrome-field-border); border-radius: var(--radius); background: var(--bg-raised); }
+.settings-recovery-review h3 { font-family: var(--font-title); color: var(--accent-gold); }
+.settings-recovery-review p { font: .85rem/1.6 var(--font-ui); }
+@media (max-width: 48rem) {
+  .settings-snapshot-row { grid-template-columns: auto minmax(0, 1fr) auto; gap: .5rem; }
+  .settings-snapshot-reason { grid-column: 2; }
+  .settings-snapshot-row .settings-recovery-actions { grid-column: 3; grid-row: 1 / 3; flex-wrap: nowrap; }
+  .settings-snapshot-row .settings-row-usage { grid-column: 2; }
+}
+
 codex-credential-settings { display: block; min-width: 0; }
 .settings-password-card { margin: var(--space-4) 0; padding: var(--space-4); border: 1px solid var(--chrome-field-border); border-radius: var(--radius); background: var(--bg-raised); }
 .settings-password-card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-4); margin-bottom: var(--space-2); }

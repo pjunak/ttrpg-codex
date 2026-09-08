@@ -74,8 +74,14 @@ func TestCreateReadDeduplicateAndDeleteHandles(t *testing.T) {
 	if err := shared.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Delete(ctx, first.ID, 1); !errors.Is(err, ErrConflict) {
+	database.SetMaxOpenConns(1)
+	conflictContext, cancelConflict := context.WithTimeout(ctx, 2*time.Second)
+	defer cancelConflict()
+	if _, err := store.Delete(conflictContext, first.ID, 1); !errors.Is(err, ErrConflict) {
 		t.Fatalf("stale delete error = %v", err)
+	}
+	if conflictContext.Err() != nil {
+		t.Fatal("stale delete waited for its own transaction connection")
 	}
 }
 

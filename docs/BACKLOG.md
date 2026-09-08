@@ -130,8 +130,20 @@ those later changes at cutover rather than silently restoring an older state.
   `hiddenSidebarPages` preferences into `sidebarLayout`. Review renamed add-on
   route preference keys during the already-required package and campaign
   conversion checks.
-- [ ] Restore the useful recovery-point workflow: manual points, coalesced write
+- [x] Restore the useful recovery-point workflow: manual points, coalesced write
   snapshots, restore, and revert-last-N, while retaining verified full backup.
+  Settings → Backup & recovery restores the original history/actions layout in
+  English and Czech. Points cover core records, owned add-on documents, empty
+  collections and media; automatic capture rolls back with failed edits.
+  Restores keep a safety point, advance revisions/tombstones, and publish a
+  durable refresh without changing passwords or installed packages. Changed
+  reviews and incompatible active add-on versions are rejected. Storage and
+  desktop/phone checks cover undo, cancellation, uncertain responses, pending
+  navigation and real installed Sheets refresh/draft preservation. Full ZIP
+  archive publication remains the documented offline maintenance operation.
+  Final validation passed 291 frontend tests, all 191 browser cases with the
+  four installed add-on ZIPs, complete Go tests/vet, and recovery/store/HTTP
+  race checks. Desktop/phone screenshots retain the existing Settings theme.
 - [x] Provide reviewed runtime credential rotation. Settings → Server access
   restores the DM/player password cards in English and Czech, current-password
   review, confirmation, player sign-in disablement, and explicit failure/retry.
@@ -710,7 +722,7 @@ acceptance still need to be expanded as follow-up documentation.
 | Settings: `worldmap` | Maps panel at `/settings/maps`, with local-map scope links | Real-host visual acceptance with campaign maps |
 | Settings: `playerParty`, `sidebarPages` | Party identity, curated core sidebar, and add-on visibility controls restored | Older hidden-page preference conversion and installed-route key review |
 | Settings: `addons` | Reviewed manager restores inspection, permission approval, activation, diagnostics, update, disable and rollback | Installed desktop/phone tests pass; campaign acceptance remains |
-| Settings: `backup`, `account` | Verified backup/maintenance, sessions and DM/player password management with offline access recovery | Recovery points and restore/revert controls |
+| Settings: `backup`, `account` | Recovery history, manual/automatic points, restore/revert/delete, ZIP download, persistent passwords and offline access recovery | Per-campaign acceptance; full archive restore uses offline maintenance |
 | Add-on routes and graph/settings contributions | Versioned v3 mounting infrastructure and package routes exist | Per-add-on workflow inventory and installed-package acceptance |
 
 ## Platform follow-ups

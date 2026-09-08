@@ -36,15 +36,17 @@ type EventJournal interface {
 }
 
 type Config struct {
-	DB     *sql.DB
-	Events EventJournal
-	Now    func() time.Time
+	BeforeWrite func(context.Context, *sql.Tx) error
+	DB          *sql.DB
+	Events      EventJournal
+	Now         func() time.Time
 }
 
 type Store struct {
-	db     *sql.DB
-	events EventJournal
-	now    func() time.Time
+	beforeWrite func(context.Context, *sql.Tx) error
+	db          *sql.DB
+	events      EventJournal
+	now         func() time.Time
 }
 
 type OperationKind = campaign.OperationKind
@@ -81,7 +83,7 @@ func New(config Config) (*Store, error) {
 	if config.Now == nil {
 		config.Now = time.Now
 	}
-	store := &Store{db: config.DB, events: config.Events, now: config.Now}
+	store := &Store{db: config.DB, events: config.Events, now: config.Now, beforeWrite: config.BeforeWrite}
 	if err := store.verifySchema(context.Background()); err != nil {
 		return nil, err
 	}
@@ -216,6 +218,11 @@ func (store *Store) Transact(ctx context.Context, input Transaction) (Commit, er
 		return Commit{}, fmt.Errorf("begin campaign transaction: %w", err)
 	}
 	defer transaction.Rollback()
+	if store.beforeWrite != nil {
+		if err := store.beforeWrite(ctx, transaction); err != nil {
+			return Commit{}, err
+		}
+	}
 
 	occurredAt := store.now().UTC()
 	results := make([]MutationResult, 0, len(prepared))

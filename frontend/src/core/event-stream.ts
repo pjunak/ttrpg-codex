@@ -23,11 +23,12 @@ const campaignMetadataKeys = new Set(["commitId", "records"]);
 export type EventRefreshCause =
   | "hello"
   | "reset"
+  | "campaign-restored"
   | "browser-addons-changed"
   | "campaign-data-changed";
 
 export type EventRefresh =
-  | { readonly cause: "hello" | "reset"; readonly cursor: number }
+  | { readonly cause: "hello" | "reset" | "campaign-restored"; readonly cursor: number }
   | { readonly cause: "browser-addons-changed"; readonly cursor: number; readonly revision: string }
   | {
     readonly cause: "campaign-data-changed";
@@ -66,6 +67,7 @@ export class SharedEventStream {
     this.#source = source;
     this.#listen(source, "hello", callbacks, parseHello);
     this.#listen(source, "reset", callbacks, parseReset);
+    this.#listen(source, "campaign-restored", callbacks, parseCampaignRestored);
     this.#listen(source, "browser-addons-changed", callbacks, parseBrowserAddonChange);
     this.#listen(source, "campaign-data-changed", callbacks, parseCampaignDataChange);
     source.addEventListener("error", () => callbacks.onConnectionError?.());
@@ -165,6 +167,18 @@ export function parseCampaignDataChange(event: Event): EventRefresh {
     collection,
     revision: Number(revisionValue),
   };
+}
+
+export function parseCampaignRestored(event: Event): EventRefresh {
+  const message = parseMessage(event, "campaign-restored");
+  if (!isRecord(message.value) || !hasOnlyKeys(message.value, publicationKeys) ||
+    message.value["topic"] !== "campaign-restored" || message.value["resourceId"] !== undefined ||
+    typeof message.value["revision"] !== "string" || !/^[1-9]\d*$/.test(message.value["revision"]) || !Number.isSafeInteger(Number(message.value["revision"])) ||
+    typeof message.value["occurredAt"] !== "string" || !validTimestamp(message.value["occurredAt"]) ||
+    !isRecord(message.value["metadata"]) || Object.keys(message.value["metadata"]).length !== 0) {
+    throw new BoundaryValidationError(boundary, "campaign recovery event has an invalid shape");
+  }
+  return { cause: "campaign-restored", cursor: requiredCursor(message.value["sequence"], message.lastEventId) };
 }
 
 function parseMessage(event: Event, name: string): { value: unknown; lastEventId: string } {
