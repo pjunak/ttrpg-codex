@@ -273,16 +273,28 @@ those later changes at cutover rather than silently restoring an older state.
   implemented through engine-owned options/actions. Copying saves the spell,
   GP and optional scroll quantity together and retains all three after a failed
   write for explicit Retry. Clearing a default spell now stays cleared.
-  Remaining sheet work: full Builder progress navigation and advanced choices,
-  provider diagnostics, localization and final v1 visual acceptance. Restored
-  layouts do not close the complete presentation/workflow gate.
-  The installed Sheet suite now covers 14 cases, including desktop/phone grants,
+  Builder now restores the original progress rail, Character/class tabs,
+  class-level feature rows and navigation to incomplete choices or Spellbook
+  grants. Engine guidance supplies valid choice counts and readable advanced
+  feature, tool, mastery, expertise and feat options. Repeated multi-picks are
+  disabled; allocated feat ability points participate in completion. Extra
+  catalog feats and custom rewards support source notes and removal. Play
+  actions no longer promote calculated feats to manual feats, so removing a
+  reward after a rest also removes its mechanics; keeping the reward retains
+  its bonuses immediately after the rest. Skill spelling variants now
+  compute consistently without rewriting authored fields.
+  Remaining sheet work: provider diagnostics, localization and final v1 visual
+  acceptance. Restored layouts do not close the complete presentation/workflow gate.
+  The installed Sheet suite now covers 16 cases, including desktop/phone grants,
   copying cancellation/failure/retry, rituals, worn slots and persistent swap
-  history, alongside Builder, standalone and ordinary session workflows.
+  history, alongside Builder progression, maneuver/feat selection, rewards,
+  standalone and ordinary session workflows.
   Validation: 20 Sheet checks, engine Go tests/vet/race checks, rebuilt and
   inspected Engine/Sheets ZIPs, reviewed desktop/phone screenshots and all host
-  check components (288 unit tests, 180 browser cases, typecheck/build, Go
+  check components (288 unit tests, 182 browser cases, typecheck/build, Go
   tests/vet). Browser suites ran with concurrency four; no cases were skipped.
+  Final package corrections also passed 39 installed Sheet/DM cases, including
+  narrow-screen class-control bounds and reward bonuses before/after a rest.
 
 ### Release evidence
 
