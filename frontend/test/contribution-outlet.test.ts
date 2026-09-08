@@ -76,6 +76,7 @@ describe("BrowserContributionOutlet", () => {
     session.context.ui.bind("sheet.section", { kind: "element", tag: "dnd-character-sheet" });
     const root = new FakeElement("div");
     let revision = 3;
+    let locale = "en";
     const outlet = new BrowserContributionOutlet({
       document: new FakeDocument() as unknown as Document,
       root: root as unknown as HTMLElement,
@@ -84,19 +85,23 @@ describe("BrowserContributionOutlet", () => {
       role: "player",
       hostContext: () => ({
         kind: "campaign-record", collection: "characters", key: "ryn",
-        revision, value: { name: "Ryn" }, canEdit: false,
+        revision, locale, value: { name: "Ryn" }, canEdit: false,
       }),
     });
     const element = (root.children[0] as FakeElement).children[1] as FakeElement & {
-      codexContribution: { host: { revision: number; value: { name: string } } };
+      codexContribution: { host: { revision: number; locale: string; value: { name: string } } };
     };
 
     expect(element.codexContribution.host.revision).toBe(3);
+    expect(element.codexContribution.host.locale).toBe("en");
     expect(Object.isFrozen(element.codexContribution.host)).toBe(true);
     expect(Object.isFrozen(element.codexContribution.host.value)).toBe(true);
     revision = 4;
     outlet.refresh();
     expect(element.codexContribution.host.revision).toBe(4);
+    locale = "cs"; outlet.refresh();
+    expect(element.codexContribution.host.locale).toBe("cs");
+    expect((root.children[0] as FakeElement).children[1]).toBe(element);
     outlet.dispose();
   });
 

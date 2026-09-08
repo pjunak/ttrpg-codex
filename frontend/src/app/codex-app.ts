@@ -287,6 +287,7 @@ export class CodexApp extends LitElement {
     if (this.isConnected && this.#outletLocale !== this.#ui.locale) {
       this.#outletLocale = this.#ui.locale;
       this.#routeOutlet?.refresh();
+      this.#articleOutlet?.refresh();
     }
   }
 
@@ -630,6 +631,7 @@ export class CodexApp extends LitElement {
     if (record === undefined) return null;
     return {
       kind: "campaign-record",
+      locale: this.#ui.locale,
       collection: this.route.page.collection,
       key: record.key,
       revision: record.revision,

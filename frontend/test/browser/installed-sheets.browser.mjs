@@ -92,11 +92,12 @@ test('campaign recovery refreshes installed Sheets and preserves unsaved add-on 
   assert.equal(await unloadBlocked(page), true);
   assert.equal((await get(key)).value.notes, 'Keep the promise.');
 });
-async function open(t, key, mobile = false, role = 'dm') {
+async function open(t, key, mobile = false, role = 'dm', configure = async () => {}) {
   const context = await browser.newContext({ baseURL: origin, viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1100 }, isMobile: mobile, hasTouch: mobile, reducedMotion: 'reduce' });
   t.after(() => context.close()); await jsonResponse(await context.request.post('/api/login', { data: { password: `local-sheets-${role}` } }));
   const page = await context.newPage(); page.setDefaultTimeout(12_000);
   const errors = []; page.on('pageerror', error => errors.push(error.message)); t.after(() => assert.deepEqual(errors, []));
+  await configure(page);
   await page.goto(`/#/characters/${key}`); await page.locator('.dse-backpack').waitFor(); return page;
 }
 async function saved(page) { await page.locator('.dnd-save-status').getByText('Saved.', { exact: true }).waitFor(); }
@@ -198,6 +199,111 @@ test('installed Sheets keeps custom equipment usable without an engine', { skip:
   await write(page, () => dialog.getByRole('button', { name: 'Add items to backpack' }).click());
   assert.equal((await get(key)).value.inventory.at(-1).name, 'Lighthouse key');
   await page.reload(); await page.locator('.dse-backpack').getByText('Lighthouse key', { exact: true }).waitFor();
+});
+
+for (const mobile of [false, true]) test(`installed Sheets provider diagnostics preserve standalone values in ${mobile ? 'Czech on phone' : 'English on desktop'}`, { skip: !archivePath }, async t => {
+  const key = `provider-standalone-${mobile}`; await seed(key); const original = await get(key);
+  const page = await open(t, key, mobile, mobile ? 'player' : 'dm', async page => {
+    if (mobile) await page.addInitScript(() => localStorage.setItem('codex_lang', 'cs'));
+  }), sheet = page.locator('.addon-dnd-sheets');
+  await sheet.locator('.dnd-sheet-engine').click();
+  const panel = sheet.locator('.dnd-provider-status');
+  await panel.locator('[data-rules-status="missing-engine"]').waitFor();
+  await panel.getByRole('heading', { name: mobile ? 'Pravidla a jejich zdroje' : 'Rules and providers' }).waitFor();
+  await Promise.all([page.waitForResponse(response => response.url().endsWith('/services/connect')),
+    panel.getByRole('button', { name: mobile ? 'Ověřit připojení pravidel' : 'Check rules connection', exact: true }).click()]);
+  await page.waitForFunction(() => !document.querySelector('.dnd-provider-status button')?.disabled);
+  assert.deepEqual(await get(key), original);
+  assert.equal(await unloadBlocked(page), false);
+  await panel.screenshot({ path: resolve(output, `providers-${mobile ? 'cs-phone' : 'en-desktop'}.png`) });
+  await panel.locator('summary').click();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await sheet.getByRole('button', { name: mobile ? 'Upravit deník' : 'Edit sheet', exact: true }).click();
+  assert.equal(await sheet.getByRole('textbox', { name: mobile ? 'Hráč' : 'Player', exact: true }).inputValue(), 'River');
+  assert.equal(await sheet.getByRole('textbox', { name: mobile ? 'Povolání' : 'Class', exact: true }).inputValue(), 'Wizard');
+  await sheet.getByRole('combobox', { name: mobile ? 'Rozložení deníku' : 'Sheet layout' }).selectOption('classic');
+  assert.equal(await unloadBlocked(page), false);
+  await page.reload(); await sheet.locator('.dse-layout-classic').waitFor();
+  await sheet.getByRole('tab', { name: mobile ? 'Deník postavy' : 'Character Sheet', exact: true }).waitFor();
+  assert.deepEqual(await get(key), original);
+});
+
+test('installed Sheets provider reconnection retains a failed Czech draft', { skip: !archivePath }, async t => {
+  const key = 'provider-draft'; await seed(key); const original = await get(key);
+  const connects = '**/api/addons/dnd-sheets/generations/*/services/connect';
+  const page = await open(t, key, true, 'dm', async page => {
+    await page.addInitScript(() => localStorage.setItem('codex_lang', 'cs'));
+    await page.route(connects, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { kind: 'SERVICE_UNAVAILABLE' } }) }));
+  }), sheet = page.locator('.addon-dnd-sheets');
+  await sheet.locator('.dnd-sheet-engine').click();
+  await sheet.locator('[data-rules-status="connection-error"]').waitFor();
+  await sheet.getByRole('button', { name: 'Upravit deník', exact: true }).click();
+  await sheet.getByRole('tab', { name: 'Poznámky', exact: true }).click();
+  await page.route(writes, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { kind: 'UNAVAILABLE' } }) }));
+  await sheet.getByRole('textbox', { name: 'Sheet notes' }).fill('Rozepsaná zpráva pro River.');
+  await sheet.getByRole('tab', { name: 'Nastavení', exact: true }).click();
+  await sheet.getByRole('button', { name: 'Zkusit uložit znovu', exact: true }).waitFor();
+  await page.unroute(connects);
+  await sheet.getByRole('button', { name: 'Ověřit připojení pravidel', exact: true }).click();
+  await sheet.locator('[data-rules-status="missing-engine"]').waitFor();
+  assert.deepEqual(await get(key), original);
+  assert.equal(await unloadBlocked(page), true);
+  await sheet.getByRole('tab', { name: 'Poznámky', exact: true }).click();
+  assert.equal(await sheet.getByRole('textbox', { name: 'Sheet notes' }).inputValue(), 'Rozepsaná zpráva pro River.');
+  await page.unroute(writes);
+  await write(page, () => sheet.getByRole('button', { name: 'Zkusit uložit znovu', exact: true }).click());
+  await sheet.getByText('Uloženo.', { exact: true }).waitFor();
+  assert.equal((await get(key)).value.notes, 'Rozepsaná zpráva pro River.');
+  assert.deepEqual((await get(key)).value.homebrew, original.value.homebrew);
+});
+
+test('installed Sheets provider diagnostics recover missing data and compare saved provenance without writes', { skip: !archivePath || !process.env.CODEX_ENGINE_ZIP || !process.env.CODEX_COMPENDIUM_ZIP }, async t => {
+  await installReviewedPackage(admin, csrf, 'dnd-engine', await readFile(resolve(process.env.CODEX_ENGINE_ZIP)), []);
+  const key = 'provider-sources'; await seed(key); const original = await get(key);
+  const page = await open(t, key), sheet = page.locator('.addon-dnd-sheets');
+  await sheet.locator('.dnd-sheet-engine').click();
+  await sheet.getByRole('button', { name: 'Check rules connection', exact: true }).click();
+  await sheet.locator('[data-rules-status="missing"]').waitFor();
+  assert.deepEqual(await get(key), original);
+  await sheet.getByRole('button', { name: 'Edit sheet', exact: true }).click();
+  await sheet.getByRole('button', { name: 'Preview computed values', exact: true }).click();
+  await sheet.locator('.dnd-sheet-computed').waitFor();
+  assert.equal(await sheet.getByRole('button', { name: 'Apply computed fallback values', exact: true }).count(), 0);
+  assert.deepEqual(await get(key), original);
+  await installReviewedPackage(admin, csrf, 'dnd-2024-compendium', await readFile(resolve(process.env.CODEX_COMPENDIUM_ZIP)), []);
+  // Activating an optional provider restarts its consumers through the host lifecycle.
+  await sheet.locator('.dse-backpack').waitFor();
+  await sheet.locator('.dnd-sheet-engine').click();
+  await sheet.getByRole('button', { name: 'Check rules connection', exact: true }).click();
+  await sheet.locator('[data-rules-status="ready"]').waitFor();
+  await sheet.locator('.dnd-provider-status summary').click();
+  await sheet.locator('.dnd-provider-status').getByText('dnd-2024-compendium', { exact: true }).waitFor();
+  assert.deepEqual(await get(key), original);
+  await sheet.getByRole('button', { name: 'Edit sheet', exact: true }).click();
+  await sheet.getByRole('button', { name: 'Preview computed values', exact: true }).click();
+  await sheet.getByRole('button', { name: 'Apply computed fallback values', exact: true }).waitFor();
+  assert.deepEqual(await get(key), original);
+  await write(page, () => sheet.getByRole('button', { name: 'Apply computed fallback values', exact: true }).click());
+  const computed = await get(key);
+  assert.equal(computed.value.rulesProvider.identity.providerAddonId, 'dnd-2024-compendium');
+  assert.equal(computed.value.hp, original.value.hp);
+  assert.deepEqual(computed.value.inventory, original.value.inventory.map(item => ({ notes: '', ...item })));
+  await sheet.locator('[data-provider-comparison="same"]').waitFor();
+  const calls = '**/api/addons/dnd-sheets/generations/*/services/call';
+  await page.route(calls, route => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: { kind: 'STALE_BINDING' } }) }));
+  await sheet.getByRole('button', { name: 'Preview computed values', exact: true }).click();
+  await sheet.locator('[data-rules-status="stale"]').waitFor();
+  await page.unroute(calls);
+  await sheet.getByRole('button', { name: 'Check rules connection', exact: true }).click();
+  await sheet.locator('[data-rules-status="ready"]').waitFor();
+  assert.deepEqual(await get(key), computed);
+  assert.equal(await sheet.getByRole('button', { name: 'Apply computed fallback values', exact: true }).count(), 0);
+  await put(key, { ...computed.value, rulesProvider: { ...computed.value.rulesProvider, identity: { ...computed.value.rulesProvider.identity, contentRevision: 'previous-content' } } }, computed.revision);
+  const older = await get(key); await page.reload(); await sheet.locator('.dnd-sheet-engine').click();
+  await sheet.getByRole('button', { name: 'Check rules connection', exact: true }).click();
+  await sheet.locator('[data-provider-comparison="changed"]').waitFor();
+  assert.deepEqual(await get(key), older);
+  await sheet.locator('.dnd-provider-status').screenshot({ path: resolve(output, 'providers-source-changed.png') });
 });
 
 test('installed Sheets uses real catalog labels and keeps scores stable across recalculation', { skip: !archivePath || !process.env.CODEX_ENGINE_ZIP || !process.env.CODEX_COMPENDIUM_ZIP }, async t => {

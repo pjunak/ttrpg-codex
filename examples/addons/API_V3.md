@@ -368,6 +368,7 @@ contribution fields plus a frozen `codexContribution.host` value:
 ```ts
 interface RecordContributionHostContext {
   readonly kind: "campaign-record";
+  readonly locale?: "en" | "cs"; // Current browser language; absent hosts default to English.
   readonly collection: string;
   readonly key: string;
   readonly revision: number;
@@ -376,8 +377,10 @@ interface RecordContributionHostContext {
 }
 ```
 
-The host refreshes this property when the authoritative record revision
-changes. Add-ons must persist their own state through a declared
+The host refreshes this property when the authoritative record revision or
+browser language changes. A language update keeps the mounted element and its
+drafts; older hosts may omit `locale`, in which case consumers use English.
+Add-ons must persist their own state through a declared
 `recordExtension`; the projected core value is read-only and never contains
 another add-on's extension data.
 

@@ -356,15 +356,29 @@ those later changes at cutover rather than silently restoring an older state.
   reward after a rest also removes its mechanics; keeping the reward retains
   its bonuses immediately after the rest. Skill spelling variants now
   compute consistently without rewriting authored fields.
-  Remaining sheet work: provider diagnostics, localization and final v1 visual
-  acceptance. Restored layouts do not close the complete presentation/workflow gate.
-  The installed Sheet suite now covers 16 cases, including desktop/phone grants,
+  The header now opens provider diagnostics in Settings, distinguishing absent
+  engines, failed connections, unavailable rules data and stale bindings.
+  Explicit checks discover the current handle and read engine context without
+  saving, retain failed drafts and clear previews/catalog caches. Current engine
+  and rules-data provenance is compared with saved computed values; sparse
+  converted metadata remains unverified and known differences request a preview.
+  Provider details stay collapsed by default. Invalid character choices do not
+  mark a healthy provider offline, and missing rules identity offers no Apply.
+  Sheet navigation, Settings, save recovery and diagnostics now use English/Czech
+  catalogs through the host's additive article-context locale. Authored content
+  remains unchanged. Successful save retries show localized confirmation.
+  Remaining sheet work: play/Builder localization and final v1 visual acceptance.
+  Restored layouts do not close the complete presentation/workflow gate.
+  The installed Sheet suite now covers 20 cases, including desktop/phone grants,
   copying cancellation/failure/retry, rituals, worn slots and persistent swap
   history, alongside Builder progression, maneuver/feat selection, rewards,
-  standalone and ordinary session workflows.
-  Validation: 20 Sheet checks, engine Go tests/vet/race checks, rebuilt and
-  inspected Engine/Sheets ZIPs, reviewed desktop/phone screenshots and all host
-  check components (288 unit tests, 182 browser cases, typecheck/build, Go
+  standalone and ordinary session workflows. The four new provider cases cover
+  English desktop/Czech phone controls and layout persistence, failed discovery
+  with a retained Czech draft and save retry, real missing-data recovery, stale
+  service responses and changed saved provenance without implicit writes.
+  Validation: 28 Sheet checks, engine Go tests/vet, rebuilt and inspected Sheets
+  ZIP, reviewed desktop/phone screenshots and all host
+  check components (304 unit tests, 204 browser cases, typecheck/build, Go
   tests/vet). Browser suites ran with concurrency four; no cases were skipped.
   Final package corrections also passed 39 installed Sheet/DM cases, including
   narrow-screen class-control bounds and reward bonuses before/after a rest.
