@@ -1,4 +1,5 @@
 import { sessionFetch } from "../core/player-preview.js";
+import { validContributionLabels } from "./contribution-label.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
 import {
   validateBrowserGenerationSet,
@@ -337,8 +338,11 @@ function parseContribution(
 }
 
 function validateContributionConfig(surface: string, config: Record<string, unknown>, location: string): void {
+  if (Object.hasOwn(config, "labels") && !validContributionLabels(config["labels"])) {
+    throw new BoundaryValidationError(boundary, `${location} has invalid localized labels`);
+  }
   if (surface === "route") {
-    if (!hasOnlyKeys(config, new Set(["path"])) ||
+    if (!hasOnlyKeys(config, new Set(["path", "labels"])) ||
       typeof config["path"] !== "string" ||
       config["path"].length > 200 ||
       !routePathPattern.test(config["path"])) {
@@ -350,7 +354,7 @@ function validateContributionConfig(surface: string, config: Record<string, unkn
     return;
   }
   if (surface === "sidebar" &&
-    (!hasOnlyKeys(config, new Set(["route"])) ||
+    (!hasOnlyKeys(config, new Set(["route", "labels"])) ||
       typeof config["route"] !== "string" ||
       config["route"].length > 100 ||
       !localIdPattern.test(config["route"]))) {

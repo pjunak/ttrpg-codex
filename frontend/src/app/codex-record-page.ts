@@ -1,3 +1,4 @@
+import { uiText } from "./ui-localization.js";
 import { previewResourceURL } from "../core/player-preview.js";
 import { LitElement, html, nothing } from "lit";
 import { campaignPartyIdentity } from "./campaign-party.js";
@@ -129,10 +130,10 @@ export class CodexRecordPage extends LitElement {
     const campaign = this.#editorCampaign;
     if (this.route.kind === "create") {
       return html`<article class="record-article editor-article" aria-labelledby="record-editor-title">
-        <a href=${this.route.preset === "party" ? "#/party" : "#/timeline"} class="breadcrumb-link">${this.route.preset === "party" ? "Back to party" : this.#ui.t("timeline.back")}</a>
+        <a href=${this.route.preset === "party" ? "#/party" : "#/timeline"} class="breadcrumb-link">${this.route.preset === "party" ? uiText("Back to party") : this.#ui.t("timeline.back")}</a>
         ${this.canEdit ? this.#editorForm(undefined, this.route) : html`
-          <h1 id="record-editor-title">${this.route.preset === "party" ? "Add party member" : this.#ui.t("timeline.newEvent")}</h1>
-          <button type="button" @click=${() => this.dispatchEvent(new CustomEvent("campaign-sign-in", { bubbles: true, composed: true }))}>Sign in</button>
+          <h1 id="record-editor-title">${this.route.preset === "party" ? uiText("Add party member") : this.#ui.t("timeline.newEvent")}</h1>
+          <button type="button" @click=${() => this.dispatchEvent(new CustomEvent("campaign-sign-in", { bubbles: true, composed: true }))}>${uiText("Sign in")}</button>
         `}
       </article>`;
     }
@@ -157,26 +158,26 @@ export class CodexRecordPage extends LitElement {
         <header class="page-heading collection-heading">
           <div>
             <h1 id="collection-title">${route.page.plural}</h1>
-            <p aria-live="polite">${visible.length} / ${entities.length} records</p>
+            <p aria-live="polite">${uiText("{0} / {1} records", { "0": visible.length, "1": entities.length })}</p>
           </div>
           ${this.canEdit ? html`
             <button class="record-action primary-record-action" type="button" @click=${this.#startCreate} ?disabled=${this.saving || this.editor !== "closed"}>
-              Add ${route.page.singular.toLocaleLowerCase()}
+              ${uiText("Add {0}", { "0": route.page.singular.toLocaleLowerCase() })}
             </button>
           ` : nothing}
         </header>
         ${this.editor === "create" ? this.#editorForm(undefined, route) : nothing}
         <label class="collection-search">
-          <span>Filter ${route.page.plural.toLocaleLowerCase()}</span>
+          <span>${uiText("Filter {0}", { "0": route.page.plural.toLocaleLowerCase() })}</span>
           <input
             type="search"
             .value=${this.query}
-            placeholder=${`Name, title, or tag`}
+            placeholder=${uiText("Name, title, or tag")}
             @input=${this.#onSearch}
           />
         </label>
         ${visible.length === 0
-          ? html`<p class="empty-state">No matching entries are recorded in this part of the archive.</p>`
+          ? html`<p class="empty-state">${uiText("No matching entries are recorded in this part of the archive.")}</p>`
           : html`<div class="record-ledger">${visible.map((entity) => recordRow(entity, route.page.icon))}</div>`}
       </article>
     `;
@@ -188,9 +189,9 @@ export class CodexRecordPage extends LitElement {
     if (record === undefined) {
       return html`
         <article class="record-article missing-record">
-          <a href=${route.page.collection === "events" ? "#/timeline" : collectionHash(route.page)} class="breadcrumb-link">${route.page.collection === "events" ? this.#ui.t("timeline.back") : `Back to ${route.page.plural}`}</a>
-          <h1>Entry not found</h1>
-          <p>This entry is not available in the current campaign view.</p>
+          <a href=${route.page.collection === "events" ? "#/timeline" : collectionHash(route.page)} class="breadcrumb-link">${route.page.collection === "events" ? this.#ui.t("timeline.back") : uiText("Back to {0}", { "0": route.page.plural })}</a>
+          <h1>${uiText("Entry not found")}</h1>
+          <p>${uiText("This entry is not available in the current campaign view.")}</p>
         </article>
       `;
     }
@@ -236,7 +237,7 @@ export class CodexRecordPage extends LitElement {
                 <h1 id="record-title">${entity.name}</h1>
                 ${entity.title === "" ? nothing : html`<p>${entity.title}</p>`}
                 <div class="record-badges">
-                  ${entity.visibility === "dm" ? html`<span class="dm-badge">DM</span>` : nothing}
+                  ${entity.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
                   ${entity.status === "" ? nothing : html`<span>${entity.status}</span>`}
                   ${entity.partyIdentity === undefined ? nothing : html`<span class="party-identity-badge"
                     style=${`background: ${entity.partyIdentity.color}; color: ${entity.partyIdentity.textColor}`}>${entity.partyIdentity.badge} ${entity.partyIdentity.name}</span>`}
@@ -247,7 +248,7 @@ export class CodexRecordPage extends LitElement {
                 </div>
               </div>
               ${this.canEdit ? html`
-                <button class="record-action" type="button" @click=${this.#startEdit} ?disabled=${this.saving}>Edit</button>
+                <button class="record-action" type="button" @click=${this.#startEdit} ?disabled=${this.saving}>${uiText("Edit")}</button>
               ` : nothing}
               ${route.page.collection === "locations" ? html`
                 ${this.#locationPlacementLinks(record)}
@@ -265,8 +266,8 @@ export class CodexRecordPage extends LitElement {
             `}
 
             ${outline.length === 0 ? nothing : html`
-              <aside class="record-outline" aria-label="Article contents">
-                <p>In this entry</p>
+              <aside class="record-outline" aria-label=${uiText("Article contents")}>
+                <p>${uiText("In this entry")}</p>
                 <ol>
                   ${outline.map((item) => html`
                     <li class=${`outline-depth-${item.depth}`}>
@@ -279,7 +280,7 @@ export class CodexRecordPage extends LitElement {
           </aside>
           <div class="record-reading">
             ${sections.length === 0 && !hasStructuredSections
-              ? html`<p class="empty-state">This entry does not have article text yet.</p>`
+              ? html`<p class="empty-state">${uiText("This entry does not have article text yet.")}</p>`
               : html`<div class="record-prose">
                   ${structuredArticleContent(dataset, route.page.collection, route.key, value)}
                   ${sections.map((section, index) => html`
@@ -313,9 +314,9 @@ export class CodexRecordPage extends LitElement {
       <form class="record-editor" @submit=${this.#submitEditor} @input=${this.#markDirty} @change=${this.#markDirty}>
         <header>
           <div>
-            <p class="page-kicker">${creating ? "New entry" : `Revision ${record.revision}`}</p>
-            <h2 id="record-editor-title">${creating ? `Add ${route.page.singular.toLocaleLowerCase()}` : `Edit ${text(value["name"]) || route.page.singular.toLocaleLowerCase()}`}</h2>
-            <p>Only the fields shown here are changed. Other campaign and add-on data remains untouched.</p>
+            <p class="page-kicker">${creating ? uiText("New entry") : uiText("Revision {0}", { "0": record.revision })}</p>
+            <h2 id="record-editor-title">${creating ? uiText("Add {0}", { "0": route.page.singular.toLocaleLowerCase() }) : uiText("Edit {0}", { "0": text(value["name"]) || route.page.singular.toLocaleLowerCase() })}</h2>
+            <p>${uiText("Only the fields shown here are changed. Other campaign and add-on data remains untouched.")}</p>
           </div>
         </header>
         <div class="record-editor-fields">
@@ -341,22 +342,22 @@ export class CodexRecordPage extends LitElement {
           ` : nothing}
           ${collectionManagesVisibility(route.page.collection) && this.canManageVisibility ? html`
             <label>
-              <span>Visibility</span>
+              <span>${uiText("Visibility")}</span>
               <select name="visibility" .value=${value["visibility"] === "dm" ? "dm" : "public"}>
-                <option value="public">Public</option>
-                <option value="dm">DM only</option>
+                <option value="public">${uiText("Public")}</option>
+                <option value="dm">${uiText("DM only")}</option>
               </select>
             </label>
           ` : nothing}
         </div>
         <footer class="record-editor-actions">
           ${record === undefined ? nothing : html`
-            <button class="danger-record-action" type="button" @click=${this.#deleteRecord} ?disabled=${this.saving}>Delete</button>
+            <button class="danger-record-action" type="button" @click=${this.#deleteRecord} ?disabled=${this.saving}>${uiText("Delete")}</button>
           `}
           <span></span>
-          <button type="button" @click=${this.#closeEditor} ?disabled=${this.saving}>Cancel</button>
+          <button type="button" @click=${this.#closeEditor} ?disabled=${this.saving}>${uiText("Cancel")}</button>
           <button class="primary-record-action" type="submit" ?disabled=${this.saving}>
-            ${this.saving ? "Saving…" : "Save entry"}
+            ${this.saving ? uiText("Saving…") : uiText("Save entry")}
           </button>
         </footer>
       </form>
@@ -404,21 +405,21 @@ export class CodexRecordPage extends LitElement {
         <section class="markdown-editor wide-field">
           <div class="markdown-editor-heading">
             <label for=${id}>${field.label}</label>
-            <div class="markdown-editor-modes" aria-label=${`${field.label} editor mode`}>
+            <div class="markdown-editor-modes" aria-label=${uiText("{0} editor mode", { "0": field.label })}>
               <button
                 type="button"
                 data-markdown-field=${field.key}
                 data-markdown-mode="write"
                 aria-pressed=${String(!previewing)}
                 @click=${this.#setMarkdownMode}
-              >Write</button>
+              >${uiText("Write")}</button>
               <button
                 type="button"
                 data-markdown-field=${field.key}
                 data-markdown-mode="preview"
                 aria-pressed=${String(previewing)}
                 @click=${this.#setMarkdownMode}
-              >Preview</button>
+              >${uiText("Preview")}</button>
             </div>
           </div>
           <textarea
@@ -433,12 +434,12 @@ export class CodexRecordPage extends LitElement {
           <div class="markdown-editor-preview" ?hidden=${!previewing}>
             ${previewing ? this.#linkFailure() : nothing}
             ${source.trim() === ""
-              ? html`<p class="empty-state">Nothing to preview yet.</p>`
+              ? html`<p class="empty-state">${uiText("Nothing to preview yet.")}</p>`
               : renderCampaignMarkdown(parseCampaignMarkdown(source), context)}
           </div>
           <small class="field-help">
-            Markdown supports headings, emphasis, lists, quotes, tables, code, images, and campaign links such as
-            <code>[[Lantern Watch]]</code>. Raw HTML is shown as text unless it uses an existing Codex formatting token.
+            ${uiText("Markdown supports headings, emphasis, lists, quotes, tables, code, images, and campaign links such as")}
+            <code>[[Lantern Watch]]</code>${uiText(". Raw HTML is shown as text unless it uses an existing Codex formatting token.")}
           </small>
           ${help}
         </section>
@@ -470,8 +471,8 @@ export class CodexRecordPage extends LitElement {
           <span>${field.label}</span>
           <select name=${field.key} @change=${field.key === "faction" ? this.#updateFactionEditor : nothing}>
             ${field.kind === "reference" || field.kind === "enum"
-              ? html`<option value="" ?selected=${selected === ""}>Not set</option>` : nothing}
-            ${orphaned ? html`<option value=${selected} selected>${selected} (stored)</option>` : nothing}
+              ? html`<option value="" ?selected=${selected === ""}>${uiText("Not set")}</option>` : nothing}
+            ${orphaned ? html`<option value=${selected} selected>${uiText("{0} (stored)", { "0": selected })}</option>` : nothing}
             ${options.map((option) => html`
               <option value=${option.value} ?selected=${option.value === selected}>${option.label}</option>
             `)}
@@ -494,7 +495,7 @@ export class CodexRecordPage extends LitElement {
             `)}
           </select>
           ${field.help === undefined
-            ? html`<small class="field-help">Use Ctrl or Command to select more than one entry.</small>`
+            ? html`<small class="field-help">${uiText("Use Ctrl or Command to select more than one entry.")}</small>`
             : help}
         </label>
       `;
@@ -677,7 +678,7 @@ export class CodexRecordPage extends LitElement {
     const target = campaignCollection(this.#editorCampaign, this.route.page.collection).records
       .find(({ key }) => key === recordKey);
     if (target === undefined ||
-      !window.confirm(`Delete this ${this.route.page.singular.toLocaleLowerCase()}? This cannot be undone from this page.`)) {
+      !window.confirm(uiText("Delete this {0}? This cannot be undone from this page.", { "0": this.route.page.singular.toLocaleLowerCase() }))) {
       return;
     }
     const detail: CampaignRecordDeleteDetail = {
@@ -710,7 +711,7 @@ function recordRow(entity: EntitySummary, fallback: string) {
         ${entity.title === "" ? nothing : html`<span>${entity.title}</span>`}
         ${entity.excerpt === "" || entity.route.startsWith("#/characters/") ? nothing : html`<small>${entity.excerpt}</small>`}
       </span>
-      ${entity.visibility === "dm" ? html`<span class="dm-badge">DM</span>` : nothing}
+      ${entity.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
     </a>
   `;
 }
@@ -731,11 +732,11 @@ interface ArticleSection {
 
 function articleSections(value: Readonly<Record<string, unknown>>): readonly ArticleSection[] {
   const definitions: readonly (readonly [string, readonly string[]])[] = [
-    ["Overview", ["description", "summary", "short"]],
-    ["What is known", ["known", "clues"]],
-    ["History", ["history"]],
-    ["Details", ["body", "note", "mapNotes"]],
-    ["Open questions", ["questions", "unknown"]],
+    [uiText("Overview"), ["description", "summary", "short"]],
+    [uiText("What is known"), ["known", "clues"]],
+    [uiText("History"), ["history"]],
+    [uiText("Details"), ["body", "note", "mapNotes"]],
+    [uiText("Open questions"), ["questions", "unknown"]],
   ];
   const seen = new Set<string>();
   const result: ArticleSection[] = [];
@@ -771,11 +772,11 @@ function articleFacts(
   }
   if (collection === "pets") {
     const owner = petOwnerName(dataset, value);
-    if (owner !== "") facts.push(["Owner", owner]);
+    if (owner !== "") facts.push([uiText("Owner"), owner]);
   }
   if (collection === "characters") {
     const rank = characterRankName(dataset, value);
-    if (rank !== "") facts.push(["Faction rank", rank]);
+    if (rank !== "") facts.push([uiText("Faction rank"), rank]);
   }
   return facts;
 }
@@ -822,17 +823,17 @@ function structuredArticleContent(
     return html`
       ${roles.length === 0 ? nothing : html`
         <section class="record-structured-section">
-          <h2 class="record-section-title">Other location roles</h2>
+          <h2 class="record-section-title">${uiText("Other location roles")}</h2>
           <div class="article-structured-ledger">
             ${roles.map((role) => html`
-              <div><strong>${resolveName(dataset, "locations", role.locationId) ?? role.locationId}</strong><span>${role.role || "Role not specified"}</span></div>
+              <div><strong>${resolveName(dataset, "locations", role.locationId) ?? role.locationId}</strong><span>${role.role || uiText("Role not specified")}</span></div>
             `)}
           </div>
         </section>
       `}
       ${relationships.length === 0 ? nothing : html`
         <section class="record-structured-section">
-          <h2 class="record-section-title">Relationships</h2>
+          <h2 class="record-section-title">${uiText("Relationships")}</h2>
           <div class="article-structured-ledger relationship-reading">
             ${relationships.map((relationship) => {
               const type = relationshipTypes.find(({ value: typeID }) => typeID === relationship.type);
@@ -840,12 +841,12 @@ function structuredArticleContent(
               const targetName = resolveName(dataset, targetCollection, relationship.target) ?? relationship.target;
               return html`
                 <div>
-                  <strong>${relationship.direction === "from" ? "This character" : targetName}</strong>
+                  <strong>${relationship.direction === "from" ? uiText("This character") : targetName}</strong>
                   <span class="relationship-reading-arrow">→</span>
                   <span>${relationship.label || type?.label || relationship.type}</span>
                   <span class="relationship-reading-arrow">→</span>
-                  <strong>${relationship.direction === "from" ? targetName : "This character"}</strong>
-                  ${relationship.visibility === "dm" ? html`<span class="dm-badge">DM</span>` : nothing}
+                  <strong>${relationship.direction === "from" ? targetName : uiText("This character")}</strong>
+                  ${relationship.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
                 </div>
               `;
             })}
@@ -863,7 +864,7 @@ function structuredArticleContent(
     })).filter((member) => text(member.value["faction"]) === key);
     return html`
       <section class="record-structured-section">
-        <h2 class="record-section-title">Rank chains</h2>
+        <h2 class="record-section-title">${uiText("Rank chains")}</h2>
         <div class="rank-chain-reading-grid">
           ${chains.map((chain) => html`
             <section>
@@ -895,7 +896,7 @@ function resolveName(dataset: CampaignDataset, collection: string, key: string):
 function printable(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "boolean") return value ? uiText("Yes") : uiText("No");
   if (Array.isArray(value)) return stringList(value).join(", ");
   return "";
 }

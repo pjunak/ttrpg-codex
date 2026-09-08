@@ -1,4 +1,5 @@
 import type { ReactiveController, ReactiveControllerHost } from "lit";
+import { sourceEn, sourceCs, type SourceMessage } from "./ui-source-messages.js";
 
 export type UiLocale = "en" | "cs";
 
@@ -12,6 +13,9 @@ interface PluralForms {
 type Message = string | PluralForms;
 
 const enCatalog = {
+  ...sourceEn,
+  "settings.usedRecords": { one: "Used by {n} record", other: "Used by {n} records" },
+  "settings.replaceRecords": { one: "{n} campaign record uses this definition. Choose how those records should change.", other: "{n} campaign records use this definition. Choose how those records should change." },
   "recovery.title": "Backup & recovery",
   "recovery.download": "Download ZIP",
   "recovery.create": "Create recovery point",
@@ -400,7 +404,7 @@ const enCatalog = {
   "settings.language": "Language",
   "settings.languageIntro": "Choose the language used by this browser. It does not change campaign data or another player’s preference.",
   "settings.languageLabel": "Interface language",
-  "settings.languageProgress": "The shell, dashboard, search, and personal settings are translated. Record editors and campaign configuration remain in English while their catalog migration continues.",
+  "settings.languageProgress": "Interface language applies to the campaign tools and first-party add-ons. Authored campaign text and reference content keep their original language.",
   "settings.appearance": "Appearance",
   "settings.appearanceIntro": "The campaign theme is shared by everyone. Only the DM can change it.",
   "settings.appearanceLabel": "Campaign theme",
@@ -468,6 +472,9 @@ const enCatalog = {
 export type MessageKey = keyof typeof enCatalog;
 
 const csCatalog = {
+  ...sourceCs,
+  "settings.usedRecords": { one: "Používá {n} záznam", few: "Používají {n} záznamy", other: "Používá {n} záznamů" },
+  "settings.replaceRecords": { one: "Tuto definici používá {n} záznam kampaně. Vyberte, jak se mají použití změnit.", few: "Tuto definici používají {n} záznamy kampaně. Vyberte, jak se mají použití změnit.", other: "Tuto definici používá {n} záznamů kampaně. Vyberte, jak se mají použití změnit." },
   "recovery.title": "Zálohy a obnova",
   "recovery.download": "Stáhnout ZIP",
   "recovery.create": "Vytvořit bod obnovy",
@@ -856,7 +863,7 @@ const csCatalog = {
   "settings.language": "Jazyk",
   "settings.languageIntro": "Vyber jazyk pro tento prohlížeč. Data kampaně ani volbu jiného hráče to nezmění.",
   "settings.languageLabel": "Jazyk rozhraní",
-  "settings.languageProgress": "Přeložen je základ aplikace, přehled, hledání a osobní nastavení. Editory záznamů a nastavení kampaně zůstávají během převodu katalogu v angličtině.",
+  "settings.languageProgress": "Jazyk rozhraní platí pro nástroje kampaně i doplňky této sady. Vlastní text kampaně a obsah příruček si zachovávají původní jazyk.",
   "settings.appearance": "Vzhled",
   "settings.appearanceIntro": "Vzhled kampaně je společný pro všechny. Změnit jej může pouze DM.",
   "settings.appearanceLabel": "Vzhled kampaně",
@@ -970,6 +977,11 @@ export function setUiLocale(locale: UiLocale): void {
   writeStorage("codex_lang", locale);
   applyLocale();
   localeChangeTarget.dispatchEvent(new Event("change"));
+}
+
+/** Only for code-owned descriptor labels; never for authored record or provider text. */
+export function uiSourceLabel(source: string): string {
+  return Object.hasOwn(sourceCs, source) ? uiText(source as SourceMessage) : source;
 }
 
 export function uiText(

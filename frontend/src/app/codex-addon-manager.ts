@@ -1,6 +1,7 @@
 import { LitElement, html, nothing } from "lit";
 import { AddonAdminClient, type AddonReview, type AddonSnapshot } from "../core/addon-admin.js";
-import { UiLocalizationController, type MessageKey } from "./ui-localization.js";
+import { UiLocalizationController, uiSourceLabel, uiText, type MessageKey } from "./ui-localization.js";
+import { uiRequestError } from "./ui-errors.js";
 
 export class CodexAddonManager extends LitElement {
   static override properties = { csrfToken: { attribute: false }, snapshots: { state: true }, review: { state: true }, pending: { state: true }, error: { state: true }, message: { state: true }, grants: { state: true } };
@@ -34,13 +35,13 @@ export class CodexAddonManager extends LitElement {
     const t = this.#ui.t.bind(this.#ui), state = snapshot.state;
     const active = snapshot.generations.find(generation => generation.generationId === state.activeGenerationId);
     return html`<article class="addon-row" data-addon-id=${state.addonId}>
-      <header><div><h3>${state.addonId}</h3><p>${active ? html`${active.version} · ${t("addons.active")}` : t("addons.inactive")}${snapshot.runtimeState ? ` · ${snapshot.runtimeState}` : ""}</p></div>
+      <header><div><h3>${state.addonId}</h3><p>${active ? html`${active.version} · ${t("addons.active")}` : t("addons.inactive")}${snapshot.runtimeState ? ` · ${uiSourceLabel(snapshot.runtimeState)}` : ""}</p></div>
       ${active ? html`<div class="addon-actions"><button ?disabled=${this.pending} @click=${() => this.#action(snapshot, "reload")}>${t("addons.reload")}</button><button ?disabled=${this.pending} @click=${() => this.#action(snapshot, "disable")}>${t("addons.disable")}</button></div>` : nothing}</header>
       <details ?open=${!active}><summary>${t("addons.versions")}</summary><ul>${snapshot.generations.map(generation => html`<li data-generation=${generation.generationId}>
         <div><strong>${generation.version}</strong> ${generation.generationId === state.activeGenerationId ? t("addons.active") : ""}<small>${this.#ui.relativeDate(generation.installedAt)}</small>
-          ${generation.lastError ? html`<p role="alert">${generation.lastError}</p>` : nothing}<details><summary>${t("addons.generation")}</summary><code>${generation.generationId}</code></details></div>
+          ${generation.lastError ? html`<p role="alert">${t("addons.failed")}</p><details><summary>${uiText("Technical details")}</summary><p>${generation.lastError}</p></details>` : nothing}<details><summary>${t("addons.generation")}</summary><code>${generation.generationId}</code></details></div>
         ${generation.generationId !== state.activeGenerationId ? html`<button ?disabled=${this.pending} @click=${() => this.#prepare(state.addonId, generation.generationId)}>${t(active ? "addons.rollback" : "addons.review")}</button>` : nothing}</li>`)}</ul></details>
-      ${snapshot.events.length ? html`<details><summary>${t("addons.history")}</summary><ul>${snapshot.events.map(event => html`<li><div>${event.kind}<small>${this.#ui.relativeDate(event.occurredAt)}</small>${event.message ? html`<p>${event.message}</p>` : nothing}</div></li>`)}</ul></details>` : nothing}
+      ${snapshot.events.length ? html`<details><summary>${t("addons.history")}</summary><ul>${snapshot.events.map(event => html`<li><div>${uiSourceLabel(event.kind)}<small>${this.#ui.relativeDate(event.occurredAt)}</small>${event.message ? html`<details><summary>${uiText("Technical details")}</summary><p>${event.message}</p></details>` : nothing}</div></li>`)}</ul></details>` : nothing}
     </article>`;
   }
   #reviewPanel(review: AddonReview) {
@@ -59,7 +60,7 @@ export class CodexAddonManager extends LitElement {
           @change=${(event: Event) => { this.grants = (event.target as HTMLInputElement).checked ? [...this.grants, permission.id] : this.grants.filter(id => id !== permission.id); }}>
           <span><strong>${permission.id}</strong> ${review.required.includes(permission.id) ? `(${t("addons.required")})` : ""}<small>${permission.resources.join(", ")}</small><span>${permission.reason}</span></span></label>`) : html`<p>${t("addons.noPermissions")}</p>`}
       </fieldset>
-      ${review.blockers.length ? html`<div role="alert"><h4>${t("addons.blocked")}</h4><ul>${review.blockers.map(blocker => html`<li>${blocker.message}</li>`)}</ul></div>` : nothing}
+      ${review.blockers.length ? html`<div role="alert"><h4>${t("addons.blocked")}</h4><ul>${review.blockers.map(blocker => html`<li>${blockerMessage(blocker.code)}<details><summary>${uiText("Technical details")}</summary><code>${blocker.code}</code><p>${blocker.message}</p></details></li>`)}</ul></div>` : nothing}
       <div class="addon-actions"><button ?disabled=${this.pending || review.blockers.length > 0 || review.required.some(id => !this.grants.includes(id))}
         @click=${() => this.#activate(review)}>${t("addons.approve")}</button><button ?disabled=${this.pending} @click=${() => { this.review = undefined; }}>${t("addons.cancel")}</button></div>
     </section>`;
@@ -81,8 +82,19 @@ export class CodexAddonManager extends LitElement {
     const request = this.#request; this.pending = true; this.error = ""; this.message = "";
     if (mutating) this.dispatchEvent(new CustomEvent("addon-admin-busy", { detail: true, bubbles: true, composed: true }));
     try { await operation(new AddonAdminClient(this.csrfToken, request.signal)); }
-    catch (error) { if (!request.signal.aborted) { this.review = undefined; this.error = `${this.#ui.t("addons.failed")} ${error instanceof Error ? error.message : ""}`; } }
+    catch (error) { if (!request.signal.aborted) { this.review = undefined; this.error = `${this.#ui.t("addons.failed")} ${uiRequestError(error)}`; } }
     finally { if (!request.signal.aborted) { this.pending = false; if (mutating) this.dispatchEvent(new CustomEvent("addon-admin-busy", { detail: false, bubbles: true, composed: true })); } }
   }
 }
 customElements.define("codex-addon-manager", CodexAddonManager);
+
+function blockerMessage(code: string): string {
+  switch (code) {
+    case "COMPATIBILITY": return uiText("Review the package compatibility before activation.");
+    case "DEPENDENCY": case "DEPENDENT_INCOMPATIBLE": return uiText("Resolve the required add-on dependencies before activation.");
+    case "SERVICE": return uiText("Resolve service-provider conflicts before activation.");
+    case "DATA_REVIEW": return uiText("Review the stored data and the package data definitions.");
+    case "RECOVERY_REQUIRED": return uiText("Recovery is required before this add-on can be activated.");
+    default: return uiText("Activation is blocked. Review the technical details.");
+  }
+}

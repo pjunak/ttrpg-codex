@@ -57,6 +57,6 @@ export async function exercisePlannerCanvas({ t, open, admin, csrf, output, mobi
   await zoom.click(); await controls.getByRole('button', { name: 'Focus selected', exact: true }).click();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await viewport.scrollIntoViewIfNeeded(); await page.screenshot({ path: resolve(output, `planner-canvas-${suffix}.png`) });
-  await page.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await page.reload(); await page.locator('.dm-planner-shell[aria-busy="false"]').waitFor(); await closePlannerEditor(page);
+  await page.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await page.reload(); await page.locator('.dm-planner-shell[aria-busy="false"]').waitFor(); await closePlannerEditor(page, 'cs');
   await page.getByRole('button', { name: 'Přizpůsobit', exact: true }).waitFor();
 }

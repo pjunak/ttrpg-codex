@@ -4,6 +4,7 @@ import type {
 } from "./browser-sdk.js";
 import type { BrowserRole } from "./generation-manager.js";
 import type { Disposer } from "./generation-scope.js";
+import { contributionLabel } from "./contribution-label.js";
 
 export interface BrowserNavigationEntry {
   readonly addonId: string;
@@ -20,6 +21,7 @@ export interface BrowserNavigationOutletOptions {
   readonly registry: BrowserContributionRegistry;
   readonly role: BrowserRole;
   readonly currentHash: () => string;
+  readonly locale?: () => string;
   readonly include?: (entry: BrowserNavigationEntry) => boolean;
   readonly onError?: (cause: unknown) => void;
   readonly onCountChange?: (count: number) => void;
@@ -63,6 +65,7 @@ export function parseBrowserAddonLocation(hash: string): { readonly routeHash: s
 export function listBrowserNavigation(
   registry: BrowserContributionRegistry,
   role: BrowserRole,
+  locale: string = "en",
 ): readonly BrowserNavigationEntry[] {
   const routes = new Map<string, ActiveBrowserContribution>();
   for (const active of registry.list("route", role)) {
@@ -90,7 +93,7 @@ export function listBrowserNavigation(
       addonId: active.addonId,
       generationId: active.generationId,
       contributionId: active.descriptor.id,
-      label: active.descriptor.label,
+      label: contributionLabel(active.descriptor, locale),
       routeContributionId,
       hash: browserAddonRouteHash(route),
     }));
@@ -105,6 +108,7 @@ export class BrowserNavigationOutlet {
   readonly #registry: BrowserContributionRegistry;
   readonly #role: BrowserRole;
   readonly #currentHash: () => string;
+  readonly #locale: () => string;
   readonly #include: (entry: BrowserNavigationEntry) => boolean;
   readonly #onError: (cause: unknown) => void;
   readonly #onCountChange: (count: number) => void;
@@ -118,6 +122,7 @@ export class BrowserNavigationOutlet {
     this.#registry = options.registry;
     this.#role = options.role;
     this.#currentHash = options.currentHash;
+    this.#locale = options.locale ?? (() => "en");
     this.#include = options.include ?? (() => true);
     this.#onError = options.onError ?? (() => undefined);
     this.#onCountChange = options.onCountChange ?? (() => undefined);
@@ -133,7 +138,7 @@ export class BrowserNavigationOutlet {
       const ordered: HTMLAnchorElement[] = [];
       const retained = new Set<string>();
       const currentHash = this.#currentHash();
-      for (const entry of listBrowserNavigation(this.#registry, this.#role)) {
+      for (const entry of listBrowserNavigation(this.#registry, this.#role, this.#locale())) {
         if (!this.#include(entry)) continue;
         const key = `${entry.addonId}:${entry.generationId}:${entry.contributionId}`;
         const identity = `${entry.hash}:${entry.label}`;

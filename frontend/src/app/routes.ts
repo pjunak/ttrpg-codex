@@ -1,4 +1,5 @@
 import type { CampaignCollectionName } from "../core/campaign-data.js";
+import { uiCollectionLabel } from "./ui-localization.js";
 import { isBrowserAddonRouteHash } from "../addons/navigation.js";
 import { parseAddonGraphHash, type GraphSelection } from "./campaign-addon-graph.js";
 
@@ -142,5 +143,7 @@ function page(
   icon: string,
   group: CampaignPageDefinition["group"],
 ): CampaignPageDefinition {
-  return Object.freeze({ id, collection, singular, plural, icon, group });
+  return Object.freeze({ id, collection,
+    get singular() { return uiCollectionLabel(id, "one") || singular; },
+    get plural() { return uiCollectionLabel(id, "other") || plural; }, icon, group });
 }

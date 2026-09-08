@@ -1,3 +1,4 @@
+import { uiText } from "./ui-localization.js";
 import { LitElement, html, nothing } from "lit";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import { searchCampaign, type CampaignSearchResult } from "./campaign-search.js";
@@ -104,7 +105,7 @@ function searchResult(result: CampaignSearchResult) {
         ${result.title === "" ? nothing : html`<small>${result.title}</small>`}
       </span>
       ${result.excerpt === "" ? nothing : html`<p>${result.excerpt}</p>`}
-      ${result.visibility === "dm" ? html`<span class="dm-badge">DM</span>` : nothing}
+      ${result.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
     </a>
   `;
 }

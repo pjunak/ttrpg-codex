@@ -1,3 +1,4 @@
+import { uiText } from "./ui-localization.js";
 import { LitElement, html, nothing } from "lit";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import type { CampaignEnumCategory, CampaignEnumDeleteMutation } from "../core/campaign-mutations.js";
@@ -126,8 +127,8 @@ export class CodexSettings extends LitElement {
       items = campaignEnumItems(campaign, descriptor.category);
     } catch (cause: unknown) {
       const message = cause instanceof CampaignSettingsEditError
-        ? "This category has an invalid stored shape and was left untouched."
-        : "This category could not be opened.";
+        ? uiText("This category has an invalid stored shape and was left untouched.")
+        : uiText("This category could not be opened.");
       return this.#shell(html`<section class="settings-invalid" role="alert"><h2>${descriptor.label}</h2><p>${message}</p></section>`);
     }
     const record = campaignEnumRecord(campaign, descriptor.category);
@@ -142,12 +143,12 @@ export class CodexSettings extends LitElement {
             </div>
           </div>
           <button type="button" @click=${this.#startCreate} ?disabled=${this.saving || this.editingId !== null}>
-            Add ${descriptor.singular}
+            ${uiText("Add {0}", { "0": descriptor.singular })}
           </button>
         </header>
         ${this.editingId === "__new__" ? this.#editForm(undefined, record?.revision ?? 0) : nothing}
         ${items.length === 0 && this.editingId !== "__new__"
-          ? html`<p class="settings-empty">No ${descriptor.label.toLocaleLowerCase()} are defined yet.</p>`
+          ? html`<p class="settings-empty">${uiText("No {0} are defined yet.", { "0": descriptor.label.toLocaleLowerCase() })}</p>`
           : html`<div class="settings-definition-list">
               ${items.map((item) => this.editingId === item.id
                 ? this.#editForm(item, record?.revision ?? 0)
@@ -276,11 +277,11 @@ export class CodexSettings extends LitElement {
             <span class="settings-definition-swatch" style=${`--setting-color: ${color}`} aria-hidden="true"></span>`}
           <div><h3>${item.label || item.id}</h3><code>${item.id}</code></div>
         </div>
-        <p class="settings-definition-usage">${usage === 0 ? "Not used" : `Used by ${usage} record${usage === 1 ? "" : "s"}`}</p>
+        <p class="settings-definition-usage">${usage === 0 ? uiText("Not used") : this.#ui.plural("settings.usedRecords", usage)}</p>
         <div class="settings-definition-actions">
-          <button type="button" data-id=${item.id} @click=${this.#startEdit} ?disabled=${this.saving || this.editingId !== null}>Edit</button>
+          <button type="button" data-id=${item.id} @click=${this.#startEdit} ?disabled=${this.saving || this.editingId !== null}>${uiText("Edit")}</button>
           <button class="danger-text" type="button" data-id=${item.id} @click=${this.#requestDelete}
-            ?disabled=${this.saving || this.editingId !== null}>Delete</button>
+            ?disabled=${this.saving || this.editingId !== null}>${uiText("Delete")}</button>
         </div>
       </article>
       ${this.deleteId === item.id ? this.#deletePanel(item, revision, items, usage) : nothing}
@@ -294,22 +295,22 @@ export class CodexSettings extends LitElement {
       <form class="settings-edit-form" @submit=${this.#save} @input=${this.#markDirty}>
         <header>
           <div>
-            <h3>${item === undefined ? `New ${descriptor.singular}` : `Edit ${item.label || item.id}`}</h3>
+            <h3>${item === undefined ? uiText("New {0}", { "0": descriptor.singular }) : uiText("Edit {0}", { "0": item.label || item.id })}</h3>
             <p>${item === undefined
-              ? "Choose a permanent ID before saving. It becomes the value stored on campaign records."
-              : html`Stored ID: <code>${item.id}</code>`}</p>
+              ? uiText("Choose a permanent ID before saving. It becomes the value stored on campaign records.")
+              : html`${uiText("Stored ID:")} <code>${item.id}</code>`}</p>
           </div>
         </header>
         <div class="settings-edit-grid">
           ${item === undefined ? html`
-            <label><span>Permanent ID</span><input name="id" maxlength="200" required
-              autocomplete="off" placeholder="short-stable-id" /></label>
+            <label><span>${uiText("Permanent ID")}</span><input name="id" maxlength="200" required
+              autocomplete="off" placeholder=${uiText("short-stable-id")} /></label>
           ` : nothing}
           ${descriptor.fields.map((definition) => this.#settingField(definition, values))}
         </div>
         <div class="settings-edit-actions">
-          <button type="button" @click=${this.#cancelEdit} ?disabled=${this.saving}>Cancel</button>
-          <button class="primary" type="submit" ?disabled=${this.saving}>${this.saving ? "Saving…" : "Save definition"}</button>
+          <button type="button" @click=${this.#cancelEdit} ?disabled=${this.saving}>${uiText("Cancel")}</button>
+          <button class="primary" type="submit" ?disabled=${this.saving}>${this.saving ? uiText("Saving…") : uiText("Save definition")}</button>
         </div>
         <input type="hidden" name="expectedRevision" value=${String(expectedRevision)} />
       </form>`;
@@ -356,28 +357,28 @@ export class CodexSettings extends LitElement {
     const replacements = items.filter(({ id }) => id !== item.id);
     return html`
       <section class="settings-delete-panel" aria-labelledby=${`delete-${item.id}`}>
-        <div><h3 id=${`delete-${item.id}`}>Delete ${item.label || item.id}?</h3>
+        <div><h3 id=${`delete-${item.id}`}>${uiText("Delete {0}?", { "0": item.label || item.id })}</h3>
           <p>${usage === 0
-            ? "The definition is not used by any campaign record."
-            : `${usage} campaign record${usage === 1 ? " uses" : "s use"} this definition. Choose how those records should change.`}</p></div>
+            ? uiText("The definition is not used by any campaign record.")
+            : this.#ui.plural("settings.replaceRecords", usage)}</p></div>
         ${usage === 0 ? html`
           <div class="settings-delete-actions">
-            <button type="button" @click=${this.#cancelDelete}>Keep it</button>
+            <button type="button" @click=${this.#cancelDelete}>${uiText("Keep it")}</button>
             <button class="danger" type="button" data-id=${item.id} data-revision=${String(expectedRevision)}
-              data-mode="reject-if-used" @click=${this.#delete}>Delete definition</button>
+              data-mode="reject-if-used" @click=${this.#delete}>${uiText("Delete definition")}</button>
           </div>
         ` : html`
-          <label class="settings-replacement"><span>Replacement</span>
+          <label class="settings-replacement"><span>${uiText("Replacement")}</span>
             <select id=${`replacement-${item.id}`} ?disabled=${replacements.length === 0}>
               ${replacements.map((replacement) => html`<option value=${replacement.id}>${replacement.label || replacement.id}</option>`)}
             </select>
           </label>
           <div class="settings-delete-actions split">
-            <button type="button" @click=${this.#cancelDelete}>Cancel</button>
+            <button type="button" @click=${this.#cancelDelete}>${uiText("Cancel")}</button>
             <button type="button" data-id=${item.id} data-revision=${String(expectedRevision)} data-mode="replace"
-              @click=${this.#delete} ?disabled=${replacements.length === 0}>Replace uses and delete</button>
+              @click=${this.#delete} ?disabled=${replacements.length === 0}>${uiText("Replace uses and delete")}</button>
             <button class="danger" type="button" data-id=${item.id} data-revision=${String(expectedRevision)}
-              data-mode="clear" @click=${this.#delete}>Clear uses and delete</button>
+              data-mode="clear" @click=${this.#delete}>${uiText("Clear uses and delete")}</button>
           </div>
         `}
       </section>`;
@@ -529,9 +530,9 @@ function isEnumCategory(category: SettingsCategory): category is CampaignEnumCat
 }
 
 const directionOptions = Object.freeze([
-  Object.freeze({ value: "from", label: "Character → target" }),
-  Object.freeze({ value: "to", label: "Target → character" }),
-  Object.freeze({ value: "both", label: "Both directions" }),
+  Object.freeze({ value: "from", get label() { return uiText("Character → target"); } }),
+  Object.freeze({ value: "to", get label() { return uiText("Target → character"); } }),
+  Object.freeze({ value: "both", get label() { return uiText("Both directions"); } }),
 ]);
 
 function newItemDefaults(category: CampaignEnumCategory): Readonly<Record<string, unknown>> {

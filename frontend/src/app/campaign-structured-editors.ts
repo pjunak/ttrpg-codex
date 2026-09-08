@@ -1,3 +1,4 @@
+import { uiText, UiLocalizationController } from "./ui-localization.js";
 import { LitElement, html, nothing } from "lit";
 import {
   campaignCollection,
@@ -51,6 +52,7 @@ export class CampaignStructuredFieldEditor extends LitElement implements Campaig
 
   constructor() {
     super();
+    new UiLocalizationController(this);
     this.campaign = undefined;
     this.field = undefined;
     this.record = {};
@@ -105,15 +107,15 @@ export class CampaignStructuredFieldEditor extends LitElement implements Campaig
     const rows = this.#draft as readonly QuestionDraft[];
     return html`
       <section class="structured-editor wide-field" aria-labelledby=${`structured-${field.key}`}>
-        ${sectionHeading(`structured-${field.key}`, field.label, help, "Add question", this.#addRow)}
-        ${rows.length === 0 ? html`<p class="structured-empty">No questions recorded.</p>` : html`
+        ${sectionHeading(`structured-${field.key}`, field.label, help, uiText("Add question"), this.#addRow)}
+        ${rows.length === 0 ? html`<p class="structured-empty">${uiText("No questions recorded.")}</p>` : html`
           <div class="structured-ledger question-ledger">
             ${rows.map((row, index) => html`
               <div class=${`structured-row question-row${row.answer.trim() === "" ? "" : " is-answered"}`}>
                 <span class="structured-row-index" aria-hidden="true">Q${String(index + 1).padStart(2, "0")}</span>
-                ${textInput("Question", row.text, index, "text", field.maximumLength, "What remains unclear?", this.#updateInput)}
-                ${textInput("Answer", row.answer, index, "answer", 100_000, "Leave blank while unresolved", this.#updateInput)}
-                ${removeButton(`Remove question ${index + 1}`, index, this.#removeRow)}
+                ${textInput(uiText("Question"), row.text, index, "text", field.maximumLength, uiText("What remains unclear?"), this.#updateInput)}
+                ${textInput(uiText("Answer"), row.answer, index, "answer", 100_000, uiText("Leave blank while unresolved"), this.#updateInput)}
+                ${removeButton(uiText("Remove question {0}", { "0": index + 1 }), index, this.#removeRow)}
               </div>
             `)}
           </div>
@@ -130,15 +132,15 @@ export class CampaignStructuredFieldEditor extends LitElement implements Campaig
       <section class="structured-editor rank-assignment" aria-labelledby="structured-rank-assignment">
         ${sectionHeading("structured-rank-assignment", field.label, help)}
         <div class="rank-assignment-fields">
-          <label><span>Chain</span><select data-part="chainId" @change=${this.#updateInput}>
-            <option value="" ?selected=${assignment.chainId === ""}>Not ranked</option>
-            ${orphaned ? html`<option value=${assignment.chainId} selected>Stored chain (${assignment.chainId})</option>` : nothing}
+          <label><span>${uiText("Chain")}</span><select data-part="chainId" @change=${this.#updateInput}>
+            <option value="" ?selected=${assignment.chainId === ""}>${uiText("Not ranked")}</option>
+            ${orphaned ? html`<option value=${assignment.chainId} selected>${uiText("Stored chain ({0})", { "0": assignment.chainId })}</option>` : nothing}
             ${chains.filter(({ ranks }) => ranks.length > 0).map((chain) => html`
               <option value=${chain.id} ?selected=${assignment.chainId === chain.id}>${chain.name}</option>`)}
           </select></label>
-          <label><span>Rank</span><select data-part="rank" @change=${this.#updateInput}
+          <label><span>${uiText("Rank")}</span><select data-part="rank" @change=${this.#updateInput}
             ?disabled=${assignment.chainId === ""}>
-            ${orphaned && assignment.rank !== "" ? html`<option value=${assignment.rank} selected>Stored rank (${assignment.rank})</option>` : nothing}
+            ${orphaned && assignment.rank !== "" ? html`<option value=${assignment.rank} selected>${uiText("Stored rank ({0})", { "0": assignment.rank })}</option>` : nothing}
             ${(selectedChain?.ranks ?? []).map((rank) => html`
               <option value=${rank} ?selected=${assignment.rank === rank}>${rank}</option>`)}
           </select></label>
@@ -152,23 +154,23 @@ export class CampaignStructuredFieldEditor extends LitElement implements Campaig
     const selected = new Set(rows.map(({ locationId }) => locationId));
     return html`
       <section class="structured-editor wide-field" aria-labelledby="structured-location-roles">
-        ${sectionHeading("structured-location-roles", field.label, help, "Add role", this.#addRow,
+        ${sectionHeading("structured-location-roles", field.label, help, uiText("Add role"), this.#addRow,
           locations.length === 0 || selected.size >= locations.length)}
-        ${rows.length === 0 ? html`<p class="structured-empty">No additional location roles.</p>` : html`
+        ${rows.length === 0 ? html`<p class="structured-empty">${uiText("No additional location roles.")}</p>` : html`
           <div class="structured-ledger">
             ${rows.map((row, index) => html`
               <div class="structured-row location-role-row">
                 <span class="structured-row-index" aria-hidden="true">${String(index + 1).padStart(2, "0")}</span>
-                <label><span>Location</span><select data-row=${String(index)} data-part="locationId"
+                <label><span>${uiText("Location")}</span><select data-row=${String(index)} data-part="locationId"
                   @change=${this.#updateInput}>
-                  <option value="" ?selected=${row.locationId === ""}>Choose a location</option>
+                  <option value="" ?selected=${row.locationId === ""}>${uiText("Choose a location")}</option>
                   ${locations.map((option) => html`<option value=${option.value}
                     ?selected=${option.value === row.locationId}
                     ?disabled=${option.value !== row.locationId && selected.has(option.value)}>${option.label}</option>`)}
                 </select></label>
-                ${textInput("Role or connection", row.role, index, "role", field.maximumLength,
-                  "Warden, visitor, prisoner…", this.#updateInput)}
-                ${removeButton("Remove role", index, this.#removeRow)}
+                ${textInput(uiText("Role or connection"), row.role, index, "role", field.maximumLength,
+                  uiText("Warden, visitor, prisoner…"), this.#updateInput)}
+                ${removeButton(uiText("Remove role"), index, this.#removeRow)}
               </div>
             `)}
           </div>
@@ -180,31 +182,31 @@ export class CampaignStructuredFieldEditor extends LitElement implements Campaig
     const chains = this.#draft as readonly RankChainDraft[];
     return html`
       <section class="structured-editor wide-field" aria-labelledby="structured-rank-chains">
-        ${sectionHeading("structured-rank-chains", field.label, help, "Add chain", this.#addRow)}
-        ${chains.length === 0 ? html`<p class="structured-empty">No rank chains recorded.</p>` : html`
+        ${sectionHeading("structured-rank-chains", field.label, help, uiText("Add chain"), this.#addRow)}
+        ${chains.length === 0 ? html`<p class="structured-empty">${uiText("No rank chains recorded.")}</p>` : html`
           <div class="rank-chain-ledger">
             ${chains.map((chain, chainIndex) => html`
               <section class="rank-chain-card">
                 <header>
                   <span class="structured-row-index" aria-hidden="true">${String(chainIndex + 1).padStart(2, "0")}</span>
-                  ${textInput("Chain name", chain.name, chainIndex, "name", field.maximumLength,
-                    "Guard command", this.#updateInput)}
-                  ${removeButton("Remove chain", chainIndex, this.#removeRow)}
+                  ${textInput(uiText("Chain name"), chain.name, chainIndex, "name", field.maximumLength,
+                    uiText("Guard command"), this.#updateInput)}
+                  ${removeButton(uiText("Remove chain"), chainIndex, this.#removeRow)}
                 </header>
                 <div class="rank-list">
                   ${chain.ranks.map((rank, rankIndex) => html`
                     <div class="rank-row">
                       <span aria-hidden="true">${rankIndex + 1}</span>
-                      <label><span>Rank ${rankIndex + 1}</span><input data-row=${String(chainIndex)} data-rank=${String(rankIndex)}
-                        data-part="rank" maxlength=${field.maximumLength} .value=${rank} placeholder="Highest to lowest"
+                      <label><span>${uiText("Rank {0}", { "0": rankIndex + 1 })}</span><input data-row=${String(chainIndex)} data-rank=${String(rankIndex)}
+                        data-part="rank" maxlength=${field.maximumLength} .value=${rank} placeholder=${uiText("Highest to lowest")}
                         @input=${this.#updateInput} /></label>
                       <button class="structured-remove" type="button" data-row=${String(chainIndex)} data-rank=${String(rankIndex)}
-                        @click=${this.#removeRank}>Remove</button>
+                        @click=${this.#removeRank}>${uiText("Remove")}</button>
                     </div>
                   `)}
                 </div>
                 <button class="structured-add-secondary" type="button" data-row=${String(chainIndex)}
-                  @click=${this.#addRank}>Add rank</button>
+                  @click=${this.#addRank}>${uiText("Add rank")}</button>
               </section>
             `)}
           </div>
@@ -329,6 +331,7 @@ export class CampaignRelationshipEditor extends LitElement implements CampaignRe
 
   constructor() {
     super();
+    new UiLocalizationController(this);
     this.campaign = undefined;
     this.character = undefined;
     this.canManageVisibility = false;
@@ -362,16 +365,16 @@ export class CampaignRelationshipEditor extends LitElement implements CampaignRe
     if (this.campaign === undefined) return nothing;
     if (this.character === undefined) return html`
       <section class="structured-editor wide-field relationship-editor">
-        ${sectionHeading("structured-relationships", "Relationships", nothing)}
-        <p class="structured-empty">Save the character first, then connect them to people and places.</p>
+        ${sectionHeading("structured-relationships", uiText("Relationships"), nothing)}
+        <p class="structured-empty">${uiText("Save the character first, then connect them to people and places.")}</p>
       </section>`;
     const configuredTypes = relationshipTypeOptionsFor(this.campaign);
     return html`
       <section class="structured-editor wide-field relationship-editor" aria-labelledby="structured-relationships">
-        ${sectionHeading("structured-relationships", "Relationships", html`
-          <small class="field-help">Read each row as this character → relationship → target. Both directions create two linked records in one save.</small>
-        `, "Add relationship", this.#addRow, configuredTypes.length === 0)}
-        ${this.#rows.length === 0 ? html`<p class="structured-empty">No relationships recorded.</p>` : html`
+        ${sectionHeading("structured-relationships", uiText("Relationships"), html`
+          <small class="field-help">${uiText("Read each row as this character → relationship → target. Both directions create two linked records in one save.")}</small>
+        `, uiText("Add relationship"), this.#addRow, configuredTypes.length === 0)}
+        ${this.#rows.length === 0 ? html`<p class="structured-empty">${uiText("No relationships recorded.")}</p>` : html`
           <div class="structured-ledger relationship-ledger">${this.#rows.map((row, index) => this.#row(row, index, configuredTypes))}</div>
         `}
       </section>`;
@@ -387,22 +390,22 @@ export class CampaignRelationshipEditor extends LitElement implements CampaignRe
     return html`
       <div class="structured-row relationship-row">
         <span class="relationship-source">${recordName(character)}</span>
-        <label><span>Relationship</span><select data-row=${String(index)} data-part="type"
+        <label><span>${uiText("Relationship")}</span><select data-row=${String(index)} data-part="type"
           @change=${this.#updateInput}>${types.map((option) => html`
             <option value=${option.value} ?selected=${option.value === row.type}>${option.label}</option>`)}</select></label>
-        <label><span>Direction</span><select data-row=${String(index)} data-part="direction"
+        <label><span>${uiText("Direction")}</span><select data-row=${String(index)} data-part="direction"
           @change=${this.#updateInput}>${directions.map((direction) => html`
             <option value=${direction} ?selected=${direction === row.direction}>${relationshipDirectionLabel(direction)}</option>`)}</select></label>
-        <label><span>Target</span><select data-row=${String(index)} data-part="target" required
-          @change=${this.#updateInput}><option value="" ?selected=${row.target === ""}>Choose ${type?.targetCollection === "locations" ? "a location" : "a character"}</option>
+        <label><span>${uiText("Target")}</span><select data-row=${String(index)} data-part="target" required
+          @change=${this.#updateInput}><option value="" ?selected=${row.target === ""}>${uiText(type?.targetCollection === "locations" ? "Choose a location" : "Choose a character")}</option>
           ${targets.map((option) => html`<option value=${option.value} ?selected=${option.value === row.target}>${option.label}</option>`)}</select></label>
-        <label class="relationship-label"><span>Custom label</span><input data-row=${String(index)} data-part="label" maxlength="500"
-          .value=${row.label} placeholder=${type?.label ?? "Relationship"} @input=${this.#updateInput} /></label>
-        ${this.canManageVisibility ? html`<label><span>Visibility</span><select data-row=${String(index)} data-part="visibility"
-          @change=${this.#updateInput}><option value="public" ?selected=${row.visibility !== "dm"}>Public</option>
-          <option value="dm" ?selected=${row.visibility === "dm"}>DM only</option>
+        <label class="relationship-label"><span>${uiText("Custom label")}</span><input data-row=${String(index)} data-part="label" maxlength="500"
+          .value=${row.label} placeholder=${type?.label ?? uiText("Relationship")} @input=${this.#updateInput} /></label>
+        ${this.canManageVisibility ? html`<label><span>${uiText("Visibility")}</span><select data-row=${String(index)} data-part="visibility"
+          @change=${this.#updateInput}><option value="public" ?selected=${row.visibility !== "dm"}>${uiText("Public")}</option>
+          <option value="dm" ?selected=${row.visibility === "dm"}>${uiText("DM only")}</option>
         </select></label>` : nothing}
-        ${removeButton("Remove relationship", index, this.#removeRow)}
+        ${removeButton(uiText("Remove relationship"), index, this.#removeRow)}
       </div>`;
   }
 
@@ -516,16 +519,16 @@ function relationshipTypesIncludingOrphan(
   if (configured.some(({ value }) => value === row.type) || row.type === "") return configured;
   return Object.freeze([Object.freeze({
     value: row.type,
-    label: `${row.type} (stored)`,
+    label: uiText("{0} (stored)", { "0": row.type }),
     targetCollection: row.type === "mission" ? "locations" as const : "characters" as const,
     directions: Object.freeze(["from", "to"] as CampaignRelationshipDirection[]),
   }), ...configured]);
 }
 
 function relationshipDirectionLabel(direction: CampaignRelationshipDirection): string {
-  if (direction === "from") return "This character → target";
-  if (direction === "to") return "Target → this character";
-  return "Both directions";
+  if (direction === "from") return uiText("This character → target");
+  if (direction === "to") return uiText("Target → this character");
+  return uiText("Both directions");
 }
 
 function sectionHeading(id: string, label: string, help: unknown, action?: string,

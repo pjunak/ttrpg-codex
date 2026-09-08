@@ -42,6 +42,16 @@ const graph: BrowserGenerationSet = {
 };
 
 describe("parseBrowserGenerationSet", () => {
+  it("accepts reviewed localized labels without weakening canonical route metadata", () => {
+    const localized = (labels: unknown) => ({ ...graph, addons: [{ ...descriptor, contributions: [{
+      ...descriptor.contributions[0], config: { path: "planner", labels },
+    }] }] });
+    expect(parseBrowserGenerationSet(localized({ cs: "Plánovač příběhu" })).addons[0]?.contributions[0]?.config)
+      .toEqual({ path: "planner", labels: { cs: "Plánovač příběhu" } });
+    for (const labels of [null, [], { cs: "" }, { cs: "   " }, { cs: "bad\nlabel" }, { cs: "a".repeat(201) }, { path: "changed" }]) {
+      expect(() => parseBrowserGenerationSet(localized(labels))).toThrow("invalid localized labels");
+    }
+  });
   it("accepts and copies the exact v2 wire shape", () => {
     const parsed = parseBrowserGenerationSet(graph);
 

@@ -28,6 +28,12 @@ export type AuthState =
 
 export { BoundaryValidationError } from "./boundary.js";
 
+export class HostRequestError extends Error {
+  constructor(readonly status: number, boundary: string, message?: string) {
+    super(message ?? `${boundary} returned ${status}`);
+  }
+}
+
 export function parseHealth(value: unknown): Health {
   if (!isRecord(value)) {
     throw new BoundaryValidationError("GET /api/health", "response must be an object");
@@ -47,7 +53,7 @@ export async function getHealth(signal: AbortSignal): Promise<Health> {
     signal,
   });
   if (!response.ok) {
-    throw new Error(`GET /api/health returned ${response.status}`);
+    throw new HostRequestError(response.status, "GET /api/health");
   }
   return parseHealth(await response.json());
 }
@@ -141,7 +147,7 @@ async function requestJSON(boundary: string, input: string, init: RequestInit): 
     headers,
   });
   if (!response.ok) {
-    throw new Error(`${boundary} returned ${response.status}`);
+    throw new HostRequestError(response.status, boundary);
   }
   const contentType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
   if (contentType !== "application/json") {

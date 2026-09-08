@@ -1,3 +1,5 @@
+import { uiText } from "./ui-localization.js";
+import { uiRequestError } from "./ui-errors.js";
 import { LitElement, html, nothing } from "lit";
 import { routeRecordReferences } from "./route-record-references.js";
 import {
@@ -288,6 +290,7 @@ export class CodexApp extends LitElement {
       this.#outletLocale = this.#ui.locale;
       this.#routeOutlet?.refresh();
       this.#articleOutlet?.refresh();
+      this.#navigationOutlet?.refresh();
     }
   }
 
@@ -304,7 +307,7 @@ export class CodexApp extends LitElement {
     } catch (cause: unknown) {
       if (signal.aborted) return;
       this.authority = { state: "known", auth: anonymousAuth() };
-      this.errorMessage = `Session check failed: ${errorMessage(cause)}`;
+      this.errorMessage = uiText("Session check failed: {0}", { "0": errorMessage(cause) });
     }
 
     await this.#loadCampaign(signal);
@@ -314,7 +317,7 @@ export class CodexApp extends LitElement {
       try {
         await this.#startAddons();
       } catch (cause: unknown) {
-        if (!signal.aborted) this.errorMessage = `Add-ons could not start: ${errorMessage(cause)}`;
+        if (!signal.aborted) this.errorMessage = uiText("Add-ons could not start: {0}", { "0": errorMessage(cause) });
       }
     }
   }
@@ -340,7 +343,7 @@ export class CodexApp extends LitElement {
       if (retainCurrent && current !== undefined) {
         applyCampaignTheme(current);
         this.campaignState = { state: "ready", campaign: current };
-        this.errorMessage = `Campaign refresh failed: ${errorMessage(cause)}`;
+        this.errorMessage = uiText("Campaign refresh failed: {0}", { "0": errorMessage(cause) });
       } else {
         this.campaignState = { state: "unavailable", message: errorMessage(cause) };
       }
@@ -355,7 +358,7 @@ export class CodexApp extends LitElement {
         void this.#handleEvent(event);
       },
       onBoundaryError: (cause) => {
-        this.errorMessage = `Live update was rejected: ${errorMessage(cause)}`;
+        this.errorMessage = uiText("Live update was rejected: {0}", { "0": errorMessage(cause) });
       },
       onConnectionError: () => {
         this.liveState = "reconnecting";
@@ -398,7 +401,7 @@ export class CodexApp extends LitElement {
       form.reset();
       await this.#reloadForAuthority();
     } catch (cause: unknown) {
-      if (!this.#request.signal.aborted) this.errorMessage = `Sign-in failed: ${errorMessage(cause)}`;
+      if (!this.#request.signal.aborted) this.errorMessage = uiText("Sign-in failed: {0}", { "0": errorMessage(cause) });
     } finally {
       this.busy = false;
     }
@@ -418,7 +421,7 @@ export class CodexApp extends LitElement {
       if (this.route.kind === "addon") window.location.hash = "#/";
     } catch (cause: unknown) {
       if (!this.#request.signal.aborted) {
-        this.errorMessage = `Sign-out failed: ${errorMessage(cause)}`;
+        this.errorMessage = uiText("Sign-out failed: {0}", { "0": errorMessage(cause) });
         await this.#recoverAddons();
       }
     } finally {
@@ -442,7 +445,7 @@ export class CodexApp extends LitElement {
       await this.#reloadForAuthority();
     } catch (cause: unknown) {
       if (!this.#request.signal.aborted) {
-        this.errorMessage = `View switch failed: ${errorMessage(cause)}`;
+        this.errorMessage = uiText("View switch failed: {0}", { "0": errorMessage(cause) });
         await this.#recoverAddons();
       }
     } finally {
@@ -459,7 +462,7 @@ export class CodexApp extends LitElement {
       await this.#startAddons();
     } catch (cause: unknown) {
       if (!this.#request.signal.aborted) {
-        this.errorMessage = `Add-ons could not start: ${errorMessage(cause)}`;
+        this.errorMessage = uiText("Add-ons could not start: {0}", { "0": errorMessage(cause) });
       }
     }
   }
@@ -469,7 +472,7 @@ export class CodexApp extends LitElement {
     try {
       await this.#startAddons();
     } catch (cause: unknown) {
-      this.errorMessage += ` Add-on recovery also failed: ${errorMessage(cause)}`;
+      this.errorMessage += uiText(" Add-on recovery also failed: {0}", { "0": errorMessage(cause) });
     }
   }
 
@@ -534,6 +537,7 @@ export class CodexApp extends LitElement {
         registry: composition.contributions,
         role: auth.role,
         currentHash: () => window.location.hash,
+        locale: () => this.#ui.locale,
         include: entry => {
           const mode = addonSidebarMode(this.campaignState.state === "ready" ? this.campaignState.campaign : undefined, addonSidebarKey(entry));
           return mode === "everyone" || mode === "dm" && auth.role === "dm";
@@ -596,7 +600,7 @@ export class CodexApp extends LitElement {
     if (addons !== undefined) {
       const failures = await addons.session.stop();
       if (failures.length > 0) {
-        this.errorMessage = `Failed to clean up ${failures.length} browser add-on resource(s).`;
+        this.errorMessage = uiText("Failed to clean up {0} browser add-on resource(s).", { "0": failures.length });
       }
     }
   }
@@ -774,11 +778,11 @@ export class CodexApp extends LitElement {
     const auth = this.authority.auth;
     return html`
       <section class="account-panel signed-in">
-        <p><span class="authority-mark" aria-hidden="true"></span>${this.#ui.t("shell.viewingAs")} <strong>${auth.role === "dm" ? "DM" : this.#ui.t("shell.player")}</strong></p>
+        <p><span class="authority-mark" aria-hidden="true"></span>${this.#ui.t("shell.viewingAs")} <strong>${auth.role === "dm" ? uiText("DM") : this.#ui.t("shell.player")}</strong></p>
         ${auth.realRole === "dm" ? html`
           <button class="text-button" type="button" @click=${auth.role === "dm" ? this.#openPreview : this.#switchRole} ?disabled=${this.busy}
             title=${auth.role === "dm" ? this.#ui.t("preview.openHint") : nothing}>
-            ${this.#ui.t("shell.viewAs", { role: auth.role === "dm" ? this.#ui.t("shell.player") : "DM" })}
+            ${this.#ui.t("shell.viewAs", { role: auth.role === "dm" ? this.#ui.t("shell.player") : uiText("DM") })}
           </button>
         ` : nothing}
         <button class="text-button" type="button" @click=${this.#logout} ?disabled=${this.busy}>${this.#ui.t("shell.signOut")}</button>
@@ -870,7 +874,7 @@ export class CodexApp extends LitElement {
           .actorRole=${this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined}></codex-search>`;
       case "settings":
         return html`<codex-settings
-          .addonPages=${this.#canManageCampaign() && this.#addons !== undefined ? listBrowserNavigation(this.#addons.contributions, "dm") : []}
+          .addonPages=${this.#canManageCampaign() && this.#addons !== undefined ? listBrowserNavigation(this.#addons.contributions, "dm", this.#ui.locale) : []}
           .csrfToken=${this.authority.state === "known" && this.authority.auth.authenticated ? this.authority.auth.csrfToken : ""}
           @addon-admin-busy=${(event: CustomEvent<boolean>) => { this.busy = event.detail; }}
           .campaign=${campaign}
@@ -963,8 +967,8 @@ export class CodexApp extends LitElement {
       );
     } catch (cause: unknown) {
       this.errorMessage = cause instanceof CampaignRecordEditError && cause.kind === "stale"
-        ? "The entry or its relationships changed. Your draft is kept; copy any notes you need, then cancel and reopen to review the current version."
-        : "The entry contains a value that cannot be saved.";
+        ? uiText("The entry or its relationships changed. Your draft is kept; copy any notes you need, then cancel and reopen to review the current version.")
+        : uiText("The entry contains a value that cannot be saved.");
       return;
     }
     this.busy = true;
@@ -982,8 +986,8 @@ export class CodexApp extends LitElement {
     } catch (cause: unknown) {
       if (!this.#request.signal.aborted) {
         this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409
-          ? "The entry changed while saving. Reload its current version and try again."
-          : `The entry could not be saved: ${errorMessage(cause)}`;
+          ? uiText("The entry changed while saving. Reload its current version and try again.")
+          : uiText("The entry could not be saved: {0}", { "0": errorMessage(cause) });
       }
     } finally {
       this.busy = false;
@@ -1001,8 +1005,8 @@ export class CodexApp extends LitElement {
       prepared = prepareCampaignRecordDelete(this.campaignState.campaign, event.detail);
     } catch (cause: unknown) {
       this.errorMessage = cause instanceof CampaignRecordEditError && cause.kind === "stale"
-        ? "The entry changed before it could be deleted. Refresh and try again."
-        : "The delete request is no longer valid.";
+        ? uiText("The entry changed before it could be deleted. Refresh and try again.")
+        : uiText("The delete request is no longer valid.");
       return;
     }
     this.busy = true;
@@ -1020,8 +1024,8 @@ export class CodexApp extends LitElement {
     } catch (cause: unknown) {
       if (!this.#request.signal.aborted) {
         this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409
-          ? "The entry changed while deleting. Reload its current version and try again."
-          : `The entry could not be deleted: ${errorMessage(cause)}`;
+          ? uiText("The entry changed while deleting. Reload its current version and try again.")
+          : uiText("The entry could not be deleted: {0}", { "0": errorMessage(cause) });
       }
     } finally {
       this.busy = false;
@@ -1040,9 +1044,9 @@ export class CodexApp extends LitElement {
     } catch (cause: unknown) {
       this.errorMessage = cause instanceof CampaignSettingsEditError
         ? cause.kind === "stale"
-          ? "The definition changed. Your draft is kept; copy any notes you need, then cancel and reopen to review the current version."
-          : "The definition contains a value that cannot be saved."
-        : `The definition could not be prepared: ${errorMessage(cause)}`;
+          ? uiText("The definition changed. Your draft is kept; copy any notes you need, then cancel and reopen to review the current version.")
+          : uiText("The definition contains a value that cannot be saved.")
+        : uiText("The definition could not be prepared: {0}", { "0": errorMessage(cause) });
       return;
     }
     this.busy = true;
@@ -1055,8 +1059,8 @@ export class CodexApp extends LitElement {
     } catch (cause: unknown) {
       if (!this.#request.signal.aborted) {
         this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409
-          ? "Settings changed while saving. Reload the current definition and try again."
-          : `The definition could not be saved: ${errorMessage(cause)}`;
+          ? uiText("Settings changed while saving. Reload the current definition and try again.")
+          : uiText("The definition could not be saved: {0}", { "0": errorMessage(cause) });
       }
     } finally {
       this.busy = false;
@@ -1074,8 +1078,8 @@ export class CodexApp extends LitElement {
       mutation = prepareCampaignEnumDelete(this.campaignState.campaign, event.detail);
     } catch (cause: unknown) {
       this.errorMessage = cause instanceof CampaignSettingsEditError
-        ? "The definition changed before it could be deleted."
-        : `The deletion could not be prepared: ${errorMessage(cause)}`;
+        ? uiText("The definition changed before it could be deleted.")
+        : uiText("The deletion could not be prepared: {0}", { "0": errorMessage(cause) });
       return;
     }
     this.busy = true;
@@ -1089,9 +1093,9 @@ export class CodexApp extends LitElement {
       if (!this.#request.signal.aborted) {
         this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409
           ? mutation.mode === "reject-if-used"
-            ? "The definition is now in use or settings changed. Review the category and try again."
-            : "Settings changed while deleting. Review the category and try again."
-          : `The definition could not be deleted: ${errorMessage(cause)}`;
+            ? uiText("The definition is now in use or settings changed. Review the category and try again.")
+            : uiText("Settings changed while deleting. Review the category and try again.")
+          : uiText("The definition could not be deleted: {0}", { "0": errorMessage(cause) });
       }
     } finally {
       this.busy = false;
@@ -1279,9 +1283,9 @@ export class CodexApp extends LitElement {
     } catch (cause: unknown) {
       this.errorMessage = cause instanceof CampaignAppearanceEditError
         ? cause.kind === "stale"
-          ? "Appearance changed. Your choice is kept; reopen Appearance to review the current theme before saving."
-          : "The appearance setting is invalid."
-        : `The appearance setting could not be prepared: ${errorMessage(cause)}`;
+          ? uiText("Appearance changed. Your choice is kept; reopen Appearance to review the current theme before saving.")
+          : uiText("The appearance setting is invalid.")
+        : uiText("The appearance setting could not be prepared: {0}", { "0": errorMessage(cause) });
       return;
     }
     this.busy = true;
@@ -1294,8 +1298,8 @@ export class CodexApp extends LitElement {
     } catch (cause: unknown) {
       if (!this.#request.signal.aborted) {
         this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409
-          ? "Appearance changed while saving. Review the current theme and try again."
-          : `Appearance could not be saved: ${errorMessage(cause)}`;
+          ? uiText("Appearance changed while saving. Review the current theme and try again.")
+          : uiText("Appearance could not be saved: {0}", { "0": errorMessage(cause) });
       }
     } finally {
       this.busy = false;
@@ -1331,7 +1335,7 @@ export class CodexApp extends LitElement {
     const edits = this.#addons?.contributions.edits.state(active =>
       currentRoute !== undefined && currentRoute === nextRoute && active.descriptor.surface === "route" && browserAddonRouteHash(active) === currentRoute);
     if (edits?.saving) {
-      this.errorMessage = "Wait for the add-on save to finish before leaving this view.";
+      this.errorMessage = uiText("Wait for the add-on save to finish before leaving this view.");
       return false;
     }
     if (!confirmDiscardUnsavedEdit(this.#editDirty || edits?.dirty === true, (message) => window.confirm(message))) return false;
@@ -1359,7 +1363,7 @@ function normalizedHash(value: string): string {
 }
 
 function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : "Unknown application failure";
+  return uiRequestError(cause);
 }
 
 function liveMessageKey(state: LiveState): MessageKey {

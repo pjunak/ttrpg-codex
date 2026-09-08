@@ -188,7 +188,8 @@ function parseCampaignMarkdownWithSlugger(
     slugCounts.set(base, occurrence);
     const id = occurrence === 1 ? base : `${base}-${occurrence}`;
     headingIDs.set(token, id);
-    if (heading.depth <= 3) outline.push(Object.freeze({ id, text: headingText, depth: heading.depth }));
+    if (heading.depth <= 3) outline.push(Object.freeze({ id,
+      text: inlineText(heading.tokens).trim() || heading.text.trim() || uiText("Section"), depth: heading.depth }));
   });
   return Object.freeze({
     tokens: Object.freeze([...tokens]),

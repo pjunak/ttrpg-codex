@@ -1,3 +1,4 @@
+import { validContributionLabels } from "./contribution-label.js";
 import {
   GenerationScope,
   type Disposer,
@@ -606,8 +607,11 @@ function validateContributionConfig(
   config: Readonly<Record<string, unknown>>,
   owner: string,
 ): void {
+  if (Object.hasOwn(config, "labels") && !validContributionLabels(config["labels"])) {
+    throw new BrowserGenerationPlanError(`contribution ${owner} has invalid localized labels`);
+  }
   if (surface === "route") {
-    if (!hasExactKeys(config, "path") ||
+    if (!hasExactKeys(config, "path", ...(Object.hasOwn(config, "labels") ? ["labels"] : [])) ||
       typeof config["path"] !== "string" ||
       config["path"].length > 200 ||
       !routePathPattern.test(config["path"])) {
@@ -618,7 +622,7 @@ function validateContributionConfig(
     return;
   }
   if (surface === "sidebar" &&
-    (!hasExactKeys(config, "route") ||
+    (!hasExactKeys(config, "route", ...(Object.hasOwn(config, "labels") ? ["labels"] : [])) ||
       typeof config["route"] !== "string" ||
       config["route"].length > 100 ||
       !localIdPattern.test(config["route"]))) {

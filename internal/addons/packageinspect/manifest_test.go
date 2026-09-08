@@ -127,6 +127,43 @@ func TestManifestSchemaRequiresCanonicalNavigationMetadata(t *testing.T) {
 		valid        bool
 	}{
 		{
+			name: "localized route",
+			contribution: map[string]any{
+				"id": "planner.route", "surface": "route", "label": "Planner",
+				"config": map[string]any{"path": "planner", "labels": map[string]any{"cs": "Plánovač příběhu"}},
+			},
+			valid: true,
+		},
+		{
+			name: "localized sidebar",
+			contribution: map[string]any{
+				"id": "planner.sidebar", "surface": "sidebar", "label": "Planner",
+				"config": map[string]any{"route": "planner.route", "labels": map[string]any{"en": "Planner", "cs": "Plánovač"}},
+			},
+			valid: true,
+		},
+		{
+			name: "blank localized label",
+			contribution: map[string]any{
+				"id": "planner.route", "surface": "route", "label": "Planner",
+				"config": map[string]any{"path": "planner", "labels": map[string]any{"cs": "   "}},
+			},
+		},
+		{
+			name: "localized label control character",
+			contribution: map[string]any{
+				"id": "planner.route", "surface": "route", "label": "Planner",
+				"config": map[string]any{"path": "planner", "labels": map[string]any{"cs": "Bad\nlabel"}},
+			},
+		},
+		{
+			name: "unknown localized label key",
+			contribution: map[string]any{
+				"id": "planner.route", "surface": "route", "label": "Planner",
+				"config": map[string]any{"path": "planner", "labels": map[string]any{"path": "different"}},
+			},
+		},
+		{
 			name: "route",
 			contribution: map[string]any{
 				"id": "planner.route", "surface": "route", "label": "Planner",

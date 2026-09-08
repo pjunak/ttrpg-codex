@@ -42,12 +42,11 @@ forms are protected across navigation and session changes, and the rebuilt wiki
 renders safe Markdown with campaign links and article outlines. The first
 DM-facing settings slice manages shared campaign enumerations with stable IDs,
 usage-aware deletion, and enum-backed record fields. Bundled English and Czech
-catalogs now drive the shell, dashboard, search, and personal settings, while a
-per-browser language preference and DM-owned campaign appearance setting cover
-the first localization and theme slices. Record/editor catalog coverage and a
-full design-token audit remain intentionally open alongside maps, timeline,
-graph views, the remaining settings, administrative UI, and first-party add-on
-workflow acceptance in the suite backlog, reinforced by
+catalogs drive the campaign interface, record and relationship editors,
+configuration, recovery messages, and first-party add-on controls. A per-browser
+language preference changes interface text while keeping authored campaign text,
+reference content, stored IDs, and open drafts intact. The remaining design-token,
+visual and campaign workflow acceptance is tracked in the suite backlog, reinforced by
 `frontend/REWRITE_INCOMPLETE`.
 
 ## Technology

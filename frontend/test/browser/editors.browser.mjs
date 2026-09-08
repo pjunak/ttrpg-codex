@@ -57,6 +57,45 @@ async function fixture(t, data, route) {
 const refresh = (page, data) => page.evaluate(data => window.editorFixture.refresh(data), data);
 const submission = page => page.evaluate(() => window.editorFixture.submissions.at(-1));
 
+const language = (page, locale) => page.evaluate(async locale => {
+  const { setUiLocale } = await import('/src/app/ui-localization.ts'); setUiLocale(locale);
+}, locale);
+
+test("Czech record and relationship editors retain drafts and stable values across language changes", async t => {
+  const page = await fixture(t, dataset({ characters: [character(), { key: 'peer', revision: 1, value: { id: 'peer', name: 'Title {0} $&' } }] }), '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.locator('[name="name"]').fill('Name {0} $&');
+  await page.getByRole('button', { name: 'Add question', exact: true }).click();
+  await page.locator('[data-part="text"]').fill('Untranslated authored question');
+  await page.getByRole('button', { name: 'Add relationship', exact: true }).click();
+  await page.locator('[data-part="target"]').selectOption('peer');
+  await language(page, 'cs');
+  await page.getByRole('button', { name: 'Uložit záznam', exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Název', { exact: true }).inputValue(), 'Name {0} $&');
+  assert.equal(await page.locator('[data-part="text"]').inputValue(), 'Untranslated authored question');
+  assert.equal(await page.locator('[data-part="target"]').inputValue(), 'peer');
+  await page.getByRole('button', { name: 'Uložit záznam', exact: true }).click();
+  const result = await submission(page);
+  assert.equal(result.error, undefined); assert.equal(result.detail.fields.name, 'Name {0} $&');
+  assert.equal(result.detail.relationships[0].target, 'peer');
+  await language(page, 'en');
+  assert.equal(await page.getByLabel('Name', { exact: true }).inputValue(), 'Name {0} $&');
+});
+
+test("Czech campaign settings translate closed choices and retain authored definitions", async t => {
+  const page = await fixture(t, dataset({ settings: [gender()] }));
+  await page.locator('[data-category="genders"]').click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.locator('[name="label"]').fill('Display name {0} $&');
+  await language(page, 'cs');
+  await page.getByRole('button', { name: 'Uložit definici', exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Zobrazovaný název', { exact: true }).inputValue(), 'Display name {0} $&');
+  await page.getByRole('button', { name: 'Uložit definici', exact: true }).click();
+  const result = await submission(page);
+  assert.equal(result.error, undefined); assert.equal(result.detail.originalId, 'unspecified');
+  assert.equal(result.detail.fields.label, 'Display name {0} $&');
+});
+
 test("record drafts retain their opening revision and fields across live refresh", async t => {
   const page = await fixture(t, dataset({ characters: [character()] }), "#/characters/ryn");
   await page.getByRole("button", { name: "Edit", exact: true }).click();

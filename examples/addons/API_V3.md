@@ -1233,6 +1233,18 @@ Locale catalogs are declarative package assets. Message IDs are add-on scoped.
 The host validates catalogs without executing UI code and reports fallback
 behavior in the Inspector.
 
+Route, sidebar, article-section, and dashboard slot contributions may additionally
+declare `config.labels`, an object with optional
+`en` and `cs` display strings, for host-owned navigation and contribution headings.
+Each label is non-empty plain text of at most 200 characters without control
+characters. Inspection and browser boundaries reject malformed metadata. A missing
+locale falls back to the contribution's required `label`; display helpers also
+defend against invalid entries. Hosts predating this optional metadata may reject
+such packages at inspection and should be updated first. This metadata changes
+display text only; contribution IDs, route paths, permissions, and mounted view
+identities stay unchanged. Integrated and isolated views continue translating
+their own content from the locale in their host context.
+
 ## Debugging contract
 
 Every add-on must be explainable from the host without attaching a debugger.

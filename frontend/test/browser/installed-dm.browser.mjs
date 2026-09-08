@@ -25,6 +25,7 @@ import { exercisePlannerConcurrency } from './installed-planner-concurrency-fixt
 import { exercisePlannerNavigation, unloadBlocked, attemptHash } from './installed-planner-navigation-fixture.mjs';
 import { exercisePlannerAnnotations } from './installed-planner-annotation-fixture.mjs';
 import { exercisePlannerStructure } from './installed-planner-structure-fixture.mjs';
+import { exerciseCzechInterface } from './installed-interface-localization-fixture.mjs';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const output = resolve(root, 'frontend/test-results/installed-dm');
@@ -287,6 +288,11 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} subscript
   assert.deepEqual(JSON.parse(await output.textContent()).filter(change => change.reason === 'changed'), [{ reason: 'changed', kind: 'collection', dataId: 'notes' }]);
   await slot.getByRole('button', { name: 'Stop changes', exact: true }).click(); const before = await output.textContent();
   await write(id, 1); await page.waitForTimeout(250); assert.equal(await output.textContent(), before);
+});
+
+if (process.env.CODEX_DM_TOOLS_ZIP) for (const mobile of [false, true]) test(`installed Czech interface retains authored records, planner links, notes and undo on ${mobile ? 'phone' : 'desktop'}`, async t => {
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), dmToolsPermissions);
+  t.after(() => disable('dm-tools')); await exerciseCzechInterface({ t, open, admin, csrf, output, mobile });
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) for (const mobile of [false, true]) test(`installed planner action parity creates, connects, resets and explains shortcuts on ${mobile ? 'phone' : 'desktop'}`, async t => {

@@ -343,6 +343,21 @@
         }
       }
     },
+    "contributionLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "\\S",
+      "not": { "pattern": "[\u0000-\u001f\u007f-\u009f]" }
+    },
+    "contributionLabels": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "en": { "$ref": "#/$defs/contributionLabel" },
+        "cs": { "$ref": "#/$defs/contributionLabel" }
+      }
+    },
     "contribution": {
       "type": "object",
       "additionalProperties": false,
@@ -391,6 +406,7 @@
         },
         "config": {
           "type": "object",
+          "properties": { "labels": { "$ref": "#/$defs/contributionLabels" } },
           "additionalProperties": true
         }
       },
@@ -470,6 +486,7 @@
                 "additionalProperties": false,
                 "required": ["path"],
                 "properties": {
+                  "labels": { "$ref": "#/$defs/contributionLabels" },
                   "path": {
                     "type": "string",
                     "minLength": 1,
@@ -498,6 +515,7 @@
                 "additionalProperties": false,
                 "required": ["route"],
                 "properties": {
+                  "labels": { "$ref": "#/$defs/contributionLabels" },
                   "route": {
                     "$ref": "#/$defs/localId"
                   }

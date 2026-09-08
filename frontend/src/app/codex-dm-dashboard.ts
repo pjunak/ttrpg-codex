@@ -2,6 +2,7 @@ import { LitElement, html, nothing } from "lit";
 import { BrowserContributionOutlet } from "../addons/contribution-outlet.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import { browserAddonRouteHash } from "../addons/navigation.js";
+import { contributionLabel } from "../addons/contribution-label.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
 import { isRecord } from "../core/boundary.js";
 import { campaignPages, collectionHash } from "./routes.js";
@@ -51,7 +52,7 @@ export class CodexDmDashboard extends LitElement {
     this.#outlet = new BrowserContributionOutlet({ document: this.ownerDocument,
       root: this.querySelector<HTMLElement>("[data-dm-dashboard-slot]")!, registry: this.registry, surface: "slot", role: "dm", compact: true,
       isolatedHostContext: true, hostContext: () => ({ contractVersion: "dm-dashboard-context.v1", locale: this.#ui.locale }),
-      include: active => Object.keys(active.descriptor.config).length === 2 && active.descriptor.config["contractVersion"] === 1 && active.descriptor.config["slot"] === "dm:dashboard",
+      include: active => Object.keys(active.descriptor.config).every(key => ["contractVersion", "slot", "labels"].includes(key)) && active.descriptor.config["contractVersion"] === 1 && active.descriptor.config["slot"] === "dm:dashboard",
       onError: () => { this.failed = true; }, onCountChange: count => { this.count = count; this.requestUpdate(); },
     });
   }
@@ -80,7 +81,7 @@ export class CodexDmDashboard extends LitElement {
       ${routes.length === 0 ? nothing : html`<section class="dm-section" aria-labelledby="dm-tools-title">
         <h2 id="dm-tools-title">${this.#ui.t("dm.tools")}</h2>
         <nav class="dm-grid" aria-label=${this.#ui.t("dm.tools")}>${routes.map(active => html`
-          <a class="dm-count-card" href=${browserAddonRouteHash(active)}><strong>${active.descriptor.label}</strong><span class="dm-count-meta">${active.addonId}</span></a>
+          <a class="dm-count-card" href=${browserAddonRouteHash(active)}><strong>${contributionLabel(active.descriptor, this.#ui.locale)}</strong><span class="dm-count-meta">${active.addonId}</span></a>
         `)}</nav>
       </section>`}
       <section class="dm-section" aria-labelledby="dm-addon-health-title">

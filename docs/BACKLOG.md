@@ -86,9 +86,26 @@ those later changes at cutover rather than silently restoring an older state.
 - [x] Establish typed bundled English and Czech catalogs, per-browser language
   selection, native plural/date handling, and migrate the shell, dashboard,
   search, and personal settings foundation.
-- [ ] Complete the English and Czech catalog migration for record pages and
+- [x] Complete the English and Czech catalog migration for record pages and
   editors, structured campaign settings, host errors, and first-party add-on
   surfaces.
+  Record fields, structured editors, enum settings, confirmations, recovery
+  messages, and the complete planner now follow the browser language. Reviewed
+  contribution labels also localize add-on navigation and section headings;
+  compendium monster ability labels complete its interface catalog. Language
+  changes retain mounted editors, drafts, stable IDs, and saved links. Authored
+  campaign text, rulebook content, and original technical diagnostics retain
+  their language. Update the host before installing packages with the new
+  optional label metadata.
+  Validation: 309 host unit tests, 211 browser cases with all four add-on ZIPs
+  (including targeted reruns after correcting localized test selectors and a
+  test-command archive path),
+  44 DM Tools tests, 28 rendering checks at each DPR, 57 compendium tests,
+  31 sheet tests, host/add-on Go tests and vet, and three rebuilt, inspected
+  ZIPs. Czech desktop/phone workflows exercise record creation, planner
+  creation/linking/notes, save, delete, undo, and reload. Locale-switch checks
+  retain authored drafts and targets; translated editor screenshots retain
+  the existing layout. Whole-campaign visual acceptance remains separate.
 - [x] Restore campaign-wide appearance selection with classic and moonlit token
   themes, flash-free cached boot, and DM-owned optimistic persistence.
 - [ ] Complete the accessible token audit across remaining hardcoded record and
@@ -259,7 +276,7 @@ those later changes at cutover rather than silently restoring an older state.
   creation, held/lost responses, real tombstone undo and shared-note conflicts,
   reset followed by movement, connection cancellation/cycles/live deferral,
   keyboard behavior and desktop/phone presentation. Screenshots were reviewed.
-  Planner localization and final real-campaign visual acceptance remain.
+  Planner localization is complete; final real-campaign visual acceptance remains.
 - [x] Restore standalone compendium browsing and reading: the preserved topic/
   source tree, class/subclass/level nesting, tiles, deep cross-kind search,
   counted filters and sorting, complete Markdown/tables, composed class features,
@@ -782,14 +799,14 @@ acceptance still need to be expanded as follow-up documentation.
 | `/artefakty`, `/artefakt/:id` | `/artifacts`, `/artifacts/:id` | Copied-campaign article/editor acceptance |
 | `/historie`, `/historicka-udalost/:id` | `/history`, `/history/:id` | Copied-campaign article/editor acceptance |
 | `/mazlicci` | `/companions` and dedicated companion records | Ownership and sheet-related workflow acceptance |
-| Global search and wiki links | `/search` and typed Markdown links | Add-on reference/linking surfaces and localized editors |
+| Global search and wiki links | `/search` and typed Markdown links; editors localized | Add-on reference/linking campaign acceptance |
 | `/mapa/svet`, `/mapa/local/:id` | `/map/world`, `/map/local/:id`; old map hashes also accepted | Real-host acceptance with each campaign's maps |
 | `/mapa/vztahy` | `/graph/relationships`; old hash and browser position/filter keys accepted | Campaign/add-on visual acceptance |
 | `/mapa/palac`, `/mapa/frakce`, `/mapa/tajemstvi` | `/graph/factions`, `/graph/mysteries`; old hashes and unambiguous browser positions accepted | Campaign/add-on visual acceptance |
 | `/casova-osa`, `/mapa/casova-osa` | `/timeline`; old hashes accepted, session creation, atomic order editing and four additive slots restored | Real-campaign visual review |
 | `/dm` and player-preview action | Core DM panel, planning totals/recent links, additive slots, fallback counts/status, tool links and separate-tab player preview restored | Desktop/phone preview checks pass for independent DM/player authority, reload, navigation, media, live updates and revocation; planner/import acceptance is tracked separately |
-| `/nastaveni`: six enum categories | `/settings` enum panels | Full localization and real-host save/delete/conflict coverage |
-| Settings: `language`, `appearance` | Personal language, shared theme and branding/logo panels | Remaining catalogs, tokens, and campaign visual acceptance |
+| `/nastaveni`: six enum categories | `/settings` enum panels with English/Czech controls | Real-host save/delete/conflict coverage |
+| Settings: `language`, `appearance` | Personal language, shared theme and branding/logo panels | Tokens and campaign visual acceptance |
 | Settings: `worldmap` | Maps panel at `/settings/maps`, with local-map scope links | Real-host visual acceptance with campaign maps |
 | Settings: `playerParty`, `sidebarPages` | Party identity, curated core sidebar, and add-on visibility controls restored | Older hidden-page preference conversion and installed-route key review |
 | Settings: `addons` | Reviewed manager restores inspection, permission approval, activation, diagnostics, update, disable and rollback | Installed desktop/phone tests pass; campaign acceptance remains |

@@ -1,4 +1,5 @@
 import { isRecord } from "../core/boundary.js";
+import { uiText } from "./ui-localization.js";
 import { campaignCollection, type CampaignDataset, type CampaignRecord } from "../core/campaign-data.js";
 import type { CampaignMutation } from "../core/campaign-mutations.js";
 
@@ -24,7 +25,7 @@ export class CampaignPartyEditError extends Error {
 }
 
 const defaults: CampaignPartyIdentity = Object.freeze({
-  name: "Our Party", icon: "🛡", badge: "🛡", color: "#f5f0e4", textColor: "#1a1410",
+  get name() { return uiText("Our Party"); }, icon: "🛡", badge: "🛡", color: "#f5f0e4", textColor: "#1a1410",
 });
 
 export function campaignPartyRecord(campaign: CampaignDataset): CampaignRecord | undefined {

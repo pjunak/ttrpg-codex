@@ -69,7 +69,7 @@ describe("BrowserContributionOutlet", () => {
       descriptor("dnd-sheets", {
         ...contribution("sheet.section", 10),
         surface: "article-section",
-        config: { collection: "characters" },
+        config: { collection: "characters", labels: { cs: "Deník postavy" } },
       }),
       new GenerationScope("dnd-sheets@generation"),
     );
@@ -101,6 +101,7 @@ describe("BrowserContributionOutlet", () => {
     expect(element.codexContribution.host.revision).toBe(4);
     locale = "cs"; outlet.refresh();
     expect(element.codexContribution.host.locale).toBe("cs");
+    expect(((root.children[0] as FakeElement).children[0] as FakeElement).children[0]?.textContent).toBe("Deník postavy");
     expect((root.children[0] as FakeElement).children[1]).toBe(element);
     outlet.dispose();
   });

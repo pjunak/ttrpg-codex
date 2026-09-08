@@ -1,5 +1,6 @@
 import { BoundaryValidationError, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
+import { HostRequestError } from "./api.js";
 
 export interface InstalledGeneration { addonId: string; generationId: string; version: string; installedAt: string; lastError: string }
 export interface AddonSnapshot {
@@ -59,7 +60,7 @@ export class AddonAdminClient {
       headers: { Accept: "application/json", "X-Codex-CSRF": this.csrfToken, ...(archive ? { "Content-Type": "application/zip" } : body !== undefined ? { "Content-Type": "application/json" } : {}) },
       ...(archive ? { body: archive } : body !== undefined ? { body: JSON.stringify(body) } : {}) });
     const value: unknown = await response.json();
-    if (!response.ok) { const error = isRecord(value) && isRecord(value["error"]) ? value["error"] : undefined; throw new Error(typeof error?.["message"] === "string" ? error["message"] : `Request failed (${response.status}).`); }
+    if (!response.ok) { const error = isRecord(value) && isRecord(value["error"]) ? value["error"] : undefined; throw new HostRequestError(response.status, "Add-on management", typeof error?.["message"] === "string" ? error["message"] : undefined); }
     return value;
   }
   async inventory(): Promise<AddonSnapshot[]> {

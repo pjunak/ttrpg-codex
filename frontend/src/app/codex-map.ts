@@ -1,3 +1,4 @@
+import { uiText } from "./ui-localization.js";
 import { previewResourceURL } from "../core/player-preview.js";
 import { LitElement, html, nothing } from "lit";
 import { markerGlowLayers } from "./campaign-attitude-glow.js";
@@ -592,8 +593,8 @@ function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageElement> 
     const image = new Image();
     const cleanup = () => { image.onload = null; image.onerror = null; signal.removeEventListener("abort", abort); };
     const abort = () => { cleanup(); image.src = ""; reject(signal.reason); };
-    image.onload = () => { cleanup(); image.naturalWidth && image.naturalHeight ? resolve(image) : reject(new Error("Empty image")); };
-    image.onerror = () => { cleanup(); reject(new Error("Image unavailable")); };
+    image.onload = () => { cleanup(); image.naturalWidth && image.naturalHeight ? resolve(image) : reject(new Error(uiText("Empty image"))); };
+    image.onerror = () => { cleanup(); reject(new Error(uiText("Image unavailable"))); };
     signal.addEventListener("abort", abort, { once: true });
     if (signal.aborted) abort(); else image.src = previewResourceURL(url);
   });

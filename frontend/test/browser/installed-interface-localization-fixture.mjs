@@ -1,0 +1,92 @@
+import assert from 'node:assert/strict';
+import { resolve } from 'node:path';
+import { jsonResponse } from './installed-graph-fixture.mjs';
+
+export async function exerciseCzechInterface({ t, open, admin, csrf, output, mobile }) {
+  const page = await open(t, 'dm', mobile), suffix = mobile ? 'phone' : 'desktop';
+  page.setDefaultTimeout(10000);
+  await page.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await page.reload();
+  await page.getByRole('heading', { name: 'Plánování kampaně', exact: true }).waitFor();
+  await page.goto('/#/settings'); await page.locator('[data-category="sidebar"]').click();
+  await page.getByLabel('Viditelnost stránky Plánovač příběhu', { exact: true }).selectOption('everyone');
+  const sidebarSaved = page.waitForResponse(response => response.url().endsWith('/api/campaign/transactions') && response.request().method() === 'POST');
+  await page.locator('codex-sidebar-settings button.primary').click();
+  assert.equal((await sidebarSaved).status(), 200);
+  await page.waitForFunction(() => !document.querySelector('codex-app').busy);
+  assert.equal(await page.locator('.addon-navigation-link[href="#/addons/dm-tools/planner"]').textContent(), 'Plánovač příběhu');
+  const headers = { 'X-Codex-CSRF': csrf };
+  const generation = (await jsonResponse(await admin.get('/api/admin/addons/dm-tools'))).state.activeGenerationId;
+  const base = `/api/addons/dm-tools/generations/${generation}/data`;
+  const records = async dataId => (await jsonResponse(await admin.post(`${base}/query`, { headers,
+    data: { contractVersion: 'addon-data-query.v1', kind: 'collection', dataId, limit: 200, where: [] } }))).documents;
+
+  await page.goto('/#/characters');
+  await page.getByRole('button', { name: /^Přidat:/u }).click();
+  const authored = `Title {0} $& ${suffix}`;
+  await page.getByLabel('Název', { exact: true }).fill(authored);
+  await page.locator('[name="description"]').fill('Keep this authored English paragraph.');
+  await page.getByRole('button', { name: 'Uložit záznam', exact: true }).click();
+  await page.getByRole('heading', { name: authored, exact: true }).waitFor();
+  const campaign = await jsonResponse(await admin.get('/api/campaign'));
+  const character = campaign.collections.find(collection => collection.name === 'characters').records.find(record => record.value.name === authored);
+  assert.ok(character); assert.equal(character.value.description, 'Keep this authored English paragraph.');
+  await page.getByRole('button', { name: 'Upravit', exact: true }).click();
+  await page.screenshot({ path: resolve(output, `czech-record-editor-${suffix}.png`) });
+  await page.getByRole('button', { name: 'Zrušit', exact: true }).click();
+
+  await page.goto('/#/addons/dm-tools/planner');
+  await page.locator('.dm-planner-shell[aria-busy="false"]').waitFor();
+  const create = async (button, title) => {
+    await page.getByRole('button', { name: button, exact: true }).click();
+    const form = page.getByRole('form', { name: 'Podrobnosti plánovací položky', exact: true });
+    await form.getByLabel('Název', { exact: true }).fill(title);
+    await form.getByLabel('Shrnutí', { exact: true }).fill('Authored summary {0} $&');
+    await form.getByRole('button', { name: 'Uložit podrobnosti', exact: true }).click();
+    await page.getByText('Podrobnosti byly uloženy.', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Zavřít editor', exact: true }).click();
+    return (await records('planning_items')).find(record => record.value.title === title);
+  };
+  const quest = await create('+ Úkol', `Czech quest ${suffix}`), event = await create('+ Událost', `Czech event ${suffix}`);
+  assert.equal(quest.value.kind, 'quest'); assert.equal(event.value.eventType, 'story');
+  const card = record => page.locator(`.dm-plan-card[data-item-id="${record.key}"]`);
+  await page.getByRole('button', { name: 'Přizpůsobit', exact: true }).click();
+  await card(quest).click(); await card(event).click({ modifiers: ['Shift'] });
+  await page.getByRole('button', { name: 'Propojit vybrané', exact: true }).click();
+  const flowForm = page.locator('form[data-create-flow]');
+  assert.equal(await flowForm.getByLabel('Cíl návaznosti', { exact: true }).inputValue(), event.key);
+  await flowForm.getByLabel('Popisek návaznosti', { exact: true }).fill('Flow {0} $&');
+  await flowForm.getByRole('button', { name: 'Vytvořit návaznost', exact: true }).click();
+  await page.getByText('Návaznost byla vytvořena.', { exact: true }).waitFor();
+  const flow = (await records('planning_flow_links')).find(record => record.value.sourceId === quest.key && record.value.targetId === event.key);
+  assert.equal(flow.value.kind, 'continues'); assert.equal(flow.value.label, 'Flow {0} $&');
+
+  await page.locator('summary').filter({ hasText: /^Přidat odkaz$/u }).click();
+  const reference = page.getByRole('form', { name: 'Vytvořit odkaz', exact: true });
+  await reference.getByLabel('Typ cíle', { exact: true }).selectOption('core');
+  await reference.getByLabel('Cíl v kampani', { exact: true }).selectOption(JSON.stringify(['characters', character.key]));
+  await reference.getByRole('button', { name: 'Přidat odkaz', exact: true }).click();
+  await page.getByText('Odkaz byl přidán.', { exact: true }).waitFor();
+  const savedReference = (await records('planning_references')).find(record => record.value.itemId === quest.key);
+  assert.equal(savedReference.value.target.id, character.key); assert.equal(savedReference.value.name, authored);
+  await page.getByRole('button', { name: 'Přidat následek', exact: true }).click();
+  await page.getByText('Následek byl přidán.', { exact: true }).waitFor();
+  await page.getByRole('tab', { name: 'Poznámky', exact: true }).click();
+  await page.getByRole('button', { name: 'Přidat poznámku PJ', exact: true }).click();
+  await page.getByText('Poznámka PJ byla přidána.', { exact: true }).waitFor();
+  await page.getByLabel('Soukromé podrobnosti', { exact: true }).fill('Private authored text');
+  await page.getByRole('button', { name: 'Uložit poznámku', exact: true }).click();
+  await page.getByText('Poznámka PJ byla uložena.', { exact: true }).waitFor();
+  await page.screenshot({ path: resolve(output, `czech-planner-notes-${suffix}.png`) });
+  await page.getByRole('button', { name: 'Zavřít editor', exact: true }).click();
+  await card(event).click();
+  page.once('dialog', dialog => { assert.match(dialog.message(), /^Odstranit/u); void dialog.accept(); });
+  await page.getByRole('button', { name: 'Odstranit výběr', exact: true }).click();
+  await page.getByText('Výběr byl odstraněn.', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Vrátit poslední odstranění', exact: true }).click();
+  await page.getByText('Odstranění bylo vráceno.', { exact: true }).waitFor();
+  assert.ok((await records('planning_flow_links')).some(record => record.key === flow.key));
+  await page.reload(); await card(event).waitFor();
+  assert.equal(await page.locator('.dm-planner-shell h1').textContent(), 'Plánovač příběhu');
+  assert.equal((await records('dm_notes')).find(record => record.value.anchorIds.includes(quest.key)).value.body, 'Private authored text');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+}

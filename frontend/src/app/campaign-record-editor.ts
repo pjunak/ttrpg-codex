@@ -1,3 +1,4 @@
+import { uiText, uiSourceLabel } from "./ui-localization.js";
 import { isRecord } from "../core/boundary.js";
 import {
   campaignCollection,
@@ -259,22 +260,25 @@ function field(
   label: string,
   options: Partial<Omit<CampaignEditorField, "key" | "label">> = {},
 ): CampaignEditorField {
-  return Object.freeze({
+  const result: CampaignEditorField = {
     key,
-    label,
+    get label() { return uiSourceLabel(label); },
     kind: options.kind ?? "line",
     maximumLength: options.maximumLength ?? 500,
     ...(options.maximumItems === undefined ? {} : { maximumItems: options.maximumItems }),
     ...(options.minimum === undefined ? {} : { minimum: options.minimum }),
     ...(options.maximum === undefined ? {} : { maximum: options.maximum }),
     ...(options.required === undefined ? {} : { required: options.required }),
-    ...(options.placeholder === undefined ? {} : { placeholder: options.placeholder }),
-    ...(options.help === undefined ? {} : { help: options.help }),
     ...(options.referenceCollection === undefined ? {} : { referenceCollection: options.referenceCollection }),
     ...(options.enumCategory === undefined ? {} : { enumCategory: options.enumCategory }),
     ...(options.reservedOptions === undefined ? {} : { reservedOptions: options.reservedOptions }),
     ...(options.excludeCurrent === undefined ? {} : { excludeCurrent: options.excludeCurrent }),
-  });
+  };
+  // Spreading an accessor would freeze its current translation at module load.
+  for (const key of ["placeholder", "help"] as const) if (options[key] !== undefined) {
+    Object.defineProperty(result, key, { enumerable: true, get: () => uiSourceLabel(options[key]!) });
+  }
+  return Object.freeze(result);
 }
 
 const name = field("name", "Name", { maximumLength: 200, required: true });
@@ -296,26 +300,26 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
       kind: "reference",
       referenceCollection: "factions",
       reservedOptions: Object.freeze([
-        Object.freeze({ value: "neutral", label: "No faction" }),
-        Object.freeze({ value: "party", label: "Player party" }),
+        Object.freeze({ value: "neutral", get label() { return uiText("No faction"); } }),
+        Object.freeze({ value: "party", get label() { return uiText("Player party"); } }),
       ]),
     }),
     field("rankAssignment", "Faction rank", {
       kind: "rank-assignment",
       maximumLength: 200,
-      help: "Ranks come from the selected faction's ordered rank chains.",
+      get help() { return uiText("Ranks come from the selected faction's ordered rank chains."); },
     }),
     field("location", "Current location", { kind: "reference", referenceCollection: "locations" }),
     field("locationRoles", "Other location roles", {
       kind: "location-roles",
       maximumLength: 500,
       maximumItems: 500,
-      help: "Record recurring duties or ties outside the character's current location.",
+      get help() { return uiText("Record recurring duties or ties outside the character's current location."); },
     }),
     field("attitudes", "Attitudes toward the party", {
       kind: "attitudes",
       maximumItems: 32,
-      help: "Use Ctrl or Command to select more than one attitude. Party members always use the party palette.",
+      get help() { return uiText("Use Ctrl or Command to select more than one attitude. Party members always use the party palette."); },
     }),
     field("tags", "Tags", { kind: "tags", maximumLength: 100, maximumItems: 100 }),
     description,
@@ -323,13 +327,13 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
       kind: "string-list",
       maximumLength: 10_000,
       maximumItems: 500,
-      help: "Write one fact per line.",
+      get help() { return uiText("Write one fact per line."); },
     }),
     field("unknown", "Open questions", {
       kind: "questions",
       maximumLength: 10_000,
       maximumItems: 500,
-      help: "An answer closes a question without erasing the original thread.",
+      get help() { return uiText("An answer closes a question without erasing the original thread."); },
     }),
   ]),
   locations: Object.freeze([
@@ -337,19 +341,19 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
     field("type", "Kind"),
     field("pinType", "Map marker", { kind: "enum", enumCategory: "pinTypes" }),
     field("size", "Marker size", { kind: "number", maximumLength: 5, minimum: 14, maximum: 64,
-      placeholder: "Default for marker type", help: "Leave empty to follow the marker type's size (14–64 px)." }),
+      get placeholder() { return uiText("Default for marker type"); }, get help() { return uiText("Leave empty to follow the marker type's size (14–64 px)."); } }),
     field("region", "Region"),
     field("knowledge", "Knowledge", { kind: "number", maximumLength: 1, minimum: 0, maximum: 4 }),
     field("parentId", "Contained in", {
       kind: "reference", referenceCollection: "locations", excludeCurrent: true,
-      help: "Changing the parent removes the old map placement. Place the location on its new map after saving.",
+      get help() { return uiText("Changing the parent removes the old map placement. Place the location on its new map after saving."); },
     }),
     field("connections", "Connected locations", {
       kind: "references",
       referenceCollection: "locations",
       excludeCurrent: true,
       maximumItems: 500,
-      help: "Connections are kept reciprocal by the host.",
+      get help() { return uiText("Connections are kept reciprocal by the host."); },
     }),
     field("attitudes", "Attitudes", { kind: "attitudes", maximumItems: 32 }),
     field("tags", "Tags", { kind: "tags", maximumLength: 100, maximumItems: 100 }),
@@ -378,7 +382,7 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
     field("solved", "Solved", { kind: "boolean" }),
     description,
     field("clues", "Clues", {
-      kind: "string-list", maximumLength: 10_000, maximumItems: 500, help: "Write one clue per line.",
+      kind: "string-list", maximumLength: 10_000, maximumItems: 500, get help() { return uiText("Write one clue per line."); },
     }),
     field("characters", "Characters", {
       kind: "references", referenceCollection: "characters", maximumItems: 500,
@@ -390,7 +394,7 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
       kind: "questions",
       maximumLength: 10_000,
       maximumItems: 500,
-      help: "Keep the question after its answer is discovered so the investigation remains readable.",
+      get help() { return uiText("Keep the question after its answer is discovered so the investigation remains readable."); },
     }),
   ]),
   factions: Object.freeze([
@@ -403,7 +407,7 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
       kind: "rank-chains",
       maximumLength: 200,
       maximumItems: 100,
-      help: "Order ranks from highest to lowest. Existing chain IDs remain stable when renamed.",
+      get help() { return uiText("Order ranks from highest to lowest. Existing chain IDs remain stable when renamed."); },
     }),
     description,
   ]),
@@ -822,15 +826,15 @@ function isRelationshipDirection(value: unknown): value is CampaignRelationshipD
 }
 
 const defaultRelationshipTypes = Object.freeze([
-  Object.freeze({ id: "commands", label: "commands", dirs: ["from", "to"] }),
-  Object.freeze({ id: "ally", label: "ally", dirs: ["from", "to", "both"] }),
-  Object.freeze({ id: "enemy", label: "enemy", dirs: ["from", "to", "both"] }),
-  Object.freeze({ id: "mission", label: "mission", dirs: ["from"], target: "location" }),
-  Object.freeze({ id: "mystery", label: "mystery", dirs: ["from", "to", "both"] }),
-  Object.freeze({ id: "captured_by", label: "captured by", dirs: ["from", "to"] }),
-  Object.freeze({ id: "history", label: "history", dirs: ["from", "to", "both"] }),
-  Object.freeze({ id: "uncertain", label: "uncertain bond", dirs: ["from", "to", "both"] }),
-  Object.freeze({ id: "negotiates", label: "negotiates", dirs: ["from", "to", "both"] }),
+  Object.freeze({ id: "commands", get label() { return uiText("commands"); }, dirs: ["from", "to"] }),
+  Object.freeze({ id: "ally", get label() { return uiText("ally"); }, dirs: ["from", "to", "both"] }),
+  Object.freeze({ id: "enemy", get label() { return uiText("enemy"); }, dirs: ["from", "to", "both"] }),
+  Object.freeze({ id: "mission", get label() { return uiText("mission"); }, dirs: ["from"], target: "location" }),
+  Object.freeze({ id: "mystery", get label() { return uiText("mystery"); }, dirs: ["from", "to", "both"] }),
+  Object.freeze({ id: "captured_by", get label() { return uiText("captured by"); }, dirs: ["from", "to"] }),
+  Object.freeze({ id: "history", get label() { return uiText("history"); }, dirs: ["from", "to", "both"] }),
+  Object.freeze({ id: "uncertain", get label() { return uiText("uncertain bond"); }, dirs: ["from", "to", "both"] }),
+  Object.freeze({ id: "negotiates", get label() { return uiText("negotiates"); }, dirs: ["from", "to", "both"] }),
 ]);
 
 function normalizedStringArray(raw: unknown, field: CampaignEditorField): string[] {
@@ -871,7 +875,7 @@ function enumOptions(
   category: CampaignEnumCategory,
 ): readonly CampaignEditorOption[] {
   const record = campaignCollection(campaign, "settings").records.find(({ key }) => key === category);
-  const fallback = category === "pinTypes" ? [Object.freeze({ value: "custom", label: "Custom" })] : [];
+  const fallback = category === "pinTypes" ? [Object.freeze({ value: "custom", label: uiText("Custom") })] : [];
   if (!Array.isArray(record?.value)) return Object.freeze(fallback);
   const options: CampaignEditorOption[] = [];
   const seen = new Set<string>();
@@ -887,7 +891,7 @@ function enumOptions(
 
 function ownerOptions(campaign: CampaignDataset): readonly CampaignEditorOption[] {
   const options: CampaignEditorOption[] = [
-    Object.freeze({ value: "none:", label: "Unassigned" }),
+    Object.freeze({ value: "none:", label: uiText("Unassigned") }),
     Object.freeze({ value: "party:", label: partyOptionLabel(campaign) }),
   ];
   for (const [collection, prefix] of [["characters", "character"], ["factions", "faction"]] as const) {
@@ -896,7 +900,7 @@ function ownerOptions(campaign: CampaignDataset): readonly CampaignEditorOption[
       const label = line(value["name"]) || record.key;
       options.push(Object.freeze({
         value: `${prefix}:${record.key}`,
-        label: `${prefix === "character" ? "Character" : "Faction"}: ${label}`,
+        label: `${prefix === "character" ? uiText("Character") : uiText("Faction")}: ${label}`,
       }));
     }
   }

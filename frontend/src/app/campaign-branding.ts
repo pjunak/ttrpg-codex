@@ -1,5 +1,6 @@
 import { previewResourceURL } from "../core/player-preview.js";
 import { isRecord } from "../core/boundary.js";
+import { uiText } from "./ui-localization.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
 import type { CampaignMutation } from "../core/campaign-mutations.js";
 import defaultLogo from "../assets/logo-default.svg";
@@ -21,7 +22,7 @@ export function brandingRecord(campaign: CampaignDataset) {
 export function campaignBranding(campaign?: CampaignDataset): CampaignBranding {
   const raw = campaign === undefined ? undefined : brandingRecord(campaign)?.value;
   const value = isRecord(raw) ? raw : {};
-  return { title: line(value["title"], 200) || "TTRPG Codex", subtitle: line(value["subtitle"], 300) || "Wiki & World Atlas",
+  return { title: line(value["title"], 200) || "TTRPG Codex", subtitle: line(value["subtitle"], 300) || uiText("Wiki & World Atlas"),
     logoUrl: safeLogo(value["logoUrl"]) ? value["logoUrl"] : "" };
 }
 export function prepareBrandingSave(campaign: CampaignDataset, detail: BrandingSaveDetail): CampaignMutation {
@@ -34,7 +35,7 @@ export function prepareBrandingSave(campaign: CampaignDataset, detail: BrandingS
   const value = current === undefined ? {} : current.value;
   if (!isRecord(value)) throw new BrandingEditError("invalid");
   return { operation: "put", collection: "settings", key: "branding", expectedRevision: detail.expectedRevision,
-    value: { ...value, title: detail.title.trim() || "TTRPG Codex", subtitle: detail.subtitle.trim() || "Wiki & World Atlas", logoUrl: detail.logoUrl } };
+    value: { ...value, title: detail.title.trim() || "TTRPG Codex", subtitle: detail.subtitle.trim() || uiText("Wiki & World Atlas"), logoUrl: detail.logoUrl } };
 }
 export function applyBrandingFavicon(branding: CampaignBranding): void {
   document.title = branding.title;

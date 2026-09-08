@@ -8,6 +8,8 @@ import type {
   BrowserRole,
 } from "./generation-manager.js";
 import type { BrowserContributionEditHandle, BrowserContributionEditRegistration } from "./edit-state.js";
+import { contributionLabel } from "./contribution-label.js";
+import { isRecord } from "../core/boundary.js";
 
 export interface BrowserContributionElementContext {
   readonly edits: BrowserContributionEditHandle;
@@ -44,6 +46,7 @@ interface MountedContribution {
   readonly updateHostContext?: (value: unknown) => void;
   readonly identity: string;
   readonly wrapper: HTMLElement;
+  readonly label: HTMLElement;
   readonly dispose?: () => void;
   readonly element?: BrowserContributionElement;
 }
@@ -118,8 +121,12 @@ export class BrowserContributionOutlet {
         }
       }
       try {
-        if (mounted.element !== undefined) mounted.element.codexContribution = contributionContext(active, this.#hostContext(active), mounted.edits.handle);
-        else if (this.#isolatedHostContext) mounted.updateHostContext?.(freezeJSON(this.#hostContext(active)));
+        const context = this.#hostContext(active);
+        const label = contributionLabel(active.descriptor, isRecord(context) ? context["locale"] : undefined);
+        mounted.wrapper.setAttribute("aria-label", label);
+        mounted.label.textContent = label;
+        if (mounted.element !== undefined) mounted.element.codexContribution = contributionContext(active, context, mounted.edits.handle);
+        else if (this.#isolatedHostContext) mounted.updateHostContext?.(freezeJSON(context));
       } catch (cause: unknown) { this.#onError(cause); continue; }
       retained.add(key);
       ordered.push(mounted.wrapper);
@@ -194,7 +201,7 @@ export class BrowserContributionOutlet {
       element.codexContribution = contributionContext(active, this.#hostContext(active), edits.handle);
       if (!this.#compact) wrapper.append(heading);
       wrapper.append(element);
-      return { identity: `element:${active.binding.tag}`, wrapper, element, edits };
+      return { identity: `element:${active.binding.tag}`, wrapper, label, element, edits };
     }
     if (active.binding.kind === "isolated-frame") {
       const frameHost = this.#document.createElement("div");
@@ -202,7 +209,7 @@ export class BrowserContributionOutlet {
       const mount = active.binding.mount(frameHost, this.#isolatedHostContext ? freezeJSON(this.#hostContext(active)) : null, edits.handle);
       if (!this.#compact) wrapper.append(heading);
       wrapper.append(frameHost);
-      return { identity: "isolated-frame", wrapper, edits,
+      return { identity: "isolated-frame", wrapper, label, edits,
         dispose: typeof mount === "function" ? mount : () => mount.dispose(),
         ...(typeof mount === "function" ? {} : { updateHostContext: (value: unknown) => mount.updateHostContext(value) }) };
     }

@@ -1,4 +1,5 @@
 import { isRecord } from "../core/boundary.js";
+import { uiSourceLabel } from "./ui-localization.js";
 import {
   campaignCollection,
   type CampaignCollectionName,
@@ -52,9 +53,8 @@ export class CampaignSettingsEditError extends Error {
   constructor(message: string, readonly kind: "invalid" | "stale" = "invalid") { super(message); }
 }
 
-const colorField = (key: string, label: string, help?: string): CampaignSettingField => Object.freeze({
-  key, label, kind: "color", required: true, ...(help === undefined ? {} : { help }),
-});
+const colorField = (key: string, label: string, help?: string): CampaignSettingField =>
+  field(key, label, "color", true, help === undefined ? {} : { help });
 
 export const campaignEnumDescriptors: readonly CampaignEnumDescriptor[] = Object.freeze([
   descriptor("relationshipTypes", "Relationships", "relationship", "◇",
@@ -279,7 +279,9 @@ function descriptor(
   summary: string,
   fields: readonly CampaignSettingField[],
 ): CampaignEnumDescriptor {
-  return Object.freeze({ category, label, singular, icon, summary, fields: Object.freeze(fields) });
+  return Object.freeze({ category, get label() { return uiSourceLabel(label); },
+    get singular() { return uiSourceLabel(singular); }, icon,
+    get summary() { return uiSourceLabel(summary); }, fields: Object.freeze(fields) });
 }
 
 function field(
@@ -289,7 +291,13 @@ function field(
   required = false,
   options: Partial<Omit<CampaignSettingField, "key" | "label" | "kind" | "required">> = {},
 ): CampaignSettingField {
-  return Object.freeze({ key, label, kind, required, ...options });
+  const result: CampaignSettingField = { key, get label() { return uiSourceLabel(label); }, kind, required, ...options,
+    ...(options.options === undefined ? {} : { options: options.options.map(option => Object.freeze({
+      value: option.value, get label() { return uiSourceLabel(option.label); },
+    })) }),
+  };
+  if (options.help !== undefined) Object.defineProperty(result, "help", { enumerable: true, get: () => uiSourceLabel(options.help!) });
+  return Object.freeze(result);
 }
 
 function choices(values: readonly string[]): readonly { readonly value: string; readonly label: string }[] {
