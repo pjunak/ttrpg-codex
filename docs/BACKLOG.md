@@ -236,6 +236,33 @@ those later changes at cutover rather than silently restoring an older state.
 - [ ] Bring character sheets to accepted presentation and workflow parity,
   including the fate of Compact/Classic layouts, builder progress, equipment,
   spells, resources, and provider-state diagnostics.
+  Compact and Classic now restore the ability-card rail, vitals strip, split
+  backpack and bottom currency row using the preserved v1 theme primitives.
+  The default reading view has an explicit edit mode; the original per-character
+  layout preference survives. Combat shows saved attacks, traits, spell-slot
+  counters and independent manual resources. Item quantities, locations,
+  attunement and notes remain editable. The host's player editing policy is
+  preserved, and section tabs support keyboard navigation.
+  Mount-owned drafts serialize rapid saves and remain available after errors;
+  conflicts offer draft export and explicit reload without overwriting newer
+  play data. Host navigation guards retain unsaved work. Focus-aware rendering
+  preserves fields and clicks during saves. Each package generation registers
+  its own element, optional service connection failures allow standalone use,
+  and late responses cannot update a different character.
+  Rules queries now read the actual record envelopes. Recalculation freezes
+  original ability inputs, preserves authored spell annotations and tracker
+  values, and retains combat definitions for provider loss. Missing rules data
+  cannot replace saved values with a partial universal result. Real installed
+  Engine/Compendium/Sheets checks verify repeated ability-grant calculation.
+  Remaining sheet work: complete Builder progress/choices, catalog equipment
+  selection and worn slots, full spell preparation/casting and rest workflows,
+  provider diagnostics, localization and final v1 visual acceptance. These
+  restored layouts do not close the complete presentation/workflow gate.
+  Validation: 17 Sheet checks, rebuilt/inspected ZIP, five real installed Sheet
+  browser cases, desktop/phone screenshot inspection, and every host gate:
+  288 unit tests, 171 browser cases, typecheck/build, Go tests and vet. Browser
+  validation used four concurrent suites after timing failures under the
+  default parallel run; no cases or assertions were skipped.
 
 ### Release evidence
 
