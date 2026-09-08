@@ -16,6 +16,7 @@ import {
   type BrowserGenerationDescriptor,
 } from "../src/addons/generation-manager.js";
 import { GenerationScope } from "../src/addons/generation-scope.js";
+import { BrowserAddonDataChanges } from "../src/addons/data-changes.js";
 import type {
   AddonDataHandle,
   AddonQueryOptions,
@@ -35,6 +36,19 @@ import type {
 const generationId = "a".repeat(64);
 
 describe("IsolatedFrameBridge", () => {
+  it("forwards scoped data invalidations after readiness and disposes its subscription", () => {
+    const descriptor = frameDescriptor(slotContribution()), scope = new GenerationScope("data@test"), changes = new BrowserAddonDataChanges();
+    const registry = new BrowserContributionRegistry();
+    const context = registry.open(descriptor, scope).context;
+    const port = new FakePort();
+    const bridge = new IsolatedFrameBridge({ port, context: { ...context, data: { ...context.data, subscribe: changes.scoped(descriptor.addonId, context.signal) } }, contribution: descriptor.contributions[0]!, onResize: vi.fn() });
+    changes.handleEvent({ cause: "reset", cursor: 1 }); expect(port.sent).toEqual([]);
+    port.receive({ protocol: isolatedFrameProtocol, type: "ready", contributionId: descriptor.contributions[0]!.id });
+    changes.handleEvent({ cause: "reset", cursor: 2 });
+    expect(port.sent.at(-1)).toEqual({ protocol: isolatedFrameProtocol, type: "data-change", change: { reason: "reset" } });
+    bridge.close(); const count = port.sent.length;
+    changes.handleEvent({ cause: "reset", cursor: 3 }); expect(port.sent).toHaveLength(count);
+  });
   it("accepts only bounded edit flags and clears them when the frame closes", () => {
     const descriptor = frameDescriptor(slotContribution());
     const sdk = new BrowserContributionRegistry().open(descriptor, new GenerationScope("edits@test"));

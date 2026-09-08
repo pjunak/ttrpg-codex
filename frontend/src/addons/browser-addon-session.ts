@@ -46,7 +46,7 @@ export class BrowserAddonSession {
 
   async handleEvent(event: EventRefresh): Promise<void> {
     const controller = this.#controller;
-    if (controller === undefined || event.cause === "campaign-data-changed") {
+    if (controller === undefined || event.cause === "campaign-data-changed" || event.cause === "addon-data-changed") {
       return;
     }
     await this.#refresh(event.cause, controller);

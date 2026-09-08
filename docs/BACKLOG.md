@@ -211,8 +211,17 @@ those later changes at cutover rather than silently restoring an older state.
   focus, keyboard/mouse panning and browser fullscreen. Zoom and scroll survive
   selection, saves, reload and same-planner canvas navigation. Zoomed dragging
   converts back to saved coordinates; negative/distant positions stay reachable.
-  Remaining work includes original dialog and selection behavior,
-  live invalidation, full visual parity and
+  Planner and DM overview now consume generation-scoped live invalidations
+  through the shared host stream, including completed imports and reconnects.
+  Clean views refresh without resetting selection, zoom or scroll. Drafts,
+  focused fields and pointer gestures defer refresh; an in-flight read cannot
+  replace newly started edits. Original revisions still reject stale saves.
+  Integrated/isolated subscription, disposal, multi-tab, pending-read typing,
+  drag stability and failed-read retry checks exercise the reviewed packages.
+  Validation: 304 host unit tests, all 194 browser cases with the four release
+  ZIPs, host Go tests/vet, 30 DM Tools tests, DPR 1/2 rendering checks, add-on
+  Go tests/vet, and a rebuilt/inspected DM Tools ZIP. No deployment is implied.
+  Remaining work includes original dialog and selection behavior, full visual parity and
   localization, and Import Center presentation and other-provider acceptance.
 - [x] Restore standalone compendium browsing and reading: the preserved topic/
   source tree, class/subclass/level nesting, tiles, deep cross-kind search,

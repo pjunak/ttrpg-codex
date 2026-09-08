@@ -673,10 +673,30 @@ fields or another add-on's extension remains separately permissioned. This
 preserves the useful v2 `addonData` ownership rule without letting add-on JSON
 change the core entity schema.
 
-Subscriptions deliver revisioned change events and accept an `AbortSignal`.
-Consumers recover a gap by querying from a cursor or refreshing the affected
-collection. Events are invalidation evidence, not an alternative source of
-truth.
+Browser data subscriptions use the host's shared event connection in both UI
+modes. Feature-detect this optional method when supporting earlier v3 hosts:
+
+```ts
+const unsubscribe = context.data.subscribe?.((change) => {
+  // Coalesce notifications and preserve dirty drafts and their opening revisions.
+  if (change.reason === "reset" ||
+      (change.kind === "collection" && change.dataId === "planning_items")) {
+    scheduleAuthoritativeReload();
+  }
+}, { signal: contribution.signal });
+// Explicit cleanup is also supported: unsubscribe?.();
+```
+
+`changed` contains only `reason`, `kind` (`collection` or `record-extension`),
+and `dataId` within the subscribing add-on. `reset` contains only `reason` and
+means a new connection, replay gap, or campaign recovery requires a fresh read.
+No document keys, bodies, global revisions or other packages' changes cross
+this API. Visibility follows the authenticated event audience; HTTP reads
+remain authoritative. A callback may run for the caller's own writes or repeat
+an invalidation. It is synchronous, must schedule/catch any asynchronous work,
+and should not blindly retry writes. The generation signal, caller signal, or
+returned disposer ends the subscription. Each host composition/isolated frame
+bounds listeners to 1,024; a throwing listener is diagnosed independently.
 
 ### Immutable content handles
 

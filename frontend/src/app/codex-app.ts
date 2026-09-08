@@ -363,6 +363,8 @@ export class CodexApp extends LitElement {
   }
 
   async #handleEvent(event: EventRefresh): Promise<void> {
+    this.#addons?.dataChanges.handleEvent(event);
+    if (event.cause === "addon-data-changed") return;
     if (event.cause === "campaign-restored" && this.#request !== undefined) {
       const edits = this.#addons?.contributions.edits.state();
       this.#campaignData.reset();

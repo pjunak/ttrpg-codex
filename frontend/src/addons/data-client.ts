@@ -1,4 +1,5 @@
 import { sessionFetch } from "../core/player-preview.js";
+import type { AddonDataSubscribe } from "./data-changes.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
 
 const maximumResponseBytes = 2 * 1024 * 1024;
@@ -102,6 +103,7 @@ export interface AddonTransactionOptions {
 }
 
 export interface BrowserDataAPI {
+  readonly subscribe?: AddonDataSubscribe;
   collection<T>(id: string): AddonDataHandle<T>;
   recordExtension<T>(target: string, id: string): AddonDataHandle<T>;
   transact(mutations: readonly AddonDataMutation[], options?: AddonTransactionOptions): Promise<AddonCommitReceipt>;
@@ -137,6 +139,7 @@ export class BrowserAddonDataClient {
   readonly #csrfToken: string;
   readonly #signal: AbortSignal;
   readonly #fetchData: AddonDataFetch;
+  readonly #subscribe: AddonDataSubscribe | undefined;
   #writeTail: Promise<void> = Promise.resolve();
 
   constructor(options: {
@@ -145,6 +148,7 @@ export class BrowserAddonDataClient {
     readonly csrfToken: string;
     readonly signal: AbortSignal;
     readonly fetchData?: AddonDataFetch;
+    readonly subscribe?: AddonDataSubscribe;
   }) {
     if (!localIdPattern.test(options.addonId) || !/^[0-9a-f]{64}$/.test(options.generationId) ||
       options.csrfToken.length < 32) {
@@ -153,11 +157,13 @@ export class BrowserAddonDataClient {
     this.#baseURL = `/api/addons/${encodeURIComponent(options.addonId)}/generations/${options.generationId}/data`;
     this.#csrfToken = options.csrfToken;
     this.#signal = options.signal;
+    this.#subscribe = options.subscribe;
     this.#fetchData = options.fetchData ?? ((input, init) => sessionFetch(input, init));
   }
 
   api(): BrowserDataAPI {
     const api: BrowserDataAPI = {
+      ...(this.#subscribe ? { subscribe: this.#subscribe } : {}),
       collection: <T>(id: string) => this.#handle<T>("collection", id),
       recordExtension: <T>(target: string, id: string) => {
         if (!localIdPattern.test(target)) {

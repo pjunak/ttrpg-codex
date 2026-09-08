@@ -208,7 +208,19 @@ export const isolatedFrameBootstrap = String.raw`
         }, options.signal || controller.signal),
       });
     };
+    const dataListeners = new Set();
     const addonData = Object.freeze({
+      subscribe: (listener, options = {}) => {
+        requireActive();
+        if (typeof listener !== "function") throw new TypeError("A data change listener must be a function.");
+        const signal = options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal;
+        signal.throwIfAborted();
+        if (dataListeners.size >= 1024) throw new Error("Too many add-on data subscriptions.");
+        const entry = { listener, signal };
+        const dispose = () => { dataListeners.delete(entry); signal.removeEventListener("abort", dispose); };
+        dataListeners.add(entry); signal.addEventListener("abort", dispose, { once: true });
+        return dispose;
+      },
       collection: (dataId) => dataHandle("collection", dataId),
       recordExtension: (target, dataId) => dataHandle("record-extension", dataId, target),
       transact: (mutations, options = {}) => sdkRequest(
@@ -412,7 +424,19 @@ export const isolatedFrameBootstrap = String.raw`
       if (typeof message !== "object" || message === null || message.protocol !== protocol) {
         return;
       }
-      if (message.type === "context" && !revoked && Object.keys(message).length === 3) {
+      if (message.type === "data-change" && !revoked && Object.keys(message).length === 3) {
+        const change = message.change;
+        if (!change || typeof change !== "object" || Array.isArray(change) ||
+          !(change.reason === "reset" && Object.keys(change).length === 1 ||
+            change.reason === "changed" && Object.keys(change).length === 3 &&
+            (change.kind === "collection" || change.kind === "record-extension") &&
+            typeof change.dataId === "string" && change.dataId.length <= 100 && localIdPattern.test(change.dataId))) return;
+        Object.freeze(change);
+        for (const entry of [...dataListeners]) {
+          if (!dataListeners.has(entry) || entry.signal.aborted) continue;
+          try { entry.listener(change); } catch (_) { reportError("The isolated data change listener failed."); }
+        }
+      } else if (message.type === "context" && !revoked && Object.keys(message).length === 3) {
         try {
           requireJSON(message.host);
           if (new TextEncoder().encode(JSON.stringify(message)).length > 64 * 1024) throw new Error("Outlet context exceeds its byte limit.");

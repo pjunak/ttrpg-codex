@@ -134,6 +134,7 @@ export class IsolatedFrameBridge {
   #ready = false;
   #hostContext: unknown;
   #closed = false;
+  #unsubscribeData: (() => void) | undefined;
 
   constructor(options: IsolatedFrameBridgeOptions) {
     this.#edits = options.edits;
@@ -166,6 +167,9 @@ export class IsolatedFrameBridge {
         this.close("handshake-timeout");
       }
     }, timeout);
+    this.#unsubscribeData = this.#context.data.subscribe?.((change) => {
+      if (this.#ready && !this.#closed) this.#send({ protocol: isolatedFrameProtocol, type: "data-change", change });
+    });
   }
 
   close(reason = "outlet-disposed"): void {
@@ -178,6 +182,7 @@ export class IsolatedFrameBridge {
       this.#onDiagnostic(cause);
     }
     this.#closed = true;
+    this.#unsubscribeData?.(); this.#unsubscribeData = undefined;
     this.#edits?.set({ dirty: false, saving: false });
     const cause = new IsolatedInvocationError(
       "REVOKED",

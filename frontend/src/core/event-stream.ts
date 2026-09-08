@@ -25,9 +25,11 @@ export type EventRefreshCause =
   | "reset"
   | "campaign-restored"
   | "browser-addons-changed"
+  | "addon-data-changed"
   | "campaign-data-changed";
 
 export type EventRefresh =
+  | { readonly cause: "addon-data-changed"; readonly cursor: number; readonly addonId: string; readonly kind: "collection" | "record-extension"; readonly dataId: string }
   | { readonly cause: "hello" | "reset" | "campaign-restored"; readonly cursor: number }
   | { readonly cause: "browser-addons-changed"; readonly cursor: number; readonly revision: string }
   | {
@@ -68,6 +70,7 @@ export class SharedEventStream {
     this.#listen(source, "hello", callbacks, parseHello);
     this.#listen(source, "reset", callbacks, parseReset);
     this.#listen(source, "campaign-restored", callbacks, parseCampaignRestored);
+    this.#listen(source, "addon-data-changed", callbacks, parseAddonDataChange);
     this.#listen(source, "browser-addons-changed", callbacks, parseBrowserAddonChange);
     this.#listen(source, "campaign-data-changed", callbacks, parseCampaignDataChange);
     source.addEventListener("error", () => callbacks.onConnectionError?.());
@@ -167,6 +170,22 @@ export function parseCampaignDataChange(event: Event): EventRefresh {
     collection,
     revision: Number(revisionValue),
   };
+}
+
+export function parseAddonDataChange(event: Event): EventRefresh {
+  const { value, lastEventId } = parseMessage(event, "addon-data-changed");
+  const resource = isRecord(value) && typeof value["resourceId"] === "string" ? value["resourceId"].split("/") : [];
+  const [addonId, kind, dataId] = resource;
+  const localId = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
+  if (!isRecord(value) || !hasOnlyKeys(value, publicationKeys) || value["topic"] !== "addon-data-changed" ||
+    resource.length !== 3 || !addonId || addonId.length > 100 || !localId.test(addonId) ||
+    (kind !== "collection" && kind !== "record-extension") || !dataId || dataId.length > 100 || !localId.test(dataId) ||
+    typeof value["revision"] !== "string" || !/^[1-9]\d*$/.test(value["revision"]) || !safePositiveInteger(Number(value["revision"])) ||
+    typeof value["occurredAt"] !== "string" || !validTimestamp(value["occurredAt"]) ||
+    !isRecord(value["metadata"]) || Object.keys(value["metadata"]).length !== 0) {
+    throw new BoundaryValidationError(boundary, "add-on data event has an invalid shape");
+  }
+  return { cause: "addon-data-changed", cursor: requiredCursor(value["sequence"], lastEventId), addonId, kind, dataId };
 }
 
 export function parseCampaignRestored(event: Event): EventRefresh {

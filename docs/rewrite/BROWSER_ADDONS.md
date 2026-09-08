@@ -248,6 +248,18 @@ and custom renderers remain owned by their corresponding core features.
 
 ## DM dashboard outlet
 
+The composition also owns data invalidation dispatch. The shared stream's
+validated `addon-data-changed` events reach only that package's generation
+subscribers; connection resets and campaign recovery invalidate all active
+subscribers. Integrated clients receive `context.data.subscribe`; isolated
+frames receive the same bounded notification over their existing private port.
+Frame disposal removes its host subscription and aborts frame-local listeners.
+No document payload or internal data revision crosses this interface.
+`data-changes.test.ts`, `isolated-frame.test.ts` and the installed DM browser
+suite cover parsing, package scoping, reset, errors, cancellation and cleanup.
+The real planner/overview cases also cover automatic refresh, draft conflicts,
+typing during a pending read, and retry after failed reads.
+
 The [DM dashboard contract](../../examples/addons/API_V3.md#dm-dashboard)
 uses `codex-dm-dashboard` at `#/dm`. Only real/effective DMs mount its exact
 `dm:dashboard` slots. Empty, failed, and disabled contributions leave core

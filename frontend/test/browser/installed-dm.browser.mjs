@@ -1,4 +1,5 @@
 import { exercisePlannerCanvas } from './installed-planner-canvas-fixture.mjs';
+import { exercisePlannerLive } from './installed-planner-live-fixture.mjs';
 import { exerciseAddonManager } from './installed-addon-manager-fixture.mjs';
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
@@ -269,6 +270,26 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} edit stat
   assert.equal(await unloadBlocked(page), false);
 });
 
+for (const mode of ['integrated', 'isolated']) test(`installed ${mode} subscriptions refresh only their package and stop on abort`, async t => {
+  const id = `live-${mode}`, other = `live-other-${mode}`;
+  await installDmPackage(admin, csrf, { id, mode, live: true }); t.after(() => disable(id));
+  await installDmPackage(admin, csrf, { id: other, slot: false, live: true }); t.after(() => disable(other));
+  const page = await open(t), slot = slotRoot(page, mode), output = slot.getByLabel('Data changes'); await output.waitFor();
+  const write = async (addonId, expectedRevision) => {
+    const generation = (await jsonResponse(await admin.get(`/api/admin/addons/${addonId}`))).state.activeGenerationId;
+    await jsonResponse(await admin.post(`/api/addons/${addonId}/generations/${generation}/data/transactions`, { headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'addon-data-transaction.v1', mutations: [{ operation: 'put', kind: 'collection', dataId: 'notes', key: 'note', expectedRevision, value: { text: 'Changed elsewhere' } }] } }));
+  };
+  await write(other, 0); await write(id, 0); await output.filter({ hasText: 'notes' }).waitFor();
+  assert.deepEqual(JSON.parse(await output.textContent()).filter(change => change.reason === 'changed'), [{ reason: 'changed', kind: 'collection', dataId: 'notes' }]);
+  await slot.getByRole('button', { name: 'Stop changes', exact: true }).click(); const before = await output.textContent();
+  await write(id, 1); await page.waitForTimeout(250); assert.equal(await output.textContent(), before);
+});
+
+if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner and overview update live without losing edits or canvas state', async t => {
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), dmToolsPermissions);
+  t.after(() => disable('dm-tools')); await exercisePlannerLive({ t, open, admin, csrf });
+});
+
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner protects drafts on navigation, Back, sign-out and reload', async t => {
   await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), dmToolsPermissions);
   t.after(() => disable('dm-tools'));
@@ -332,10 +353,17 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planning imports preview, ca
   assert.equal(await page.locator('.dm-import-preview').count(), 0); assert.deepEqual(await records(), before);
   const reviewed = await preview(document);
   assert.equal(reviewed.summary.creates, 1);
+  const overviewWatcher = await open(t), plannerWatcher = await open(t);
+  const total = overviewWatcher.locator('.dm-tools-dashboard [data-stat="total"] .dm-dashboard-value'); await total.waitFor();
+  const previousTotal = Number((await total.textContent()).replace(/\D/gu, ''));
+  await plannerWatcher.goto('/#/addons/dm-tools/planner'); await plannerWatcher.locator('.dm-planner-shell[aria-busy="false"]').waitFor();
   const commitResponse = page.waitForResponse(response => response.url().endsWith('/services/call') && response.request().postDataJSON().method === 'commit');
   await page.getByRole('button', { name: 'Commit reviewed import', exact: true }).click();
   const committed = await jsonResponse(await commitResponse); assert.equal(committed.result.writes, 1);
   await page.getByText('Import committed: 1 writes and 0 deletions.', { exact: true }).waitFor();
+  await plannerWatcher.locator('.dm-plan-card[data-item-id="import-quest"]').filter({ hasText: 'Imported northern trail' }).waitFor();
+  await total.filter({ hasText: new RegExp(`^${previousTotal + 1}$`, 'u') }).waitFor();
+  await overviewWatcher.close(); await plannerWatcher.close();
   const stored = (await records()).find(record => record.key === 'import-quest');
   assert.equal(stored.value.title, 'Imported northern trail'); assert.equal(stored.value.updatedAt, 1000);
   const replay = await admin.post(`${base}/services/call`, { headers, data: { contractVersion: 'addon-service-call.v1', contract: 'codex.import-adapter', providerAddonId: 'dm-tools', providerVersion: '2.0.0', providerGeneration: generation, bindingRevision: 0,

@@ -6,6 +6,7 @@ import {
 import { BrowserGraphClient } from "./browser-graph-client.js";
 import { BrowserContributionRegistry } from "./browser-sdk.js";
 import { BrowserAddonDataClient } from "./data-client.js";
+import { BrowserAddonDataChanges } from "./data-changes.js";
 import { BrowserAddonContentClient } from "./content-client.js";
 import { BrowserAddonServiceClient } from "./service-client.js";
 import { createDocumentStyleLoader } from "./browser-styles.js";
@@ -16,6 +17,7 @@ import {
 } from "./generation-manager.js";
 
 export interface BrowserAddonComposition {
+  readonly dataChanges: BrowserAddonDataChanges;
   readonly session: BrowserAddonSession;
   readonly contributions: BrowserContributionRegistry;
 }
@@ -26,6 +28,7 @@ export function createBrowserAddonComposition(
   csrfToken: string,
   callbacks: BrowserAddonSessionCallbacks = {},
 ): BrowserAddonComposition {
+  const dataChanges = new BrowserAddonDataChanges((cause) => callbacks.onDiagnostic?.(cause));
   const contributions = new BrowserContributionRegistry(
     (cause) => callbacks.onDiagnostic?.(cause),
     (descriptor, signal) => new BrowserAddonDataClient({
@@ -33,6 +36,7 @@ export function createBrowserAddonComposition(
       generationId: descriptor.generationId,
       csrfToken,
       signal,
+      subscribe: dataChanges.scoped(descriptor.addonId, signal),
     }).api(),
     (descriptor, signal) => new BrowserAddonContentClient({
       addonId: descriptor.addonId,
@@ -63,6 +67,7 @@ export function createBrowserAddonComposition(
   );
   const runtime = new BrowserAddonRuntime(new BrowserGraphClient(), manager);
   return {
+    dataChanges,
     session: new BrowserAddonSession(runtime, callbacks),
     contributions,
   };
