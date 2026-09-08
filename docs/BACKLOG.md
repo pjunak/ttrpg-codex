@@ -231,8 +231,21 @@ those later changes at cutover rather than silently restoring an older state.
   Validation: 33 DM Tools tests, DPR 1/2 rendering checks, package rebuild and
   inspection, 304 host unit tests, all 196 browser cases with four add-on ZIPs,
   and host/add-on Go tests and vet. Imported/provider-authored text is preserved.
-  Remaining work includes original planner dialog and selection behavior,
-  planner localization, and final real-campaign visual acceptance.
+  Planner editing now uses the preserved centered dialog and phone bottom sheet,
+  with Details/Links/Notes tabs, a persistent Save action, keyboard focus handling
+  and retained drafts when closed. The canvas again separates selection from
+  editing and supports Shift/rectangle selection, selected flows, group dragging,
+  keyboard movement, connecting two selected cards and editing a selected flow.
+  Group moves save one guarded layout revision. Mixed deletions union subtrees
+  and flows before one atomic cleanup, preserving shared-note anchors.
+  Installed checks exercise cancellation, hidden drafts, keyboard focus, stale
+  group deletion, group spacing, flow selection, and desktop/phone dialogs.
+  Validation: 35 DM Tools tests, DPR 1/2 rendering checks, rebuilt/inspected ZIP,
+  304 host unit tests, all 197 browser tests with four add-on ZIPs, and host/
+  add-on Go tests and vet. Desktop/phone screenshots were visually reviewed.
+  Remaining original planner behavior: new-item draft/cancel before creation,
+  deletion undo, layout reset, connection-port gestures and shortcut help;
+  planner localization and final real-campaign visual acceptance also remain.
 - [x] Restore standalone compendium browsing and reading: the preserved topic/
   source tree, class/subclass/level nesting, tiles, deep cross-kind search,
   counted filters and sorting, complete Markdown/tables, composed class features,

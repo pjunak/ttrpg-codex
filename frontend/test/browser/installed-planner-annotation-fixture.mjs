@@ -1,3 +1,4 @@
+import { plannerTab } from './installed-planner-dialog-fixture.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { jsonResponse } from './installed-graph-fixture.mjs';
@@ -15,7 +16,7 @@ export async function exercisePlannerAnnotations({ t, open, admin, csrf, output,
   const page = await open(t, 'dm', mobile); await page.goto(`/#/addons/dm-tools/planner?item=${id}`);
   await page.getByRole('form', { name: 'Planning item details' }).waitFor();
   const reload = async () => { await page.getByRole('button', { name: 'Reload planner', exact: true }).click(); await page.locator('.dm-planner-shell[aria-busy="false"]').waitFor(); };
-  await page.locator('summary').filter({ hasText: /^Add reference$/u }).click();
+  await plannerTab(page, 'Links'); await page.locator('summary').filter({ hasText: /^Add reference$/u }).click();
   const create = page.getByRole('form', { name: 'Create reference' });
   await create.getByLabel('Target type', { exact: true }).selectOption('core');
   await create.getByLabel('Campaign target', { exact: true }).selectOption('["events","arrival"]');
@@ -58,7 +59,7 @@ export async function exercisePlannerAnnotations({ t, open, admin, csrf, output,
   savedConsequence = (await records('planning_consequences')).find(record => record.key === savedConsequence.key);
   assert.equal(Object.hasOwn(savedConsequence.value, 'target'), false);
 
-  await page.getByRole('button', { name: 'Add DM note', exact: true }).click(); await page.getByText('DM note added.', { exact: true }).waitFor();
+  await plannerTab(page, 'Notes'); await page.getByRole('button', { name: 'Add DM note', exact: true }).click(); await page.getByText('DM note added.', { exact: true }).waitFor();
   const note = page.locator('[data-note-id]');
   await note.getByRole('checkbox', { name: peer, exact: true }).check();
   await note.getByLabel('Private details', { exact: true }).fill('Shared scene details'); await reload();
@@ -76,7 +77,7 @@ export async function exercisePlannerAnnotations({ t, open, admin, csrf, output,
   await note.getByRole('checkbox', { name: peer, exact: true }).check();
   await note.getByRole('button', { name: 'Save note', exact: true }).click(); await page.getByText('DM note saved.', { exact: true }).waitFor();
   assert.equal(await note.count(), 0);
-  await page.goto(`/#/addons/dm-tools/planner?item=${peer}`); await note.waitFor();
+  await page.goto(`/#/addons/dm-tools/planner?item=${peer}`); await plannerTab(page, 'Notes'); await note.waitFor();
   assert.equal(await note.getByLabel('Private details', { exact: true }).inputValue(), 'Shared scene details');
   savedNote = (await records('dm_notes')).find(record => record.key === savedNote.key); assert.deepEqual(savedNote.value.anchorIds, [peer]);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);

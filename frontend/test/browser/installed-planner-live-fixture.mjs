@@ -1,3 +1,4 @@
+import { closePlannerEditor, editPlannerCard } from './installed-planner-dialog-fixture.mjs';
 import assert from 'node:assert/strict';
 import { jsonResponse } from './installed-graph-fixture.mjs';
 
@@ -11,11 +12,13 @@ export async function exercisePlannerLive({ t, open, admin, csrf }) {
   const overview = await open(t), page = await open(t);
   await page.goto('/#/addons/dm-tools/planner?item=live-quest');
   const details = page.getByRole('form', { name: 'Planning item details', exact: true }), title = details.getByLabel('Title', { exact: true });
-  await title.waitFor(); await page.getByRole('button', { name: 'Zoom out', exact: true }).click();
+  await title.waitFor(); await closePlannerEditor(page); await page.getByRole('button', { name: 'Zoom out', exact: true }).click();
   const viewport = page.locator('.dm-planner-viewport');
   await viewport.evaluate(e => { e.scrollLeft = 120; e.scrollTop = 80; });
-  const zoom = page.getByRole('button', { name: 'Reset zoom to 100%', exact: true });
+  const zoom = page.locator('button[aria-label="Reset zoom to 100%"]');
   const zoomBefore = await zoom.textContent(); assert.equal(zoomBefore, '90%');
+
+  await editPlannerCard(page, page.locator('.dm-plan-card[data-item-id="live-quest"]'));
   const canvasBefore = await viewport.evaluate(e => ({ scope: e.dataset.scope, left: e.scrollLeft, top: e.scrollTop }));
   let queries = 0; page.on('request', request => { if (request.url().endsWith('/data/query')) queries++; });
   const update = async text => { const current = (await records()).find(record => record.key === item.id); await transact([{ operation: 'put', kind: 'collection', dataId: 'planning_items', key: item.id, expectedRevision: current.revision, value: { ...current.value, title: text, updatedAt: current.value.updatedAt + 1 } }]); };
@@ -53,6 +56,7 @@ export async function exercisePlannerLive({ t, open, admin, csrf }) {
   await update('Refresh retry title'); await failing.getByText(/Reload the planner before making another change/u).waitFor();
   await failing.unroute('**/data/query'); await failing.getByRole('button', { name: 'Reload planner', exact: true }).click();
   await failing.waitForFunction(() => document.querySelector('form[aria-label="Planning item details"] input[name="title"]')?.value === 'Refresh retry title');
+  await closePlannerEditor(failing);
   const card = failing.locator('.dm-plan-card[data-item-id="live-quest"]'); await card.scrollIntoViewIfNeeded();
   const box = await card.boundingBox(); await failing.mouse.move(box.x + 30, box.y + 35); await failing.mouse.down();
   await card.evaluate(element => { window.heldCard = element; });

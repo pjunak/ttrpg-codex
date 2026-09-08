@@ -1,3 +1,4 @@
+import { plannerTab, editPlannerCard } from './installed-planner-dialog-fixture.mjs';
 import assert from 'node:assert/strict';
 import { jsonResponse } from './installed-graph-fixture.mjs';
 
@@ -17,7 +18,7 @@ export async function exercisePlannerConcurrency({ t, open, admin, csrf }) {
     put('planning_flow_links', flow('race-da', 'race-d', 'race-a')),
   ]);
   const page = await open(t); await page.goto('/#/addons/dm-tools/planner');
-  await page.locator('.dm-plan-card[data-item-id="race-parent"]').click();
+  await editPlannerCard(page, page.locator('.dm-plan-card[data-item-id="race-parent"]'));
   const remove = page.getByRole('button', { name: 'Delete item and subtree', exact: true }); await remove.waitFor();
   // Adding a child does not change the parent's document revision.
   await transact([put('planning_items', item('race-unseen-child', 'race-parent'))]);
@@ -33,6 +34,7 @@ export async function exercisePlannerConcurrency({ t, open, admin, csrf }) {
   assert.equal((await records('planning_items')).some(record => ['race-parent', 'race-unseen-child'].includes(record.key)), false);
 
   await page.goto('/#/addons/dm-tools/planner?item=race-b');
+  await plannerTab(page, 'Links');
   const removeFlow = page.locator('[data-flow-id="race-bc"]').getByRole('button', { name: 'Remove flow', exact: true }); await removeFlow.waitFor();
   await transact([put('planning_consequences', { id: 'race-unseen-consequence', schemaVersion: 3, anchor: { scope: 'flow', flowId: 'race-bc' }, kind: 'world', title: 'New consequence', body: '', updatedAt: 1 })]);
   page.once('dialog', dialog => dialog.accept());
@@ -45,6 +47,7 @@ export async function exercisePlannerConcurrency({ t, open, admin, csrf }) {
   const left = await open(t), right = await open(t);
   await left.goto('/#/addons/dm-tools/planner?item=race-a');
   await right.goto('/#/addons/dm-tools/planner?item=race-c');
+  await plannerTab(left, 'Links'); await plannerTab(right, 'Links');
   const createLeft = left.getByRole('form', { name: 'Create story flow', exact: true });
   const createRight = right.getByRole('form', { name: 'Create story flow', exact: true });
   await createLeft.getByLabel('Flow target').selectOption('race-b');

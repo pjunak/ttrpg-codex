@@ -1,3 +1,4 @@
+import { editPlannerCard } from './installed-planner-dialog-fixture.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { jsonResponse } from './installed-graph-fixture.mjs';
@@ -36,8 +37,8 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output })
     const stored = async name => (await records('planning_items')).find(record => record.key === id(name));
     let writes = 0; page.on('request', request => { if (request.url().endsWith('/data/transactions')) writes++; });
 
-    await scope('home'); await card('free').click(); await details.getByLabel('Body', { exact: true }).fill('Keep the other item draft');
-    await card('box').click();
+    await scope('home'); await editPlannerCard(page, card('free')); await details.getByLabel('Body', { exact: true }).fill('Keep the other item draft');
+    await editPlannerCard(page, card('box'));
     for (const excluded of ['box', 'nested', 'child-a', 'free']) assert.equal(await details.getByLabel('Parent', { exact: true }).locator(`option[value="${id(excluded)}"]`).count(), 0);
     const preserved = {};
     for (const collection of ['planning_flow_links', 'planning_references', 'planning_consequences', 'dm_notes', 'planning_views']) preserved[collection] = await records(collection);
@@ -57,12 +58,12 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output })
     await details.getByRole('button', { name: 'Save details', exact: true }).click();
     await page.getByText(/Move this item's children first/u).waitFor(); assert.equal(writes, previousWrites); await discard();
 
-    await scope('home'); await card('free').click();
+    await scope('home'); await editPlannerCard(page, card('free'));
     assert.equal(await details.getByLabel('Body', { exact: true }).inputValue(), 'Keep the other item draft');
     await details.getByLabel('Kind', { exact: true }).selectOption('branch'); await details.getByLabel('Branch type').selectOption('random');
     await details.getByLabel('Kind', { exact: true }).selectOption('quest'); await details.getByLabel('Kind', { exact: true }).selectOption('branch');
     assert.equal(await details.getByLabel('Branch type').inputValue(), 'random');
-    await card('branch').click(); await card('free').click();
+    await editPlannerCard(page, card('branch')); await editPlannerCard(page, card('free'));
     assert.equal(await details.getByLabel('Kind', { exact: true }).inputValue(), 'branch');
     assert.equal(await details.getByLabel('Branch type').inputValue(), 'random');
     await details.getByLabel('Parent', { exact: true }).selectOption(id('destination')); await save();
@@ -73,7 +74,7 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output })
     await details.getByLabel('Kind', { exact: true }).selectOption('event'); await details.getByLabel('Event type').selectOption('encounter'); await save();
     assert.equal((await stored('free')).value.branchType, undefined); assert.equal((await stored('free')).value.eventType, 'encounter');
 
-    await scope('home'); await card('branch').click(); previousWrites = writes;
+    await scope('home'); await editPlannerCard(page, card('branch')); previousWrites = writes;
     await details.getByLabel('Parent', { exact: true }).selectOption(id('destination'));
     await details.getByRole('button', { name: 'Save details', exact: true }).click();
     await page.getByText(/This item has story flows on its current canvas/u).waitFor(); assert.equal(writes, previousWrites); await discard();
@@ -98,7 +99,7 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output })
     assert.equal((await stored('free')).value.body, 'Keep the missing-parent draft');
 
     // A concurrently added child must prevent converting its parent to a leaf.
-    await scope(); await card('empty').click(); await details.getByLabel('Kind', { exact: true }).selectOption('event');
+    await scope(); await editPlannerCard(page, card('empty')); await details.getByLabel('Kind', { exact: true }).selectOption('event');
     await transact([put('planning_items', item('late-child', 'event', 'empty'))]);
     await details.getByRole('button', { name: 'Save details', exact: true }).click();
     await page.getByText(/Reload the planner before making another change/u).waitFor();

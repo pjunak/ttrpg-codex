@@ -1,3 +1,4 @@
+import { plannerTab, editPlannerCard } from './installed-planner-dialog-fixture.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { jsonResponse } from './installed-graph-fixture.mjs';
@@ -24,7 +25,7 @@ export async function exercisePlannerFlows({ t, open, admin, csrf, output }) {
   ]);
   const page = await open(t); await page.goto('/#/addons/dm-tools/planner?item=flow-branch');
   const create = page.getByRole('form', { name: 'Create story flow', exact: true });
-  await create.waitFor();
+  await plannerTab(page, 'Links'); await create.waitFor();
   assert.equal(await create.getByLabel('Flow target').locator('option[value="flow-child"]').count(), 0);
   assert.equal(await create.getByLabel('Flow type').inputValue(), 'option');
   await create.getByLabel('Flow target').selectOption('flow-event');
@@ -39,7 +40,7 @@ export async function exercisePlannerFlows({ t, open, admin, csrf, output }) {
   const card = id => page.locator(`.dm-plan-card[data-item-id="${id}"]`);
 
   // Editing an incoming flow still uses its actual branch source for allowed kinds.
-  await card('flow-event').click(); await flowEntry.getByText('Edit flow', { exact: true }).click();
+  await editPlannerCard(page, card('flow-event'), 'Links'); await flowEntry.getByText('Edit flow', { exact: true }).click();
   assert.equal(await edit.getByLabel('Flow type').locator('option[value="option"]').count(), 1);
   await edit.getByLabel('Flow type').selectOption('continues'); await edit.getByLabel('Flow label').fill('Enter <carefully>');
   await edit.getByRole('button', { name: 'Save flow', exact: true }).click(); await page.getByText('Flow saved.', { exact: true }).waitFor();
@@ -58,7 +59,7 @@ export async function exercisePlannerFlows({ t, open, admin, csrf, output }) {
   await annotation.getByLabel('Details', { exact: true }).fill('Only when taking this path.');
   await annotation.getByRole('button', { name: 'Save consequence', exact: true }).click(); await page.getByText('Consequence saved.', { exact: true }).waitFor();
   assert.deepEqual((await records('planning_consequences')).find(record => record.key === consequence.key).value.anchor, { scope: 'flow', flowId });
-  await card('flow-branch').click(); await annotation.waitFor();
+  await editPlannerCard(page, card('flow-branch'), 'Links'); await annotation.waitFor();
   assert.equal(await annotation.getByLabel('Consequence applies to').inputValue(), `flow:${flowId}`);
   assert.equal(await edit.getByLabel('Flow label').inputValue(), 'Draft flow label');
 
@@ -75,7 +76,7 @@ export async function exercisePlannerFlows({ t, open, admin, csrf, output }) {
   assert.equal((await records('planning_flow_links')).find(record => record.key === flowId).value.label, 'Remote flow label');
 
   // Cycle validation happens before a write and leaves the new-flow draft intact.
-  await card('flow-event').click();
+  await editPlannerCard(page, card('flow-event'), 'Links');
   await create.getByLabel('Flow target').selectOption('flow-branch'); await create.getByLabel('Flow label').fill('Invalid return');
   const beforeCycle = await records('planning_flow_links');
   await create.getByRole('button', { name: 'Create flow', exact: true }).click(); await page.getByText(/Flow cycle reaches/u).waitFor();
@@ -99,7 +100,7 @@ export async function exercisePlannerFlows({ t, open, admin, csrf, output }) {
   for (const mobile of [false, true]) {
     const view = mobile ? await open(t, 'dm', true) : page;
     if (mobile) await view.goto('/#/addons/dm-tools/planner?item=flow-event');
-    await view.locator(`form[data-consequence-id="${consequence.key}"]`).waitFor();
+    await plannerTab(view, 'Links'); await view.locator(`form[data-consequence-id="${consequence.key}"]`).waitFor();
     const entry = view.locator(`.dm-planner-flow-entry[data-flow-id="${flowId}"]`);
     await entry.getByText('Edit flow', { exact: true }).click();
     assert.equal(await entry.getByLabel('Flow label').inputValue(), 'Remote flow label');
@@ -121,7 +122,7 @@ export async function exercisePlannerFlows({ t, open, admin, csrf, output }) {
   const rootView = (await records('planning_views')).find(record => record.key === 'scope-root');
   await transact([put('planning_views', { id: 'scope-root', schemaVersion: 3, scopeId: null, positions: { ...(rootView?.value.positions ?? {}), 'flow-event': { x: 48, y: 48 }, 'flow-quest': { x: 384, y: 48 } }, updatedAt: 4 }, rootView?.revision ?? 0)]);
   await page.getByRole('button', { name: 'Reload planner', exact: true }).click(); await page.locator('.dm-planner-shell[aria-busy="false"]').waitFor();
-  page.once('dialog', dialog => dialog.accept()); await page.getByRole('button', { name: 'Delete item and subtree', exact: true }).click();
+  await plannerTab(page, 'Details'); page.once('dialog', dialog => dialog.accept()); await page.getByRole('button', { name: 'Delete item and subtree', exact: true }).click();
   await page.getByText('Planning subtree deleted.', { exact: true }).waitFor();
   assert.equal((await records('planning_references')).some(record => record.key === 'flow-incoming-ref'), false);
   assert.deepEqual((await records('dm_notes')).find(record => record.key === 'flow-shared-note').value.anchorIds, ['flow-quest']);

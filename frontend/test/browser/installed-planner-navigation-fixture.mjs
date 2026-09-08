@@ -1,3 +1,4 @@
+import { closePlannerEditor, editPlannerCard } from './installed-planner-dialog-fixture.mjs';
 import assert from 'node:assert/strict';
 import { jsonResponse } from './installed-graph-fixture.mjs';
 
@@ -38,7 +39,7 @@ export async function exercisePlannerNavigation({ t, open, admin, csrf }) {
     // Query navigation keeps the same view and its hidden drafts.
     await page.evaluate(() => { location.hash = '#/addons/dm-tools/planner'; });
     await page.waitForURL('**/#/addons/dm-tools/planner');
-    await page.locator(`.dm-plan-card[data-item-id="${id}"]`).click();
+    await editPlannerCard(page, page.locator(`.dm-plan-card[data-item-id="${id}"]`));
     assert.equal(await details.getByLabel('Body', { exact: true }).inputValue(), 'Keep my unsaved body');
     await page.evaluate(() => { location.hash = '#/addons/dm-tools/planner?unexpected=value'; });
     await page.getByRole('alert').filter({ hasText: /planner|parameter|target/iu }).waitFor();
@@ -52,11 +53,11 @@ export async function exercisePlannerNavigation({ t, open, admin, csrf }) {
     if (!mobile) {
       assert.equal(await unloadBlocked(page), true, 'draft remains guarded before sign-out');
       const beforeLogout = await jsonResponse(await page.context().request.get('/api/auth'));
-      await page.locator('.account-menu > summary').click();
+      await closePlannerEditor(page); await page.locator('.account-menu > summary').click();
       const logoutPrompt = page.waitForEvent('dialog', { timeout: 5000 });
       page.once('dialog', dialog => dialog.dismiss());
       await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-      await logoutPrompt;
+      await logoutPrompt; await editPlannerCard(page, page.locator(`.dm-plan-card[data-item-id="${id}"]`));
       assert.deepEqual(await jsonResponse(await page.context().request.get('/api/auth')), beforeLogout);
       assert.equal(await details.getByLabel('Body', { exact: true }).inputValue(), 'Keep my unsaved body');
       const reloadPrompt = page.waitForEvent('dialog', { timeout: 5000 });
@@ -80,7 +81,7 @@ export async function exercisePlannerNavigation({ t, open, admin, csrf }) {
     await page.waitForURL(`**/${hash}`);
     if (!mobile) {
       const beforeLogout = await jsonResponse(await page.context().request.get('/api/auth'));
-      await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+      await page.locator('.account-menu button').filter({ hasText: /^Sign out$/u }).evaluate(button => button.click());
       assert.deepEqual(await jsonResponse(await page.context().request.get('/api/auth')), beforeLogout);
     }
     assert.equal(await unloadBlocked(page), true);

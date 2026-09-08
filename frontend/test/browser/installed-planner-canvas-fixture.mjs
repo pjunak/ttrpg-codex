@@ -1,3 +1,4 @@
+import { closePlannerEditor, editPlannerCard } from './installed-planner-dialog-fixture.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { jsonResponse } from './installed-graph-fixture.mjs';
@@ -14,21 +15,21 @@ export async function exercisePlannerCanvas({ t, open, admin, csrf, output, mobi
   ] } }));
   const page = await open(t, 'dm', mobile); await page.goto(`/#/addons/dm-tools/planner?item=${quest}`);
   const viewport = page.getByLabel('Story canvas', { exact: true }), controls = page.getByRole('group', { name: 'Canvas controls', exact: true });
-  const first = page.locator(`[data-item-id="${event}"]`), zoom = controls.getByRole('button', { name: 'Reset zoom to 100%', exact: true });
+  const first = page.locator(`[data-item-id="${event}"]`), zoom = page.locator('button[aria-label="Reset zoom to 100%"]');
   await first.waitFor(); assert.equal(await zoom.textContent(), '100%');
   await controls.getByRole('button', { name: 'Zoom out', exact: true }).click(); assert.equal(await zoom.textContent(), '90%');
   await controls.getByRole('button', { name: 'Zoom in', exact: true }).click(); assert.equal(await zoom.textContent(), '100%');
   await controls.getByRole('button', { name: 'Fit', exact: true }).click(); assert.ok(Number((await zoom.textContent()).replace('%', '')) < 100);
   assert.equal(await first.evaluate(element => getComputedStyle(element).transform), 'none');
-  await zoom.click(); await first.click();
+  await zoom.click(); await editPlannerCard(page, first);
   const details = page.getByRole('form', { name: 'Planning item details' }); await details.getByLabel('Summary', { exact: true }).fill('Retain the draft while navigating the canvas.');
   await viewport.evaluate(element => { element.scrollLeft = 220; element.scrollTop = 160; });
   await page.getByRole('button', { name: 'Reload planner', exact: true }).click(); await page.locator('.dm-planner-shell[aria-busy="false"]').waitFor();
   assert.equal(await viewport.evaluate(element => element.scrollLeft), 220); assert.equal(await viewport.evaluate(element => element.scrollTop), 160);
   assert.equal(await details.getByLabel('Summary', { exact: true }).inputValue(), 'Retain the draft while navigating the canvas.');
-  await controls.getByRole('button', { name: 'Focus selected', exact: true }).click();
+  await closePlannerEditor(page); await controls.getByRole('button', { name: 'Focus selected', exact: true }).click();
   const before = await viewport.evaluate(element => ({ x: element.scrollLeft, y: element.scrollTop }));
-  await viewport.focus(); await page.keyboard.press('ArrowRight');
+  await viewport.focus(); await page.keyboard.press('Control+ArrowRight');
   assert.equal(await viewport.evaluate(element => element.scrollLeft), before.x + 48);
   await page.keyboard.press('-'); assert.equal(await zoom.textContent(), '90%'); await page.keyboard.press('0'); assert.equal(await zoom.textContent(), '100%');
   await controls.getByRole('button', { name: 'Fullscreen', exact: true }).click(); await page.locator('.dm-planner-expanded').waitFor();
@@ -40,11 +41,11 @@ export async function exercisePlannerCanvas({ t, open, admin, csrf, output, mobi
   await page.goto(`/#/addons/dm-tools/planner?item=${event}`); await page.locator(`.dm-planner-viewport[data-scope="${quest}"]`).waitFor(); assert.equal(await zoom.textContent(), fitted);
   assert.equal(await details.getByLabel('Summary', { exact: true }).inputValue(), 'Retain the draft while navigating the canvas.');
   await details.getByRole('button', { name: 'Discard edits', exact: true }).click();
-  await controls.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await closePlannerEditor(page); await controls.getByRole('button', { name: 'Zoom in', exact: true }).click();
   // Use 200% to verify pointer coordinates are converted back to stored coordinates.
   for (let i = 0; i < 15; i++) await controls.getByRole('button', { name: 'Zoom in', exact: true }).click();
   assert.equal(await zoom.textContent(), '200%');
-  await controls.getByRole('button', { name: 'Focus selected', exact: true }).click();
+  await closePlannerEditor(page); await controls.getByRole('button', { name: 'Focus selected', exact: true }).click();
   const box = await first.boundingBox(); assert.ok(box);
   const canvas = await viewport.boundingBox(); assert.ok(canvas);
   const start = { x: Math.max(box.x, canvas.x) + 24, y: Math.max(box.y, canvas.y) + 24 };
@@ -56,6 +57,6 @@ export async function exercisePlannerCanvas({ t, open, admin, csrf, output, mobi
   await zoom.click(); await controls.getByRole('button', { name: 'Focus selected', exact: true }).click();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await viewport.scrollIntoViewIfNeeded(); await page.screenshot({ path: resolve(output, `planner-canvas-${suffix}.png`) });
-  await page.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await page.reload();
+  await page.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await page.reload(); await page.locator('.dm-planner-shell[aria-busy="false"]').waitFor(); await closePlannerEditor(page);
   await page.getByRole('button', { name: 'Přizpůsobit', exact: true }).waitFor();
 }

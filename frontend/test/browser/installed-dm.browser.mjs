@@ -1,3 +1,5 @@
+import { plannerTab } from './installed-planner-dialog-fixture.mjs';
+import { exercisePlannerSelection } from './installed-planner-selection-fixture.mjs';
 import { exercisePlannerCanvas } from './installed-planner-canvas-fixture.mjs';
 import { exercisePlannerLive } from './installed-planner-live-fixture.mjs';
 import { exerciseImportCenter } from './installed-import-center-fixture.mjs';
@@ -182,7 +184,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('reviewed DM Tools dashboard preserves 
   await page.getByLabel('Title', { exact: true }).fill('Hidden meeting');
   await page.getByRole('button', { name: 'Save details', exact: true }).click();
   await page.getByText('Details saved.', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Add DM note', exact: true }).click();
+  await plannerTab(page, 'Notes'); await page.getByRole('button', { name: 'Add DM note', exact: true }).click();
   await page.getByText('DM note added.', { exact: true }).waitFor();
   await page.goto('/#/dm');
   await dashboard.locator('[data-stat="total"] .dm-dashboard-value').filter({ hasText: /^2$/u }).waitFor();
@@ -284,6 +286,11 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} subscript
   assert.deepEqual(JSON.parse(await output.textContent()).filter(change => change.reason === 'changed'), [{ reason: 'changed', kind: 'collection', dataId: 'notes' }]);
   await slot.getByRole('button', { name: 'Stop changes', exact: true }).click(); const before = await output.textContent();
   await write(id, 1); await page.waitForTimeout(250); assert.equal(await output.textContent(), before);
+});
+
+if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner selects and moves groups, retains modal drafts and deletes mixed selections atomically', async t => {
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), dmToolsPermissions);
+  t.after(() => disable('dm-tools')); await exercisePlannerSelection({ t, open, admin, csrf, output });
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner and overview update live without losing edits or canvas state', async t => {

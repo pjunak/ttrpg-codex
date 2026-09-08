@@ -1,3 +1,4 @@
+import { closePlannerEditor, plannerTab, editPlannerCard } from './installed-planner-dialog-fixture.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { jsonResponse } from './installed-graph-fixture.mjs';
@@ -12,7 +13,7 @@ export async function exercisePlannerEditing({ t, open, admin, csrf, output }) {
     data: { contractVersion: 'addon-data-transaction.v1', mutations: [mutation] } }));
   const page = await open(t);
   await page.goto('/#/addons/dm-tools/planner');
-  const details = page.getByRole('form', { name: 'Planning item details' });
+  const details = page.locator('form[aria-label="Planning item details"]');
   const save = () => page.getByRole('button', { name: 'Save details', exact: true }).click();
   const saved = () => page.getByText('Details saved.', { exact: true }).waitFor();
   const reload = async () => {
@@ -33,10 +34,10 @@ export async function exercisePlannerEditing({ t, open, admin, csrf, output }) {
   const eventId = event.key;
   const eventCard = page.locator(`.dm-plan-card[data-item-id="${eventId}"]`);
 
-  await page.getByRole('button', { name: 'Add DM note', exact: true }).click();
+  await plannerTab(page, 'Notes'); await page.getByRole('button', { name: 'Add DM note', exact: true }).click();
   await page.getByText('DM note added.', { exact: true }).waitFor();
   await page.getByLabel('Private details', { exact: true }).fill('Keep this note draft.');
-  await details.getByLabel('Title', { exact: true }).fill('   '); await save();
+  await plannerTab(page, 'Details'); await details.getByLabel('Title', { exact: true }).fill('   '); await save();
   await page.getByText('A title is required.', { exact: true }).waitFor();
   assert.equal(await details.getByLabel('Title', { exact: true }).inputValue(), '   ');
   assert.equal(await page.getByLabel('Private details', { exact: true }).inputValue(), 'Keep this note draft.');
@@ -48,21 +49,21 @@ export async function exercisePlannerEditing({ t, open, admin, csrf, output }) {
   await details.getByLabel('Objective', { exact: true }).fill('Get everyone through.'); await save(); await saved();
   assert.equal(await page.getByLabel('Private details', { exact: true }).inputValue(), 'Keep this note draft.');
   await details.getByLabel('Setup', { exact: true }).fill('Retain the item draft too.');
-  await page.getByRole('button', { name: 'Save note', exact: true }).click();
+  await plannerTab(page, 'Notes'); await page.getByRole('button', { name: 'Save note', exact: true }).click();
   await page.getByText('DM note saved.', { exact: true }).waitFor();
   assert.equal(await details.getByLabel('Setup', { exact: true }).inputValue(), 'Retain the item draft too.');
 
-  await page.getByRole('button', { name: '+ Branch', exact: true }).click();
+  await closePlannerEditor(page); await page.getByRole('button', { name: '+ Branch', exact: true }).click();
   await details.getByLabel('Title', { exact: true }).fill('Editor choice');
   await details.getByLabel('Branch type', { exact: true }).selectOption('condition'); await save(); await saved();
   const branch = (await records('planning_items')).find(record => record.value.title === 'Editor choice');
   assert.equal(branch.value.branchType, 'condition'); assert.equal(Object.hasOwn(branch.value, 'eventType'), false);
-  await eventCard.click();
+  await editPlannerCard(page, eventCard);
   assert.equal(await details.getByLabel('Setup', { exact: true }).inputValue(), 'Retain the item draft too.');
-  await page.getByRole('button', { name: '+ Quest', exact: true }).click();
+  await closePlannerEditor(page); await page.getByRole('button', { name: '+ Quest', exact: true }).click();
   await page.getByRole('button', { name: 'Enter this canvas', exact: true }).click();
   await page.getByText('This canvas is empty. Add a planning item from the Atlas.', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Campaign', exact: true }).click(); await eventCard.click();
+  await page.getByRole('button', { name: 'Campaign', exact: true }).click(); await editPlannerCard(page, eventCard);
   assert.equal(await details.getByLabel('Setup', { exact: true }).inputValue(), 'Retain the item draft too.');
 
   const writePattern = '**/api/addons/dm-tools/generations/*/data/transactions';
@@ -118,13 +119,14 @@ export async function exercisePlannerEditing({ t, open, admin, csrf, output }) {
   await details.getByRole('button', { name: 'Discard edits', exact: true }).click();
   assert.equal(await details.getByLabel('Title', { exact: true }).inputValue(), 'Saved despite a lost response');
 
-  await page.getByLabel('Private details', { exact: true }).fill('Copy this removed note draft.');
+  await plannerTab(page, 'Notes'); await page.getByLabel('Private details', { exact: true }).fill('Copy this removed note draft.');
   const note = (await records('dm_notes')).find(record => record.value.anchorIds.includes(eventId));
   await transaction({ operation: 'delete', kind: 'collection', dataId: 'dm_notes', key: note.key, expectedRevision: note.revision });
   await reload(); await page.locator('.dm-planner-removed-draft summary').click();
   await page.getByText(/body: Copy this removed note draft/u).waitFor();
   await page.getByRole('button', { name: 'Discard removed record edits', exact: true }).click();
 
+  await closePlannerEditor(page);
   const beforePositions = await records('planning_views');
   await eventCard.scrollIntoViewIfNeeded(); const position = await eventCard.boundingBox();
   const original = await eventCard.evaluate(card => ({ left: card.style.left, top: card.style.top }));
@@ -136,7 +138,7 @@ export async function exercisePlannerEditing({ t, open, admin, csrf, output }) {
 
   for (const mobile of [false, true]) {
     const view = mobile ? await open(t, 'dm', true) : page;
-    if (mobile) await view.goto(`/#/addons/dm-tools/planner?item=${eventId}`);
+    if (mobile) await view.goto(`/#/addons/dm-tools/planner?item=${eventId}`); else await editPlannerCard(view, eventCard);
     await view.getByRole('form', { name: 'Planning item details' }).waitFor();
     const style = await view.locator('.dm-planner-shell h1').evaluate(element => ({ color: getComputedStyle(element).color, font: getComputedStyle(element).fontFamily }));
     assert.equal(style.color, 'rgb(200, 160, 64)'); assert.match(style.font, /Cinzel/u);
