@@ -254,15 +254,29 @@ those later changes at cutover rather than silently restoring an older state.
   values, and retains combat definitions for provider loss. Missing rules data
   cannot replace saved values with a partial universal result. Real installed
   Engine/Compendium/Sheets checks verify repeated ability-grant calculation.
-  Remaining sheet work: complete Builder progress/choices, catalog equipment
-  selection and worn slots, full spell preparation/casting and rest workflows,
-  provider diagnostics, localization and final v1 visual acceptance. These
+  Builder now edits species/lineage, background, base scores, classes/subclasses
+  and split ability allocations, including selected feat ability descriptors.
+  Point-buy totals and individual choice counts remain visible. Equipment has
+  category/search filters and a quantity tray, with one atomic batch save and
+  provider-independent custom items. Class spell learning, forgetting,
+  preparation, cantrips and ordinary/pact slot casting use the engine's new
+  versioned play-change method. Rest and average hit-die healing show a review
+  before writing; feature toggles respect availability and exclusive groups.
+  All play decisions and resulting hydration use one provider evaluation.
+  Manual resources, notes, unknown fields and existing combat overrides survive.
+  Half-level rest recovery is shared across multiclass hit-die pools.
+  Remaining sheet work: full Builder progress navigation and advanced choices,
+  original equipment tree/worn-slot presentation, granted-spell choices/free
+  casting, ritual/scribing/swap workflows, provider diagnostics, localization
+  and final v1 visual acceptance. These
   restored layouts do not close the complete presentation/workflow gate.
-  Validation: 17 Sheet checks, rebuilt/inspected ZIP, five real installed Sheet
-  browser cases, desktop/phone screenshot inspection, and every host gate:
-  288 unit tests, 171 browser cases, typecheck/build, Go tests and vet. Browser
-  validation used four concurrent suites after timing failures under the
-  default parallel run; no cases or assertions were skipped.
+  The installed Sheet suite now covers nine cases, including Builder foundation
+  changes, desktop/phone equipment-spell-rest sessions, preview cancellation,
+  missing-engine custom items and persistence of unrelated authored fields.
+  Validation: 18 Sheet checks, engine Go tests/vet/race checks, rebuilt and
+  inspected Engine/Sheets ZIPs, desktop/phone screenshots and all host check
+  components (288 unit tests, 175 browser cases, typecheck/build, Go tests/vet).
+  Browser suites ran with concurrency four; no cases or assertions were skipped.
 
 ### Release evidence
 

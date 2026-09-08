@@ -158,6 +158,20 @@ test('installed Sheets follows the host player editing policy', { skip: !archive
   await sheet.screenshot({ path: resolve(output, 'player-phone.png') });
 });
 
+test('installed Sheets keeps custom equipment usable without an engine', { skip: !archivePath }, async t => {
+  const key = 'custom-equipment'; await seed(key); const page = await open(t, key);
+  await page.getByRole('button', { name: 'Edit sheet', exact: true }).click();
+  await page.getByRole('button', { name: /Add item/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add equipment', exact: true });
+  await dialog.getByText(/equipment catalog is unavailable/).waitFor();
+  await dialog.getByRole('textbox', { name: 'Custom item name' }).fill('Lighthouse key');
+  await dialog.getByRole('button', { name: 'Select custom item', exact: true }).click();
+  assert.equal(await page.evaluate(() => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; }), true);
+  await write(page, () => dialog.getByRole('button', { name: 'Add items to backpack' }).click());
+  assert.equal((await get(key)).value.inventory.at(-1).name, 'Lighthouse key');
+  await page.reload(); await page.locator('.dse-backpack').getByText('Lighthouse key', { exact: true }).waitFor();
+});
+
 test('installed Sheets uses real catalog labels and keeps scores stable across recalculation', { skip: !archivePath || !process.env.CODEX_ENGINE_ZIP || !process.env.CODEX_COMPENDIUM_ZIP }, async t => {
   await installReviewedPackage(admin, csrf, 'dnd-engine', await readFile(resolve(process.env.CODEX_ENGINE_ZIP)), []);
   await installReviewedPackage(admin, csrf, 'dnd-2024-compendium', await readFile(resolve(process.env.CODEX_COMPENDIUM_ZIP)), []);
@@ -179,4 +193,77 @@ test('installed Sheets uses real catalog labels and keeps scores stable across r
   }
   await sheet.getByRole('tab', { name: 'Combat', exact: true }).click();
   await sheet.getByRole('button', { name: 'Use Spell Slots (1st)', exact: true }).waitFor();
+});
+
+test('installed Sheets saves Builder foundations, subclass and split ability grants', { skip: !archivePath || !process.env.CODEX_ENGINE_ZIP || !process.env.CODEX_COMPENDIUM_ZIP }, async t => {
+  const key = 'builder-workflow'; await seed(key); const initial = await get(key);
+  await put(key, { ...initial.value, classes: [{ classId: 'wizard', level: 5 }] }, initial.revision);
+  const page = await open(t, key), sheet = page.locator('.addon-dnd-sheets');
+  await sheet.getByRole('button', { name: 'Edit sheet', exact: true }).click();
+  await sheet.getByRole('tab', { name: 'Builder', exact: true }).click(); await sheet.getByRole('button', { name: 'Load builder', exact: true }).click();
+  await sheet.getByLabel('Species', { exact: true }).waitFor();
+  await write(page, () => sheet.getByLabel('Species', { exact: true }).selectOption({ label: 'Elf' }));
+  await write(page, () => sheet.getByLabel('Lineage', { exact: true }).selectOption({ label: 'High Elf' }));
+  await write(page, () => sheet.getByLabel('Background', { exact: true }).selectOption({ label: 'Acolyte' }));
+  await write(page, () => sheet.getByRole('combobox', { name: 'Class 1 subclass', exact: true }).selectOption({ label: 'Abjurer' }));
+  await write(page, async () => { await sheet.getByLabel('Base INT', { exact: true }).fill('15'); await sheet.getByLabel('Base INT', { exact: true }).press('Tab'); });
+  const origin = sheet.locator('.dnd-builder-choices fieldset').filter({ has: page.getByLabel('bgasi INT', { exact: true }) });
+  await write(page, async () => { await origin.getByLabel('bgasi INT', { exact: true }).fill('2'); await origin.getByLabel('bgasi INT', { exact: true }).press('Tab'); });
+  await write(page, async () => { await origin.getByLabel('bgasi WIS', { exact: true }).fill('1'); await origin.getByLabel('bgasi WIS', { exact: true }).press('Tab'); });
+  await origin.getByText('3 / 3 ability points assigned', { exact: true }).waitFor();
+  const saved = (await get(key)).value;
+  assert.equal(saved.baseStats.INT, 15); assert.equal(saved.abilities.INT, 17); assert.equal(saved.species, 'Elf'); assert.equal(saved.lineage, 'high-elf'); assert.equal(saved.subclass, 'Abjurer');
+  assert.equal(saved.classes[0].subclass, 'abjurer'); assert.equal(saved.inventory.length, 3); assert.equal(saved.notes, 'Keep the promise.'); assert.equal(saved.homebrew.clue, 'blue lantern');
+  await sheet.screenshot({ path: resolve(output, 'builder-desktop.png') });
+});
+
+for (const mobile of [false, true]) test(`installed Sheets equipment, spells and reviewed rests persist on ${mobile ? 'phone' : 'desktop'}`, { skip: !archivePath || !process.env.CODEX_ENGINE_ZIP || !process.env.CODEX_COMPENDIUM_ZIP }, async t => {
+  const key = `session-workflow-${mobile}`; await seed(key); const initial = await get(key);
+  await put(key, { ...initial.value, classes: [{ classId: 'wizard', level: 5 }], hp: 5 }, initial.revision);
+  const page = await open(t, key, mobile), sheet = page.locator('.dnd-sheet-shell');
+  await sheet.getByRole('button', { name: 'Edit sheet', exact: true }).click();
+  await sheet.getByRole('button', { name: /Add item/ }).click();
+  const equipment = page.getByRole('dialog', { name: 'Add equipment', exact: true });
+  await equipment.waitFor();
+  assert.equal(await equipment.evaluate(node => getComputedStyle(node).backgroundColor), 'rgb(28, 21, 9)');
+  await equipment.getByRole('combobox', { name: 'Equipment category', exact: true }).selectOption('weapon');
+  await equipment.getByRole('searchbox', { name: 'Search equipment', exact: true }).fill('Longsword');
+  await equipment.getByRole('button', { name: 'Select Longsword', exact: true }).click();
+  await equipment.getByRole('spinbutton', { name: 'Selected Longsword quantity', exact: true }).fill('2');
+  await equipment.getByRole('spinbutton', { name: 'Selected Longsword quantity', exact: true }).press('Tab');
+  await equipment.getByRole('textbox', { name: 'Custom item name', exact: true }).fill('Star chart');
+  await equipment.getByRole('button', { name: 'Select custom item', exact: true }).click();
+  await equipment.screenshot({ path: resolve(output, `equipment-${mobile ? 'phone' : 'desktop'}.png`) });
+  await write(page, () => equipment.getByRole('button', { name: 'Add items to backpack' }).click());
+  const inventory = (await get(key)).value.inventory;
+  assert.equal(inventory.length, 5); assert.equal(inventory[3].ref, 'longsword'); assert.equal(inventory[3].kind, 'weapon'); assert.equal(inventory[3].qty, 2); assert.equal(inventory[3].snapshot.name, 'Longsword');
+  await sheet.getByRole('tab', { name: 'Spellbook', exact: true }).click();
+  await sheet.getByRole('button', { name: 'Manage class spells', exact: true }).click();
+  await sheet.getByRole('searchbox', { name: 'Search spells', exact: true }).fill('Mage Armor');
+  const spell = sheet.locator('[data-spell="mage-armor"]'); await spell.waitFor();
+  await write(page, () => spell.getByRole('button', { name: 'Learn spell', exact: true }).click());
+  await write(page, () => spell.getByRole('button', { name: 'Prepare', exact: true }).click());
+  await spell.getByRole('combobox', { name: 'Casting slot for Mage Armor', exact: true }).selectOption('slot-1');
+  await write(page, () => spell.getByRole('button', { name: 'Cast', exact: true }).click());
+  let state = (await get(key)).value;
+  assert.deepEqual(state.spellbook.wizard, ['mage-armor']); assert.deepEqual(state.preparedSpells.wizard, ['mage-armor']); assert.equal(state.resourceUses['slot-1'], 1);
+  assert.equal(state.spells.find(item => item.id === 'snapshot:mage-armor').name, 'Mage Armor');
+  assert.equal(state.spells.find(item => item.id === 'snapshot:mage-armor').level, 1);
+  await sheet.screenshot({ path: resolve(output, `spellbook-${mobile ? 'phone' : 'desktop'}.png`) });
+  await sheet.getByRole('tab', { name: 'Combat', exact: true }).click();
+  await sheet.getByRole('button', { name: /Spend d6 hit die/ }).click();
+  const healing = page.getByRole('dialog', { name: 'Review hit-die healing', exact: true }); await healing.waitFor();
+  assert.equal((await get(key)).value.hp, 5);
+  await write(page, () => healing.getByRole('button', { name: 'Apply changes', exact: true }).click());
+  state = (await get(key)).value; assert.equal(state.hp, 11); assert.equal(state.resourceUses['hit-dice-d6'], 4);
+  await sheet.getByRole('button', { name: 'Short rest', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Review short rest', exact: true }).getByRole('button', { name: 'Cancel', exact: true }).click();
+  assert.equal((await get(key)).value.resourceUses['slot-1'], 1);
+  await sheet.getByRole('button', { name: 'Long rest', exact: true }).click();
+  const rest = page.getByRole('dialog', { name: 'Review long rest', exact: true });
+  await rest.screenshot({ path: resolve(output, `rest-${mobile ? 'phone' : 'desktop'}.png`) });
+  await write(page, () => rest.getByRole('button', { name: 'Apply changes', exact: true }).click());
+  state = (await get(key)).value; assert.equal(state.hp, state.maxHp); assert.equal(state.tempHp, 0); assert.equal(state.resourceUses['slot-1'], undefined); assert.equal(state.resources[0].current, 1); assert.equal(state.inventory.length, 5);
+  await page.reload(); await page.locator('.dse-backpack').getByText('Star chart', { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
