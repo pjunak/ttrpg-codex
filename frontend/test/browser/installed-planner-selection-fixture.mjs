@@ -16,7 +16,9 @@ export async function exercisePlannerSelection({ t, open, admin, csrf, output })
     put('planning_items', item('selection-child', 'event', 'selection-a')),
     put('planning_flow_links', { id: 'selection-flow', schemaVersion: 3, sourceId: 'selection-a', targetId: 'selection-b', kind: 'continues', label: 'Follow the trail', updatedAt: 1 }),
     put('planning_consequences', { id: 'selection-effect', schemaVersion: 3, anchor: { scope: 'flow', flowId: 'selection-flow' }, kind: 'world', title: 'Attached consequence', body: '', updatedAt: 1 }),
+    put('planning_references', { id: 'selection-reference', schemaVersion: 3, itemId: 'selection-c', name: 'Child reference', relation: 'related', target: { scope: 'planning', itemId: 'selection-child' }, quantity: 1, notes: '', updatedAt: 1 }),
     put('dm_notes', { id: 'selection-note', schemaVersion: 3, title: 'Keep the other anchor', body: '', anchorIds: ['selection-child', 'selection-c'], updatedAt: 1 }),
+    put('planning_views', { id: 'scope-selection-a', schemaVersion: 3, scopeId: 'selection-a', positions: { 'selection-child': { x: 96, y: 144 } }, updatedAt: 1 }),
     put('planning_views', { id: 'scope-selection-scope', schemaVersion: 3, scopeId: 'selection-scope', positions: { 'selection-a': { x: 72, y: 72 }, 'selection-b': { x: 372, y: 72 }, 'selection-c': { x: 72, y: 312 } }, updatedAt: 1 }),
   ]);
   const page = await open(t); await page.goto('/#/addons/dm-tools/planner?item=selection-scope');
@@ -90,4 +92,29 @@ export async function exercisePlannerSelection({ t, open, admin, csrf, output })
   assert.ok((await records('planning_items')).some(record => record.key === 'selection-b'));
   assert.deepEqual((await records('dm_notes')).find(record => record.key === 'selection-note').value.anchorIds, ['selection-c']);
   assert.ok(!(await records('planning_consequences')).some(record => record.key === 'selection-effect'));
+  const deleted = writes.at(-1).mutations;
+  await viewport.focus(); await page.keyboard.press('Control+z'); await page.getByText('Deletion undone.', { exact: true }).waitFor();
+  const restored = writes.at(-1).mutations;
+  assert.equal(restored.length, deleted.length);
+  for (const mutation of restored) {
+    const original = deleted.find(value => value.dataId === mutation.dataId && value.key === mutation.key);
+    assert.equal(mutation.operation, 'put'); assert.equal(mutation.expectedRevision, original.expectedRevision + 1);
+  }
+  assert.ok((await records('planning_items')).some(record => record.key === 'selection-unseen'));
+  assert.ok((await records('planning_flow_links')).some(record => record.key === 'selection-flow'));
+  assert.ok((await records('planning_consequences')).some(record => record.key === 'selection-effect'));
+  assert.ok((await records('planning_references')).some(record => record.key === 'selection-reference'));
+  assert.deepEqual((await records('dm_notes')).find(record => record.key === 'selection-note').value.anchorIds, ['selection-child', 'selection-c']);
+  assert.deepEqual((await records('planning_views')).find(record => record.key === 'scope-selection-a').value.positions, { 'selection-child': { x: 96, y: 144 } });
+  assert.equal(await page.getByRole('button', { name: 'Undo last deletion', exact: true }).count(), 0);
+  // A later edit of an affected shared note must not be overwritten by undo.
+  await card('a').click(); page.once('dialog', prompt => prompt.accept()); await actions.getByRole('button', { name: 'Delete selection', exact: true }).click();
+  await page.getByText('Selection deleted.', { exact: true }).waitFor();
+  const note = (await records('dm_notes')).find(record => record.key === 'selection-note');
+  await transact([{ ...put('dm_notes', { ...note.value, body: 'A newer shared note', updatedAt: Date.now() }), expectedRevision: note.revision }]);
+  await page.getByRole('button', { name: 'Reload planner', exact: true }).click(); await page.locator('.dm-planner-shell[aria-busy="false"]').waitFor();
+  const countBeforeConflict = writes.length; await page.getByRole('button', { name: 'Undo last deletion', exact: true }).click();
+  await page.getByText(/An affected record changed after deletion/u).waitFor(); assert.equal(writes.length, countBeforeConflict);
+  assert.equal((await records('dm_notes')).find(record => record.key === 'selection-note').value.body, 'A newer shared note');
+  assert.ok(!(await records('planning_items')).some(record => record.key === 'selection-a'));
 }

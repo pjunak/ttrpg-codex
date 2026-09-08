@@ -1,5 +1,6 @@
 import { plannerTab } from './installed-planner-dialog-fixture.mjs';
 import { exercisePlannerSelection } from './installed-planner-selection-fixture.mjs';
+import { exercisePlannerActions, exercisePlannerCreationFailures } from './installed-planner-actions-fixture.mjs';
 import { exercisePlannerCanvas } from './installed-planner-canvas-fixture.mjs';
 import { exercisePlannerLive } from './installed-planner-live-fixture.mjs';
 import { exerciseImportCenter } from './installed-import-center-fixture.mjs';
@@ -286,6 +287,16 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} subscript
   assert.deepEqual(JSON.parse(await output.textContent()).filter(change => change.reason === 'changed'), [{ reason: 'changed', kind: 'collection', dataId: 'notes' }]);
   await slot.getByRole('button', { name: 'Stop changes', exact: true }).click(); const before = await output.textContent();
   await write(id, 1); await page.waitForTimeout(250); assert.equal(await output.textContent(), before);
+});
+
+if (process.env.CODEX_DM_TOOLS_ZIP) for (const mobile of [false, true]) test(`installed planner action parity creates, connects, resets and explains shortcuts on ${mobile ? 'phone' : 'desktop'}`, async t => {
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), dmToolsPermissions);
+  t.after(() => disable('dm-tools')); await exercisePlannerActions({ t, open, admin, csrf, output, mobile });
+});
+
+if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner reconciles lost creation responses and retains provisional drafts', async t => {
+  await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(process.env.CODEX_DM_TOOLS_ZIP)), dmToolsPermissions);
+  t.after(() => disable('dm-tools')); await exercisePlannerCreationFailures({ t, open, admin, csrf });
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner selects and moves groups, retains modal drafts and deletes mixed selections atomically', async t => {

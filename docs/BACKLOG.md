@@ -243,9 +243,23 @@ those later changes at cutover rather than silently restoring an older state.
   Validation: 35 DM Tools tests, DPR 1/2 rendering checks, rebuilt/inspected ZIP,
   304 host unit tests, all 197 browser tests with four add-on ZIPs, and host/
   add-on Go tests and vet. Desktop/phone screenshots were visually reviewed.
-  Remaining original planner behavior: new-item draft/cancel before creation,
-  deletion undo, layout reset, connection-port gestures and shortcut help;
-  planner localization and final real-campaign visual acceptance also remain.
+  Planner action completion now adds unsaved creation with cancellation and
+  resumption, receipt-based deletion undo, scope-local layout reset, connection
+  ports with click/drag/keyboard gestures, and shortcut help. Enter edits and
+  Shift+Enter opens containers, matching the preserved planner. Creation resolves
+  lost responses by the original ID; undo retains exact tombstone revisions and
+  refuses later edits of affected shared records. All actions preserve the
+  restored dialog/canvas presentation. The preserved implementation created
+  items immediately; the previously unfinished new-item dialog mode is now
+  completed deliberately so cancellation leaves no placeholder records.
+  Automatic placement also avoids overlapping saved cards when new items arrive.
+  Validation: 41 DM Tools tests, 22 rendering checks at each DPR, rebuilt and
+  inspected ZIP, 304 host unit tests, all 200 browser cases with four add-on
+  ZIPs, and host/add-on Go tests and vet. Installed checks exercise canceled
+  creation, held/lost responses, real tombstone undo and shared-note conflicts,
+  reset followed by movement, connection cancellation/cycles/live deferral,
+  keyboard behavior and desktop/phone presentation. Screenshots were reviewed.
+  Planner localization and final real-campaign visual acceptance remain.
 - [x] Restore standalone compendium browsing and reading: the preserved topic/
   source tree, class/subclass/level nesting, tiles, deep cross-kind search,
   counted filters and sorting, complete Markdown/tables, composed class features,

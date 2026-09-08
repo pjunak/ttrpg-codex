@@ -61,6 +61,7 @@ export async function exercisePlannerEditing({ t, open, admin, csrf, output }) {
   await editPlannerCard(page, eventCard);
   assert.equal(await details.getByLabel('Setup', { exact: true }).inputValue(), 'Retain the item draft too.');
   await closePlannerEditor(page); await page.getByRole('button', { name: '+ Quest', exact: true }).click();
+  await save(); await saved();
   await page.getByRole('button', { name: 'Enter this canvas', exact: true }).click();
   await page.getByText('This canvas is empty. Add a planning item from the Atlas.', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Campaign', exact: true }).click(); await editPlannerCard(page, eventCard);
