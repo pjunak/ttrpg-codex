@@ -11,6 +11,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { chromium, request as playwrightRequest } from 'playwright';
 import { jsonResponse, installReviewedPackage } from './installed-graph-fixture.mjs';
 import { attemptHash, unloadBlocked } from './installed-planner-navigation-fixture.mjs';
+import { exerciseCzechSheet } from './installed-sheet-localization-fixture.mjs';
 
 const archivePath = process.env.CODEX_SHEETS_ZIP;
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -240,7 +241,7 @@ test('installed Sheets provider reconnection retains a failed Czech draft', { sk
   await sheet.getByRole('button', { name: 'Upravit deník', exact: true }).click();
   await sheet.getByRole('tab', { name: 'Poznámky', exact: true }).click();
   await page.route(writes, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { kind: 'UNAVAILABLE' } }) }));
-  await sheet.getByRole('textbox', { name: 'Sheet notes' }).fill('Rozepsaná zpráva pro River.');
+  await sheet.getByRole('textbox', { name: 'Poznámky deníku' }).fill('Rozepsaná zpráva pro River.');
   await sheet.getByRole('tab', { name: 'Nastavení', exact: true }).click();
   await sheet.getByRole('button', { name: 'Zkusit uložit znovu', exact: true }).waitFor();
   await page.unroute(connects);
@@ -249,7 +250,7 @@ test('installed Sheets provider reconnection retains a failed Czech draft', { sk
   assert.deepEqual(await get(key), original);
   assert.equal(await unloadBlocked(page), true);
   await sheet.getByRole('tab', { name: 'Poznámky', exact: true }).click();
-  assert.equal(await sheet.getByRole('textbox', { name: 'Sheet notes' }).inputValue(), 'Rozepsaná zpráva pro River.');
+  assert.equal(await sheet.getByRole('textbox', { name: 'Poznámky deníku' }).inputValue(), 'Rozepsaná zpráva pro River.');
   await page.unroute(writes);
   await write(page, () => sheet.getByRole('button', { name: 'Zkusit uložit znovu', exact: true }).click());
   await sheet.getByText('Uloženo.', { exact: true }).waitFor();
@@ -577,4 +578,37 @@ for (const mobile of [false, true]) test(`installed Builder restores progress na
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.reload(); await sheet.getByRole('tab', { name: 'Builder', exact: true }).click(); await sheet.getByRole('button', { name: 'Load builder', exact: true }).click();
   await sheet.getByText('Friend of the keepers', { exact: true }).waitFor();
+});
+
+for (const mobile of [false, true]) test(`installed Czech sheet completes Builder, equipment, spell and rest workflows on ${mobile ? 'phone' : 'desktop'}`, { skip: !archivePath || !process.env.CODEX_ENGINE_ZIP || !process.env.CODEX_COMPENDIUM_ZIP }, async t => {
+  await installReviewedPackage(admin, csrf, 'dnd-engine', await readFile(resolve(process.env.CODEX_ENGINE_ZIP)), []);
+  await installReviewedPackage(admin, csrf, 'dnd-2024-compendium', await readFile(resolve(process.env.CODEX_COMPENDIUM_ZIP)), []);
+  const key = `czech-workflows-${mobile}`; await seed(key); const initial = await get(key);
+  await put(key, { ...initial.value, classes: [{ classId: 'wizard', level: 5 }], feats: [{ featId: 'magic-initiate' }], species: 'Elf', lineage: 'high-elf', background: 'Acolyte',
+    currency: { ...initial.value.currency, gp: 100 }, inventory: [...initial.value.inventory, { id: 'scroll', name: 'Scroll of Alarm', qty: 2, location: 'pack', notes: 'From the lighthouse' }] }, initial.revision);
+  const page = await open(t, key, mobile, 'dm', page => page.addInitScript(() => localStorage.setItem('codex_lang', 'cs')));
+  await exerciseCzechSheet({ page, key, mobile, output, get, write });
+});
+
+test('installed Czech sheet reviews spell swaps and preserves saved references', { skip: !archivePath || !process.env.CODEX_ENGINE_ZIP || !process.env.CODEX_COMPENDIUM_ZIP }, async t => {
+  await installReviewedPackage(admin, csrf, 'dnd-engine', await readFile(resolve(process.env.CODEX_ENGINE_ZIP)), []);
+  await installReviewedPackage(admin, csrf, 'dnd-2024-compendium', await readFile(resolve(process.env.CODEX_COMPENDIUM_ZIP)), []);
+  const key = 'czech-swap'; await seed(key); const initial = await get(key);
+  await put(key, { ...initial.value, classes: [{ classId: 'warlock', level: 5 }], className: 'Warlock', preparedSpells: { warlock: ['hex'] } }, initial.revision);
+  const page = await open(t, key, true, 'dm', page => page.addInitScript(() => localStorage.setItem('codex_lang', 'cs'))), sheet = page.locator('.dnd-sheet-shell');
+  await sheet.getByRole('button', { name: 'Upravit deník', exact: true }).click();
+  await sheet.getByRole('tab', { name: 'Kniha kouzel', exact: true }).click();
+  await sheet.getByRole('button', { name: 'Spravovat kouzla povolání' }).click();
+  await sheet.getByRole('button', { name: 'Vyměnit při postupu', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Výměna kouzla při postupu' });
+  await dialog.getByRole('combobox', { name: 'Nové kouzlo', exact: true }).selectOption('armor-of-agathys');
+  await dialog.getByRole('button', { name: 'Zkontrolovat výměnu kouzla', exact: true }).click();
+  const review = page.getByRole('dialog', { name: 'Zkontrolovat výměnu kouzla', exact: true });
+  assert.deepEqual((await get(key)).value.preparedSpells.warlock, ['hex']);
+  await write(page, () => review.getByRole('button', { name: 'Použít změny' }).click());
+  assert.deepEqual((await get(key)).value.preparedSpells.warlock, ['armor-of-agathys']);
+  await sheet.getByText('Změny kouzel při postupu · 1', { exact: true }).click();
+  assert.match(await sheet.locator('.dnd-spell-history').textContent(), /Warlock 5: Hex → Armor of Agathys/);
+  await page.reload();
+  assert.deepEqual((await get(key)).value.spellSwaps, [{ level: 5, classLevel: 5, classId: 'warlock', out: 'hex', in: 'armor-of-agathys' }]);
 });

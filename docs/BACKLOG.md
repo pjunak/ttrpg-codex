@@ -367,21 +367,32 @@ those later changes at cutover rather than silently restoring an older state.
   Sheet navigation, Settings, save recovery and diagnostics now use English/Czech
   catalogs through the host's additive article-context locale. Authored content
   remains unchanged. Successful save retries show localized confirmation.
-  Remaining sheet work: play/Builder localization and final v1 visual acceptance.
+  The remaining sheet-owned controls now use the same English/Czech catalog:
+  abilities/skills, combat and inventory, Builder foundations/progression and
+  rewards, equipment folders/trays, spell grants/casting/copying/swaps, rest
+  reviews and ordinary feedback. Complete templates preserve authored names
+  and identifiers; choice counts use Czech singular/few/plural phrases.
+  The phone Builder action column accommodates longer translated controls.
+  Rulebook names, provider-authored prompts/descriptions and provider errors
+  remain in their source language. Remaining sheet work: final v1 visual acceptance.
   Restored layouts do not close the complete presentation/workflow gate.
-  The installed Sheet suite now covers 20 cases, including desktop/phone grants,
+  The installed Sheet suite now covers 23 cases, including desktop/phone grants,
   copying cancellation/failure/retry, rituals, worn slots and persistent swap
   history, alongside Builder progression, maneuver/feat selection, rewards,
   standalone and ordinary session workflows. The four new provider cases cover
   English desktop/Czech phone controls and layout persistence, failed discovery
   with a retained Czech draft and save retry, real missing-data recovery, stale
   service responses and changed saved provenance without implicit writes.
-  Validation: 28 Sheet checks, engine Go tests/vet, rebuilt and inspected Sheets
+  Three additional Czech cases exercise manual edits, Builder choices/rewards,
+  equipment, grant casting, reviewed copying, rituals, rest cancellation/save,
+  notes and reload persistence on desktop/phone, plus reviewed spell swaps.
+  They retain English rulebook names and exact saved references throughout.
+  Validation: 31 Sheet checks, rebuilt and inspected Sheets
   ZIP, reviewed desktop/phone screenshots and all host
-  check components (304 unit tests, 204 browser cases, typecheck/build, Go
+  check components (304 unit tests, 207 browser cases, typecheck/build, Go
   tests/vet). Browser suites ran with concurrency four; no cases were skipped.
-  Final package corrections also passed 39 installed Sheet/DM cases, including
-  narrow-screen class-control bounds and reward bonuses before/after a rest.
+  The final phone-column correction also passed six focused English/Czech
+  installed cases, including explicit bounds checks and a second screenshot review.
 
 ### Release evidence
 
