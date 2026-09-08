@@ -265,18 +265,24 @@ those later changes at cutover rather than silently restoring an older state.
   All play decisions and resulting hydration use one provider evaluation.
   Manual resources, notes, unknown fields and existing combat overrides survive.
   Half-level rest recovery is shared across multiclass hit-die pools.
+  Equipment now restores folder drilling/breadcrumbs and worn armor, shield
+  and attunement controls. Armor replacement retains the shield and moves the
+  old piece into the pack; available rules refresh AC in the same saved draft.
+  Species/feat spell choices and casting abilities, free casts, restricted
+  feat slots, rituals, reviewed paid copying and recorded spell swaps are
+  implemented through engine-owned options/actions. Copying saves the spell,
+  GP and optional scroll quantity together and retains all three after a failed
+  write for explicit Retry. Clearing a default spell now stays cleared.
   Remaining sheet work: full Builder progress navigation and advanced choices,
-  original equipment tree/worn-slot presentation, granted-spell choices/free
-  casting, ritual/scribing/swap workflows, provider diagnostics, localization
-  and final v1 visual acceptance. These
-  restored layouts do not close the complete presentation/workflow gate.
-  The installed Sheet suite now covers nine cases, including Builder foundation
-  changes, desktop/phone equipment-spell-rest sessions, preview cancellation,
-  missing-engine custom items and persistence of unrelated authored fields.
-  Validation: 18 Sheet checks, engine Go tests/vet/race checks, rebuilt and
-  inspected Engine/Sheets ZIPs, desktop/phone screenshots and all host check
-  components (288 unit tests, 175 browser cases, typecheck/build, Go tests/vet).
-  Browser suites ran with concurrency four; no cases or assertions were skipped.
+  provider diagnostics, localization and final v1 visual acceptance. Restored
+  layouts do not close the complete presentation/workflow gate.
+  The installed Sheet suite now covers 14 cases, including desktop/phone grants,
+  copying cancellation/failure/retry, rituals, worn slots and persistent swap
+  history, alongside Builder, standalone and ordinary session workflows.
+  Validation: 20 Sheet checks, engine Go tests/vet/race checks, rebuilt and
+  inspected Engine/Sheets ZIPs, reviewed desktop/phone screenshots and all host
+  check components (288 unit tests, 180 browser cases, typecheck/build, Go
+  tests/vet). Browser suites ran with concurrency four; no cases were skipped.
 
 ### Release evidence
 

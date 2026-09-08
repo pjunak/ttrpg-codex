@@ -226,7 +226,10 @@ for (const mobile of [false, true]) test(`installed Sheets equipment, spells and
   const equipment = page.getByRole('dialog', { name: 'Add equipment', exact: true });
   await equipment.waitFor();
   assert.equal(await equipment.evaluate(node => getComputedStyle(node).backgroundColor), 'rgb(28, 21, 9)');
-  await equipment.getByRole('combobox', { name: 'Equipment category', exact: true }).selectOption('weapon');
+  await equipment.getByRole('button', { name: 'Open Weapons', exact: true }).click();
+  await equipment.getByRole('button', { name: 'Open martial', exact: true }).click();
+  await equipment.getByRole('button', { name: 'Open melee', exact: true }).click();
+  assert.match(await equipment.getByRole('navigation', { name: 'Equipment folders' }).textContent(), /All equipment.*Weapons.*martial.*melee/);
   await equipment.getByRole('searchbox', { name: 'Search equipment', exact: true }).fill('Longsword');
   await equipment.getByRole('button', { name: 'Select Longsword', exact: true }).click();
   await equipment.getByRole('spinbutton', { name: 'Selected Longsword quantity', exact: true }).fill('2');
@@ -266,4 +269,109 @@ for (const mobile of [false, true]) test(`installed Sheets equipment, spells and
   state = (await get(key)).value; assert.equal(state.hp, state.maxHp); assert.equal(state.tempHp, 0); assert.equal(state.resourceUses['slot-1'], undefined); assert.equal(state.resources[0].current, 1); assert.equal(state.inventory.length, 5);
   await page.reload(); await page.locator('.dse-backpack').getByText('Star chart', { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+for (const mobile of [false, true]) test(`installed Sheets spell grants, copying and rituals retain data on ${mobile ? 'phone' : 'desktop'}`, { skip: !archivePath || !process.env.CODEX_ENGINE_ZIP || !process.env.CODEX_COMPENDIUM_ZIP }, async t => {
+  const key = `spell-tools-${mobile}`; await seed(key); const initial = await get(key);
+  await put(key, { ...initial.value, classes: [{ classId: 'wizard', level: 5 }], feats: [{ featId: 'magic-initiate' }], species: 'Elf', lineage: 'high-elf',
+    currency: { ...initial.value.currency, gp: 100 }, inventory: [...initial.value.inventory, { id: 'scroll', name: 'Scroll of Alarm', qty: 2, location: 'pack', notes: 'From the lighthouse' }] }, initial.revision);
+  const page = await open(t, key, mobile), sheet = page.locator('.dnd-sheet-shell');
+  await sheet.getByRole('button', { name: 'Edit sheet', exact: true }).click();
+  await sheet.getByRole('tab', { name: 'Spellbook', exact: true }).click();
+  await sheet.getByRole('button', { name: 'Manage class spells', exact: true }).click();
+  await write(page, () => sheet.getByRole('combobox', { name: 'Magic Initiate casting ability', exact: true }).selectOption('WIS'));
+  const choice = sheet.locator('[data-grant="feat:magic-initiate:mi-spell"]');
+  await choice.getByRole('combobox').selectOption('cure-wounds');
+  await write(page, () => choice.getByRole('button', { name: 'Choose spell', exact: true }).click());
+  const granted = sheet.locator('[data-granted-spell="feat:magic-initiate:cure-wounds"]');
+  await granted.getByRole('combobox').selectOption('charge-cure-wounds');
+  await write(page, () => granted.getByRole('button', { name: 'Cast granted spell', exact: true }).click());
+  assert.equal((await get(key)).value.resourceUses['charge-cure-wounds'], 0);
+  assert.equal(await granted.locator('option[value="charge-cure-wounds"]').isDisabled(), true);
+  assert.equal((await get(key)).value.grantCastingAbilities['feat:magic-initiate:magic-initiate-casting'], 'WIS');
+  await sheet.getByRole('searchbox', { name: 'Search spells', exact: true }).fill('Alarm');
+  const alarm = sheet.locator('[data-spell="alarm"]');
+  async function reviewCopy() {
+    await alarm.getByRole('button', { name: 'Copy · 50 GP', exact: true }).click();
+    const copying = page.getByRole('dialog');
+    await copying.getByRole('combobox', { name: 'Scroll to consume', exact: true }).selectOption('scroll');
+    await copying.getByRole('button', { name: 'Review copying', exact: true }).click();
+    const review = page.getByRole('dialog', { name: 'Review spell copying', exact: true }); await review.waitFor(); return review;
+  }
+  let review = await reviewCopy();
+  assert.match(await review.textContent(), /100.*50.*Scroll of Alarm/);
+  await review.getByRole('button', { name: 'Cancel', exact: true }).click();
+  assert.equal((await get(key)).value.currency.gp, 100);
+  review = await reviewCopy();
+  await review.screenshot({ path: resolve(output, `copy-review-${mobile ? 'phone' : 'desktop'}.png`) });
+  await page.route(writes, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'UNAVAILABLE', message: 'offline' } }) }));
+  await review.getByRole('button', { name: 'Apply changes', exact: true }).click();
+  await sheet.getByRole('button', { name: 'Retry save', exact: true }).waitFor();
+  let state = (await get(key)).value;
+  assert.equal(state.currency.gp, 100); assert.equal(state.inventory.find(item => item.id === 'scroll').qty, 2); assert.equal(await unloadBlocked(page), true);
+  await page.unroute(writes); await write(page, () => sheet.getByRole('button', { name: 'Retry save', exact: true }).click());
+  state = (await get(key)).value;
+  assert.equal(state.currency.gp, 50); assert.equal(state.inventory.find(item => item.id === 'scroll').qty, 1);
+  assert.equal(state.inventory.find(item => item.id === 'scroll').notes, 'From the lighthouse'); assert.deepEqual(state.spellbook.wizard, ['alarm']);
+  await sheet.getByRole('button', { name: 'Manage class spells', exact: true }).click();
+  await sheet.getByRole('searchbox', { name: 'Search spells', exact: true }).fill('Alarm');
+  const beforeUses = structuredClone(state.resourceUses);
+  await write(page, () => alarm.getByRole('button', { name: 'Cast as ritual', exact: true }).click());
+  state = (await get(key)).value;
+  assert.deepEqual(state.resourceUses, beforeUses); assert.equal(state.notes, 'Keep the promise.'); assert.equal(state.homebrew.clue, 'blue lantern');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await sheet.screenshot({ path: resolve(output, `spell-tools-${mobile ? 'phone' : 'desktop'}.png`) });
+  await sheet.getByRole('tab', { name: 'Combat', exact: true }).click(); await sheet.getByRole('button', { name: 'Long rest', exact: true }).click();
+  await write(page, () => page.getByRole('dialog', { name: 'Review long rest', exact: true }).getByRole('button', { name: 'Apply changes', exact: true }).click());
+  assert.equal((await get(key)).value.resourceUses['charge-cure-wounds'], undefined);
+  await page.reload(); await page.locator('.dse-backpack').getByText('Scroll of Alarm', { exact: true }).waitFor();
+  assert.deepEqual((await get(key)).value.spellbook.wizard, ['alarm']);
+});
+
+for (const mobile of [false, true]) test(`installed Sheets worn slots replace armor, retain shields and attune on ${mobile ? 'phone' : 'desktop'}`, { skip: !archivePath || !process.env.CODEX_ENGINE_ZIP || !process.env.CODEX_COMPENDIUM_ZIP }, async t => {
+  const key = `worn-slots-${mobile}`; await seed(key); const initial = await get(key);
+  const items = [['leather-armor', 'Leather Armor', 'armor'], ['chain-mail', 'Chain Mail', 'armor'], ['shield', 'Shield', 'armor'], ['cloak-of-protection', 'Cloak of Protection', 'magic-item']].map(([id, name, kind]) => ({ id, name, kind, ref: id, qty: 1, location: 'pack', notes: 'Keep engraving' }));
+  await put(key, { ...initial.value, classes: [{ classId: 'fighter', level: 5 }], className: 'Fighter', inventory: [...initial.value.inventory, ...items] }, initial.revision);
+  const page = await open(t, key, mobile), sheet = page.locator('.dnd-sheet-shell');
+  await sheet.getByRole('button', { name: 'Edit sheet', exact: true }).click();
+  async function fill(slot, name) {
+    await sheet.getByRole('button', { name: `Fill ${slot} slot`, exact: true }).click();
+    await write(page, () => page.getByRole('dialog').getByRole('button', { name, exact: true }).click());
+  }
+  await fill('Armor', 'Leather Armor'); assert.equal((await get(key)).value.ac, 13);
+  await fill('Shield', 'Shield'); assert.equal((await get(key)).value.ac, 15);
+  await fill('Armor', 'Chain Mail');
+  let state = (await get(key)).value;
+  assert.equal(state.ac, 18); assert.equal(state.inventory.find(item => item.id === 'leather-armor').location, 'pack');
+  assert.equal(state.inventory.find(item => item.id === 'shield').location, 'equipped');
+  await fill('Attunement', 'Cloak of Protection');
+  state = (await get(key)).value; assert.equal(state.inventory.find(item => item.id === 'cloak-of-protection').attuned, true);
+  await sheet.locator('.dse-worn').screenshot({ path: resolve(output, `worn-${mobile ? 'phone' : 'desktop'}.png`) });
+  await write(page, () => sheet.getByRole('button', { name: 'End attunement to Cloak of Protection', exact: true }).click());
+  await write(page, () => sheet.getByRole('button', { name: 'Unequip Shield', exact: true }).click());
+  state = (await get(key)).value;
+  assert.equal(state.ac, 16); assert.equal(state.inventory.find(item => item.id === 'shield').location, 'pack'); assert.equal(state.inventory.find(item => item.id === 'cloak-of-protection').attuned, false);
+  assert.equal(state.inventory.find(item => item.id === 'chain-mail').notes, 'Keep engraving'); assert.equal(state.homebrew.clue, 'blue lantern');
+  await page.reload(); await sheet.locator('.dse-worn').getByText('Chain Mail', { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+test('installed Sheets reviews known spell swaps and persists their class-level history', { skip: !archivePath || !process.env.CODEX_ENGINE_ZIP || !process.env.CODEX_COMPENDIUM_ZIP }, async t => {
+  const key = 'spell-swap'; await seed(key); const initial = await get(key);
+  await put(key, { ...initial.value, classes: [{ classId: 'warlock', level: 5 }], className: 'Warlock', preparedSpells: { warlock: ['hex'] } }, initial.revision);
+  const page = await open(t, key), sheet = page.locator('.dnd-sheet-shell');
+  await sheet.getByRole('button', { name: 'Edit sheet', exact: true }).click(); await sheet.getByRole('tab', { name: 'Spellbook', exact: true }).click();
+  await sheet.getByRole('button', { name: 'Manage class spells', exact: true }).click();
+  await sheet.getByRole('button', { name: 'Swap on level-up', exact: true }).click();
+  const swap = page.getByRole('dialog'); await swap.getByRole('combobox', { name: 'Replacement spell', exact: true }).selectOption('armor-of-agathys');
+  await swap.getByRole('button', { name: 'Review spell swap', exact: true }).click();
+  const review = page.getByRole('dialog', { name: 'Review spell swap', exact: true });
+  assert.deepEqual((await get(key)).value.preparedSpells.warlock, ['hex']);
+  await write(page, () => review.getByRole('button', { name: 'Apply changes', exact: true }).click());
+  const state = (await get(key)).value;
+  assert.deepEqual(state.preparedSpells.warlock, ['armor-of-agathys']);
+  assert.deepEqual(state.spellSwaps, [{ level: 5, classLevel: 5, classId: 'warlock', out: 'hex', in: 'armor-of-agathys' }]);
+  await sheet.getByText('Level-up spell changes · 1', { exact: true }).click();
+  assert.match(await sheet.locator('.dnd-spell-history').textContent(), /Warlock 5: Hex → Armor of Agathys/);
+  await page.reload(); assert.deepEqual((await get(key)).value.spellSwaps, state.spellSwaps);
 });
