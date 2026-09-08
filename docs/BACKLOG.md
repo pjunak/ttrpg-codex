@@ -215,8 +215,24 @@ those later changes at cutover rather than silently restoring an older state.
   and the full host gate (288 unit tests, 163 browser cases, Go tests and vet).
   Desktop/phone article and search screenshots retain the current styling;
   real-campaign visual acceptance remains in the shared gate above.
-- [ ] Differentially validate the Go rules engine against preserved v1 rules and
+- [x] Differentially validate the Go rules engine against preserved v1 rules and
   builder fixtures, including missing-provider and changed-provider behavior.
+  The pinned v1 engine now supplies 144 complete synthetic hydration/Builder
+  vectors covering both editions, multiclasses, feature unlocks, spell/feat
+  choices, equipment, ability caps, changes and reconciliation. Comparison
+  restored hit-die ordering and absent optional Builder fields; the existing
+  Go class weapon-proficiency summary improvement is an explicit exception.
+  Duplicate names no longer invalidate an entire rules snapshot: stable IDs
+  remain usable and ambiguous name-only lookups remain unresolved.
+  Real reviewed Engine, Sheets and Compendium ZIPs now exercise every installed
+  class, Builder changes, changed rules, provider absence and reactivation.
+  This exposed and fixed optional workers remaining unbound when their provider
+  was installed later; reviewed activation now restarts those consumers through
+  the existing cold recovery flow. Tests use disposable local hosts and leave
+  campaign data untouched. Validation: all engine Go tests/vet/race checks,
+  rebuilt workers and inspected ZIP, host lifecycle race checks, all affected
+  add-on checks, and full host gate (288 unit tests, 166 browser cases).
+  Sheet presentation and real-campaign visual acceptance remain separate gates.
 - [ ] Bring character sheets to accepted presentation and workflow parity,
   including the fate of Compact/Classic layouts, builder progress, equipment,
   spells, resources, and provider-state diagnostics.

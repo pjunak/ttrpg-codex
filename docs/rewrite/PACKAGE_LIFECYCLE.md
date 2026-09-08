@@ -111,9 +111,9 @@ changes a filesystem pointer or starts an older generation without current
 compatibility, grant, dependency, service, and content checks.
 
 Provider generation changes make existing consumer handles stale by design.
-Direct internal activation therefore still refuses an update or rollback when
-a live add-on has an identity dependency or resolved service handle to the
-target. Reviewed activation uses the cold cohort below instead of attempting a
+Direct internal activation therefore refuses changes when a live add-on has
+an identity dependency, resolved service handle, or compatible consumer
+declaration for the target. Reviewed activation uses the cold cohort below instead of attempting a
 partial live upgrade.
 
 ## Coordinated cold activation
@@ -124,6 +124,13 @@ the proposal records both the direct dependents and every active add-on that
 will restart. Required dependents are checked against the target add-on
 version and service-contract ranges before approval; incompatible targets are
 hard blockers.
+
+This also covers first installation and reactivation of an optional provider.
+Consumers that started without a matching service handle must restart to use
+the newly available provider. The review includes compatible declarations as
+well as existing handles, so installation order cannot leave workers stuck in
+their provider-free fallback. Disabling still requires stopping consumers
+before their provider; campaign records and installed packages are retained.
 
 After approval, the manager:
 

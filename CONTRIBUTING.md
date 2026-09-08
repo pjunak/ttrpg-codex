@@ -31,6 +31,23 @@ go test ./sdk/go/workerrpc
 Run `go test -race` for changed concurrent worker, broker, event, or lifecycle
 packages where the platform supports it.
 
+Installed first-party checks use disposable local hosts and reviewed release
+ZIPs. Build the sibling packages first, then set the archives to include these
+checks in `npm run check` (otherwise they report skipped):
+
+```powershell
+$env:CODEX_COMPENDIUM_ZIP = (Resolve-Path ../addon-dnd-2024-compendium/dist/dnd-2024-compendium-3.0.0.zip).Path
+$env:CODEX_ENGINE_ZIP = (Resolve-Path ../addon-dnd-engine/dist/dnd-engine-3.0.0.zip).Path
+$env:CODEX_SHEETS_ZIP = (Resolve-Path ../addon-dnd-character-sheets/dist/dnd-sheets-3.0.0.zip).Path
+$env:CODEX_DM_TOOLS_ZIP = (Resolve-Path ../addon-dm-tools/dist/dm-tools-3.0.0.zip).Path
+npm run check
+```
+
+The installed rules cases exercise the Sheets service consumer through the
+native Engine and real Compendium, including late provider installation,
+changed content, and stop/start with missing rules. They do not establish
+character-sheet visual acceptance.
+
 ## Development processes
 
 Build-and-serve loop:

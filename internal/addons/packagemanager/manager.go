@@ -287,10 +287,8 @@ func (manager *Manager) activateLocked(
 	if previousID == plan.GenerationID && reflect.DeepEqual(state.GrantedPermissionIDs, plan.GrantedPermissionIDs) {
 		return ActivationResult{State: state, Generation: generation, PreviousGenerationID: previousID}, nil
 	}
-	if previousID != "" {
-		if dependents := manager.liveDependents(plan.AddonID); len(dependents) != 0 {
-			return ActivationResult{}, fmt.Errorf("%w: %s", ErrActivationCohort, strings.Join(dependents, ", "))
-		}
+	if dependents := manager.activationDependents(report.Manifest); len(dependents) != 0 {
+		return ActivationResult{}, fmt.Errorf("%w: %s", ErrActivationCohort, strings.Join(dependents, ", "))
 	}
 
 	nextRuntime, err := manager.createRuntime(report, generation, permissions, services)

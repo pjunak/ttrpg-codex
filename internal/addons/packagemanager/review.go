@@ -232,18 +232,45 @@ func (manager *Manager) buildReviewProposal(
 		active, recovered := manager.runtimes[addonID]
 		if !recovered || active.generation.GenerationID != state.ActiveGenerationID {
 			proposal.Blockers = append(proposal.Blockers, reviewBlocker("RECOVERY_REQUIRED", ErrRecoveryRequired))
-		} else {
-			proposal.AffectedAddonIDs = manager.liveDependents(addonID)
-			if state.ActiveGenerationID != generationID && len(proposal.AffectedAddonIDs) != 0 {
-				proposal.RestartedAddonIDs = manager.liveAddonIDs()
-				proposal.Blockers = append(
-					proposal.Blockers,
-					manager.dependentCompatibilityBlockers(report.Manifest, proposal.AffectedAddonIDs)...,
-				)
+		}
+	}
+	proposal.AffectedAddonIDs = manager.activationDependents(report.Manifest)
+	if state.ActiveGenerationID != generationID && len(proposal.AffectedAddonIDs) != 0 {
+		proposal.RestartedAddonIDs = manager.liveAddonIDs()
+		proposal.Blockers = append(proposal.Blockers,
+			manager.dependentCompatibilityBlockers(report.Manifest, proposal.AffectedAddonIDs)...)
+	}
+	return proposal, nil
+}
+
+// A newly installed provider can satisfy an optional consumer that started
+// without a handle. Its worker must restart just like an already bound consumer.
+func (manager *Manager) activationDependents(target packageinspect.Manifest) []string {
+	affected := make(map[string]bool)
+	for _, addonID := range manager.liveDependents(target.ID) {
+		affected[addonID] = true
+	}
+	for addonID, active := range manager.runtimes {
+		if addonID == target.ID {
+			continue
+		}
+		for _, dependency := range active.report.Manifest.Dependencies {
+			if dependency.ID == target.ID && versionSatisfies(target.Version, dependency.Range) {
+				affected[addonID] = true
+			}
+		}
+		for _, consumer := range active.report.Manifest.Services.Consumes {
+			if targetProvidesCompatibleService(target, consumer.Contract, consumer.Range) {
+				affected[addonID] = true
 			}
 		}
 	}
-	return proposal, nil
+	result := make([]string, 0, len(affected))
+	for addonID := range affected {
+		result = append(result, addonID)
+	}
+	sort.Strings(result)
+	return result
 }
 
 func (manager *Manager) liveAddonIDs() []string {
