@@ -38,6 +38,9 @@ effective role to the public or DM audience before cursor or query parsing.
 Responses disable proxy buffering, retain authorization variance, and send
 heartbeat comments every 20 seconds. Write deadlines are advanced after
 successful output so a stalled client cannot hold a handler forever.
+Authenticated streams re-check their session before each live publication and
+heartbeat. Password changes, logout, expiry or role rotation close the old
+connection; an ordinary reconnect resolves its current authority again.
 
 The broker bounds total subscriptions and each subscriber queue. A slow
 subscriber is disconnected rather than blocking publication or accumulating

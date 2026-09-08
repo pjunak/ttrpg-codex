@@ -40,8 +40,10 @@ restore, opens SQLite, verifies migrations, composes services, recovers active
 add-on generations in dependency order, then starts HTTP. Shutdown first stops
 new requests and then tears workers down in reverse dependency order.
 
-The executable requires `CODEX_DM_PASSWORD`; an optional
-`CODEX_PLAYER_PASSWORD` enables player edits. Sessions are random, process-local,
+The first start requires `CODEX_DM_PASSWORD`; an optional
+`CODEX_PLAYER_PASSWORD` enables player edits. Versioned password hashes then
+persist in SQLite and can be changed in Settings → Server access. Later starts
+use saved credentials rather than the bootstrap environment. Sessions are random, process-local,
 HttpOnly cookies. State-changing requests additionally require a session-bound
 `X-Codex-CSRF` token. Restarting invalidates sessions, not campaign data.
 

@@ -61,12 +61,14 @@ type Session struct {
 }
 
 type Config struct {
-	DMPassword     string
-	PlayerPassword string
-	SessionTTL     time.Duration
-	MaxSessions    int
-	Now            func() time.Time
-	GenerateToken  func() (string, error)
+	Context         context.Context
+	CredentialStore CredentialStore
+	DMPassword      string
+	PlayerPassword  string
+	SessionTTL      time.Duration
+	MaxSessions     int
+	Now             func() time.Time
+	GenerateToken   func() (string, error)
 }
 
 type storedSession struct {
@@ -79,23 +81,19 @@ type storedSession struct {
 }
 
 type Service struct {
-	dmCredential     [sha256.Size]byte
-	playerCredential [sha256.Size]byte
-	hasPlayer        bool
-	ttl              time.Duration
-	maximum          int
-	now              func() time.Time
-	generateToken    func() (string, error)
+	credentialMu    sync.Mutex
+	credentials     Credentials
+	credentialStore CredentialStore
+	ttl             time.Duration
+	maximum         int
+	now             func() time.Time
+	generateToken   func() (string, error)
 
 	mu       sync.Mutex
 	sessions map[[sha256.Size]byte]storedSession
 }
 
 func New(config Config) (*Service, error) {
-	if len(config.DMPassword) < 4 || len(config.DMPassword) > maximumCredentialBytes ||
-		len(config.PlayerPassword) > maximumCredentialBytes {
-		return nil, fmt.Errorf("%w: DM password must contain 4-%d bytes and player password at most %d bytes", ErrInvalidConfig, maximumCredentialBytes, maximumCredentialBytes)
-	}
 	if config.SessionTTL == 0 {
 		config.SessionTTL = defaultSessionTTL
 	}
@@ -115,18 +113,18 @@ func New(config Config) (*Service, error) {
 		config.GenerateToken = randomToken
 	}
 	service := &Service{
-		dmCredential:  credentialDigest(RoleDM, config.DMPassword),
-		ttl:           config.SessionTTL,
-		maximum:       config.MaxSessions,
-		now:           config.Now,
-		generateToken: config.GenerateToken,
-		sessions:      make(map[[sha256.Size]byte]storedSession),
+		credentialStore: config.CredentialStore,
+		ttl:             config.SessionTTL,
+		maximum:         config.MaxSessions,
+		now:             config.Now,
+		generateToken:   config.GenerateToken,
+		sessions:        make(map[[sha256.Size]byte]storedSession),
 	}
-	if config.PlayerPassword != "" {
-		service.playerCredential = credentialDigest(RolePlayer, config.PlayerPassword)
-		service.hasPlayer = true
-	} else {
-		service.playerCredential = credentialDigest(RolePlayer, "unconfigured-player-credential")
+	if config.Context == nil {
+		config.Context = context.Background()
+	}
+	if err := service.initializeCredentials(config.Context, config); err != nil {
+		return nil, err
 	}
 	return service, nil
 }
@@ -135,14 +133,12 @@ func (service *Service) Login(password string) (Session, error) {
 	if service == nil || len(password) > maximumCredentialBytes {
 		return Session{}, ErrInvalidCredentials
 	}
-	dmCandidate := credentialDigest(RoleDM, password)
-	playerCandidate := credentialDigest(RolePlayer, password)
-	dmMatch := subtle.ConstantTimeCompare(dmCandidate[:], service.dmCredential[:])
-	playerMatch := subtle.ConstantTimeCompare(playerCandidate[:], service.playerCredential[:])
+	service.credentialMu.Lock()
+	defer service.credentialMu.Unlock()
 	role := Role("")
-	if dmMatch == 1 {
+	if matchesPassword(service.credentials.DM, password) {
 		role = RoleDM
-	} else if service.hasPlayer && playerMatch == 1 {
+	} else if service.credentials.Player != nil && matchesPassword(*service.credentials.Player, password) {
 		role = RolePlayer
 	}
 	if role == "" {
@@ -295,10 +291,6 @@ func (service *Service) pruneExpiredLocked(now time.Time) {
 			delete(service.sessions, digest)
 		}
 	}
-}
-
-func credentialDigest(role Role, password string) [sha256.Size]byte {
-	return sha256.Sum256([]byte(string(role) + "\x00" + password))
 }
 
 func randomToken() (string, error) {

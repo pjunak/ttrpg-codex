@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
 	"github.com/pjunak/ttrpg-codex/internal/events"
@@ -122,6 +123,56 @@ func serveOneFlush(handler http.Handler, cursor string) *cancelOnFlushRecorder {
 	response := &cancelOnFlushRecorder{ResponseRecorder: httptest.NewRecorder(), cancel: cancel}
 	handler.ServeHTTP(response, request)
 	return response
+}
+
+func TestPasswordRotationClosesExistingDMLiveStream(t *testing.T) {
+	t.Parallel()
+	for _, publish := range []bool{false, true} {
+		service := testAuthService(t)
+		dm, _ := service.Login("dragon-master")
+		old, _ := service.Login("dragon-master")
+		broker := testEventBroker(t)
+		handler, err := New(Config{Authentication: service, Events: broker, EventAuthorizer: SessionEventAuthorizer, EventHeartbeat: time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		request := httptest.NewRequest(http.MethodGet, "/api/events", nil).WithContext(ctx)
+		request.Header.Set("Cookie", "edit_session="+old.Token)
+		response := &credentialFlushRecorder{ResponseRecorder: httptest.NewRecorder()}
+		response.first = func() {
+			if _, err := service.ChangePassword(ctx, dm.Token, dm.CSRFToken, "dragon-master", sessionauth.RoleDM, "rotated-master", 1); err != nil {
+				t.Fatal(err)
+			}
+			if publish {
+				if _, err := broker.Publish(ctx, events.Publication{Audience: events.AudienceDM, Topic: "admin-diagnostic", ResourceID: "private-after-rotation", Revision: "1"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		handler.ServeHTTP(response, request)
+		if ctx.Err() != nil {
+			t.Fatal("revoked stream waited for request cancellation")
+		}
+		cancel()
+		if !strings.Contains(response.Body.String(), "hello") || strings.Contains(response.Body.String(), "private-after-rotation") || strings.Contains(response.Body.String(), "heartbeat") {
+			t.Fatalf("revoked stream output = %q", response.Body.String())
+		}
+	}
+}
+
+type credentialFlushRecorder struct {
+	*httptest.ResponseRecorder
+	first func()
+}
+
+func (recorder *credentialFlushRecorder) Flush() {
+	recorder.ResponseRecorder.Flush()
+	if recorder.first != nil {
+		callback := recorder.first
+		recorder.first = nil
+		callback()
+	}
 }
 
 type cancelOnFlushRecorder struct {

@@ -6,23 +6,23 @@ development bypass. The Go host owns credentials, sessions, effective roles,
 and CSRF checks. TypeScript may render the current authority but cannot create
 or upgrade it.
 
-## Initial credential and session model
+## Credentials and sessions
 
-The executable composition uses one required `CODEX_DM_PASSWORD` and one
-optional `CODEX_PLAYER_PASSWORD`. The service immediately reduces each
-configured value to a role-separated SHA-256 comparison digest and does not
-persist the clear-text configuration. These environment-backed values are
-bootstrap credentials, not the final password store; a later versioned
-credential table will use a deliberately slow password hash and provide the
-reviewed password-management flow.
+The first start uses one required `CODEX_DM_PASSWORD` and one optional
+`CODEX_PLAYER_PASSWORD`. It persists a singleton credential record in SQLite
+with an optimistic revision, a DM hash and an optional player hash. Passwords
+use PBKDF2-HMAC-SHA256 with 600,000 iterations, independent random 16-byte salts,
+and 32-byte outputs (`pbkdf2-sha256-600000.v1`). Clear-text passwords are never
+stored. Later starts use the saved record and ignore bootstrap environment
+values, including after player sign-in has been disabled. Malformed saved
+credentials never silently fall back to an environment password.
 
 Successful login creates independent random 256-bit session and CSRF tokens.
 Only digests of the session and CSRF tokens are used for lookup/comparison;
 the CSRF value is retained only so the same-origin client can recover it after
 a page reload. Sessions are process-local, bounded, and expire after 30 days by
-default. A restart intentionally signs everyone out. This avoids coupling the
-authentication foundation to campaign save migration or inventing a durable
-credential format before that format is reviewed.
+default. A restart intentionally signs everyone out. Password hashes remain
+in SQLite; sessions remain process-local.
 
 The `edit_session` cookie is host-only, HttpOnly, SameSite=Lax, and can be
 marked Secure by executable configuration. Deployment must enable Secure
@@ -125,9 +125,45 @@ revocation. Installed-host browser tests cover desktop/phone popups, reload,
 same-site navigation, public live updates and media, hidden media refusal,
 missing storage, DM logout, and blocked popups.
 
-## Remaining authentication work
+## Password management
 
-- Add persistent slow-hashed credentials, password rotation, session
-  revocation records, and backup/migration policy.
+Settings → Server access restores the DM and player password cards in English
+and Czech. Each form requires the current DM password and confirmation of the
+new value. Disabling player sign-in is explicit; public reading remains
+available. Inputs remain local to the mounted form and are cleared after that
+form saves or is discarded. Navigation is guarded while dirty and blocked
+while a write is pending. Lost responses retain the reviewing DM session and
+require a fresh status read before an explicit retry.
+
+`GET /api/passwords` requires real and effective DM authority and returns only
+`credential-status.v1`, the credential revision and `playerEnabled`.
+`POST /api/passwords` also requires CSRF and takes `role`, `currentPassword`,
+`newPassword`, and `expectedRevision`. New passwords contain 4–4096 bytes and
+must differ between roles; an empty player password explicitly disables that
+role. Status responses use `Cache-Control: no-store` and never return hashes,
+passwords, or session identifiers. Invalid current-password attempts share the
+login rate limiter. Stale revisions fail with `CREDENTIAL_CONFLICT`.
+
+The service commits credentials before replacing its in-memory state or
+revoking sessions. A failed commit leaves existing passwords and sessions
+unchanged. DM changes revoke other DM sessions; player changes revoke player
+sessions. Both revoke existing player previews, while the reviewing DM keeps
+the same session and CSRF token. Login and changes serialize across the
+credential check and session creation, so a concurrent old-password login
+cannot escape revocation.
+Existing authenticated event streams close before their next live publication
+or heartbeat when their session is revoked.
+
+Native backups include password hashes; restoring one restores its saved
+passwords. Older backups without this table bootstrap on the first start.
+Legacy v1 conversion still excludes credentials. The offline
+`codex -data-dir <directory> -reset-passwords` command replaces saved passwords
+from the environment under the same exclusive data-directory lock as the host,
+then exits without changing campaign data. See the
+[operator steps](../SELF_HOSTING.md#password-changes-and-access-recovery).
+
+## Authentication follow-ups
+
+- Persistent sessions and individual session-management UI remain optional.
 - Add request/correlation IDs and security-event diagnostics without recording
   credentials or tokens.

@@ -5,7 +5,7 @@ services:
     volumes:
       - ./data:/app/data
     environment:
-      - CODEX_DM_PASSWORD=${CODEX_DM_PASSWORD:?set CODEX_DM_PASSWORD in .env}
+      - CODEX_DM_PASSWORD=${CODEX_DM_PASSWORD:-}
       - CODEX_PLAYER_PASSWORD=${CODEX_PLAYER_PASSWORD:-}
     command:
       - /app/codex

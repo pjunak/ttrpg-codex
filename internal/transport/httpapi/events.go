@@ -44,9 +44,25 @@ func (s *server) registerEventRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/events", http.HandlerFunc(s.eventStream))
 }
 
+func (s *server) eventSessionCurrent(r *http.Request) bool {
+	if s.authentication == nil {
+		return true
+	}
+	if isPlayerPreview(r) {
+		_, valid := s.authentication.InspectPlayerPreview(sessionToken(r))
+		return valid
+	}
+	original, authenticated := sessionauth.ActorFromContext(r.Context())
+	if !authenticated {
+		return true
+	}
+	current, valid := s.authentication.Resolve(sessionToken(r))
+	return valid && current == original
+}
+
 func (s *server) eventStream(w http.ResponseWriter, r *http.Request) {
 	audience, err := s.eventAuthorizer(r)
-	if err != nil {
+	if err != nil || !s.eventSessionCurrent(r) {
 		s.logger.Warn("event stream access denied", "path", r.URL.Path)
 		writeAPIError(w, http.StatusForbidden, "FORBIDDEN", "event stream authorization is required")
 		return
@@ -102,10 +118,8 @@ func (s *server) eventStream(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case event, open := <-subscription.Events:
-			if isPlayerPreview(r) {
-				if _, valid := s.authentication.InspectPlayerPreview(sessionToken(r)); !valid {
-					return
-				}
+			if !s.eventSessionCurrent(r) {
+				return
 			}
 			if !open {
 				return
@@ -119,10 +133,8 @@ func (s *server) eventStream(w http.ResponseWriter, r *http.Request) {
 			lastSent = event.Sequence
 			_ = controller.SetWriteDeadline(time.Now().Add(heartbeat + 10*time.Second))
 		case at := <-ticker.C:
-			if isPlayerPreview(r) {
-				if _, valid := s.authentication.InspectPlayerPreview(sessionToken(r)); !valid {
-					return
-				}
+			if !s.eventSessionCurrent(r) {
+				return
 			}
 			if _, err := fmt.Fprintf(w, ": heartbeat %d\n\n", at.UTC().Unix()); err != nil {
 				return

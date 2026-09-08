@@ -82,6 +82,7 @@ export interface CampaignRecordDeleteDetail {
 }
 
 export interface CampaignEditDirtyDetail {
+  readonly saving?: boolean;
   readonly dirty: boolean;
 }
 

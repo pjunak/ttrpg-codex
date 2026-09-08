@@ -1425,8 +1425,8 @@ func testDatabase(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.CurrentVersion != 10 {
-		t.Fatalf("migration version = %d, want 10", result.CurrentVersion)
+	if result.CurrentVersion != 11 {
+		t.Fatalf("migration version = %d, want 11", result.CurrentVersion)
 	}
 	return db
 }

@@ -11,9 +11,12 @@ not the legacy JSON/ZIP restore format. `codex-backup.v2` contains:
 
 Transient add-on and blob `.staging` content is excluded. Blob archive paths
 must match their content hash, and verification proves every object referenced
-by the restored database exists with the expected size and digest. Credentials
-currently come from the process environment, so the archive intentionally
-contains no DM or player password.
+by the restored database exists with the expected size and digest. The database
+includes versioned DM/player password hashes, never clear-text passwords.
+Restoring an archive restores those credentials. Archives made before password
+persistence have no saved credentials and bootstrap from the environment on
+their next start. The offline password-reset command can recover access after
+restore; see [self-hosting](../SELF_HOSTING.md#password-changes-and-access-recovery).
 
 The verifier and restore command continue to accept `codex-backup.v1` archives
 that contain only the database and add-on generations. After applying current

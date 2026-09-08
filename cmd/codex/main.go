@@ -33,6 +33,7 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/addondatastore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/campaignstore"
+	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/credentialstore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/mediastore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
 	"github.com/pjunak/ttrpg-codex/internal/transport/httpapi"
@@ -67,6 +68,7 @@ func run() error {
 	secureCookies := flag.Bool("secure-cookies", false, "mark session cookies Secure (required behind production TLS)")
 	locale := flag.String("locale", "en", "BCP 47 locale reported to add-on workers")
 	timeZone := flag.String("time-zone", "UTC", "IANA time zone reported to add-on workers")
+	resetPasswords := flag.Bool("reset-passwords", false, "offline: replace stored passwords from CODEX_DM_PASSWORD and optional CODEX_PLAYER_PASSWORD, then exit")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -95,8 +97,12 @@ func run() error {
 	logger.Info("database ready", "path", databasePath, "appliedMigrations", result.Applied)
 
 	dmPassword := os.Getenv("CODEX_DM_PASSWORD")
-	if dmPassword == "" {
-		return errors.New("CODEX_DM_PASSWORD is required; the rewrite has no default credential")
+	if *resetPasswords {
+		if err := sessionauth.ResetCredentials(ctx, credentialstore.Store{DB: db}, dmPassword, os.Getenv("CODEX_PLAYER_PASSWORD")); err != nil {
+			return fmt.Errorf("reset passwords: %w", err)
+		}
+		logger.Info("passwords reset; start the host normally")
+		return nil
 	}
 	runtime, err := composeHost(
 		ctx, db, *dataDirectory, dmPassword, os.Getenv("CODEX_PLAYER_PASSWORD"),
@@ -161,6 +167,7 @@ func composeHost(
 	}
 	authentication, err := sessionauth.New(sessionauth.Config{
 		DMPassword: dmPassword, PlayerPassword: playerPassword,
+		Context: ctx, CredentialStore: credentialstore.Store{DB: db},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("configure authentication: %w", err)

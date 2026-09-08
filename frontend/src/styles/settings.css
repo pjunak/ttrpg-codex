@@ -2,6 +2,19 @@ codex-settings {
   display: block;
 }
 
+codex-credential-settings { display: block; min-width: 0; }
+.settings-password-card { margin: var(--space-4) 0; padding: var(--space-4); border: 1px solid var(--chrome-field-border); border-radius: var(--radius); background: var(--bg-raised); }
+.settings-password-card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-4); margin-bottom: var(--space-2); }
+.settings-password-card-head h3 { color: var(--accent-gold); font-family: var(--font-title); }
+.settings-password-status { font-size: var(--text-sm); color: var(--text-muted); }
+.settings-password-card .settings-hint { font: .8rem/1.5 var(--font-ui); color: var(--text-muted); }
+.settings-password-card fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.settings-password-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-3) 0; }
+.settings-password-fields label { display: grid; gap: var(--space-2); min-width: 0; font: .8rem var(--font-ui); }
+.settings-password-fields input { min-width: 0; width: 100%; padding: .6rem; border: 1px solid var(--chrome-field-border); border-radius: var(--radius); color: var(--text-parchment); background: var(--bg-base); }
+.settings-password-disable { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-3) 0; }
+@media (max-width: 48rem) { .settings-password-fields { grid-template-columns: 1fr; } }
+
 codex-branding-settings, codex-sidebar-settings { display: block; min-width: 0; }
 .settings-branding { border-top: 1px dashed rgba(var(--accent-gold-rgb), .18); margin-top: 1.5rem; padding-top: 1rem; }
 .settings-branding h3 { font-family: var(--font-title); color: var(--gold); }
@@ -203,6 +216,7 @@ codex-addon-manager { display: block; min-width: 0; }
   line-height: 1.45;
 }
 
+.settings-account-panel button,
 .settings-ledger-heading > button,
 .settings-edit-actions button,
 .settings-delete-actions button {
@@ -437,6 +451,7 @@ codex-addon-manager { display: block; min-width: 0; }
   margin-top: 1rem;
 }
 
+.settings-account-panel .primary,
 .settings-edit-actions .primary {
   color: var(--walnut);
   border-color: var(--gold);

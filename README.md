@@ -18,7 +18,8 @@ features live in separately versioned Add-on API v3 packages.
 
 ## Implemented foundations
 
-- DM and optional player credentials with role-aware projections and guarded
+- Persistent DM and optional player credentials, Settings password changes,
+  offline access recovery, role-aware projections and guarded
   writes.
 - SQLite transactions, optimistic record revisions, reference-safe mutations,
   immutable media blobs, and Server-Sent Event refreshes.

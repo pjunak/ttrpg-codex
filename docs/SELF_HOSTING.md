@@ -30,20 +30,51 @@ Copy `.env.example` to `.env` and set:
 
 | Variable | Purpose |
 |---|---|
-| `CODEX_DM_PASSWORD` | Required full-authority password; choose a long random value |
-| `CODEX_PLAYER_PASSWORD` | Optional public-record editing password |
+| `CODEX_DM_PASSWORD` | Initial DM password; required only before passwords have been saved |
+| `CODEX_PLAYER_PASSWORD` | Optional initial public-record editing password |
 | `CODEX_SECURE_COOKIES` | Set `true` behind HTTPS |
 | `CODEX_LOCALE` | Locale reported to add-on workers; default `en` |
 | `CODEX_TIME_ZONE` | IANA time zone reported to workers |
 
-The host has no default credential. Password values are deployment
-configuration and are not imported from v1 backups.
+The host has no default credential. These values initialize saved password
+hashes once and are not imported from v1 backups. Later starts use the saved
+credentials, so editing `.env` does not undo a password change or re-enable a
+disabled player password. Bootstrap values can be removed after first start.
 
 Map tiles are generated on first use in `data/cache/map-tiles-v1`; the first
 open can take longer while later reads reuse the cache. Originals remain in
 the verified blob store. This cache is excluded from backups and may be removed
 while the host is stopped; it regenerates automatically. Unsupported or oversized
 images use the original-image viewer. See [media limits](rewrite/MEDIA.md#map-tile-contract-and-cache).
+
+## Password changes and access recovery
+
+Open **Settings → Server access** while signed in as DM to change either shared
+password. Enter the current DM password and confirm the replacement. Player
+sign-in can also be disabled. The form explains which other sessions will be
+signed out; the reviewing DM stays signed in. A failed or uncertain save retains
+the form for review and explicit retry after refreshing status.
+
+For forgotten passwords, stop the host, set `CODEX_DM_PASSWORD` in `.env` to
+the replacement and optionally set `CODEX_PLAYER_PASSWORD` (empty disables it),
+then run the offline reset against the same data directory:
+
+```powershell
+docker compose stop ttrpg-codex
+docker compose run --rm --no-deps ttrpg-codex /app/codex -data-dir /app/data -reset-passwords
+docker compose up -d ttrpg-codex
+```
+
+For a native checkout, use
+`go run ./cmd/codex -data-dir data/rewrite -reset-passwords`
+with the replacement values set in the current environment.
+The command acquires the host's exclusive lock, changes only credential hashes,
+and exits. It refuses to reset a directory in use by the running host.
+
+Native backups include password hashes: restoring a newer backup restores the
+passwords from that backup. Restore an older archive without saved credentials
+using the initial environment values, or use the offline reset. Neither
+password changes nor resets alter campaign records, media or add-on data.
 
 ## Build and start
 

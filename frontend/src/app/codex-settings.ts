@@ -26,9 +26,10 @@ import "./codex-party-settings.js";
 import "./codex-branding-settings.js";
 import "./codex-sidebar-settings.js";
 import "./codex-addon-manager.js";
+import "./codex-credential-settings.js";
 import type { BrowserNavigationEntry } from "../addons/navigation.js";
 
-type SettingsCategory = "language" | "appearance" | "maps" | "playerParty" | "sidebar" | "addons" | CampaignEnumCategory;
+type SettingsCategory = "language" | "appearance" | "maps" | "playerParty" | "sidebar" | "addons" | "account" | CampaignEnumCategory;
 
 export class CodexSettings extends LitElement {
   static override properties = {
@@ -56,6 +57,7 @@ export class CodexSettings extends LitElement {
   declare csrfToken: string;
   readonly #ui = new UiLocalizationController(this);
   #dirty = false;
+  #credentialsSaving = false;
   #brandingDirty = false;
   #editCampaign: CampaignDataset | undefined;
 
@@ -99,6 +101,10 @@ export class CodexSettings extends LitElement {
     if (this.activeCategory === "language") return this.#shell(this.#languagePanel());
     if (this.activeCategory === "appearance") return this.#shell(this.#appearancePanel());
     if (!this.canManageCampaign) return this.#shell(this.#languagePanel());
+    if (this.activeCategory === "account") return this.#shell(html`<codex-credential-settings .csrfToken=${this.csrfToken}
+      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean; saving?: boolean }>) => {
+        this.#dirty = event.detail.dirty; this.#credentialsSaving = event.detail.saving === true; this.requestUpdate();
+      }}></codex-credential-settings>`);
     if (this.activeCategory === "addons") return this.#shell(html`<codex-addon-manager .csrfToken=${this.csrfToken}></codex-addon-manager>`);
     if (this.activeCategory === "sidebar") return this.#shell(html`<codex-sidebar-settings .campaign=${this.campaign} .addonPages=${this.addonPages} .saving=${this.saving} .editCompletion=${this.editCompletion}
       @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => { this.#dirty = event.detail.dirty; }}></codex-sidebar-settings>`);
@@ -155,6 +161,7 @@ export class CodexSettings extends LitElement {
         { id: "playerParty" as const, label: this.#ui.t("settings.playerParty"), icon: "🛡" },
         { id: "sidebar" as const, label: this.#ui.t("sidebar.title"), icon: "🧭" },
         { id: "addons" as const, label: this.#ui.t("addons.title"), icon: "🧩" },
+        { id: "account" as const, label: this.#ui.t("credentials.title"), icon: "🖥" },
         ...campaignEnumDescriptors.map((descriptor) => ({
           id: descriptor.category as SettingsCategory,
           label: descriptor.label,
@@ -174,7 +181,7 @@ export class CodexSettings extends LitElement {
             ${categories.map((category) => html`
               <button type="button" data-category=${category.id}
                 aria-current=${category.id === this.activeCategory ? "page" : nothing}
-                @click=${this.#selectCategory} ?disabled=${this.saving}>
+                @click=${this.#selectCategory} ?disabled=${this.saving || this.#credentialsSaving}>
                 <span aria-hidden="true">${category.icon}</span>
                 <span>${category.label}</span>
               </button>
@@ -483,7 +490,7 @@ export class CodexSettings extends LitElement {
 
   #visibleCategory(category: SettingsCategory): boolean {
     return category === "language" || this.canManageCampaign &&
-      (category === "appearance" || category === "maps" || category === "playerParty" || category === "sidebar" || category === "addons" || isEnumCategory(category));
+      (category === "appearance" || category === "maps" || category === "playerParty" || category === "sidebar" || category === "addons" || category === "account" || isEnumCategory(category));
   }
 
   #activeEnumCategory(): CampaignEnumCategory {
@@ -494,6 +501,7 @@ export class CodexSettings extends LitElement {
   }
 
   #confirmDiscard(): boolean {
+    if (this.#credentialsSaving) return false;
     if (!confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))) return false;
     this.#setDirty(false);
     return true;

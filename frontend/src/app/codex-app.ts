@@ -169,6 +169,7 @@ export class CodexApp extends LitElement {
   #routeOutlet: BrowserContributionOutlet | undefined;
   #addonOwner = 0;
   #editDirty = false;
+  #editSaving = false;
   #acceptedHash = "#/";
 
   constructor() {
@@ -1300,15 +1301,16 @@ export class CodexApp extends LitElement {
 
   readonly #onEditDirty = (event: CustomEvent<CampaignEditDirtyDetail>): void => {
     if (typeof event.detail?.dirty === "boolean") this.#editDirty = event.detail.dirty;
+    this.#editSaving = event.detail?.saving === true;
   };
 
   readonly #onBeforeUnload = (event: BeforeUnloadEvent): void => {
     const edits = this.#addons?.contributions.edits.state();
-    protectUnsavedEditBeforeUnload(this.#editDirty || this.busy || edits?.dirty === true || edits?.saving === true, event);
+    protectUnsavedEditBeforeUnload(this.#editDirty || this.#editSaving || this.busy || edits?.dirty === true || edits?.saving === true, event);
   };
 
   #confirmDiscardEdit(nextHash?: string): boolean {
-    if (this.busy) return false;
+    if (this.busy || this.#editSaving) return false;
     const currentRoute = parseBrowserAddonLocation(this.#acceptedHash)?.routeHash;
     const nextRoute = nextHash === undefined ? undefined : parseBrowserAddonLocation(nextHash)?.routeHash;
     const edits = this.#addons?.contributions.edits.state(active =>

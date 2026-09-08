@@ -84,6 +84,8 @@ func (s *server) registerAuthenticationRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/logout", s.logout)
 	mux.HandleFunc("POST /api/view-as", s.viewAs)
 	mux.HandleFunc("POST /api/player-preview", s.createPlayerPreview)
+	mux.HandleFunc("GET /api/passwords", s.passwordStatus)
+	mux.HandleFunc("POST /api/passwords", s.changePassword)
 }
 
 func (s *server) attachSession(next http.Handler) http.Handler {

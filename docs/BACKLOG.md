@@ -132,8 +132,23 @@ those later changes at cutover rather than silently restoring an older state.
   conversion checks.
 - [ ] Restore the useful recovery-point workflow: manual points, coalesced write
   snapshots, restore, and revert-last-N, while retaining verified full backup.
-- [ ] Provide reviewed runtime credential rotation or explicitly accept
-  deployment-only credential changes as the replacement workflow.
+- [x] Provide reviewed runtime credential rotation. Settings → Server access
+  restores the DM/player password cards in English and Czech, current-password
+  review, confirmation, player sign-in disablement, and explicit failure/retry.
+  Password hashes persist in SQLite; initial environment values no longer
+  replace saved credentials on restart. Successful changes revoke affected
+  sessions and previews while retaining the reviewing DM. Dirty drafts and
+  pending writes protect navigation. The offline `-reset-passwords` command
+  recovers access under the host lock without changing campaign data.
+  Go and real-server desktop/phone tests cover failed/stale/unauthorized writes,
+  lost responses, disabled player access, restart and offline reset.
+  Existing authenticated event streams now close after session revocation,
+  before another live update or heartbeat. Validation passed 289 frontend unit
+  tests, all 186 browser cases with the four installed add-on ZIPs, complete Go
+  tests/vet, and auth/storage/HTTP race checks. Desktop/phone screenshots retain
+  the existing Settings surfaces, fields and gold actions.
+  Docker is unavailable in this checkout environment; the documented native
+  stop/reset/restart path passed, while Compose execution remains untested here.
 - [x] Provide the DM-facing add-on inspector, permission approval, activation,
   update/reload, failure diagnosis, and rollback UI over the implemented APIs.
   Settings → Add-ons now lists active, disabled and staged packages; inspects
@@ -695,7 +710,7 @@ acceptance still need to be expanded as follow-up documentation.
 | Settings: `worldmap` | Maps panel at `/settings/maps`, with local-map scope links | Real-host visual acceptance with campaign maps |
 | Settings: `playerParty`, `sidebarPages` | Party identity, curated core sidebar, and add-on visibility controls restored | Older hidden-page preference conversion and installed-route key review |
 | Settings: `addons` | Reviewed manager restores inspection, permission approval, activation, diagnostics, update, disable and rollback | Installed desktop/phone tests pass; campaign acceptance remains |
-| Settings: `backup`, `account` | Verified backup/maintenance and session APIs exist; full recovery/server controls remain open | Recovery points, restore/revert and accepted credential rotation |
+| Settings: `backup`, `account` | Verified backup/maintenance, sessions and DM/player password management with offline access recovery | Recovery points and restore/revert controls |
 | Add-on routes and graph/settings contributions | Versioned v3 mounting infrastructure and package routes exist | Per-add-on workflow inventory and installed-package acceptance |
 
 ## Platform follow-ups
