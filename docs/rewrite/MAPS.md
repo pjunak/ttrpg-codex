@@ -28,6 +28,8 @@ Leaflet's image-coordinate behavior is documented in its
   Local backgrounds use the owning location's opaque `localMap` URL.
 - Marker artwork follows configured `pinTypes.iconConfig`, including stable
   random selection, then the configured bundled icon or original type icon.
+  The Go frontend serves bundled `/icons-defaults/*.svg` with revalidation;
+  these stable filenames are not immutable build hashes.
   Campaign marker sizes and the shared attitude projection are reused.
 
 ## Marker attitude glows
@@ -207,6 +209,9 @@ production build with synthetic campaign/media responses on desktop and phone,
 including position geometry, dragging, live conflicts, creation, unplacing,
 view creation/edit/delete with stale revisions, local image uploads, and event
 ordering, geometry, appearance, keyboard links, refresh, and teardown.
+`host-map.browser.mjs` runs the Go host with built frontend assets and uploads
+a synthetic EXIF JPEG. Desktop/phone checks require decoded marker artwork,
+working marker details, and loaded tiles without downloading the original.
 Event-pin regressions also exercise article links, world/local placement,
 coordinates, drag drafts, removal with restored location fallback, revisions
 captured before clicking the map, remote deletion, and anonymous/missing targets.

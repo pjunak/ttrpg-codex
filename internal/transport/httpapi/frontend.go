@@ -27,6 +27,16 @@ func newFrontendHandler(files fs.FS) (http.Handler, error) {
 		case strings.HasPrefix(r.URL.Path, "/assets/"):
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			assets.ServeHTTP(w, r)
+		case strings.HasPrefix(r.URL.Path, "/icons-defaults/") && strings.HasSuffix(r.URL.Path, ".svg"):
+			name := strings.TrimPrefix(r.URL.Path, "/")
+			info, err := fs.Stat(files, name)
+			if err != nil || !info.Mode().IsRegular() {
+				http.NotFound(w, r)
+				return
+			}
+			// Marker filenames are stable across builds, unlike hashed assets.
+			w.Header().Set("Cache-Control", "no-cache")
+			assets.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}

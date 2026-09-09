@@ -85,9 +85,9 @@ func (cache *Cache) Ensure(ctx context.Context, digest string, source io.ReadSee
 		int64(config.Width)*int64(config.Height) > MaximumPixels {
 		return Manifest{}, ErrUnsupported
 	}
-	// Browser JPEG orientation is metadata-dependent. Leave EXIF images on the
-	// original-image path rather than silently rotating their coordinate frame.
-	if format == "jpeg" && jpegHasEXIF(source) {
+	// Go decodes the stored pixels without applying EXIF orientation. Only tile
+	// JPEGs whose browser presentation keeps that same coordinate frame.
+	if format == "jpeg" && !jpegKeepsOrientation(source) {
 		return Manifest{}, ErrUnsupported
 	}
 	manifest := Manifest{Width: config.Width, Height: config.Height, TileSize: TileSize}
@@ -222,35 +222,4 @@ func (reader *contextReader) Read(p []byte) (int, error) {
 		return 0, err
 	}
 	return reader.reader.Read(p)
-}
-
-func jpegHasEXIF(source io.ReadSeeker) bool {
-	if _, err := source.Seek(2, io.SeekStart); err != nil {
-		return true
-	}
-	for {
-		var header [4]byte
-		if _, err := io.ReadFull(source, header[:2]); err != nil {
-			return true
-		}
-		if header[0] != 0xff {
-			return true
-		}
-		if header[1] == 0xda || header[1] == 0xd9 {
-			return false
-		}
-		if _, err := io.ReadFull(source, header[2:]); err != nil {
-			return true
-		}
-		length := int(header[2])<<8 | int(header[3])
-		if length < 2 {
-			return true
-		}
-		if header[1] == 0xe1 {
-			return true
-		}
-		if _, err := source.Seek(int64(length-2), io.SeekCurrent); err != nil {
-			return true
-		}
-	}
 }

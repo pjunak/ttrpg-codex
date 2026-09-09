@@ -72,9 +72,11 @@ The Go host generates PNG, JPEG and WebP pyramids on first use under
 [image resampling](https://pkg.go.dev/golang.org/x/image/draw).
 Only one decoder runs at a time, and dimensions are inspected before full
 decoding: at most 32,768 pixels per axis and 33,554,432 pixels total. SVG, GIF,
-JPEGs with APP1/EXIF metadata, unsupported WebP variants, larger images, and
-decode failures retain the original-image viewer. JPEG metadata falls back so
-browser orientation cannot silently change the map's coordinate frame.
+JPEGs with absent EXIF orientation or orientation 1 use tiles; unrelated APP1
+metadata (such as XMP) does not disable tiling. Rotated/mirrored or malformed
+EXIF, unsupported WebP variants, larger images, and decode failures retain the
+original-image viewer so browser orientation cannot silently change the map's
+coordinate frame.
 
 Generation is cancellable, uses a private staging directory, and publishes the
 complete pyramid by rename. An `os.Root` confines cache filesystem operations.

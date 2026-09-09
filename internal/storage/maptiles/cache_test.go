@@ -145,7 +145,7 @@ func TestPyramidConcurrentRequestsPublishOneCompleteGeneration(t *testing.T) {
 	}
 }
 
-func TestJPEGWithoutOrientationMetadataTilesAndEXIFFallsBack(t *testing.T) {
+func TestJPEGWithoutMetadataTilesAndMalformedEXIFFallsBack(t *testing.T) {
 	t.Parallel()
 	cache, _ := New(t.TempDir())
 	var encoded bytes.Buffer
