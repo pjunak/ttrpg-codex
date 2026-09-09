@@ -112,7 +112,9 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} reference
   await page.reload();
   await (mode === 'isolated' ? page.frameLocator('[data-addon-route-outlet] iframe').getByText('Reference detail') : page.getByText('Reference detail')).waitFor();
   await installReviewedPackage(admin, csrf, id, wikiPackage(id, mode, { version: '1.0.2', roles: ['dm'] }), []);
-  await page.goto(`/#/characters/${id}`); await page.locator('.wiki-link-missing').filter({ hasText: 'Ward' }).waitFor();
+  await page.goto(`/#/characters/${id}`);
+  // Loading and missing references share a CSS class; wait for resolution.
+  await page.getByTitle('No unique visible entry matches this link. Check its kind or record ID.').filter({ hasText: 'Ward' }).waitFor();
   assert.equal(await ward.count(), 0);
   await page.goto('/#/old-library/spell:shield'); await page.getByRole('heading', { name: 'This page is not in the index.' }).waitFor();
 });
