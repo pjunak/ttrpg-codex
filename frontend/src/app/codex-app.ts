@@ -1,5 +1,6 @@
 import { uiText } from "./ui-localization.js";
 import { uiRequestError } from "./ui-errors.js";
+import { isRecord } from "../core/boundary.js";
 import { LitElement, html, nothing } from "lit";
 import { routeRecordReferences } from "./route-record-references.js";
 import {
@@ -36,6 +37,7 @@ import {
   type BrowserAddonComposition,
 } from "../addons/browser-composition.js";
 import { BrowserContributionOutlet } from "../addons/contribution-outlet.js";
+import { contributionLabel } from "../addons/contribution-label.js";
 import {
   BrowserNavigationOutlet,
   browserAddonRouteHash,
@@ -133,6 +135,7 @@ export class CodexApp extends LitElement {
     navigationCount: { state: true },
     routeCount: { state: true },
     articleCount: { state: true },
+    characterView: { state: true },
     editCompletion: { state: true },
     menuOpen: { state: true },
     mobileViewport: { state: true },
@@ -150,6 +153,7 @@ export class CodexApp extends LitElement {
   declare private navigationCount: number;
   declare private routeCount: number;
   declare private articleCount: number;
+  declare private characterView: "profile" | "addons";
   declare private editCompletion: number;
 
   declare private menuOpen: boolean;
@@ -188,6 +192,7 @@ export class CodexApp extends LitElement {
     this.navigationCount = 0;
     this.routeCount = 0;
     this.articleCount = 0;
+    this.characterView = preferredCharacterView(window.location.hash);
     this.editCompletion = 0;
     this.menuOpen = false;
     this.mobileViewport = this.#mobileMedia.matches;
@@ -267,9 +272,19 @@ export class CodexApp extends LitElement {
               <button type="button" @click=${this.#dismissError}>${this.#ui.t("shell.dismiss")}</button>
             </p>
           `}
-          ${this.#campaignTemplate()}
+          ${this.#characterTabs()}
+          <div id="character-profile-panel" role=${this.#hasCharacterTabs ? "tabpanel" : nothing}
+            aria-labelledby=${this.#hasCharacterTabs ? "character-view-profile" : nothing}
+            ?hidden=${this.#hasCharacterTabs && this.characterView === "addons"}>
+            ${this.#campaignTemplate()}
+          </div>
           <section class="addon-dashboard" data-addon-slot hidden aria-label=${this.#ui.t("shell.campaignAddons")}></section>
-          <section class="addon-article" data-addon-article hidden aria-label=${this.#ui.t("shell.recordAddons")}></section>
+          <div id="character-addons-panel" role=${this.#hasCharacterTabs ? "tabpanel" : nothing}
+            aria-labelledby=${this.#hasCharacterTabs ? "character-view-addons" : nothing}
+            ?hidden=${this.#hasCharacterTabs && this.characterView === "profile"}>
+            ${this.#hasCharacterTabs ? html`<header class="character-sheet-heading"><h1>${this.#characterName}</h1></header>` : nothing}
+            <section class="addon-article" data-addon-article hidden aria-label=${this.#ui.t("shell.recordAddons")}></section>
+          </div>
           <section class="addon-route" data-addon-route-outlet hidden aria-label=${this.#ui.t("shell.addonPage")}></section>
         </main>
 
@@ -293,6 +308,47 @@ export class CodexApp extends LitElement {
       this.#navigationOutlet?.refresh();
     }
   }
+
+  get #hasCharacterTabs(): boolean {
+    return this.route.kind === "record" && this.route.page.collection === "characters" && this.articleCount > 0 && this.#recordContext() !== null;
+  }
+
+  get #characterName(): string {
+    const context = this.#recordContext();
+    return isRecord(context) && isRecord(context["value"]) && typeof context["value"]["name"] === "string"
+      ? context["value"]["name"] : uiText("Character");
+  }
+
+  #characterTabs() {
+    if (!this.#hasCharacterTabs) return nothing;
+    const role = this.authority.state === "known" ? this.authority.auth.role : null;
+    const contributions = role ? this.#addons?.contributions.list("article-section", role)
+      .filter(active => active.descriptor.config["collection"] === "characters") ?? [] : [];
+    const addonLabel = contributions.length === 1 ? contributionLabel(contributions[0]!.descriptor, this.#ui.locale) : this.#ui.t("shell.recordAddons");
+    return html`<nav class="character-view-tabs record-tabs" role="tablist" aria-label=${uiText("Character view")}>
+      ${(["profile", "addons"] as const).map(view => html`<button type="button" role="tab" id=${`character-view-${view}`}
+        aria-controls=${`character-${view}-panel`} aria-selected=${this.characterView === view}
+        tabindex=${this.characterView === view ? 0 : -1}
+        @click=${() => this.#selectCharacterView(view)} @keydown=${this.#characterTabKey}>
+        ${view === "profile" ? uiText("Profile") : addonLabel}
+      </button>`)}
+    </nav>`;
+  }
+
+  #selectCharacterView(view: "profile" | "addons"): void {
+    this.characterView = view;
+    if (this.route.kind === "record") {
+      try { window.sessionStorage.setItem(`codex:character-view:${this.route.key}`, view); } catch { /* The active view still works without storage. */ }
+    }
+  }
+
+  readonly #characterTabKey = (event: KeyboardEvent): void => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const view = event.key === "Home" ? "profile" : event.key === "End" ? "addons" : this.characterView === "profile" ? "addons" : "profile";
+    this.#selectCharacterView(view);
+    void this.updateComplete.then(() => this.querySelector<HTMLButtonElement>(`#character-view-${view}`)?.focus());
+  };
 
   async #bootstrap(signal: AbortSignal): Promise<void> {
     try {
@@ -1315,6 +1371,7 @@ export class CodexApp extends LitElement {
     this.menuOpen = false;
     this.#acceptedHash = nextHash;
     this.route = parseAppRoute(nextHash);
+    this.characterView = preferredCharacterView(nextHash);
     void this.updateComplete.then(() => this.#refreshOutlets());
   };
 
@@ -1356,6 +1413,15 @@ export class CodexApp extends LitElement {
 
 function anonymousAuth(): AuthState {
   return { authenticated: false, role: null, realRole: null };
+}
+
+function preferredCharacterView(hash: string): "profile" | "addons" {
+  const route = parseAppRoute(hash);
+  try {
+    if (route.kind === "record" && route.page.collection === "characters" &&
+      window.sessionStorage.getItem(`codex:character-view:${route.key}`) === "addons") return "addons";
+  } catch { /* Default to the profile when browser storage is unavailable. */ }
+  return "profile";
 }
 
 function normalizedHash(value: string): string {

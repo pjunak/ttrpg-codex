@@ -99,10 +99,51 @@ async function open(t, key, mobile = false, role = 'dm', configure = async () =>
   const page = await context.newPage(); page.setDefaultTimeout(12_000);
   const errors = []; page.on('pageerror', error => errors.push(error.message)); t.after(() => assert.deepEqual(errors, []));
   await configure(page);
-  await page.goto(`/#/characters/${key}`); await page.locator('.dse-backpack').waitFor(); return page;
+  await page.goto(`/#/characters/${key}`);
+  await page.locator('#character-view-addons').click();
+  await page.locator('.dse-backpack').waitFor(); return page;
 }
 async function saved(page) { await page.locator('.dnd-save-status').getByText('Saved.', { exact: true }).waitFor(); }
 const writes = '**/api/addons/dnd-sheets/generations/*/data/transactions';
+
+for (const mobile of [false, true]) test(`character profile and installed sheet preserve editing state on ${mobile ? 'phone' : 'desktop'}`, { skip: !archivePath }, async t => {
+  const key = `profile-tabs-${mobile}`; await seed(key);
+  const page = await open(t, key, mobile, mobile ? 'player' : 'dm');
+  const sheet = page.locator('.addon-dnd-sheets');
+  const profileTab = page.locator('#character-view-profile');
+  const sheetTab = page.locator('#character-view-addons');
+  const initial = await get(key);
+  await sheet.evaluate(element => { window.originalCharacterSheet = element; });
+  await sheetTab.press('Home');
+  await page.locator('#record-title').waitFor();
+  assert.equal(await sheet.isVisible(), false);
+  assert.equal(await profileTab.getAttribute('aria-selected'), 'true');
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByLabel('Name', { exact: true }).fill('A profile draft');
+  await profileTab.press('End');
+  assert.equal(await sheet.isVisible(), true);
+  assert.equal(await sheet.evaluate(element => element === window.originalCharacterSheet), true);
+  assert.equal(await page.locator('[name="name"]').isVisible(), false);
+  assert.equal((await get(key)).revision, initial.revision, 'view changes never save a record');
+  await sheet.getByRole('button', { name: 'Edit sheet', exact: true }).click();
+  await sheet.getByRole('tab', { name: 'Notes', exact: true }).click();
+  await page.route(writes, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { kind: 'UNAVAILABLE', message: 'offline' } }) }));
+  await sheet.getByRole('textbox', { name: 'Sheet notes' }).fill('A sheet draft');
+  await sheet.getByRole('tab', { name: 'Combat', exact: true }).click();
+  await sheet.getByRole('button', { name: 'Retry save', exact: true }).waitFor();
+  await profileTab.click();
+  assert.equal(await page.getByLabel('Name', { exact: true }).inputValue(), 'A profile draft');
+  assert.equal(await unloadBlocked(page), true);
+  await page.screenshot({ path: resolve(output, `profile-editor-${mobile ? 'phone' : 'desktop'}.png`), fullPage: true });
+  const save = await page.getByRole('button', { name: 'Save entry', exact: true }).boundingBox();
+  assert.ok(save.y >= 0 && save.y + save.height <= (mobile ? 784 : 1100), 'Save stays above the mobile navigation and inside the viewport');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await sheetTab.click();
+  await sheet.getByRole('tab', { name: 'Notes', exact: true }).click();
+  assert.equal(await sheet.getByRole('textbox', { name: 'Sheet notes' }).inputValue(), 'A sheet draft');
+  assert.equal((await get(key)).value.notes, initial.value.notes);
+});
+
 async function write(page, action) {
   const response = page.waitForResponse(response => response.url().endsWith('/data/transactions') && response.request().method() === 'POST');
   await action(); await jsonResponse(await response);

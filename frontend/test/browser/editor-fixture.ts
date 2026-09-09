@@ -1,3 +1,4 @@
+import "../../src/styles.css";
 import { CodexRecordPage } from "../../src/app/codex-record-page.js";
 import { CodexSettings } from "../../src/app/codex-settings.js";
 import { parseAppRoute } from "../../src/app/routes.js";

@@ -1,5 +1,10 @@
 // Source messages are closed interface text. Campaign and provider text never passes through this catalog.
 export const sourceCs = {
+  "Character view": "Zobrazení postavy",
+  "Profile": "Profil",
+  "Character details": "Údaje o postavě",
+  "Connections": "Vazby",
+  "Side by side": "Vedle sebe",
   "Our Party": "Naše družina",
   "Wiki & World Atlas": "Wiki a atlas světa",
   "Section": "Sekce",

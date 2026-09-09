@@ -97,6 +97,7 @@ for (const mobile of [false, true]) test(`party settings save and reach their re
   assert.equal(await badge.textContent(), '🦉 Night Owls');
   assert.deepEqual(await badge.evaluate(element => { const style = getComputedStyle(element); return [style.backgroundColor, style.color]; }), ['rgb(153, 204, 255)', 'rgb(32, 48, 64)']);
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByRole('tab', { name: 'Connections', exact: true }).click();
   await page.locator('[name="faction"]').waitFor();
   assert.equal(await page.locator('[name="faction"] option[value="party"]').textContent(), '🦉 Night Owls');
   await page.goto(`${origin}/#/party`);

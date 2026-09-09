@@ -65,8 +65,10 @@ test("Czech record and relationship editors retain drafts and stable values acro
   const page = await fixture(t, dataset({ characters: [character(), { key: 'peer', revision: 1, value: { id: 'peer', name: 'Title {0} $&' } }] }), '#/characters/ryn');
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await page.locator('[name="name"]').fill('Name {0} $&');
+  await page.getByRole('tab', { name: 'Knowledge', exact: true }).click();
   await page.getByRole('button', { name: 'Add question', exact: true }).click();
   await page.locator('[data-part="text"]').fill('Untranslated authored question');
+  await page.getByRole('tab', { name: 'Connections', exact: true }).click();
   await page.getByRole('button', { name: 'Add relationship', exact: true }).click();
   await page.locator('[data-part="target"]').selectOption('peer');
   await language(page, 'cs');
@@ -94,6 +96,56 @@ test("Czech campaign settings translate closed choices and retain authored defin
   const result = await submission(page);
   assert.equal(result.error, undefined); assert.equal(result.detail.originalId, 'unspecified');
   assert.equal(result.detail.fields.label, 'Display name {0} $&');
+});
+
+test("character tabs reveal invalid fields and keep all groups in the saved draft", async t => {
+  const page = await fixture(t, dataset({ characters: [character()] }), '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  const details = page.getByRole('tab', { name: 'Details', exact: true });
+  await page.getByLabel('Name', { exact: true }).fill('');
+  await details.focus(); await page.keyboard.press('End');
+  assert.equal(await page.getByRole('tab', { name: 'Knowledge', exact: true }).getAttribute('aria-selected'), 'true');
+  await page.getByRole('button', { name: 'Save entry', exact: true }).click();
+  await page.waitForFunction(() => document.activeElement?.getAttribute('name') === 'name');
+  assert.equal(await submission(page), undefined, 'invalid hidden required fields must not submit');
+  await page.getByLabel('Name', { exact: true }).fill('New name');
+  await details.focus(); await page.keyboard.press('ArrowRight');
+  await page.locator('[name="faction"]').selectOption('party');
+  await page.getByRole('tab', { name: 'Connections', exact: true }).press('ArrowRight');
+  await page.getByRole('spinbutton', { name: 'Knowledge', exact: true }).fill('3');
+  await page.getByRole('button', { name: 'Add question', exact: true }).click();
+  await page.locator('[data-part="text"]').fill('Who sent the letter?');
+  await page.getByRole('tab', { name: 'Knowledge', exact: true }).press('Home');
+  assert.equal(await page.getByLabel('Name', { exact: true }).inputValue(), 'New name');
+  await page.getByRole('button', { name: 'Save entry', exact: true }).click();
+  const result = await submission(page);
+  assert.equal(result.error, undefined);
+  assert.equal(result.detail.fields.faction, 'party');
+  assert.equal(result.detail.fields.knowledge, '3');
+  assert.equal(result.detail.fields.unknown[0].text, 'Who sent the letter?');
+});
+
+for (const mobile of [false, true]) test(`character editor keeps description and preview usable on ${mobile ? 'phone' : 'desktop'}`, async t => {
+  const page = await fixture(t, dataset({ characters: [character()] }), '#/characters/ryn');
+  await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 });
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  const details = await page.locator('.character-editor-details').boundingBox();
+  const description = await page.locator('.character-editor-description').boundingBox();
+  assert.ok(mobile ? description.y >= details.y + details.height : description.x >= details.x + details.width);
+  await page.getByRole('button', { name: 'Side by side', exact: true }).click();
+  const textarea = page.locator('textarea[name="description"]');
+  await textarea.fill('## The lighthouse\n\nAn **unfinished** promise.');
+  await page.locator('.markdown-editor-preview').getByRole('heading', { name: 'The lighthouse' }).waitFor();
+  await textarea.press('End'); await textarea.pressSequentially(' More.');
+  assert.equal(await textarea.evaluate(element => element === document.activeElement), true, 'live preview keeps typing focus');
+  await page.getByRole('button', { name: 'Preview', exact: true }).click();
+  assert.equal(await textarea.isVisible(), false);
+  await page.getByRole('button', { name: 'Write', exact: true }).click();
+  assert.match(await textarea.inputValue(), /More\.$/);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.screenshot({ path: fileURLToPath(new URL(`../../test-results/character-editor-${mobile ? 'phone' : 'desktop'}.png`, import.meta.url)), fullPage: true });
+  await page.getByRole('button', { name: 'Save entry', exact: true }).click();
+  assert.match((await submission(page)).detail.fields.description, /More\.$/);
 });
 
 test("record drafts retain their opening revision and fields across live refresh", async t => {
