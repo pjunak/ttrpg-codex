@@ -82,6 +82,18 @@ func (planner *mutationPlanner) applyRequested(role WriteRole, mutation campaign
 		if err != nil {
 			return fmt.Errorf("prepare %s:%s: %w", mutation.Collection, mutation.Key, err)
 		}
+		if descriptor.VisibilityBearing {
+			object, err := objectValue(value)
+			if err != nil {
+				return err
+			}
+			// All record editors share the server clock, including player writes.
+			object["updatedAt"] = planner.updatedAt
+			value, err = json.Marshal(object)
+			if err != nil {
+				return err
+			}
+		}
 		normalized, visibility, err := campaign.NormalizeRecord(descriptor, mutation.Key, value)
 		if err != nil {
 			return err

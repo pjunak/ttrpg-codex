@@ -187,7 +187,7 @@ export function projectDashboard(dataset: CampaignDataset): DashboardModel {
   const recent = campaignPages.flatMap((page) => projectEntities(dataset, page))
     .filter((entity) => entity.updatedAt !== undefined)
     .sort((left, right) => Date.parse(right.updatedAt ?? "") - Date.parse(left.updatedAt ?? ""))
-    .slice(0, 6);
+    .slice(0, 30);
   const counts: Record<string, number> = {};
   for (const page of campaignPages) {
     counts[page.id] = campaignCollection(dataset, page.collection).records.length;
@@ -272,6 +272,12 @@ function shortIcon(value: unknown): string | undefined {
 }
 
 function timestamp(value: unknown): string | undefined {
+  if (typeof value === "number") {
+    const date = new Date(value);
+    return Number.isSafeInteger(value) && value > 0 && Number.isFinite(date.getTime())
+      ? date.toISOString()
+      : undefined;
+  }
   const candidate = text(value);
   return /^\d{4}-\d{2}-\d{2}T/u.test(candidate) && Number.isFinite(Date.parse(candidate))
     ? candidate

@@ -54,6 +54,19 @@ invalidation. Moving a formerly public record to DM still emits publicly so a
 player client knows to remove it. Event metadata contains collection and count,
 never record bodies or private keys.
 
+Ordinary creation and editing of visibility-bearing records stamp `updatedAt`
+from the server clock as Unix milliseconds. Client-supplied or stale timestamps
+cannot keep a successful edit out of recent activity. Derived reference changes
+and twin operations use the same timestamp representation.
+
+The core campaign overview shows the thirty most recently changed visible
+entries beneath the last session, using numeric save timestamps and preserved
+ISO dates. It is available to players and anonymous readers through their
+existing role-filtered dataset, with a signed-in empty state. It needs no
+add-on; DM Tools retains its separate private planner activity. The real-host
+`overview-activity.browser.mjs` checks player creation/editing, live refresh,
+record links, and removal when a record becomes private on desktop and phone.
+
 ## Deliberate boundaries
 
 The application layer now publishes `GET /api/campaign` as

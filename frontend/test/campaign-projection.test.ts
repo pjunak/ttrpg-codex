@@ -64,6 +64,29 @@ describe("campaign product projection", () => {
     expect(summaries[1]?.portrait).toBeUndefined();
   });
 
+  it("orders numeric save timestamps alongside existing ISO dates and ignores invalid dates", () => {
+    const dataset = replace(fixture(), "characters", [
+      { key: "numeric", revision: 1, value: { name: "Numeric save", updatedAt: Date.parse("2026-09-05T12:00:00Z") } },
+      { key: "iso", revision: 1, value: { name: "ISO save", updatedAt: "2026-09-04T12:00:00Z" } },
+      ...[undefined, null, 0, -1, Infinity, NaN, 1.5, 9_000_000_000_000_000, "bad date"].map((updatedAt, index) => ({
+        key: `invalid-${index}`, revision: 1, value: { name: `Invalid ${index}`, updatedAt },
+      })),
+    ], "list");
+    const recent = projectDashboard(dataset).recent;
+    expect(recent.map(item => item.name)).toEqual(["Numeric save", "ISO save", "Quiet Camp", "Broken Gate"]);
+    expect(recent[0]?.updatedAt).toBe("2026-09-05T12:00:00.000Z");
+  });
+
+  it("keeps the original thirty-entry recent history in newest-first order", () => {
+    const dataset = replace(fixture(), "characters", Array.from({ length: 35 }, (_, index) => ({
+      key: `entry-${index}`, revision: 1, value: { name: `Entry ${index}`, updatedAt: Date.parse("2026-09-06T00:00:00Z") + index },
+    })), "list");
+    const recent = projectDashboard(dataset).recent;
+    expect(recent).toHaveLength(30);
+    expect(recent[0]?.name).toBe("Entry 34");
+    expect(recent[29]?.name).toBe("Entry 5");
+  });
+
   it("keeps explicit attitude order and shared strengths while limiting inheritance to visible factions", () => {
     const characters = campaignPages.find(page => page.collection === "characters")!;
     const campaign = replace(fixture(), "characters", [

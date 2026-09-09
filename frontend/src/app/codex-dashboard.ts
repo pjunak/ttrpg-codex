@@ -263,18 +263,18 @@ export class CodexDashboard extends LitElement {
   }
 
   #recent(model: DashboardModel) {
-    if (model.recent.length === 0) return nothing;
+    if (model.recent.length === 0 && !this.authenticated) return nothing;
     return html`
       <section class="chronicle-section recent-section" aria-labelledby="recent-heading">
         <div class="section-heading"><h2 id="recent-heading"><span aria-hidden="true">🕘</span> ${this.#ui.t("dashboard.recent")}</h2></div>
-        <div class="recent-ledger">
+        ${model.recent.length === 0 ? html`<p class="empty-state">${this.#ui.t("dashboard.emptyRecent")}</p>` : html`<div class="recent-ledger">
           ${model.recent.map((entity) => html`
             <a href=${entity.route}>
               <span><i class="recent-kind" aria-hidden="true">${campaignPages.find(page => entity.route.startsWith(`#/${page.id}/`))?.icon ?? "📜"}</i>${entity.name}</span>
               <time datetime=${entity.updatedAt ?? ""}>${this.#ui.relativeDate(entity.updatedAt)}</time>
             </a>
           `)}
-        </div>
+        </div>`}
       </section>
     `;
   }

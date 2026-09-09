@@ -10,6 +10,46 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/domain/campaign"
 )
 
+func TestRecordCreationAndEditsUseServerActivityTime(t *testing.T) {
+	t.Parallel()
+	for _, role := range []WriteRole{WritePlayer, WriteDM} {
+		for _, existing := range []bool{false, true} {
+			t.Run(string(role)+"/"+map[bool]string{false: "create", true: "edit"}[existing], func(t *testing.T) {
+				repository := &fakeRepository{}
+				revision := int64(0)
+				if existing {
+					revision = 4
+					repository.snapshot.Records = []campaign.Record{{
+						Collection: campaign.Locations, Key: "town", Revision: revision, Visibility: campaign.VisibilityPublic,
+						Value: raw(`{"id":"town","name":"Old town","updatedAt":1}`),
+					}}
+				}
+				service, _ := New(repository)
+				now := time.Date(2026, time.September, 9, 12, 0, 0, 123000000, time.UTC)
+				service.now = func() time.Time { return now }
+				_, err := service.Mutate(context.Background(), MutationAuthority{ActorID: "editor", Role: role}, []campaign.Mutation{{
+					Kind: campaign.Put, Collection: campaign.Locations, Key: "town", ExpectedRevision: revision,
+					Value: raw(`{"id":"town","name":"New town","updatedAt":"2099-01-01T00:00:00Z","extension":{"keep":true}}`),
+				}})
+				if err != nil || len(repository.writes) != 1 {
+					t.Fatalf("write = %v, count %d", err, len(repository.writes))
+				}
+				var value struct {
+					UpdatedAt int64           `json:"updatedAt"`
+					Name      string          `json:"name"`
+					Extension map[string]bool `json:"extension"`
+				}
+				if err := json.Unmarshal(repository.writes[0].Mutations[0].Value, &value); err != nil {
+					t.Fatal(err)
+				}
+				if value.UpdatedAt != now.UnixMilli() || value.Name != "New town" || !value.Extension["keep"] {
+					t.Fatalf("saved activity metadata = %+v", value)
+				}
+			})
+		}
+	}
+}
+
 func TestPlayerMutationSanitizesAuthorityAndPrivateMetadata(t *testing.T) {
 	t.Parallel()
 	repository := &fakeRepository{snapshot: campaign.Snapshot{Records: []campaign.Record{{
