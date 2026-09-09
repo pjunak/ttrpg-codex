@@ -1,7 +1,8 @@
+# syntax=docker/dockerfile:1
 FROM node:26-slim AS frontend-build
 WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci
 COPY frontend/ ./
 RUN npm run build
 
@@ -13,11 +14,10 @@ COPY cmd/ ./cmd/
 COPY contracts/ ./contracts/
 COPY internal/ ./internal/
 COPY sdk/ ./sdk/
-RUN CGO_ENABLED=0 go build -trimpath -o /out/codex ./cmd/codex
-RUN CGO_ENABLED=0 go build -trimpath -o /out/codex-health ./cmd/codex-health
-RUN CGO_ENABLED=0 go build -trimpath -o /out/codex-addon-inspect ./cmd/codex-addon-inspect
-RUN CGO_ENABLED=0 go build -trimpath -o /out/codex-convert-v1 ./cmd/codex-convert-v1
-RUN CGO_ENABLED=0 go build -trimpath -o /out/codex-maintenance ./cmd/codex-maintenance
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath -o /out/ \
+      ./cmd/codex ./cmd/codex-health ./cmd/codex-addon-inspect \
+      ./cmd/codex-convert-v1 ./cmd/codex-maintenance
 
 FROM debian:bookworm-slim
 # Production bind mounts were already owned by UID/GID 1000 for the Node host.

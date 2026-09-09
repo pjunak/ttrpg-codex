@@ -21,6 +21,29 @@ in again. `npm run release-check` retains the documented product gate. For other
 instances, perform the final conversion and short first-start checks before
 accepting the deployment and keep the old application and data for rollback.
 
+## Publishing and deploying updates
+
+Pushes to `main` run the host and add-on compatibility gates and publish a
+versioned image after a packaged-runtime startup check; they do not deploy a campaign. Each published build stores a
+`release-metadata` artifact containing its source SHA and immutable digest.
+
+For an existing release, run **Deploy published release** on `main`, enter the
+successful **Build and dispatch** run ID, and select Asurai or Tiamat. This
+reuses the tested image without rerunning builds. Metadata is retained for 90
+days. Builds from before this workflow was introduced need a new published run.
+For a new build, the original combined workflow still supports an explicit
+deployment target. A successful app deployment now includes the infrastructure
+health result, with its run linked in the summary.
+
+The infrastructure dispatch token requires Contents write and Actions read on
+the infrastructure repository. Install its matching deployment workflow first;
+the app checks Actions access before dispatching. A permission or timeout error
+must not be treated as deployment success or blindly retried.
+
+Add-on repositories publish reviewed ZIPs as private/public CI artifacts
+according to repository visibility, retained for 14 days. Installing those ZIPs
+still uses the host's upload, inspect, review, approve and activate lifecycle.
+
 ## Requirements
 
 - Docker Engine with Compose for production.

@@ -14,3 +14,12 @@ test/
 examples/
 scripts/
 .env*
+docs/
+output/
+release/
+.codex/
+.claude/
+**/test-results/
+**/playwright-report/
+*.bundle
+*.log

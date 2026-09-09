@@ -1,7 +1,5 @@
 name: Build and dispatch
 
-# Drop into an app repo's .github/workflows/ directory.
-#
 # On every push to main: validates the suite and builds a Docker image. It
 # publishes :latest and :sha-<commit> only after the product-parity release gate
 # passes. Production deployment remains an explicit manual action so a source-
@@ -11,7 +9,7 @@ name: Build and dispatch
 # dispatches that exact image digest.
 #
 # Required configuration in the app repo (Settings → Secrets and variables → Actions):
-#   Secret   INFRA_DISPATCH_TOKEN   fine-grained PAT for the infra repo
+#   Secret   INFRA_DISPATCH_TOKEN   infra Contents: write and Actions: read
 #   Variable INFRA_REPO             owner/infra-repo (e.g. pjunak/junak.eu)
 #   Variable INFRA_SERVICE          manual `configured` target list. May be a
 #                                   space/comma-separated list such as
@@ -20,6 +18,7 @@ name: Build and dispatch
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
     inputs:
       publish:
@@ -43,10 +42,14 @@ permissions:
   packages: write
 
 concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: true
+  group: build-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
+  compatibility:
+    uses: ./.github/workflows/addon-compatibility.yml
+    secrets: inherit
+
   test:
     name: Run test suite
     runs-on: ubuntu-latest
@@ -56,6 +59,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
+          cache: npm
 
       - uses: actions/setup-go@v7
         with:
@@ -68,10 +72,10 @@ jobs:
 
   build:
     name: Build image
-    needs: test
+    needs: [test, compatibility]
     runs-on: ubuntu-latest
     outputs:
-      image_ref: ${{ steps.build_image.outputs.digest && format('{0}@{1}', steps.img.outputs.name, steps.build_image.outputs.digest) || '' }}
+      image_ref: ${{ steps.publish_image.outputs.digest && format('{0}@{1}', steps.img.outputs.name, steps.publish_image.outputs.digest) || '' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -103,7 +107,7 @@ jobs:
           exit 1
 
       - name: Log in to GHCR
-        if: ${{ steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || inputs.publish || inputs.deploy_target != 'none') }}
+        if: ${{ steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -116,17 +120,65 @@ jobs:
           REPO: ${{ github.repository }}
         run: echo "name=ghcr.io/${REPO,,}" >> "$GITHUB_OUTPUT"
 
-      - name: Build image
+      - name: Build image for startup verification
         id: build_image
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: ${{ steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || inputs.publish || inputs.deploy_target != 'none') }}
+          load: true
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          tags: |
+            ${{ steps.img.outputs.name }}:latest
+            ${{ steps.img.outputs.name }}:sha-${{ github.sha }}
+          cache-from: type=gha
+
+      - name: Verify packaged runtime starts as its production user
+        env:
+          IMAGE: ${{ steps.img.outputs.name }}:sha-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          trap 'docker rm -f codex-image-smoke >/dev/null 2>&1 || true' EXIT
+          docker run -d --name codex-image-smoke --network none \
+            -e CODEX_DM_PASSWORD=ci-image-smoke-only "$IMAGE"
+          for attempt in {1..30}; do
+            if docker exec codex-image-smoke /app/codex-health http://127.0.0.1:3000/api/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs codex-image-smoke
+          echo '::error::Packaged runtime did not become healthy'
+          exit 1
+
+      - name: Publish the verified warm build
+        id: publish_image
+        if: ${{ steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          labels: org.opencontainers.image.revision=${{ github.sha }}
           tags: |
             ${{ steps.img.outputs.name }}:latest
             ${{ steps.img.outputs.name }}:sha-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Record published release identity
+        if: ${{ steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
+        env:
+          IMAGE_REF: ${{ steps.img.outputs.name }}@${{ steps.publish_image.outputs.digest }}
+        run: |
+          mkdir -p release
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("release/release.json", JSON.stringify({repository:process.env.GITHUB_REPOSITORY, sha:process.env.GITHUB_SHA, run_id:process.env.GITHUB_RUN_ID, image_ref:process.env.IMAGE_REF}));'
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
+        with:
+          name: release-metadata
+          path: release/release.json
+          retention-days: 90
+          if-no-files-found: error
 
   # INFRA_SERVICE may be one service or a list ("tiamat asurai"). Resolve it to
   # a JSON array so the dispatch job can fan out one deploy per service — the
@@ -135,7 +187,7 @@ jobs:
   resolve-targets:
     name: Resolve deploy targets
     needs: build
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_target != 'none' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy_target != 'none' }}
     runs-on: ubuntu-latest
     outputs:
       services: ${{ steps.list.outputs.services }}
@@ -158,15 +210,17 @@ jobs:
             # Split on commas and/or any whitespace; drop empties.
             services=$(printf '%s' "$SERVICE" | jq -Rsc 'split("[,\\s]+";"") | map(select(length > 0))')
           fi
-          if [[ "$services" == "[]" ]]; then
-            echo "::error::INFRA_SERVICE parsed to an empty list"
+          services=$(jq -c 'unique' <<<"$services")
+          if ! jq -e 'length > 0 and all(.[]; . == "asurai" or . == "tiamat")' <<<"$services" >/dev/null; then
+            echo "::error::INFRA_SERVICE must contain only asurai and/or tiamat"
             exit 1
           fi
           echo "services=$services" >> "$GITHUB_OUTPUT"
           echo "Deploy targets: $services"
 
   dispatch:
-    name: Dispatch deploy (${{ matrix.service }})
+    name: Deploy and verify (${{ matrix.service }})
+    timeout-minutes: 35
     needs: [build, resolve-targets]
     runs-on: ubuntu-latest
     strategy:
@@ -174,15 +228,15 @@ jobs:
       matrix:
         service: ${{ fromJson(needs.resolve-targets.outputs.services) }}
     steps:
-      - name: Trigger infra deploy
-        uses: peter-evans/repository-dispatch@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          token: ${{ secrets.INFRA_DISPATCH_TOKEN }}
-          repository: ${{ vars.INFRA_REPO }}
-          event-type: deploy
-          client-payload: |-
-            {
-              "service": "${{ matrix.service }}",
-              "sha": "${{ github.sha }}",
-              "image_ref": "${{ needs.build.outputs.image_ref }}"
-            }
+          node-version-file: .nvmrc
+      - name: Deploy and wait for infrastructure health
+        run: node scripts/deploy-release.mjs
+        env:
+          GH_TOKEN: ${{ secrets.INFRA_DISPATCH_TOKEN }}
+          INFRA_REPO: ${{ vars.INFRA_REPO }}
+          DEPLOY_TARGET: ${{ matrix.service }}
+          DEPLOY_SHA: ${{ github.sha }}
+          DEPLOY_IMAGE: ${{ needs.build.outputs.image_ref }}

@@ -25,6 +25,19 @@ separate product gate: automatic image publication and every requested publish
 or deployment remain blocked while any checklist item in the marked section is
 open or while `frontend/REWRITE_INCOMPLETE` exists.
 
+## Deployment follow-ups
+
+- [ ] Move intentionally tracked add-on worker binaries and browser compiler
+  output to versioned release artifacts only after replacing every consumer of
+  checkout assets, preserving standalone package builds and updating the
+  repository ownership rules. The September 2026 inventory found about 27 MB
+  of native worker outputs; do not rewrite historical branches just to shrink
+  the current tree.
+- [ ] Extend release metadata and deployment-result waiting to other app
+  producers when their owners request it. The shared infrastructure continues
+  to accept the existing Music digest payload and the static-site tag payload;
+  those app workflows are outside the TTRPG source change.
+
 ## Completed rewrite foundations
 
 - [x] Go HTTP host, role-aware authentication, CSRF protection, and SSE events.

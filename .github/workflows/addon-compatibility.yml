@@ -1,17 +1,15 @@
 name: Addon compatibility
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: addon-compatibility-${{ github.ref }}
-  cancel-in-progress: true
+  group: addon-compatibility-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
   public-addons:
@@ -41,10 +39,13 @@ jobs:
         with:
           node-version-file: ttrpg-codex/.nvmrc
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: ttrpg-codex/go.mod
           cache: true
+          cache-dependency-path: |
+            ttrpg-codex/go.sum
+            addon-*/go.sum
 
       - name: Install DM Tools test dependencies
         run: npm ci && npx playwright install --with-deps chromium
@@ -59,7 +60,7 @@ jobs:
         working-directory: addon-dnd-engine
 
       - name: Test Character Sheets against this host revision
-        run: npm ci && npm run check && npm run package
+        run: npm ci && npm run package && npm test
         working-directory: addon-dnd-character-sheets
 
       - name: Inspect public release packages
@@ -96,15 +97,18 @@ jobs:
         with:
           node-version-file: ttrpg-codex/.nvmrc
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         if: env.ADDON_SUITE_TOKEN != ''
         with:
           go-version-file: ttrpg-codex/go.mod
           cache: true
+          cache-dependency-path: |
+            ttrpg-codex/go.sum
+            addon-*/go.sum
 
       - name: Test Compendium against this host revision
         if: env.ADDON_SUITE_TOKEN != ''
-        run: npm ci && npm run check && npm run package
+        run: npm ci && npm run package && npm run typecheck:tools && npm test
         working-directory: addon-dnd-2024-compendium
 
       - name: Inspect private release package
