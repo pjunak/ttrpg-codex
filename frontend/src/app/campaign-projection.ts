@@ -169,7 +169,8 @@ function createAttitudeContext(dataset: CampaignDataset): AttitudeContext {
 export function projectDashboard(dataset: CampaignDataset): DashboardModel {
   const characters = entitiesFor(dataset, "characters");
   const pets = entitiesFor(dataset, "pets");
-  const party = characters.filter((character) => character.raw["faction"] === "party");
+  const party = characters.filter((character) => character.raw["faction"] === "party")
+    .sort((left, right) => left.name.localeCompare(right.name, "cs"));
   const partyKeys = new Set(party.map(({ key }) => key));
   const companions = pets.filter((pet) =>
     pet.raw["ownerType"] === "party" ||

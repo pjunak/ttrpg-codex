@@ -804,7 +804,7 @@ campaign-relationship-editor {
 
 .campaign-markdown a {
   color: var(--text-light);
-  text-decoration-color: #b58455;
+  text-decoration-color: var(--link-underline);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.2em;
 }
@@ -834,7 +834,7 @@ campaign-relationship-editor {
   padding: 0.4rem 1.2rem;
   color: var(--text-light);
   border-left: 3px solid var(--gold);
-  background: rgb(200 160 64 / 7%);
+  background: rgba(var(--accent-gold-rgb), .07);
   font-style: italic;
 }
 
@@ -968,7 +968,7 @@ campaign-relationship-editor {
 }
 
 .campaign-markdown .md-effect-glow {
-  text-shadow: 0 0 0.7rem rgb(200 160 64 / 70%);
+  text-shadow: 0 0 0.7rem rgba(var(--accent-gold-rgb), .7);
 }
 
 .campaign-markdown .md-effect-small-caps {

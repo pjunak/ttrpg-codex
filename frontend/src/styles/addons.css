@@ -12,9 +12,9 @@
 .addon-contribution {
   min-width: 0;
   overflow: hidden;
-  color: #e9dfca;
-  border: 1px solid #665536;
-  background: #17120b;
+  color: var(--addon-text);
+  border: 1px solid var(--addon-border);
+  background: var(--addon-surface);
   box-shadow: 0 1rem 3rem rgb(0 0 0 / 24%);
 }
 
@@ -24,9 +24,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.7rem 0.9rem;
-  color: #eadbb9;
-  border-bottom: 1px solid #4c402b;
-  background: #221a0f;
+  color: var(--addon-heading-text);
+  border-bottom: 1px solid var(--addon-heading-border);
+  background: var(--addon-heading-surface);
 }
 
 .addon-contribution-heading strong {
@@ -35,7 +35,7 @@
 }
 
 .addon-contribution-heading span {
-  color: #8e8069;
+  color: var(--addon-meta-text);
   font-size: 0.66rem;
 }
 

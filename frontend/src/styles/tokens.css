@@ -28,6 +28,14 @@
   --color-info: #90caf9;
   --color-mystery: #ce93d8;
   --color-on-accent: #2b1a00;
+  --addon-text: #e9dfca;
+  --addon-border: #665536;
+  --addon-surface: #17120b;
+  --addon-heading-text: #eadbb9;
+  --addon-heading-border: #4c402b;
+  --addon-heading-surface: #221a0f;
+  --addon-meta-text: #8e8069;
+  --link-underline: #b58455;
   --status-alive: #2e7d32;
   --status-dead: #8b0000;
   --status-unknown: #6a1b9a;
@@ -81,6 +89,14 @@
   --text-parchment: #e2eaeb;
   --text-light: #bac9cc;
   --text-muted: #849aa0;
+  --addon-text: var(--text-light);
+  --addon-border: var(--chrome-field-border);
+  --addon-surface: var(--bg-surface);
+  --addon-heading-text: var(--text-parchment);
+  --addon-heading-border: var(--chrome-divider-strong);
+  --addon-heading-surface: var(--bg-raised);
+  --addon-meta-text: var(--text-muted);
+  --link-underline: var(--accent-gold);
 }
 
 *, *::before, *::after {

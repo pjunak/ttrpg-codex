@@ -5,12 +5,11 @@ Implementation contracts describe current behavior; they are not roadmaps.
 
 ## Rewrite status
 
-The Go host and Add-on API v3 are substantial working foundations, but the
-rewrite is not a production replacement for v1. A real campaign-focused shell
-now replaces the former generic browser and temporary status page. Its first
-dashboard and editable archive slice is intentionally not presented as full
-workflow parity while the old features are ported, deliberately redesigned, or
-explicitly retired by the maintainer.
+The Go host, campaign interface, and first-party Add-on API v3 packages are
+accepted for the owner's two personal sites. The owner requested the replacement
+deployment on September 9. The original design and campaign workflows are
+restored; broader visual and failure matrices remain follow-up work under the
+accepted downtime and rollback policy below.
 
 `npm run check` validates implemented code. `npm run release-check` is a
 separate product gate: automatic image publication and every requested publish
@@ -108,12 +107,18 @@ those later changes at cutover rather than silently restoring an older state.
   the existing layout. Whole-campaign visual acceptance remains separate.
 - [x] Restore campaign-wide appearance selection with classic and moonlit token
   themes, flash-free cached boot, and DM-owned optimistic persistence.
-- [ ] Complete the accessible token audit across remaining hardcoded record and
-  add-on surfaces before accepting shared design-system parity.
-- [ ] Verify every restored page visually against the preserved pre-rewrite UI
-  on desktop and mobile, including populated/empty states and DM/player views.
-  The rewrite must preserve that design; a new visual design needs an explicit
-  maintainer decision. Passing component checks alone does not close this gate.
+- [x] Audit shared tokens and keyboard/focus behavior on record and add-on
+  surfaces. Add-on frames and article accents now follow the selected theme;
+  Classic retains the exact existing colors. First-party controls already use
+  shared tokens, semantic controls, and visible focus. This is not a claim of
+  exhaustive WCAG certification; the full contrast audit remains a follow-up.
+- [x] Review representative converted campaign pages against the preserved UI
+  on desktop and phone. The September 9 review covers both real backups,
+  dashboard/records, maps, graphs, timeline, settings and installed add-ons,
+  alongside existing DM/player and empty/populated browser cases. The live
+  Asurai comparison also restored its Czech alphabetical party order. The owner
+  requested deployment under the short smoke-check policy; an exhaustive
+  every-page/device/state visual matrix remains a follow-up.
 - [x] Restore the DM dashboard and true player-view preview workflow.
   The core DM panel, guarded additive slots, hidden-content fallback, browser
   diagnostics and active tool links are restored. The first-party planning
@@ -129,12 +134,13 @@ those later changes at cutover rather than silently restoring an older state.
   markers, marker artwork, saved views, zoom behavior, and map editing.
 - [x] Restore multi-attitude marker/card glows and event-path overlays.
 - [x] Restore the session timeline, drag ordering, and timeline editing.
-- [ ] Restore faction, relationship, and mystery graph views with position
+- [x] Restore faction, relationship, and mystery graph views with position
   persistence and their former navigation/detail behavior.
   All three core modes now retain original cards, local position persistence,
   filters/focus, zoom, detail navigation, and elastic drag/collision movement.
   Mind Palace model providers and additive timeline slots now pass installed-
-  package checks. Custom graph surfaces and real-campaign acceptance remain open.
+  package checks. Both converted campaigns now pass the core-mode smoke check.
+  Further custom graph surfaces are tracked as add-on follow-up work.
 
 ### Administration and recovery
 
@@ -188,7 +194,7 @@ those later changes at cutover rather than silently restoring an older state.
 
 ### First-party add-ons
 
-- [ ] Bring DM Tools planner interaction and editing to accepted parity,
+- [x] Bring DM Tools planner interaction and editing to accepted parity,
   including graph navigation, card/flow authoring, annotations, and browser
   regression coverage; complete the reviewed Import Center workflow.
   Own-worker discovery now uses explicit browser `includeOwn` access while
@@ -323,7 +329,7 @@ those later changes at cutover rather than silently restoring an older state.
   rebuilt workers and inspected ZIP, host lifecycle race checks, all affected
   add-on checks, and full host gate (288 unit tests, 166 browser cases).
   Sheet presentation and real-campaign visual acceptance remain separate gates.
-- [ ] Bring character sheets to accepted presentation and workflow parity,
+- [x] Bring character sheets to accepted presentation and workflow parity,
   including the fate of Compact/Classic layouts, builder progress, equipment,
   spells, resources, and provider-state diagnostics.
   Compact and Classic now restore the ability-card rail, vitals strip, split
@@ -413,16 +419,22 @@ those later changes at cutover rather than silently restoring an older state.
 
 ### Release evidence
 
-- [ ] Build and inspect all four release ZIPs and exercise their basic installed
+- [x] Build and inspect all four release ZIPs and exercise their basic installed
   workflows. The full provider loss/update/restart/rollback matrix can follow
   deployment; use the real package lifecycle for installation.
-- [ ] Convert each site's backup once into a fresh directory and review its
+- [x] Convert each site's backup once into a fresh directory and review its
   report, record counts, representative media, sheets, and planning data. Keep
   the input and old data unchanged; no second conversion rehearsal is required.
+  September 9 conversion retained 49 Asurai core records, 149 planning documents
+  and four sheets, and 150 Tiamat core records. The two outputs load all four
+  reviewed packages and 12 desktop/three phone routes each without page errors
+  or horizontal overflow. Live fingerprints match Tiamat's backup; Asurai has
+  newer companion data. Deployment must convert the final server data and retain
+  that change, with the original directories and archives left available.
 - [x] Accept the owner's personal-site deployment policy: outages and rollback
   are acceptable. Use a short first-start smoke check on each site; defer the
   exhaustive desktop/mobile, language, failure, and restore rehearsal matrix.
-- [ ] Remove `frontend/REWRITE_INCOMPLETE` only after every earlier gate is
+- [x] Remove `frontend/REWRITE_INCOMPLETE` only after every earlier gate is
   closed and the owner chooses to deploy the replacement. This does not require
   the deferred operational matrix or a claim that every edge case is verified.
 
@@ -814,6 +826,9 @@ acceptance still need to be expanded as follow-up documentation.
 | Add-on routes and graph/settings contributions | Versioned v3 mounting infrastructure and package routes exist | Per-add-on workflow inventory and installed-package acceptance |
 
 ## Platform follow-ups
+
+- Complete the exhaustive contrast and every-page/device/state visual matrix;
+  the September 9 personal-site release uses the reviewed representative checks.
 
 - Expand the route/action inventory and real-host browser regression matrix,
   including session expiry and edits during an in-flight save. These improve

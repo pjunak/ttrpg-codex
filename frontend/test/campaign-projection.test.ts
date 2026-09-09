@@ -13,6 +13,15 @@ import type {
 } from "../src/core/campaign-data.js";
 
 describe("campaign product projection", () => {
+  it("keeps the preserved Czech party order without reordering stored characters", () => {
+    const records = ["Zora", "Chára", "Hana", "Aria"].map((name, index) => ({
+      key: `party-${index}`, revision: 1, value: { name, faction: "party" },
+    }));
+    const dataset = replace(fixture(), "characters", records, "list");
+    expect(projectDashboard(dataset).party.map(({ name }) => name)).toEqual(["Aria", "Hana", "Chára", "Zora"]);
+    expect(records.map(({ value }) => value.name)).toEqual(["Zora", "Chára", "Hana", "Aria"]);
+  });
+
   it("builds the campaign title, party, companions, last session, and recent activity", () => {
     const dataset = fixture();
     const model = projectDashboard(dataset);

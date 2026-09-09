@@ -12,11 +12,11 @@ Keep existing authentication and data-integrity protections; additional security
 hardening and availability automation are follow-up work unless needed to fix
 a concrete exposure or data-loss defect.
 
-> **Do not cut over a complete v1 campaign yet.** The v2 product interface is
-> still being rebuilt and image publication is blocked by
-> `npm run release-check`. This document remains the operational runbook for
-> disposable integration environments and for the eventual owner-requested cutover
-> after every product-parity gate in [`BACKLOG.md`](BACKLOG.md) passes.
+The owner requested the two-site replacement on September 9, after the interface,
+installed package workflows, and both preserved campaign conversions were
+reviewed. `npm run release-check` retains the documented product gate. Perform
+the final data conversion and short first-start checks before accepting each
+live instance; keep the old application and data available for rollback.
 
 ## Requirements
 

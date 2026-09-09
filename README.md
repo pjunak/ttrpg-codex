@@ -4,13 +4,11 @@ TTRPG Codex is a self-hosted campaign archive and add-on host for small tabletop
 groups. Version 2 is an active Go and TypeScript rewrite of the former
 Node/JavaScript application.
 
-> **Rewrite status:** the host, storage, conversion tools, and Add-on API v3
-> foundations are implemented and the campaign product interface is being
-> rebuilt in verified slices. The current archive, dashboard, search, Markdown,
-> and record editors are substantial, but this branch is not yet a production
-> replacement for the complete v1 UI. The deprecated v1 branch remains the
-> supported choice until every gate in [`docs/BACKLOG.md`](docs/BACKLOG.md)
-> passes.
+> **Release status:** the Go/TypeScript replacement is accepted for the two
+> personal campaign sites. It retains the original campaign design and uses
+> reviewed Add-on API v3 packages. Follow [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md)
+> for the offline data conversion and short first-start checks. Keep the
+> deprecated v1 branch and original data available for rollback.
 
 The core stays deliberately generic: it stores campaign records, visibility,
 media, revisions, backups, and live updates. Campaign-specific planning and D&D
