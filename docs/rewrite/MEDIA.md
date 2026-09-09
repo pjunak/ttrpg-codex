@@ -21,6 +21,33 @@ the same not-found result as an unknown opaque ID.
 
 ## HTTP contract
 
+### Character editor
+
+Character **Edit -> Details** includes a portrait preview, upload/replace,
+remove and undo controls. Selection stays local until **Save entry**; Cancel
+and navigation discard the preview without uploading. Save a new character
+before adding its portrait, because media targets must already exist.
+
+Uploads accept PNG, JPEG, WebP, GIF and SVG up to 20 MiB, with authoritative
+signature validation on the server. The host uploads the image and commits its
+opaque URL with the other character edits using the original expected record
+revision. Failed uploads or conflicting record writes retain the form and file
+draft. Removing a portrait clears only the record reference on Save; previous
+immutable media remain available to recovery points. An upload whose record
+write fails can remain unreferenced; it is never automatically deleted after an
+ambiguous response that might have committed successfully.
+
+Save visibility changes separately before replacing a portrait: media visibility
+is fixed at upload, independently of the character's later visibility. The UI
+supports English and Czech and uses the normal authenticated record authority.
+
+Regression coverage: `frontend/test/campaign-record-editor.test.ts` validates
+portrait mutation preparation and media binding; `frontend/test/browser/portraits.browser.mjs`
+exercises desktop/mobile save, replacement, removal, cancellation, retry,
+localization and anonymous access against a disposable Go host.
+
+### Endpoints
+
 `POST /api/media/{kind}/{target}` sends the image bytes directly. It requires
 an exact `Content-Length`, an allowed image `Content-Type`, URL-encoded UTF-8 in
 `X-Codex-Filename`, and `X-Codex-CSRF`. Raster signatures must match their

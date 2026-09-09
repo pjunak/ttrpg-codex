@@ -1,4 +1,5 @@
 import { uiText } from "./ui-localization.js";
+import { attachCharacterPortrait } from "./character-portrait.js";
 import { uiRequestError } from "./ui-errors.js";
 import { isRecord } from "../core/boundary.js";
 import { LitElement, html, nothing } from "lit";
@@ -1024,12 +1025,16 @@ export class CodexApp extends LitElement {
     } catch (cause: unknown) {
       this.errorMessage = cause instanceof CampaignRecordEditError && cause.kind === "stale"
         ? uiText("The entry or its relationships changed. Your draft is kept; copy any notes you need, then cancel and reopen to review the current version.")
-        : uiText("The entry contains a value that cannot be saved.");
+        : cause instanceof CampaignRecordEditError && cause.kind === "portrait-visibility"
+          ? uiText("Save visibility changes first, then replace the portrait. Your draft is kept.")
+          : uiText("The entry contains a value that cannot be saved.");
       return;
     }
     this.busy = true;
     this.errorMessage = "";
     try {
+      prepared = await attachCharacterPortrait(prepared, event.detail,
+        this.authority.auth.csrfToken, this.#request.signal);
       await this.#campaignMutations.commit(
         prepared.mutations,
         this.authority.auth.csrfToken,

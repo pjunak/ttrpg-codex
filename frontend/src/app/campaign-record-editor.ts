@@ -1,4 +1,5 @@
 import { uiText, uiSourceLabel } from "./ui-localization.js";
+import { validPortraitFile } from "./character-portrait.js";
 import { isRecord } from "../core/boundary.js";
 import {
   campaignCollection,
@@ -54,6 +55,7 @@ export interface CampaignRecordSaveDetail {
   readonly expectedRevision: number;
   readonly creating: boolean;
   readonly fields: Readonly<Record<string, unknown>>;
+  readonly portrait?: File | null;
   readonly visibility?: "public" | "dm";
   readonly relationships?: readonly CampaignRelationshipEditDetail[];
   readonly relationshipBase?: readonly Pick<CampaignRecord, "key" | "revision">[];
@@ -95,7 +97,7 @@ export interface PreparedCampaignRecordTransaction {
 export class CampaignRecordEditError extends Error {
   override readonly name = "CampaignRecordEditError";
 
-  constructor(readonly kind: "invalid" | "stale", message: string) {
+  constructor(readonly kind: "invalid" | "stale" | "portrait-visibility", message: string) {
     super(message);
   }
 }
@@ -132,6 +134,15 @@ export function prepareCampaignRecordSave(
   }
 
   const current = isRecord(record?.value) ? record.value : {};
+  if (detail.portrait !== undefined) {
+    if (page.collection !== "characters" || detail.creating ||
+      (detail.portrait !== null && (!(detail.portrait instanceof File) || !validPortraitFile(detail.portrait)))) throw invalidEdit();
+    // Media visibility is fixed at upload; publish visibility separately first.
+    if (detail.portrait !== null && detail.visibility !== undefined &&
+      detail.visibility !== (current["visibility"] === "dm" ? "dm" : "public")) {
+      throw new CampaignRecordEditError("portrait-visibility", "Save visibility before replacing a portrait");
+    }
+  }
   const value: Record<string, unknown> = { ...current };
   for (const field of fields) {
     const raw = detail.fields[field.key];

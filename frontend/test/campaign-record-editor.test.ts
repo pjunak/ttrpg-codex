@@ -1,3 +1,5 @@
+import { attachCharacterPortrait } from "../src/app/character-portrait.js";
+import { MediaClient } from "../src/core/media.js";
 import { describe, expect, it } from "vitest";
 import {
   CampaignRecordEditError,
@@ -17,6 +19,39 @@ import type {
 } from "../src/core/campaign-data.js";
 
 describe("campaign record editing", () => {
+  it("preserves portraits by default, removes only on explicit save, and validates upload context before IO", async () => {
+    const old = `/api/media/b_${"1".repeat(32)}`;
+    const campaign = dataset({ characters: [{ key: "ryn", revision: 4,
+      value: { id: "ryn", name: "Ryn", portrait: old, extension: { keep: true }, visibility: "public" } }] });
+    const detail = { collection: "characters" as const, key: "ryn", expectedRevision: 4, creating: false,
+      fields: formFields("characters", { name: "Renamed" }) };
+    const prepared = prepareCampaignRecordSave(campaign, detail, true);
+    const token = "x".repeat(32), signal = new AbortController().signal;
+    const unused = new MediaClient(async () => { throw new Error("unexpected upload"); });
+    expect(await attachCharacterPortrait(prepared, detail, token, signal, unused)).toBe(prepared);
+    const removed = await attachCharacterPortrait(prepareCampaignRecordSave(campaign, { ...detail, portrait: null }, true),
+      { ...detail, portrait: null }, token, signal, unused);
+    expect(removed.mutations[0]).toMatchObject({ expectedRevision: 4, value: { name: "Renamed", extension: { keep: true } } });
+    if (removed.mutations[0]?.operation === "put") expect(removed.mutations[0].value).not.toHaveProperty("portrait");
+    expect(prepared.mutations[0]).toMatchObject({ value: { portrait: old } });
+    const file = new File(["image"], "portrait.png", { type: "image/png" });
+    expect(() => prepareCampaignRecordSave(campaign, { ...detail, portrait: file, expectedRevision: 3 }, true)).toThrow(CampaignRecordEditError);
+    expect(() => prepareCampaignRecordSave(campaign, { ...detail, portrait: file, visibility: "dm" }, true)).toThrow("Save visibility");
+    expect(() => prepareCampaignRecordSave(dataset({}), { ...detail, key: "new", creating: true, expectedRevision: 0, portrait: file }, true)).toThrow(CampaignRecordEditError);
+    expect(() => prepareCampaignRecordSave(campaign, { ...detail, portrait: new File([], "empty.png", { type: "image/png" }) }, true)).toThrow(CampaignRecordEditError);
+    expect(() => prepareCampaignRecordSave(campaign, { ...detail, portrait: new File(["text"], "text.txt", { type: "text/plain" }) }, true)).toThrow(CampaignRecordEditError);
+    const uploaded = { contractVersion: "media-blob.v1", id: `b_${"2".repeat(32)}`, url: `/api/media/b_${"2".repeat(32)}`,
+      kind: "character-portrait", target: "ryn", mediaType: "image/png", bytes: 5, revision: 1, createdAt: "2026-09-09T00:00:00Z" };
+    const media = new MediaClient(async (url, init) => {
+      expect(url).toBe("/api/media/character-portrait/ryn"); expect(init.body).toBe(file);
+      expect(new Headers(init.headers).get("X-Codex-CSRF")).toBe(token);
+      return new Response(JSON.stringify(uploaded), { headers: { "Content-Type": "application/json" } });
+    });
+    const result = await attachCharacterPortrait(prepared, { ...detail, portrait: file }, token, signal, media);
+    expect(result.mutations[0]).toMatchObject({ expectedRevision: 4, value: { portrait: uploaded.url, name: "Renamed", extension: { keep: true } } });
+    const wrongTarget = new MediaClient(async () => new Response(JSON.stringify({ ...uploaded, target: "other" }), { headers: { "Content-Type": "application/json" } }));
+    await expect(attachCharacterPortrait(prepared, { ...detail, portrait: file }, token, signal, wrongTarget)).rejects.toThrow("Portrait target differs");
+  });
   it("edits marker definitions and size without changing coordinates, local images or extensions", () => {
     const value = { id: "gate", name: "Gate", pinType: "retired", size: 30, x: .2, y: -.4,
       localMap: `/api/media/b_${"1".repeat(32)}`, extension: { keep: true } };

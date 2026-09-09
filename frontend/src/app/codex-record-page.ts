@@ -1,4 +1,6 @@
 import { uiText } from "./ui-localization.js";
+import "./codex-portrait-editor.js";
+import type { CodexPortraitEditor } from "./codex-portrait-editor.js";
 import { previewResourceURL } from "../core/player-preview.js";
 import { LitElement, html, nothing } from "lit";
 import { campaignPartyIdentity } from "./campaign-party.js";
@@ -391,6 +393,8 @@ export class CodexRecordPage extends LitElement {
         ${tabs.map(tab => html`<section id=${`character-editor-panel-${tab}`} class="record-editor-fields"
           data-character-editor-panel=${tab} role="tabpanel" aria-labelledby=${`character-editor-tab-${tab}`}
           ?hidden=${this.characterEditorTab !== tab}>
+          ${tab === "details" ? html`<codex-portrait-editor class="wide-field" .portrait=${value["portrait"]}
+            .creating=${record === undefined} .disabled=${this.saving}></codex-portrait-editor>` : nothing}
           ${fields.filter(field => field.key !== "description" && group(field.key) === tab).map(field => this.#editorField(field, value, record?.key ?? ""))}
           ${tab === "connections" ? html`<campaign-relationship-editor
             .campaign=${this.#editorCampaign} .character=${record} .canManageVisibility=${this.canManageVisibility}
@@ -724,12 +728,14 @@ export class CodexRecordPage extends LitElement {
     const record = creating ? undefined : campaignCollection(this.#editorCampaign, this.route.page.collection).records
       .find(({ key: recordKey }) => recordKey === key);
     if (!creating && record === undefined) return;
+    const portrait = form.querySelector<CodexPortraitEditor>("codex-portrait-editor")?.editorValue();
     const detail: CampaignRecordSaveDetail = {
       collection: this.route.page.collection,
       key,
       expectedRevision: record?.revision ?? 0,
       creating,
       fields: Object.freeze(fields),
+      ...(portrait !== undefined ? { portrait } : {}),
       ...(this.route.page.collection === "characters" && !creating
         ? {
             relationships: form.querySelector<CampaignRelationshipEditorElement>("campaign-relationship-editor")?.editorValue() ?? [],
