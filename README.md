@@ -1,11 +1,12 @@
 # TTRPG Codex
 
 TTRPG Codex is a self-hosted campaign archive and add-on host for small tabletop
-groups. Version 2 is an active Go and TypeScript rewrite of the former
+groups. Version 2 uses Go and TypeScript and replaces the former
 Node/JavaScript application.
 
 > **Release status:** the Go/TypeScript replacement is accepted for the two
-> personal campaign sites. It retains the original campaign design and uses
+> personal campaign sites and was deployed to both on September 9, 2026.
+> It retains the original campaign design and uses
 > reviewed Add-on API v3 packages. Follow [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md)
 > for the offline data conversion and short first-start checks. Keep the
 > deprecated v1 branch and original data available for rollback.

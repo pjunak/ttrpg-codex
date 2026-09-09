@@ -12,11 +12,14 @@ Keep existing authentication and data-integrity protections; additional security
 hardening and availability automation are follow-up work unless needed to fix
 a concrete exposure or data-loss defect.
 
-The owner requested the two-site replacement on September 9, after the interface,
-installed package workflows, and both preserved campaign conversions were
-reviewed. `npm run release-check` retains the documented product gate. Perform
-the final data conversion and short first-start checks before accepting each
-live instance; keep the old application and data available for rollback.
+Both personal sites completed the owner-requested replacement on September 9,
+2026, after interface, installed package, final conversion and first-start
+checks. Their infrastructure keeps the original v1 directories and snapshots,
+final v1 archives, conversion reports and verified v2 backups. The owner approved
+using the server-configured passwords at cutover; existing sessions must sign
+in again. `npm run release-check` retains the documented product gate. For other
+instances, perform the final conversion and short first-start checks before
+accepting the deployment and keep the old application and data for rollback.
 
 ## Requirements
 

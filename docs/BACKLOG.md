@@ -7,9 +7,18 @@ Implementation contracts describe current behavior; they are not roadmaps.
 
 The Go host, campaign interface, and first-party Add-on API v3 packages are
 accepted for the owner's two personal sites. The owner requested the replacement
-deployment on September 9. The original design and campaign workflows are
-restored; broader visual and failure matrices remain follow-up work under the
-accepted downtime and rollback policy below.
+deployment on September 9, and both Asurai and Tiamat now run the accepted
+replacement. The original design and campaign workflows are restored; broader
+visual and failure matrices remain follow-up work under the accepted downtime
+and rollback policy below.
+
+The completed cutover used the final stopped data from each server, retaining
+Asurai's companion change since the saved backup. Both instances passed the
+reviewed conversion counts, four-package activation, DM/player authentication,
+and Compendium → Engine → Sheets checks. Each retains its untouched v1 data,
+snapshot history, final v1 archive, and a verified v2 backup. The owner approved
+using the existing server-configured passwords after the saved v1 credentials
+were found to differ. Public HTTPS health checks report the new Go version.
 
 `npm run check` validates implemented code. `npm run release-check` is a
 separate product gate: automatic image publication and every requested publish

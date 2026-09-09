@@ -149,8 +149,9 @@ source checkout into a runtime generation.
 ## Completion and durable planning
 
 - Architecture completion is not product completion. The product-parity gates
-  in [the backlog](docs/BACKLOG.md), frontend/REWRITE_INCOMPLETE and
-  npm run release-check define the release boundary. npm run check proves
+  in [the backlog](docs/BACKLOG.md) and npm run release-check define the release
+  boundary; release-check also rejects frontend/REWRITE_INCOMPLETE if present.
+  npm run check proves
   technical consistency. Follow [the self-hosting runbook](docs/SELF_HOSTING.md)
   for the owner-authorized cutover; do not invent additional launch blockers.
 - A generic record browser is not an acceptable substitute for the authored
