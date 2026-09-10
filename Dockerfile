@@ -1,10 +1,11 @@
 # syntax=docker/dockerfile:1
 FROM node:26-slim AS frontend-build
-WORKDIR /src/frontend
-COPY frontend/package.json frontend/package-lock.json ./
+WORKDIR /src
+COPY package.json package-lock.json ./
+COPY frontend/package.json ./frontend/package.json
 RUN --mount=type=cache,target=/root/.npm npm ci
-COPY frontend/ ./
-RUN npm run build
+COPY frontend/ ./frontend/
+RUN npm --workspace @ttrpg-codex/frontend run build
 
 FROM golang:1.27.1-bookworm AS host-build
 WORKDIR /src

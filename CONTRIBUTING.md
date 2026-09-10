@@ -14,6 +14,11 @@ npx playwright install chromium
 npm run check
 ```
 
+The frontend is an npm workspace. Local development, CI tests, and the Docker
+build all use the root `package-lock.json`. Add or update frontend dependencies
+from the repository root with `npm install -w @ttrpg-codex/frontend <package>`,
+and commit the updated frontend manifest and root lockfile together.
+
 `npm run check` type-checks, tests, and builds the TypeScript application, then
 runs Chromium editor regressions, all project-owned Go tests, and `go vet`.
 It also rejects JavaScript source files and checks the release tools and every
