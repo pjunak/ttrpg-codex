@@ -1,5 +1,6 @@
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import { sourceEn, sourceCs, type SourceMessage } from "./ui-source-messages.js";
+import { githubEn, githubCs } from "./github-messages.js";
 
 export type UiLocale = "en" | "cs";
 
@@ -14,6 +15,7 @@ type Message = string | PluralForms;
 
 const enCatalog = {
   ...sourceEn,
+  ...githubEn,
   "settings.usedRecords": { one: "Used by {n} record", other: "Used by {n} records" },
   "settings.replaceRecords": { one: "{n} campaign record uses this definition. Choose how those records should change.", other: "{n} campaign records use this definition. Choose how those records should change." },
   "recovery.title": "Backup & recovery",
@@ -77,7 +79,7 @@ const enCatalog = {
   "wiki.missing": "No unique visible entry matches this link. Check its kind or record ID.",
   "wiki.retry": "Retry references",
   "addons.title": "Add-ons",
-  "addons.intro": "Install a reviewed release ZIP, or manage the versions already on this server.",
+  "addons.intro": "Install from GitHub or a release ZIP, and manage installed versions.",
   "addons.refresh": "Refresh list",
   "addons.upload": "Inspect ZIP",
   "addons.file": "Release ZIP",
@@ -474,6 +476,7 @@ export type MessageKey = keyof typeof enCatalog;
 
 const csCatalog = {
   ...sourceCs,
+  ...githubCs,
   "settings.usedRecords": { one: "Používá {n} záznam", few: "Používají {n} záznamy", other: "Používá {n} záznamů" },
   "settings.replaceRecords": { one: "Tuto definici používá {n} záznam kampaně. Vyberte, jak se mají použití změnit.", few: "Tuto definici používají {n} záznamy kampaně. Vyberte, jak se mají použití změnit.", other: "Tuto definici používá {n} záznamů kampaně. Vyberte, jak se mají použití změnit." },
   "recovery.title": "Zálohy a obnova",
@@ -537,7 +540,7 @@ const csCatalog = {
   "wiki.missing": "Odkazu neodpovídá jediný dostupný záznam. Zkontroluj druh nebo ID záznamu.",
   "wiki.retry": "Zkusit odkazy znovu",
   "addons.title": "Doplňky",
-  "addons.intro": "Nainstalujte vydaný ZIP balíček nebo spravujte verze uložené na serveru.",
+  "addons.intro": "Instalujte z GitHubu nebo ZIP balíčku a spravujte nainstalované verze.",
   "addons.refresh": "Obnovit seznam",
   "addons.upload": "Zkontrolovat ZIP",
   "addons.file": "Vydaný ZIP balíček",

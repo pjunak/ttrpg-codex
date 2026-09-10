@@ -18,6 +18,12 @@ persistence have no saved credentials and bootstrap from the environment on
 their next start. The offline password-reset command can recover access after
 restore; see [self-hosting](../SELF_HOSTING.md#password-changes-and-access-recovery).
 
+GitHub repository links and generation provenance are included in `codex.db`.
+GitHub access tokens are stored separately in `credentials/github.db`, outside
+the backup allowlist, and are never included or restored. Configure GitHub
+access again after moving a campaign backup to a new server. Campaign recovery
+points do not change repository links or tokens.
+
 The verifier and restore command continue to accept `codex-backup.v1` archives
 that contain only the database and add-on generations. After applying current
 migrations, such an archive is rejected if its database references a blob that

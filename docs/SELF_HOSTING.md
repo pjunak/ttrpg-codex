@@ -160,7 +160,40 @@ Do not repeat a separate staging conversion merely to satisfy a process gate.
 
 ## Add-on installation
 
-Build release archives in each add-on repository and validate them with
+In **Settings → Add-ons → GitHub repositories**, choose a new installation or
+an existing add-on to link, enter its GitHub URL or `owner/repository`, and
+select a package source:
+
+- **GitHub Actions build** follows the chosen branch's latest successful
+  push/manual build. Leave the branch blank for the default branch. The suite
+  workflows publish the `reviewed-package` artifact, which contains the built
+  add-on ZIP. Artifacts must still be within their GitHub retention period.
+- **Latest stable release** lists attached ZIP packages. Select the correct
+  add-on package when a release contains multiple ZIPs.
+
+Use **Check all for updates** or a repository's **Check for updates**, then
+**Download and review**. Review permissions and compatibility before approving
+activation. Existing versions remain available for reviewed rollback. Source
+code changes need a successful package build before they can be installed.
+
+The visible **GitHub access tokens** section can save, replace and remove a
+default token or a token scoped to one exact repository. For fine-grained
+tokens, select the intended repositories and grant **Contents: read** for
+private release packages and **Actions: read** for workflow artifacts.
+Artifact downloads require authentication even for public repositories.
+See GitHub's [release asset API](https://docs.github.com/en/rest/releases/assets)
+and [Actions artifact API](https://docs.github.com/en/rest/actions/artifacts).
+
+Repository tokens override the stored default, then `CODEX_GITHUB_TOKEN` or
+`GITHUB_TOKEN` provides a fallback. Token values remain server-side in
+`<data-dir>/credentials/github.db`; protect that directory like other server
+credentials. Tokens are excluded from campaign backups and recovery points.
+After restoring to a new server, configure access again. The GitHub section
+shows whether each repository uses a scoped, stored-default or environment
+token, without returning the value.
+
+The host only installs prebuilt Add-on API v3 packages. For manual uploads,
+build release archives in each add-on repository and validate them with
 `codex-addon-inspect`. The protected API then uses four distinct steps:
 
 | Request | Result |

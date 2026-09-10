@@ -17,6 +17,81 @@ state before a new review. The server remains authoritative for every action.
 Installed desktop/phone browser checks cover the complete workflow, invalid
 ZIPs, concurrent state changes, lost responses, persistence and player denial.
 
+## GitHub package sources
+
+Settings → Add-ons also installs and updates prebuilt packages from GitHub.
+The manager accepts a repository URL or `owner/repository`, links existing
+ZIP-installed add-ons, and checks each linked repository independently. A
+failed repository check leaves the other results available. GitHub downloads
+enter the same inert staging and exact permission-review flow as ZIP uploads;
+they never activate automatically or compile repository source.
+
+Two sources are supported:
+
+- **Latest stable release:** list uploaded ZIP assets from GitHub's latest
+  non-draft, non-prerelease release. The operator selects the package when
+  several ZIPs exist. GitHub's generated source archives are not packages.
+- **GitHub Actions build:** follow a chosen branch (blank uses the repository's
+  current default) and named artifact (default `reviewed-package`). Inspect the
+  latest 30 successful runs, at most 10 eligible push/manual runs, and the first
+  100 artifacts per run. Only completed successful runs from that repository
+  and branch qualify; pull-request and fork builds do not. The first matching
+  unexpired artifact must contain exactly one prebuilt package ZIP. Build
+  failures do not replace the last successful package.
+
+Checks only read GitHub metadata. Download requests re-resolve the source and
+require the selected asset/artifact identity, digest and update timestamp to
+remain unchanged. Available GitHub SHA-256 digests are verified on download.
+The package inspector validates every package; updating a linked add-on also
+requires its manifest ID to match before staging. Outbound requests use fixed
+GitHub API paths, bounded metadata/download sizes and deadlines, and a narrow
+HTTPS download redirect allowlist. Authorization headers are removed on every
+redirect. Upstream errors and signed URLs are not returned or logged.
+
+Migration `0013_addon_github_sources.sql` records repository configurations
+and generation provenance in campaign SQLite. A source edit/unlink uses an
+optimistic revision; unlinks retain a revision tombstone. Update status compares
+the remote candidate with the **active** generation's provenance, so an
+unapproved download or rollback cannot falsely mark the add-on current. A
+ZIP-installed generation has no GitHub provenance until its matching remote
+package is downloaded and inspected. Unlinking preserves installed versions
+and campaign data.
+
+GitHub tokens live in a separate `credentials/github.db` SQLite database under
+the data directory, outside the campaign backup/recovery allowlist. The UI can
+set, replace or remove a default token and exact lowercase repository tokens.
+Lookup order is exact repository, stored default, `CODEX_GITHUB_TOKEN`, then
+`GITHUB_TOKEN`. Responses expose configuration/source and repository names only.
+Token inputs are cleared on submission, including uncertain responses; refresh
+reads configured state before an explicit retry. Environment tokens are changed
+through server configuration. Credentials are not imported from v1 or restored
+with campaign backups.
+
+All routes require real and effective DM authority; POST also requires CSRF:
+
+| Method and path | Operation |
+|---|---|
+| `GET /api/admin/addon-github` | Read `addon-github.v1` sources and credential status |
+| `POST /api/admin/addon-github/token` | Save/remove `{repo, token}`; empty repo selects the default |
+| `POST /api/admin/addon-github/source` | Save/unlink `{addonId, source, revision, remove}` |
+| `POST /api/admin/addon-github/discover` | Resolve `{source, addonId}` to bounded package candidates |
+| `POST /api/admin/addon-github/stage` | Download/inspect `{source, addonId, candidateId}`; return the inert generation |
+
+`source` contains `repo`, `channel` (`release` or `actions`), `branch` and
+`artifact`. An empty `addonId` discovers a new installation. Public errors use
+safe `GITHUB_*` categories. GitHub request contexts are capped at 90 seconds;
+only these endpoints extend the ordinary HTTP write deadline.
+
+Regression coverage: `internal/addons/githubsource` tests credential fallback,
+replacement, restart persistence, backup exclusion, real reviewed lifecycle,
+stale candidates/sources, identity checks, rollback, Actions selection, digest
+checks, archive bounds and redirect secrecy. HTTP tests cover authorization,
+CSRF, body limits and redaction. `frontend/test/addon-github.test.ts` verifies
+wire validation and error categories; `addon-github.browser.mts` exercises
+desktop/phone install, update review, cancellation, token changes, lost responses,
+reload and Czech labels with synthetic GitHub responses. Actual account access
+and production network connectivity remain operator integration checks.
+
 ## State ownership
 
 | State | Owner | Durable |

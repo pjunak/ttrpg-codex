@@ -12,9 +12,11 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/pjunak/ttrpg-codex/internal/addons/githubsource"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/addons/requestcontext"
@@ -288,8 +290,18 @@ func composeHost(
 			)
 		}
 	}
+	githubToken := strings.TrimSpace(os.Getenv("CODEX_GITHUB_TOKEN"))
+	if githubToken == "" {
+		githubToken = os.Getenv("GITHUB_TOKEN")
+	}
+	githubAddons, err := githubsource.New(githubsource.Config{DB: db, DataDirectory: dataDirectory, Lifecycle: addons, Inspector: inspector, EnvironmentToken: githubToken})
+	if err != nil {
+		_ = addons.Shutdown(context.Background())
+		return nil, fmt.Errorf("configure GitHub add-ons: %w", err)
+	}
 	handler, err := httpapi.New(httpapi.Config{
-		Version: version, DB: db, Logger: logger,
+		AddonGitHub: githubAddons,
+		Version:     version, DB: db, Logger: logger,
 		Authentication: authentication, SecureCookies: secureCookies,
 		CampaignData:             campaignData,
 		CampaignMutations:        campaignData,

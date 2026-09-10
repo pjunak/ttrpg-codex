@@ -19,6 +19,7 @@ type Config struct {
 	DB                       *sql.DB
 	Logger                   *slog.Logger
 	AddonLifecycle           AddonLifecycle
+	AddonGitHub              AddonGitHub
 	AdminAuthorizer          AdminAuthorizer
 	BrowserAddons            BrowserAddonSource
 	BrowserAuthorizer        BrowserAuthorizer
@@ -53,6 +54,7 @@ type server struct {
 	db                       *sql.DB
 	logger                   *slog.Logger
 	addonLifecycle           AddonLifecycle
+	addonGitHub              AddonGitHub
 	adminAuthorizer          AdminAuthorizer
 	browserAddons            BrowserAddonSource
 	browserAuthorizer        BrowserAuthorizer
@@ -85,6 +87,7 @@ type server struct {
 
 func New(config Config) (http.Handler, error) {
 	if (config.AddonLifecycle == nil) != (config.AdminAuthorizer == nil) ||
+		config.AddonGitHub != nil && config.AddonLifecycle == nil ||
 		(config.BrowserAddons == nil) != (config.BrowserAuthorizer == nil) ||
 		(config.CampaignMutations == nil) != (config.CampaignWriter == nil) ||
 		(config.CampaignTwins == nil) != (config.CampaignTwinWriter == nil) ||
@@ -110,6 +113,7 @@ func New(config Config) (http.Handler, error) {
 	s := &server{
 		version: config.Version, db: config.DB, logger: config.Logger,
 		addonLifecycle: config.AddonLifecycle, adminAuthorizer: config.AdminAuthorizer,
+		addonGitHub:   config.AddonGitHub,
 		browserAddons: config.BrowserAddons, browserAuthorizer: config.BrowserAuthorizer,
 		authentication: config.Authentication, secureCookies: config.SecureCookies,
 		campaignData:      config.CampaignData,
@@ -135,6 +139,9 @@ func New(config Config) (http.Handler, error) {
 	}
 	if s.addonLifecycle != nil {
 		s.registerAddonAdminRoutes(mux)
+	}
+	if s.addonGitHub != nil {
+		s.registerAddonGitHubRoutes(mux)
 	}
 	if s.browserAddons != nil {
 		s.registerBrowserAddonRoutes(mux)

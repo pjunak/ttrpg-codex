@@ -852,7 +852,7 @@ acceptance still need to be expanded as follow-up documentation.
 | Settings: `language`, `appearance` | Personal language, shared theme and branding/logo panels | Tokens and campaign visual acceptance |
 | Settings: `worldmap` | Maps panel at `/settings/maps`, with local-map scope links | Real-host visual acceptance with campaign maps |
 | Settings: `playerParty`, `sidebarPages` | Party identity, curated core sidebar, and add-on visibility controls restored | Older hidden-page preference conversion and installed-route key review |
-| Settings: `addons` | Reviewed manager restores inspection, permission approval, activation, diagnostics, update, disable and rollback | Installed desktop/phone tests pass; campaign acceptance remains |
+| Settings: `addons` | Reviewed manager restores ZIP and GitHub release/Actions installation, repository links, update checks, scoped/default private tokens, permission approval, activation, diagnostics, disable and rollback | Installed lifecycle and synthetic GitHub desktop/phone regressions; real GitHub account/network and campaign acceptance remain |
 | Settings: `backup`, `account` | Recovery history, manual/automatic points, restore/revert/delete, ZIP download, persistent passwords and offline access recovery | Per-campaign acceptance; full archive restore uses offline maintenance |
 | Add-on routes and graph/settings contributions | Versioned v3 mounting infrastructure and package routes exist | Per-add-on workflow inventory and installed-package acceptance |
 
