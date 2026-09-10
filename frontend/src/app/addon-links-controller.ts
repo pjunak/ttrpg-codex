@@ -46,6 +46,8 @@ export class AddonLinksController implements ReactiveController {
     if (this.#cache.size >= 1000) return { status: "missing" };
     const state = { status: "loading" } as const;
     this.#cache.set(key, state); this.#pending.set(key, reference);
+    // Descendant editors may discover references after the host's updated hook.
+    this.host.requestUpdate();
     return state;
   }
   hostUpdated(): void {

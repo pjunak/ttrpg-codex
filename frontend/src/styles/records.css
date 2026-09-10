@@ -919,47 +919,47 @@ campaign-relationship-editor {
 }
 
 .campaign-markdown .md-color-gold {
-  color: var(--text-light);
+  color: var(--accent-gold);
 }
 
 .campaign-markdown .md-color-danger {
-  color: var(--text-light);
+  color: var(--color-danger);
 }
 
 .campaign-markdown .md-color-info {
-  color: var(--text-light);
+  color: var(--color-info);
 }
 
 .campaign-markdown .md-color-success {
-  color: var(--text-light);
+  color: var(--color-success);
 }
 
 .campaign-markdown .md-color-mystery {
-  color: var(--text-light);
+  color: var(--color-mystery);
 }
 
 .campaign-markdown .md-color-muted {
-  color: var(--text-light);
+  color: var(--text-muted);
 }
 
 .campaign-markdown .md-highlight-gold {
-  background: var(--bg-raised);
+  background: color-mix(in srgb, var(--accent-gold) 24%, var(--bg-base));
 }
 
 .campaign-markdown .md-highlight-danger {
-  background: var(--bg-raised);
+  background: color-mix(in srgb, var(--color-danger) 24%, var(--bg-base));
 }
 
 .campaign-markdown .md-highlight-info {
-  background: var(--bg-raised);
+  background: color-mix(in srgb, var(--color-info) 24%, var(--bg-base));
 }
 
 .campaign-markdown .md-highlight-success {
-  background: var(--bg-raised);
+  background: color-mix(in srgb, var(--color-success) 24%, var(--bg-base));
 }
 
 .campaign-markdown .md-highlight-mystery {
-  background: var(--bg-raised);
+  background: color-mix(in srgb, var(--color-mystery) 24%, var(--bg-base));
 }
 
 .campaign-markdown .md-effect-underline {

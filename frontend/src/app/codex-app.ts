@@ -50,6 +50,8 @@ import {
   CampaignRecordEditError,
   prepareCampaignRecordDelete,
   prepareCampaignRecordSave,
+  prepareCharacterPatch,
+  type CampaignCharacterSaveRequest,
   type CampaignEditDirtyDetail,
   type CampaignRecordDeleteDetail,
   type CampaignRecordSaveDetail,
@@ -962,6 +964,7 @@ export class CodexApp extends LitElement {
           .editCompletion=${this.editCompletion}
           @campaign-edit-dirty=${this.#onEditDirty}
           @campaign-record-save=${this.#saveCampaignRecord}
+          @campaign-character-save=${this.#saveCharacterPatch}
           @campaign-record-delete=${this.#deleteCampaignRecord}
           @campaign-sign-in=${this.#showSignIn}
         ></codex-record-page>`;
@@ -1008,6 +1011,49 @@ export class CodexApp extends LitElement {
     return this.authority.state === "known" && this.authority.auth.authenticated &&
       this.authority.auth.role === "dm";
   }
+
+  readonly #saveCharacterPatch = async (event: CustomEvent<CampaignCharacterSaveRequest>): Promise<void> => {
+    event.preventDefault();
+    const { respond, ...patch } = event.detail;
+    if (this.busy || this.#request === undefined || !this.#canEdit() || this.authority.state !== "known" ||
+      !this.authority.auth.authenticated || this.campaignState.state !== "ready") {
+      respond({ ok: false, message: uiText("The entry cannot be saved right now. Your draft is kept.") }); return;
+    }
+    this.busy = true;
+    const signal = this.#request.signal;
+    try {
+      let prepared = prepareCharacterPatch(this.campaignState.campaign, patch, this.#canManageCampaign());
+      prepared = await attachCharacterPortrait(prepared, {
+        collection: "characters", key: patch.base.key, expectedRevision: patch.base.revision,
+        creating: false, fields: patch.fields, ...(patch.portrait !== undefined ? { portrait: patch.portrait } : {}),
+        ...(patch.visibility !== undefined ? { visibility: patch.visibility } : {}),
+      }, this.authority.auth.csrfToken, signal);
+      const receipt = await this.#campaignMutations.commit(prepared.mutations, this.authority.auth.csrfToken, signal);
+      await this.#loadCampaign(signal, true);
+      const campaign = this.campaignState.state === "ready" ? this.campaignState.campaign : undefined;
+      const record = campaign && campaignCollection(campaign, "characters").records.find(item => item.key === patch.base.key);
+      const committed = receipt.results.find(item => item.collection === "characters" && item.key === patch.base.key);
+      if (!campaign || !record || !committed || record.revision < committed.afterRevision || signal.aborted) {
+        respond({ ok: false, message: uiText("The change was saved, but could not be refreshed. Your draft is kept. Refresh before retrying.") }); return;
+      }
+      const written = prepared.mutations[0];
+      if (record.revision > committed.afterRevision && written?.operation === "put") {
+        // A later author may have committed between our write and its readback.
+        prepareCharacterPatch(campaign, {
+          base: { ...record, value: written.value }, fields: patch.fields,
+          ...(patch.visibility !== undefined ? { visibility: patch.visibility } : {}),
+          ...(patch.portrait !== undefined ? { portrait: patch.portrait } : {}),
+        }, this.#canManageCampaign());
+      }
+      respond({ ok: true, campaign, record });
+    } catch (cause: unknown) {
+      const conflict = cause instanceof CampaignRecordEditError && cause.kind === "stale" || cause instanceof CampaignMutationHTTPError && cause.status === 409;
+      if (cause instanceof CampaignMutationHTTPError && cause.status === 409) await this.#loadCampaign(signal, true);
+      respond({ ok: false, conflict, message: conflict
+        ? uiText("This field changed elsewhere. Your draft is kept. Review the current value before retrying.")
+        : uiText("The entry could not be saved: {0}", { "0": errorMessage(cause) }) });
+    } finally { this.busy = false; }
+  };
 
   readonly #saveCampaignRecord = async (
     event: CustomEvent<CampaignRecordSaveDetail>,

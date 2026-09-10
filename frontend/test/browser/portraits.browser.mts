@@ -76,11 +76,40 @@ async function picture(page: Page, color = 'green') {
   }, color), 'base64');
   return { name: 'portrait.png', mimeType: 'image/png', buffer };
 }
-async function edit(page: Page) { await page.getByRole('button', { name: 'Edit', exact: true }).click(); }
+async function edit(page: Page) { await page.getByLabel('More actions', { exact: true }).click(); await page.getByRole('button', { name: 'Edit all fields', exact: true }).click(); }
 async function save(page: Page) {
   await page.getByRole('button', { name: 'Save entry', exact: true }).click();
   await page.locator('#record-title').waitFor();
 }
+test('direct fields and the wiki commit independently through the authenticated host', async t => {
+  const key = 'direct-edit';
+  await put(key, { name: 'Before', title: 'Scout', description: 'Saved wiki', visibility: 'public', extension: { keep: true } });
+  const { page } = await open(t, key);
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Editor view', exact: true }).selectOption('markdown');
+  const source = page.getByRole('textbox', { name: 'Overview Markdown', exact: true });
+  await source.fill('## Wiki draft\n\n<span data-md-color="info">Blue ink</span>');
+  await page.getByRole('button', { name: 'Edit Name', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Name', exact: true }).fill('After');
+  await page.getByRole('textbox', { name: 'Name', exact: true }).press('Enter');
+  await page.getByRole('button', { name: 'Edit Name', exact: true }).filter({ hasText: 'After' }).waitFor();
+  const renamed = await record(key);
+  assert.equal(renamed.value.description, 'Saved wiki'); assert.equal(renamed.revision, 2);
+  assert.deepEqual(renamed.value.extension, { keep: true });
+  assert.match(await source.inputValue(), /Wiki draft/);
+  await page.getByRole('button', { name: 'Save text', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'Wiki saved' }).waitFor();
+  assert.match((await record(key)).value.description, /data-md-color="info"/);
+  await page.reload();
+  await page.locator('.character-wiki .md-color-info').filter({ hasText: 'Blue ink' }).waitFor();
+  assert.equal(await page.locator('.character-wiki .md-color-info').evaluate(element => getComputedStyle(element).color), 'rgb(144, 202, 249)');
+  await page.getByLabel('More actions', { exact: true }).click();
+  await page.getByRole('button', { name: 'Portrait', exact: true }).click();
+  await page.getByLabel('Choose portrait', { exact: true }).setInputFiles(await picture(page));
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector<HTMLImageElement>('.record-portrait')?.naturalWidth === 96);
+  assert.equal((await record(key)).value.name, 'After');
+});
 for (const mobile of [false, true]) test(`portrait draft uploads, replaces and removes through the real host on ${mobile ? 'phone' : 'desktop'}`, async t => {
   const key = mobile ? 'phone' : 'desktop';
   await put(key, { name: 'Portrait hero', visibility: 'public', extension: { keep: true } });
@@ -146,7 +175,7 @@ test('portrait controls localize, explain creation and obey signed-in visibility
   assert.equal((await record('access')).revision, 1);
   await page.locator('[name="visibility"]').selectOption('public'); await save(page);
   await page.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await page.reload();
-  await page.getByRole('button', { name: 'Upravit', exact: true }).click();
+  await page.getByLabel('Další akce', { exact: true }).click(); await page.getByRole('button', { name: 'Upravit všechna pole', exact: true }).click();
   await page.getByLabel('Vybrat portrét', { exact: true }).waitFor();
   const anonymous = await open(t, 'access', false, null);
   assert.equal(await anonymous.page.locator('codex-portrait-editor').count(), 0);

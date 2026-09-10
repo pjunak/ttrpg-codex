@@ -805,6 +805,15 @@ relationship replacement, and successful saves after unrelated changes. These
 are real component tests with synthetic datasets, not a completed host/SSE or
 installed-add-on acceptance test. The corresponding release gates stay open.
 
+The September 10 character-editing checks add direct-field confirmation and
+cancellation, debounced notes, Undo, independent wiki drafts, conflict review,
+failed-save retries, and retained edits during pending saves. The same component
+suite checks the formatted toolbar, Markdown round trips, dialog expansion,
+keyboard access and phone layout. `portraits.browser.mts` also exercises
+independent field/wiki saves and a section-local portrait upload through a
+disposable authenticated Go host. `rich-markdown.test.ts` covers preservation of
+unsupported source, semantic formatting, tables, links and inert raw HTML.
+
 The technical gate now includes those browser regressions. The worker add-ons
 use the host SDK's Go 1.27.1 baseline; engine CI runs the Go suite and race
 checks, and DM Tools CI follows the host's default branch. Chromium must be

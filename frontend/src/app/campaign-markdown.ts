@@ -10,6 +10,7 @@ import { isRecord } from "../core/boundary.js";
 import { campaignPages, recordHash, type CampaignPageDefinition } from "./routes.js";
 import type { AddonLinkState } from "./addon-links-controller.js";
 import { uiText } from "./ui-localization.js";
+import { parseMarkdownFormat, markdownFormatClose } from "./markdown-formats.js";
 
 const wikiTokenType = "campaign-wiki-link";
 const markdown = new Marked({
@@ -90,12 +91,6 @@ const legacyScopeAliases: Readonly<Partial<Record<CampaignCollectionName, readon
   artifacts: Object.freeze(["artifact", "artefakt"]),
   historicalEvents: Object.freeze(["historical-event", "historicka-udalost"]),
   pets: Object.freeze(["companion", "companions", "pet"]),
-});
-
-const semanticValues = Object.freeze({
-  color: new Set(["gold", "danger", "info", "success", "mystery", "muted"]),
-  highlight: new Set(["gold", "danger", "info", "success", "mystery"]),
-  effect: new Set(["underline", "glow", "small-caps", "spoiler"]),
 });
 
 export function parseCampaignMarkdownDocuments(
@@ -391,31 +386,11 @@ function renderUnknownToken(
 
 function semanticOpening(token: Token): SemanticHTML | undefined {
   if (token.type !== "html") return undefined;
-  const raw = token.raw.trim();
-  if (/^<sup>$/iu.test(raw)) return { tag: "sup" };
-  if (/^<sub>$/iu.test(raw)) return { tag: "sub" };
-  const color = /^<span\s+data-md-color=["']([a-z-]+)["']\s*>$/iu.exec(raw)?.[1];
-  if (color !== undefined && semanticValues.color.has(color)) return { tag: "span", className: `md-color-${color}` };
-  const effect = /^<span\s+data-md-effect=["']([a-z-]+)["']\s*>$/iu.exec(raw)?.[1];
-  if (effect !== undefined && semanticValues.effect.has(effect)) return { tag: "span", className: `md-effect-${effect}` };
-  const highlight = /^<mark\s+data-md-highlight=["']([a-z-]+)["']\s*>$/iu.exec(raw)?.[1];
-  if (highlight !== undefined && semanticValues.highlight.has(highlight)) {
-    return { tag: "mark", className: `md-highlight-${highlight}` };
-  }
-  return undefined;
+  return parseMarkdownFormat(token.raw.trim());
 }
 
 function semanticClosingIndex(tokens: readonly Token[], start: number, tag: SemanticHTML["tag"]): number {
-  let depth = 1;
-  for (let index = start; index < tokens.length; index += 1) {
-    const token = tokens[index];
-    if (token?.type !== "html") continue;
-    const raw = token.raw.trim();
-    if (new RegExp(`^<${tag}(?:\\s|>)`, "iu").test(raw)) depth += 1;
-    if (new RegExp(`^</${tag}\\s*>$`, "iu").test(raw)) depth -= 1;
-    if (depth === 0) return index;
-  }
-  return -1;
+  return markdownFormatClose(tokens, start, tag);
 }
 
 function renderSemanticHTML(

@@ -189,6 +189,33 @@ Rank-chain and location-role editors retain existing nested extension fields by
 their stable IDs while keeping player-invisible references under the server's
 preservation policy.
 
+Character profiles support direct, independent edits. Short values confirm on
+Enter or blur and cancel on Escape; choices save when selected. Circumstances
+and question answers save after a 700 ms pause, retain failed drafts, and expose
+Undo. Wiki text and compound relationship, rank, location-role, portrait and
+visibility changes keep explicit local Save/Cancel controls. The existing full
+form remains available under More actions, and creation still uses that form.
+
+Each independent draft retains its opening record. Before writing, the client
+compares the touched fields and their dependencies against the latest visible
+snapshot, preserves unrelated fields, and submits the resulting record with
+the latest expected revision. Faction changes also check rank and attitude
+dependencies; relationship edits retain their own reviewed revision set.
+Same-field conflicts require review before retrying. The server's transaction,
+visibility, CSRF, and preservation policies remain authoritative. Writes from
+one profile are queued; saving one section does not reset another section's
+draft or its navigation guard.
+
+The shared Markdown writer has formatted, editable Markdown, and preview views,
+a single-row toolbar, and an expanded side-by-side dialog. ProseMirror edits a
+bounded document model; storage remains Markdown. The existing safe renderer
+accepts only registered semantic color, highlight, effect, size, font and
+alignment tokens. Arbitrary HTML remains inert. Unsupported blocks (including
+task-list source) remain visible source nodes, editable in Markdown view;
+untouched blocks retain their authored source when surrounding text changes.
+Expansion retains the same editor and draft. In the full form, its Save action
+saves the entry; in a character's wiki section it saves only the wiki text.
+
 The DM settings folio manages the six host-owned enumeration categories over
 the same optimistic campaign transaction boundary. Definition edits retain
 unknown extension fields and permanent IDs; character gender/status and event

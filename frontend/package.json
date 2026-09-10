@@ -20,7 +20,16 @@
     "@fontsource-variable/lora": "5.3.0",
     "leaflet": "1.9.4",
     "lit": "3.3.3",
-    "marked": "18.0.11"
+    "marked": "18.0.11",
+    "prosemirror-commands": "1.7.2",
+    "prosemirror-history": "1.5.0",
+    "prosemirror-keymap": "1.2.3",
+    "prosemirror-markdown": "1.13.7",
+    "prosemirror-model": "1.25.11",
+    "prosemirror-schema-list": "1.5.1",
+    "prosemirror-state": "1.4.4",
+    "prosemirror-tables": "1.8.5",
+    "prosemirror-view": "1.42.3"
   },
   "devDependencies": {
     "@types/leaflet": "1.9.20",

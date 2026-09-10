@@ -3,11 +3,15 @@
 @import "@fontsource-variable/lora/wght-italic.css";
 @import "@fontsource-variable/inter";
 @import "leaflet/dist/leaflet.css";
+@import "prosemirror-view/style/prosemirror.css";
+@import "prosemirror-tables/style/tables.css";
 @import "./styles/tokens.css";
 @import "./styles/shell.css";
 @import "./styles/dashboard.css";
 @import "./styles/dm-dashboard.css";
 @import "./styles/records.css";
+@import "./styles/writer.css";
+@import "./styles/character-editing.css";
 @import "./styles/search.css";
 @import "./styles/settings.css";
 @import "./styles/addons.css";

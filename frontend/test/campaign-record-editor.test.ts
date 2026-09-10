@@ -9,6 +9,7 @@ import {
   editorOptionsFor,
   prepareCampaignRecordDelete,
   prepareCampaignRecordSave,
+  prepareCharacterPatch,
   relationshipEditorRowsFor,
   relationshipBaseFor,
 } from "../src/app/campaign-record-editor.js";
@@ -19,6 +20,23 @@ import type {
 } from "../src/core/campaign-data.js";
 
 describe("campaign record editing", () => {
+  it("rebases independent character fields without normalizing unrelated authored data", () => {
+    const base = { key: "ryn", revision: 1, value: { name: "Ryn", title: "Scout", description: "Source  ", unknown: [{ question: "Old shape", custom: true }], extra: { keep: true } } };
+    const current = { ...base, revision: 2, value: { ...base.value, title: "Captain" } };
+    const mutation = prepareCharacterPatch(dataset({ characters: [current] }), { base, fields: { name: "New name" } }, false).mutations[0];
+    expect(mutation).toEqual({ operation: "put", collection: "characters", key: "ryn", expectedRevision: 2, value: { ...current.value, name: "New name" } });
+    expect(() => prepareCharacterPatch(dataset({ characters: [current] }), { base, fields: { title: "Ranger" } }, false)).toThrow(/field changed/);
+    expect(() => prepareCharacterPatch(dataset({ characters: [current] }), { base, fields: { extra: {} } }, false)).toThrow(CampaignRecordEditError);
+    expect(() => prepareCharacterPatch(dataset({ characters: [current] }), { base, fields: {}, visibility: "dm" }, false)).toThrow(CampaignRecordEditError);
+  });
+  it("checks dependent faction fields and supports undoing a faction and rank together", () => {
+    const base = { key: "ryn", revision: 1, value: { name: "Ryn", faction: "watch", rankChain: "command", rank: "Captain" } };
+    const factions = [{ key: "watch", revision: 1, value: { name: "Watch", rankChains: [{ id: "command", name: "Command", ranks: ["Captain"] }] } }];
+    const current = { ...base, revision: 2, value: { ...base.value, faction: "neutral", rankChain: "", rank: "" } };
+    expect(prepareCharacterPatch(dataset({ characters: [base], factions }), { base, fields: { faction: "neutral" } }, true).mutations[0]).toMatchObject({ value: current.value });
+    expect(prepareCharacterPatch(dataset({ characters: [current], factions }), { base: current, fields: { faction: "watch", rankAssignment: { chainId: "command", rank: "Captain" } } }, true).mutations[0]).toMatchObject({ value: base.value });
+    expect(() => prepareCharacterPatch(dataset({ characters: [current], factions }), { base, fields: { rankAssignment: { chainId: "command", rank: "Captain" } } }, true)).toThrow(/field changed/);
+  });
   it("preserves portraits by default, removes only on explicit save, and validates upload context before IO", async () => {
     const old = `/api/media/b_${"1".repeat(32)}`;
     const campaign = dataset({ characters: [{ key: "ryn", revision: 4,

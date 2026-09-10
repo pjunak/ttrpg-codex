@@ -5,6 +5,8 @@ export interface EditorFixtureApi {
   refresh(value: unknown): Promise<void>;
   complete(): Promise<void>;
   language(locale: string): void;
+  failNextSave(message: string): void;
+  saveDelay(milliseconds: number): void;
 }
 
 declare global {

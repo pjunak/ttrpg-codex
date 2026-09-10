@@ -173,9 +173,9 @@ for (const mobile of [false, true]) test(`campaign references and old Compendium
   assert.equal(await page.locator('.wiki-link-missing').filter({ hasText: 'Shield' }).count(), 1);
   await page.screenshot({ path: resolve(output, `article-links-${mobile ? 'phone' : 'desktop'}.png`), fullPage: true });
   await page.locator('a.wiki-link').filter({ hasText: 'Fireball' }).click(); await page.locator('.comp-reading-pane h1').filter({ hasText: 'Fireball' }).waitFor();
-  await page.goBack(); await page.getByRole('button', { name: 'Edit', exact: true }).click();
-  await page.locator('[data-markdown-field="description"][data-markdown-mode="preview"]').click();
-  await page.locator('.markdown-editor-preview a.wiki-link').filter({ hasText: 'Ward' }).waitFor();
+  await page.goBack(); await page.getByRole('button', { name: 'Edit wiki', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Editor view', exact: true }).selectOption('preview');
+  await page.locator('.writer-preview a.wiki-link').filter({ hasText: 'Ward' }).waitFor();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('link', { name: 'Old monster', exact: true }).click();
   await page.locator('.comp-reading-pane h1').filter({ hasText: 'Aboleth' }).waitFor(); assert.match(page.url(), /\/bestiary\?kind=monster&id=aboleth$/u);

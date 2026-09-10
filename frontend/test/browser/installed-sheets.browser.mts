@@ -124,7 +124,8 @@ for (const mobile of [false, true]) test(`character profile and installed sheet 
   await page.locator('#record-title').waitFor();
   assert.equal(await sheet.isVisible(), false);
   assert.equal(await profileTab.getAttribute('aria-selected'), 'true');
-  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByLabel('More actions', { exact: true }).click();
+  await page.getByRole('button', { name: 'Edit all fields', exact: true }).click();
   await page.getByLabel('Name', { exact: true }).fill('A profile draft');
   await profileTab.press('End');
   assert.equal(await sheet.isVisible(), true);

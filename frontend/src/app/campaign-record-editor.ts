@@ -94,6 +94,74 @@ export interface PreparedCampaignRecordTransaction {
   readonly mutations: readonly CampaignMutation[];
 }
 
+export interface CampaignCharacterPatch {
+  readonly base: CampaignRecord;
+  readonly fields: Readonly<Record<string, unknown>>;
+  readonly visibility?: "public" | "dm";
+  readonly portrait?: File | null;
+  readonly relationships?: readonly CampaignRelationshipEditDetail[];
+  readonly relationshipBase?: readonly Pick<CampaignRecord, "key" | "revision">[];
+}
+
+export type CampaignCharacterSaveResult =
+  | { readonly ok: true; readonly campaign: CampaignDataset; readonly record: CampaignRecord }
+  | { readonly ok: false; readonly message: string; readonly conflict?: boolean };
+
+export interface CampaignCharacterSaveRequest extends CampaignCharacterPatch {
+  readonly respond: (result: CampaignCharacterSaveResult) => void;
+}
+
+/** Rebase only fields untouched since this draft opened, then use the latest optimistic revision. */
+export function prepareCharacterPatch(campaign: CampaignDataset, patch: CampaignCharacterPatch, canManageVisibility: boolean): PreparedCampaignRecordTransaction {
+  const current = campaignCollection(campaign, "characters").records.find(record => record.key === patch.base.key);
+  if (!current || !validRevision(patch.base.revision, true) || patch.base.revision > current.revision || !isRecord(patch.base.value) || !isRecord(patch.fields)) throw new CampaignRecordEditError("stale", "record revision is stale");
+  const value = isRecord(current.value) ? { ...current.value } : {};
+  const baseline = patch.base.value;
+  const fields = editorFieldsFor("characters");
+  const selected = fields.filter(field => Object.hasOwn(patch.fields, field.key));
+  if (selected.length !== Object.keys(patch.fields).length) throw invalidEdit();
+  const keys = new Set(selected.flatMap(field => field.key === "rankAssignment" ? ["rankChain", "rank", "faction"]
+    : field.key === "faction" ? ["faction", "rankChain", "rank", "attitudes"] : [field.key]));
+  if (patch.visibility !== undefined) keys.add("visibility");
+  if (patch.portrait !== undefined) { keys.add("portrait"); keys.add("visibility"); }
+  for (const key of keys) {
+    if (!sameCampaignValue(baseline[key], value[key])) throw new CampaignRecordEditError("stale", `field changed: ${key}`);
+  }
+  for (const field of selected) applyEditorField(campaign, value, isRecord(current.value) ? current.value : {}, field, patch.fields[field.key], current.key);
+  if (Object.hasOwn(patch.fields, "faction") && value["faction"] !== baseline["faction"]) {
+    if (!Object.hasOwn(patch.fields, "rankAssignment")) { value["rankChain"] = ""; value["rank"] = ""; }
+    if (value["faction"] === "party") value["attitudes"] = [];
+  }
+  if (patch.visibility !== undefined) {
+    if (!canManageVisibility || !["public", "dm"].includes(patch.visibility)) throw invalidEdit();
+    value["visibility"] = patch.visibility;
+  }
+  if (patch.portrait !== undefined) {
+    if (patch.portrait !== null && (!(patch.portrait instanceof File) || !validPortraitFile(patch.portrait))) throw invalidEdit();
+    if (patch.portrait !== null && patch.visibility !== undefined && patch.visibility !== (baseline["visibility"] === "dm" ? "dm" : "public")) {
+      throw new CampaignRecordEditError("portrait-visibility", "Save visibility before replacing a portrait");
+    }
+  }
+  const mutations: CampaignMutation[] = [{ operation: "put", collection: "characters", key: current.key, expectedRevision: current.revision, value }];
+  if (patch.relationships !== undefined) {
+    const base = patch.relationshipBase;
+    const live = relationshipBaseFor(campaign, current.key);
+    if (!Array.isArray(base) || base.length !== live.length || new Set(base.map(item => item.key)).size !== base.length ||
+      live.some(item => !base.some(candidate => candidate.key === item.key && candidate.revision === item.revision))) {
+      throw new CampaignRecordEditError("stale", "relationships changed");
+    }
+    mutations.push(...prepareRelationshipMutations(campaign, current.key, patch.relationships, canManageVisibility));
+  } else if (patch.relationshipBase !== undefined) throw invalidEdit();
+  return { page: campaignPages.find(page => page.collection === "characters")!, mutations };
+}
+
+export function sameCampaignValue(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (Array.isArray(left) && Array.isArray(right)) return left.length === right.length && left.every((item, index) => sameCampaignValue(item, right[index]));
+  if (isRecord(left) && isRecord(right)) return Object.keys(left).length === Object.keys(right).length && Object.keys(left).every(key => Object.hasOwn(right, key) && sameCampaignValue(left[key], right[key]));
+  return false;
+}
+
 export class CampaignRecordEditError extends Error {
   override readonly name = "CampaignRecordEditError";
 
