@@ -8,9 +8,11 @@ Implementation contracts describe current behavior; they are not roadmaps.
 The Go host, campaign interface, and first-party Add-on API v3 packages are
 accepted for the owner's two personal sites. The owner requested the replacement
 deployment on September 9, and both Asurai and Tiamat now run the accepted
-replacement. The original design and campaign workflows are restored; broader
-visual and failure matrices remain follow-up work under the accepted downtime
-and rollback policy below.
+replacement. The release passed its reviewed design and campaign workflows;
+the September 11 [feature-parity audit](rewrite/FEATURE_PARITY_AUDIT.md) found
+21 missing or reduced capabilities beneath those broad workflows. Their
+restoration and broader visual/failure matrices remain follow-up work under
+the accepted downtime and rollback policy below.
 
 The completed cutover used the final stopped data from each server, retaining
 Asurai's companion change since the saved backup. Both instances passed the
@@ -856,6 +858,34 @@ acceptance still need to be expanded as follow-up documentation.
 | Settings: `backup`, `account` | Recovery history, manual/automatic points, restore/revert/delete, ZIP download, persistent passwords and offline access recovery | Per-campaign acceptance; full archive restore uses offline maintenance |
 | Add-on routes and graph/settings contributions | Versioned v3 mounting infrastructure and package routes exist | Per-add-on workflow inventory and installed-package acceptance |
 
+## Feature-parity audit follow-up (2026-09-11)
+
+The [source comparison](rewrite/FEATURE_PARITY_AUDIT.md) pins all five old and
+current revisions, documents 21 confirmed omissions/reductions, and separates
+six deliberate transition/design differences from four verification gaps.
+These findings do not change the accepted personal-site release policy. The
+GitHub update/private-source regression was restored before this audit.
+
+- [ ] Restore authored-work protection: Markdown draft recovery (F01), sheet
+  import preview/confirmation/undo (F14), a deliberate path for old exported
+  sheet files (F15), and manual/provider reconciliation before recalculation
+  (F17).
+- [ ] Restore campaign/operator controls: effective sourcebook selection (F07),
+  broker-backed service-provider selection (F08), and separately reviewed
+  add-on uninstall with explicit data retention/deletion (F09).
+- [ ] Restore everyday browsing and reading: collection controls (F02), search
+  quick-jump behavior (F03), activity summaries (F04), map-side editing (F05),
+  sheet print/attunement/reference/senses/HP behavior (F13, F16, F18–F20), and
+  encounter/puzzle readers (F21).
+- [ ] Complete the intended public add-on integrations: settings (F10), editor
+  fields/map-pin slots (F11), and graph kind/facade capabilities (F12), using
+  serializable v3 contracts. Review whether the server restart control (F06)
+  should return; keep the documented D01–D06 decisions explicit.
+- [ ] Add action-level regression evidence as each restoration lands. Keep
+  source coverage, installed-package/browser checks, and site-specific
+  conversion verification distinct; do not treat closed broad gates as proof
+  that every former control works.
+
 ## Platform follow-ups
 
 - Complete the exhaustive contrast and every-page/device/state visual matrix;
@@ -867,8 +897,8 @@ acceptance still need to be expanded as follow-up documentation.
 - Run exhaustive desktop/mobile, Czech/English, package-provider failure,
   restart, update, restore, and rollback rehearsals after launch as useful.
 
-- Add coordinated dependent disable and a separately reviewed uninstall/data-
-  deletion workflow if routine package removal becomes useful.
+- Add coordinated dependent disable; uninstall/data deletion is tracked in
+  the feature-parity audit follow-up above.
 - Add migration plan/apply workers when a real released add-on schema change
   requires them; do not build speculative migration machinery.
 - Consider a WASI worker target only for a package that benefits from it.
