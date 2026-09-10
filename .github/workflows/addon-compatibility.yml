@@ -2,6 +2,11 @@ name: Addon compatibility
 
 on:
   workflow_call:
+    inputs:
+      require_private:
+        description: Require the private compendium suite before publication
+        type: boolean
+        default: false
   workflow_dispatch:
 
 permissions:
@@ -15,6 +20,7 @@ jobs:
   public-addons:
     name: Public addon suite
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
@@ -38,6 +44,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: ttrpg-codex/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            addon-dm-tools/package-lock.json
+            addon-dnd-character-sheets/package-lock.json
 
       - uses: actions/setup-go@v7
         with:
@@ -73,12 +83,20 @@ jobs:
   private-compendium:
     name: Private compendium suite
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       ADDON_SUITE_TOKEN: ${{ secrets.ADDON_SUITE_TOKEN }}
     steps:
       - name: Report unavailable private suite
         if: env.ADDON_SUITE_TOKEN == ''
-        run: echo "::warning::ADDON_SUITE_TOKEN is not configured; skipping the private compendium compatibility suite."
+        env:
+          REQUIRED: ${{ inputs.require_private }}
+        run: |
+          if [[ "$REQUIRED" == true ]]; then
+            echo '::error::Publishing requires ADDON_SUITE_TOKEN and a passing private compendium suite.'
+            exit 1
+          fi
+          echo '::warning::Private compendium compatibility is unavailable; this run cannot establish private-suite coverage.'
 
       - uses: actions/checkout@v7
         if: env.ADDON_SUITE_TOKEN != ''
@@ -96,6 +114,8 @@ jobs:
         if: env.ADDON_SUITE_TOKEN != ''
         with:
           node-version-file: ttrpg-codex/.nvmrc
+          cache: npm
+          cache-dependency-path: addon-dnd-2024-compendium/package-lock.json
 
       - uses: actions/setup-go@v7
         if: env.ADDON_SUITE_TOKEN != ''

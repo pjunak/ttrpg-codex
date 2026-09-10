@@ -48,11 +48,14 @@ concurrency:
 jobs:
   compatibility:
     uses: ./.github/workflows/addon-compatibility.yml
+    with:
+      require_private: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' && (inputs.publish || inputs.deploy_target != 'none') }}
     secrets: inherit
 
   test:
     name: Run test suite
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
@@ -67,6 +70,7 @@ jobs:
           cache: true
 
       - run: npm ci
+      - run: node --test .github/scripts/workflow-policy.test.mts
       - run: npx playwright install --with-deps chromium
       - run: npm run check
 
@@ -74,6 +78,7 @@ jobs:
     name: Build image
     needs: [test, compatibility]
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     outputs:
       image_ref: ${{ steps.publish_image.outputs.digest && format('{0}@{1}', steps.img.outputs.name, steps.publish_image.outputs.digest) || '' }}
     steps:
@@ -131,6 +136,7 @@ jobs:
             ${{ steps.img.outputs.name }}:latest
             ${{ steps.img.outputs.name }}:sha-${{ github.sha }}
           cache-from: type=gha
+          cache-to: type=gha,mode=max,ignore-error=true
 
       - name: Verify packaged runtime starts as its production user
         env:
@@ -162,7 +168,6 @@ jobs:
             ${{ steps.img.outputs.name }}:latest
             ${{ steps.img.outputs.name }}:sha-${{ github.sha }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Record published release identity
         if: ${{ steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
@@ -189,6 +194,7 @@ jobs:
     needs: build
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy_target != 'none' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       services: ${{ steps.list.outputs.services }}
     steps:
