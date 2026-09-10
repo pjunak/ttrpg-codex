@@ -863,25 +863,40 @@ acceptance still need to be expanded as follow-up documentation.
 The [source comparison](rewrite/FEATURE_PARITY_AUDIT.md) pins all five old and
 current revisions, documents 21 confirmed omissions/reductions, and separates
 six deliberate transition/design differences from four verification gaps.
-These findings do not change the accepted personal-site release policy. The
-GitHub update/private-source regression was restored before this audit.
+Its September 11 product assessment evaluates the usefulness, improved design,
+relative effort, and acceptance outcome of every finding. The priorities below
+are proposals for adoption, not approval to restore every legacy mechanism or
+retire a workflow. They do not change the accepted personal-site release policy.
+The GitHub update/private-source regression was restored before this audit.
 
-- [ ] Restore authored-work protection: Markdown draft recovery (F01), sheet
-  import preview/confirmation/undo (F14), a deliberate path for old exported
-  sheet files (F15), and manual/provider reconciliation before recalculation
-  (F17).
-- [ ] Restore campaign/operator controls: effective sourcebook selection (F07),
-  broker-backed service-provider selection (F08), and separately reviewed
-  add-on uninstall with explicit data retention/deletion (F09).
-- [ ] Restore everyday browsing and reading: collection controls (F02), search
-  quick-jump behavior (F03), activity summaries (F04), map-side editing (F05),
-  sheet print/attunement/reference/senses/HP behavior (F13, F16, F18–F20), and
-  encounter/puzzle readers (F21).
-- [ ] Complete the intended public add-on integrations: settings (F10), editor
-  fields/map-pin slots (F11), and graph kind/facade capabilities (F12), using
-  serializable v3 contracts. Review whether the server restart control (F06)
-  should return; keep the documented D01–D06 decisions explicit.
-- [ ] Add action-level regression evidence as each restoration lands. Keep
+- [ ] Protect authored work: central manual-mode calculation guard and reviewed
+  provider reconciliation (F17), revision-aware local Markdown recovery (F01),
+  exact sheet replacement preview/confirmation with conflict-safe undo (F14),
+  and offline per-sheet conversion preserving old export inputs (F15).
+- [ ] Restore focused play and reading value: saved senses (F19), coherent HP
+  limits with explicit manual exceptions (F20), advisory attunement capacity
+  (F16), encounter/puzzle reader (F21), dedicated print view (F13), and
+  provider-neutral rule links (F18). Add structured calculation explanations
+  separately rather than duplicating engine rules in the sheet.
+- [ ] Restore campaign/operator choices: shared effective sourcebook policy and
+  revision identity, preserving existing character choices for review (F07);
+  broker-backed provider conflict resolution with automatic defaults (F08);
+  and package uninstall retaining data by default, with dependency review and
+  a separate data-purge decision (F09).
+- [ ] Improve browsing and context: consistent collection filters/sorts/views
+  (F02), search quick-jump overlay (F03), focused map editor (F05), concise
+  role-filtered activity summaries (F04), and a minimal contributed settings
+  destination (F10).
+- [ ] Record decisions on conditional extensions: split read-only map context
+  from transactional editor contributions (F11); require actual consumers for
+  graph metadata and defer the general facade (F12); defer a web restart action
+  absent a recurring operator need (F06). These are recommendations pending
+  adoption, not completed retirements.
+- [ ] Review D01–D06 improvements while retaining reviewed packages, offline
+  archive restore/conversion, DM recovery administration, and serializable
+  presentation boundaries. Consider explicit Atlas rapid-placement mode and
+  an optional canvas gesture preference after restoring its reader (D05).
+- [ ] Add action-level regression evidence as each accepted change lands. Keep
   source coverage, installed-package/browser checks, and site-specific
   conversion verification distinct; do not treat closed broad gates as proof
   that every former control works.
