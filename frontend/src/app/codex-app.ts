@@ -964,6 +964,13 @@ export class CodexApp extends LitElement {
           .editCompletion=${this.editCompletion}
           @campaign-edit-dirty=${this.#onEditDirty}
           @campaign-record-save=${this.#saveCampaignRecord}
+          @campaign-collection-view=${(event: CustomEvent<{ hash: string }>) => {
+            const route = parseAppRoute(event.detail.hash);
+            if (route.kind !== "collection" || this.route.kind !== "collection" || route.page.id !== this.route.page.id) return;
+            window.history.replaceState(null, "", event.detail.hash);
+            this.#acceptedHash = event.detail.hash;
+            this.route = route;
+          }}
           @campaign-character-save=${this.#saveCharacterPatch}
           @campaign-record-delete=${this.#deleteCampaignRecord}
           @campaign-sign-in=${this.#showSignIn}

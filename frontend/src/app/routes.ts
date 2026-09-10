@@ -36,7 +36,7 @@ export type AppRoute =
       readonly location?: { readonly key: string; readonly mode: "show" | "place" } }
   | { readonly kind: "create"; readonly page: CampaignPageDefinition; readonly preset: "party" | "event"; readonly sitting?: number }
   | { readonly kind: "settings"; readonly mapParentId?: string | null }
-  | { readonly kind: "collection"; readonly page: CampaignPageDefinition }
+  | { readonly kind: "collection"; readonly page: CampaignPageDefinition; readonly view?: string }
   | { readonly kind: "record"; readonly page: CampaignPageDefinition; readonly key: string; readonly editing?: boolean }
   | { readonly kind: "addon" }
   | { readonly kind: "not-found"; readonly path: string };
@@ -93,6 +93,11 @@ export function parseAppRoute(hash: string): AppRoute {
   }
   if (isBrowserAddonRouteHash(hash)) {
     return { kind: "addon" };
+  }
+  const collectionView = /^#\/([^/?]+)\?([^#]*)$/u.exec(hash);
+  if (collectionView && collectionView[2]!.length <= 64_000) {
+    const page = campaignPages.find(page => page.id === collectionView[1]);
+    if (page) return { kind: "collection", page, view: collectionView[2]! };
   }
   const path = hash.startsWith("#/") ? hash.slice(2) : hash;
   const [pageID, encodedKey, ...rest] = path.split("/");

@@ -1,6 +1,7 @@
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import { sourceEn, sourceCs, type SourceMessage } from "./ui-source-messages.js";
 import { githubEn, githubCs } from "./github-messages.js";
+import { editingEn, editingCs } from "./editing-messages.js";
 
 export type UiLocale = "en" | "cs";
 
@@ -11,11 +12,12 @@ interface PluralForms {
   readonly other: string;
 }
 
-type Message = string | PluralForms;
+export type Message = string | PluralForms;
 
 const enCatalog = {
   ...sourceEn,
   ...githubEn,
+  ...editingEn,
   "settings.usedRecords": { one: "Used by {n} record", other: "Used by {n} records" },
   "settings.replaceRecords": { one: "{n} campaign record uses this definition. Choose how those records should change.", other: "{n} campaign records use this definition. Choose how those records should change." },
   "recovery.title": "Backup & recovery",
@@ -477,6 +479,7 @@ export type MessageKey = keyof typeof enCatalog;
 const csCatalog = {
   ...sourceCs,
   ...githubCs,
+  ...editingCs,
   "settings.usedRecords": { one: "Používá {n} záznam", few: "Používají {n} záznamy", other: "Používá {n} záznamů" },
   "settings.replaceRecords": { one: "Tuto definici používá {n} záznam kampaně. Vyberte, jak se mají použití změnit.", few: "Tuto definici používají {n} záznamy kampaně. Vyberte, jak se mají použití změnit.", other: "Tuto definici používá {n} záznamů kampaně. Vyberte, jak se mají použití změnit." },
   "recovery.title": "Zálohy a obnova",

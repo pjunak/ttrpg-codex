@@ -10,6 +10,9 @@ import { parseRichMarkdown, serializeRichMarkdown, richMarkdownSchema as schema 
 import { markdownColors, markdownHighlights, markdownEffects, markdownSizes } from "./markdown-formats.js";
 import { parseCampaignMarkdown, renderCampaignMarkdown, safeCampaignMarkdownLink, type CampaignMarkdownContext } from "./campaign-markdown.js";
 import { uiText, UiLocalizationController } from "./ui-localization.js";
+import { MarkdownDraftController } from "./markdown-draft-controller.js";
+import type { MarkdownDraft, MarkdownDraftContext } from "../core/markdown-drafts.js";
+import { selectOptions } from "./select-options.js";
 
 type Mode = "formatted" | "markdown" | "preview";
 let writerID = 0;
@@ -18,6 +21,7 @@ export class CodexMarkdownEditor extends LitElement {
   static override properties = {
     value: { type: String }, name: { type: String }, label: { type: String }, identity: { type: String },
     context: { attribute: false }, disabled: { type: Boolean }, maximumLength: { type: Number }, saveLabel: { type: String },
+    draftContext: { attribute: false }, recoveryBusy: { state: true }, recoveryMessage: { state: true },
     mode: { state: true }, split: { state: true }, expanded: { state: true }, menu: { state: true }, issue: { state: true },
   };
   declare value: string;
@@ -28,6 +32,9 @@ export class CodexMarkdownEditor extends LitElement {
   declare disabled: boolean;
   declare maximumLength: number;
   declare saveLabel: string | undefined;
+  declare draftContext: MarkdownDraftContext | undefined;
+  declare private recoveryBusy: boolean;
+  declare private recoveryMessage: string;
   declare private mode: Mode;
   declare private split: boolean;
   declare private expanded: boolean;
@@ -35,6 +42,7 @@ export class CodexMarkdownEditor extends LitElement {
   declare private issue: string;
   readonly #id = `wiki-writer-${++writerID}`;
   readonly #ui = new UiLocalizationController(this);
+  readonly #drafts = new MarkdownDraftController(this);
   #view: EditorView | undefined;
   #originals = new WeakMap<import("prosemirror-model").Node, string>();
   #richValue = "";
@@ -46,13 +54,15 @@ export class CodexMarkdownEditor extends LitElement {
     super(); this.value = ""; this.name = "description"; this.label = ""; this.identity = "";
     this.disabled = false; this.maximumLength = 200_000; this.mode = "formatted";
     this.split = false; this.expanded = false; this.menu = ""; this.issue = "";
+    this.recoveryBusy = false; this.recoveryMessage = "";
   }
   protected override createRenderRoot() { return this; }
   override disconnectedCallback(): void { this.#view?.destroy(); this.#view = undefined; super.disconnectedCallback(); }
   protected override updated(changed: Map<PropertyKey, unknown>): void {
+    this.#drafts.configure(this.draftContext);
     if (!this.#view) this.#mount();
     else if (changed.has("identity") || changed.has("value") && this.value !== this.#lastEmitted && this.value !== this.#richValue) this.#loadRich();
-    this.#view?.setProps({ editable: () => !this.disabled, attributes: { "aria-label": this.label || uiText("Wiki text"), "aria-multiline": "true", role: "textbox" } });
+    this.#view?.setProps({ editable: () => !this.disabled && !this.recoveryBusy, attributes: { "aria-label": this.label || uiText("Wiki text"), "aria-multiline": "true", role: "textbox" } });
     if (this.disabled) this.menu = "";
     const dialog = this.querySelector<HTMLDialogElement>("dialog");
     if (dialog && !dialog.open) dialog.show();
@@ -66,7 +76,7 @@ export class CodexMarkdownEditor extends LitElement {
       state: this.#state(parsed.doc),
       dispatchTransaction: transaction => {
         const view = this.#view;
-        if (!view || this.disabled) return;
+        if (!view || this.disabled || this.recoveryBusy) return;
         const next = view.state.apply(transaction);
         if (transaction.docChanged) {
           const source = serializeRichMarkdown(next.doc, this.#originals);
@@ -93,15 +103,62 @@ export class CodexMarkdownEditor extends LitElement {
   }
   #change(source: string): void {
     this.value = source; this.#lastEmitted = source; this.issue = "";
+    this.#drafts.changed(source);
     this.dispatchEvent(new CustomEvent("markdown-change", { detail: { value: source }, bubbles: true, composed: true }));
   }
   public focusEditor(): void { if (this.mode === "markdown") this.querySelector<HTMLTextAreaElement>(".writer-source")?.focus(); else this.#view?.focus(); }
+  public acknowledgeSave(value: string): void { this.#drafts.saved(value); }
+  public discardDraft(): void { this.#drafts.discardCurrent(); }
+
+  #recovery() {
+    if (!this.draftContext) return nothing;
+    const selected = this.#drafts.selected;
+    return html`<section class="writer-recovery" aria-label=${uiText("draft.review")}>
+      ${this.#drafts.candidates.length ? html`<details class="writer-recovery-review">
+        <summary>${uiText("draft.available", { count: this.#drafts.candidates.length })}</summary>
+        <p>${uiText("draft.intro")}</p>
+        <label>${uiText("draft.choose")}<select .value=${selected?.id ?? ""} ?disabled=${this.recoveryBusy}
+          @change=${(event: Event) => { this.#drafts.selected = this.#drafts.candidates.find(item => item.id === (event.target as HTMLSelectElement).value); this.requestUpdate(); }}>
+          ${selectOptions([{ value: "", label: uiText("draft.choose") }, ...this.#drafts.candidates.map((draft, index) => ({ value: draft.id, label: `${index + 1}. ${new Date(draft.savedAt).toLocaleString(this.#ui.locale)}` }))], selected?.id ?? "")}
+        </select></label>
+        ${selected ? html`
+          ${selected.baseRevision !== this.draftContext.revision || selected.baseValue !== this.draftContext.baseValue ? html`<p class="writer-recovery-warning">${uiText("draft.changed")}</p>` : nothing}
+          <div class="writer-recovery-comparison">
+            ${[["draft.original", selected.baseValue], ["draft.current", this.draftContext.baseValue], ["draft.recovered", selected.value]].map(([label, value]) => html`<section><h3>${uiText(label as "draft.original" | "draft.current" | "draft.recovered")}</h3><pre tabindex="0">${value}</pre></section>`)}
+          </div>
+          ${this.value !== this.draftContext.baseValue ? html`<p>${uiText("draft.preserveCurrent")}</p>` : nothing}
+          ${selected.value.length > this.maximumLength ? html`<p>${uiText("draft.tooLong")}</p>` : nothing}
+          <div class="writer-recovery-actions">
+            <button type="button" ?disabled=${this.disabled || this.recoveryBusy || selected.value.length > this.maximumLength} @click=${() => this.#recover(selected)}>${uiText("draft.use")}</button>
+            <a download="draft.md" href=${`data:text/markdown;charset=utf-8,${encodeURIComponent(selected.value)}`}>${uiText("draft.download")}</a>
+            <button type="button" ?disabled=${this.disabled || this.recoveryBusy} @click=${async () => {
+              if (window.confirm(uiText("draft.deleteConfirm"))) { this.recoveryBusy = true; await this.#drafts.discard(selected); this.recoveryBusy = false; }
+            }}>${uiText("draft.delete")}</button>
+          </div>` : nothing}
+      </details>` : nothing}
+      <p class="writer-recovery-status" role=${this.#drafts.status === "unavailable" ? "alert" : nothing}>
+        ${uiText(({ idle: "draft.enabled", saving: "draft.saving", saved: "draft.saved", unavailable: "draft.unavailable" } as const)[this.#drafts.status])}
+        ${this.#drafts.status === "unavailable" ? html`<a download="draft.md" href=${`data:text/markdown;charset=utf-8,${encodeURIComponent(this.value)}`}>${uiText("draft.download")}</a>` : nothing}
+      </p><span class="visually-hidden" role="status">${this.recoveryMessage}</span>
+    </section>`;
+  }
+
+  async #recover(draft: MarkdownDraft): Promise<void> {
+    if (this.disabled || this.recoveryBusy) return;
+    this.recoveryBusy = true;
+    const value = await this.#drafts.recover(draft);
+    if (value !== undefined) { this.#change(value); this.#loadRich(); this.recoveryMessage = uiText("draft.replaced"); }
+    this.recoveryBusy = false;
+    await this.updateComplete;
+    if (value !== undefined) this.focusEditor();
+  }
 
   protected override render() {
     return html`<dialog class=${`writer-dialog ${this.expanded ? "writer-expanded" : "writer-inline"}`}
       aria-label=${this.label || uiText("Wiki text")} @cancel=${this.#cancelDialog} @keydown=${this.#keyDown}>
       <div class="writer-heading"><span>${this.label}</span><button type="button" class="writer-expand" ?disabled=${this.disabled}
         @click=${this.#expand}>${this.expanded ? uiText("Back to character") : uiText("Expand writer")}</button></div>
+      ${this.#recovery()}
       <div class="writer-tools-wrap" @focusout=${this.#menuBlur}>
         <div class="writer-toolbar" role="group" aria-label=${uiText("Text formatting")} @pointerdown=${this.#rememberSource}>
           ${this.#button("↶", "Undo", () => this.#command(undo), "writer-optional", this.mode !== "formatted")}
@@ -141,7 +198,7 @@ export class CodexMarkdownEditor extends LitElement {
         <div class="writer-writing" ?hidden=${this.mode === "preview"}>
           <div class="writer-rich campaign-markdown" ?hidden=${this.mode !== "formatted"}></div>
           <textarea class="writer-source" id=${`${this.#id}-source`} aria-label=${`${this.label} Markdown`} name=${this.name}
-            ?hidden=${this.mode !== "markdown"} ?disabled=${this.disabled} .value=${this.value} maxlength=${this.maximumLength}
+            ?hidden=${this.mode !== "markdown"} ?disabled=${this.disabled || this.recoveryBusy} .value=${this.value} maxlength=${this.maximumLength}
             @input=${this.#sourceInput} @select=${this.#rememberSource} @keyup=${this.#rememberSource}></textarea>
         </div>
         <div class="writer-preview" ?hidden=${!this.split && this.mode !== "preview"} aria-label=${uiText("Article preview")}>

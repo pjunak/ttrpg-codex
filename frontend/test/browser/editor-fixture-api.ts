@@ -7,6 +7,8 @@ export interface EditorFixtureApi {
   language(locale: string): void;
   failNextSave(message: string): void;
   saveDelay(milliseconds: number): void;
+  navigate(route: string): Promise<void>;
+  role(role: "dm" | "player" | undefined): Promise<void>;
 }
 
 declare global {

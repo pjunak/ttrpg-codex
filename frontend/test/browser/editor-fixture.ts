@@ -34,8 +34,10 @@ const fixture: EditorFixtureApi = {
         editor.canManageCampaign = true;
       } else {
         editor = new CodexRecordPage();
+        editor.actorRole = "dm";
         const parsed = parseAppRoute(route);
-        if (parsed.kind !== "record" && parsed.kind !== "collection") throw new Error("Invalid fixture route");
+        if (parsed.kind !== "record" && parsed.kind !== "collection" && parsed.kind !== "create") throw new Error("Invalid fixture route");
+        window.history.replaceState(null, "", route);
         editor.route = parsed;
         editor.canEdit = true;
         editor.canManageVisibility = true;
@@ -43,6 +45,7 @@ const fixture: EditorFixtureApi = {
       editor.campaign = campaign;
       editor.addEventListener("campaign-edit-dirty", event => dirty.push((event as CustomEvent<{ dirty: boolean }>).detail.dirty));
       editor.addEventListener("campaign-record-save", event => submit(event, (detail: CampaignRecordSaveDetail) => prepareCampaignRecordSave(campaign, detail, true)));
+      editor.addEventListener("campaign-collection-view", event => { void fixture.navigate((event as CustomEvent<{ hash: string }>).detail.hash); });
       editor.addEventListener("campaign-character-save", event => {
         event.preventDefault();
         const { respond, ...detail } = (event as CustomEvent<CampaignCharacterSaveRequest>).detail;
@@ -82,6 +85,19 @@ const fixture: EditorFixtureApi = {
     },
     async complete() {
       editor.editCompletion += 1;
+      await editor.updateComplete;
+    },
+    async navigate(hash: string) {
+      if (!(editor instanceof CodexRecordPage)) throw new Error("Not a record page");
+      const route = parseAppRoute(hash);
+      if (route.kind !== "collection" && route.kind !== "record" && route.kind !== "create") throw new Error("Invalid route");
+      window.history.replaceState(null, "", hash);
+      editor.route = route;
+      await editor.updateComplete;
+    },
+    async role(role) {
+      if (!(editor instanceof CodexRecordPage)) throw new Error("Not a record page");
+      editor.actorRole = role; editor.canEdit = role !== undefined; editor.canManageVisibility = role === "dm";
       await editor.updateComplete;
     },
 };

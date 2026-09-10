@@ -8,7 +8,8 @@ import { recordValue, text, stringList, type EntitySummary } from "./campaign-pr
 import { factionRankChains, type CampaignStructuredFieldElement, type CampaignRelationshipEditorElement } from "./campaign-structured-editors.js";
 import { parseCampaignMarkdown, renderCampaignMarkdown, type CampaignMarkdownContext } from "./campaign-markdown.js";
 import { uiText, UiLocalizationController } from "./ui-localization.js";
-import "./codex-markdown-editor.js";
+import { CodexMarkdownEditor } from "./codex-markdown-editor.js";
+import type { BrowserRole } from "../addons/generation-manager.js";
 import { CodexPortraitEditor } from "./codex-portrait-editor.js";
 
 interface FieldDraft {
@@ -30,6 +31,7 @@ export class CodexCharacterProfile extends LitElement {
   static override properties = {
     campaign: { attribute: false }, record: { attribute: false }, entity: { attribute: false }, context: { attribute: false }, extraSections: { attribute: false },
     canEdit: { type: Boolean }, canManageVisibility: { type: Boolean },
+    actorRole: { attribute: false },
     status: { state: true }, panel: { state: true }, wikiOpen: { state: true }, wikiSaving: { state: true },
   };
   declare campaign: CampaignDataset;
@@ -39,6 +41,7 @@ export class CodexCharacterProfile extends LitElement {
   declare extraSections: readonly { heading: string; body: string }[] | undefined;
   declare canEdit: boolean;
   declare canManageVisibility: boolean;
+  declare actorRole: BrowserRole | undefined;
   declare private status: string;
   declare private panel: string;
   declare private wikiOpen: boolean;
@@ -63,8 +66,8 @@ export class CodexCharacterProfile extends LitElement {
   protected override createRenderRoot() { return this; }
   get hasDraft(): boolean { return this.#saves > 0 || this.#drafts.size > 0 || this.wikiOpen || this.panel !== ""; }
   override disconnectedCallback(): void { for (const draft of this.#drafts.values()) clearTimeout(draft.timer); super.disconnectedCallback(); }
-  protected override willUpdate(): void {
-    if (this.record?.key !== this.#lastKey) {
+  protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
+    if (this.record?.key !== this.#lastKey || changed.has("actorRole") || !this.canEdit) {
       for (const draft of this.#drafts.values()) clearTimeout(draft.timer);
       this.#drafts.clear(); this.#wikiBase = undefined; this.#panelBase = undefined; this.#undo = undefined;
       this.wikiOpen = false; this.panel = ""; this.#lastKey = this.record?.key ?? ""; this.status = "";
@@ -104,6 +107,8 @@ export class CodexCharacterProfile extends LitElement {
         <div class="record-reading"><section class="character-wiki"><div class="character-section-heading"><h2 class="record-section-title">${uiText("Overview")}</h2>
           ${this.canEdit && !this.wikiOpen ? html`<button type="button" class="record-action" @click=${this.#openWiki}>${uiText("Edit wiki")}</button>` : nothing}</div>
           ${this.wikiOpen ? html`<codex-markdown-editor .value=${this.#wikiValue} .label=${uiText("Overview")} .identity=${`${this.record.key}:wiki`}
+            .draftContext=${this.actorRole && this.#wikiBase ? { role: this.actorRole, collection: "characters", record: this.#wikiBase.key,
+              field: "description", revision: this.#wikiBase.revision, baseValue: text(recordValue(this.#wikiBase)["description"]) } : undefined}
             .context=${this.context} .disabled=${this.wikiSaving} @markdown-change=${this.#wikiChanged} @markdown-save=${this.#saveWiki}></codex-markdown-editor>
             ${this.#wikiError ? html`<p role="alert">${this.#wikiError}</p>${this.#wikiConflict ? html`<details><summary>${uiText("Current saved value")}</summary>${renderCampaignMarkdown(parseCampaignMarkdown(text(recordValue(this.record)["description"])), this.context)}</details>
               <button type="button" @click=${() => { this.#wikiBase = this.record; this.#wikiConflict = false; this.#wikiError = ""; this.requestUpdate(); }}>${uiText("Keep my draft")}</button>` : nothing}` : nothing}
@@ -263,13 +268,13 @@ export class CodexCharacterProfile extends LitElement {
 
   readonly #openWiki = (): void => { if (!this.#wikiBase) { this.#wikiBase = this.record; this.#wikiValue = text(recordValue(this.record)["description"]); } this.wikiOpen = true; this.#wikiError = ""; };
   readonly #wikiChanged = (e: CustomEvent<{ value: string }>): void => { this.#wikiValue = e.detail.value; this.#dirty(); };
-  readonly #cancelWiki = (): void => { if (this.wikiSaving) return; if (this.#wikiBase && this.#wikiValue !== text(recordValue(this.#wikiBase)["description"]) && !window.confirm(uiText("Discard the unsaved wiki changes?"))) return; this.#wikiBase = undefined; this.wikiOpen = false; this.#wikiError = ""; this.#dirty(); };
+  readonly #cancelWiki = (): void => { if (this.wikiSaving) return; if (this.#wikiBase && this.#wikiValue !== text(recordValue(this.#wikiBase)["description"]) && !window.confirm(uiText("Discard the unsaved wiki changes?"))) return; this.querySelector<CodexMarkdownEditor>("codex-markdown-editor")?.discardDraft(); this.#wikiBase = undefined; this.wikiOpen = false; this.#wikiError = ""; this.#dirty(); };
   readonly #saveWiki = async (): Promise<void> => {
     if (!this.#wikiBase || this.wikiSaving || this.#wikiConflict) return;
     this.wikiSaving = true; const source = this.#wikiValue;
     const result = await this.#send({ base: this.#wikiBase, fields: { description: source } });
     this.wikiSaving = false;
-    if (result.ok) { this.#accept(result); this.#wikiBase = result.record; this.status = uiText("Wiki saved"); this.#wikiError = ""; }
+    if (result.ok) { this.querySelector<CodexMarkdownEditor>("codex-markdown-editor")?.acknowledgeSave(source); this.#accept(result); this.#wikiBase = result.record; this.status = uiText("Wiki saved"); this.#wikiError = ""; }
     else { this.#wikiError = result.message; this.#wikiConflict = result.conflict === true; }
     this.#dirty(); this.requestUpdate();
   };

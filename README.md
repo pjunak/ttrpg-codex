@@ -38,7 +38,11 @@ role-safe record editors cover common fields plus canonical references,
 attitudes, ownership, hierarchy, event links, tags, fact lists, question
 ledgers, faction ranks, location roles, and atomic relationship changes. Dirty
 forms are protected across navigation and session changes, and the rebuilt wiki
-renders safe Markdown with campaign links and article outlines. The first
+renders safe Markdown with campaign links and article outlines.
+[Local Markdown recovery and shared collection views](docs/rewrite/EDITOR_BROWSING.md)
+add reviewed browser draft recovery, full-text/accent search, removable filters,
+sorting, grouping, and remembered/bookmarkable views. Local drafts protect text
+in this browser; campaign Save and backups remain separate. The first
 DM-facing settings slice manages shared campaign enumerations with stable IDs,
 usage-aware deletion, and enum-backed record fields. Bundled English and Czech
 catalogs drive the campaign interface, record and relationship editors,

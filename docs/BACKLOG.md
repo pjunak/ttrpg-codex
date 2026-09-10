@@ -779,10 +779,11 @@ Remaining graph work includes custom node-kind/general graph facade decisions,
 provider-driven invalidation, and full real-campaign visual acceptance.
 The combined graph gate stays open.
 
-Still open elsewhere: collection grouping and filter controls,
-complete settings/DM screens, and installed add-on
+Still open elsewhere: complete settings/DM screens and installed add-on
 visual acceptance. Keep the visual and release gates open until the requested
 workflows are ported; apply the lighter operational policy above at cutover.
+Collection browsing was subsequently completed in the September 11 follow-up
+below.
 
 Keep the Go monolith, SQLite ownership, reviewed package lifecycle, optional
 service graph, and offline conversion boundary. The next work should complete
@@ -868,11 +869,30 @@ relative effort, and acceptance outcome of every finding. The priorities below
 are proposals for adoption, not approval to restore every legacy mechanism or
 retire a workflow. They do not change the accepted personal-site release policy.
 The GitHub update/private-source regression was restored before this audit.
+The owner has since directed continued work entirely in the current
+architecture: no new legacy handlers or retained legacy features. Report
+concrete data-loss risks before proceeding with an affected operation; otherwise
+proceed within the requested implementation scope. Historical compatibility
+findings remain evidence, not instructions to add compatibility code.
 
+- [x] F01: implement shared local Markdown recovery with IndexedDB snapshots,
+  regular checkpoints, revision/text comparison, explicit recovery/download,
+  role and independent-tab scopes, safe save/discard cleanup, and collection
+  access to copies for deleted records. No automatic expiry of authored drafts.
+- [x] F02: implement shared descriptor-driven collection search, OR-within/AND-
+  across filters, removable chips, natural/numeric sorting, optional grouping,
+  role-projected choice counts, and remembered/bookmarkable views. Explicit
+  application retains open forms and keyboard focus; English/Czech controls
+  fit desktop and phone. [Current behavior and UX sources](rewrite/EDITOR_BROWSING.md)
+  document scope, reusable owners and browser-storage limitations. Host checks
+  pass with 339 unit and 188 browser tests, all Go tests and vet; 39 optional
+  installed-package browser cases were skipped without companion ZIPs.
 - [ ] Protect authored work: central manual-mode calculation guard and reviewed
-  provider reconciliation (F17), revision-aware local Markdown recovery (F01),
-  exact sheet replacement preview/confirmation with conflict-safe undo (F14),
-  and offline per-sheet conversion preserving old export inputs (F15).
+  provider reconciliation (F17), and exact sheet replacement preview/confirmation
+  with conflict-safe undo (F14). F15 is a historical old-export access risk;
+  do not add a legacy importer or converter by default. Identify and report
+  affected user-owned data if a requested operation encounters it, preserving
+  originals while agreeing a concrete recovery action.
 - [ ] Restore focused play and reading value: saved senses (F19), coherent HP
   limits with explicit manual exceptions (F20), advisory attunement capacity
   (F16), encounter/puzzle reader (F21), dedicated print view (F13), and
@@ -883,8 +903,8 @@ The GitHub update/private-source regression was restored before this audit.
   broker-backed provider conflict resolution with automatic defaults (F08);
   and package uninstall retaining data by default, with dependency review and
   a separate data-purge decision (F09).
-- [ ] Improve browsing and context: consistent collection filters/sorts/views
-  (F02), search quick-jump overlay (F03), focused map editor (F05), concise
+- [ ] Improve browsing and context: search quick-jump overlay (F03), focused
+  map editor (F05), concise
   role-filtered activity summaries (F04), and a minimal contributed settings
   destination (F10).
 - [ ] Record decisions on conditional extensions: split read-only map context

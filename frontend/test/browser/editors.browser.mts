@@ -72,6 +72,255 @@ const submission = (page: Page) => page.evaluate(() => window.editorFixture.subm
 
 const language = (page: Page, locale: string) => page.evaluate(locale => window.editorFixture.language(locale), locale);
 
+async function reloadFixture(page: Page, data: unknown, route: string) {
+  await page.reload();
+  await page.waitForFunction(() => window.editorFixture !== undefined);
+  await page.evaluate(({ data, route }) => window.editorFixture.mount(data, route), { data, route });
+}
+async function localCopySaved(page: Page) {
+  await page.locator('.writer-recovery-status').filter({ hasText: 'Recovery copy saved on this device.' }).waitFor();
+}
+async function reviewLocalDraft(page: Page) {
+  await page.locator('.writer-recovery-review > summary').click();
+  await page.getByRole('button', { name: 'Use this draft', exact: true }).waitFor();
+}
+
+async function screenshotForReview(page: Page, name: string) {
+  if (process.env['CODEX_UI_SCREENSHOTS'] === '1') await page.screenshot({ path: fileURLToPath(new URL(`../../../docs/plans/drafts-collections-${name}.png`, import.meta.url)), fullPage: true });
+}
+
+test("Markdown survives reload, requires review, and is removed after confirmed campaign save", async t => {
+  const data = dataset({ characters: [character()] });
+  const page = await fixture(t, data, '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click();
+  await sourceView(page);
+  await page.locator('.writer-source').fill('## Durable prose\n\nA **deliberate** edit.');
+  await localCopySaved(page);
+  await reloadFixture(page, data, '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click();
+  assert.equal(await page.locator('.writer-source').inputValue(), 'Old notes');
+  assert.equal(await page.evaluate(() => window.editorFixture.submissions.length), 0);
+  await reviewLocalDraft(page);
+  await page.getByRole('button', { name: 'Use this draft', exact: true }).click();
+  assert.equal(await page.locator('.writer-source').inputValue(), '## Durable prose\n\nA **deliberate** edit.');
+  assert.equal(await page.evaluate(() => window.editorFixture.submissions.length), 0);
+  await page.getByRole('button', { name: 'Save text', exact: true }).click();
+  await page.locator('.character-save-status').filter({ hasText: 'Wiki saved' }).waitFor();
+  await page.locator('.writer-recovery-status').filter({ hasText: 'Local recovery is on' }).waitFor();
+  const saved = character(2); saved.value.description = '## Durable prose\n\nA **deliberate** edit.';
+  await reloadFixture(page, dataset({ characters: [saved] }), '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click();
+  await page.locator('.writer-recovery-status').waitFor();
+  assert.equal(await page.locator('.writer-recovery-review').count(), 0);
+});
+
+test("separate tabs retain independent Markdown drafts when one is recovered and saved", async t => {
+  const data = dataset({ characters: [character()] });
+  const page = await fixture(t, data, '#/characters/ryn');
+  const second = await page.context().newPage(); second.setDefaultTimeout(5000);
+  await second.goto(`${origin}/test/browser/editor-fixture.html`);
+  await second.waitForFunction(() => window.editorFixture !== undefined);
+  await second.evaluate(data => window.editorFixture.mount(data, '#/characters/ryn'), data);
+  for (const [tab, value] of [[page, 'First tab work'], [second, 'Second tab work']] as const) {
+    await tab.getByRole('button', { name: 'Edit wiki', exact: true }).click(); await sourceView(tab);
+    await tab.locator('.writer-source').fill(value); await localCopySaved(tab);
+  }
+  await reloadFixture(page, data, '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click();
+  await page.getByText('Local drafts available (2)', { exact: true }).waitFor();
+  await reviewLocalDraft(page);
+  assert.equal(await page.locator('.writer-recovery-comparison section').last().locator('pre').textContent(), 'Second tab work');
+  await page.getByRole('button', { name: 'Use this draft', exact: true }).click();
+  await page.getByRole('button', { name: 'Save text', exact: true }).click();
+  await page.locator('.writer-recovery-status').filter({ hasText: 'Local recovery is on' }).waitFor();
+  const saved = character(2); saved.value.description = 'Second tab work';
+  await reloadFixture(page, dataset({ characters: [saved] }), '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click();
+  await page.getByText('Local drafts available (1)', { exact: true }).waitFor();
+  await reviewLocalDraft(page);
+  assert.equal(await page.locator('.writer-recovery-comparison section').last().locator('pre').textContent(), 'First tab work');
+});
+
+test("recovery compares changed saved text and a subsequent remote change still rejects stale saves", async t => {
+  const data = dataset({ characters: [character()] });
+  const page = await fixture(t, data, '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click(); await sourceView(page);
+  await page.locator('.writer-source').fill('My recovered text'); await localCopySaved(page);
+  const remote = character(2); remote.value.description = 'Remote text';
+  await reloadFixture(page, dataset({ characters: [remote] }), '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click();
+  await reviewLocalDraft(page);
+  await page.getByText('The saved entry has changed since this draft began. Compare the text before using it.', { exact: true }).waitFor();
+  assert.equal(await page.locator('.writer-recovery-comparison section').nth(1).locator('pre').textContent(), 'Remote text');
+  await screenshotForReview(page, 'recovery');
+  await page.getByRole('button', { name: 'Use this draft', exact: true }).click();
+  const newer = character(3); newer.value.description = 'Another remote edit';
+  await refresh(page, dataset({ characters: [newer] }));
+  await page.getByRole('button', { name: 'Save text', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: 'field changed' }).waitFor();
+  assert.equal(await page.locator('.writer-source').inputValue(), 'My recovered text');
+  assert.equal((await submission(page))?.mutation, undefined);
+});
+
+test("current editor text is retained as another draft before recovering a different copy", async t => {
+  const data = dataset({ characters: [character()] });
+  const page = await fixture(t, data, '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click(); await sourceView(page);
+  await page.locator('.writer-source').fill('Original recovered draft'); await localCopySaved(page);
+  await reloadFixture(page, data, '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click(); await sourceView(page);
+  await page.locator('.writer-source').fill('New writing before review');
+  await reviewLocalDraft(page);
+  await page.getByRole('button', { name: 'Use this draft', exact: true }).click(); await localCopySaved(page);
+  assert.equal(await page.locator('.writer-source').inputValue(), 'Original recovered draft');
+  await reloadFixture(page, data, '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click(); await reviewLocalDraft(page);
+  const options = await page.getByRole('combobox', { name: 'Draft to review', exact: true }).locator('option').evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).filter(Boolean));
+  const texts: string[] = [];
+  for (const option of options) {
+    await page.getByRole('combobox', { name: 'Draft to review', exact: true }).selectOption(option);
+    texts.push(await page.locator('.writer-recovery-comparison section').last().locator('pre').innerText());
+  }
+  assert.ok(texts.includes('New writing before review')); assert.ok(texts.includes('Original recovered draft'));
+});
+
+test("generic create forms recover Markdown by field and role without changing saved campaign records", async t => {
+  const data = dataset({ locations: [{ key: 'keep', revision: 1, value: { name: 'Keep' } }] });
+  const page = await fixture(t, data, '#/locations');
+  await page.getByRole('button', { name: 'Add location', exact: true }).click();
+  const writer = page.locator('codex-markdown-editor').first();
+  await writer.getByRole('combobox', { name: 'Editor view', exact: true }).selectOption('markdown');
+  await writer.locator('.writer-source').fill('Unsaved location prose');
+  await writer.locator('.writer-recovery-status').filter({ hasText: 'Recovery copy saved' }).waitFor();
+  await reloadFixture(page, data, '#/locations');
+  await page.evaluate(() => window.editorFixture.role('player'));
+  await page.getByRole('button', { name: 'Add location', exact: true }).click();
+  assert.equal(await page.locator('.writer-recovery-review').count(), 0);
+  await page.evaluate(() => window.editorFixture.role('dm'));
+  await page.getByRole('button', { name: 'Add location', exact: true }).click();
+  await page.getByText('Local drafts available (1)', { exact: true }).waitFor();
+  await page.locator('.writer-recovery-review > summary').click();
+  await page.getByRole('button', { name: 'Use this draft', exact: true }).click();
+  assert.equal(await page.locator('codex-markdown-editor').first().locator('.writer-source').inputValue(), 'Unsaved location prose');
+  assert.equal(await page.evaluate(() => window.editorFixture.submissions.length), 0);
+  await page.evaluate(() => window.editorFixture.navigate('#/locations/keep'));
+  await editRecordOrDefinition(page);
+  assert.equal(await page.locator('.writer-recovery-review').count(), 0);
+});
+
+test("collection views apply compound filters and persist sorting/grouping without clearing an open create form", async t => {
+  const data = dataset({ characters: [character(), { key: 'zar', revision: 1, value: { name: 'Žár', faction: 'watch', description: `${'Intro '.repeat(100)}Strážce severu`, tags: ['scout'] } }],
+    factions: [{ key: 'watch', revision: 1, value: { name: 'Noční hlídka' } }] });
+  const page = await fixture(t, data, '#/characters');
+  await page.getByRole('button', { name: 'Add character', exact: true }).click();
+  await page.locator('.record-editor [name="name"]').fill('Unsubmitted character');
+  await page.getByRole('searchbox', { name: 'Search this collection', exact: true }).fill('zar strazce');
+  assert.equal(await page.locator('.record-row').count(), 2);
+  await page.locator('.collection-filter-picker > summary').click();
+  await page.getByRole('combobox', { name: 'Filter by', exact: true }).selectOption('faction');
+  await page.getByRole('combobox', { name: 'Value', exact: true }).selectOption('watch');
+  await page.getByRole('button', { name: 'Add filter', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Group by', exact: true }).selectOption('faction');
+  await page.getByRole('combobox', { name: 'Sort direction', exact: true }).selectOption('desc');
+  await page.getByRole('button', { name: 'Apply view', exact: true }).click();
+  await page.getByText('1 of 2 entries', { exact: true }).waitFor();
+  assert.equal(await page.locator('.record-editor [name="name"]').inputValue(), 'Unsubmitted character');
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), 'Apply view');
+  assert.match(page.url(), /q=zar\+strazce/);
+  await reloadFixture(page, data, '#/characters');
+  await page.getByText('1 of 2 entries', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('combobox', { name: 'Group by', exact: true }).inputValue(), 'faction');
+  assert.equal(await page.getByRole('combobox', { name: 'Sort direction', exact: true }).inputValue(), 'desc');
+  await screenshotForReview(page, 'desktop');
+  await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
+  await page.getByText('2 of 2 entries', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('searchbox', { name: 'Search this collection', exact: true }).inputValue(), '');
+});
+
+test("Czech phone collection controls remain usable and announce zero results with a clear recovery action", async t => {
+  const page = await fixture(t, dataset({ characters: [character()] }), '#/characters');
+  await page.setViewportSize({ width: 390, height: 844 }); await language(page, 'cs');
+  await page.getByRole('searchbox', { name: 'Prohledat tuto sbírku', exact: true }).fill('nenalezeno');
+  await page.getByRole('button', { name: 'Použít zobrazení', exact: true }).click();
+  await page.getByText('0 z 1 záznamu', { exact: true }).waitFor();
+  assert.ok(await page.getByRole('button', { name: 'Vymazat filtry', exact: true }).isEnabled());
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  await page.getByRole('button', { name: 'Vymazat filtry', exact: true }).click();
+  await page.getByText('1 z 1 záznamu', { exact: true }).waitFor();
+  await screenshotForReview(page, 'phone');
+});
+
+test("blocked browser draft storage reports the limitation and still allows campaign Save", async t => {
+  const page = await fixture(t, dataset({ characters: [character()] }), '#/characters/ryn');
+  await page.evaluate(() => {
+    Object.defineProperty(IDBFactory.prototype, 'open', { configurable: true, value() { throw new DOMException('Unavailable', 'QuotaExceededError'); } });
+  });
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click(); await sourceView(page);
+  await page.locator('.writer-source').fill('Keep this text');
+  await page.getByRole('alert').filter({ hasText: 'Local recovery is unavailable' }).waitFor();
+  assert.equal(await page.locator('.writer-source').inputValue(), 'Keep this text');
+  await page.getByRole('link', { name: 'Download Markdown', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Save text', exact: true }).click();
+  await page.locator('.character-save-status').filter({ hasText: 'Wiki saved' }).waitFor();
+  assert.equal((await submission(page))?.mutation?.mutations[0].value.description, 'Keep this text');
+});
+
+test("explicit wiki cancellation removes its local copy while failed campaign saves retain it", async t => {
+  const data = dataset({ characters: [character()] });
+  const page = await fixture(t, data, '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click(); await sourceView(page);
+  await page.locator('.writer-source').fill('Retain after failure'); await localCopySaved(page);
+  await page.evaluate(() => window.editorFixture.failNextSave('Save unavailable'));
+  await page.getByRole('button', { name: 'Save text', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: 'Save unavailable' }).waitFor();
+  await reloadFixture(page, data, '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click(); await reviewLocalDraft(page);
+  await page.getByRole('button', { name: 'Use this draft', exact: true }).click(); await localCopySaved(page);
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click();
+  await page.locator('.writer-recovery-status').waitFor();
+  assert.equal(await page.locator('.writer-recovery-review').count(), 0);
+});
+
+test("a linked collection view survives article navigation and role changes keep separate browser preferences", async t => {
+  const data = dataset({ characters: [character(), { key: 'other', revision: 1, value: { name: 'Other' } }] });
+  const page = await fixture(t, data, '#/characters?view=1&q=Ryn&direction=desc');
+  await page.getByText('1 of 2 entries', { exact: true }).waitFor();
+  await page.evaluate(() => window.editorFixture.navigate('#/characters/ryn'));
+  await page.evaluate(() => window.editorFixture.navigate('#/characters'));
+  await page.getByText('1 of 2 entries', { exact: true }).waitFor();
+  await page.evaluate(() => window.editorFixture.role('player'));
+  await page.getByText('2 of 2 entries', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('searchbox', { name: 'Search this collection', exact: true }).inputValue(), '');
+  assert.doesNotMatch(page.url(), /q=Ryn/);
+  await page.evaluate(() => window.editorFixture.role('dm'));
+  await page.getByText('1 of 2 entries', { exact: true }).waitFor();
+});
+
+test("a deleted record's draft remains downloadable from its collection without recreating data", async t => {
+  const page = await fixture(t, dataset({ characters: [character()] }), '#/characters/ryn');
+  await page.getByRole('button', { name: 'Edit wiki', exact: true }).click(); await sourceView(page);
+  await page.locator('.writer-source').fill('Text for an entry removed elsewhere'); await localCopySaved(page);
+  await reloadFixture(page, dataset({}), '#/characters');
+  await page.locator('.collection-local-drafts > summary').click();
+  await page.locator('.collection-local-draft > summary').filter({ hasText: 'Entry no longer available' }).click();
+  assert.equal(await page.locator('.collection-local-draft pre').innerText(), 'Text for an entry removed elsewhere');
+  assert.equal(await page.getByRole('link', { name: 'Open entry', exact: true }).count(), 0);
+  const downloaded = page.waitForEvent('download');
+  await page.getByRole('link', { name: 'Download Markdown', exact: true }).click();
+  const download = await downloaded;
+  const stream = await download.createReadStream();
+  assert.ok(stream);
+  let content = '';
+  for await (const chunk of stream) content += String(chunk);
+  assert.equal(content, 'Text for an entry removed elsewhere');
+  assert.equal(await page.evaluate(() => window.editorFixture.submissions.length), 0);
+  await page.evaluate(() => window.editorFixture.role('player'));
+  await page.locator('.collection-local-drafts > summary').click();
+  await page.getByText('No local drafts for this collection.', { exact: true }).waitFor();
+});
+
 test("direct character edits confirm with Enter, cancel with Escape and preserve the article", async t => {
   const page = await fixture(t, dataset({ characters: [character()], settings: [gender()] }), '#/characters/ryn');
   await page.getByRole('button', { name: 'Edit Name', exact: true }).click();

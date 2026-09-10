@@ -1,7 +1,7 @@
 import { uiText } from "./ui-localization.js";
 import "./codex-portrait-editor.js";
 import { CodexCharacterProfile } from "./codex-character-profile.js";
-import "./codex-markdown-editor.js";
+import { CodexMarkdownEditor } from "./codex-markdown-editor.js";
 import type { CodexPortraitEditor } from "./codex-portrait-editor.js";
 import { previewResourceURL } from "../core/player-preview.js";
 import { LitElement, html, nothing } from "lit";
@@ -54,6 +54,10 @@ import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { AddonLinksController } from "./addon-links-controller.js";
+import "./codex-collection-browser.js";
+import "./codex-local-drafts.js";
+import { collectionModel } from "./collection-model.js";
+import { defaultCollectionView, parseCollectionView, readCollectionView, rememberCollectionView, serializeCollectionView, type CollectionView } from "./collection-view.js";
 type RecordRoute = Extract<AppRoute, { kind: "collection" | "record" | "create" }>;
 
 export class CodexRecordPage extends LitElement {
@@ -65,7 +69,7 @@ export class CodexRecordPage extends LitElement {
     canManageVisibility: { type: Boolean, attribute: "can-manage-visibility" },
     saving: { type: Boolean },
     editCompletion: { type: Number, attribute: false },
-    query: { state: true },
+    collectionView: { state: true }, viewStorageUnavailable: { state: true },
     editor: { state: true },
     characterEditorTab: { state: true },
   };
@@ -79,7 +83,8 @@ export class CodexRecordPage extends LitElement {
   declare canManageVisibility: boolean;
   declare saving: boolean;
   declare editCompletion: number;
-  declare private query: string;
+  declare private collectionView: CollectionView;
+  declare private viewStorageUnavailable: boolean;
   declare private editor: "closed" | "create" | "edit";
   declare private characterEditorTab: "details" | "connections" | "knowledge";
   #dirty = false;
@@ -88,6 +93,8 @@ export class CodexRecordPage extends LitElement {
   #editCampaign: CampaignDataset | undefined;
   #factionDraft: string | undefined;
   readonly #markdownDrafts = new Map<string, string>();
+  #submittedMarkdown: readonly { editor: CodexMarkdownEditor; value: string }[] = [];
+  #pendingViewHash: string | undefined;
 
   constructor() {
     super();
@@ -97,7 +104,7 @@ export class CodexRecordPage extends LitElement {
     this.canManageVisibility = false;
     this.saving = false;
     this.editCompletion = 0;
-    this.query = "";
+    this.collectionView = defaultCollectionView; this.viewStorageUnavailable = false;
     this.editor = "closed";
     this.characterEditorTab = "details";
   }
@@ -117,14 +124,26 @@ export class CodexRecordPage extends LitElement {
   }
 
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
+    if (changed.has("actorRole") || changed.has("canEdit") && !this.canEdit) {
+      this.editor = "closed"; this.#resetEditors(); this.#setDirty(false);
+    }
     if (changed.has("route")) {
       this.#links.retry();
-      this.query = "";
-      this.editor = "closed";
-      this.#resetEditors();
-      this.#setDirty(false);
+      const previous = changed.get("route") as RecordRoute | undefined;
+      const sameCollection = previous?.kind === "collection" && this.route?.kind === "collection" && previous.page.id === this.route.page.id;
+      if (!sameCollection) {
+        this.editor = "closed"; this.#resetEditors(); this.#setDirty(false);
+      }
+    }
+    if ((changed.has("route") || changed.has("actorRole")) && this.route?.kind === "collection") {
+      const roleChanged = changed.has("actorRole") && changed.get("actorRole") !== undefined;
+      this.collectionView = this.route.view !== undefined && !roleChanged ? parseCollectionView(this.route.view)
+        : readCollectionView(this.route.page.id, this.actorRole ?? "public");
+      this.viewStorageUnavailable = this.route.view !== undefined && !roleChanged && !rememberCollectionView(this.route.page.id, this.actorRole ?? "public", this.collectionView);
+      if (roleChanged) this.#pendingViewHash = `${collectionHash(this.route.page)}?${serializeCollectionView(this.collectionView)}`;
     }
     if (changed.has("editCompletion")) {
+      for (const { editor, value } of this.#submittedMarkdown) editor.acknowledgeSave(value);
       this.editor = "closed";
       this.#resetEditors();
       this.#setDirty(false);
@@ -151,27 +170,27 @@ export class CodexRecordPage extends LitElement {
       </article>`;
     }
     return this.route.kind === "collection"
-      ? this.#collection(campaign, this.route)
+      ? this.#collection(this.route)
       : this.#record(campaign, this.route);
+  }
+
+  protected override updated(): void {
+    if (this.#pendingViewHash) {
+      const hash = this.#pendingViewHash; this.#pendingViewHash = undefined;
+      this.dispatchEvent(new CustomEvent("campaign-collection-view", { detail: { hash }, bubbles: true, composed: true }));
+    }
   }
 
   get #editorCampaign(): CampaignDataset {
     return this.#editCampaign ?? this.campaign!;
   }
 
-  #collection(dataset: CampaignDataset, route: Extract<RecordRoute, { kind: "collection" }>) {
-    const entities = projectEntities(dataset, route.page);
-    const needle = this.query.trim().toLocaleLowerCase();
-    const visible = needle === "" ? entities : entities.filter((entity) =>
-      [entity.name, entity.title, entity.excerpt, ...entity.tags]
-        .join(" ").toLocaleLowerCase().includes(needle)
-    );
+  #collection(route: Extract<RecordRoute, { kind: "collection" }>) {
     return html`
       <article class="collection-page" data-collection=${route.page.collection} aria-labelledby="collection-title">
         <header class="page-heading collection-heading">
           <div>
             <h1 id="collection-title">${route.page.plural}</h1>
-            <p aria-live="polite">${uiText("{0} / {1} records", { "0": visible.length, "1": entities.length })}</p>
           </div>
           ${this.canEdit ? html`
             <button class="record-action primary-record-action" type="button" @click=${this.#startCreate} ?disabled=${this.saving || this.editor !== "closed"}>
@@ -180,18 +199,10 @@ export class CodexRecordPage extends LitElement {
           ` : nothing}
         </header>
         ${this.editor === "create" ? this.#editorForm(undefined, route) : nothing}
-        <label class="collection-search">
-          <span>${uiText("Filter {0}", { "0": route.page.plural.toLocaleLowerCase() })}</span>
-          <input
-            type="search"
-            .value=${this.query}
-            placeholder=${uiText("Name, title, or tag")}
-            @input=${this.#onSearch}
-          />
-        </label>
-        ${visible.length === 0
-          ? html`<p class="empty-state">${uiText("No matching entries are recorded in this part of the archive.")}</p>`
-          : html`<div class="record-ledger">${visible.map((entity) => recordRow(entity, route.page.icon))}</div>`}
+        <codex-collection-browser .model=${collectionModel(this.campaign!, route.page)} .view=${this.collectionView}
+          .renderEntry=${(entity: EntitySummary) => recordRow(entity, route.page.icon)} .storageUnavailable=${this.viewStorageUnavailable}
+          @collection-view-change=${this.#changeCollectionView}></codex-collection-browser>
+        ${this.canEdit ? html`<codex-local-drafts .campaign=${this.campaign} .page=${route.page} .actorRole=${this.actorRole}></codex-local-drafts>` : nothing}
       </article>
     `;
   }
@@ -199,7 +210,7 @@ export class CodexRecordPage extends LitElement {
   #record(dataset: CampaignDataset, route: Extract<RecordRoute, { kind: "record" }>) {
     const collection = campaignCollection(dataset, route.page.collection);
     const profile = this.querySelector<CodexCharacterProfile>("codex-character-profile");
-    const retained = route.page.collection === "characters" && profile?.record.key === route.key && profile.hasDraft ? profile : undefined;
+    const retained = this.canEdit && route.page.collection === "characters" && profile?.actorRole === this.actorRole && profile?.record.key === route.key && profile.hasDraft ? profile : undefined;
     const record = collection.records.find(({ key }) => key === route.key) ?? retained?.record;
     if (record === undefined) {
       return html`
@@ -234,6 +245,7 @@ export class CodexRecordPage extends LitElement {
     };
     if (route.page.collection === "characters") return html`${this.#linkFailure()}<codex-character-profile
       .campaign=${dataset} .record=${record} .entity=${entity} .context=${markdownContext}
+      .actorRole=${this.actorRole}
       .extraSections=${articleSections({ ...value, description: undefined, known: undefined, unknown: undefined })}
       .canEdit=${this.canEdit} .canManageVisibility=${this.canManageVisibility}
       @campaign-character-edit-all=${this.#startEdit}></codex-character-profile>`;
@@ -319,8 +331,12 @@ export class CodexRecordPage extends LitElement {
     `;
   }
 
-  readonly #onSearch = (event: Event): void => {
-    this.query = (event.currentTarget as HTMLInputElement).value;
+  readonly #changeCollectionView = (event: CustomEvent<CollectionView>): void => {
+    event.stopPropagation();
+    if (this.route?.kind !== "collection") return;
+    this.collectionView = event.detail;
+    this.viewStorageUnavailable = !rememberCollectionView(this.route.page.id, this.actorRole ?? "public", event.detail);
+    this.dispatchEvent(new CustomEvent("campaign-collection-view", { detail: { hash: `${collectionHash(this.route.page)}?${serializeCollectionView(event.detail)}` }, bubbles: true, composed: true }));
   };
 
   #editorForm(record: CampaignRecord | undefined, route: RecordRoute) {
@@ -471,6 +487,9 @@ export class CodexRecordPage extends LitElement {
       return html`<section class="markdown-editor wide-field"><codex-markdown-editor
         .name=${field.key} .label=${field.label} .value=${source} .identity=${currentKey + ":" + field.key + ":" + this.editCompletion}
         .context=${context} .disabled=${this.saving} .maximumLength=${field.maximumLength}
+        .draftContext=${this.actorRole && this.route ? { role: this.actorRole, collection: this.route.page.collection,
+          record: currentKey || null, field: field.key, baseValue: editorValue(value[field.key]),
+          revision: campaignCollection(this.#editorCampaign, this.route.page.collection).records.find(record => record.key === currentKey)?.revision ?? 0 } : undefined}
         .saveLabel=${uiText("Save entry")}
         @markdown-change=${(event: CustomEvent<{ value: string }>) => { this.#markdownDrafts.set(field.key, event.detail.value); this.#setDirty(true); }}
         @markdown-save=${(event: Event) => { (event.currentTarget as HTMLElement).closest("form")?.requestSubmit(); }}
@@ -593,6 +612,7 @@ export class CodexRecordPage extends LitElement {
 
   readonly #closeEditor = (): void => {
     if (!this.saving && confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))) {
+      this.querySelectorAll<CodexMarkdownEditor>("codex-markdown-editor").forEach(editor => editor.discardDraft());
       this.#setDirty(false);
       this.editor = "closed";
       this.#resetEditors();
@@ -611,6 +631,7 @@ export class CodexRecordPage extends LitElement {
   };
 
   #resetEditors(): void {
+    this.#submittedMarkdown = [];
     this.#editCampaign = undefined;
     this.#markdownDrafts.clear();
     this.#factionDraft = undefined;
@@ -682,6 +703,8 @@ export class CodexRecordPage extends LitElement {
         ? { visibility: data.get("visibility") === "dm" ? "dm" as const : "public" as const }
         : {}),
     };
+    this.#submittedMarkdown = [...form.querySelectorAll<CodexMarkdownEditor>("codex-markdown-editor")]
+      .map(editor => ({ editor, value: editor.value }));
     this.dispatchEvent(new CustomEvent<CampaignRecordSaveDetail>("campaign-record-save", {
       detail,
       bubbles: true,

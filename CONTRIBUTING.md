@@ -109,6 +109,14 @@ Do not add startup-time legacy readers or a general legacy restore mode.
 
 ## Tests and commits
 
+The host editing/browsing inventory includes `frontend/test/markdown-drafts.test.ts`
+for recovery scheduling and cleanup races, `frontend/test/collection-model.test.ts`
+for descriptor-driven queries, and `frontend/test/browser/editors.browser.mts`
+for real IndexedDB reload/tab behavior, save failures, role changes, bookmarks,
+and responsive controls. See [the workflow reference](docs/rewrite/EDITOR_BROWSING.md)
+for contracts, UX sources and validation limits. These tests use disposable
+browser contexts; do not exercise draft deletion against a user's profile.
+
 Add a regression test at the narrowest owner for every behavior change. Contract
 changes also require affected first-party add-on gates and package inspection.
 Keep commits independently understandable. Never deploy, push, or edit live

@@ -42,6 +42,7 @@ export interface CampaignEditorField {
   readonly enumCategory?: CampaignEnumCategory;
   readonly reservedOptions?: readonly CampaignEditorOption[];
   readonly excludeCurrent?: boolean;
+  readonly browse?: boolean;
 }
 
 export interface CampaignEditorOption {
@@ -352,6 +353,7 @@ function field(
     ...(options.enumCategory === undefined ? {} : { enumCategory: options.enumCategory }),
     ...(options.reservedOptions === undefined ? {} : { reservedOptions: options.reservedOptions }),
     ...(options.excludeCurrent === undefined ? {} : { excludeCurrent: options.excludeCurrent }),
+    ...(options.browse === undefined ? {} : { browse: options.browse }),
   };
   // Spreading an accessor would freeze its current translation at module load.
   for (const key of ["placeholder", "help"] as const) if (options[key] !== undefined) {
@@ -369,7 +371,7 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
   characters: Object.freeze([
     name,
     field("title", "Title"),
-    field("species", "Species"),
+    field("species", "Species", { browse: true }),
     field("gender", "Gender", { kind: "enum", enumCategory: "genders" }),
     field("age", "Age"),
     field("status", "Status", { kind: "enum", enumCategory: "characterStatuses" }),
@@ -417,12 +419,12 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
   ]),
   locations: Object.freeze([
     name,
-    field("type", "Kind"),
+    field("type", "Kind", { browse: true }),
     field("pinType", "Map marker", { kind: "enum", enumCategory: "pinTypes" }),
     field("size", "Marker size", { kind: "number", maximumLength: 5, minimum: 14, maximum: 64,
       get placeholder() { return uiText("Default for marker type"); }, get help() { return uiText("Leave empty to follow the marker type's size (14–64 px)."); } }),
-    field("region", "Region"),
-    field("knowledge", "Knowledge", { kind: "number", maximumLength: 1, minimum: 0, maximum: 4 }),
+    field("region", "Region", { browse: true }),
+    field("knowledge", "Knowledge", { kind: "number", maximumLength: 1, minimum: 0, maximum: 4, browse: true }),
     field("parentId", "Contained in", {
       kind: "reference", referenceCollection: "locations", excludeCurrent: true,
       get help() { return uiText("Changing the parent removes the old map placement. Place the location on its new map after saving."); },
@@ -457,7 +459,7 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
   ]),
   mysteries: Object.freeze([
     name,
-    field("priority", "Priority"),
+    field("priority", "Priority", { browse: true }),
     field("solved", "Solved", { kind: "boolean" }),
     description,
     field("clues", "Clues", {
@@ -492,9 +494,9 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
   ]),
   pantheon: Object.freeze([
     name,
-    field("domain", "Domain"),
+    field("domain", "Domain", { browse: true }),
     field("symbol", "Symbol"),
-    field("alignment", "Alignment"),
+    field("alignment", "Alignment", { browse: true }),
     description,
   ]),
   artifacts: Object.freeze([

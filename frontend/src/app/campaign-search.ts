@@ -61,11 +61,11 @@ function searchScore(entity: EntitySummary, tokens: readonly string[]): number {
   return score;
 }
 
-function searchTokens(query: string): readonly string[] {
+export function searchTokens(query: string): readonly string[] {
   return Object.freeze([...new Set(searchable(query).split(/\s+/u).filter((token) => token.length > 0))]);
 }
 
-function searchable(value: string): string {
+export function searchable(value: string): string {
   return value
     .normalize("NFKD")
     .replace(/\p{Mark}/gu, "")

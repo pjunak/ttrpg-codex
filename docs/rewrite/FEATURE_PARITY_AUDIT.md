@@ -2,9 +2,11 @@
 
 Audited September 10–11, 2026; product recommendations revised September 11, 2026. This compares preserved source revisions with the audited local source, not a production-site inspection.
 
-**Result: 21 confirmed missing or reduced capabilities, six documented transition/design differences, and four remaining verification gaps.** Every item below now includes an assessment of its usefulness and a recommended direction. Missing does not automatically mean worth restoring in its old form. These are product proposals, not approved retirements, changed contracts, or new deployment gates. No runtime fixes or deployment changes were made for this report.
+**Audited baseline: 21 confirmed missing or reduced capabilities, six documented transition/design differences, and four verification gaps.** Every item below includes an assessment of its usefulness and a recommended direction. Missing does not automatically mean worth restoring in its old form. The original audit made no runtime or deployment changes; subsequent implementation is recorded below. These proposals do not create new deployment gates.
 
-The strongest priorities are protecting Markdown drafts and manual character values, reviewing sheet replacements, recovering old exported sheets, and controlling campaign rules sources. Several smaller reading and play controls merit early delivery. Provider selection matters when a campaign actually has competing providers; a general graph framework and web-triggered server restart have less immediate value. The GitHub installation/update/private-repository workflow reported immediately before this audit was restored in host commit `8711085`; it is **not counted as still missing**.
+**September 11 implementation update:** F01 and F02 are now implemented in the host through [shared Markdown recovery and collection browsing](EDITOR_BROWSING.md). The other 19 baseline findings retain their assessments or conditional decisions; they are not all approved implementation work. The owner directs new work entirely within the current architecture, with no new legacy handlers or retained legacy features. Report concrete data-loss risks before an affected operation; otherwise proceed within the requested scope. In particular, F15's original converter recommendation is superseded by the narrower data-preservation decision below. No production changes are part of this implementation.
+
+The strongest remaining priorities are protecting manual character values, reviewing sheet replacements, and controlling campaign rules sources. Markdown recovery is implemented; old exported sheets warrant a data-risk report if encountered, rather than default compatibility work. Several smaller reading and play controls merit early delivery. Provider selection matters when a campaign actually has competing providers; a general graph framework and web-triggered server restart have less immediate value. The GitHub installation/update/private-repository workflow reported immediately before this audit was restored in host commit `8711085`; it is **not counted as still missing**.
 
 ## Recommended decisions at a glance
 
@@ -12,8 +14,8 @@ Value is an assessment of the workflow and consequences, not measured usage. Eff
 
 | ID | Capability | Value | Recommendation | Relative effort |
 | --- | --- | --- | --- | --- |
-| F01 | Durable Markdown drafts | High | Restore with explicit, revision-aware recovery | Medium |
-| F02 | Collection filters, sorting, grouping | High for larger campaigns | Redesign as one consistent browsing model | Medium |
+| F01 | Durable Markdown drafts | High | Implemented: explicit revision-aware recovery | Completed slice |
+| F02 | Collection filters, sorting, grouping | High for larger campaigns | Implemented: shared descriptor-driven views | Completed slice |
 | F03 | Search quick-jump overlay | High during preparation/play | Restore over the existing search service | Medium |
 | F04 | Activity change summaries | Medium | Restore concise, role-filtered summaries | Small–medium |
 | F05 | Map-side editing and context | High for map preparation | Restore a focused quick editor | Medium |
@@ -26,7 +28,7 @@ Value is an assessment of the workflow and consequences, not measured usage. Eff
 | F12 | Graph kinds and reusable facade | Conditional; bundled planner already works | Defer facade; add narrow metadata only on demand | Large for facade |
 | F13 | Clean sheet printing/PDF | High for physical tables and fallback | Restore a dedicated print view | Medium |
 | F14 | Reviewed sheet import and undo | High | Redesign as exact replacement review | Medium |
-| F15 | Old sheet export compatibility | High during migration | Add a one-time offline converter | Medium |
+| F15 | Old sheet export compatibility | Conditional data-preservation risk | Report affected originals; no default compatibility code | Case-dependent |
 | F16 | Attunement capacity feedback | High, focused play aid | Restore advisory counts and warnings | Small |
 | F17 | Manual mode and reconciliation | Highest correctness priority | Gate every calculation; review changed rules | Medium–large |
 | F18 | Rule links and stat explanations | High at the table | Restore navigation first; add structured explanations | Medium / large |
@@ -58,6 +60,11 @@ Historical evidence links pin the old commit. Current file links refer to the re
 
 #### F01 — Markdown drafts no longer recover after reload or a crash · P1
 
+**Implemented after the audit:** [current recovery contract](EDITOR_BROWSING.md#local-markdown-recovery).
+The following describes the audited baseline. The implementation uses independent
+writer copies, explicit comparison and no automatic expiry of unsaved text,
+superseding the original bounded-retention suggestion below.
+
 Previously each Markdown editor saved a local draft after 500 ms, flushed it on page hide, and offered Restore/Discard for up to 30 days. The current editor retains its document in memory; the application has dirty-navigation and before-unload guards, but no durable Markdown draft store or recovery banner. Dismissing a reload prompt, closing after a failure, or a browser crash loses unsaved prose. This does not mean saved campaign records are lost.
 
 Evidence: [old recovery implementation and contract](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/web/js/edit-drafts.js), current [Markdown editor](../../frontend/src/app/codex-markdown-editor.ts) and [unsaved-edit guard](../../frontend/src/app/unsaved-edit.ts).
@@ -65,6 +72,12 @@ Evidence: [old recovery implementation and contract](https://github.com/pjunak/t
 **Assessment — restore and improve.** Long-form campaign writing makes losing an unsaved draft disproportionately costly. Keep local recovery alongside navigation guards. Scope drafts by campaign, effective role, record, field, and opening revision; show their age and offer Restore, Discard, or comparison when the saved record changed. Clear successfully saved drafts, use bounded retention, and make logout/player-preview handling explicit so DM drafts do not appear in player views. Avoid turning this into full offline synchronization. **Acceptance:** a reload recovers prose; a concurrent edit is never silently replaced; separate records and roles cannot receive each other's drafts.
 
 #### F02 — Collection browsing lost grouping, sort choices, filter chips, and saved filters · P2
+
+**Implemented after the audit:** [current collection-view contract](EDITOR_BROWSING.md#shared-collection-views).
+The following describes the audited baseline. The implementation uses OR within
+a category and AND across categories, explicit Apply, shared descriptors and
+role-scoped URL/browser preferences; it supersedes the blanket AND-chip proposal
+below.
 
 Character, location, and faction lists previously had persistent per-list state, AND-combined filter chips, accent-insensitive matching, and collection-specific sorting. Characters could group/sort by faction, name, status, or knowledge; factions supported member-count sorting. The replacement collection page has one transient substring input and no sort/group controls. It searches projected name/title/excerpt/tags, rather than the old complete kind-specific search text; it also lacks accent folding. Existing records remain accessible, but navigating a large campaign is substantially less capable.
 
@@ -178,7 +191,7 @@ V1 exported `{format:"dnd-sheets.character", version:1, sheet:...}`. The current
 
 Evidence: [old transfer format](https://github.com/pjunak/addon-dnd-character-sheets/blob/ab64f76c55f571e1446a6a0ac7842a3357d0da0f/sheet-transfer.js#L1), current [format check](../../../addon-dnd-character-sheets/src/sheet-transfer.ts).
 
-**Assessment — add a bounded migration tool.** Old exports are user-owned work worth recovering, but this is a transition need rather than a permanent runtime compatibility layer. Extend offline conversion tooling with a per-sheet path that reads the old envelope/schema, writes a current-format file to a fresh destination, and reports anything it cannot map. Leave the original untouched. The normal importer can recognize the legacy marker and point to the conversion instructions, then review converted output through F14. Changing only the format string is insufficient evidence of compatibility. **Acceptance:** representative old sheets preserve authored and unknown fields, conversion is repeatable, and unsupported content is reported rather than discarded.
+**Revised decision — preserve data without adding default compatibility.** The owner's direction supersedes the original suggestion to add a per-sheet converter and legacy-marker handler. Existing exports may contain authored work that is inaccessible to the current importer, but rejecting a file does not delete it. Keep current-format imports strict. If a requested operation encounters old exported data, identify the affected files and report the preservation risk before changing or removing them. Any concrete recovery action must preserve originals and produce reviewed current-format data; there is no standing task to add a legacy reader, importer, or converter. Changing only a format string is not evidence of compatibility. **Acceptance:** ordinary current-format work proceeds, unsupported inputs remain untouched, and actual data-loss risks are disclosed.
 
 #### F16 — Attunement capacity and over-limit feedback disappeared · P2
 
@@ -319,10 +332,10 @@ The comparison proves source-level behavior and content-tree preservation, not t
 
 ## Recommended delivery order and boundaries
 
-1. **Protect authored work.** Fix the calculation guard in F17, restore durable drafts in F01, and add exact import review/undo in F14. Provide F15's offline per-sheet conversion for users holding old exports, feeding its output through the reviewed importer. Broader provider-change comparison can follow the immediate guard; it must precede accepting changed rules automatically.
+1. **Protect authored work.** F01's durable drafts are implemented. Fix the calculation guard in F17 and add exact import review/undo in F14. Report actual old-export preservation risks under F15 without adding compatibility code by default. Broader provider-change comparison can follow the immediate guard; it must precede accepting changed rules automatically.
 2. **Recover inexpensive play value and readable sessions.** Deliver senses (F19), coherent HP edits (F20), and attunement guidance (F16) early. Add the planning reader (F21), clean printing (F13), and rule navigation from F18. These do not need to wait for a general extension framework. Structured formula explanations are a later increment of F18.
 3. **Restore campaign and operator choices.** Design sourcebook policy (F07) across the host/provider/consumer boundary, including revision identity and F17 reconciliation. Expose provider selection (F08) when needed and implement package uninstall with retained data (F09). Source policy cannot be delivered as a browse-only checkbox; provider selection cannot bypass exclusive installation rules. A data-purge action can follow safe code removal separately.
-4. **Improve navigation and complete bounded integration.** Unify collection browsing (F02), restore the search overlay (F03), map quick edits (F05), and concise activity (F04). Complete the settings outlet (F10). These can be scheduled independently as their benefit warrants; the groups express priorities and dependencies, not a requirement to finish every earlier item first.
+4. **Improve navigation and complete bounded integration.** F02's shared collection browsing is implemented. Restore the search overlay (F03), map quick edits (F05), and concise activity (F04). Complete the settings outlet (F10). These can be scheduled independently as their benefit warrants; the groups express priorities and dependencies, not a requirement to finish every earlier item first.
 5. **Keep conditional work conditional.** Require a real consumer for F11's map/editor integration and narrow F12 graph metadata; defer F12's general facade and F06's restart button. Keep D01–D04/D06's underlying boundaries while improving guidance and presentation. Treat D05's rapid placement and optional gesture preference as enhancements after the reader, rather than undoing the new defaults. Do not call these proposals approved retirements.
 
 The initial implementation scope should avoid a generic form designer, a new graph framework, server-side PDF infrastructure, live legacy compatibility, and cross-package atomic bulk updates. Each would add substantial maintenance beyond the workflow that motivated the finding. Reassess them only against a concrete need that the smaller designs cannot meet.

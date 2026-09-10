@@ -119,7 +119,7 @@ test('mobile drawer stays accessible and preserves dirty record edits', async t 
   await page.locator('.core-navigation a[href="#/characters"]').click();
   await page.locator('.record-row').first().waitFor();
   assert.equal(await page.locator('[data-menu-toggle]').getAttribute('aria-expanded'), 'false');
-  await page.locator('.record-row').first().click();
+  await page.locator('.record-row[href="#/characters/ryn"]').click();
   await page.getByLabel('More actions', { exact: true }).click(); await page.getByRole('button', { name: 'Edit all fields', exact: true }).click();
   await page.locator('[name="name"]').fill('Keep this draft');
   await page.locator('[data-menu-toggle]').click();

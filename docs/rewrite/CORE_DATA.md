@@ -138,6 +138,11 @@ merges into the current record, so fields not yet represented and add-on
 namespaces survive. Navigation, role switching, sign-out, cancellation, and
 browser unload protect dirty forms.
 
+[Markdown recovery and collection browsing](EDITOR_BROWSING.md) adds local
+text recovery to these host editors and descriptor-driven list controls. Local
+copies never bypass record revisions or automatically write to campaign data;
+the reference documents recovery limits, role scoping and browser preferences.
+
 Attitude presentation reads only the role-projected dataset. Explicit entries
 retain their order and take precedence over faction inheritance; a character
 without entries inherits its visible faction's attitudes or the configured

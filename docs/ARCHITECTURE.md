@@ -112,6 +112,11 @@ browser add-on composition. Add-ons own specialized campaign experiences. The
 production Go server serves only `index.html` and fingerprinted `/assets/`
 output from Vite; Node.js is absent from the runtime image.
 
+[Markdown recovery and collection browsing](rewrite/EDITOR_BROWSING.md) share
+host editor descriptors, current role projections, and existing record saves.
+IndexedDB holds local text recovery snapshots; small per-role collection-view
+preferences live in localStorage and the route. Neither is campaign authority.
+
 ## Backups and conversion
 
 `codex-backup.v2` contains an online SQLite backup plus every referenced blob
