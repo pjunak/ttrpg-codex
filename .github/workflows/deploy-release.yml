@@ -40,12 +40,12 @@ jobs:
           github-token: ${{ github.token }}
       - name: Verify release provenance
         id: release
-        run: node scripts/deploy-release.mjs verify
+        run: node scripts/deploy-release.mts verify
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_RUN_ID: ${{ inputs.source_run_id }}
       - name: Deploy and wait for infrastructure health
-        run: node scripts/deploy-release.mjs
+        run: node scripts/deploy-release.mts
         env:
           GH_TOKEN: ${{ secrets.INFRA_DISPATCH_TOKEN }}
           INFRA_REPO: ${{ vars.INFRA_REPO }}

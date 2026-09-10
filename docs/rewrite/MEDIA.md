@@ -42,7 +42,7 @@ is fixed at upload, independently of the character's later visibility. The UI
 supports English and Czech and uses the normal authenticated record authority.
 
 Regression coverage: `frontend/test/campaign-record-editor.test.ts` validates
-portrait mutation preparation and media binding; `frontend/test/browser/portraits.browser.mjs`
+portrait mutation preparation and media binding; `frontend/test/browser/portraits.browser.mts`
 exercises desktop/mobile save, replacement, removal, cancellation, retry,
 localization and anonymous access against a disposable Go host.
 

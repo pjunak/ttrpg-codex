@@ -90,7 +90,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          node scripts/check-release-readiness.mjs
+          node scripts/check-release-readiness.mts
           status=$?
           set -e
           if [[ "$status" -eq 0 ]]; then
@@ -170,7 +170,7 @@ jobs:
           IMAGE_REF: ${{ steps.img.outputs.name }}@${{ steps.publish_image.outputs.digest }}
         run: |
           mkdir -p release
-          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("release/release.json", JSON.stringify({repository:process.env.GITHUB_REPOSITORY, sha:process.env.GITHUB_SHA, run_id:process.env.GITHUB_RUN_ID, image_ref:process.env.IMAGE_REF}));'
+          node scripts/write-release-metadata.mts
 
       - uses: actions/upload-artifact@v7
         if: ${{ steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
@@ -233,7 +233,7 @@ jobs:
         with:
           node-version-file: .nvmrc
       - name: Deploy and wait for infrastructure health
-        run: node scripts/deploy-release.mjs
+        run: node scripts/deploy-release.mts
         env:
           GH_TOKEN: ${{ secrets.INFRA_DISPATCH_TOKEN }}
           INFRA_REPO: ${{ vars.INFRA_REPO }}

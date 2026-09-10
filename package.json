@@ -12,8 +12,9 @@
     "build": "npm --workspace @ttrpg-codex/frontend run build && go build ./cmd/codex",
     "test": "npm --workspace @ttrpg-codex/frontend test && go test ./cmd/... ./contracts/... ./internal/... ./sdk/...",
     "typecheck": "npm --workspace @ttrpg-codex/frontend run typecheck",
-    "check": "node --test scripts/*.test.mjs && npm --workspace @ttrpg-codex/frontend run check && go test ./cmd/... ./contracts/... ./internal/... ./sdk/... && go vet ./cmd/... ./contracts/... ./internal/... ./sdk/...",
-    "release-check": "node scripts/check-release-readiness.mjs"
+    "check:source": "node scripts/check-source.mts",
+    "check": "npm run check:source && npm run typecheck && node --test scripts/*.test.mts && npm --workspace @ttrpg-codex/frontend test && npm --workspace @ttrpg-codex/frontend run test:browser && go test ./cmd/... ./contracts/... ./internal/... ./sdk/... && go vet ./cmd/... ./contracts/... ./internal/... ./sdk/...",
+    "release-check": "node scripts/check-release-readiness.mts"
   },
   "engines": {
     "node": ">=24"

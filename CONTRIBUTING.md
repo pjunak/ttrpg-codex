@@ -16,6 +16,11 @@ npm run check
 
 `npm run check` type-checks, tests, and builds the TypeScript application, then
 runs Chromium editor regressions, all project-owned Go tests, and `go vet`.
+It also rejects JavaScript source files and checks the release tools and every
+browser test with the strict `tsconfig.node.json` configuration. These Node
+modules use `.mts` and run directly with Node's built-in TypeScript support;
+type checking is a separate mandatory step because Node only strips types.
+Generated browser JavaScript and add-on package entrypoints remain build outputs.
 Linux CI installs Chromium with `npx playwright install --with-deps chromium`.
 The browser fixtures use synthetic campaigns and a loopback Vite server; no
 running host or campaign data directory is needed. Useful focused commands are:

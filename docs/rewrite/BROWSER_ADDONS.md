@@ -274,7 +274,7 @@ uses `codex-dm-dashboard` at `#/dm`. Only real/effective DMs mount its exact
 hidden-content counts, browser lifecycle status, reload, and active route links
 available. Sidebar hiding does not prevent those workflow links. The UI uses
 the preserved panel/card geometry and bundled English/Czech messages.
-`installed-dm.browser.mjs` covers this boundary through reviewed fixture ZIPs,
+`installed-dm.browser.mts` covers this boundary through reviewed fixture ZIPs,
 desktop/phone screenshots, live counts, both roles and anonymous access,
 integrated/isolated modes, refresh, failure, replacement, disable and retry.
 To additionally exercise the separately built first-party package, set
@@ -321,7 +321,7 @@ frame is ready, and disposal prevents further delivery. Timeline frames measure
 their content root, allowing compact layouts to shrink as well as grow, with
 heights bounded to 1–2,400 pixels and transparent dark backgrounds.
 
-`installed-timeline.browser.mjs` exercises actual reviewed integrated and
+`installed-timeline.browser.mts` exercises actual reviewed integrated and
 isolated ZIPs on a disposable Go host: all four slots, desktop/phone layout,
 form-state retention, context updates, role/read grants, generation replacement,
 disable, and unsaved order drafts. `timeline-contributions.test.ts` and the
@@ -339,9 +339,9 @@ history entry with the canonical URL. Disabling/replacing a binding clears all
 cached results synchronously. Both integrated callbacks and isolated callback
 frames use the same boundary and ten-second deadline.
 
-`installed-wiki.browser.mjs` exercises real reviewed integrated/isolated ZIPs,
+`installed-wiki.browser.mts` exercises real reviewed integrated/isolated ZIPs,
 roles, core priority, search, old hashes, replacement, disable and reactivation.
-With `CODEX_COMPENDIUM_ZIP`, `installed-compendium.browser.mjs` also checks real
+With `CODEX_COMPENDIUM_ZIP`, `installed-compendium.browser.mts` also checks real
 typed spell/armor identities, Markdown previews, failed-load Retry and classic
 bookmarks on desktop/phone. See the [public contract](../../examples/addons/API_V3.md#wiki-references-and-library-search).
 
@@ -367,7 +367,7 @@ namespaced, and saved browser positions take precedence over model defaults.
 Asynchronous arrival fits the initial view but preserves explicit user zoom
 and movement. Ordinary refresh does not reset a viewed add-on layout.
 
-`installed-graph.browser.mjs` builds a disposable Go host and uploads real
+`installed-graph.browser.mts` builds a disposable Go host and uploads real
 checksummed integrated/isolated fixture ZIPs through stage, review, approval,
 and activation. It verifies the production frontend on desktop and phone,
 role restrictions, local movement, detail routes, invalid models, cancellation,
@@ -469,13 +469,13 @@ ready/truncated flags distinguish unavailable snapshots and omitted records;
 the exact limits are in the public API guide. Campaign refresh updates the
 mounted route context in both UI modes without resetting its local draft.
 
-`installed-dm.browser.mjs` verifies both UI modes retain drafts across route
+`installed-dm.browser.mts` verifies both UI modes retain drafts across route
 query updates, alongside DM slot authorization, replacement, disable and
 failure recovery. With `CODEX_DM_TOOLS_ZIP` pointing to the rebuilt first-party
 archive it also exercises dashboard counts, desktop/phone styling, Czech copy,
 planner edits and notes, recent-item links, reload/new-tab/back navigation,
 invalid/deleted targets and failed-read retry through an installed package.
-`installed-planner-annotation-fixture.mjs` covers core/planning/external targets,
+`installed-planner-annotation-fixture.mts` covers core/planning/external targets,
 quantities, optional consequence targets, shared/unanchored notes, retained
 drafts, failed writes and phone layout. Separate installed route fixtures check
 grant and player filtering plus context refresh in both UI modes.

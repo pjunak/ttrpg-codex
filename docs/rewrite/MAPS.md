@@ -204,12 +204,12 @@ viewport when the background image has not changed.
 
 `campaign-map.test.ts` checks map scoping, coordinate mutations, stale writes,
 saved views, configuration preservation/scaling, and opaque local image binding.
-`maps.browser.mjs` exercises the
+`maps.browser.mts` exercises the
 production build with synthetic campaign/media responses on desktop and phone,
 including position geometry, dragging, live conflicts, creation, unplacing,
 view creation/edit/delete with stale revisions, local image uploads, and event
 ordering, geometry, appearance, keyboard links, refresh, and teardown.
-`host-map.browser.mjs` runs the Go host with built frontend assets and uploads
+`host-map.browser.mts` runs the Go host with built frontend assets and uploads
 a synthetic EXIF JPEG. Desktop/phone checks require decoded marker artwork,
 working marker details, and loaded tiles without downloading the original.
 Event-pin regressions also exercise article links, world/local placement,

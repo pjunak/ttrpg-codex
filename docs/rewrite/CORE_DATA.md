@@ -64,7 +64,7 @@ entries beneath the last session, using numeric save timestamps and preserved
 ISO dates. It is available to players and anonymous readers through their
 existing role-filtered dataset, with a signed-in empty state. It needs no
 add-on; DM Tools retains its separate private planner activity. The real-host
-`overview-activity.browser.mjs` checks player creation/editing, live refresh,
+`overview-activity.browser.mts` checks player creation/editing, live refresh,
 record links, and removal when a record becomes private on desktop and phone.
 
 ## Deliberate boundaries
@@ -236,11 +236,11 @@ keyboard and phone move controls. Session-scoped creation and card editing use
 the common event form; deleting an event returns to the board. Navigation and
 timeline messages use the English/Czech catalogs. Preparation tests live in
 `frontend/test/campaign-timeline.test.ts`; production browser scenarios in
-`frontend/test/browser/timeline.browser.mjs` cover desktop/phone layout, native
+`frontend/test/browser/timeline.browser.mts` cover desktop/phone layout, native
 drag, keyboard moves, reload, empty and DM-twin views, creation/edit/deletion,
 anonymous access, live conflicts, failed saves, and navigation guards.
 The four additive timeline slots now mount integrated and isolated elements
-with bounded, permission-filtered event identities. `installed-timeline.browser.mjs`
+with bounded, permission-filtered event identities. `installed-timeline.browser.mts`
 uses real reviewed ZIPs and a disposable Go host to verify the original board,
 widget state across refreshes, role/read grants, replacement and disable, and
 protection of core order drafts. Real-campaign visual acceptance remains open.
@@ -324,7 +324,7 @@ unambiguous old positions, shared-node visibility, layout input, filters, focus,
 zoom, and rectangular/rounded edge geometry. `campaign-graph-motion.test.ts`
 covers spring settling, exact dropped points, collision separation, hidden and
 unaffected positions, bounded work, and animated edge geometry. Browser cases in
-`frontend/test/browser/relationship-graph.browser.mjs` cover desktop/phone
+`frontend/test/browser/relationship-graph.browser.mts` cover desktop/phone
 geometry, pointer and keyboard arrangement, wheel/pan behavior, detail links,
 context actions, filtering, reload, live removal, cross-tab interruption,
 storage failure/retry, mode isolation, touch input with and without reduced
@@ -333,7 +333,7 @@ also verify deferred saves, idle frame shutdown, complete cancellation,
 navigation during settling, live projection changes, cross-tab races, and
 runtime reduced-motion changes. `campaign-addon-graph.test.ts` verifies model
 validation, permission-filtered references, namespaced identities, bounded
-work, and cancellation. `installed-graph.browser.mjs` exercises integrated and
+work, and cancellation. `installed-graph.browser.mts` exercises integrated and
 isolated graph providers on a disposable Go host through the reviewed package
 lifecycle, including local movement, role restrictions, detail navigation,
 replacement, and disable. Real-campaign visual acceptance remains open.
@@ -349,7 +349,7 @@ in CSS. The identity is shared by roster headings, character placeholders and
 badges, inherited party glows, faction options, article facts, and companion
 ownership labels. The linked member list uses only the current role projection.
 `frontend/test/campaign-party.test.ts` and
-`frontend/test/browser/party-settings.browser.mjs` cover preparation and these
+`frontend/test/browser/party-settings.browser.mts` cover preparation and these
 production UI paths, including desktop/phone layout and English/Czech copy.
 
 `settings/branding` now provides the shared sidebar wordmark, tab title, and
@@ -383,7 +383,7 @@ layout exists, retaining the old setting for inspection. Existing layouts win;
 see [`LEGACY_CONVERSION.md`](LEGACY_CONVERSION.md). No startup compatibility
 reader is added.
 
-The production browser scenarios in `chrome-settings.browser.mjs` and the unit
+The production browser scenarios in `chrome-settings.browser.mts` and the unit
 checks in `campaign-chrome.test.ts` cover the controls, extensions, stale/deleted
 revisions, upload retry, safe URL projection, role-filtered navigation, collapse
 persistence, page/section drag, and mobile layout. The public Add-on API and

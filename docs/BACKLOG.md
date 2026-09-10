@@ -508,14 +508,14 @@ The September 5 planner editing batch uses the original brown/gold host tokens
 and title fonts, bounds the desktop inspector, and wraps the phone Atlas without
 page overflow. Card dimensions and native text rendering remain covered at DPR
 1 and 2. The rebuilt and inspected DM Tools ZIP passes real-host editing and
-recovery checks in `installed-planner-fixture.mjs`; the full host gate passes
+recovery checks in `installed-planner-fixture.mts`; the full host gate passes
 270 unit and 137 browser tests. This confirms the restored fields and draft
 behavior, not complete equivalence with the original planner's dialogs,
 navigation controls, or either real campaign. Keep the planner and visual
 release gates open.
 
 The follow-up flow batch adds a real installed-package regression in
-`installed-planner-flow-fixture.mjs`. It exercises flow edits from either
+`installed-planner-flow-fixture.mts`. It exercises flow edits from either
 endpoint, flow-anchored consequences, stale flow drafts, cycle rejection,
 canceled deletion, an atomic conflict after a concurrent consequence edit,
 and incoming-reference/shared-note/view cleanup. DM Tools passes 17 Node tests
@@ -559,7 +559,7 @@ visual parity, other add-ons' edit-state adoption, or either site's conversion.
 
 The item-structure batch restores the preserved planner's kind/parent form row
 and conditional event/branch fields. The installed-package regression in
-`installed-planner-structure-fixture.mjs` covers desktop/phone moves, preserved
+`installed-planner-structure-fixture.mts` covers desktop/phone moves, preserved
 children and internal flows, unchanged annotations and layouts, hidden drafts,
 invalid moves/kind changes, disappeared draft parents, concurrent children,
 and recovery after a confirmed move whose following read failed. The original
@@ -571,7 +571,7 @@ DM Tools passes 22 Node tests, 22 rendering checks at each of DPR 1 and 2,
 Go tests/vet, and inspection of its rebuilt ZIP. Desktop/phone screenshots
 confirm the restored form row fits the existing responsive inspector.
 
-The annotation batch adds `installed-planner-annotation-fixture.mjs` for
+The annotation batch adds `installed-planner-annotation-fixture.mts` for
 desktop/phone creation, target changes, quantities, unavailable saved targets,
 optional consequence targets, shared/unanchored notes and failed-save recovery.
 Integrated and isolated route fixtures verify permission/role filtering,
@@ -596,7 +596,7 @@ Fonts and branding ship in the production assets. The same sidebar and add-on
 navigation outlet now serve desktop and mobile; Escape, focus return, hidden
 drawer focus exclusion, search shortcut, and dirty-draft navigation are covered.
 
-`frontend/test/browser/visual.browser.mjs` runs against the production build
+`frontend/test/browser/visual.browser.mts` runs against the production build
 with synthetic HTTP/SSE fixtures. It compares computed colors, type and geometry
 to independently frozen v1 primitives in `test/browser/reference`, checks
 responsive layout and overflow, and exercises add-on navigation across resize.
@@ -616,7 +616,7 @@ knowledge 4, and alive status when that definition is available. An absent or
 retired alive definition leaves status unset instead of creating an unsaveable
 preset. Cancellation returns to the roster; successful creation opens the record.
 
-`frontend/test/browser/dashboard.browser.mjs` exercises the production bundle
+`frontend/test/browser/dashboard.browser.mts` exercises the production bundle
 with synthetic HTTP writes and SSE refresh: single-field saves, preserved
 extensions, unrelated refresh, stale revisions, HTTP conflicts, player party
 creation, cancel/discard behavior, missing status definitions, and desktop/phone
@@ -799,7 +799,7 @@ here before marking it complete.
 | 6 | Release acceptance | Review one fresh conversion per site, retain old data, and perform the short first-start smoke check. Outages, fixes after launch, and rollback are accepted; full rehearsal matrices can follow. |
 
 The September 4 review added Chromium regressions for record, enum, and theme
-forms in `frontend/test/browser/editors.browser.mjs`. They verify retained
+forms in `frontend/test/browser/editors.browser.mts`. They verify retained
 drafts and opening revisions after live refresh, remote deletion, reviewed
 relationship replacement, and successful saves after unrelated changes. These
 are real component tests with synthetic datasets, not a completed host/SSE or

@@ -18,8 +18,11 @@ npm run check
 npm start
 ```
 
-`npm run check` type-checks, unit-tests, browser-tests, and builds the frontend, then runs all
-project-owned Go tests and `go vet`. Useful focused checks include:
+`npm run check` rejects JavaScript source files, type-checks the frontend and
+Node tools/tests, runs unit and browser tests, builds the frontend, then runs all
+project-owned Go tests and `go vet`. Author Node tools and browser tests as
+strict `.mts` modules covered by `tsconfig.node.json`; Node executes them through
+built-in type stripping. Useful focused checks include:
 
 ```powershell
 npm --workspace @ttrpg-codex/frontend test

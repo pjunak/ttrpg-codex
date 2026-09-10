@@ -1,4 +1,6 @@
 import "../../src/styles.css";
+import type { EditorFixtureApi } from './editor-fixture-api.js';
+import { setUiLocale } from '../../src/app/ui-localization.js';
 import { CodexRecordPage } from "../../src/app/codex-record-page.js";
 import { CodexSettings } from "../../src/app/codex-settings.js";
 import { parseAppRoute } from "../../src/app/routes.js";
@@ -18,9 +20,9 @@ function submit<T>(event: Event, prepare: (detail: T) => unknown): void {
   catch (cause: unknown) { submissions.push({ detail, error: cause instanceof Error ? cause.message : String(cause) }); }
 }
 
-Object.assign(window, {
-  editorFixture: {
+const fixture: EditorFixtureApi = {
     submissions, dirty,
+    language: setUiLocale,
     async mount(value: unknown, route?: string) {
       campaign = parseCampaignDataset(value);
       if (route === undefined) {
@@ -51,5 +53,5 @@ Object.assign(window, {
       editor.editCompletion += 1;
       await editor.updateComplete;
     },
-  },
-});
+};
+window.editorFixture = fixture;

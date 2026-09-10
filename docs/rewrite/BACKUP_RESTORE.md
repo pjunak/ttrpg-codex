@@ -140,7 +140,7 @@ requires a fresh list and review before another restore/delete.
 
 Storage regression tests cover failed writes/restores, concurrent reviews,
 retention, tombstones, unknown fields, empty datasets, extensions and media.
-`recovery.browser.mjs` covers desktop/phone Settings, English/Czech copy, stale
+`recovery.browser.mts` covers desktop/phone Settings, English/Czech copy, stale
 reviews, uncertain responses, pending navigation, undo and private ZIP download.
-`installed-sheets.browser.mjs` verifies recovery in a real installed package and
+`installed-sheets.browser.mts` verifies recovery in a real installed package and
 retention of an unsaved add-on draft in another tab.
