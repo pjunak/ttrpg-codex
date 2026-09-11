@@ -1,16 +1,28 @@
 import { LitElement, html, nothing } from "lit";
+import { repeat } from "lit/directives/repeat.js";
+import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
+import type { BrowserRole } from "../addons/generation-manager.js";
+import { AddonContributionsController } from "./addon-contributions-controller.js";
+import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 import { AddonAdminClient, type AddonReview, type AddonSnapshot } from "../core/addon-admin.js";
 import { UiLocalizationController, uiSourceLabel, uiText, type MessageKey } from "./ui-localization.js";
 import { uiRequestError } from "./ui-errors.js";
 import "./codex-addon-github.js";
 import "./codex-addon-configuration.js";
+import "./codex-addon-settings.js";
 import type { InstalledGeneration } from "../core/addon-admin.js";
 import type { AddonUninstallReview } from "../core/addon-uninstall.js";
 import { HostRequestError } from "../core/api.js";
 
 export class CodexAddonManager extends LitElement {
-  static override properties = { csrfToken: { attribute: false }, snapshots: { state: true }, review: { state: true }, removal: { state: true }, pending: { state: true }, error: { state: true }, message: { state: true }, grants: { state: true } };
+  static override properties = { csrfToken: { attribute: false }, snapshots: { state: true }, review: { state: true }, removal: { state: true }, pending: { state: true }, error: { state: true }, message: { state: true }, grants: { state: true }, registry: { attribute: false }, actorRole: { attribute: false }, canManage: { attribute: false }, addonTarget: { attribute: false } };
   declare csrfToken: string;
+  declare registry: BrowserContributionRegistry | undefined;
+  declare actorRole: BrowserRole | undefined;
+  declare canManage: boolean;
+  declare addonTarget: string | null | undefined;
+  readonly #contributions = new AddonContributionsController(this, () => ({ registry: this.registry, role: this.actorRole }));
+  #inventoryLoaded = false;
   declare private snapshots: AddonSnapshot[];
   declare private review: AddonReview | undefined;
   declare private removal: AddonUninstallReview | undefined;
@@ -23,10 +35,21 @@ export class CodexAddonManager extends LitElement {
   #configurationBusy = false;
   get #busy(): boolean { return this.pending || this.#githubBusy || this.#configurationBusy; }
   readonly #ui = new UiLocalizationController(this);
-  constructor() { super(); this.snapshots = []; this.review = undefined; this.pending = false; this.error = ""; this.message = ""; this.grants = []; }
+  constructor() { super(); this.canManage = false; this.snapshots = []; this.review = undefined; this.pending = false; this.error = ""; this.message = ""; this.grants = []; }
   protected override createRenderRoot() { return this; }
-  override connectedCallback(): void { super.connectedCallback(); this.#request = new AbortController(); void this.#run(async client => { this.snapshots = await client.inventory(); }, false); }
+  override connectedCallback(): void { super.connectedCallback(); this.#request = new AbortController(); this.#inventoryLoaded = false; this.requestUpdate(); }
   override disconnectedCallback(): void { this.#request.abort(); super.disconnectedCallback(); }
+  protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
+    if (changed.has("canManage")) {
+      this.#request.abort(); this.#request = new AbortController(); this.#inventoryLoaded = false;
+      this.snapshots = []; this.review = undefined; this.removal = undefined; this.pending = false;
+      this.#githubBusy = false; this.#configurationBusy = false; this.error = ""; this.message = "";
+    }
+    if (this.isConnected && this.canManage && !this.#inventoryLoaded && !this.#busy) {
+      this.#inventoryLoaded = true;
+      void this.#run(async client => { this.snapshots = await client.inventory(); }, false);
+    }
+  }
   protected override updated(changed: Map<PropertyKey, unknown>): void {
     if (changed.has("review") && this.review || changed.has("removal") && this.removal) {
       this.querySelector(".addon-review")?.scrollIntoView({ block: "start" });
@@ -36,11 +59,20 @@ export class CodexAddonManager extends LitElement {
 
   protected override render() {
     const t = this.#ui.t.bind(this.#ui);
+    const addonIds = [...new Set(this.#contributions.list("settings").map(active => active.addonId))].sort();
+    if (!this.canManage) return html`<section class="settings-ledger addon-manager">
+      <header class="settings-ledger-heading"><div><h2>${t("addons.title")}</h2><p>${t("addons.settingsIntro")}</p></div></header>
+      ${this.#missingSettings(addonIds)}
+      ${!addonIds.length && !this.addonTarget ? html`<p>${t("addons.settingsEmpty")}</p>` : nothing}
+      <div class="addon-list">${repeat(addonIds, id => id, id => html`<article class="addon-row" data-addon-id=${id}>
+        <header><h3>${id}</h3></header>${this.#settings(id)}</article>`)}</div>
+    </section>`;
     return html`<section class="settings-ledger addon-manager" aria-busy=${this.#busy}>
       <header class="settings-ledger-heading"><div><span class="settings-category-mark" aria-hidden="true">🧩</span><div><h2>${t("addons.title")}</h2><p>${t("addons.intro")}</p></div></div>
         <button ?disabled=${this.#busy} @click=${() => this.#run(async client => { this.review = undefined; this.snapshots = await client.inventory(); })}>${t("addons.refresh")}</button></header>
       ${this.error ? html`<p role="alert">${this.error}</p>` : nothing}${this.message ? html`<p role="status">${this.message}</p>` : nothing}
       <codex-addon-configuration .csrfToken=${this.csrfToken} .disabled=${this.pending || this.#githubBusy}
+        @addon-lifecycle-request=${(event: Event) => { if (!this.#confirmLifecycle()) event.preventDefault(); }}
         .inventoryRevision=${JSON.stringify(this.snapshots.map(snapshot => [snapshot.state, snapshot.generations.map(generation => generation.generationId)]))}
         @addon-admin-busy=${(event: CustomEvent<boolean>) => { this.#configurationBusy = event.detail; if (event.detail) { this.review = undefined; this.removal = undefined; } this.requestUpdate(); }}
         @addon-configuration-applied=${async () => { this.review = undefined; this.snapshots = await new AddonAdminClient(this.csrfToken, this.#request.signal).inventory().catch(() => this.snapshots); }}></codex-addon-configuration>
@@ -51,8 +83,17 @@ export class CodexAddonManager extends LitElement {
       ${this.review ? this.#reviewPanel(this.review) : nothing}
       ${this.removal ? this.#uninstallPanel(this.removal) : nothing}
       ${this.pending && !this.snapshots.length ? html`<p role="status">${t("addons.loading")}</p>` : !this.snapshots.length ? html`<p>${t("addons.empty")}</p>` : nothing}
-      <div class="addon-list">${this.snapshots.map(snapshot => this.#addonRow(snapshot))}</div>
+      ${this.#missingSettings(addonIds)}
+      <div class="addon-list">${repeat(this.snapshots, snapshot => snapshot.state.addonId, snapshot => this.#addonRow(snapshot))}</div>
     </section>`;
+  }
+  #missingSettings(addonIds: readonly string[]) {
+    return this.addonTarget && !addonIds.includes(this.addonTarget)
+      ? html`<p role="status">${this.#ui.t("addons.settingsUnavailable")}</p>` : nothing;
+  }
+  #settings(addonId: string) {
+    return html`<codex-addon-settings .registry=${this.registry} .actorRole=${this.actorRole} .addonId=${addonId}
+      .initiallyOpen=${this.addonTarget === addonId} ?inert=${this.#busy}></codex-addon-settings>`;
   }
   #addonRow(snapshot: AddonSnapshot) {
     const t = this.#ui.t.bind(this.#ui), state = snapshot.state;
@@ -61,6 +102,7 @@ export class CodexAddonManager extends LitElement {
       <header><div><h3>${state.addonId}</h3><p>${active ? html`${active.version} · ${t("addons.active")}` : t("addons.inactive")}${snapshot.runtimeState ? ` · ${uiSourceLabel(snapshot.runtimeState)}` : ""}</p></div>
       <div class="addon-actions">${active ? html`<button ?disabled=${this.#busy} @click=${() => this.#action(snapshot, "reload")}>${t("addons.reload")}</button><button ?disabled=${this.#busy} @click=${() => this.#action(snapshot, "disable")}>${t("addons.disable")}</button>` : nothing}
         <button ?disabled=${this.#busy} @click=${() => this.#prepareUninstall(state.addonId)}>${t("addons.uninstall")}</button></div></header>
+      ${this.#settings(state.addonId)}
       <details ?open=${!active}><summary>${t("addons.versions")}</summary><ul>${snapshot.generations.map(generation => html`<li data-generation=${generation.generationId}>
         <div><strong>${generation.version}</strong> ${generation.generationId === state.activeGenerationId ? t("addons.active") : ""}<small>${this.#ui.relativeDate(generation.installedAt)}</small>
           ${generation.lastError ? html`<p role="alert">${t("addons.failed")}</p><details><summary>${uiText("Technical details")}</summary><p>${generation.lastError}</p></details>` : nothing}<details><summary>${t("addons.generation")}</summary><code>${generation.generationId}</code></details></div>
@@ -111,6 +153,7 @@ export class CodexAddonManager extends LitElement {
   }
   #prepareUninstall(addonId: string): void { void this.#run(async client => { this.review = undefined; this.removal = await client.reviewUninstall(addonId); }); }
   #uninstall(review: AddonUninstallReview): void {
+    if (!this.#confirmLifecycle()) return;
     void this.#run(async client => {
       const result = await client.uninstall(review);
       this.removal = undefined;
@@ -126,18 +169,24 @@ export class CodexAddonManager extends LitElement {
     void this.#run(async client => { const generation = await client.stage(file); this.snapshots = await client.inventory(); this.review = await client.review(generation.addonId, generation.generationId); this.grants = []; form.reset(); });
   };
   #prepare(id: string, generation: string): void { void this.#run(async client => { this.review = await client.review(id, generation); this.grants = []; }); }
-  #activate(review: AddonReview): void { void this.#run(async client => { await client.activate(review, this.grants); this.review = undefined; this.snapshots = await client.inventory(); this.message = this.#ui.t("addons.done"); }); }
+  #activate(review: AddonReview): void { if (!this.#confirmLifecycle()) return; void this.#run(async client => { await client.activate(review, this.grants); this.review = undefined; this.snapshots = await client.inventory(); this.message = this.#ui.t("addons.done"); }); }
   #action(snapshot: AddonSnapshot, action: "reload" | "disable"): void {
+    if (!this.#confirmLifecycle()) return;
     if (action === "disable" && !window.confirm(this.#ui.t("addons.disableConfirm"))) return;
     void this.#run(async client => { await client.action(snapshot, action); this.review = undefined; this.snapshots = await client.inventory(); this.message = this.#ui.t("addons.done"); });
   }
   async #run(operation: (client: AddonAdminClient) => Promise<void>, mutating = true, uninstalling = false): Promise<void> {
-    if (this.#busy) return;
+    if (this.#busy || !this.canManage) return;
     const request = this.#request; this.pending = true; this.error = ""; this.message = ""; this.removal = undefined;
     if (mutating) this.dispatchEvent(new CustomEvent("addon-admin-busy", { detail: true, bubbles: true, composed: true }));
     try { await operation(new AddonAdminClient(this.csrfToken, request.signal)); }
     catch (error) { if (!request.signal.aborted) { this.review = undefined; this.error = `${this.#ui.t("addons.failed")} ${uninstalling && error instanceof HostRequestError && error.status === 409 ? this.#ui.t("addons.uninstallConflict") : uiRequestError(error)}`; } }
     finally { if (!request.signal.aborted) { this.pending = false; if (mutating) this.dispatchEvent(new CustomEvent("addon-admin-busy", { detail: false, bubbles: true, composed: true })); } }
+  }
+  #confirmLifecycle(): boolean {
+    const edits = this.registry?.edits.state();
+    if (edits?.saving) { this.error = this.#ui.t("addons.settingsSaving"); return false; }
+    return confirmDiscardUnsavedEdit(edits?.dirty === true, message => window.confirm(message));
   }
 }
 customElements.define("codex-addon-manager", CodexAddonManager);

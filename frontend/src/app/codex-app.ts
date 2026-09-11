@@ -980,6 +980,9 @@ export class CodexApp extends LitElement {
           .actorRole=${this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined}></codex-search>`;
       case "settings":
         return html`<codex-settings
+          .registry=${this.#addons?.contributions}
+          .actorRole=${this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined}
+          .addonTarget=${this.route.addonId}
           .addonPages=${this.#canManageCampaign() && this.#addons !== undefined ? listBrowserNavigation(this.#addons.contributions, "dm", this.#ui.locale) : []}
           .csrfToken=${this.authority.state === "known" && this.authority.auth.authenticated ? this.authority.auth.csrfToken : ""}
           @addon-admin-busy=${(event: CustomEvent<boolean>) => { this.busy = event.detail; }}

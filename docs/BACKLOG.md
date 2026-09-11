@@ -925,7 +925,12 @@ findings remain evidence, not instructions to add compatibility code.
   reinstall. Cover cancellation, stale reviews, retries and desktop/phone UX.
 - [ ] Specify archive garbage collection and permanent namespace deletion
   separately, including recovery references and an explicit data-loss review.
-- [ ] Complete a minimal contributed settings destination (F10).
+- [x] Complete [contributed settings disclosures](rewrite/BROWSER_ADDONS.md#add-on-settings)
+  (F10) inside each add-on card: role filtering, direct links, collapsed draft
+  retention, navigation/lifecycle guards, and generation cleanup. Reviewed
+  integrated/isolated fixtures cover persisted saves, player visibility,
+  failures/retry, localized labels, and desktop/phone interaction. Existing
+  storage contracts remain authoritative; no legacy handlers or migrations.
 - [ ] Record decisions on conditional extensions: split read-only map context
   from transactional editor contributions (F11); require actual consumers for
   graph metadata and defer the general facade (F12); defer a web restart action

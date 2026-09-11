@@ -35,7 +35,7 @@ export type AppRoute =
       readonly event?: { readonly key: string; readonly mode: "show" | "place" };
       readonly location?: { readonly key: string; readonly mode: "show" | "place" } }
   | { readonly kind: "create"; readonly page: CampaignPageDefinition; readonly preset: "party" | "event"; readonly sitting?: number }
-  | { readonly kind: "settings"; readonly mapParentId?: string | null }
+  | { readonly kind: "settings"; readonly mapParentId?: string | null; readonly addonId?: string | null }
   | { readonly kind: "collection"; readonly page: CampaignPageDefinition; readonly view?: string }
   | { readonly kind: "record"; readonly page: CampaignPageDefinition; readonly key: string; readonly editing?: boolean }
   | { readonly kind: "addon" }
@@ -71,6 +71,9 @@ export function parseAppRoute(hash: string): AppRoute {
   if (hash === "#/settings") {
     return { kind: "settings" };
   }
+  if (hash === "#/settings/addons") return { kind: "settings", addonId: null };
+  const addonSettings = /^#\/settings\/addons\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)$/u.exec(hash);
+  if (addonSettings && addonSettings[1]!.length <= 100) return { kind: "settings", addonId: addonSettings[1]! };
   if (hash === "#/settings/maps") return { kind: "settings", mapParentId: null };
   const mapSettings = /^#\/settings\/maps\/local\/([^/]+)$/u.exec(hash);
   if (mapSettings !== null) {
@@ -120,6 +123,10 @@ export function parseAppRoute(hash: string): AppRoute {
   } catch {
     return { kind: "not-found", path };
   }
+}
+
+export function addonSettingsHash(addonId: string): string {
+  return `#/settings/addons/${encodeURIComponent(addonId)}`;
 }
 
 export function collectionHash(page: CampaignPageDefinition): string {

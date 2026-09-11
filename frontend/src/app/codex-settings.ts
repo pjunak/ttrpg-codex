@@ -30,6 +30,9 @@ import "./codex-addon-manager.js";
 import "./codex-credential-settings.js";
 import "./codex-recovery-settings.js";
 import type { BrowserNavigationEntry } from "../addons/navigation.js";
+import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
+import type { BrowserRole } from "../addons/generation-manager.js";
+import { AddonContributionsController } from "./addon-contributions-controller.js";
 
 type SettingsCategory = "language" | "appearance" | "maps" | "playerParty" | "sidebar" | "addons" | "account" | "backup" | CampaignEnumCategory;
 
@@ -45,6 +48,7 @@ export class CodexSettings extends LitElement {
     csrfToken: { attribute: false },
     editingId: { state: true },
     deleteId: { state: true },
+    registry: { attribute: false }, actorRole: { attribute: false }, addonTarget: { attribute: false },
   };
 
   declare campaign: CampaignDataset | undefined;
@@ -57,6 +61,10 @@ export class CodexSettings extends LitElement {
   declare private deleteId: string | null;
   declare addonPages: readonly BrowserNavigationEntry[];
   declare csrfToken: string;
+  declare registry: BrowserContributionRegistry | undefined;
+  declare actorRole: BrowserRole | undefined;
+  declare addonTarget: string | null | undefined;
+  readonly #contributions = new AddonContributionsController(this, () => ({ registry: this.registry, role: this.actorRole }));
   readonly #ui = new UiLocalizationController(this);
   #dirty = false;
   #credentialsSaving = false;
@@ -82,7 +90,8 @@ export class CodexSettings extends LitElement {
     if ((changed.has("mapTarget") || changed.has("canManageCampaign")) && this.mapTarget !== undefined && this.canManageCampaign) {
       this.activeCategory = "maps";
     }
-    if (changed.has("canManageCampaign") && !this.canManageCampaign && this.activeCategory !== "language") {
+    if (changed.has("addonTarget") && this.addonTarget !== undefined) this.activeCategory = "addons";
+    if (changed.has("canManageCampaign") && !this.canManageCampaign && this.activeCategory !== "language" && this.activeCategory !== "addons") {
       this.activeCategory = "language";
       this.editingId = null;
       this.deleteId = null;
@@ -102,6 +111,10 @@ export class CodexSettings extends LitElement {
     const campaign = this.#editCampaign ?? this.campaign;
     if (this.activeCategory === "language") return this.#shell(this.#languagePanel());
     if (this.activeCategory === "appearance") return this.#shell(this.#appearancePanel());
+    if (this.activeCategory === "addons") return this.#shell(html`<codex-addon-manager .csrfToken=${this.csrfToken}
+      .registry=${this.registry} .actorRole=${this.actorRole} .canManage=${this.canManageCampaign}
+      .addonTarget=${this.addonTarget}
+      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => { this.#dirty = event.detail.dirty; }}></codex-addon-manager>`);
     if (!this.canManageCampaign) return this.#shell(this.#languagePanel());
     if (this.activeCategory === "account") return this.#shell(html`<codex-credential-settings .csrfToken=${this.csrfToken}
       @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean; saving?: boolean }>) => {
@@ -111,7 +124,6 @@ export class CodexSettings extends LitElement {
       @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean; saving?: boolean }>) => {
         this.#dirty = event.detail.dirty; this.#credentialsSaving = event.detail.saving === true; this.requestUpdate();
       }}></codex-recovery-settings>`);
-    if (this.activeCategory === "addons") return this.#shell(html`<codex-addon-manager .csrfToken=${this.csrfToken}></codex-addon-manager>`);
     if (this.activeCategory === "sidebar") return this.#shell(html`<codex-sidebar-settings .campaign=${this.campaign} .addonPages=${this.addonPages} .saving=${this.saving} .editCompletion=${this.editCompletion}
       @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => { this.#dirty = event.detail.dirty; }}></codex-sidebar-settings>`);
     if (this.activeCategory === "playerParty") return this.#shell(html`<codex-party-settings
@@ -161,6 +173,8 @@ export class CodexSettings extends LitElement {
   #shell(content: unknown) {
     const categories: readonly { readonly id: SettingsCategory; readonly label: string; readonly icon: string }[] = [
       { id: "language", label: this.#ui.t("settings.language"), icon: "文" },
+      ...(!this.canManageCampaign && (this.#contributions.list("settings").length > 0 || this.activeCategory === "addons")
+        ? [{ id: "addons" as const, label: this.#ui.t("addons.title"), icon: "🧩" }] : []),
       ...(this.canManageCampaign ? [
         { id: "appearance" as const, label: this.#ui.t("settings.appearance"), icon: "◐" },
         { id: "maps" as const, label: this.#ui.t("map.settings"), icon: "🗺" },
@@ -496,7 +510,7 @@ export class CodexSettings extends LitElement {
   };
 
   #visibleCategory(category: SettingsCategory): boolean {
-    return category === "language" || this.canManageCampaign &&
+    return category === "language" || category === "addons" && this.#contributions.list("settings").length > 0 || this.canManageCampaign &&
       (category === "appearance" || category === "maps" || category === "playerParty" || category === "sidebar" || category === "addons" || category === "account" || category === "backup" || isEnumCategory(category));
   }
 
@@ -508,8 +522,9 @@ export class CodexSettings extends LitElement {
   }
 
   #confirmDiscard(): boolean {
-    if (this.#credentialsSaving) return false;
-    if (!confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))) return false;
+    const edits = this.registry?.edits.state();
+    if (this.saving || this.#credentialsSaving || edits?.saving) return false;
+    if (!confirmDiscardUnsavedEdit(this.#dirty || edits?.dirty === true, (message) => window.confirm(message))) return false;
     this.#setDirty(false);
     return true;
   }

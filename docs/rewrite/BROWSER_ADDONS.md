@@ -251,8 +251,41 @@ disable, replacement, or authority loss and do not persist draft contents.
 
 The current shell instantiates the generic outlet for the `slot` surface under
 Campaign tools and shows a direct empty state when that role has no panels.
-Routes and record outlets use the same registry. Settings, editor locations,
+Routes, record outlets, and settings use the same registry. Editor locations
 and custom renderers remain owned by their corresponding core features.
+
+## Add-on settings
+
+`codex-addon-settings` lazily mounts role-visible `settings` contributions
+inside each add-on's card in Settings → Add-ons. Its disclosure uses a native
+button with `aria-expanded` and `aria-controls`, following the
+[W3C disclosure pattern](https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/).
+Expanded panels retain their DOM and edit registrations when collapsed.
+Cards use stable add-on keys and player cards sort by add-on ID, so an
+inventory refresh or another package's panel-order change cannot transfer
+drafts or expansion state between add-ons.
+
+The host's shared contribution controller owns registry subscriptions for
+discovery; the existing outlet owns ordering, labels, roles, integrated
+elements, isolated frames, and cleanup. Player settings discover add-ons from
+the role-filtered registry without requesting the admin inventory or mounting
+management controls. Empty disclosures are omitted; a direct unavailable
+target gets an explanatory message. Integrated mount failures offer a retry
+that preserves successfully mounted siblings.
+
+The [public settings contract](../../examples/addons/API_V3.md#add-on-settings)
+defines the context and direct links. Category changes use the same dirty and
+saving flags as shell navigation. Local activation, reload, disable, uninstall,
+and source/provider application also check these flags before restarting
+add-ons. They cannot prevent external generation changes or authority loss.
+The browser runtime restarts its whole graph on graph changes, so an update
+from another session can discard unsaved drafts in other add-ons as well.
+This integration does not create a separate settings store or migrate data.
+
+`installed-settings-fixture.mts` exercises reviewed fixture ZIPs in both UI
+modes, persisted saves and reload, collapsed drafts, guarded navigation and
+reload, player filtering, replacement, disable, retry, unrelated card stability,
+localized labels, and desktop/phone layouts.
 
 ## DM dashboard outlet
 
@@ -491,7 +524,7 @@ preview lifetime, resource requests, and separate-tab browser coverage.
 
 - Add data, service, import, event, settings, navigation, graph, and log handles
   to the implemented capability-scoped SDK as their transports land.
-- Connect remaining editor, settings, and renderer surfaces to their
+- Connect remaining editor and renderer surfaces to their
   feature-owned registry outlets as those core features land. Graph node-kind
   renderers, a general `context.graphs` facade,
   and provider-driven graph invalidation remain unimplemented.

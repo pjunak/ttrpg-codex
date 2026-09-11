@@ -7,9 +7,17 @@ import {
   eventMapHash,
   locationMapHash,
   mapSettingsHash,
+  addonSettingsHash,
 } from "../src/app/routes.js";
 
 describe("application routes", () => {
+  it("opens an add-on settings disclosure through a bounded direct route", () => {
+    expect(parseAppRoute("#/settings/addons")).toEqual({ kind: "settings", addonId: null });
+    expect(parseAppRoute(addonSettingsHash("sample-addon"))).toEqual({ kind: "settings", addonId: "sample-addon" });
+    for (const hash of ["#/settings/addons/../maps", "#/settings/addons/%2F", "#/settings/addons/UPPER", `#/settings/addons/${"a".repeat(101)}`]) {
+      expect(parseAppRoute(hash).kind).toBe("not-found");
+    }
+  });
   it("opens the restored relationship graph without accepting unfinished graph routes", () => {
     for (const hash of ["#/graph/relationships", "#/mapa/vztahy"]) expect(parseAppRoute(hash)).toEqual({ kind: "campaign-graph", mode: "relationships" });
     for (const hash of ["#/graph/factions", "#/mapa/palac", "#/mapa/frakce"]) expect(parseAppRoute(hash)).toEqual({ kind: "campaign-graph", mode: "factions" });

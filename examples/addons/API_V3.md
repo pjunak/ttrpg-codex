@@ -398,7 +398,7 @@ Initial surfaces cover existing suite needs:
 |---|---|
 | `route` | Application page under an add-on route namespace |
 | `sidebar` | DM or player navigation item |
-| `settings` | Add-on settings page or section |
+| `settings` | Named panels in the Settings disclosure inside the add-on's Settings → Add-ons card |
 | `article-action` | Contextual action for a visible record |
 | `article-section` | Additive schema-backed section on a record page |
 | `editor-panel` | Structured editor extension |
@@ -413,6 +413,57 @@ Initial surfaces cover existing suite needs:
 
 An override is modeled as a replaceable renderer/service contribution with an
 explicit selection policy, not unrestricted DOM replacement.
+
+### Add-on settings
+
+A `settings` contribution binds an element in either integrated or isolated
+mode. The host lists its localized `label` inside the **Settings** disclosure
+on the owning add-on's card in Settings → Add-ons. Panels follow declaration
+`order` and normal registry ordering. The host filters declarations by
+effective role and granted capabilities. Add-ons without visible settings
+have no empty disclosure; player views contain only their available settings,
+without installation, credential, sourcebook, or provider administration.
+
+`#/settings/addons` opens the add-on category. The stable
+`#/settings/addons/<addon-id>` link opens that add-on's disclosure. An absent,
+disabled, loading, or role-inaccessible target shows an unavailable message;
+links never confer access. No additional route contribution is required.
+
+Each settings element receives this frozen `codexContribution.host` context:
+
+```ts
+interface AddonSettingsHostContext {
+  readonly contractVersion: "addon-settings-context.v1";
+  readonly locale: "en" | "cs";
+  readonly role: "dm" | "player";
+}
+```
+
+The role describes presentation, not write authority; the server checks every
+data or service operation. Use the existing generation-scoped data/service
+handles for persistence, schema validation, revisions, and errors. This
+surface adds no generic settings storage or server-configuration access.
+Label each panel's scope clearly: personal preferences, shared campaign
+settings, or read-only information. Role-visible public data is shared data,
+not a personal preference store. Host GitHub secrets remain in the credential
+manager and must not be requested or stored by contributed settings.
+
+Panels mount on first expansion. Collapsing preserves mounted elements,
+frames, and draft values while the category remains mounted. Publish
+`codexContribution.edits.set({ dirty, saving })` on every edit and save
+transition. Category and shell navigation ask before discarding dirty views;
+saving blocks navigation. Local package activation, reload, disable, uninstall,
+and source/provider application also check these flags before changing the
+runtime. Mount retries preserve successfully mounted sibling panels.
+
+Generation replacement, disable, uninstall, authority loss, or leaving the
+category disposes the outlet and retires its edit handles. The current browser
+runtime restarts its entire add-on graph when that graph changes. A forced
+update from another session can therefore discard unsaved drafts in other
+add-ons too; the host cannot persist their contents. Durable settings remain
+under their existing storage contract.
+Elements must clean up subscriptions/requests on disconnect and generation
+abort, and preserve drafts when an unchanged context is reassigned.
 
 ### Wiki references and library search
 

@@ -1,4 +1,13 @@
 export const configurationEn = {
+  "addons.settings": "Settings",
+  "addons.settingsFor": "Settings for {addon}",
+  "addons.settingsLink": "Link to these settings",
+  "addons.settingsIntro": "Options provided by your active add-ons.",
+  "addons.settingsEmpty": "No add-on settings are available for your role.",
+  "addons.settingsUnavailable": "These settings are unavailable. The add-on may be disabled, still loading, or unavailable for your role.",
+  "addons.settingsFailed": "Some settings could not be opened. Your other settings remain available.",
+  "addons.settingsRetry": "Retry settings",
+  "addons.settingsSaving": "Wait for the add-on save to finish before changing installed add-ons.",
   "addons.uninstall": "Uninstall",
   "addons.uninstallReview": "Review uninstall",
   "addons.uninstallHelp": "Remove this package from installed add-ons. Its pages, services and update link will be removed.",
@@ -67,6 +76,15 @@ export const configurationEn = {
 } as const;
 
 export const configurationCs: Record<keyof typeof configurationEn, string> = {
+  "addons.settings": "Nastavení",
+  "addons.settingsFor": "Nastavení doplňku {addon}",
+  "addons.settingsLink": "Odkaz na toto nastavení",
+  "addons.settingsIntro": "Volby poskytované vašimi aktivními doplňky.",
+  "addons.settingsEmpty": "Pro vaši roli není dostupné žádné nastavení doplňků.",
+  "addons.settingsUnavailable": "Toto nastavení není dostupné. Doplněk může být vypnutý, stále se načítat nebo být nedostupný pro vaši roli.",
+  "addons.settingsFailed": "Některá nastavení se nepodařilo otevřít. Ostatní nastavení zůstávají dostupná.",
+  "addons.settingsRetry": "Zkusit nastavení znovu",
+  "addons.settingsSaving": "Před změnou nainstalovaných doplňků počkejte na dokončení ukládání doplňku.",
   "addons.uninstall": "Odinstalovat",
   "addons.uninstallReview": "Kontrola odinstalace",
   "addons.uninstallHelp": "Odebere balíček z nainstalovaných doplňků. Jeho stránky, služby a odkaz pro aktualizace budou odebrány.",

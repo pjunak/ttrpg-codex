@@ -53,6 +53,13 @@ navigation contributions. Isolated visual contributions run in an opaque
 iframe and communicate only through the host bridge. Either mode must tolerate
 empty data, missing optional services, abort, reload, and repeated disposal.
 
+Use a `settings` contribution for options belonging to your add-on. The host
+groups these panels inside a Settings disclosure on that add-on's card in
+Settings → Add-ons, filtered by effective role. Label whether your controls
+affect personal preferences or shared campaign data, and publish dirty/saving
+flags through the existing edit handle. See [Add-on settings](API_V3.md#add-on-settings)
+for the host context, navigation, persistence ownership, and lifecycle rules.
+
 Reference libraries use the public `wiki-kind` model provider for campaign wiki
 links, declared old bookmark roots, and optional global search. Return local
 route IDs plus query pairs; the host owns URLs, role filtering, and lifetime.

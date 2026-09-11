@@ -14,6 +14,7 @@ import { exerciseImportCenter } from './installed-import-center-fixture.mts';
 import { exerciseAddonManager } from './installed-addon-manager-fixture.mts';
 import { exerciseConfiguration } from './installed-configuration-fixture.mts';
 import { exerciseUninstall } from './installed-uninstall-fixture.mts';
+import { exerciseSettings, exerciseSettingsFailure, exerciseSettingsCardStability } from './installed-settings-fixture.mts';
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
 import { mkdir, mkdtemp, rm, readFile } from 'node:fs/promises';
@@ -621,6 +622,18 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} route ref
 
 for (const mobile of [false, true]) test(`add-on manager completes package review, update and rollback on ${mobile ? 'phone' : 'desktop'}`, async t => {
   await exerciseAddonManager({ t, open, admin, csrf, output, mobile });
+});
+
+for (const mode of ['integrated', 'isolated']) for (const mobile of [false, true]) test(`contributed settings ${mode} saves and protects drafts on ${mobile ? 'phone' : 'desktop'}`, async t => {
+  await exerciseSettings({ t, open, admin, csrf, output, mobile, mode });
+});
+
+test('contributed settings retry preserves other panels', async t => {
+  await exerciseSettingsFailure({ t, open, admin, csrf, output, mobile: false });
+});
+
+test('contributed settings cards stay stable when another add-on changes panel order', async t => {
+  await exerciseSettingsCardStability({ t, open, admin, csrf, output, mobile: false });
 });
 
 for (const mobile of [false, true]) test(`uninstall reviews dependencies and preserves records through reinstall on ${mobile ? 'phone' : 'desktop'}`, async t => {

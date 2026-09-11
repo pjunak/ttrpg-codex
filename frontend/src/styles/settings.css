@@ -128,6 +128,15 @@ codex-addon-manager { display: block; min-width: 0; }
 .addon-permission input { flex: none; margin-top: .25rem; accent-color: var(--gold); }
 .addon-permission > span > span { display: block; }
 .addon-manager [role="alert"] { color: var(--danger, #f4a6a6); }
+codex-addon-settings { display: block; min-width: 0; }
+.addon-settings { margin: .75rem 0; }
+.addon-settings-toggle { display: flex; align-items: center; gap: .5rem; width: 100%; text-align: start; min-height: 2.75rem; }
+.addon-settings-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.addon-settings-link { display: inline-block; margin: .75rem 0; font-size: .8rem; color: var(--gold); }
+[data-addon-settings-outlet] { display: grid; gap: .75rem; min-width: 0; }
+[data-addon-settings-outlet][hidden] { display: none; }
+.addon-settings .addon-contribution-heading { flex-wrap: wrap; overflow-wrap: anywhere; }
+.addon-settings .codex-isolated-addon-frame { height: 8rem; }
 codex-addon-github { display: block; min-width: 0; }
 .addon-github { padding: 1rem 0; border-bottom: 1px solid var(--border-subtle); }
 .addon-github h3 { color: var(--gold); font: 1.05rem var(--font-title); }

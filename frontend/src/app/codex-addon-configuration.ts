@@ -120,6 +120,7 @@ export class CodexAddonConfiguration extends LitElement {
     });
   }
   async #apply(review: Review): Promise<void> {
+    if (!this.dispatchEvent(new CustomEvent("addon-lifecycle-request", { bubbles: true, composed: true, cancelable: true }))) return;
     let applied = false;
     await this.#run(async client => {
       const result: ConfigurationResult = review.kind === "sources" ? await client.selectSources(review.snapshot, review.enabled) : await client.selectService(review.snapshot, review.service, review.choice.automatic, review.choice.ids);

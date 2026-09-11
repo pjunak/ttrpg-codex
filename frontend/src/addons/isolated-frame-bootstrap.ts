@@ -85,12 +85,15 @@ export const isolatedFrameBootstrap = String.raw`
     const sdkRequests = new Map();
     const root = document.getElementById("codex-addon-root");
     const compact = hostContext && hostContext.contractVersion === "timeline-context.v1";
+    const contentSized = compact || hostContext && hostContext.contractVersion === "addon-settings-context.v1";
+    if (contentSized) {
+      root.style.display = "flow-root";
+      document.body.style.margin = "0";
+    }
     if (compact) {
       document.documentElement.style.colorScheme = "dark";
       document.documentElement.style.backgroundColor = "transparent";
-      document.body.style.margin = "0";
       document.body.style.backgroundColor = "transparent";
-      root.style.display = "flow-root";
     }
     let moduleDisposable;
     let observer;
@@ -505,12 +508,12 @@ export const isolatedFrameBootstrap = String.raw`
       post({ type: "ready", contributionId: data.contribution.id });
       if (handles.get(data.contribution.id).binding.kind === "element") {
         const resize = () => {
-          const measured = compact ? Math.max(root.scrollHeight, root.getBoundingClientRect().height) : document.documentElement.scrollHeight;
-          const height = Math.max(compact ? 1 : 120, Math.min(2400, Math.ceil(measured)));
+          const measured = contentSized ? Math.max(root.scrollHeight, root.getBoundingClientRect().height) : document.documentElement.scrollHeight;
+          const height = Math.max(contentSized ? 1 : 120, Math.min(2400, Math.ceil(measured)));
           post({ type: "resize", height });
         };
         observer = new ResizeObserver(resize);
-        observer.observe(compact ? root : document.documentElement);
+        observer.observe(contentSized ? root : document.documentElement);
         resize();
       }
     } catch (cause) {
