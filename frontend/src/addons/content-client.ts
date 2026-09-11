@@ -98,7 +98,7 @@ export class BrowserAddonContentClient {
     this.#generationId = options.generationId;
     this.#baseURL = `/api/addons/${encodeURIComponent(options.addonId)}/generations/${options.generationId}/content`;
     this.#signal = options.signal;
-    this.#fetchContent = options.fetchContent ?? ((input, init) => sessionFetch(input, init));
+    this.#fetchContent = options.fetchContent ?? sessionFetch;
   }
 
   api(): BrowserContentAPI {
@@ -193,7 +193,7 @@ export class BrowserAddonContentClient {
       method: "GET",
       headers: new Headers({ Accept: "application/json" }),
       credentials: "same-origin",
-      cache: "force-cache",
+      cache: "no-store",
       signal: signal === undefined ? this.#signal : AbortSignal.any([this.#signal, signal]),
     });
     if (!response.ok) {
@@ -232,7 +232,7 @@ export class BrowserAddonContentClient {
 function parseSet(value: unknown, boundary: string): AddonContentSetDescription {
   if (!isRecord(value) || !hasOnlyKeys(value, setKeys) || !localID(value["id"]) ||
     !validRevision(value["revision"]) || typeof value["schemaSha256"] !== "string" ||
-    !digestPattern.test(value["schemaSha256"]) || !positiveInteger(value["recordCount"]) ||
+    !digestPattern.test(value["schemaSha256"]) || !contentCount(value["recordCount"]) ||
     !isRecord(value["kinds"])) {
     throw new BoundaryValidationError(boundary, "content set is invalid");
   }
@@ -312,4 +312,8 @@ function boundedString(value: unknown, maximum: number): value is string {
 
 function positiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function contentCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 100000;
 }

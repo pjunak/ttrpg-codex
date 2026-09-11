@@ -35,8 +35,17 @@ describe("BrowserAddonContentClient", () => {
     });
     expect(fetchContent).toHaveBeenCalledWith(
       `/api/addons/compendium/generations/${generationId}/content`,
-      expect.objectContaining({ method: "GET", credentials: "same-origin", cache: "force-cache" }),
+      expect.objectContaining({ method: "GET", credentials: "same-origin", cache: "no-store" }),
     );
+  });
+
+  it("accepts a fully disabled effective set and rejects inconsistent or negative counts", async () => {
+    let recordCount = 0;
+    const fetchContent: AddonContentFetch = async () => jsonResponse({ contractVersion: "addon-content-catalog.v1", addonId: "compendium", generationId,
+      sets: [{ id: "rules", revision: "source-policy-2", schemaSha256: digest, recordCount, kinds: {} }] });
+    const api = createClient(fetchContent).api();
+    await expect(api.catalog()).resolves.toMatchObject({ sets: [{ recordCount: 0, kinds: {} }] });
+    for (recordCount of [-1, 1, 100001]) await expect(api.catalog()).rejects.toThrow(BoundaryValidationError);
   });
 
   it("gets records with encoded identities and verifies their envelope", async () => {

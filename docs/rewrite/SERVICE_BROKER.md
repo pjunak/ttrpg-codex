@@ -40,6 +40,12 @@ activated.
 
 ## Bindings and resolution
 
+DM controls and revision-guarded admin endpoints expose these bindings through
+[instance rules, sources and services](RULES_SOURCES.md). Source and binding
+changes reuse consumer-first shutdown and provider-first recovery, with
+accepted selections and recovery failures reported separately. In-flight calls
+also recheck their provider catalog epoch after execution.
+
 An operator binding is keyed by consumer add-on, contract, and scope. Its
 targets are stored separately so `many` consumers can select a stable subset.
 Every update uses an expected revision:

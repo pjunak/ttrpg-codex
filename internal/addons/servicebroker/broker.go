@@ -479,6 +479,9 @@ func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) 
 	if err != nil {
 		return nil, err
 	}
+	if provider.CatalogRevision != prepared.catalogRevision {
+		return nil, ErrStaleBinding
+	}
 	if _, _, err := broker.runtimes.lookup(provider, call.Method); err != nil {
 		return nil, err
 	}
@@ -486,13 +489,14 @@ func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) 
 }
 
 type preparedCall struct {
-	caller  RuntimeCaller
-	method  servicecontract.Method
-	body    []byte
-	context context.Context
-	cancel  context.CancelFunc
-	lease   *requestcontext.Lease
-	meta    workerrpc.Meta
+	catalogRevision int64
+	caller          RuntimeCaller
+	method          servicecontract.Method
+	body            []byte
+	context         context.Context
+	cancel          context.CancelFunc
+	lease           *requestcontext.Lease
+	meta            workerrpc.Meta
 }
 
 func (broker *Broker) prepareCall(
@@ -542,7 +546,8 @@ func (broker *Broker) prepareCall(
 		return preparedCall{}, fmt.Errorf("issue service request context: %w", err)
 	}
 	return preparedCall{
-		caller: caller, method: method, body: body, context: callContext,
+		catalogRevision: provider.CatalogRevision,
+		caller:          caller, method: method, body: body, context: callContext,
 		cancel: cancel, lease: lease, meta: lease.Meta(),
 	}, nil
 }

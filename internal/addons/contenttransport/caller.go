@@ -7,12 +7,10 @@ package contenttransport
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/contentcontract"
@@ -155,11 +153,11 @@ func (caller *Caller) query(body json.RawMessage) (any, error) {
 	if request.Limit == 0 {
 		request.Limit = defaultQueryLimit
 	}
-	after, err := decodeCursor(request.Cursor)
+	description, err := caller.registry.Description(request.SetID)
 	if err != nil {
 		return nil, err
 	}
-	description, err := caller.registry.Description(request.SetID)
+	after, err := contentcontract.DecodeCursor(request.Cursor, request.SetID, description.Revision, request.Kind)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +179,7 @@ func (caller *Caller) query(body json.RawMessage) (any, error) {
 		"records":         records,
 	}
 	if page.NextPosition != nil {
-		response["nextCursor"] = encodeCursor(*page.NextPosition)
+		response["nextCursor"] = contentcontract.EncodeCursor(*page.NextPosition, request.SetID, description.Revision, request.Kind)
 	}
 	return response, nil
 }
@@ -220,26 +218,4 @@ func describeSet(description contentcontract.Description) setDescription {
 
 func contentRecord(record contentcontract.Record) recordResponse {
 	return recordResponse{Kind: record.Kind, ID: record.ID, Value: record.Value}
-}
-
-func encodeCursor(position int) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(strconv.Itoa(position)))
-}
-
-func decodeCursor(value string) (int, error) {
-	if value == "" {
-		return -1, nil
-	}
-	if len(value) > 32 {
-		return 0, ErrInvalidRequest
-	}
-	body, err := base64.RawURLEncoding.DecodeString(value)
-	if err != nil {
-		return 0, ErrInvalidRequest
-	}
-	position, err := strconv.Atoi(string(body))
-	if err != nil || position < 0 || encodeCursor(position) != value {
-		return 0, ErrInvalidRequest
-	}
-	return position, nil
 }

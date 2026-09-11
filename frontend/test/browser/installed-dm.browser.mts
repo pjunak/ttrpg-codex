@@ -12,6 +12,7 @@ import { exercisePlannerCanvas } from './installed-planner-canvas-fixture.mts';
 import { exercisePlannerLive } from './installed-planner-live-fixture.mts';
 import { exerciseImportCenter } from './installed-import-center-fixture.mts';
 import { exerciseAddonManager } from './installed-addon-manager-fixture.mts';
+import { exerciseConfiguration } from './installed-configuration-fixture.mts';
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
 import { mkdir, mkdtemp, rm, readFile } from 'node:fs/promises';
@@ -619,6 +620,10 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} route ref
 
 for (const mobile of [false, true]) test(`add-on manager completes package review, update and rollback on ${mobile ? 'phone' : 'desktop'}`, async t => {
   await exerciseAddonManager({ t, open, admin, csrf, output, mobile });
+});
+
+for (const mobile of [false, true]) test(`sourcebook and provider configuration is reviewed and revision guarded on ${mobile ? 'phone' : 'desktop'}`, async t => {
+  await exerciseConfiguration({ t, open, admin, csrf, output, mobile });
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) for (const mobile of [false, true]) test(`planner canvas restores navigation and scaled dragging on ${mobile ? 'phone' : 'desktop'}`, async t => {

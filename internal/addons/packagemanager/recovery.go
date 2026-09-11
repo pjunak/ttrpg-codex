@@ -52,6 +52,12 @@ func (manager *Manager) recoverLocked(ctx context.Context) ([]RecoveryResult, er
 		if err == nil {
 			err = manager.validateCompatibility(report.Manifest)
 		}
+		if err == nil {
+			err = manager.validateRulesCompatibility(ctx, report.Manifest)
+		}
+		if err == nil {
+			err = manager.validateRuleSources(ctx, report)
+		}
 		var permissions []packageinspect.Permission
 		if err == nil {
 			permissions, _, err = approvedPermissions(report.Manifest.Permissions, state.GrantedPermissionIDs)

@@ -288,6 +288,9 @@ func (store *Store) setBinding(
 			return Binding{}, fmt.Errorf("insert service binding target: %w", err)
 		}
 	}
+	if _, err := tx.ExecContext(ctx, `UPDATE addon_instance_configuration SET revision = revision + 1 WHERE id = 1`); err != nil {
+		return Binding{}, err
+	}
 	if err := tx.Commit(); err != nil {
 		return Binding{}, fmt.Errorf("commit service binding update: %w", err)
 	}
@@ -308,7 +311,12 @@ func (store *Store) clearBinding(ctx context.Context, requirement Requirement, e
 	if expectedRevision <= 0 {
 		return fmt.Errorf("%w: a positive expected revision is required", ErrBindingConflict)
 	}
-	result, err := store.db.ExecContext(ctx, `
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `
 		DELETE FROM addon_service_bindings
 		WHERE consumer_addon_id = ? AND contract = ? AND scope_kind = ? AND scope_id = ?
 		  AND revision = ?`,
@@ -321,7 +329,13 @@ func (store *Store) clearBinding(ctx context.Context, requirement Requirement, e
 	if err != nil {
 		return fmt.Errorf("clear service binding: %w", err)
 	}
-	return requireChanged(result, ErrBindingConflict)
+	if err := requireChanged(result, ErrBindingConflict); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE addon_instance_configuration SET revision = revision + 1 WHERE id = 1`); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (store *Store) readBinding(ctx context.Context, requirement Requirement) (*Binding, error) {

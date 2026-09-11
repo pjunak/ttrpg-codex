@@ -54,6 +54,7 @@ there instead of expanding this always-loaded file.
 | [`docs/rewrite/PACKAGE_LIFECYCLE.md`](docs/rewrite/PACKAGE_LIFECYCLE.md) | Package inspection, approval, activation, update, and rollback |
 | [`docs/rewrite/WORKER_SUPERVISION.md`](docs/rewrite/WORKER_SUPERVISION.md) and [`WORKER_BROKER.md`](docs/rewrite/WORKER_BROKER.md) | Native worker process and RPC rules |
 | [`docs/rewrite/SERVICE_BROKER.md`](docs/rewrite/SERVICE_BROKER.md) | Versioned provider/consumer binding |
+| [`docs/rewrite/RULES_SOURCES.md`](docs/rewrite/RULES_SOURCES.md) | Instance ruleset, sourcebook eligibility, provider settings and preserved character values |
 | [`docs/rewrite/ADDON_DATA.md`](docs/rewrite/ADDON_DATA.md) and [`CONTENT.md`](docs/rewrite/CONTENT.md) | Package collections, extensions, content, and migrations |
 | [`docs/rewrite/BROWSER_ADDONS.md`](docs/rewrite/BROWSER_ADDONS.md) | Integrated and isolated TypeScript UI lifecycles |
 | [`docs/rewrite/BACKUP_RESTORE.md`](docs/rewrite/BACKUP_RESTORE.md) and [`LEGACY_CONVERSION.md`](docs/rewrite/LEGACY_CONVERSION.md) | Current backups and the one-time v1 conversion boundary |

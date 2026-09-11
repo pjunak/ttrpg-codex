@@ -1224,6 +1224,15 @@ experience; content and domain add-ons own their preview semantics.
 
 ## Content and localization
 
+Rules and sources follow the [instance rules contract](../../docs/rewrite/RULES_SOURCES.md).
+Optional `rules.supports` names supported ruleset IDs; `rules.defines` identifies
+the complete profile establishing the single instance ruleset. Additional
+sources must explicitly support it. `content[].groups.catalogKind` identifies
+source metadata records. Effective content revisions include source choices,
+filtered catalogs may be empty, and cursors cannot cross effective revisions.
+These fields require an updated host inspector. Services retain their public
+v3 envelopes; records and authored campaign data are not converted.
+
 Content sets are immutable package assets with schemas, stable record IDs,
 provenance, source-group metadata, and a package revision. The host indexes
 them and exposes a revision-pinned query API. Add-ons never mutate installed
@@ -1290,8 +1299,8 @@ The first-party packages currently use these profiles:
 
 | Add-on | Browser | Worker | Main contracts exercised |
 |---|---|---|---|
-| D&D 2024 Compendium | Integrated TypeScript | None | content sets, locales, exclusive `dnd5e.rules-data` v3 provider |
-| D&D Rules Engine | None | Native Go | `dnd5e.rules-engine` v3 provider, optional rules-data v3 consumer |
+| D&D 2024 Compendium | Integrated TypeScript | None | content sets, locales, nonexclusive `dnd5e.rules-data` v3 provider; defines `dnd-2024` |
+| D&D Rules Engine | None | Native Go | `dnd5e.rules-engine` v3 provider, optional consumer of all compatible rules-data v3 providers |
 | D&D Character Sheets | Integrated TypeScript | None | optional engine v3 consumer and character record extension |
 | DM Tools | Integrated TypeScript | Native Go | DM collections, transactions, import-adapter v2 provider/consumer, routes and slots |
 

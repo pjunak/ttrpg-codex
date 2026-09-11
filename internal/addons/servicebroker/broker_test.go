@@ -628,6 +628,51 @@ func TestBindingUpdateInvalidatesUnlockedInFlightCall(t *testing.T) {
 	}
 }
 
+func TestCatalogReplacementInvalidatesInFlightCallAtTheSameGeneration(t *testing.T) {
+	store, _ := testStore(t)
+	broker := testBroker(t, store, NewRuntimeDirectory(), nil)
+	ctx := context.Background()
+	declaration := testProvider("dnd5e.rules-engine", "3.1.0", false)
+	if err := broker.ReplaceProviders(ctx, "engine", "1.0.0", []ProviderDeclaration{declaration}); err != nil {
+		t.Fatal(err)
+	}
+	started, release := make(chan struct{}), make(chan struct{})
+	caller := runtimeCallerFunc(func(context.Context, string, any, *workerrpc.Meta) (json.RawMessage, error) {
+		close(started)
+		<-release
+		return json.RawMessage(`{}`), nil
+	})
+	if err := broker.ActivateRuntime(ctx, "engine", "same-generation", testRegistry(t, declaration), caller); err != nil {
+		t.Fatal(err)
+	}
+	handle, err := broker.ConnectOne(ctx, oneRequirement("sheets", "dnd5e.rules-engine", "^3.0.0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := broker.Call(ctx, handle, MethodCall{Method: "evaluate-character", Params: map[string]any{}, Context: CallContext{Deadline: time.Now().Add(time.Second), Actor: workerrpc.Actor{Role: "system"}}})
+		done <- err
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("call did not start")
+	}
+	if err := broker.ReplaceProviders(ctx, "engine", "1.0.0", []ProviderDeclaration{declaration}); err != nil {
+		close(release)
+		t.Fatal(err)
+	}
+	if err := broker.ActivateRuntime(ctx, "engine", "same-generation", testRegistry(t, declaration), caller); err != nil {
+		close(release)
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-done; !errors.Is(err, ErrStaleBinding) {
+		t.Fatalf("old runtime result accepted after configuration restart: %v", err)
+	}
+}
+
 func TestProviderCanCallBoundServiceWhileCatalogWriteCompletes(t *testing.T) {
 	t.Parallel()
 
@@ -739,8 +784,8 @@ func testStore(t *testing.T) (*Store, *sql.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.CurrentVersion != 13 {
-		t.Fatalf("migration version = %d, want 13", result.CurrentVersion)
+	if result.CurrentVersion != 14 {
+		t.Fatalf("migration version = %d, want 14", result.CurrentVersion)
 	}
 	store, err := NewStore(db)
 	if err != nil {

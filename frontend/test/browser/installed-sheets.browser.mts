@@ -15,7 +15,7 @@ import { promisify } from 'node:util';
 import { once } from 'node:events';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { chromium, request as playwrightRequest } from 'playwright';
-import { jsonResponse, installReviewedPackage } from './installed-graph-fixture.mts';
+import { jsonResponse, installReviewedPackage, enableAllRuleSources } from './installed-graph-fixture.mts';
 import { attemptHash, unloadBlocked } from './installed-planner-navigation-fixture.mts';
 import { exerciseCzechSheet } from './installed-sheet-localization-fixture.mts';
 
@@ -320,6 +320,7 @@ test('installed Sheets provider diagnostics recover missing data and compare sav
   assert.equal(await sheet.getByRole('button', { name: 'Apply computed fallback values', exact: true }).count(), 0);
   assert.deepEqual(await get(key), original);
   await installReviewedPackage(admin, csrf, 'dnd-2024-compendium', await readFile(resolve(required(process.env.CODEX_COMPENDIUM_ZIP))), []);
+  await enableAllRuleSources(admin, csrf);
   // Activating an optional provider restarts its consumers through the host lifecycle.
   await sheet.locator('.dse-backpack').waitFor();
   await sheet.locator('.dnd-sheet-engine').click();
@@ -521,7 +522,13 @@ for (const mobile of [false, true]) test(`installed Sheets worn slots replace ar
     await sheet.getByRole('button', { name: `Fill ${slot} slot`, exact: true }).click();
     await write(page, () => page.getByRole('dialog').getByRole('button', { name, exact: true }).click());
   }
-  await fill('Armor', 'Leather Armor'); assert.equal((await get(key)).value.ac, 13);
+  await fill('Armor', 'Leather Armor');
+  assert.equal((await get(key)).value.ac, initial.value.ac, 'equipment must retain unverified saved values');
+  await sheet.locator('.dnd-sheet-engine').click();
+  await sheet.getByRole('button', { name: 'Preview computed values', exact: true }).click();
+  await write(page, () => sheet.getByRole('button', { name: 'Apply computed fallback values', exact: true }).click());
+  assert.equal((await get(key)).value.ac, 13);
+  await sheet.getByRole('tab', { name: 'Character Sheet', exact: true }).click();
   await fill('Shield', 'Shield'); assert.equal((await get(key)).value.ac, 15);
   await fill('Armor', 'Chain Mail');
   let state = (await get(key)).value;

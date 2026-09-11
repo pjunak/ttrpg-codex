@@ -3,6 +3,7 @@ import { AddonAdminClient, type AddonReview, type AddonSnapshot } from "../core/
 import { UiLocalizationController, uiSourceLabel, uiText, type MessageKey } from "./ui-localization.js";
 import { uiRequestError } from "./ui-errors.js";
 import "./codex-addon-github.js";
+import "./codex-addon-configuration.js";
 import type { InstalledGeneration } from "../core/addon-admin.js";
 
 export class CodexAddonManager extends LitElement {
@@ -16,7 +17,8 @@ export class CodexAddonManager extends LitElement {
   declare private grants: string[];
   #request = new AbortController();
   #githubBusy = false;
-  get #busy(): boolean { return this.pending || this.#githubBusy; }
+  #configurationBusy = false;
+  get #busy(): boolean { return this.pending || this.#githubBusy || this.#configurationBusy; }
   readonly #ui = new UiLocalizationController(this);
   constructor() { super(); this.snapshots = []; this.review = undefined; this.pending = false; this.error = ""; this.message = ""; this.grants = []; }
   protected override createRenderRoot() { return this; }
@@ -35,7 +37,11 @@ export class CodexAddonManager extends LitElement {
       <header class="settings-ledger-heading"><div><span class="settings-category-mark" aria-hidden="true">🧩</span><div><h2>${t("addons.title")}</h2><p>${t("addons.intro")}</p></div></div>
         <button ?disabled=${this.#busy} @click=${() => this.#run(async client => { this.review = undefined; this.snapshots = await client.inventory(); })}>${t("addons.refresh")}</button></header>
       ${this.error ? html`<p role="alert">${this.error}</p>` : nothing}${this.message ? html`<p role="status">${this.message}</p>` : nothing}
-      <codex-addon-github .csrfToken=${this.csrfToken} .snapshots=${this.snapshots} .disabled=${this.pending}
+      <codex-addon-configuration .csrfToken=${this.csrfToken} .disabled=${this.pending || this.#githubBusy}
+        .inventoryRevision=${JSON.stringify(this.snapshots.map(snapshot => [snapshot.state, snapshot.generations.map(generation => generation.generationId)]))}
+        @addon-admin-busy=${(event: CustomEvent<boolean>) => { this.#configurationBusy = event.detail; if (event.detail) this.review = undefined; this.requestUpdate(); }}
+        @addon-configuration-applied=${async () => { this.review = undefined; this.snapshots = await new AddonAdminClient(this.csrfToken, this.#request.signal).inventory().catch(() => this.snapshots); }}></codex-addon-configuration>
+      <codex-addon-github .csrfToken=${this.csrfToken} .snapshots=${this.snapshots} .disabled=${this.pending || this.#configurationBusy}
         @addon-admin-busy=${(event: CustomEvent<boolean>) => { this.#githubBusy = event.detail; if (event.detail) this.review = undefined; this.requestUpdate(); }}
         @github-package-staged=${(event: CustomEvent<InstalledGeneration>) => { void this.#run(async client => { this.snapshots = await client.inventory(); this.review = await client.review(event.detail.addonId, event.detail.generationId); this.grants = []; }); }}></codex-addon-github>
       <form class="addon-upload" @submit=${this.#upload}><label>${t("addons.file")}<input type="file" accept=".zip,application/zip" ?disabled=${this.#busy} name="package"></label><button ?disabled=${this.#busy}>${t("addons.upload")}</button></form>
@@ -64,6 +70,8 @@ export class CodexAddonManager extends LitElement {
       <h3 id="addon-review-title" tabindex="-1">${t("addons.review")}: ${review.name}</h3>
       <p>${review.currentVersion ? `${t("addons.current")}: ${review.currentVersion} → ` : ""}${t("addons.target")}: ${review.version}</p>
       <details><summary>${t("addons.generation")}</summary><code>${review.generationId}</code></details>
+      ${review.rulesetName ? html`<p>${t("configuration.defines", { ruleset: review.rulesetName })}</p>` : review.supportedRulesets.length ? html`<p>${t("configuration.supports", { rulesets: review.supportedRulesets.join(", ") })}</p>` : nothing}
+      ${review.disabledSources.length ? html`<p>${t("configuration.initialOff", { books: review.disabledSources.join(", ") })}</p>` : nothing}
       <h4>${t("addons.changes")}</h4>${review.runtimeChanged ? html`<p>${t("addons.runtimeChanged")}</p>` : nothing}
       ${!changes.length && !review.runtimeChanged ? html`<p>${t("addons.noChanges")}</p>` : nothing}
       <ul>${changes.map(change => html`<li><strong>${t(`addons.${change.category}` as MessageKey)}</strong>${(["added", "changed", "removed"] as const).map(kind => change[kind].length ? html`<p>${t(`addons.${kind}`)}: ${change[kind].join(", ")}</p>` : nothing)}</li>`)}</ul>
@@ -103,6 +111,7 @@ customElements.define("codex-addon-manager", CodexAddonManager);
 
 function blockerMessage(code: string): string {
   switch (code) {
+    case "RULESET": return uiText("Review the package compatibility before activation.");
     case "COMPATIBILITY": return uiText("Review the package compatibility before activation.");
     case "DEPENDENCY": case "DEPENDENT_INCOMPATIBLE": return uiText("Resolve the required add-on dependencies before activation.");
     case "SERVICE": return uiText("Resolve service-provider conflicts before activation.");

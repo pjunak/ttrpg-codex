@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -36,7 +37,7 @@ func TestAddonContentCatalogRecordAndBoundedQuery(t *testing.T) {
 	if catalog.Code != http.StatusOK ||
 		!strings.Contains(catalog.Body.String(), `"contractVersion":"addon-content-catalog.v1"`) ||
 		!strings.Contains(catalog.Body.String(), `"recordCount":3`) ||
-		catalog.Header().Get("Cache-Control") != "private, max-age=31536000, immutable" {
+		catalog.Header().Get("Cache-Control") != "private, no-store" {
 		t.Fatalf("catalog = %d, %s, headers=%v", catalog.Code, catalog.Body.String(), catalog.Header())
 	}
 
@@ -55,12 +56,18 @@ func TestAddonContentCatalogRecordAndBoundedQuery(t *testing.T) {
 		http.MethodGet, base+"/query?set=rules&kind=spell&limit=1", nil,
 	))
 	if first.Code != http.StatusOK || !strings.Contains(first.Body.String(), `"id":"magic-missile"`) ||
-		!strings.Contains(first.Body.String(), `"nextCursor":"MQ"`) {
+		!strings.Contains(first.Body.String(), `"nextCursor":`) {
 		t.Fatalf("first page = %d, %s", first.Code, first.Body.String())
 	}
 	second := httptest.NewRecorder()
+	var page struct {
+		NextCursor string `json:"nextCursor"`
+	}
+	if err := json.Unmarshal(first.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
 	handler.ServeHTTP(second, httptest.NewRequest(
-		http.MethodGet, base+"/query?set=rules&kind=spell&limit=1&cursor=MQ", nil,
+		http.MethodGet, base+"/query?set=rules&kind=spell&limit=1&cursor="+page.NextCursor, nil,
 	))
 	if second.Code != http.StatusOK || !strings.Contains(second.Body.String(), `"id":"shield"`) ||
 		strings.Contains(second.Body.String(), "nextCursor") {

@@ -111,11 +111,16 @@ func (manager *Manager) browserGraphLocked(ctx context.Context) (BrowserGraph, e
 		addOns = append(addOns, generation)
 	}
 	sort.Slice(addOns, func(left, right int) bool { return addOns[left].AddonID < addOns[right].AddonID })
+	configuration, err := manager.store.configuration(ctx)
+	if err != nil {
+		return BrowserGraph{}, err
+	}
 	body, err := json.Marshal(struct {
-		ContractVersion int                 `json:"contractVersion"`
-		States          []browserGraphState `json:"states"`
-		Addons          []BrowserGeneration `json:"addons"`
-	}{ContractVersion: BrowserGraphContractVersion, States: revisionStates, Addons: addOns})
+		ContractVersion       int                 `json:"contractVersion"`
+		ConfigurationRevision int64               `json:"configurationRevision"`
+		States                []browserGraphState `json:"states"`
+		Addons                []BrowserGeneration `json:"addons"`
+	}{ContractVersion: BrowserGraphContractVersion, ConfigurationRevision: configuration.Revision, States: revisionStates, Addons: addOns})
 	if err != nil {
 		return BrowserGraph{}, fmt.Errorf("encode browser graph revision: %w", err)
 	}

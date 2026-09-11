@@ -45,19 +45,21 @@ Catalog, exact-record, and query responses echo the add-on and archive-hash
 generation and use strict versioned envelopes. Queries are sorted by
 `(kind, id)`, return at most 200 records, and stop before their record values
 exceed 4 MiB. Opaque cursors resume after the last returned stable position.
-Exact-generation URLs and responses are private immutable cache entries.
+Cursors bind the effective revision, set and query kind. Content responses use
+`private, no-store`: source eligibility can change at the same archive URL.
 
 The isolated iframe has no network authority or credentials. Its private JSON
 bridge forwards `content.catalog`, `content.get`, and `content.query` to the
 same host-owned client, enforces request and response limits, propagates
 cancellation, and exposes only safe HTTP status classes.
 
-## Current boundary and next layers
+## Effective source policy
 
-This content catalog deliberately does not yet implement source enable/disable
-policy. Group metadata is retained in the catalog so a later host-owned policy
-can calculate one effective content revision without changing the record
-format.
+The host's [instance rules and source policy](RULES_SOURCES.md) filters the same
+immutable index for browsing and service consumers. Declared source membership
+supports alternate allowed books; `groups.catalogKind` supplies book labels.
+Selection changes create an effective revision and allow empty filtered sets.
+Archive files and authored character records remain unchanged.
 
 An add-on may publish the same immutable index through a `content` service
 transport. The host supplies fixed `catalog`, `get`, and `query` methods and

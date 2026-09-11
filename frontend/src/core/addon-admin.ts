@@ -1,6 +1,7 @@
 import { BoundaryValidationError, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
 import { HostRequestError } from "./api.js";
+import { parseRulesPolicy, parseServiceSelections, parseConfigurationResult, type ConfigurationSnapshot, type SourceTarget, type ServiceSelection } from "./addon-configuration.js";
 
 export interface InstalledGeneration { addonId: string; generationId: string; version: string; installedAt: string; lastError: string }
 export interface AddonSnapshot {
@@ -10,6 +11,7 @@ export interface AddonSnapshot {
   runtimeState: string;
 }
 export interface AddonReview {
+  rulesetName: string; supportedRulesets: string[]; disabledSources: string[];
   reviewId: string; addonId: string; generationId: string; proposalSha256: string;
   status: string; name: string; version: string; currentVersion: string;
   permissions: { id: string; reason: string; resources: string[] }[];
@@ -46,6 +48,9 @@ export function parseAddonReview(value: unknown): AddonReview {
   const permissions = list(manifest["permissions"] ?? []).map(value => { const permission = object(value); return { id: text(permission["id"]), reason: text(permission["reason"]), resources: strings(permission["resources"]) }; });
   if (required.some(required => !permissions.some(permission => permission.id === required))) fail();
   return { reviewId, addonId, generationId, proposalSha256: hash(record["proposalSha256"]), status: text(record["status"]), name: text(manifest["name"]), version: text(manifest["version"]),
+    rulesetName: manifest["rules"] && object(manifest["rules"])["defines"] ? text(object(object(manifest["rules"])["defines"])["name"]) : "",
+    supportedRulesets: manifest["rules"] ? strings(object(manifest["rules"])["supports"]) : [],
+    disabledSources: list(proposal["sourceChoices"] ?? []).filter(value => object(value)["enabled"] === false).map(value => text(object(value)["name"])),
     currentVersion: proposal["currentManifest"] ? text(object(proposal["currentManifest"])["version"]) : "",
     permissions, required, restarted: strings(proposal["restartedAddonIds"]),
     runtimeChanged: typeof changes["runtimeChanged"] === "boolean" ? changes["runtimeChanged"] : fail(),
@@ -55,6 +60,14 @@ export function parseAddonReview(value: unknown): AddonReview {
 
 export class AddonAdminClient {
   constructor(readonly csrfToken: string, readonly signal: AbortSignal) {}
+  async rulesPolicy() { return parseRulesPolicy(await this.#request("rules-policy")); }
+  async serviceSelections() { return parseServiceSelections(await this.#request("service-selections")); }
+  async selectSources(snapshot: ConfigurationSnapshot, enabled: SourceTarget[]) {
+    return parseConfigurationResult(await this.#request("rules-policy", { expectedRevision: snapshot.revision, expectedGraphRevision: snapshot.graphRevision, enabled }));
+  }
+  async selectService(snapshot: ConfigurationSnapshot, service: ServiceSelection, automatic: boolean, providerAddonIds: string[]) {
+    return parseConfigurationResult(await this.#request("service-selections", { expectedRevision: snapshot.revision, expectedGraphRevision: snapshot.graphRevision, consumerAddonId: service.requirement.consumerAddonId, generationId: service.generationId, contract: service.requirement.contract, expectedBindingRevision: service.resolution.binding?.revision ?? 0, automatic, providerAddonIds }));
+  }
   async #request(path: string, body?: unknown, archive?: File): Promise<unknown> {
     const response = await sessionFetch(`/api/admin/${path}`, { signal: this.signal, method: body !== undefined || archive ? "POST" : "GET",
       headers: { Accept: "application/json", "X-Codex-CSRF": this.csrfToken, ...(archive ? { "Content-Type": "application/zip" } : body !== undefined ? { "Content-Type": "application/json" } : {}) },

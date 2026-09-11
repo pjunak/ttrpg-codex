@@ -53,6 +53,7 @@ type ChangeSet struct {
 }
 
 type ReviewChanges struct {
+	Rules            ChangeSet `json:"rules"`
 	RuntimeChanged   bool      `json:"runtimeChanged"`
 	Permissions      ChangeSet `json:"permissions"`
 	Capabilities     ChangeSet `json:"capabilities"`
@@ -72,6 +73,8 @@ type ReviewBlocker struct {
 }
 
 type ReviewProposal struct {
+	SourceChoices                  []SourceChoice           `json:"sourceChoices"`
+	ConfigurationRevision          int64                    `json:"configurationRevision"`
 	AddonID                        string                   `json:"addonId"`
 	GenerationID                   string                   `json:"generationId"`
 	ExpectedStateRevision          int64                    `json:"expectedStateRevision"`

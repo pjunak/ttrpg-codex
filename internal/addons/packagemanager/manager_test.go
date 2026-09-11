@@ -1213,6 +1213,8 @@ type packageSpec struct {
 	Worker               bool
 	Permission           bool
 	ContentService       bool
+	Rules                *packageinspect.RulesDeclaration
+	ContentGroups        *packageinspect.ContentGroups
 }
 
 func stageServicePackage(t *testing.T, manager *Manager, addonID, version, contractVersion string) Generation {
@@ -1356,6 +1358,12 @@ func writeAddonPackage(t *testing.T, spec packageSpec) string {
 	if len(services) > 0 {
 		manifest["services"] = services
 	}
+	if spec.Rules != nil {
+		manifest["rules"] = spec.Rules
+	}
+	if spec.ContentGroups != nil {
+		manifest["content"].([]any)[0].(map[string]any)["groups"] = spec.ContentGroups
+	}
 	files["addon.json"] = mustJSON(t, manifest)
 	return writePackageZip(t, files)
 }
@@ -1425,8 +1433,8 @@ func testDatabase(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.CurrentVersion != 13 {
-		t.Fatalf("migration version = %d, want 13", result.CurrentVersion)
+	if result.CurrentVersion != 14 {
+		t.Fatalf("migration version = %d, want 14", result.CurrentVersion)
 	}
 	return db
 }

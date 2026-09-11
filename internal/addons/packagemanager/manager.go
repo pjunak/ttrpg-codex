@@ -79,8 +79,10 @@ type Manager struct {
 	logger                *slog.Logger
 	eventPublisher        EventPublisher
 
-	mu       sync.Mutex
-	runtimes map[string]activeRuntime
+	mu              sync.Mutex
+	runtimes        map[string]activeRuntime
+	contentRevision int64
+	contentCache    map[string]*contentcontract.Registry
 }
 
 func New(config Config) (*Manager, error) {
@@ -430,6 +432,12 @@ func (manager *Manager) prepareActivation(
 	if err := manager.validateCompatibility(report.Manifest); err != nil {
 		return State{}, Generation{}, packageinspect.Report{}, nil, nil, nil, err
 	}
+	if err := manager.validateRulesCompatibility(ctx, report.Manifest); err != nil {
+		return State{}, Generation{}, packageinspect.Report{}, nil, nil, nil, err
+	}
+	if err := manager.validateRuleSources(ctx, report); err != nil {
+		return State{}, Generation{}, packageinspect.Report{}, nil, nil, nil, err
+	}
 	if err := manager.validateDependencies(ctx, report.Manifest, requireRecoveredDependencies); err != nil {
 		return State{}, Generation{}, packageinspect.Report{}, nil, nil, nil, err
 	}
@@ -648,7 +656,7 @@ func (manager *Manager) publishServices(
 		}
 		return true, nil
 	}
-	adapters, err := serviceRuntimeAdapters(report, runtime)
+	adapters, err := manager.serviceRuntimeAdapters(ctx, report, runtime)
 	if err != nil {
 		return true, err
 	}
@@ -666,7 +674,7 @@ func (manager *Manager) activatePublishedServices(
 	if len(report.Manifest.Services.Provides) == 0 {
 		return nil
 	}
-	adapters, err := serviceRuntimeAdapters(report, runtime)
+	adapters, err := manager.serviceRuntimeAdapters(ctx, report, runtime)
 	if err != nil {
 		return err
 	}
@@ -675,7 +683,8 @@ func (manager *Manager) activatePublishedServices(
 	)
 }
 
-func serviceRuntimeAdapters(
+func (manager *Manager) serviceRuntimeAdapters(
+	ctx context.Context,
 	report packageinspect.Report,
 	runtime Runtime,
 ) (servicebroker.RuntimeAdapters, error) {
@@ -684,7 +693,11 @@ func serviceRuntimeAdapters(
 		if provider.Transport != string(servicebroker.TransportContent) {
 			continue
 		}
-		caller, err := contenttransport.New(report.ContentRegistry())
+		content, err := manager.effectiveContent(ctx, report)
+		if err != nil {
+			return servicebroker.RuntimeAdapters{}, err
+		}
+		caller, err := contenttransport.New(content)
 		if err != nil {
 			return servicebroker.RuntimeAdapters{}, fmt.Errorf("configure content service: %w", err)
 		}
@@ -724,7 +737,7 @@ func (manager *Manager) restoreServices(
 	if len(declarations) == 0 {
 		return nil
 	}
-	adapters, err := serviceRuntimeAdapters(previous.report, previous.runtime)
+	adapters, err := manager.serviceRuntimeAdapters(ctx, previous.report, previous.runtime)
 	if err != nil {
 		return err
 	}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
+	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
 )
 
 const (
@@ -40,6 +41,10 @@ type AdminAuthorizer func(*http.Request) error
 var _ AddonLifecycle = (*packagemanager.Manager)(nil)
 
 func (s *server) registerAddonAdminRoutes(mux *http.ServeMux) {
+	mux.Handle("GET /api/admin/rules-policy", s.requireAdmin(http.HandlerFunc(s.rulesPolicy)))
+	mux.Handle("POST /api/admin/rules-policy", s.requireAdmin(http.HandlerFunc(s.setSourcePolicy)))
+	mux.Handle("GET /api/admin/service-selections", s.requireAdmin(http.HandlerFunc(s.serviceSelections)))
+	mux.Handle("POST /api/admin/service-selections", s.requireAdmin(http.HandlerFunc(s.setServiceSelection)))
 	mux.Handle("GET /api/admin/addons", s.requireAdmin(http.HandlerFunc(s.installedAddons)))
 	mux.Handle("POST /api/admin/addons/generations", s.requireAdmin(http.HandlerFunc(s.stageAddonGeneration)))
 	mux.Handle("GET /api/admin/addons/{addonID}", s.requireAdmin(http.HandlerFunc(s.addonSnapshot)))
@@ -340,6 +345,10 @@ func classifyLifecycleError(err error) (int, string, string) {
 		kind    string
 		message string
 	}{
+		{packagemanager.ErrConfigurationConflict, http.StatusConflict, "CONFIGURATION_CONFLICT", packagemanager.ErrConfigurationConflict.Error()},
+		{packagemanager.ErrRulesetCompatibility, http.StatusUnprocessableEntity, "RULESET_INCOMPATIBLE", err.Error()},
+		{servicebroker.ErrInvalidSelection, http.StatusUnprocessableEntity, "INVALID_SELECTION", "Select compatible available providers for this service."},
+		{servicebroker.ErrBindingConflict, http.StatusConflict, "BINDING_CONFLICT", "The service selection changed. Refresh and review the current choice."},
 		{packagemanager.ErrGenerationNotFound, http.StatusNotFound, "GENERATION_NOT_FOUND", packagemanager.ErrGenerationNotFound.Error()},
 		{packagemanager.ErrReviewNotFound, http.StatusNotFound, "REVIEW_NOT_FOUND", packagemanager.ErrReviewNotFound.Error()},
 		{packagemanager.ErrNotActive, http.StatusConflict, "ADDON_NOT_ACTIVE", packagemanager.ErrNotActive.Error()},

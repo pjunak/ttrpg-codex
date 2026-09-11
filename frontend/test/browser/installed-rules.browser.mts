@@ -16,7 +16,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { createHash } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
 import { request as playwrightRequest } from 'playwright';
-import { jsonResponse, installReviewedPackage, zip } from './installed-graph-fixture.mts';
+import { jsonResponse, installReviewedPackage, zip, enableAllRuleSources } from './installed-graph-fixture.mts';
 
 const paths = [process.env.CODEX_ENGINE_ZIP, process.env.CODEX_SHEETS_ZIP, process.env.CODEX_COMPENDIUM_ZIP];
 const enabled = paths.every(Boolean);
@@ -83,6 +83,7 @@ test('installed rules engine keeps Sheets usable before a rules provider is inst
 
 test('installed Compendium drives complete class hydration and Builder through Sheets', { skip: !enabled }, async () => {
   await installReviewedPackage(admin, csrf, 'dnd-2024-compendium', compendium, []);
+  await enableAllRuleSources(admin, csrf);
   const context = await call('context', {}); assert.equal(context.available, true, JSON.stringify(context));
   const classes = await call('query-records', { contractVersion: 'rules-engine-query.v1', kind: 'class', limit: 200 });
   assert.ok(classes.records.length >= 12);
@@ -125,7 +126,7 @@ test('installed engine refreshes changed Compendium content and recovers after p
   assert.deepEqual(restored, before);
 });
 
-function changedCompendium(archive: Buffer) {
+function unpack(archive: Buffer): Record<string, string | Buffer> {
   const end = archive.lastIndexOf(Buffer.from([0x50,0x4b,0x05,0x06])), files: Record<string, string | Buffer> = Object.create(null); assert.ok(end >= 0);
   const count = archive.readUInt16LE(end + 10); assert.ok(count < 10000); let cursor = archive.readUInt32LE(end + 16);
   for (let i = 0; i < count; i++) {
@@ -136,9 +137,49 @@ function changedCompendium(archive: Buffer) {
     assert.ok(method === 0 || method === 8); if (!name.endsWith('/')) files[name] = method === 8 ? inflateRawSync(body, { maxOutputLength: 32 * 1024 * 1024 }) : body;
     cursor += 46 + nameSize + archive.readUInt16LE(cursor + 30) + archive.readUInt16LE(cursor + 32);
   }
+  return files;
+}
+
+function changedCompendium(archive: Buffer) {
+  const files = unpack(archive);
   const manifest = JSON.parse(files['addon.json'].toString()); manifest.version = '3.0.1'; manifest.content[0].revision = 'installed-rules-fixture-2'; files['addon.json'] = JSON.stringify(manifest);
   const recordPath = 'data/phb/classes/wizard.json', record = JSON.parse(files[recordPath].toString()); assert.equal(record.hitDie, 'd6');
   record.hitDie = 'd10'; files[recordPath] = JSON.stringify(record);
   delete files['checksums.json']; files['checksums.json'] = JSON.stringify({ algorithm: 'sha256', files: Object.fromEntries(Object.entries(files).map(([name, body]) => [name, createHash('sha256').update(body).digest('hex')])) });
   return zip(files);
 }
+
+test('installed engine combines compatible source packages and respects per-book policy', { skip: !enabled }, async () => {
+  const files = unpack(compendium), original = JSON.parse(files['addon.json'].toString());
+  for (const name of Object.keys(files)) if (!name.startsWith('contracts/')) delete files[name];
+  const manifest = { packageFormat: 1, id: 'extra-rule-books', name: 'Extra rule books', version: '1.0.0', compatibility: { host: '^2.0.0', addonApi: '^3.0.0' }, rules: { supports: ['dnd-2014', 'dnd-2024'] }, capabilities: { required: [], optional: [] }, permissions: [], services: original.services, content: original.content };
+  manifest.content[0].revision = 'extra-1';
+  files['addon.json'] = JSON.stringify(manifest);
+  for (const suffix of ['one', 'two']) {
+    files[`data/book-${suffix}.json`] = JSON.stringify({ kind: 'book', id: `extra-${suffix}`, name: `Extra ${suffix}` });
+    files[`data/spell-${suffix}.json`] = JSON.stringify({ kind: 'spell', id: `extra-spell-${suffix}`, name: `Extra spell ${suffix}`, book: `extra-${suffix}`, level: 0, school: 'Evocation' });
+  }
+  files['checksums.json'] = JSON.stringify({ algorithm: 'sha256', files: Object.fromEntries(Object.entries(files).map(([name, body]) => [name, createHash('sha256').update(body).digest('hex')])) });
+  const before = await call('context', {});
+  await installReviewedPackage(admin, csrf, 'extra-rule-books', zip(files), []);
+  const pending = await call('context', {});
+  assert.equal(pending.available, true); assert.notEqual(pending.identity.contentRevision, before.identity.contentRevision);
+  let policy = await jsonResponse(await admin.get('/api/admin/rules-policy'));
+  assert.equal(policy.ruleset.id, 'dnd-2024');
+  assert.equal(policy.sources.filter((source: { addonId: string; pending: boolean; enabled: boolean }) => source.addonId === 'extra-rule-books' && source.pending && !source.enabled).length, 2);
+  const choose = async (include: boolean) => {
+    policy = await jsonResponse(await admin.get('/api/admin/rules-policy'));
+    await jsonResponse(await admin.post('/api/admin/rules-policy', { headers: { 'X-Codex-CSRF': csrf }, data: {
+      expectedRevision: policy.revision, expectedGraphRevision: policy.graphRevision,
+      enabled: policy.sources.filter((source: { addonId: string; id: string; enabled: boolean }) => source.addonId === 'extra-rule-books' ? include && source.id === 'extra-one' : source.enabled).map(({ addonId, setId, id }: { addonId: string; setId: string; id: string }) => ({ addonId, setId, id })),
+    } }));
+  };
+  await choose(true);
+  const record = await call('get-record', { contractVersion: 'rules-engine-get.v1', kind: 'spell', id: 'extra-spell-one' });
+  assert.equal(record.record.providerAddonId, 'extra-rule-books');
+  assert.equal(record.identity.providerAddonId, 'dnd-2024-compendium');
+  await assert.rejects(() => call('get-record', { contractVersion: 'rules-engine-get.v1', kind: 'spell', id: 'extra-spell-two' }));
+  await choose(false);
+  const disabled = await call('context', {}); assert.equal(disabled.available, true); assert.notEqual(disabled.identity.contentRevision, record.identity.contentRevision);
+  await assert.rejects(() => call('get-record', { contractVersion: 'rules-engine-get.v1', kind: 'spell', id: 'extra-spell-one' }));
+});

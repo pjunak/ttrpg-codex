@@ -14,6 +14,7 @@ type Manifest struct {
 	RecordExtensions []RecordExtension `json:"recordExtensions,omitempty"`
 	Services         Services          `json:"services,omitempty"`
 	Content          []ContentSet      `json:"content,omitempty"`
+	Rules            *RulesDeclaration `json:"rules,omitempty"`
 	Locales          map[string]string `json:"locales,omitempty"`
 	Dependencies     []Dependency      `json:"dependencies,omitempty"`
 }
@@ -120,6 +121,23 @@ type ContentGroups struct {
 	Field           string `json:"field"`
 	AdditionalField string `json:"additionalField,omitempty"`
 	Label           string `json:"label"`
+	CatalogKind     string `json:"catalogKind,omitempty"`
+}
+
+// Rules declares compatibility independently of package and service versions.
+// Only a complete installed profile defines the instance's ruleset identity.
+type RulesDeclaration struct {
+	Supports []string           `json:"supports"`
+	Defines  *RulesetDefinition `json:"defines,omitempty"`
+}
+
+type RulesetDefinition struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Contract   string `json:"contract"`
+	ContentSet string `json:"contentSet"`
+	RecordKind string `json:"recordKind"`
+	RecordID   string `json:"recordId"`
 }
 
 type Dependency struct {

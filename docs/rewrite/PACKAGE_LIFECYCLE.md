@@ -17,6 +17,15 @@ state before a new review. The server remains authoritative for every action.
 Installed desktop/phone browser checks cover the complete workflow, invalid
 ZIPs, concurrent state changes, lost responses, persistence and player denial.
 
+The same settings destination exposes [instance rules, sourcebook choices and
+service providers](RULES_SOURCES.md). Activation reviews include ruleset
+declarations, initially disabled books and the instance configuration revision.
+Incompatible sources are blocked before activation. Source and binding changes
+use reviewed revision checks and cold graph recovery; accepted configuration
+and restart failures remain separately visible. Migration
+`0014_addon_instance_configuration.sql` adds settings metadata without changing
+campaign records or character extensions.
+
 ## GitHub package sources
 
 Settings → Add-ons also installs and updates prebuilt packages from GitHub.

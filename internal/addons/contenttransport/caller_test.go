@@ -30,11 +30,18 @@ func TestCallerServesCatalogRecordsAndBoundedQueries(t *testing.T) {
 		`{"setId":"rules","kind":"spell","limit":1}`,
 	), nil)
 	if err != nil || !strings.Contains(string(first), `"id":"magic-missile"`) ||
-		!strings.Contains(string(first), `"nextCursor":"MQ"`) {
+		!strings.Contains(string(first), `"nextCursor":`) {
 		t.Fatalf("first page = %s, %v", first, err)
 	}
+	var page struct {
+		NextCursor string `json:"nextCursor"`
+	}
+	if err := json.Unmarshal(first, &page); err != nil {
+		t.Fatal(err)
+	}
+	query, _ := json.Marshal(map[string]any{"setId": "rules", "kind": "spell", "limit": 1, "cursor": page.NextCursor})
 	second, err := caller.Call(context.Background(), "service/dnd5e.rules-data/query", json.RawMessage(
-		`{"setId":"rules","kind":"spell","limit":1,"cursor":"MQ"}`,
+		query,
 	), nil)
 	if err != nil || !strings.Contains(string(second), `"id":"shield"`) ||
 		strings.Contains(string(second), "nextCursor") {

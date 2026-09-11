@@ -165,6 +165,10 @@ func (store *store) setActive(
 	kind string,
 	reviewID string,
 ) (State, error) {
+	manifest, err := store.manifest(ctx, addonID, generationID)
+	if err != nil {
+		return State{}, err
+	}
 	permissionsJSON, err := json.Marshal(grantedPermissions)
 	if err != nil {
 		return State{}, fmt.Errorf("encode granted permissions: %w", err)
@@ -195,6 +199,9 @@ func (store *store) setActive(
 	}
 	if changed != 1 {
 		return State{}, ErrStaleActivationPlan
+	}
+	if err := establishRuleset(ctx, tx, manifest); err != nil {
+		return State{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE addon_package_generations

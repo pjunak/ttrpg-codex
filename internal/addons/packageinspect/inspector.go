@@ -225,6 +225,9 @@ func (i *Inspector) InspectFile(ctx context.Context, filename string) (Report, e
 	if err != nil {
 		return Report{}, inspectionError(CodeInvalidContent, "", err)
 	}
+	if err := validateRules(manifest, contentRegistry); err != nil {
+		return Report{}, inspectionError(CodeInvalidDeclaration, "rules", err)
+	}
 
 	checksumDigest := sha256.Sum256(checksumBody)
 	return Report{

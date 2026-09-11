@@ -84,6 +84,15 @@ Content sets are immutable package assets. Use stable `(kind, id)` identity,
 explicit provenance, and a revision changed with content. User choices and
 overlays belong in host or add-on data, not rewritten package files.
 
+Rules packages declare `rules.supports`; a complete-profile package additionally
+declares `rules.defines` to establish one ruleset for the website instance.
+Compatible source packages may coexist and contain several selectable books.
+Use `groups.catalogKind` for book labels, tolerate zero effective records, and
+include effective revisions in caches. Follow the shared
+[rules/source contract](../../docs/rewrite/RULES_SOURCES.md); source changes
+never authorize rewriting authored character state. Update the host before
+installing packages that use these manifest fields.
+
 ## Build and verify
 
 Each add-on owns its compiler, tests, deterministic packager, and package

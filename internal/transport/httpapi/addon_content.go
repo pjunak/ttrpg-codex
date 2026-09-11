@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -94,7 +93,7 @@ func (s *server) addonContentCatalog(w http.ResponseWriter, r *http.Request) {
 	for _, description := range descriptions {
 		sets = append(sets, contentSetResponse(description))
 	}
-	writeImmutableAddonContentJSON(w, http.StatusOK, map[string]any{
+	writeAddonContentJSON(w, http.StatusOK, map[string]any{
 		"contractVersion": addonContentCatalogVersion,
 		"addonId":         addonID,
 		"generationId":    generationID,
@@ -121,7 +120,7 @@ func (s *server) addonContentRecord(w http.ResponseWriter, r *http.Request) {
 		s.writeAddonContentError(w, r, err)
 		return
 	}
-	writeImmutableAddonContentJSON(w, http.StatusOK, map[string]any{
+	writeAddonContentJSON(w, http.StatusOK, map[string]any{
 		"contractVersion": addonContentRecordVersion,
 		"addonId":         addonID,
 		"generationId":    generationID,
@@ -145,6 +144,11 @@ func (s *server) addonContentQuery(w http.ResponseWriter, r *http.Request) {
 		s.writeAddonContentError(w, r, err)
 		return
 	}
+	query.AfterPosition, err = contentcontract.DecodeCursor(r.URL.Query().Get("cursor"), query.SetID, description.Revision, query.Kind)
+	if err != nil {
+		s.writeAddonContentError(w, r, err)
+		return
+	}
 	result, err := registry.Query(query)
 	if err != nil {
 		s.writeAddonContentError(w, r, err)
@@ -163,9 +167,9 @@ func (s *server) addonContentQuery(w http.ResponseWriter, r *http.Request) {
 		"records":         records,
 	}
 	if result.NextPosition != nil {
-		response["nextCursor"] = encodeContentCursor(*result.NextPosition)
+		response["nextCursor"] = contentcontract.EncodeCursor(*result.NextPosition, query.SetID, description.Revision, query.Kind)
 	}
-	writeImmutableAddonContentJSON(w, http.StatusOK, response)
+	writeAddonContentJSON(w, http.StatusOK, response)
 }
 
 func exactContentQuery(
@@ -212,13 +216,12 @@ func boundedContentQuery(w http.ResponseWriter, r *http.Request) (contentcontrac
 	if value := values.Get("limit"); value != "" {
 		limit, err = strconv.Atoi(value)
 	}
-	after, cursorErr := decodeContentCursor(values.Get("cursor"))
-	if err != nil || cursorErr != nil || limit < 1 || limit > contentcontract.MaximumQueryRecords {
+	if err != nil || len(values.Get("cursor")) > 32 || limit < 1 || limit > contentcontract.MaximumQueryRecords {
 		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "add-on content query bounds are invalid")
 		return contentcontract.Query{}, false
 	}
 	return contentcontract.Query{
-		SetID: setID, Kind: values.Get("kind"), AfterPosition: after, Limit: limit,
+		SetID: setID, Kind: values.Get("kind"), AfterPosition: -1, Limit: limit,
 	}, true
 }
 
@@ -234,31 +237,9 @@ func contentRecordResponse(record contentcontract.Record) addonContentRecordResp
 	return addonContentRecordResponse{Kind: record.Kind, ID: record.ID, Value: record.Value}
 }
 
-func encodeContentCursor(position int) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(strconv.Itoa(position)))
-}
-
-func decodeContentCursor(value string) (int, error) {
-	if value == "" {
-		return -1, nil
-	}
-	if len(value) > 32 {
-		return 0, contentcontract.ErrInvalidQuery
-	}
-	body, err := base64.RawURLEncoding.DecodeString(value)
-	if err != nil {
-		return 0, err
-	}
-	position, err := strconv.Atoi(string(body))
-	if err != nil || position < 0 || encodeContentCursor(position) != value {
-		return 0, contentcontract.ErrInvalidQuery
-	}
-	return position, nil
-}
-
-func writeImmutableAddonContentJSON(w http.ResponseWriter, status int, value any) {
+func writeAddonContentJSON(w http.ResponseWriter, status int, value any) {
 	setPrivateBrowserHeaders(w)
-	w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)

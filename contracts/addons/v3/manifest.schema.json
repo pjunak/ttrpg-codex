@@ -61,6 +61,69 @@
         }
       }
     },
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supports"
+      ],
+      "properties": {
+        "supports": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[a-z0-9]+(?:[-.][a-z0-9]+)*$"
+          }
+        },
+        "defines": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "contract",
+            "contentSet",
+            "recordKind",
+            "recordId"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-z0-9]+(?:[-.][a-z0-9]+)*$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "contract": {
+              "$ref": "#/$defs/contractId"
+            },
+            "contentSet": {
+              "$ref": "#/$defs/localId"
+            },
+            "recordKind": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-z0-9]+(?:[-.][a-z0-9]+)*$"
+            },
+            "recordId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        }
+      }
+    },
     "capabilities": {
       "type": "object",
       "additionalProperties": false,
@@ -681,6 +744,7 @@
               "type": "string",
               "minLength": 1
             },
+            "catalogKind": { "type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[a-z0-9]+(?:[-.][a-z0-9]+)*$" },
             "additionalField": {
               "type": "string",
               "minLength": 1

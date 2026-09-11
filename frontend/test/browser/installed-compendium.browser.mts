@@ -17,7 +17,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { createHash } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
 import { chromium, request as playwrightRequest } from 'playwright';
-import { jsonResponse, installReviewedPackage, zip } from './installed-graph-fixture.mts';
+import { jsonResponse, installReviewedPackage, zip, enableAllRuleSources } from './installed-graph-fixture.mts';
 
 const archivePath = process.env.CODEX_COMPENDIUM_ZIP;
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -44,6 +44,7 @@ before(async () => {
   assert.ok(ready, hostOutput);
   csrf = (await jsonResponse(await admin.post('/api/login', { data: { password: 'local-compendium-dm' } }))).csrfToken;
   await installReviewedPackage(admin, csrf, id, archive, []);
+  await enableAllRuleSources(admin, csrf);
   browser = await chromium.launch({ headless: true });
 });
 after(async () => {
@@ -61,7 +62,7 @@ async function open(t: TestContext, role = 'dm', mobile = false, locale = 'en', 
   await context.addInitScript(locale => localStorage.setItem('codex_lang', locale), locale);
   const page = await context.newPage(); page.setDefaultTimeout(15_000);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message)); t.after(() => assert.deepEqual(errors, []));
-  if (navigate) { await page.goto(`/${route}`); await page.locator('.comp-reading-pane h1').waitFor(); }
+  if (navigate) { await page.goto(`/${route}`); await page.locator('.comp-reading-pane h1').waitFor().catch(async () => assert.fail(await page.locator('body').innerText())); }
   return page;
 }
 async function fits(page: Page) { assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true); }

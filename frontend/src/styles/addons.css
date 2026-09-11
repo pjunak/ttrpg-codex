@@ -65,3 +65,12 @@
   .addon-article,
   .addon-route { margin-right: 0; margin-left: 0; }
 }
+.addon-configuration { display: grid; gap: 1rem; margin-block: 1.5rem; min-width: 0; }
+.addon-configuration fieldset { min-width: 0; padding: 1rem; border: 1px solid var(--chrome-field-border); }
+.addon-configuration p { overflow-wrap: anywhere; }
+.addon-configuration .configuration-books { margin-block: 0.75rem; padding: 0; border: 0; }
+.configuration-books .addon-permission { min-height: 44px; align-items: center; }
+.configuration-service { margin-block: 1rem; }
+.configuration-service select, .addon-configuration input[type="search"] { display: block; max-width: 100%; width: 100%; min-height: 44px; margin-block: 0.5rem 1rem; padding: .5rem; color: var(--text-parchment); background: var(--bg-base); border: 1px solid var(--chrome-field-border); border-radius: var(--radius); font: inherit; }
+.configuration-review { border: 2px solid var(--addon-border); padding: 1rem; }
+.configuration-review h4:focus { outline: 2px solid currentColor; outline-offset: 4px; }

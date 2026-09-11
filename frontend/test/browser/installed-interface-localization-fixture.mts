@@ -26,13 +26,14 @@ export async function exerciseCzechInterface({ t, open, admin, csrf, output, mob
   await page.getByRole('button', { name: /^Přidat:/u }).click();
   const authored = `Title {0} $& ${suffix}`;
   await page.getByLabel('Název', { exact: true }).fill(authored);
+  await page.getByLabel('Zobrazení editoru', { exact: true }).selectOption('markdown');
   await page.locator('[name="description"]').fill('Keep this authored English paragraph.');
   await page.getByRole('button', { name: 'Uložit záznam', exact: true }).click();
   await page.getByRole('heading', { name: authored, exact: true }).waitFor();
   const campaign = await jsonResponse(await admin.get('/api/campaign'));
   const character = campaign.collections.find((collection: FixtureCollection) => collection.name === 'characters').records.find((record: FixtureRecord) => record.value.name === authored);
   assert.ok(character); assert.equal(character.value.description, 'Keep this authored English paragraph.');
-  await page.getByRole('button', { name: 'Upravit', exact: true }).click();
+  await page.getByRole('button', { name: 'Upravit wiki', exact: true }).click();
   await page.screenshot({ path: resolve(output, `czech-record-editor-${suffix}.png`) });
   await page.getByRole('button', { name: 'Zrušit', exact: true }).click();
 

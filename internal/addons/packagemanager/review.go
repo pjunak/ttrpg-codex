@@ -200,8 +200,13 @@ func (manager *Manager) buildReviewProposal(
 		}
 		currentManifest = &manifest
 	}
+	configuration, err := manager.store.configuration(ctx)
+	if err != nil {
+		return ReviewProposal{}, err
+	}
 	proposal := ReviewProposal{
-		AddonID: addonID, GenerationID: generationID, ExpectedStateRevision: state.Revision,
+		ConfigurationRevision: configuration.Revision,
+		AddonID:               addonID, GenerationID: generationID, ExpectedStateRevision: state.Revision,
 		CurrentGenerationID:            state.ActiveGenerationID,
 		PreviouslyGrantedPermissionIDs: sortedStrings(state.GrantedPermissionIDs),
 		CurrentManifest:                currentManifest, TargetManifest: report.Manifest,
@@ -211,8 +216,21 @@ func (manager *Manager) buildReviewProposal(
 		state.GrantedPermissionIDs, report.Manifest.Permissions,
 	)
 	proposal.Changes = compareManifests(currentManifest, report.Manifest)
+	proposal.SourceChoices = []SourceChoice{}
+	if report.Manifest.Rules != nil {
+		proposal.SourceChoices, err = sourceChoices(report, configuration)
+		if err != nil {
+			return ReviewProposal{}, err
+		}
+	}
 	if err := manager.validateCompatibility(report.Manifest); err != nil {
 		proposal.Blockers = append(proposal.Blockers, reviewBlocker("COMPATIBILITY", err))
+	}
+	if err := manager.validateRulesCompatibility(ctx, report.Manifest); err != nil {
+		proposal.Blockers = append(proposal.Blockers, reviewBlocker("RULESET", err))
+	}
+	if err := manager.validateRuleSources(ctx, report); err != nil {
+		proposal.Blockers = append(proposal.Blockers, reviewBlocker("RULESET", err))
 	}
 	if err := manager.validateDependencies(ctx, report.Manifest, false); err != nil {
 		proposal.Blockers = append(proposal.Blockers, reviewBlocker("DEPENDENCY", err))
@@ -408,6 +426,7 @@ func compareManifests(current *packageinspect.Manifest, target packageinspect.Ma
 		before = *current
 	}
 	return ReviewChanges{
+		Rules:            changeSet(rulesItems(before), rulesItems(target)),
 		RuntimeChanged:   !reflect.DeepEqual(before.Runtime, target.Runtime),
 		Permissions:      changeSet(keyed(before.Permissions, func(value packageinspect.Permission) string { return value.ID }), keyed(target.Permissions, func(value packageinspect.Permission) string { return value.ID })),
 		Capabilities:     changeSet(capabilityItems(before), capabilityItems(target)),
@@ -420,6 +439,14 @@ func compareManifests(current *packageinspect.Manifest, target packageinspect.Ma
 		Content:          changeSet(keyed(before.Content, func(value packageinspect.ContentSet) string { return value.ID }), keyed(target.Content, func(value packageinspect.ContentSet) string { return value.ID })),
 		Locales:          changeSet(stringItems(before.Locales), stringItems(target.Locales)),
 	}
+}
+
+func rulesItems(manifest packageinspect.Manifest) map[string]any {
+	result := make(map[string]any)
+	if manifest.Rules != nil {
+		result["ruleset"] = manifest.Rules
+	}
+	return result
 }
 
 func keyed[T any](values []T, key func(T) string) map[string]any {

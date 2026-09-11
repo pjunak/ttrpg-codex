@@ -913,11 +913,14 @@ findings remain evidence, not instructions to add compatibility code.
   (F16), encounter/puzzle reader (F21), dedicated print view (F13), and
   provider-neutral rule links (F18). Add structured calculation explanations
   separately rather than duplicating engine rules in the sheet.
-- [ ] Restore campaign/operator choices: shared effective sourcebook policy and
-  revision identity, preserving existing character choices for review (F07);
-  broker-backed provider conflict resolution with automatic defaults (F08);
-  and package uninstall retaining data by default, with dependency review and
-  a separate data-purge decision (F09).
+- [x] Implement [instance rules, sourcebooks and provider selection](rewrite/RULES_SOURCES.md)
+  (F07–F08): one ruleset from the installed complete profile, explicitly
+  compatible multi-book packages, shared effective content and revisioned
+  operator choices. Preserve authored sheets; require current preview/apply
+  for changed provenance and retain manual equipment values. Broader F17
+  reconciliation remains open. No legacy handlers or live-data changes.
+- [ ] Add package uninstall retaining data by default, with dependency review
+  and a separate data-purge decision (F09).
 - [ ] Complete a minimal contributed settings destination (F10).
 - [ ] Record decisions on conditional extensions: split read-only map context
   from transactional editor contributions (F11); require actual consumers for

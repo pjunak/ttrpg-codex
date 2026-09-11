@@ -80,3 +80,13 @@ export async function installReviewedPackage(request: APIRequestContext, csrf: s
   assert.equal(approved.proposalSha256, review.proposalSha256);
   return jsonResponse(await request.post(`/api/admin/addon-activation-reviews/${review.reviewId}/activation`, { headers }));
 }
+
+// Browse/rules conformance fixtures explicitly opt into their full content corpus.
+// Installation itself keeps the production default of pending optional books.
+export async function enableAllRuleSources(request: APIRequestContext, csrf: string): Promise<void> {
+  const policy = await jsonResponse(await request.get('/api/admin/rules-policy'));
+  await jsonResponse(await request.post('/api/admin/rules-policy', { headers: { 'X-Codex-CSRF': csrf }, data: {
+    expectedRevision: policy.revision, expectedGraphRevision: policy.graphRevision,
+    enabled: policy.sources.map(({ addonId, setId, id }: { addonId: string; setId: string; id: string }) => ({ addonId, setId, id })),
+  } }));
+}
