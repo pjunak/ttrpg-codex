@@ -919,8 +919,12 @@ findings remain evidence, not instructions to add compatibility code.
   operator choices. Preserve authored sheets; require current preview/apply
   for changed provenance and retain manual equipment values. Broader F17
   reconciliation remains open. No legacy handlers or live-data changes.
-- [ ] Add package uninstall retaining data by default, with dependency review
-  and a separate data-purge decision (F09).
+- [x] Implement [reviewed uninstall](rewrite/PACKAGE_LIFECYCLE.md#reviewed-uninstall)
+  (F09): unregister packages, review transitive dependency effects, retain data
+  and recovery archives, revoke runtime access and validate retained data on
+  reinstall. Cover cancellation, stale reviews, retries and desktop/phone UX.
+- [ ] Specify archive garbage collection and permanent namespace deletion
+  separately, including recovery references and an explicit data-loss review.
 - [ ] Complete a minimal contributed settings destination (F10).
 - [ ] Record decisions on conditional extensions: split read-only map context
   from transactional editor contributions (F11); require actual consumers for
@@ -947,8 +951,8 @@ findings remain evidence, not instructions to add compatibility code.
 - Run exhaustive desktop/mobile, Czech/English, package-provider failure,
   restart, update, restore, and rollback rehearsals after launch as useful.
 
-- Add coordinated dependent disable; uninstall/data deletion is tracked in
-  the feature-parity audit follow-up above.
+- Add coordinated dependent disable outside uninstall; archive cleanup and
+  data deletion remain separate follow-ups above.
 - Add migration plan/apply workers when a real released add-on schema change
   requires them; do not build speculative migration machinery.
 - Consider a WASI worker target only for a package that benefits from it.

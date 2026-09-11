@@ -116,9 +116,12 @@ func (s *store) saveSource(ctx context.Context, item LinkedSource) error {
 	var result sql.Result
 	var err error
 	if item.Revision == 0 {
-		result, err = s.db.ExecContext(ctx, `INSERT INTO addon_github_sources(addon_id, source_json, revision) VALUES (?, ?, 1) ON CONFLICT(addon_id) DO UPDATE SET source_json = excluded.source_json, deleted = 0, revision = revision + 1 WHERE deleted = 1`, item.AddonID, string(body))
+		result, err = s.db.ExecContext(ctx, `INSERT INTO addon_github_sources(addon_id, source_json, revision)
+			SELECT ?, ?, 1 WHERE NOT EXISTS (SELECT 1 FROM addon_package_uninstalls WHERE addon_id = ?)
+			ON CONFLICT(addon_id) DO UPDATE SET source_json = excluded.source_json, deleted = 0, revision = revision + 1 WHERE deleted = 1`, item.AddonID, string(body), item.AddonID)
 	} else {
-		result, err = s.db.ExecContext(ctx, `UPDATE addon_github_sources SET source_json = ?, revision = revision + 1 WHERE addon_id = ? AND revision = ? AND deleted = 0`, string(body), item.AddonID, item.Revision)
+		result, err = s.db.ExecContext(ctx, `UPDATE addon_github_sources SET source_json = ?, revision = revision + 1 WHERE addon_id = ? AND revision = ? AND deleted = 0
+			AND NOT EXISTS (SELECT 1 FROM addon_package_uninstalls WHERE addon_id = ?)`, string(body), item.AddonID, item.Revision, item.AddonID)
 	}
 	if err != nil {
 		return err
@@ -135,7 +138,7 @@ func (s *store) saveSource(ctx context.Context, item LinkedSource) error {
 
 func (s *store) installed(ctx context.Context, addonID string) (bool, error) {
 	var count int
-	err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM addon_package_states WHERE addon_id = ?`, addonID).Scan(&count)
+	err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM addon_package_states s WHERE addon_id = ? AND NOT EXISTS (SELECT 1 FROM addon_package_uninstalls u WHERE u.addon_id = s.addon_id)`, addonID).Scan(&count)
 	return count == 1, err
 }
 

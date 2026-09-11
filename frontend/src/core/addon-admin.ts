@@ -2,6 +2,7 @@ import { BoundaryValidationError, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
 import { HostRequestError } from "./api.js";
 import { parseRulesPolicy, parseServiceSelections, parseConfigurationResult, type ConfigurationSnapshot, type SourceTarget, type ServiceSelection } from "./addon-configuration.js";
+import { parseAddonUninstallReview, type AddonUninstallReview } from "./addon-uninstall.js";
 
 export interface InstalledGeneration { addonId: string; generationId: string; version: string; installedAt: string; lastError: string }
 export interface AddonSnapshot {
@@ -60,6 +61,12 @@ export function parseAddonReview(value: unknown): AddonReview {
 
 export class AddonAdminClient {
   constructor(readonly csrfToken: string, readonly signal: AbortSignal) {}
+  async reviewUninstall(addonId: string): Promise<AddonUninstallReview> { return parseAddonUninstallReview(await this.#request(`addons/${id(addonId)}/uninstall-review`, {}), addonId); }
+  async uninstall(review: AddonUninstallReview) {
+    const result = object(await this.#request(`addons/${id(review.addonId)}/uninstall`, { reviewSha256: hash(review.reviewSha256) }));
+    if (result["addonId"] !== review.addonId || result["applied"] !== true || typeof result["alreadyRemoved"] !== "boolean") fail();
+    return parseConfigurationResult(result);
+  }
   async rulesPolicy() { return parseRulesPolicy(await this.#request("rules-policy")); }
   async serviceSelections() { return parseServiceSelections(await this.#request("service-selections")); }
   async selectSources(snapshot: ConfigurationSnapshot, enabled: SourceTarget[]) {

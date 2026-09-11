@@ -303,6 +303,18 @@ func (broker *Broker) Resolve(ctx context.Context, requirement Requirement) (Res
 }
 
 func (broker *Broker) resolve(ctx context.Context, requirement Requirement) (Resolution, error) {
+	return broker.resolveWithout(ctx, requirement, nil)
+}
+
+// ResolveWithout previews the normal binding policy with selected packages
+// unavailable. It neither changes catalogs nor issues a service handle.
+func (broker *Broker) ResolveWithout(ctx context.Context, requirement Requirement, excluded []string) (Resolution, error) {
+	broker.mu.RLock()
+	defer broker.mu.RUnlock()
+	return broker.resolveWithout(ctx, requirement, excluded)
+}
+
+func (broker *Broker) resolveWithout(ctx context.Context, requirement Requirement, excluded []string) (Resolution, error) {
 	constraint, err := validateRequirement(requirement)
 	if err != nil {
 		return Resolution{}, err
@@ -312,6 +324,9 @@ func (broker *Broker) resolve(ctx context.Context, requirement Requirement) (Res
 		return Resolution{}, err
 	}
 	providers = excludeConsumerProvider(providers, requirement.ConsumerAddonID)
+	for _, addonID := range excluded {
+		providers = excludeConsumerProvider(providers, addonID)
+	}
 	providers = broker.runtimes.attach(providers)
 	compatible := compatibleProviders(providers, constraint, false)
 	active := compatibleProviders(providers, constraint, true)

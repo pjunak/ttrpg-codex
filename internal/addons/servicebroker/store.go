@@ -106,20 +106,32 @@ func (store *Store) removeProviders(ctx context.Context, addonID string) error {
 		return fmt.Errorf("begin service provider removal: %w", err)
 	}
 	defer tx.Rollback()
+	if err := RemoveProvidersInTransaction(ctx, tx, addonID, store.now()); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit service provider removal: %w", err)
+	}
+	return nil
+}
+
+// RemoveProvidersInTransaction lets package unregistration retire provider
+// declarations in the same transaction as installation authority.
+func RemoveProvidersInTransaction(ctx context.Context, tx *sql.Tx, addonID string, now time.Time) error {
+	if err := validateAddonID(addonID); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE addon_service_catalogs
 		SET revision = revision + 1, installed = 0, updated_at = ?
 		WHERE addon_id = ?`,
-		store.now().UTC().Format(time.RFC3339Nano),
+		now.UTC().Format(time.RFC3339Nano),
 		addonID,
 	); err != nil {
 		return fmt.Errorf("retire service provider catalog: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM addon_service_providers WHERE addon_id = ?`, addonID); err != nil {
 		return fmt.Errorf("remove service providers: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit service provider removal: %w", err)
 	}
 	return nil
 }

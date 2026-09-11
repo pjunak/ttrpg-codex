@@ -13,6 +13,7 @@ import { exercisePlannerLive } from './installed-planner-live-fixture.mts';
 import { exerciseImportCenter } from './installed-import-center-fixture.mts';
 import { exerciseAddonManager } from './installed-addon-manager-fixture.mts';
 import { exerciseConfiguration } from './installed-configuration-fixture.mts';
+import { exerciseUninstall } from './installed-uninstall-fixture.mts';
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
 import { mkdir, mkdtemp, rm, readFile } from 'node:fs/promises';
@@ -620,6 +621,10 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} route ref
 
 for (const mobile of [false, true]) test(`add-on manager completes package review, update and rollback on ${mobile ? 'phone' : 'desktop'}`, async t => {
   await exerciseAddonManager({ t, open, admin, csrf, output, mobile });
+});
+
+for (const mobile of [false, true]) test(`uninstall reviews dependencies and preserves records through reinstall on ${mobile ? 'phone' : 'desktop'}`, async t => {
+  await exerciseUninstall({ t, open, admin, csrf, output, mobile });
 });
 
 for (const mobile of [false, true]) test(`sourcebook and provider configuration is reviewed and revision guarded on ${mobile ? 'phone' : 'desktop'}`, async t => {

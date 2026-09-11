@@ -4,8 +4,8 @@ This milestone connects verified v3 packages to durable generation state, the
 service broker, native worker supervision, and an authorization-gated HTTP
 application boundary. The executable registers the administrative routes with
 the real-DM and CSRF authorizer. Settings → Add-ons exposes ZIP inspection,
-permission/change review, activation, update, rollback, reload, disable, and
-recent lifecycle diagnostics in English and Czech using the existing settings
+permission/change review, activation, update, rollback, reload, disable,
+uninstall, and recent lifecycle diagnostics in English and Czech using the existing settings
 layout. Disabling preserves package generations and campaign data.
 
 `GET /api/admin/addons` returns `addon-inventory.v1` with sorted `addonIds`,
@@ -271,6 +271,74 @@ be disabled without starting its code. Live dependents block disable until a
 coordinated transition is available. Successful disable increments the state
 revision, records `disabled`, and then performs bounded worker cleanup.
 
+## Reviewed uninstall
+
+Settings → Add-ons offers **Uninstall** for active, disabled, failed and
+staged-only packages. The review names the package, retained data namespaces
+and current record counts, affected consumers, running add-ons that will stop,
+the GitHub update link, and any retained instance ruleset. The final action is
+**Uninstall and keep data**; cancellation has no lifecycle side effects.
+
+The review fingerprint binds the package state, installed generations,
+configuration and graph revisions, source-link revision and dependency effects.
+The server recomputes it before confirmation. Concurrent staging, activation,
+binding/source changes or reloads require a fresh review. This uses the
+[check answers pattern](https://design-system.service.gov.uk/patterns/check-answers/)
+and descriptive action labels from the [button guidance](https://design-system.service.gov.uk/components/button/).
+There is no permanent-delete checkbox or extra typed-name hurdle in this
+reversible, data-preserving operation.
+
+The dependency preview uses normal broker resolution with removed providers
+excluded. Required dependencies and newly unresolved required services disable
+their consumers transitively. A required service that still resolves keeps its
+consumer enabled. Optional consumers reconnect or keep their standalone
+fallback; explicit unavailable provider selections remain visible as stale.
+The review lists all live add-ons affected by the shared cold restart.
+
+Confirmation stops consumers before providers, then atomically clears target
+activation/grants, disables the reviewed dependents, retires provider
+declarations, unlinks the GitHub update source, records `uninstalled`, and
+advances the configuration revision. Remaining eligible add-ons recover in
+provider-first order. A failed database write rolls back unregistration and
+recovers the previous graph. A recovery failure after commit leaves removal
+accepted and reports the remaining failures. Once confirmed, a bounded
+transition continues if the browser disconnects. Retrying the same fingerprint
+while the package remains removed acknowledges completion without removing
+anything again.
+
+An in-progress GitHub update is bound to the installation revision captured
+before its download. Completion after uninstall cannot restage the package or
+recreate its update link; a fresh explicit install is required.
+
+The package disappears from inventory, settings and browser contributions;
+generation asset/data access and activation are unavailable. Its sourcebook
+choices, service bindings, authored documents, revision tombstones, recovery
+points and immutable generation archives remain stored. Repository tokens are
+shared credential settings and remain unchanged. Removing the defining rules
+package preserves the instance ruleset; replacement still requires the same
+ruleset and contract.
+
+Migration `0015_addon_uninstall.sql` records removal separately from recovery
+artifacts. Restaging a validated ZIP clears removal and advances state, but
+does not activate it or restore permission grants. Normal activation review
+validates retained records and schemas. Incompatible retained data blocks
+activation; no converter or legacy handler is introduced. Retained generation
+history remains available after reinstall, subject to the same review.
+If a retired generation is corrupt, a validated ZIP with the same fingerprint
+can repair it. The old directory is preserved under the package's `retired/`
+area before replacement; active installations are never repaired in place.
+
+Uninstall does not free archive storage or purge campaign data. Permanent data
+deletion and archive garbage collection require separate reviewed contracts,
+including recovery-reference eligibility. Full backups retain uninstall state;
+campaign recovery does not rewind package lifecycle authority.
+
+Regression coverage includes package-manager uninstall tests, normal broker
+resolution, transaction rollback, corrupt/unrecovered packages, transitive
+dependencies and retained ruleset identity. Desktop/phone installed fixtures
+exercise English/Czech review, cancellation, conflicts, lost-response retries,
+DM/CSRF boundaries, revoked access, retained records and incompatible reinstall.
+
 ## Administrative HTTP boundary
 
 The transport registers add-on administration only when both the lifecycle
@@ -290,6 +358,8 @@ CSRF token for mutations.
 | `POST /api/admin/addon-activation-reviews/{reviewId}/activation` | Consume an approved review and switch generation |
 | `POST /api/admin/addons/{addonId}/reload` | Reload the active generation at an expected state revision |
 | `POST /api/admin/addons/{addonId}/disable` | Disable at an expected state revision without deleting files or data |
+| `POST /api/admin/addons/{addonId}/uninstall-review` | Read the current `addon-uninstall-review.v1` proposal with body `{}` |
+| `POST /api/admin/addons/{addonId}/uninstall` | Confirm `{reviewSha256}`; return the configuration/recovery result with `addonId` and `alreadyRemoved` |
 
 Mutation bodies require `application/json`, reject unknown fields and multiple
 JSON values, and are capped at 64 KiB before lifecycle code is invoked. Path
@@ -328,8 +398,8 @@ payloads are not stored in the event log.
 ## Remaining lifecycle work
 
 - Planned generation bindings for add-ons that consume their own service.
-- Coordinated dependent disable and uninstall transitions.
-- Uninstall, quarantine, and separate reviewed data deletion.
+- Coordinated dependent disable outside the implemented uninstall transition.
+- Quarantine, archive garbage collection and separate reviewed data deletion.
 - Add-on data migration planning and recoverable commit.
 - WASI runtime factory, restart/backoff wiring, OS resource enforcement, and
   redacted support-bundle diagnostics.

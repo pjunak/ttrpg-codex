@@ -180,7 +180,7 @@ func (manager *Manager) Stage(ctx context.Context, archivePath string) (Generati
 	if info.Size() > manager.maxArchiveBytes {
 		return Generation{}, fmt.Errorf("package source exceeds %d bytes", manager.maxArchiveBytes)
 	}
-	return manager.stageArchive(ctx, input)
+	return manager.stageArchive(ctx, input, nil)
 }
 
 // StageArchive validates and publishes an uploaded package without exposing a
@@ -189,12 +189,30 @@ func (manager *Manager) StageArchive(ctx context.Context, archive io.Reader) (Ge
 	if archive == nil {
 		return Generation{}, fmt.Errorf("%w: package archive is required", ErrInvalidPackage)
 	}
-	return manager.stageArchive(ctx, archive)
+	return manager.stageArchive(ctx, archive, nil)
 }
 
-func (manager *Manager) stageArchive(ctx context.Context, archive io.Reader) (Generation, error) {
+// StageUpdateArchive binds a slow remote download to the installation that
+// requested it. Completion after uninstall or another transition cannot reinstall.
+func (manager *Manager) StageUpdateArchive(ctx context.Context, archive io.Reader, addonID string, expectedRevision int64) (Generation, error) {
+	if archive == nil || !validAddonPath(addonID) || expectedRevision < 0 {
+		return Generation{}, ErrInvalidPackage
+	}
+	return manager.stageArchive(ctx, archive, &State{AddonID: addonID, Revision: expectedRevision})
+}
+
+func (manager *Manager) stageArchive(ctx context.Context, archive io.Reader, expected *State) (Generation, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
+	if expected != nil {
+		snapshot, err := manager.store.snapshot(ctx, expected.AddonID, 1)
+		if err != nil {
+			return Generation{}, err
+		}
+		if snapshot.State.Revision != expected.Revision {
+			return Generation{}, ErrStaleActivationPlan
+		}
+	}
 	stageID, err := manager.generateID()
 	if err != nil {
 		return Generation{}, fmt.Errorf("generate staging ID: %w", err)
@@ -223,6 +241,9 @@ func (manager *Manager) stageArchive(ctx context.Context, archive io.Reader) (Ge
 	if !validAddonPath(report.Manifest.ID) {
 		return Generation{}, fmt.Errorf("%w: add-on id is not a safe package path", ErrInvalidPackage)
 	}
+	if expected != nil && report.Manifest.ID != expected.AddonID {
+		return Generation{}, ErrInvalidPackage
+	}
 	generationID := report.ArchiveSHA256
 	finalDirectory := manager.generationDirectory(report.Manifest.ID, generationID)
 	if err := os.MkdirAll(filepath.Dir(finalDirectory), 0o750); err != nil {
@@ -231,15 +252,35 @@ func (manager *Manager) stageArchive(ctx context.Context, archive io.Reader) (Ge
 	if _, err := os.Lstat(finalDirectory); err == nil {
 		existing, loadErr := manager.loadPackage(ctx, report.Manifest.ID, generationID)
 		if loadErr != nil {
-			return Generation{}, fmt.Errorf("%w: existing content-addressed generation is invalid: %v", ErrInvalidPackage, loadErr)
+			removed, err := manager.store.uninstallHash(ctx, report.Manifest.ID)
+			if err != nil {
+				return Generation{}, err
+			}
+			if removed == "" {
+				return Generation{}, fmt.Errorf("%w: existing content-addressed generation is invalid: %v", ErrInvalidPackage, loadErr)
+			}
+			// A validated reinstall can repair a retired corrupt generation. Keep
+			// the original directory for inspection rather than deleting its bytes.
+			retiredDirectory := filepath.Join(manager.directory, report.Manifest.ID, "retired", generationID+"-"+stageID)
+			if err := os.MkdirAll(filepath.Dir(retiredDirectory), 0o750); err != nil {
+				return Generation{}, err
+			}
+			if err := os.Rename(finalDirectory, retiredDirectory); err != nil {
+				return Generation{}, err
+			}
+			if err := os.Rename(stageDirectory, finalDirectory); err != nil {
+				return Generation{}, errors.Join(err, os.Rename(retiredDirectory, finalDirectory))
+			}
+			stagePublished = true
+		} else {
+			if existing.Manifest.Version != report.Manifest.Version {
+				return Generation{}, fmt.Errorf("%w: existing content-addressed generation has the wrong version", ErrInvalidPackage)
+			}
+			if err := manager.removeStage(stageDirectory); err != nil {
+				return Generation{}, err
+			}
+			stagePublished = true
 		}
-		if existing.Manifest.Version != report.Manifest.Version {
-			return Generation{}, fmt.Errorf("%w: existing content-addressed generation has the wrong version", ErrInvalidPackage)
-		}
-		if err := manager.removeStage(stageDirectory); err != nil {
-			return Generation{}, err
-		}
-		stagePublished = true
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Generation{}, fmt.Errorf("inspect generation destination: %w", err)
 	} else {

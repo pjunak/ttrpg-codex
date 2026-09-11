@@ -192,6 +192,14 @@ inspected -> awaiting approval -> staged -> resolved -> migrating
                                                             stopped
 ```
 
+Host uninstall uses a reviewed, revision-bound transition: it unregisters the
+package and disables required dependents while retaining authored data,
+settings and immutable recovery archives. Optional consumers remain usable
+without their removed provider. Restaging requires normal permission and
+retained-schema review before activation. Uninstall never invokes a package
+cleanup handler or silently purges its namespace. See the
+[uninstall contract](../../docs/rewrite/PACKAGE_LIFECYCLE.md#reviewed-uninstall).
+
 The important transition rules are:
 
 1. **Inspect.** Validate archive safety, hashes, signature/provenance when

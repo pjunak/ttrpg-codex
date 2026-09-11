@@ -66,7 +66,20 @@ func (store *store) recordGeneration(ctx context.Context, report packageRecord) 
 	if err != nil {
 		return Generation{}, fmt.Errorf("read generation insert result: %w", err)
 	}
-	if insertedCount == 1 {
+	reinstalled, err := tx.ExecContext(ctx, `DELETE FROM addon_package_uninstalls WHERE addon_id = ?`, report.Manifest.ID)
+	if err != nil {
+		return Generation{}, err
+	}
+	reinstalledCount, err := reinstalled.RowsAffected()
+	if err != nil {
+		return Generation{}, err
+	}
+	if reinstalledCount == 1 {
+		if _, err := tx.ExecContext(ctx, `UPDATE addon_package_states SET revision = revision + 1, updated_at = ? WHERE addon_id = ?`, now.Format(time.RFC3339Nano), report.Manifest.ID); err != nil {
+			return Generation{}, err
+		}
+	}
+	if insertedCount == 1 || reinstalledCount == 1 {
 		if err := insertEvent(ctx, tx, report.Manifest.ID, report.GenerationID, "staged", "", now); err != nil {
 			return Generation{}, err
 		}
@@ -83,7 +96,8 @@ func (store *store) generation(ctx context.Context, addonID, generationID string
 		       installed_at, last_attempt_at, last_activated_at,
 		       COALESCE(last_error, '')
 		FROM addon_package_generations
-		WHERE addon_id = ? AND generation_id = ?`, addonID, generationID)
+		WHERE addon_id = ? AND generation_id = ?
+		AND NOT EXISTS (SELECT 1 FROM addon_package_uninstalls u WHERE u.addon_id = addon_package_generations.addon_id)`, addonID, generationID)
 	return scanGeneration(row)
 }
 
@@ -122,7 +136,8 @@ func (store *store) activeStates(ctx context.Context) ([]State, error) {
 }
 
 func (store *store) installedAddonIDs(ctx context.Context) ([]string, error) {
-	rows, err := store.db.QueryContext(ctx, `SELECT DISTINCT addon_id FROM addon_package_generations ORDER BY addon_id`)
+	rows, err := store.db.QueryContext(ctx, `SELECT addon_id FROM addon_package_states s
+		WHERE NOT EXISTS (SELECT 1 FROM addon_package_uninstalls u WHERE u.addon_id = s.addon_id) ORDER BY addon_id`)
 	if err != nil {
 		return nil, fmt.Errorf("list installed add-ons: %w", err)
 	}
@@ -331,6 +346,13 @@ func (store *store) recordRecovery(ctx context.Context, addonID, generationID st
 }
 
 func (store *store) snapshot(ctx context.Context, addonID string, eventLimit int) (Snapshot, error) {
+	removed, err := store.uninstallHash(ctx, addonID)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	if removed != "" {
+		return Snapshot{}, ErrGenerationNotFound
+	}
 	state, err := store.state(ctx, addonID)
 	if err != nil {
 		return Snapshot{}, err

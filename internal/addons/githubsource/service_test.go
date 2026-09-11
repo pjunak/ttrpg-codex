@@ -314,6 +314,49 @@ func TestReleaseStagesReviewedUpdatesAndTracksActiveGeneration(t *testing.T) {
 	}
 }
 
+func TestUpdateCompletingAfterUninstallCannotReinstallOrRelink(t *testing.T) {
+	s, manager, _ := fixture(t)
+	ctx := context.Background()
+	body := packageBytes(t, "example", "1.0.0")
+	if _, err := manager.StageArchive(ctx, bytes.NewReader(body)); err != nil {
+		t.Fatal(err)
+	}
+	source := Source{Repo: "owner/repo", Channel: "release"}
+	if err := s.SaveSource(ctx, LinkedSource{AddonID: "example", Source: source}, false); err != nil {
+		t.Fatal(err)
+	}
+	s.client.Transport = transportFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path == "/repos/owner/repo/releases/latest" {
+			return response(jsonBody(map[string]any{"tag_name": "v1", "assets": []any{map[string]any{"id": 1, "name": "example.zip", "size": len(body), "state": "uploaded", "digest": digest(body)}}})), nil
+		}
+		review, err := manager.PrepareUninstall(ctx, "example")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.Uninstall(ctx, "example", review.ReviewSHA256); err != nil {
+			t.Fatal(err)
+		}
+		return response(body), nil
+	})
+	discovery, err := s.Discover(ctx, source, "example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Stage(ctx, source, "example", discovery.Candidates[0].ID); !errors.Is(err, ErrConflict) {
+		t.Fatalf("late update = %v", err)
+	}
+	ids, err := manager.InstalledAddonIDs(ctx)
+	if err != nil || len(ids) != 0 {
+		t.Fatalf("removed package returned: %v,%v", ids, err)
+	}
+	if err := s.store.saveSource(ctx, LinkedSource{AddonID: "example", Source: source}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("late link restored: %v", err)
+	}
+	if _, err := s.store.source(ctx, "example"); !errors.Is(err, ErrSourceMissing) {
+		t.Fatalf("link restored: %v", err)
+	}
+}
+
 func TestActionsSelectsSuccessfulSameRepositoryBuildAndUnwrapsPackage(t *testing.T) {
 	s, _, _ := fixture(t)
 	ctx := context.Background()

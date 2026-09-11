@@ -68,6 +68,7 @@ type Status struct {
 }
 type Lifecycle interface {
 	StageArchive(context.Context, io.Reader) (packagemanager.Generation, error)
+	StageUpdateArchive(context.Context, io.Reader, string, int64) (packagemanager.Generation, error)
 }
 type Config struct {
 	DB               *sql.DB
@@ -246,6 +247,17 @@ func (s *Service) Stage(ctx context.Context, source Source, addonID, candidateID
 	if len(candidateID) != 64 || strings.Trim(candidateID, "0123456789abcdef") != "" {
 		return zero, ErrInvalid
 	}
+	var installationRevision int64
+	if addonID != "" {
+		err := s.store.db.QueryRowContext(ctx, `SELECT revision FROM addon_package_states s WHERE addon_id = ?
+			AND NOT EXISTS (SELECT 1 FROM addon_package_uninstalls u WHERE u.addon_id = s.addon_id)`, addonID).Scan(&installationRevision)
+		if errors.Is(err, sql.ErrNoRows) {
+			return zero, ErrConflict
+		}
+		if err != nil {
+			return zero, err
+		}
+	}
 	// Re-resolve the listing before downloading; client-supplied URLs and stale
 	// candidate identifiers never become download authority.
 	discovery, err := s.Discover(ctx, source, addonID)
@@ -289,7 +301,15 @@ func (s *Service) Stage(ctx context.Context, source Source, addonID, candidateID
 	if _, err = file.Seek(0, io.SeekStart); err != nil {
 		return zero, err
 	}
-	generation, err := s.lifecycle.StageArchive(ctx, file)
+	var generation packagemanager.Generation
+	if addonID == "" {
+		generation, err = s.lifecycle.StageArchive(ctx, file)
+	} else {
+		generation, err = s.lifecycle.StageUpdateArchive(ctx, file, addonID, installationRevision)
+	}
+	if errors.Is(err, packagemanager.ErrStaleActivationPlan) || errors.Is(err, packagemanager.ErrGenerationNotFound) {
+		return zero, ErrConflict
+	}
 	if err != nil {
 		return zero, err
 	}
