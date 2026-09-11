@@ -346,6 +346,7 @@ function activationMessage(
       "permissions.has",
       "permissions.resources",
       "ui.declarations",
+      "ui.rule-details",
     ] satisfies IsolatedSDKMethod[],
   };
 }

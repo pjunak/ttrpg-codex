@@ -122,17 +122,20 @@ that declaration for another reverse-proxy topology. Forward the original
 scheme and client address normally, terminate TLS at the proxy, and keep
 `CODEX_SECURE_COOKIES=true`.
 
+Existing schema-3 sheet installations use the separate, backed-up
+[offline retirement procedure](rewrite/CHARACTER_SHEET_CUTOVER.md) before
+activating Sheets 4. It never removes new retained character history.
+
 ## One-time v1 conversion
 
 Reuse the downloaded UI backups already taken, keeping the input archives and
 old data unchanged. A repeated backup cycle is not a release requirement; if
 either site has changed since its backup, preserve those later changes before
-cutover. Build fresh v3 ZIPs for DM Tools and Character Sheets and inspect them
-first:
+cutover. Build and inspect the current DM Tools ZIP first. The converter counts
+and omits retired sheet values; it does not accept a sheet conversion package:
 
 ```powershell
 go run ./cmd/codex-addon-inspect ../addon-dm-tools/dist/dm-tools-3.0.0.zip
-go run ./cmd/codex-addon-inspect ../addon-dnd-character-sheets/dist/dnd-sheets-3.0.0.zip
 ```
 
 Convert each website independently. The output directory must not exist:
@@ -142,13 +145,12 @@ go run ./cmd/codex-convert-v1 `
   -in D:\backups\site-a-v1.zip `
   -out D:\converted\site-a `
   -report D:\converted\site-a-conversion-report.json `
-  -addon-package ..\addon-dm-tools\dist\dm-tools-3.0.0.zip `
-  -addon-package ..\addon-dnd-character-sheets\dist\dnd-sheets-3.0.0.zip
+  -addon-package ..\addon-dm-tools\dist\dm-tools-3.0.0.zip
 ```
 
 Read the JSON report printed to the terminal and saved at the requested new
 `-report` path. Confirm the input hash, imported collection counts, media
-counts, retired-core adjustments, package hashes, and every deferred/unknown
+counts, retired-core adjustments, omitted old-sheet counts, package hashes, and every deferred/unknown
 entry. Generated map tiles are deliberately discarded. The source ZIP is never
 modified.
 
@@ -271,11 +273,12 @@ prerequisites under the owner's accepted downtime and rollback policy:
 - Both converted instances report the expected core and add-on record counts.
 - Representative hidden/public records are correct for anonymous, player, and
   DM views.
-- Character-sheet extension data and DM Tools planning collections are present.
+- Core character profiles and DM Tools planning collections are present; old
+  sheet omissions match the conversion report. New characters use schema 4.
 - Portraits, maps, logos, and other migrated media load through opaque URLs.
 - All four v3 packages stage, review, activate, reload, and recover after a
   restart.
-- Compendium browsing, rules-engine calls, sheet manual/automated paths, and DM
+- Compendium browsing, rules-engine v4 calls, sheet Build/Play/History and DM
   Tools routes work together.
 - Two browsers observe live edits and stale edits receive conflicts.
 - A fresh v2 backup verifies and can be restored into a disposable directory.

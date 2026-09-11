@@ -81,6 +81,9 @@ type queryCondition struct {
 }
 
 type transactionRequest struct {
+	OperationID      string `json:"operationId,omitempty"`
+	Operation        string `json:"operation,omitempty"`
+	Summary          string `json:"summary,omitempty"`
 	ContractVersion  string `json:"contractVersion"`
 	ExpectedDataSets []struct {
 		Kind     datacontract.Kind `json:"kind"`
@@ -153,6 +156,9 @@ func New(config Config) (*workerbroker.Dispatcher, error) {
 		dataGetMethod(config.Data),
 		dataQueryMethod(config.Data),
 		dataTransactionMethod(config.Data),
+	}
+	if history, ok := config.Data.(historyData); ok {
+		methods = append(methods, dataHistoryMethod(history))
 	}
 	if config.Services != nil {
 		methods = append(methods, serviceCallMethod(config.Services, declarations.services))
@@ -304,6 +310,7 @@ func dataTransactionMethod(data Data) workerbroker.Method {
 			}
 			commit, err := data.Transact(ctx, addondata.Transaction{
 				Access: dataAccess(invocation), Mutations: mutations, ExpectedDataSets: guards,
+				OperationID: request.OperationID, Operation: request.Operation, Summary: request.Summary,
 			})
 			if err != nil {
 				return nil, dataError(err)
@@ -345,6 +352,12 @@ func (declarations declaredData) authorize(invocation workerbroker.Invocation) e
 		return declarations.authorizeReference(request.Kind, request.DataID)
 	case "host/data.query":
 		request, err := decodeExact[queryRequest](invocation.Params)
+		if err != nil {
+			return err
+		}
+		return declarations.authorizeReference(request.Kind, request.DataID)
+	case "host/data.history":
+		request, err := decodeExact[historyRequest](invocation.Params)
 		if err != nil {
 			return err
 		}
@@ -393,7 +406,7 @@ func (declarations declaredData) authorizeReference(kind datacontract.Kind, data
 
 func dataAccess(invocation workerbroker.Invocation) addondata.Access {
 	return addondata.Access{
-		AddonID: invocation.AddonID, Generation: invocation.Generation,
+		AddonID: invocation.AddonID, Generation: invocation.Generation, Worker: true,
 		Role:    actorRole(invocation.Authority.Actor.Role),
 		ActorID: boundedActorID(invocation.AddonID, invocation.Authority.Actor.ID),
 	}

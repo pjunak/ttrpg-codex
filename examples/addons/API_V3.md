@@ -16,6 +16,13 @@ requirements. Machine-readable definitions live in
 
 ## Design principles
 
+The public [retained record-history contract](../../docs/rewrite/RETAINED_ADDON_HISTORY.md)
+defines `retained: true`, `data.history`, recorded worker transactions and
+historical reads. The public [rule-details contract](../../docs/rewrite/RULE_DETAILS.md)
+defines `ui.rule-details`, the integrated component and the equivalent
+integrated/isolated `ui.showRuleDetails` operation. These extend API v3 without
+making domain-specific character rules part of the host.
+
 1. **Inspect before executing.** A package's requested authority and occupied
    surfaces are visible before any of its code runs.
 2. **Stable IDs over implementation knowledge.** Host code addresses public
@@ -858,13 +865,13 @@ Services exchange serializable schema-validated requests and responses:
 
 ```ts
 const engine = await context.services.connect("dnd5e.rules-engine", {
-  range: "^3.0.0",
+  range: "^4.0.0",
   cardinality: "one",
   signal: context.signal,
 });
 
 const result = await engine.call("evaluate-character", request, {
-  deadlineMs: 2_000,
+  deadlineMs: 20_000,
   signal: context.signal,
 });
 ```
@@ -927,15 +934,15 @@ directly to one payload schema:
 {
   "$schema": "https://junak.eu/ttrpg-codex/contracts/addons/v3/service-document.schema.json",
   "contract": "dnd5e.rules-engine",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "allowsExclusive": false,
   "methods": {
     "evaluate-character": {
-      "requestSchema": "contracts/evaluate-character.request.schema.json",
-      "responseSchema": "contracts/evaluate-character.response.schema.json",
-      "maxDeadlineMs": 2000,
-      "idempotency": "optional",
-      "errors": ["INVALID_INPUT", "UNAVAILABLE"]
+      "requestSchema": "contracts/character.request.schema.json",
+      "responseSchema": "contracts/character.response.schema.json",
+      "maxDeadlineMs": 20000,
+      "idempotency": "none",
+      "errors": ["INVALID_REQUEST", "UNAVAILABLE", "VALIDATION_FAILED", "STALE_BINDING"]
     }
   }
 }
@@ -1426,13 +1433,14 @@ The first-party packages currently use these profiles:
 | Add-on | Browser | Worker | Main contracts exercised |
 |---|---|---|---|
 | D&D 2024 Compendium | Integrated TypeScript | None | content sets, locales, nonexclusive `dnd5e.rules-data` v3 provider; defines `dnd-2024` |
-| D&D Rules Engine | None | Native Go | `dnd5e.rules-engine` v3 provider, optional consumer of all compatible rules-data v3 providers |
-| D&D Character Sheets | Integrated TypeScript | None | optional engine v3 consumer and character record extension |
+| D&D Rules Engine | None | Native Go | `dnd5e.rules-engine` v4 provider, optional consumer of all compatible rules-data v3 providers |
+| D&D Character Sheets | Integrated TypeScript | Native Go | optional engine v4 consumer, character service v1 and worker-authorized retained schema-4 extension |
 | DM Tools | Integrated TypeScript | Native Go | DM collections, transactions, import-adapter v2 provider/consumer, routes and slots |
 
-All four remain optional. Character sheets remain hand-fillable without an
-engine. The engine remains useful with no hardcoded compendium identity. The
-host remains useful without any D&D-specific package.
+All four remain optional. Saved character revisions remain readable, printable
+and exportable without an engine; validated mechanical changes require one. The
+engine selects sources through contracts, with no hardcoded compendium identity.
+The host remains useful without any D&D-specific package.
 
 ## Conformance requirements
 

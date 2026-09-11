@@ -105,12 +105,10 @@ in-flight catalog epochs invalidate old runtime results together.
 
 ## Engine and character preservation
 
-The behavior below describes the current implementation. The planned
-[character decisions and history redesign](CHARACTER_BUILD_HISTORY.md) replaces
-the manual/automatic sheet split with typed decisions, DM grants and retained
-projections. It keeps this specification's one-ruleset policy, compatible source
-selection and explicit adoption of changed rules. No runtime contract changes
-merely because that plan has been documented.
+The [character decisions and history model](CHARACTER_BUILD_HISTORY.md) uses
+typed decisions, authenticated DM grants and retained projections. It keeps
+this specification's one-ruleset policy, compatible source selection and
+explicit adoption of changed rules.
 
 The D&D engine consumes all compatible `dnd5e.rules-data` providers from its
 host-issued worker bindings. It requires exactly one complete profile across
@@ -124,20 +122,22 @@ providers, carries a content revision hashing every provider's identity,
 generation and effective revision. Record envelopes include their owning
 `providerAddonId`. Snapshot loading verifies the catalogs before publication;
 cache checks still contact providers. Removing a source invalidates old cursors,
-builder plans and computed snapshots without mutating previously returned data.
+pending character reviews and computed snapshots without mutating previously returned data.
 
 Changing sources or providers does not write character extensions, delete
 decisions, erase snapshots or recalculate saved values. Existing values remain
-usable when their source is unavailable. Equipment edits preserve manual
-values and only refresh computed values when the complete saved identity still
-matches. Changed or unverifiable saved provenance requires an explicit rules
-preview and apply before rules actions can replace computed values. A preview
-from a different rules snapshot cannot authorize the replacement.
+readable, printable and exportable when their source is unavailable. Authored
+play state is preserved; mechanical changes require compatible rules. Changed
+or unverifiable provenance requires explicit review and adoption before rules
+actions can replace computed values. The coordinator commits the exact reviewed
+inputs and results as a retained revision. A different rules snapshot cannot
+authorize the replacement.
 
 **Data implications:** new optional books being off can make existing choices
 unavailable for future selection. The choices and saved sheets remain stored.
 Explicitly applying newly computed values can change derived statistics; the
-sheet's existing preview/materialization contract governs that action. This
+[character command contract](CHARACTER_BUILD_HISTORY.md#authoritative-mutation-path)
+governs that action. This
 work does not inspect or modify live campaign data.
 
 ## UX and verification

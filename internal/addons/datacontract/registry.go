@@ -43,6 +43,7 @@ type Index struct {
 }
 
 type Declaration struct {
+	Retained      bool
 	Kind          Kind
 	ID            string
 	Target        string
@@ -54,6 +55,7 @@ type Declaration struct {
 }
 
 type Description struct {
+	Retained      bool       `json:"retained,omitempty"`
 	Kind          Kind       `json:"kind"`
 	ID            string     `json:"id"`
 	Target        string     `json:"target,omitempty"`
@@ -122,8 +124,16 @@ func Compile(declarations []Declaration, resources map[string][]byte) (*Registry
 		if err != nil {
 			return nil, err
 		}
+		if declaration.Retained {
+			if declaration.Kind != RecordExtension {
+				return nil, ErrInvalidDeclaration
+			}
+			policyDigest := sha256.Sum256([]byte(digest + "\x00retained-worker.v1"))
+			digest = hex.EncodeToString(policyDigest[:])
+		}
 		description := Description{
-			Kind: declaration.Kind, ID: declaration.ID, Target: declaration.Target,
+			Retained: declaration.Retained,
+			Kind:     declaration.Kind, ID: declaration.ID, Target: declaration.Target,
 			Keyed: declaration.Keyed, Visibility: declaration.Visibility,
 			Schema: declaration.Schema, SchemaVersion: declaration.SchemaVersion,
 			SchemaSHA256: digest, Indexes: cloneIndexes(declaration.Indexes),

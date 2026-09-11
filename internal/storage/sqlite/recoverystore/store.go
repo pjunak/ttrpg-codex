@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/addondatastore"
 	"strconv"
 
 	"github.com/pjunak/ttrpg-codex/internal/events"
@@ -194,6 +195,9 @@ func (s *Store) Restore(ctx context.Context, request RestoreRequest, actorID str
 		if _, err := tx.ExecContext(ctx, statement, sql.Named("image", image)); err != nil {
 			return fmt.Errorf("restore campaign step %d: %w", index, err)
 		}
+	}
+	if err := addondatastore.RetainRecovery(ctx, tx, actorID, fmt.Sprintf("recovery-%d", safetyID)); err != nil {
+		return err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO recovery_restores(point_id, safety_point_id, actor_id, occurred_at)
         VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`, id, safetyID, actorID); err != nil {

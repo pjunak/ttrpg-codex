@@ -286,6 +286,12 @@ export const isolatedFrameBootstrap = String.raw`
       },
     });
     const ui = Object.freeze({
+      showRuleDetails: async (details) => {
+        requireActive(); const trigger = document.activeElement;
+        try { await sdkRequest("ui.rule-details", details, controller.signal); }
+        catch (error) { if (!controller.signal.aborted) throw error; }
+        finally { if (!controller.signal.aborted && trigger instanceof HTMLElement && trigger.isConnected) trigger.focus(); }
+      },
       declarations: () => {
         requireActive();
         return declarations;

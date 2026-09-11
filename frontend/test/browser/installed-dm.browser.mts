@@ -87,6 +87,20 @@ function slotRoot(page: Page, mode: string) {
   return mode === 'isolated' ? root.frameLocator('iframe') : root;
 }
 
+for (const mode of ['integrated', 'isolated']) test(`installed ${mode} rule details preserve drafts, keyboard focus and generation lifetime`, async t => {
+  const id=`rule-details-${mode}`;await installDmPackage(admin,csrf,{id,mode,edits:true,ruleDetails:true});t.after(()=>disable(id));
+  const page=await open(t,'dm',mode==='isolated'),surface=slotRoot(page,mode);
+  await surface.getByLabel('Fixture notes').fill('Draft survives rule inspection');
+  const trigger=surface.getByRole('button',{name:'Inspect saved rule',exact:true});await trigger.focus();await trigger.press('Enter');
+  const dialog=page.getByRole('dialog',{name:'Synthetic total',exact:true});await dialog.waitFor();assert.match(await dialog.innerText(),/10 \+ 2/);assert.match(await dialog.innerText(),/Saved explanations remain visible/);
+  await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});
+  // The isolated acknowledgement crosses MessagePort after the host closes.
+  for(let attempt=0;attempt<50&&!(await trigger.evaluate(element=>element===document.activeElement));attempt++)await sleep(20);
+  assert.equal(await trigger.evaluate(element=>element===document.activeElement),true,JSON.stringify(await trigger.evaluate(()=>({active:document.activeElement?.outerHTML,focused:document.hasFocus()}))));
+  assert.equal(await surface.getByLabel('Fixture notes').inputValue(),'Draft survives rule inspection');assert.equal(await unloadBlocked(page),true);
+  await trigger.press('Space');await dialog.waitFor();await disable(id);await dialog.waitFor({state:'detached'});
+});
+
 test('DM panel preserves the fallback cards and hidden sidebar tool access on desktop and phone', async t => {
   const id = 'dm-fallback'; await installDmPackage(admin, csrf, { id, slot: false }); t.after(() => disable(id));
   for (const mobile of [false, true]) {

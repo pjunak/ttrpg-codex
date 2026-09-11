@@ -12,6 +12,10 @@ not the legacy JSON/ZIP restore format. `codex-backup.v2` contains:
 Transient add-on and blob `.staging` content is excluded. Blob archive paths
 must match their content hash, and verification proves every object referenced
 by the restored database exists with the expected size and digest. The database
+also retains [immutable add-on history payloads](RETAINED_ADDON_HISTORY.md) and
+their revision/operation records. Campaign recovery appends a retained head;
+it does not erase later revisions. Browser device drafts are outside backups.
+The database
 includes versioned DM/player password hashes, never clear-text passwords.
 Restoring an archive restores those credentials. Archives made before password
 persistence have no saved credentials and bootstrap from the environment on

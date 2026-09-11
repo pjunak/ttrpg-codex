@@ -3,7 +3,7 @@ import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { acceptsWikiReference, requestWikiProvider, wikiProviders, type WikiReference, type WikiResult } from "../addons/wiki-links.js";
 
-export type AddonLinkState = { readonly status: "loading" | "missing" | "failed" } | { readonly status: "resolved"; readonly href: string };
+export type AddonLinkState = { readonly status: "loading" | "missing" | "failed" } | { readonly status: "resolved"; readonly href: string; readonly label?: string; readonly description?: string };
 export interface AddonSearchState { readonly loading: boolean; readonly results: readonly WikiResult[] }
 
 /** Cache belongs to the mounted host view and is invalidated on any binding/role change. */
@@ -18,6 +18,10 @@ export class AddonLinksController implements ReactiveController {
   #search: AddonSearchState = { loading: false, results: [] };
   #searchRequest: AbortController | undefined;
   #searchTimer: ReturnType<typeof setTimeout> | undefined;
+  #listeners = new Set<() => void>();
+  subscribe(listener: () => void): () => void { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
+  #notificationPending = false;
+  #notify(): void { if(this.#notificationPending)return; this.#notificationPending=true; queueMicrotask(()=>{this.#notificationPending=false;for(const listener of this.#listeners)listener();}); }
   constructor(private readonly host: ReactiveControllerHost, private readonly source: () => {
     registry: BrowserContributionRegistry | undefined; role: BrowserRole | undefined;
   }) { host.addController(this); }
@@ -34,6 +38,7 @@ export class AddonLinksController implements ReactiveController {
     this.#owner.abort(); this.#owner = new AbortController(); this.#cache.clear(); this.#pending.clear();
     this.#searchRequest?.abort(); clearTimeout(this.#searchTimer); this.#query = ""; this.#search = { loading: false, results: [] };
     this.host.requestUpdate();
+    this.#notify();
   };
   get failed(): boolean { return [...this.#cache.values()].some(state => state.status === "failed"); }
   wiki = (label: string, hint: string): AddonLinkState => this.resolve({ label, hint });
@@ -47,7 +52,7 @@ export class AddonLinksController implements ReactiveController {
     const state = { status: "loading" } as const;
     this.#cache.set(key, state); this.#pending.set(key, reference);
     // Descendant editors may discover references after the host's updated hook.
-    this.host.requestUpdate();
+    this.host.requestUpdate(); this.#notify();
     return state;
   }
   hostUpdated(): void {
@@ -68,9 +73,10 @@ export class AddonLinksController implements ReactiveController {
         for (const [key] of batch) {
           const matches = results.flatMap(({ selected, result }) => result?.matches.filter(match => selected[match.index]?.[0] === key) ?? []);
           const failed = results.some(({ selected, result }) => result?.failed && selected.some(([id]) => id === key));
-          this.#cache.set(key, matches.length === 1 && !failed ? { status: "resolved", href: matches[0]!.href } : { status: failed ? "failed" : "missing" });
+          this.#cache.set(key, matches.length === 1 && !failed ? { status: "resolved", href: matches[0]!.href, label: matches[0]!.label, description: matches[0]!.description } : { status: failed ? "failed" : "missing" });
         }
         this.host.requestUpdate();
+        this.#notify();
       });
     }
   }

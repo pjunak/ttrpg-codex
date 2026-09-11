@@ -59,73 +59,62 @@ after(async () => {
 async function call(method: string, params: unknown) {
   const headers = { 'X-Codex-CSRF': csrf };
   const connection = await jsonResponse(await admin.post(`${base}/connect`, { headers,
-    data: { contractVersion: 'addon-service-connect.v1', contract: 'dnd5e.rules-engine', range: '^3.0.0', cardinality: 'one' } }));
+    data: { contractVersion: 'addon-service-connect.v1', contract: 'dnd5e.rules-engine', range: '^4.0.0', cardinality: 'one' } }));
   assert.equal(connection.providers.length, 1, JSON.stringify(connection));
   const target = connection.providers[0];
   return (await jsonResponse(await admin.post(`${base}/call`, { headers, data: {
     contractVersion: 'addon-service-call.v1', contract: 'dnd5e.rules-engine', providerAddonId: target.addonId,
     providerVersion: target.contractVersion, providerGeneration: target.generation, bindingRevision: target.bindingRevision,
-    method, params, deadlineMs: ['hydrate', 'builder-plan', 'apply-builder-choice', 'reconcile-builder-decisions'].includes(method) ? 15_000 : 3000,
+    method, params, deadlineMs: 30000,
   } }))).result;
 }
-const wizard = { abilities: { INT: 16, CON: 14 }, classes: [{ classId: 'wizard', level: 5 }] };
-const hydrate = (decisions: Record<string, unknown>) => call('hydrate', { contractVersion: 'rules-engine-hydrate.v1', decisions });
-const plan = (decisions: Record<string, unknown>) => call('builder-plan', { contractVersion: 'rules-engine-builder-plan.v1', decisions });
+function inputs(classId = 'wizard', level = 5) {
+  return { build: { method: 'array', baseScores: { STR: 15, DEX: 13, CON: 14, INT: 12, WIS: 10, CHA: 8 }, rolls: [], species: 'dwarf', lineage: '', background: 'soldier', levels: Array.from({length:level},(_,i)=>({id:`level-${i+1}`,classId})), subclasses: {}, choices: [], spells: { cantrips: {}, spellbook: {}, grantChoices: {}, castingAbilities: {}, swaps: [], acquisitions: [] } }, play: { hp:0, temporaryHp:0, inventory:[], currency:{}, resourceUses:{}, activeFeatures:{}, preparedSpells:{}, rolls:[], asOf:'2026-09-11T00:00:00Z' }, grants:[], notes:'' };
+}
+const evaluate = (value = inputs()) => call('evaluate-character', { contractVersion: 'rules-character.v1', inputs: value });
 
-test('installed rules engine keeps Sheets usable before a rules provider is installed', { skip: !enabled }, async () => {
+test('installed engine reports missing rules and never invents a validated character', { skip: !enabled }, async () => {
   const context = await call('context', {}); assert.equal(context.available, false); assert.equal(context.status, 'missing');
-  const result = await hydrate(wizard); assert.equal(result.sheet.derived.proficiencyBonus, 3);
-  assert.ok(result.warnings.length > 0); assert.equal(result.identity, undefined);
-  assert.equal((await plan(wizard)).available, false);
-  const applied = await call('apply-builder-choice', { contractVersion: 'rules-engine-builder-change.v1', decisions: wizard, change: { choiceId: 'unknown', value: 'keep' } });
-  assert.equal(applied.available, false); assert.deepEqual(applied.decisions, wizard);
+  await assert.rejects(() => evaluate());
 });
 
-test('installed Compendium drives complete class hydration and Builder through Sheets', { skip: !enabled }, async () => {
+test('installed sources evaluate every class with bounded projections and explicit incomplete choices', { skip: !enabled }, async () => {
   await installReviewedPackage(admin, csrf, 'dnd-2024-compendium', compendium, []);
   await enableAllRuleSources(admin, csrf);
   const context = await call('context', {}); assert.equal(context.available, true, JSON.stringify(context));
   const classes = await call('query-records', { contractVersion: 'rules-engine-query.v1', kind: 'class', limit: 200 });
   assert.ok(classes.records.length >= 12);
-  for (const record of classes.records) {
-    const decisions = { abilities: { STR: 16, DEX: 14, CON: 14, INT: 16, WIS: 14, CHA: 16 }, classes: [{ classId: record.id, level: 5 }] };
-    const result = await hydrate(decisions);
-    assert.equal(result.identity?.providerGeneration, context.identity.providerGeneration, `${record.id}: ${JSON.stringify(result.warnings)}`);
-    assert.ok(result.sheet.derived.maxHp > 0, record.id); assert.equal(result.sheet.totalLevel, 5);
-    assert.ok(result.sheet.resources.some((resource: Record<string, unknown>) => resource.kind === 'hitdice'), record.id);
-    assert.equal((await plan(decisions)).available, true, record.id);
+  for (const record of classes.records) for (const level of [1,5,20]) {
+    const result = await evaluate(inputs(record.id,level)), evaluation = result.evaluation;
+    assert.equal(result.identity.providerGeneration, context.identity.providerGeneration);
+    assert.ok(evaluation.sheet.derived.maxHp > 0, record.id); assert.equal(evaluation.sheet.totalLevel, level);
+    assert.ok(evaluation.sheet.resources.some((resource: Record<string, unknown>) => resource.kind === 'hitdice'), record.id);
+    assert.equal(evaluation.ready, false, 'incomplete build was silently accepted');
+    assert.ok(evaluation.issues.some((issue: {severity:string})=>issue.severity==='blocker'));
+    const snapshot = { inputs:evaluation.inputs, projection:{sheet:evaluation.sheet,explanations:evaluation.explanations,evidence:evaluation.evidence,issues:evaluation.issues}, rules:result.identity };
+    assert.ok(Buffer.byteLength(JSON.stringify(snapshot)) < 250000, `${record.id} level ${level} snapshot exceeds storage limit`);
   }
-  const result = await hydrate(wizard); assert.equal(result.sheet.derived.maxHp, 32); assert.deepEqual(result.sheet.spellcasting.slots, [4, 3, 2]);
-  const decisions = { background: 'Acolyte', classes: [{ classId: 'fighter', level: 4 }] };
-  const options = await plan(decisions); assert.ok(options.plan.creationAbilityChoices.some((choice: { id: string }) => choice.id === 'bgasi'));
-  const applied = await call('apply-builder-choice', { contractVersion: 'rules-engine-builder-change.v1', decisions, change: { choiceId: 'bgasi', value: { ability: 'INT', amount: 2 } } });
-  assert.equal(applied.available, true); assert.equal(applied.decisions.abilityGrants.find((grant: { id: string }) => grant.id === 'bgasi').assign.INT, 2);
-  const reconciled = await call('reconcile-builder-decisions', { contractVersion: 'rules-engine-builder-reconcile.v1', decisions: applied.decisions });
-  assert.equal(reconciled.available, true); assert.deepEqual(reconciled.decisions, applied.decisions);
+  const result = await evaluate(); assert.equal(result.evaluation.sheet.derived.maxHp, 37); assert.deepEqual(result.evaluation.sheet.spellcasting.slots, [4,3,2]);
+  assert.ok(result.evaluation.plan.creationAbilityChoices.some((choice:{id:string})=>choice.id==='bgasi'));
 });
 
-test('installed engine refreshes changed Compendium content and recovers after provider loss', { skip: !enabled }, async () => {
-  const before = await hydrate(wizard);
+test('installed engine refreshes changed content and recovers after provider loss', { skip: !enabled }, async () => {
+  const before = await evaluate();
   await installReviewedPackage(admin, csrf, 'dnd-2024-compendium', changedCompendium(compendium), []);
-  const changed = await hydrate(wizard);
-  assert.ok(changed.identity, JSON.stringify(changed.warnings));
+  const changed = await evaluate();
   assert.notEqual(changed.identity.providerGeneration, before.identity.providerGeneration);
   assert.notEqual(changed.identity.contentRevision, before.identity.contentRevision);
-  assert.equal(changed.sheet.derived.maxHp, 44); // The disposable provider changed the wizard hit die to d10.
-  // The operator stops consumers before providers; no live-update choreography is required.
-  for (const id of ['dnd-sheets', 'dnd-engine', 'dnd-2024-compendium']) {
+  assert.equal(changed.evaluation.sheet.derived.maxHp,49);
+  for (const id of ['dnd-sheets','dnd-engine','dnd-2024-compendium']) {
     const state = await jsonResponse(await admin.get(`/api/admin/addons/${id}`));
-    await jsonResponse(await admin.post(`/api/admin/addons/${id}/disable`, { headers: { 'X-Codex-CSRF': csrf }, data: { expectedStateRevision: state.state.revision } }));
+    await jsonResponse(await admin.post(`/api/admin/addons/${id}/disable`, {headers:{'X-Codex-CSRF':csrf},data:{expectedStateRevision:state.state.revision}}));
   }
-  await installReviewedPackage(admin, csrf, 'dnd-engine', engine, []);
-  await installReviewedPackage(admin, csrf, 'dnd-sheets', sheets, []);
-  assert.equal((await call('context', {})).available, false);
-  assert.equal((await hydrate(wizard)).identity, undefined); assert.equal((await plan(wizard)).available, false);
-  await installReviewedPackage(admin, csrf, 'dnd-2024-compendium', compendium, []);
-  const restored = await hydrate(wizard);
-  assert.deepEqual(restored, before);
+  await installReviewedPackage(admin,csrf,'dnd-engine',engine,[]);
+  await installReviewedPackage(admin,csrf,'dnd-sheets',sheets,[]);
+  assert.equal((await call('context',{})).available,false); await assert.rejects(()=>evaluate());
+  await installReviewedPackage(admin,csrf,'dnd-2024-compendium',compendium,[]);
+  assert.deepEqual(await evaluate(),before);
 });
-
 function unpack(archive: Buffer): Record<string, string | Buffer> {
   const end = archive.lastIndexOf(Buffer.from([0x50,0x4b,0x05,0x06])), files: Record<string, string | Buffer> = Object.create(null); assert.ok(end >= 0);
   const count = archive.readUInt16LE(end + 10); assert.ok(count < 10000); let cursor = archive.readUInt32LE(end + 16);

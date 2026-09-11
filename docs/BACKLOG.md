@@ -879,8 +879,7 @@ The owner's subsequent F13–F20 direction is captured in the
 [character decisions, history and rules explanations specification](rewrite/CHARACTER_BUILD_HISTORY.md).
 It replaces the hand-filled/manual-mode proposal with reversible decisions,
 derived results and explicit DM grants, and expands F18 across the suite.
-The sequence below is planned work; publishing the specification does not mark
-the character redesign implemented. F15's old-sheet compatibility is explicitly
+The five coordinated character stages below are implemented and validated. F15's old-sheet compatibility is explicitly
 retired because the owner confirmed no valuable old sheet data needs preservation.
 
 - [x] F01: implement shared local Markdown recovery with IndexedDB snapshots,
@@ -914,35 +913,41 @@ retired because the owner confirmed no valuable old sheet data needs preservatio
   direction; record the durable specification, source gaps, research-backed UX,
   staged ownership and acceptance cases. Explicitly retire F15 compatibility;
   no runtime or live-data change is included in this planning completion.
-- [ ] Character stage 1 — define authoritative retained revisions and atomic
+- [x] Character stage 1 — define authoritative retained revisions and atomic
   command writes, with host-enforced actors/roles and record visibility; separate
   decisions, grants, play state and projections. Design typed prerequisites,
   effects, provenance and explanations with the engine/content coverage inventory
-  (F17/F18). Current generic data writes and audit metadata are insufficient.
-- [ ] Character stage 2 — deliver one complete create/change/review/commit/
+  (F17/F18). Retained extensions use worker-only writes and immutable snapshots.
+- [x] Character stage 2 — deliver one complete create/change/review/commit/
   compare/restore flow, including derived attunement (F16), senses (F19), coherent
   HP bounds (F20) and contextual calculation/source details. Preserve later
   choices and play state unless their changes are explicitly reviewed.
-- [ ] Character stage 3 — complete creation/progression and play coverage,
+- [x] Character stage 3 — complete creation/progression and play coverage,
   including ordered multiclass prerequisites, recorded rolls, equipment/spells,
   DM grants/revocation, durable drafts, missing rules and reviewed rules adoption.
   Reusable homebrew uses compatible versioned source packages; no manual-mode
   bypass or hidden final-stat override remains in the target model.
-- [ ] Character stage 4 — apply the shared F18 details interaction throughout
+- [x] Character stage 4 — apply the shared F18 details interaction throughout
   rule-related suite surfaces, with full-entry links inside the panel, source
   filtering, revision-matched explanations and keyboard/touch accessibility.
-- [ ] Character stage 5 — finish reviewed current-format import/paste and
+- [x] Character stage 5 — finish reviewed current-format import/paste and
   history-based undo (F14), saved-revision print/PDF (F13), and old-sheet path
   removal (F15 retirement). Account for the old materialized schema with a
   targeted cutover; report its exact deletion scope before any affected operation.
   Keep unrelated campaign data and all future character history out of that scope.
+  Verification: all four repository full checks, relevant Go race checks, three
+  package inspections, all 24 installed companion browser cases and 33 host
+  release gates pass. A4/Letter and long-content print output reviewed. See the
+  [implementation and limits](rewrite/CHARACTER_BUILD_HISTORY.md#verification-result)
+  and [exact offline retirement scope](rewrite/CHARACTER_SHEET_CUTOVER.md).
+  No live data or deployment changed; physical touch, human screen-reader and
+  physical printer acceptance remain outside these automated checks.
 - [x] Implement [instance rules, sourcebooks and provider selection](rewrite/RULES_SOURCES.md)
   (F07–F08): one ruleset from the installed complete profile, explicitly
   compatible multi-book packages, shared effective content and revisioned
-  operator choices. Preserve authored sheets; require current preview/apply
-  for changed provenance and retain manual equipment values. The new F17
-  specification replaces that sheet model in the coordinated character stages;
-  the implemented source-policy behavior remains current until then.
+  operator choices. The coordinated F17 replacement now retains authored
+  decisions and play state, requires reviewed adoption of changed rules, and
+  removes the former manual-stat model. Source-policy ownership is unchanged.
   No legacy handlers or live-data changes.
 - [x] Implement [reviewed uninstall](rewrite/PACKAGE_LIFECYCLE.md#reviewed-uninstall)
   (F09): unregister packages, review transitive dependency effects, retain data

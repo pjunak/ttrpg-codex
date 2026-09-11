@@ -4,6 +4,7 @@ import { githubEn, githubCs } from "./github-messages.js";
 import { editingEn, editingCs } from "./editing-messages.js";
 import { contextEn, contextCs } from "./context-messages.js";
 import { configurationEn, configurationCs } from "./configuration-messages.js";
+import { ruleDetailsEn, ruleDetailsCs } from "./rule-details-messages.js";
 
 export type UiLocale = "en" | "cs";
 
@@ -22,6 +23,7 @@ const enCatalog = {
   ...editingEn,
   ...contextEn,
   ...configurationEn,
+  ...ruleDetailsEn,
   "settings.usedRecords": { one: "Used by {n} record", other: "Used by {n} records" },
   "settings.replaceRecords": { one: "{n} campaign record uses this definition. Choose how those records should change.", other: "{n} campaign records use this definition. Choose how those records should change." },
   "recovery.title": "Backup & recovery",
@@ -486,6 +488,7 @@ const csCatalog = {
   ...editingCs,
   ...contextCs,
   ...configurationCs,
+  ...ruleDetailsCs,
   "settings.usedRecords": { one: "Používá {n} záznam", few: "Používají {n} záznamy", other: "Používá {n} záznamů" },
   "settings.replaceRecords": { one: "Tuto definici používá {n} záznam kampaně. Vyberte, jak se mají použití změnit.", few: "Tuto definici používají {n} záznamy kampaně. Vyberte, jak se mají použití změnit.", other: "Tuto definici používá {n} záznamů kampaně. Vyberte, jak se mají použití změnit." },
   "recovery.title": "Zálohy a obnova",

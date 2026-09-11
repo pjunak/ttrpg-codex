@@ -53,7 +53,7 @@ func inspectTargetPackages(ctx context.Context, filenames []string) (map[string]
 		if err != nil {
 			return nil, fmt.Errorf("inspect target add-on package %q: %w", filename, err)
 		}
-		if report.Manifest.ID != "dm-tools" && report.Manifest.ID != "dnd-sheets" {
+		if report.Manifest.ID != "dm-tools" {
 			return nil, fmt.Errorf("unsupported conversion target package %q", report.Manifest.ID)
 		}
 		if _, duplicate := result[report.Manifest.ID]; duplicate {
@@ -83,8 +83,6 @@ func validateTargetPackage(report packageinspect.Report) error {
 				return err
 			}
 		}
-	case "dnd-sheets":
-		return require(datacontract.RecordExtension, "dnd-sheets", "characters", false, datacontract.VisibilityPublic)
 	default:
 		return fmt.Errorf("unsupported conversion target package %q", report.Manifest.ID)
 	}
@@ -145,7 +143,7 @@ func importLegacyAddons(
 	if err := importDMTools(ctx, database, addonStore, backup, packages, convertedAt, &report); err != nil {
 		return AddonReport{}, err
 	}
-	if err := importCharacterSheets(ctx, addonStore, coreStore, backup.dataset, packages, &report); err != nil {
+	if err := retireCharacterSheets(ctx, coreStore, backup.dataset, &report); err != nil {
 		return AddonReport{}, err
 	}
 	return report, nil
@@ -275,97 +273,42 @@ func importDMTools(
 	return nil
 }
 
-func importCharacterSheets(
-	ctx context.Context,
-	addonStore *addondatastore.Store,
-	coreStore *campaignstore.Store,
-	dataset campaign.LegacyDataset,
-	packages map[string]targetPackage,
-	report *AddonReport,
-) error {
-	sheets := make(map[string]json.RawMessage)
+// The old character-sheet product was deliberately retired. This offline
+// conversion omits only its namespace and leaves the input archive untouched.
+func retireCharacterSheets(ctx context.Context, coreStore *campaignstore.Store, dataset campaign.LegacyDataset, report *AddonReport) error {
+	keys := []string{}
 	for _, record := range dataset.Records {
-		var object map[string]json.RawMessage
-		if json.Unmarshal(record.Value, &object) != nil {
+		var body map[string]json.RawMessage
+		if json.Unmarshal(record.Value, &body) != nil {
 			continue
 		}
-		addonDataBody, present := object["addonData"]
-		if !present || bytes.Equal(bytes.TrimSpace(addonDataBody), []byte("null")) {
+		embedded, present := body["addonData"]
+		if !present || bytes.Equal(bytes.TrimSpace(embedded), []byte("null")) {
 			continue
 		}
-		var addonData map[string]json.RawMessage
-		if err := decodeJSONObject(addonDataBody, &addonData); err != nil {
+		var addons map[string]json.RawMessage
+		if err := decodeJSONObject(embedded, &addons); err != nil {
 			return fmt.Errorf("%w: %s:%s addonData must be an object", ErrInvalidLegacyBackup, record.Collection, record.Key)
 		}
-		for addonID, value := range addonData {
-			if addonID == "dnd-sheets" {
-				if record.Collection != campaign.Collection("characters") {
-					return fmt.Errorf("%w: dnd-sheets data is attached to %s:%s", ErrInvalidLegacyBackup, record.Collection, record.Key)
-				}
-				sheets[record.Key] = append(json.RawMessage(nil), value...)
-			} else {
-				report.DeferredEmbedded[addonID]++
+		for id := range addons {
+			if id != "dnd-sheets" {
+				report.DeferredEmbedded[id]++
+				continue
 			}
+			if record.Collection != campaign.Collection("characters") {
+				return fmt.Errorf("%w: retired sheet data attached to %s:%s", ErrInvalidLegacyBackup, record.Collection, record.Key)
+			}
+			keys = append(keys, record.Key)
 		}
-	}
-	if len(sheets) == 0 {
-		return nil
-	}
-	target, exists := packages["dnd-sheets"]
-	if !exists {
-		return fmt.Errorf("v1 backup contains D&D sheet data; provide its v3 ZIP with -addon-package")
-	}
-	description, _ := target.report.DataRegistry().Description(datacontract.RecordExtension, "dnd-sheets")
-	keys := make([]string, 0, len(sheets))
-	for key := range sheets {
-		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	mutations := make([]addondatastore.Mutation, 0, len(keys))
-	for _, key := range keys {
-		value := sheets[key]
-		if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
-			continue
-		}
-		var sheet map[string]json.RawMessage
-		if err := decodeJSONObject(value, &sheet); err != nil {
-			return fmt.Errorf("%w: character %q dnd-sheets state must be an object", ErrInvalidLegacyBackup, key)
-		}
-		sheet["v"] = json.RawMessage("3")
-		normalized, err := json.Marshal(sheet)
-		if err != nil {
-			return err
-		}
-		if err := target.report.DataRegistry().Validate(datacontract.RecordExtension, "dnd-sheets", normalized); err != nil {
-			return fmt.Errorf("%w: character %q sheet does not match the target package: %v", ErrInvalidLegacyBackup, key, err)
-		}
-		core, err := coreStore.Get(ctx, campaign.Collection("characters"), key)
-		if err != nil {
-			return fmt.Errorf("find character %q for sheet conversion: %w", key, err)
-		}
-		audience := events.AudiencePublic
-		if core.Visibility == campaign.VisibilityDM {
-			audience = events.AudienceDM
-		}
-		createdAt := core.CreatedAt
-		mutations = append(mutations, addondatastore.Mutation{
-			Kind: addondatastore.Put, Definition: description, Key: key, Value: normalized,
-			ExpectedRevision: 0, TargetCreatedAt: &createdAt, Audience: audience,
-		})
-	}
-	if len(mutations) > 0 {
-		if err := transactAddonBatches(ctx, addonStore, "dnd-sheets", target.report.ArchiveSHA256, mutations); err != nil {
-			return fmt.Errorf("import legacy character sheets: %w", err)
-		}
-	}
-	report.Documents["dnd-sheets/record-extension/dnd-sheets"] = len(mutations)
-	if err := stripMigratedSheets(ctx, coreStore, keys); err != nil {
+	if err := stripRetiredSheets(ctx, coreStore, keys); err != nil {
 		return err
 	}
+	report.RetiredCharacterSheets = len(keys)
 	report.StrippedCoreRecords = len(keys)
 	return nil
 }
-
 func validateDMPlanning(records map[string]map[string]json.RawMessage) error {
 	type itemView struct {
 		ID       string  `json:"id"`
@@ -540,7 +483,7 @@ func sameNullableString(left, right *string) bool {
 	return *left == *right
 }
 
-func stripMigratedSheets(ctx context.Context, store *campaignstore.Store, keys []string) error {
+func stripRetiredSheets(ctx context.Context, store *campaignstore.Store, keys []string) error {
 	mutations := make([]campaign.Mutation, 0, len(keys))
 	for _, key := range keys {
 		record, err := store.Get(ctx, campaign.Collection("characters"), key)
@@ -579,7 +522,7 @@ func stripMigratedSheets(ctx context.Context, store *campaignstore.Store, keys [
 		if _, err := store.Transact(ctx, campaign.Transaction{
 			ActorID: addonMigrationActor, Mutations: mutations[:count],
 		}); err != nil {
-			return fmt.Errorf("strip migrated character sheet state: %w", err)
+			return fmt.Errorf("remove retired character sheet state: %w", err)
 		}
 		mutations = mutations[count:]
 	}

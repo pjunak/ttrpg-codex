@@ -55,6 +55,7 @@ import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { AddonLinksController } from "./addon-links-controller.js";
+import { bindRuleDetails } from "./codex-addon-rule-details.js";
 import "./codex-collection-browser.js";
 import "./codex-local-drafts.js";
 import "./codex-record-contributions.js";
@@ -98,6 +99,7 @@ export class CodexRecordPage extends LitElement {
   readonly #markdownDrafts = new Map<string, string>();
   #submittedMarkdown: readonly { editor: CodexMarkdownEditor; value: string }[] = [];
   #pendingViewHash: string | undefined;
+  #disposeRuleDetails: (() => void) | undefined;
 
   constructor() {
     super();
@@ -114,11 +116,13 @@ export class CodexRecordPage extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    this.#disposeRuleDetails = bindRuleDetails(this, this.#links, { presentSDK: false });
     this.addEventListener("invalid", this.#revealInvalidField, true);
   }
 
   override disconnectedCallback(): void {
     this.removeEventListener("invalid", this.#revealInvalidField, true);
+    this.#disposeRuleDetails?.(); this.#disposeRuleDetails = undefined;
     super.disconnectedCallback();
   }
 

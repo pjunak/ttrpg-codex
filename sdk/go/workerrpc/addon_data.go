@@ -198,6 +198,10 @@ func (client *AddonDataClient) Transact(
 
 // TransactGuarded atomically rejects mutations if any observed data set changed.
 func (client *AddonDataClient) TransactGuarded(ctx context.Context, meta *Meta, mutations []AddonDataMutation, expectedDataSets []AddonDataSetRevision) (AddonDataCommit, error) {
+	return client.transact(ctx, meta, mutations, expectedDataSets, nil)
+}
+
+func (client *AddonDataClient) transact(ctx context.Context, meta *Meta, mutations []AddonDataMutation, expectedDataSets []AddonDataSetRevision, operation *RecordedOperation) (AddonDataCommit, error) {
 	if client == nil || client.caller == nil || len(mutations) < 1 || len(mutations) > 256 || len(expectedDataSets) > 256 {
 		return AddonDataCommit{}, errors.New("add-on data transaction is invalid")
 	}
@@ -239,6 +243,11 @@ func (client *AddonDataClient) TransactGuarded(ctx context.Context, meta *Meta, 
 	request := map[string]any{"contractVersion": "host-data-transaction.v1", "mutations": wireMutations}
 	if len(expectedDataSets) > 0 {
 		request["expectedDataSets"] = expectedDataSets
+	}
+	if operation != nil {
+		request["operationId"] = operation.ID
+		request["operation"] = operation.Operation
+		request["summary"] = operation.Summary
 	}
 	body, err := client.caller.Call(ctx, "host/data.transact", request, meta)
 	if err != nil {

@@ -1,4 +1,5 @@
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
+import { parseRuleDetails } from "./rule-details.js";
 import type { BrowserAddonContext } from "./browser-sdk.js";
 import {
   AddonDataHTTPError,
@@ -60,6 +61,7 @@ export type IsolatedSDKMethod =
   | "permissions.has"
   | "permissions.resources"
   | "ui.declarations"
+  | "ui.rule-details"
   | "data.get"
   | "data.query"
   | "data.transact"
@@ -552,6 +554,9 @@ export class IsolatedFrameBridge {
         const permission = exactStringParameter(params, permissionResourceKeys, "permission");
         return this.#context.permissions.resources(permission);
       }
+      case "ui.rule-details":
+        this.#context.capabilities.require("ui.rule-details");
+        return Promise.resolve(this.#context.ui.showRuleDetails(parseRuleDetails(params))).then(() => null);
       case "ui.declarations":
         if (!hasOnlyKeys(params, noParameterKeys)) {
           throw new BoundaryValidationError(boundary, "ui.declarations parameters are invalid");

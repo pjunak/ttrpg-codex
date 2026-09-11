@@ -46,6 +46,7 @@ export async function exerciseUninstall({ t, open, admin, csrf, output, mobile }
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await review.getByRole('button', { name: 'Uninstall and keep data', exact: true }).click();
   await manager.getByText('Add-on uninstalled. Campaign data and recovery archives were kept.', { exact: true }).waitFor();
+  await row.waitFor({state:'detached'});
   assert.equal(await row.count(), 0);
   assert.equal((await admin.get(`/api/admin/addons/${id}`)).status(), 404);
   assert.equal((await jsonResponse(await admin.get(`/api/admin/addons/${required}`))).state.activeGenerationId, undefined);

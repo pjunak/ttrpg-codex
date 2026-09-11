@@ -11,6 +11,11 @@ general compatibility layer for either format.
 
 ## Requirements and decisions
 
+Extensions with `retained: true` add immutable, actor-attributed snapshots and
+require a native worker mutation boundary. See [retained history](RETAINED_ADDON_HISTORY.md)
+for transaction authority, pagination, core-record lifetime and backup rules.
+Ordinary extension writes retain their existing semantics.
+
 | Need | Decision |
 |---|---|
 | Preserve campaign data if an add-on is disabled or removed | Installed code and active authority may disappear; documents remain in SQLite until a reviewed migration or explicit operator deletion. |

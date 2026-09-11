@@ -1,6 +1,6 @@
 # Character decisions, history and rules explanations
 
-Updated September 11, 2026. **Design and implementation plan; not implemented.**
+Updated September 11, 2026. **Implemented specification for F13–F20.**
 This specification revises F13–F20 in the [feature audit](FEATURE_PARITY_AUDIT.md)
 according to the owner's new character-sheet direction. Execution status lives
 only in [BACKLOG.md](../BACKLOG.md#feature-parity-audit-follow-up-2026-09-11).
@@ -48,43 +48,44 @@ after restoring isolated controls. F16, F19 and F20 provide the first complete
 vertical slice. F13 and F14 then consume the same revision/projection model.
 F06, F12 and the other deferred extensions stay outside this session.
 
-## Current foundations and confirmed gaps
+## Implemented ownership and boundaries
 
-The inspected source already provides useful boundaries:
+- [Retained add-on history](RETAINED_ADDON_HISTORY.md) owns atomic snapshots,
+  optimistic head writes, operation receipts, actor attribution, access by core
+  record lifetime, and backup/recovery reachability. Generic browser writes to
+  this retained extension are forbidden.
+- [Character coordinator](../../../addon-dnd-character-sheets/internal/character/coordinator.go)
+  provides `dnd5e.character` 1.0 with stored schema 4.0.0. It authenticates DM
+  actions, captures exact reviews and appends saved inputs and results together.
+- [Sheet client](../../../addon-dnd-character-sheets/src/character-client.ts) and
+  [character views](../../../addon-dnd-character-sheets/src/character-element.ts)
+  share Play, Build, History, actor-scoped device drafts, current transfers and
+  saved-revision printing. There is one mechanical model across both layouts.
+- [Engine v4](../../../addon-dnd-engine/contract/README.md) owns character
+  evaluation, bounded play, prerequisites, typed effects and explanations.
+  Public Go types generate the wire schemas and the sheet's TypeScript types.
+  Previous public Builder/play handlers and old sheet readers are removed.
+- [Content coverage](../../../addon-dnd-2024-compendium/data/COVERAGE.md) separates
+  supported mechanics from narrative material and encounter adjudication.
+  Unsupported prerequisites need a specific DM waiver; unknown mechanical item
+  effects cannot silently become active. A ready character has passed supported
+  machine checks; it is not a claim to automate every sentence in the books.
+- [Shared rule details](RULE_DETAILS.md) owns contextual presentation and its
+  suite-wide surface inventory. Source policy and package lifecycle continue to
+  own eligibility and version identity through the public API.
 
-- [SheetRepository](../../../addon-dnd-character-sheets/src/sheet-repository.ts)
-  owns optimistic extension writes; the editor retains failed drafts. Reuse its
-  sequencing and conflict UX, while replacing unrestricted whole-state writes.
-- [Sheet state](../../../addon-dnd-character-sheets/src/sheet-state.ts) currently
-  mixes decisions, manual values, play state and snapshots. The new schema must
-  separate those responsibilities instead of adding more override flags.
-- [Engine materialization](../../../addon-dnd-character-sheets/src/engine-client.ts)
-  already saves fallback results and source identity. It is not a history store
-  or a complete explanation model.
-- [Engine contracts](../../../addon-dnd-engine/contract/README.md) provide pure
-  calculations, Builder guidance and detached play operations. Guidance is
-  explicitly advisory, not a complete legality validator. Current
-  [reconciliation](../../../addon-dnd-engine/internal/rules/builder.go) removes
-  choices that no longer fit; the new change plan must account for them visibly.
-- [Content fields](../../../addon-dnd-2024-compendium/data/SCHEMA.md) already
-  describe generic grants, choices, modifiers, senses and attunement. Some
-  prerequisites/mechanics remain prose, as recorded in
-  [GAPS.md](../../../addon-dnd-2024-compendium/data/GAPS.md). They cannot be
-  presented as automatically checked.
-- [Host add-on data](ADDON_DATA.md) supplies schema validation, transactions,
-  revisions and actor audit metadata. Its audit records retain revision numbers,
-  not past document bodies. Public data access also does not distinguish an
-  ordinary player edit from creating a DM grant. Both require explicit new
-  server-enforced contracts.
-- [Source policy](RULES_SOURCES.md), [package lifecycle](PACKAGE_LIFECYCLE.md)
-  and [wiki references](../../examples/addons/API_V3.md#wiki-references-and-library-search)
-  already own eligibility, version identity and safe route resolution. Extend
-  these public boundaries; do not probe companion IDs, package paths or host DOM.
+The installed class matrix checks every supplied class at levels 1, 5 and 20,
+including incomplete choices and bounded projections. Fully completed characters,
+DM effects and play operations have separate focused regressions; that matrix
+alone does not prove every possible legal build. Ordinary unannotated prose is
+not automatically linked. Content authors supply explicit rule references.
 
-These are source-level findings. No live campaign or installed site was inspected
-for this plan. Existing source contracts remain current until implementation;
-their hand-editing guarantees are deliberately superseded by this target design,
-not silently changed by publishing this document.
+Saved characters remain readable, printable and exportable without providers.
+Notes can create a revision with the frozen projection; mechanical commands and
+restoration require an available compatible engine and a new review. An old
+snapshot remains exactly viewable/exportable without rerunning its engine.
+An imported frozen transfer and its optional external history remain an explicit
+device copy, separate from authoritative local history and installation backups.
 
 ## Character model
 
@@ -116,10 +117,10 @@ grants retain all sources even when stacking rules yield only one effect.
 ### Revisions and reversibility
 
 Use a character-scoped, append-only revision journal alongside the current head.
-Each committed operation retains its parent revision, stable operation ID,
-server actor/time, operation type, effective level if relevant, reason/source,
-before/after references, input snapshot and the corresponding projection and
-explanations. Build, grant and play changes share an ordered history but can be
+Each committed operation retains its stable operation ID, server actor/time,
+operation type and summary, input snapshot and corresponding projection and
+explanations. The preceding retained entry identifies its prior head. Effective
+levels, grant reasons and acquisition sources live in the typed inputs. Build, grant and play changes share an ordered history but can be
 filtered independently. A completed UI action is one entry; keystrokes are not.
 
 Prefer retained immutable snapshots with structural sharing and semantic change
@@ -164,7 +165,7 @@ inverse patch when later changes depend on it; it uses the same impact planner.
 DM-only effects remain protected during import and restore as well as direct edits.
 
 An exact old snapshot always remains viewable. If its rules context is unavailable
-or no longer eligible, it can be recovered as a visibly frozen historical state;
+or no longer eligible, it remains accessible as a visibly frozen historical state;
 it cannot claim current rules validation or enable rules changes. Returning it to
 active play requires a valid preview under currently available, approved rules.
 No historical executable is silently installed or run to satisfy restoration.
@@ -300,8 +301,8 @@ but do not authorize browsing a disabled book or making new selections from it.
 Content deduplication and backup retention must preserve referenced evidence.
 
 When rules disappear, retain the last projection, its evidence and pending drafts.
-Allow notes and explicitly supported counter updates within saved known bounds;
-mark them as using the saved rules snapshot. Do not refresh derived results from
+Allow notes while retaining the saved rules snapshot. Mechanical counter
+updates require compatible rules. Do not refresh derived results from
 a partial engine response. Complex actions needing unavailable rules remain
 unavailable with a reason. Reconnection discovers a compatible provider and
 reviews changed provenance instead of changing providers invisibly.
@@ -421,13 +422,14 @@ DM effects and history handling. Neither selecting a file nor viewing the previe
 writes. Apply is bound to the exact reviewed bytes and current revisions.
 
 An export contains decisions, play state, saved projection/evidence and an
-optional bounded archive of its history. It does not contain credentials,
+optional archive of up to five selected recent revisions within the 1 MB transfer bound. It does not contain credentials,
 executable packages or unrelated book contents. Imported history is labeled
 external provenance; its claimed actors/DM grants are not local authorization.
 A DM must approve imported DM effects. Recalculate imported mechanical inputs
 under approved available rules before activating them; unavailable rules permit
-a labeled frozen import/draft, not trusted live calculations. Oversized histories
-use a bounded archive format, not a larger unrestricted JSON text box.
+a labeled frozen import/draft, not trusted live calculations. An oversized archive is rejected with an instruction to select fewer revisions;
+committed server history is never truncated. Complete installation backups retain
+the entire reachable character journal.
 
 Replacing a sheet retains its previous revision and makes the import a new local
 entry. Imported external history cannot splice into or rewrite local audit
@@ -465,8 +467,8 @@ sheets; mathematics and eligibility stay in the stateless engine; rule facts and
 source identity stay in content providers. DM Tools' Import Center changes only
 if it consumes the new transfer contract; it does not become the sheet writer.
 
-The stage-1 vertical prototype should prove storage growth, dependency review and
-the explanation contract before broad UI work. Snapshot-based history is a design
+Retained snapshot and command tests cover storage sharing, dependency review and
+the explanation contract independently of the browser views. Snapshot-based history is a design
 choice informed by the complexity and schema-evolution costs documented in
 [Microsoft's event-sourcing guidance](https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing).
 It does not require a message bus, a graph editor or permanent old-engine runtimes.
@@ -536,5 +538,27 @@ retention, reachable-payload cleanup and import replacement must never silently
 discard that new work. Unsupported future schema versions fail clearly instead
 of being normalized into partial characters.
 
-No runtime, schema, package, campaign data or legacy export has been changed by
-this planning task. The next implementation starts with stage 1.
+The implementation includes the [offline retirement command](CHARACTER_SHEET_CUTOVER.md)
+and its exact deletion boundary, backup verification and refusal tests. No live
+data, existing campaign directory or legacy export was reset or converted.
+
+## Verification result
+
+All four repositories passed their documented full checks. Changed concurrency
+paths passed Go race checks. All three rebuilt add-on ZIPs passed host inspection;
+the 24 installed companion browser cases passed using reviewed activation in
+disposable data. Host release readiness passed all 33 gates.
+
+Coverage includes create/change/review/commit/compare/restore, concurrent drafts,
+lost-response retry, retained campaign recovery, file/paste transfer, bounded
+external archives, DM authority, grants/revocation/expiry, source-policy adoption,
+provider loss, English/Czech controls and desktop/390-pixel layouts. Unit and Go
+tests additionally cover copying costs and scroll consumption, spell replacement
+budgets, acquisition-level spellbook order, recorded rolls, effect stacking and
+host backup reconstruction. These mechanical tests do not imply every caster
+workflow was manually exercised in the browser.
+
+A4 and Letter PDFs and long-content output were visually inspected in Chromium.
+Physical touch devices, a human screen-reader pass and actual printer output
+remain manual acceptance boundaries. Deployment and the offline old-sheet reset
+remain separate operational decisions, not actions performed by these checks.

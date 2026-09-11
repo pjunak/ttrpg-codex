@@ -102,12 +102,13 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} reference
   const page = await open(t, 'player', mode === 'isolated');
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message)); t.after(() => assert.deepEqual(errors, []));
   await page.goto(`/#/characters/${id}`);
-  const ward = page.locator('a.wiki-link').filter({ hasText: 'Ward' }); await ward.waitFor();
+  const ward = page.locator('codex-addon-rule-details').filter({has:page.getByRole('button',{name:'Ward',exact:true})}); await ward.waitFor();
   assert.equal(await page.locator('a.wiki-link').filter({ hasText: 'Captain' }).getAttribute('href'), '#/characters/captain');
-  assert.equal(await ward.getAttribute('href'), `#/addons/${id}/library?id=shield`);
+  await ward.getByRole('button',{name:'Ward',exact:true}).click();
+  const full=ward.getByRole('link',{name:'Open full rule',exact:true});await full.waitFor();assert.equal(await full.getAttribute('href'), `#/addons/${id}/library?id=shield`);
   await installReviewedPackage(admin, csrf, id, wikiPackage(id, mode, { version: '1.0.1' }), []);
-  await ward.waitFor();
-  await disable(id); await ward.waitFor({ state: 'detached' });
+  await ward.waitFor();await ward.getByRole('button',{name:'Ward',exact:true}).click();await full.waitFor();await page.keyboard.press('Escape');
+  await disable(id); await ward.getByRole('button',{name:'Ward',exact:true}).click();await ward.getByRole('status').filter({hasText:'current source is unavailable'}).waitFor();assert.equal(await full.count(),0);await page.keyboard.press('Escape');
   await installReviewedPackage(admin, csrf, id, archive, []); await ward.waitFor();
   await page.goto('/#/search'); await page.locator('.campaign-search-field input').fill('shield');
   await page.getByRole('link', { name: 'Shield reference' }).waitFor();
@@ -118,8 +119,7 @@ for (const mode of ['integrated', 'isolated']) test(`installed ${mode} reference
   await (mode === 'isolated' ? page.frameLocator('[data-addon-route-outlet] iframe').getByText('Reference detail') : page.getByText('Reference detail')).waitFor();
   await installReviewedPackage(admin, csrf, id, wikiPackage(id, mode, { version: '1.0.2', roles: ['dm'] }), []);
   await page.goto(`/#/characters/${id}`);
-  // Loading and missing references share a CSS class; wait for resolution.
-  await page.getByTitle('No unique visible entry matches this link. Check its kind or record ID.').filter({ hasText: 'Ward' }).waitFor();
-  assert.equal(await ward.count(), 0);
+  await ward.getByRole('button',{name:'Ward',exact:true}).click();await ward.getByRole('status').filter({hasText:'current source is unavailable'}).waitFor();
+  assert.equal(await full.count(), 0);
   await page.goto('/#/old-library/spell:shield'); await page.getByRole('heading', { name: 'This page is not in the index.' }).waitFor();
 });

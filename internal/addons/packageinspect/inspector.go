@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -357,7 +358,7 @@ func dataDeclarations(manifest Manifest) []datacontract.Declaration {
 		result = append(result, datacontract.Declaration{
 			Kind: datacontract.RecordExtension, ID: extension.ID, Target: extension.Target,
 			Visibility: datacontract.Visibility(extension.Visibility), Schema: extension.Schema,
-			SchemaVersion: extension.SchemaVersion,
+			SchemaVersion: extension.SchemaVersion, Retained: extension.Retained,
 		})
 	}
 	return result
@@ -666,6 +667,9 @@ func validateDeclarations(manifest Manifest, entries map[string]*zip.File, direc
 		}
 	}
 	for index, extension := range manifest.RecordExtensions {
+		if extension.Retained && (manifest.Runtime.Worker == nil || !slices.Contains(manifest.Capabilities.Required, "data.history")) {
+			return fmt.Errorf("retained record extensions require a worker and data.history")
+		}
 		if err := requireFile(entries, extension.Schema, fmt.Sprintf("recordExtensions[%d].schema", index)); err != nil {
 			return err
 		}

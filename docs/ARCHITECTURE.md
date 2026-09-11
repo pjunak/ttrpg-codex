@@ -125,9 +125,11 @@ isolated database copy. Restore requires the host to be stopped and uses a
 journaled directory swap that startup can recover.
 
 `codex-convert-v1` is separate. It reads one downloaded v1 UI ZIP, validates the
-target DM Tools and character-sheet v3 packages, builds a fresh data directory,
-migrates known records/media/add-on state, verifies the result, and publishes it
-once. It never merges or mutates its input.
+target DM Tools package, builds a fresh data directory, migrates known
+records/media/planning state, verifies the result, and publishes it once. It
+counts and omits retired sheet values while preserving core character profiles
+and the input archive. The replacement sheet creates schema-4 retained history.
+It never merges or mutates its input.
 
 ## Failure model
 

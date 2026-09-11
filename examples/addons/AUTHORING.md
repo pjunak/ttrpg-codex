@@ -7,6 +7,11 @@ schemas.
 
 ## Package shape
 
+For worker-authorized immutable record snapshots, see
+[retained history](../../docs/rewrite/RETAINED_ADDON_HISTORY.md). For contextual
+source links and saved calculation explanations, declare `ui.rule-details` and
+use the [shared rule-details surface](../../docs/rewrite/RULE_DETAILS.md).
+
 ```text
 addon.json
 checksums.json

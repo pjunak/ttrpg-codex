@@ -268,7 +268,7 @@ func composeHost(
 		RuntimeFactory: runtimeFactory,
 		HostVersion:    hostCompatibilityVersion, AddonAPIVersion: addonAPIVersion,
 		WorkerProtocolVersion: workerProtocolVersion,
-		AvailableCapabilities: []string{"data.transactions", "ui.contributions", "ui.markdown", "worker.native"},
+		AvailableCapabilities: []string{"data.history", "data.transactions", "ui.contributions", "ui.markdown", "ui.rule-details", "worker.native"},
 		EventPublisher:        eventBroker, Logger: logger,
 	})
 	if err != nil {

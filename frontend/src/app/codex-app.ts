@@ -84,6 +84,7 @@ import { type DmAddonHealth } from "./codex-dm-dashboard.js";
 import "./codex-dm-dashboard.js";
 import "./codex-record-page.js";
 import { AddonLinksController } from "./addon-links-controller.js";
+import { bindRuleDetails } from "./codex-addon-rule-details.js";
 import "./codex-search.js";
 import { rememberRecentRecord } from "./recent-records.js";
 import { containDialogTab } from "./dialog-focus.js";
@@ -176,6 +177,7 @@ export class CodexApp extends LitElement {
   #addons: BrowserAddonComposition | undefined;
   readonly #links = new AddonLinksController(this, () => ({ registry: this.#addons?.contributions,
     role: this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined }));
+  #disposeRuleDetails: (() => void) | undefined;
   #dmAddonHealth: readonly DmAddonHealth[] = [];
   #outletLocale = "";
   #dashboardOutlet: BrowserContributionOutlet | undefined;
@@ -214,6 +216,7 @@ export class CodexApp extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    this.#disposeRuleDetails = bindRuleDetails(this, this.#links);
     this.#acceptedHash = normalizedHash(window.location.hash);
     this.route = parseAppRoute(window.location.hash);
     window.addEventListener("hashchange", this.#onHashChange);
@@ -225,6 +228,7 @@ export class CodexApp extends LitElement {
   }
 
   override disconnectedCallback(): void {
+    this.#disposeRuleDetails?.(); this.#disposeRuleDetails = undefined;
     this.#request?.abort("component-disconnected");
     this.#request = undefined;
     this.#events.close();

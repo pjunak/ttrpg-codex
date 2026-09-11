@@ -636,6 +636,10 @@
       "additionalProperties": false,
       "required": ["id", "target", "visibility", "schema", "schemaVersion"],
       "properties": {
+        "retained": {
+          "type": "boolean",
+          "description": "Retain immutable revisions; only the owning worker may mutate. Requires data.history."
+        },
         "id": {
           "$ref": "#/$defs/localId"
         },

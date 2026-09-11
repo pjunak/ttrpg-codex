@@ -36,6 +36,23 @@ import type {
 const generationId = "a".repeat(64);
 
 describe("IsolatedFrameBridge", () => {
+  it("validates isolated rule details and enforces the declared capability", async () => {
+    for (const allowed of [true, false]) {
+      const descriptor = { ...frameDescriptor(slotContribution()), capabilities: allowed ? ["ui.contributions", "ui.rule-details"] : ["ui.contributions"] };
+      const scope = new GenerationScope("details@test"), context = new BrowserContributionRegistry().open(descriptor, scope).context;
+      const showRuleDetails = vi.fn(), port = new FakePort();
+      const bridge = new IsolatedFrameBridge({ port, context: { ...context, ui: { ...context.ui, showRuleDetails } }, contribution: descriptor.contributions[0]!, onResize: vi.fn() });
+      port.receive({ protocol: isolatedFrameProtocol, type: "ready", contributionId: descriptor.contributions[0]!.id });
+      const details = { label: "Armor class", reference: { kind: "rule", id: "armor" }, summary: "Saved rule explanation" };
+      port.receive(request("details", "ui.rule-details", details));
+      await vi.waitFor(() => expect(response(port, "details")).toMatchObject({ ok: allowed }));
+      expect(showRuleDetails).toHaveBeenCalledTimes(allowed ? 1 : 0);
+      if (allowed) expect(showRuleDetails).toHaveBeenCalledWith(details);
+      port.receive(request("bad-details", "ui.rule-details", { label: "Bad", reference: { kind: "rule", id: 42 } }));
+      await vi.waitFor(() => expect(response(port, "bad-details")).toMatchObject({ ok: false }));
+      bridge.close(); await scope.dispose("disabled");
+    }
+  });
   it("forwards scoped data invalidations after readiness and disposes its subscription", () => {
     const descriptor = frameDescriptor(slotContribution()), scope = new GenerationScope("data@test"), changes = new BrowserAddonDataChanges();
     const registry = new BrowserContributionRegistry();

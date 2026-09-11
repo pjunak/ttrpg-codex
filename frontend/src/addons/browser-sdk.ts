@@ -10,6 +10,7 @@ import type { BrowserDataAPI } from "./data-client.js";
 import type { BrowserContentAPI } from "./content-client.js";
 import type { BrowserServiceAPI } from "./service-client.js";
 import { BrowserContributionEdits, type BrowserContributionEditHandle } from "./edit-state.js";
+import { showRuleDetails, type RuleDetails } from "./rule-details.js";
 
 const customElementPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$/;
 
@@ -64,6 +65,7 @@ export interface BrowserContributionHandle {
 }
 
 export interface BrowserUIAPI {
+  showRuleDetails(details: RuleDetails): Promise<void>;
   declarations(): readonly BrowserContributionDescriptor[];
   bind(contributionId: string, binding: BrowserContributionBinding): BrowserContributionHandle;
 }
@@ -272,6 +274,7 @@ class RegistrySession {
       content,
       services,
       ui: Object.freeze({
+        showRuleDetails: (details: RuleDetails) => { this.#assertOpen(); this.context.capabilities.require("ui.rule-details"); return showRuleDetails(details, signal); },
         declarations: () => {
           this.#assertOpen();
           return [...this.#declarations.values()];

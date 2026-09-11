@@ -108,7 +108,7 @@ for (const mobile of [false, true]) for (const role of ['dm', 'player']) test(`i
   assert.equal(await pane.locator('[data-compendium-search]').inputValue(), 'shield');
   await go(page, '?kind=class&id=wizard'); await pane.getByRole('heading', { name: 'Features', exact: true }).waitFor();
   assert.ok(await pane.locator('table').count());
-  await pane.locator('h3 a').filter({ hasText: 'Arcane Recovery' }).first().click(); await pane.getByRole('heading', { name: /Arcane Recovery/ }).waitFor();
+  const feature=pane.locator('h3 codex-addon-rule-details').filter({has:page.getByRole('button',{name:'Arcane Recovery',exact:true})}).first();await feature.getByRole('button',{name:'Arcane Recovery',exact:true}).click();await feature.getByRole('link',{name:'Open full rule',exact:true}).click();await pane.locator('h1').filter({hasText:'Arcane Recovery'}).waitFor();
   await go(page, '?kind=monster&id=aboleth'); assert.equal(await pane.locator('.codex-tile-compact').count(), 6);
   assert.match(await pane.locator('.codex-fact-grid').textContent().then(required), /Saving Throws/); await fits(page);
   await page.screenshot({ path: resolve(output, `monster-${role}-${mobile ? 'phone' : 'desktop'}.png`), fullPage: true });
@@ -168,15 +168,14 @@ for (const mobile of [false, true]) test(`campaign references and old Compendium
   ] } }));
   const page = await open(t, 'dm', mobile, 'en', false);
   await page.goto(`/#/characters/${key}`);
-  await page.locator('a.wiki-link').filter({ hasText: 'Ward' }).waitFor();
-  assert.equal(await page.locator('a.wiki-link').filter({ hasText: 'Ward' }).getAttribute('href'), `${route}?kind=spell&id=shield`);
-  assert.equal(await page.locator('a.wiki-link').filter({ hasText: 'Equipment' }).getAttribute('href'), `${route}?kind=armor&id=shield`);
-  assert.equal(await page.locator('.wiki-link-missing').filter({ hasText: 'Shield' }).count(), 1);
+  const details=(name:string)=>page.locator('codex-addon-rule-details').filter({has:page.getByRole('button',{name,exact:true})});
+  for(const [name,kind] of [['Ward','spell'],['Equipment','armor']] as const){await details(name).getByRole('button',{name,exact:true}).click();const full=details(name).getByRole('link',{name:'Open full rule',exact:true});await full.waitFor();assert.equal(await full.getAttribute('href'),`${route}?kind=${kind}&id=shield`);await page.keyboard.press('Escape');}
+  await details('Shield').getByRole('button',{name:'Shield',exact:true}).click();await details('Shield').getByRole('status').filter({hasText:'current source is unavailable'}).waitFor();assert.equal(await details('Shield').getByRole('link').count(),0);await page.keyboard.press('Escape');
   await page.screenshot({ path: resolve(output, `article-links-${mobile ? 'phone' : 'desktop'}.png`), fullPage: true });
-  await page.locator('a.wiki-link').filter({ hasText: 'Fireball' }).click(); await page.locator('.comp-reading-pane h1').filter({ hasText: 'Fireball' }).waitFor();
+  await details('Fireball').getByRole('button',{name:'Fireball',exact:true}).click();await details('Fireball').getByRole('link',{name:'Open full rule',exact:true}).click();await page.locator('.comp-reading-pane h1').filter({hasText:'Fireball'}).waitFor();
   await page.goBack(); await page.getByRole('button', { name: 'Edit wiki', exact: true }).click();
   await page.getByRole('combobox', { name: 'Editor view', exact: true }).selectOption('preview');
-  await page.locator('.writer-preview a.wiki-link').filter({ hasText: 'Ward' }).waitFor();
+  await page.locator('.writer-preview codex-addon-rule-details').getByRole('button',{name:'Ward',exact:true}).waitFor();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('link', { name: 'Old monster', exact: true }).click();
   await page.locator('.comp-reading-pane h1').filter({ hasText: 'Aboleth' }).waitFor(); assert.match(page.url(), /\/bestiary\?kind=monster&id=aboleth$/u);
@@ -198,7 +197,7 @@ test('campaign reference failures offer Retry without making broken links clicka
   await page.goto('/#/characters/library-notes-false');
   await page.getByRole('button', { name: 'Retry references' }).waitFor(); assert.equal(await page.locator('a.wiki-link').count(), 0); assert.equal(attempts, 1);
   await page.unroute('**/content/query?*'); await page.getByRole('button', { name: 'Retry references' }).click();
-  await page.locator('a.wiki-link').filter({ hasText: 'Fireball' }).waitFor();
+  const fireball=page.locator('codex-addon-rule-details').filter({has:page.getByRole('button',{name:'Fireball',exact:true})});await fireball.locator('a').waitFor({state:'attached'});await fireball.getByRole('button',{name:'Fireball',exact:true}).click();await fireball.getByRole('link',{name:'Open full rule',exact:true}).waitFor();assert.equal(attempts,1);
 });
 test('installed compendium replaces constructors and can reactivate the same generation', { skip: !archivePath }, async t => {
   const page = await open(t); await go(page, '?kind=spell&id=fireball');

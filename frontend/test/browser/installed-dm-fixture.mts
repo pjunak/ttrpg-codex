@@ -4,8 +4,8 @@ import { zip, installReviewedPackage } from './installed-graph-fixture.mts';
 
 export const dmToolsPermissions = [{ id: 'core.data.read', resources: ['characters', 'factions', 'locations', 'mysteries', 'artifacts', 'events'], reason: 'Choose visible campaign records for planning references and consequence targets.' }];
 
-export function installDmPackage(request: APIRequestContext, csrf: string, { id, mode = 'integrated', version = '1.0.0', failure = '', slot = true, edits = false, references = false, live = false }: {
-  id: string; mode?: string; version?: string; failure?: string; slot?: boolean; edits?: boolean; references?: boolean; live?: boolean;
+export function installDmPackage(request: APIRequestContext, csrf: string, { id, mode = 'integrated', version = '1.0.0', failure = '', slot = true, edits = false, references = false, live = false, ruleDetails = false }: {
+  id: string; mode?: string; version?: string; failure?: string; slot?: boolean; edits?: boolean; references?: boolean; live?: boolean; ruleDetails?: boolean;
 }) {
   const contributions = [
     { id: 'tool', surface: 'route', label: 'Fixture planner', roles: references ? ['dm', 'player'] : ['dm'], config: { path: 'planner' } },
@@ -14,7 +14,7 @@ export function installDmPackage(request: APIRequestContext, csrf: string, { id,
     ...(slot ? [{ id: 'dashboard', surface: 'slot', label: 'Fixture dashboard', roles: ['dm', 'player'], config: { contractVersion: 1, slot: 'dm:dashboard' } }] : []),
   ];
   const manifest = { packageFormat: 1, id, name: 'DM panel fixture', version,
-    compatibility: { host: '^2.0.0', addonApi: '^3.0.0' }, capabilities: { required: ['ui.contributions'], optional: [] },
+    compatibility: { host: '^2.0.0', addonApi: '^3.0.0' }, capabilities: { required: ['ui.contributions', ...(ruleDetails ? ['ui.rule-details'] : [])], optional: [] },
     permissions: references ? [{ id: 'core.data.read', resources: ['events'], reason: 'Choose event targets.' }] : [], runtime: { ui: { mode, entry: 'web/index.js' } }, contributions };
   Object.assign(manifest, live ? { collections: [{ id: 'notes', keyed: true, visibility: 'dm', schema: 'contracts/notes.json', schemaVersion: '1.0.0' }] } : {});
   const entry = `export function activate(context) {
@@ -32,6 +32,11 @@ export function installDmPackage(request: APIRequestContext, csrf: string, { id,
         if (${JSON.stringify(edits)}) input.addEventListener('input', () => this.context.edits.set({ dirty: input.value !== '', saving: false }));
         const output = document.createElement('output'); output.setAttribute('aria-label', 'Fixture context');
         this.replaceChildren(title, input, output); this.reflectContext();
+        if (${JSON.stringify(ruleDetails)}) {
+          const details = document.createElement('button'); details.textContent = 'Inspect saved rule';
+          details.onclick = () => context.ui.showRuleDetails({ label: 'Synthetic source rule', reference: {kind:'rule',id:'synthetic-rule'}, summary: 'Saved definition from the selected revision.', explanation: {label:'Synthetic total',value:12,formula:'10 + 2',terms:[{label:'Base',value:10},{label:'Bonus',value:2}],sources:[]}, savedSources:[{reference:{kind:'rule',id:'synthetic-rule'},name:'Synthetic source rule',summary:'Saved definition',hash:'${'a'.repeat(64)}'}] });
+          this.append(details);
+        }
         if (${JSON.stringify(live)}) {
           const events = document.createElement('output'); events.setAttribute('aria-label', 'Data changes'); events.textContent = '[]'; this.append(events);
           const controller = new AbortController(), seen = [];

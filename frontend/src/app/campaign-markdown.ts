@@ -307,6 +307,7 @@ function renderInlineToken(token: Token, context: CampaignMarkdownContext): Mark
     const target = resolveCampaignWikiLink(context, token.label, token.hint);
     const addon = target ? undefined : context.addonWiki?.(token.label, token.hint ?? "");
     const href = target?.href ?? (addon?.status === "resolved" ? addon.href : undefined);
+    if (!target && (addon !== undefined || token.hint?.includes(":"))) return html`<codex-addon-rule-details .details=${{ label: token.label, wiki: { label: token.label, hint: token.hint ?? "" } }}></codex-addon-rule-details>`;
     return href === undefined
       ? html`<span class="wiki-link-missing" title=${uiText(addon?.status === "loading" ? "wiki.loading" : addon?.status === "failed" ? "wiki.failed" : "wiki.missing")}>[[${token.label}]]</span>`
       : html`<a class="wiki-link" href=${href}>${token.label}</a>`;

@@ -2,6 +2,7 @@ package legacyconvert
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -307,18 +308,17 @@ func TestConvertMigratesFirstPartyAddonDataAgainstTargetPackages(t *testing.T) {
 		{name: "data/addon-data/demo/rules.json", body: `{"rule-a":{"id":"rule-a"}}`},
 	})
 	dmTools := writeTargetPackage(t, "dm-tools")
-	dndSheets := writeTargetPackage(t, "dnd-sheets")
 	output := filepath.Join(directory, "converted")
 	report, err := Convert(context.Background(), Config{
 		ArchivePath: archive, OutputDirectory: output,
-		AddonPackages: []string{dmTools, dndSheets},
+		AddonPackages: []string{dmTools},
 		Now:           func() time.Time { return time.Date(2026, 9, 1, 13, 0, 0, 0, time.UTC) },
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if report.Addons.Documents["dm-tools/collection/planning_items"] != 1 ||
-		report.Addons.Documents["dnd-sheets/record-extension/dnd-sheets"] != 1 ||
+		report.Addons.RetiredCharacterSheets != 1 ||
 		report.Addons.NormalizedRecordIDs != 1 ||
 		report.Addons.UpgradedSchemaV2 != 1 ||
 		report.Addons.DiscardedMarkers != 1 ||
@@ -328,8 +328,7 @@ func TestConvertMigratesFirstPartyAddonDataAgainstTargetPackages(t *testing.T) {
 		report.Deferred["addonData"].Files != 1 {
 		t.Fatalf("add-on report = %+v, deferred = %+v", report.Addons, report.Deferred)
 	}
-	if len(report.Addons.TargetPackages["dm-tools"].ArchiveSHA256) != 64 ||
-		len(report.Addons.TargetPackages["dnd-sheets"].ArchiveSHA256) != 64 {
+	if len(report.Addons.TargetPackages["dm-tools"].ArchiveSHA256) != 64 {
 		t.Fatalf("target packages = %+v", report.Addons.TargetPackages)
 	}
 
@@ -360,11 +359,8 @@ func TestConvertMigratesFirstPartyAddonDataAgainstTargetPackages(t *testing.T) {
 		SELECT body_json FROM addon_documents
 		WHERE addon_id = 'dnd-sheets' AND data_kind = 'record-extension'
 		  AND data_id = 'dnd-sheets' AND document_key = 'hero'
-	`).Scan(&sheet); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(sheet, `"v":3`) || !strings.Contains(sheet, `"kept":true`) {
-		t.Fatalf("converted sheet = %s", sheet)
+	`).Scan(&sheet); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("retired sheet was retained: %s %v", sheet, err)
 	}
 	var materialized, records int
 	if err := database.QueryRow(`
@@ -376,12 +372,12 @@ func TestConvertMigratesFirstPartyAddonDataAgainstTargetPackages(t *testing.T) {
 	if err := database.QueryRow(`SELECT count(*) FROM addon_documents`).Scan(&records); err != nil {
 		t.Fatal(err)
 	}
-	if materialized != 1 || records != 2 {
+	if materialized != 1 || records != 1 {
 		t.Fatalf("add-on persistence = materialized %d, records %d", materialized, records)
 	}
 }
 
-func TestConvertRequiresTargetPackageForOwnedLegacyData(t *testing.T) {
+func TestConvertRetiresOldSheetsWithoutRequiringTheirPackage(t *testing.T) {
 	t.Parallel()
 	directory := t.TempDir()
 	archive := filepath.Join(directory, "old-ui-backup.zip")
@@ -389,12 +385,17 @@ func TestConvertRequiresTargetPackageForOwnedLegacyData(t *testing.T) {
 		{name: "data/characters.json", body: `[{"id":"hero","addonData":{"dnd-sheets":{"className":"Wizard"}}}]`},
 	})
 	output := filepath.Join(directory, "converted")
-	_, err := Convert(context.Background(), Config{ArchivePath: archive, OutputDirectory: output})
-	if err == nil || !strings.Contains(err.Error(), "provide its v3 ZIP") {
+	original, err := os.ReadFile(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := Convert(context.Background(), Config{ArchivePath: archive, OutputDirectory: output})
+	if err != nil || report.Addons.RetiredCharacterSheets != 1 {
 		t.Fatalf("conversion error = %v", err)
 	}
-	if _, statErr := os.Stat(output); !os.IsNotExist(statErr) {
-		t.Fatalf("failed conversion published output: %v", statErr)
+	preserved, err := os.ReadFile(archive)
+	if err != nil || !bytes.Equal(original, preserved) {
+		t.Fatal("conversion modified the original backup")
 	}
 }
 
@@ -516,12 +517,6 @@ func writeTargetPackage(t *testing.T, id string) string {
 		}
 		manifest["collections"] = collections
 		files["contracts/planning.schema.json"] = []byte(`{"type":"object","required":["id"],"properties":{"id":{"type":"string"}},"additionalProperties":true}`)
-	} else {
-		manifest["recordExtensions"] = []any{map[string]any{
-			"id": "dnd-sheets", "target": "characters", "visibility": "public",
-			"schema": "contracts/sheet.schema.json", "schemaVersion": "3.0.0",
-		}}
-		files["contracts/sheet.schema.json"] = []byte(`{"type":"object","required":["v"],"properties":{"v":{"const":3}},"additionalProperties":true}`)
 	}
 	files["addon.json"], _ = json.Marshal(manifest)
 	digests := make(map[string]string, len(files))

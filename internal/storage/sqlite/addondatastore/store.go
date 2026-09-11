@@ -89,6 +89,9 @@ type DataSetRevision struct {
 }
 
 type Transaction struct {
+	OperationID      string
+	Operation        string
+	Summary          string
 	ExpectedDataSets []DataSetRevision
 	AddonID          string
 	GenerationID     string
@@ -289,6 +292,9 @@ func (store *Store) SnapshotAddon(ctx context.Context, addonID string) (Snapshot
 }
 
 func (store *Store) Transact(ctx context.Context, input Transaction) (Commit, error) {
+	if err := validateOperation(input); err != nil {
+		return Commit{}, err
+	}
 	prepared, err := prepareTransaction(input)
 	if err != nil {
 		return Commit{}, err
@@ -302,6 +308,11 @@ func (store *Store) Transact(ctx context.Context, input Transaction) (Commit, er
 		if err := store.beforeWrite(ctx, transaction); err != nil {
 			return Commit{}, err
 		}
+	}
+	if receipt, err := operationReceipt(ctx, transaction, input); err != nil {
+		return Commit{}, err
+	} else if receipt != nil {
+		return *receipt, nil
 	}
 	// Check the entire read set before touching documents, journal, or revisions.
 	for _, expected := range input.ExpectedDataSets {
@@ -443,6 +454,9 @@ func (store *Store) Transact(ctx context.Context, input Transaction) (Commit, er
 		); err != nil {
 			return Commit{}, fmt.Errorf("advance add-on document revision: %w", err)
 		}
+		if err := retainRevision(ctx, transaction, input, mutation, afterRevision, timestamp); err != nil {
+			return Commit{}, err
+		}
 		setKey := definitionKey(definition.Kind, definition.ID)
 		change := changes[setKey]
 		if change == nil {
@@ -491,6 +505,10 @@ func (store *Store) Transact(ctx context.Context, input Transaction) (Commit, er
 		}
 		committedEvents = append(committedEvents, event)
 	}
+	commit := Commit{ID: commitID, OccurredAt: occurredAt, Results: results, DataRevisions: dataRevisions}
+	if err := saveOperationReceipt(ctx, transaction, input, commit); err != nil {
+		return Commit{}, err
+	}
 	if err := transaction.Commit(); err != nil {
 		return Commit{}, fmt.Errorf("commit add-on data transaction: %w", err)
 	}
@@ -538,6 +556,9 @@ func prepareTransaction(input Transaction) ([]preparedMutation, error) {
 	totalBytes := 0
 	for _, mutation := range input.Mutations {
 		definition := mutation.Definition
+		if definition.Retained && (input.OperationID == "" || input.Operation == "") {
+			return nil, ErrInvalidTransaction
+		}
 		if !validDefinition(definition) || !validDocumentKey(mutation.Key) ||
 			mutation.ExpectedRevision < 0 || (mutation.Kind != Put && mutation.Kind != Delete) ||
 			!validAudience(definition.Visibility, mutation.Audience) ||

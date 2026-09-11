@@ -46,7 +46,7 @@ rewrite data directory from one old UI ZIP.
   presence means the archive is not the expected backup artifact.
 - Each supplied `-addon-package` ZIP is inspected twice: once before conversion
   and once immediately before publication. The converter accepts only the v3
-  `dm-tools` and `dnd-sheets` packages and records their version and archive
+  `dm-tools` packages and records their version and archive
   SHA-256 in the report.
 - The six stable DM Tools collection files are validated against the target
   package schemas and their cross-record planning invariants before they are
@@ -62,11 +62,12 @@ rewrite data directory from one old UI ZIP.
   target, and timestamp remain represented. Consequences attached to such an
   arrow are re-anchored to its target item. The report counts both operations.
   Same-scope arrows remain flows and are validated normally.
-- Each legacy `characters.addonData["dnd-sheets"]` object is stamped as sheet
-  schema v3, validated against the target record-extension schema, written with
-  the character's creation identity, and only then removed from the core
-  character JSON. All of this happens inside the unpublished staging output;
-  any failure discards the whole staged directory.
+- Retired `characters.addonData["dnd-sheets"]` values are counted as
+  `retiredCharacterSheets` and omitted from the new directory. Their source ZIP
+  stays unchanged. The core character profile and other embedded namespaces
+  remain subject to their existing conversion rules. A sheets package is no
+  longer a supported conversion target. Current characters use the replacement
+  schema described in [character history](CHARACTER_BUILD_HISTORY.md).
 
 The command still inventories unknown `addon-data`, old add-on package copies,
 registry/auth metadata, other files, unreferenced media, and embedded namespaces
@@ -83,15 +84,13 @@ go run ./cmd/codex-convert-v1 `
   -in C:/backups/site-one-v1.zip `
   -out C:/migration/site-one-rewrite `
   -report C:/migration/site-one-conversion-report.json `
-  -addon-package ../addon-dm-tools/dist/dm-tools-3.0.0.zip `
-  -addon-package ../addon-dnd-character-sheets/dist/dnd-sheets-3.0.0.zip
+  -addon-package ../addon-dm-tools/dist/dm-tools-3.0.0.zip
 
 go run ./cmd/codex-convert-v1 `
   -in C:/backups/site-two-v1.zip `
   -out C:/migration/site-two-rewrite `
   -report C:/migration/site-two-conversion-report.json `
-  -addon-package ../addon-dm-tools/dist/dm-tools-3.0.0.zip `
-  -addon-package ../addon-dnd-character-sheets/dist/dnd-sheets-3.0.0.zip
+  -addon-package ../addon-dm-tools/dist/dm-tools-3.0.0.zip
 ```
 
 The command prints a `codex-v1-conversion-report.v3` JSON document and, when
