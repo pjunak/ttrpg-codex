@@ -875,6 +875,14 @@ concrete data-loss risks before proceeding with an affected operation; otherwise
 proceed within the requested implementation scope. Historical compatibility
 findings remain evidence, not instructions to add compatibility code.
 
+The owner's subsequent F13–F20 direction is captured in the
+[character decisions, history and rules explanations specification](rewrite/CHARACTER_BUILD_HISTORY.md).
+It replaces the hand-filled/manual-mode proposal with reversible decisions,
+derived results and explicit DM grants, and expands F18 across the suite.
+The sequence below is planned work; publishing the specification does not mark
+the character redesign implemented. F15's old-sheet compatibility is explicitly
+retired because the owner confirmed no valuable old sheet data needs preservation.
+
 - [x] F01: implement shared local Markdown recovery with IndexedDB snapshots,
   regular checkpoints, revision/text comparison, explicit recovery/download,
   role and independent-tab scopes, safe save/discard cleanup, and collection
@@ -902,25 +910,40 @@ findings remain evidence, not instructions to add compatibility code.
   companion ZIPs. Release readiness passes all 33 gates. Desktop/phone Chromium
   screenshots were reviewed; physical-device and screen-reader checks remain
   outside this run. No deployment, migration or live-data changes.
-- [ ] Character-sheet session (deferred to one coordinated longer session):
-  protect authored work with a central manual-mode calculation guard and reviewed
-  provider reconciliation (F17), and exact sheet replacement preview/confirmation
-  with conflict-safe undo (F14). F15 is a historical old-export access risk;
-  do not add a legacy importer or converter by default. Identify and report
-  affected user-owned data if a requested operation encounters it, preserving
-  originals while agreeing a concrete recovery action.
-- [ ] In that character-sheet session, restore focused play and reading value:
-  saved senses (F19), coherent HP
-  limits with explicit manual exceptions (F20), advisory attunement capacity
-  (F16), dedicated print view (F13), and
-  provider-neutral rule links (F18). Add structured calculation explanations
-  separately rather than duplicating engine rules in the sheet.
+- [x] Reassess F13–F20 against the owner's character-history and homebrew
+  direction; record the durable specification, source gaps, research-backed UX,
+  staged ownership and acceptance cases. Explicitly retire F15 compatibility;
+  no runtime or live-data change is included in this planning completion.
+- [ ] Character stage 1 — define authoritative retained revisions and atomic
+  command writes, with host-enforced actors/roles and record visibility; separate
+  decisions, grants, play state and projections. Design typed prerequisites,
+  effects, provenance and explanations with the engine/content coverage inventory
+  (F17/F18). Current generic data writes and audit metadata are insufficient.
+- [ ] Character stage 2 — deliver one complete create/change/review/commit/
+  compare/restore flow, including derived attunement (F16), senses (F19), coherent
+  HP bounds (F20) and contextual calculation/source details. Preserve later
+  choices and play state unless their changes are explicitly reviewed.
+- [ ] Character stage 3 — complete creation/progression and play coverage,
+  including ordered multiclass prerequisites, recorded rolls, equipment/spells,
+  DM grants/revocation, durable drafts, missing rules and reviewed rules adoption.
+  Reusable homebrew uses compatible versioned source packages; no manual-mode
+  bypass or hidden final-stat override remains in the target model.
+- [ ] Character stage 4 — apply the shared F18 details interaction throughout
+  rule-related suite surfaces, with full-entry links inside the panel, source
+  filtering, revision-matched explanations and keyboard/touch accessibility.
+- [ ] Character stage 5 — finish reviewed current-format import/paste and
+  history-based undo (F14), saved-revision print/PDF (F13), and old-sheet path
+  removal (F15 retirement). Account for the old materialized schema with a
+  targeted cutover; report its exact deletion scope before any affected operation.
+  Keep unrelated campaign data and all future character history out of that scope.
 - [x] Implement [instance rules, sourcebooks and provider selection](rewrite/RULES_SOURCES.md)
   (F07–F08): one ruleset from the installed complete profile, explicitly
   compatible multi-book packages, shared effective content and revisioned
   operator choices. Preserve authored sheets; require current preview/apply
-  for changed provenance and retain manual equipment values. Broader F17
-  reconciliation remains open. No legacy handlers or live-data changes.
+  for changed provenance and retain manual equipment values. The new F17
+  specification replaces that sheet model in the coordinated character stages;
+  the implemented source-policy behavior remains current until then.
+  No legacy handlers or live-data changes.
 - [x] Implement [reviewed uninstall](rewrite/PACKAGE_LIFECYCLE.md#reviewed-uninstall)
   (F09): unregister packages, review transitive dependency effects, retain data
   and recovery archives, revoke runtime access and validate retained data on

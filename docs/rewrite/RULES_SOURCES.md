@@ -105,6 +105,13 @@ in-flight catalog epochs invalidate old runtime results together.
 
 ## Engine and character preservation
 
+The behavior below describes the current implementation. The planned
+[character decisions and history redesign](CHARACTER_BUILD_HISTORY.md) replaces
+the manual/automatic sheet split with typed decisions, DM grants and retained
+projections. It keeps this specification's one-ruleset policy, compatible source
+selection and explicit adoption of changed rules. No runtime contract changes
+merely because that plan has been documented.
+
 The D&D engine consumes all compatible `dnd5e.rules-data` providers from its
 host-issued worker bindings. It requires exactly one complete profile across
 the combined catalog. Record identity remains `(kind, id)`; duplicate IDs
