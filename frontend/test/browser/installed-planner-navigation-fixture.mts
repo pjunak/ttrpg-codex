@@ -27,7 +27,7 @@ export async function exercisePlannerNavigation({ t, open, admin, csrf }: Pick<I
     ['nav-desktop', 'nav-phone'].map(id => ({ operation: 'put', kind: 'collection', dataId: 'planning_items', key: id, expectedRevision: 0, value: item(id) })) } }));
   for (const mobile of [false, true]) {
     const id = mobile ? 'nav-phone' : 'nav-desktop', hash = `#/addons/dm-tools/planner?item=${id}`;
-    const page = await open(t, 'dm', mobile); await page.goto(`/${hash}`);
+    const page = await open(t, 'dm', mobile); await page.goto(`/${hash}`); await page.getByRole("button", { name: "Edit item", exact: true }).click();
     const details = page.getByRole('form', { name: 'Planning item details' });
     await details.getByLabel('Body', { exact: true }).fill('Keep my unsaved body');
     assert.equal(await unloadBlocked(page), true);
@@ -48,6 +48,7 @@ export async function exercisePlannerNavigation({ t, open, admin, csrf }: Pick<I
     assert.equal(await details.getByLabel('Body', { exact: true }).inputValue(), 'Keep my unsaved body');
     await page.evaluate(hash => { location.hash = hash; }, hash);
     await page.waitForURL(`**/${hash}`);
+    await page.getByRole('button', { name: 'Edit item', exact: true }).click();
     await attemptHash(page, '#/timeline');
     await page.waitForURL(`**/${hash}`);
     assert.equal(await details.getByLabel('Body', { exact: true }).inputValue(), 'Keep my unsaved body');
@@ -100,6 +101,7 @@ export async function exercisePlannerNavigation({ t, open, admin, csrf }: Pick<I
     await attemptHash(page, '#/timeline', true); await page.locator('.tl-shell').waitFor();
     assert.equal(await unloadBlocked(page), false);
     await page.goto(`/${hash}`);
+    await page.getByRole('button', { name: 'Edit item', exact: true }).click();
     assert.equal(await details.getByLabel('Body', { exact: true }).inputValue(), 'Keep my unsaved body');
     // Reverting to the baseline or explicitly discarding removes the guard.
     await details.getByLabel('Body', { exact: true }).fill('Temporary');

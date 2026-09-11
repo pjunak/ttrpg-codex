@@ -465,6 +465,73 @@ under their existing storage contract.
 Elements must clean up subscriptions/requests on disconnect and generation
 abort, and preserve drafts when an unchanged context is reassigned.
 
+### Record editor and map panels
+
+Declare `editor-panel` with exact config
+`{ "contractVersion": 1, "collection": "locations" }`, or `slot` with
+`{ "contractVersion": 1, "slot": "map:pin:panel" }`. Both accept optional
+localized `labels`. Editor collections must have a core record page. The map
+slot belongs to the selected saved location's read-only details. Both require
+an approved `core.data.read` grant for that collection and an allowed role.
+DM Tools' related-planning map list is a first-party consumer.
+
+Integrated elements and isolated frames receive the same frozen context:
+
+```ts
+interface RecordHostContext {
+  readonly contractVersion: "record-context.v1";
+  readonly locale: "en" | "cs";
+  readonly readOnly: boolean;
+  readonly record: {
+    readonly collection: string;
+    readonly id: string;
+    readonly revision: number;
+    readonly label: string; // At most 200 characters.
+    readonly href: string;
+  };
+}
+```
+
+Only the current role-visible saved record's identity is projected; no body,
+draft fields, hidden record catalog, or host internals are included. Record
+changes retire the old outlet. Disappearance, role loss and generation
+replacement remove its panels and edit handles. A refreshed revision/context
+on the same record must not overwrite an add-on's unsaved draft or rebase its
+write revision. Isolated frames use the existing content-height reporting.
+
+Map panels are read-only: show related information and navigation, with no
+mutations or editable controls. Editor panels mount below the core form for
+existing records, with their own labeled Save and Discard actions. Use current
+data/extension APIs and exact revisions. Publish `edits.set` transitions and
+clean up requests/subscriptions on disconnect and generation abort. A core
+Save saves only core fields; the host keeps the editor open while an add-on
+has unsaved changes. An add-on save failure retains that add-on's draft and
+does not undo a successful core save. There is no combined save transaction,
+arbitrary core-field injection, or automatic serialization of panel inputs.
+New records must be saved before editor panels can attach.
+
+### Markdown for integrated add-ons
+
+Require capability `ui.markdown` and create the host-owned integrated component:
+
+```ts
+const prose = document.createElement("codex-addon-markdown") as HTMLElement & {
+  source: string;
+};
+prose.source = savedMarkdown;
+container.append(prose);
+```
+
+The reactive `source` property accepts a string of at most 200,000 characters.
+It uses the host's safe Markdown renderer for headings, lists, tables, code,
+emphasis, links, images and supported inline formatting. Raw HTML stays text;
+unsafe URLs do not become links. Heading IDs are unique per component. Wiki
+references remain unresolved text because this component receives no campaign
+data or reference resolver. Use separately authorized reference links for
+campaign records. Invalid/oversized input shows an error without truncating
+or changing stored text. This component is integrated-only; it is not an
+iframe API or an HTML-returning service.
+
 ### Wiki references and library search
 
 Declare a `wiki-kind` contribution with exact config:

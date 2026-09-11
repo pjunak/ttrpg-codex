@@ -902,15 +902,17 @@ findings remain evidence, not instructions to add compatibility code.
   companion ZIPs. Release readiness passes all 33 gates. Desktop/phone Chromium
   screenshots were reviewed; physical-device and screen-reader checks remain
   outside this run. No deployment, migration or live-data changes.
-- [ ] Protect authored work: central manual-mode calculation guard and reviewed
+- [ ] Character-sheet session (deferred to one coordinated longer session):
+  protect authored work with a central manual-mode calculation guard and reviewed
   provider reconciliation (F17), and exact sheet replacement preview/confirmation
   with conflict-safe undo (F14). F15 is a historical old-export access risk;
   do not add a legacy importer or converter by default. Identify and report
   affected user-owned data if a requested operation encounters it, preserving
   originals while agreeing a concrete recovery action.
-- [ ] Restore focused play and reading value: saved senses (F19), coherent HP
+- [ ] In that character-sheet session, restore focused play and reading value:
+  saved senses (F19), coherent HP
   limits with explicit manual exceptions (F20), advisory attunement capacity
-  (F16), encounter/puzzle reader (F21), dedicated print view (F13), and
+  (F16), dedicated print view (F13), and
   provider-neutral rule links (F18). Add structured calculation explanations
   separately rather than duplicating engine rules in the sheet.
 - [x] Implement [instance rules, sourcebooks and provider selection](rewrite/RULES_SOURCES.md)
@@ -931,15 +933,28 @@ findings remain evidence, not instructions to add compatibility code.
   integrated/isolated fixtures cover persisted saves, player visibility,
   failures/retry, localized labels, and desktop/phone interaction. Existing
   storage contracts remain authoritative; no legacy handlers or migrations.
-- [ ] Record decisions on conditional extensions: split read-only map context
-  from transactional editor contributions (F11); require actual consumers for
-  graph metadata and defer the general facade (F12); defer a web restart action
-  absent a recurring operator need (F06). These are recommendations pending
-  adoption, not completed retirements.
+- [x] Implement F11 through read-only map context and independently saved editor
+  panels, and F21 through the shared DM Tools planning reader. Reuse the host
+  Markdown renderer through its public integrated component. Cover installed
+  integrated/isolated panels, separate-save failures, hidden records, and
+  desktop/phone reader navigation, prose, annotations and viewport retention.
+  No schema migration or character-sheet-specific changes.
+  Validation: host `npm run check` passed 349 unit and 229 browser tests,
+  plus Go tests/vet; 40 unrelated optional-package cases were skipped.
+  DM Tools passed 45 tests, 28 rendering checks at each of DPR 1 and 2,
+  Go tests/vet, package build and host inspection. Release readiness passed
+  all 33 gates. Desktop/phone screenshots were reviewed; physical-device and
+  screen-reader verification remain outside this run.
+- [x] Document the accepted full browser-graph restart limitation: local edit
+  guards apply, but externally initiated changes can discard unsaved add-on
+  drafts, including in unchanged add-ons. Saved data remains intact.
+- [ ] Deferred conditional extensions: combined transactional editor saves and
+  arbitrary field injection (beyond F11), graph metadata/general facade (F12),
+  and a web server-restart action (F06). Resume only with a concrete use case.
 - [ ] Review D01–D06 improvements while retaining reviewed packages, offline
   archive restore/conversion, DM recovery administration, and serializable
   presentation boundaries. Consider explicit Atlas rapid-placement mode and
-  an optional canvas gesture preference after restoring its reader (D05).
+  an optional canvas gesture preference separately from the completed reader (D05).
 - [ ] Add action-level regression evidence as each accepted change lands. Keep
   source coverage, installed-package/browser checks, and site-specific
   conversion verification distinct; do not treat closed broad gates as proof

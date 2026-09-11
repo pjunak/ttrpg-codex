@@ -8,6 +8,13 @@
 }
 
 .addon-route { margin-top: 0; }
+codex-record-contributions, codex-addon-markdown { display: block; min-width: 0; }
+.record-contributions { margin-block: 1rem; }
+[data-record-contributions] { display: grid; gap: .75rem; }
+[data-record-contributions][hidden] { display: none; }
+.record-contributions .addon-contribution-heading { flex-wrap: wrap; overflow-wrap: anywhere; }
+.record-contributions > p { color: var(--text-muted); }
+.record-contributions .codex-isolated-addon-frame { height: 8rem; }
 
 .addon-contribution {
   min-width: 0;

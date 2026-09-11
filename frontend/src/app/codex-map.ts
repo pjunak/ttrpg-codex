@@ -16,6 +16,9 @@ import { campaignCollection } from "../core/campaign-data.js";
 import { mapHash, mapSettingsHash, recordHash, type AppRoute } from "./routes.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
+import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
+import type { BrowserRole } from "../addons/generation-manager.js";
+import "./codex-record-contributions.js";
 
 type MapRoute = Extract<AppRoute, { kind: "map" }>;
 type LocationDraft = Extract<MapSaveDetail, { kind: "location" }>;
@@ -31,8 +34,11 @@ export class CodexMap extends LitElement {
     viewDraft: { state: true }, viewBoundsUnavailable: { state: true }, eventsVisible: { state: true },
     eventDraft: { state: true }, eventUnavailable: { state: true }, locationUnavailable: { state: true },
     minZoom: { state: true },
+    registry: { attribute: false }, actorRole: { attribute: false },
   };
   declare campaign: CampaignDataset | undefined;
+  declare registry: BrowserContributionRegistry | undefined;
+  declare actorRole: BrowserRole | undefined;
   declare route: MapRoute | undefined;
   declare canEdit: boolean;
   declare canManageCampaign: boolean;
@@ -244,6 +250,8 @@ export class CodexMap extends LitElement {
           <a class="sc-btn" href=${recordHash(locationPage, record.key)}>${this.#ui.t("map.article")}</a>
           ${safeMediaURL(value["localMap"]) === undefined ? nothing : html`<a class="sc-btn" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>`}
           ${this.editing ? html`<button class="sc-btn" @click=${() => this.#editSelected()}>${this.#ui.t("map.editLocation")}</button>` : nothing}
+          <codex-record-contributions .registry=${this.registry} .actorRole=${this.actorRole} .record=${record}
+            .collection=${"locations"} .mode=${"map"}></codex-record-contributions>
         `}
       ` : html`<form @submit=${this.#saveLocation} @input=${this.#draftInput}>
         <div class="sc-detail-body">
@@ -509,6 +517,7 @@ export class CodexMap extends LitElement {
   #editLocation(key: string): void {
     if (this.campaign === undefined || this.route === undefined || !this.canEdit || this.saving) return;
     if (this.draft?.key === key) return;
+    if (!this.#discard()) return;
     const record = mapLocationRecord(this.campaign, key); if (record === undefined) return;
     const value = recordValue(record);
     this.placing = null; this.#placementBase = undefined;
@@ -562,7 +571,8 @@ export class CodexMap extends LitElement {
   readonly #closePanel = (): void => { if (this.#discard()) { this.draft = undefined; this.viewDraft = undefined; this.eventDraft = undefined; this.selected = undefined; this.placing = null; } };
   readonly #toggleEditing = (): void => { if (this.#discard()) { this.editing = !this.editing; this.draft = undefined; this.viewDraft = undefined; this.eventDraft = undefined; this.placing = null; } };
   #discard(): boolean {
-    if (this.saving || !confirmDiscardUnsavedEdit(this.#dirty, message => window.confirm(message))) return false;
+    const edits = this.registry?.edits.state();
+    if (this.saving || edits?.saving || !confirmDiscardUnsavedEdit(this.#dirty || edits?.dirty === true, message => window.confirm(message))) return false;
     this.#detailCampaign = undefined; this.#detailValue = {};
     this.#setDirty(false); this.viewBoundsUnavailable = false; return true;
   }

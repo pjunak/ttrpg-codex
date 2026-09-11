@@ -85,7 +85,7 @@ export const isolatedFrameBootstrap = String.raw`
     const sdkRequests = new Map();
     const root = document.getElementById("codex-addon-root");
     const compact = hostContext && hostContext.contractVersion === "timeline-context.v1";
-    const contentSized = compact || hostContext && hostContext.contractVersion === "addon-settings-context.v1";
+    const contentSized = compact || hostContext && ["addon-settings-context.v1", "record-context.v1"].includes(hostContext.contractVersion);
     if (contentSized) {
       root.style.display = "flow-root";
       document.body.style.margin = "0";
@@ -310,10 +310,10 @@ export const isolatedFrameBootstrap = String.raw`
         if (!valid) {
           throw new Error("The isolated UI binding does not match its declared surface.");
         }
-        let element;
+        let element, elementContext;
         if (expected === "element") {
           element = document.createElement(binding.tag);
-          element.codexContribution = Object.freeze({
+          elementContext = Object.freeze({
             addon: data.addon,
             contribution: declaration,
             signal: controller.signal,
@@ -329,6 +329,7 @@ export const isolatedFrameBootstrap = String.raw`
               post({ type: "edit-state", state: { dirty: state.dirty, saving: state.saving, retainOnQueryChange: state.retainOnQueryChange === true } });
             } }),
           });
+          element.codexContribution = elementContext;
           root.replaceChildren(element);
         }
         let disposed = false;
@@ -344,7 +345,7 @@ export const isolatedFrameBootstrap = String.raw`
             }
           },
         });
-        handles.set(contributionId, { binding, handle, element });
+        handles.set(contributionId, { binding, handle, element, elementContext });
         return handle;
       },
     });
@@ -444,7 +445,12 @@ export const isolatedFrameBootstrap = String.raw`
           requireJSON(message.host);
           if (new TextEncoder().encode(JSON.stringify(message)).length > 64 * 1024) throw new Error("Outlet context exceeds its byte limit.");
           hostContext = freezeJSON(message.host);
-          for (const { element } of handles.values()) if (element) element.codexContribution = Object.freeze({ ...element.codexContribution, host: hostContext });
+          // Contributions may expose a setter only. Keep host-issued handles
+          // instead of reading state back from package code.
+          for (const entry of handles.values()) if (entry.element) {
+            entry.elementContext = Object.freeze({ ...entry.elementContext, host: hostContext });
+            entry.element.codexContribution = entry.elementContext;
+          }
         } catch (cause) { report(cause); }
         return;
       }

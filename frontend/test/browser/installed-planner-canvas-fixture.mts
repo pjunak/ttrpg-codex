@@ -41,6 +41,7 @@ export async function exercisePlannerCanvas({ t, open, admin, csrf, output, mobi
   await page.getByRole('button', { name: 'Campaign', exact: true }).click(); await page.locator('.dm-planner-viewport[data-scope=""]').waitFor(); assert.equal(await zoom.textContent().then(required), '100%');
   await page.getByRole('button', { name: 'Reload planner', exact: true }).click(); await page.locator('.dm-planner-shell[aria-busy="false"]').waitFor();
   await page.goto(`/#/addons/dm-tools/planner?item=${event}`); await page.locator(`.dm-planner-viewport[data-scope="${quest}"]`).waitFor(); assert.equal(await zoom.textContent().then(required), fitted);
+  await page.getByRole('button', { name: 'Edit item', exact: true }).click();
   assert.equal(await details.getByLabel('Summary', { exact: true }).inputValue(), 'Retain the draft while navigating the canvas.');
   await details.getByRole('button', { name: 'Discard edits', exact: true }).click();
   await closePlannerEditor(page); await controls.getByRole('button', { name: 'Zoom in', exact: true }).click();

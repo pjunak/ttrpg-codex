@@ -551,6 +551,7 @@ for (const mobile of [false, true]) test(`character editor keeps description and
   const page = await fixture(t, dataset({ characters: [character()] }), '#/characters/ryn');
   await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 });
   await editRecordOrDefinition(page);
+  await page.evaluate(() => document.fonts.ready);
   const details = await page.locator('.character-editor-details').boundingBox().then(required);
   const description = await page.locator('.character-editor-description').boundingBox().then(required);
   assert.ok(mobile ? description.y >= details.y + details.height : description.x >= details.x + details.width);

@@ -116,8 +116,8 @@ activate. A source checkout or GitHub archive is not a production package.
 
 ## First-party references
 
-- DM Tools demonstrates TypeScript UI, package collections, and a native Go
-  worker.
+- DM Tools demonstrates TypeScript UI, package collections, a native Go
+  worker, read-only map context and the public integrated Markdown component.
 - D&D 2024 Compendium demonstrates immutable content and a content service.
 - D&D Engine demonstrates a headless native worker and optional service
   consumption.

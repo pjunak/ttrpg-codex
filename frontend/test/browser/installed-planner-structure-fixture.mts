@@ -33,7 +33,10 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output }:
     ]);
     const page = await open(t, 'dm', mobile), details = page.getByRole('form', { name: 'Planning item details' });
     const card = (name: string) => page.locator(`.dm-plan-card[data-item-id="${id(name)}"]`);
-    const scope = async (name?: string) => { await page.goto(`/#/addons/dm-tools/planner${name ? `?item=${id(name)}` : ''}`); };
+    const scope = async (name?: string) => {
+      await page.goto(`/#/addons/dm-tools/planner${name ? `?item=${id(name)}` : ''}`);
+      await page.locator(name === 'free' ? `dialog[data-reader-item="${id(name)}"]` : `.dm-planner-viewport[data-scope="${name ? id(name) : ''}"]`).waitFor();
+    };
     const save = async () => { await details.getByRole('button', { name: 'Save details', exact: true }).click(); await page.getByText('Details saved.', { exact: true }).waitFor(); };
     const discard = async () => details.getByRole('button', { name: 'Discard edits', exact: true }).click();
     const stored = async (name: string) => (await records('planning_items')).find((record: FixtureRecord) => record.key === id(name));
@@ -71,7 +74,7 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output }:
     await details.getByLabel('Parent', { exact: true }).selectOption(id('destination')); await save();
     await card('free').waitFor(); assert.equal((await stored('free')).value.eventType, undefined);
     assert.equal((await stored('free')).value.branchType, 'random');
-    await page.reload(); await details.getByLabel('Branch type').waitFor();
+    await page.reload(); await page.getByRole('button', { name: 'Edit item', exact: true }).click(); await details.getByLabel('Branch type').waitFor();
     assert.equal(await details.getByLabel('Body', { exact: true }).inputValue(), 'Keep the other item draft');
     await details.getByLabel('Kind', { exact: true }).selectOption('event'); await details.getByLabel('Event type').selectOption('encounter'); await save();
     assert.equal((await stored('free')).value.branchType, undefined); assert.equal((await stored('free')).value.eventType, 'encounter');
@@ -86,7 +89,7 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output }:
     assert.ok((await records('planning_flow_links')).some((record: FixtureRecord) => record.key === id('option')));
 
     // A deleted destination remains an unavailable draft choice, never Campaign.
-    await scope('free'); await details.getByLabel('Parent', { exact: true }).selectOption(id('vanishing'));
+    await scope('free'); await page.getByRole('button', { name: 'Edit item', exact: true }).click(); await details.getByLabel('Parent', { exact: true }).selectOption(id('vanishing'));
     await details.getByLabel('Body', { exact: true }).fill('Keep the missing-parent draft');
     const vanishing = await stored('vanishing');
     await transact([{ operation: 'delete', kind: 'collection', dataId: 'planning_items', key: vanishing.key, expectedRevision: vanishing.revision }]);
@@ -114,7 +117,7 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output }:
 
     if (!mobile) {
       // A confirmed move with a failed follow-up read is recovered without resubmitting.
-      await scope('free'); await details.getByLabel('Parent', { exact: true }).selectOption(id('destination'));
+      await scope('free'); await page.getByRole('button', { name: 'Edit item', exact: true }).click(); await details.getByLabel('Parent', { exact: true }).selectOption(id('destination'));
       const queryPattern = '**/api/addons/dm-tools/generations/*/data/query';
       await page.route(queryPattern, route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
       await details.getByRole('button', { name: 'Save details', exact: true }).click();

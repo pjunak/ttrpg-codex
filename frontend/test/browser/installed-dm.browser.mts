@@ -1,3 +1,5 @@
+import { exercisePlanningReader } from "./installed-planning-reader-fixture.mts";
+import { exerciseRecordPanels } from "./installed-record-panels-fixture.mts";
 import { required } from './fixture-types.mts';
 import type { APIRequestContext, Browser, Page } from 'playwright';
 import type { TestContext } from 'node:test';
@@ -64,6 +66,7 @@ before(async () => {
     { operation: 'put', collection: 'events', key: 'dinner', expectedRevision: 0, value: { id: 'dinner', name: 'Dinner', sitting: 1, order: 2, visibility: 'public' } },
     { operation: 'put', collection: 'events', key: 'secret-event', expectedRevision: 0, value: { id: 'secret-event', name: 'Hidden meeting', sitting: 1, order: 3, visibility: 'dm' } },
   ] } }));
+  await jsonResponse(await admin.post("/api/media/world-map/main", { headers: { "X-Codex-CSRF": csrf, "Content-Type": "image/svg+xml", "X-Codex-Filename": "fixture-map.svg" }, data: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#252018"/></svg>') }));
   browser = await chromium.launch({ headless: true });
 });
 
@@ -220,7 +223,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('reviewed DM Tools dashboard preserves 
   }
   await recent.click();
   await page.locator('.dm-plan-card.selected h3').filter({ hasText: 'Hidden meeting' }).waitFor();
-  await page.reload(); await page.getByLabel('Title', { exact: true }).waitFor();
+  await page.reload(); await page.getByRole("button", { name: "Edit item", exact: true }).click(); await page.getByLabel('Title', { exact: true }).waitFor();
   assert.equal(await page.getByLabel('Title', { exact: true }).inputValue(), 'Hidden meeting');
   const secondTab = await page.context().newPage(); await secondTab.goto(`/${eventLink}`);
   await secondTab.locator('.dm-plan-card.selected h3').filter({ hasText: 'Hidden meeting' }).waitFor();
@@ -240,6 +243,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('reviewed DM Tools dashboard preserves 
   await page.goto('/#/addons/dm-tools/planner?item=one&item=two'); await page.getByText('Invalid planner link.', { exact: true }).waitFor();
   assert.equal(await unloadBlocked(page), true);
   await page.goto(`/${eventLink}`);
+  await page.getByRole('button', { name: 'Edit item', exact: true }).click();
   assert.equal(await page.getByLabel('Title', { exact: true }).inputValue(), 'Unsaved draft');
   await page.getByRole('form', { name: 'Planning item details' }).getByRole('button', { name: 'Discard edits', exact: true }).click();
   await page.goto('/#/addons/dm-tools/planner');
@@ -649,3 +653,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP) for (const mobile of [false, true]) test(`pl
   t.after(() => disable('dm-tools'));
   await exercisePlannerCanvas({ t, open, admin, csrf, output, mobile });
 });
+
+for (const mode of ["integrated", "isolated"]) test(`installed ${mode} record panels preserve separate saves and role-visible map context`, async t => { await exerciseRecordPanels({ t, open, admin, csrf, mode }); });
+
+if (process.env.CODEX_DM_TOOLS_ZIP) for (const mobile of [false, true]) test(`installed planning reader renders saved prose and related map content on ${mobile ? "phone" : "desktop"}`, async t => { await installReviewedPackage(admin, csrf, "dm-tools", await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))), dmToolsPermissions); t.after(() => disable("dm-tools")); await exercisePlanningReader({ t, open, admin, csrf, output, mobile }); });

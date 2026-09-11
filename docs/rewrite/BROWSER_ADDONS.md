@@ -185,9 +185,12 @@ from the target.
 
 This trades a brief full contribution refresh for one small, deterministic
 lifecycle. That is appropriate for the current personal deployment and small
-first-party add-on set. Per-generation rolling UI replacement can be added
-later if restart cost or availability becomes important; it must preserve the
-same dependency and disposal ordering.
+first-party add-on set. The owner accepted this as an expected limitation on
+September 11, 2026. A graph change restarts all browser add-ons, including
+otherwise unchanged ones. Local actions honor published edit guards, but a
+change from another session or authority loss can discard unsaved in-memory
+add-on drafts. Saved data remains under its storage contract. Per-generation
+rolling replacement and generic draft persistence are not current commitments.
 
 ## Module boundary
 
@@ -520,12 +523,31 @@ checks. Integrated and isolated contributions therefore receive player policy
 through the same host boundary. See [authentication](AUTHENTICATION.md) for
 preview lifetime, resource requests, and separate-tab browser coverage.
 
+## Record panels and planning prose
+
+`codex-record-contributions` shares one role/grant-filtered outlet across
+persisted record editors and the map's read-only location panel. The exact
+[public record context and Markdown contracts](../../examples/addons/API_V3.md#record-editor-and-map-panels)
+define bounded identity projection, separate saves and disconnect cleanup.
+The core editor never gathers add-on inputs into its Save request. Dirty add-on
+panels survive a successful core save; saving panels block conflicting local
+navigation. Missing/currently hidden records remove their contributions.
+
+DM Tools consumes the map slot to link related planning items. Its integrated
+reader uses `codex-addon-markdown`, which reuses the host parser/renderer and
+has no campaign-data access. The reader keeps its canvas viewport, offers
+explicit editing and expanded reading, and defers automatic refresh while
+reading. Tests in `installed-record-panels-fixture.mts` exercise integrated
+and isolated contexts, grants, role visibility and independent save failures;
+`installed-planning-reader-fixture.mts` exercises the rebuilt DM Tools ZIP,
+safe rendered prose, annotations and desktop/phone reading and editing.
+
 ## Remaining integration
 
 - Add data, service, import, event, settings, navigation, graph, and log handles
   to the implemented capability-scoped SDK as their transports land.
-- Connect remaining editor and renderer surfaces to their
-  feature-owned registry outlets as those core features land. Graph node-kind
+- Combined core/add-on save transactions and arbitrary field injection remain
+  deferred; separate editor panels are supported. Graph node-kind
   renderers, a general `context.graphs` facade,
   and provider-driven graph invalidation remain unimplemented.
 - Surface activation and disposal diagnostics in the Add-on Inspector.

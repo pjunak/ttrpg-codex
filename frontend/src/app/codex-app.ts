@@ -88,6 +88,7 @@ import "./codex-search.js";
 import { rememberRecentRecord } from "./recent-records.js";
 import { containDialogTab } from "./dialog-focus.js";
 import "./codex-settings.js";
+import "./codex-addon-markdown.js";
 import { CampaignPartyEditError, prepareCampaignPartySave, type CampaignPartySaveDetail } from "./campaign-party.js";
 import { CampaignIdentityEditError, prepareCampaignIdentitySave, type CampaignIdentitySaveDetail } from "./campaign-identity.js";
 import { MediaClient } from "../core/media.js";
@@ -964,6 +965,8 @@ export class CodexApp extends LitElement {
           @campaign-timeline-reset=${() => { this.errorMessage = ""; }}></codex-timeline>`;
       case "map":
         return html`<codex-map .campaign=${campaign} .route=${this.route} .canEdit=${this.#canEdit()}
+          .registry=${this.#addons?.contributions}
+          .actorRole=${this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined}
           .canManageCampaign=${this.#canManageCampaign()} .saving=${this.busy} .editCompletion=${this.editCompletion}
           .errorMessage=${this.errorMessage} @campaign-edit-dirty=${this.#onEditDirty}
           @campaign-map-save=${this.#saveMap} @campaign-map-upload=${this.#uploadMap}></codex-map>`;
@@ -1146,7 +1149,7 @@ export class CodexApp extends LitElement {
       await this.#loadCampaign(this.#request.signal, true);
       this.#editDirty = false;
       this.editCompletion += 1;
-      window.location.hash = recordHash(prepared.page, event.detail.key);
+      if (!this.#addons?.contributions.edits.state().dirty && !this.#addons?.contributions.edits.state().saving) window.location.hash = recordHash(prepared.page, event.detail.key);
     } catch (cause: unknown) {
       if (!this.#request.signal.aborted) {
         this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409

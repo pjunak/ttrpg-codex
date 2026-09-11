@@ -13,6 +13,7 @@ export async function exercisePlannerLive({ t, open, admin, csrf }: Pick<Install
   await transact([{ operation: 'put', kind: 'collection', dataId: 'planning_items', key: item.id, expectedRevision: 0, value: item }]);
   const overview = await open(t), page = await open(t);
   await page.goto('/#/addons/dm-tools/planner?item=live-quest');
+  await page.getByRole('button', { name: 'Edit item', exact: true }).click();
   const details = page.getByRole('form', { name: 'Planning item details', exact: true }), title = details.getByLabel('Title', { exact: true });
   await title.waitFor(); await closePlannerEditor(page); await page.getByRole('button', { name: 'Zoom out', exact: true }).click();
   const viewport = page.locator('.dm-planner-viewport');
@@ -46,7 +47,9 @@ export async function exercisePlannerLive({ t, open, admin, csrf }: Pick<Install
 
   // A fresh view may begin typing after its automatic read has already started.
   const typing = await open(t); await typing.goto('/#/addons/dm-tools/planner?item=live-quest');
+  await typing.getByRole('button', { name: 'Edit item', exact: true }).click();
   const typingTitle = typing.getByRole('form', { name: 'Planning item details' }).getByLabel('Title', { exact: true }); await typingTitle.waitFor();
+  await typing.getByRole('button', { name: 'Save item', exact: true }).focus();
 
  const { promise: held, resolve: release } = Promise.withResolvers<void>(), { promise: reading, resolve: started } = Promise.withResolvers<void>();
   await typing.route('**/data/query', async route => { started(); await held; await route.continue(); });
@@ -54,6 +57,8 @@ export async function exercisePlannerLive({ t, open, admin, csrf }: Pick<Install
   await typing.locator('[data-live-refresh]').waitFor(); assert.equal(await typingTitle.inputValue(), 'Typed during the refresh');
 
   const failing = await open(t); await failing.goto('/#/addons/dm-tools/planner?item=live-quest'); await failing.locator('.dm-plan-card').first().waitFor();
+  await failing.getByRole('button', { name: 'Edit item', exact: true }).click();
+  await failing.getByRole('button', { name: 'Save item', exact: true }).focus();
   await failing.route('**/data/query', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
   await update('Refresh retry title'); await failing.getByText(/Reload the planner before making another change/u).waitFor();
   await failing.unroute('**/data/query'); await failing.getByRole('button', { name: 'Reload planner', exact: true }).click();

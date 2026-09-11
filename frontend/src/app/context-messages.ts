@@ -1,4 +1,10 @@
 export const contextEn = {
+  "recordAddons.coreSaved": "Core fields saved. Add-on panels save separately.",
+  "recordAddons.retry": "Retry panels",
+  "recordAddons.title": "Add-on panels",
+  "recordAddons.separateSave": "Each add-on saves its own data. Save entry applies only to the core fields above.",
+  "recordAddons.failed": "Some add-on panels could not be opened. Other fields remain available.",
+  "recordAddons.markdownInvalid": "This text could not be displayed. Open its editor to review the source.",
   "map.editLocation": "Edit location",
   "map.markerDetails": "Marker details",
   "map.missingDraft": "This location is no longer available. Your edits are kept; they cannot overwrite or recreate the missing location.",
@@ -20,6 +26,12 @@ export const contextEn = {
 } as const;
 
 export const contextCs: Record<keyof typeof contextEn, string> = {
+  "recordAddons.coreSaved": "Základní údaje byly uloženy. Panely doplňků se ukládají samostatně.",
+  "recordAddons.retry": "Znovu načíst panely",
+  "recordAddons.title": "Panely doplňků",
+  "recordAddons.separateSave": "Každý doplněk ukládá svá vlastní data. Uložení záznamu se týká pouze základních polí výše.",
+  "recordAddons.failed": "Některé panely doplňků se nepodařilo otevřít. Ostatní pole zůstávají dostupná.",
+  "recordAddons.markdownInvalid": "Tento text nelze zobrazit. Otevřete editor a zkontrolujte zdroj.",
   "map.editLocation": "Upravit místo",
   "map.markerDetails": "Podrobnosti značky",
   "map.missingDraft": "Toto místo již není dostupné. Úpravy jsou zachovány; nemohou přepsat ani znovu vytvořit chybějící místo.",

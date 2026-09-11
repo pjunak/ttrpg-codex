@@ -141,7 +141,7 @@ export async function exercisePlannerEditing({ t, open, admin, csrf, output }: P
 
   for (const mobile of [false, true]) {
     const view = mobile ? await open(t, 'dm', true) : page;
-    if (mobile) await view.goto(`/#/addons/dm-tools/planner?item=${eventId}`); else await editPlannerCard(view, eventCard);
+    if (mobile) { await view.goto(`/#/addons/dm-tools/planner?item=${eventId}`); await view.getByRole('button', { name: 'Edit item', exact: true }).click(); } else await editPlannerCard(view, eventCard);
     await view.getByRole('form', { name: 'Planning item details' }).waitFor();
     const style = await view.locator('.dm-planner-shell h1').evaluate(element => ({ color: getComputedStyle(element).color, font: getComputedStyle(element).fontFamily }));
     assert.equal(style.color, 'rgb(200, 160, 64)'); assert.match(style.font, /Cinzel/u);

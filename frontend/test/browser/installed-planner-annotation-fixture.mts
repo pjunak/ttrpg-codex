@@ -15,6 +15,7 @@ export async function exercisePlannerAnnotations({ t, open, admin, csrf, output,
   for (const key of [id, peer]) await write('planning_items', { id: key, schemaVersion: 3, kind: 'event', eventType: 'story', parentId: null,
     title: key, summary: '', body: '', objective: '', setup: '', resolution: '', tags: [], updatedAt: 1 });
   const page = await open(t, 'dm', mobile); await page.goto(`/#/addons/dm-tools/planner?item=${id}`);
+  await page.getByRole("button", { name: "Edit item", exact: true }).click();
   await page.getByRole('form', { name: 'Planning item details' }).waitFor();
   const reload = async () => { await page.getByRole('button', { name: 'Reload planner', exact: true }).click(); await page.locator('.dm-planner-shell[aria-busy="false"]').waitFor(); };
   await plannerTab(page, 'Links'); await page.locator('summary').filter({ hasText: /^Add reference$/u }).click();
