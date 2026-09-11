@@ -56,16 +56,33 @@ never record bodies or private keys.
 
 Ordinary creation and editing of visibility-bearing records stamp `updatedAt`
 from the server clock as Unix milliseconds. Client-supplied or stale timestamps
-cannot keep a successful edit out of recent activity. Derived reference changes
+cannot forge the save time. Derived reference changes
 and twin operations use the same timestamp representation.
 
+The transaction planner also owns `lastChange` metadata with
+`contractVersion: "activity.v1"` and separate `dm`/`public` summaries. Each summary
+contains only `kind` (created/updated), changed field identities and server `at`
+milliseconds. It compares original and resulting role projections, ignores
+incoming client summaries, and retains the previous meaningful summary on a
+no-op or empty-field normalization. Relationship changes touch their source
+character in the same transaction, preserving the source revision check.
+`GET /api/campaign` exposes only `{contractVersion, change}` for the reader's
+role, never both stored summaries. A null change means no activity for that role.
+
 The core campaign overview shows the thirty most recently changed visible
-entries beneath the last session, using numeric save timestamps and preserved
-ISO dates. It is available to players and anonymous readers through their
+entries beneath the last session. It uses the role-specific summary timestamp;
+private-only changes do not reorder the public feed. Records without current
+activity metadata use existing numeric/ISO save timestamps and a generic update
+description; specific summaries begin with subsequent meaningful writes. This
+is latest activity per record, not a history store or data migration. Labels
+resolve from current authorized records rather than saved historical text.
+It is available to players and anonymous readers through their
 existing role-filtered dataset, with a signed-in empty state. It needs no
 add-on; DM Tools retains its separate private planner activity. The real-host
-`overview-activity.browser.mts` checks player creation/editing, live refresh,
-record links, and removal when a record becomes private on desktop and phone.
+`overview-activity.browser.mts` checks player creation/editing, readable summaries,
+private-reference protection, live refresh, record links, and removal when a
+record becomes private on desktop and phone. See the
+[search/activity workflow reference](SEARCH_ACTIVITY_MAP.md) for presentation.
 
 ## Deliberate boundaries
 

@@ -8,6 +8,7 @@ import {
   type EntitySummary,
 } from "./campaign-projection.js";
 import { campaignPages } from "./routes.js";
+import { describeActivity } from "./campaign-activity.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { campaignIdentityRecord, type CampaignIdentityField, type CampaignIdentitySaveDetail } from "./campaign-identity.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
@@ -270,7 +271,8 @@ export class CodexDashboard extends LitElement {
         ${model.recent.length === 0 ? html`<p class="empty-state">${this.#ui.t("dashboard.emptyRecent")}</p>` : html`<div class="recent-ledger">
           ${model.recent.map((entity) => html`
             <a href=${entity.route}>
-              <span><i class="recent-kind" aria-hidden="true">${campaignPages.find(page => entity.route.startsWith(`#/${page.id}/`))?.icon ?? "📜"}</i>${entity.name}</span>
+              <span><i class="recent-kind" aria-hidden="true">${campaignPages.find(page => entity.route.startsWith(`#/${page.id}/`))?.icon ?? "📜"}</i>${entity.name}
+                <small class="recent-summary">${describeActivity(this.campaign!, entity)}</small></span>
               <time datetime=${entity.updatedAt ?? ""}>${this.#ui.relativeDate(entity.updatedAt)}</time>
             </a>
           `)}

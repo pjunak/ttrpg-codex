@@ -4,7 +4,7 @@ Audited September 10–11, 2026; product recommendations revised September 11, 2
 
 **Audited baseline: 21 confirmed missing or reduced capabilities, six documented transition/design differences, and four verification gaps.** Every item below includes an assessment of its usefulness and a recommended direction. Missing does not automatically mean worth restoring in its old form. The original audit made no runtime or deployment changes; subsequent implementation is recorded below. These proposals do not create new deployment gates.
 
-**September 11 implementation update:** F01 and F02 are now implemented in the host through [shared Markdown recovery and collection browsing](EDITOR_BROWSING.md). The other 19 baseline findings retain their assessments or conditional decisions; they are not all approved implementation work. The owner directs new work entirely within the current architecture, with no new legacy handlers or retained legacy features. Report concrete data-loss risks before an affected operation; otherwise proceed within the requested scope. In particular, F15's original converter recommendation is superseded by the narrower data-preservation decision below. No production changes are part of this implementation.
+**September 11 implementation update:** F01–F05 are now implemented in the host through [shared Markdown recovery and collection browsing](EDITOR_BROWSING.md) and [quick search, activity summaries and focused map editing](SEARCH_ACTIVITY_MAP.md). The other 16 baseline findings retain their assessments or conditional decisions; they are not all approved implementation work. The owner directs new work entirely within the current architecture, with no new legacy handlers or retained legacy features. Report concrete data-loss risks before an affected operation; otherwise proceed within the requested scope. In particular, F15's original converter recommendation is superseded by the narrower data-preservation decision below. No production changes are part of this implementation.
 
 The strongest remaining priorities are protecting manual character values, reviewing sheet replacements, and controlling campaign rules sources. Markdown recovery is implemented; old exported sheets warrant a data-risk report if encountered, rather than default compatibility work. Several smaller reading and play controls merit early delivery. Provider selection matters when a campaign actually has competing providers; a general graph framework and web-triggered server restart have less immediate value. The GitHub installation/update/private-repository workflow reported immediately before this audit was restored in host commit `8711085`; it is **not counted as still missing**.
 
@@ -16,9 +16,9 @@ Value is an assessment of the workflow and consequences, not measured usage. Eff
 | --- | --- | --- | --- | --- |
 | F01 | Durable Markdown drafts | High | Implemented: explicit revision-aware recovery | Completed slice |
 | F02 | Collection filters, sorting, grouping | High for larger campaigns | Implemented: shared descriptor-driven views | Completed slice |
-| F03 | Search quick-jump overlay | High during preparation/play | Restore over the existing search service | Medium |
-| F04 | Activity change summaries | Medium | Restore concise, role-filtered summaries | Small–medium |
-| F05 | Map-side editing and context | High for map preparation | Restore a focused quick editor | Medium |
+| F03 | Search quick-jump overlay | High during preparation/play | Implemented: shared modal search with accessible recents | Completed slice |
+| F04 | Activity change summaries | Medium | Implemented: concise summaries from server role projections | Completed slice |
+| F05 | Map-side editing and context | High for map preparation | Implemented: shared field controls and atomic quick edits | Completed slice |
 | F06 | Restart server in Settings | Low with current lifecycle controls | Defer; keep restart in operator tooling | Medium if restored |
 | F07 | Effective sourcebook selection | High | Redesign as campaign rules policy | Large |
 | F08 | Service-provider selection | High when selection is required | Expose conflict resolution; keep automatic defaults | Medium |
@@ -87,6 +87,13 @@ Evidence: [old list behavior](https://github.com/pjunak/ttrpg-codex/blob/3aeeacf
 
 #### F03 — Global search lost the recent-item command palette · P2
 
+**Implemented after the audit:** [current quick-search contract](SEARCH_ACTIVITY_MAP.md#quick-search-f03).
+The native modal reuses full-page search and add-on providers, resolves recent
+identities against current access, supports keyboard/touch navigation and
+restores focus. Opening or cancelling search retains the mounted editor;
+choosing a different destination retains the unsaved-change guard. The following
+describes the audited baseline.
+
 Ctrl/Cmd+K still opens search, and grouped full-text results exist. Previously it toggled an overlay with recent activity when empty, Up/Down selection, Enter to navigate, and Escape to close. It now navigates to a page whose empty state is an instruction; results are ordinary links without the former result-selection keyboard controller. Tab navigation remains available. The lost feature is the quick-jump workflow, not global search itself.
 
 Evidence: [old search controller](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/web/js/search.js), current [search page](../../frontend/src/app/codex-search.ts) and [shortcut routing](../../frontend/src/app/codex-app.ts).
@@ -95,6 +102,14 @@ Evidence: [old search controller](https://github.com/pjunak/ttrpg-codex/blob/3ae
 
 #### F04 — Recent activity no longer says what changed · P2
 
+**Implemented after the audit:** [current activity contract](SEARCH_ACTIVITY_MAP.md#recent-activity-f04).
+Latest-per-record summaries derive from separate server DM/public projections,
+with current reference labels and concise field descriptions. Private-only
+changes and no-op saves retain the prior public summary/time; relationship
+changes update the source character atomically. Detailed summaries begin with
+new meaningful writes, without reconstructing history. The following describes
+the audited baseline.
+
 The old dashboard displayed a one-line change summary, including field transitions, creation, or relationship changes. Current activity rows show the record name and time only. The newest-30 list survives, but users cannot scan it to see why an entry changed. Some `lastChange` data still exists in storage/projection; retaining that field does not restore its presentation.
 
 Evidence: [old activity presentation](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/docs/reference/wiki-rendering.md#L92), current [`#recent`](../../frontend/src/app/codex-dashboard.ts).
@@ -102,6 +117,13 @@ Evidence: [old activity presentation](https://github.com/pjunak/ttrpg-codex/blob
 **Assessment — restore a concise summary, at modest priority.** A short “Moved to…” or “Relationship added” helps the DM resume preparation and players catch up. Summarize meaningful fields rather than every normalization or save; group rapid edits to the same record where that reduces noise. Generate summaries from role-filtered information, including relationship targets, rather than hiding private text only in the browser. Full record history and a diff viewer would be separate work. **Acceptance:** a meaningful edit produces a useful sentence; private changes do not reveal names or values to players.
 
 #### F05 — Map-side location editing and context are reduced · P2
+
+**Implemented after the audit:** [current focused-editor contract](SEARCH_ACTIVITY_MAP.md#focused-map-editor-f05).
+Marker type, attitudes and notes share article field controls and validation;
+size is disclosed separately. One revision-checked Save includes coordinates
+and changed details, retaining other fields, viewport and selection. Conflicts
+and remote deletion retain drafts. Enter follows the first visible map search
+result. The following describes the audited baseline.
 
 The old pin panel edited type, attitudes, size, and notes alongside placement and showed resolved type/attitude context. The current panel edits coordinates, with a name field for creation, and displays name/map notes plus article/local-map links. Type, size, and attitudes remain editable in the full location article, so this is an extra-navigation regression rather than missing storage. The old Enter-to-first-search-result action is also absent from the map search input.
 
@@ -335,7 +357,7 @@ The comparison proves source-level behavior and content-tree preservation, not t
 1. **Protect authored work.** F01's durable drafts are implemented. Fix the calculation guard in F17 and add exact import review/undo in F14. Report actual old-export preservation risks under F15 without adding compatibility code by default. Broader provider-change comparison can follow the immediate guard; it must precede accepting changed rules automatically.
 2. **Recover inexpensive play value and readable sessions.** Deliver senses (F19), coherent HP edits (F20), and attunement guidance (F16) early. Add the planning reader (F21), clean printing (F13), and rule navigation from F18. These do not need to wait for a general extension framework. Structured formula explanations are a later increment of F18.
 3. **Restore campaign and operator choices.** Design sourcebook policy (F07) across the host/provider/consumer boundary, including revision identity and F17 reconciliation. Expose provider selection (F08) when needed and implement package uninstall with retained data (F09). Source policy cannot be delivered as a browse-only checkbox; provider selection cannot bypass exclusive installation rules. A data-purge action can follow safe code removal separately.
-4. **Improve navigation and complete bounded integration.** F02's shared collection browsing is implemented. Restore the search overlay (F03), map quick edits (F05), and concise activity (F04). Complete the settings outlet (F10). These can be scheduled independently as their benefit warrants; the groups express priorities and dependencies, not a requirement to finish every earlier item first.
+4. **Improve navigation and complete bounded integration.** Shared collection browsing (F02), quick search (F03), concise activity (F04) and map quick edits (F05) are implemented. Complete the settings outlet (F10). These can be scheduled independently as their benefit warrants; the groups express priorities and dependencies, not a requirement to finish every earlier item first.
 5. **Keep conditional work conditional.** Require a real consumer for F11's map/editor integration and narrow F12 graph metadata; defer F12's general facade and F06's restart button. Keep D01–D04/D06's underlying boundaries while improving guidance and presentation. Treat D05's rapid placement and optional gesture preference as enhancements after the reader, rather than undoing the new defaults. Do not call these proposals approved retirements.
 
 The initial implementation scope should avoid a generic form designer, a new graph framework, server-side PDF infrastructure, live legacy compatibility, and cross-package atomic bulk updates. Each would add substantial maintenance beyond the workflow that motivated the finding. Reassess them only against a concrete need that the smaller designs cannot meet.

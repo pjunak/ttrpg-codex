@@ -1,7 +1,9 @@
 import { uiText } from "./ui-localization.js";
 import { LitElement, html, nothing } from "lit";
 import type { CampaignDataset } from "../core/campaign-data.js";
-import { searchCampaign, type CampaignSearchResult } from "./campaign-search.js";
+import { searchCampaign } from "./campaign-search.js";
+import type { EntitySummary } from "./campaign-projection.js";
+import { recentSearchResults } from "./recent-records.js";
 import { UiLocalizationController, uiCollectionLabel } from "./ui-localization.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
@@ -12,19 +14,22 @@ export class CodexSearch extends LitElement {
     campaign: { attribute: false },
     registry: { attribute: false }, actorRole: { attribute: false },
     query: { state: true },
+    quick: { type: Boolean },
   };
 
   declare campaign: CampaignDataset | undefined;
   declare registry: BrowserContributionRegistry | undefined;
   declare actorRole: BrowserRole | undefined;
   readonly #links = new AddonLinksController(this, () => ({ registry: this.registry, role: this.actorRole }));
-  declare private query: string;
+  declare query: string;
+  declare quick: boolean;
   readonly #ui = new UiLocalizationController(this);
 
   constructor() {
     super();
     this.campaign = undefined;
     this.query = "";
+    this.quick = false;
   }
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
@@ -37,16 +42,16 @@ export class CodexSearch extends LitElement {
 
   protected override render() {
     if (this.campaign === undefined) return nothing;
-    const groups = searchCampaign(this.campaign, this.query);
+    const groups = searchCampaign(this.campaign, this.query, this.quick ? 24 : 60);
     const addons = this.#links.search(this.query);
     const count = groups.reduce((total, group) => total + group.results.length, 0) + addons.results.reduce((total, result) => total + result.matches.length, 0);
     const searched = this.query.trim() !== "";
+    const recent = this.quick && !searched ? recentSearchResults(this.campaign, this.actorRole ?? "public") : [];
     return html`
-      <article class="search-page" aria-labelledby="search-title">
+      <article class="search-page" aria-labelledby=${this.quick ? "quick-search-title" : "search-title"} @keydown=${this.#resultKeyDown}>
         <header class="search-heading">
-          <p class="page-kicker">${this.#ui.t("search.kicker")}</p>
-          <h1 id="search-title">${this.#ui.t("search.title")}</h1>
-          <p>${this.#ui.t("search.intro")}</p>
+          ${this.quick ? html`<h2 id="quick-search-title">${this.#ui.t("jump.title")}</h2><p id="quick-search-help">${this.#ui.t("jump.help")}</p>` : html`
+            <p class="page-kicker">${this.#ui.t("search.kicker")}</p><h1 id="search-title">${this.#ui.t("search.title")}</h1><p>${this.#ui.t("search.intro")}</p>`}
           <label class="campaign-search-field">
             <span class="visually-hidden">${this.#ui.t("search.label")}</span>
             <span aria-hidden="true">⌕</span>
@@ -55,21 +60,27 @@ export class CodexSearch extends LitElement {
               .value=${this.query}
               placeholder=${this.#ui.t("search.placeholder")}
               autocomplete="off"
+              maxlength="200"
+              aria-describedby=${this.quick ? "quick-search-help" : nothing}
               @input=${this.#onInput}
             />
           </label>
         </header>
-        <div class="search-results" aria-live="polite">
+        <div class="search-results">
           ${!searched
-            ? html`<p class="search-prompt">${this.#ui.t("search.prompt")}</p>`
+            ? this.quick ? html`<section class="search-group" aria-label=${this.#ui.t("jump.recent")}>
+                <header><h3>${this.#ui.t("jump.recent")}</h3></header>
+                ${recent.map(result => searchResult(result))}
+                ${recent.length ? nothing : html`<p>${this.#ui.t("jump.empty")}</p>`}
+              </section>` : html`<p class="search-prompt">${this.#ui.t("search.prompt")}</p>`
             : count === 0 && !addons.loading && !addons.results.some(result => result.failed)
-              ? html`<p class="empty-state">${this.#ui.t("search.empty", { query: this.query.trim() })}</p>`
+              ? html`<p class="empty-state" role="status">${this.#ui.t("search.empty", { query: this.query.trim() })}</p>`
               : html`
-                <p class="search-count">${this.#ui.plural("search.count", count)}</p>
+                <p class="search-count" role="status">${this.#ui.plural("search.count", count)}</p>
                 ${groups.map((group) => html`
-                  <section class="search-group" aria-labelledby=${`search-group-${group.page.id}`}>
+                  <section class="search-group" aria-label=${uiCollectionLabel(group.page.id, "other")}>
                     <header>
-                      <h2 id=${`search-group-${group.page.id}`}><span aria-hidden="true">${group.page.icon}</span>${uiCollectionLabel(group.page.id, "other")}</h2>
+                      <h3><span aria-hidden="true">${group.page.icon}</span>${uiCollectionLabel(group.page.id, "other")}</h3>
                       <span>${group.results.length}</span>
                     </header>
                     <div>${group.results.map((result) => searchResult(result))}</div>
@@ -88,6 +99,7 @@ export class CodexSearch extends LitElement {
           ${addons.results.some(result => result.failed) ? html`<p role="status">${this.#ui.t("wiki.failed")}
             <button type="button" @click=${this.#links.retry}>${this.#ui.t("wiki.retry")}</button></p>` : nothing}
         </div>
+        ${this.quick ? html`<a class="record-action" href=${`#/search?q=${encodeURIComponent(this.query)}`}>${this.#ui.t("jump.full")}</a>` : nothing}
       </article>
     `;
   }
@@ -95,9 +107,22 @@ export class CodexSearch extends LitElement {
   readonly #onInput = (event: Event): void => {
     this.query = (event.currentTarget as HTMLInputElement).value;
   };
+
+  readonly #resultKeyDown = (event: KeyboardEvent): void => {
+    if (!this.quick || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+    const input = this.querySelector<HTMLInputElement>("input");
+    const links = [...this.querySelectorAll<HTMLAnchorElement>(".search-result")];
+    const index = links.indexOf(document.activeElement as HTMLAnchorElement);
+    if (event.key === "Enter" && event.target === input && links.length) { event.preventDefault(); links[0]!.click(); return; }
+    if (!["ArrowDown", "ArrowUp"].includes(event.key) || event.target !== input && index < 0 || !links.length) return;
+    event.preventDefault();
+    const next = event.key === "ArrowDown" ? index + 1 : index < 0 ? links.length - 1 : index - 1;
+    if (next < 0) input?.focus();
+    else { const link = links[Math.min(next, links.length - 1)]!; link.focus(); link.scrollIntoView({ block: "nearest" }); }
+  };
 }
 
-function searchResult(result: CampaignSearchResult) {
+function searchResult(result: EntitySummary) {
   return html`
     <a class="search-result" href=${result.route}>
       <span>

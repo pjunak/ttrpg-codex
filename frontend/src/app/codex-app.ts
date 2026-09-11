@@ -85,6 +85,8 @@ import "./codex-dm-dashboard.js";
 import "./codex-record-page.js";
 import { AddonLinksController } from "./addon-links-controller.js";
 import "./codex-search.js";
+import { rememberRecentRecord } from "./recent-records.js";
+import { containDialogTab } from "./dialog-focus.js";
 import "./codex-settings.js";
 import { CampaignPartyEditError, prepareCampaignPartySave, type CampaignPartySaveDetail } from "./campaign-party.js";
 import { CampaignIdentityEditError, prepareCampaignIdentitySave, type CampaignIdentitySaveDetail } from "./campaign-identity.js";
@@ -142,6 +144,7 @@ export class CodexApp extends LitElement {
     editCompletion: { state: true },
     menuOpen: { state: true },
     mobileViewport: { state: true },
+    quickSearchOpen: { state: true },
   };
 
   declare private readiness: Readiness;
@@ -161,6 +164,8 @@ export class CodexApp extends LitElement {
 
   declare private menuOpen: boolean;
   declare private mobileViewport: boolean;
+  declare private quickSearchOpen: boolean;
+  #searchReturnFocus: HTMLElement | undefined;
   readonly #mobileMedia = window.matchMedia("(max-width: 768px)");
   #request: AbortController | undefined;
   readonly #campaignData = new CampaignDataClient();
@@ -198,6 +203,7 @@ export class CodexApp extends LitElement {
     this.characterView = preferredCharacterView(window.location.hash);
     this.editCompletion = 0;
     this.menuOpen = false;
+    this.quickSearchOpen = false;
     this.mobileViewport = this.#mobileMedia.matches;
   }
 
@@ -243,7 +249,7 @@ export class CodexApp extends LitElement {
               <span><strong>${branding.title}</strong><small>${branding.subtitle}</small></span>
             </a>
           </header>
-          <a class="sidebar-search" href="#/search"><span aria-hidden="true">🔍</span>${this.#ui.t("shell.search")}…<kbd>Ctrl K</kbd></a>
+          <a class="sidebar-search" href="#/search" aria-haspopup="dialog" @click=${this.#openQuickSearch}><span aria-hidden="true">🔍</span>${this.#ui.t("shell.search")}…<kbd>Ctrl K</kbd></a>
           ${this.#navigationTemplate()}
           <section class="addon-navigation-section" aria-labelledby="addon-navigation-title" ?hidden=${this.navigationCount === 0}>
             <h2 id="addon-navigation-title">${this.#ui.t("shell.addons")}</h2>
@@ -293,10 +299,29 @@ export class CodexApp extends LitElement {
 
         ${this.#mobileNavigationTemplate()}
       </div>
+      ${this.quickSearchOpen && this.campaignState.state === "ready" ? html`<dialog class="quick-search-dialog" aria-labelledby="quick-search-title"
+        @keydown=${(event: KeyboardEvent) => containDialogTab(event.currentTarget as HTMLDialogElement, event)}
+        @click=${(event: MouseEvent) => {
+          const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+          if (link?.hash === this.#acceptedHash && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); this.#closeQuickSearch(); }
+        }}
+        @cancel=${(event: Event) => { event.preventDefault(); this.#closeQuickSearch(); }}>
+        <button type="button" class="record-action quick-search-close" @click=${() => this.#closeQuickSearch()}>${this.#ui.t("jump.close")}</button>
+        <codex-search .quick=${true} .campaign=${this.campaignState.campaign} .registry=${this.#addons?.contributions}
+          .actorRole=${this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined}></codex-search>
+      </dialog>` : nothing}
     `;
   }
 
+  protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
+    if (changed.has("authority") || this.campaignState.state !== "ready") this.quickSearchOpen = false;
+  }
+
   protected override updated(): void {
+    const searchDialog = this.querySelector<HTMLDialogElement>(".quick-search-dialog");
+    if (searchDialog && !searchDialog.open) searchDialog.showModal();
+    if (this.campaignState.state === "ready") rememberRecentRecord(this.campaignState.campaign, this.route,
+      this.authority.state === "known" ? this.authority.auth.role ?? "public" : "public");
     if (this.isConnected && this.route.kind === "not-found") {
       const target = this.#links.resolve({ path: window.location.hash });
       if (target.status === "resolved") {
@@ -805,14 +830,36 @@ export class CodexApp extends LitElement {
   };
 
   readonly #onKeyDown = (event: KeyboardEvent): void => {
+    if (event.defaultPrevented || event.isComposing) return;
     if (event.key === "Escape" && this.menuOpen) {
       event.preventDefault();
       this.#closeMenu();
     } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
       event.preventDefault();
-      window.location.hash = "#/search";
+      if (this.quickSearchOpen) this.#closeQuickSearch(); else this.#openQuickSearch();
     }
   };
+
+  readonly #openQuickSearch = (event?: MouseEvent): void => {
+    if (event && (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)) return;
+    if (this.campaignState.state !== "ready") return;
+    event?.preventDefault();
+    this.#searchReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    this.menuOpen = false; this.quickSearchOpen = true;
+  };
+
+  #closeQuickSearch(restoreFocus = true): void {
+    this.querySelector<HTMLDialogElement>(".quick-search-dialog")?.close();
+    this.quickSearchOpen = false;
+    if (restoreFocus) {
+      const previous = this.#searchReturnFocus;
+      void this.updateComplete.then(() => {
+        if (previous?.isConnected && !previous.closest("[inert]")) previous.focus();
+        else this.querySelector<HTMLElement>(this.mobileViewport ? "[data-menu-toggle]" : ".sidebar-search")?.focus();
+      });
+    }
+    this.#searchReturnFocus = undefined;
+  }
 
   #accountTemplate() {
     if (isPlayerPreview()) return html`<section class="account-panel"><p>${this.#ui.t("shell.viewingAs")} <strong>${this.#ui.t("shell.player")}</strong></p>
@@ -929,7 +976,7 @@ export class CodexApp extends LitElement {
           @campaign-sign-in=${this.#showSignIn}
         ></codex-dashboard>`;
       case "search":
-        return html`<codex-search .campaign=${campaign} .registry=${this.#addons?.contributions}
+        return html`<codex-search .campaign=${campaign} .query=${this.route.query ?? ""} .registry=${this.#addons?.contributions}
           .actorRole=${this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined}></codex-search>`;
       case "settings":
         return html`<codex-settings
@@ -1428,6 +1475,7 @@ export class CodexApp extends LitElement {
     }
     this.menuOpen = false;
     this.#acceptedHash = nextHash;
+    if (this.quickSearchOpen) this.#closeQuickSearch(false);
     this.route = parseAppRoute(nextHash);
     this.characterView = preferredCharacterView(nextHash);
     void this.updateComplete.then(() => this.#refreshOutlets());

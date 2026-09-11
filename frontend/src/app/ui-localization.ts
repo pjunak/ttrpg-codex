@@ -2,6 +2,7 @@ import type { ReactiveController, ReactiveControllerHost } from "lit";
 import { sourceEn, sourceCs, type SourceMessage } from "./ui-source-messages.js";
 import { githubEn, githubCs } from "./github-messages.js";
 import { editingEn, editingCs } from "./editing-messages.js";
+import { contextEn, contextCs } from "./context-messages.js";
 
 export type UiLocale = "en" | "cs";
 
@@ -18,6 +19,7 @@ const enCatalog = {
   ...sourceEn,
   ...githubEn,
   ...editingEn,
+  ...contextEn,
   "settings.usedRecords": { one: "Used by {n} record", other: "Used by {n} records" },
   "settings.replaceRecords": { one: "{n} campaign record uses this definition. Choose how those records should change.", other: "{n} campaign records use this definition. Choose how those records should change." },
   "recovery.title": "Backup & recovery",
@@ -480,6 +482,7 @@ const csCatalog = {
   ...sourceCs,
   ...githubCs,
   ...editingCs,
+  ...contextCs,
   "settings.usedRecords": { one: "Používá {n} záznam", few: "Používají {n} záznamy", other: "Používá {n} záznamů" },
   "settings.replaceRecords": { one: "Tuto definici používá {n} záznam kampaně. Vyberte, jak se mají použití změnit.", few: "Tuto definici používají {n} záznamy kampaně. Vyberte, jak se mají použití změnit.", other: "Tuto definici používá {n} záznamů kampaně. Vyberte, jak se mají použití změnit." },
   "recovery.title": "Zálohy a obnova",

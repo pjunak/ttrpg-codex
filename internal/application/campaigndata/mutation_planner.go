@@ -325,6 +325,9 @@ func (planner *mutationPlanner) visibleIdentityIDs() (
 }
 
 func (planner *mutationPlanner) transaction(actorID string) (campaign.Transaction, error) {
+	if err := planner.prepareActivity(); err != nil {
+		return campaign.Transaction{}, err
+	}
 	mutations := make([]campaign.Mutation, 0, len(planner.changes))
 	for _, target := range planner.changeOrder {
 		change := planner.changes[target]

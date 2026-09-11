@@ -887,6 +887,21 @@ findings remain evidence, not instructions to add compatibility code.
   document scope, reusable owners and browser-storage limitations. Host checks
   pass with 339 unit and 188 browser tests, all Go tests and vet; 39 optional
   installed-package browser cases were skipped without companion ZIPs.
+- [x] F03: implement a shared quick-search modal with currently accessible
+  recents, full-search/add-on provider reuse, keyboard/touch navigation, focus
+  restoration and retained editors. Destination navigation keeps its dirty guard.
+- [x] F04: implement concise server-owned DM/public activity summaries, current
+  reference labels, relationship-source updates and noise suppression. Private
+  changes retain the prior public summary/time; existing records need no migration.
+- [x] F05: implement a focused map editor using shared marker/attitude/note/size
+  controls and validators, atomic saves against opening revisions, retained
+  conflict/deletion drafts, stable viewport/selection and Enter-to-first search.
+  [Current specification and UX sources](rewrite/SEARCH_ACTIVITY_MAP.md) describe
+  scope and reusable owners. Host checks pass with 344 unit and 195 browser tests,
+  all Go tests and vet; 39 optional installed-package cases were skipped without
+  companion ZIPs. Release readiness passes all 33 gates. Desktop/phone Chromium
+  screenshots were reviewed; physical-device and screen-reader checks remain
+  outside this run. No deployment, migration or live-data changes.
 - [ ] Protect authored work: central manual-mode calculation guard and reviewed
   provider reconciliation (F17), and exact sheet replacement preview/confirmation
   with conflict-safe undo (F14). F15 is a historical old-export access risk;
@@ -903,10 +918,7 @@ findings remain evidence, not instructions to add compatibility code.
   broker-backed provider conflict resolution with automatic defaults (F08);
   and package uninstall retaining data by default, with dependency review and
   a separate data-purge decision (F09).
-- [ ] Improve browsing and context: search quick-jump overlay (F03), focused
-  map editor (F05), concise
-  role-filtered activity summaries (F04), and a minimal contributed settings
-  destination (F10).
+- [ ] Complete a minimal contributed settings destination (F10).
 - [ ] Record decisions on conditional extensions: split read-only map context
   from transactional editor contributions (F11); require actual consumers for
   graph metadata and defer the general facade (F12); defer a web restart action

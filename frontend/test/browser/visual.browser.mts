@@ -129,13 +129,63 @@ test('mobile drawer stays accessible and preserves dirty record edits', async t 
   assert.match(page.url(), /#\/characters\/ryn$/);
   assert.equal(await page.locator('[name="name"]').inputValue(), 'Keep this draft');
   await page.keyboard.press('Escape');
-  page.once('dialog', dialog => dialog.dismiss());
   await page.keyboard.press('Control+k');
+  await page.getByRole('dialog', { name: 'Quick search' }).waitFor();
+  await page.keyboard.press('Escape');
   await page.waitForURL(/#\/characters\/ryn$/);
   assert.match(page.url(), /#\/characters\/ryn$/);
   assert.equal(await page.locator('[name="name"]').inputValue(), 'Keep this draft');
   await fits(page);
   await page.screenshot({ animations: "disabled", path: `${artifacts}mobile-editor.png`, fullPage: true });
+});
+
+test('quick search preserves the mounted editor and guards destination navigation', async t => {
+  const page = await fixture(t, { width: 1440, height: 1000 }, 'dm');
+  await page.goto(`${origin}/#/characters/ryn`);
+  await page.getByLabel('More actions', { exact: true }).click();
+  await page.getByRole('button', { name: 'Edit all fields', exact: true }).click();
+  const name = page.locator('[name="name"]'); await name.fill('Unsaved Ryn');
+  await name.evaluate(element => { element.setAttribute('data-kept-editor', 'yes'); });
+  await page.keyboard.press('Control+k');
+  const dialog = page.getByRole('dialog', { name: 'Quick search' });
+  await dialog.waitFor();
+  assert.match(page.url(), /#\/characters\/ryn$/);
+  await dialog.locator('input').fill('Kael');
+  await page.keyboard.press('ArrowDown');
+  assert.match(await page.evaluate(() => document.activeElement?.textContent ?? ''), /Kael/);
+  page.once('dialog', prompt => prompt.dismiss()); await page.keyboard.press('Enter');
+  await page.waitForURL(/#\/characters\/ryn$/);
+  assert.equal(await dialog.isVisible(), true);
+  assert.equal(await name.inputValue(), 'Unsaved Ryn');
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'detached' });
+  assert.equal(await name.getAttribute('data-kept-editor'), 'yes');
+  assert.equal(await name.evaluate(element => element === document.activeElement), true);
+  await page.keyboard.press('Control+k'); await dialog.locator('input').fill('Kael');
+  page.once('dialog', prompt => prompt.accept()); await page.keyboard.press('Enter');
+  await page.waitForURL(/#\/characters\/kael$/);
+  await dialog.waitFor({ state: 'detached' });
+});
+
+test('phone quick search supports focus containment, recent records and full search', async t => {
+  const page = await fixture(t, { width: 390, height: 844 });
+  await page.goto(`${origin}/#/characters/ryn`); await page.locator('#record-title').waitFor();
+  await page.locator('[data-menu-toggle]').click(); await page.locator('.sidebar-search').click();
+  const dialog = page.getByRole('dialog', { name: 'Quick search' }); await dialog.waitFor();
+  assert.match(await dialog.locator('.search-result').first().textContent() ?? '', /Ryn/);
+  for (let index = 0; index < 18; index++) {
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.quick-search-dialog')), true);
+  }
+  await dialog.locator('input').fill('Ryn');
+  await page.screenshot({ path: `${artifacts}mobile-quick-search.png`, fullPage: true });
+  await fits(page);
+  await dialog.getByRole('link', { name: 'Open full search' }).click();
+  await page.waitForURL(/#\/search\?q=Ryn$/);
+  await page.locator('.campaign-search-field input').waitFor();
+  assert.equal(await page.locator('.campaign-search-field input').inputValue(), 'Ryn');
+  await page.keyboard.press('Control+k'); await page.keyboard.press('Escape');
+  assert.equal(await page.locator('.quick-search-dialog').count(), 0);
 });
 
 test('desktop sidebar, phone menu and settings remain usable across resize', async t => {

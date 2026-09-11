@@ -112,9 +112,10 @@ test('live identity changes retain the original draft and block stale writes', a
   await page.getByRole('alert').filter({ hasText: 'Your draft is kept' }).waitFor();
   assert.equal(await input.inputValue(), 'My campaign draft');
   assert.equal(writes.length, 0);
-  page.once('dialog', dialog => dialog.dismiss());
   await page.keyboard.press('Control+k');
-  await page.waitForURL(origin + '/#/');
+  await page.getByRole('dialog', { name: 'Quick search' }).waitFor();
+  await page.keyboard.press('Escape');
+  assert.ok([origin + '/', origin + '/#/'].includes(page.url()));
   assert.equal(await input.inputValue(), 'My campaign draft');
   page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();

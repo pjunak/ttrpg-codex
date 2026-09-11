@@ -116,6 +116,72 @@ async function changed(page: Page, resource = 'locations') {
 }
 const marker = (page: Page, name: string) => page.locator(`.sc-marker[title="${name}"]`);
 const eventMarker = (page: Page, name: string) => page.locator(`.sc-event-pin[title="${name}"]`);
+
+for (const mobile of [false, true]) test(`map quick editor saves classification, notes and size together on ${mobile ? 'phone' : 'desktop'}`, async t => {
+  const { page, writes } = await fixture(t, { mobile });
+  collection('settings').records.push({ key: 'pinTypes', revision: 1, value: [{ id: 'town', label: 'Town', size: 28 }] });
+  collection('settings').records.push({ key: 'attitudes', revision: 1, value: [{ id: 'ally', label: 'Ally', labelColor: '#33aa77', strength: .7 }] });
+  await changed(page, 'settings');
+  await page.getByRole('button', { name: 'Edit map', exact: false }).click();
+  await marker(page, 'Northern Gate').click();
+  await page.getByRole('button', { name: 'Edit location', exact: true }).click();
+  const coordinates = [await page.getByLabel('Horizontal position (%)').inputValue(), await page.getByLabel('Vertical position (%)').inputValue()];
+  const imageBefore = await page.locator('.leaflet-image-layer').boundingBox().then(required);
+  const form = page.locator('.sc-panel form');
+  await form.locator('[name="pinType"]').selectOption('town');
+  await form.locator('[name="attitudes"]').selectOption('ally');
+  await form.locator('[name="mapNotes"]').fill('Watch the eastern road.');
+  await form.locator('summary').filter({ hasText: 'Marker details' }).click();
+  await form.locator('[name="size"]').fill('40');
+  const focusedSize = await form.locator('[name="size"]').boundingBox().then(required);
+  const actions = await form.locator('.sc-detail-actions').boundingBox().then(required);
+  await page.screenshot({ path: `${artifacts}${mobile ? 'phone' : 'desktop'}-quick-editor.png`, fullPage: true });
+  assert.ok(focusedSize.y >= 0 && focusedSize.y + focusedSize.height <= actions.y, `focused field stays above the map actions: ${JSON.stringify({ focusedSize, actions })}`);
+  assert.ok(actions.y + actions.height <= page.viewportSize()!.height, 'map actions remain in the viewport');
+  assert.equal(writes.length, 0);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await form.waitFor({ state: 'detached' });
+  assert.equal(writes.length, 1); assert.equal(writes[0][0].expectedRevision, 3);
+  assert.deepEqual(record('gate').value.attitudes, [{ id: 'ally' }]);
+  assert.equal(record('gate').value.pinType, 'town'); assert.equal(record('gate').value.size, 40);
+  assert.equal(record('gate').value.mapNotes, 'Watch the eastern road.');
+  assert.deepEqual(record('gate').value.extension, { keep: true });
+  assert.deepEqual([String(Number(record('gate').value.x) * 100), String(Number(record('gate').value.y) * 100)], coordinates);
+  const imageAfter = await page.locator('.leaflet-image-layer').boundingBox().then(required);
+  assert.ok(Math.abs(imageBefore.x - imageAfter.x) < 1 && Math.abs(imageBefore.width - imageAfter.width) < 1, 'save retains map viewport');
+  await marker(page, 'Northern Gate').click();
+  await page.locator('.sc-marker-type').filter({ hasText: 'Town' }).waitFor();
+  await page.locator('.sc-marker-attitudes').filter({ hasText: 'Ally' }).waitFor();
+});
+
+test('map quick edits retain text through conflicts and remote deletion', async t => {
+  const { page, writes } = await fixture(t);
+  await page.getByRole('button', { name: 'Edit map', exact: false }).click();
+  await marker(page, 'Northern Gate').click(); await page.getByRole('button', { name: 'Edit location', exact: true }).click();
+  await page.locator('[name="mapNotes"]').fill('Keep this map draft');
+  record('gate').revision++; record('gate').value.mapNotes = 'Remote text'; await changed(page);
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.locator('.sc-message').filter({ hasText: 'Your draft is kept' }).waitFor();
+  assert.equal(await page.locator('[name="mapNotes"]').inputValue(), 'Keep this map draft');
+  assert.equal(writes.length, 0);
+  collection('locations').records = collection('locations').records.filter(record => record.key !== 'gate'); await changed(page);
+  await page.locator('.sc-panel [role="alert"]').filter({ hasText: 'no longer available' }).waitFor();
+  assert.equal(await page.locator('[name="mapNotes"]').inputValue(), 'Keep this map draft');
+  await page.getByRole('button', { name: 'Save', exact: true }).click(); assert.equal(writes.length, 0);
+  page.once('dialog', dialog => dialog.accept()); await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.locator('.sc-panel').waitFor({ state: 'detached' });
+});
+
+test('map Enter follows the visible accent-insensitive search order without writing', async t => {
+  const { page, writes } = await fixture(t);
+  record('gate').value.name = 'Žár Gate'; record('inn').value.name = 'Žár Inn'; await changed(page);
+  await page.locator('.sc-search').fill('zar');
+  await page.locator('.sc-search-results button').first().filter({ hasText: 'Žár Gate' }).waitFor();
+  await page.locator('.sc-search').press('Enter');
+  await page.locator('.sc-panel h2').filter({ hasText: 'Žár Gate' }).waitFor();
+  assert.equal(await page.locator('.sc-search').inputValue(), ''); assert.equal(writes.length, 0);
+});
 async function chooseEventPoint(page: Page, mobile = false) {
   const box = await page.locator('.sc-map').boundingBox().then(required);
   await page.locator('.sc-map').click({ position: { x: mobile ? 85 : 400, y: box.height * .65 } });
@@ -619,7 +685,7 @@ test('coordinate drafts survive live refresh and stale saves without changing ot
   const { page, writes } = await fixture(t);
   await page.getByRole('button', { name: 'Edit map', exact: false }).click();
   await marker(page, 'Northern Gate').click();
-  await page.getByRole('button', { name: 'Edit position', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit location', exact: true }).click();
   await page.getByLabel('Horizontal position (%)').fill('55');
   record('gate').revision++; record('gate').value.x = .3;
   await changed(page);
@@ -627,13 +693,14 @@ test('coordinate drafts survive live refresh and stale saves without changing ot
   await page.locator('.sc-message').filter({ hasText: 'Your draft is kept' }).waitFor();
   assert.equal(Number(await page.getByLabel('Horizontal position (%)').inputValue()), 55);
   assert.equal(writes.length, 0);
-  page.once('dialog', dialog => dialog.dismiss());
   await page.keyboard.press('Control+k');
+  await page.getByRole('dialog', { name: 'Quick search' }).waitFor();
+  await page.keyboard.press('Escape');
   await page.waitForURL(/#\/map\/world$/);
   page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await marker(page, 'Northern Gate').click();
-  await page.getByRole('button', { name: 'Edit position', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit location', exact: true }).click();
   await page.getByLabel('Horizontal position (%)').fill('60');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.locator('.sc-panel form').waitFor({ state: 'detached' });
@@ -658,7 +725,7 @@ test('marker dragging creates a reviewable draft and unplacing preserves the loc
   await page.locator('.sc-panel form').waitFor({ state: 'detached' });
   assert.equal(writes.length, 1);
   await marker(page, 'Northern Gate').click();
-  await page.getByRole('button', { name: 'Edit position', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit location', exact: true }).click();
   await page.getByRole('button', { name: 'Remove from map', exact: true }).click();
   await marker(page, 'Northern Gate').waitFor({ state: 'detached' });
   assert.equal(record('gate').value.x, undefined);
@@ -757,8 +824,9 @@ for (const mobile of [false, true]) {
     await page.getByLabel('View icon', { exact: true }).fill('🏰');
     await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
     await page.getByRole('button', { name: 'Use current map area', exact: true }).click();
-    page.once('dialog', dialog => dialog.dismiss());
     await page.keyboard.press('Control+k');
+    await page.getByRole('dialog', { name: 'Quick search' }).waitFor();
+    await page.keyboard.press('Escape');
     await page.waitForURL(/#\/map\/local\/gate$/);
     assert.equal(await page.getByLabel('Name this map view').inputValue(), 'Upper floor');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));

@@ -1,4 +1,5 @@
 import { isRecord } from "../core/boundary.js";
+import { activityTimestamp } from "../core/campaign-activity.js";
 import {
   campaignCollection,
   type CampaignDataset,
@@ -70,6 +71,14 @@ export function projectCampaignIdentity(dataset: CampaignDataset): CampaignIdent
     name: nonEmptyText(value["name"]) ?? "TTRPG Codex",
     tagline: text(value["tagline"]),
   };
+}
+
+export function recentCampaignActivity(dataset: CampaignDataset, maximum = 30): readonly EntitySummary[] {
+  return campaignPages.flatMap(page => projectEntities(dataset, page))
+    .map(entity => ({ ...entity, updatedAt: activityTimestamp(entity.raw, entity.updatedAt) }))
+    .filter(entity => entity.updatedAt !== undefined)
+    .sort((left, right) => Date.parse(right.updatedAt!) - Date.parse(left.updatedAt!) || left.route.localeCompare(right.route))
+    .slice(0, maximum);
 }
 
 export function projectEntities(
@@ -184,10 +193,7 @@ export function projectDashboard(dataset: CampaignDataset): DashboardModel {
     locations: stringList(event.raw["locations"]).length,
   }));
   const lastSession = events.reduce((highest, event) => Math.max(highest, event.sitting), 0);
-  const recent = campaignPages.flatMap((page) => projectEntities(dataset, page))
-    .filter((entity) => entity.updatedAt !== undefined)
-    .sort((left, right) => Date.parse(right.updatedAt ?? "") - Date.parse(left.updatedAt ?? ""))
-    .slice(0, 30);
+  const recent = recentCampaignActivity(dataset);
   const counts: Record<string, number> = {};
   for (const page of campaignPages) {
     counts[page.id] = campaignCollection(dataset, page.collection).records.length;

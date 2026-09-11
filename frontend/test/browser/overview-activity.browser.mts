@@ -59,14 +59,14 @@ async function open(t: TestContext, role: string | undefined = undefined, mobile
   await page.goto('/#/'); await page.locator('.session-section').waitFor();
   return { page, client: context.request, token: auth?.csrfToken };
 }
-async function put(client: APIRequestContext, token: string, key: string, value: Record<string, unknown>, revision = 0) {
+async function put(client: APIRequestContext, token: string, key: string, value: Record<string, unknown>, revision = 0, collection = 'locations') {
   return jsonResponse(await client.post('/api/campaign/transactions', { headers: { 'X-Codex-CSRF': token }, data: {
-    contractVersion: 'campaign-mutation.v1', mutations: [{ operation: 'put', collection: 'locations', key, expectedRevision: revision, value: { id: key, ...value } }],
+    contractVersion: 'campaign-mutation.v1', mutations: [{ operation: 'put', collection, key, expectedRevision: revision, value: { id: key, ...value } }],
   } }));
 }
-async function record(key: string) {
+async function record(key: string, name = 'locations') {
   const data = await jsonResponse(await admin.get('/api/campaign'));
-  return data.collections.find((collection: FixtureCollection) => collection.name === 'locations').records.find((record: FixtureRecord) => record.key === key);
+  return data.collections.find((collection: FixtureCollection) => collection.name === name).records.find((record: FixtureRecord) => record.key === key);
 }
 
 test('empty recent history is explained to signed-in users without requiring an add-on', async t => {
@@ -78,6 +78,26 @@ test('empty recent history is explained to signed-in users without requiring an 
   await player.page.getByText('Zatím žádné změny. Nově vytvořené a upravené záznamy se zobrazí zde.', { exact: true }).waitFor();
 });
 
+test('private reference edits preserve the public summary and its timestamp', async t => {
+  const player = await open(t, 'player'), dm = await open(t, 'dm');
+  await put(admin, csrf, 'hidden-activity-vault', { name: 'Hidden activity vault', visibility: 'dm' });
+  await put(admin, csrf, 'activity-scout', { name: 'Activity scout' }, 0, 'characters');
+  const selector = '.recent-ledger a[href="#/characters/activity-scout"]';
+  await player.page.locator(selector).waitFor();
+  const timestamp = await player.page.locator(`${selector} time`).getAttribute('datetime');
+  const current = await record('activity-scout', 'characters');
+  const refreshed = player.page.waitForResponse(response => response.url() === `${origin}/api/campaign`);
+  await put(admin, csrf, 'activity-scout', { ...current.value, location: 'hidden-activity-vault' }, current.revision, 'characters');
+  await refreshed;
+  await dm.page.locator(`${selector} .recent-summary`).filter({ hasText: 'Hidden activity vault' }).waitFor();
+  assert.equal(await player.page.locator(`${selector} .recent-summary`).textContent(), 'Created');
+  assert.equal(await player.page.locator(`${selector} time`).getAttribute('datetime'), timestamp);
+  const projected = await jsonResponse(await player.client.get('/api/campaign'));
+  const scout = projected.collections.find((collection: FixtureCollection) => collection.name === 'characters').records.find((item: FixtureRecord) => item.key === 'activity-scout');
+  assert.equal(scout.value.location, undefined);
+  assert.deepEqual(scout.value.lastChange, { contractVersion: 'activity.v1', change: { kind: 'created', fields: [], at: current.value.updatedAt } });
+});
+
 for (const mobile of [false, true]) test(`overview activity follows player creations and edits with role filtering on ${mobile ? 'phone' : 'desktop'}`, async t => {
   const key = mobile ? 'phone-town' : 'desktop-town', hiddenKey = `${key}-secret`;
   const player = await open(t, 'player', mobile), dm = await open(t, 'dm', mobile), anonymous = await open(t, undefined, mobile);
@@ -85,6 +105,7 @@ for (const mobile of [false, true]) test(`overview activity follows player creat
   await put(player.client, player.token, key, { name: 'Player-created town', description: 'New campaign content.', updatedAt: '2000-01-01T00:00:00Z' });
   const link = `.recent-ledger a[href="#/locations/${key}"]`;
   for (const { page } of [player, dm, anonymous]) await page.locator(link).waitFor();
+  for (const { page } of [player, dm, anonymous]) assert.equal(await page.locator(`${link} .recent-summary`).textContent(), 'Created');
   const created = await record(key); assert.equal(typeof created.value.updatedAt, 'number');
   assert.ok(created.value.updatedAt >= started && created.value.updatedAt <= Date.now());
   assert.equal(await player.page.locator(`${link} time`).getAttribute('datetime'), new Date(created.value.updatedAt).toISOString());
@@ -93,6 +114,7 @@ for (const mobile of [false, true]) test(`overview activity follows player creat
   await put(player.client, player.token, key, { ...created.value, name: 'Edited by a player' }, created.revision);
   for (const { page } of [player, dm, anonymous]) {
     await page.locator(link).filter({ hasText: 'Edited by a player' }).waitFor();
+    assert.equal(await page.locator(`${link} .recent-summary`).textContent(), 'Name: Edited by a player');
     assert.equal(await page.locator('.recent-ledger a').first().getAttribute('href'), `#/locations/${key}`);
   }
   assert.ok((await record(key)).value.updatedAt > created.value.updatedAt);

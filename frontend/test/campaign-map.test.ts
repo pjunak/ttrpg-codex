@@ -11,6 +11,24 @@ function dataset(locations: readonly CampaignRecord[], settings: readonly Campai
 const gate = { key: "gate", revision: 3, value: { id: "gate", name: "Gate", x: .2, y: .7, pinType: "fortress", extra: { keep: true } } };
 
 describe("campaign maps", () => {
+  it("saves reviewed map details and coordinates through shared field validation", () => {
+    const campaign = dataset([gate], [
+      { key: "pinTypes", revision: 1, value: [{ id: "town", label: "Town" }] },
+      { key: "attitudes", revision: 1, value: [{ id: "ally", label: "Ally" }] },
+    ]);
+    const detail = { kind: "location" as const, key: "gate", expectedRevision: 3, parentId: null, x: .4, y: .6,
+      fields: { pinType: "town", attitudes: ["ally"], size: "40", mapNotes: "Watch the eastern road." } };
+    expect(prepareMapSave(campaign, detail)).toMatchObject({ expectedRevision: 3, value: {
+      ...gate.value, x: .4, y: .6, pinType: "town", size: 40, attitudes: [{ id: "ally" }], mapNotes: "Watch the eastern road.",
+    } });
+    expect(gate.value).not.toHaveProperty("size");
+    for (const fields of [{ size: "100" }, { pinType: "invented" }, { attitudes: ["invented"] }, { parentId: "gate" }, { name: "Unexpected rename" }]) {
+      expect(() => prepareMapSave(campaign, { ...detail, fields })).toThrow("invalid");
+    }
+    expect(() => prepareMapSave(campaign, { ...detail, expectedRevision: 2 })).toThrow("stale");
+    expect(() => prepareMapSave(dataset([]), detail)).toThrow("stale");
+    expect(prepareMapSave(campaign, { ...detail, fields: { size: "" } })).not.toHaveProperty("value.size");
+  });
   it("preserves separate map configurations and rejects stale or malformed settings", () => {
     const value = { world: { zoomScaleRatio: .3, extension: true }, "local-gate": { zoomScaleRatio: .8, extra: { keep: true } } };
     const config = { key: "mapConfigs", revision: 5, value };

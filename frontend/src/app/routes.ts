@@ -27,7 +27,7 @@ export const campaignPages: readonly CampaignPageDefinition[] = Object.freeze([
 export type AppRoute =
   | { readonly kind: "dashboard" }
   | { readonly kind: "dm" }
-  | { readonly kind: "search" }
+  | { readonly kind: "search"; readonly query?: string }
   | { readonly kind: "party" }
   | { readonly kind: "timeline" }
   | { readonly kind: "campaign-graph"; readonly mode: GraphSelection }
@@ -64,6 +64,9 @@ export function parseAppRoute(hash: string): AppRoute {
   }
   if (hash === "#/search") {
     return { kind: "search" };
+  }
+  if (hash.startsWith("#/search?") && hash.length <= 4_096) {
+    return { kind: "search", query: (new URLSearchParams(hash.slice(9)).get("q") ?? "").slice(0, 200) };
   }
   if (hash === "#/settings") {
     return { kind: "settings" };

@@ -194,6 +194,7 @@ func closeRecord(
 			closePetOwner(value, ids)
 		}
 		closeAuditReferences(value, hiddenIDs)
+		projectActivity(value, ViewPublic)
 	})
 	return value, true, err
 }

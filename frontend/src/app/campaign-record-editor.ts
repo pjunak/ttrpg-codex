@@ -175,6 +175,17 @@ export function editorFieldsFor(collection: CampaignCollectionName): readonly Ca
   return editorFields[collection] ?? Object.freeze([]);
 }
 
+/** Apply a reviewed subset through the same field validators as full record forms. */
+export function applyRecordFieldPatch(campaign: CampaignDataset, collection: CampaignCollectionName, current: Readonly<Record<string, unknown>>,
+  patch: Readonly<Record<string, unknown>>, currentKey: string): Record<string, unknown> {
+  if (!isRecord(patch)) throw invalidEdit();
+  const fields = editorFieldsFor(collection).filter(field => Object.hasOwn(patch, field.key));
+  if (fields.length !== Object.keys(patch).length) throw invalidEdit();
+  const value = { ...current };
+  for (const field of fields) applyEditorField(campaign, value, current, field, patch[field.key], currentKey);
+  return value;
+}
+
 export function collectionManagesVisibility(collection: CampaignCollectionName): boolean {
   return collection !== "pets";
 }

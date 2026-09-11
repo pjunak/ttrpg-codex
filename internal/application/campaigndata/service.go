@@ -84,6 +84,18 @@ func (service *Service) Dataset(ctx context.Context, role ViewRole) (Dataset, er
 		if err != nil {
 			return Dataset{}, err
 		}
+	} else {
+		snapshot.Records = append([]campaign.Record(nil), snapshot.Records...)
+		for index, record := range snapshot.Records {
+			descriptor, _ := campaign.Describe(record.Collection)
+			if !descriptor.VisibilityBearing || readStoredActivity(record.Value).Contract != activityContract {
+				continue
+			}
+			snapshot.Records[index].Value, err = transformObject(record.Value, func(value map[string]any) { projectActivity(value, ViewDM) })
+			if err != nil {
+				return Dataset{}, err
+			}
+		}
 	}
 	return datasetView(snapshot), nil
 }

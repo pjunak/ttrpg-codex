@@ -42,7 +42,10 @@ renders safe Markdown with campaign links and article outlines.
 [Local Markdown recovery and shared collection views](docs/rewrite/EDITOR_BROWSING.md)
 add reviewed browser draft recovery, full-text/accent search, removable filters,
 sorting, grouping, and remembered/bookmarkable views. Local drafts protect text
-in this browser; campaign Save and backups remain separate. The first
+in this browser; campaign Save and backups remain separate.
+[Quick search, concise activity and map editing](docs/rewrite/SEARCH_ACTIVITY_MAP.md)
+add a Ctrl/Cmd+K overlay that retains open editors, role-filtered change summaries,
+and revision-safe marker details alongside map coordinates. The first
 DM-facing settings slice manages shared campaign enumerations with stable IDs,
 usage-aware deletion, and enum-backed record fields. Bundled English and Czech
 catalogs drive the campaign interface, record and relationship editors,

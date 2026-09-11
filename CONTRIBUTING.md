@@ -117,6 +117,15 @@ and responsive controls. See [the workflow reference](docs/rewrite/EDITOR_BROWSI
 for contracts, UX sources and validation limits. These tests use disposable
 browser contexts; do not exercise draft deletion against a user's profile.
 
+The [search/activity/map reference](docs/rewrite/SEARCH_ACTIVITY_MAP.md) covers
+F03–F05. `campaign-search.test.ts` checks current-projection recents and summary
+presentation; `campaign-map.test.ts` checks shared field validation and atomic
+patches. `visual.browser.mts`, `dashboard.browser.mts` and `maps.browser.mts`
+cover modal focus, retained editors, responsive map details and conflict/deletion
+behavior. `overview-activity.browser.mts` runs the real host with disposable data
+to verify role-filtered activity and private-reference edits. Application Go
+tests own summary generation, relationship activity and metadata authority.
+
 Add a regression test at the narrowest owner for every behavior change. Contract
 changes also require affected first-party add-on gates and package inspection.
 Keep commits independently understandable. Never deploy, push, or edit live

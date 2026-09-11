@@ -3,6 +3,7 @@ import { campaignCollection, type CampaignDataset, type CampaignRecord } from ".
 import type { CampaignMutation } from "../core/campaign-mutations.js";
 import { projectEntities, recordValue, safeMediaURL, text, type EntitySummary } from "./campaign-projection.js";
 import { campaignPages } from "./routes.js";
+import { applyRecordFieldPatch, editorFieldsFor } from "./campaign-record-editor.js";
 
 export interface MapBounds { readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number }
 export interface MapView { readonly id: string; readonly label: string; readonly icon: string; readonly bounds: MapBounds }
@@ -14,7 +15,7 @@ export const eventPathColors = Object.freeze({ path: "#C8A040", sitting: "#8B691
 export type MapSaveDetail =
   | { readonly kind: "config"; readonly expectedRevision: number; readonly parentId: string | null; readonly zoomScaleRatio: number }
   | { readonly kind: "location"; readonly key: string; readonly expectedRevision: number; readonly parentId: string | null;
-      readonly x: number | null; readonly y: number | null; readonly name?: string }
+      readonly x: number | null; readonly y: number | null; readonly name?: string; readonly fields?: Readonly<Record<string, unknown>> }
   | { readonly kind: "event"; readonly key: string; readonly expectedRevision: number; readonly parentId: string | null;
       readonly x: number | null; readonly y: number | null }
   | { readonly kind: "view"; readonly action: "create" | "update"; readonly expectedRevision: number; readonly parentId: string | null;
@@ -27,6 +28,10 @@ export interface MapUploadDetail {
 }
 export class CampaignMapEditError extends Error {
   constructor(readonly kind: "invalid" | "stale") { super(`map edit is ${kind}`); }
+}
+
+export function mapDetailFields() {
+  return editorFieldsFor("locations").filter(field => ["pinType", "attitudes", "mapNotes", "size"].includes(field.key));
 }
 
 export const locationPage = campaignPages.find(({ collection }) => collection === "locations")!;
@@ -135,9 +140,15 @@ export function prepareMapSave(campaign: CampaignDataset, detail: MapSaveDetail)
     const placing = mapCoordinate(detail.x) && mapCoordinate(detail.y);
     if (!placing && (detail.x !== null || detail.y !== null || record === undefined)) throw new CampaignMapEditError("invalid");
     if (record === undefined && (typeof detail.name !== "string" || text(detail.name) === "" || detail.name.length > 200)) throw new CampaignMapEditError("invalid");
-    const value: Record<string, unknown> = record === undefined
+    let value: Record<string, unknown> = record === undefined
       ? { id: detail.key, name: text(detail.name), parentId: detail.parentId, pinType: "custom", attitudes: [], visibility: "public" }
       : { ...recordValue(record) };
+    if (detail.fields !== undefined) {
+      const allowed = new Set(mapDetailFields().map(field => field.key));
+      if (!isRecord(detail.fields) || Object.keys(detail.fields).some(key => !allowed.has(key))) throw new CampaignMapEditError("invalid");
+      try { value = applyRecordFieldPatch(campaign, "locations", value, detail.fields, detail.key); }
+      catch { throw new CampaignMapEditError("invalid"); }
+    }
     if (placing) { value["x"] = detail.x; value["y"] = detail.y; }
     else { delete value["x"]; delete value["y"]; }
     return { operation: "put", collection: "locations", key: detail.key, expectedRevision: detail.expectedRevision, value };

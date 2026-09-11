@@ -80,16 +80,26 @@ pending work; a failed original load uses the ordinary map error/retry state.
 ## Editing
 
 Authenticated users can place new or existing locations, drag a marker, edit
-its coordinates, or remove its placement. Dragging produces a draft with
+its marker type, attitudes, map notes and coordinates, or remove its placement.
+An optional size override is disclosed under Marker details. The focused editor
+and full location form share field controls, definitions, options and validators.
+The read panel resolves marker type and attitude context. Dragging produces a draft with
 explicit Save/Cancel. Removing a marker clears only `x`/`y`, not the location.
 All writes use the ordinary CSRF-protected campaign transaction; the server
 still owns visibility, reference policy, and authority.
 
 Position drafts retain the original location revision during live refresh.
-Save preparation checks that revision and the map scope before merging only
-coordinates into the current record. Other fields and add-on data survive.
-Stale saves retain the draft and use the existing navigation/unload guard.
+Save preparation checks that revision and the map scope before merging
+coordinates and explicitly changed detail fields into the current record in
+one transaction. Unchanged fields and add-on data survive. The form retains its
+opening values/options during live refresh. Stale saves and remote deletion
+retain entered details and use the existing navigation/unload guard.
+Save/Cancel remain reachable in the scrolling panel; successful saves preserve
+the viewport and selection. See [the current UX specification](SEARCH_ACTIVITY_MAP.md).
 Pan/zoom is local UI state and does not dirty campaign data.
+
+Map search uses the shared accent-insensitive all-word matcher with natural name
+ordering. Enter selects and centers the first visible result without a write.
 
 Location articles and edit forms expose Show/Place/Move actions targeting
 `/location/<encoded key>/show` or `/place` on their world/local map route.
