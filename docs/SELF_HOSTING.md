@@ -254,6 +254,31 @@ prerequisites under the owner's accepted downtime and rollback policy:
 Do not delete the old branch, old data directories, or downloaded UI backups
 until the owner is comfortable that rollback is unnecessary.
 
+## When new features are missing
+
+First sign in as DM and open **Settings → Add-ons**. Package installation and
+GitHub credentials are administrative controls. If the current host UI and API
+are not installed, refreshing the page or updating an add-on cannot add them.
+
+A successful source push, image build and website deployment are separate steps:
+
+- Failed or skipped **Build image** means that run published no new image.
+- A successful build with skipped deployment jobs leaves the websites unchanged.
+- A completed deployment must identify the selected instance and pass its
+  infrastructure health check. Verify the served frontend and the intended
+  feature afterward; HTTP 200 and the generic `2.0.0-dev` health version do not
+  identify the source commit.
+
+The host supplies add-on management, GitHub access, sourcebook/provider controls
+and contributed-settings containers. Installed add-on generations supply their
+own planner, compendium and character-sheet screens. Updating the host does not
+activate new add-on ZIPs, and updating an add-on does not deploy a newer host.
+Character-sheet namespace retirement remains the separate
+[explicit offline operation](rewrite/CHARACTER_SHEET_CUTOVER.md).
+
+Use the release workflow below for a host update, then the
+[reviewed package workflow](#add-on-installation) for any intended add-on updates.
+
 ## Publishing and deploying updates
 
 The following automation belongs to the maintained Asurai/Tiamat deployment.

@@ -75,9 +75,7 @@ jobs:
 
       - name: Inspect public release packages
         run: |
-          go run ./cmd/codex-addon-inspect ../addon-dm-tools/dist/dm-tools-3.0.0.zip
-          go run ./cmd/codex-addon-inspect ../addon-dnd-engine/dist/dnd-engine-3.0.0.zip
-          go run ./cmd/codex-addon-inspect ../addon-dnd-character-sheets/dist/dnd-sheets-3.0.0.zip
+          node scripts/inspect-addon-builds.mts ../addon-dm-tools ../addon-dnd-engine ../addon-dnd-character-sheets
         working-directory: ttrpg-codex
 
   private-compendium:
@@ -133,5 +131,5 @@ jobs:
 
       - name: Inspect private release package
         if: env.ADDON_SUITE_TOKEN != ''
-        run: go run ./cmd/codex-addon-inspect ../addon-dnd-2024-compendium/dist/dnd-2024-compendium-3.0.0.zip
+        run: node scripts/inspect-addon-builds.mts ../addon-dnd-2024-compendium
         working-directory: ttrpg-codex

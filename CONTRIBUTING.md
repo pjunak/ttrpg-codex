@@ -78,6 +78,21 @@ machine, build the frontend once and run the same suite from `frontend/` with
 add-on archive variables and complete the other full-gate checks separately.
 This limits simultaneous processes without dropping cases.
 
+### Inspect companion package builds
+
+After building the companion ZIPs, run the same inspection command as the host
+compatibility workflow:
+
+```text
+node scripts/inspect-addon-builds.mts ../addon-dm-tools ../addon-dnd-engine ../addon-dnd-character-sheets ../addon-dnd-2024-compendium
+```
+
+The helper reads each repository's `addon.json` and inspects its exact current
+`dist/<id>-<version>.zip` through the host inspector. An older ZIP cannot stand
+in for a missing current build, and inspection failure still fails the gate.
+Use repository paths in workflows instead of maintaining versioned filenames
+there; each add-on owns its release identity.
+
 ### Installed add-on checks
 
 These tests start disposable hosts and install reviewed ZIPs. Build the companion
