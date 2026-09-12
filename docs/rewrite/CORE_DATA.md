@@ -438,16 +438,15 @@ revisions, upload retry, safe URL projection, role-filtered navigation, collapse
 persistence, page/section drag, and mobile layout. The public Add-on API and
 package descriptors are unchanged.
 
-The rewrite does not yet implement:
+## Related services and boundaries
 
-- recovery/account settings and other specialized workflows;
-- initial import publication or add-on collection migration;
-- typed relational projections and indexes for search, maps, timelines, and
-  other domain queries.
+[Authentication and password settings](AUTHENTICATION.md), campaign recovery
+points and import publication are implemented by their owning application
+services. They are not responsibilities of the generic record store.
 
-Those policies belong in domain/application services above this lossless
-record foundation. They must not be implemented as ad hoc SQL in transport
-handlers.
+Add-on collection migration and additional relational query indexes remain
+separate extensions, tracked in the [suite backlog](../BACKLOG.md). Domain
+policies belong above the storage layer, not in transport-handler SQL.
 
 Native whole-host recovery archives and offline journaled restore are
 documented in [`BACKUP_RESTORE.md`](BACKUP_RESTORE.md). Legacy website backups

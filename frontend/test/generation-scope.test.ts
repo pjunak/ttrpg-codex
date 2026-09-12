@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   GenerationClosedError,
-  GenerationDisposalError,
   GenerationScope,
 } from "../src/addons/generation-scope.js";
 

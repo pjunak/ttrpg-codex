@@ -76,7 +76,7 @@ export function applyCampaignTheme(campaign: CampaignDataset): void {
   applyCampaignThemeID(campaignTheme(campaign));
 }
 
-export function applyCampaignThemeID(theme: CampaignThemeID): void {
+function applyCampaignThemeID(theme: CampaignThemeID): void {
   if (typeof document === "undefined") return;
   document.documentElement.dataset["theme"] = theme;
   const definition = campaignThemes.find(({ id }) => id === theme) ?? campaignThemes[0]!;
@@ -85,7 +85,7 @@ export function applyCampaignThemeID(theme: CampaignThemeID): void {
   writeStorage("codex_theme", theme);
 }
 
-export function isCampaignThemeID(value: unknown): value is CampaignThemeID {
+function isCampaignThemeID(value: unknown): value is CampaignThemeID {
   return value === "classic" || value === "moonlit";
 }
 

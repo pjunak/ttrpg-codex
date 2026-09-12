@@ -91,14 +91,6 @@ export function projectEntities(
   );
 }
 
-export function projectEntity(
-  dataset: CampaignDataset,
-  record: CampaignRecord,
-  page: CampaignPageDefinition,
-): EntitySummary {
-  return projectEntityWithContext(dataset, record, page, createAttitudeContext(dataset));
-}
-
 function projectEntityWithContext(
   dataset: CampaignDataset,
   record: CampaignRecord,

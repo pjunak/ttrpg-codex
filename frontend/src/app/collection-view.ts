@@ -34,7 +34,7 @@ export function serializeCollectionView(view: CollectionView): string {
   return parameters.toString();
 }
 
-export function collectionPreferenceKey(page: string, role: string): string { return `codex:collection-view:${role}:${page}`; }
+function collectionPreferenceKey(page: string, role: string): string { return `codex:collection-view:${role}:${page}`; }
 
 export function readCollectionView(page: string, role: string): CollectionView {
   try { return parseCollectionView(globalThis.localStorage.getItem(collectionPreferenceKey(page, role)) ?? ""); }

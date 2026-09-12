@@ -177,7 +177,7 @@ export function prepareLocalMapImage(campaign: CampaignDataset, key: string, exp
   if (safeMediaURL(url) === undefined) throw new CampaignMapEditError("invalid");
   return { operation: "put", collection: "locations", key, expectedRevision, value: { ...recordValue(record), localMap: url } };
 }
-export function fraction(value: unknown): value is number { return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1; }
+function fraction(value: unknown): value is number { return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1; }
 // V1 allowed pins beyond the image edge. Fractions are a coordinate frame, not a clipping rule.
 export function mapCoordinate(value: unknown): value is number { return typeof value === "number" && Number.isFinite(value); }
 export function validBounds(value: unknown): value is MapBounds {

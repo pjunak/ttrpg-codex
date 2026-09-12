@@ -68,7 +68,6 @@ import {
   protectUnsavedEditBeforeUnload,
 } from "./unsaved-edit.js";
 import {
-  campaignPages,
   collectionHash,
   parseAppRoute,
   recordHash,
@@ -76,7 +75,6 @@ import {
 } from "./routes.js";
 import {
   UiLocalizationController,
-  uiCollectionLabel,
   type MessageKey,
 } from "./ui-localization.js";
 import "./codex-dashboard.js";

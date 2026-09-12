@@ -445,7 +445,7 @@ describe("IsolatedFrameBridge", () => {
     );
     const port = new FakePort();
     const unavailable = vi.fn();
-    const bridge = new IsolatedFrameBridge({
+    new IsolatedFrameBridge({
       port,
       context: sdk.context,
       contribution: descriptor.contributions[0] as BrowserContributionDescriptor,

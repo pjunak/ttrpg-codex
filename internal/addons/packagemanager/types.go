@@ -241,9 +241,3 @@ type Runtime interface {
 type RuntimeFactory interface {
 	New(RuntimeSpec) (Runtime, error)
 }
-
-type RuntimeFactoryFunc func(RuntimeSpec) (Runtime, error)
-
-func (factory RuntimeFactoryFunc) New(spec RuntimeSpec) (Runtime, error) {
-	return factory(spec)
-}

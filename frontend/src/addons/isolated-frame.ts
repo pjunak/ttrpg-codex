@@ -3,7 +3,6 @@ import { BoundaryValidationError } from "../core/boundary.js";
 import type {
   BrowserAddonContext,
   BrowserContributionRegistry,
-  BrowserIsolatedFrameBinding,
 } from "./browser-sdk.js";
 import type {
   BrowserContributionDescriptor,

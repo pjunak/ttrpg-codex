@@ -46,7 +46,6 @@ export class CodexCharacterProfile extends LitElement {
   declare private panel: string;
   declare private wikiOpen: boolean;
   declare private wikiSaving: boolean;
-  readonly #ui = new UiLocalizationController(this);
   readonly #drafts = new Map<string, FieldDraft>();
   #wikiBase: CampaignRecord | undefined;
   #wikiValue = "";
@@ -62,7 +61,7 @@ export class CodexCharacterProfile extends LitElement {
   #saves = 0;
   #lastKey = "";
 
-  constructor() { super(); this.canEdit = false; this.canManageVisibility = false; this.status = ""; this.panel = ""; this.wikiOpen = false; this.wikiSaving = false; }
+  constructor() { super(); new UiLocalizationController(this); this.canEdit = false; this.canManageVisibility = false; this.status = ""; this.panel = ""; this.wikiOpen = false; this.wikiSaving = false; }
   protected override createRenderRoot() { return this; }
   get hasDraft(): boolean { return this.#saves > 0 || this.#drafts.size > 0 || this.wikiOpen || this.panel !== ""; }
   override disconnectedCallback(): void { for (const draft of this.#drafts.values()) clearTimeout(draft.timer); super.disconnectedCallback(); }

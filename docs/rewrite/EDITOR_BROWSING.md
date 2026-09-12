@@ -6,6 +6,30 @@ They share the current editor descriptors, role projections, localization,
 design tokens, and record mutation path. They introduce no dependencies,
 legacy handlers, campaign schema changes, or add-on contract changes.
 
+## Campaign links and article outlines
+
+Markdown articles can link to visible campaign records:
+
+| Syntax | Result |
+| --- | --- |
+| `[[Lantern Watch]]` | Resolve a visible record by name |
+| `[[Lantern Watch|factions]]` | Search only the faction collection |
+| `[[The Watch|factions:watch]]` | Link to the exact faction key `watch` with a custom label |
+
+Name lookup follows campaign order and prefers the current article's visibility
+when several records in a collection match. Use the explicit collection/key
+form when identity matters. Resolution uses the viewer's current dataset;
+unavailable targets remain visibly unresolved.
+
+Article headings build a contents outline. Outline controls scroll within the
+article without replacing its route. Markdown is rendered through typed,
+sanitized presentation: unsafe links are inert and arbitrary HTML is shown as
+text. Supported semantic formatting remains bounded.
+
+Explicit rule references such as `[[Shield|spell:shield]]` use the participating
+provider's public reference contract and [shared rule details](RULE_DETAILS.md).
+A source's display name is not a reliable record identity.
+
 ## Local Markdown recovery
 
 Every host record Markdown field, including the character profile wiki and

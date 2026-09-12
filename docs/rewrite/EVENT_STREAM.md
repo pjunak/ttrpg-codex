@@ -1,8 +1,8 @@
 # Shared event stream
 
-The rewrite uses one authenticated Server-Sent Events connection for live
-invalidation and progress. Core data, browser add-ons, imports, and future
-background jobs publish named topics into the same transport. No subsystem or
+The browser uses one authenticated Server-Sent Events connection for live
+invalidation and progress. Core data, browser add-ons and imports publish named
+topics into the same transport. No subsystem or
 add-on gets a private reconnect loop.
 
 ## Durable replay

@@ -1,48 +1,16 @@
-# Self-hosting and cutover
+# Self-hosting
 
-This guide covers the Go/TypeScript v2 deployment. The owner accepts downtime,
-failed deployments, fixes after launch, and rollback for both personal sites.
-A separate full staging rehearsal, repeated conversion, zero-downtime rollout,
-and exhaustive device/language/failure matrix are not prerequisites. Keep the
-original backups and old data, review each conversion once, and use the short
-first-start checks below. Deployment still starts only when the owner requests it.
+This guide covers a new installation, ordinary updates, add-on management and
+recovery. Use Docker Compose with an HTTPS reverse proxy for an internet-facing
+server. The supplied Compose file expects an existing external `proxy` network;
+it does not publish a host port. Adapt that network to your reverse proxy before
+starting the service.
 
-Stopping the server for the update is the intended simple deployment path.
-Keep existing authentication and data-integrity protections; additional security
-hardening and availability automation are follow-up work unless needed to fix
-a concrete exposure or data-loss defect.
-
-Both personal sites completed the owner-requested replacement on September 9,
-2026, after interface, installed package, final conversion and first-start
-checks. Their infrastructure keeps the original v1 directories and snapshots,
-final v1 archives, conversion reports and verified v2 backups. The owner approved
-using the server-configured passwords at cutover; existing sessions must sign
-in again. `npm run release-check` retains the documented product gate. For other
-instances, perform the final conversion and short first-start checks before
-accepting the deployment and keep the old application and data for rollback.
-
-## Publishing and deploying updates
-
-Pushes to `main` run the host and add-on compatibility gates and publish a
-versioned image after a packaged-runtime startup check; they do not deploy a campaign. Each published build stores a
-`release-metadata` artifact containing its source SHA and immutable digest.
-
-For an existing release, run **Deploy published release** on `main`, enter the
-successful **Build and dispatch** run ID, and select Asurai or Tiamat. This
-reuses the tested image without rerunning builds. Metadata is retained for 90
-days. Builds from before this workflow was introduced need a new published run.
-For a new build, the original combined workflow still supports an explicit
-deployment target. A successful app deployment now includes the infrastructure
-health result, with its run linked in the summary.
-
-The infrastructure dispatch token requires Contents write and Actions read on
-the infrastructure repository. Install its matching deployment workflow first;
-the app checks Actions access before dispatching. A permission or timeout error
-must not be treated as deployment success or blindly retried.
-
-Add-on repositories publish reviewed ZIPs as private/public CI artifacts
-according to repository visibility, retained for 14 days. Installing those ZIPs
-still uses the host's upload, inspect, review, approve and activate lifecycle.
+For an existing campaign, keep a verified backup and stop the server for updates.
+Database migrations are forward-only, so rolling back the image alone does not
+roll back its data. [Upgrade and rollback](#upgrade-and-rollback) describes the
+sequence. Old v1 campaigns and schema-3 sheets have separate offline procedures;
+a new installation needs neither.
 
 ## Requirements
 
@@ -285,3 +253,30 @@ prerequisites under the owner's accepted downtime and rollback policy:
 
 Do not delete the old branch, old data directories, or downloaded UI backups
 until the owner is comfortable that rollback is unnecessary.
+
+## Publishing and deploying updates
+
+The following automation belongs to the maintained Asurai/Tiamat deployment.
+Other installations can build the Docker image and follow the ordinary update
+procedure below.
+
+Pushes to `main` run the host and add-on compatibility gates and publish a
+versioned image after a packaged-runtime startup check; they do not deploy a campaign. Each published build stores a
+`release-metadata` artifact containing its source SHA and immutable digest.
+
+For an existing release, run **Deploy published release** on `main`, enter the
+successful **Build and dispatch** run ID, and select Asurai or Tiamat. This
+reuses the tested image without rerunning builds. Metadata is retained for 90
+days. Builds from before this workflow was introduced need a new published run.
+For a new build, the original combined workflow still supports an explicit
+deployment target. A successful app deployment now includes the infrastructure
+health result, with its run linked in the summary.
+
+The infrastructure dispatch token requires Contents write and Actions read on
+the infrastructure repository. Install its matching deployment workflow first;
+the app checks Actions access before dispatching. A permission or timeout error
+must not be treated as deployment success or blindly retried.
+
+Add-on repositories publish reviewed ZIPs as private/public CI artifacts
+according to repository visibility, retained for 14 days. Installing those ZIPs
+still uses the host's upload, inspect, review, approve and activate lifecycle.

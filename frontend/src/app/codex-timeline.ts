@@ -3,7 +3,7 @@ import { repeat } from "lit/directives/repeat.js";
 import { campaignCollection, type CampaignDataset, type CampaignRecord } from "../core/campaign-data.js";
 import { recordValue, stringList, text } from "./campaign-projection.js";
 import { timelineColumns, timelineDraft, timelineRecords, timelineSessions, nextTimelineSitting, moveTimelineEvent,
-  sameTimelineOrder, type TimelineColumn, type TimelineDraft } from "./campaign-timeline.js";
+  sameTimelineOrder, type TimelineDraft } from "./campaign-timeline.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";

@@ -35,7 +35,6 @@ import {
 } from "./campaign-structured-editors.js";
 import {
   campaignMarkdownOutline,
-  parseCampaignMarkdown,
   parseCampaignMarkdownDocuments,
   renderCampaignMarkdown,
   type CampaignMarkdownContext,

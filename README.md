@@ -1,127 +1,80 @@
 # TTRPG Codex
 
-TTRPG Codex is a self-hosted campaign archive and add-on host for small tabletop
-groups. Version 2 uses Go and TypeScript and replaces the former
-Node/JavaScript application.
+TTRPG Codex is a self-hosted campaign archive for tabletop groups. Keep
+characters, places, factions, events, maps and campaign notes together, with
+separate DM and player views.
 
-> **Release status:** the Go/TypeScript replacement is accepted for the two
-> personal campaign sites and was deployed to both on September 9, 2026.
-> It retains the original campaign design and uses
-> reviewed Add-on API v3 packages. Follow [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md)
-> for the offline data conversion and short first-start checks. Keep the
-> deprecated v1 branch and original data available for rollback.
+The Go host manages records, access, media, revisions and backups. Optional
+add-ons provide story planning, searchable rules and character sheets. Each
+add-on is installed as a built package after permission and compatibility review.
 
-The core stays deliberately generic: it stores campaign records, visibility,
-media, revisions, backups, and live updates. Campaign-specific planning and D&D
-features live in separately versioned Add-on API v3 packages.
+## What you can do
 
-## Implemented foundations
+- Write linked Markdown articles, recover local drafts, and browse collections
+  with search, filters, sorting and grouping.
+- Explore campaign maps, timelines and relationships. Use quick search
+  (Ctrl/Command+K) without closing an editor.
+- Give players access to public records while keeping DM material private.
+- Install and update add-ons from GitHub builds or releases, including private
+  repositories with server-side credentials.
+- Review changes and restore campaign recovery points or a verified backup.
+- Use the interface in English or Czech without translating authored content.
 
-- Persistent DM and optional player credentials, Settings password changes,
-  offline access recovery, role-aware projections and guarded
-  writes.
-- SQLite transactions, optimistic record revisions, reference-safe mutations,
-  immutable media blobs, and Server-Sent Event refreshes.
-- Verified `codex-backup.v2` archives and offline restore tooling.
-- Immutable, checksummed add-on generations with explicit permission review,
-  dependency ordering, service contracts, rollback, and supervised native Go
-  workers.
-- Integrated or iframe-isolated TypeScript browser add-ons with generation-
-  scoped cleanup.
-- One-time conversion of the two existing v1 UI backups. The running v2 host
-  contains no legacy JSON compatibility mode.
+Local drafts protect work in the same browser. Save commits it to the campaign;
+downloaded backups protect it outside that browser and server.
 
-The browser now provides the rebuilt campaign shell, public/private session
-views, live refresh, core archive routes, grouped campaign search, and safe
-add-on mounting surfaces. Its dashboard, saved attitude presentation, and
-role-safe record editors cover common fields plus canonical references,
-attitudes, ownership, hierarchy, event links, tags, fact lists, question
-ledgers, faction ranks, location roles, and atomic relationship changes. Dirty
-forms are protected across navigation and session changes, and the rebuilt wiki
-renders safe Markdown with campaign links and article outlines.
-[Local Markdown recovery and shared collection views](docs/rewrite/EDITOR_BROWSING.md)
-add reviewed browser draft recovery, full-text/accent search, removable filters,
-sorting, grouping, and remembered/bookmarkable views. Local drafts protect text
-in this browser; campaign Save and backups remain separate.
-[Quick search, concise activity and map editing](docs/rewrite/SEARCH_ACTIVITY_MAP.md)
-add a Ctrl/Cmd+K overlay that retains open editors, role-filtered change summaries,
-and revision-safe marker details alongside map coordinates. The first
-DM-facing settings slice manages shared campaign enumerations with stable IDs,
-usage-aware deletion, and enum-backed record fields. Bundled English and Czech
-catalogs drive the campaign interface, record and relationship editors,
-configuration, recovery messages, and first-party add-on controls. A per-browser
-language preference changes interface text while keeping authored campaign text,
-reference content, stored IDs, and open drafts intact. The remaining design-token,
-visual and campaign workflow acceptance is tracked in the suite backlog, reinforced by
-`frontend/REWRITE_INCOMPLETE`.
+## Run locally
 
-## Technology
+Use the Go version in [go.mod](go.mod) and Node.js from [.nvmrc](.nvmrc).
+Node 24 or newer is supported; development and CI use Node 26.
 
-| Area | Choice |
-|---|---|
-| Host, storage, maintenance, native workers | Go 1.27.1 |
-| Browser application and add-on UI | TypeScript 7, Lit 3, Vite 8 |
-| Persistent metadata and campaign records | SQLite |
-| Immutable media and package files | Hash-addressed files under `data/` |
-| Deployment | One multi-stage Docker image; Node.js is build-only |
-
-## Local development
-
-Install Go 1.27.1 and Node.js 24 or newer, then run:
-
-```powershell
-npm ci
-npx playwright install chromium
-npm run check
-$env:CODEX_DM_PASSWORD = 'choose-a-local-password'
-npm start
-```
-
-The Go host listens on `127.0.0.1:3001` and serves `frontend/dist`. For a
-frontend watch loop, run the host and `npm --workspace @ttrpg-codex/frontend
-run dev` separately; Vite proxies `/api` to the Go process.
-
-## Docker
-
-```powershell
-Copy-Item .env.example .env
-# Edit .env and choose a long CODEX_DM_PASSWORD.
-docker compose up --build -d
-```
-
-Open <http://localhost:3000> to confirm that the development build is running.
-Set `CODEX_SECURE_COOKIES=true` when the service is behind HTTPS. Do not replace
-a complete v1 campaign deployment with this branch yet. See
-[self-hosting](docs/SELF_HOSTING.md) before operating real campaign data.
-
-## Repository map
+From the repository root:
 
 ```text
-cmd/                 Host, health, inspection, conversion, and maintenance CLIs
-contracts/addons/v3/ Public Add-on API package and protocol schemas
-frontend/            Authenticated Lit application and browser add-on runtime
-internal/            Host domain, storage, package, worker, and HTTP boundaries
-sdk/go/workerrpc/    Public native-worker RPC runtime
-docs/rewrite/        Detailed implementation contracts created during the rewrite
-examples/addons/     Public v3 authoring and protocol guides
+npm ci
+npm --workspace @ttrpg-codex/frontend run build
 ```
 
-The first-party add-ons are independent sibling repositories:
+Set `CODEX_DM_PASSWORD` in your shell, then start a separate development data
+directory. For example, in PowerShell:
 
-- `addon-dm-tools`
-- `addon-dnd-2024-compendium`
-- `addon-dnd-engine`
-- `addon-dnd-character-sheets`
+```powershell
+$env:CODEX_DM_PASSWORD = 'choose-a-local-password'
+go run ./cmd/codex -listen 127.0.0.1:3001 -data-dir data/development
+```
 
-## Documentation
+Open [localhost:3001](http://127.0.0.1:3001). Passwords are saved on first start;
+later changes go through **Settings → Server access**. See
+[contributing](CONTRIBUTING.md) for the watch loop and complete test commands.
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Self-hosting and one-time conversion](docs/SELF_HOSTING.md)
-- [Contributing](CONTRIBUTING.md)
-- [Add-on authoring](examples/addons/AUTHORING.md)
-- [Complete Add-on API v3 design](examples/addons/API_V3.md)
-- [Current suite backlog](docs/BACKLOG.md)
+For a server, follow [self-hosting](docs/SELF_HOSTING.md). The supplied Compose
+file expects an external reverse-proxy network and does not publish a localhost
+port. The production image serves prebuilt assets; Node is build-only.
+
+## Optional add-ons
+
+These are independent repositories. Install only the capabilities your group uses.
+
+| Package | Purpose |
+| --- | --- |
+| [DM Tools](../addon-dm-tools/README.md) | Private story planning and reviewed planning imports |
+| [D&D 2024 Compendium](../addon-dnd-2024-compendium/README.md) | Searchable books and the complete D&D 2024 rules profile |
+| [D&D Rules Engine](../addon-dnd-engine/README.md) | Rules calculations for compatible consumers |
+| [D&D Character Sheets](../addon-dnd-character-sheets/README.md) | Reversible builds, bounded play, DM grants and retained character history |
+
+An instance uses one ruleset. Additional source packages must declare support
+for it; their books share the host's source-selection policy. Saved character
+revisions remain readable without an installed rules engine.
+
+## Find your next step
+
+- [Documentation index](docs/README.md): guides and detailed references by task.
+- [Self-hosting](docs/SELF_HOSTING.md): configuration, updates, add-ons and recovery.
+- [Contributing](CONTRIBUTING.md): setup, code ownership and validation.
+- [Architecture](docs/ARCHITECTURE.md): how the application fits together.
+- [Add-on authoring](examples/addons/AUTHORING.md): the public Add-on API v3.
+- [Suite backlog](docs/BACKLOG.md): outstanding work and accepted scope.
 
 ## License
 
-The software and documentation are licensed under the [MIT License](LICENSE).
+The software and documentation use the [MIT License](LICENSE).

@@ -789,16 +789,17 @@ they must not retry without guards. Players cannot request data-set revisions
 or guards because these could reveal changes to hidden extension records.
 Collection guards do not cover core-record changes or package content.
 
-Per-record add-on state uses a separately declared extension handle rather than
-being merged into the core record body:
+Ordinary per-record add-on state uses a separately declared extension handle
+rather than being merged into the core record body. Retained, worker-authorized
+extensions use their command service instead of browser writes:
 
 ```ts
-const sheetState = context.data.recordExtension<SheetState>(
-  "characters",
-  "sheet_state",
+const annotations = context.data.recordExtension<LocationAnnotations>(
+  "locations",
+  "annotations",
 );
 
-await sheetState.put(characterId, nextState, expectedRevision, {
+await annotations.put(locationId, nextAnnotations, expectedRevision, {
   signal: context.signal,
 });
 ```

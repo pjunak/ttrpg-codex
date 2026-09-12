@@ -507,7 +507,7 @@ export function factionRankChains(campaign: CampaignDataset, factionID: string):
   return rankChainDrafts(recordValue(faction)["rankChains"]);
 }
 
-export function campaignOptions(campaign: CampaignDataset, collection: "characters" | "locations") {
+function campaignOptions(campaign: CampaignDataset, collection: "characters" | "locations") {
   return Object.freeze(campaignCollection(campaign, collection).records.map((record) => Object.freeze({
     value: record.key, label: text(recordValue(record)["name"]) || record.key,
   })));

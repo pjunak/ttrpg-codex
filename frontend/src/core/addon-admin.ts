@@ -33,7 +33,7 @@ export function parseInstalledGeneration(value: unknown): InstalledGeneration {
   const record = object(value);
   return { addonId: id(record["addonId"]), generationId: hash(record["generationId"]), version: text(record["version"]), installedAt: text(record["installedAt"]), lastError: optionalText(record["lastError"]) };
 }
-export function parseAddonSnapshot(value: unknown): AddonSnapshot {
+function parseAddonSnapshot(value: unknown): AddonSnapshot {
   const record = object(value), state = object(record["state"]), revision = state["revision"];
   if (typeof revision !== "number" || !Number.isSafeInteger(revision) || revision < 0) fail();
   return { state: { addonId: id(state["addonId"]), revision: revision as number, activeGenerationId: state["activeGenerationId"] === undefined ? "" : hash(state["activeGenerationId"]) },
@@ -41,7 +41,7 @@ export function parseAddonSnapshot(value: unknown): AddonSnapshot {
     events: list(record["events"]).map(value => { const event = object(value); return { kind: text(event["kind"]), message: optionalText(event["message"]), occurredAt: text(event["occurredAt"]) }; }),
     runtimeState: record["runtime"] ? optionalText(object(record["runtime"])["state"]) : "" };
 }
-export function parseAddonReview(value: unknown): AddonReview {
+function parseAddonReview(value: unknown): AddonReview {
   const record = object(value), proposal = object(record["proposal"]), manifest = object(proposal["targetManifest"]), changes = object(proposal["changes"]);
   const reviewId = text(record["reviewId"]), addonId = id(record["addonId"]), generationId = hash(record["generationId"]);
   if (!/^[a-zA-Z0-9._-]{1,128}$/u.test(reviewId) || proposal["addonId"] !== addonId || proposal["generationId"] !== generationId || manifest["id"] !== addonId || !["prepared", "approved", "consumed"].includes(text(record["status"]))) fail();

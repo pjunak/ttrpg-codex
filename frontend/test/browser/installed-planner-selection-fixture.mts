@@ -60,7 +60,7 @@ export async function exercisePlannerSelection({ t, open, admin, csrf, output }:
   await page.keyboard.press('Escape'); await card('a').click();
   await actions.getByRole('button', { name: 'Edit selected', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Edit planning item', exact: true }), title = dialog.getByLabel('Title', { exact: true });
-  assert.equal(await title.evaluate(input => input === document.activeElement), true, await dialog.evaluate(element => document.activeElement?.outerHTML ?? 'No focused element'));
+  assert.equal(await title.evaluate(input => input === document.activeElement), true, await dialog.evaluate(() => document.activeElement?.outerHTML ?? 'No focused element'));
   await title.fill('Keep the dialog draft'); await plannerTab(page, 'Links');
   await page.keyboard.press('ArrowRight'); assert.equal(await dialog.getByRole('tab', { name: 'Notes', exact: true }).getAttribute('aria-selected'), 'true');
   await page.keyboard.press('Home'); assert.equal(await dialog.getByRole('tab', { name: 'Details', exact: true }).getAttribute('aria-selected'), 'true');

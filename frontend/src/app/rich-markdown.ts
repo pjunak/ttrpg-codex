@@ -67,7 +67,7 @@ const formatSerializers = Object.fromEntries(["color", "highlight", "effect", "s
   close: kind === "highlight" ? "</mark>" : "</span>", mixable: true, expelEnclosingWhitespace: true,
 }]));
 
-export const richMarkdownSerializer = new MarkdownSerializer({
+const richMarkdownSerializer = new MarkdownSerializer({
   ...defaultMarkdownSerializer.nodes,
   wiki: (state, node) => state.write(`[[${node.attrs["label"]}${node.attrs["hint"] ? `|${node.attrs["hint"]}` : ""}]]`),
   raw_inline: (state, node) => state.write(String(node.attrs["source"])),

@@ -1,6 +1,6 @@
 import type { ActiveBrowserContribution } from "../addons/browser-sdk.js";
 
-export const timelineSlots = ["timeline:toolbar", "timeline:column:header", "timeline:column:footer", "timeline:card:extra"] as const;
+const timelineSlots = ["timeline:toolbar", "timeline:column:header", "timeline:column:footer", "timeline:card:extra"] as const;
 export type TimelineSlot = typeof timelineSlots[number];
 export interface TimelineSlotContext {
   readonly slot: TimelineSlot;

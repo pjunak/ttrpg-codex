@@ -20,15 +20,17 @@ Go host
   `-- immutable blobs and add-on generations
 ```
 
-The host has no D&D-specific code. The first-party packages form an optional
-service graph:
+The campaign runtime is rules-neutral: D&D calculations and character UI live
+in add-ons. Offline conversion and sheet retirement are narrowly scoped
+maintenance tools. The optional first-party service graph is:
 
 ```text
-D&D 2024 Compendium --dnd5e.rules-data--> D&D Engine
+D&D 2024 Compendium --rules-data v3--> D&D Engine
                                               |
-                                  dnd5e.rules-engine
+                                  rules-engine v4
                                               v
                                     Character Sheets
+                                 character v1 / schema 4
 
 DM Tools is independent and owns planning/world-building workflows.
 ```

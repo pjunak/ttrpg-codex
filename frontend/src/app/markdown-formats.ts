@@ -2,8 +2,8 @@ export const markdownColors = ["gold", "danger", "info", "success", "mystery", "
 export const markdownHighlights = ["gold", "danger", "info", "success", "mystery"] as const;
 export const markdownEffects = ["underline", "glow", "small-caps", "spoiler"] as const;
 export const markdownSizes = [10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48] as const;
-export const markdownFonts = ["serif", "sans", "mono"] as const;
-export const markdownAlignments = ["left", "center", "right"] as const;
+const markdownFonts = ["serif", "sans", "mono"] as const;
+const markdownAlignments = ["left", "center", "right"] as const;
 
 export interface MarkdownFormat {
   readonly tag: "span" | "mark" | "sup" | "sub";

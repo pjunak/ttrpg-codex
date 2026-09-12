@@ -1,36 +1,66 @@
 # Contributing
 
-This is a hobby-scale deployment with production-style data boundaries. Prefer
-small, explicit changes and keep the host independent from campaign- or game-
-specific behavior.
+Keep changes focused and preserve campaign data. The host owns general campaign
+and add-on infrastructure; game-specific rules and workflows belong in add-ons.
 
-## Setup and complete gate
+## Set up
 
-Use Go 1.27.1, Node.js 26, and PowerShell on Windows.
+Use Go from [go.mod](go.mod) and Node.js from [.nvmrc](.nvmrc). Run commands
+from the repository root. PowerShell examples below show environment-variable
+syntax; use the equivalent syntax in your preferred shell.
 
-```powershell
+```text
 npm ci
 npx playwright install chromium
 npm run check
 ```
 
-The frontend is an npm workspace. Local development, CI tests, and the Docker
-build all use the root `package-lock.json`. Add or update frontend dependencies
-from the repository root with `npm install -w @ttrpg-codex/frontend <package>`,
-and commit the updated frontend manifest and root lockfile together.
+On Linux, Playwright may also need system libraries:
+`npx playwright install --with-deps chromium`.
 
-`npm run check` type-checks, tests, and builds the TypeScript application, then
-runs Chromium editor regressions, all project-owned Go tests, and `go vet`.
-It also rejects JavaScript source files and checks the release tools and every
-browser test with the strict `tsconfig.node.json` configuration. These Node
-modules use `.mts` and run directly with Node's built-in TypeScript support;
-type checking is a separate mandatory step because Node only strips types.
-Generated browser JavaScript and add-on package entrypoints remain build outputs.
-Linux CI installs Chromium with `npx playwright install --with-deps chromium`.
-The browser fixtures use synthetic campaigns and a loopback Vite server; no
-running host or campaign data directory is needed. Useful focused commands are:
+The frontend is an npm workspace using the root lockfile. Add dependencies with
+`npm install -w @ttrpg-codex/frontend <package>` and commit its manifest together
+with the root `package-lock.json`.
+
+## Run the development host
+
+Build the frontend, set a local password and use a separate data directory:
 
 ```powershell
+npm --workspace @ttrpg-codex/frontend run build
+$env:CODEX_DM_PASSWORD = 'local-development-only'
+go run ./cmd/codex -listen 127.0.0.1:3001 -data-dir data/development
+```
+
+For a watch loop, leave the Go host running and open another terminal:
+
+```text
+npm --workspace @ttrpg-codex/frontend run dev
+```
+
+Vite proxies `/api` to the host. Never point development checks at production
+data. Runtime directories, credentials, backups and install ZIPs stay out of Git.
+
+## Choose validation for the change
+
+| Change | Checks |
+| --- | --- |
+| Documentation only | Review changed claims, commands, relative links and heading anchors |
+| Host source or tooling | `npm run check` |
+| Concurrent worker, broker, event or lifecycle behavior | Full gate plus `go test -race` for affected packages |
+| Public add-on contract | Relevant host tests and every affected producer/consumer gate |
+| Package, manifest, worker or schema | Owning build, regenerated outputs and host ZIP inspection |
+| Release candidate | Full gates, relevant installed-package checks and `npm run release-check` |
+
+`npm run check` rejects tracked JavaScript source, type-checks application and
+Node tooling, tests release scripts, runs frontend unit and Chromium tests,
+builds browser assets, and runs all project-owned Go tests and vet. TypeScript
+also rejects unused locals and parameters. Node `.mts` tools execute through
+built-in type stripping, so their separate type check remains mandatory.
+
+Focused checks are useful during development:
+
+```text
 npm --workspace @ttrpg-codex/frontend test
 npm --workspace @ttrpg-codex/frontend run test:browser
 go test ./internal/transport/httpapi
@@ -38,12 +68,21 @@ go test ./internal/addons/packagemanager
 go test ./sdk/go/workerrpc
 ```
 
-Run `go test -race` for changed concurrent worker, broker, event, or lifecycle
-packages where the platform supports it.
+Use the narrowest meaningful regression for changed behavior. Do not remove
+public SDK exports, dynamically registered contributions or fixture coverage
+solely because an unused-code tool cannot see their consumers.
 
-Installed first-party checks use disposable local hosts and reviewed release
-ZIPs. Build the sibling packages first, then set the archives to include these
-checks in `npm run check` (otherwise they report skipped):
+Browser test files start multiple Chromium processes. On a resource-constrained
+machine, build the frontend once and run the same suite from `frontend/` with
+`node --test --test-concurrency=4 test/browser/*.browser.mts`. Keep the same
+add-on archive variables and complete the other full-gate checks separately.
+This limits simultaneous processes without dropping cases.
+
+### Installed add-on checks
+
+These tests start disposable hosts and install reviewed ZIPs. Build the companion
+packages first, then supply their archive paths; without them the corresponding
+tests report skipped. In PowerShell:
 
 ```powershell
 $env:CODEX_COMPENDIUM_ZIP = (Resolve-Path ../addon-dnd-2024-compendium/dist/dnd-2024-compendium-3.1.0.zip).Path
@@ -53,81 +92,56 @@ $env:CODEX_DM_TOOLS_ZIP = (Resolve-Path ../addon-dm-tools/dist/dm-tools-3.0.0.zi
 npm run check
 ```
 
-The installed rules cases exercise the Sheets service consumer through the
-native Engine and real Compendium, including late provider installation,
-changed content, and stop/start with missing rules. They do not establish
-physical-device or human screen-reader acceptance. Installed character tests
-cover responsive drafts, reviewed changes, retained history, transfers and print.
+The installed rules suite covers provider discovery, source changes and provider
+loss. Character tests exercise reviewed changes, drafts, history, transfer and
+print. Planner tests exercise the packaged UI, imports and lifecycle. Browser
+automation does not establish physical-device, human screen-reader or printer
+acceptance.
 
-## Development processes
+## Keep ownership clear
 
-Build-and-serve loop:
+| Boundary | Owner |
+| --- | --- |
+| Stable campaign concepts | `internal/domain` |
+| Policy and multi-record commands | `internal/application` |
+| SQLite and blobs | `internal/storage` |
+| Wire validation and authorization | `internal/transport/httpapi` |
+| Packages, data, services and workers | `internal/addons` |
+| Browser response validation | `frontend/src/core` |
+| Browser add-on lifetime | `frontend/src/addons` |
+| Public compatibility contracts | `contracts/addons/v3` and `sdk/go/workerrpc` |
 
-```powershell
-npm --workspace @ttrpg-codex/frontend run build
-$env:CODEX_DM_PASSWORD = 'local-development-only'
-go run ./cmd/codex -listen 127.0.0.1:3001 -data-dir data/development
-```
+Keep SQL behind stores and wire shapes behind clients/handlers. Add-ons consume
+public schemas and SDKs; they do not import host `internal/` or frontend modules.
+See [Architecture](docs/ARCHITECTURE.md) for the larger system.
 
-Watch loop:
+Migrations are forward-only and checksum verified. Preserve unknown record
+fields during ordinary edits. Released add-on, collection, extension and service
+IDs are permanent. Offline campaign conversion is a separate tool; do not add
+startup compatibility readers.
 
-```powershell
-$env:CODEX_DM_PASSWORD = 'local-development-only'
-go run ./cmd/codex -listen 127.0.0.1:3001 -data-dir data/development
-npm --workspace @ttrpg-codex/frontend run dev
-```
+## Write useful documentation
 
-Never point development or tests at production data. Runtime directories,
-backups, built archives, credentials, and generated add-on installs stay out of
-Git.
+Lead with the reader's task and resulting behavior. Put setup and common use in
+the README, detailed behavior in the owning reference, design rationale in an
+architecture decision, and future work only in [BACKLOG.md](docs/BACKLOG.md).
+The [documentation index](docs/README.md) links those owners.
 
-## Ownership boundaries
+Use descriptive links, short paragraphs and copyable commands with their working
+directory and prerequisites. Link to version declarations instead of repeating
+tool versions throughout prose. Describe current behavior in the present tense;
+label old audit findings and acceptance results with their date. Remove obsolete
+plans once the current reference covers their useful decisions.
 
-- `internal/domain` owns stable campaign concepts.
-- `internal/application` owns policy and multi-record commands.
-- `internal/storage` owns SQLite and blob implementation details.
-- `internal/transport/httpapi` validates and authorizes wire input; it does not
-  decide domain policy.
-- `internal/addons` owns package, data, service, and worker lifecycle.
-- `frontend/src/core` validates host responses before application state sees
-  them.
-- `frontend/src/addons` owns generation-scoped browser add-on execution.
-- `contracts/addons/v3` and `sdk/go/workerrpc` are public compatibility surfaces.
+Update documentation with behavior or contract changes. A passing test count is
+dated evidence, not a permanent claim about current coverage.
 
-Keep SQL behind stores, HTTP shapes behind clients/handlers, and add-on internals
-behind versioned schemas. Add-ons must not import `internal/` packages or host
-frontend modules.
+## Commit and hand off
 
-## Data and compatibility
+Group changes into understandable commits and keep independent repositories
+separate. Include the reason and relevant validation for nontrivial changes.
+Regenerate intentionally tracked distribution assets through their owning build.
 
-Campaign saves matter more than implementation compatibility. Schema migrations
-are forward-only and checksum verified. Unknown record fields must survive
-ordinary edits. Add-on IDs, collection IDs, extension IDs, service IDs, and
-saved record keys are permanent once released.
-
-The v1 converter is a one-shot offline tool for the two downloaded UI backups.
-Do not add startup-time legacy readers or a general legacy restore mode.
-
-## Tests and commits
-
-The host editing/browsing inventory includes `frontend/test/markdown-drafts.test.ts`
-for recovery scheduling and cleanup races, `frontend/test/collection-model.test.ts`
-for descriptor-driven queries, and `frontend/test/browser/editors.browser.mts`
-for real IndexedDB reload/tab behavior, save failures, role changes, bookmarks,
-and responsive controls. See [the workflow reference](docs/rewrite/EDITOR_BROWSING.md)
-for contracts, UX sources and validation limits. These tests use disposable
-browser contexts; do not exercise draft deletion against a user's profile.
-
-The [search/activity/map reference](docs/rewrite/SEARCH_ACTIVITY_MAP.md) covers
-F03–F05. `campaign-search.test.ts` checks current-projection recents and summary
-presentation; `campaign-map.test.ts` checks shared field validation and atomic
-patches. `visual.browser.mts`, `dashboard.browser.mts` and `maps.browser.mts`
-cover modal focus, retained editors, responsive map details and conflict/deletion
-behavior. `overview-activity.browser.mts` runs the real host with disposable data
-to verify role-filtered activity and private-reference edits. Application Go
-tests own summary generation, relationship activity and metadata authority.
-
-Add a regression test at the narrowest owner for every behavior change. Contract
-changes also require affected first-party add-on gates and package inspection.
-Keep commits independently understandable. Never deploy, push, or edit live
-campaign data as part of development validation.
+Report checks that passed, checks unavailable or skipped, and remaining manual
+verification. Pushing, publishing, deployment and live-data operations are
+separate decisions.

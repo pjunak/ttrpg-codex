@@ -2,7 +2,7 @@
 
 The TypeScript browser owns presentation resources for one
 server-authoritative add-on graph. It does not decide which package generation
-or dependency version should run. The Go host will publish an opaque graph
+or dependency version should run. The Go host publishes an opaque graph
 revision and an already-authorized descriptor for each browser contribution.
 
 ## Graph contract

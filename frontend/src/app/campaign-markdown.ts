@@ -142,7 +142,7 @@ export function resolveCampaignWikiLink(
       return normalizeIdentity(record.value["name"] ?? record.value["title"]) === normalizedLabel;
     });
     if (matches.length === 0) continue;
-    const record = preferredWikiMatch(context, page.collection, matches) ?? matches[0];
+    const record = preferredWikiMatch(context, matches) ?? matches[0];
     if (record !== undefined) {
       return Object.freeze({ href: recordHash(page, record.key), page, key: record.key });
     }
@@ -434,7 +434,6 @@ function pageForScope(scope: string): CampaignPageDefinition | undefined {
 
 function preferredWikiMatch(
   context: CampaignMarkdownContext,
-  collection: CampaignCollectionName,
   matches: ReturnType<typeof campaignCollection>["records"],
 ) {
   if (context.currentCollection === undefined || context.currentKey === undefined) return matches[0];

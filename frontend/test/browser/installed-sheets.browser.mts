@@ -1,6 +1,4 @@
-import { required } from './fixture-types.mts';
-import type { APIRequestContext, Browser, Page } from 'playwright';
-import type { TestContext } from 'node:test';
+import type { APIRequestContext, Browser } from 'playwright';
 import type { AddressInfo } from 'node:net';
 import type { ChildProcessByStdio } from 'node:child_process';
 import type { Readable } from 'node:stream';
@@ -15,14 +13,13 @@ import { promisify } from 'node:util';
 import { once } from 'node:events';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { chromium, request as playwrightRequest } from 'playwright';
-import { jsonResponse, installReviewedPackage, enableAllRuleSources } from './installed-graph-fixture.mts';
-import { attemptHash, unloadBlocked } from './installed-planner-navigation-fixture.mts';
-
+import { jsonResponse, installReviewedPackage } from './installed-graph-fixture.mts';
+import { unloadBlocked } from './installed-planner-navigation-fixture.mts';
 
 const archivePath = process.env.CODEX_SHEETS_ZIP;
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const output = resolve(root, 'frontend/test-results/installed-sheets');
-let directory: string, host: ChildProcessByStdio<null, Readable, Readable>, browser: Browser, admin: APIRequestContext, csrf: string, origin: string, base: string, hostOutput = '';
+let directory: string, host: ChildProcessByStdio<null, Readable, Readable>, browser: Browser, admin: APIRequestContext, csrf: string, origin: string, hostOutput = '';
 before(async () => {
   if (!archivePath) return;
   const archive = await readFile(resolve(archivePath));
@@ -43,8 +40,6 @@ before(async () => {
   assert.ok(ready, hostOutput);
   csrf = (await jsonResponse(await admin.post('/api/login', { data: { password: 'local-sheets-dm' } }))).csrfToken;
   await installReviewedPackage(admin, csrf, 'dnd-sheets', archive, []);
-  const state = await jsonResponse(await admin.get('/api/admin/addons/dnd-sheets'));
-  base = `/api/addons/dnd-sheets/generations/${state.state.activeGenerationId}/data`;
   browser = await chromium.launch({ headless: true });
 });
 after(async () => {
