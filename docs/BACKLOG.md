@@ -45,6 +45,24 @@ run hit Windows socket-buffer exhaustion on navigation; the complete rerun with
 four concurrent test files passed with no skips. No campaign data, public
 contracts or deployment state changed.
 
+The planning documentation follow-up now provides a task-based
+[planner guide](../../addon-dm-tools/docs/PLANNER.md),
+[Import Center workflow](../../addon-dm-tools/docs/IMPORTING.md), and
+[context-generation guide](../../addon-dm-tools/docs/AGENT_GENERATION.md).
+Agent rules cover verified campaign context, proposed fiction, complete-record
+updates and authorized application. Synthetic examples exercise real preview,
+annotation graphs, stale updates, merge preservation and replacement deletion.
+
+## Planning follow-ups
+
+- [ ] Resolve the validation difference between planning-reference targets and
+  optional planning targets on consequences. The latter currently receive only
+  shape validation, so preview can accept a missing target. Define consistent
+  handling for imports and later target deletion while preserving annotation
+  text; cover both Go and browser validation. The
+  [current boundary](../../addon-dm-tools/docs/GRAPH.md#annotations-and-target-validation)
+  is documented for authors and is not a claim of complete link validation.
+
 ## Deployment follow-ups
 
 - [ ] Move intentionally tracked add-on worker binaries and browser compiler
@@ -510,8 +528,9 @@ This initial host inventory was checked against preserved v1 commit
 `3aeeacfe7adec985693f8aeb239df58c177f3da8`, specifically `web/js/app.js`,
 `web/js/settings.js`, and `web/index.html`. It maps workflow destinations, not
 an implemented legacy URL redirect contract. Current host routes are owned by
-`frontend/src/app/routes.ts`. Add-on actions and detailed editing/administration
-acceptance still need to be expanded as follow-up documentation.
+`frontend/src/app/routes.ts`. Current DM planner and Import Center actions are
+documented in the add-on guides linked above. Broader editing/administration
+acceptance still needs to be expanded as follow-up documentation.
 
 | V1 route or action | V2 destination / current state | Remaining acceptance |
 |---|---|---|
