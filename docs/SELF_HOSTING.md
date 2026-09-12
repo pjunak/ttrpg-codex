@@ -130,37 +130,57 @@ Do not repeat a separate staging conversion merely to satisfy a process gate.
 
 ## Add-on installation
 
-In **Settings → Add-ons → GitHub repositories**, choose a new installation or
-an existing add-on to link, enter its GitHub URL or `owner/repository`, and
-select a package source:
+Open **Settings → Add-ons** while signed in as DM. The toolbar has two actions:
+**Check for updates** refreshes the installed list and checks linked repositories;
+**Add add-on** opens the installation wizard.
 
-- **GitHub Actions build** follows the chosen branch's latest successful
-  push/manual build. Leave the branch blank for the default branch. The suite
-  workflows publish the `reviewed-package` artifact, which contains the built
-  add-on ZIP. Artifacts must still be within their GitHub retention period.
-- **Latest stable release** lists attached ZIP packages. Select the correct
-  add-on package when a release contains multiple ZIPs.
+In the wizard, choose **GitHub** or **ZIP file**:
 
-Use **Check all for updates** or a repository's **Check for updates**, then
-**Download and review**. Review permissions and compatibility before approving
-activation. Existing versions remain available for reviewed rollback. Source
-code changes need a successful package build before they can be installed.
+- **GitHub** accepts a repository URL or `owner/repository`. Choose a successful
+  **GitHub Actions build** or the **Latest stable release**. Build options are
+  tucked away unless you need a specific branch or artifact name. The defaults
+  are the repository's default branch and `reviewed-package`.
+- **ZIP file** uploads a prebuilt add-on package from your computer. The limit
+  is 128 MiB. GitHub's generated source-code archives are not installable packages.
 
-The visible **GitHub access tokens** section can save, replace and remove a
-default token or a token scoped to one exact repository. For fine-grained
-tokens, select the intended repositories and grant **Contents: read** for
-private release packages and **Actions: read** for workflow artifacts.
-Artifact downloads require authentication even for public repositories.
-See GitHub's [release asset API](https://docs.github.com/en/rest/releases/assets)
-and [Actions artifact API](https://docs.github.com/en/rest/actions/artifacts).
+For a private repository, tick **Private repository** to show the token field
+and setup instructions. Create a fine-grained token for that repository with
+**Contents: read** for releases and **Actions: read** for workflow artifacts.
+GitHub requires a token for Actions downloads even from public repositories,
+so choosing a build also exposes the access field. Existing saved access is
+reused unless you enter a replacement. The wizard saves new tokens for the
+specific repository, including future update checks.
 
-Repository tokens override the stored default, then `CODEX_GITHUB_TOKEN` or
-`GITHUB_TOKEN` provides a fallback. Token values remain server-side in
-`<data-dir>/credentials/github.db`; protect that directory like other server
-credentials. Tokens are excluded from campaign backups and recovery points.
-After restoring to a new server, configure access again. The GitHub section
-shows whether each repository uses a scoped, stored-default or environment
-token, without returning the value.
+**Find package** checks availability without downloading or activating code.
+Select **Download and review**, or **Inspect ZIP** for a local file, to continue
+to the permission and compatibility review in the same popup. Only **Approve
+and activate** changes the active version. Cancelling a review leaves the
+inspected package available under **Installed versions** for later review.
+
+Update results appear directly on each installed add-on. Open **Update source**
+on that add-on to connect or edit its repository, replace repository access, or
+unlink it. Unlinking keeps installed versions and campaign data. Uploaded ZIPs
+can also be linked to GitHub this way. Checking for updates never automatically
+installs a package. GitHub builds must finish successfully before they can be
+installed, and build artifacts must still be within their retention period.
+
+The collapsed **GitHub access tokens** section provides default-token management
+and lets you replace or remove saved repository tokens. Repository tokens take
+precedence over the stored default, followed by `CODEX_GITHUB_TOKEN` and
+`GITHUB_TOKEN`. Token values stay on the server in `<data-dir>/credentials/github.db`
+and are excluded from campaign backups and recovery points. Protect that
+folder like other server credentials and configure access again after restoring
+to a new server. The UI shows which access is configured without returning tokens.
+If a token-save response is lost, the wizard refreshes configured state and
+clears the input; retrying does not silently repeat the token write.
+
+The popup keeps keyboard focus inside it and returns focus on close. Escape or
+Cancel closes it when no request is running; requests finish before it can close.
+On small screens the content scrolls while the title and Cancel button stay visible.
+The interaction follows the [WAI modal-dialog guidance](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/).
+Token instructions follow [GitHub's personal access token guide](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens),
+[release asset API](https://docs.github.com/en/rest/releases/assets), and
+[Actions artifact API](https://docs.github.com/en/rest/actions/artifacts).
 
 The host only installs prebuilt Add-on API v3 packages. For manual uploads,
 build release archives in each add-on repository and validate them with

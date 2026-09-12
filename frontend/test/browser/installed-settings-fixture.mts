@@ -98,7 +98,7 @@ export async function exerciseSettings({ t, open, admin, csrf, output, mobile, m
   assert.equal(await toggle.count(), 1, 'category navigation respects collapsed drafts');
   page.once('dialog', dialog => dialog.dismiss()); await row.getByRole('button', { name: 'Reload', exact: true }).click();
   await toggle.click(); assert.equal(await view.getByLabel('Saved option').inputValue(), 'Keep this draft');
-  await page.getByRole('button', { name: 'Refresh list', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Check for updates', exact: true }).first().click();
   await page.locator('.addon-manager[aria-busy="false"]').waitFor();
   assert.equal(await view.getByLabel('Saved option').inputValue(), 'Keep this draft');
   assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
@@ -133,7 +133,7 @@ export async function exerciseSettings({ t, open, admin, csrf, output, mobile, m
   await playerView.getByText('Options ready', { exact: true }).waitFor();
   assert.equal(await playerView.getByLabel('Saved option').inputValue(), 'Durable option');
   assert.equal(await playerSettings.locator('[data-contribution-id="campaign"]').count(), 0);
-  assert.equal(await player.locator('codex-addon-github, codex-addon-configuration, .addon-upload').count(), 0);
+  assert.equal(await player.locator('codex-addon-install, codex-addon-configuration, .addon-toolbar').count(), 0);
   assert.deepEqual(adminRequests, []);
   assert.deepEqual(JSON.parse((await playerView.getByLabel('Settings context').textContent())!).role, 'player');
   await player.locator('[data-category="language"]').click();

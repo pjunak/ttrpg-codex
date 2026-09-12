@@ -63,7 +63,7 @@ export async function exerciseUninstall({ t, open, admin, csrf, output, mobile }
   await installDmPackage(admin, csrf, { id, live: true });
   const retained = await jsonResponse(await admin.post(`${data}/query`, { headers, data: { contractVersion: 'addon-data-query.v1', kind: 'collection', dataId: 'notes', where: [], limit: 10 } }));
   assert.equal(retained.documents[0].value.text, 'Authored work survives uninstall');
-  await manager.getByRole('button', { name: 'Refresh list', exact: true }).click();
+  await manager.getByRole('button', { name: 'Check for updates', exact: true }).click();
   await page.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await page.reload(); await page.locator('[data-category="addons"]').click();
   await row.getByRole('button', { name: 'Odinstalovat', exact: true }).click();
   await review.getByRole('heading', { name: 'Kontrola odinstalace: DM panel fixture', exact: true }).waitFor();
@@ -74,7 +74,7 @@ export async function exerciseUninstall({ t, open, admin, csrf, output, mobile }
   await manager.getByRole('alert').waitFor(); await page.unroute(pattern);
   const retry = await jsonResponse(await admin.post(`/api/admin/addons/${id}/uninstall`, { headers, data: { reviewSha256: fingerprint } }));
   assert.equal(retry.alreadyRemoved, true);
-  await manager.getByRole('button', { name: 'Obnovit seznam', exact: true }).click(); await manager.locator('.addon-manager[aria-busy="false"]').waitFor();
+  await manager.getByRole('button', { name: 'Zkontrolovat aktualizace', exact: true }).click(); await manager.locator('.addon-manager[aria-busy="false"]').waitFor();
   assert.equal(await row.count(), 0);
   const player = await open(t, 'player');
   for (const action of ['uninstall-review', 'uninstall']) {

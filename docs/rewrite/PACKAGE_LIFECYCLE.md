@@ -1,12 +1,15 @@
 # Add-on package lifecycle
 
-This milestone connects verified v3 packages to durable generation state, the
+The package lifecycle connects verified v3 packages to durable generation state, the
 service broker, native worker supervision, and an authorization-gated HTTP
 application boundary. The executable registers the administrative routes with
 the real-DM and CSRF authorizer. Settings → Add-ons exposes ZIP inspection,
 permission/change review, activation, update, rollback, reload, disable,
-uninstall, and recent lifecycle diagnostics in English and Czech using the existing settings
-layout. Disabling preserves package generations and campaign data.
+uninstall, and recent lifecycle diagnostics in English and Czech. **Add add-on**
+opens a modal source wizard; ZIP uploads and GitHub downloads continue into the
+same permission review. **Check for updates** refreshes inventory and lists
+results on the installed add-on cards. Source settings live on each card, and
+shared token management stays in a collapsed section. Disabling preserves package generations and campaign data.
 
 `GET /api/admin/addons` returns `addon-inventory.v1` with sorted `addonIds`,
 including staged-only and disabled packages. The manager loads each package's
@@ -97,8 +100,11 @@ stale candidates/sources, identity checks, rollback, Actions selection, digest
 checks, archive bounds and redirect secrecy. HTTP tests cover authorization,
 CSRF, body limits and redaction. `frontend/test/addon-github.test.ts` verifies
 wire validation and error categories; `addon-github.browser.mts` exercises
-desktop/phone install, update review, cancellation, token changes, lost responses,
-reload and Czech labels with synthetic GitHub responses. Actual account access
+desktop/phone ZIP and GitHub installation through the popup wizard, modal focus
+and cancellation, source-edit invalidation, private-token guidance and replacement,
+lost responses without secret replay, per-add-on updates, reload and Czech labels
+with synthetic GitHub responses. The installed-package fixtures exercise the
+same wizard and review against the actual host lifecycle. Actual account access
 and production network connectivity remain operator integration checks.
 
 ## State ownership

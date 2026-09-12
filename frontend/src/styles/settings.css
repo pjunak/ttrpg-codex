@@ -137,9 +137,6 @@ codex-addon-settings { display: block; min-width: 0; }
 [data-addon-settings-outlet][hidden] { display: none; }
 .addon-settings .addon-contribution-heading { flex-wrap: wrap; overflow-wrap: anywhere; }
 .addon-settings .codex-isolated-addon-frame { height: 8rem; }
-codex-addon-github { display: block; min-width: 0; }
-.addon-github { padding: 1rem 0; border-bottom: 1px solid var(--border-subtle); }
-.addon-github h3 { color: var(--gold); font: 1.05rem var(--font-title); }
 .addon-source-form { display: flex; flex-wrap: wrap; align-items: end; gap: .7rem; margin: 1rem 0; }
 .addon-source-form label { flex: 1 1 11rem; min-width: 0; font-size: .8rem; }
 .addon-source-form input, .addon-source-form select { display: block; box-sizing: border-box; width: 100%; margin-top: .4rem; padding: .5rem; border: 1px solid var(--chrome-field-border); border-radius: var(--radius); background: var(--bg-raised); color: var(--text-parchment); font: inherit; }
@@ -147,6 +144,39 @@ codex-addon-github { display: block; min-width: 0; }
 .github-source, .github-tokens { overflow-wrap: anywhere; }
 .github-tokens { margin: 1rem 0; }
 .github-source a { color: var(--gold); }
+.addon-manager .settings-ledger-heading { flex-wrap: wrap; }
+.addon-manager .settings-ledger-heading > .addon-toolbar { display: flex; align-items: center; margin: 0; }
+.addon-manager button { min-height: 44px; }
+.addon-manager .addon-primary { background: var(--gold); color: var(--bg-base); border-color: var(--gold); font-weight: 600; }
+.addon-install-dialog { width: min(42rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); box-sizing: border-box; padding: 1.5rem; color: var(--text-parchment); background: var(--bg-surface); border: 1px solid var(--chrome-field-border); border-radius: var(--radius); box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 50%); overflow: auto; }
+.addon-install-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+.addon-install-dialog[open] { display: flex; flex-direction: column; overflow: hidden; }
+.addon-dialog-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: .1rem .2rem; }
+.addon-install-dialog > header, .addon-install-dialog > footer { flex: none; }
+.addon-install-dialog h3 { margin: 0 0 1rem; font: 1.3rem var(--font-title); color: var(--gold); }
+.addon-install-dialog h4 { margin: 1rem 0 .5rem; font: 1rem var(--font-ui); }
+.addon-install-dialog h3:focus, .addon-install-dialog h4:focus { outline: none; }
+.addon-install-dialog footer { display: flex; justify-content: end; margin-top: 1.2rem; border-top: 1px solid var(--border-subtle); padding-top: 1rem; }
+.addon-source-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.addon-source-choices button { display: grid; align-content: start; gap: .6rem; text-align: start; padding: 1.2rem; }
+.addon-source-choices span { color: var(--text-muted); font-size: .85rem; line-height: 1.5; }
+.addon-install-form { display: grid; align-items: stretch; gap: 1rem; }
+.addon-install-form > button { justify-self: end; }
+.addon-install-form .addon-private-toggle { display: flex; align-items: center; gap: .7rem; min-height: 44px; }
+.addon-private-toggle input { width: auto; margin: 0; accent-color: var(--gold); }
+.addon-build-options label { display: block; margin-block: .8rem; }
+.addon-repository-access { padding: 1rem; background: var(--bg-raised); border-radius: var(--radius); min-width: 0; }
+.github-token-help ol { padding-inline-start: 1.4rem; }
+.github-token-help li { display: list-item; border: 0; padding: .3rem 0; line-height: 1.5; }
+.github-token-help a { color: var(--gold); }
+.addon-install-step .addon-upload { display: grid; }
+.addon-install-step .addon-upload button { justify-self: end; }
+@media (max-width: 36rem) {
+  .addon-source-choices { grid-template-columns: 1fr; }
+  .addon-install-dialog { padding: 1rem; }
+  .addon-toolbar { width: 100%; }
+  .addon-toolbar button { flex: 1; }
+}
 
 .settings-page-heading {
   padding: 0 0 1rem;
