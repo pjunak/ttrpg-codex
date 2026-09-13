@@ -136,10 +136,11 @@ Open **Settings → Add-ons** while signed in as DM. The toolbar has two actions
 
 In the wizard, choose **GitHub** or **ZIP file**:
 
-- **GitHub** accepts a repository URL or `owner/repository`. Choose a successful
-  **GitHub Actions build** or the **Latest stable release**. Build options are
-  tucked away unless you need a specific branch or artifact name. The defaults
-  are the repository's default branch and `reviewed-package`.
+- **GitHub** accepts a repository URL or `owner/repository`. The default is the
+  **Latest published package**. First-party add-ons publish one durable release
+  per tested main commit, even when the package version stays the same. Public
+  releases need no token. **GitHub Actions build** remains available for other
+  branches or publishers; its default artifact is `reviewed-package`.
 - **ZIP file** uploads a prebuilt add-on package from your computer. The limit
   is 128 MiB. GitHub's generated source-code archives are not installable packages.
 
@@ -161,8 +162,10 @@ Update results appear directly on each installed add-on. Open **Update source**
 on that add-on to connect or edit its repository, replace repository access, or
 unlink it. Unlinking keeps installed versions and campaign data. Uploaded ZIPs
 can also be linked to GitHub this way. Checking for updates never automatically
-installs a package. GitHub builds must finish successfully before they can be
-installed, and build artifacts must still be within their retention period.
+installs a package. A new commit can offer an update with the same package
+version. Published ZIPs stay available independently of Actions retention;
+Actions builds must finish successfully and their artifacts must not have expired.
+Existing linked sources keep their selected channel until you edit them.
 
 The collapsed **GitHub access tokens** section provides default-token management
 and lets you replace or remove saved repository tokens. Repository tokens take

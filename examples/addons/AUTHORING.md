@@ -131,3 +131,27 @@ activate. A source checkout or GitHub archive is not a production package.
 Those repositories are examples of public-contract use, not additional host
 API. If a first-party package needs an internal import, add the missing public
 contract instead.
+
+
+## Publishing tested commits
+
+First-party add-on CI publishes the exact `reviewed-package` ZIP after its full
+checks and host inspection pass. A separate job with Contents write calls the
+shared [publisher action](../../.github/actions/publish-addon/action.yml), pinned
+to a reviewed host commit. It uses the job's automatic `GITHUB_TOKEN`; no personal
+deployment token or server access is needed. Private repositories keep private
+releases.
+
+Releases use `build-<full source SHA>` tags and retain the package's semantic
+version for compatibility. Updating content or behavior therefore does not
+require a version bump merely to make an update available. The publisher stages
+a draft, verifies GitHub's uploaded SHA-256 digest, then publishes it. Reruns
+never overwrite different package bytes. Older tested commits remain downloadable
+without replacing the newest release. Keep main publication serialized.
+
+The website defaults to the latest published package. Discovery and download
+never activate it: each installation owner reviews permissions and compatibility
+and chooses when to activate. Public releases download without a token; private
+releases require Contents read on that add-on repository. Actions-artifact
+sources remain supported for other branches and publishers, with Actions read
+access and the configured retention limit.

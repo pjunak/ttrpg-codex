@@ -28,14 +28,14 @@ export class CodexAddonInstall extends LitElement {
   #staged: InstalledGeneration | undefined;
   #sourceSaved = false;
   readonly #ui = new UiLocalizationController(this);
-  constructor() { super(); this.target = ""; this.disabled = false; this.step = "source"; this.channel = "actions"; this.repository = ""; this.privateRepo = false; this.pending = false; this.error = ""; }
+  constructor() { super(); this.target = ""; this.disabled = false; this.step = "source"; this.channel = "release"; this.repository = ""; this.privateRepo = false; this.pending = false; this.error = ""; }
   protected override createRenderRoot() { return this; }
   override disconnectedCallback(): void { this.#request.abort(); super.disconnectedCallback(); }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
     if (changed.has("link") || changed.has("target")) {
       this.step = this.target ? "github" : "source";
       this.repository = this.link?.source.repo ?? "";
-      this.channel = this.link?.source.channel ?? "actions";
+      this.channel = this.link?.source.channel ?? "release";
       this.privateRepo = !!this.status?.credentials.repositories.includes(this.repository);
     }
   }
@@ -65,7 +65,7 @@ export class CodexAddonInstall extends LitElement {
         @input=${(event: Event) => { this.repository = (event.target as HTMLInputElement).value; }}></label>
       <label>${t("github.channel")}<select name="channel" .value=${this.channel} ?disabled=${this.#busy}
         @change=${(event: Event) => { this.channel = (event.target as HTMLSelectElement).value as "actions" | "release"; }}>
-        <option value="actions">${t("github.actions")}</option><option value="release">${t("github.release")}</option></select></label>
+        <option value="release">${t("github.release")}</option><option value="actions">${t("github.actions")}</option></select></label>
       ${this.channel === "actions" ? html`<details class="addon-build-options"><summary>${t("github.buildOptions")}</summary>
         <p>${t("github.buildDefaults")}</p><label>${t("github.branch")}<input name="branch" maxlength="200" .value=${this.link?.source.branch ?? ""} placeholder=${t("github.defaultBranch")} ?disabled=${this.#busy}></label>
         <label>${t("github.artifact")}<input name="artifact" maxlength="200" .value=${this.link?.source.artifact || "reviewed-package"} ?disabled=${this.#busy}></label></details>` : nothing}

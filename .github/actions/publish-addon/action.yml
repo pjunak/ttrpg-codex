@@ -1,0 +1,23 @@
+name: Publish tested add-on
+description: Publish the already inspected package as a durable commit release.
+inputs:
+  artifact:
+    description: Artifact containing exactly one inspected add-on ZIP
+    default: reviewed-package
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: '26'
+    - uses: actions/download-artifact@v8
+      with:
+        name: ${{ inputs.artifact }}
+        path: ${{ runner.temp }}/tested-addon-package
+    - name: Publish the tested commit
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PUBLISHER_PATH: ${{ github.action_path }}
+        PACKAGE_DIRECTORY: ${{ runner.temp }}/tested-addon-package
+      run: node "$PUBLISHER_PATH/publish.mts"

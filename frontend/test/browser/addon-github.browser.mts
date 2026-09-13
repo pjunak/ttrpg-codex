@@ -53,7 +53,7 @@ for (const mobile of [false, true]) test(`GitHub installation, token management 
       value = { source, candidates: [{ id: target, name: 'reviewed-package', version: target, digest: '', active: target === active }] };
     } else if (path.endsWith('/addon-github/stage')) {
       downloads++; assert.equal(body.candidateId, target);
-      const generation = { addonId: 'example', generationId: target, version: target.startsWith('a') ? '1.0.0' : '1.1.0', installedAt: '2026-09-10T10:00:00Z' };
+      const generation = { addonId: 'example', generationId: target, version: '1.0.0', installedAt: '2026-09-10T10:00:00Z' };
       if (!generations.some(g => g.generationId === target)) generations.push(generation);
       if (!links.length) links = [{ addonId: 'example', revision: 1, source }]; value = generation;
     } else if (path === '/api/admin/addons/generations') {
@@ -86,7 +86,7 @@ for (const mobile of [false, true]) test(`GitHub installation, token management 
   await add.click(); await githubChoice.click();
   const connect = dialog.locator('form.addon-install-form');
   await connect.locator('input[name="repo"]').fill('owner/private');
-  await connect.getByLabel('Package source').selectOption('release');
+  assert.equal(await connect.getByLabel('Package source').inputValue(), 'release', 'new sources default to durable releases');
   assert.equal(await connect.locator('input[name="token"]').count(), 0);
   await connect.getByLabel('Private repository').check();
   await dialog.getByRole('link', { name: 'Create a fine-grained token on GitHub.' }).waitFor();
@@ -119,6 +119,7 @@ for (const mobile of [false, true]) test(`GitHub installation, token management 
   assert.equal(active, ''); await reviewPanel.getByRole('button', { name: 'Approve and activate' }).click();
   await dialog.waitFor({ state: 'detached' }); await manager.getByText('Add-on state updated.', { exact: true }).waitFor();
   await check.click(); await sourceRow.getByText('Up to date', { exact: true }).waitFor();
+  // A new commit remains an update even when the package version is unchanged.
   target = 'b'.repeat(64); await check.click();
   await sourceRow.getByRole('button', { name: 'Download and review' }).click();
   await reviewPanel.getByRole('heading', { name: 'Review activation: GitHub test' }).waitFor(); assert.equal(active, 'a'.repeat(64));
@@ -131,6 +132,7 @@ for (const mobile of [false, true]) test(`GitHub installation, token management 
   // Source editing and token replacement stay attached to the installed add-on.
   await sourceRow.locator('summary').click(); await sourceRow.getByRole('button', { name: 'Edit GitHub source' }).click();
   await connect.locator('input[name="repo"]').waitFor(); assert.equal(await connect.locator('input[name="repo"]').inputValue(), 'owner/private');
+  assert.equal(await connect.getByLabel('Package source').inputValue(), 'actions', 'existing linked sources keep their selected channel');
   lostTokenResponse = true; await connect.locator('input[name="token"]').fill('replacement-private-token');
   await connect.getByRole('button', { name: 'Check and save source' }).click();
   await dialog.getByRole('alert').waitFor(); await dialog.locator('.addon-install-step[aria-busy="false"]').waitFor();
