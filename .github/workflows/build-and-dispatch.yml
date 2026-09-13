@@ -3,7 +3,7 @@ name: Build and dispatch
 # Main pushes validate, publish an immutable image, and deploy every configured
 # campaign. Manual runs are check-only unless publication/deployment is selected.
 # Required Actions configuration:
-#   INFRA_DISPATCH_TOKEN: fine-grained token for infra, Contents write + Actions read
+#   INFRA_DISPATCH_TOKEN: fine-grained token for infra, Contents read + Actions write
 #   INFRA_REPO: owner/infra-repo
 #   INFRA_SERVICE: space/comma-separated targets; use "asurai tiamat" for both sites.
 

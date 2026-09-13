@@ -73,13 +73,15 @@ export function createGitHubApi(token: string, { request = fetch, sleep = ms => 
   request?: typeof fetch; sleep?: Sleep;
 } = {}): GitHubApi {
   return async (path, options = {}) => {
+    if (!path.startsWith('/repos/') || path.includes('\n')) throw new Error('Invalid GitHub API path.');
     const readOnly = !options.method || options.method === 'GET';
     for (let attempt = 0; ; attempt++) {
       let response;
       try {
         response = await request(`https://api.github.com${path}`, {
-          ...options, signal: AbortSignal.timeout(30_000),
-          headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}` },
+          ...options, redirect: 'error', signal: AbortSignal.timeout(30_000),
+          headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2026-03-10' },
         });
       } catch {
         if (readOnly && attempt < 2) { await sleep(1000 * 2 ** attempt); continue; }
@@ -88,7 +90,7 @@ export function createGitHubApi(token: string, { request = fetch, sleep = ms => 
       if (readOnly && (response.status === 429 || response.status >= 500) && attempt < 2) {
         await sleep(1000 * 2 ** attempt); continue;
       }
-      if (!response.ok) throw new Error(`GitHub API ${response.status} for ${path}; check token repository access, expiry and permissions (infrastructure deployment requires Contents: write and Actions: read). Inspect Actions before retrying a deployment.`);
+      if (!response.ok) throw new Error(`GitHub API ${response.status} for ${path}; check token repository access, expiry and permissions (infrastructure deployment requires Contents: read and Actions: write). Inspect Actions before retrying a deployment.`);
       return response.status === 204 ? null : response.json();
     }
   };
@@ -102,32 +104,37 @@ export async function dispatchAndWait({ api, sleep = ms => new Promise(resolve =
       !['asurai', 'tiamat'].includes(target) || !/^[a-zA-Z0-9-]+$/.test(requestId)) {
     throw new Error('Invalid infrastructure repository, campaign target, or request identity');
   }
-  const endpoint = `/repos/${infra}/actions/workflows/deploy.yml/runs`;
-  // A disabled workflow can accept a dispatch without ever producing a run.
   await checkInfrastructureAccess(api, infra);
-  const started = new Date(Date.now() - 60_000).toISOString();
-  await api(`/repos/${infra}/dispatches`, {
-    method: 'POST', body: JSON.stringify({ event_type: 'deploy',
-      client_payload: { service: target, sha, image_ref: image, request_id: requestId } }),
+  const receipt = await api(`/repos/${infra}/actions/workflows/deploy.yml/dispatches`, {
+    method: 'POST', body: JSON.stringify({ ref: 'main',
+      inputs: { service: target, sha, image_ref: image, request_id: requestId } }),
   });
-  let run: DeploymentRun | undefined;
+  if (!isRecord(receipt) || typeof receipt.workflow_run_id !== 'number' ||
+      !Number.isSafeInteger(receipt.workflow_run_id) || receipt.workflow_run_id <= 0) {
+    throw new Error('Dispatch returned no run ID; inspect infrastructure Actions before retrying.');
+  }
+  const id = receipt.workflow_run_id;
+  const path = `/repos/${infra}/actions/runs/${id}`;
+  const url = `https://github.com/${infra}/actions/runs/${id}`;
+  if (receipt.run_url !== `https://api.github.com${path}` || receipt.html_url !== url) {
+    throw new Error('Invalid dispatch receipt; inspect infrastructure Actions before retrying.');
+  }
+  report(`Infrastructure deployment: ${url}`);
   for (let attempt = 0; attempt < attempts; attempt++) {
-    await sleep(15_000);
-    if (!run) {
-      const result = await api(`${endpoint}?event=repository_dispatch&per_page=100&created=${encodeURIComponent(`>=${started}`)}`);
-      if (!isRecord(result) || !Array.isArray(result.workflow_runs)) throw new Error('Invalid infrastructure workflow listing');
-      const candidate: unknown = result.workflow_runs.find((candidate: unknown) => isRecord(candidate) && candidate.display_title === `Deploy ${target} ${requestId}`);
-      if (candidate !== undefined) run = deploymentRun(candidate);
-      if (run) report(`Infrastructure deployment: ${run.html_url}`);
-    } else {
-      run = deploymentRun(await api(`/repos/${infra}/actions/runs/${run.id}`));
+    if (attempt) await sleep(15_000);
+    const value = await api(path);
+    const run = deploymentRun(value);
+    if (!isRecord(value) || run.id !== id || value.event !== 'workflow_dispatch' || value.head_branch !== 'main' ||
+        typeof value.path !== 'string' || value.path.split('@')[0] !== '.github/workflows/deploy.yml' ||
+        run.html_url !== url || run.display_title !== `Deploy ${target} ${requestId}`) {
+      throw new Error('Invalid infrastructure run identity.');
     }
-    if (run?.status === 'completed') {
-      if (run.conclusion !== 'success') throw new Error(`Deployment ${run.conclusion}: ${run.html_url}`);
+    if (run.status === 'completed') {
+      if (run.conclusion !== 'success') throw new Error(`Deployment ${run.conclusion}: ${url}`);
       return run;
     }
   }
-  throw new Error(`Deployment result is still unknown; inspect ${run?.html_url ?? `https://github.com/${infra}/actions`}. Do not blindly redispatch.`);
+  throw new Error(`Deployment result is still unknown; inspect ${url}. Do not blindly redispatch.`);
 }
 
 async function main() {

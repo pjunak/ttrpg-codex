@@ -21,71 +21,88 @@ test('release reuse requires matching successful main build and immutable image'
   assert.throws(() => validateImage(image, sha, 'other/app'));
 });
 
-test('dispatch waits for the correlated infrastructure result, ignoring unrelated runs', async () => {
+const receipt = { workflow_run_id: 8, run_url: 'https://api.github.com/repos/example/infra/actions/runs/8',
+  html_url: 'https://github.com/example/infra/actions/runs/8' };
+const infraRun = { id: 8, event: 'workflow_dispatch', head_branch: 'main', path: '.github/workflows/deploy.yml',
+  status: 'completed', conclusion: 'success', display_title: 'Deploy asurai 1-1-asurai', html_url: receipt.html_url };
+
+test('dispatch uses main and polls only the returned run ID', async () => {
   const calls: { path: string; options?: RequestInit }[] = [];
-  const infraRun = { id: 8, status: 'in_progress', conclusion: null, display_title: 'Deploy asurai 1-1-asurai', html_url: 'https://github.com/example/infra/actions/runs/8' };
+  let polls = 0;
   const result = await dispatchAndWait({ infra: 'example/infra', target: 'asurai', sha, image,
     requestId: '1-1-asurai', sleep: async () => {}, report: () => {},
     api: async (path, options) => {
       calls.push({ path, options });
       if (path.endsWith('/workflows/deploy.yml')) return { state: 'active' };
-      if (path.endsWith('/runs/8')) return { ...infraRun, status: 'completed', conclusion: 'success' };
-      return { workflow_runs: [{ display_title: 'other', status: 'completed', conclusion: 'success' }, infraRun] };
+      if (options?.method === 'POST') {
+        assert.equal(path, '/repos/example/infra/actions/workflows/deploy.yml/dispatches');
+        return receipt;
+      }
+      assert.equal(path, '/repos/example/infra/actions/runs/8');
+      return ++polls === 1 ? { ...infraRun, status: 'queued', conclusion: null } : infraRun;
     } });
   assert.equal(result.conclusion, 'success');
+  assert.equal(polls, 2);
   assert.equal(calls.filter(call => call.options?.method === 'POST').length, 1);
-  const body = calls[1].options?.body;
-  assert.equal(typeof body, 'string');
-  assert.equal(JSON.parse(body as string).client_payload.image_ref, image);
+  const body = JSON.parse(calls[1]!.options!.body as string);
+  assert.equal(body.ref, 'main');
+  assert.equal(body.inputs.image_ref, image);
 });
 
-test('infra failure propagates and permission failure never dispatches', async () => {
-  await assert.rejects(dispatchAndWait({ infra: 'example/infra', target: 'asurai', sha, image,
-    requestId: '1-1-asurai', sleep: async () => {}, report: () => {},
-    api: async path => path.endsWith('/workflows/deploy.yml') ? { state: 'active' } : ({ workflow_runs: [{ id: 8, display_title: 'Deploy asurai 1-1-asurai',
-      status: 'completed', conclusion: 'failure', html_url: 'failure-url' }] }) }), /Deployment failure/);
-  let calls = 0;
-  await assert.rejects(dispatchAndWait({ infra: 'example/infra', target: 'asurai', sha, image,
-    requestId: '1-1-asurai', api: async () => { calls++; throw new Error('permission'); } }), /permission/);
-  assert.equal(calls, 1);
+test('failed or mismatched run identity cannot report deployment success', async () => {
+  for (const change of [{ conclusion: 'failure' }, { conclusion: 'skipped' }, { id: 9 }, { event: 'push' },
+    { head_branch: 'feature' }, { path: '.github/workflows/other.yml' }, { html_url: 'https://elsewhere.invalid' },
+    { display_title: 'Deploy tiamat other' }]) {
+    await assert.rejects(dispatchAndWait({ infra: 'example/infra', target: 'asurai', sha, image,
+      requestId: '1-1-asurai', sleep: async () => {}, report: () => {},
+      api: async (path, options) => options?.method === 'POST' ? receipt :
+        path.endsWith('/workflows/deploy.yml') ? { state: 'active' } : { ...infraRun, ...change } }));
+  }
 });
 
-test('timeout reports an unknown outcome without redispatching', async () => {
+test('bad dispatch receipts fail without polling or repeating the request', async () => {
+  for (const value of [null, {}, { ...receipt, workflow_run_id: -1 }, { ...receipt, run_url: 'other' }]) {
+    let calls = 0;
+    await assert.rejects(dispatchAndWait({ infra: 'example/infra', target: 'asurai', sha, image,
+      requestId: '1-1-asurai', report: () => {}, api: async (_path, options) => {
+        calls++;
+        return options?.method === 'POST' ? value : { state: 'active' };
+      } }), /receipt|run ID/);
+    assert.equal(calls, 2);
+  }
+});
+
+test('timeout reports its exact run without redispatching', async () => {
   let posts = 0;
-  await assert.rejects(dispatchAndWait({ infra: 'example/infra', target: 'tiamat', sha, image,
-    requestId: '1-1-tiamat', attempts: 2, sleep: async () => {},
-    api: async (path, options) => { if (options?.method === 'POST') posts++; return path.endsWith('/workflows/deploy.yml') ? { state: 'active' } : { workflow_runs: [] }; } }), /still unknown/);
+  await assert.rejects(dispatchAndWait({ infra: 'example/infra', target: 'asurai', sha, image,
+    requestId: '1-1-asurai', attempts: 2, sleep: async () => {}, report: () => {},
+    api: async (path, options) => {
+      if (options?.method === 'POST') { posts++; return receipt; }
+      return path.endsWith('/workflows/deploy.yml') ? { state: 'active' } : { ...infraRun, status: 'in_progress', conclusion: null };
+    } }), /still unknown.*runs\/8/);
   assert.equal(posts, 1);
 });
 
-test('transient reads retry, but an uncertain dispatch is never repeated', async () => {
+test('transient reads retry, uncertain dispatch does not, and redirects are forbidden', async () => {
   let requests = 0;
-  const api = createGitHubApi('test', { sleep: async () => {}, request: async () => {
+  const api = createGitHubApi('test', { sleep: async () => {}, request: async (_url, options) => {
     requests++;
+    assert.equal(options?.redirect, 'error');
+    assert.equal((options?.headers as Record<string, string>)['X-GitHub-Api-Version'], '2026-03-10');
     return requests < 3 ? new Response(null, { status: 503 }) : Response.json({ ok: true });
   } });
-  assert.deepEqual(await api('/read'), { ok: true });
+  assert.deepEqual(await api('/repos/example/app'), { ok: true });
   assert.equal(requests, 3);
   requests = 0;
   const uncertain = createGitHubApi('test', { request: async () => { requests++; throw new Error('connection lost'); } });
-  await assert.rejects(uncertain('/dispatches', { method: 'POST' }), /outcome is unknown/);
+  await assert.rejects(uncertain('/repos/example/infra/actions/workflows/deploy.yml/dispatches', { method: 'POST' }), /outcome is unknown/);
   assert.equal(requests, 1);
 });
 
-test('malformed workflow responses fail without redispatching', async () => {
-  let posts = 0;
-  await assert.rejects(dispatchAndWait({ infra: 'example/infra', target: 'asurai', sha, image,
-    requestId: '1-1-asurai', sleep: async () => {},
-    api: async (path, options) => {
-      if (path.endsWith('/workflows/deploy.yml')) return { state: 'active' };
-      if (options?.method === 'POST') posts++;
-      return { workflow_runs: [{ display_title: 'Deploy asurai 1-1-asurai', status: 'completed', conclusion: 'success' }] };
-    } }), /Invalid infrastructure workflow response/);
-  assert.equal(posts, 1);
+test('malformed source run or metadata cannot be reused', () => {
   assert.throws(() => validateRelease(null, release, repository), /Release must belong/);
   assert.throws(() => validateRelease(run, null, repository), /Release must belong/);
 });
-
 
 test('configured targets deploy both sites once and reject empty or unknown targets', () => {
   assert.deepEqual(resolveTargets('configured', 'tiamat, asurai tiamat\nasurai'), ['asurai', 'tiamat']);

@@ -331,21 +331,21 @@ Actions** and configure:
 
 | Setting | Kind | Value |
 | --- | --- | --- |
-| `INFRA_REPO` | Variable | `pjunak/junak.eu` |
+| `INFRA_REPO` | Variable | `pjunak/infra` |
 | `INFRA_SERVICE` | Variable | `asurai tiamat` |
 | `INFRA_DISPATCH_TOKEN` | Secret | A fine-grained GitHub token scoped to the infrastructure repository |
 
 When creating the token, select the infrastructure repository's owner and
-**Only select repositories → junak.eu**. Give it **Contents: read and write**
-(to send a repository dispatch) and **Actions: read-only** (to check the
-workflow and follow its result). Set an expiry that fits your maintenance
+**Only select repositories → infra**. Give it **Contents: read-only** and
+**Actions: read and write** (to start the deployment workflow and follow its
+returned run ID). Set an expiry that fits your maintenance
 schedule and replace the stored secret before it expires. If an organization
 requires token approval, obtain that approval too. Use the GitHub secret form;
 never place the token in source, logs or chat.
 
 The early **Check deployment configuration** job verifies target names, token
 access and that the infrastructure **Deploy** workflow is enabled. This read
-check cannot prove Contents-write permission without sending a real dispatch;
+check cannot prove Actions-write permission without sending a real dispatch;
 a dispatch permission failure still fails the deployment. If the check returns
 403 or 404, verify the token's repository selection, permissions, expiry and
 owner approval, then update `INFRA_DISPATCH_TOKEN`. Merely rerunning with the
@@ -353,7 +353,7 @@ same inaccessible token will not repair it. Install and validate the matching
 infrastructure workflow before enabling this application workflow.
 
 See GitHub's [fine-grained token guide](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
-and [repository dispatch permissions](https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event).
+and [workflow dispatch permissions](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event).
 
 ### Manual checks and recovery
 
