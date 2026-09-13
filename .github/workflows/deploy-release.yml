@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       source_run_id:
-        description: Successful main Build and dispatch run ID containing release-metadata
+        description: Main Build and dispatch run ID with a successful Build image and release-metadata
         required: true
         type: string
       target:
@@ -19,8 +19,9 @@ permissions:
   actions: read
 
 concurrency:
-  group: release-deploy-${{ inputs.target }}
+  group: codex-production-release
   cancel-in-progress: false
+  queue: max
 
 jobs:
   deploy:

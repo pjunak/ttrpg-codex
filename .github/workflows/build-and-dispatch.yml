@@ -1,19 +1,11 @@
 name: Build and dispatch
 
-# On every push to main: validates the suite and builds a Docker image. It
-# publishes :latest and :sha-<commit> only after the product-parity release gate
-# passes. Production deployment remains an explicit manual action so a source-
-# branch promotion can never race a campaign-data cutover. A manual run validates
-# without publishing or deploying unless publishing or a deployment target is
-# explicitly enabled; selecting a deployment target publishes first and
-# dispatches that exact image digest.
-#
-# Required configuration in the app repo (Settings → Secrets and variables → Actions):
-#   Secret   INFRA_DISPATCH_TOKEN   infra Contents: write and Actions: read
-#   Variable INFRA_REPO             owner/infra-repo (e.g. pjunak/junak.eu)
-#   Variable INFRA_SERVICE          manual `configured` target list. May be a
-#                                   space/comma-separated list such as
-#                                   "tiamat asurai"; each becomes one dispatch.
+# Main pushes validate, publish an immutable image, and deploy every configured
+# campaign. Manual runs are check-only unless publication/deployment is selected.
+# Required Actions configuration:
+#   INFRA_DISPATCH_TOKEN: fine-grained token for infra, Contents write + Actions read
+#   INFRA_REPO: owner/infra-repo
+#   INFRA_SERVICE: space/comma-separated targets; use "asurai tiamat" for both sites.
 
 on:
   push:
@@ -42,8 +34,12 @@ permissions:
   packages: write
 
 concurrency:
-  group: build-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+  # Share the release queue with Deploy published release. A newer push must
+  # never cancel a workflow that has already asked infrastructure to deploy.
+  # PRs use independent groups and do not hold the production queue.
+  group: ${{ github.event_name == 'pull_request' && format('check-{0}', github.run_id) || 'codex-production-release' }}
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   compatibility:
@@ -76,7 +72,7 @@ jobs:
 
   build:
     name: Build image
-    needs: [test, compatibility]
+    needs: [test, compatibility, resolve-targets]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     outputs:
@@ -105,14 +101,22 @@ jobs:
             echo "::notice::Docker publication is disabled until the product-parity gate passes."
           fi
 
-      - name: Refuse an explicitly requested incomplete release
-        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish || inputs.deploy_target != 'none') && steps.release_readiness.outputs.ready != 'true' }}
+      - name: Refuse an incomplete release
+        if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && (inputs.publish || inputs.deploy_target != 'none')) && steps.release_readiness.outputs.ready != 'true' }}
         run: |
           echo "::error::Publish or deployment was requested while product parity is incomplete."
           exit 1
 
+      - name: Check automatic release is still current
+        id: current
+        if: github.event_name == 'push'
+        run: node scripts/deploy-release.mts current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_SHA: ${{ github.sha }}
+
       - name: Log in to GHCR
-        if: ${{ steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
+        if: ${{ steps.current.outputs.current != 'false' && steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -158,7 +162,7 @@ jobs:
 
       - name: Publish the verified warm build
         id: publish_image
-        if: ${{ steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
+        if: ${{ steps.current.outputs.current != 'false' && steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -170,7 +174,7 @@ jobs:
           cache-from: type=gha
 
       - name: Record published release identity
-        if: ${{ steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
+        if: ${{ steps.current.outputs.current != 'false' && steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
         env:
           IMAGE_REF: ${{ steps.img.outputs.name }}@${{ steps.publish_image.outputs.digest }}
         run: |
@@ -178,56 +182,41 @@ jobs:
           node scripts/write-release-metadata.mts
 
       - uses: actions/upload-artifact@v7
-        if: ${{ steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
+        if: ${{ steps.current.outputs.current != 'false' && steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
         with:
           name: release-metadata
           path: release/release.json
           retention-days: 90
           if-no-files-found: error
 
-  # INFRA_SERVICE may be one service or a list ("tiamat asurai"). Resolve it to
-  # a JSON array so the dispatch job can fan out one deploy per service — the
-  # infra deploy workflow takes a single service per event and serialises runs,
-  # so N events redeploy N stacks safely from one image push.
+  # Run before the image build so missing/expired credentials fail early.
+  # Non-deployment runs complete this job without receiving deployment secrets.
   resolve-targets:
-    name: Resolve deploy targets
-    needs: build
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy_target != 'none' }}
+    name: Check deployment configuration
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       services: ${{ steps.list.outputs.services }}
     steps:
-      - name: Parse INFRA_SERVICE into a JSON array
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Resolve targets and verify infrastructure access
         id: list
+        if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && inputs.deploy_target != 'none') }}
+        run: node scripts/deploy-release.mts prepare
         env:
-          TOKEN: ${{ secrets.INFRA_DISPATCH_TOKEN }}
-          REPO: ${{ vars.INFRA_REPO }}
-          SERVICE: ${{ vars.INFRA_SERVICE }}
-          TARGET: ${{ inputs.deploy_target }}
-        run: |
-          set -euo pipefail
-          : "${TOKEN:?INFRA_DISPATCH_TOKEN secret is not set}"
-          : "${REPO:?INFRA_REPO variable is not set (e.g. owner/infra-repo)}"
-          if [[ "${TARGET:-}" == asurai || "${TARGET:-}" == tiamat ]]; then
-            services=$(jq -nc --arg service "$TARGET" '[$service]')
-          else
-            : "${SERVICE:?INFRA_SERVICE variable is not set (e.g. tiamat, or a list: tiamat asurai)}"
-            # Split on commas and/or any whitespace; drop empties.
-            services=$(printf '%s' "$SERVICE" | jq -Rsc 'split("[,\\s]+";"") | map(select(length > 0))')
-          fi
-          services=$(jq -c 'unique' <<<"$services")
-          if ! jq -e 'length > 0 and all(.[]; . == "asurai" or . == "tiamat")' <<<"$services" >/dev/null; then
-            echo "::error::INFRA_SERVICE must contain only asurai and/or tiamat"
-            exit 1
-          fi
-          echo "services=$services" >> "$GITHUB_OUTPUT"
-          echo "Deploy targets: $services"
+          GH_TOKEN: ${{ secrets.INFRA_DISPATCH_TOKEN }}
+          INFRA_REPO: ${{ vars.INFRA_REPO }}
+          INFRA_SERVICE: ${{ vars.INFRA_SERVICE }}
+          DEPLOY_TARGET: ${{ github.event_name == 'push' && 'configured' || inputs.deploy_target }}
 
   dispatch:
     name: Deploy and verify (${{ matrix.service }})
     timeout-minutes: 35
     needs: [build, resolve-targets]
+    if: ${{ needs.build.outputs.image_ref != '' && needs.resolve-targets.outputs.services != '' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

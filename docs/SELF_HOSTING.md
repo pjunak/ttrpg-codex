@@ -280,10 +280,15 @@ First sign in as DM and open **Settings → Add-ons**. Package installation and
 GitHub credentials are administrative controls. If the current host UI and API
 are not installed, refreshing the page or updating an add-on cannot add them.
 
-A successful source push, image build and website deployment are separate steps:
+The main-branch workflow now links publication and deployment, but each stage
+still has its own result:
 
-- Failed or skipped **Build image** means that run published no new image.
-- A successful build with skipped deployment jobs leaves the websites unchanged.
+- A skipped **Build image** job publishes nothing. If that job failed, inspect
+  the publication and metadata steps before treating its image as a release.
+- A manual check-only run leaves the websites unchanged. A superseded push also
+  skips publication and deployment, with a notice in its summary.
+- A failed **Check deployment configuration** job blocks the image build. Check
+  the repository variables, token permissions and infrastructure workflow state.
 - A completed deployment must identify the selected instance and pass its
   infrastructure health check. Verify the served frontend and the intended
   feature afterward; HTTP 200 and the generic `2.0.0-dev` health version do not
@@ -296,7 +301,7 @@ activate new add-on ZIPs, and updating an add-on does not deploy a newer host.
 Character-sheet namespace retirement remains the separate
 [explicit offline operation](rewrite/CHARACTER_SHEET_CUTOVER.md).
 
-Use the release workflow below for a host update, then the
+Use the automation below for a host update, then the
 [reviewed package workflow](#add-on-installation) for any intended add-on updates.
 
 ## Publishing and deploying updates
@@ -305,22 +310,71 @@ The following automation belongs to the maintained Asurai/Tiamat deployment.
 Other installations can build the Docker image and follow the ordinary update
 procedure below.
 
-Pushes to `main` run the host and add-on compatibility gates and publish a
-versioned image after a packaged-runtime startup check; they do not deploy a campaign. Each published build stores a
-`release-metadata` artifact containing its source SHA and immutable digest.
+A push to `main` runs the host and add-on compatibility gates, checks that the
+packaged runtime starts, publishes an immutable image, and deploys it to **both
+Asurai and Tiamat**. The workflow stays active until both infrastructure runs
+finish. A failed deployment makes the application run fail; accepting the
+request alone is insufficient. Each deployment summary records the source
+commit, image digest and infrastructure run link.
 
-For an existing release, run **Deploy published release** on `main`, enter the
-successful **Build and dispatch** run ID, and select Asurai or Tiamat. This
-reuses the tested image without rerunning builds. Metadata is retained for 90
-days. Builds from before this workflow was introduced need a new published run.
-For a new build, the original combined workflow still supports an explicit
-deployment target. A successful app deployment now includes the infrastructure
-health result, with its run linked in the summary.
+Automatic and manual releases share a queue so a new push cannot interrupt an
+active deployment. Before publishing an automatic release, the workflow checks
+that its commit is still the current `main`. A superseded run continues its
+checks but skips publication and deployment, with an explanatory summary.
+GitHub orders this queue by arrival, so the revision check also protects against
+rerunning an old push. See [GitHub's concurrency documentation](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
 
-The infrastructure dispatch token requires Contents write and Actions read on
-the infrastructure repository. Install its matching deployment workflow first;
-the app checks Actions access before dispatching. A permission or timeout error
-must not be treated as deployment success or blindly retried.
+### Configure deployment once
+
+In the **ttrpg-codex** repository, open **Settings → Secrets and variables →
+Actions** and configure:
+
+| Setting | Kind | Value |
+| --- | --- | --- |
+| `INFRA_REPO` | Variable | `pjunak/junak.eu` |
+| `INFRA_SERVICE` | Variable | `asurai tiamat` |
+| `INFRA_DISPATCH_TOKEN` | Secret | A fine-grained GitHub token scoped to the infrastructure repository |
+
+When creating the token, select the infrastructure repository's owner and
+**Only select repositories → junak.eu**. Give it **Contents: read and write**
+(to send a repository dispatch) and **Actions: read-only** (to check the
+workflow and follow its result). Set an expiry that fits your maintenance
+schedule and replace the stored secret before it expires. If an organization
+requires token approval, obtain that approval too. Use the GitHub secret form;
+never place the token in source, logs or chat.
+
+The early **Check deployment configuration** job verifies target names, token
+access and that the infrastructure **Deploy** workflow is enabled. This read
+check cannot prove Contents-write permission without sending a real dispatch;
+a dispatch permission failure still fails the deployment. If the check returns
+403 or 404, verify the token's repository selection, permissions, expiry and
+owner approval, then update `INFRA_DISPATCH_TOKEN`. Merely rerunning with the
+same inaccessible token will not repair it. Install and validate the matching
+infrastructure workflow before enabling this application workflow.
+
+See GitHub's [fine-grained token guide](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
+and [repository dispatch permissions](https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event).
+
+### Manual checks and recovery
+
+A manual **Build and dispatch** run defaults to checks only. Selecting
+`publish` publishes without deploying; selecting Asurai, Tiamat or `configured`
+publishes and deploys that build. Publication and deployment require `main`.
+
+Each published build stores a `release-metadata` artifact for 90 days. To reuse
+it, run **Deploy published release** on `main`, enter the **Build and dispatch**
+run ID, and select the campaign. This verifies the source, image and build
+provenance without rerunning the build. A run whose deployment failed remains
+eligible if its **Build image** job succeeded; a failed image build is rejected.
+This also lets you retry only the campaign that failed after checking its
+infrastructure run. Explicitly selecting an older release is a rollback and
+requires the usual compatibility and backup review.
+
+For a timeout or interrupted connection, inspect the linked infrastructure run
+before retrying: the deployment may still be running or may already have
+succeeded. Requests with an uncertain outcome are never automatically sent
+again. A failed health check leaves diagnostic state available; it does not
+automatically roll back campaign data.
 
 Add-on repositories publish reviewed ZIPs as private/public CI artifacts
 according to repository visibility, retained for 14 days. Installing those ZIPs
