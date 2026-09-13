@@ -552,9 +552,14 @@ for (const mobile of [false, true]) test(`character editor keeps description and
   await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 });
   await editRecordOrDefinition(page);
   await page.evaluate(() => document.fonts.ready);
-  const details = await page.locator('.character-editor-details').boundingBox().then(required);
-  const description = await page.locator('.character-editor-description').boundingBox().then(required);
-  assert.ok(mobile ? description.y >= details.y + details.height : description.x >= details.x + details.width);
+  // Read both rectangles in one frame: smooth scrolling changes viewport coordinates.
+  const { details, description } = await page.evaluate(() => {
+    const details = document.querySelector('.character-editor-details')!.getBoundingClientRect();
+    const description = document.querySelector('.character-editor-description')!.getBoundingClientRect();
+    return { details: details.toJSON(), description: description.toJSON() };
+  });
+  assert.ok(mobile ? description.y >= details.y + details.height : description.x >= details.x + details.width,
+    `Editor panes overlap: ${JSON.stringify({ mobile, details, description })}`);
   await sourceView(page);
   await page.getByRole('button', { name: 'Expand writer', exact: true }).click();
   const textarea = page.locator('textarea[name="description"]');
