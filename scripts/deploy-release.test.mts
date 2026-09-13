@@ -49,6 +49,34 @@ test('dispatch uses main and polls only the returned run ID', async () => {
   assert.equal(body.inputs.image_ref, image);
 });
 
+test('queued workflow placeholder waits for the expanded request title', async () => {
+  let polls = 0;
+  const result = await dispatchAndWait({ infra: 'example/infra', target: 'asurai', sha, image,
+    requestId: '1-1-asurai', sleep: async () => {}, report: () => {},
+    api: async (path, options) => {
+      if (options?.method === 'POST') return receipt;
+      if (path.endsWith('/workflows/deploy.yml')) return { state: 'active' };
+      return ++polls === 1 ? { ...infraRun, display_title: 'Deploy', status: 'queued', conclusion: null } : infraRun;
+    } });
+  assert.equal(result.conclusion, 'success');
+  assert.equal(polls, 2);
+});
+
+test('placeholder cannot report success or wait without bound', async () => {
+  for (const status of ['queued', 'in_progress', 'completed']) {
+    let polls = 0;
+    await assert.rejects(dispatchAndWait({ infra: 'example/infra', target: 'asurai', sha, image,
+      requestId: '1-1-asurai', attempts: 6, sleep: async () => {}, report: () => {},
+      api: async (path, options) => {
+        if (options?.method === 'POST') return receipt;
+        if (path.endsWith('/workflows/deploy.yml')) return { state: 'active' };
+        polls++;
+        return { ...infraRun, display_title: 'Deploy', status };
+      } }), /run title/);
+    assert.equal(polls, status === 'queued' ? 5 : 1);
+  }
+});
+
 test('failed or mismatched run identity cannot report deployment success', async () => {
   for (const change of [{ conclusion: 'failure' }, { conclusion: 'skipped' }, { id: 9 }, { event: 'push' },
     { head_branch: 'feature' }, { path: '.github/workflows/other.yml' }, { html_url: 'https://elsewhere.invalid' },

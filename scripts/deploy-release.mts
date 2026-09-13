@@ -126,8 +126,13 @@ export async function dispatchAndWait({ api, sleep = ms => new Promise(resolve =
     const run = deploymentRun(value);
     if (!isRecord(value) || run.id !== id || value.event !== 'workflow_dispatch' || value.head_branch !== 'main' ||
         typeof value.path !== 'string' || value.path.split('@')[0] !== '.github/workflows/deploy.yml' ||
-        run.html_url !== url || run.display_title !== `Deploy ${target} ${requestId}`) {
+        run.html_url !== url) {
       throw new Error('Invalid infrastructure run identity.');
+    }
+    // GitHub can return the workflow name before expanding a queued run-name.
+    if (run.display_title !== `Deploy ${target} ${requestId}`) {
+      if (run.display_title === 'Deploy' && run.status === 'queued' && attempt < 4) continue;
+      throw new Error('Invalid infrastructure run title.');
     }
     if (run.status === 'completed') {
       if (run.conclusion !== 'success') throw new Error(`Deployment ${run.conclusion}: ${url}`);
