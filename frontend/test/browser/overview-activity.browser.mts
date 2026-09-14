@@ -128,5 +128,7 @@ for (const mobile of [false, true]) test(`overview activity follows player creat
   const current = await record(key); await put(admin, csrf, key, { ...current.value, visibility: 'dm' }, current.revision);
   await anonymous.page.waitForFunction(key => !document.querySelector(`.recent-ledger a[href="#/locations/${key}"]`), key);
   await player.page.goto('/#/'); await player.page.locator('.session-section').waitFor();
+  // Hash navigation reuses the campaign snapshot; this tab's live refresh is independent of the anonymous tab.
+  await player.page.locator(link).waitFor({ state: 'detached' });
   assert.equal(await player.page.locator(link).count(), 0);
 });
