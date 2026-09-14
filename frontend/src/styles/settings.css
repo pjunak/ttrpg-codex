@@ -806,3 +806,6 @@ codex-addon-settings { display: block; min-width: 0; }
   font-family: var(--font-title);
   color: var(--text-parchment);
 }
+
+codex-package-storage { display: block; min-width: 0; overflow-wrap: anywhere; }
+codex-package-storage li { margin-block: .75rem; }

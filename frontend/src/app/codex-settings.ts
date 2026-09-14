@@ -48,7 +48,7 @@ export class CodexSettings extends LitElement {
     csrfToken: { attribute: false },
     editingId: { state: true },
     deleteId: { state: true },
-    registry: { attribute: false }, actorRole: { attribute: false }, addonTarget: { attribute: false },
+    registry: { attribute: false }, actorRole: { attribute: false }, addonTarget: { attribute: false }, addonGeneration: { attribute: false },
   };
 
   declare campaign: CampaignDataset | undefined;
@@ -64,6 +64,7 @@ export class CodexSettings extends LitElement {
   declare registry: BrowserContributionRegistry | undefined;
   declare actorRole: BrowserRole | undefined;
   declare addonTarget: string | null | undefined;
+  declare addonGeneration: string | undefined;
   readonly #contributions = new AddonContributionsController(this, () => ({ registry: this.registry, role: this.actorRole }));
   readonly #ui = new UiLocalizationController(this);
   #dirty = false;
@@ -114,6 +115,7 @@ export class CodexSettings extends LitElement {
     if (this.activeCategory === "addons") return this.#shell(html`<codex-addon-manager .csrfToken=${this.csrfToken}
       .registry=${this.registry} .actorRole=${this.actorRole} .canManage=${this.canManageCampaign}
       .addonTarget=${this.addonTarget}
+      .addonGeneration=${this.addonGeneration}
       @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => { this.#dirty = event.detail.dirty; }}></codex-addon-manager>`);
     if (!this.canManageCampaign) return this.#shell(this.#languagePanel());
     if (this.activeCategory === "account") return this.#shell(html`<codex-credential-settings .csrfToken=${this.csrfToken}

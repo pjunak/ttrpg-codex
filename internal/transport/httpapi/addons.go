@@ -41,6 +41,8 @@ type AdminAuthorizer func(*http.Request) error
 var _ AddonLifecycle = (*packagemanager.Manager)(nil)
 
 func (s *server) registerAddonAdminRoutes(mux *http.ServeMux) {
+	mux.Handle("GET /api/admin/addon-package-storage", s.requireAdmin(http.HandlerFunc(s.packageStorage)))
+	mux.Handle("POST /api/admin/addon-package-storage/{operation}", s.requireAdmin(http.HandlerFunc(s.packageStorage)))
 	mux.Handle("POST /api/admin/addon-package-cleanup/{operation}", s.requireAdmin(http.HandlerFunc(s.packageCleanup)))
 	mux.Handle("GET /api/admin/rules-policy", s.requireAdmin(http.HandlerFunc(s.rulesPolicy)))
 	mux.Handle("POST /api/admin/rules-policy", s.requireAdmin(http.HandlerFunc(s.setSourcePolicy)))
@@ -352,6 +354,7 @@ func classifyLifecycleError(err error) (int, string, string) {
 		{packagemanager.ErrRulesetCompatibility, http.StatusUnprocessableEntity, "RULESET_INCOMPATIBLE", err.Error()},
 		{servicebroker.ErrInvalidSelection, http.StatusUnprocessableEntity, "INVALID_SELECTION", "Select compatible available providers for this service."},
 		{servicebroker.ErrBindingConflict, http.StatusConflict, "BINDING_CONFLICT", "The service selection changed. Refresh and review the current choice."},
+		{packagemanager.ErrPackageUnavailable, http.StatusServiceUnavailable, "PACKAGE_UNAVAILABLE", packagemanager.ErrPackageUnavailable.Error()},
 		{packagemanager.ErrGenerationNotFound, http.StatusNotFound, "GENERATION_NOT_FOUND", packagemanager.ErrGenerationNotFound.Error()},
 		{packagemanager.ErrReviewNotFound, http.StatusNotFound, "REVIEW_NOT_FOUND", packagemanager.ErrReviewNotFound.Error()},
 		{packagemanager.ErrNotActive, http.StatusConflict, "ADDON_NOT_ACTIVE", packagemanager.ErrNotActive.Error()},

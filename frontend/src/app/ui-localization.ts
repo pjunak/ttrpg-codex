@@ -1,3 +1,4 @@
+import { storageEn, storageCs } from "./storage-messages.js";
 import { cleanupEn, cleanupCs } from "./cleanup-messages.js";
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import { sourceEn, sourceCs, type SourceMessage } from "./ui-source-messages.js";
@@ -25,6 +26,7 @@ const enCatalog = {
   ...contextEn,
   ...configurationEn,
   ...cleanupEn,
+  ...storageEn,
   ...ruleDetailsEn,
   "settings.usedRecords": { one: "Used by {n} record", other: "Used by {n} records" },
   "settings.replaceRecords": { one: "{n} campaign record uses this definition. Choose how those records should change.", other: "{n} campaign records use this definition. Choose how those records should change." },
@@ -492,6 +494,7 @@ const csCatalog = {
   ...contextCs,
   ...configurationCs,
   ...cleanupCs,
+  ...storageCs,
   ...ruleDetailsCs,
   "settings.usedRecords": { one: "Používá {n} záznam", few: "Používají {n} záznamy", other: "Používá {n} záznamů" },
   "settings.replaceRecords": { one: "Tuto definici používá {n} záznam kampaně. Vyberte, jak se mají použití změnit.", few: "Tuto definici používají {n} záznamy kampaně. Vyberte, jak se mají použití změnit.", other: "Tuto definici používá {n} záznamů kampaně. Vyberte, jak se mají použití změnit." },

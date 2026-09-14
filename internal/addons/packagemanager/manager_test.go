@@ -825,6 +825,9 @@ func TestCohortRecoveryFailureKeepsReviewedDurableSelection(t *testing.T) {
 	db := testDatabase(t)
 	factory := &fakeRuntimeFactory{}
 	manager, _ := testManager(t, db, filepath.Join(t.TempDir(), "packages"), factory)
+	if err := manager.ConfigurePackageRetention(context.Background(), true, nil); err != nil {
+		t.Fatal(err)
+	}
 	provider := stageServicePackage(t, manager, "engine-addon", "1.0.0", "3.1.0")
 	if _, err := manager.Activate(context.Background(), ActivationPlan{
 		AddonID: "engine-addon", GenerationID: provider.GenerationID,
@@ -856,6 +859,10 @@ func TestCohortRecoveryFailureKeepsReviewedDurableSelection(t *testing.T) {
 	if result.State.ActiveGenerationID != target.GenerationID || result.State.Revision != 2 ||
 		len(result.RecoveryResults) != 2 || result.RecoveryResults[0].Recovered || result.RecoveryResults[1].Recovered {
 		t.Fatalf("degraded cohort result = %+v", result)
+	}
+	snapshot, err := manager.Snapshot(context.Background(), "engine-addon", 10)
+	if err != nil || len(snapshot.Generations) != 2 {
+		t.Fatal("degraded cohort lost fallback files", err, snapshot)
 	}
 	consumed, err := manager.GetActivationReview(context.Background(), review.ReviewID)
 	if err != nil {
@@ -1433,8 +1440,8 @@ func testDatabase(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.CurrentVersion != 17 {
-		t.Fatalf("migration version = %d, want 17", result.CurrentVersion)
+	if result.CurrentVersion != 18 {
+		t.Fatalf("migration version = %d, want 18", result.CurrentVersion)
 	}
 	return db
 }

@@ -55,10 +55,10 @@ func (store *store) recordGeneration(ctx context.Context, report packageRecord) 
 	}
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO addon_package_states(addon_id, updated_at)
-		VALUES (?, ?)
-		ON CONFLICT(addon_id) DO NOTHING`,
+		SELECT ?, ? WHERE NOT EXISTS(SELECT 1 FROM addon_package_states WHERE addon_id=?)`,
 		report.Manifest.ID,
 		now.Format(time.RFC3339Nano),
+		report.Manifest.ID,
 	); err != nil {
 		return Generation{}, fmt.Errorf("create add-on package state: %w", err)
 	}
@@ -78,6 +78,9 @@ func (store *store) recordGeneration(ctx context.Context, report packageRecord) 
 		if _, err := tx.ExecContext(ctx, `UPDATE addon_package_states SET revision = revision + 1, updated_at = ? WHERE addon_id = ?`, now.Format(time.RFC3339Nano), report.Manifest.ID); err != nil {
 			return Generation{}, err
 		}
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE addon_package_files SET status='local',updated_at=? WHERE addon_id=? AND generation_id=? AND status='remote'`, now.Format(time.RFC3339Nano), report.Manifest.ID, report.GenerationID); err != nil {
+		return Generation{}, err
 	}
 	if insertedCount == 1 || reinstalledCount == 1 {
 		if err := insertEvent(ctx, tx, report.Manifest.ID, report.GenerationID, "staged", "", now); err != nil {
@@ -362,7 +365,7 @@ func (store *store) snapshot(ctx context.Context, addonID string, eventLimit int
 		       installed_at, last_attempt_at, last_activated_at,
 		       COALESCE(last_error, '')
 		FROM addon_package_generations
-		WHERE addon_id = ?
+		WHERE addon_id = ? AND NOT EXISTS(SELECT 1 FROM addon_package_files f WHERE f.addon_id=addon_package_generations.addon_id AND f.generation_id=addon_package_generations.generation_id AND f.status<>'local')
 		ORDER BY installed_at DESC, generation_id`, addonID)
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("list add-on generations: %w", err)

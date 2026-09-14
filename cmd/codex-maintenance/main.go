@@ -9,6 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/pjunak/ttrpg-codex/internal/addons/githubsource"
+	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
+	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/backuparchive"
 	"github.com/pjunak/ttrpg-codex/internal/maintenance/processlock"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
@@ -68,7 +71,24 @@ func runBackup(ctx context.Context, arguments []string, stdout, stderr io.Writer
 	if err != nil {
 		return fmt.Errorf("open backup database: %w", err)
 	}
+	inspector, err := packageinspect.New(packageinspect.DefaultLimits)
+	if err != nil {
+		database.Close()
+		return err
+	}
+	token := os.Getenv("CODEX_GITHUB_TOKEN")
+	if token == "" {
+		token = os.Getenv("GITHUB_TOKEN")
+	}
+	fetch, err := githubsource.NewPackageFetcher(githubsource.Config{DB: database, DataDirectory: *dataDirectory, Inspector: inspector, EnvironmentToken: token})
+	if err != nil {
+		database.Close()
+		return err
+	}
 	manifest, createErr := backuparchive.Create(ctx, backuparchive.CreateConfig{
+		MaterializePackages: func(ctx context.Context, databasePath, stageRoot string) error {
+			return packagemanager.MaterializePackageBackup(ctx, databasePath, filepath.Join(*dataDirectory, "addons"), stageRoot, inspector, fetch)
+		},
 		Database: database, DataDirectory: *dataDirectory,
 		OutputPath: *output, HostVersion: hostVersion,
 	})

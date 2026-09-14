@@ -1,3 +1,4 @@
+import "./codex-package-storage.js";
 import { LitElement, html, nothing } from "lit";
 import { recoveryRequest, RecoveryRequestError, type RecoveryAction, type RecoveryListing, type RecoveryPoint } from "../core/recovery.js";
 import { UiLocalizationController, type MessageKey } from "./ui-localization.js";
@@ -11,6 +12,8 @@ export class CodexRecoverySettings extends LitElement {
   declare review: { action: RecoveryAction; point: RecoveryPoint } | undefined;
   #ui = new UiLocalizationController(this);
   #abort = new AbortController();
+  #packageBusy = false;
+  #packagesReady = false;
   #failed = false;
   #reloadRequired = false;
   constructor() { super(); this.csrfToken = ""; this.busy = false; }
@@ -24,7 +27,7 @@ export class CodexRecoverySettings extends LitElement {
         <div class="settings-recovery-actions">
           <a class="inline-create-btn" href="/api/backup" download>📥 ${this.#ui.t("recovery.download")}</a>
           <button type="button" ?disabled=${this.busy || !!this.review} @click=${() => void this.#request({ kind: "create" })}>＋ ${this.#ui.t("recovery.create")}</button>
-          <button type="button" ?disabled=${this.busy} @click=${() => void this.#request()}>↻ ${this.#ui.t("recovery.refresh")}</button>
+          <button type="button" ?disabled=${this.busy || this.#packageBusy} @click=${() => void this.#request()}>↻ ${this.#ui.t("recovery.refresh")}</button>
         </div>
       </header>
       <p class="settings-hint">${this.#ui.t("recovery.intro")}</p>
@@ -58,6 +61,7 @@ export class CodexRecoverySettings extends LitElement {
     this.#showReview(point, { kind, id: point.id, expectedRevision: this.listing.revision });
   }
   #showReview(point: RecoveryPoint, action: RecoveryAction): void {
+    this.#packagesReady = false; this.#packageBusy = false;
     this.review = { point, action }; this.message = undefined;
     void this.updateComplete.then(() => this.querySelector<HTMLElement>("#recovery-review-title")?.focus());
   }
@@ -75,12 +79,15 @@ export class CodexRecoverySettings extends LitElement {
       <h3 id="recovery-review-title" tabindex="-1">${this.#ui.t(deleting ? "recovery.deleteReview" : "recovery.restoreReview")}</h3>
       <p>${this.#date(point)} · ${this.#ui.t("recovery.summary", { records: point.records, documents: point.documents, media: point.media })}</p>
       <p>${this.#ui.t(deleting ? "recovery.deleteEffect" : "recovery.restoreEffect")}</p>
-      <div class="settings-recovery-actions"><button type="button" ?disabled=${this.busy} @click=${() => void this.#request(action)}>${this.#ui.t(deleting ? "recovery.delete" : "recovery.restore")}</button>
-      <button type="button" ?disabled=${this.busy} @click=${() => { this.review = undefined; }}>${this.#ui.t("recovery.cancel")}</button></div>
+      ${deleting ? nothing : html`<codex-package-storage .csrfToken=${this.csrfToken} .pointId=${point.id} .expectedRevision=${this.listing?.revision ?? 0} .disabled=${this.busy}
+        @addon-storage-busy=${(event: CustomEvent<boolean>) => { this.#packageBusy = event.detail; this.requestUpdate(); this.dispatchEvent(new CustomEvent("campaign-edit-dirty", { detail: { dirty: false, saving: event.detail }, bubbles: true, composed: true })); }}
+        @addon-storage-ready=${(event: CustomEvent<boolean>) => { this.#packagesReady = event.detail; this.requestUpdate(); }}></codex-package-storage>`}
+      <div class="settings-recovery-actions"><button type="button" ?disabled=${this.busy || this.#packageBusy || !deleting && !this.#packagesReady} @click=${() => void this.#request(action)}>${this.#ui.t(deleting ? "recovery.delete" : "recovery.restore")}</button>
+      <button type="button" ?disabled=${this.busy || this.#packageBusy} @click=${() => { this.review = undefined; }}>${this.#ui.t("recovery.cancel")}</button></div>
     </section>`;
   }
   async #request(action?: RecoveryAction): Promise<void> {
-    if (this.busy) return;
+    if (this.busy || this.#packageBusy) return;
     const signal = this.#abort.signal;
     this.busy = true; this.message = undefined; this.#failed = false;
     this.dispatchEvent(new CustomEvent("campaign-edit-dirty", { detail: { dirty: false, saving: action !== undefined }, bubbles: true, composed: true }));

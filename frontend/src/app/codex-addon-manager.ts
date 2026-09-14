@@ -9,6 +9,7 @@ import { AddonAdminClient, type AddonReview, type AddonSnapshot } from "../core/
 import { UiLocalizationController, uiSourceLabel, uiText, type MessageKey } from "./ui-localization.js";
 import { uiRequestError } from "./ui-errors.js";
 import "./codex-addon-install.js";
+import "./codex-package-storage.js";
 import { AddonGitHubController } from "./addon-github-controller.js";
 import { AddonGitHubClient, type GitHubDiscovery } from "../core/addon-github.js";
 import { githubTokenHelp } from "./github-access.js";
@@ -22,12 +23,13 @@ import type { AddonUninstallReview } from "../core/addon-uninstall.js";
 import { HostRequestError } from "../core/api.js";
 
 export class CodexAddonManager extends LitElement {
-  static override properties = { csrfToken: { attribute: false }, snapshots: { state: true }, review: { state: true }, removal: { state: true }, cleanup: { state: true }, pending: { state: true }, error: { state: true }, message: { state: true }, grants: { state: true }, registry: { attribute: false }, actorRole: { attribute: false }, canManage: { attribute: false }, addonTarget: { attribute: false }, installOpen: { state: true }, installTarget: { state: true }, staged: { state: true }, activeTab: { state: true }, configurationAddons: { state: true }, configurationError: { state: true } };
+  static override properties = { csrfToken: { attribute: false }, snapshots: { state: true }, review: { state: true }, removal: { state: true }, cleanup: { state: true }, pending: { state: true }, error: { state: true }, message: { state: true }, grants: { state: true }, registry: { attribute: false }, actorRole: { attribute: false }, canManage: { attribute: false }, addonTarget: { attribute: false }, addonGeneration: { attribute: false }, installOpen: { state: true }, installTarget: { state: true }, staged: { state: true }, activeTab: { state: true }, configurationAddons: { state: true }, configurationError: { state: true } };
   declare csrfToken: string;
   declare registry: BrowserContributionRegistry | undefined;
   declare actorRole: BrowserRole | undefined;
   declare canManage: boolean;
   declare addonTarget: string | null | undefined;
+  declare addonGeneration: string | undefined;
   readonly #contributions = new AddonContributionsController(this, () => ({ registry: this.registry, role: this.actorRole }));
   declare private activeTab: string;
   declare private configurationError: string;
@@ -49,22 +51,26 @@ export class CodexAddonManager extends LitElement {
   #opener: HTMLElement | null = null;
   #installBusy = false;
   #configurationBusy = false;
-  get #busy(): boolean { return this.pending || this.#github.pending || this.#installBusy || this.#configurationBusy; }
+  #storageBusy = false;
+  #requestedReview = "";
+  get #busy(): boolean { return this.pending || this.#github.pending || this.#installBusy || this.#configurationBusy || this.#storageBusy; }
   readonly #ui = new UiLocalizationController(this);
   readonly #github = new AddonGitHubController(this, () => this.csrfToken, key => this.#ui.t(key));
   constructor() { super(); this.activeTab = ""; this.configurationAddons = []; this.configurationError = ""; this.canManage = false; this.snapshots = []; this.review = undefined; this.pending = false; this.error = ""; this.message = ""; this.grants = []; this.installOpen = false; this.installTarget = ""; }
   protected override createRenderRoot() { return this; }
   override connectedCallback(): void { super.connectedCallback(); this.#request = new AbortController(); this.#inventoryLoaded = false; this.requestUpdate(); }
   override disconnectedCallback(): void {
+    this.#requestedReview = ""; this.#storageBusy = false;
     this.#request.abort(); this.#installBusy = false; this.#configurationBusy = false; this.pending = false;
     this.installOpen = false; this.staged = undefined; this.review = undefined; this.removal = undefined; this.cleanup = undefined; super.disconnectedCallback();
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    if (changed.has("addonTarget")) this.activeTab = this.addonTarget ?? "";
+    if (changed.has("addonTarget") || changed.has("addonGeneration")) { this.activeTab = this.addonGeneration ? "" : this.addonTarget ?? ""; this.#requestedReview = ""; }
     if (changed.has("canManage")) {
       this.configurationAddons = []; this.configurationError = "";
       this.#request.abort(); this.#request = new AbortController(); this.#inventoryLoaded = false;
       this.snapshots = []; this.review = undefined; this.removal = undefined; this.cleanup = undefined; this.pending = false;
+      this.#requestedReview = ""; this.#storageBusy = false;
       this.#github.reset(); this.#installBusy = false; this.installOpen = false; this.staged = undefined; this.#configurationBusy = false; this.error = ""; this.message = "";
     }
     if (this.isConnected && this.canManage && !this.#inventoryLoaded && !this.#busy) {
@@ -73,6 +79,13 @@ export class CodexAddonManager extends LitElement {
     }
   }
   protected override updated(changed: Map<PropertyKey, unknown>): void {
+    const requested = this.addonTarget && this.addonGeneration ? this.addonTarget + ":" + this.addonGeneration : "";
+    if (requested && this.canManage && this.#inventoryLoaded && !this.#busy && requested !== this.#requestedReview) {
+      this.#requestedReview = requested; this.activeTab = "";
+      const generation = this.snapshots.find(snapshot => snapshot.state.addonId === this.addonTarget)?.generations.find(item => item.generationId === this.addonGeneration);
+      if (generation) this.#prepare(generation.addonId, generation.generationId);
+      else this.error = this.#ui.t("storage.prepareFirst");
+    }
     const selected = this.#selectedTab();
     if (selected !== this.#visibleTab) {
       this.#visibleTab = selected;
@@ -125,6 +138,10 @@ export class CodexAddonManager extends LitElement {
         <div class="addon-actions addon-toolbar"><button ?disabled=${this.#busy} @click=${() => this.#checkUpdates()}>${t(this.#github.pending ? "github.checking" : "github.check")}</button>
           <button ?disabled=${this.#busy} @click=${() => this.#prepareCleanup({ keepInactive: 0 })}>${t("cleanup.open")}</button>
           <button class="addon-primary" ?disabled=${this.#busy} @click=${() => this.#openInstall()}>${t("github.add")}</button></div>
+        <codex-package-storage .csrfToken=${this.csrfToken} .disabled=${this.#busy}
+          .inventoryRevision=${JSON.stringify(this.snapshots.map(snapshot => [snapshot.state, snapshot.generations.map(item => item.generationId)]))}
+          @addon-storage-busy=${(event: CustomEvent<boolean>) => { this.#storageBusy = event.detail; this.requestUpdate(); this.dispatchEvent(new CustomEvent("addon-admin-busy", { detail: event.detail, bubbles: true, composed: true })); }}
+          @addon-package-restored=${(event: CustomEvent<InstalledGeneration>) => { this.#openInstall(); this.staged = event.detail; this.#loadReview(); }}></codex-package-storage>
         ${this.installOpen ? this.#installDialog() : nothing}
         ${this.removal ? this.#uninstallPanel(this.removal) : nothing}
         ${this.cleanup ? this.#cleanupPanel(this.cleanup) : nothing}
@@ -134,7 +151,7 @@ export class CodexAddonManager extends LitElement {
       </div>` : nothing}
       <div id="addon-settings-panel" role="tabpanel" aria-labelledby=${selected ? `addon-tab-addon-${selected}` : nothing} tabindex="0" ?hidden=${!selected}>
         ${selected ? html`<h3>${tabs.find(tab => tab.id === selected)?.name}</h3><a class="addon-settings-link" href=${addonSettingsHash(selected)}>${t("addons.settingsLink")}</a>` : nothing}
-        ${this.canManage ? html`<codex-addon-configuration .csrfToken=${this.csrfToken} .addonId=${selected} .disabled=${this.pending || this.#github.pending || this.#installBusy}
+        ${this.canManage ? html`<codex-addon-configuration .csrfToken=${this.csrfToken} .addonId=${selected} .disabled=${this.pending || this.#github.pending || this.#installBusy || this.#storageBusy}
           @addon-configuration-error=${(event: CustomEvent<string>) => { this.configurationError = event.detail; }}
           @addon-configuration-discovered=${(event: CustomEvent<readonly ConfigurationAddon[]>) => { this.configurationAddons = event.detail; }}
           @addon-lifecycle-request=${(event: Event) => { if (!this.#confirmLifecycle()) event.preventDefault(); }}

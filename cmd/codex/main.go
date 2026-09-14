@@ -300,6 +300,20 @@ func composeHost(
 		_ = addons.Shutdown(context.Background())
 		return nil, fmt.Errorf("configure GitHub add-ons: %w", err)
 	}
+	retentionEnabled := true
+	if configured := os.Getenv("CODEX_ADDON_AUTO_CLEANUP"); configured != "" {
+		if configured != "true" && configured != "false" {
+			_ = addons.Shutdown(context.Background())
+			return nil, fmt.Errorf("CODEX_ADDON_AUTO_CLEANUP must be true or false")
+		}
+		retentionEnabled = configured == "true"
+	}
+	if err := addons.ConfigurePackageRetention(ctx, retentionEnabled, githubAddons.FetchPackage); err != nil {
+		logger.Warn("automatic package cleanup will retry", "error", err)
+	}
+	backupArchives.MaterializePackages = func(ctx context.Context, databasePath, stageRoot string) error {
+		return packagemanager.MaterializePackageBackup(ctx, databasePath, filepath.Join(dataDirectory, "addons"), stageRoot, inspector, githubAddons.FetchPackage)
+	}
 	handler, err := httpapi.New(httpapi.Config{
 		AddonGitHub: githubAddons,
 		Version:     version, DB: db, Logger: logger,

@@ -395,6 +395,7 @@ func (manager *Manager) activateReviewedCohortLocked(
 	} else {
 		manager.publishBrowserGraphChangeLocked(ctx, review.AddonID, "activated-cohort")
 	}
+	manager.cleanupAfterActivationLocked(ctx, &result)
 	return result, nil
 }
 

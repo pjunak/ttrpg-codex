@@ -29,8 +29,9 @@ Copy `.env.example` to `.env` and set:
 | `CODEX_SECURE_COOKIES` | Set `true` behind HTTPS |
 | `CODEX_LOCALE` | Locale reported to add-on workers; default `en` |
 | `CODEX_TIME_ZONE` | IANA time zone reported to workers |
+| `CODEX_ADDON_AUTO_CLEANUP` | `true` by default; remove superseded add-on files after healthy activation. Set `false` for manual retention. See [package retention](rewrite/PACKAGE_LIFECYCLE.md#automatic-package-file-retention). |
 
-The host has no default credential. These values initialize saved password
+The host has no default credential. Password bootstrap values initialize saved password
 hashes once and are not imported from v1 backups. Later starts use the saved
 credentials, so editing `.env` does not undo a password change or re-enable a
 disabled player password. Bootstrap values can be removed after first start.

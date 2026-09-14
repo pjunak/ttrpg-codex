@@ -96,7 +96,6 @@ All rows below remain open; completed archive-pruning implementation is omitted.
 
 | ID | Priority | Remaining work and completion condition |
 | --- | --- | --- |
-| T34 | P2, design proposed | Automatically remove superseded package files after successful activation, keeping the current installed build and recoverable package identities. Implement recovery and backup prerequisites below before enabling this policy. |
 | T05 | P2 | Separate reviewed permanent add-on namespace deletion: counts, recovery/archive implications and backup requirements. Uninstall/archive cleanup must not silently delete campaign data. [Data ownership](rewrite/ADDON_DATA.md). |
 | T06 | P2 | Offline unused-blob collection with live/recovery reference accounting, preview and resumability; shared media and restore must survive. [Blob store](../internal/storage/blobstore/store.go). |
 | T07 | P2 | Measure and bound stored SSE/lifecycle/audit logs separately; test replay/reset across retention boundaries. No silent expiry of authored data or existing archives. [Events](rewrite/EVENT_STREAM.md). |
@@ -111,50 +110,6 @@ All rows below remain open; completed archive-pruning implementation is omitted.
 | T16 | P2, operational | Re-inventory Asurai's superseded archives and historical cutover/maintenance copies; use existing reviewed cleanup where eligible and record retention decisions. Preserve independent backups; do not repeat the completed sheet reset. |
 | T17 | P2, operational | Recheck Tiamat's intended add-on state, stored data and wanted packages before activation/retirement. Asurai's reset authorization does not apply to Tiamat. |
 | T18-HOST | P2, review | Fill action-level gaps for core editing, role preview, settings, maps/timeline/graphs, recovery and lifecycle using [browser fixtures](../frontend/test/browser/) and relevant backend tests. Apply the completion criteria below. |
-
-### T34: automatic package retention proposal
-
-Keep one successfully activated build per installed add-on, including its ZIP
-and extracted runtime. A newer download alone must not displace it; a failed
-activation keeps the previous working build. Disabled add-ons retain their
-current installed build. Pending reviews and in-progress recovery must not race
-cleanup. The current host re-inspects the active ZIP at startup, so deleting
-that ZIP would require a separate runtime-integrity change.
-
-Recovery points currently protect exact package generations. To remove those
-old files without deleting campaign recovery points:
-
-1. Preserve a small package record independently of local files: add-on ID,
-   exact ZIP SHA-256, manifest/data definitions and durable release/asset
-   identity. Current GitHub provenance stores a candidate hash, not a complete
-   historical download locator, and current cleanup deletes that provenance.
-2. Add a reviewed recovery flow that resolves every required exact package,
-   downloads and verifies it before changing campaign state, and passes the
-   existing permission, dependency and schema checks. Never substitute the
-   latest package for a missing historical build. Missing releases, unavailable
-   credentials or changed bytes must leave the current installation untouched;
-   allow the matching ZIP to be supplied.
-3. Keep full backups self-contained. Materialize any recovery-referenced
-   packages missing locally into bounded backup staging, or report that a
-   complete backup cannot be created. Existing backup ZIPs remain untouched.
-4. After successful activation, journal and retry removal of superseded ZIPs
-   and extracted files under the lifecycle lock. Apply the policy once to
-   eligible existing inventory when enabled and on subsequent successful
-   updates. Keep cleanup failures separate from activation success.
-5. Test restart, failed/cancelled updates, interrupted cleanup, historical
-   recovery, dependency sets, missing/changed release assets, private sources,
-   offline ZIP installs and full backup verification/restoration. Expose any
-   package that cannot meet the selected recovery policy instead of silently
-   keeping it without an explanation.
-
-Use durable commit-release assets for remote recovery. Git source alone cannot
-replace a prebuilt package. Actions artifacts
-[expire under their retention policy](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts);
-even a release can be
-[deleted](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository).
-Packages without a durable source need a preserved backup copy or an explicit
-decision to rely on manually supplying the exact ZIP. This proposal is not an
-implemented automatic cleanup setting.
 
 ### Conditional host extensions
 

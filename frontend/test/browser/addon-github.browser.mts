@@ -225,3 +225,50 @@ for (const mobile of [false, true]) test(`one update check supports consecutive 
   await dialog.waitFor({ state: 'detached' }); await manager.getByText('Add-on state updated.', { exact: true }).waitFor();
   assert.equal(active.second, target.second); assert.deepEqual(checked, ids, 'both updates use the original single check');
 });
+
+for (const mobile of [false,true]) test(`historical packages download into the exact activation review (${mobile ? 'phone' : 'desktop'})`,async t=>{
+ const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1400,height:1000},extraHTTPHeaders:{'X-Fixture-Role':'dm'}});
+ t.after(()=>context.close());const page=await context.newPage();page.setDefaultTimeout(7000);
+ await page.addInitScript(()=>localStorage.setItem('codex_lang','en'));
+ const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));t.after(()=>assert.deepEqual(errors,[]));
+ const old='a'.repeat(64),current='b'.repeat(64);
+ const generation=(hash:string)=>({addonId:'example',generationId:hash,version:hash===old?'1.0.0':'2.0.0',installedAt:'2026-09-10T10:00:00Z'});
+ let staged=false,activations=0,fail=true,downloads=0,active=current;
+ await page.route('**/api/admin/**',async route=>{
+  const req=route.request(),path=new URL(req.url()).pathname;
+  if(req.method()==='POST')assert.equal(req.headers()['x-codex-csrf'],'x'.repeat(32));
+  let value:unknown;
+  if(path==='/api/admin/addon-package-storage')value={contractVersion:'addon-package-storage.v1',automatic:true,pending:0,packages:active===current?[{addonId:'example',generationId:old,version:'1.0.0',available:false,active:false,downloadable:true}]:[]};
+  else if(path==='/api/admin/addon-package-storage/restore'){
+   downloads++;assert.deepEqual(req.postDataJSON(),{addonId:'example',generationId:old});
+   if(fail){fail=false;await route.fulfill({status:503,json:{error:{kind:'PACKAGE_UNAVAILABLE'}}});return;}
+   staged=true;value=generation(old);
+  }
+  else if(path==='/api/admin/addon-github')value={contractVersion:'addon-github.v1',sources:[],credentials:{defaultSource:'none',environmentConfigured:false,repositories:[]}};
+  else if(path==='/api/admin/addons')value={contractVersion:'addon-inventory.v1',addonIds:['example']};
+  else if(path==='/api/admin/addons/example')value={state:{addonId:'example',revision:1,activeGenerationId:active},generations:staged?[generation(old),generation(current)]:[generation(current)],events:[]};
+  else if(path.endsWith('/activation-reviews')||path.endsWith('/approval')){
+   if(path.endsWith('/activation-reviews'))assert.equal(req.postDataJSON().generationId,old);
+   value={reviewId:'history-review',addonId:'example',generationId:old,proposalSha256:'c'.repeat(64),status:path.endsWith('/approval')?'approved':'prepared',proposal:{addonId:'example',generationId:old,targetManifest:{id:'example',name:'Historical test',version:'1.0.0',permissions:[]},currentManifest:{version:'2.0.0'},changes:{runtimeChanged:false},requiredPermissionIds:[],restartedAddonIds:[],blockers:[]}};
+  }else if(path.endsWith('/activation')){activations++;active=old;value={state:{addonId:'example',activeGenerationId:old}};}
+  else{await route.fulfill({status:404,json:{error:{kind:'NOT_FOUND'}}});return;}
+  await route.fulfill({json:value});
+ });
+ await page.goto(`${origin}/#/settings/addons`);
+ const manager=page.locator('codex-addon-manager'),storage=manager.locator('codex-package-storage');
+ await storage.getByText('Previous builds',{exact:true}).click();
+ await storage.getByRole('button',{name:'Download and review'}).click();
+ await storage.getByRole('alert').waitFor();assert.equal(activations,0);assert.equal(staged,false);
+ await storage.getByRole('button',{name:'Try again',exact:true}).click();
+ await storage.getByText('Previous builds',{exact:true}).click();
+ await storage.getByRole('button',{name:'Download and review'}).click();
+ await manager.getByRole('dialog').getByRole('heading',{name:'Review activation: Historical test',exact:true}).waitFor();
+ assert.equal(downloads,2);assert.equal(activations,0);
+ await manager.getByRole('button',{name:'Approve and activate',exact:true}).click();
+ await manager.getByText('Add-on state updated.',{exact:true}).waitFor();assert.equal(activations,1);
+ await page.goto(`${origin}/#/settings/addons/example/packages/${old}`);
+ await manager.getByRole('dialog').getByRole('heading',{name:'Review activation: Historical test',exact:true}).waitFor();
+ assert.equal(downloads,2);assert.equal(activations,1);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.screenshot({path:fileURLToPath(new URL(`../../test-results/addon-github/history-${mobile?'phone':'desktop'}.png`,import.meta.url)),fullPage:true});
+});

@@ -49,8 +49,9 @@ before(async () => {
   await promisify(execFile)('go', ['build', '-o', binary, './cmd/codex'], { cwd: root, windowsHide: true, timeout: 120_000 });
   const portProbe = createServer(); portProbe.listen(0, '127.0.0.1'); await once(portProbe, 'listening');
   const port = (portProbe.address() as AddressInfo).port; await new Promise(resolve => portProbe.close(resolve)); origin = `http://127.0.0.1:${port}`;
+  // This suite explicitly exercises manually retained packages and reviewed cleanup.
   host = spawn(binary, ['-listen', `127.0.0.1:${port}`, '-data-dir', resolve(directory, 'data'), '-web-dir', resolve(root, 'frontend/dist')], {
-    cwd: root, windowsHide: true, env: { ...process.env, CODEX_DM_PASSWORD: 'local-graph-fixture-dm', CODEX_PLAYER_PASSWORD: 'local-graph-fixture-player' }, stdio: ['ignore', 'pipe', 'pipe'],
+    cwd: root, windowsHide: true, env: { ...process.env, CODEX_ADDON_AUTO_CLEANUP: 'false', CODEX_DM_PASSWORD: 'local-graph-fixture-dm', CODEX_PLAYER_PASSWORD: 'local-graph-fixture-player' }, stdio: ['ignore', 'pipe', 'pipe'],
   });
   host.stdout.on('data', chunk => { hostOutput += chunk; }); host.stderr.on('data', chunk => { hostOutput += chunk; });
   admin = await playwrightRequest.newContext({ baseURL: origin });

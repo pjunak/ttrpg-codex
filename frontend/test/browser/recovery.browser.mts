@@ -7,7 +7,7 @@ import type { Readable } from 'node:stream';
 import type { FixtureCollection, FixtureRecord } from './fixture-types.mts';
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve, relative, isAbsolute } from 'node:path';
 import { createServer } from 'node:net';
@@ -16,7 +16,7 @@ import { promisify } from 'node:util';
 import { once } from 'node:events';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { chromium, request } from 'playwright';
-import { jsonResponse } from './installed-graph-fixture.mts';
+import { installReviewedPackage, graphPackage, jsonResponse } from './installed-graph-fixture.mts';
 import { unloadBlocked } from './installed-planner-navigation-fixture.mts';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -27,7 +27,7 @@ before(async () => {
   const binary = resolve(directory, process.platform === 'win32' ? 'codex.exe' : 'codex');
   await promisify(execFile)('go', ['build', '-o', binary, './cmd/codex'], { cwd: root, windowsHide: true, timeout: 120_000 });
   const probe = createServer(); probe.listen(0, '127.0.0.1'); await once(probe, 'listening'); const address = `127.0.0.1:${(probe.address() as AddressInfo).port}`; await new Promise(resolve => probe.close(resolve)); origin = `http://${address}`;
-  host = spawn(binary, ['-listen', address, '-data-dir', resolve(directory, 'data'), '-web-dir', resolve(root, 'frontend/dist')], { cwd: root, windowsHide: true, env: { ...process.env, CODEX_DM_PASSWORD: 'local-recovery-dm', CODEX_PLAYER_PASSWORD: 'local-recovery-player' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  host = spawn(binary, ['-listen', address, '-data-dir', resolve(directory, 'data'), '-web-dir', resolve(root, 'frontend/dist')], { cwd: root, windowsHide: true, env: { ...process.env, CODEX_ADDON_AUTO_CLEANUP: 'true', CODEX_DM_PASSWORD: 'local-recovery-dm', CODEX_PLAYER_PASSWORD: 'local-recovery-player' }, stdio: ['ignore', 'pipe', 'pipe'] });
   host.stdout.on('data', chunk => { hostOutput += chunk; }); host.stderr.on('data', chunk => { hostOutput += chunk; });
   admin = await request.newContext({ baseURL: origin }); let ready = false;
   for (let i = 0; i < 100; i++) {
@@ -70,7 +70,8 @@ for (const mobile of [false, true]) test(`recovery points restore the campaign a
   await page.locator(`[data-point-id="${id}"] .settings-btn-edit`).click();
   assert.equal(await page.locator('#recovery-review-title').evaluate(node => document.activeElement === node), true);
   const confirm = () => page.locator('.settings-recovery-review').getByRole('button', { name: mobile ? 'Obnovit' : 'Restore', exact: true }).click();
-  assert.equal((await mutation(page, confirm, '/api/recovery/restore')).status(), 409);
+  await page.locator('codex-package-storage [role=alert]').waitFor();
+  assert.equal(await page.locator('.settings-recovery-review').getByRole('button', { name: mobile ? 'Obnovit' : 'Restore', exact: true }).isDisabled(), true, 'stale package review blocks restoration before submission');
   await panel(page).getByRole('alert').waitFor(); await refresh(page, mobile);
   const observer = await context.newPage(); await observer.goto(`/#/characters/${key}`); await observer.getByRole('heading', { name: 'Changed campaign', exact: true }).waitFor();
   await page.locator(`[data-point-id="${id}"] .settings-btn-edit`).click();
@@ -121,4 +122,26 @@ test('revert selects a reviewed automatic edit group', async t => {
   await jsonResponse(await mutation(page, () => page.locator('.settings-recovery-review').getByRole('button', { name: 'Restore', exact: true }).click(), '/api/recovery/restore'));
   const restored = await jsonResponse(await admin.get('/api/campaign'));
   assert.equal(restored.collections.reduce((total: number, collection: FixtureCollection) => total + collection.records.length, 0), target.records);
+});
+
+for (const mobile of [false,true]) test(`automatic updates remove old files and explain offline recovery retention (${mobile ? 'phone' : 'desktop'})`,async t=>{
+ const id=`automatic-${mobile ? 'phone' : 'desktop'}`,headers={'X-Codex-CSRF':csrf};
+ const perms=[{id:'core.data.read',resources:['characters'],reason:'Link clues to visible characters.'}];
+ const first=await installReviewedPackage(admin,csrf,id,graphPackage({id,mode:'integrated',version:'1.0.0'}),perms);
+ const second=await installReviewedPackage(admin,csrf,id,graphPackage({id,mode:'integrated',version:'2.0.0'}),perms);
+ const generationPath=(hash:string)=>resolve(directory,'data','addons',id,'generations',hash);
+ await assert.rejects(stat(generationPath(first.state.activeGenerationId)),{code:'ENOENT'});
+ assert.equal((await stat(resolve(generationPath(second.state.activeGenerationId),'package.zip'))).isFile(),true);
+ const inventory=await jsonResponse(await admin.get(`/api/admin/addons/${id}`));assert.equal(inventory.generations.length,1);
+ const {page}=await open(t,mobile);
+ await page.locator('[data-category=addons]').click();
+ const storage=page.locator('codex-addon-manager codex-package-storage');
+ await storage.getByText(mobile?'Staré soubory balíčků se po úspěšné aktualizaci automaticky odstraní.':'Old package files are removed automatically after a successful update.',{exact:false}).waitFor();
+ await jsonResponse(await admin.post('/api/recovery',{headers,data:{}}));
+ await installReviewedPackage(admin,csrf,id,graphPackage({id,mode:'integrated',version:'3.0.0'}),perms);
+ await page.reload(); await page.locator('[data-category=addons]').click();
+ await storage.locator('summary').filter({hasText:mobile?'Předchozí sestavení':'Previous builds'}).click();
+ await storage.locator('li').filter({hasText:id+' · 2.0.0'}).getByText(mobile?'Uloženo místně:':'Kept locally:',{exact:false}).waitFor();
+ assert.equal((await stat(resolve(generationPath(second.state.activeGenerationId),'package.zip'))).isFile(),true);
+ const backup=await admin.get('/api/backup');assert.equal(backup.status(),200);assert.equal((await backup.body()).subarray(0,2).toString(),'PK');
 });

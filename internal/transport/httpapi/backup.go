@@ -2,12 +2,14 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/backuparchive"
 )
 
@@ -29,6 +31,12 @@ func (s *server) downloadBackup(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "backup query parameters are not supported")
 		return
 	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(6 * time.Minute)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		s.writeBackupFailure(w, r, err)
+		return
+	}
 	stage, err := os.MkdirTemp("", "codex-backup-download-")
 	if err != nil {
 		s.writeBackupFailure(w, r, err)
@@ -36,7 +44,7 @@ func (s *server) downloadBackup(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.RemoveAll(stage)
 	archivePath := filepath.Join(stage, "backup.zip")
-	manifest, err := s.backupArchives.Create(r.Context(), archivePath)
+	manifest, err := s.backupArchives.Create(ctx, archivePath)
 	if err != nil {
 		s.writeBackupFailure(w, r, err)
 		return
@@ -71,5 +79,9 @@ func (s *server) downloadBackup(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) writeBackupFailure(w http.ResponseWriter, r *http.Request, err error) {
 	s.logger.Error("backup download failed", "error", err, "remote", r.RemoteAddr)
+	if errors.Is(err, packagemanager.ErrPackageUnavailable) {
+		writeAPIError(w, http.StatusServiceUnavailable, "PACKAGE_UNAVAILABLE", "A recovery package could not be downloaded. Check GitHub access or upload its exact ZIP in Add-ons, then retry the backup.")
+		return
+	}
 	writeAPIError(w, http.StatusServiceUnavailable, "BACKUP_UNAVAILABLE", "backup could not be created")
 }

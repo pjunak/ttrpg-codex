@@ -63,6 +63,8 @@ type activeRuntime struct {
 }
 
 type Manager struct {
+	automaticCleanup      bool
+	packageFetcher        PackageFetcher
 	store                 *store
 	directory             string
 	stagingDirectory      string
@@ -204,6 +206,10 @@ func (manager *Manager) StageUpdateArchive(ctx context.Context, archive io.Reade
 func (manager *Manager) stageArchive(ctx context.Context, archive io.Reader, expected *State) (Generation, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
+	return manager.stageArchiveLocked(ctx, archive, expected)
+}
+
+func (manager *Manager) stageArchiveLocked(ctx context.Context, archive io.Reader, expected *State) (Generation, error) {
 	if expected != nil {
 		snapshot, err := manager.store.snapshot(ctx, expected.AddonID, 1)
 		if err != nil {
@@ -247,6 +253,9 @@ func (manager *Manager) stageArchive(ctx context.Context, archive io.Reader, exp
 	generationID := report.ArchiveSHA256
 	var pending bool
 	if err := manager.store.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM addon_package_cleanups c, json_each(c.review_json, '$.generations') g WHERE c.status='pending' AND g.value ->> 'remove' = 1 AND g.value ->> 'addonId' = ? AND g.value ->> 'generationId' = ?)`, report.Manifest.ID, generationID).Scan(&pending); err != nil {
+		return Generation{}, err
+	}
+	if err := manager.store.db.QueryRowContext(ctx, `SELECT ? OR EXISTS(SELECT 1 FROM addon_package_files WHERE addon_id=? AND generation_id=? AND status='pending')`, pending, report.Manifest.ID, generationID).Scan(&pending); err != nil {
 		return Generation{}, err
 	}
 	if pending {
@@ -403,6 +412,7 @@ func (manager *Manager) activateLocked(
 			_ = manager.store.recordFailure(ctx, previous.generation.AddonID, previous.generation.GenerationID, "cleanup-failed", err)
 		}
 	}
+	manager.cleanupAfterActivationLocked(ctx, &result)
 	return result, nil
 }
 

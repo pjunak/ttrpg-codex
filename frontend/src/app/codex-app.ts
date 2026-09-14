@@ -989,6 +989,7 @@ export class CodexApp extends LitElement {
           .registry=${this.#addons?.contributions}
           .actorRole=${this.authority.state === "known" ? this.authority.auth.role ?? undefined : undefined}
           .addonTarget=${this.route.addonId}
+          .addonGeneration=${this.route.generationId}
           .addonPages=${this.#canManageCampaign() && this.#addons !== undefined ? listBrowserNavigation(this.#addons.contributions, "dm", this.#ui.locale) : []}
           .csrfToken=${this.authority.state === "known" && this.authority.auth.authenticated ? this.authority.auth.csrfToken : ""}
           @addon-admin-busy=${(event: CustomEvent<boolean>) => { this.busy = event.detail; }}

@@ -57,8 +57,23 @@ snapshot through archive publication, so reviewed package cleanup, staging and
 activation wait for it. Offline maintenance instead holds the host-process lock.
 Blob objects are not physically collected. Existing backup ZIPs own their copies
 of package files and do not prevent cleanup of an inactive live generation.
-Campaign recovery points do protect the generations named in their images; see
-[reviewed package cleanup](PACKAGE_LIFECYCLE.md#reviewed-saved-package-cleanup).
+Campaign recovery points retain exact package identities. With
+[automatic retention](PACKAGE_LIFECYCLE.md#automatic-package-file-retention),
+superseded files may be downloaded again when needed. Before publishing a full
+backup, online and offline creators materialize every missing recovery package
+into temporary staging and verify its exact add-on ID and archive SHA-256.
+The snapshot records those files as local; the running installation is unchanged.
+Temporary materialization is bounded to 512 packages, 100,000 files and 4 GiB,
+with a five-minute preparation deadline; the ordinary full-archive limits still
+apply to the combined campaign and package files.
+
+Missing or changed historical packages fail the backup before an output archive
+is published. The web response directs the operator to check GitHub access or
+upload the matching ZIP. Verification and restore also require every active and
+recovery-referenced package ZIP and its extracted files to be complete and
+correct. A restored full backup can therefore start offline and retains its
+included recovery packages through startup; subsequent successful updates
+apply the automatic retention policy again.
 An archive may include an approved pending cleanup receipt and remaining files;
 the restored host resumes that approved cleanup at startup.
 

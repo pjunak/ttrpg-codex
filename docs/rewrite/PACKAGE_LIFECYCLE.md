@@ -351,6 +351,81 @@ dependencies and retained ruleset identity. Desktop/phone installed fixtures
 exercise English/Czech review, cancellation, conflicts, lost-response retries,
 DM/CSRF boundaries, revoked access, retained records and incompatible reinstall.
 
+## Automatic package file retention
+
+The host defaults to `CODEX_ADDON_AUTO_CLEANUP=true`. A successful activation
+removes superseded ZIPs and extracted files for that add-on after the new
+runtime and any restarted dependency cohort have recovered. The selected build
+keeps its ZIP as well as its extracted runtime: startup re-verifies both.
+Staging, cancelled requests, failed activation and degraded cohort recovery
+never trigger cleanup. A valid pending activation review also protects its
+files. A disabled add-on keeps the build recorded by its latest disable event,
+so equal timestamps or a newer staged download cannot change the retained build.
+
+On the first healthy startup with this policy enabled, the host applies it to
+eligible existing installations. Completed initialization is recorded, so
+ordinary restarts do not discard intentionally re-downloaded recovery files.
+Set the variable to `false` to stop new automatic removals; already journaled
+removals still finish. This setting does not download or activate updates.
+
+Migration `0018_addon_package_files.sql` separates package identity from file
+residency (`local`, `pending`, `remote`). Automatic cleanup keeps generation
+metadata, manifests, exact archive hashes, provenance, recovery points and
+campaign history. The local package list excludes removed files. Previous
+builds appear in a separate bounded history panel, with exact download/review
+actions and an explicit explanation for retained offline copies.
+
+If a recovery point needs a package with no recorded release source, its local
+copy is preserved. This includes ZIP-only uploads and expiring Actions artifacts.
+Removing that recovery point is a separate deliberate action;
+a later successful update can then clean the unreferenced files. A package with
+a recorded release source can be removed despite recovery references. Retained
+source metadata is not a guarantee of remote availability: deleted releases, expired
+Actions artifacts, changed bytes and unavailable credentials require the
+matching original ZIP. No historical request substitutes the newest release.
+
+Historical downloads use the recorded repository and asset/artifact API path,
+server-side repository credentials, existing redirect/download limits, and
+independent ZIP inspection against the original add-on ID and SHA-256. Older
+provenance without an asset path uses bounded historical metadata lookup by its
+original candidate fingerprint. Downloading stages an inert package; approval,
+permissions, schema and dependency checks still use ordinary activation review.
+
+Backup & recovery lists every exact package required by a selected point.
+**Prepare required packages** stages the missing set before exposing review
+links. Preparation can partially stage inert files if a later download fails;
+it never restores campaign data or approves packages. Review and activate each
+required build in Add-ons, then return and refresh the recovery review.
+Reinstalling a previously uninstalled package also requires a refreshed review.
+The existing recovery transaction still checks the entire current package set
+and saved data definitions, including any extra active add-ons.
+
+File eviction is journaled before deletion under the lifecycle coordinator.
+Deletion uses the confined package root, rejects symbolic-link paths, bounds
+each file inventory, and drains pending work in small batches. Interrupted
+deletion retries at startup, the next successful update, or **Retry file
+cleanup**. Verified publication interrupted before the residency update can be
+completed offline. Cleanup failure is reported separately from activation
+success. Live backup creation shares the same coordinator lock.
+
+Only the real and effective DM can use the no-store storage API. POST requests
+also require CSRF authority and closed JSON bodies.
+
+| Method and path | Body / result |
+|---|---|
+| `GET /api/admin/addon-package-storage` | `addon-package-storage.v1`: policy, pending count and up to 512 previous/retained builds |
+| `POST /api/admin/addon-package-storage/restore` | `{addonId, generationId}`; stages one exact generation |
+| `POST /api/admin/addon-package-storage/review` | `{pointId, expectedRevision}`; required package availability |
+| `POST /api/admin/addon-package-storage/prepare` | Same reviewed identity; stages the required set without activation |
+| `POST /api/admin/addon-package-storage/retry` | `{}`; finishes journaled file removals |
+
+Full backups materialize required historical files into isolated staging and
+verify them before publication; see [backup package completeness](BACKUP_RESTORE.md).
+Existing backup ZIPs remain unchanged. Regression coverage includes
+`package_files_test.go`, `history_test.go`, `addon_storage_test.go`, strict
+client/route tests, and desktop/phone installed-update and historical-review
+browser scenarios.
+
 ## Reviewed saved package cleanup
 
 Settings → Add-ons → **Clean up saved packages** reviews the complete saved
