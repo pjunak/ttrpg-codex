@@ -1,8 +1,10 @@
 # Character building and play
 
 The host owns profiles, portraits and campaign relationships. Character Sheets
-adds a rules-calculated workspace with six tabs: Sheet, Combat, Spells, Notes,
-Builder and Tools. Compact and Classic layouts use the same inputs and results.
+adds a rules-calculated workspace with a vertical left rail: Sheet, Combat,
+Spells, Builder and Tools. Tools sits at the bottom, with Builder just above it.
+The workspace is capped at 1,120 px; Compact uses denser ability cards and keeps
+currency next to inventory. The host character heading is not repeated.
 
 <a id="character-model"></a>
 <a id="f16-f19-and-f20-first-complete-play-slice"></a>
@@ -13,7 +15,9 @@ Builder and Tools. Compact and Classic layouts use the same inputs and results.
 The Builder is the character's ordered progression. Character contains origin,
 base abilities and origin choices. Levels shows overall progression. Each class
 has its own tab for its levels and granted choices; the + tab offers additional
-classes allowed by the rules. Earlier decisions can be changed later.
+classes allowed by the rules. Earlier decisions can be changed later. DM given
+has its own Builder tab. Progress starts expanded on the left; narrow screens
+stack it above the form to preserve usable control widths.
 
 All legal changes save automatically, including an unfinished build. Completion
 is a separate rules gate for dependent play actions. Point-buy and granted
@@ -25,7 +29,9 @@ Changing an origin or level recalculates dependent results. Previously granted
 choices withdrawn by that edit are removed; illegal new selections are rejected.
 Reducing maximum HP clamps current HP; raising it does not heal. Other authored
 play state is preserved. Inventory, equipment, currency, HP, spells, resources
-and notes remain editable in their ordinary tabs, without an edit-mode toggle.
+remain editable in their ordinary tabs, without an edit-mode toggle. Character
+notes belong to the host profile and have no sheet tab or printed sheet section.
+Existing saved notes remain in the compatible stored schema and transfers.
 
 <a id="transfer-and-printing"></a>
 <a id="authoritative-mutation-path"></a>
@@ -53,7 +59,7 @@ and rules status. A transfer contains the current character only. Import
 requires exact replacement confirmation and reauthorization of imported DM
 grants; file and paste use the same limits. Print uses the saved projection.
 
-Without compatible rules, saved values, notes, printing and export remain usable.
+Without compatible rules, saved values, printing and export remain usable.
 Changed rules require explicit adoption in Tools before mechanical edits.
 
 <a id="implementation-sequence-and-ownership"></a>
