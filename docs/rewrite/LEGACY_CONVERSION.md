@@ -67,7 +67,7 @@ rewrite data directory from one old UI ZIP.
   stays unchanged. The core character profile and other embedded namespaces
   remain subject to their existing conversion rules. A sheets package is no
   longer a supported conversion target. Current characters use the replacement
-  schema described in [character history](CHARACTER_BUILD_HISTORY.md).
+  schema described in [character building](CHARACTER_BUILD_HISTORY.md).
 
 The command still inventories unknown `addon-data`, old add-on package copies,
 registry/auth metadata, other files, unreferenced media, and embedded namespaces

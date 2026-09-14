@@ -32,7 +32,7 @@ history or schema other than exactly 3.0.0 makes the command refuse removal.
    only the retired namespace. Changed data, an active host/add-on, reused backup
    path or backup failure prevent removal. Save the JSON report with the backup.
 4. Start the host and install/review/activate Engine 4 and Sheets 4 packages.
-   Verify creation, save, history, print and rule details on a test character.
+   Verify creation, automatic saves, play, print and rule details on a test character.
 
 The Go command can be run from this source checkout as
 `go run ./cmd/codex-maintenance retire-sheets ...`. Production add-on installation
@@ -44,5 +44,5 @@ does not run this namespace reset against an existing site.
 
 The original backup can be restored into a fresh disposable directory for
 inspection. Reverting an entire production directory requires its own reviewed
-operational decision. New retained character history is never eligible for this
+operational decision. Schema-4 characters and previously archived history are never eligible for this
 one-time retirement, including after the current character head was deleted.

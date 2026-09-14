@@ -112,7 +112,7 @@ in-flight catalog epochs invalidate old runtime results together.
 
 ## Engine and character preservation
 
-The [character decisions and history model](CHARACTER_BUILD_HISTORY.md) uses
+The [character building and save model](CHARACTER_BUILD_HISTORY.md) uses
 typed decisions, authenticated DM grants and retained projections. It keeps
 this specification's one-ruleset policy, compatible source selection and
 explicit adoption of changed rules.

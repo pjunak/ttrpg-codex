@@ -647,6 +647,7 @@ export class CodexApp extends LitElement {
         root: articleRoot,
         registry: composition.contributions,
         surface: "article-section",
+        compact: true,
         role: auth.role,
         include: (active) => this.route.kind === "record" &&
           active.descriptor.config["collection"] === this.route.page.collection,

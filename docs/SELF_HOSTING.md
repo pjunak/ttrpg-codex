@@ -92,7 +92,7 @@ scheme and client address normally, terminate TLS at the proxy, and keep
 
 Existing schema-3 sheet installations use the separate, backed-up
 [offline retirement procedure](rewrite/CHARACTER_SHEET_CUTOVER.md) before
-activating Sheets 4. It never removes new retained character history.
+activating Sheets 4. It never removes schema-4 characters or archived history.
 
 ## One-time v1 conversion
 

@@ -30,7 +30,7 @@ D&D 2024 Compendium --rules-data v3--> D&D Engine
                                   rules-engine v4
                                               v
                                     Character Sheets
-                                 character v1 / schema 4
+                                 character v2 / schema 4
 
 DM Tools is independent and owns planning/world-building workflows.
 ```
@@ -138,7 +138,7 @@ journaled directory swap that startup can recover.
 target DM Tools package, builds a fresh data directory, migrates known
 records/media/planning state, verifies the result, and publishes it once. It
 counts and omits retired sheet values while preserving core character profiles
-and the input archive. The replacement sheet creates schema-4 retained history.
+and the input archive. The replacement sheet automatically saves schema-4 current state.
 It never merges or mutates its input.
 
 ## Failure model

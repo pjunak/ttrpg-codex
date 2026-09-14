@@ -43,6 +43,7 @@ type Index struct {
 }
 
 type Declaration struct {
+	WorkerOnly    bool
 	Retained      bool
 	Kind          Kind
 	ID            string
@@ -55,6 +56,7 @@ type Declaration struct {
 }
 
 type Description struct {
+	WorkerOnly    bool       `json:"workerOnly,omitempty"`
 	Retained      bool       `json:"retained,omitempty"`
 	Kind          Kind       `json:"kind"`
 	ID            string     `json:"id"`
@@ -124,16 +126,18 @@ func Compile(declarations []Declaration, resources map[string][]byte) (*Registry
 		if err != nil {
 			return nil, err
 		}
-		if declaration.Retained {
+		if declaration.Retained || declaration.WorkerOnly {
 			if declaration.Kind != RecordExtension {
 				return nil, ErrInvalidDeclaration
 			}
+			// Keep worker authority stable when a reviewed package stops retaining snapshots.
 			policyDigest := sha256.Sum256([]byte(digest + "\x00retained-worker.v1"))
 			digest = hex.EncodeToString(policyDigest[:])
 		}
 		description := Description{
-			Retained: declaration.Retained,
-			Kind:     declaration.Kind, ID: declaration.ID, Target: declaration.Target,
+			WorkerOnly: declaration.WorkerOnly || declaration.Retained,
+			Retained:   declaration.Retained,
+			Kind:       declaration.Kind, ID: declaration.ID, Target: declaration.Target,
 			Keyed: declaration.Keyed, Visibility: declaration.Visibility,
 			Schema: declaration.Schema, SchemaVersion: declaration.SchemaVersion,
 			SchemaSHA256: digest, Indexes: cloneIndexes(declaration.Indexes),

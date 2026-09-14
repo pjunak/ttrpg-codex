@@ -70,3 +70,50 @@ func TestRetainedRevisionsSharePayloadsAndRejectStaleOrReusedOperations(t *testi
 		t.Fatal("deletion lost history", err)
 	}
 }
+
+func TestRecoveryDoesNotResumeExplicitlyRemovedRetention(t *testing.T) {
+	store, _, db := testStore(t)
+	ctx := context.Background()
+	definition := testDefinition(datacontract.RecordExtension, "sheet", datacontract.VisibilityPublic)
+	definition.Retained = true
+	input := Transaction{AddonID: "sheets", GenerationID: testGeneration, ActorID: "dm:one", OperationID: "old-create", Operation: "character.create", Mutations: []Mutation{{Kind: Put, Definition: definition, Key: "hero", Value: json.RawMessage(`{"level":1}`), TargetCreatedAt: &testTargetCreated, Audience: events.AudiencePublic}}}
+	if _, err := store.Transact(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO addon_package_generations(addon_id,generation_id,addon_version,archive_sha256,manifest_json,installed_at,last_activated_at) VALUES(?,?,?,?,?,?,?)`, "sheets", testGeneration, "4.0.0", testGeneration, `{"recordExtensions":[{"id":"sheet","workerOnly":true}]}`, "2026-09-14T00:00:00Z", "2026-09-14T00:00:00Z"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO addon_package_states(addon_id,active_generation_id,updated_at) VALUES(?,?,?)`, "sheets", testGeneration, "2026-09-14T00:00:00Z"); err != nil {
+		t.Fatal(err)
+	}
+	input.Mutations[0].Definition.Retained = false
+	input.Mutations[0].Definition.WorkerOnly = true
+	input.OperationID = ""
+	input.Operation = ""
+	for _, disabled := range []bool{false, true} {
+		if disabled {
+			if _, err := db.Exec(`UPDATE addon_package_states SET active_generation_id=NULL WHERE addon_id='sheets'`); err != nil {
+				t.Fatal(err)
+			}
+		}
+		input.Mutations[0].ExpectedRevision++
+		if _, err := store.Transact(ctx, input); err != nil {
+			t.Fatal(err)
+		}
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = RetainRecovery(ctx, tx, "dm:one", "campaign-recovery"); err != nil {
+			tx.Rollback()
+			t.Fatal(err)
+		}
+		if err = tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		var count int
+		if err = db.QueryRow(`SELECT count(*) FROM addon_history_revisions`).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("disabled=%v resumed character history: %d %v", disabled, count, err)
+		}
+	}
+}

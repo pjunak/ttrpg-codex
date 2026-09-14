@@ -11,7 +11,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import type { Readable } from 'node:stream';
 import { chromium, request, type APIRequestContext, type Browser } from 'playwright';
 import { jsonResponse, installReviewedPackage, enableAllRuleSources } from './installed-graph-fixture.mts';
-import { unloadBlocked } from './installed-planner-navigation-fixture.mts';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const output = resolve(root, 'frontend/test-results/installed-character');
@@ -42,9 +41,9 @@ after(async () => {
 async function call(method: string, params: Record<string, unknown>) {
   const state = await jsonResponse(await admin.get('/api/admin/addons/dnd-sheets'));
   const base = `/api/addons/dnd-sheets/generations/${state.state.activeGenerationId}/services`, headers = { 'X-Codex-CSRF': csrf };
-  const connection = await jsonResponse(await admin.post(`${base}/connect`, { headers, data: { contractVersion: 'addon-service-connect.v1', contract: 'dnd5e.character', range: '^1.0.0', cardinality: 'many', includeOwn: true } }));
+  const connection = await jsonResponse(await admin.post(`${base}/connect`, { headers, data: { contractVersion: 'addon-service-connect.v1', contract: 'dnd5e.character', range: '^2.0.0', cardinality: 'many', includeOwn: true } }));
   const target = connection.providers.find((provider: { addonId: string }) => provider.addonId === 'dnd-sheets'); assert.ok(target);
-  return (await jsonResponse(await admin.post(`${base}/call`, { headers, data: { contractVersion: 'addon-service-call.v1', contract: 'dnd5e.character', providerAddonId: target.addonId, providerVersion: target.contractVersion, providerGeneration: target.generation, bindingRevision: target.bindingRevision, method, params: { contractVersion: 'character.v1', key: 'new-hero', ...params }, deadlineMs: 30000 } }))).result;
+  return (await jsonResponse(await admin.post(`${base}/call`, { headers, data: { contractVersion: 'addon-service-call.v1', contract: 'dnd5e.character', providerAddonId: target.addonId, providerVersion: target.contractVersion, providerGeneration: target.generation, bindingRevision: target.bindingRevision, method, params: { contractVersion: 'character.v2', key: 'new-hero', ...params }, deadlineMs: 30000 } }))).result;
 }
 
 test('installed character coordinator loads typed creation policy and rejects browser head writes', { skip: !enabled }, async () => {
@@ -52,268 +51,101 @@ test('installed character coordinator loads typed creation policy and rejects br
   assert.equal(loaded.status, 'ready', JSON.stringify(loaded)); assert.equal(loaded.revision, 0); assert.equal(loaded.evaluation.ready, false); assert.equal(loaded.policy.maximumLevel, 20);
   const state = await jsonResponse(await admin.get('/api/admin/addons/dnd-sheets'));
   const response = await admin.post(`/api/addons/dnd-sheets/generations/${state.state.activeGenerationId}/data/transactions`, { headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'addon-data-transaction.v1', mutations: [{ operation: 'put', kind: 'record-extension', dataId: 'dnd-sheets', key: 'new-hero', expectedRevision: 0, value: {} }] } });
-  assert.equal(response.status(), 403, 'browser mutated a retained character head');
+  assert.equal(response.status(), 403, 'browser bypassed current-state worker authorization');
 });
 
-test('installed replacement sheet recovers drafts and offers accessible rule details on desktop and phone', { skip: !enabled }, async () => {
-  for (const width of [1280, 390]) {
-    const context = await browser.newContext({ viewport: { width, height: 900 }, storageState: await admin.storageState() });
-    const page = await context.newPage(), failures: string[] = []; page.on('pageerror', error => failures.push(error.message));
-    await page.goto(`${origin}/#/characters/new-hero`);
-    await page.locator('#character-view-addons').click();
-    const sheet = page.locator('.addon-dnd-character');
-    try { await sheet.getByRole('heading', { name: 'Origin and abilities' }).waitFor(); }
-    catch (error) { await page.screenshot({ path: resolve(output, `failed-character-${width}.png`), fullPage: true }); throw new Error(`${String(error)}\nPage errors: ${JSON.stringify(failures)}\nPage: ${(await page.locator('body').innerText()).slice(0, 8000)}`); }
-    await sheet.locator('#dnd-tab-notes').click();
-    await sheet.getByLabel('Character notes', { exact: true }).fill(`Recovered draft ${width}`);
-    page.once('dialog', dialog => dialog.accept());
-    await page.reload(); await page.locator('#character-view-addons').click(); await sheet.locator('#dnd-tab-notes').click(); await sheet.getByLabel('Character notes', { exact: true }).waitFor();
-    assert.equal(await sheet.getByLabel('Character notes', { exact: true }).inputValue(), `Recovered draft ${width}`);
-    await page.screenshot({ path: resolve(output, `character-layout-${width}.png`), fullPage: true });
-    assert.ok(await sheet.evaluate(element => element.scrollWidth <= document.documentElement.clientWidth), JSON.stringify(await sheet.evaluate(element => [...element.querySelectorAll('*')].filter(node=>node.getBoundingClientRect().right>document.documentElement.clientWidth).map(node=>({tag:node.tagName,class:node.className,width:node.getBoundingClientRect().width,text:node.textContent?.slice(0,60)})).slice(0,10))));
-    await sheet.locator('#dnd-tab-sheet').click();
-    const details = sheet.locator('codex-addon-rule-details').first(); await details.getByRole('button').first().click();
-    await details.getByRole('dialog').waitFor(); await page.keyboard.press('Escape'); await details.getByRole('dialog').waitFor({ state: 'hidden' });
-    assert.deepEqual(failures, []); await page.screenshot({ path: resolve(output, `character-${width}.png`), fullPage: true }); await context.close();
+test('incomplete builds autosave with bounded steppers, searchable choices and no draft or history UI', {skip:!enabled}, async t=>{
+ const context=await browser.newContext({storageState:await admin.storageState(),viewport:{width:1440,height:1000}});t.after(()=>context.close());
+ const page=await context.newPage(),errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+ await page.goto(origin+'/#/characters/new-hero');await page.locator('#character-view-addons').click();const sheet=page.locator('.addon-dnd-character');
+ try { await sheet.getByLabel('STR',{exact:true}).waitFor({timeout:10000}); } catch(error) { await page.screenshot({path:resolve(output,'failed-autosave.png'),fullPage:true}); throw new Error(String(error)+'\n'+JSON.stringify(errors)+'\n'+await sheet.innerText()); }await page.waitForFunction(()=>!document.querySelector('.addon-dnd-character')?.hasAttribute('aria-busy'));
+ assert.equal(await sheet.locator('#dnd-tab-history').count(),0);assert.equal(await sheet.getByRole('button',{name:/draft|Save changes|Edit sheet/i}).count(),0);
+ const strength=sheet.locator('.character-stepper').first();
+ await strength.getByRole('button',{name:'Increase',exact:true}).click();await strength.getByRole('button',{name:'Increase',exact:true}).click();
+ assert.match(await sheet.locator('.dnd-builder-progress').innerText(),/2 \/ 27.*25/);
+ await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.build.baseScores.STR,10);
+ for(const ability of ['STR','DEX','CON'])await sheet.getByLabel(ability,{exact:true}).press('End');
+ assert.match(await sheet.locator('.dnd-builder-progress').innerText(),/27 \/ 27.*0/);assert.equal(await sheet.getByLabel('INT',{exact:true}).inputValue(),'8');assert.equal(await sheet.locator('.character-stepper').nth(3).getByRole('button',{name:'Increase',exact:true}).isDisabled(),true);
+ for(const ability of ['STR','DEX','CON'])await sheet.getByLabel(ability,{exact:true}).press('Home');await sheet.getByLabel('STR',{exact:true}).press('ArrowUp');await sheet.getByLabel('STR',{exact:true}).press('ArrowUp');await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();
+ const species=sheet.getByLabel('Species',{exact:true});await species.fill('dwa');await sheet.getByRole('option',{name:'Dwarf',exact:true}).hover();
+ assert.equal(await sheet.locator('.character-option-hint:visible').count(),1);await sheet.getByRole('option',{name:'Dwarf',exact:true}).click();
+ await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.build.species,'dwarf');
+ await sheet.getByLabel('Background',{exact:true}).fill('sold');await sheet.getByRole('option',{name:'Soldier',exact:true}).click();await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();
+ await sheet.locator('#dnd-builder-tab-add-class').click();await sheet.getByRole('combobox',{name:'Add class',exact:true}).fill('fight');await sheet.getByRole('option',{name:'Fighter',exact:true}).click();
+ await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.build.levels[0].classId,'fighter');
+ await sheet.locator('#dnd-builder-tab-fighter').click();await sheet.getByRole('button',{name:'Add level',exact:true}).click();await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.build.levels.length,2);
+ await sheet.getByRole('button',{name:'Remove level',exact:true}).last().click();await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.build.levels.length,1);
+ await sheet.getByRole('button',{name:'Remove level',exact:true}).click();await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.build.levels.length,0);assert.equal(await sheet.locator('#dnd-builder-tab-fighter').count(),0);
+ await sheet.locator('#dnd-builder-tab-add-class').click();await sheet.getByRole('combobox',{name:'Add class',exact:true}).fill('fight');await sheet.getByRole('option',{name:'Fighter',exact:true}).click();await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();
+ await sheet.locator('#dnd-builder-tab-levels').click();await sheet.getByRole('heading',{name:'Levels',exact:true}).waitFor();await sheet.locator('#dnd-builder-tab-character').click();
+ await page.screenshot({path:resolve(output,'autosave-builder-desktop.png'),fullPage:true});
+ for(const width of [1440,390]){await page.setViewportSize({width,height:1000});await page.waitForFunction(()=>window.innerWidth>=768||(document.querySelector('.campaign-sidebar')?.getBoundingClientRect().right??0)<=1);assert.ok(await sheet.evaluate(element=>element.scrollWidth<=document.documentElement.clientWidth));await page.screenshot({path:resolve(output,`autosave-builder-${width}.png`),fullPage:true});}
+ await sheet.locator('#dnd-tab-notes').click();const notes=sheet.getByLabel('Character notes',{exact:true});await notes.fill('Persisted automatically');await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();
+ await notes.press('End');await notes.pressSequentially(' and still typing');await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal(await notes.evaluate(node=>node===document.activeElement),true);
+ await page.reload();await page.locator('#character-view-addons').click();await sheet.locator('#dnd-tab-notes').click();assert.equal(await notes.inputValue(),'Persisted automatically and still typing');
+ assert.deepEqual(errors,[]);
+});
+
+test('character edits, grants and play save only the current state and removed endpoints fail', {skip:!enabled},async()=>{
+ const initial=await call('load',{}),input=initial.state?.inputs??initial.evaluation.inputs;
+ input.build.species='dwarf'; input.build.background='soldier'; input.build.levels=[{id:'fighter-one',classId:'fighter'}];
+ input.build.method='array';input.build.baseScores={STR:15,DEX:14,CON:13,INT:12,WIS:10,CHA:8};input.build.choices=[];
+ for(let round=0;round<6;round++){
+  const evaluated=await call('evaluate',{operation:'build',inputs:input,expectedRevision:initial.revision});if(evaluated.evaluation.ready)break;
+  for(const descriptor of [...evaluated.evaluation.plan.creationChoices,...evaluated.evaluation.plan.creationAbilityChoices,...evaluated.evaluation.plan.classChoices] as Record<string,any>[]){
+   if(input.build.choices.some((choice:{id:string})=>choice.id===descriptor.id))continue;
+   if(descriptor.kind==='abilityBudget'){let remaining=Number(descriptor.budget);const assignment:Record<string,number>={};for(const ability of descriptor.eligible){const amount=Math.min(remaining,Number(descriptor.perAbilityMax));if(amount)assignment[ability]=amount;remaining-=amount;}input.build.choices.push({id:descriptor.id,slot:0,value:assignment});}
+   else{const choices=evaluated.evaluation.guidance.choices[descriptor.id]?.options??[];for(let slot=0;slot<Number(descriptor.count??1)&&choices[slot];slot++)input.build.choices.push({id:descriptor.id,slot,value:choices[slot].id});}
   }
+ }
+ let current=await call('save',{operation:'build',operationId:'complete-character',summary:'Complete fighter',expectedRevision:initial.revision,inputs:input});assert.equal(current.status,'ready',JSON.stringify(current));assert.equal(current.evaluation.ready,true,JSON.stringify(current.evaluation.issues));
+ for(const method of ['history','revision','compare'])await assert.rejects(()=>call(method,{}));
+ await assert.rejects(()=>call('save',{operation:'restore',operationId:'removed-restore',summary:'Removed',expectedRevision:current.revision}));
+ const grant={id:'forged',actorId:'forged',grantedAt:'',name:'Reward',reason:'Quest',active:true,effectiveLevel:1,condition:'always',effects:[{target:'maxHp',mode:'add',value:2}],waivers:[]};
+ current=await call('save',{operation:'grant',operationId:'autosave-grant',summary:'Reward',expectedRevision:current.revision,grant});assert.equal(current.status,'ready');assert.notEqual(current.state.inputs.grants[0].actorId,'forged');
+ current=await call('save',{operation:'amend-grant',operationId:'autosave-amend',summary:'Amend',expectedRevision:current.revision,grantId:current.state.inputs.grants[0].id,grant:{...grant,reason:'Changed',effects:[]}});assert.equal(current.state.inputs.grants.length,1);
+ current=await call('save',{operation:'revoke-grant',operationId:'autosave-revoke',summary:'Remove',expectedRevision:current.revision,grantId:current.state.inputs.grants[0].id});assert.equal(current.state.inputs.grants.length,0);
+ current=await call('save',{operation:'play',operationId:'autosave-rest',summary:'Long rest',expectedRevision:current.revision,change:{operation:'rest',rest:'long'}});const max=current.state.inputs.play.hp;assert.ok(max>0);
+ current=await call('save',{operation:'play',operationId:'autosave-damage',summary:'Damage',expectedRevision:current.revision,change:{operation:'damage',amount:2}});assert.equal(current.state.inputs.play.hp,max-2);
+ await assert.rejects(()=>call('save',{operation:'play',operationId:'invalid-overheal',summary:'Invalid',expectedRevision:current.revision,change:{operation:'set-hp',amount:max+1}}));
 });
 
-test('installed character creation, DM grant, play and restoration retain exact revisions', { skip: !enabled }, async () => {
-  const initial = await call('load', {}), input = initial.evaluation.inputs;
-  input.build.method = 'array'; input.build.baseScores = { STR: 15, DEX: 14, CON: 13, INT: 12, WIS: 10, CHA: 8 };
-  input.build.species = 'dwarf'; input.build.background = 'soldier'; input.build.levels = [{ id: 'level-one', classId: 'fighter' }];
-  type Descriptor = Record<string, unknown>;
-  for (let round = 0; round < 5; round++) {
-    const response = await call('evaluate', { operation: 'build', inputs: input, expectedRevision: 0 });
-    assert.equal(response.status, 'ready', JSON.stringify(response));
-    if (response.evaluation.ready) break;
-    const plan = response.evaluation.plan, guidance = response.evaluation.guidance.choices;
-    for (const descriptor of [...plan.creationChoices, ...plan.creationAbilityChoices, ...plan.classChoices] as Descriptor[]) {
-      const id = String(descriptor.id); if (input.build.choices.some((choice: { id: string }) => choice.id === id)) continue;
-      if (descriptor.kind === 'abilityBudget') {
-        const assignment: Record<string, number> = {}; let remaining = Number(descriptor.budget);
-        for (const ability of descriptor.eligible as string[]) { const amount = Math.min(remaining, Number(descriptor.perAbilityMax)); if (amount > 0) assignment[ability] = amount; remaining -= amount; }
-        input.build.choices.push({ id, slot: 0, value: assignment });
-      } else {
-        const choices = guidance[id]?.options ?? [];
-        for (let slot = 0; slot < Number(descriptor.count ?? 1) && choices[slot]; slot++) input.build.choices.push({ id, slot, value: choices[slot].id });
-      }
-    }
-  }
-  const create = await call('preview', { operation: 'build', inputs: input, expectedRevision: 0, operationId: 'installed-create', summary: 'Create a rules-checked fighter' });
-  assert.ok(create.token, JSON.stringify(create.evaluation?.issues ?? create));
-  const saved = await call('commit', { token: create.token, operationId: 'installed-create', expectedRevision: 0 }); assert.equal(saved.revision, 1, JSON.stringify(saved));
-  const grant = await call('preview', { operation: 'grant', expectedRevision: 1, operationId: 'installed-grant', summary: 'DM Constitution reward', grant: { id: 'untrusted', actorId: 'untrusted', grantedAt: '', name: 'Quest reward', reason: 'Rescued the village', active: true, effectiveLevel: 1, condition: 'always', effects: [{ target: 'abilityScore', key: 'CON', mode: 'add', value: 2 }], waivers: [] } });
-  assert.ok(grant.token, JSON.stringify(grant)); const granted = await call('commit', { token: grant.token, operationId: 'installed-grant', expectedRevision: 1 }); assert.equal(granted.revision, 2);
-  assert.equal(granted.state.projection.sheet.derived.maxHp, saved.state.projection.sheet.derived.maxHp + 1); assert.notEqual(granted.state.inputs.grants[0].actorId, 'untrusted');
-  const restore = await call('preview', { operation: 'restore', revision: 1, expectedRevision: 2, operationId: 'installed-restore', summary: 'Restore creation decisions', reauthorizeGrants: true }); assert.ok(restore.token, JSON.stringify(restore));
-  const restored = await call('commit', { token: restore.token, operationId: 'installed-restore', expectedRevision: 2 }); assert.equal(restored.revision, 3);
-  assert.deepEqual((await call('revision', { revision: 1 })).state, saved.state); assert.deepEqual((await call('history', {})).history.map((entry: { revision: number }) => entry.revision), [3, 2, 1]);
+test('play tabs stay editable, Tools owns transfer, and layouts fit desktop and phone', {skip:!enabled},async t=>{
+ const context=await browser.newContext({storageState:await admin.storageState(),viewport:{width:1440,height:1000}});t.after(()=>context.close());const page=await context.newPage();await page.goto(origin+'/#/characters/new-hero');await page.locator('#character-view-addons').click();const sheet=page.locator('.addon-dnd-character');await sheet.getByRole('button',{name:'Add item',exact:true}).waitFor();
+ await page.waitForFunction(()=>!document.querySelector('.addon-dnd-character')?.hasAttribute('aria-busy'));await sheet.getByRole('button',{name:'Add item',exact:true}).click();const picker=sheet.getByRole('dialog');await picker.getByLabel('Find catalog item').fill('dagger');await picker.getByRole('button',{name:'Add Dagger',exact:true}).click();await picker.getByRole('button',{name:'Add selected items',exact:true}).click();
+ await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.play.inventory[0].name,'Dagger');
+ const quantity=sheet.getByLabel('Dagger quantity');await quantity.fill('3');await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.play.inventory[0].quantity,3);
+ await sheet.getByLabel('Move Dagger',{exact:true}).selectOption('equipped');await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.play.inventory[0].location,'equipped');
+ await sheet.getByLabel('Current HP',{exact:true}).fill('5');await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.play.hp,5);
+ for(const width of [1440,390]){await page.setViewportSize({width,height:1000});await page.waitForFunction(()=>window.innerWidth>=768||(document.querySelector('.campaign-sidebar')?.getBoundingClientRect().right??0)<=1);assert.ok(await sheet.evaluate(element=>element.scrollWidth<=document.documentElement.clientWidth));await page.screenshot({path:resolve(output,`autosave-sheet-${width}.png`),fullPage:true});}
+ assert.equal(await sheet.getByRole('button',{name:/Export/}).count(),0);await sheet.locator('#dnd-tab-tools').click();await sheet.getByRole('button',{name:'Export character',exact:true}).waitFor();
+ await sheet.getByLabel('Sheet layout').selectOption('classic');await sheet.locator('#dnd-tab-sheet').click();assert.equal(await sheet.getAttribute('data-layout'),'classic');assert.ok(await sheet.evaluate(element=>element.scrollWidth<=document.documentElement.clientWidth));await page.screenshot({path:resolve(output,'autosave-classic-390.png'),fullPage:true});
+ await sheet.locator('#dnd-tab-tools').click();await sheet.getByRole('button',{name:'Import character',exact:true}).click();const current=await call('load',{}),envelope={format:'dnd-character.v1',schemaVersion:'4.0.0',inputs:{...current.state.inputs,notes:'Imported notes'}};await sheet.getByLabel('Or paste the export').fill(JSON.stringify(envelope));await sheet.getByRole('button',{name:'Review import',exact:true}).click();await sheet.getByRole('button',{name:'Replace character',exact:true}).click();await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.notes,'Imported notes');
+});
+test('autosave queues typing during an in-flight request and preserves overlapping conflicts', {skip:!enabled},async t=>{
+ const context=await browser.newContext({storageState:await admin.storageState()});t.after(()=>context.close());const page=await context.newPage();await page.goto(origin+'/#/characters/new-hero');await page.locator('#character-view-addons').click();const sheet=page.locator('.addon-dnd-character');await sheet.locator('#dnd-tab-notes').click();const notes=sheet.getByLabel('Character notes',{exact:true});await notes.waitFor();
+ let release!:()=>void,started!:()=>void;let hold=true;const gate=new Promise<void>(resolve=>{release=resolve}),entered=new Promise<void>(resolve=>{started=resolve});
+ await page.route('**/services/call',async route=>{if(hold&&route.request().postDataJSON()?.method==='save'){hold=false;started();await gate;}await route.continue();});t.after(()=>release());
+ await notes.fill('First edit');await entered;await notes.fill('Typed during save');release();await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.notes,'Typed during save');assert.equal(await notes.evaluate(node=>node===document.activeElement),true);
+ await page.unroute('**/services/call');hold=true;let releaseConflict!:()=>void,conflictStarted!:()=>void;const conflictGate=new Promise<void>(resolve=>{releaseConflict=resolve}),conflictEntered=new Promise<void>(resolve=>{conflictStarted=resolve});t.after(()=>releaseConflict());
+ await page.route('**/services/call',async route=>{if(hold&&route.request().postDataJSON()?.method==='save'){hold=false;conflictStarted();await conflictGate;}await route.continue();});
+ await notes.fill('Pending local edit');await conflictEntered;const before=await call('load',{});await call('save',{operation:'notes',operationId:'competing-editor',summary:'Other editor',expectedRevision:before.revision,inputs:{...before.state.inputs,notes:'Saved in other editor'}});releaseConflict();
+ await sheet.locator('[data-character-status]').filter({hasText:'edited elsewhere'}).waitFor();assert.equal(await notes.inputValue(),'Pending local edit');assert.equal((await call('load',{})).state.inputs.notes,'Saved in other editor');
+ await sheet.locator('#dnd-tab-tools').click();await sheet.getByRole('button',{name:'Reload character',exact:true}).click();await sheet.locator('#dnd-tab-notes').click();assert.equal(await notes.inputValue(),'Saved in other editor');
 });
 
-test('installed character play records real bounded actions and preserves past snapshots', { skip: !enabled }, async () => {
-  let current = await call('load', {});
-  const apply = async (change: Record<string,unknown>, id: string) => {
-    const p = await call('preview',{operation:'play',change,expectedRevision:current.revision,operationId:id,summary:id});
-    assert.ok(p.token,JSON.stringify(p));
-    current = await call('commit',{token:p.token,operationId:id,expectedRevision:current.revision});
-    assert.equal(current.status,'ready');
-  };
-  await apply({operation:'rest',rest:'long'},'installed-long-rest');
-  const maximum = current.state.projection.sheet.derived.maxHp;
-  await apply({operation:'set-temporary-hp',amount:3},'installed-temp-hp');
-  await apply({operation:'damage',amount:5},'installed-damage');
-  assert.equal(current.state.inputs.play.hp,maximum-2); assert.equal(current.state.inputs.play.temporaryHp,0);
-  const revision = current.revision;
-  await assert.rejects(()=>call('preview',{operation:'play',change:{operation:'set-hp',amount:maximum+1},expectedRevision:revision,operationId:'invalid-overheal',summary:'Invalid direct HP'}));
-  assert.equal((await call('load',{})).revision,revision);
-  await apply({operation:'heal',amount:100},'installed-heal');assert.equal(current.state.inputs.play.hp,maximum);
-  const old=await call('revision',{revision});assert.equal(old.state.inputs.play.hp,maximum-2);
-  assert.ok(current.state.projection.evidence.every((source:{packageGeneration:string;hash:string})=>source.packageGeneration.length===64&&source.hash.length===64));
-});
-
-
-test('restored sheet cards, equipment workflow and Builder retain the current backend', {skip:!enabled}, async t=>{
-  const original=await call('load',{});
-  const context=await browser.newContext({storageState:await admin.storageState(),viewport:{width:1440,height:1050}});t.after(()=>context.close());
-  const page=await context.newPage(), errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
-  let releaseCatalogs!:()=>void;const catalogGate=new Promise<void>(resolve=>{releaseCatalogs=resolve;});t.after(()=>releaseCatalogs());
-  await page.route('**/services/call',async route=>{if(route.request().postDataJSON()?.method==='query-records')await catalogGate;await route.continue();});
-  await page.goto(origin+'/#/characters/new-hero');await page.locator('#character-view-addons').click();
-  const sheet=page.locator('.addon-dnd-character');await sheet.locator('.dse-cards').waitFor();
-  assert.equal(await sheet.locator('.dse-ability').count(),6);
-  assert.equal(await sheet.locator('.dse-bp-split').count(),1);
-  assert.equal(await sheet.getAttribute('aria-busy'),'true','saved sheet must render while catalogs are pending');releaseCatalogs();
-  await page.waitForFunction(()=>document.querySelector('.addon-dnd-character')?.getAttribute('aria-busy')===null);
-  for(const [index,ability] of ['STR','DEX','CON','INT','WIS','CHA'].entries()){
-    const score=original.state.projection.sheet.abilities[ability];
-    await sheet.locator('.dse-score').nth(index).locator('.dse-number').getByRole('button',{name:String(score.score),exact:true}).waitFor();
-    await sheet.locator('.dse-score').nth(index).locator('strong').getByRole('button',{name:(score.mod>=0?'+':'')+score.mod,exact:true}).waitFor();
-  }
-  assert.equal(await sheet.locator('.dse-score input').count(),0,'calculated abilities must stay engine-owned');
-  await page.screenshot({path:resolve(output,'restored-sheet-compact-desktop.png'),fullPage:true,animations:'disabled'});
-  const health=original.state.inputs.play.hp;
-  await sheet.getByRole('button',{name:'Damage',exact:true}).click();
-  await sheet.getByLabel('Amount',{exact:true}).fill('1');await sheet.locator('.dse-hp-adjust').getByRole('button',{name:'Damage',exact:true}).click();
-  const review=sheet.getByRole('dialog',{name:'Review character changes',exact:true});await review.waitFor();
-  assert.equal((await call('load',{})).state.inputs.play.hp,health,'HP must wait for reviewed commit');
-  await review.getByRole('button',{name:'Close',exact:true}).click();
-  await sheet.getByRole('button',{name:'Edit sheet',exact:true}).click();
-  await sheet.getByRole('button',{name:'Add item',exact:true}).click();
-  const equipment=sheet.getByRole('dialog',{name:'Add equipment',exact:true});
-  await equipment.getByRole('button',{name:'▸ Armor',exact:true}).click();
-  assert.ok(await equipment.locator('.dnd-equipment-path').innerText().then(text=>text.includes('Armor')));
-  await equipment.getByRole('button',{name:'All equipment',exact:true}).click();
-  await equipment.getByLabel('Find catalog item').fill('dagger');
-  await equipment.getByRole('button',{name:'Add Dagger',exact:true}).click();
-  await equipment.getByLabel('Dagger quantity',{exact:true}).fill('2');
-  await equipment.getByRole('button',{name:'Add selected items',exact:true}).click();
-  assert.equal((await call('load',{})).revision,original.revision,'equipment tray must remain a draft');
-  const item=sheet.locator('.dse-item').filter({hasText:'Dagger'});
-  await item.getByLabel('Move Dagger',{exact:true}).selectOption('equipped');
-  await sheet.getByRole('button',{name:'Review inventory changes',exact:true}).click();
-  await review.getByRole('button',{name:'Save new revision',exact:true}).click();await review.waitFor({state:'hidden'});
-  const saved=await call('load',{}), dagger=saved.state.inputs.play.inventory.find((row:{name:string})=>row.name==='Dagger');
-  assert.equal(dagger.quantity,2);assert.equal(dagger.location,'equipped');assert.equal(saved.revision,original.revision+1);
-  assert.deepEqual((await call('revision',{revision:original.revision})).state,original.state);
-  await sheet.locator('#dnd-tab-combat').click();await sheet.getByRole('heading',{name:'Attacks',exact:true}).waitFor();
-  await sheet.locator('#dnd-tab-tools').click();await sheet.getByLabel('Sheet layout').selectOption('classic');await sheet.locator('#dnd-tab-sheet').click();
-  assert.equal(await sheet.locator('.dse-layout-classic').count(),1);
-  await page.screenshot({path:resolve(output,'restored-sheet-classic-desktop.png'),fullPage:true,animations:'disabled'});
-  await page.reload();await page.locator('#character-view-addons').click();await sheet.locator('.dse-layout-classic').waitFor();
-  for(const layout of ['compact','classic']){
-    await sheet.locator('#dnd-tab-tools').click();await sheet.getByLabel('Sheet layout').selectOption(layout);await sheet.locator('#dnd-tab-sheet').click();
-    await page.setViewportSize({width:390,height:900});await page.reload();await page.locator('#character-view-addons').click();await sheet.locator('.dse-cards').waitFor();
-    await page.waitForFunction(()=>document.querySelector('.addon-dnd-character')?.getAttribute('aria-busy')===null);
-    assert.ok(await sheet.evaluate(element=>element.scrollWidth<=document.documentElement.clientWidth),'phone sheet overflow');
-    await page.screenshot({path:resolve(output,'restored-sheet-'+layout+'-phone.png'),fullPage:true,animations:'disabled'});
-  }
-  await sheet.locator('#dnd-tab-builder').click();await sheet.getByRole('tablist',{name:'Builder sections'}).getByRole('tab',{name:/Fighter/}).click();
-  await sheet.getByRole('heading',{name:'Level history',exact:true}).waitFor();
-  assert.ok(await sheet.locator('.dse-build-rail').count());assert.ok(await sheet.locator('.dse-build-level').count());
-  await page.screenshot({path:resolve(output,'restored-builder-phone.png'),fullPage:true,animations:'disabled'});
-  await page.setViewportSize({width:1440,height:1050});await page.screenshot({path:resolve(output,'restored-builder-desktop.png'),fullPage:true,animations:'disabled'});
-  await sheet.locator('#dnd-tab-sheet').click();await sheet.locator('#dnd-tab-sheet').press('ArrowRight');
-  assert.equal(await sheet.locator('#dnd-tab-combat').getAttribute('aria-selected'),'true');
-  assert.deepEqual(errors,[]);
-});
-
-test('installed sheet retains failed drafts, reviews transfers and prints exact saved revisions', {skip:!enabled},async t=>{
-  const context=await browser.newContext({storageState:await admin.storageState(),viewport:{width:1280,height:1000}});t.after(()=>context.close());
-  const page=await context.newPage();await page.goto(`${origin}/#/characters/new-hero`);await page.locator('#character-view-addons').click();
-  const sheet=page.locator('.addon-dnd-character');await sheet.locator('.dse-vitals').waitFor();
-  const original=await call('load',{});
-  await sheet.locator('#dnd-tab-tools').click();await sheet.getByLabel('Sheet layout').selectOption('classic');assert.equal(await sheet.getAttribute('data-layout'),'classic');
-  await sheet.locator('#dnd-tab-notes').click();await sheet.getByLabel('Character notes',{exact:true}).fill('Durable session notes');
-  await sheet.getByRole('button',{name:'Save notes',exact:true}).click();
-  const review=sheet.getByRole('dialog',{name:'Review character changes',exact:true});await review.waitFor();
-  let failed=false;
-  await page.route('**/services/call',async route=>{
-    if(route.request().postDataJSON()?.method==='commit'&&!failed){failed=true;await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:{kind:'UNAVAILABLE',message:'Temporary test interruption'}})});}else await route.continue();
-  });
-  await review.getByRole('button',{name:'Save new revision',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelector('.addon-dnd-character')?.getAttribute('aria-busy')===null);
-  assert.equal((await call('load',{})).revision,original.revision);assert.equal(await unloadBlocked(page),true);
-  assert.equal(await sheet.getByLabel('Character notes',{exact:true}).inputValue(),'Durable session notes');
-  await review.getByRole('button',{name:'Save new revision',exact:true}).click();await review.waitFor({state:'hidden'});
-  const saved=await call('load',{});assert.equal(saved.revision,original.revision+1);assert.equal(saved.state.inputs.notes,'Durable session notes');
-  const downloadPromise=page.waitForEvent('download');await sheet.locator('#dnd-tab-tools').click();await sheet.getByRole('button',{name:'Export saved revision',exact:true}).click();
-  const download=await downloadPromise, path=await download.path();assert.ok(path);
-  const envelope=JSON.parse(await readFile(path,'utf8'));assert.deepEqual(envelope.savedProjection,saved.state.projection);assert.deepEqual(envelope.inputs,saved.state.inputs);
-  await sheet.locator('#dnd-tab-tools').click();await sheet.getByRole('button',{name:'Import character',exact:true}).click();
-  const imported=sheet.getByRole('dialog',{name:'Import current character',exact:true});
-  envelope.inputs.notes='Imported replacement notes';await imported.getByLabel('Or paste the export').fill(JSON.stringify(envelope));
-  await imported.getByRole('button',{name:'Review import',exact:true}).click();await review.waitFor();
-  assert.equal((await call('load',{})).revision,saved.revision);await review.getByRole('button',{name:'Close',exact:true}).click();
-  assert.equal((await call('load',{})).state.inputs.notes,'Durable session notes');
-  await sheet.getByRole('button',{name:'Print / PDF',exact:true}).click();
-  const printOptions=sheet.getByRole('dialog',{name:'Print / PDF',exact:true});await printOptions.getByLabel('Provenance').check();
-  const popupPromise=page.waitForEvent('popup');await printOptions.getByRole('button',{name:'Open print preview',exact:true}).click();
-  const printed=await popupPromise;await printed.getByRole('heading',{name:'New Hero',exact:true}).waitFor();
-  assert.match(await printed.locator('body').innerText(),new RegExp(`Saved character revision ${saved.revision}`));
-  assert.match(await printed.locator('body').innerText(),/Durable session notes/);
-  for(const format of ['A4','Letter'] as const){const pdf=await printed.pdf({format,path:resolve(output,`character-${format}.pdf`),printBackground:true});assert.equal(pdf.subarray(0,5).toString(),'%PDF-');}
-  await printed.screenshot({path:resolve(output,'character-print.png'),fullPage:true,animations:'disabled'});await printed.close();
-});
-
-test('installed history comparison, file import and Czech drafts use the current saved model', {skip:!enabled},async t=>{
-  const context=await browser.newContext({storageState:await admin.storageState(),viewport:{width:390,height:900}});t.after(()=>context.close());
-  const page=await context.newPage();await page.goto(`${origin}/#/characters/new-hero`);await page.locator('#character-view-addons').click();
-  const sheet=page.locator('.addon-dnd-character');await sheet.locator('.dse-vitals').waitFor();
-  const original=await call('load',{});
-  await sheet.locator('#dnd-tab-history').click();await sheet.getByRole('button',{name:'Compare saved revisions',exact:true}).click();
-  const compare=sheet.getByRole('dialog',{name:'Compare saved revisions',exact:true});await compare.getByLabel('Earlier revision').fill('1');await compare.getByLabel('Later revision').fill('2');await compare.getByRole('button',{name:'Show comparison',exact:true}).click();
-  const differences=sheet.getByRole('dialog',{name:'Revision 1 → 2',exact:true});await differences.waitFor();assert.match(await differences.innerText(),/Quest reward|Grants/);assert.equal((await call('load',{})).revision,original.revision);await differences.getByRole('button',{name:'Close',exact:true}).click();
-  const envelope={format:'dnd-character.v1',schemaVersion:'4.0.0',inputs:structuredClone(original.state.inputs),savedProjection:original.state.projection,savedRules:original.state.rules};envelope.inputs.notes='Imported from a reviewed file';
-  await sheet.locator('#dnd-tab-tools').click();await sheet.getByRole('button',{name:'Import character',exact:true}).click();const transfer=sheet.getByRole('dialog',{name:'Import current character',exact:true});
-  await transfer.getByLabel('Choose a file').setInputFiles({name:'character.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(envelope))});
-  await page.waitForFunction(()=>document.querySelector('.addon-dnd-character')?.getAttribute('aria-busy')===null);
-  assert.equal(JSON.parse(await transfer.getByLabel('Or paste the export').inputValue()).inputs.notes,envelope.inputs.notes);
-  await transfer.getByRole('button',{name:'Review import',exact:true}).click();const review=sheet.getByRole('dialog',{name:'Review character changes',exact:true});await review.waitFor();assert.equal((await call('load',{})).revision,original.revision);
-  await review.getByRole('button',{name:'Save new revision',exact:true}).click();await review.waitFor({state:'hidden'});
-  const imported=await call('load',{});assert.equal(imported.state.inputs.notes,envelope.inputs.notes);assert.deepEqual((await call('revision',{revision:original.revision})).state,original.state);
-  await page.evaluate(()=>localStorage.setItem('codex_lang','cs'));await page.reload();await page.locator('#character-view-addons').click();
-  await sheet.locator('#dnd-tab-notes').click();await sheet.getByRole('button',{name:'Uložit poznámky',exact:true}).waitFor();
-  const notes=sheet.getByLabel('Poznámky k postavě',{exact:true});await notes.fill('Český koncept po importu');page.once('dialog',dialog=>dialog.accept());await page.reload();await page.locator('#character-view-addons').click();await sheet.locator('#dnd-tab-notes').click();await notes.waitFor();assert.equal(await notes.inputValue(),'Český koncept po importu');
-  assert.match(await sheet.locator('[data-character-status]').innerText(),/koncept/i);
-  await sheet.locator('#dnd-tab-sheet').click();const details=sheet.locator('codex-addon-rule-details').first();await details.getByRole('button').first().click();await details.getByRole('button',{name:'Zavřít podrobnosti pravidla',exact:true}).waitFor();await page.keyboard.press('Escape');
-  assert.ok(await sheet.evaluate(element=>element.scrollWidth<=document.documentElement.clientWidth));
-});
-
-test('installed character retains concurrent drafts and appends campaign recovery', {skip:!enabled},async t=>{
-  const original=await call('load',{}), headers={'X-Codex-CSRF':csrf};
-  const checkpoint=await jsonResponse(await admin.post('/api/recovery',{headers,data:{}}));
-  const context=await browser.newContext({storageState:await admin.storageState()});t.after(()=>context.close());
-  const page=await context.newPage();await page.goto(`${origin}/#/characters/new-hero`);await page.locator('#character-view-addons').click();
-  const sheet=page.locator('.addon-dnd-character'), notes=sheet.getByLabel('Character notes',{exact:true});await sheet.locator('#dnd-tab-notes').click();await notes.waitFor();
-  await notes.fill('Concurrent browser draft');
-  const changed=structuredClone(original.state.inputs);changed.notes='Saved in another editor';
-  const request={operation:'notes',operationId:'concurrent-notes',expectedRevision:original.revision,inputs:changed,summary:'Other editor notes'};
-  const preview=await call('preview',request);await call('commit',{token:preview.token,operationId:request.operationId,expectedRevision:original.revision});
-  await sheet.locator('[data-character-status]').filter({hasText:'saved character changed'}).waitFor();
-  assert.equal(await notes.inputValue(),'Concurrent browser draft');assert.equal(await unloadBlocked(page),true);
-  await sheet.locator('#dnd-tab-builder').click();await sheet.getByRole('button',{name:'Rebase this draft for a new review',exact:true}).waitFor();await sheet.locator('#dnd-tab-notes').click();
-  const listing=await jsonResponse(await admin.get('/api/recovery'));
-  await jsonResponse(await admin.post('/api/recovery/restore',{headers,data:{id:checkpoint.points[0].id,expectedRevision:listing.revision}}));
-  const recovered=await call('load',{});assert.equal(recovered.revision,original.revision+2);assert.deepEqual(recovered.state,original.state);
-  assert.equal((await call('revision',{revision:original.revision+1})).state.inputs.notes,'Saved in another editor');
-  assert.equal(await notes.inputValue(),'Concurrent browser draft');
-  page.once('dialog',dialog=>dialog.accept());await page.reload();await page.locator('#character-view-addons').click();await sheet.locator('#dnd-tab-notes').click();await notes.waitFor();assert.equal(await notes.inputValue(),'Concurrent browser draft');
-  await sheet.locator('#dnd-tab-tools').click();await sheet.getByRole('button',{name:'Reload saved character',exact:true}).click();await sheet.getByRole('button',{name:'Discard draft and reload',exact:true}).click();
-  await sheet.locator('#dnd-tab-history').click();await sheet.getByRole('button',{name:'Export with history',exact:true}).click();
-  const archiveDialog=sheet.getByRole('dialog',{name:'Export with history',exact:true});await archiveDialog.getByLabel('Recent revisions').fill('1');
-  const pending=page.waitForEvent('download',{timeout:5000});await archiveDialog.getByRole('button',{name:'Download history archive',exact:true}).click();const download=await pending.catch(async error=>{throw new Error(`${String(error)}; sheet status: ${await sheet.locator('[data-character-status]').innerText()}; busy: ${await sheet.getAttribute('aria-busy')}`);}),path=await download.path();assert.ok(path);
-  const body=await readFile(path,'utf8'),archive=JSON.parse(body);assert.equal(archive.externalHistory.length,1);assert.deepEqual(archive.externalHistory[0].state,recovered.state);
-  await archiveDialog.getByRole('button',{name:'Close',exact:true}).click();await sheet.locator('#dnd-tab-tools').click();await sheet.getByRole('button',{name:'Import character',exact:true}).click();
-  const transfer=sheet.getByRole('dialog',{name:'Import current character',exact:true});
-  const area=transfer.getByLabel('Or paste the export');await area.focus();
-  await area.evaluate((node:HTMLTextAreaElement,text)=>{const data=new DataTransfer();data.setData('text/plain',text);node.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));},body);
-  assert.equal(await area.inputValue(),body);
-  await area.evaluate((node:HTMLTextAreaElement)=>{const data=new DataTransfer();data.setData('text/plain','x'.repeat(1000001));node.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));});assert.equal(await area.inputValue(),body,'oversized paste replaced the retained transfer');
-  await transfer.getByRole('button',{name:'Save frozen import on this device',exact:true}).click();
-  await page.reload();await page.locator('#character-view-addons').click();await sheet.locator('#dnd-tab-tools').click();await sheet.getByRole('button',{name:'Import character',exact:true}).click();assert.equal(await transfer.getByLabel('Or paste the export').inputValue(),body);
-  await transfer.getByRole('button',{name:'Inspect external history',exact:true}).click();await sheet.getByRole('dialog',{name:'External history · unverified provenance',exact:true}).waitFor();assert.equal((await call('load',{})).revision,recovered.revision);
-});
-
-test('installed sheet reviews source-policy adoption and remains readable without providers', {skip:!enabled},async t=>{
-  const before=await call('load',{}), policy=await jsonResponse(await admin.get('/api/admin/rules-policy'));
-  type Source={addonId:string;setId:string;id:string;enabled:boolean};
-  const unused=(policy.sources as Source[]).find(source=>source.enabled&&!before.state.projection.evidence.some((entry:{book:string})=>entry.book===source.id));assert.ok(unused);
-  await jsonResponse(await admin.post('/api/admin/rules-policy',{headers:{'X-Codex-CSRF':csrf},data:{expectedRevision:policy.revision,expectedGraphRevision:policy.graphRevision,enabled:(policy.sources as Source[]).filter(source=>source.enabled&&source.id!==unused.id).map(({addonId,setId,id})=>({addonId,setId,id}))}}));
-  const changed=await call('load',{});assert.equal(changed.rulesChanged,true,JSON.stringify({status:changed.status,message:changed.message}));assert.deepEqual(changed.state,before.state);
-  const request={operation:'adopt-rules',operationId:'adopt-source-policy',summary:'Review allowed sources',expectedRevision:changed.revision};
-  const unapproved=await call('preview',request);assert.equal(unapproved.status,'rules-changed');assert.equal(unapproved.token,undefined);
-  const reviewed=await call('preview',{...request,adoptRules:true});assert.ok(reviewed.token,JSON.stringify(reviewed));
-  const adopted=await call('commit',{token:reviewed.token,operationId:request.operationId,expectedRevision:changed.revision});assert.notDeepEqual(adopted.state.rules,before.state.rules);
-  assert.deepEqual((await call('revision',{revision:before.revision})).state,before.state);
-  for(const id of ['dnd-sheets','dnd-engine','dnd-2024-compendium']){const addon=await jsonResponse(await admin.get(`/api/admin/addons/${id}`));await jsonResponse(await admin.post(`/api/admin/addons/${id}/disable`,{headers:{'X-Codex-CSRF':csrf},data:{expectedStateRevision:addon.state.revision}}));}
-  for(const [index,id] of ['dnd-engine','dnd-sheets'].entries())await installReviewedPackage(admin,csrf,id,await readFile(resolve(paths[index]!)),[]);
-  const frozen=await call('load',{});assert.equal(frozen.status,'unavailable');assert.deepEqual(frozen.state,adopted.state);
-  const context=await browser.newContext({storageState:await admin.storageState()});t.after(()=>context.close());
-  const page=await context.newPage();await page.goto(`${origin}/#/characters/new-hero`);await page.locator('#character-view-addons').click();
-  const sheet=page.locator('.addon-dnd-character');await sheet.locator('.dse-vitals').waitFor();
-  assert.equal(await sheet.getByRole('button',{name:'Heal',exact:true}).isDisabled(),true);await sheet.locator('#dnd-tab-tools').click();assert.equal(await sheet.getByRole('button',{name:'Export saved revision',exact:true}).isEnabled(),true);
-  await sheet.locator('#dnd-tab-notes').click();await sheet.getByLabel('Character notes',{exact:true}).fill('Notes while rules are disabled');await sheet.getByRole('button',{name:'Save notes',exact:true}).click();
-  const review=sheet.getByRole('dialog',{name:'Review character changes',exact:true});await review.getByRole('button',{name:'Save new revision',exact:true}).click();await review.waitFor({state:'hidden'});
-  const noted=await call('load',{});assert.equal(noted.state.inputs.notes,'Notes while rules are disabled');assert.deepEqual(noted.state.projection,adopted.state.projection);
+test('source adoption remains explicit and absent rules freeze mechanics while notes autosave', {skip:!enabled},async t=>{
+ const before=await call('load',{}),policy=await jsonResponse(await admin.get('/api/admin/rules-policy'));
+ type Source={addonId:string;setId:string;id:string;enabled:boolean};
+ const unused=(policy.sources as Source[]).find(source=>source.enabled&&!before.state.projection.evidence.some((entry:{book:string})=>entry.book===source.id));assert.ok(unused);
+ await jsonResponse(await admin.post('/api/admin/rules-policy',{headers:{'X-Codex-CSRF':csrf},data:{expectedRevision:policy.revision,expectedGraphRevision:policy.graphRevision,enabled:(policy.sources as Source[]).filter(source=>source.enabled&&source.id!==unused.id).map(({addonId,setId,id})=>({addonId,setId,id}))}}));
+ const changed=await call('load',{});assert.equal(changed.rulesChanged,true);assert.deepEqual(changed.state,before.state);
+ const request={operation:'adopt-rules',operationId:'adopt-source-policy',summary:'Adopt rules',expectedRevision:changed.revision};assert.equal((await call('save',request)).status,'rules-changed');
+ const adopted=await call('save',{...request,adoptRules:true});assert.equal(adopted.status,'ready');
+ for(const id of ['dnd-sheets','dnd-engine','dnd-2024-compendium']){const addon=await jsonResponse(await admin.get(`/api/admin/addons/${id}`));await jsonResponse(await admin.post(`/api/admin/addons/${id}/disable`,{headers:{'X-Codex-CSRF':csrf},data:{expectedStateRevision:addon.state.revision}}));}
+ for(const [index,id] of ['dnd-engine','dnd-sheets'].entries())await installReviewedPackage(admin,csrf,id!,await readFile(resolve(paths[index]!)),[]);
+ const frozen=await call('load',{});assert.equal(frozen.status,'unavailable');assert.deepEqual(frozen.state,adopted.state);
+ const context=await browser.newContext({storageState:await admin.storageState()});t.after(()=>context.close());const page=await context.newPage();await page.goto(origin+'/#/characters/new-hero');await page.locator('#character-view-addons').click();const sheet=page.locator('.addon-dnd-character');await sheet.getByRole('button',{name:'Heal',exact:true}).waitFor();assert.equal(await sheet.getByRole('button',{name:'Heal',exact:true}).isDisabled(),true);
+ await sheet.locator('#dnd-tab-notes').click();await sheet.getByLabel('Character notes',{exact:true}).fill('Notes without rules');await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.notes,'Notes without rules');await sheet.locator('#dnd-tab-sheet').click();assert.equal(await sheet.getByRole('button',{name:'Heal',exact:true}).isDisabled(),true);
+ await sheet.locator('#dnd-tab-tools').click();const downloadEvent=page.waitForEvent('download');await sheet.getByRole('button',{name:'Export character',exact:true}).click();const download=await downloadEvent,path=await download.path();assert.ok(path);const exported=JSON.parse(await readFile(path,'utf8'));assert.equal(exported.inputs.notes,'Notes without rules');assert.equal(exported.externalHistory,undefined);
 });

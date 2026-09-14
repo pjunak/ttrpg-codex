@@ -636,6 +636,10 @@
       "additionalProperties": false,
       "required": ["id", "target", "visibility", "schema", "schemaVersion"],
       "properties": {
+        "workerOnly": {
+          "type": "boolean",
+          "description": "Restrict mutations to the native worker without retaining snapshots."
+        },
         "retained": {
           "type": "boolean",
           "description": "Retain immutable revisions; only the owning worker may mutate. Requires data.history."

@@ -13,7 +13,7 @@ are checked out alongside this repository.
 | Choose a ruleset, books or service providers | [Rules and sources](rewrite/RULES_SOURCES.md) |
 | Recover Markdown or customize collection views | [Editing and browsing](rewrite/EDITOR_BROWSING.md) |
 | Use quick search, activity and map editing | [Search, activity and maps](rewrite/SEARCH_ACTIVITY_MAP.md) |
-| Understand character changes, DM grants and history | [Character workflow](rewrite/CHARACTER_BUILD_HISTORY.md) |
+| Understand character building, automatic saves and DM grants | [Character workflow](rewrite/CHARACTER_BUILD_HISTORY.md) |
 | Restore a backup or recover access | [Backups](SELF_HOSTING.md#backups) and [password recovery](SELF_HOSTING.md#password-changes-and-access-recovery) |
 | Convert an old campaign or retire an old sheet schema | [Offline conversion](rewrite/LEGACY_CONVERSION.md) and [sheet cutover](rewrite/CHARACTER_SHEET_CUTOVER.md) |
 

@@ -57,3 +57,63 @@ func TestRetainedDataRequiresWorkerAuthorityAndCurrentRecordVisibility(t *testin
 		t.Fatalf("recreated record inherited history = %v", err)
 	}
 }
+
+func TestWorkerOnlyCurrentStateKeepsAuthorityWithoutSnapshots(t *testing.T) {
+	service, core, db, _ := testService(t)
+	ctx := context.Background()
+	declaration := datacontract.Declaration{Kind: datacontract.RecordExtension, ID: "sheet", Target: "characters", Retained: true, Visibility: datacontract.VisibilityPublic, Schema: "contracts/sheet.json", SchemaVersion: "4.0.0"}
+	resources := map[string][]byte{"contracts/sheet.json": []byte(`{"type":"object","properties":{"level":{"type":"integer"}}}`)}
+	old, err := datacontract.Compile([]datacontract.Declaration{declaration}, resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activate(t, service, old, generationOne)
+	seedCore(t, core, "hero", "public")
+	seedCore(t, core, "hidden", "dm")
+	input := Transaction{Access: Access{AddonID: "dm-tools", Generation: generationOne, Role: RolePlayer, ActorID: "player-1", Worker: true}, OperationID: "old-save", Operation: "character.create", Mutations: []Mutation{{Kind: addondatastore.Put, DataKind: datacontract.RecordExtension, DataID: "sheet", Key: "hero", Value: json.RawMessage(`{"level":1}`)}}}
+	if _, err = service.Transact(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+	declaration.Retained = false
+	declaration.WorkerOnly = true
+	current, err := datacontract.Compile([]datacontract.Declaration{declaration}, resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, _ := old.Description(datacontract.RecordExtension, "sheet")
+	after, _ := current.Description(datacontract.RecordExtension, "sheet")
+	if before.SchemaSHA256 != after.SchemaSHA256 {
+		t.Fatal("current state lost compatible worker authority")
+	}
+	activate(t, service, current, "2222222222222222222222222222222222222222222222222222222222222222")
+	input.Access.Generation = "2222222222222222222222222222222222222222222222222222222222222222"
+	input.OperationID = ""
+	input.Operation = ""
+	input.Mutations[0].ExpectedRevision = 1
+	input.Mutations[0].Value = json.RawMessage(`{"level":2}`)
+	input.Access.Worker = false
+	if _, err = service.Transact(ctx, input); !errors.Is(err, ErrUnauthorized) {
+		t.Fatal("browser bypassed worker", err)
+	}
+	input.Access.Worker = true
+	if _, err = service.Transact(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+	document, err := service.Get(ctx, input.Access, datacontract.RecordExtension, "sheet", "hero")
+	if err != nil || document.Revision != 2 {
+		t.Fatal("head not updated", document, err)
+	}
+	if _, err = service.History(ctx, input.Access, datacontract.RecordExtension, "sheet", "hero", 0, 10); err == nil {
+		t.Fatal("history remained accessible")
+	}
+	if _, err = service.Get(ctx, input.Access, datacontract.RecordExtension, "sheet", "hidden"); !errors.Is(err, ErrUnauthorized) {
+		t.Fatal("uninitialized hidden sheet bypass", err)
+	}
+	var count int
+	if err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM addon_history_revisions`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatal("current saves retained new history", count)
+	}
+}

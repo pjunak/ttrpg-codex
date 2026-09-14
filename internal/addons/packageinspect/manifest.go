@@ -81,6 +81,7 @@ type CollectionIndex struct {
 }
 
 type RecordExtension struct {
+	WorkerOnly    bool   `json:"workerOnly,omitempty"`
 	Retained      bool   `json:"retained,omitempty"`
 	ID            string `json:"id"`
 	Target        string `json:"target"`

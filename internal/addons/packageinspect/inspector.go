@@ -358,7 +358,7 @@ func dataDeclarations(manifest Manifest) []datacontract.Declaration {
 		result = append(result, datacontract.Declaration{
 			Kind: datacontract.RecordExtension, ID: extension.ID, Target: extension.Target,
 			Visibility: datacontract.Visibility(extension.Visibility), Schema: extension.Schema,
-			SchemaVersion: extension.SchemaVersion, Retained: extension.Retained,
+			SchemaVersion: extension.SchemaVersion, Retained: extension.Retained, WorkerOnly: extension.WorkerOnly,
 		})
 	}
 	return result
@@ -667,6 +667,9 @@ func validateDeclarations(manifest Manifest, entries map[string]*zip.File, direc
 		}
 	}
 	for index, extension := range manifest.RecordExtensions {
+		if extension.WorkerOnly && manifest.Runtime.Worker == nil {
+			return fmt.Errorf("worker-only record extensions require a worker")
+		}
 		if extension.Retained && (manifest.Runtime.Worker == nil || !slices.Contains(manifest.Capabilities.Required, "data.history")) {
 			return fmt.Errorf("retained record extensions require a worker and data.history")
 		}

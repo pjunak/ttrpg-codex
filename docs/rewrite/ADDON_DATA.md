@@ -14,7 +14,15 @@ general compatibility layer for either format.
 Extensions with `retained: true` add immutable, actor-attributed snapshots and
 require a native worker mutation boundary. See [retained history](RETAINED_ADDON_HISTORY.md)
 for transaction authority, pagination, core-record lifetime and backup rules.
-Ordinary extension writes retain their existing semantics.
+`workerOnly: true` keeps native-worker mutation authority without creating
+retained snapshots or requiring `data.history`. Retained extensions imply
+worker-only authority. A reviewed package can turn retention off while keeping
+the same schema and worker authority; current documents remain compatible.
+Campaign recovery also respects explicit current-state worker declarations, even
+while the last activated package is disabled. Existing archives are not exposed through the non-retained extension, and new
+writes use only current state. Historical installation backups remain unchanged.
+Ordinary host transaction metadata and optimistic revision numbers continue to
+protect storage consistency.
 
 | Need | Decision |
 |---|---|

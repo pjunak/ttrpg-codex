@@ -9,7 +9,9 @@ runtime handlers do not yet exist.
 
 ## Package shape
 
-For worker-authorized immutable record snapshots, see
+For current-state extensions, `workerOnly: true` restricts mutations to the
+package native worker without retaining snapshots. For worker-authorized
+immutable record snapshots, see
 [retained history](../../docs/rewrite/RETAINED_ADDON_HISTORY.md). For contextual
 source links and saved calculation explanations, declare `ui.rule-details` and
 use the [shared rule-details surface](../../docs/rewrite/RULE_DETAILS.md).

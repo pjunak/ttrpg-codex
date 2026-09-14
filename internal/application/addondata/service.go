@@ -142,6 +142,15 @@ func (service *Service) Get(
 	if err != nil {
 		return addondatastore.Document{}, err
 	}
+	if kind == datacontract.RecordExtension {
+		target, err := service.coreTarget(ctx, description, key)
+		if err != nil {
+			return addondatastore.Document{}, err
+		}
+		if access.Role == RolePlayer && target.Visibility != campaign.VisibilityPublic {
+			return addondatastore.Document{}, ErrUnauthorized
+		}
+	}
 	document, err := service.repository.Get(ctx, access.AddonID, kind, dataID, key)
 	if err != nil {
 		return addondatastore.Document{}, err
@@ -309,7 +318,7 @@ func (service *Service) Transact(ctx context.Context, input Transaction) (addond
 		if err != nil {
 			return addondatastore.Commit{}, ErrInvalidRequest
 		}
-		if description.Retained && (!input.Access.Worker || input.OperationID == "" || input.Operation == "") {
+		if description.WorkerOnly && !input.Access.Worker || description.Retained && (!input.Access.Worker || input.OperationID == "" || input.Operation == "") {
 			return addondatastore.Commit{}, ErrUnauthorized
 		}
 		if !roleCanAccess(input.Access.Role, description.Visibility) {

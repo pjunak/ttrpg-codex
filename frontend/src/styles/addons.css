@@ -8,6 +8,9 @@
 }
 
 .addon-route { margin-top: 0; }
+.addon-article { max-width: none; width: 100%; }
+.addon-article > .addon-contribution { border: 0; background: transparent; box-shadow: none; overflow: visible; }
+.addon-article > .addon-contribution > :not(.addon-contribution-heading) { padding: 0; }
 codex-record-contributions, codex-addon-markdown { display: block; min-width: 0; }
 .record-contributions { margin-block: 1rem; }
 [data-record-contributions] { display: grid; gap: .75rem; }
