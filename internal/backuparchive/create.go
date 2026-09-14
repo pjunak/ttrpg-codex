@@ -56,7 +56,7 @@ func Create(ctx context.Context, config CreateConfig) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	if config.Database == nil || config.DataDirectory == "" || config.OutputPath == "" || config.HostVersion == "" {
+	if config.Database == nil || config.DataDirectory == "" || config.OutputPath == "" || config.HostVersion == "" || len(config.HostVersion) > 100 {
 		return Manifest{}, fmt.Errorf("backup database, data directory, output, and host version are required")
 	}
 	if config.Now == nil {
@@ -157,7 +157,7 @@ func Create(ctx context.Context, config CreateConfig) (Manifest, error) {
 		_ = archive.Close()
 		return Manifest{}, fmt.Errorf("create backup manifest entry: %w", err)
 	}
-	encoder := json.NewEncoder(manifestWriter)
+	encoder := json.NewEncoder(&boundedManifestWriter{writer: manifestWriter, remaining: limits.MaximumManifestBytes})
 	encoder.SetEscapeHTML(false)
 	if err := encoder.Encode(manifest); err != nil {
 		_ = archive.Close()
@@ -361,6 +361,21 @@ func addFile(ctx context.Context, archive *zip.Writer, source sourceFile, limits
 		Path: source.archivePath, Bytes: uint64(written),
 		SHA256: digest, Mode: uint32(source.mode.Perm()),
 	}, nil
+}
+
+// Creation must never publish a manifest that verification would reject for size.
+type boundedManifestWriter struct {
+	writer    io.Writer
+	remaining uint64
+}
+
+func (writer *boundedManifestWriter) Write(body []byte) (int, error) {
+	if uint64(len(body)) > writer.remaining {
+		return 0, fmt.Errorf("%w: manifest exceeds size limit", ErrInvalidArchive)
+	}
+	written, err := writer.writer.Write(body)
+	writer.remaining -= uint64(written)
+	return written, err
 }
 
 type contextReader struct {

@@ -28,10 +28,15 @@ the backup allowlist, and are never included or restored. Configure GitHub
 access again after moving a campaign backup to a new server. Campaign recovery
 points do not change repository links or tokens.
 
-The verifier and restore command continue to accept `codex-backup.v1` archives
-that contain only the database and add-on generations. After applying current
-migrations, such an archive is rejected if its database references a blob that
-the older format did not carry.
+Normal verification and restore accept only `codex-backup.v2`. Retired
+formats require their separate offline conversion procedure.
+
+Creation, verification and restore share a manifest size limit of 64 MiB by
+default, alongside the 100,000-file, 1 GiB archive and 4 GiB expanded-data
+limits. Creation refuses to publish an archive whose manifest exceeds that
+limit. The earlier verifier's fixed 1 MiB limit could reject backups produced
+by the host once retained add-on packages added enough files; use the updated
+maintenance utility to verify and restore those archives.
 
 ## Commands
 

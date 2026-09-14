@@ -21,6 +21,7 @@ var (
 )
 
 type Limits struct {
+	MaximumManifestBytes uint64
 	MaximumArchiveBytes  int64
 	MaximumExpandedBytes uint64
 	MaximumFileBytes     uint64
@@ -28,6 +29,7 @@ type Limits struct {
 }
 
 var DefaultLimits = Limits{
+	MaximumManifestBytes: 64 << 20,
 	MaximumArchiveBytes:  1 << 30,
 	MaximumExpandedBytes: 4 << 30,
 	MaximumFileBytes:     1 << 30,
@@ -57,7 +59,11 @@ func normalizeLimits(limits Limits) (Limits, error) {
 	if limits == (Limits{}) {
 		limits = DefaultLimits
 	}
-	if limits.MaximumArchiveBytes <= 0 || limits.MaximumExpandedBytes == 0 ||
+	if limits.MaximumManifestBytes == 0 {
+		limits.MaximumManifestBytes = DefaultLimits.MaximumManifestBytes
+	}
+	if limits.MaximumManifestBytes == 0 || limits.MaximumManifestBytes >= math.MaxInt64 ||
+		limits.MaximumArchiveBytes <= 0 || limits.MaximumExpandedBytes == 0 ||
 		limits.MaximumFileBytes == 0 || limits.MaximumEntries < 1 ||
 		limits.MaximumFileBytes > limits.MaximumExpandedBytes ||
 		limits.MaximumFileBytes >= math.MaxInt64 {

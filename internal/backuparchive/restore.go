@@ -19,8 +19,6 @@ import (
 	"time"
 )
 
-const maximumManifestBytes = 1 << 20
-
 type RestoreConfig struct {
 	ArchivePath   string
 	DataDirectory string
@@ -287,16 +285,16 @@ func inspectArchive(filename string, limits Limits) (Manifest, *zip.ReadCloser, 
 }
 
 func decodeManifest(file *zip.File, limits Limits) (Manifest, error) {
-	if file.UncompressedSize64 == 0 || file.UncompressedSize64 > maximumManifestBytes {
+	if file.UncompressedSize64 == 0 || file.UncompressedSize64 > limits.MaximumManifestBytes {
 		return Manifest{}, fmt.Errorf("%w: manifest size is invalid", ErrInvalidArchive)
 	}
 	reader, err := file.Open()
 	if err != nil {
 		return Manifest{}, fmt.Errorf("%w: open manifest: %v", ErrInvalidArchive, err)
 	}
-	body, err := io.ReadAll(io.LimitReader(reader, maximumManifestBytes+1))
+	body, err := io.ReadAll(io.LimitReader(reader, int64(limits.MaximumManifestBytes)+1))
 	closeErr := reader.Close()
-	if err != nil || closeErr != nil || len(body) > maximumManifestBytes {
+	if err != nil || closeErr != nil || uint64(len(body)) > limits.MaximumManifestBytes {
 		return Manifest{}, fmt.Errorf("%w: read manifest", ErrInvalidArchive)
 	}
 	var manifest Manifest
