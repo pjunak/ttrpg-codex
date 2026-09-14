@@ -26,9 +26,19 @@ attributed reason and a visible **DM given** marker.
 
 | View | What it is for |
 | --- | --- |
-| **Play** | HP, temporary HP, resources, rests, inventory, currency and spell actions |
-| **Build** | Origin, abilities, ordered class levels, choices, spells and DM grants |
-| **History** | Inspecting, comparing, restoring, exporting and printing saved revisions |
+| **Sheet** | Compact/Classic ability cards, vitals, worn equipment and split backpack |
+| **Combat** | HP, temporary HP, attacks, resources, rests and feature actions |
+| **Spells** | Search, casting, preparation, copying and recorded replacements |
+| **Notes** | Authored character notes, including when rules are unavailable |
+| **Builder** | Progress rail, origin, abilities, class-level choices, spells and DM grants |
+| **History** | Inspecting, comparing and restoring retained revisions |
+| **Tools** | Layout, rules status, import, export and printing |
+
+The restored presentation uses the same worker-authorized character model.
+Calculated ability cards are read-only and expose saved explanations. **Edit
+sheet** enables authored inventory and counter edits; the equipment picker
+collects a quantity tray before adding a draft. Review and save still append
+an exact revision.
 
 To change a build, edit the decision, review the affected choices and values,
 resolve blockers, then save a new revision. For example, replacing an early
