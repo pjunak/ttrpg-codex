@@ -188,8 +188,8 @@ export class CodexAddonManager extends LitElement {
       <div class="addon-actions">${active ? html`<button ?disabled=${this.#busy} @click=${() => this.#action(snapshot, "reload")}>${t("addons.reload")}</button><button ?disabled=${this.#busy} @click=${() => this.#action(snapshot, "disable")}>${t("addons.disable")}</button>` : nothing}
         <button ?disabled=${this.#busy} @click=${() => this.#prepareUninstall(state.addonId)}>${t("addons.uninstall")}</button></div></header>
       ${this.#source(state.addonId)}${this.#settings(state.addonId)}
-      <details ?open=${!active}><summary>${t("addons.versions")}</summary><ul>${snapshot.generations.map(generation => html`<li data-generation=${generation.generationId}>
-        <div><strong>${generation.version}</strong> ${generation.generationId === state.activeGenerationId ? t("addons.active") : ""}<small>${this.#ui.relativeDate(generation.installedAt)}</small>
+      <details ?open=${!active}><summary>${t("addons.versions")}</summary><p>${t("addons.versionsHint")}</p><ul>${snapshot.generations.map(generation => html`<li data-generation=${generation.generationId}>
+        <div><strong>${generation.version}</strong> ${t(generation.generationId === state.activeGenerationId ? "addons.active" : "addons.savedInactive")}<small>${this.#ui.relativeDate(generation.installedAt)}</small>
           ${generation.lastError ? html`<p role="alert">${t("addons.failed")}</p><details><summary>${uiText("Technical details")}</summary><p>${generation.lastError}</p></details>` : nothing}<details><summary>${t("addons.generation")}</summary><code>${generation.generationId}</code></details></div>
         ${generation.generationId !== state.activeGenerationId ? html`<button ?disabled=${this.#busy} @click=${() => this.#prepare(state.addonId, generation.generationId)}>${t(active ? "addons.rollback" : "addons.review")}</button>` : nothing}</li>`)}</ul></details>
       ${snapshot.events.length ? html`<details><summary>${t("addons.history")}</summary><ul>${snapshot.events.map(event => html`<li><div>${uiSourceLabel(event.kind)}<small>${this.#ui.relativeDate(event.occurredAt)}</small>${event.message ? html`<details><summary>${uiText("Technical details")}</summary><p>${event.message}</p></details>` : nothing}</div></li>`)}</ul></details>` : nothing}
@@ -277,6 +277,9 @@ function blockerMessage(code: string): string {
     case "DEPENDENCY": case "DEPENDENT_INCOMPATIBLE": return uiText("Resolve the required add-on dependencies before activation.");
     case "SERVICE": return uiText("Resolve service-provider conflicts before activation.");
     case "DATA_REVIEW": return uiText("Review the stored data and the package data definitions.");
+    case "DATA_MIGRATION_REQUIRED": return uiText("Saved data uses a different format. Follow the add-on's documented upgrade procedure before activating. Uninstalling and reinstalling keeps this data.");
+    case "INVALID_STORED_DOCUMENT": return uiText("A saved record does not match this package's data format. Review the affected record in the technical details and follow the add-on's upgrade instructions.");
+    case "DATA_DEFINITION_REMOVED": return uiText("This package no longer declares data that is still saved. Follow the add-on's upgrade instructions before activating.");
     case "RECOVERY_REQUIRED": return uiText("Recovery is required before this add-on can be activated.");
     default: return uiText("Activation is blocked. Review the technical details.");
   }

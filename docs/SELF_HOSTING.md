@@ -159,7 +159,18 @@ specific repository, including future update checks.
 Select **Download and review**, or **Inspect ZIP** for a local file, to continue
 to the permission and compatibility review in the same popup. Only **Approve
 and activate** changes the active version. Cancelling a review leaves the
-inspected package available under **Installed versions** for later review.
+inspected package available under **Saved packages** for later review.
+Only the package marked **Active** runs. Other saved packages are inactive and
+remain available for reviewed activation or rollback; multiple entries do not
+mean multiple versions are running.
+
+If activation reports `DATA_MIGRATION_REQUIRED` or `INVALID_STORED_DOCUMENT`,
+the saved add-on data is incompatible with the selected package. Follow that
+add-on's documented upgrade procedure. Reinstalling preserves saved data and
+does not clear these blockers. For Character Sheets 3 to 4, see the
+[retirement procedure](rewrite/CHARACTER_SHEET_CUTOVER.md): it requires a
+separate reviewed backup and removal of old sheet values, not an automatic
+conversion.
 
 Update results appear directly on each installed add-on. Open **Update source**
 on that add-on to connect or edit its repository, replace repository access, or

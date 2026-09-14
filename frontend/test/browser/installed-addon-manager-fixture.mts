@@ -32,7 +32,9 @@ export async function exerciseAddonManager({ t, open, admin, csrf, output, mobil
   await row.getByRole('button', { name: 'Reload', exact: true }).click(); await manager.getByText('Add-on state updated.', { exact: true }).waitFor();
   await upload('1.1.0'); await approve();
   snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`)); assert.notEqual(snapshot.state.activeGenerationId, original);
-  await row.getByText('Installed versions', { exact: true }).click();
+  await row.getByText('Saved packages', { exact: true }).click();
+  await row.getByText('Only the active package runs. Other packages are kept for review or rollback; they do not run alongside it.', { exact: true }).waitFor();
+  await row.locator(`[data-generation="${original}"]`).getByText('Inactive', { exact: false }).waitFor();
   await row.locator(`[data-generation="${original}"]`).getByRole('button', { name: 'Review rollback', exact: true }).click(); await approve();
   snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`)); assert.equal(snapshot.state.activeGenerationId, original);
   page.once('dialog', dialog => dialog.accept()); await row.getByRole('button', { name: 'Disable', exact: true }).click();

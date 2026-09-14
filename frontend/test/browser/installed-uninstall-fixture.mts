@@ -60,6 +60,23 @@ export async function exerciseUninstall({ t, open, admin, csrf, output, mobile }
   const blocked = await jsonResponse(await admin.post(`/api/admin/addons/${id}/activation-reviews`, { headers, data: { generationId: incompatible.generationId } }));
   assert.ok(blocked.proposal.blockers.length > 0, 'incompatible retained records must block activation');
   assert.equal((await admin.post(`/api/admin/addon-activation-reviews/${blocked.reviewId}/approval`, { headers, data: { grantedPermissionIds: [] } })).ok(), false);
+  await manager.getByRole('button', { name: 'Check for updates', exact: true }).click();
+  const activation = manager.locator('.addon-review');
+  for (const language of ['en', 'cs']) {
+    if (language === 'cs') {
+      await page.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await page.reload(); await page.locator('[data-category="addons"]').click();
+    }
+    await row.locator(`[data-generation="${incompatible.generationId}"]`).getByRole('button', { name: language === 'en' ? 'Review activation' : 'Zkontrolovat aktivaci', exact: true }).click();
+    await activation.getByText(language === 'en'
+      ? "Saved data uses a different format. Follow the add-on's documented upgrade procedure before activating. Uninstalling and reinstalling keeps this data."
+      : 'Uložená data používají jiný formát. Před aktivací postupujte podle dokumentovaného postupu aktualizace doplňku. Odinstalace a opětovná instalace tato data zachová.').waitFor();
+    await activation.getByText(language === 'en'
+      ? "A saved record does not match this package's data format. Review the affected record in the technical details and follow the add-on's upgrade instructions."
+      : 'Uložený záznam neodpovídá datovému formátu tohoto balíčku. Zkontrolujte dotčený záznam v technických podrobnostech a postupujte podle pokynů k aktualizaci doplňku.').waitFor();
+    assert.equal(await activation.getByRole('button', { name: language === 'en' ? 'Approve and activate' : 'Schválit a aktivovat', exact: true }).isDisabled(), true);
+    await activation.getByRole('button', { name: language === 'en' ? 'Cancel review' : 'Zrušit kontrolu', exact: true }).click();
+  }
+  await page.evaluate(() => localStorage.setItem('codex_lang', 'en')); await page.reload(); await page.locator('[data-category="addons"]').click();
   await installDmPackage(admin, csrf, { id, live: true });
   const retained = await jsonResponse(await admin.post(`${data}/query`, { headers, data: { contractVersion: 'addon-data-query.v1', kind: 'collection', dataId: 'notes', where: [], limit: 10 } }));
   assert.equal(retained.documents[0].value.text, 'Authored work survives uninstall');
