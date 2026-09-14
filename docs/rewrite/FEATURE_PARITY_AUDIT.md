@@ -2,7 +2,7 @@
 
 Initial audit September 10–11, 2026; continuation audit September 14, 2026. This compares preserved source revisions with current local source and synthetic/installed browser evidence, not a production-site inspection.
 
-**Latest continuation:** 12 additional confirmed workflow/presentation findings and four design concerns are documented below. The current execution plan is [T20–T29 in the backlog](../BACKLOG.md#backend-and-uxui-fixup-plan).
+**Latest continuation:** 12 additional confirmed workflow/presentation findings and four design concerns are documented below. The current execution plan is [the repository fixup sections in the backlog](../BACKLOG.md).
 
 **Original September 10–11 baseline: 21 confirmed missing or reduced capabilities, six documented transition/design differences, and four verification gaps.** Every item below includes an assessment of its usefulness and a recommended direction. Missing does not automatically mean worth restoring in its old form. The original audit made no runtime or deployment changes; subsequent implementation is recorded below. These proposals do not create new deployment gates.
 
@@ -21,7 +21,7 @@ report nor its old test counts represents current production state.
 This continuation found **12 additional confirmed omissions or reductions**,
 plus four UX/design concerns. These are separate from historical F01–F21.
 Current implementation work is tracked as **T20–T29 in
-[BACKLOG.md](../BACKLOG.md#backend-and-uxui-fixup-plan)**, alongside the existing
+[BACKLOG.md](../BACKLOG.md)**, alongside the existing
 backend tasks. This is an assessment and plan, not an implementation or a new
 cutover gate. A checked historical gate does not close these findings.
 
@@ -50,7 +50,7 @@ negative observations are not passing regression tests for desired behavior.
 No production campaign data, site credentials or live conversion was used.
 The number of affected real records is unknown. Assertions about missing UI
 do not mean stored records have been deleted. Code and tested ZIPs are current
-local evidence; dated production observations in the backlog were not refreshed.
+local evidence; the earlier dated production snapshot was not refreshed.
 
 ### Confirmed findings
 
@@ -714,4 +714,137 @@ The comparison proves source-level behavior and content-tree preservation, not t
 
 The initial implementation scope should avoid a generic form designer, a new graph framework, server-side PDF infrastructure, live legacy compatibility, and cross-package atomic bulk updates. Each would add substantial maintenance beyond the workflow that motivated the finding. Reassess them only against a concrete need that the smaller designs cannot meet.
 
-The suite's actionable tracking remains in [BACKLOG.md](../BACKLOG.md#feature-parity-audit-follow-up-2026-09-11); this report records the evidence and baseline, rather than creating a second backlog.
+The suite's actionable tracking remains in [BACKLOG.md](../BACKLOG.md); this report records the evidence and baseline, rather than creating a second backlog.
+
+## Accepted product-parity release gates
+
+These 33 outcomes were accepted for the September 9 personal-site cutover and
+moved unchanged from the backlog on September 14. They record faithful ports,
+accepted redesigns or explicit retirements; they do not close later findings.
+Current open work belongs only in [the repository sections of BACKLOG.md](../BACKLOG.md).
+`npm run release-check` reads this block and still rejects incomplete gates or
+`frontend/REWRITE_INCOMPLETE`. Relocation changes no accepted outcome.
+
+The owner's policy permits outages, post-launch fixes and rollback. Preserve
+original backups and use a short first-start smoke check for an authorized
+cutover; do not repeat conversion because planning documents were reorganized.
+
+<!-- product-parity-gates:start -->
+
+### Core campaign experience
+
+- [x] Mount a real responsive application shell with login/logout, DM/player
+  projection switching, live refresh, safe core routes, and authenticated
+  route, dashboard-slot, sidebar, and record-article add-on outlets.
+
+- [x] Restore the campaign dashboard, party overview, entity cards, portraits,
+  badges, and attitude presentation with responsive DM/player behavior.
+
+- [x] Restore dedicated browsing, article viewing, and safe common-field
+  create/edit/delete for characters, locations, events, mysteries, factions,
+  deities, artifacts, history, and companions without losing unknown or
+  add-on-owned fields.
+
+- [x] Restore canonical typed fields for tags and fact lists, scalar and
+  multi-record references, attitudes, companion ownership, location hierarchy,
+  event links, and role-safe preservation of references hidden from players.
+
+- [x] Restore structured relationship editing with atomic identity changes,
+  character ranks and location roles, mystery questions, and stable faction
+  rank chains while retaining extension data attached to stable nested IDs.
+
+- [x] Complete collection-specific map fields alongside the rebuilt spatial
+  workflows so coordinate and image controls share one authoritative editor.
+
+- [x] Protect dirty record forms across archive navigation, role switching,
+  sign-out, cancellation, and browser unload.
+
+- [x] Restore wiki article rendering and editing, sanitized Markdown, headings
+  and table of contents, and cross-record wiki links.
+
+- [x] Restore campaign-wide search with useful type grouping and navigation.
+
+- [x] Establish typed bundled English and Czech catalogs, per-browser language
+  selection, native plural/date handling, and migrate the shell, dashboard,
+  search, and personal settings foundation.
+
+- [x] Complete the English and Czech catalog migration for record pages and
+  editors, structured campaign settings, host errors, and first-party add-on
+  surfaces.
+
+- [x] Restore campaign-wide appearance selection with classic and moonlit token
+  themes, flash-free cached boot, and DM-owned optimistic persistence.
+
+- [x] Audit shared tokens and keyboard/focus behavior on record and add-on
+  surfaces.
+
+- [x] Review representative converted campaign pages against the preserved UI
+  on desktop and phone.
+
+- [x] Restore the DM dashboard and true player-view preview workflow.
+
+### Spatial, temporal, and relationship workflows
+
+- [x] Restore the world map and location sub-maps, image/tile preparation,
+  markers, marker artwork, saved views, zoom behavior, and map editing.
+
+- [x] Restore multi-attitude marker/card glows and event-path overlays.
+
+- [x] Restore the session timeline, drag ordering, and timeline editing.
+
+- [x] Restore faction, relationship, and mystery graph views with position
+  persistence and their former navigation/detail behavior.
+
+### Administration and recovery
+
+- [x] Restore DM-facing shared campaign enum management for relationships,
+  genders, map markers, character statuses, event priorities, and attitudes,
+  including stable IDs, usage counts, and explicit replace-or-clear deletion.
+
+- [x] Finish persisted-settings compatibility for converted campaigns.
+
+- [x] Restore the useful recovery-point workflow: manual points, coalesced write
+  snapshots, restore, and revert-last-N, while retaining verified full backup.
+
+- [x] Provide reviewed runtime credential rotation.
+
+- [x] Provide the DM-facing add-on inspector, permission approval, activation,
+  update/reload, failure diagnosis, and rollback UI over the implemented APIs.
+
+### First-party add-ons
+
+- [x] Bring DM Tools planner interaction and editing to accepted parity,
+  including graph navigation, card/flow authoring, annotations, and browser
+  regression coverage; complete the reviewed Import Center workflow.
+
+- [x] Restore standalone compendium browsing and reading: the preserved topic/
+  source tree, class/subclass/level nesting, tiles, deep cross-kind search,
+  counted filters and sorting, complete Markdown/tables, composed class features,
+  monster stat blocks, related records and sourcebook links.
+
+- [x] Restore campaign-article compendium wiki references and external v1
+  compendium hashes through the documented `wiki-kind` / `wiki-links.v1`
+  provider.
+
+- [x] Differentially validate the Go rules engine against preserved v1 rules and
+  builder fixtures, including missing-provider and changed-provider behavior.
+
+- [x] Bring character sheets to accepted presentation and workflow parity,
+  including the fate of Compact/Classic layouts, builder progress, equipment,
+  spells, resources, and provider-state diagnostics.
+
+### Release evidence
+
+- [x] Build and inspect all four release ZIPs and exercise their basic installed
+  workflows.
+
+- [x] Convert each site's backup once into a fresh directory and review its
+  report, record counts, representative media, sheets, and planning data.
+
+- [x] Accept the owner's personal-site deployment policy: outages and rollback
+  are acceptable.
+
+- [x] Remove `frontend/REWRITE_INCOMPLETE` only after every earlier gate is
+  closed and the owner chooses to deploy the replacement.
+
+<!-- product-parity-gates:end -->

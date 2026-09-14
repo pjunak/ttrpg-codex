@@ -168,7 +168,8 @@ overrides, current `rewrite-v2/data` mounts and retained backups.
 ## Completion and durable planning
 
 - Architecture completion is not product completion. The product-parity gates
-  in [the backlog](docs/BACKLOG.md) and npm run release-check define the release
+  in the [historical acceptance record](docs/rewrite/FEATURE_PARITY_AUDIT.md#accepted-product-parity-release-gates)
+  and npm run release-check define the release
   boundary; release-check also rejects frontend/REWRITE_INCOMPLETE if present.
   npm run check proves
   technical consistency. Follow [the self-hosting runbook](docs/SELF_HOSTING.md)
