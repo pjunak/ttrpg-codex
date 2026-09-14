@@ -90,6 +90,11 @@ func TestGitHubRoutesRequireRealDMAndCSRFBeforeParsing(t *testing.T) {
 	if result.Code != 502 || strings.Contains(result.Body.String(), "secret-token") {
 		t.Fatal("private upstream diagnostics exposed")
 	}
+	github.err = githubsource.ErrTLS
+	result = serveAuthRequest(handler, "POST", "/api/admin/addon-github/discover", `{"source":{"repo":"owner/repo","channel":"release"}}`, cookie, csrf)
+	if result.Code != 502 || !strings.Contains(result.Body.String(), "GITHUB_TLS") {
+		t.Fatal("server TLS failure was not distinguished from repository access")
+	}
 	switched := serveAuthRequest(handler, "POST", "/api/view-as", `{"role":"player"}`, cookie, csrf)
 	result = serveAuthRequest(handler, "GET", "/api/admin/addon-github", "", switched.Result().Cookies()[0].String(), "")
 	if result.Code != 403 {

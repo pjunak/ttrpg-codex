@@ -10,6 +10,7 @@ export function githubError(error: unknown, t: (key: MessageKey) => string): str
     case "GITHUB_IDENTITY": return t("github.identity");
     case "GITHUB_PACKAGE": return t("github.invalidPackage");
     case "GITHUB_NO_PACKAGE": return t("github.noPackage");
+    case "GITHUB_TLS": return t("github.tls");
     case "GITHUB_UNAVAILABLE": return t("github.unavailable");
     default: return uiRequestError(error);
   }

@@ -27,7 +27,7 @@ for (const mobile of [false, true]) test(`GitHub installation, token management 
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message)); t.after(() => assert.deepEqual(errors, []));
   const source: GitHubSource = { repo: 'owner/private', channel: 'actions', branch: '', artifact: 'reviewed-package' };
   let links: GitHubLink[] = [], active = '', target = 'a'.repeat(64), revision = 0, downloads = 0, checks = 0, tokenWrites = 0, lostTokenResponse = false, failDiscovery = false;
-  let reviewed = '';
+  let reviewed = '', discoveryError = 'GITHUB_UNAVAILABLE';
   let heldDiscovery: Promise<void> | undefined, finishDiscovery: (() => void) | undefined;
   t.after(() => finishDiscovery?.());
   const tokens = new Map<string, string>();
@@ -49,7 +49,7 @@ for (const mobile of [false, true]) test(`GitHub installation, token management 
       if (body.remove) links = []; else links = [{ addonId: String(body.addonId), revision: Number(body.revision)+1, source: body.source as GitHubSource }]; value = status();
     } else if (path.endsWith('/addon-github/discover')) {
       checks++; if (heldDiscovery) { const held = heldDiscovery; heldDiscovery = undefined; await held; }
-      if (failDiscovery) { await route.fulfill({ status: 502, json: { error: { kind: 'GITHUB_UNAVAILABLE' } } }); return; }
+      if (failDiscovery) { await route.fulfill({ status: 502, json: { error: { kind: discoveryError } } }); return; }
       value = { source, candidates: [{ id: target, name: 'reviewed-package', version: target, digest: '', active: target === active }] };
     } else if (path.endsWith('/addon-github/stage')) {
       downloads++; assert.equal(body.candidateId, target);
@@ -88,11 +88,14 @@ for (const mobile of [false, true]) test(`GitHub installation, token management 
   await connect.locator('input[name="repo"]').fill('owner/private');
   assert.equal(await connect.getByLabel('Package source').inputValue(), 'release', 'new sources default to durable releases');
   assert.equal(await connect.locator('input[name="token"]').count(), 0);
+  await connect.getByText('Use this for normal installation and updates.', { exact: false }).waitFor();
+  assert.equal(await connect.getByLabel('Package source').getAttribute('aria-describedby'), 'github-source-help');
   await connect.getByLabel('Private repository').check();
   await dialog.getByRole('link', { name: 'Create a fine-grained token on GitHub.' }).waitFor();
   await connect.getByRole('button', { name: 'Find package', exact: true }).click();
   assert.equal(checks, 0, 'a private source requires access before discovery');
   await connect.getByLabel('Package source').selectOption('actions');
+  await connect.getByText('For add-on developers or repositories that do not publish packages.', { exact: false }).waitFor();
   await connect.locator('input[name="token"]').fill('synthetic-private-token');
   assert.equal(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth), true);
   await dialog.screenshot({ path: `${output}/${mobile ? 'phone' : 'desktop'}-private-wizard.png` });
@@ -128,6 +131,7 @@ for (const mobile of [false, true]) test(`GitHub installation, token management 
   await reviewPanel.getByRole('button', { name: 'Approve and activate' }).click();
   await dialog.waitFor({ state: 'detached' }); await manager.getByText('Add-on state updated.', { exact: true }).waitFor(); assert.equal(active, target);
   failDiscovery = true; await check.click(); await sourceRow.getByRole('alert').filter({ hasText: 'GitHub could not be reached' }).waitFor();
+  discoveryError = 'GITHUB_TLS'; await check.click(); await sourceRow.getByRole('alert').filter({ hasText: 'trusted certificates' }).waitFor();
   failDiscovery = false; await check.click(); await sourceRow.getByText('Up to date', { exact: true }).waitFor();
   // Source editing and token replacement stay attached to the installed add-on.
   await sourceRow.locator('summary').click(); await sourceRow.getByRole('button', { name: 'Edit GitHub source' }).click();

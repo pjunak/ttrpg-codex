@@ -24,6 +24,7 @@ var (
 	ErrInvalid       = errors.New("invalid GitHub source request")
 	ErrConflict      = errors.New("GitHub source or package changed; check again")
 	ErrSourceMissing = errors.New("no GitHub repository is linked")
+	ErrTLS           = errors.New("server could not verify GitHub HTTPS certificates")
 	ErrUnavailable   = errors.New("GitHub request failed; check repository access, token permissions and rate limits")
 	ErrNoPackage     = errors.New("no prebuilt package found; publish a release ZIP or a successful workflow artifact")
 	ErrPackage       = errors.New("GitHub download must contain one valid Add-on API v3 package ZIP")

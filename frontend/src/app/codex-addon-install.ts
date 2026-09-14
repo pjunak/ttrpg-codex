@@ -63,9 +63,10 @@ export class CodexAddonInstall extends LitElement {
     return html`<form class="addon-source-form addon-install-form" @submit=${this.#discover} @input=${() => { this.discovery = undefined; }} @change=${() => { this.discovery = undefined; }}>
       <label>${t("github.repo")}<input name="repo" required placeholder="owner/repository" maxlength="250" .value=${this.repository} ?disabled=${this.#busy}
         @input=${(event: Event) => { this.repository = (event.target as HTMLInputElement).value; }}></label>
-      <label>${t("github.channel")}<select name="channel" .value=${this.channel} ?disabled=${this.#busy}
+      <label>${t("github.channel")}<select name="channel" aria-describedby="github-source-help" .value=${this.channel} ?disabled=${this.#busy}
         @change=${(event: Event) => { this.channel = (event.target as HTMLSelectElement).value as "actions" | "release"; }}>
         <option value="release">${t("github.release")}</option><option value="actions">${t("github.actions")}</option></select></label>
+      <p id="github-source-help">${t(this.channel === "release" ? "github.releaseHelp" : "github.actionsHelp")}</p>
       ${this.channel === "actions" ? html`<details class="addon-build-options"><summary>${t("github.buildOptions")}</summary>
         <p>${t("github.buildDefaults")}</p><label>${t("github.branch")}<input name="branch" maxlength="200" .value=${this.link?.source.branch ?? ""} placeholder=${t("github.defaultBranch")} ?disabled=${this.#busy}></label>
         <label>${t("github.artifact")}<input name="artifact" maxlength="200" .value=${this.link?.source.artifact || "reviewed-package"} ?disabled=${this.#busy}></label></details>` : nothing}

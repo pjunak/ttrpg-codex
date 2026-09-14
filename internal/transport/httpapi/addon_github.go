@@ -113,6 +113,8 @@ func githubRequestContext(w http.ResponseWriter, r *http.Request) (context.Conte
 }
 func (s *server) writeGitHubError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, githubsource.ErrTLS):
+		writeAPIError(w, 502, "GITHUB_TLS", githubsource.ErrTLS.Error())
 	case errors.Is(err, githubsource.ErrInvalid):
 		writeAPIError(w, 400, "GITHUB_INVALID", githubsource.ErrInvalid.Error())
 	case errors.Is(err, githubsource.ErrConflict):

@@ -4,8 +4,10 @@ import (
 	"archive/zip"
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -43,6 +45,10 @@ func (s *Service) request(ctx context.Context, path, token, accept string) (*htt
 	res, err := s.client.Do(req)
 	// Do not propagate transport errors: they can include signed redirect URLs.
 	if err != nil {
+		var verification *tls.CertificateVerificationError
+		if errors.As(err, &verification) {
+			return nil, ErrTLS
+		}
 		return nil, ErrUnavailable
 	}
 	if res.StatusCode != http.StatusOK {

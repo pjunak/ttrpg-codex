@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -448,5 +450,23 @@ func TestDownloadsBoundBytesVerifyDigestAndStripRedirectCredentials(t *testing.T
 	})
 	if _, err := s.download(ctx, candidate, "release", ""); !errors.Is(err, ErrPackage) {
 		t.Fatal("oversized download accepted")
+	}
+}
+
+func TestCertificateErrorsIdentifyServerTrustWithoutExposingRequestDetails(t *testing.T) {
+	s, _, _ := fixture(t)
+	s.client.Transport = transportFunc(func(*http.Request) (*http.Response, error) {
+		return nil, &tls.CertificateVerificationError{Err: x509.UnknownAuthorityError{}}
+	})
+	_, err := s.request(context.Background(), "/repos/owner/repo/releases/latest?secret=private", "private-token", "application/json")
+	if !errors.Is(err, ErrTLS) || strings.Contains(err.Error(), "private") {
+		t.Fatalf("certificate failure was not safely classified: %v", err)
+	}
+	s.client.Transport = transportFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("network error at https://example.test/?signature=private")
+	})
+	_, err = s.request(context.Background(), "/repos/owner/repo/releases/latest", "private-token", "application/json")
+	if !errors.Is(err, ErrUnavailable) || strings.Contains(err.Error(), "private") {
+		t.Fatalf("network failure exposed request details: %v", err)
 	}
 }

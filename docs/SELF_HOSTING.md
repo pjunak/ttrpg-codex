@@ -137,10 +137,13 @@ Open **Settings → Add-ons** while signed in as DM. The toolbar has two actions
 In the wizard, choose **GitHub** or **ZIP file**:
 
 - **GitHub** accepts a repository URL or `owner/repository`. The default is the
-  **Latest published package**. First-party add-ons publish one durable release
+  **Latest published package (recommended)**. First-party add-ons publish one durable release
   per tested main commit, even when the package version stays the same. Public
-  releases need no token. **GitHub Actions build** remains available for other
-  branches or publishers; its default artifact is `reviewed-package`.
+  releases need no token. **Test build (advanced)** downloads a successful GitHub Actions build for
+  developers, other branches or publishers without releases; its default artifact
+  is `reviewed-package`. These temporary downloads expire according to the
+  repository's Actions retention setting. Use the recommended option for normal
+  installation and updates; the wizard explains the selected source inline.
 - **ZIP file** uploads a prebuilt add-on package from your computer. The limit
   is 128 MiB. GitHub's generated source-code archives are not installable packages.
 
@@ -184,6 +187,13 @@ The interaction follows the [WAI modal-dialog guidance](https://www.w3.org/WAI/A
 Token instructions follow [GitHub's personal access token guide](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens),
 [release asset API](https://docs.github.com/en/rest/releases/assets), and
 [Actions artifact API](https://docs.github.com/en/rest/actions/artifacts).
+
+The runtime image must include the operating system's trusted CA certificates for
+outbound HTTPS. The official image installs Debian's `ca-certificates` and CI checks
+GitHub HTTPS from that image before publishing it. A `GITHUB_TLS` failure means the
+server cannot verify the connection; replacing a repository token cannot fix it.
+Do not disable certificate verification. Ordinary access/network failures retain
+separate errors, and signed download URLs or token values are never returned.
 
 The host only installs prebuilt Add-on API v3 packages. For manual uploads,
 build release archives in each add-on repository and validate them with

@@ -21,6 +21,10 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
       ./cmd/codex-convert-v1 ./cmd/codex-maintenance
 
 FROM debian:bookworm-slim
+# Go uses the operating system trust store for GitHub package downloads.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 # Production bind mounts were already owned by UID/GID 1000 for the Node host.
 # Keep that durable ownership contract across the runtime replacement.
 RUN groupadd --gid 1000 codex \
