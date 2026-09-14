@@ -9,9 +9,10 @@ and decisions; it is not the current task list.
 
 The Go/TypeScript replacement was accepted for the two personal sites and
 cut over on September 9, 2026. The subsequent character rewrite uses Engine 4,
-Sheets 4 and retained schema-4 revisions. Architecture and accepted product
-parity are implemented; maintenance, integration coverage and the conditional
-extensions below are not all complete.
+Sheets 4 and retained schema-4 revisions. The cutover gates record accepted
+outcomes. The continuation audit below identifies remaining workflow and
+presentation regressions; product fixups, maintenance, integration coverage
+and conditional extensions remain.
 
 The September 14 audit checked tracked documentation, production source,
 public schemas, tests and CI across all five repositories. Initial worktrees
@@ -78,7 +79,8 @@ default-concurrency failure remains a release-validation follow-up under T02;
 no timeout or coverage was weakened. Linux workers were cross-compiled and
 inspected here, not executed on a Linux host. Live campaigns were not changed.
 
-Seventeen concrete tasks and ten conditional extensions remain. Local commits
+At the end of Session 1, seventeen concrete tasks and ten conditional
+extensions remained. Local commits
 and ZIP inspection do not publish or deploy these changes. T02 remains open:
 a local run with four packages does not establish the required release CI path.
 
@@ -109,8 +111,8 @@ Windows account lacks symlink-creation privilege; run it on a capable host.
 
 This session changes local source only; Asurai's old packages still require
 T15 deployment followed by T16 reviewed retirement. T04 does not delete recovery points, external backups,
-historical repair copies, namespaces or blobs. Sixteen concrete tasks and ten
-conditional extensions remain.
+historical repair copies, namespaces or blobs. At the end of Session 2, sixteen concrete tasks and ten conditional extensions
+remained.
 
 ## Remaining work verified on September 14
 
@@ -254,6 +256,166 @@ deploy, delete retained data, or enable packages on another site.
   Do not rerun an exhaustive matrix for every prose edit. See the
   [workflow inventory](#workflow-inventory) and [character verification](rewrite/CHARACTER_BUILD_HISTORY.md#verification-result).
 
+## Backend and UX/UI fixup plan
+
+The [September 14 continuation audit](rewrite/FEATURE_PARITY_AUDIT.md#september-14-continuation-surviving-workflow-and-presentation-regressions)
+adds 12 confirmed omissions/reductions (R01–R12) and four design concerns
+(U01–U04). It inspected host `6b92937`, DM Tools `40fe452`, Compendium `d03af34`,
+Engine `2254de6` and Sheets `dd58f16`. All worktrees were initially clean.
+The current frontend build, 129 selected browser tests with no skips and four
+focused backend packages passed; custom browser probes still reproduced the
+new findings. Neither passing tests nor historical cutover acceptance closes
+the action-level gaps.
+
+The work below is authorized planning, not authorization to implement product
+changes, publish/deploy, convert a campaign or delete retained data. Maintain
+the accepted architecture and explicit retirements. Effort is relative:
+**S** is a focused change, **M** is a complete workflow, and **L** crosses
+transaction/lifecycle or several repository boundaries; these are not dates.
+
+### New work from the continuation audit
+
+- [ ] **T20 / P1 / M — Restore the complete DM/player twin workflow.**
+  R01/R02; owner: host. Wire the existing twin client/API into common and
+  character articles: show counterpart, create opposite version, link an
+  existing compatible record and unlink. Explain paired visibility constraints.
+  Share reciprocal-twin projection across collections, search, activity and
+  counts while retaining exact article identities. Reuse the timeline's proven
+  reciprocal-pair rule where appropriate. **Acceptance:** create/link/unlink
+  survives reload; stale pairs fail without losing the form; the opposite side
+  remains reachable; valid pairs count once in aggregates; a missing/one-way
+  pair never hides its survivor; players cannot inspect DM links or metadata.
+- [ ] **T21 / P2 / S — Restore stable core URL entry points.**
+  R03; owner: host routing. Map the preserved article/list/party/settings/new
+  URLs to canonical routes, including Czech singular/plural forms. Keep map,
+  timeline, graph and Compendium aliases working. **Acceptance:** old bookmarked
+  and pasted links open the correct current record; encoded IDs round-trip;
+  Back remains predictable; malformed/unknown URLs fail safely; sign-in and
+  dirty-edit guards are preserved. This is bounded URL normalization, not a
+  legacy data/runtime layer.
+- [ ] **T22 / P2 / M — Make record articles connected campaign hubs again.**
+  R04–R06; owner: host projections/components. Add semantic navigation for
+  reference facts, relationships, rank members and companion owners. Restore
+  location ancestors, sublocations, connected places, residents and events;
+  faction rosters including unranked/unmatched members; character event mentions
+  and character/faction companions. Derive from existing canonical references
+  and role-projected data, with bounded reverse indexes where needed. **Acceptance:**
+  representative linked records are reachable in one action, empty/unassigned
+  groups remain understandable, hidden/deleted targets do not leak or create
+  dead links, and live changes update the reading context without replacing
+  dirty fields. Coordinate T20's aggregate identity rule.
+- [ ] **T23 / P2 / M — Restore contextual create/edit paths.**
+  R07; owner: host routes/editor. Add typed location, parent and faction presets
+  for “Character here”, “Event here”, “Sub-location” and “New faction member”.
+  Add an accessible direct-edit entry from collection cards. Use the common
+  editor and keep the originating page as the return destination. **Acceptance:**
+  presets survive required sign-in; successful saves keep the intended link;
+  cancellation creates no placeholder; deletion/change of the parent during
+  editing is reported; Back/cancel preserves unrelated drafts. Build on T21/T22
+  instead of introducing another modal/editor implementation.
+- [ ] **T24 / P2 / M — Restore the investigation workflow.**
+  R08/U02; owner: host. Derive effective mystery status from the manual override
+  or a nonempty fully answered question set. Use it in filters, counts, cards
+  and article facts. Restore the combined unanswered-question queue from
+  mysteries and characters, source navigation/editing, answer history and
+  open/total badges. **Acceptance:** whitespace-only answers stay open, an
+  empty mystery is not auto-solved, a solved case does not remain in the open
+  queue, Czech accent-insensitive search works, and DM/player/twin views agree.
+  Preserve stored questions and manual flags; no bulk status rewrite is needed.
+- [ ] **T25 / P2 / M — Finish restored sheet information and spell filtering.**
+  R09/R10; owner: Sheets, with Engine as the unchanged calculation authority.
+  Reuse saved-projection detail rendering for damage type, versatile damage,
+  mastery, senses with units/conditions and accessible explanations. Apply spell
+  name/level filtering to class, ritual and granted rows through one model.
+  **Acceptance:** Compact/Classic Combat shows the relevant saved values in both
+  languages; details and print/history remain available without providers;
+  combined filters hide unrelated granted spells and announce zero matches;
+  no cast/resource calculation moves to the browser. Build/inspect the updated
+  Sheets ZIP and run installed current-character cases with the exact package.
+- [ ] **T26 / P1 / M — Restore a consistent knowledge/reveal policy.**
+  R11; owner: host domain/projection and UI. Document what levels 0–4 reveal and
+  make DM inspection explicit. Apply the chosen reading policy to cards,
+  articles, graph labels and accessible names; settle search behavior against
+  the same policy. **Acceptance:** the unknown identity/title/prose states work
+  consistently and editors can still maintain authored values. Determine whether
+  knowledge is presentation or authorization before extending backend filtering;
+  if confidentiality is required, test API/SSE/search projections as well as DOM
+  output. Current visibility authorization and player-preview filtering remain
+  authoritative. The finding does not establish a new server-side disclosure.
+- [ ] **T27 / P1 / M — Recover the location-notes workflow without losing text.**
+  R12; owner: host core data, offline conversion and record UI. Inventory the
+  retained `locations.notes` shape and its intended audience using synthetic
+  fixtures first. Provide DM-visible recovery/editing or an explicit reviewed
+  mapping to the current note/twin model; keep originals and independent
+  description/map notes intact. **Acceptance:** a nonempty historical note is
+  discoverable to the appropriate editor, round-trips without truncation, and
+  is never promoted to public prose merely to restore a display. Test empty,
+  Markdown, long, already-mapped and conflicting values. Reviewing real site
+  data/mapping remains a separately authorized operational step; do not rerun
+  conversion or add startup repair.
+- [ ] **T28 / P2 / M — Refine sparse pages and editing feedback.**
+  U01–U03; owner: host and Sheets UI, separate commits. Review the existing
+  390px sparse-profile and faction fixtures alongside rich content. Compact
+  absent artwork, avoid leading with empty fields, restore content-specific
+  summaries, disclose secondary controls and keep useful saved filters. Decide
+  the NPC/party roster default explicitly. Use clear, consistent saved/draft/
+  review/conflict states and a primary action appropriate to each surface.
+  **Acceptance:** primary reading/action content is readily reachable on a
+  phone; focus and dirty guards survive each transition; save feedback states
+  what became durable; 200% zoom and keyboard use work. Preserve the current
+  theme and review-first retained character model; this is not a visual rebrand.
+- [ ] **T29 / P2 / S measurement, conditional implementation — Measure UI delivery and scale.**
+  U04; owner: host frontend, then affected add-ons. Establish cold/warm load,
+  search, record opening and graph/map interaction baselines with representative
+  sparse/large synthetic campaigns and a throttled phone profile. Record the
+  current 1,142.74 kB application chunk and network/parse/interaction costs.
+  **Acceptance:** a reproducible timing/size report identifies actual bottlenecks;
+  optimize only demonstrated costs, using route-level loading or bounded indexes
+  as appropriate. Keep all workflow/error gates. A build warning alone is not
+  proof of a regression and does not justify a broad architecture rewrite.
+
+### Delivery sequence and dependencies
+
+| Phase | Backend / data work | UX/UI work | Exit evidence |
+| --- | --- | --- | --- |
+| 1. Protect authored intent | T27 notes inventory and safe audience mapping; T26 reveal semantics; retain original backups and current visibility checks | T20 counterpart controls and T27 DM recovery; T26 shared reveal display | Synthetic retained text survives; paired records and reveal levels are understandable; targeted stale/role tests pass |
+| 2. Restore everyday navigation | Reuse revisioned core mutations and canonical reference joins; T21 finite URL normalization | T21 links, T22 contextual reading, T23 contextual creation, T24 investigation queue | Open place → resident → faction; create linked child/event → save/cancel; follow old bookmark; answer question → correct queue/status |
+| 3. Restore complete imports and resilient services | T19 retained campaign-bundle plans; T10 monitored workers; T09 dependent disable; T08 only when a released schema requires preservation | Existing Import Center plus T11 actionable failure/recovery state; keep drafts on provider loss | Exact review/commit, stale/cancel/lost-response/rollback cases; worker crash/hang does not replay uncertain writes or falsely report success |
+| 4. Polish working screens | Keep Engine/Sheets versioned results and retained history authoritative | T25 Combat/filter details; T28 sparse/rich page layout and save feedback; T12 source/build identity; T13 recovery guidance | Both sheet layouts, absent providers, desktop/phone and English/Czech cases; human visual and keyboard review of changed paths |
+| 5. Prove the release path and scale | T02 exact four-ZIP publication-path CI; T18 relevant recovery/native-target cases; T29 measured bottlenecks | Verify packaged behavior, performance and actionable failure states | No companion skips in the release path; tested sibling SHAs and package hashes recorded; measurements before/after any optimization |
+| 6. Authorized delivery and maintenance | T15 publish/deploy, then site-specific T16/T17 decisions; T05–T07/T14 as independent maintenance work | Read-only served-build checks followed by owner-authorized package review/activation | Confirm the exact served host and installed generations and exercise the changed workflow on each intended site; retain rollback assets |
+
+T02 integration work can start with phase 1; its release-path evidence must
+cover the final packages. T21 and T25 can be delivered independently once their
+target behavior is settled. T22's links and T23's presets should share route
+and reference helpers. Do not delay immediate article/authoring improvements
+behind artifact cleanup or a broad migration framework. Each implementation
+should update its owning contract and regression evidence, then use the
+repository's documented full gate before a local commit. Any cross-repository
+contract change requires producer and consumer checks and separate compatible
+commits. Publication and deployment are separate from local completion.
+
+### Acceptance matrix for the fixes
+
+Use existing fixtures and add cases for the new behavior rather than another
+generic checklist. Exercise relevant combinations, not every possible state
+for every prose edit.
+
+| Dimension | Required examples |
+| --- | --- |
+| Content | Empty, sparse, rich Markdown, long Czech names, missing artwork, missing targets, reciprocal and broken twins, nonempty location notes |
+| Roles | DM editing/reading, player, anonymous where supported, separate player-preview tab; hidden references absent from data and UI as required by the chosen policy |
+| Persistence | Save/reload, cancel, Back, repeated Add, concurrent edit/deletion, failed response, uncertain commit and retry, session expiry with a dirty draft |
+| Add-ons | No provider, source-policy change, worker loss, disable/reload, exact reviewed package replacement, saved-revision reading and rollback |
+| Presentation | 1440px desktop, 390px phone, both themes, English/Czech, keyboard/focus, 200% zoom and long-content scrolling; physical touch/screen reader/printer checks remain separately recorded |
+| Delivery | Exact tested ZIPs, no installed-suite skips for publication, native target execution where supported, served-build identity and an explicit remaining manual boundary |
+
+Do not reopen deliberately retired old-sheet formats, server-side raw HTML
+renderers, production source compilation or live legacy startup readers.
+The continuation found no new confirmed compendium, spatial or engine
+calculation regression in its reviewed paths; their successful focused tests
+are bounded evidence, not a claim of exhaustive coverage.
+
 ## Conditional extensions and deliberate limits
 
 These are not mandatory rewrite completion work. Resume an item only for a
@@ -276,7 +438,11 @@ reserved API name does not mean its implementation is promised.
 Extending release metadata/waiting to Music or static-site producers remains a
 separate request for those owners. It is not unfinished TTRPG implementation.
 
-## Delivery order and acceptance evidence
+<a id="delivery-order-and-acceptance-evidence"></a>
+
+## Earlier maintenance delivery order and acceptance evidence
+
+The current combined backend/UX order is in [the fixup plan](#delivery-sequence-and-dependencies). The earlier maintenance sequence below remains context for T01–T19.
 
 1. Finish T02 installed release coverage and T19 campaign-bundle imports.
    T01, T03 and T04 are implemented. Build maintenance tools

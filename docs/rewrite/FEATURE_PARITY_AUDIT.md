@@ -1,8 +1,10 @@
 # Rewrite feature-parity audit and product assessment
 
-Audited September 10–11, 2026; product recommendations revised September 11, 2026. This compares preserved source revisions with the audited local source, not a production-site inspection.
+Initial audit September 10–11, 2026; continuation audit September 14, 2026. This compares preserved source revisions with current local source and synthetic/installed browser evidence, not a production-site inspection.
 
-**Audited baseline: 21 confirmed missing or reduced capabilities, six documented transition/design differences, and four verification gaps.** Every item below includes an assessment of its usefulness and a recommended direction. Missing does not automatically mean worth restoring in its old form. The original audit made no runtime or deployment changes; subsequent implementation is recorded below. These proposals do not create new deployment gates.
+**Latest continuation:** 12 additional confirmed workflow/presentation findings and four design concerns are documented below. The current execution plan is [T20–T29 in the backlog](../BACKLOG.md#backend-and-uxui-fixup-plan).
+
+**Original September 10–11 baseline: 21 confirmed missing or reduced capabilities, six documented transition/design differences, and four verification gaps.** Every item below includes an assessment of its usefulness and a recommended direction. Missing does not automatically mean worth restoring in its old form. The original audit made no runtime or deployment changes; subsequent implementation is recorded below. These proposals do not create new deployment gates.
 
 **September 11 implementation update:** F01–F05 are implemented through [shared Markdown recovery and collection browsing](EDITOR_BROWSING.md) and [quick search, activity summaries and focused map editing](SEARCH_ACTIVITY_MAP.md). F07–F08 are implemented through [instance rules, sourcebooks and providers](RULES_SOURCES.md), following the owner's decision to use one ruleset per website with compatible books from multiple add-ons. F09 is implemented through [reviewed uninstall with retained data](PACKAGE_LIFECYCLE.md#reviewed-uninstall). F10 is implemented through [settings disclosures inside each add-on card](BROWSER_ADDONS.md#add-on-settings). F11 is implemented as [read-only map context and independently saved editor panels](BROWSER_ADDONS.md#record-panels-and-planning-prose); F21 adds the shared DM Tools reader. F13/F14/F16–F20 are implemented through [character decisions, retained history and shared rules details](CHARACTER_BUILD_HISTORY.md). F15 compatibility is removed with a documented offline retirement boundary; F06/F12 remain deferred. New work uses the current architecture, with no new legacy handlers or retained legacy features. Report concrete data-loss risks before an affected operation; otherwise proceed within scope. The owner confirmed that no valuable old sheet data needs preservation; no old-sheet compatibility is planned. No production changes are part of this implementation.
 
@@ -14,7 +16,343 @@ which was present in the preserved baseline but omitted from this original
 21-item comparison. The completed findings below are historical; neither this
 report nor its old test counts represents current production state.
 
-## Recommended decisions at a glance
+## September 14 continuation: surviving workflow and presentation regressions
+
+This continuation found **12 additional confirmed omissions or reductions**,
+plus four UX/design concerns. These are separate from historical F01–F21.
+Current implementation work is tracked as **T20–T29 in
+[BACKLOG.md](../BACKLOG.md#backend-and-uxui-fixup-plan)**, alongside the existing
+backend tasks. This is an assessment and plan, not an implementation or a new
+cutover gate. A checked historical gate does not close these findings.
+
+### Audited source and evidence boundary
+
+All five worktrees were clean at the start. The preserved legacy revisions in
+[Baselines and method](#baselines-and-method) remain the comparison baseline.
+This continuation inspected these current revisions:
+
+| Repository | Current revision |
+| --- | --- |
+| Host | `6b929371e67cffc2938087ca6fe04c05d480f9d9` |
+| DM Tools | `40fe45208e389c5bba86146b4507753c9ab3a638` |
+| Compendium | `d03af34bc747a8b865213256ed78e9c9344ede75` |
+| Rules engine | `2254de66b87f026c1415ccb9816610f03dbbf635` |
+| Character sheets | `dd58f16f605abf92c9478774e8cc1bcde4a9bc39` |
+
+Method: trace an actual old control/renderer to its current route, projection,
+mutation and rendering path; then exercise relevant current browser fixtures.
+Missing source helpers alone are not findings. The current host was rebuilt,
+and synthetic campaigns were viewed at 1440 and 390 CSS pixels. The custom
+probe recorded 26 route/viewport observations with no browser exceptions or
+document-wide horizontal overflow. It reproduced the omissions below; those
+negative observations are not passing regression tests for desired behavior.
+
+No production campaign data, site credentials or live conversion was used.
+The number of affected real records is unknown. Assertions about missing UI
+do not mean stored records have been deleted. Code and tested ZIPs are current
+local evidence; dated production observations in the backlog were not refreshed.
+
+### Confirmed findings
+
+| ID | Finding | Impact | Tracking |
+| --- | --- | --- | --- |
+| R01 | DM/player twin create, link, unlink and counterpart navigation have no UI | P1: a working backend workflow is inaccessible | T20 |
+| R02 | Reciprocal twins appear twice outside the timeline | P2: duplicate identities and misleading totals | T20 |
+| R03 | Old core article/list/settings URLs no longer resolve | P2: saved links and pasted references break | T21 |
+| R04 | Structured references are labels or edit controls, not navigation | P2: extra searching during play | T22 |
+| R05 | Location articles lost residents, sublocations, ancestors and event context | P2: the place no longer works as a campaign hub | T22 |
+| R06 | Faction rosters and character/faction companion context are incomplete | P2: existing relationships become hard to discover | T22 |
+| R07 | Contextual creation and card-level edit entry points are missing | P2: more steps and manually reconstructed associations | T23 |
+| R08 | Mystery aggregation, answer-derived completion and status presentation are reduced | P2: investigations are harder to run accurately | T24 |
+| R09 | Combat presentation omits available weapon details and sense units/explanations | P2: users must leave the working sheet for information | T25 |
+| R10 | Spell filtering does not include granted-spell rows | P2: filtering gives inconsistent results | T25 |
+| R11 | Character knowledge levels no longer control normal card/article presentation | P1: a reveal convention is lost | T26 |
+| R12 | Retained location `notes` have no current reader/editor | P1: authored content appears lost | T27 |
+
+#### R01 — Twin operations are stranded behind the API
+
+The old editor's `_twinHeaderRow` exposed create/link/unlink and the article's
+`_twinFactRow` linked the opposite version. Current
+[`CampaignMutationClient.mutateTwin`](../../frontend/src/core/campaign-mutations.ts)
+and [`POST /api/campaign/twins`](../../internal/transport/httpapi/campaign.go)
+still support the operation. There is no production caller of `mutateTwin` in
+the browser application; character and common record pages have no twin
+controls or counterpart link. A synthetic reciprocal pair confirms the absence.
+
+This is especially confusing when a user tries to change a paired record's
+visibility: the backend correctly protects the pair, but the UI provides no
+way to resolve that relationship. Reuse the existing revision-checked service
+and make the pair visible; do not implement generic edits of `linkedTwinId`.
+Old evidence: [editor controls](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/web/js/edit_templates.js).
+
+#### R02 — Twin projection is inconsistent between surfaces
+
+The old roster and recent-session views used `Store.dedupeShadowTwins`.
+Current [`projectEntities` and `projectDashboard`](../../frontend/src/app/campaign-projection.ts)
+map the complete supplied collection, and
+[`collectionModel`](../../frontend/src/app/collection-model.ts) counts it.
+Only the [timeline](../../frontend/src/app/campaign-timeline.ts) currently
+performs reciprocal-twin collapsing. The probe shows both Ryn and its private
+counterpart as unrelated roster cards, with no twin indicator.
+
+Use a common, role-aware identity projection for aggregate views and counts.
+Keep exact article identities addressable; never collapse a one-way, missing,
+inaccessible or invalid counterpart. Test references and search against the
+chosen presentation so that deduplication does not make an accessible record
+impossible to open. Old evidence: [`wiki.js` roster/session rendering](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/web/js/wiki.js).
+
+#### R03 — Familiar core URLs reach the not-found page
+
+`#/postava/ryn`, `#/misto/gate` and `#/nastaveni` all reach “This page is not in
+the index” in the current browser. The
+[route parser](../../frontend/src/app/routes.ts) retains map, graph and timeline
+aliases, but has no equivalent mapping for the old core article/list routes.
+Wiki-kind aliases in [Markdown](../../frontend/src/app/campaign-markdown.ts)
+do not translate arbitrary old hash URLs. Old Compendium bookmarks are restored
+and passed the installed tests; they are a different path.
+
+Define a finite URL-alias table from the
+[preserved route inventory](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/docs/reference/routing-navigation.md),
+including old list/article, party, settings and creation URLs. Canonicalize
+without adding a second history entry. Preserve encoded IDs, exact target
+identity and role/dirty-navigation guards. URL aliases do not require a legacy
+runtime or old data schemas.
+
+#### R04 — Reading a reference no longer lets the user follow it
+
+Old character, event, location and faction articles rendered linked chips.
+Current [`articleFacts`, `referenceNames` and `structuredArticleContent`](../../frontend/src/app/codex-record-page.ts)
+reduce many references to plain strings. The character profile's
+[`#fact` / `#inline`](../../frontend/src/app/codex-character-profile.ts) turns
+faction/location values into edit buttons for editors and spans for readers.
+The synthetic event names Ryn and Northern Gate but has no link to either;
+the character names its faction/location without a navigation target.
+
+Restore semantic links for scalar and multi-record facts, relationship
+endpoints, location roles, rank members and companion owners. Provide a
+separate, explicit edit affordance. Resolve only against the authorized
+snapshot and use unavailable states for missing targets. Authored Markdown
+wiki links already work and should continue to use their existing resolver.
+
+#### R05 — Location articles lost their surrounding campaign
+
+The old location renderer displayed ancestor breadcrumbs, direct sublocations,
+present characters and events mentioning the place. It also exposed existing
+map actions. The current [article renderer](../../frontend/src/app/codex-record-page.ts)
+keeps map links and prose but has no location-specific context sections;
+connected-location IDs are editable but are not included in its reading facts.
+In the probe, Northern Gate has a resident, a child location, a connection and
+an event, yet its page shows only its description and map actions.
+
+Build these sections from the canonical references, not copied lists stored
+inside the location. Keep hierarchy cycle/missing-target handling bounded.
+Old evidence: [location renderer](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/web/js/wiki.js),
+`Store.getCharactersInLocation`, `getAncestorLocations`, `getSubLocations`.
+
+#### R06 — Faction membership and owned companions disappear from context
+
+Old faction pages showed rank chains, unknown/unassigned ranks, unchained
+members and faction-owned pets; character articles showed their own pets and
+event mentions. Current `structuredArticleContent` returns no faction section
+when there are no rank chains, and otherwise renders names only in exact
+matching ranks. Unranked/unmatched members disappear from that presentation.
+The [character profile](../../frontend/src/app/codex-character-profile.ts)
+has no owned-companion or event-mention section.
+
+The probe's Gate Wardens has members and a hound but displays only prose; Ryn's
+raven is absent from its article. Companions still exist in their collection,
+and party companions still work on the dashboard. Restore contextual lists
+with explicit unassigned groups and links; do not infer new ownership.
+Old evidence: [`unchained`, rank rows and `_petsArticleSection`](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/web/js/wiki.js).
+
+#### R07 — Creation no longer carries the user's current context
+
+Old location pages offered “Character here”, “Event here” and “Sub-location”;
+faction pages offered a new member, and collection cards had edit pencils.
+These were bound actions, not unused helpers. Current creation presets in
+[routes](../../frontend/src/app/routes.ts) and the
+[record editor](../../frontend/src/app/codex-record-page.ts) cover party members
+and timeline sessions only. Ordinary creation still works, but users must
+navigate away and select the location/faction/parent again. Current cards open
+the article and require a second action to edit.
+
+Add typed contextual presets and a discoverable direct-edit action using the
+same editor. Keep the parent/source snapshot and back destination, preserve
+drafts through sign-in, and revalidate the reference at save. Cancellation must
+not leave placeholder records. Old evidence: [creation handlers](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/web/js/editmode.js)
+and [article/card controls](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/web/js/wiki.js).
+
+#### R08 — The investigation view lost its working summary
+
+The old mysteries page combined unanswered mystery questions and character
+`unknown` questions, with accent-insensitive filtering, source links and edit
+entry points. Cards showed answered/open counts and derived completion.
+[`Store.isMysterySolved`](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/web/js/store.js)
+treated an explicit true flag or a nonempty fully answered set as solved.
+
+The current [collection page](../../frontend/src/app/codex-record-page.ts) has
+only the common browser. Its [boolean facet](../../frontend/src/app/collection-model.ts)
+and article “Solved” fact read the raw flag. The fixture's fully answered case
+with `solved:false` displays “Solved No”, and Ryn's unanswered question is absent
+from the mysteries page. This is a confirmed display/aggregation regression,
+not an instruction to rewrite stored answers or set the manual flag.
+
+Share an effective-status/read projection across cards, filters and articles;
+keep empty mysteries open and retain the manual override. Restore the combined
+question queue and answer/source navigation. Do not add a dashboard mystery
+section as a claimed restoration: the preserved routing document mentions one,
+but the actual baseline `renderDashboard` already omitted it.
+
+#### R09 — The new Combat layout drops details that the backend provides
+
+The latest sheet layout restores the broad visual structure, but
+[`combatDetails`](../../../addon-dnd-character-sheets/src/character-sheet.ts)
+renders a weapon's name, attack bonus and damage only. Damage type, versatile
+damage and mastery information require another surface. Senses go through
+generic `human()` formatting without their unit or explanation control.
+The previous [Combat panel](https://github.com/pjunak/addon-dnd-character-sheets/blob/ab64f76c55f571e1446a6a0ac7842a3357d0da0f/panel.sheet.js)
+was a richer attack/trait reference and explicitly printed sense distances.
+
+A synthetic current projection renders “Test blade +5 1d8+3” and
+“Senses: Darkvision: 60”; the existing
+[`projectionView`](../../../addon-dnd-character-sheets/src/character-projection.ts)
+renders the same sense as “60 ft” and retains the additional weapon values.
+Thus the data/calculation survives. Reuse semantic saved-projection renderers
+for the working Combat view, History and Print, with compact disclosure and
+provider-absent readability. Do not implement mechanics in CSS/TypeScript.
+
+#### R10 — Granted spells bypass search and level filters
+
+[`playActions`](../../../addon-dnd-character-sheets/src/character-play.ts)
+filters elements with `data-spell-name` and `data-spell-level`. Class/ritual
+rows use `spellRow`; granted rows are constructed separately without those
+attributes. In a synthetic Alpha/Beta/Gamma example, filtering to Alpha leaves
+the unrelated granted cast action visible. The level selector has the same
+structural omission. This is a current reproducible filtering defect; its
+exact introducing commit was not bisected.
+
+Use one row/filter projection for every cast source, with empty-result feedback
+and spell/source identity preserved. Cover class, ritual and granted spells,
+combined name/level filters and a missing catalog record. Casting and resource
+validation remain in the engine/coordinator.
+
+#### R11 — Knowledge levels retain storage but lose their reveal behavior
+
+The old character [card/article renderer](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/web/js/wiki.js)
+used unknown identity below level 1 and withheld title, profile details and
+description below level 2. Current
+[`projectEntityWithContext`](../../frontend/src/app/campaign-projection.ts)
+and the [profile](../../frontend/src/app/codex-character-profile.ts) display
+those values regardless of the saved knowledge level. The fixture renders a
+knowledge-0 visitor's name, title, species and full description. The faction
+graph still gates a title on knowledge, making the current UI inconsistent.
+
+Restore a documented, shared presentation policy with an explicit DM inspection
+mode. Keep authoring access distinct from what the reading projection reveals.
+Test levels 0–4, accessible labels, cards, articles, graph and search behavior.
+This audit establishes lost presentation behavior; it does not establish a new
+server confidentiality leak. If knowledge is intended as a confidentiality
+boundary, specify and implement the server projection as part of T26 rather
+than relying on CSS or assuming the old renderer enforced that boundary.
+
+#### R12 — Location notes survive as a field but cannot be read or edited
+
+The old location editor read and saved `l.notes` / `lf-notes`, and its article
+rendered that Markdown separately from the description. Current
+[`articleSections`](../../frontend/src/app/codex-record-page.ts) recognizes
+singular `note` and `mapNotes`, not location `notes`; current
+[location editor fields](../../frontend/src/app/campaign-record-editor.ts)
+also omit it. A fixture with nonempty `notes` renders neither that text nor an
+editor for it. [Legacy decoding](../../internal/domain/campaign/legacy.go)
+retains record-owned fields, so byte preservation alone does not restore the
+workflow. No affected production-record count is claimed.
+
+First establish the field's intended audience: its old editor label was
+“secret notes”, so it must not simply be appended to a public article. Audit
+the existing conversion report/authorized records when operational review is
+requested, retain originals, and provide DM-visible recovery plus an explicit
+reviewed mapping to the current note/twin model. Keep ordinary edits lossless;
+do not add a startup converter or silently overwrite description/map notes.
+Old evidence: [editor](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/web/js/edit_templates.js)
+and [save handler](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/web/js/editmode.js).
+
+### UX/UI concerns requiring design acceptance
+
+These are observed design concerns, not additional confirmed functional losses.
+
+| ID | Observation and consequence | Proposed direction and acceptance |
+| --- | --- | --- |
+| U01 | The 390px character fixture places a large empty portrait and numerous empty/editable facts before prose. A sparse faction has a large emblem card beside an almost empty page. | T28: use a compact identity header for missing artwork and summarize secondary/empty facts. Keep real portraits and the established palette. Review sparse and rich pages so the title, purpose and primary action are easy to reach on a phone. |
+| U02 | Generic collection cards and always-visible sort/group controls weaken collection-specific hierarchy. Mystery cards emphasize a large icon while omitting investigation status; party and NPC browsing now share a default roster. | T24/T28: restore meaningful summaries first; disclose advanced browsing controls and retain saved views. Decide the desired NPC/party default explicitly. Do not remove the recently restored filters or force every collection into a new component system. |
+| U03 | Saving differs across character inline fields (blur/debounce), wiki Save, whole-record Save, and sheet preview/Save new revision. This increases uncertainty about what is already durable. | T28: label saved, local-draft, reviewing and failed states consistently; keep one obvious action per context, visible cancellation and clear conflict recovery. Preserve authenticated review/retained history; any shortened play interaction needs explicit product acceptance and lost-response tests. |
+| U04 | The audited build reports a 1,142.74 kB minified application chunk (338.97 kB gzip), plus a 120.12 kB preload helper. This is a delivery-cost signal, not a measured slowdown or a v1 performance comparison. | T29: measure cold opening, route transitions and large-campaign search/layout on a throttled phone profile. Split editor/map/graph/admin loading only where measurements justify it; record bytes and interaction timing before/after. Keep offline/self-hosted asset behavior and error handling. |
+
+The eight existing visual tests pass their typography, surface, card, drawer,
+focus and navigation assertions. Their preserved reference is a limited fixture,
+not a full old application or approval of every authored page. The screenshots
+support U01/U02; they do not constitute a complete contrast, screen-reader,
+physical-touch or aesthetic acceptance review.
+
+### Backend work carried forward, not counted again
+
+The following existing tasks explain relevant ways the UI can fail despite
+healthy host endpoints. They remain linked to their authoritative backlog entries.
+
+| Existing task | Current evidence and required relationship to UI work |
+| --- | --- |
+| T19 campaign-bundle imports | No matching production provider/schema/route in host or DM Tools. Restore the host's exact reviewed transaction and reference allocation, exposed through DM Tools' existing Import Center. Planning-only import success is not campaign-bundle support. |
+| T10 worker health/recovery | Production search finds no caller of the supervisor health/restart-policy helpers. Wire coordinator monitoring/backoff and provider invalidation; pair it with T11 diagnostics and truthful retry/reload states. Do not replay uncertain writes. |
+| T08 reviewed migrations; T09 dependent disable | Schema incompatibility and active dependencies are real blockers, not failures to be hidden by a nicer button. Preserve reviewed migration/stop order and exact recovery; add previews and actionable explanations. |
+| T11–T13 diagnostics, build identity and restore guidance | Finish useful worker/browser failure information, tested source/build identity, change details, and the whole-installation recovery route. Recent per-add-on tabs and saved-package cleanup already exist. |
+| T02 release CI; T18 broader acceptance | Local installed tests now pass, but release CI still does not feed all four ZIPs into the host browser suite. Keep session expiry, large campaigns, native targets and real-device checks explicit. |
+| T05–T07, T14–T17 | Data/blob/log retention, artifact ownership and per-site rollout/retirement stay in the backlog. They are not evidence of a newly lost screen and must not displace restoring core authoring/reading flows. |
+
+### Coverage and validation from this continuation
+
+| Area | Current evidence | Remaining boundary |
+| --- | --- | --- |
+| Core reading, browsing and contextual editing | Source comparison plus the 26 synthetic route/viewport observations; screenshots inspected for character, faction and mystery pages | R01–R08/R11–R12 need implementation-specific regressions and representative authorized campaign acceptance |
+| Shell and visual foundations | Current frontend build; all 8 `visual.browser.mts` tests passed | Sparse/rich content, both themes, 200% zoom and full keyboard/screen-reader review |
+| Maps, timeline and relationship graphs | Real Go-host map tests, timeline and relationship-graph suites passed in the selected run | Very large maps/graphs and physical touch; no new confirmed spatial regression in reviewed paths |
+| DM planner, imports and add-on management | Installed DM suite passed, including Czech desktop/phone, drafts, conflicts, lost responses, import review, panels, cleanup and player preview | T19 campaign bundles; C01 externally forced planner teardown remains a known draft limitation |
+| Compendium | Installed DM/player desktop/phone browse, retry, Czech controls, wiki/bookmark and generation-replacement cases passed | Source content coverage remains bounded by its documented data gaps; no new confirmed browse regression found |
+| Engine and sheets | Installed rules/character suites passed; synthetic current-renderer probes reproduced R09/R10 | Content-wide combinations, true device/printer behavior, restored detail rendering and source-identity collisions |
+| Core backend | `go test` passed for `internal/application/campaigndata`, `internal/transport/httpapi`, `internal/addons/packagemanager`, `internal/addons/workersupervisor` | Passing existing tests does not implement uncalled lifecycle primitives or missing UI callers |
+
+The selected seven browser suites passed **121 tests, zero failures, zero
+skips**, at `--test-concurrency=4`, using disposable Go hosts and all four ZIP
+environment variables. Together with the visual suite, **129 existing browser
+tests passed**. This was a focused audit run, not a rerun of all host/add-on
+gates, all unit tests, Go vet or the full release/publication matrix.
+
+Tested package SHA-256 values:
+
+| Package | SHA-256 |
+| --- | --- |
+| `dm-tools-3.0.0.zip` | `e53837ab5e3f17c203837674698002eca329aa11c42cabc9d02d6dd81abccdd6` |
+| `dnd-engine-4.0.0.zip` | `31a226a71aad96655f92d891e938c57b0e5ccdb1c97b01e32e3056b28936d820` |
+| `dnd-sheets-4.0.0.zip` | `21290e013670bccba3b17c88a2aafa3e1cdca333d52a87b69c0ad920daa336be` |
+| `dnd-2024-compendium-3.1.0.zip` | `d2a0187c509e8e843c32cefff4b61c0e7d7a66738c74bca07b3d23a73e960a11` |
+
+The installed tests use stage/review/activation, not source folders. An
+additional archive comparison found zero mismatches against matching checkout
+files: DM Tools 44 entries, Engine 20, Sheets 24, Compendium 3,100. This comparison
+excluded generated manifests/checksum files and is not a reproducible-build
+claim. Synthetic observations and screenshots remain local ignored artifacts
+under `frontend/test-results/rewrite-audit-20260914/`; temporary probe scripts
+are removed when this documentation task closes.
+
+Documentation validation: all 140 local links/anchors in the two changed
+documents passed; `git diff --check`, `npm run check:source` and the existing
+33-gate `npm run release-check` passed. No release gate was changed.
+
+The durable result is this evidence snapshot and the backlog's prioritized
+backend/UX plan. No application fixes, package publication, production changes
+or data conversion were performed by this continuation.
+
+<a id="recommended-decisions-at-a-glance"></a>
+
+## Historical September 11 decisions at a glance
 
 Value is an assessment of the workflow and consequences, not measured usage. Effort is relative: **small** means a focused component or transformation, **medium** means a complete stateful workflow, and **large** means coordinated contract/lifecycle work. These are scope estimates, not delivery commitments. The detailed assessments explain exceptions and minimum useful outcomes.
 
@@ -364,7 +702,9 @@ The comparison proves source-level behavior and content-tree preservation, not t
 
 **Assessment — reuse existing operational evidence.** When site verification is in scope, start with installed package identities and the existing conversion report, then inspect unresolved entries and a representative set of bookmarks/workflows. Another conversion or deployment is not necessary to complete this report. Keep a site's unresolved data distinct from a confirmed source regression, and record whether an item needs a converter, package update, or manual configuration.
 
-## Recommended delivery order and boundaries
+<a id="recommended-delivery-order-and-boundaries"></a>
+
+## Historical September 11 delivery recommendations
 
 1. **Establish the new character foundation.** Follow the [character implementation sequence](CHARACTER_BUILD_HISTORY.md#implementation-sequence-and-ownership): authoritative retained revisions, typed decisions and DM grants, structured constraints and explanations. F17 replaces the old manual-mode proposal; F18 begins in these contracts.
 2. **Prove one complete character flow, then expand coverage.** Creation, an early-choice swap, dependency review, commit, history and restoration must work together. Include attunement (F16), senses (F19), HP bounds (F20) and contextual explanations before expanding across all build/play mechanics.
