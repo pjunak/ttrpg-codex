@@ -34,7 +34,12 @@ campaign records or character extensions.
 Settings → Add-ons also installs and updates prebuilt packages from GitHub.
 The manager accepts a repository URL or `owner/repository`, links existing
 ZIP-installed add-ons, and checks each linked repository independently. A
-failed repository check leaves the other results available. GitHub downloads
+failed repository check leaves the other results available. Downloading or
+cancelling a review preserves the checked results; activation, disable and
+uninstall invalidate only the affected add-ons, including disabled dependents
+and uncertain responses.
+Other checked updates remain actionable without checking every repository again.
+GitHub downloads
 enter the same inert staging and exact permission-review flow as ZIP uploads;
 they never activate automatically or compile repository source.
 
@@ -102,7 +107,8 @@ CSRF, body limits and redaction. `frontend/test/addon-github.test.ts` verifies
 wire validation and error categories; `addon-github.browser.mts` exercises
 desktop/phone ZIP and GitHub installation through the popup wizard, modal focus
 and cancellation, source-edit invalidation, private-token guidance and replacement,
-lost responses without secret replay, per-add-on updates, reload and Czech labels
+lost responses without secret replay, consecutive add-on updates from one check,
+reload and Czech labels
 with synthetic GitHub responses. The installed-package fixtures exercise the
 same wizard and review against the actual host lifecycle. Actual account access
 and production network connectivity remain operator integration checks.

@@ -28,7 +28,11 @@ export class AddonGitHubController implements ReactiveController {
   hostConnected(): void { this.#request = new AbortController(); }
   hostDisconnected(): void { this.reset(); }
   reset(): void { this.#request.abort(); this.#request = new AbortController(); this.pending = false; this.status = undefined; this.clear(); }
-  clear(): void { this.results = {}; this.error = ""; this.message = ""; this.host.requestUpdate(); }
+  clear(addonId?: string): void {
+    if (addonId === undefined) this.results = {}; else delete this.results[addonId];
+    this.clearFeedback();
+  }
+  clearFeedback(): void { this.error = ""; this.message = ""; this.host.requestUpdate(); }
   async refresh(): Promise<void> { await this.#run(async client => { const status = await client.status(); if (!client.signal.aborted) this.status = status; }); }
   async checkAll(): Promise<void> {
     await this.#run(async client => {

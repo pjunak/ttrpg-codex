@@ -31,6 +31,20 @@ it("ignores metadata delivered after management authority is reset", async () =>
   expect(state.status).toBeUndefined(); expect(state.results).toEqual({}); expect(state.pending).toBe(false);
 });
 
+it("invalidates only the changed add-on while preserving other update results and errors", () => {
+  const state = controller();
+  const discovery = { source, candidates: [{ id: "a".repeat(64), name: "Package", version: "1.0.0", digest: "", active: false }] };
+  state.results = { changed: discovery, available: discovery, unavailable: "github.unavailable" };
+  state.message = "github.checked"; state.error = "previous error";
+  state.clearFeedback();
+  expect(Object.keys(state.results)).toEqual(["changed", "available", "unavailable"]);
+  expect(state.message).toBe(""); expect(state.error).toBe("");
+  state.clear("changed");
+  expect(state.results).toEqual({ available: discovery, unavailable: "github.unavailable" });
+  state.reset();
+  expect(state.results).toEqual({});
+});
+
 it("reuses only the matching repository token or an explicitly configured default", () => {
   expect(hasGitHubAccess(status, "https://github.com/Owner/Repo.git/")).toBe(true);
   expect(hasGitHubAccess(status, "owner/another")).toBe(false);

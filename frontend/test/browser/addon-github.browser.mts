@@ -163,3 +163,65 @@ for (const mobile of [false, true]) test(`GitHub installation, token management 
   await sourceRow.getByRole('button', { name: 'Připojit GitHub', exact: true }).waitFor(); assert.equal(active, target);
   assert.equal(await manager.locator('[data-addon-id="example"]').count(), 1, 'unlinking preserves the installed row');
 });
+
+for (const mobile of [false, true]) test(`one update check supports consecutive add-on updates (${mobile ? 'phone' : 'desktop'})`, async t => {
+  const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1400, height: 1000 }, extraHTTPHeaders: { 'X-Fixture-Role': 'dm' } });
+  t.after(() => context.close());
+  const page = await context.newPage(); page.setDefaultTimeout(7000);
+  await page.addInitScript(() => localStorage.setItem('codex_lang', 'en'));
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  t.after(() => assert.deepEqual(errors, []));
+  const ids = ['first', 'second'];
+  const active: Record<string, string> = { first: 'a'.repeat(64), second: 'b'.repeat(64) };
+  const target: Record<string, string> = { first: 'c'.repeat(64), second: 'd'.repeat(64) };
+  const generations = new Map(ids.map(addonId => [addonId, [{ addonId, generationId: active[addonId]!, version: '1.0.0', installedAt: '2026-09-10T10:00:00Z' }]]));
+  const links = ids.map(addonId => ({ addonId, revision: 1, source: { repo: `owner/${addonId}`, channel: 'release', branch: '', artifact: '' } }));
+  const checked: string[] = [];
+  const review = (addonId: string, status = 'prepared') => ({
+    reviewId: addonId, addonId, generationId: target[addonId], proposalSha256: 'e'.repeat(64), status,
+    proposal: { addonId, generationId: target[addonId], targetManifest: { id: addonId, name: addonId, version: '2.0.0', permissions: [] },
+      currentManifest: { version: '1.0.0' }, changes: { runtimeChanged: true }, requiredPermissionIds: [], restartedAddonIds: [], blockers: [] },
+  });
+  await page.route('**/api/admin/**', async route => {
+    const req = route.request(), path = new URL(req.url()).pathname;
+    const body = req.postData() ? req.postDataJSON() as Record<string, unknown> : {};
+    if (req.method() === 'POST') assert.equal(req.headers()['x-codex-csrf'], 'x'.repeat(32));
+    let value: unknown;
+    const addonId = path.split('/')[4]!;
+    if (path === '/api/admin/addon-github') value = { contractVersion: 'addon-github.v1', sources: links, credentials: { defaultSource: 'none', environmentConfigured: false, repositories: [] } };
+    else if (path.endsWith('/addon-github/discover')) {
+      const id = String(body.addonId); checked.push(id);
+      value = { source: links.find(link => link.addonId === id)!.source, candidates: [{ id: target[id], name: id, version: '2.0.0', digest: '', active: false }] };
+    } else if (path.endsWith('/addon-github/stage')) {
+      const id = String(body.addonId); assert.equal(body.candidateId, target[id]);
+      const generation = { addonId: id, generationId: target[id]!, version: '2.0.0', installedAt: '2026-09-14T10:00:00Z' };
+      if (!generations.get(id)!.some(g => g.generationId === target[id])) generations.get(id)!.push(generation);
+      value = generation;
+    } else if (path === '/api/admin/addons') value = { contractVersion: 'addon-inventory.v1', addonIds: ids };
+    else if (path.endsWith('/activation-reviews')) value = review(addonId);
+    else if (path.endsWith('/approval')) value = review(addonId, 'approved');
+    else if (path.endsWith('/activation')) {
+      active[addonId] = target[addonId]!; value = { state: { addonId, activeGenerationId: active[addonId] } };
+    } else if (ids.includes(addonId)) value = { state: { addonId, revision: 1, activeGenerationId: active[addonId] }, generations: generations.get(addonId), events: [] };
+    else { await route.fulfill({ status: 404, json: { error: { kind: 'NOT_FOUND' } } }); return; }
+    await route.fulfill({ json: value });
+  });
+  await page.goto(`${origin}/#/settings`); await page.locator('[data-category="addons"]').click();
+  const manager = page.locator('codex-addon-manager'), dialog = manager.getByRole('dialog');
+  const first = manager.locator('[data-github-addon="first"]'), second = manager.locator('[data-github-addon="second"]');
+  const download = (row: typeof first) => row.getByRole('button', { name: 'Download and review' });
+  await manager.getByRole('button', { name: 'Check for updates', exact: true }).click();
+  await download(second).waitFor(); assert.deepEqual(checked, ids);
+  await download(first).click();
+  await dialog.getByRole('button', { name: 'Cancel review' }).click();
+  await dialog.waitFor({ state: 'detached' });
+  assert.equal(await download(first).count(), 1, 'cancelled review keeps its update');
+  assert.equal(await download(second).count(), 1, 'staging preserves the other update');
+  await download(first).click(); await dialog.getByRole('button', { name: 'Approve and activate' }).click();
+  await dialog.waitFor({ state: 'detached' }); await manager.getByText('Add-on state updated.', { exact: true }).waitFor();
+  assert.equal(active.first, target.first);
+  assert.equal(await download(first).count(), 0, 'changed add-on no longer offers its stale candidate');
+  await download(second).click(); await dialog.getByRole('button', { name: 'Approve and activate' }).click();
+  await dialog.waitFor({ state: 'detached' }); await manager.getByText('Add-on state updated.', { exact: true }).waitFor();
+  assert.equal(active.second, target.second); assert.deepEqual(checked, ids, 'both updates use the original single check');
+});

@@ -309,6 +309,8 @@ export class CodexAddonManager extends LitElement {
   #uninstall(review: AddonUninstallReview): void {
     if (!this.#confirmLifecycle()) return;
     void this.#run(async client => {
+      this.#github.clear(review.addonId);
+      for (const effect of review.effects) if (effect.disabled) this.#github.clear(effect.addonId);
       const result = await client.uninstall(review);
       this.removal = undefined;
       this.message = this.#ui.t(result.failures.length || result.recoveryError ? "addons.uninstallRecovery" : "addons.uninstalled");
@@ -317,16 +319,16 @@ export class CodexAddonManager extends LitElement {
     }, true, true);
   }
   #prepare(id: string, generation: string): void { this.#openInstall(); this.staged = this.snapshots.find(snapshot => snapshot.state.addonId === id)?.generations.find(value => value.generationId === generation); this.#loadReview(); }
-  #activate(review: AddonReview): void { if (!this.#confirmLifecycle()) return; void this.#run(async client => { await client.activate(review, this.grants); this.#closeInstall(true); this.snapshots = await client.inventory(); this.#github.clear(); this.message = this.#ui.t("addons.done"); }); }
+  #activate(review: AddonReview): void { if (!this.#confirmLifecycle()) return; void this.#run(async client => { this.#github.clear(review.addonId); await client.activate(review, this.grants); this.#closeInstall(true); this.snapshots = await client.inventory(); this.message = this.#ui.t("addons.done"); }); }
   #action(snapshot: AddonSnapshot, action: "reload" | "disable"): void {
     if (!this.#confirmLifecycle()) return;
     if (action === "disable" && !window.confirm(this.#ui.t("addons.disableConfirm"))) return;
-    void this.#run(async client => { await client.action(snapshot, action); this.review = undefined; this.snapshots = await client.inventory(); this.message = this.#ui.t("addons.done"); });
+    void this.#run(async client => { if (action === "disable") this.#github.clear(snapshot.state.addonId); await client.action(snapshot, action); this.review = undefined; this.snapshots = await client.inventory(); this.message = this.#ui.t("addons.done"); });
   }
   async #run(operation: (client: AddonAdminClient) => Promise<void>, mutating = true, uninstalling = false): Promise<void> {
     if (this.#busy || !this.canManage) return;
     const request = this.#request; this.pending = true; this.error = ""; this.message = ""; this.removal = undefined; this.cleanup = undefined;
-    if (mutating) { this.#github.clear(); this.dispatchEvent(new CustomEvent("addon-admin-busy", { detail: true, bubbles: true, composed: true })); }
+    if (mutating) { this.#github.clearFeedback(); this.dispatchEvent(new CustomEvent("addon-admin-busy", { detail: true, bubbles: true, composed: true })); }
     try { await operation(new AddonAdminClient(this.csrfToken, request.signal)); }
     catch (error) { if (!request.signal.aborted) { this.review = undefined; this.error = `${this.#ui.t("addons.failed")} ${uninstalling && error instanceof HostRequestError && error.status === 409 ? this.#ui.t("addons.uninstallConflict") : uiRequestError(error)}`; } }
     finally { if (!request.signal.aborted) { this.pending = false; if (mutating) this.dispatchEvent(new CustomEvent("addon-admin-busy", { detail: false, bubbles: true, composed: true })); } }
