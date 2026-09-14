@@ -22,6 +22,13 @@ The frontend is an npm workspace using the root lockfile. Add dependencies with
 `npm install -w @ttrpg-codex/frontend <package>` and commit its manifest together
 with the root `package-lock.json`.
 
+Migration SQL is pinned to LF by [.gitattributes](.gitattributes). Checksums
+cover the exact embedded bytes, so do not change released SQL or disable drift
+validation. The full gate verifies both Git checkout modes and the embedded
+history. An existing checkout may need a fresh checkout to pick up this rule;
+first preserve any local work. For databases created by older Windows builds,
+see [migration checksum recovery](docs/SELF_HOSTING.md#migration-checksum-drift).
+
 ## Run the development host
 
 Build the frontend, set a local password and use a separate data directory:

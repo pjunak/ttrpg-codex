@@ -270,6 +270,32 @@ publishing it. Never unpack or merge backup contents by hand.
 Database migrations are forward-only. Container rollback alone is not a data
 rollback.
 
+### Migration checksum drift
+
+Every host and maintenance binary embeds the SQL migration files and compares
+their exact SHA-256 checksums with the database history. Git now pins these files
+to LF on every platform. Before that rule, Windows Git checkouts with
+`core.autocrlf=true` could produce binaries with CRLF checksums even though the
+SQL in Git and Linux builds used LF. This fix does not rewrite existing history.
+
+If a pre-fix database reports `migration checksum drift`:
+
+- For disposable development data, identify the data directory and start the
+  canonical build with a new empty directory. Keep the old directory until its
+  contents have been confirmed disposable; do not reset a campaign to test this.
+- For retained data, stop writers and preserve the original data and its matching
+  binary/image. Create and verify an independent backup with that matching build.
+  Compare the reported migration version against that build's source before
+  concluding the difference is only line endings; real SQL drift also fails.
+- Use a verified backup created with canonical migrations if one is available.
+  Otherwise retain the matching build pending a separately reviewed offline
+  conversion. There is no automatic history normalization or general conversion
+  for this case. Ordinary backup/restore preserves the stored checksums and does
+  not itself fix this mismatch.
+
+Never update `schema_migrations` hashes manually or bypass validation. A
+canonical build rejects the mismatch before applying any pending migration.
+
 ## First-start smoke check
 
 For each site, check login, anonymous/player/DM visibility, the dashboard and

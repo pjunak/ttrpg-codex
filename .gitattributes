@@ -1,0 +1,2 @@
+# Migration checksums cover the exact bytes embedded in every host and maintenance build.
+/internal/storage/sqlite/migrations/*.sql text eol=lf

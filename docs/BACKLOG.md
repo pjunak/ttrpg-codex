@@ -37,6 +37,51 @@ browser cases require ZIP environment variables; a green default run can skip
 them. `npm run release-check` checks the 33 accepted gates and the absence of
 `frontend/REWRITE_INCOMPLETE`; it does not prove every item below is complete.
 
+## Completed tightening work
+
+### Session 1 — September 14, 2026
+
+- [x] **T01 — Platform-independent migration bytes.**
+  [.gitattributes](../.gitattributes) pins the SQL history to LF. Tests exercise
+  real Git checkouts with both autocrlf modes and inspect the embedded history.
+  All 16 files match their indexed SQL bytes; no migration SQL or stored hashes
+  were changed. A CRLF/LF mismatch still fails before pending migrations run.
+  [Recovery guidance](SELF_HOSTING.md#migration-checksum-drift) distinguishes
+  disposable development data from retained pre-fix databases requiring their
+  matching build and an explicit recovery/conversion decision.
+- [x] **T03 — Planning consequence targets and deletion.**
+  DM Tools commit `cc91fbd` validates planning targets in Go and the browser.
+  Subtree deletion clears a surviving consequence's target while retaining its
+  text in the same guarded transaction. Undo restores that link and refuses later
+  edits. Reviewed imports must explicitly clear or replace removed targets.
+  Tests cover incoming/existing/missing targets, stale plans, replacement,
+  shared annotations and undo. Existing invalid stored targets fail visibly;
+  the update does not silently repair them. See the
+  [graph contract](../../addon-dm-tools/docs/GRAPH.md#deletion-undo-and-layout-reset).
+
+The full-suite run also exposed an existing activity-feed test race: hash
+navigation can finish before that tab's independent live refresh. The test now
+waits for the newly private record to disappear within its existing timeout and
+retains the privacy assertion. No application behavior or timeout was relaxed.
+
+Validation: host source/type checks, 26 script tests, 355 frontend unit tests,
+all project Go tests and vet passed. All 255 browser cases passed with all four
+inspected ZIPs and no skips using the documented `--test-concurrency=4` limit.
+DM Tools passed 49 unit tests, 28 Chromium checks at each of two pixel scales,
+Go tests/vet, its worker/package build and host inspection. All 33 accepted
+release gates and all 114 local links in the eight changed documents passed.
+
+The default-concurrency host run did not finish cleanly: after fixing the
+activity test race, a separate installed timeline projection case timed out.
+That case passed alone and in the complete four-process run. Its intermittent
+default-concurrency failure remains a release-validation follow-up under T02;
+no timeout or coverage was weakened. Linux workers were cross-compiled and
+inspected here, not executed on a Linux host. Live campaigns were not changed.
+
+Seventeen concrete tasks and ten conditional extensions remain. Local commits
+and ZIP inspection do not publish or deploy these changes. T02 remains open:
+a local run with four packages does not establish the required release CI path.
+
 ## Remaining work verified on September 14
 
 P1 means address early because it affects safe upgrades, preservation or release
@@ -46,14 +91,6 @@ deploy, delete retained data, or enable packages on another site.
 
 ### First implementation batch
 
-- [ ] **T01 / P1 — Make migration build bytes platform-independent.**
-  [Migration checksums](../internal/storage/sqlite/migrate.go) hash exact embedded
-  SQL bytes. Twelve SQL files currently have LF in Git and CRLF in this Windows
-  checkout, with no `.gitattributes` rule. A Windows-built maintenance binary can
-  therefore reject a Linux-created database as drift. Pin canonical checkout
-  bytes and verify Linux/Windows build identity without weakening drift checks
-  or rewriting existing database hashes. Account explicitly for disposable or
-  retained databases created by earlier Windows builds.
 - [ ] **T02 / P1 — Run the complete installed suite in release CI.**
   [Compatibility CI](../.github/workflows/addon-compatibility.yml) builds and
   inspects the ZIPs, but the separate host test job receives none of them.
@@ -66,15 +103,6 @@ deploy, delete retained data, or enable packages on another site.
   only in the separate Sheets repository workflow. Completion requires a
   publication-path run with no companion skips; keep ordinary PR/private-access
   limitations explicit.
-- [ ] **T03 / P1 — Resolve dangling planning-consequence targets.**
-  [Go validation](../../addon-dm-tools/internal/planning/model.go) checks planning
-  reference targets but only the anchors of consequences. The
-  [browser model](../../addon-dm-tools/src/planning-model.ts) and
-  [subtree cleanup](../../addon-dm-tools/src/planning-repository.ts) have the same
-  gap: a surviving consequence can retain a deleted planning target.
-  Define consistent import, edit and deletion behavior that preserves annotation
-  prose. Verify missing targets, later deletion, conflicts and valid references
-  through both validators and the reviewed importer.
 - [ ] **T04 / P1 — Remove superseded saved package generations.**
   [Lifecycle storage](../internal/addons/packagemanager/store.go) and
   [uninstall](../internal/addons/packagemanager/uninstall.go) retain immutable
@@ -170,13 +198,18 @@ deploy, delete retained data, or enable packages on another site.
 
 ### Operations and remaining acceptance
 
-- [ ] **T15 / P1 — Publish and deploy the already-fixed host issues.**
+- [ ] **T15 / P1 — Publish and deploy the verified host and add-on fixes.**
   Host commits `d718db2` (saved-package labels and schema-blocker explanations)
   and `f95aa44` (shared large-backup manifest limits) are local and beyond the
   recorded upstream. Both sites still run the image recorded above. After an
   explicitly authorized release, verify the served manager and a full backup
   with the deployed maintenance binary. A standalone maintenance utility used
-  for Asurai does not update the server image. Follow [deployment](SELF_HOSTING.md#publishing-and-deploying-updates).
+  for Asurai does not update the server image. Include the T01 build correction
+  and DM Tools T03 fix when releasing this batch. Before activating the new
+  planner, inspect existing consequence targets and explicitly correct any
+  dangling links after a verified backup; strict validation will otherwise
+  report those existing records as inconsistent. Follow
+  [deployment](SELF_HOSTING.md#publishing-and-deploying-updates).
 - [ ] **T16 / P2 — Finish Asurai retirement after cleanup exists.**
   Engine 4 / Sheets 4 activation and the four-sheet reset were completed after
   verified backups. Old Compendium/Engine/Sheets 3.0 generations remain. Use T04
@@ -224,9 +257,9 @@ separate request for those owners. It is not unfinished TTRPG implementation.
 
 ## Delivery order and acceptance evidence
 
-1. Address T01–T04 and T19: reproducible maintenance, installed release coverage,
-   planning integrity, finite saved-package retention and campaign-bundle imports. T01 is necessary before using
-   new locally built maintenance tools against existing Linux data.
+1. Finish T04 saved-package retention, T02 installed release coverage and T19
+   campaign-bundle imports. T01 and T03 are implemented. Build maintenance tools
+   from the canonical LF checkout before using them against existing Linux data.
 2. Deliver T05–T11 in independent changes with their data/lifecycle tests. Design
    package, namespace and blob deletion separately; share reference accounting
    where justified. T08 waits for a real preservation requirement.
@@ -246,9 +279,9 @@ cases; they do not make every state/device combination complete.
 | --- | --- | --- |
 | Campaign records, settings, maps, timeline and graphs | [Host browser tests](../frontend/test/browser/), [core data](rewrite/CORE_DATA.md) | T18: changed-action coverage, session expiry/in-flight saves and site-specific representative pages. |
 | Package lifecycle, sources, updates and credentials | [Manager fixture](../frontend/test/browser/installed-addon-manager-fixture.mts), [GitHub browser tests](../frontend/test/browser/addon-github.browser.mts) | T02 installed CI; T04–T13 changed lifecycle/diagnostics; T15–T17 actual deployed artifacts. |
-| Planning and import | [DM Tools tests](../../addon-dm-tools/tests/), [Go importer](../../addon-dm-tools/internal/importer/) | T03 target/deletion semantics; T02 installed CI; C01 forced-teardown limitation. |
+| Planning and import | [DM Tools tests](../../addon-dm-tools/tests/), [Go importer](../../addon-dm-tools/internal/importer/) | T02 installed CI; T15 rollout and existing-target preflight; C01 forced-teardown limitation. |
 | Compendium, rules and character history | [Installed rules](../frontend/test/browser/installed-rules.browser.mts), [installed character](../frontend/test/browser/installed-character.browser.mts) | T02 continuous coverage; T18 targeted provider/restore/device cases; C10 supported-content limits. |
-| Full backup, conversion and retirement | [Backup tests](../internal/backuparchive/), [retirement tests](../internal/maintenance/sheetretirement/) | T01 platform byte identity; T15 deployed large-backup verifier; T16–T17 per-site decisions. |
+| Full backup, conversion and retirement | [Backup tests](../internal/backuparchive/), [retirement tests](../internal/maintenance/sheetretirement/) | T15 deployed canonical maintenance build and large-backup verifier; T16–T17 per-site decisions. |
 
 ## Feature-parity audit follow-up (2026-09-11)
 
