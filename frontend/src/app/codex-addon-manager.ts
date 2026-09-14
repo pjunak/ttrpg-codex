@@ -13,20 +13,26 @@ import { AddonGitHubController } from "./addon-github-controller.js";
 import { AddonGitHubClient, type GitHubDiscovery } from "../core/addon-github.js";
 import { githubTokenHelp } from "./github-access.js";
 import { containDialogTab } from "./dialog-focus.js";
+import { type CodexAddonConfiguration, type ConfigurationAddon } from "./codex-addon-configuration.js";
 import "./codex-addon-configuration.js";
+import { addonSettingsHash } from "./routes.js";
 import "./codex-addon-settings.js";
 import type { InstalledGeneration } from "../core/addon-admin.js";
 import type { AddonUninstallReview } from "../core/addon-uninstall.js";
 import { HostRequestError } from "../core/api.js";
 
 export class CodexAddonManager extends LitElement {
-  static override properties = { csrfToken: { attribute: false }, snapshots: { state: true }, review: { state: true }, removal: { state: true }, cleanup: { state: true }, pending: { state: true }, error: { state: true }, message: { state: true }, grants: { state: true }, registry: { attribute: false }, actorRole: { attribute: false }, canManage: { attribute: false }, addonTarget: { attribute: false }, installOpen: { state: true }, installTarget: { state: true }, staged: { state: true } };
+  static override properties = { csrfToken: { attribute: false }, snapshots: { state: true }, review: { state: true }, removal: { state: true }, cleanup: { state: true }, pending: { state: true }, error: { state: true }, message: { state: true }, grants: { state: true }, registry: { attribute: false }, actorRole: { attribute: false }, canManage: { attribute: false }, addonTarget: { attribute: false }, installOpen: { state: true }, installTarget: { state: true }, staged: { state: true }, activeTab: { state: true }, configurationAddons: { state: true }, configurationError: { state: true } };
   declare csrfToken: string;
   declare registry: BrowserContributionRegistry | undefined;
   declare actorRole: BrowserRole | undefined;
   declare canManage: boolean;
   declare addonTarget: string | null | undefined;
   readonly #contributions = new AddonContributionsController(this, () => ({ registry: this.registry, role: this.actorRole }));
+  declare private activeTab: string;
+  declare private configurationError: string;
+  declare private configurationAddons: readonly ConfigurationAddon[];
+  #visibleTab = "";
   #inventoryLoaded = false;
   declare private snapshots: AddonSnapshot[];
   declare private review: AddonReview | undefined;
@@ -46,7 +52,7 @@ export class CodexAddonManager extends LitElement {
   get #busy(): boolean { return this.pending || this.#github.pending || this.#installBusy || this.#configurationBusy; }
   readonly #ui = new UiLocalizationController(this);
   readonly #github = new AddonGitHubController(this, () => this.csrfToken, key => this.#ui.t(key));
-  constructor() { super(); this.canManage = false; this.snapshots = []; this.review = undefined; this.pending = false; this.error = ""; this.message = ""; this.grants = []; this.installOpen = false; this.installTarget = ""; }
+  constructor() { super(); this.activeTab = ""; this.configurationAddons = []; this.configurationError = ""; this.canManage = false; this.snapshots = []; this.review = undefined; this.pending = false; this.error = ""; this.message = ""; this.grants = []; this.installOpen = false; this.installTarget = ""; }
   protected override createRenderRoot() { return this; }
   override connectedCallback(): void { super.connectedCallback(); this.#request = new AbortController(); this.#inventoryLoaded = false; this.requestUpdate(); }
   override disconnectedCallback(): void {
@@ -54,7 +60,9 @@ export class CodexAddonManager extends LitElement {
     this.installOpen = false; this.staged = undefined; this.review = undefined; this.removal = undefined; this.cleanup = undefined; super.disconnectedCallback();
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
+    if (changed.has("addonTarget")) this.activeTab = this.addonTarget ?? "";
     if (changed.has("canManage")) {
+      this.configurationAddons = []; this.configurationError = "";
       this.#request.abort(); this.#request = new AbortController(); this.#inventoryLoaded = false;
       this.snapshots = []; this.review = undefined; this.removal = undefined; this.cleanup = undefined; this.pending = false;
       this.#github.reset(); this.#installBusy = false; this.installOpen = false; this.staged = undefined; this.#configurationBusy = false; this.error = ""; this.message = "";
@@ -65,6 +73,11 @@ export class CodexAddonManager extends LitElement {
     }
   }
   protected override updated(changed: Map<PropertyKey, unknown>): void {
+    const selected = this.#selectedTab();
+    if (selected !== this.#visibleTab) {
+      this.#visibleTab = selected;
+      this.querySelector<HTMLElement>(".addon-settings-tabs [aria-selected=true]")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
     const dialog = this.querySelector<HTMLDialogElement>(".addon-install-dialog");
     if (dialog && !dialog.open) { dialog.showModal(); dialog.querySelector<HTMLElement>("h3")?.focus(); }
     if (changed.has("review") && this.review || changed.has("removal") && this.removal || changed.has("cleanup") && this.cleanup) {
@@ -73,36 +86,63 @@ export class CodexAddonManager extends LitElement {
     }
   }
 
+  #tabs(): ConfigurationAddon[] {
+    const addons = new Map(this.configurationAddons.map(addon => [addon.id, addon]));
+    for (const active of this.#contributions.list("settings")) {
+      if (!addons.has(active.addonId)) addons.set(active.addonId, { id: active.addonId, name: active.addonId });
+    }
+    return [...(this.canManage ? [{ id: "", name: this.#ui.t("addons.management") }] : []),
+      ...[...addons.values()].sort((a, b) => a.id.localeCompare(b.id))];
+  }
+  #selectedTab(tabs = this.#tabs()): string { return tabs.some(tab => tab.id === this.activeTab) ? this.activeTab : tabs[0]?.id ?? ""; }
+  #selectTab(id: string): void { this.activeTab = id; }
+  readonly #tabKey = (event: KeyboardEvent): void => {
+    const buttons = [...this.querySelectorAll<HTMLButtonElement>(".addon-settings-tabs [role=tab]")];
+    const index = buttons.indexOf(event.target as HTMLButtonElement);
+    if (index < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 :
+      (index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+    const button = buttons[next]!; this.#selectTab(button.dataset["addonTab"]!); button.focus();
+  };
   protected override render() {
-    const t = this.#ui.t.bind(this.#ui);
+    const t = this.#ui.t.bind(this.#ui), tabs = this.#tabs(), selected = this.#selectedTab(tabs);
     const addonIds = [...new Set(this.#contributions.list("settings").map(active => active.addonId))].sort();
-    if (!this.canManage) return html`<section class="settings-ledger addon-manager">
-      <header class="settings-ledger-heading"><div><h2>${t("addons.title")}</h2><p>${t("addons.settingsIntro")}</p></div></header>
-      ${this.#missingSettings(addonIds)}
-      ${!addonIds.length && !this.addonTarget ? html`<p>${t("addons.settingsEmpty")}</p>` : nothing}
-      <div class="addon-list">${repeat(addonIds, id => id, id => html`<article class="addon-row" data-addon-id=${id}>
-        <header><h3>${id}</h3></header>${this.#settings(id)}</article>`)}</div>
-    </section>`;
     return html`<section class="settings-ledger addon-manager" aria-busy=${this.#busy}>
-      <header class="settings-ledger-heading"><div><span class="settings-category-mark" aria-hidden="true">🧩</span><div><h2>${t("addons.title")}</h2><p>${t("addons.intro")}</p></div></div>
+      <header class="settings-ledger-heading"><div><span class="settings-category-mark" aria-hidden="true">🧩</span><div><h2>${t("addons.title")}</h2><p>${t(this.canManage ? "addons.intro" : "addons.settingsIntro")}</p></div></div></header>
+      ${tabs.length ? html`<div class="addon-settings-tabs" role="tablist" aria-label=${t("addons.title")} @keydown=${this.#tabKey}>
+        ${repeat(tabs, tab => tab.id, tab => html`<button type="button" role="tab" id=${`addon-tab-${tab.id ? "addon-" + tab.id : "management"}`} data-addon-tab=${tab.id}
+          aria-selected=${tab.id === selected} aria-controls=${tab.id ? "addon-settings-panel" : "addon-management-panel"} tabindex=${tab.id === selected ? 0 : -1}
+          @click=${() => this.#selectTab(tab.id)}>${tab.name}</button>`)}
+      </div>` : nothing}
+      ${this.#missingSettings(tabs.map(tab => tab.id))}
+        ${this.error && !this.installOpen ? html`<p role="alert">${this.error}</p><button ?disabled=${this.#busy} @click=${() => this.#checkUpdates()}>${t("github.retry")}</button>` : nothing}
+        ${this.#github.error ? html`<p role="alert">${this.#github.error}</p>` : nothing}
+        ${this.message || this.#github.message ? html`<p role="status">${this.#github.message || this.message}</p>` : nothing}
+      ${this.canManage && !this.configurationAddons.some(addon => addon.id === selected) && this.configurationError ? html`<p role="alert">${this.configurationError}</p><button ?disabled=${this.#busy} @click=${() => this.querySelector<CodexAddonConfiguration>("codex-addon-configuration")?.refresh()}>${t("configuration.refresh")}</button>` : nothing}
+      ${!tabs.length && !this.addonTarget ? html`<p>${t("addons.settingsEmpty")}</p>` : nothing}
+      ${this.canManage ? html`<div id="addon-management-panel" role="tabpanel" aria-labelledby="addon-tab-management" tabindex="0" ?hidden=${selected !== ""}>
         <div class="addon-actions addon-toolbar"><button ?disabled=${this.#busy} @click=${() => this.#checkUpdates()}>${t(this.#github.pending ? "github.checking" : "github.check")}</button>
           <button ?disabled=${this.#busy} @click=${() => this.#prepareCleanup({ keepInactive: 0 })}>${t("cleanup.open")}</button>
-          <button class="addon-primary" ?disabled=${this.#busy} @click=${() => this.#openInstall()}>${t("github.add")}</button></div></header>
-      ${this.error && !this.installOpen ? html`<p role="alert">${this.error}</p><button ?disabled=${this.#busy} @click=${() => this.#checkUpdates()}>${t("github.retry")}</button>` : nothing}
-      ${this.#github.error ? html`<p role="alert">${this.#github.error}</p>` : nothing}
-      ${this.message || this.#github.message ? html`<p role="status">${this.#github.message || this.message}</p>` : nothing}
-      ${this.installOpen ? this.#installDialog() : nothing}
-      ${this.removal ? this.#uninstallPanel(this.removal) : nothing}
-      ${this.cleanup ? this.#cleanupPanel(this.cleanup) : nothing}
-      ${this.pending && !this.snapshots.length ? html`<p role="status">${t("addons.loading")}</p>` : !this.snapshots.length ? html`<p>${t("addons.empty")}</p>` : nothing}
-      ${this.#missingSettings(addonIds)}
-      <div class="addon-list">${repeat(this.snapshots, snapshot => snapshot.state.addonId, snapshot => this.#addonRow(snapshot))}</div>
-      ${this.#tokens()}
-      <codex-addon-configuration .csrfToken=${this.csrfToken} .disabled=${this.pending || this.#github.pending || this.#installBusy}
-        @addon-lifecycle-request=${(event: Event) => { if (!this.#confirmLifecycle()) event.preventDefault(); }}
-        .inventoryRevision=${JSON.stringify(this.snapshots.map(snapshot => [snapshot.state, snapshot.generations.map(generation => generation.generationId)]))}
-        @addon-admin-busy=${(event: CustomEvent<boolean>) => { this.#configurationBusy = event.detail; if (event.detail) { this.review = undefined; this.removal = undefined; } this.requestUpdate(); }}
-        @addon-configuration-applied=${async () => { this.review = undefined; this.snapshots = await new AddonAdminClient(this.csrfToken, this.#request.signal).inventory().catch(() => this.snapshots); }}></codex-addon-configuration>
+          <button class="addon-primary" ?disabled=${this.#busy} @click=${() => this.#openInstall()}>${t("github.add")}</button></div>
+        ${this.installOpen ? this.#installDialog() : nothing}
+        ${this.removal ? this.#uninstallPanel(this.removal) : nothing}
+        ${this.cleanup ? this.#cleanupPanel(this.cleanup) : nothing}
+        ${this.pending && !this.snapshots.length ? html`<p role="status">${t("addons.loading")}</p>` : !this.snapshots.length ? html`<p>${t("addons.empty")}</p>` : nothing}
+        <div class="addon-list">${repeat(this.snapshots, snapshot => snapshot.state.addonId, snapshot => this.#addonRow(snapshot))}</div>
+        ${this.#tokens()}
+      </div>` : nothing}
+      <div id="addon-settings-panel" role="tabpanel" aria-labelledby=${selected ? `addon-tab-addon-${selected}` : nothing} tabindex="0" ?hidden=${!selected}>
+        ${selected ? html`<h3>${tabs.find(tab => tab.id === selected)?.name}</h3><a class="addon-settings-link" href=${addonSettingsHash(selected)}>${t("addons.settingsLink")}</a>` : nothing}
+        ${this.canManage ? html`<codex-addon-configuration .csrfToken=${this.csrfToken} .addonId=${selected} .disabled=${this.pending || this.#github.pending || this.#installBusy}
+          @addon-configuration-error=${(event: CustomEvent<string>) => { this.configurationError = event.detail; }}
+          @addon-configuration-discovered=${(event: CustomEvent<readonly ConfigurationAddon[]>) => { this.configurationAddons = event.detail; }}
+          @addon-lifecycle-request=${(event: Event) => { if (!this.#confirmLifecycle()) event.preventDefault(); }}
+          .inventoryRevision=${JSON.stringify(this.snapshots.map(snapshot => [snapshot.state, snapshot.generations.map(generation => generation.generationId)]))}
+          @addon-admin-busy=${(event: CustomEvent<boolean>) => { this.#configurationBusy = event.detail; if (event.detail) { this.review = undefined; this.removal = undefined; } this.requestUpdate(); }}
+          @addon-configuration-applied=${async () => { this.review = undefined; this.snapshots = await new AddonAdminClient(this.csrfToken, this.#request.signal).inventory().catch(() => this.snapshots); }}></codex-addon-configuration>` : nothing}
+        ${repeat(addonIds, id => id, id => html`<div data-addon-settings=${id} ?hidden=${id !== selected}>${this.#settings(id, id === selected)}</div>`)}
+      </div>
     </section>`;
   }
   #openInstall(target = ""): void {
@@ -177,12 +217,12 @@ export class CodexAddonManager extends LitElement {
       <details><summary>${t("github.tokenInstructions")}</summary>${githubTokenHelp(t)}</details></details>`;
   }
   #missingSettings(addonIds: readonly string[]) {
-    return this.addonTarget && !addonIds.includes(this.addonTarget)
+    return this.activeTab && !addonIds.includes(this.activeTab)
       ? html`<p role="status">${this.#ui.t("addons.settingsUnavailable")}</p>` : nothing;
   }
-  #settings(addonId: string) {
+  #settings(addonId: string, active: boolean) {
     return html`<codex-addon-settings .registry=${this.registry} .actorRole=${this.actorRole} .addonId=${addonId}
-      .initiallyOpen=${this.addonTarget === addonId} ?inert=${this.#busy}></codex-addon-settings>`;
+      .active=${active} ?inert=${this.#busy}></codex-addon-settings>`;
   }
   #addonRow(snapshot: AddonSnapshot) {
     const t = this.#ui.t.bind(this.#ui), state = snapshot.state;
@@ -191,7 +231,7 @@ export class CodexAddonManager extends LitElement {
       <header><div><h3>${state.addonId}</h3><p>${active ? html`${active.version} · ${t("addons.active")}` : t("addons.inactive")}${snapshot.runtimeState ? ` · ${uiSourceLabel(snapshot.runtimeState)}` : ""}</p></div>
       <div class="addon-actions">${active ? html`<button ?disabled=${this.#busy} @click=${() => this.#action(snapshot, "reload")}>${t("addons.reload")}</button><button ?disabled=${this.#busy} @click=${() => this.#action(snapshot, "disable")}>${t("addons.disable")}</button>` : nothing}
         <button ?disabled=${this.#busy} @click=${() => this.#prepareUninstall(state.addonId)}>${t("addons.uninstall")}</button></div></header>
-      ${this.#source(state.addonId)}${this.#settings(state.addonId)}
+      ${this.#source(state.addonId)}
       <details ?open=${!active}><summary>${t("addons.versions")}</summary><p>${t("addons.versionsHint")}</p><ul>${snapshot.generations.map(generation => html`<li data-generation=${generation.generationId}>
         <div><strong>${generation.version}</strong> ${t(generation.generationId === state.activeGenerationId ? "addons.active" : "addons.savedInactive")}<small>${this.#ui.relativeDate(generation.installedAt)}</small>
           ${generation.lastError ? html`<p role="alert">${t("addons.failed")}</p><details><summary>${uiText("Technical details")}</summary><p>${generation.lastError}</p></details>` : nothing}<details><summary>${t("addons.generation")}</summary><code>${generation.generationId}</code></details></div>

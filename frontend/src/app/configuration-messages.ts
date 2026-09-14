@@ -1,4 +1,5 @@
 export const configurationEn = {
+  "addons.management": "Management",
   "addons.settings": "Settings",
   "addons.settingsFor": "Settings for {addon}",
   "addons.settingsLink": "Link to these settings",
@@ -76,6 +77,7 @@ export const configurationEn = {
 } as const;
 
 export const configurationCs: Record<keyof typeof configurationEn, string> = {
+  "addons.management": "Správa",
   "addons.settings": "Nastavení",
   "addons.settingsFor": "Nastavení doplňku {addon}",
   "addons.settingsLink": "Odkaz na toto nastavení",

@@ -39,17 +39,47 @@ export async function exerciseConfiguration({ t, open, admin, csrf, output, mobi
   await jsonResponse(await admin.post('/api/admin/rules-policy', { headers, data: { expectedRevision: initial.revision, expectedGraphRevision: initial.graphRevision, enabled: [{ addonId: 'source-base', setId: 'rules', id: 'core' }] } }));
   const contentURL = `/api/addons/source-extra/generations/${extra.state.activeGenerationId}/content/records?set=rules&kind=spell&id=extra-spell`;
   assert.equal((await admin.get(contentURL)).status(), 404);
+  const pendingSource = `source-pending-${mobile ? 'phone' : 'desktop'}`;
+  await installReviewedPackage(admin, csrf, pendingSource, configurationPackage(pendingSource), []);
+  t.after(async () => {
+    const snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${pendingSource}`));
+    await jsonResponse(await admin.post(`/api/admin/addons/${pendingSource}/disable`, { headers, data: { expectedStateRevision: snapshot.state.revision } }));
+  });
   const page = await open(t, 'dm', mobile);
   page.setDefaultTimeout(10000);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message)); t.after(() => assert.deepEqual(errors, []));
+  let rejectDiscovery = true;
+  await page.route('**/api/admin/rules-policy', async route => {
+    if (rejectDiscovery && route.request().method() === 'GET') return route.fulfill({ status: 503, json: { error: 'unavailable' } });
+    await route.continue();
+  });
   await page.goto('/#/settings'); await page.locator('[data-category="addons"]').click();
+  await page.locator('.addon-manager').getByRole('alert').waitFor();
+  rejectDiscovery = false;
+  await page.getByRole('button', { name: 'Refresh configuration', exact: true }).click();
   const config = page.locator('codex-addon-configuration');
+  const management = page.getByRole('tab', { name: 'Management', exact: true });
+  assert.equal(await management.getAttribute('aria-selected'), 'true');
+  assert.equal(await config.isVisible(), false);
+  await page.getByRole('tab', { name: 'source-base', exact: true }).click();
   await config.getByText('Fixture rules', { exact: true }).waitFor().catch(async () => assert.fail(await config.innerText()));
   assert.equal(await config.getByRole('checkbox', { name: /Core rules/u }).isDisabled(), true);
+  assert.equal(await config.getByRole('checkbox', { name: 'Extra adventures', exact: true }).count(), 0);
+  assert.equal(await config.locator('.configuration-service').count(), 0);
+  await page.getByRole('tab', { name: 'source-extra', exact: true }).click();
   const book = config.getByRole('checkbox', { name: 'Extra adventures', exact: true });
-  await book.check(); await config.getByRole('button', { name: 'Review sourcebook choices' }).click();
+  await book.check();
+  await page.getByRole('tab', { name: consumer, exact: true }).click();
+  assert.equal(await config.getByRole('checkbox', { name: /Core rules/u }).count(), 0);
+  await config.getByLabel('Provider', { exact: true }).selectOption('source-extra');
+  await management.click();
+  assert.equal(await config.isVisible(), false);
+  await page.getByRole('tab', { name: 'source-extra', exact: true }).click();
+  assert.equal(await book.isChecked(), true);
+  await config.getByRole('button', { name: 'Review sourcebook choices' }).click();
   const review = config.getByRole('region', { name: 'Review changes' });
   await review.getByText('Enable: Extra adventures · source-extra', { exact: true }).waitFor();
+  await review.getByText(`Disable: Extra adventures · ${pendingSource}`, { exact: true }).waitFor();
   assert.equal((await admin.get(contentURL)).status(), 404);
   // A second operator changes configuration after this review was opened.
   const services = await jsonResponse(await admin.get('/api/admin/service-selections'));
@@ -64,7 +94,11 @@ export async function exerciseConfiguration({ t, open, admin, csrf, output, mobi
   await config.getByRole('button', { name: 'Review sourcebook choices' }).click();
   await config.getByRole('button', { name: 'Apply changes' }).click();
   await config.getByRole('status').filter({ hasText: 'Configuration applied.' }).waitFor();
+  const accepted = await jsonResponse(await admin.get('/api/admin/rules-policy'));
+  assert.equal(accepted.sources.find((source: { addonId: string }) => source.addonId === pendingSource).pending, false);
   const record = await jsonResponse(await admin.get(contentURL)); assert.equal(record.record.id, 'extra-spell');
+  await page.getByRole('tab', { name: consumer, exact: true }).click();
+  assert.equal(await config.getByLabel('Provider', { exact: true }).inputValue(), 'source-extra', 'provider draft survives another tab applying its reviewed changes');
   const provider = config.locator('.configuration-service').filter({ has: page.locator('legend', { hasText: consumer }) });
   await provider.getByLabel('Provider', { exact: true }).selectOption('source-extra').catch(async () => assert.fail(await config.innerText()));
   await provider.getByRole('button', { name: 'Review provider choice' }).click();
@@ -76,6 +110,9 @@ export async function exerciseConfiguration({ t, open, admin, csrf, output, mobi
   await provider.getByText('Several providers are available. Choose one to connect this service.', { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await config.scrollIntoViewIfNeeded(); await page.screenshot({ path: resolve(output, `configuration-${mobile ? 'phone' : 'desktop'}.png`), fullPage: true });
+  await page.goto(`/#/settings/addons/${consumer}`); await page.reload();
+  await provider.getByLabel('Provider', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('tab', { name: consumer, exact: true }).getAttribute('aria-selected'), 'true');
   const player = await open(t, 'player');
   for (const endpoint of ['rules-policy', 'service-selections']) {
     assert.equal((await player.context().request.get(`/api/admin/${endpoint}`)).status(), 403);

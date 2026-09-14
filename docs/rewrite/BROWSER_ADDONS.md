@@ -259,21 +259,23 @@ and custom renderers remain owned by their corresponding core features.
 
 ## Add-on settings
 
-`codex-addon-settings` lazily mounts role-visible `settings` contributions
-inside each add-on's card in Settings → Add-ons. Its disclosure uses a native
-button with `aria-expanded` and `aria-controls`, following the
-[W3C disclosure pattern](https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/).
-Expanded panels retain their DOM and edit registrations when collapsed.
-Cards use stable add-on keys and player cards sort by add-on ID, so an
-inventory refresh or another package's panel-order change cannot transfer
-drafts or expansion state between add-ons.
+Settings → Add-ons opens a Management tab for installation, updates,
+credentials and package lifecycle actions. Each add-on with sourcebooks,
+consumed services or role-visible `settings` contributions gets its own tab.
+The tab list supports arrow keys, Home/End and roving keyboard focus. Direct
+settings links select the corresponding add-on tab.
+
+`codex-addon-settings` lazily mounts contributions when their tab is first
+visited. Hidden tabs retain their DOM and edit registrations. Add-on tabs and
+outlets use stable add-on keys and sort by add-on ID, so inventory refreshes
+or another package's panel-order changes cannot transfer drafts between add-ons.
 
 The host's shared contribution controller owns registry subscriptions for
 discovery; the existing outlet owns ordering, labels, roles, integrated
 elements, isolated frames, and cleanup. Player settings discover add-ons from
 the role-filtered registry without requesting the admin inventory or mounting
-management controls. Empty disclosures are omitted; a direct unavailable
-target gets an explanatory message. Integrated mount failures offer a retry
+management controls. Add-ons without available settings have no tab; a direct
+unavailable target gets an explanatory message. Integrated mount failures offer a retry
 that preserves successfully mounted siblings.
 
 The [public settings contract](../../examples/addons/API_V3.md#add-on-settings)
@@ -286,9 +288,9 @@ from another session can discard unsaved drafts in other add-ons as well.
 This integration does not create a separate settings store or migrate data.
 
 `installed-settings-fixture.mts` exercises reviewed fixture ZIPs in both UI
-modes, persisted saves and reload, collapsed drafts, guarded navigation and
-reload, player filtering, replacement, disable, retry, unrelated card stability,
-localized labels, and desktop/phone layouts.
+modes, persisted saves and reload, drafts in hidden tabs, keyboard tab
+navigation, guarded navigation and reload, player filtering, replacement,
+disable, retry, unrelated outlet stability, localized labels, and desktop/phone layouts.
 
 ## DM dashboard outlet
 

@@ -45,8 +45,15 @@ There is no legacy startup path, campaign conversion or reset operation here.
 
 ## Source selection
 
-Settings → Add-ons displays the ruleset and groups sourcebook checkboxes by
-package. The shared catalog derives membership from each content set's declared
+Settings → Add-ons gives each configurable add-on its own tab, after the
+Management tab. Sourcebook checkboxes and the instance ruleset appear in the
+source package's tab; provider controls appear in the consuming add-on's tab.
+An add-on with both kinds of configuration or custom settings shares one tab.
+Tabs retain unapplied source and provider choices. Sourcebook review covers
+the shared policy and lists changed and pending choices from every add-on
+before Apply, including choices outside the current tab.
+
+The shared catalog derives membership from each content set's declared
 `groups.field` and optional `groups.additionalField`; dotted field paths are
 supported. Optional `groups.catalogKind` identifies book metadata records,
 whose stable IDs and names label the choices. No book IDs are hard-coded.
@@ -75,8 +82,8 @@ immutable browser cache entries.
 
 ## Provider selection and lifecycle
 
-Service settings show active and newest staged consumers, declared version
-ranges, compatible and unavailable providers, current connections and stale
+Each consuming add-on's settings tab shows active and newest staged consumers,
+declared version ranges, compatible and unavailable providers, current connections and stale
 selections. A `one` consumer automatically uses the sole compatible active
 provider. Several providers remain ambiguous until the operator chooses one.
 The operator can explicitly select or return to Automatic. An unavailable

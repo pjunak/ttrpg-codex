@@ -391,7 +391,7 @@ Initial surfaces cover existing suite needs:
 |---|---|
 | `route` | Application page under an add-on route namespace |
 | `sidebar` | DM or player navigation item |
-| `settings` | Named panels in the Settings disclosure inside the add-on's Settings → Add-ons card |
+| `settings` | Named panels in the add-on's own Settings → Add-ons tab |
 | `article-action` | Contextual action for a visible record |
 | `article-section` | Additive schema-backed section on a record page |
 | `editor-panel` | Structured editor extension |
@@ -411,15 +411,15 @@ implementation; ordinary article sections and editor panels are additive.
 ### Add-on settings
 
 A `settings` contribution binds an element in either integrated or isolated
-mode. The host lists its localized `label` inside the **Settings** disclosure
-on the owning add-on's card in Settings → Add-ons. Panels follow declaration
-`order` and normal registry ordering. The host filters declarations by
+mode. The host lists its localized `label` in the owning add-on's tab in
+Settings → Add-ons, alongside its sourcebook and provider controls when
+available. Panels follow declaration `order` and normal registry ordering. The host filters declarations by
 effective role and granted capabilities. Add-ons without visible settings
-have no empty disclosure; player views contain only their available settings,
+have no empty settings outlet; player views contain only their available settings,
 without installation, credential, sourcebook, or provider administration.
 
 `#/settings/addons` opens the add-on category. The stable
-`#/settings/addons/<addon-id>` link opens that add-on's disclosure. An absent,
+`#/settings/addons/<addon-id>` link selects that add-on's tab. An absent,
 disabled, loading, or role-inaccessible target shows an unavailable message;
 links never confer access. No additional route contribution is required.
 
@@ -442,8 +442,8 @@ settings, or read-only information. Role-visible public data is shared data,
 not a personal preference store. Host GitHub secrets remain in the credential
 manager and must not be requested or stored by contributed settings.
 
-Panels mount on first expansion. Collapsing preserves mounted elements,
-frames, and draft values while the category remains mounted. Publish
+Panels mount on the first visit to their tab. Switching tabs preserves mounted
+elements, frames, and draft values while the category remains mounted. Publish
 `codexContribution.edits.set({ dirty, saving })` on every edit and save
 transition. Category and shell navigation ask before discarding dirty views;
 saving blocks navigation. Local package activation, reload, disable, uninstall,

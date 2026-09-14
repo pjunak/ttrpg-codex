@@ -128,10 +128,15 @@ codex-addon-manager { display: block; min-width: 0; }
 .addon-permission input { flex: none; margin-top: .25rem; accent-color: var(--gold); }
 .addon-permission > span > span { display: block; }
 .addon-manager [role="alert"] { color: var(--danger, #f4a6a6); }
+.addon-settings-tabs { display: flex; gap: .25rem; overflow-x: auto; scrollbar-width: thin; margin-bottom: 1.25rem; border-bottom: 1px solid var(--chrome-field-border); padding: .25rem; }
+.addon-settings-tabs [role="tab"] { flex: 0 0 auto; min-height: 2.75rem; max-width: 100%; padding: .6rem .75rem; border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; color: var(--text-muted); font: .8rem var(--font-ui); overflow-wrap: anywhere; text-align: start; }
+.addon-settings-tabs [aria-selected="true"] { color: var(--text-light); border-bottom-color: var(--gold); background: rgba(var(--accent-gold-rgb), .1); }
+.addon-settings-tabs [role="tab"]:focus-visible, .addon-manager [role="tabpanel"]:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.addon-manager [role="tabpanel"], .addon-manager [data-addon-settings] { min-width: 0; }
+.addon-manager [hidden] { display: none; }
+.addon-manager .addon-toolbar { margin-bottom: 1rem; }
 codex-addon-settings { display: block; min-width: 0; }
 .addon-settings { margin: .75rem 0; }
-.addon-settings-toggle { display: flex; align-items: center; gap: .5rem; width: 100%; text-align: start; min-height: 2.75rem; }
-.addon-settings-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .addon-settings-link { display: inline-block; margin: .75rem 0; font-size: .8rem; color: var(--gold); }
 [data-addon-settings-outlet] { display: grid; gap: .75rem; min-width: 0; }
 [data-addon-settings-outlet][hidden] { display: none; }

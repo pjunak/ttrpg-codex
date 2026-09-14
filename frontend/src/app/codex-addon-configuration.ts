@@ -5,11 +5,14 @@ import { sourceKey, serviceKey, type ConfigurationResult, type ConfigurationSnap
 import { UiLocalizationController } from "./ui-localization.js";
 import { uiRequestError } from "./ui-errors.js";
 
+export interface ConfigurationAddon { id: string; name: string }
+
 interface ProviderDraft { automatic: boolean; ids: string[] }
 type Review = { snapshot: ConfigurationSnapshot } & ({ kind: "sources"; enabled: SourceTarget[] } | { kind: "service"; service: ServiceSelection; choice: ProviderDraft });
 
 export class CodexAddonConfiguration extends LitElement {
-  static override properties = { csrfToken: { attribute: false }, inventoryRevision: { attribute: false }, disabled: { type: Boolean }, policy: { state: true }, services: { state: true }, pending: { state: true }, error: { state: true }, message: { state: true }, search: { state: true }, review: { state: true } };
+  static override properties = { addonId: { attribute: false }, csrfToken: { attribute: false }, inventoryRevision: { attribute: false }, disabled: { type: Boolean }, policy: { state: true }, services: { state: true }, pending: { state: true }, error: { state: true }, message: { state: true }, search: { state: true }, review: { state: true } };
+  declare addonId: string;
   declare csrfToken: string;
   declare inventoryRevision: string;
   declare disabled: boolean;
@@ -24,10 +27,14 @@ export class CodexAddonConfiguration extends LitElement {
   #providers = new Map<string, ProviderDraft>();
   #request = new AbortController();
   readonly #ui = new UiLocalizationController(this);
-  constructor() { super(); this.disabled = false; this.pending = false; this.error = ""; this.message = ""; this.search = ""; }
+  constructor() { super(); this.addonId = ""; this.disabled = false; this.pending = false; this.error = ""; this.message = ""; this.search = ""; }
   protected override createRenderRoot() { return this; }
   override connectedCallback(): void { super.connectedCallback(); this.#request = new AbortController(); void this.#load(); }
   override disconnectedCallback(): void { this.#request.abort(); this.#dirty(false); super.disconnectedCallback(); }
+  protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
+    if (changed.has("addonId")) { this.review = undefined; this.search = ""; this.#dirty(); }
+  }
+  refresh(): void { this.review = undefined; void this.#load(); }
   protected override updated(changed: Map<PropertyKey, unknown>): void {
     if ((changed.has("inventoryRevision") || changed.has("disabled")) && !this.#hasDraft && !this.#blocked) void this.#load();
     if (changed.has("review") && this.review) this.querySelector<HTMLElement>(".configuration-review h4")?.focus();
@@ -45,28 +52,30 @@ export class CodexAddonConfiguration extends LitElement {
   }
   protected override render() {
     const t = this.#ui.t.bind(this.#ui), policy = this.policy;
+    const sources = policy?.sources.filter(source => source.addonId === this.addonId) ?? [];
+    const services = this.services?.services.filter(row => row.requirement.consumerAddonId === this.addonId) ?? [];
+    if (!sources.length && !services.length) return nothing;
     return html`<section class="addon-configuration" aria-busy=${this.pending}>
-      <header><h3>${t("configuration.title")}</h3><p>${t("configuration.intro")}</p></header>
       ${this.error ? html`<p role="alert">${this.error}</p>` : nothing}${this.message ? html`<p role="status">${this.message}</p>` : nothing}
-      <div class="addon-actions"><button ?disabled=${this.#blocked} @click=${() => { this.review = undefined; void this.#load(); }}>${t("configuration.refresh")}</button>
+      <div class="addon-actions"><button ?disabled=${this.#blocked} @click=${() => this.refresh()}>${t("configuration.refresh")}</button>
       ${this.#hasDraft ? html`<button ?disabled=${this.#blocked} @click=${this.#reset}>${t("configuration.reset")}</button><span role="status">${t("configuration.draft")}</span>` : nothing}</div>
-      ${!policy ? html`<p role="status">${this.pending ? t("addons.loading") : t("configuration.noRules")}</p>` : html`
+      ${policy && sources.length ? html`
       <p class="configuration-ruleset">${policy.ruleset ? html`<strong>${policy.ruleset.name}</strong><br>${t("configuration.definedBy", { addon: policy.ruleset.addonId })}` : t("configuration.noRules")}</p>
       <fieldset ?disabled=${this.#blocked || !!this.review}><legend>${t("configuration.books")}</legend><p>${t("configuration.booksHelp")}</p>
-        ${policy.sources.length > 8 ? html`<label>${t("configuration.search")}<input type="search" .value=${this.search} @input=${(event: Event) => { this.search = (event.target as HTMLInputElement).value; }}></label>` : nothing}
+        ${sources.length > 8 ? html`<label>${t("configuration.search")}<input type="search" .value=${this.search} @input=${(event: Event) => { this.search = (event.target as HTMLInputElement).value; }}></label>` : nothing}
         ${this.#sourceGroups()}
         <button ?disabled=${!policy.sources.length || !this.#selected && !policy.sources.some(source => source.pending)} @click=${() => {
           this.review = { kind: "sources", snapshot: policy, enabled: policy.sources.filter(source => this.#sourceEnabled(source)).map(({ addonId, setId, id }) => ({ addonId, setId, id })) }; this.#dirty();
         }}>${t("configuration.reviewBooks")}</button>
-      </fieldset>`}
-      <section><h4>${t("configuration.services")}</h4><p>${t("configuration.servicesHelp")}</p>
-        ${this.services?.services.length ? this.services.services.map(row => this.#service(row)) : html`<p>${t("configuration.noServices")}</p>`}
-      </section>
+      </fieldset>` : nothing}
+      ${services.length ? html`<section><h4>${t("configuration.services")}</h4><p>${t("configuration.servicesHelp")}</p>
+        ${services.map(row => this.#service(row))}
+      </section>` : nothing}
       ${this.review ? this.#review(this.review) : nothing}
     </section>`;
   }
   #sourceGroups() {
-    const t = this.#ui.t.bind(this.#ui), sources = this.policy?.sources ?? [];
+    const t = this.#ui.t.bind(this.#ui), sources = this.policy?.sources.filter(source => source.addonId === this.addonId) ?? [];
     if (!sources.length) return html`<p>${t("configuration.noBooks")}</p>`;
     const visible = sources.filter(source => `${source.name} ${source.addonName} ${source.id}`.toLocaleLowerCase().includes(this.search.toLocaleLowerCase().trim()));
     if (!visible.length) return html`<p role="status">${t("configuration.noMatches")}</p>`;
@@ -86,10 +95,10 @@ export class CodexAddonConfiguration extends LitElement {
       <p>${t("configuration.current", { providers: row.resolution.providers.join(", ") || t("configuration.none") })}</p>
       ${row.resolution.staleTargets.length ? html`<p role="status">${t("configuration.stale", { providers: row.resolution.staleTargets.join(", ") })}</p>` : nothing}
       ${!operator ? html`<p>${t("configuration.all")}</p>` : row.requirement.cardinality === "one" ? html`
-        <label for=${inputId}>${t("configuration.provider")}</label><select id=${inputId} .value=${choice.automatic ? "" : choice.ids[0] ?? ""} @change=${(event: Event) => { const id = (event.target as HTMLSelectElement).value; this.#choose(row, { automatic: !id, ids: id ? [id] : [] }); }}>
-          <option value="">${t("configuration.automatic")}</option>
-          ${choice.ids.filter(id => !row.candidates.some(candidate => candidate.addonId === id)).map(id => html`<option value=${id} disabled>${id} · ${t("configuration.unavailable")}</option>`)}
-          ${row.candidates.map(candidate => html`<option value=${candidate.addonId} ?disabled=${!candidate.compatible || !candidate.activeGeneration}>${candidate.addonId} · ${candidate.addonVersion}${candidate.compatible && candidate.activeGeneration ? "" : ` · ${t("configuration.unavailable")}`}</option>`)}
+        <label for=${inputId}>${t("configuration.provider")}</label><select id=${inputId} @change=${(event: Event) => { const id = (event.target as HTMLSelectElement).value; this.#choose(row, { automatic: !id, ids: id ? [id] : [] }); }}>
+          <option value="" .selected=${choice.automatic}>${t("configuration.automatic")}</option>
+          ${choice.ids.filter(id => !row.candidates.some(candidate => candidate.addonId === id)).map(id => html`<option value=${id} .selected=${!choice.automatic && choice.ids[0] === id} disabled>${id} · ${t("configuration.unavailable")}</option>`)}
+          ${row.candidates.map(candidate => html`<option value=${candidate.addonId} .selected=${!choice.automatic && choice.ids[0] === candidate.addonId} ?disabled=${!candidate.compatible || !candidate.activeGeneration}>${candidate.addonId} · ${candidate.addonVersion}${candidate.compatible && candidate.activeGeneration ? "" : ` · ${t("configuration.unavailable")}`}</option>`)}
         </select>` : html`
         <label class="addon-permission"><input type="checkbox" .checked=${choice.automatic} @change=${(event: Event) => this.#choose(row, { automatic: (event.target as HTMLInputElement).checked, ids: [] })}>${t("configuration.automatic")}</label>
         ${row.candidates.map(candidate => html`<label class="addon-permission"><input type="checkbox" .checked=${!choice.automatic && choice.ids.includes(candidate.addonId)} ?disabled=${choice.automatic || !candidate.compatible || !candidate.activeGeneration} @change=${(event: Event) => this.#choose(row, { automatic: false, ids: (event.target as HTMLInputElement).checked ? [...choice.ids, candidate.addonId] : choice.ids.filter(id => id !== candidate.addonId) })}>${candidate.addonId} · ${candidate.addonVersion}</label>`)}`}
@@ -100,7 +109,7 @@ export class CodexAddonConfiguration extends LitElement {
     const t = this.#ui.t.bind(this.#ui);
     return html`<section class="configuration-review" aria-label=${t("configuration.review")}>
       <h4 tabindex="-1">${t("configuration.review")}</h4>
-      ${review.kind === "sources" ? html`<ul>${this.policy?.sources.filter(source => this.#sourceEnabled(source) !== source.enabled).map(source => html`<li>${this.#sourceEnabled(source) ? t("configuration.enabling") : t("configuration.disabling")}: ${source.name} · ${source.addonName}</li>`)}</ul><p>${t("configuration.acknowledge")}</p>` : html`<p>${review.service.consumerName} · ${review.service.requirement.contract}: <strong>${review.choice.automatic ? t("configuration.automatic") : review.choice.ids.join(", ")}</strong></p>`}
+      ${review.kind === "sources" ? html`<ul>${this.policy?.sources.filter(source => this.#sourceEnabled(source) !== source.enabled || source.pending).map(source => html`<li>${this.#sourceEnabled(source) ? t("configuration.enabling") : t("configuration.disabling")}: ${source.name} · ${source.addonName}</li>`)}</ul><p>${t("configuration.acknowledge")}</p>` : html`<p>${review.service.consumerName} · ${review.service.requirement.contract}: <strong>${review.choice.automatic ? t("configuration.automatic") : review.choice.ids.join(", ")}</strong></p>`}
       <p>${t("configuration.retained")}</p><p>${review.snapshot.restartedAddonIds.length ? t("configuration.restart", { addons: review.snapshot.restartedAddonIds.join(", ") }) : t("configuration.noRestart")}</p>
       <div class="addon-actions"><button ?disabled=${this.#blocked} @click=${() => this.#apply(review)}>${t("configuration.apply")}</button><button ?disabled=${this.#blocked} @click=${() => { this.review = undefined; this.#dirty(); }}>${t("configuration.cancel")}</button></div>
     </section>`;
@@ -117,7 +126,12 @@ export class CodexAddonConfiguration extends LitElement {
       const keys = new Set(services.services.map(serviceKey));
       for (const key of this.#providers.keys()) if (!keys.has(key)) this.#providers.delete(key);
       this.policy = policy; this.services = services; this.#dirty();
+      const addons = new Map<string, ConfigurationAddon>();
+      for (const source of policy.sources) addons.set(source.addonId, { id: source.addonId, name: source.addonName });
+      for (const row of services.services) addons.set(row.requirement.consumerAddonId, { id: row.requirement.consumerAddonId, name: row.consumerName });
+      this.dispatchEvent(new CustomEvent("addon-configuration-discovered", { detail: [...addons.values()], bubbles: true, composed: true }));
     });
+    if (!this.#request.signal.aborted) this.dispatchEvent(new CustomEvent("addon-configuration-error", { detail: this.error, bubbles: true, composed: true }));
   }
   async #apply(review: Review): Promise<void> {
     if (!this.dispatchEvent(new CustomEvent("addon-lifecycle-request", { bubbles: true, composed: true, cancelable: true }))) return;

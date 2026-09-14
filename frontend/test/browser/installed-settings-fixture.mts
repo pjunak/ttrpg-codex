@@ -27,6 +27,7 @@ export function settingsPackage(id: string, mode: string, version = '1.0.0', fai
           if (this.output) this.output.textContent = JSON.stringify(value.host);
         }
         connectedCallback() {
+          this.dataset.connections = String(Number(this.dataset.connections ?? 0) + 1);
           this.abort = new AbortController();
           const title = document.createElement('h4'); title.textContent = this.context.contribution.label + ' ${version}';
           const scope = document.createElement('p'); scope.textContent = 'Shared options for this website.';
@@ -81,27 +82,35 @@ export async function exerciseSettings({ t, open, admin, csrf, output, mobile, m
   const page = await open(t, 'dm', mobile); page.setDefaultTimeout(10000);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message)); t.after(() => assert.deepEqual(errors, []));
   await page.goto('/#/settings/addons');
-  const row = page.locator(`.addon-row[data-addon-id="${id}"]`), dropdown = row.locator('codex-addon-settings');
-  const toggle = dropdown.getByRole('button', { name: `Settings for ${id}`, exact: true });
-  await toggle.waitFor(); assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
-  assert.equal(await dropdown.locator('.addon-contribution').count(), 0, 'closed settings are lazy');
-  await toggle.focus(); await page.keyboard.press('Enter');
+  const row = page.locator(`.addon-row[data-addon-id="${id}"]`), dropdown = page.locator(`[data-addon-settings="${id}"] codex-addon-settings`);
+  const tab = page.getByRole('tab', { name: id, exact: true }), management = page.getByRole('tab', { name: 'Management', exact: true });
+  await tab.waitFor(); assert.equal(await management.getAttribute('aria-selected'), 'true');
+  assert.equal(await tab.getAttribute('tabindex'), '-1');
+  assert.equal(await dropdown.locator('.addon-contribution').count(), 0, 'unvisited tabs are lazy');
+  await tab.focus(); await page.keyboard.press('Enter');
+  assert.equal(await tab.getAttribute('aria-selected'), 'true');
+  assert.equal(await row.isVisible(), false);
+  assert.equal(await page.getByRole('tabpanel').count(), 1);
   const panel = dropdown.locator('[data-contribution-id="preferences"]');
   const view = mode === 'isolated' ? panel.frameLocator('iframe') : panel;
   await view.getByText('Options ready', { exact: true }).waitFor();
   assert.deepEqual(await dropdown.locator('.addon-contribution').evaluateAll(elements => elements.map(element => (element as HTMLElement).dataset.contributionId)), ['preferences', 'campaign']);
   assert.deepEqual(JSON.parse((await view.getByLabel('Settings context').textContent())!), { contractVersion: 'addon-settings-context.v1', locale: 'en', role: 'dm' });
   await view.getByLabel('Saved option').fill('Keep this draft');
-  await toggle.focus(); await page.keyboard.press('Space');
-  assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+  await tab.press('Home');
+  assert.equal(await management.getAttribute('aria-selected'), 'true');
+  assert.equal(await management.evaluate(element => element === document.activeElement), true);
+  assert.equal(await dropdown.isVisible(), false);
   page.once('dialog', dialog => dialog.dismiss()); await page.locator('[data-category="language"]').click();
-  assert.equal(await toggle.count(), 1, 'category navigation respects collapsed drafts');
+  assert.equal(await tab.count(), 1, 'category navigation respects drafts in hidden tabs');
   page.once('dialog', dialog => dialog.dismiss()); await row.getByRole('button', { name: 'Reload', exact: true }).click();
-  await toggle.click(); assert.equal(await view.getByLabel('Saved option').inputValue(), 'Keep this draft');
+  await tab.click(); assert.equal(await view.getByLabel('Saved option').inputValue(), 'Keep this draft');
+  await management.click();
   await page.getByRole('button', { name: 'Check for updates', exact: true }).first().click();
   await page.locator('.addon-manager[aria-busy="false"]').waitFor();
   assert.equal(await view.getByLabel('Saved option').inputValue(), 'Keep this draft');
-  assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
+  await tab.click();
+  assert.equal(await tab.getAttribute('aria-selected'), 'true');
   await view.getByRole('button', { name: 'Save option', exact: true }).click(); await view.getByText('Option saved', { exact: true }).waitFor();
   await page.goto(`/#/settings/addons/${id}`); await page.reload();
   await view.getByText('Options ready', { exact: true }).waitFor(); assert.equal(await view.getByLabel('Saved option').inputValue(), 'Keep this draft');
@@ -113,10 +122,14 @@ export async function exerciseSettings({ t, open, admin, csrf, output, mobile, m
   await view.getByLabel('Saved option').fill('Durable option'); await view.getByRole('button', { name: 'Save option', exact: true }).click();
   await view.getByText('Saving option', { exact: true }).waitFor();
   await page.locator('[data-category="language"]').click(); assert.equal(await dropdown.count(), 1);
+  await management.click();
   await row.getByRole('button', { name: 'Reload', exact: true }).click();
   await page.getByText('Wait for the add-on save to finish before changing installed add-ons.', { exact: true }).waitFor();
+  await tab.click();
   release(); await view.getByText('Option saved', { exact: true }).waitFor(); await page.unrouteAll({ behavior: 'wait' });
   if (mode === 'isolated') {
+    const frame = await (await panel.locator('iframe').elementHandle())!.contentFrame();
+    await frame!.waitForFunction(() => document.body.scrollHeight <= innerHeight);
     const frameHeight = (await panel.locator('iframe').boundingBox())!.height;
     assert.ok(frameHeight < 450, `settings frames size to content: ${frameHeight}`);
     assert.equal(await view.locator('body').evaluate(element => element.scrollHeight > window.innerHeight), false, 'content is not clipped by iframe margins');
@@ -127,7 +140,7 @@ export async function exerciseSettings({ t, open, admin, csrf, output, mobile, m
   const player = await open(t, 'player', mobile), adminRequests: string[] = [];
   player.on('request', request => { if (request.url().includes('/api/admin/')) adminRequests.push(request.url()); });
   await player.goto(`/#/settings/addons/${id}`);
-  const playerSettings = player.locator(`.addon-row[data-addon-id="${id}"] codex-addon-settings`);
+  const playerSettings = player.locator(`[data-addon-settings="${id}"] codex-addon-settings`);
   const playerPanel = playerSettings.locator('[data-contribution-id="preferences"]');
   const playerView = mode === 'isolated' ? playerPanel.frameLocator('iframe') : playerPanel;
   await playerView.getByText('Options ready', { exact: true }).waitFor();
@@ -135,11 +148,12 @@ export async function exerciseSettings({ t, open, admin, csrf, output, mobile, m
   assert.equal(await playerSettings.locator('[data-contribution-id="campaign"]').count(), 0);
   assert.equal(await player.locator('codex-addon-install, codex-addon-configuration, .addon-toolbar').count(), 0);
   assert.deepEqual(adminRequests, []);
+  assert.equal(await player.getByRole('tab', { name: 'Management', exact: true }).count(), 0);
   assert.deepEqual(JSON.parse((await playerView.getByLabel('Settings context').textContent())!).role, 'player');
   await player.locator('[data-category="language"]').click();
   await player.locator('.settings-preference-field select').selectOption('cs');
   await player.locator('[data-category="addons"]').click();
-  await playerSettings.getByRole('button', { name: `Nastavení doplňku ${id}`, exact: true }).waitFor();
+  await player.getByRole('tab', { name: id, exact: true }).waitFor();
   await playerSettings.locator('.addon-contribution-heading strong').getByText('Sdílené předvolby', { exact: true }).waitFor();
   assert.equal(JSON.parse((await playerView.getByLabel('Settings context').textContent())!).locale, 'cs');
   await player.locator('[data-category="language"]').click();
@@ -153,7 +167,7 @@ export async function exerciseSettings({ t, open, admin, csrf, output, mobile, m
   assert.equal(await view.getByLabel('Saved option').inputValue(), 'Durable option');
   await page.locator('[data-category="language"]').click(); await dropdown.waitFor({ state: 'detached' });
   await page.locator('[data-category="addons"]').click(); await view.getByText('Options ready', { exact: true }).waitFor();
-  await disable(); await toggle.waitFor({ state: 'detached' });
+  await disable(); await tab.waitFor({ state: 'detached' });
   await playerSettings.waitFor({ state: 'detached' });
   await player.getByText('These settings are unavailable.', { exact: false }).waitFor();
 }
@@ -166,14 +180,17 @@ export async function exerciseSettingsFailure({ t, open, admin, csrf }: Installe
     await jsonResponse(await admin.post(`/api/admin/addons/${id}/disable`, { headers: { 'X-Codex-CSRF': csrf }, data: { expectedStateRevision: snapshot.state.revision } }));
   });
   const page = await open(t); await page.goto(`/#/settings/addons/${id}`);
-  const dropdown = page.locator(`.addon-row[data-addon-id="${id}"] codex-addon-settings`);
+  const dropdown = page.locator(`[data-addon-settings="${id}"] codex-addon-settings`);
   await dropdown.getByRole('alert').waitFor();
   assert.equal((await dropdown.textContent())!.includes('Private settings failure'), false);
   const view = dropdown.locator('[data-contribution-id="preferences"]');
   await view.getByText('Options ready', { exact: true }).waitFor();
+  const mounted = await view.locator('[data-codex-addon]').elementHandle();
   await view.getByLabel('Saved option').fill('Draft survives retry');
   await dropdown.getByRole('button', { name: 'Retry settings', exact: true }).click();
   await dropdown.locator('[data-contribution-id="campaign"]').getByText('Options ready', { exact: true }).waitFor();
+  assert.equal(await mounted!.evaluate(element => element.isConnected), true, 'retry retains the mounted settings element');
+  assert.equal(await view.locator('[data-codex-addon]').getAttribute('data-connections'), '1', 'retry does not reconnect the settings element');
   assert.equal(await view.getByLabel('Saved option').inputValue(), 'Draft survives retry');
 }
 
@@ -187,16 +204,21 @@ export async function exerciseSettingsCardStability({ t, open, admin, csrf }: In
     });
   }
   const page = await open(t, 'player'); await page.goto('/#/settings/addons/settings-stable-a');
-  const cards = page.locator('.addon-row'), first = cards.filter({ has: page.locator('[aria-label="Settings for settings-stable-a"]') });
-  const second = cards.filter({ has: page.locator('[aria-label="Settings for settings-stable-b"]') });
+  const cards = page.locator('[data-addon-settings]'), first = page.locator('[data-addon-settings="settings-stable-a"]');
+  const second = page.locator('[data-addon-settings="settings-stable-b"]');
+  const firstTab = page.getByRole('tab', { name: ids[0], exact: true }), secondTab = page.getByRole('tab', { name: ids[1], exact: true });
   await first.getByText('Options ready', { exact: true }).waitFor();
   await first.getByLabel('Saved option').fill('Unrelated add-on draft');
-  assert.deepEqual(await cards.evaluateAll(elements => elements.map(element => (element as HTMLElement).dataset.addonId)), ids);
-  await second.getByRole('button', { name: 'Settings for settings-stable-b' }).click();
+  assert.deepEqual(await cards.evaluateAll(elements => elements.map(element => (element as HTMLElement).dataset.addonSettings)), ids);
+  await firstTab.press('ArrowRight');
+  assert.equal(await secondTab.getAttribute('aria-selected'), 'true');
+  assert.equal(await secondTab.evaluate(element => element === document.activeElement), true);
   await second.locator('[data-contribution-id="preferences"]').getByText('Options ready', { exact: true }).waitFor();
   await second.getByRole('button', { name: 'Hide shared preferences', exact: true }).click();
   await second.getByRole('heading', { name: 'Shared preferences 1.0.0', exact: true }).waitFor({ state: 'detached' });
   await second.getByRole('heading', { name: 'Alternate options 1.0.0', exact: true }).waitFor();
-  assert.deepEqual(await cards.evaluateAll(elements => elements.map(element => (element as HTMLElement).dataset.addonId)), ids);
+  assert.deepEqual(await cards.evaluateAll(elements => elements.map(element => (element as HTMLElement).dataset.addonSettings)), ids);
+  await secondTab.press('End'); await secondTab.press('ArrowRight');
+  assert.equal(await firstTab.getAttribute('aria-selected'), 'true');
   assert.equal(await first.getByLabel('Saved option').inputValue(), 'Unrelated add-on draft');
 }
