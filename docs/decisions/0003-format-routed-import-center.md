@@ -6,6 +6,8 @@
 
 **Decider:** Project maintainer
 
+**Implementation status, September 14, 2026:** Format-based routing remains current, but v3 uses serializable import-adapter v2 service methods, not the old 1.1 open(File) object contract below. See [current planning imports](../../../addon-dm-tools/docs/IMPORTING.md).
+
 ## Context
 
 The first Import Center composed every compatible adapter as a complete

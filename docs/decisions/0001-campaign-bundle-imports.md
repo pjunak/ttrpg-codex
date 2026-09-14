@@ -4,6 +4,8 @@
 **Date:** 2026-07-28  
 **Decider:** Project maintainer
 
+**Implementation status, September 14, 2026:** The decision records the old host implementation. The current Go host has no campaign-bundle provider or combined import coordinator; T19 in [the backlog](../BACKLOG.md) tracks that missing workflow.
+
 ## Context
 
 The reviewed content-import framework currently accepts deterministic plans

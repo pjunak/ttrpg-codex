@@ -6,6 +6,8 @@
 
 **Decider:** Project maintainer
 
+**Implementation status, September 14, 2026:** The current planning adapter v2 supports reviewed deletes through host SQLite transactions. The file-journal and bundle-coordinator mechanisms below describe the old implementation, not current APIs. See [planning imports](../../../addon-dm-tools/docs/IMPORTING.md) and T19 in [the backlog](../BACKLOG.md).
+
 ## Context
 
 Import provider API v1 originally accepted only `put` operations. That made

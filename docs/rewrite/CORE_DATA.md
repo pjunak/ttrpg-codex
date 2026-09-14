@@ -440,9 +440,12 @@ package descriptors are unchanged.
 
 ## Related services and boundaries
 
-[Authentication and password settings](AUTHENTICATION.md), campaign recovery
-points and import publication are implemented by their owning application
-services. They are not responsibilities of the generic record store.
+[Authentication and password settings](AUTHENTICATION.md) and campaign recovery
+points are implemented by their owning application services. Planning import
+publication is coordinated by the DM Tools worker through host add-on
+transactions. A combined core/add-on campaign-bundle importer is not implemented;
+T19 in the [suite backlog](../BACKLOG.md) records that gap. These policies do not
+belong in the generic record store.
 
 Add-on collection migration and additional relational query indexes remain
 separate extensions, tracked in the [suite backlog](../BACKLOG.md). Domain

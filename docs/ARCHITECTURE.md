@@ -106,6 +106,14 @@ components register only declared surfaces. Isolated contributions run in
 opaque, CSP-restricted iframes over transferred message ports. Abort-first,
 LIFO, once-only cleanup prevents stale handlers and services after reloads.
 
+## Imports
+
+DM Tools supplies the visible format-routed Import Center and a planning adapter
+through `codex.import-adapter` v2. Its worker retains the reviewed plan and
+commits guarded add-on mutations through host transactions. A host-owned
+campaign-bundle provider for combined core and add-on imports is not currently
+implemented; its remaining work is T19 in [the backlog](BACKLOG.md).
+
 ## Frontend
 
 The Lit shell validates every API response before accepting it. It owns auth,
@@ -136,7 +144,9 @@ It never merges or mutates its input.
 ## Failure model
 
 - Invalid packages never become active.
-- Failed candidate workers leave the current generation serving.
+- Direct single-package failures preserve the previous runtime. Reviewed cold
+  cohort switches can report failed recovery after committing the selected
+  generation; they do not promise uninterrupted old workers or automatic fallback.
 - Malformed client or add-on payloads fail at their schema boundary.
 - Stale revisions fail with conflicts.
 - Missing optional providers degrade explicitly.

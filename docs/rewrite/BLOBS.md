@@ -43,8 +43,8 @@ worker methods must additionally enforce the add-on's exact `blob.read` or
 
 Migration 0006 and the storage tests establish the primitive. Native
 `codex-backup.v2` archives the immutable object tree and verifies it against the
-restored database; v1 recovery archives remain readable only when their
-database has no blob references. Core media now supplies one application-owned
-authorization layer and HTTP surface; worker blob methods remain unavailable
+restored database. Ordinary verification and restore accept only v2; legacy
+website backups go through the separate offline converter. Core media supplies
+one application-owned authorization layer and HTTP surface; worker blob methods remain unavailable
 until exact add-on grants and owner namespaces are composed. See
 [`MEDIA.md`](MEDIA.md).

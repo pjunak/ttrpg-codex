@@ -74,13 +74,15 @@ role-projected reads remain the only source of documents. `hello`, `reset` and
 `campaign-restored` invalidate each active subscriber's cache. Subscriptions
 end with their generation, contribution signal, or explicit disposer.
 
-## Remaining event work
+## Integration status and retention
 
-- Package activation, rollback, reviewed cohort activation, reload, disable,
-  and startup recovery now publish the resulting exact browser graph revision.
-  A publication failure is logged but does not claim that an already-committed
-  package transition failed; every new or reset connection reloads the graph.
-- Campaign collection invalidations and browser graph changes now have strict
-  runtime-validated TypeScript payloads. Add import and background-job topics
-  as those features move onto the shared stream.
-- Add retention/checkpoint policy once real change volume can be measured.
+Package activation, rollback, reviewed cohort activation, reload, disable and
+startup recovery publish the resulting exact browser graph revision. A
+publication failure is logged without claiming that an already committed
+transition failed; every new or reset connection reloads the graph. Campaign
+and browser graph payloads are runtime-validated in TypeScript.
+
+Stored-event retention/checkpoint policy is not implemented (T07 in the
+[suite backlog](../BACKLOG.md)). Import and background-job progress topics are
+conditional extensions (C07); ordinary import writes already publish the
+owning data invalidations. Neither gap means existing replay is absent.

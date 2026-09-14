@@ -544,10 +544,13 @@ safe rendered prose, annotations and desktop/phone reading and editing.
 
 ## Remaining integration
 
-- Add data, service, import, event, settings, navigation, graph, and log handles
-  to the implemented capability-scoped SDK as their transports land.
-- Combined core/add-on save transactions and arbitrary field injection remain
-  deferred; separate editor panels are supported. Graph node-kind
-  renderers, a general `context.graphs` facade,
-  and provider-driven graph invalidation remain unimplemented.
-- Surface activation and disposal diagnostics in the Add-on Inspector.
+The browser SDK already supplies data, content, services and UI handles.
+Contribution contexts supply navigation, host settings context and edit guards;
+`data.subscribe` handles host invalidations. These are not standalone
+`context.imports/events/settings/navigation/log` APIs.
+
+The current availability table is in [the public API](../../examples/addons/API_V3.md#current-implementation-status).
+The [suite backlog](../BACKLOG.md) tracks richer activation/disposal diagnostics
+(T11), broader editor/renderer integration (C02), graph extensions (C03), and
+consumer-driven additional SDK handles (C07). Separate editor panels, settings
+panels, graph models and basic manager diagnostics are already implemented.

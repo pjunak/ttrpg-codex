@@ -400,6 +400,13 @@ succeeded. Requests with an uncertain outcome are never automatically sent
 again. A failed health check leaves diagnostic state available; it does not
 automatically roll back campaign data.
 
-Add-on repositories publish reviewed ZIPs as private/public CI artifacts
-according to repository visibility, retained for 14 days. Installing those ZIPs
-still uses the host's upload, inspect, review, approve and activate lifecycle.
+Successful add-on main builds publish inspected ZIPs to permanent commit
+releases, preserving repository visibility. **Latest published package** uses
+those releases; the additional Actions artifacts expire after 14 days.
+Publication does not install anything. Installation still uses the host's
+upload/download, inspect, review, approve and activate lifecycle.
+
+Saved inactive generations currently have no expiry or delete action. Uninstall
+retains their archives and authored data. T04–T06 in [the backlog](BACKLOG.md)
+track distinct package, namespace and blob cleanup; do not delete generation
+directories or database rows by hand to simulate those missing operations.

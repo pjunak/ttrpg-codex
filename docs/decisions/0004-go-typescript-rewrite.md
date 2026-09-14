@@ -4,6 +4,8 @@
 - Date: 2026-08-31
 - Decider: Project owner
 
+**Implementation status, September 14, 2026:** The Go/TypeScript host and native first-party ports are implemented and the personal-site cutover was accepted. The original delivery list below is historical; current gaps are in [the backlog](../BACKLOG.md).
+
 ## Context
 
 The current host is a Node.js/Express application with browser JavaScript,

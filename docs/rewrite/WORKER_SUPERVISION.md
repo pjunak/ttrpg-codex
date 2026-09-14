@@ -14,7 +14,7 @@ dispatcher for generation-scoped package data and brokered service calls.
 | Package inspector | Verifying and extracting a content-addressed package generation |
 | Package manager | Activation, durable generation selection, grants, dependency ordering, rollback, and recovery |
 | Supervisor factory | Selecting the exact native executable for the current target and constructing one supervisor |
-| Generation manager | Consecutive-failure accounting, restart decisions, and recovery diagnostics |
+| Restart policy helper | Tested backoff decisions; automatic monitoring and failure accounting are not wired |
 | Native worker supervisor | Exact process launch, lifecycle negotiation, health, bounded diagnostics, deadlines, and termination |
 | Worker RPC codec | Framing, UTF-8 and JSON-RPC envelope validation, and bounded I/O |
 | Worker RPC peer | Continuous reads, correlated calls, concurrency, cancellation, and transport counters |
@@ -110,16 +110,17 @@ Codec failures keep their more precise framing code as the wrapped cause.
 ## Restart policy
 
 The supervisor reports unexpected completion through `Wait`; it never
-restarts itself. The generation manager applies deterministic bounded
-exponential backoff. The default permits three restart attempts at one, two,
-and four seconds, capped at 30 seconds. Consecutive failures and the
-five-minute stability reset are manager-owned state, so replacing a supervisor
-cannot accidentally reset a crash loop.
+restarts itself. The pure `RestartPolicy.Decide` helper describes up to three
+attempts with one-, two- and four-second delays, capped at 30 seconds. It has
+no production caller. The declared five-minute stability reset is also not
+wired to a coordinator-owned failure counter.
 
-The package manager now owns initial start, replacement, rollback, shutdown,
-and host-restart recovery. Automatic crash restart wiring is not part of this
-milestone. Exposing the decision as a pure function keeps the later policy
-testable without sleeping.
+The package manager owns initial start, replacement, rollback, shutdown and
+host-start recovery. It does not currently schedule periodic runtime health
+checks or automatic crash restarts. Those primitives must be integrated through
+the package coordinator, including dependent invalidation and crash-loop
+accounting; see T10 in [the backlog](../BACKLOG.md). Manual reload remains the
+operator recovery route when appropriate.
 
 Go workers use `workerrpc.RunNativeWorker` rather than reimplementing this
 lifecycle. The helper keeps startup reads serialized, switches the same codec

@@ -4,6 +4,8 @@
 - Date: 2026-08-31
 - Decider: Project owner
 
+**Implementation status, September 14, 2026:** Native workers, inspection, the browser SDK and isolated frames are implemented. WASI remains unavailable and conditional; the original delivery list below is not a current completion checklist. Use the [availability table](../../examples/addons/API_V3.md#current-implementation-status) and [backlog](../BACKLOG.md).
+
 ## Context
 
 Add-on API v2 has good ownership principles: stable IDs, capability discovery,

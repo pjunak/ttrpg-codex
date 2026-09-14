@@ -174,7 +174,7 @@ the new worker.
 The active-generation update and transition from `approved` to `consumed`
 share one SQLite transaction. A crash therefore cannot leave activated code
 with a reusable approval. Direct activation remains an internal test and
-coordinator primitive; future administrative transports must use review IDs.
+coordinator primitive; administrative transports use review IDs.
 
 ## Switch and failure ordering
 
@@ -403,13 +403,15 @@ payloads are not stored in the event log.
 
 ## Remaining lifecycle work
 
-- Planned generation bindings for add-ons that consume their own service.
-- Coordinated dependent disable outside the implemented uninstall transition.
-- Quarantine, archive garbage collection and separate reviewed data deletion.
-- Add-on data migration planning and recoverable commit.
-- WASI runtime factory, restart/backoff wiring, OS resource enforcement, and
-  redacted support-bundle diagnostics.
-- Add-on Inspector UI over the protected review application contract.
+Current review, activation, configuration, uninstall, basic diagnostics and
+browser calls to an add-on's own service are implemented. Browser self-calls
+use explicit `includeOwn` and do not imply planned self-binding during native
+worker initialization.
 
-These must extend this coordinator rather than bypass exact generations,
-optimistic revisions, broker bindings, or host-owned approval state.
+The actionable work is consolidated in [the suite backlog](../BACKLOG.md):
+saved-generation deletion (T04), namespace cleanup (T05), migration orchestration
+(T08), dependent disable (T09), worker monitoring/restart/quarantine (T10), and
+richer redacted diagnostics (T11). Planned native self-binding and other new
+worker capabilities require a concrete consumer under C07; WASI and OS limits
+are conditional under C08. Extend the existing coordinator and preserve exact
+generations, optimistic revisions, broker authority and stored approval.

@@ -8,6 +8,12 @@ Audited September 10–11, 2026; product recommendations revised September 11, 2
 
 The character implementation replaces the manual/automatic split with reversible decisions, calculated results, authenticated DM grants and reviewed rules updates. F18 uses shared contextual details across the host, compendium and sheet surfaces. Saved revisions remain readable without rules providers. Validation and remaining manual acceptance boundaries are recorded in the [implemented specification](CHARACTER_BUILD_HISTORY.md#verification-result). The GitHub installation/update/private-repository workflow was restored in host commit `8711085`; it is **not counted as still missing**.
 
+**September 14 source audit:** the current list is in [the backlog](../BACKLOG.md).
+It also identifies the absent host-owned campaign-bundle import workflow (T19),
+which was present in the preserved baseline but omitted from this original
+21-item comparison. The completed findings below are historical; neither this
+report nor its old test counts represents current production state.
+
 ## Recommended decisions at a glance
 
 Value is an assessment of the workflow and consequences, not measured usage. Effort is relative: **small** means a focused component or transformation, **medium** means a complete stateful workflow, and **large** means coordinated contract/lifecycle work. These are scope estimates, not delivery commitments. The detailed assessments explain exceptions and minimum useful outcomes.

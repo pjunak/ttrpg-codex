@@ -44,8 +44,10 @@ implementation unless explicitly labeled historical.
 
 ## Decisions, history and remaining work
 
-[BACKLOG.md](BACKLOG.md) is the suite's only durable backlog and contains the
-product release gates. The [feature audit](rewrite/FEATURE_PARITY_AUDIT.md)
+[BACKLOG.md](BACKLOG.md) is the suite's only durable backlog. Its September 14
+source audit separates T01–T19 concrete work from C01–C10 conditional extensions,
+records source/deployment evidence, and retains the 33 accepted product gates.
+Start there for the current completion list. The [feature audit](rewrite/FEATURE_PARITY_AUDIT.md)
 preserves the original comparison and subsequent decisions; its missing-feature
 descriptions are historical evidence, not a current bug list.
 [Architecture decisions](decisions/) explain the choices behind the system.

@@ -3,7 +3,9 @@
 Add-on API v3 packages are reviewed build artifacts, not source folders loaded
 by the host. Read [API_V3.md](API_V3.md) for the complete protocol and
 [`contracts/addons/v3`](../../contracts/addons/v3) for machine-readable host
-schemas.
+schemas. Check [current availability](API_V3.md#current-implementation-status)
+before using a declared surface: the schema includes reserved names whose
+runtime handlers do not yet exist.
 
 ## Package shape
 

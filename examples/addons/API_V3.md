@@ -14,6 +14,30 @@ The words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY describe compatibility
 requirements. Machine-readable definitions live in
 [`contracts/addons/v3`](../../contracts/addons/v3/README.md).
 
+## Current implementation status
+
+Checked against the September 14, 2026 host source. Manifest acceptance and a
+reserved protocol name do not establish a callable runtime surface. The
+[suite backlog](../../docs/BACKLOG.md) owns future work. Sections labeled reserved
+below describe constraints for a possible implementation, not available APIs.
+
+| Surface | Current availability |
+| --- | --- |
+| Package lifecycle | ZIP inspection/staging, exact review/approval, activation/cohort restart, rollback, reload, disable, uninstall and startup recovery are implemented. Inactive archives/data do not expire. |
+| Browser SDK | `addon`, `signal`, `capabilities`, `permissions`, `ui`, `data`, `content` and `services` exist. Navigation/host context/edit guards are supplied to contributions; broader standalone handles are unavailable. |
+| Browser own service | Explicit `includeOwn` is supported after activation; it does not establish native-worker self-binding during initialization. |
+| UI/model contributions | Routes, sidebar, settings, article actions/sections, independent editor panels, named slots, wiki providers and host graph models work. `kind` enum injection, `record-renderer`, custom `graph-node-kind` and general `context.graphs` are reserved/unavailable. |
+| Worker transport | Native lifecycle, brokered service calls and package-data/retained-history callbacks are implemented. No WASI runtime or namespaced `http-endpoint` execution is composed. |
+| Imports | DM Tools exposes format-routed import-adapter v2 planning review/commit through services. A host-owned campaign-bundle provider is missing (T19). No separate `addon/import.*` RPC dispatcher is composed. |
+| Schema upgrades | Incompatible stored definitions block activation. General migration plan/apply orchestration is absent (T08); specific offline retirement is separate. |
+| Recovery/diagnostics | Initial health, manual reload, host-start recovery and basic manager diagnostics work. Periodic health/restart/quarantine and the full redacted Inspector/support bundle are unfinished (T10–T11). |
+| Optional host calls/trust | Worker blob, event, network and progress methods, package-signature verification and OS resource enforcement are not implemented. Permissions never create these capabilities. |
+
+The runtime composition in [cmd/codex](../../cmd/codex/main.go),
+[browser SDK](../../frontend/src/addons/browser-sdk.ts), and
+[worker dispatcher](../../internal/addons/workerhost/data.go) is authoritative
+for available handles and methods. Use the owning references for exact limits.
+
 ## Design principles
 
 The public [retained record-history contract](../../docs/rewrite/RETAINED_ADDON_HISTORY.md)
@@ -175,69 +199,37 @@ Go `plugin` modules are not an add-on profile.
 
 ## Installation and lifecycle
 
-The host uses immutable generations. Exactly one generation of an add-on is
-active for new work.
+Each add-on has one durably selected active generation. Other saved packages
+remain inactive. The implemented administrative sequence is:
 
 ```text
-discovered
-    |
-    v
-inspected -> awaiting approval -> staged -> resolved -> migrating
-                                                   |          |
-                                                   |          v
-                                                   |       starting
-                                                   |          |
-                                                   |          v
-                                                   +------> healthy
-                                                              |
-                                                              v
-                                                            active
-                                                              |
-                                            disabling/updating/uninstalling
-                                                              |
-                                                              v
-                                                            stopped
+upload/download -> inspect and stage -> review exact changes -> approve -> activate
 ```
 
-Host uninstall uses a reviewed, revision-bound transition: it unregisters the
-package and disables required dependents while retaining authored data,
-settings and immutable recovery archives. Optional consumers remain usable
-without their removed provider. Restaging requires normal permission and
-retained-schema review before activation. Uninstall never invokes a package
-cleanup handler or silently purges its namespace. See the
-[uninstall contract](../../docs/rewrite/PACKAGE_LIFECYCLE.md#reviewed-uninstall).
+Inspection validates archive bounds, checksums, schemas and declared artifacts
+without running package code. Staging alone grants no execution authority.
+Review binds the exact candidate, current state, grants, dependencies, source
+choices and schema blockers. Approval and activation recheck that immutable
+proposal; any relevant state change requires another review.
 
-The important transition rules are:
+A direct single-package switch preserves the prior runtime when candidate
+startup or commit fails. A reviewed change affecting consumers uses the
+[coordinated cold transition](../../docs/rewrite/PACKAGE_LIFECYCLE.md#coordinated-cold-activation):
+stop the graph, commit the selected target, then recover in dependency order.
+A recovery failure after commit leaves that selected generation recorded and
+reports failure; it does not guarantee uninterrupted previous workers or
+silently select an older package. Browser generations also restart as a whole.
 
-1. **Inspect.** Validate archive safety, hashes, signature/provenance when
-   configured, manifest schema, compatibility, and target artifacts without
-   execution.
-2. **Approve.** Show new or expanded permissions, contributions, dependencies,
-   exclusive services, migrations, and network domains. Preserve unchanged
-   grants; never silently grant new authority during bulk update.
-3. **Stage.** Extract to an immutable generation directory not reachable by the
-   active loader.
-4. **Resolve.** Check required capabilities, dependencies, service versions,
-   exclusive providers, and operator bindings.
-5. **Migrate.** Produce and record a migration plan against an exact snapshot.
-   Apply it through a host transaction. Keep the previous data/package
-   generation recoverable.
-6. **Start.** Initialize the worker, load browser code, and bind only declared
-   contributions.
-7. **Health.** Require protocol readiness and declared self-checks within
-   bounded time.
-8. **Switch.** Atomically route new work to the healthy generation. Cancel and
-   dispose the old generation in dependency-safe order.
+Rollback reuses exact-package review and current data compatibility checks.
+Disable refuses active dependents outside a coordinated transition. Reviewed
+uninstall disables required dependents, unregisters the package and preserves
+its data/history and saved generations. Restaging requires ordinary review.
+See [the lifecycle owner](../../docs/rewrite/PACKAGE_LIFECYCLE.md).
 
-If migration, start, or health fails, the staged generation is quarantined and
-the previous generation stays active. If failure occurs after the switch, the
-host records whether rollback is automatic or requires review; it never mixes
-files or handles from two generations.
-
-Disable and uninstall revoke new calls first, abort outstanding SDK scopes,
-wait for bounded cooperative shutdown, force-stop the worker if necessary,
-release service bindings, and invalidate handles. Uninstalling code and
-deleting user data are separate reviewed operations.
+Stored schema incompatibility currently blocks activation; there is no automatic
+migration plan/apply step. Dedicated quarantine and permanent archive/namespace
+deletion are also absent. T04–T10 in [the backlog](../../docs/BACKLOG.md) record
+those gaps. Never simulate them by changing package files or database rows.
 
 ## Browser SDK
 
@@ -265,12 +257,6 @@ interface AddonContext {
   readonly data: DataApi;
   readonly content: ContentApi;
   readonly services: ServiceApi;
-  readonly imports: ImportApi;
-  readonly graphs: GraphApi;
-  readonly events: EventApi;
-  readonly settings: SettingsApi;
-  readonly navigation: NavigationApi;
-  readonly log: Logger;
 }
 
 interface Disposable {
@@ -410,16 +396,17 @@ Initial surfaces cover existing suite needs:
 | `article-section` | Additive schema-backed section on a record page |
 | `editor-panel` | Structured editor extension |
 | `slot` | Named host composition point |
-| `record-renderer` | Renderer selected through a versioned renderer contract |
+| `record-renderer` | Reserved; no runtime renderer-selection outlet |
 | `wiki-kind` | Bounded wiki reference, legacy bookmark, and optional search provider |
-| `kind` | Pure-data enum kind in a declared domain |
-| `graph-node-kind` | Visual and accessible definition for a graph node type |
+| `kind` | Reserved declaration; add-on enum injection is unavailable |
+| `graph-node-kind` | Reserved; custom node-kind rendering is unavailable |
 | `graph-view` | Named graph view with a bounded model provider |
 | `graph-contributor` | Additive nodes and edges for an existing graph view |
-| `http-endpoint` | Namespaced HTTP operation forwarded to a worker |
+| `http-endpoint` | Reserved declaration; no HTTP-to-worker dispatcher |
 
-An override is modeled as a replaceable renderer/service contribution with an
-explicit selection policy, not unrestricted DOM replacement.
+Any future override must use a versioned serializable renderer contract and
+explicit selection policy. There is no current override/renderer-selection
+implementation; ordinary article sections and editor panels are additive.
 
 ### Add-on settings
 
@@ -975,16 +962,16 @@ contract; it must not identify or inspect the provider package directly.
 
 ### Settings, navigation, events, and logs
 
-- Settings have JSON Schemas, typed values, scopes, defaults, and revisioned
-  writes. Secrets are referenced by opaque credential IDs and never returned
-  to browser add-ons.
-- Navigation accepts public route IDs and structured parameters, not URLs into
-  private host pages.
-- Events use versioned names and schemas. Durable state changes are read from
-  data APIs; events coordinate refresh and bounded jobs.
-- Logs are structured and inherit add-on, version, generation, request, and
-  correlation context. Secret-shaped fields and declared sensitive paths are
-  redacted by the host.
+The activation context does not expose standalone `settings`, `navigation`,
+`events` or `log` objects. Contribution contexts carry host locale/role,
+public navigation and edit guards. Add-ons choose their own settings storage
+through permitted data APIs or personal browser state. `data.subscribe` supplies
+payload-free invalidation, not arbitrary package event publication.
+
+Broader scoped settings, event schemas, job progress and redacted logging are
+reserved design areas (C07/T11 in [the backlog](../../docs/BACKLOG.md)). A future
+implementation must preserve generation lifetime, typed values, authority and
+secret exclusion. Current source/provider credential controls remain host-owned.
 
 ## Worker protocol
 
@@ -1148,28 +1135,30 @@ transaction.
 
 ### Required protocol methods
 
+Lifecycle methods are required for native workers. Service and data callbacks
+are available only through the corresponding declarations and host authority.
+The currently composed methods are:
+
 | Direction | Method | Purpose |
-|---|---|---|
-| Host -> worker | `codex/initialize` | Negotiate protocol, grants, limits, and generation |
-| Host -> worker | `codex/start` | Finish startup after initialization |
-| Host -> worker | `codex/health` | Bounded liveness/readiness detail |
-| Host -> worker | `codex/shutdown` | Graceful generation teardown |
-| Either | `$/cancelRequest` | Cooperative cancellation by request ID |
-| Host -> worker | `addon/service.call` | Invoke a provided service method |
-| Host -> worker | `addon/http.handle` | Handle a declared namespaced endpoint |
-| Host -> worker | `addon/import.preview` | Build an immutable reviewed import plan |
-| Host -> worker | `addon/import.contribute` | Contribute to a campaign bundle plan |
-| Host -> worker | `addon/migration.plan` | Describe collection migration effects |
-| Host -> worker | `addon/migration.apply` | Compute writes for the exact accepted plan |
-| Worker -> host | `host/data.get` | Read a permitted record at a revision |
-| Worker -> host | `host/data.query` | Run a bounded structured query |
-| Worker -> host | `host/data.transact` | Submit schema-checked atomic operations |
-| Worker -> host | `host/blob.create` | Create a bounded opaque blob sink |
-| Worker -> host | `host/blob.read` | Read a permitted blob range |
-| Worker -> host | `host/service.call` | Call a bound service through the broker |
-| Worker -> host | `host/event.publish` | Publish a declared schema-checked event |
-| Worker -> host | `host/http.fetch` | Perform reviewed allowlisted outbound HTTP |
-| Worker -> host | `host/progress.report` | Report bounded job progress |
+| --- | --- | --- |
+| Host -> worker | `codex/initialize` | Negotiate protocol, grants, limits and generation |
+| Host -> worker | `codex/start` | Finish startup |
+| Host -> worker | `codex/health` | Bounded liveness/readiness primitive |
+| Host -> worker | `codex/shutdown` | Graceful teardown |
+| Either | `$/cancelRequest` | Cooperative request cancellation |
+| Host -> worker | `addon/service.call` | Invoke a declared service method |
+| Worker -> host | `host/data.get` | Read an authorized package document |
+| Worker -> host | `host/data.query` | Run a bounded package query |
+| Worker -> host | `host/data.transact` | Submit schema-checked mutations, including guarded/recorded forms |
+| Worker -> host | `host/data.history` | Read authorized retained revisions |
+| Worker -> host | `host/service.call` | Call an exact bound service |
+
+Reserved, unimplemented method families are `addon/http.handle`,
+`addon/import.preview`, `addon/import.contribute`, `addon/migration.plan`,
+`addon/migration.apply`, `host/blob.create`, `host/blob.read`,
+`host/event.publish`, `host/http.fetch` and `host/progress.report`.
+Planning imports instead use the adapter's `describe`, `preview` and `commit`
+service methods. Declaring a method or grant never installs its missing transport.
 
 The implemented data methods use `host-data-get.v1`, `host-data-query.v1`, and
 `host-data-transaction.v1` request contracts. Workers must propagate the
@@ -1259,9 +1248,10 @@ non-idempotent requests.
 Idempotent calls may be retried only within the original deadline and with the
 same idempotency key.
 
-Repeated crashes move a generation to `failed` after bounded exponential
-backoff. A failed optional provider becomes unavailable; a required provider
-blocks dependent activation with an inspectable dependency chain.
+A crashed worker fails its process/transport scope. Automatic health monitoring,
+restart/backoff and coordinator-level provider invalidation are not wired; the
+restart decision helper alone does not provide them. Manual reload and host-start
+recovery are implemented. T10 tracks the remaining integration and failure tests.
 
 ## Permissions
 
@@ -1269,7 +1259,11 @@ Permissions use an ID, bounded resources, a human reason, and whether they are
 optional. Broad wildcards are rejected unless the permission definition
 explicitly supports them.
 
-Initial permission families are:
+The schema recognizes the following permission families. Only implemented
+handlers can exercise them; in particular blob/network/event permissions do not
+make the reserved worker transports callable.
+
+Permission families are:
 
 | Family | Examples |
 |---|---|
@@ -1323,12 +1317,15 @@ declares its core target. The host stores every document with its add-on,
 collection or extension identity, key, revision, schema version,
 created/updated audit metadata, and JSON value.
 
-Transactions can combine permitted core and add-on operations only through a
-host-owned application command. The host validates all preconditions and
-schemas before commit. Transactions return one commit revision and an ordered
-effect summary.
+Core and add-on mutations currently use separate host application commands.
+Each validates its authorized preconditions and schemas before committing.
+Add-on transactions can guard participating package data sets, but do not grant
+core write authority or implement combined campaign-bundle publication. T19
+tracks that missing host-owned coordinator.
 
-Migration is a two-phase contract:
+General migration execution is not implemented. Incompatible definitions fail
+activation review with a data-migration blocker. The reserved two-phase design
+for T08 is:
 
 1. `addon/migration.plan` reads an exact snapshot and returns counts, warnings,
    schema transitions, destructive effects, and a digest.
@@ -1336,25 +1333,31 @@ Migration is a two-phase contract:
    digest and returns bounded deterministic operations. The host applies them
    transactionally or rejects the plan as stale.
 
-The host stores a recovery snapshot until the package update is accepted. A
-worker never executes DDL or edits package/storage files.
+An implementation must retain a suitable recovery snapshot through accepted
+commit. This is a requirement for the future migration coordinator, not a
+current automatic update step. A worker never executes DDL or edits storage files.
 
 ## Imports and campaign bundles
 
-An import provider declares accepted formats and probe metadata. Probing is
-bounded and read-only. It returns confidence evidence, not an authoritative
-commit decision. The Import Center shows compatible providers and lets the DM
-choose when routing is ambiguous.
+DM Tools owns the visible Import Center. It discovers `codex.import-adapter` v2
+services and calls `describe` for exact supported JSON `format` strings.
+Unknown or multiply claimed formats are blocked before preview. There is no
+confidence-based probing or live-object `open(File)` contract.
 
-Preview returns a serializable plan containing source digest, creates,
-updates, deletes, conflicts, provenance, warnings, required grants, and provider
-version. The host validates and stores the exact plan. Commit applies only that
-stored plan in a transaction. Provider code is not re-run to reconstruct a
-partial commit during recovery.
+The planning worker supports `dm-tools-planning`. It normalizes the candidate,
+retains exact guarded mutations behind a bounded 15-minute, generation-local
+token, and commits them in one host add-on transaction. Commit consumes the
+token and never reconstructs mutations from the submitted source. Worker
+replacement expires outstanding previews; a lost commit response requires
+checking saved data before another attempt. See [the current import guide](../../../addon-dm-tools/docs/IMPORTING.md).
 
-Campaign bundle contributors use the same plan model and transaction boundary.
-The host supplies generic primitives; DM Tools owns the visible coordination
-experience; content and domain add-ons own their preview semantics.
+Core campaign transactions and add-on transactions exist, but a host-owned
+campaign-bundle provider and combined publication coordinator do not. Planning
+imports cannot create core characters/locations or assign final core IDs.
+[ADR-0001](../../docs/decisions/0001-campaign-bundle-imports.md) records the old
+workflow and intended ownership; T19 in [the backlog](../../docs/BACKLOG.md)
+tracks implementing it in the current architecture. Full backup restoration is
+a separate offline maintenance operation.
 
 ## Content and localization
 
@@ -1390,39 +1393,37 @@ their own content from the locale in their host context.
 
 ## Debugging contract
 
-Every add-on must be explainable from the host without attaching a debugger.
-The Add-on Inspector shows:
+The manager currently shows package identity/fingerprints, saved generations,
+permission/change review, active/runtime state and recent lifecycle errors.
+Rules/source settings expose provider selections. Protected server snapshots
+also contain bounded worker diagnostics; the browser client does not render
+all of those fields. Browser activation/disposal failures have local diagnostic
+state rather than a complete unified Inspector.
 
-- package identity, origin, hashes, compatibility, and active generation;
-- requested versus granted permissions and the last approval diff;
-- contributions, dependencies, service providers, consumers, and bindings;
-- lifecycle state with timestamps and failure causes;
-- worker process/runtime state, negotiated limits, health, restarts, and exit;
-- bounded redacted RPC summaries with deadlines and correlation IDs;
-- active browser scopes, subscriptions, jobs, and stale handles;
-- collection schema and migration history;
-- import preview/commit/recovery records;
-- content and locale revisions.
-
-Support bundles include schemas and metadata but redact secrets, credentials,
-private record bodies, raw imported files, and sensitive log fields by default.
+The remaining T11 work includes useful health/exit/negotiation and browser-scope
+details, redacted request correlation and a support export. Support bundles and
+redacted RPC traces are not implemented. Raw worker stderr is not a redacted
+support artifact. A future export must exclude credentials, private record
+bodies and raw imports, and test sensitive-field redaction before exposure.
 
 ## V2 feature mapping
 
-V3 retains the useful feature rather than the v2 implementation mechanism:
+This maps implemented replacements and explicitly reserved design areas.
+Reserved rows are not current functionality or instructions to restore the
+old runtime mechanism:
 
 | V2 mechanism | V3 replacement |
 |---|---|
 | `entry.js` receives a broad facade | Strict TypeScript SDK with generation-scoped handles |
-| `server/index.cjs` runs in the host | Native Go or WASI worker over framed RPC |
+| `server/index.cjs` runs in the host | Native Go worker over framed RPC; WASI reserved |
 | Live service objects/functions | Schema-validated broker calls |
 | Opaque permission strings | Structured permissions with resource bounds and reasons |
 | Route/sidebar/action/slot registrations | Predeclared contribution IDs bound to custom elements |
-| Enum kinds, graph node kinds, views, and contributors | Declarative definitions plus bounded graph-model providers |
-| Direct graph-library facade | Versioned `GraphApi` returning disposable host handles |
-| UI override hooks | Explicit replaceable renderer/service contract and operator policy |
+| Enum kinds, graph node kinds, views, and contributors | Bounded graph models implemented; enum/node-kind injection reserved |
+| Direct graph-library facade | General `GraphApi` reserved; host graph-model providers available |
+| UI override hooks | Raw overrides retired; external typed renderer selection reserved |
 | JSON add-on collections and per-record `addonData` | Schema-versioned collections and record extensions in host SQLite transactions |
-| Direct server endpoints | Namespaced declared endpoint forwarded to worker |
+| Direct server endpoints | Namespaced endpoint declaration reserved; dispatcher unavailable |
 | Import provider callbacks | Stored preview plan and transactional commit protocol |
 | Lifecycle callback arrays | One supervised generation scope with abort and bounded shutdown |
 | Add-on test file list | Package conformance declaration plus external test harness |
@@ -1445,7 +1446,10 @@ The host remains useful without any D&D-specific package.
 
 ## Conformance requirements
 
-The public harness must continue to verify:
+Existing tests verify implemented contracts; release CI coverage limitations
+are recorded under T02 in [the backlog](../../docs/BACKLOG.md). The following
+is the conformance target. Reserved features require their listed failure tests
+when implemented; listing them here does not claim current execution coverage:
 
 - archive traversal, collision, size, checksum, and manifest failures;
 - permission diff and approval persistence;
