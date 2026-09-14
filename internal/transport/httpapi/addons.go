@@ -41,6 +41,7 @@ type AdminAuthorizer func(*http.Request) error
 var _ AddonLifecycle = (*packagemanager.Manager)(nil)
 
 func (s *server) registerAddonAdminRoutes(mux *http.ServeMux) {
+	mux.Handle("POST /api/admin/addon-package-cleanup/{operation}", s.requireAdmin(http.HandlerFunc(s.packageCleanup)))
 	mux.Handle("GET /api/admin/rules-policy", s.requireAdmin(http.HandlerFunc(s.rulesPolicy)))
 	mux.Handle("POST /api/admin/rules-policy", s.requireAdmin(http.HandlerFunc(s.setSourcePolicy)))
 	mux.Handle("GET /api/admin/service-selections", s.requireAdmin(http.HandlerFunc(s.serviceSelections)))
@@ -356,6 +357,7 @@ func classifyLifecycleError(err error) (int, string, string) {
 		{packagemanager.ErrNotActive, http.StatusConflict, "ADDON_NOT_ACTIVE", packagemanager.ErrNotActive.Error()},
 		{packagemanager.ErrStaleActivationPlan, http.StatusConflict, "STALE_STATE", packagemanager.ErrStaleActivationPlan.Error()},
 		{packagemanager.ErrReviewState, http.StatusConflict, "REVIEW_STATE", packagemanager.ErrReviewState.Error()},
+		{packagemanager.ErrCleanupPending, http.StatusConflict, "CLEANUP_PENDING", packagemanager.ErrCleanupPending.Error()},
 		{packagemanager.ErrReviewStale, http.StatusConflict, "REVIEW_STALE", packagemanager.ErrReviewStale.Error()},
 		{packagemanager.ErrActivationCohort, http.StatusConflict, "ACTIVATION_COHORT_REQUIRED", packagemanager.ErrActivationCohort.Error()},
 		{packagemanager.ErrRecoveryRequired, http.StatusConflict, "RECOVERY_REQUIRED", packagemanager.ErrRecoveryRequired.Error()},

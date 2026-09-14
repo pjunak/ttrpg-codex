@@ -1,3 +1,4 @@
+import { exercisePackageCleanup } from "./installed-cleanup-fixture.mts";
 import { exercisePlanningReader } from "./installed-planning-reader-fixture.mts";
 import { exerciseRecordPanels } from "./installed-record-panels-fixture.mts";
 import { required } from './fixture-types.mts';
@@ -671,3 +672,5 @@ if (process.env.CODEX_DM_TOOLS_ZIP) for (const mobile of [false, true]) test(`pl
 for (const mode of ["integrated", "isolated"]) test(`installed ${mode} record panels preserve separate saves and role-visible map context`, async t => { await exerciseRecordPanels({ t, open, admin, csrf, mode }); });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) for (const mobile of [false, true]) test(`installed planning reader renders saved prose and related map content on ${mobile ? "phone" : "desktop"}`, async t => { await installReviewedPackage(admin, csrf, "dm-tools", await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))), dmToolsPermissions); t.after(() => disable("dm-tools")); await exercisePlanningReader({ t, open, admin, csrf, output, mobile }); });
+
+for (const mobile of [false, true]) test(`saved package cleanup protects recovery and handles lost responses on ${mobile ? "phone" : "desktop"}`, async t => { await exercisePackageCleanup({ t, open, admin, csrf, output, mobile }); });

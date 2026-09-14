@@ -441,7 +441,19 @@ those releases; the additional Actions artifacts expire after 14 days.
 Publication does not install anything. Installation still uses the host's
 upload/download, inspect, review, approve and activate lifecycle.
 
-Saved inactive generations currently have no expiry or delete action. Uninstall
-retains their archives and authored data. T04–T06 in [the backlog](BACKLOG.md)
-track distinct package, namespace and blob cleanup; do not delete generation
-directories or database rows by hand to simulate those missing operations.
+Saved inactive generations are removed through **Settings → Add-ons → Clean up
+saved packages**, or **Remove saved package** beside an inactive version. Review
+the exact packages and reclaimed size, then approve removal. A count of zero
+retains only active/recovery-protected packages and the last installed package
+of a disabled add-on. Uninstall first to remove that last package. Recovery-point
+references are shown and require a separate decision under Backup & recovery.
+Cleanup applies once to the reviewed inventory; it does not schedule expiry.
+
+Keep a verified full backup for rollback before retiring packages you may need
+again. Existing backup ZIPs and campaign/character data are preserved. Interrupted
+approved cleanup can be retried in the same panel and resumes at host startup.
+See [the cleanup contract](rewrite/PACKAGE_LIFECYCLE.md#reviewed-saved-package-cleanup).
+T05–T06 in [the backlog](BACKLOG.md) cover separate namespace and blob cleanup.
+Use these reviewed operations instead of deleting generation directories or
+SQLite rows by hand. Publication/deployment and live archive retirement remain
+separate steps under T15–T17.

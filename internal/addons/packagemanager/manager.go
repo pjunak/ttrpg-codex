@@ -245,6 +245,13 @@ func (manager *Manager) stageArchive(ctx context.Context, archive io.Reader, exp
 		return Generation{}, ErrInvalidPackage
 	}
 	generationID := report.ArchiveSHA256
+	var pending bool
+	if err := manager.store.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM addon_package_cleanups c, json_each(c.review_json, '$.generations') g WHERE c.status='pending' AND g.value ->> 'remove' = 1 AND g.value ->> 'addonId' = ? AND g.value ->> 'generationId' = ?)`, report.Manifest.ID, generationID).Scan(&pending); err != nil {
+		return Generation{}, err
+	}
+	if pending {
+		return Generation{}, ErrCleanupPending
+	}
 	finalDirectory := manager.generationDirectory(report.Manifest.ID, generationID)
 	if err := os.MkdirAll(filepath.Dir(finalDirectory), 0o750); err != nil {
 		return Generation{}, fmt.Errorf("create generation parent: %w", err)

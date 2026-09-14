@@ -52,7 +52,15 @@ go run ./cmd/codex-maintenance backup `
 The SQLite online-backup API gives one committed database image while the host
 is running. Add-on generations and blob objects are safe to collect afterward
 because both publish complete immutable files before recording their database
-references, and neither is physically deleted during an online backup.
+references. Online creation holds the add-on lifecycle lock from the SQLite
+snapshot through archive publication, so reviewed package cleanup, staging and
+activation wait for it. Offline maintenance instead holds the host-process lock.
+Blob objects are not physically collected. Existing backup ZIPs own their copies
+of package files and do not prevent cleanup of an inactive live generation.
+Campaign recovery points do protect the generations named in their images; see
+[reviewed package cleanup](PACKAGE_LIFECYCLE.md#reviewed-saved-package-cleanup).
+An archive may include an approved pending cleanup receipt and remaining files;
+the restored host resumes that approved cleanup at startup.
 
 An authenticated real-and-effective-DM can download the same format from
 `GET /api/backup`. The handler creates the bounded archive in operating-system

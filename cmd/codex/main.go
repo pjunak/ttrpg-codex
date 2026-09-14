@@ -274,6 +274,7 @@ func composeHost(
 	if err != nil {
 		return nil, fmt.Errorf("configure package manager: %w", err)
 	}
+	backupArchives.PackageSnapshot = addons.WithPackageSnapshot
 	recovery, err := addons.Recover(ctx)
 	if err != nil {
 		_ = addons.Shutdown(context.Background())

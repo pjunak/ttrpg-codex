@@ -82,6 +82,36 @@ Seventeen concrete tasks and ten conditional extensions remain. Local commits
 and ZIP inspection do not publish or deploy these changes. T02 remains open:
 a local run with four packages does not establish the required release CI path.
 
+### Session 2 — September 14, 2026
+
+- [x] **T04 — Reviewed saved-package removal and bounded retention.**
+  [Package cleanup](rewrite/PACKAGE_LIFECYCLE.md#reviewed-saved-package-cleanup)
+  now has DM/CSRF-gated review/apply/retry APIs and English/Czech settings UI.
+  Remove one exact inactive package, or retain zero to five additional recent
+  inactive packages per add-on. The rule applies once to the reviewed inventory;
+  future cleanup remains explicit. Active generations, recovery-point references
+  and the last installed package of a disabled add-on are protected. Uninstalled
+  archives are included. Stale reviews fail before metadata/files are changed.
+  Durable approval receipts resume interrupted file removal, prevent restaging
+  pending generations and acknowledge lost responses. Character history and
+  campaign data remain intact. Online backup creation now shares the lifecycle
+  lock, so its database image and package files cannot race pruning.
+
+Validation: source/type checks, 26 script tests and 359 frontend unit tests
+passed. The complete 257-case browser suite passed with all four companion ZIPs
+and no skips at the documented four-process concurrency. All project Go tests
+and vet, lifecycle/backup race tests, companion unit/Go checks, 33 release gates
+and 61 local documentation links passed. The phone cleanup review was visually
+inspected. The default-concurrency run hit an existing portrait record-opening
+timeout; no timeout or coverage was weakened. T02 retains that release-path
+reliability follow-up. The symbolic-link regression was skipped because this
+Windows account lacks symlink-creation privilege; run it on a capable host.
+
+This session changes local source only; Asurai's old packages still require
+T15 deployment followed by T16 reviewed retirement. T04 does not delete recovery points, external backups,
+historical repair copies, namespaces or blobs. Sixteen concrete tasks and ten
+conditional extensions remain.
+
 ## Remaining work verified on September 14
 
 P1 means address early because it affects safe upgrades, preservation or release
@@ -103,15 +133,6 @@ deploy, delete retained data, or enable packages on another site.
   only in the separate Sheets repository workflow. Completion requires a
   publication-path run with no companion skips; keep ordinary PR/private-access
   limitations explicit.
-- [ ] **T04 / P1 — Remove superseded saved package generations.**
-  [Lifecycle storage](../internal/addons/packagemanager/store.go) and
-  [uninstall](../internal/addons/packagemanager/uninstall.go) retain immutable
-  archives indefinitely. Implement reviewed deletion of an inactive generation,
-  including its files and metadata, and a bounded retention policy with explicit
-  recovery protection. Show eligibility, retained references and reclaimed size;
-  protect active/staged transitions and handle interruption/retry. Verify
-  backup/recovery references before deletion. A standalone backup can preserve
-  rollback without keeping executable archives in the live installation forever.
 
 - [ ] **T19 / P1 — Restore reviewed campaign-bundle imports in the current architecture.**
   The preserved host commit `3aeeacfe7adec985693f8aeb239df58c177f3da8` registers
@@ -257,8 +278,8 @@ separate request for those owners. It is not unfinished TTRPG implementation.
 
 ## Delivery order and acceptance evidence
 
-1. Finish T04 saved-package retention, T02 installed release coverage and T19
-   campaign-bundle imports. T01 and T03 are implemented. Build maintenance tools
+1. Finish T02 installed release coverage and T19 campaign-bundle imports.
+   T01, T03 and T04 are implemented. Build maintenance tools
    from the canonical LF checkout before using them against existing Linux data.
 2. Deliver T05–T11 in independent changes with their data/lifecycle tests. Design
    package, namespace and blob deletion separately; share reference accounting
@@ -278,7 +299,7 @@ cases; they do not make every state/device combination complete.
 | Workflow | Current evidence owner | Remaining acceptance |
 | --- | --- | --- |
 | Campaign records, settings, maps, timeline and graphs | [Host browser tests](../frontend/test/browser/), [core data](rewrite/CORE_DATA.md) | T18: changed-action coverage, session expiry/in-flight saves and site-specific representative pages. |
-| Package lifecycle, sources, updates and credentials | [Manager fixture](../frontend/test/browser/installed-addon-manager-fixture.mts), [GitHub browser tests](../frontend/test/browser/addon-github.browser.mts) | T02 installed CI; T04–T13 changed lifecycle/diagnostics; T15–T17 actual deployed artifacts. |
+| Package lifecycle, sources, updates and credentials | [Manager fixture](../frontend/test/browser/installed-addon-manager-fixture.mts), [GitHub browser tests](../frontend/test/browser/addon-github.browser.mts) | T02 installed CI; T05–T13 changed lifecycle/diagnostics; T15–T17 actual deployed artifacts. |
 | Planning and import | [DM Tools tests](../../addon-dm-tools/tests/), [Go importer](../../addon-dm-tools/internal/importer/) | T02 installed CI; T15 rollout and existing-target preflight; C01 forced-teardown limitation. |
 | Compendium, rules and character history | [Installed rules](../frontend/test/browser/installed-rules.browser.mts), [installed character](../frontend/test/browser/installed-character.browser.mts) | T02 continuous coverage; T18 targeted provider/restore/device cases; C10 supported-content limits. |
 | Full backup, conversion and retirement | [Backup tests](../internal/backuparchive/), [retirement tests](../internal/maintenance/sheetretirement/) | T15 deployed canonical maintenance build and large-backup verifier; T16–T17 per-site decisions. |
@@ -289,7 +310,7 @@ cases; they do not make every state/device combination complete.
 | --- | --- |
 | F01–F05 | Implemented: Markdown recovery, collection views, quick search, activity summaries and focused map editor. |
 | F06 | Deferred restart action, C04. |
-| F07–F10 | Implemented: instance rules/sources, provider selection, reviewed uninstall and settings panels. Archive/data cleanup remains T04–T05. |
+| F07–F10 | Implemented: instance rules/sources, provider selection, reviewed uninstall and settings panels. Reviewed archive cleanup (T04) is implemented; data cleanup remains T05. |
 | F11 | Implemented separate editor/map panels; broader saves/injection remain C02. |
 | F12 | Deferred graph extensions, C03. |
 | F13–F14 and F16–F20 | Implemented by [character decisions, history and explanations](rewrite/CHARACTER_BUILD_HISTORY.md): print, reviewed transfer/undo, attunement, derived builds, details, senses and HP bounds. |

@@ -1,3 +1,4 @@
+import { cleanupScope, parseCleanupReview, parseCleanupResult, type CleanupScope, type CleanupReview } from "./addon-cleanup.js";
 import { BoundaryValidationError, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
 import { HostRequestError } from "./api.js";
@@ -61,6 +62,9 @@ function parseAddonReview(value: unknown): AddonReview {
 
 export class AddonAdminClient {
   constructor(readonly csrfToken: string, readonly signal: AbortSignal) {}
+  async reviewCleanup(scope: CleanupScope) { return parseCleanupReview(await this.#request("addon-package-cleanup/review", cleanupScope(scope)), scope); }
+  async cleanup(review: CleanupReview) { return parseCleanupResult(await this.#request("addon-package-cleanup/apply", { scope: cleanupScope(review.scope), reviewSha256: hash(review.reviewSha256) }), review); }
+  async retryCleanups() { return parseCleanupResult(await this.#request("addon-package-cleanup/retry", {})); }
   async reviewUninstall(addonId: string): Promise<AddonUninstallReview> { return parseAddonUninstallReview(await this.#request(`addons/${id(addonId)}/uninstall-review`, {}), addonId); }
   async uninstall(review: AddonUninstallReview) {
     const result = object(await this.#request(`addons/${id(review.addonId)}/uninstall`, { reviewSha256: hash(review.reviewSha256) }));

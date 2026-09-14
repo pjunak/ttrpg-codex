@@ -335,8 +335,8 @@ can repair it. The old directory is preserved under the package's `retired/`
 area before replacement; active installations are never repaired in place.
 
 Uninstall does not free archive storage or purge campaign data. Permanent data
-deletion and archive garbage collection require separate reviewed contracts,
-including recovery-reference eligibility. Full backups retain uninstall state;
+deletion remains a separate contract. Saved archives can be removed through
+the reviewed package cleanup below, including recovery-reference eligibility. Full backups retain uninstall state;
 campaign recovery does not rewind package lifecycle authority.
 
 Regression coverage includes package-manager uninstall tests, normal broker
@@ -344,6 +344,73 @@ resolution, transaction rollback, corrupt/unrecovered packages, transitive
 dependencies and retained ruleset identity. Desktop/phone installed fixtures
 exercise English/Czech review, cancellation, conflicts, lost-response retries,
 DM/CSRF boundaries, revoked access, retained records and incompatible reinstall.
+
+## Reviewed saved package cleanup
+
+Settings → Add-ons → **Clean up saved packages** reviews the complete saved
+inventory, including archives of uninstalled add-ons. Each inactive package also
+has **Remove saved package** for a review of that exact generation. Only a real
+and effective DM with CSRF authority can review, apply or retry cleanup.
+
+A count selection retains zero to five additional inactive packages per add-on,
+newest installation first (generation hash breaks timestamp ties). Active
+packages, every generation named by a campaign recovery point, and the newest
+package of a still-installed but disabled add-on are protected independently of
+that count. Uninstall first to remove the last installed package. Recovery-point
+IDs are shown; managing those points is a separate explicit action under
+Backup & recovery. This is a one-time reviewed retention rule, not automatic
+expiry. A future installation requires another review.
+
+The review lists exact generation hashes, eligibility, file counts, byte sizes,
+activation-review counts and retained character-history counts. Its fingerprint
+binds the selected inventory, package-state revisions, recovery references,
+activation-review identities/status/approval fingerprints, provenance counts,
+and candidate file paths, sizes, modes and modification times. The coordinator
+recomputes that fingerprint before changing anything. Changed inputs require a
+new review; an activation or staged-package transition cannot race removal.
+Reviews are bounded to 512 generations and each candidate to 100,000 files / 4 GiB.
+A larger inventory can be narrowed to one add-on or one exact generation.
+
+Approval removes generation metadata, activation reviews, GitHub generation
+provenance and generation lifecycle events in one SQLite transaction. It leaves
+campaign documents, retained revision payloads, data audit history, add-on source
+settings and instance configuration intact. The current worker/browser graph is
+not restarted. Reusing a deleted package requires uploading and reviewing it
+again. Existing full backup ZIPs remain self-contained and unchanged.
+
+Migration `0017_addon_package_cleanup.sql` journals the approved cleanup in the
+same transaction before files are removed. ZIPs and extracted files are deleted
+through a filesystem root confined to the configured package directory, with
+symbolic-link parent paths rejected. An interruption leaves a pending receipt;
+retrying the same approval, the explicit retry action, or host startup resumes
+that approved removal. A pending generation cannot be restaged. Completed
+receipts acknowledge repeated requests without deleting a later reinstallation.
+Receipts remain small audit/idempotency records; they contain no executable
+package bytes. Corrupt receipts or reappearing package metadata fail closed.
+
+Online backup creation holds the same coordinator lock from the SQLite snapshot
+through archive publication; staging, activation and pruning wait until that
+snapshot is complete. Offline maintenance holds the exclusive host-process lock.
+A backup containing a pending receipt resumes the approved cleanup on startup.
+The reported reclaimed size is the reviewed logical byte total, not filesystem
+allocation or backup-file savings. Partial cleanup is reported as pending;
+completion/retry reports the approved total.
+
+| POST path | Body and result |
+| --- | --- |
+| `/api/admin/addon-package-cleanup/review` | `{addonId?, keepInactive: 0..5}` or `{addonId, generationId}`; returns `addon-package-cleanup-review.v1` |
+| `/api/admin/addon-package-cleanup/apply` | `{scope, reviewSha256}`; returns `addon-package-cleanup-result.v1` with `applied`, `complete`, counts and pending cleanup count |
+| `/api/admin/addon-package-cleanup/retry` | `{}`; retries already approved pending files, without approving another inventory |
+
+This cleanup owns registered saved generations. Historical repair copies under
+`retired/`, external backup retention, campaign namespaces and blob collection
+have separate operational/data ownership; this action does not erase them.
+Regression coverage: `cleanup_test.go` exercises reference protection, retention,
+file and review conflicts, transaction rollback, interruption/restart, confinement,
+reinstallation and self-contained backups. HTTP/client tests reject unauthorized
+and malformed requests. Installed desktop/phone tests cover English/Czech review,
+retention, recovery protection and a lost response after a successful removal.
+
 
 ## Administrative HTTP boundary
 
@@ -409,7 +476,7 @@ use explicit `includeOwn` and do not imply planned self-binding during native
 worker initialization.
 
 The actionable work is consolidated in [the suite backlog](../BACKLOG.md):
-saved-generation deletion (T04), namespace cleanup (T05), migration orchestration
+namespace cleanup (T05), migration orchestration
 (T08), dependent disable (T09), worker monitoring/restart/quarantine (T10), and
 richer redacted diagnostics (T11). Planned native self-binding and other new
 worker capabilities require a concrete consumer under C07; WASI and OS limits
