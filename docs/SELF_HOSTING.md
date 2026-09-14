@@ -367,6 +367,15 @@ finish. A failed deployment makes the application run fail; accepting the
 request alone is insufficient. Each deployment summary records the source
 commit, image digest and infrastructure run link.
 
+The infrastructure repository is `pjunak/infra`; `pjunak/junak.eu` now owns the
+separate public/owner portal application. Host tooling calls infra's main-only
+`workflow_dispatch` with `service`, full source `sha`, immutable `image_ref` and
+unique `request_id`. It verifies the returned run ID and waits for that run.
+Infra's `registry/deployments.json` approves both campaign targets for the
+`ttrpg-codex` image; adding a new campaign requires matching registration there.
+The [infra deployment contract](https://github.com/pjunak/infra/blob/main/docs/application-deployments.md)
+owns server rollout, shared locking and publication-retry integration.
+
 Automatic and manual releases share a queue so a new push cannot interrupt an
 active deployment. Before publishing an automatic release, the workflow checks
 that its commit is still the current `main`. A superseded run continues its

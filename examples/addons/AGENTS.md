@@ -148,6 +148,14 @@ A release candidate must pass:
 4. standalone behavior with optional providers absent;
 5. affected provider/consumer integration and activate/replace/dispose checks.
 
+First-party main builds publish inspected ZIPs to durable commit releases.
+The source commit identifies an update even without a manifest-version change.
+Publication and installation are separate: owners choose **Latest published
+package**, review and activate through the host. Private downloads need the
+host's configured GitHub access; Actions test artifacts are a separate, expiring
+source. See [self-hosting](../../docs/SELF_HOSTING.md#add-on-installation).
+Infrastructure deploys the host image, never an add-on source checkout or ZIP.
+
 Contract changes require relevant host conformance tests and every affected
 first-party add-on gate. Source checkouts and GitHub-generated archives are not
 install packages.

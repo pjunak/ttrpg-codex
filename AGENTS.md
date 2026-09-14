@@ -150,6 +150,21 @@ go run ./cmd/codex-addon-inspect <path-to-addon.zip>
 Integration testing uses the actual staged-package lifecycle. Never copy a
 source checkout into a runtime generation.
 
+## Deployment and package delivery
+
+This repository builds the host image; `pjunak/infra` owns production Compose,
+ingress, host configuration and rollout. Successful current main pushes dispatch
+the immutable digest to `asurai` and `tiamat` through infra's main-only workflow
+and wait for both exact run results. `INFRA_SERVICE` selects the two targets;
+the shared infra credential has Contents read and Actions write. Follow
+[publishing and recovery](docs/SELF_HOSTING.md#publishing-and-deploying-updates)
+for **Deploy published release** and ambiguous-result inspection.
+
+Companion add-ons publish inspected ZIPs independently. Website owners review
+and activate them through Settings -> Add-ons; deploying a host image never
+installs a new add-on generation. Preserve server-owned `.env`, managed image
+overrides, current `rewrite-v2/data` mounts and retained backups.
+
 ## Completion and durable planning
 
 - Architecture completion is not product completion. The product-parity gates
