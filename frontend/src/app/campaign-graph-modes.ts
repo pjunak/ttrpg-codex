@@ -1,3 +1,4 @@
+import { characterReadingValue } from "./character-reading.js";
 import { isRecord } from "../core/boundary.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
 import { graphColor, graphSearch, parseGraphPositions, projectRelationshipGraph, type CampaignGraph, type GraphEdge, type GraphNode } from "./campaign-graph.js";
@@ -65,7 +66,7 @@ export function projectCampaignGraph(campaign: CampaignDataset, mode: GraphMode)
       usedLocations.set(id, card("location", id, location, "locations", "#5D7A3A"));
       const ids = factionLocations.get(character.faction) ?? new Set<string>(); ids.add(id); factionLocations.set(character.faction, ids);
     }
-    return { ...character, title: typeof value["knowledge"] === "number" && value["knowledge"] >= 2 ? text(value["title"]) : "",
+    return { ...character, title: text(characterReadingValue(value)["title"]),
       commandCount: commands.filter(edge => edge.source === character.legacyKey).length,
       commander: characterById.get(incoming[0]?.source ?? "")?.name ?? "", glow: factionColors.get(character.faction) ?? "" };
   });

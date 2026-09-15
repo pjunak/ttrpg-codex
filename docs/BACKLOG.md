@@ -2,7 +2,8 @@
 
 Open work for the five repositories, reviewed September 14, 2026. This remains
 one suite backlog; each task belongs to the repository that owns its change.
-Completed fixes and dated deployment snapshots have been removed. Historical
+Older completed fixes and dated deployment snapshots have been removed. The
+September 15 host batch retains short completion markers for this handoff. Historical
 findings and the unchanged accepted release gates live in the
 [feature-parity audit](rewrite/FEATURE_PARITY_AUDIT.md).
 
@@ -26,11 +27,9 @@ numbering are completed work. The historical gates do not close these tasks.
 
 - [x] **T20 — Restored twin management and grouping (September 15).** Create/link/unlink,
   exact counterpart routes, pair counts/search/activity and stale/uncertain responses verified. [Contract](rewrite/CORE_DATA.md#twin-reading-and-management).
-- [ ] **T26 / P1 — Define and restore knowledge/reveal behavior.** Confirmed R11.
-  Agree what levels 0–4 reveal, then align cards, articles, graphs and search;
-  keep explicit DM inspection. Decide whether this is presentation or access
-  control before changing backend filtering. If confidential, verify API/SSE
-  projections as well as the DOM. Existing visibility rules remain authoritative.
+- [x] **T26 — Restored knowledge reading and DM inspection (September 15).**
+  Levels 0–4 share card/article/search/graph presentation; drafts and saved data
+  remain intact. [Contract and tests](rewrite/CORE_DATA.md#character-knowledge-and-dm-inspection).
 - [x] **T27 — Recovered private location notes (September 15).** DM reading/editing,
   server filtering and lossless player saves verified. [Contract and tests](rewrite/CORE_DATA.md#private-location-notes).
 - [ ] **T19 / P1 — Restore reviewed campaign-bundle imports.** Confirmed omission.

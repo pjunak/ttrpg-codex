@@ -1,4 +1,8 @@
 codex-character-profile { display: block; }
+.knowledge-limited .record-portrait-placeholder { height: 8rem; aspect-ratio: auto; }
+.knowledge-inspection { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-bottom: 1rem; color: var(--text-muted); font: .8rem/1.5 var(--font-ui); }
+.knowledge-inspection button { min-height: 44px; padding: .5rem .8rem; border: 1px solid var(--chrome-field-border); border-radius: 4px; color: var(--text-parchment); background: var(--bg-surface); font: inherit; cursor: pointer; }
+.knowledge-inspection button[aria-pressed="true"] { border-color: var(--accent-gold); }
 .character-page-heading, .character-save-status, .character-section-heading { display: flex; align-items: center; justify-content: space-between; gap: .7rem; }
 .character-page-heading { margin-bottom: 1rem; }
 .character-page-heading .breadcrumb-link { margin: 0; }

@@ -158,6 +158,33 @@ The real-host record-workflow browser tests cover creation, navigation, reload,
 unlink/relink, role isolation, stale review and a committed write with a lost
 response. Pure projection tests cover malformed pairs, counts and search aliases.
 
+### Character knowledge and DM inspection
+
+Character knowledge is a host reading convention. Explicit level 0 shows an
+unknown identity; level 1 shows the name; levels 2, 3 and 4 show the profile,
+portrait, title and article content. The higher levels remain distinct saved
+values without introducing new hiding thresholds. Missing or unrecognized
+knowledge remains readable for existing unclassified records; nothing is
+rewritten or filled in during reading.
+
+Cards, collection facets/search, global search, recent activity, article reading
+and character graph labels use the same projection. Low-knowledge activity uses
+a generic update description. DM articles offer explicit inspection of authored
+fields; returning to reading changes no saved value. Inspection resets on record
+or role changes, and cannot be toggled while an editor is open. Authorized
+editing remains available, with the existing draft/revision safeguards.
+
+Knowledge does not remove fields from the authoring API or create a security
+boundary. Existing server visibility and DM/player twin rules remain the way to
+keep information confidential. Graph topology and authored references/prose in
+other records are not redacted by knowledge, and add-ons retain their own
+presentation. This change does not alter API/SSE authorization or stored data.
+
+The character-reading projection tests cover every level, search/facets, graph
+labels, missing knowledge and preservation. The real-host record-workflow tests
+cover player and DM articles, inspection, route reset, English/Czech, desktop
+and phone, plus retained/cancelled wiki drafts and blocked twin operations.
+
 ### Private location notes
 
 The retained location field `notes` is DM-owned Markdown, separate from

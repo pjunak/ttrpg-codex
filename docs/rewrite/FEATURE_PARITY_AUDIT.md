@@ -241,6 +241,9 @@ validation remain in the engine/coordinator.
 
 #### R11 — Knowledge levels retain storage but lose their reveal behavior
 
+**R11 resolved September 15 (T26):** shared reading projections and explicit DM
+inspection restore the thresholds below. [Contract and validation](CORE_DATA.md#character-knowledge-and-dm-inspection). The finding describes the original omission.
+
 The old character [card/article renderer](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec985693f8aeb239df58c177f3da8/web/js/wiki.js)
 used unknown identity below level 1 and withheld title, profile details and
 description below level 2. Current

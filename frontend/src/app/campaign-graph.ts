@@ -1,3 +1,4 @@
+import { characterReadingValue } from "./character-reading.js";
 import { isRecord } from "../core/boundary.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
 import { campaignPartyIdentity } from "./campaign-party.js";
@@ -52,12 +53,12 @@ export function projectRelationshipGraph(campaign: CampaignDataset): CampaignGra
   const factions = new Map(campaignCollection(campaign, "factions").records.map(record => [record.key, recordValue(record)]));
   const party = campaignPartyIdentity(campaign);
   const nodes = characters.map(record => {
-    const value = recordValue(record), faction = text(value["faction"]), factionValue = factions.get(faction);
-    const factionName = faction === "party" ? party.name : text(factionValue?.["name"]) || faction;
+    const original = recordValue(record), value = characterReadingValue(original), faction = text(original["faction"]), factionValue = factions.get(faction);
+    const factionName = value["faction"] ? faction === "party" ? party.name : text(factionValue?.["name"]) || faction : "";
     const status = text(value["status"]), statusValue = statuses.get(status), statusLabel = text(statusValue?.["label"]) || status;
     const connected = adjacency.get(record.key) ?? [], counts = new Map<string, number>();
     for (const edge of connected) counts.set(edge.type, (counts.get(edge.type) ?? 0) + 1);
-    return { kind: "character", legacyKey: record.key, key: record.key, name: typeof value["knowledge"] === "number" && value["knowledge"] >= 1 ? text(value["name"]) || record.key : "???",
+    return { kind: "character", legacyKey: record.key, key: record.key, name: text(value["name"]) || record.key,
       route: `#/characters/${encodeURIComponent(record.key)}`, faction, factionName,
       badge: faction === "party" ? party.badge : text(factionValue?.["badge"]),
       color: status === "dead" ? "#666666" : faction === "party" ? party.color : graphColor(factionValue?.["color"], "#444444"),

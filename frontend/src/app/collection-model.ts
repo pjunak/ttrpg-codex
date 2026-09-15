@@ -1,3 +1,4 @@
+import { characterReadingValue } from "./character-reading.js";
 import { groupTwinRecords } from "./campaign-twins.js";
 import { isRecord } from "../core/boundary.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
@@ -47,7 +48,8 @@ export function collectionModel(dataset: CampaignDataset, page: CampaignPageDefi
     }
     sorts.push({ key: "members", label: uiText("browse.members") });
   }
-  const entries = projectEntities(dataset, page).map(entity => {
+  const entries = projectEntities(dataset, page).map(original => {
+    const entity = page.collection === "characters" ? { ...original, raw: characterReadingValue(original.raw) } : original;
     const facets = new Map<string, readonly string[]>();
     const sortValues = new Map<string, string | number | undefined>([["name", entity.name], ["updatedAt", entity.updatedAt ? Date.parse(entity.updatedAt) : undefined]]);
     const labels: string[] = [];

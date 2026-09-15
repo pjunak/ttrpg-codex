@@ -1,3 +1,4 @@
+import { characterKnowledge } from "./character-reading.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import { recordActivity } from "../core/campaign-activity.js";
 import { editorFieldsFor, editorOptionsFor } from "./campaign-record-editor.js";
@@ -7,6 +8,7 @@ import { uiText } from "./ui-localization.js";
 
 /** Resolve only current authorized values; never interpolate saved historical text. */
 export function describeActivity(campaign: CampaignDataset, entity: EntitySummary): string {
+  if (entity.route.startsWith("#/characters/") && characterKnowledge(entity.raw) < 2) return uiText("activity.updated");
   const change = recordActivity(entity.raw);
   if (!change) return uiText("activity.updated");
   if (change.kind === "created") return uiText("activity.created");

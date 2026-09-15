@@ -163,3 +163,67 @@ test('an uncertain twin response is refreshed without replaying the write', asyn
   await dm.page.getByRole('button',{name:'Unlink versions',exact:true}).waitFor();
   assert.equal(await dm.page.getByRole('button',{name:'Create DM version',exact:true}).count(),0);
 });
+
+for (const mobile of [false,true]) test(`knowledge reading and explicit DM inspection work on ${mobile?'phone':'desktop'}`, async t => {
+  const key = mobile?'knowledge-phone':'knowledge-desktop';
+  await put(admin,csrf,key,{name:'Unrevealed identity',title:'Hidden captain',species:'Hidden species',description:'Hidden biography',knowledge:0},0,'characters');
+  const dm=await open(t,'dm',mobile), player=await open(t,'player',mobile);
+  await dm.page.goto('/#/characters/'+key);
+  await dm.page.getByRole('heading',{name:'Unknown character',exact:true}).waitFor();
+  await dm.page.getByText('This character’s identity and details have not been revealed.',{exact:true}).waitFor();
+  await dm.page.getByRole('button',{name:'Edit Knowledge',exact:true}).click();
+  assert.equal(await dm.page.getByRole('heading',{name:'Unrevealed identity',exact:true}).count(),0);
+  await dm.page.getByRole('spinbutton',{name:'Knowledge',exact:true}).press('Escape');
+  assert.equal(await dm.page.locator('.character-profile').textContent().then(text=>text?.includes('Hidden biography')),false);
+  assert.equal(await dm.page.getByRole('heading',{name:'Unrevealed identity',exact:true}).count(),0);
+  await dm.page.getByRole('button',{name:'Inspect as DM',exact:true}).click();
+  await dm.page.getByRole('heading',{name:'Unrevealed identity',exact:true}).waitFor();
+  await dm.page.getByText('Hidden biography',{exact:true}).waitFor();
+  await dm.page.getByRole('button',{name:'Return to reading view',exact:true}).click();
+  await dm.page.getByRole('heading',{name:'Unknown character',exact:true}).waitFor();
+  await player.page.goto('/#/characters/'+key);
+  await player.page.getByRole('heading',{name:'Unknown character',exact:true}).waitFor();
+  assert.equal(await player.page.getByRole('button',{name:'Inspect as DM',exact:true}).count(),0);
+  for(const knowledge of [1,2,3,4]) {
+    const current=await record(key,'characters'); await put(admin,csrf,key,{...current.value,knowledge},current.revision,'characters');
+    await player.page.reload(); await player.page.getByRole('heading',{name:'Unrevealed identity',exact:true}).waitFor();
+    const text=await player.page.locator('.character-profile').textContent();
+    assert.equal(text?.includes('Hidden biography'),knowledge>=2); assert.equal(text?.includes('Hidden captain'),knowledge>=2);
+  }
+  const stored=await record(key,'characters'); assert.equal(stored.value.description,'Hidden biography');
+  await put(admin,csrf,key,{...stored.value,knowledge:0},stored.revision,'characters');
+  await dm.page.reload();
+  await dm.page.getByRole('heading',{name:'Unknown character',exact:true}).waitFor();
+  await dm.page.getByRole('button',{name:'Inspect as DM',exact:true}).click();
+  await dm.page.getByRole('button',{name:'Edit wiki',exact:true}).click();
+  const writer=dm.page.locator('.character-wiki codex-markdown-editor');
+  await writer.getByRole('combobox',{name:'Editor view',exact:true}).selectOption('markdown');
+  await writer.locator('.writer-source').fill('Unsubmitted draft');
+  assert.equal(await dm.page.getByRole('button',{name:'Return to reading view',exact:true}).isDisabled(),true);
+  await dm.page.getByRole('button',{name:'Manage versions',exact:true}).click();
+  await dm.page.getByRole('button',{name:'Create DM version',exact:true}).click();
+  await dm.page.getByRole('alert').filter({hasText:'Save or cancel your open edits'}).waitFor();
+  assert.equal(await writer.locator('.writer-source').inputValue(),'Unsubmitted draft');
+  assert.equal((await record(key,'characters')).value.linkedTwinId,undefined);
+  dm.page.once('dialog', dialog => dialog.accept());
+  await dm.page.locator('.character-wiki').getByRole('button',{name:'Cancel',exact:true}).click();
+  await writer.waitFor({state:'detached'});
+  assert.equal((await record(key,'characters')).value.description,'Hidden biography');
+  await dm.page.locator('.record-twins').getByRole('button',{name:'Cancel',exact:true}).click();
+  if(process.env['CODEX_UI_SCREENSHOTS']==='1') {
+    await dm.page.screenshot({path:resolve(output,`knowledge-${mobile?'phone':'desktop'}.png`),fullPage:true});
+  }
+  await dm.page.goto('/#/locations');
+  await dm.page.goto('/#/characters/'+key);
+  await dm.page.getByRole('heading',{name:'Unknown character',exact:true}).waitFor();
+  assert.equal(await dm.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),false);
+  if(process.env['CODEX_UI_SCREENSHOTS']==='1') {
+    await dm.page.screenshot({path:resolve(output,`knowledge-reading-${mobile?'phone':'desktop'}.png`),fullPage:true});
+  }
+  await dm.page.evaluate(() => localStorage.setItem('codex_lang','cs')); await dm.page.reload();
+  await dm.page.getByRole('heading',{name:'Neznámá postava',exact:true}).waitFor();
+  await dm.page.getByRole('button',{name:'Prohlédnout jako PJ',exact:true}).click();
+  await dm.page.getByRole('heading',{name:'Unrevealed identity',exact:true}).waitFor();
+  await dm.page.getByRole('button',{name:'Zpět na pohled čtenáře',exact:true}).click();
+  await dm.page.getByRole('heading',{name:'Neznámá postava',exact:true}).waitFor();
+});

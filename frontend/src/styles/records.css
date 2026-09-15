@@ -1237,9 +1237,14 @@ campaign-relationship-editor {
 .portrait-editor-controls input[type="file"] { max-width: 100%; }
 .portrait-editor-controls small { overflow-wrap: anywhere; }
 
-.record-twins { margin: var(--space-3) 0; padding: var(--space-3); border: 1px solid var(--border-subtle); border-radius: var(--radius); }
+.record-twins { font: .85rem/1.5 var(--font-ui); color: var(--text-parchment); margin: var(--space-3) 0; padding: var(--space-3); border: 1px solid var(--border-subtle); border-radius: var(--radius); }
 .record-twin-actions, .record-twin-review { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .record-twin-review > p { flex-basis: 100%; margin-bottom: 0; }
 .record-twin-review label { display: grid; gap: var(--space-1); min-width: 0; }
 .record-twins button, .record-twins a, .record-twins select { min-height: 44px; max-width: 100%; }
 .record-twins a { display: inline-flex; align-items: center; }
+.record-twins button, .record-twins select { padding: .5rem .7rem; border: 1px solid var(--chrome-field-border); border-radius: 4px; background: var(--bg-surface); color: var(--text-parchment); font: inherit; }
+.record-twins button { cursor: pointer; }
+.record-twins button:hover:enabled { border-color: var(--accent-gold); }
+.record-twins :is(button, select):disabled { opacity: .5; cursor: default; }
+.record-twins :is(button, select, a):focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 3px; }

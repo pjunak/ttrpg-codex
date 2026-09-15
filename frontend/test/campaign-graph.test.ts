@@ -23,7 +23,7 @@ describe("relationship graph projection and local arrangement", () => {
     expect(graph.edges[0]).toMatchObject({ color: "#448844", style: "dashed", width: 1 });
     expect(graph.edges[1]).toMatchObject({ label: "Captain", color: "#666666", style: "solid", width: 3 });
     expect(graph.nodes[0]).toMatchObject({ name: "Ária", factionName: "The Wayfarers", badge: "☀", color: "#123456", count: 2, statusLabel: "Alive" });
-    expect(graph.nodes[1]).toMatchObject({ color: "#666666", count: 3 }); expect(graph.nodes[2]?.name).toBe("???");
+    expect(graph.nodes[1]).toMatchObject({ color: "#666666", count: 3 }); expect(graph.nodes[2]?.name).toBe("Unknown character");
     expect(data).toEqual(before);
   });
   it("keeps encoded detail identities and does not include absent private records", () => {
