@@ -1,3 +1,4 @@
+import { groupTwinRecords } from "./campaign-twins.js";
 import { campaignCollection, type CampaignDataset, type CampaignRecord } from "../core/campaign-data.js";
 import type { CampaignMutation } from "../core/campaign-mutations.js";
 import { recordValue } from "./campaign-projection.js";
@@ -13,13 +14,7 @@ export class TimelineEditError extends Error {
 
 export function timelineSitting(value: unknown): number { return typeof value === "number" && Number.isSafeInteger(value) && value >= 1 ? value : 1; }
 export function timelineRecords(campaign: CampaignDataset): readonly CampaignRecord[] {
-  const records = campaignCollection(campaign, "events").records, byKey = new Map(records.map(record => [record.key, record]));
-  // Match the old board: a reciprocal DM twin represents its public counterpart.
-  return records.filter(record => {
-    const value = recordValue(record), twin = typeof value["linkedTwinId"] === "string" ? byKey.get(value["linkedTwinId"]) : undefined;
-    const other = recordValue(twin);
-    return value["visibility"] === "dm" || other["visibility"] !== "dm" || other["linkedTwinId"] !== record.key;
-  });
+  return groupTwinRecords(campaignCollection(campaign, "events").records);
 }
 export function timelineColumns(campaign: CampaignDataset): readonly TimelineColumn[] {
   const groups = new Map<number, string[]>();

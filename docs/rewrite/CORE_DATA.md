@@ -136,6 +136,28 @@ service enforces supported collections, opposite visibility, and reciprocal
 links, then writes both sides in one SQLite transaction. Generic campaign
 writes remain unable to edit `linkedTwinId`.
 
+### Twin reading and management
+
+DM articles expose counterpart navigation and a reviewed create/link/unlink
+control for every supported collection. Creating a public copy explicitly
+explains immediate player visibility; unlinking keeps both records. Management
+uses the existing twin API and session authority. Open core/add-on edits must
+be saved or cancelled first. Review captures opening revisions; stale or
+uncertain responses keep the review and require an explicit refresh/review
+before another operation. No uncertain write is automatically repeated.
+
+Collections, totals, faction member counts and timeline share reciprocal-pair
+grouping: an available DM version represents its public counterpart. A missing,
+one-way or same-visibility link never hides a survivor. Exact article URLs for
+both sides remain addressable. Search examines both names and returns the best
+matching version once; activity returns the latest changed side once. Recent
+search suggestions group aliases while stored navigation keeps exact identity.
+Player-projected records contain neither DM counterparts nor twin metadata.
+
+The real-host record-workflow browser tests cover creation, navigation, reload,
+unlink/relink, role isolation, stale review and a committed write with a lost
+response. Pure projection tests cover malformed pairs, counts and search aliases.
+
 ### Private location notes
 
 The retained location field `notes` is DM-owned Markdown, separate from

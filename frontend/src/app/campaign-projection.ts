@@ -1,3 +1,4 @@
+import { groupTwinRecords, twinRepresentatives } from "./campaign-twins.js";
 import { isRecord } from "../core/boundary.js";
 import { activityTimestamp } from "../core/campaign-activity.js";
 import {
@@ -74,11 +75,16 @@ export function projectCampaignIdentity(dataset: CampaignDataset): CampaignIdent
 }
 
 export function recentCampaignActivity(dataset: CampaignDataset, maximum = 30): readonly EntitySummary[] {
-  return campaignPages.flatMap(page => projectEntities(dataset, page))
-    .map(entity => ({ ...entity, updatedAt: activityTimestamp(entity.raw, entity.updatedAt) }))
-    .filter(entity => entity.updatedAt !== undefined)
-    .sort((left, right) => Date.parse(right.updatedAt!) - Date.parse(left.updatedAt!) || left.route.localeCompare(right.route))
-    .slice(0, maximum);
+  const representatives = new Map(campaignPages.map(page => [page.id, twinRepresentatives(campaignCollection(dataset, page.collection).records)]));
+  const seen = new Set<string>();
+  return campaignPages.flatMap(page => campaignCollection(dataset, page.collection).records.map(record => ({ page, entity: projectEntity(dataset, record, page) })))
+    .map(({ page, entity }) => ({ page, entity: { ...entity, updatedAt: activityTimestamp(entity.raw, entity.updatedAt) } }))
+    .filter(({ entity }) => entity.updatedAt !== undefined)
+    .sort((a, b) => Date.parse(b.entity.updatedAt!) - Date.parse(a.entity.updatedAt!) || a.entity.route.localeCompare(b.entity.route))
+    .filter(({ page, entity }) => {
+      const key = recordHash(page, representatives.get(page.id)!.get(entity.key)!);
+      if (seen.has(key)) return false; seen.add(key); return true;
+    }).slice(0, maximum).map(({ entity }) => entity);
 }
 
 export function projectEntities(
@@ -86,9 +92,13 @@ export function projectEntities(
   page: CampaignPageDefinition,
 ): readonly EntitySummary[] {
   const context = createAttitudeContext(dataset);
-  return campaignCollection(dataset, page.collection).records.map((record) =>
+  return groupTwinRecords(campaignCollection(dataset, page.collection).records).map((record) =>
     projectEntityWithContext(dataset, record, page, context)
   );
+}
+
+export function projectEntity(dataset: CampaignDataset, record: CampaignRecord, page: CampaignPageDefinition): EntitySummary {
+  return projectEntityWithContext(dataset, record, page, createAttitudeContext(dataset));
 }
 
 function projectEntityWithContext(
@@ -172,7 +182,7 @@ export function projectDashboard(dataset: CampaignDataset): DashboardModel {
   const pets = entitiesFor(dataset, "pets");
   const party = characters.filter((character) => character.raw["faction"] === "party")
     .sort((left, right) => left.name.localeCompare(right.name, "cs"));
-  const partyKeys = new Set(party.map(({ key }) => key));
+  const partyKeys = new Set(campaignCollection(dataset, "characters").records.filter(record => recordValue(record)["faction"] === "party").map(record => record.key));
   const companions = pets.filter((pet) =>
     pet.raw["ownerType"] === "party" ||
     (pet.raw["ownerType"] === "character" && partyKeys.has(text(pet.raw["ownerId"])))
@@ -188,7 +198,7 @@ export function projectDashboard(dataset: CampaignDataset): DashboardModel {
   const recent = recentCampaignActivity(dataset);
   const counts: Record<string, number> = {};
   for (const page of campaignPages) {
-    counts[page.id] = campaignCollection(dataset, page.collection).records.length;
+    counts[page.id] = groupTwinRecords(campaignCollection(dataset, page.collection).records).length;
   }
   return Object.freeze({
     identity: projectCampaignIdentity(dataset),

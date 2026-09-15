@@ -71,6 +71,9 @@ local evidence; the earlier dated production snapshot was not refreshed.
 
 #### R01 — Twin operations are stranded behind the API
 
+**R01/R02 resolved September 15 (T20):** management, counterpart navigation and
+shared aggregate grouping are implemented in [the core contract](CORE_DATA.md#twin-reading-and-management). The findings below describe the original omission.
+
 The old editor's `_twinHeaderRow` exposed create/link/unlink and the article's
 `_twinFactRow` linked the opposite version. Current
 [`CampaignMutationClient.mutateTwin`](../../frontend/src/core/campaign-mutations.ts)

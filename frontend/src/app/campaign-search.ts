@@ -1,5 +1,7 @@
+import { campaignCollection } from "../core/campaign-data.js";
+import { twinRepresentatives } from "./campaign-twins.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
-import { projectEntities, type EntitySummary } from "./campaign-projection.js";
+import { projectEntity, type EntitySummary } from "./campaign-projection.js";
 import { campaignPages, type CampaignPageDefinition } from "./routes.js";
 
 export interface CampaignSearchResult extends EntitySummary {
@@ -23,10 +25,14 @@ export function searchCampaign(
 
   const matches: CampaignSearchResult[] = [];
   for (const page of campaignPages) {
-    for (const entity of projectEntities(campaign, page)) {
-      const score = searchScore(entity, tokens);
-      if (score > 0) matches.push(Object.freeze({ ...entity, page, score }));
+    const records = campaignCollection(campaign, page.collection).records;
+    const representatives = twinRepresentatives(records), grouped = new Map<string, CampaignSearchResult>();
+    for (const record of records) {
+      const entity = projectEntity(campaign, record, page), score = searchScore(entity, tokens);
+      const identity = representatives.get(entity.key)!;
+      if (score > (grouped.get(identity)?.score ?? 0)) grouped.set(identity, Object.freeze({ ...entity, page, score }));
     }
+    matches.push(...grouped.values());
   }
   matches.sort((left, right) =>
     right.score - left.score || left.name.localeCompare(right.name) || left.key.localeCompare(right.key)

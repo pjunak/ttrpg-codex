@@ -24,12 +24,8 @@ numbering are completed work. The historical gates do not close these tasks.
 
 ### Backend and core workflows
 
-- [ ] **T20 / P1 — Restore DM/player twin management and consistent grouping.**
-  Confirmed R01/R02. Expose existing create/link/unlink and counterpart APIs in
-  articles; explain paired visibility restrictions. Count reciprocal pairs once
-  in lists/search/activity while retaining exact article identities. Reload and
-  stale-pair tests must pass; broken pairs must retain their survivor and players
-  must not receive DM counterpart metadata.
+- [x] **T20 — Restored twin management and grouping (September 15).** Create/link/unlink,
+  exact counterpart routes, pair counts/search/activity and stale/uncertain responses verified. [Contract](rewrite/CORE_DATA.md#twin-reading-and-management).
 - [ ] **T26 / P1 — Define and restore knowledge/reveal behavior.** Confirmed R11.
   Agree what levels 0–4 reveal, then align cards, articles, graphs and search;
   keep explicit DM inspection. Decide whether this is presentation or access

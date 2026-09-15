@@ -1,6 +1,7 @@
 import { editorValue, recordFieldControl } from "./record-field-controls.js";
 import { uiText } from "./ui-localization.js";
 import "./codex-portrait-editor.js";
+import "./codex-record-twins.js";
 import { CodexCharacterProfile } from "./codex-character-profile.js";
 import { CodexMarkdownEditor } from "./codex-markdown-editor.js";
 import type { CodexPortraitEditor } from "./codex-portrait-editor.js";
@@ -40,7 +41,7 @@ import {
   type CampaignMarkdownContext,
 } from "./campaign-markdown.js";
 import {
-  projectEntities,
+  projectEntity,
   recordValue,
   safeMediaURL,
   stringList,
@@ -228,7 +229,7 @@ export class CodexRecordPage extends LitElement {
         </article>
       `;
     }
-    const entity = projectEntities(dataset, route.page).find(({ key }) => key === route.key) ?? retained?.entity;
+    const entity = projectEntity(dataset, record, route.page);
     if (entity === undefined) return nothing;
     const value = recordValue(record);
     if (this.editor === "edit") {
@@ -243,6 +244,8 @@ export class CodexRecordPage extends LitElement {
         </article>
       `;
     }
+    const twins = this.canManageVisibility && this.actorRole === "dm" ? html`<codex-record-twins
+      .campaign=${dataset} .record=${record} .page=${route.page} .disabled=${this.saving}></codex-record-twins>` : nothing;
     const facts = articleFacts(dataset, route.page.collection, value);
     const sections = [...articleSections(value)];
     if (route.page.collection === "locations" && this.actorRole === "dm" && text(value["notes"])) {
@@ -257,7 +260,7 @@ export class CodexRecordPage extends LitElement {
       currentKey: route.key,
       addonWiki: this.#links.wiki,
     };
-    if (route.page.collection === "characters") return html`${this.#linkFailure()}<codex-character-profile
+    if (route.page.collection === "characters") return html`${this.#linkFailure()}${twins}<codex-character-profile
       .campaign=${dataset} .record=${record} .entity=${entity} .context=${markdownContext}
       .actorRole=${this.actorRole}
       .extraSections=${articleSections({ ...value, description: undefined, known: undefined, unknown: undefined })}
@@ -266,6 +269,7 @@ export class CodexRecordPage extends LitElement {
     return html`
       <article class="record-article" aria-labelledby="record-title">
         ${this.#linkFailure()}
+        ${twins}
         <a href=${route.page.collection === "events" ? "#/timeline" : collectionHash(route.page)} class="breadcrumb-link">${route.page.collection === "events" ? this.#ui.t("timeline.back") : route.page.plural}</a>
         <div class="record-reading-layout">
           <aside class="record-side">

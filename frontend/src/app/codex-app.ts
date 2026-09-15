@@ -1,3 +1,4 @@
+import type { CampaignTwinRequest } from "./codex-record-twins.js";
 import { uiText } from "./ui-localization.js";
 import { attachCharacterPortrait } from "./character-portrait.js";
 import { uiRequestError } from "./ui-errors.js";
@@ -1021,6 +1022,7 @@ export class CodexApp extends LitElement {
           .editCompletion=${this.editCompletion}
           @campaign-edit-dirty=${this.#onEditDirty}
           @campaign-record-save=${this.#saveCampaignRecord}
+          @campaign-twin=${this.#mutateTwin}
           @campaign-collection-view=${(event: CustomEvent<{ hash: string }>) => {
             const route = parseAppRoute(event.detail.hash);
             if (route.kind !== "collection" || this.route.kind !== "collection" || route.page.id !== this.route.page.id) return;
@@ -1116,6 +1118,30 @@ export class CodexApp extends LitElement {
       respond({ ok: false, conflict, message: conflict
         ? uiText("This field changed elsewhere. Your draft is kept. Review the current value before retrying.")
         : uiText("The entry could not be saved: {0}", { "0": errorMessage(cause) }) });
+    } finally { this.busy = false; }
+  };
+
+  readonly #mutateTwin = async (event: CustomEvent<CampaignTwinRequest>): Promise<void> => {
+    event.preventDefault();
+    const { mutation, respond } = event.detail;
+    if (this.busy || !this.#request || !this.#canManageCampaign() || this.authority.state !== "known" ||
+      !this.authority.auth.authenticated || this.campaignState.state !== "ready") {
+      respond({ ok: false, message: uiText("twins.failed") }); return;
+    }
+    if (this.#editDirty || this.#editSaving || this.#addons?.contributions.edits.state().dirty || this.#addons?.contributions.edits.state().saving) {
+      respond({ ok: false, message: uiText("twins.finishEdits") }); return;
+    }
+    this.busy = true;
+    const signal = this.#request.signal;
+    try {
+      const receipt = await this.#campaignMutations.mutateTwin(mutation, this.authority.auth.csrfToken, signal);
+      await this.#loadCampaign(signal, true);
+      const campaign = this.campaignState.state === "ready" ? this.campaignState.campaign : undefined;
+      const verified = campaign && receipt.results.every(result => campaignCollection(campaign, result.collection).records.some(record => record.key === result.key && record.revision >= result.afterRevision));
+      respond({ ok: !!verified && !signal.aborted, message: uiText(verified && !signal.aborted ? "twins.saved" : "twins.failed") });
+    } catch (cause: unknown) {
+      if (!signal.aborted) await this.#loadCampaign(signal, true);
+      respond({ ok: false, message: uiText(cause instanceof CampaignMutationHTTPError && cause.status === 409 ? "twins.stale" : "twins.failed") });
     } finally { this.busy = false; }
   };
 

@@ -1,3 +1,4 @@
+import { groupTwinRecords } from "./campaign-twins.js";
 import { isRecord } from "../core/boundary.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
 import { editorFieldsFor, editorOptionsFor, type CampaignEditorField } from "./campaign-record-editor.js";
@@ -40,7 +41,7 @@ export function collectionModel(dataset: CampaignDataset, page: CampaignPageDefi
     ...sortFields.map(field => ({ key: field.key, label: field.label }))];
   const memberCounts = new Map<string, number>();
   if (page.collection === "factions") {
-    for (const record of campaignCollection(dataset, "characters").records) {
+    for (const record of groupTwinRecords(campaignCollection(dataset, "characters").records)) {
       const faction = text(recordValue(record)["faction"]);
       memberCounts.set(faction, (memberCounts.get(faction) ?? 0) + 1);
     }

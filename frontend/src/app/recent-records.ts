@@ -1,6 +1,8 @@
 import type { CampaignDataset } from "../core/campaign-data.js";
-import { projectEntities, recentCampaignActivity, type EntitySummary } from "./campaign-projection.js";
-import { campaignPages, type AppRoute } from "./routes.js";
+import { campaignCollection } from "../core/campaign-data.js";
+import { twinRepresentatives } from "./campaign-twins.js";
+import { projectEntity, projectEntities, recentCampaignActivity, type EntitySummary } from "./campaign-projection.js";
+import { recordHash, campaignPages, type AppRoute } from "./routes.js";
 
 const maximumRecent = 12;
 const storageKey = (role: string): string => `codex:recent-records:${role}`;
@@ -16,8 +18,9 @@ function readRecent(role: string): readonly string[] {
 
 export function rememberRecentRecord(campaign: CampaignDataset, route: AppRoute, role: string): void {
   if (route.kind !== "record") return;
-  const entity = projectEntities(campaign, route.page).find(entity => entity.key === route.key);
-  if (!entity) return;
+  const record = campaignCollection(campaign, route.page.collection).records.find(record => record.key === route.key);
+  if (!record) return;
+  const entity = projectEntity(campaign, record, route.page);
   const previous = readRecent(role);
   if (previous[0] === entity.route) return;
   try { sessionStorage.setItem(storageKey(role), JSON.stringify([entity.route, ...previous.filter(path => path !== entity.route)].slice(0, maximumRecent))); }
@@ -28,8 +31,12 @@ export function rememberRecentRecord(campaign: CampaignDataset, route: AppRoute,
 export function recentSearchResults(campaign: CampaignDataset, role: string): readonly EntitySummary[] {
   const entities = campaignPages.flatMap(page => projectEntities(campaign, page));
   const byRoute = new Map(entities.map(entity => [entity.route, entity]));
-  const opened = readRecent(role).flatMap(path => byRoute.get(path) ?? []);
+  const aliases = new Map<string, string>();
+  for (const page of campaignPages) for (const [key, representative] of twinRepresentatives(campaignCollection(campaign, page.collection).records)) {
+    aliases.set(recordHash(page, key), recordHash(page, representative));
+  }
+  const opened = [...new Set(readRecent(role).map(path => aliases.get(path) ?? path))].flatMap(path => byRoute.get(path) ?? []);
   const seen = new Set(opened.map(entity => entity.route));
-  const activity = recentCampaignActivity(campaign, maximumRecent * 2).filter(entity => !seen.has(entity.route));
+  const activity = recentCampaignActivity(campaign, maximumRecent * 2).filter(entity => !seen.has(aliases.get(entity.route) ?? entity.route));
   return [...opened, ...activity].slice(0, maximumRecent);
 }
