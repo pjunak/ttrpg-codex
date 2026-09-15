@@ -35,12 +35,8 @@ numbering are completed work. The historical gates do not close these tasks.
   keep explicit DM inspection. Decide whether this is presentation or access
   control before changing backend filtering. If confidential, verify API/SSE
   projections as well as the DOM. Existing visibility rules remain authoritative.
-- [ ] **T27 / P1 — Recover retained location notes.** Confirmed R12.
-  Inventory `locations.notes` using synthetic fixtures; provide DM-visible
-  reading/editing or an explicitly reviewed mapping. Preserve original text,
-  description and map notes. Test long/conflicting values and round-trip saves;
-  never restore a secret note by copying it into public prose. Real-data mapping
-  needs separate operational authorization; no startup repair or repeat conversion.
+- [x] **T27 — Recovered private location notes (September 15).** DM reading/editing,
+  server filtering and lossless player saves verified. [Contract and tests](rewrite/CORE_DATA.md#private-location-notes).
 - [ ] **T19 / P1 — Restore reviewed campaign-bundle imports.** Confirmed omission.
   The [intended host provider](decisions/0001-campaign-bundle-imports.md) is absent;
   the planning adapter alone does not import core campaign bundles. Implement

@@ -257,6 +257,9 @@ than relying on CSS or assuming the old renderer enforced that boundary.
 
 #### R12 — Location notes survive as a field but cannot be read or edited
 
+**Resolved September 15 (T27):** DM article/editor access, public projection and
+player-save preservation are implemented in [the core contract](CORE_DATA.md#private-location-notes). The original finding below is historical.
+
 The old location editor read and saved `l.notes` / `lf-notes`, and its article
 rendered that Markdown separately from the description. Current
 [`articleSections`](../../frontend/src/app/codex-record-page.ts) recognizes

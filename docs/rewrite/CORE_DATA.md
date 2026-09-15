@@ -136,6 +136,20 @@ service enforces supported collections, opposite visibility, and reciprocal
 links, then writes both sides in one SQLite transaction. Generic campaign
 writes remain unable to edit `linkedTwinId`.
 
+### Private location notes
+
+The retained location field `notes` is DM-owned Markdown, separate from
+`description` and `mapNotes`. DMs can read it on the location article and
+edit it with the normal revision-checked record form. Public/player projections
+remove it and any corresponding legacy/current activity fields. Player writes
+cannot supply it; ordinary public edits preserve its exact stored value,
+including unfamiliar retained shapes. No conversion, migration or public-copy
+operation is needed. Backup/recovery still retains the original field.
+
+`record-workflows.browser.mts` exercises real-host DM editing, reload and player
+edits without losing the private text. Backend tests cover long, empty and
+unrecognized values, forged writes and old activity envelopes.
+
 Settings enum deletion is also an explicit DM operation rather than a generic
 settings edit. `POST /api/campaign/enums/delete` accepts the exact
 `campaign-enum-delete.v1` contract and one of three unambiguous modes:

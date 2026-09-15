@@ -38,6 +38,9 @@ func projectPublic(snapshot campaign.Snapshot) (campaign.Snapshot, error) {
 		if descriptor.VisibilityBearing {
 			cloned.Value, err = transformObject(cloned.Value, func(value map[string]any) {
 				delete(value, "linkedTwinId")
+				if record.Collection == campaign.Locations {
+					delete(value, "notes")
+				}
 			})
 			if err != nil {
 				return campaign.Snapshot{}, projectionError(record, err)
@@ -195,6 +198,9 @@ func closeRecord(
 		}
 		closeAuditReferences(value, hiddenIDs)
 		projectActivity(value, ViewPublic)
+		if record.Collection == campaign.Locations {
+			closeLocationNoteActivity(value)
+		}
 	})
 	return value, true, err
 }

@@ -244,7 +244,10 @@ export class CodexRecordPage extends LitElement {
       `;
     }
     const facts = articleFacts(dataset, route.page.collection, value);
-    const sections = articleSections(value);
+    const sections = [...articleSections(value)];
+    if (route.page.collection === "locations" && this.actorRole === "dm" && text(value["notes"])) {
+      sections.push({ heading: uiText("notes.private"), body: text(value["notes"]) });
+    }
     const hasStructuredSections = hasStructuredArticleContent(dataset, route.page.collection, route.key, value);
     const documents = parseCampaignMarkdownDocuments(sections.map(({ body }) => body));
     const outline = campaignMarkdownOutline(documents);
@@ -351,7 +354,7 @@ export class CodexRecordPage extends LitElement {
   };
 
   #editorForm(record: CampaignRecord | undefined, route: RecordRoute) {
-    const fields = editorFieldsFor(route.page.collection);
+    const fields = editorFieldsFor(route.page.collection, this.canManageVisibility);
     const statusField = fields.find(({ key }) => key === "status");
     const value: Readonly<Record<string, unknown>> = record === undefined && route.kind === "create" && route.preset === "party"
       ? { faction: "party", knowledge: 4, status: statusField !== undefined &&
@@ -590,7 +593,7 @@ export class CodexRecordPage extends LitElement {
     const structured = new Map([...form.querySelectorAll<CampaignStructuredFieldElement>("campaign-structured-field")]
       .map((editor) => [editor.fieldKey, editor.editorValue()]));
     const fields: Record<string, unknown> = {};
-    for (const field of editorFieldsFor(this.route.page.collection)) {
+    for (const field of editorFieldsFor(this.route.page.collection, this.canManageVisibility)) {
       if (field.kind === "questions" || field.kind === "rank-assignment" ||
         field.kind === "rank-chains" || field.kind === "location-roles") {
         fields[field.key] = structured.get(field.key);

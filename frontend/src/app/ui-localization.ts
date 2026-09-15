@@ -1,7 +1,8 @@
+import { recordWorkflowEn, recordWorkflowCs } from "./record-workflow-messages.js";
 import { storageEn, storageCs } from "./storage-messages.js";
 import { cleanupEn, cleanupCs } from "./cleanup-messages.js";
 import type { ReactiveController, ReactiveControllerHost } from "lit";
-import { sourceEn, sourceCs, type SourceMessage } from "./ui-source-messages.js";
+import { sourceEn, sourceCs } from "./ui-source-messages.js";
 import { githubEn, githubCs } from "./github-messages.js";
 import { editingEn, editingCs } from "./editing-messages.js";
 import { contextEn, contextCs } from "./context-messages.js";
@@ -21,6 +22,7 @@ export type Message = string | PluralForms;
 
 const enCatalog = {
   ...sourceEn,
+  ...recordWorkflowEn,
   ...githubEn,
   ...editingEn,
   ...contextEn,
@@ -489,6 +491,7 @@ export type MessageKey = keyof typeof enCatalog;
 
 const csCatalog = {
   ...sourceCs,
+  ...recordWorkflowCs,
   ...githubCs,
   ...editingCs,
   ...contextCs,
@@ -1006,7 +1009,7 @@ export function setUiLocale(locale: UiLocale): void {
 
 /** Only for code-owned descriptor labels; never for authored record or provider text. */
 export function uiSourceLabel(source: string): string {
-  return Object.hasOwn(sourceCs, source) ? uiText(source as SourceMessage) : source;
+  return Object.hasOwn(enCatalog, source) ? uiText(source as MessageKey) : source;
 }
 
 export function uiText(

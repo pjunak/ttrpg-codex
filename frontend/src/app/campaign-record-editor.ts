@@ -43,6 +43,7 @@ export interface CampaignEditorField {
   readonly reservedOptions?: readonly CampaignEditorOption[];
   readonly excludeCurrent?: boolean;
   readonly browse?: boolean;
+  readonly dmOnly?: boolean;
 }
 
 export interface CampaignEditorOption {
@@ -171,8 +172,9 @@ export class CampaignRecordEditError extends Error {
   }
 }
 
-export function editorFieldsFor(collection: CampaignCollectionName): readonly CampaignEditorField[] {
-  return editorFields[collection] ?? Object.freeze([]);
+export function editorFieldsFor(collection: CampaignCollectionName, includeDMFields = true): readonly CampaignEditorField[] {
+  const fields = editorFields[collection] ?? Object.freeze([]);
+  return includeDMFields || !fields.some(field => field.dmOnly) ? fields : fields.filter(field => !field.dmOnly);
 }
 
 /** Apply a reviewed subset through the same field validators as full record forms. */
@@ -196,7 +198,7 @@ export function prepareCampaignRecordSave(
   canManageVisibility: boolean,
 ): PreparedCampaignRecordTransaction {
   const page = campaignPages.find(({ collection }) => collection === detail.collection);
-  const fields = editorFieldsFor(detail.collection);
+  const fields = editorFieldsFor(detail.collection, canManageVisibility);
   if (page === undefined || fields.length === 0 || !validRecordKey(detail.key) ||
     typeof detail.creating !== "boolean" || !validRevision(detail.expectedRevision, false) ||
     !isRecord(detail.fields)) {
@@ -365,6 +367,7 @@ function field(
     ...(options.reservedOptions === undefined ? {} : { reservedOptions: options.reservedOptions }),
     ...(options.excludeCurrent === undefined ? {} : { excludeCurrent: options.excludeCurrent }),
     ...(options.browse === undefined ? {} : { browse: options.browse }),
+    ...(options.dmOnly === undefined ? {} : { dmOnly: options.dmOnly }),
   };
   // Spreading an accessor would freeze its current translation at module load.
   for (const key of ["placeholder", "help"] as const) if (options[key] !== undefined) {
@@ -452,6 +455,7 @@ const editorFields: Readonly<Partial<Record<CampaignCollectionName, readonly Cam
     description,
     history,
     field("mapNotes", "Map notes", { kind: "text", maximumLength: 200_000 }),
+    field("notes", "notes.private", { kind: "markdown", maximumLength: 200_000, dmOnly: true, get help() { return uiText("notes.privateHelp"); } }),
   ]),
   events: Object.freeze([
     name,

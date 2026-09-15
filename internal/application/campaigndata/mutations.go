@@ -102,6 +102,14 @@ func prepareRecordWrite(
 	delete(incoming, "secrets")
 
 	if role == WritePlayer {
+		if descriptor.Name == campaign.Locations {
+			if _, supplied := incoming["notes"]; supplied {
+				return nil, ErrManagedCampaignField
+			}
+			if notes, exists := current["notes"]; exists {
+				incoming["notes"] = notes
+			}
+		}
 		visibility := campaign.VisibilityPublic
 		if found {
 			visibility = existing.Visibility
