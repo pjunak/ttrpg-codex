@@ -186,7 +186,10 @@ export async function exerciseSettingsFailure({ t, open, admin, csrf }: Installe
   const view = dropdown.locator('[data-contribution-id="preferences"]');
   await view.getByText('Options ready', { exact: true }).waitFor();
   const mounted = await view.locator('[data-codex-addon]').elementHandle();
+  // Initial manager requests can still make the ready panel inert.
+  await page.locator('.addon-manager[aria-busy="false"]').waitFor();
   await view.getByLabel('Saved option').fill('Draft survives retry');
+  assert.equal(await view.getByLabel('Saved option').inputValue(), 'Draft survives retry', 'the draft is entered before retry');
   await dropdown.getByRole('button', { name: 'Retry settings', exact: true }).click();
   await dropdown.locator('[data-contribution-id="campaign"]').getByText('Options ready', { exact: true }).waitFor();
   assert.equal(await mounted!.evaluate(element => element.isConnected), true, 'retry retains the mounted settings element');
