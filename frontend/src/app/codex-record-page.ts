@@ -48,7 +48,7 @@ import {
   text,
   type EntitySummary,
 } from "./campaign-projection.js";
-import { collectionHash, mapHash, eventMapHash, locationMapHash, type AppRoute } from "./routes.js";
+import { createReturnHash, collectionHash, mapHash, eventMapHash, locationMapHash, type AppRoute } from "./routes.js";
 import { eventMapParent, hasEventPin, mapParent, mapCoordinate } from "./campaign-map.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
@@ -170,9 +170,9 @@ export class CodexRecordPage extends LitElement {
     const campaign = this.#editorCampaign;
     if (this.route.kind === "create") {
       return html`<article class="record-article editor-article" aria-labelledby="record-editor-title">
-        <a href=${this.route.preset === "party" ? "#/party" : "#/timeline"} class="breadcrumb-link">${this.route.preset === "party" ? uiText("Back to party") : this.#ui.t("timeline.back")}</a>
+        <a href=${createReturnHash(this.route)} class="breadcrumb-link">${this.route.preset === "party" ? uiText("Back to party") : this.route.preset === "event" ? this.#ui.t("timeline.back") : this.route.page.plural}</a>
         ${this.canEdit ? this.#editorForm(undefined, this.route) : html`
-          <h1 id="record-editor-title">${this.route.preset === "party" ? uiText("Add party member") : this.#ui.t("timeline.newEvent")}</h1>
+          <h1 id="record-editor-title">${this.route.preset === "party" ? uiText("Add party member") : uiText("Add {0}", {"0": this.route.page.singular.toLocaleLowerCase()})}</h1>
           <button type="button" @click=${() => this.dispatchEvent(new CustomEvent("campaign-sign-in", { bubbles: true, composed: true }))}>${uiText("Sign in")}</button>
         `}
       </article>`;
@@ -552,7 +552,7 @@ export class CodexRecordPage extends LitElement {
       this.#setDirty(false);
       this.editor = "closed";
       this.#resetEditors();
-      if (this.route?.kind === "create") window.location.hash = this.route.preset === "party" ? "#/party" : "#/timeline";
+      if (this.route?.kind === "create") window.location.hash = createReturnHash(this.route);
       else if (this.route?.kind === "record" && this.route.editing) window.location.hash = "#/timeline";
     }
   };

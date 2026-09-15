@@ -227,3 +227,45 @@ for (const mobile of [false,true]) test(`knowledge reading and explicit DM inspe
   await dm.page.getByRole('button',{name:'Zpět na pohled čtenáře',exact:true}).click();
   await dm.page.getByRole('heading',{name:'Neznámá postava',exact:true}).waitFor();
 });
+
+test('saved core URLs canonicalize once and retain Back and dirty-edit guards', async t => {
+  await put(admin,csrf,'alias/gate%2F',{name:'Alias gate'});
+  const dm=await open(t,'dm');
+  await dm.page.goto('/#/locations');
+  const before=await dm.page.evaluate(()=>history.length);
+  await dm.page.goto('/#/misto/alias%2Fgate%252F');
+  await dm.page.getByRole('heading',{name:'Alias gate',exact:true}).waitFor();
+  assert.equal(new URL(dm.page.url()).hash,'#/locations/alias%2Fgate%252F');
+  assert.equal(await dm.page.evaluate(()=>history.length),before+1);
+  await dm.page.goBack(); await dm.page.getByRole('heading',{name:'Locations',exact:true}).waitFor();
+  await dm.page.goto('/#/misto/alias%2Fgate%252F');
+  await dm.page.getByRole('button',{name:'Edit',exact:true}).click();
+  const name=dm.page.locator('form.record-editor input[name="name"]'); await name.fill('Unsaved alias edit');
+  await dm.page.goto('/#/misto/alias%2Fgate%252F');
+  await dm.page.waitForURL('**/#/locations/alias%2Fgate%252F');
+  assert.equal(await name.inputValue(),'Unsaved alias edit');
+  dm.page.once('dialog',dialog=>dialog.dismiss()); await dm.page.goto('/#/postavy');
+  await dm.page.waitForURL('**/#/locations/alias%2Fgate%252F');
+  assert.equal(await name.inputValue(),'Unsaved alias edit');
+  dm.page.once('dialog',dialog=>dialog.accept()); await dm.page.goto('/#/postavy');
+  await dm.page.getByRole('heading',{name:'Characters',exact:true}).waitFor();
+  assert.equal(new URL(dm.page.url()).hash,'#/characters');
+  await dm.page.goto('/#/misto/%E0%A4%A');
+  await dm.page.getByText('This page is not in the index',{exact:false}).waitFor();
+});
+
+test('saved creation URLs survive sign-in and cancel without creating records', async t => {
+  const visitor=await open(t);
+  await visitor.page.goto('/#/misto/new');
+  await visitor.page.locator('.editor-article').getByRole('button',{name:'Sign in',exact:true}).click();
+  const account=visitor.page.locator('.account-panel');
+  await account.locator('input[name="password"]').fill('local-record-workflows-player');
+  await account.getByRole('button',{name:'Sign in',exact:true}).click();
+  await visitor.page.locator('form.record-editor input[name="name"]').fill('Cancelled alias location');
+  assert.equal(new URL(visitor.page.url()).hash,'#/create/locations');
+  visitor.page.once('dialog',dialog=>dialog.accept());
+  await visitor.page.locator('form.record-editor').getByRole('button',{name:'Cancel',exact:true}).click();
+  await visitor.page.getByRole('heading',{name:'Locations',exact:true}).waitFor();
+  const data=await jsonResponse(await admin.get('/api/campaign'));
+  assert.equal(JSON.stringify(data).includes('Cancelled alias location'),false);
+});

@@ -34,14 +34,48 @@ export type AppRoute =
   | { readonly kind: "map"; readonly parentId: string | null;
       readonly event?: { readonly key: string; readonly mode: "show" | "place" };
       readonly location?: { readonly key: string; readonly mode: "show" | "place" } }
-  | { readonly kind: "create"; readonly page: CampaignPageDefinition; readonly preset: "party" | "event"; readonly sitting?: number }
+  | { readonly kind: "create"; readonly page: CampaignPageDefinition; readonly preset: "blank" | "party" | "event"; readonly sitting?: number }
   | { readonly kind: "settings"; readonly mapParentId?: string | null; readonly addonId?: string | null; readonly generationId?: string }
   | { readonly kind: "collection"; readonly page: CampaignPageDefinition; readonly view?: string }
   | { readonly kind: "record"; readonly page: CampaignPageDefinition; readonly key: string; readonly editing?: boolean }
   | { readonly kind: "addon" }
   | { readonly kind: "not-found"; readonly path: string };
 
+const savedLists: Readonly<Record<string, string>> = {
+  postavy: "characters", mista: "locations", udalosti: "timeline", zahady: "mysteries",
+  frakce: "factions", mazlicci: "companions", panteon: "pantheon", artefakty: "artifacts",
+  historie: "history", parta: "party", nastaveni: "settings",
+};
+const savedArticles: Readonly<Record<string, string>> = {
+  postava: "characters", misto: "locations", udalost: "events", zahada: "mysteries",
+  frakce: "factions", buh: "pantheon", artefakt: "artifacts", "historicka-udalost": "history",
+};
+
+/** Normalize only the preserved core namespace; IDs are decoded exactly once by the parser. */
+export function canonicalAppHash(hash: string): string {
+  if (hash === "") return "#/";
+  const match = /^#\/([^/?]+)(?:\/([^/?]+))?$/u.exec(hash);
+  if (!match) return hash;
+  const section = match[1]!, key = match[2];
+  if (key === undefined && Object.hasOwn(savedLists, section)) return `#/${savedLists[section]}`;
+  if (key !== undefined && Object.hasOwn(savedArticles, section)) {
+    try { if (!decodeURIComponent(key) || /\p{Cc}/u.test(decodeURIComponent(key))) return hash; } catch { return hash; }
+    return key === "new" ? `#/create/${savedArticles[section]}` : `#/${savedArticles[section]}/${key}`;
+  }
+  return hash;
+}
+
+export function createReturnHash(route: Extract<AppRoute, {kind: "create"}>): string {
+  return route.preset === "party" ? "#/party" : route.preset === "event" ? "#/timeline" : collectionHash(route.page);
+}
+
 export function parseAppRoute(hash: string): AppRoute {
+  hash = canonicalAppHash(hash);
+  const create = /^#\/create\/([^/]+)$/u.exec(hash);
+  if (create) {
+    const page = campaignPages.find(page => page.id === create[1]);
+    if (page) return {kind: "create", page, preset: "blank"};
+  }
   if (hash === "#/dm") return { kind: "dm" };
   const addonGraph = parseAddonGraphHash(hash);
   if (addonGraph) return { kind: "campaign-graph", mode: addonGraph };

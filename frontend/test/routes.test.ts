@@ -89,3 +89,21 @@ describe("application routes", () => {
     }
   });
 });
+
+describe("preserved core URLs", () => {
+  it("maps the finite list and article inventory without reinterpreting encoded keys", () => {
+    const lists = {postavy:"characters", mista:"locations", udalosti:"timeline", zahady:"mysteries", frakce:"factions",
+      mazlicci:"companions", panteon:"pantheon", artefakty:"artifacts", historie:"history", parta:"party", nastaveni:"settings"};
+    for (const [old, current] of Object.entries(lists)) expect(parseAppRoute("#/"+old)).toEqual(parseAppRoute("#/"+current));
+    const articles = {postava:"characters", misto:"locations", udalost:"events", zahada:"mysteries", frakce:"factions",
+      buh:"pantheon", artefakt:"artifacts", "historicka-udalost":"history"};
+    for (const [old, current] of Object.entries(articles)) {
+      expect(parseAppRoute("#/"+old+"/gate%2Fhorn%C3%AD%252F")).toMatchObject({kind:"record",page:{id:current},key:"gate/horní%2F"});
+      expect(parseAppRoute("#/"+old+"/new")).toMatchObject({kind:"create",preset:"blank",page:{id:current}});
+      expect(parseAppRoute("#/"+old+"/%6Eew")).toMatchObject({kind:"record",key:"new"});
+    }
+    expect(parseAppRoute("#/characters/new")).toMatchObject({kind:"record",key:"new"});
+    for (const bad of ["#/misto/%00", "#/postava/%E0%A4%A", "#/frakce/a/extra", "#/create/missing",
+      "#/postava/new/extra", "#/create/characters/extra", "#/misto/"]) expect(parseAppRoute(bad).kind).toBe("not-found");
+  });
+});

@@ -70,7 +70,7 @@ import {
 } from "./unsaved-edit.js";
 import {
   collectionHash,
-  parseAppRoute,
+  parseAppRoute, canonicalAppHash,
   recordHash,
   type AppRoute,
 } from "./routes.js";
@@ -217,7 +217,8 @@ export class CodexApp extends LitElement {
     super.connectedCallback();
     this.#disposeRuleDetails = bindRuleDetails(this, this.#links);
     this.#acceptedHash = normalizedHash(window.location.hash);
-    this.route = parseAppRoute(window.location.hash);
+    if (window.location.hash && this.#acceptedHash !== window.location.hash) window.history.replaceState(null, "", this.#acceptedHash);
+    this.route = parseAppRoute(this.#acceptedHash);
     window.addEventListener("hashchange", this.#onHashChange);
     window.addEventListener("beforeunload", this.#onBeforeUnload);
     window.addEventListener("keydown", this.#onKeyDown);
@@ -1509,6 +1510,8 @@ export class CodexApp extends LitElement {
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${this.#acceptedHash}`);
       return;
     }
+    if (window.location.hash && nextHash !== window.location.hash) window.history.replaceState(null, "", nextHash);
+    if (nextHash === this.#acceptedHash) return;
     this.menuOpen = false;
     this.#acceptedHash = nextHash;
     if (this.quickSearchOpen) this.#closeQuickSearch(false);
@@ -1567,7 +1570,7 @@ function preferredCharacterView(hash: string): "profile" | "addons" {
 }
 
 function normalizedHash(value: string): string {
-  return value === "" ? "#/" : value;
+  return canonicalAppHash(value);
 }
 
 function errorMessage(cause: unknown): string {

@@ -3,7 +3,7 @@
 Open work for the five repositories, reviewed September 14, 2026. This remains
 one suite backlog; each task belongs to the repository that owns its change.
 Older completed fixes and dated deployment snapshots have been removed. The
-September 15 host batch retains short completion markers for this handoff. Historical
+current host batch retains short completion markers for this handoff. Historical
 findings and the unchanged accepted release gates live in the
 [feature-parity audit](rewrite/FEATURE_PARITY_AUDIT.md).
 
@@ -25,13 +25,6 @@ numbering are completed work. The historical gates do not close these tasks.
 
 ### Backend and core workflows
 
-- [x] **T20 — Restored twin management and grouping (September 15).** Create/link/unlink,
-  exact counterpart routes, pair counts/search/activity and stale/uncertain responses verified. [Contract](rewrite/CORE_DATA.md#twin-reading-and-management).
-- [x] **T26 — Restored knowledge reading and DM inspection (September 15).**
-  Levels 0–4 share card/article/search/graph presentation; drafts and saved data
-  remain intact. [Contract and tests](rewrite/CORE_DATA.md#character-knowledge-and-dm-inspection).
-- [x] **T27 — Recovered private location notes (September 15).** DM reading/editing,
-  server filtering and lossless player saves verified. [Contract and tests](rewrite/CORE_DATA.md#private-location-notes).
 - [ ] **T19 / P1 — Restore reviewed campaign-bundle imports.** Confirmed omission.
   The [intended host provider](decisions/0001-campaign-bundle-imports.md) is absent;
   the planning adapter alone does not import core campaign bundles. Implement
@@ -51,10 +44,8 @@ numbering are completed work. The historical gates do not close these tasks.
 The [continuation evidence](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings)
 contains the before/after comparisons for R01–R12 and screenshots for U01–U04.
 
-- [ ] **T21 / P2 — Repair saved core URLs.** R03. Normalize preserved Czech
-  article/list/party/settings/new URLs into current routes. Test encoded IDs,
-  Back, sign-in, dirty guards and malformed links; retain working spatial and
-  Compendium aliases. This is route normalization, not a legacy runtime.
+- [x] **T21 — Repaired saved core URLs (September 15).** List/article/creation
+  aliases preserve exact IDs, Back, sign-in and dirty drafts. [Contract and tests](rewrite/EDITOR_BROWSING.md#saved-core-urls).
 - [ ] **T22 / P2 — Restore connected article context.** R04–R06. Make references
   navigable; show location ancestors/children/residents/events, complete faction
   rosters including unranked members, event mentions and owned companions.

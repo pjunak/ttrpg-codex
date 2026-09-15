@@ -106,6 +106,9 @@ impossible to open. Old evidence: [`wiki.js` roster/session rendering](https://g
 
 #### R03 — Familiar core URLs reach the not-found page
 
+**Resolved September 15 (T21):** finite saved-route aliases now use current guarded
+navigation and creation. [Contract and tests](EDITOR_BROWSING.md#saved-core-urls). The finding below is historical.
+
 `#/postava/ryn`, `#/misto/gate` and `#/nastaveni` all reach “This page is not in
 the index” in the current browser. The
 [route parser](../../frontend/src/app/routes.ts) retains map, graph and timeline
