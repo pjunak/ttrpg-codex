@@ -1,10 +1,12 @@
+import { articleContext, articleReferences } from "./article-context.js";
+import { renderArticleContext, renderArticleReferences, renderCharacterRelationships, renderCharacterLocationRoles } from "./article-context-view.js";
 import { characterKnowledge, characterReadingValue } from "./character-reading.js";
 import { campaignPages } from "./routes.js";
 import { LitElement, html, nothing, type TemplateResult } from "lit";
 import { isRecord } from "../core/boundary.js";
 import { type CampaignDataset, type CampaignRecord } from "../core/campaign-data.js";
 import { previewResourceURL } from "../core/player-preview.js";
-import { editorFieldsFor, editorOptionsFor, relationshipBaseFor, relationshipEditorRowsFor, relationshipTypeOptionsFor, sameCampaignValue,
+import { editorFieldsFor, editorOptionsFor, relationshipBaseFor, sameCampaignValue,
   type CampaignEditorField, type CampaignCharacterPatch, type CampaignCharacterSaveResult, type CampaignCharacterSaveRequest } from "./campaign-record-editor.js";
 import { projectEntity, recordValue, text, stringList, type EntitySummary } from "./campaign-projection.js";
 import { factionRankChains, type CampaignStructuredFieldElement, type CampaignRelationshipEditorElement } from "./campaign-structured-editors.js";
@@ -131,9 +133,12 @@ export class CodexCharacterProfile extends LitElement {
           <div class="character-questions">${this.#questions().map((_item, index) => html`<div>${this.#inline("unknown", index, "text")}<div class="character-answer">${this.#inline("unknown", index, "answer")}</div></div>`)}</div>
           ${this.canEdit ? html`<button class="character-add" type="button" @click=${() => this.#addItem("unknown")}>+ ${uiText("Add question")}</button>` : nothing}</section></div>
         <section class="record-structured-section"><h2 class="record-section-title">${uiText("Relationships")}</h2>
-          ${this.#panelValue("relationships", this.#relationshipLabels())}</section>
+          ${renderCharacterRelationships(this.campaign, this.record.key, this.canManageVisibility)}
+          ${this.#referenceEdit("relationships", uiText("Relationships"))}</section>
         <section class="record-structured-section"><h2 class="record-section-title">${uiText("Other location roles")}</h2>
-          ${this.#panelValue("locationRoles", this.#locationRolesLabel())}</section>
+          ${renderCharacterLocationRoles(this.campaign, value["locationRoles"])}
+          ${this.#referenceEdit("locationRoles", uiText("Other location roles"))}</section>
+        ${renderArticleContext(articleContext(this.campaign, "characters", this.record.key))}
         ${this.extraSections?.map(section => html`<section class="record-structured-section"><h2 class="record-section-title">${section.heading}</h2>${renderCampaignMarkdown(parseCampaignMarkdown(section.body), this.context)}</section>`)}
         ` : html`<p class="empty-state">${uiText(characterKnowledge(original) === 0 ? "knowledge.hidden" : "knowledge.nameOnly")}</p>`}
         ${this.panel ? this.#panelContent() : nothing}
@@ -152,7 +157,17 @@ export class CodexCharacterProfile extends LitElement {
   }
   #known(): readonly string[] { return (this.#drafts.get("known")?.value ?? this.#initial("known")) as readonly string[]; }
   #questions(): readonly { text: string; answer: string }[] { return (this.#drafts.get("unknown")?.value ?? this.#initial("unknown")) as readonly { text: string; answer: string }[]; }
-  #fact(key: string) { return html`<div><dt>${this.#field(key).label}</dt><dd>${this.#inline(key)}</dd></div>`; }
+  #fact(key: string) {
+    const field = this.#field(key), reference = field.referenceCollection;
+    return html`<div><dt>${field.label}</dt><dd>${reference && !this.#drafts.has(key)
+      ? html`${renderArticleReferences(articleReferences(this.campaign, reference, recordValue(this.record)[key]))}
+        ${this.canEdit ? html`<button type="button" class="record-action article-reference-edit" aria-label=${uiText("Edit {0}", {"0": field.label})}
+          @click=${() => this.#begin(key)}>${uiText("Edit")}</button>` : nothing}`
+      : this.#inline(key)}</dd></div>`;
+  }
+  #referenceEdit(panel: string, label: string) {
+    return this.canEdit ? html`<button type="button" class="record-action" @click=${() => this.#openPanel(panel)}>${uiText("Edit {0}", {"0": label})}</button>` : nothing;
+  }
   #display(key: string, value: unknown): string {
     if (key === "tags") return (value as string[]).join(", ");
     const field = this.#field(key);
@@ -321,23 +336,6 @@ export class CodexCharacterProfile extends LitElement {
     this.#dirty(); this.requestUpdate();
   };
   #rankLabel(): string { const value = recordValue(this.record); const chain = factionRankChains(this.campaign, text(value["faction"])).find(item => item.id === value["rankChain"]); return chain ? `${chain.name} — ${text(value["rank"])}` : text(value["rank"]); }
-  #relationshipLabels(): string {
-    const types = relationshipTypeOptionsFor(this.campaign);
-    return relationshipEditorRowsFor(this.campaign, this.record.key, this.canManageVisibility).map(row => {
-      const type = types.find(type => type.value === row.type);
-      const collection = row.direction === "to" ? "characters" : type?.targetCollection ?? "characters";
-      const peer = this.campaign.collections.find(item => item.name === collection)?.records.find(item => item.key === row.target);
-      const name = peer ? text(recordValue(peer)["name"]) : row.target;
-      return row.direction === "to" ? name + " → " + (row.label || type?.label || row.type) : (row.label || type?.label || row.type) + " → " + name;
-    }).join(" · ");
-  }
-  #locationRolesLabel(): string {
-    const roles = recordValue(this.record)["locationRoles"];
-    return Array.isArray(roles) ? roles.filter(isRecord).map(role => {
-      const location = this.campaign.collections.find(item => item.name === "locations")?.records.find(item => item.key === role["locationId"]);
-      return text(role["role"]) + ": " + (location ? text(recordValue(location)["name"]) : text(role["locationId"]));
-    }).join(" · ") : "";
-  }
   readonly #editAll = (): void => { if (this.#saves > 0 || [...this.#drafts.values()].some(draft => !sameCampaignValue(draft.value, draft.original)) || this.#wikiBase && this.#wikiValue !== text(recordValue(this.#wikiBase)["description"]) || this.#panelDirty) { this.status = uiText("Finish or cancel the open edits first."); return; } this.dispatchEvent(new CustomEvent("campaign-character-edit-all", { bubbles: true, composed: true })); };
 }
 customElements.define("codex-character-profile", CodexCharacterProfile);

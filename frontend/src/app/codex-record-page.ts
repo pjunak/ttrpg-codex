@@ -1,13 +1,14 @@
+import { articleContext, articleOwner, articleReferences } from "./article-context.js";
+import { renderArticleContext, renderArticleReferences } from "./article-context-view.js";
 import { editorValue, recordFieldControl } from "./record-field-controls.js";
-import { uiText } from "./ui-localization.js";
+import { uiText, uiSourceLabel } from "./ui-localization.js";
 import "./codex-portrait-editor.js";
 import "./codex-record-twins.js";
 import { CodexCharacterProfile } from "./codex-character-profile.js";
 import { CodexMarkdownEditor } from "./codex-markdown-editor.js";
 import type { CodexPortraitEditor } from "./codex-portrait-editor.js";
 import { previewResourceURL } from "../core/player-preview.js";
-import { LitElement, html, nothing } from "lit";
-import { campaignPartyIdentity } from "./campaign-party.js";
+import { LitElement, html, nothing, type TemplateResult } from "lit";
 import {
   campaignCollection,
   type CampaignDataset,
@@ -18,9 +19,7 @@ import {
   createCampaignRecordKey,
   editorFieldsFor,
   editorOptionsFor,
-  relationshipEditorRowsFor,
   relationshipBaseFor,
-  relationshipTypeOptionsFor,
   type CampaignEditDirtyDetail,
   type CampaignEditorField,
   type CampaignRecordDeleteDetail,
@@ -29,8 +28,6 @@ import {
 import { campaignEnumDisplayLabel } from "./campaign-settings.js";
 import {
   factionRankChains,
-  locationRoleDrafts,
-  rankChainDrafts,
   type CampaignRelationshipEditorElement,
   type CampaignStructuredFieldElement,
 } from "./campaign-structured-editors.js";
@@ -251,7 +248,7 @@ export class CodexRecordPage extends LitElement {
     if (route.page.collection === "locations" && this.actorRole === "dm" && text(value["notes"])) {
       sections.push({ heading: uiText("notes.private"), body: text(value["notes"]) });
     }
-    const hasStructuredSections = hasStructuredArticleContent(dataset, route.page.collection, route.key, value);
+    const contextSections = articleContext(dataset, route.page.collection, route.key);
     const documents = parseCampaignMarkdownDocuments(sections.map(({ body }) => body));
     const outline = campaignMarkdownOutline(documents);
     const markdownContext: CampaignMarkdownContext = {
@@ -329,10 +326,10 @@ export class CodexRecordPage extends LitElement {
             `}
           </aside>
           <div class="record-reading">
-            ${sections.length === 0 && !hasStructuredSections
+            ${sections.length === 0 && contextSections.length === 0
               ? html`<p class="empty-state">${uiText("This entry does not have article text yet.")}</p>`
               : html`<div class="record-prose">
-                  ${structuredArticleContent(dataset, route.page.collection, route.key, value)}
+                  ${renderArticleContext(contextSections)}
                   ${sections.map((section, index) => html`
                     <section class=${section.heading === uiText("What is known") || section.heading === uiText("Open questions") ? "character-knowledge-section" : ""}>
                       <h2 class="record-section-title">${section.heading}</h2>
@@ -734,9 +731,9 @@ function articleFacts(
   dataset: CampaignDataset,
   collection: string,
   value: Readonly<Record<string, unknown>>,
-): readonly (readonly [string, string])[] {
+): readonly (readonly [string, string | TemplateResult])[] {
   const fields = factDefinitions[collection] ?? [];
-  const facts: Array<readonly [string, string]> = [];
+  const facts: Array<readonly [string, string | TemplateResult]> = [];
   for (const [label, field, referenceCollection] of fields) {
     const raw = value[field];
     const enumCategory = articleEnumCategory(collection, field);
@@ -744,12 +741,12 @@ function articleFacts(
       ? campaignEnumDisplayLabel(dataset, enumCategory, raw)
       : referenceCollection === undefined
         ? printable(raw)
-        : referenceNames(dataset, referenceCollection, raw);
-    if (result !== "") facts.push([label, result]);
+        : articleReferences(dataset, referenceCollection, raw).length ? renderArticleReferences(articleReferences(dataset, referenceCollection, raw)) : "";
+    if (result !== "") facts.push([uiSourceLabel(label), result]);
   }
   if (collection === "pets") {
-    const owner = petOwnerName(dataset, value);
-    if (owner !== "") facts.push([uiText("Owner"), owner]);
+    const owner = articleOwner(dataset, value);
+    if (owner.length) facts.push([uiText("Owner"), renderArticleReferences(owner)]);
   }
   if (collection === "characters") {
     const rank = characterRankName(dataset, value);
@@ -774,122 +771,11 @@ function characterRankName(dataset: CampaignDataset, value: Readonly<Record<stri
   return chain === undefined ? rank : `${chain.name} — ${rank}`;
 }
 
-function hasStructuredArticleContent(
-  dataset: CampaignDataset,
-  collection: string,
-  key: string,
-  value: Readonly<Record<string, unknown>>,
-): boolean {
-  if (collection === "characters") {
-    return locationRoleDrafts(value["locationRoles"]).length > 0 ||
-      relationshipEditorRowsFor(dataset, key, true).length > 0;
-  }
-  return collection === "factions" && rankChainDrafts(value["rankChains"]).length > 0;
-}
-
-function structuredArticleContent(
-  dataset: CampaignDataset,
-  collection: string,
-  key: string,
-  value: Readonly<Record<string, unknown>>,
-) {
-  if (collection === "characters") {
-    const roles = locationRoleDrafts(value["locationRoles"]);
-    const relationships = relationshipEditorRowsFor(dataset, key, true);
-    const relationshipTypes = relationshipTypeOptionsFor(dataset);
-    return html`
-      ${roles.length === 0 ? nothing : html`
-        <section class="record-structured-section">
-          <h2 class="record-section-title">${uiText("Other location roles")}</h2>
-          <div class="article-structured-ledger">
-            ${roles.map((role) => html`
-              <div><strong>${resolveName(dataset, "locations", role.locationId) ?? role.locationId}</strong><span>${role.role || uiText("Role not specified")}</span></div>
-            `)}
-          </div>
-        </section>
-      `}
-      ${relationships.length === 0 ? nothing : html`
-        <section class="record-structured-section">
-          <h2 class="record-section-title">${uiText("Relationships")}</h2>
-          <div class="article-structured-ledger relationship-reading">
-            ${relationships.map((relationship) => {
-              const type = relationshipTypes.find(({ value: typeID }) => typeID === relationship.type);
-              const targetCollection = type?.targetCollection ?? (relationship.type === "mission" ? "locations" : "characters");
-              const targetName = resolveName(dataset, targetCollection, relationship.target) ?? relationship.target;
-              return html`
-                <div>
-                  <strong>${relationship.direction === "from" ? uiText("This character") : targetName}</strong>
-                  <span class="relationship-reading-arrow">→</span>
-                  <span>${relationship.label || type?.label || relationship.type}</span>
-                  <span class="relationship-reading-arrow">→</span>
-                  <strong>${relationship.direction === "from" ? targetName : uiText("This character")}</strong>
-                  ${relationship.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
-                </div>
-              `;
-            })}
-          </div>
-        </section>
-      `}
-    `;
-  }
-  if (collection === "factions") {
-    const chains = rankChainDrafts(value["rankChains"]);
-    if (chains.length === 0) return nothing;
-    const members = campaignCollection(dataset, "characters").records.map((record) => ({
-      key: record.key,
-      value: recordValue(record),
-    })).filter((member) => text(member.value["faction"]) === key);
-    return html`
-      <section class="record-structured-section">
-        <h2 class="record-section-title">${uiText("Rank chains")}</h2>
-        <div class="rank-chain-reading-grid">
-          ${chains.map((chain) => html`
-            <section>
-              <h3>${chain.name}</h3>
-              <ol>
-                ${chain.ranks.map((rank) => {
-                  const names = members.filter(({ value: member }) =>
-                    text(member["rankChain"]) === chain.id && text(member["rank"]) === rank
-                  ).map(({ key: memberKey, value: member }) => text(member["name"]) || memberKey);
-                  return html`<li><strong>${rank}</strong>${names.length === 0 ? nothing : html`<span>${names.join(", ")}</span>`}</li>`;
-                })}
-              </ol>
-            </section>
-          `)}
-        </div>
-      </section>
-    `;
-  }
-  return nothing;
-}
-
-function resolveName(dataset: CampaignDataset, collection: string, key: string): string | undefined {
-  const candidate = dataset.collections.find(({ name }) => name === collection);
-  const record = candidate?.records.find(({ key: recordKey }) => recordKey === key);
-  const value = recordValue(record);
-  return text(value["name"]) || undefined;
-}
-
 function printable(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   if (typeof value === "boolean") return value ? uiText("Yes") : uiText("No");
   if (Array.isArray(value)) return stringList(value).join(", ");
-  return "";
-}
-
-function referenceNames(dataset: CampaignDataset, collection: string, value: unknown): string {
-  const keys = typeof value === "string" ? [value] : stringList(value);
-  return keys.map((key) => collection === "factions" && key === "party"
-    ? campaignPartyIdentity(dataset).name : resolveName(dataset, collection, key) ?? key).filter(Boolean).join(", ");
-}
-
-function petOwnerName(dataset: CampaignDataset, value: Readonly<Record<string, unknown>>): string {
-  const ownerType = text(value["ownerType"]);
-  const ownerID = text(value["ownerId"]);
-  if (ownerType === "party") return campaignPartyIdentity(dataset).name;
-  if (ownerType === "character") return resolveName(dataset, "characters", ownerID) ?? ownerID;
-  if (ownerType === "faction") return resolveName(dataset, "factions", ownerID) ?? ownerID;
   return "";
 }
 

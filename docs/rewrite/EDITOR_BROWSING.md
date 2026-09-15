@@ -51,6 +51,33 @@ Explicit rule references such as `[[Shield|spell:shield]]` use the participating
 provider's public reference contract and [shared rule details](RULE_DETAILS.md).
 A source's display name is not a reliable record identity.
 
+## Connected article context
+
+Scalar and multi-record facts, relationship endpoints, additional location roles,
+rank members and companion owners are semantic links with separate edit actions.
+Targets resolve against the current authorized campaign snapshot. Unknown or
+deleted targets show an unavailable label without a guessed URL or retained
+identity; character names use the knowledge reading projection.
+
+Location articles derive bounded ancestor navigation, direct sublocations,
+connected places, present characters and event mentions. Cycles terminate with
+an explicit hierarchy notice. Character articles add event mentions and owned
+companions. Faction rosters include every matching member, including missing,
+unassigned or unmatched rank/chain assignments, alongside faction-owned companions.
+
+Context includes references to either side of an available reciprocal twin pair.
+Matching records group only when both counterpart records qualify; direct links
+continue to address the exact referenced identity. These are read projections,
+not copied lists, new ownership or additional authorization rules. Existing
+visibility filtering remains authoritative. Profile knowledge still controls
+when its associated sections appear.
+
+Live context refresh does not replace opening editor snapshots or inline drafts.
+Projection tests cover missing targets, cycles, knowledge labels, complete
+membership and grouping. Real-host desktop/phone tests cover player/DM visibility,
+connected navigation, ownership, relationships, English/Czech and an unrelated
+live update while a name draft remains open.
+
 ## Local Markdown recovery
 
 Every host record Markdown field, including the character profile wiki and

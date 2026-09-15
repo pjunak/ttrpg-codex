@@ -126,6 +126,9 @@ runtime or old data schemas.
 
 #### R04 — Reading a reference no longer lets the user follow it
 
+**R04–R06 resolved September 15 (T22):** semantic reference links and derived
+location/member/ownership context are restored. [Contract and tests](EDITOR_BROWSING.md#connected-article-context). These findings describe the original omissions.
+
 Old character, event, location and faction articles rendered linked chips.
 Current [`articleFacts`, `referenceNames` and `structuredArticleContent`](../../frontend/src/app/codex-record-page.ts)
 reduce many references to plain strings. The character profile's

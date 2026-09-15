@@ -46,11 +46,9 @@ contains the before/after comparisons for R01–R12 and screenshots for U01–U0
 
 - [x] **T21 — Repaired saved core URLs (September 15).** List/article/creation
   aliases preserve exact IDs, Back, sign-in and dirty drafts. [Contract and tests](rewrite/EDITOR_BROWSING.md#saved-core-urls).
-- [ ] **T22 / P2 — Restore connected article context.** R04–R06. Make references
-  navigable; show location ancestors/children/residents/events, complete faction
-  rosters including unranked members, event mentions and owned companions.
-  Derive from canonical, role-projected references. Hidden/deleted targets must
-  not leak or become dead links; live refresh must preserve dirty fields.
+- [x] **T22 — Restored connected article context (September 15).** Linked facts,
+  complete rosters, location surroundings and owned companions use current
+  role-projected data and preserve drafts. [Contract and tests](rewrite/EDITOR_BROWSING.md#connected-article-context).
 - [ ] **T23 / P2 — Restore contextual creation and direct editing.** R07.
   Add “Character here”, “Event here”, “Sub-location” and “New faction member”
   presets plus accessible card edit actions. Share T21/T22 route/reference
