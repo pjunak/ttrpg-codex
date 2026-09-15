@@ -349,7 +349,6 @@ healthy host endpoints. They remain linked to their authoritative backlog entrie
 | Existing task | Current evidence and required relationship to UI work |
 | --- | --- |
 | T19 campaign-bundle imports | No matching production provider/schema/route in host or DM Tools. Restore the host's exact reviewed transaction and reference allocation, exposed through DM Tools' existing Import Center. Planning-only import success is not campaign-bundle support. |
-| T10 worker health/recovery | Production search finds no caller of the supervisor health/restart-policy helpers. Wire coordinator monitoring/backoff and provider invalidation; pair it with T11 diagnostics and truthful retry/reload states. Do not replay uncertain writes. |
 | T08 reviewed migrations | When a released schema needs preservation, provide an exact reviewed migration, atomic commit, stale rejection and recovery. Explain incompatible schemas without hiding the preservation boundary. |
 | T11 worker/browser diagnostics | Finish actionable worker health/exit and browser activation/disposal information with bounded, redacted output and request correlation. T12 build identity and T13 full-backup guidance are completed in the backlog. |
 | T02 release CI; T18 broader acceptance | Local installed tests now pass, but release CI still does not feed all four ZIPs into the host browser suite. Keep session expiry, large campaigns, native targets and real-device checks explicit. |
@@ -369,6 +368,20 @@ companion ZIP cases skipped), along with lifecycle/HTTP race tests, all four
 companion contract suites and 33 release-check gates. This closes T09, not T02's
 complete publication matrix or T18's broader acceptance boundary. The
 [lifecycle contract](PACKAGE_LIFECYCLE.md#reload-and-disable) records the details.
+
+T10 is completed in `b74a30c` (September 16, 2026). Production now checks worker
+health and detects crashes, withdraws affected consumers before shutdown, and
+recovers exact selected packages with three bounded automatic attempts. Optional
+consumers work without providers and reconnect when they return; unrelated worker
+processes remain running. Exhaustion has an explicit Reload route. Startup,
+package-reinspection and transition-timeout failures consume the retry budget;
+shutdown cancels monitoring, and accepted manual recovery survives a browser
+disconnect. Domain writes are never replayed. Native crash/hang tests and focused
+coordinator regressions pass, as do the full host gate (385 frontend tests,
+248 browser passes, 22 optional companion ZIP skips), race checks, all four
+companion contract suites and 33 release gates. T11 richer diagnostics, T30
+forced-replacement draft recovery and T02 publication coverage remain open. See
+[worker supervision](WORKER_SUPERVISION.md#restart-policy) for defaults and limits.
 
 ### Coverage and validation from this continuation
 

@@ -38,11 +38,13 @@ not mean it has been pushed, deployed, or installed on a live site.
 - [x] ~~**T12 — GitHub package/build identity, release notes and compatibility reasons**~~ — `1905469`.
 - [x] ~~**T13 — Full-backup verification and offline restore guidance**~~ — `301bd9e`.
 - [x] ~~**T09 — Reviewed dependency-aware disabling and recovery**~~ — `9997306`.
+- [x] ~~**T10 — Worker monitoring, bounded retries and dependent recovery**~~ — `b74a30c`.
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
 [backup recovery](rewrite/BACKUP_RESTORE.md#deliberate-boundary),
 [reviewed disabling](rewrite/PACKAGE_LIFECYCLE.md#reload-and-disable),
+[worker recovery](rewrite/WORKER_SUPERVISION.md#restart-policy),
 and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 
 ### Backend and core workflows
@@ -87,7 +89,6 @@ All rows below remain open; completed archive-pruning implementation is omitted.
 | T06 | P2 | Offline unused-blob collection with live/recovery reference accounting, preview and resumability; shared media and restore must survive. [Blob store](../internal/storage/blobstore/store.go). |
 | T07 | P2 | Measure and bound stored SSE/lifecycle/audit logs separately; test replay/reset across retention boundaries. No silent expiry of authored data or existing archives. [Events](rewrite/EVENT_STREAM.md). |
 | T08 | P2, triggered | Implement reviewed migration orchestration when a released schema actually needs preservation: exact snapshot, atomic commit, stale rejection and recovery. The old-sheet reset does not imply a general converter. [Data lifecycle](rewrite/ADDON_DATA.md#remaining-public-surface). |
-| T10 | P2 | Wire production worker monitoring to the existing health/backoff helpers; test crashes, hangs, crash loops and shutdown. Invalidate dependent state and never replay uncertain writes. [Supervision](rewrite/WORKER_SUPERVISION.md). |
 | T11 | P2 | Expose actionable worker health/exit and browser activation/disposal diagnostics; preserve bounded, redacted output and request correlation. Existing review/activation UI stays. [Browser lifecycle](rewrite/BROWSER_ADDONS.md). |
 | T14-HOST | P2 | Coordinate CI/fixture consumers of generated add-on artifacts with each repository's T14 work below. Keep standalone deterministic package builds before removing tracked output. |
 | T15 | P1, operational | On an authorized release, refresh remote/deployment state, publish the chosen validated host/add-on commits, then verify served build identity, manager and full backup with the matching maintenance binary. Do not rely on old SHA snapshots. [Runbook](SELF_HOSTING.md#publishing-and-deploying-updates). |
@@ -258,7 +259,7 @@ Provider-free saved reading/notes/print/export remain required.
 | --- | --- | --- |
 | 1 | Preserve authored intent: DM T30; finish Engine T32 + Sheets T33. Start T02 alongside them. | Safe role/stale/error behavior; recoverable planning edits; incomplete character saves and bounded play work through the installed contract. |
 | 2 | Everyday use: Sheets T25, Compendium T31; establish host T34 before each add-on's T34 adoption; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
-| 3 | Imports and resilience: host + DM T19, host T10–T11; T08 only for a real schema-preservation need. | Exact reviewed transactions, understandable failures and safe provider/lifecycle recovery. |
+| 3 | Imports and resilience: host + DM T19, host T11; T08 only for a real schema-preservation need. | Exact reviewed transactions, understandable failures and safe provider/lifecycle recovery. |
 | 4 | Final integration: T02, relevant T18 cases and T29 measurements. | All four inspected ZIPs exercised without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
 | 5 | Authorized delivery T15–T17; independent maintenance T05–T07 and per-repo T14. | Exact served/installed builds verified; per-site data/retention choices recorded and rollback assets retained. |
 
