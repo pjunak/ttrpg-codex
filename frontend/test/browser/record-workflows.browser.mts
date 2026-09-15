@@ -321,3 +321,107 @@ for (const mobile of [false,true]) test(`connected articles support navigation, 
   await player.page.getByRole('heading',{name:'Podřízená místa',exact:true}).waitFor();
   assert.equal(await player.page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
 });
+
+for(const mobile of [false,true]) test(`related creation preserves associations and return pages on ${mobile?'phone':'desktop'}`, async t=>{
+  const suffix=mobile?'phone':'desktop', source='creation/'+suffix;
+  await put(admin,csrf,source,{name:'Creation source'});
+  const dm=await open(t,'dm',mobile);
+  for(const [action,name,collection,field] of [
+    ['Character here','Created resident','characters','location'],
+    ['Event here','Created event','events','locations'],
+    ['Sub-location','Created child','locations','parentId'],
+  ]) {
+    await dm.page.goto('/#/locations/'+encodeURIComponent(source));
+    if(process.env['CODEX_UI_SCREENSHOTS']==='1' && action==='Character here') await dm.page.screenshot({path:resolve(output,`creation-actions-${suffix}.png`),fullPage:true});
+    await dm.page.getByRole('link',{name:action!,exact:true}).click();
+    await dm.page.locator('form.record-editor input[name="name"]').fill(name!+' '+suffix);
+    await dm.page.getByRole('link',{name:/Back to Creation source/}).waitFor();
+    if(process.env['CODEX_UI_SCREENSHOTS']==='1' && action==='Character here') await dm.page.screenshot({path:resolve(output,`creation-form-${suffix}.png`),fullPage:true});
+    assert.equal(await dm.page.locator('select[name="'+field+'"]').inputValue(),source);
+    await dm.page.locator('form.record-editor').getByRole('button',{name:'Save entry',exact:true}).click();
+    await dm.page.getByRole('heading',{name:'Creation source',exact:true}).waitFor();
+    assert.equal(new URL(dm.page.url()).hash,'#/locations/'+encodeURIComponent(source));
+    const data=await jsonResponse(await admin.get('/api/campaign'));
+    const created=data.collections.find((item:FixtureCollection)=>item.name===collection).records.find((item:FixtureRecord)=>item.value.name===name+' '+suffix);
+    assert.ok(created); assert.deepEqual(created.value[field!],field==='locations'?[source]:source);
+  }
+  await put(admin,csrf,'creation-watch-'+suffix,{name:'Private creation watch',visibility:'dm'},0,'factions');
+  await dm.page.goto('/#/factions/creation-watch-'+suffix);
+  await dm.page.getByRole('link',{name:'New faction member',exact:true}).click();
+  await dm.page.locator('form.record-editor input[name="name"]').fill('Created member '+suffix);
+  assert.equal(await dm.page.locator('select[name="faction"]').inputValue(),'creation-watch-'+suffix);
+  assert.equal(await dm.page.locator('select[name="visibility"]').inputValue(),'dm');
+  await dm.page.locator('form.record-editor').getByRole('button',{name:'Save entry',exact:true}).click();
+  await dm.page.getByRole('heading',{name:'Private creation watch',exact:true}).waitFor();
+  await dm.page.locator('[data-context="members"]').getByRole('link',{name:'Created member '+suffix,exact:true}).waitFor();
+  await dm.page.goto('/#/locations/'+encodeURIComponent(source));
+  await dm.page.getByRole('link',{name:'Sub-location',exact:true}).click();
+  await dm.page.goBack(); await dm.page.getByRole('heading',{name:'Creation source',exact:true}).waitFor();
+  await dm.page.getByRole('link',{name:'Character here',exact:true}).click();
+  const name=dm.page.locator('form.record-editor input[name="name"]'); await name.fill('Kept after source deletion');
+  const parent=await record(source);
+  await jsonResponse(await admin.post('/api/campaign/transactions',{headers:{'X-Codex-CSRF':csrf},data:{contractVersion:'campaign-mutation.v1',
+    mutations:[{operation:'delete',collection:'locations',key:source,expectedRevision:parent.revision}]}}));
+  await dm.page.locator('.editor-article [role="alert"]').filter({hasText:'The starting entry is no longer available.'}).waitFor();
+  await dm.page.locator('form.record-editor').getByRole('button',{name:'Save entry',exact:true}).click();
+  assert.equal(await name.inputValue(),'Kept after source deletion');
+  assert.equal(JSON.stringify(await jsonResponse(await admin.get('/api/campaign'))).includes('Kept after source deletion'),false);
+  dm.page.once('dialog',dialog=>dialog.accept());
+  await dm.page.locator('form.record-editor').getByRole('button',{name:'Cancel',exact:true}).click();
+  await dm.page.getByRole('heading',{name:'Locations',exact:true}).waitFor();
+  await dm.page.evaluate(()=>localStorage.setItem('codex_lang','cs')); await dm.page.reload();
+  await dm.page.goto('/#/factions/creation-watch-'+suffix);
+  await dm.page.getByRole('link',{name:'Nový člen frakce',exact:true}).waitFor();
+});
+
+test('contextual creation retains its source through sign-in',async t=>{
+  await put(admin,csrf,'signin-source',{name:'Sign-in source'});
+  const visitor=await open(t);
+  await visitor.page.goto('/#/locations/signin-source');
+  await visitor.page.getByRole('link',{name:'Character here',exact:true}).click();
+  await visitor.page.locator('.editor-article').getByRole('button',{name:'Sign in',exact:true}).click();
+  const account=visitor.page.locator('.account-panel');
+  await account.locator('input[name="password"]').fill('local-record-workflows-player');
+  await account.getByRole('button',{name:'Sign in',exact:true}).click();
+  await visitor.page.locator('form.record-editor input[name="name"]').waitFor();
+  assert.equal(await visitor.page.locator('select[name="location"]').inputValue(),'signin-source');
+  await visitor.page.locator('form.record-editor').getByRole('button',{name:'Cancel',exact:true}).click();
+  await visitor.page.getByRole('heading',{name:'Sign-in source',exact:true}).waitFor();
+  await visitor.page.goto('/#/create/character-here/missing-source');
+  await visitor.page.getByRole('heading',{name:'Add character',exact:true}).waitFor();
+  assert.equal(await visitor.page.locator('form.record-editor').count(),0);
+});
+
+test('direct card editing keeps collection views, party return paths and stale drafts',async t=>{
+  await put(admin,csrf,'direct-edit',{name:'Direct editing town'});
+  await put(admin,csrf,'direct-party',{name:'Direct party member',faction:'party',knowledge:4},0,'characters');
+  const dm=await open(t,'dm');
+  const view='#/locations?q=Direct&sort=name';
+  await dm.page.goto('/'+view);
+  await dm.page.getByRole('link',{name:'Edit Direct editing town',exact:true}).waitFor();
+  if(process.env['CODEX_UI_SCREENSHOTS']==='1') {
+    await dm.page.setViewportSize({width:390,height:844});
+    await dm.page.screenshot({path:resolve(output,'collection-card-edit-phone.png'),fullPage:true});
+    assert.equal(await dm.page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await dm.page.setViewportSize({width:1440,height:1000});
+  }
+  const edit=dm.page.getByRole('link',{name:'Edit Direct editing town',exact:true}); await edit.focus(); await edit.press('Enter');
+  const name=dm.page.locator('form.record-editor input[name="name"]'); await name.fill('Direct renamed town');
+  await dm.page.locator('form.record-editor').getByRole('button',{name:'Save entry',exact:true}).click();
+  await dm.page.getByRole('heading',{name:'Locations',exact:true}).waitFor();
+  assert.equal(new URL(dm.page.url()).hash,view);
+  await dm.page.getByRole('link',{name:'Edit Direct renamed town',exact:true}).click(); await name.fill('Stale direct draft');
+  const current=await record('direct-edit');
+  await put(admin,csrf,'direct-edit',{...current.value,description:'Changed elsewhere'},current.revision);
+  await dm.page.locator('form.record-editor').getByRole('button',{name:'Save entry',exact:true}).click();
+  await dm.page.getByText('The entry or its relationships changed.',{exact:false}).waitFor();
+  assert.equal(await name.inputValue(),'Stale direct draft');
+  dm.page.once('dialog',dialog=>dialog.accept());
+  await dm.page.locator('form.record-editor').getByRole('button',{name:'Cancel',exact:true}).click();
+  await dm.page.goto('/#/party');
+  await dm.page.getByRole('link',{name:'Edit Direct party member',exact:true}).click();
+  await dm.page.locator('form.record-editor').getByRole('button',{name:'Cancel',exact:true}).click();
+  await dm.page.locator('#party-title').waitFor(); assert.equal(new URL(dm.page.url()).hash,'#/party');
+  assert.equal(await dm.page.getByText('The entry or its relationships changed.',{exact:false}).count(),0);
+  if(process.env['CODEX_UI_SCREENSHOTS']==='1') await dm.page.screenshot({path:resolve(output,'direct-card-edit.png'),fullPage:true});
+});

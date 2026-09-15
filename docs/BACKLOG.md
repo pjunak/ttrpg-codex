@@ -49,11 +49,9 @@ contains the before/after comparisons for R01–R12 and screenshots for U01–U0
 - [x] **T22 — Restored connected article context (September 15).** Linked facts,
   complete rosters, location surroundings and owned companions use current
   role-projected data and preserve drafts. [Contract and tests](rewrite/EDITOR_BROWSING.md#connected-article-context).
-- [ ] **T23 / P2 — Restore contextual creation and direct editing.** R07.
-  Add “Character here”, “Event here”, “Sub-location” and “New faction member”
-  presets plus accessible card edit actions. Share T21/T22 route/reference
-  helpers; preserve the return page and intended association through sign-in,
-  save/cancel, parent deletion and Back. Cancellation creates no placeholder.
+- [x] **T23 — Restored contextual creation and direct editing (September 15).**
+  Presets retain associations, visibility and return pages; source deletion,
+  sign-in, cancellation and stale drafts are covered. [Contract and tests](rewrite/EDITOR_BROWSING.md#contextual-creation-and-direct-editing).
 - [ ] **T24 / P2 — Restore investigation status and the unanswered queue.** R08.
   Combine mystery/character questions with source navigation, answer history
   and open/total badges. Derive solved state from a manual override or a nonempty

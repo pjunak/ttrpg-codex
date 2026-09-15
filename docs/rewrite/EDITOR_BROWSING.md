@@ -78,6 +78,38 @@ membership and grouping. Real-host desktop/phone tests cover player/DM visibilit
 connected navigation, ownership, relationships, English/Czech and an unrelated
 live update while a name draft remains open.
 
+## Contextual creation and direct editing
+
+Location articles offer **Character here**, **Event here** and **Sub-location**;
+faction articles offer **New faction member**. These typed creation routes carry
+an exact source key through sign-in. The current form preselects the canonical
+location, locations list, parent or faction field and inherits the source's
+opening public/DM visibility. Fields remain editable. Event presets begin at
+session 1, which can be changed before saving.
+
+Creation retains the opening campaign snapshot. Save rechecks source availability
+and uses the ordinary field/reference validation and transaction path. A deleted
+or newly unavailable source blocks saving while retaining the draft. Cancel
+creates no placeholder; it returns to the source when available or the source
+collection otherwise. A confirmed save returns to the source and its derived
+context shows the created record. Creation does not add a separate data store or
+copy source text into the new entry.
+
+Collection rows and party/companion cards provide separate accessible edit links.
+The shared record form supports all record collections, keeps the starting
+collection's filter/sort URL or party/overview destination, and returns there
+after Save or Cancel. Cancelling also clears the abandoned form’s save warning.
+Direct edit links select the host profile even when an
+add-on article was previously selected. Anonymous edit bookmarks retain their
+destination through sign-in. Return destinations are a finite set of internal
+overview/party/timeline/collection routes; external and nested edit destinations
+are rejected. Dirty and pending-save navigation guards remain shared.
+
+Route/preset tests cover exact encoded keys, visibility defaults, missing sources
+and bounded return destinations. Real-host tests cover every preset, sign-in,
+Save/Cancel/Back, source deletion, private factions, keyboard card editing, stale
+edits, preserved collection views, desktop/phone and translated actions.
+
 ## Local Markdown recovery
 
 Every host record Markdown field, including the character profile wiki and

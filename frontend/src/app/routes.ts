@@ -24,6 +24,14 @@ export const campaignPages: readonly CampaignPageDefinition[] = Object.freeze([
   page("companions", "pets", "Companion", "Companions", "🐾", "campaign"),
 ]);
 
+export const contextCreationActions = {
+  "character-here": {source: "locations", target: "characters", field: "location"},
+  "event-here": {source: "locations", target: "events", field: "locations"},
+  "sub-location": {source: "locations", target: "locations", field: "parentId"},
+  "faction-member": {source: "factions", target: "characters", field: "faction"},
+} as const;
+export type ContextCreationAction = keyof typeof contextCreationActions;
+
 export type AppRoute =
   | { readonly kind: "dashboard" }
   | { readonly kind: "dm" }
@@ -34,10 +42,10 @@ export type AppRoute =
   | { readonly kind: "map"; readonly parentId: string | null;
       readonly event?: { readonly key: string; readonly mode: "show" | "place" };
       readonly location?: { readonly key: string; readonly mode: "show" | "place" } }
-  | { readonly kind: "create"; readonly page: CampaignPageDefinition; readonly preset: "blank" | "party" | "event"; readonly sitting?: number }
+  | { readonly kind: "create"; readonly page: CampaignPageDefinition; readonly preset: "blank" | "party" | "event" | "context"; readonly sitting?: number; readonly context?: {readonly action: ContextCreationAction; readonly key: string} }
   | { readonly kind: "settings"; readonly mapParentId?: string | null; readonly addonId?: string | null; readonly generationId?: string }
   | { readonly kind: "collection"; readonly page: CampaignPageDefinition; readonly view?: string }
-  | { readonly kind: "record"; readonly page: CampaignPageDefinition; readonly key: string; readonly editing?: boolean }
+  | { readonly kind: "record"; readonly page: CampaignPageDefinition; readonly key: string; readonly editing?: boolean; readonly returnTo?: string }
   | { readonly kind: "addon" }
   | { readonly kind: "not-found"; readonly path: string };
 
@@ -66,11 +74,36 @@ export function canonicalAppHash(hash: string): string {
 }
 
 export function createReturnHash(route: Extract<AppRoute, {kind: "create"}>): string {
+  if (route.context) return recordHash(campaignPages.find(page => page.collection === contextCreationActions[route.context!.action].source)!, route.context.key);
   return route.preset === "party" ? "#/party" : route.preset === "event" ? "#/timeline" : collectionHash(route.page);
 }
 
 export function parseAppRoute(hash: string): AppRoute {
   hash = canonicalAppHash(hash);
+  const contextual = /^#\/create\/([a-z-]+)\/([^/?]+)$/u.exec(hash);
+  if (contextual && Object.hasOwn(contextCreationActions, contextual[1]!)) {
+    try {
+      const key = decodeURIComponent(contextual[2]!);
+      if (key && !/\p{Cc}/u.test(key)) {
+        const action = contextual[1] as ContextCreationAction;
+        return {kind: "create", preset: "context", context: {action, key},
+          page: campaignPages.find(page => page.collection === contextCreationActions[action].target)!};
+      }
+    } catch { /* Malformed links remain unavailable. */ }
+    return {kind: "not-found", path: hash};
+  }
+  const edit = /^#\/([^/?]+)\/([^/?]+)\/edit(?:\?([^#]*))?$/u.exec(hash);
+  if (edit) {
+    try {
+      const page = campaignPages.find(page => page.id === edit[1]), key = decodeURIComponent(edit[2]!);
+      const params = new URLSearchParams(edit[3]), returnTo = params.get("return") ?? undefined;
+      if (page && key && !/\p{Cc}/u.test(key) && [...params.keys()].every(key => key === "return") &&
+        params.getAll("return").length <= 1 && (returnTo === undefined || validEditorReturnHash(returnTo))) {
+        return {kind: "record", page, key, editing: true, ...(returnTo ? {returnTo} : {})};
+      }
+    } catch { /* Malformed links remain unavailable. */ }
+    return {kind: "not-found", path: hash};
+  }
   const create = /^#\/create\/([^/]+)$/u.exec(hash);
   if (create) {
     const page = campaignPages.find(page => page.id === create[1]);
@@ -144,8 +177,7 @@ export function parseAppRoute(hash: string): AppRoute {
   const path = hash.startsWith("#/") ? hash.slice(2) : hash;
   const [pageID, encodedKey, ...rest] = path.split("/");
   const definition = campaignPages.find((candidate) => candidate.id === pageID);
-  const editing = pageID === "events" && rest.length === 1 && rest[0] === "edit";
-  if (definition === undefined || rest.length > 0 && (!editing || !encodedKey)) {
+  if (definition === undefined || rest.length > 0) {
     return { kind: "not-found", path };
   }
   if (encodedKey === undefined || encodedKey === "") {
@@ -155,7 +187,7 @@ export function parseAppRoute(hash: string): AppRoute {
     const key = decodeURIComponent(encodedKey);
     return key === "" || /\p{Cc}/u.test(key)
       ? { kind: "not-found", path }
-      : { kind: "record", page: definition, key, ...(editing ? { editing: true } : {}) };
+      : { kind: "record", page: definition, key };
   } catch {
     return { kind: "not-found", path };
   }
@@ -184,6 +216,19 @@ export function locationMapHash(parentId: string | null, key: string, mode: "sho
 }
 export function mapSettingsHash(parentId: string | null): string {
   return parentId === null ? "#/settings/maps" : `#/settings/maps/local/${encodeURIComponent(parentId)}`;
+}
+
+export function contextualCreateHash(action: ContextCreationAction, key: string): string {
+  return `#/create/${action}/${encodeURIComponent(key)}`;
+}
+export function recordEditHash(page: CampaignPageDefinition, key: string, returnTo?: string): string {
+  return `${recordHash(page, key)}/edit${returnTo && validEditorReturnHash(returnTo) ? "?return=" + encodeURIComponent(returnTo) : ""}`;
+}
+function validEditorReturnHash(hash: string): boolean {
+  if (["#/", "#/party", "#/timeline"].includes(hash)) return true;
+  if (hash.length > 64_000) return false;
+  const match = /^#\/([^/?]+)(?:\?[^#]*)?$/u.exec(hash);
+  return !!match && campaignPages.some(page => page.id === match[1]);
 }
 
 export function recordHash(page: CampaignPageDefinition, key: string): string {

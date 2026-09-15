@@ -176,6 +176,9 @@ Old evidence: [`unchained`, rank rows and `_petsArticleSection`](https://github.
 
 #### R07 — Creation no longer carries the user's current context
 
+**Resolved September 15 (T23):** typed contextual presets and direct card editing
+now retain source/return routes and draft safeguards. [Contract and tests](EDITOR_BROWSING.md#contextual-creation-and-direct-editing). The finding below is historical.
+
 Old location pages offered “Character here”, “Event here” and “Sub-location”;
 faction pages offered a new member, and collection cards had edit pencils.
 These were bound actions, not unused helpers. Current creation presets in

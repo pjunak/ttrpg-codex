@@ -1,3 +1,4 @@
+import { contextualCreationFields, creationSource, creationBackHash } from "./context-creation.js";
 import { articleContext, articleOwner, articleReferences } from "./article-context.js";
 import { renderArticleContext, renderArticleReferences } from "./article-context-view.js";
 import { editorValue, recordFieldControl } from "./record-field-controls.js";
@@ -45,7 +46,7 @@ import {
   text,
   type EntitySummary,
 } from "./campaign-projection.js";
-import { createReturnHash, collectionHash, mapHash, eventMapHash, locationMapHash, type AppRoute } from "./routes.js";
+import { contextCreationActions, contextualCreateHash, recordEditHash, recordHash, collectionHash, mapHash, eventMapHash, locationMapHash, type ContextCreationAction, type AppRoute } from "./routes.js";
 import { eventMapParent, hasEventPin, mapParent, mapCoordinate } from "./campaign-map.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
@@ -166,9 +167,13 @@ export class CodexRecordPage extends LitElement {
     if (this.campaign === undefined || this.route === undefined) return nothing;
     const campaign = this.#editorCampaign;
     if (this.route.kind === "create") {
+      const source = creationSource(this.route, this.#editorCampaign);
+      const liveSource = creationSource(this.route, this.campaign);
       return html`<article class="record-article editor-article" aria-labelledby="record-editor-title">
-        <a href=${createReturnHash(this.route)} class="breadcrumb-link">${this.route.preset === "party" ? uiText("Back to party") : this.route.preset === "event" ? this.#ui.t("timeline.back") : this.route.page.plural}</a>
-        ${this.canEdit ? this.#editorForm(undefined, this.route) : html`
+        <a href=${creationBackHash(this.route, this.campaign)} class="breadcrumb-link">${source ? uiText("creation.back", {"0": liveSource?.record ? text(recordValue(liveSource.record)["name"]) || source.page.plural : source.page.plural}) : this.route.preset === "party" ? uiText("Back to party") : this.route.preset === "event" ? this.#ui.t("timeline.back") : this.route.page.plural}</a>
+        ${source?.record ? html`<p class="creation-context">${uiText("creation.from")} <a class="article-reference" href=${creationBackHash(this.route, this.campaign)}>${text(recordValue(source.record)["name"]) || source.page.singular}</a></p>` : nothing}
+        ${source && !liveSource?.record ? html`<p role="alert">${uiText("creation.unavailable")}</p>` : nothing}
+        ${source && !source.record ? html`<h1 id="record-editor-title">${uiText("Add {0}", {"0": this.route.page.singular.toLocaleLowerCase()})}</h1>` : this.canEdit ? this.#editorForm(undefined, this.route) : html`
           <h1 id="record-editor-title">${this.route.preset === "party" ? uiText("Add party member") : uiText("Add {0}", {"0": this.route.page.singular.toLocaleLowerCase()})}</h1>
           <button type="button" @click=${() => this.dispatchEvent(new CustomEvent("campaign-sign-in", { bubbles: true, composed: true }))}>${uiText("Sign in")}</button>
         `}
@@ -205,7 +210,7 @@ export class CodexRecordPage extends LitElement {
         </header>
         ${this.editor === "create" ? this.#editorForm(undefined, route) : nothing}
         <codex-collection-browser .model=${collectionModel(this.campaign!, route.page)} .view=${this.collectionView}
-          .renderEntry=${(entity: EntitySummary) => recordRow(entity, route.page.icon)} .storageUnavailable=${this.viewStorageUnavailable}
+          .renderEntry=${(entity: EntitySummary) => recordRow(entity, route.page.icon, this.canEdit ? recordEditHash(route.page, entity.key, route.view === undefined ? collectionHash(route.page) : `${collectionHash(route.page)}?${route.view}`) : undefined)} .storageUnavailable=${this.viewStorageUnavailable}
           @collection-view-change=${this.#changeCollectionView}></codex-collection-browser>
         ${this.canEdit ? html`<codex-local-drafts .campaign=${this.campaign} .page=${route.page} .actorRole=${this.actorRole}></codex-local-drafts>` : nothing}
       </article>
@@ -229,10 +234,15 @@ export class CodexRecordPage extends LitElement {
     const entity = projectEntity(dataset, record, route.page);
     if (entity === undefined) return nothing;
     const value = recordValue(record);
+    if (route.editing && !this.canEdit) return html`<article class="record-article editor-article">
+      <a class="breadcrumb-link" href=${route.returnTo ?? recordHash(route.page, route.key)}>${route.page.plural}</a>
+      <h1>${uiText("Edit {0}", {"0": entity.name})}</h1>
+      <button type="button" @click=${() => this.dispatchEvent(new CustomEvent("campaign-sign-in", {bubbles:true, composed:true}))}>${uiText("Sign in")}</button>
+    </article>`;
     if (this.editor === "edit") {
       return html`
         <article class="record-article editor-article" aria-labelledby="record-editor-title">
-          <a href=${route.page.collection === "events" ? "#/timeline" : collectionHash(route.page)} class="breadcrumb-link">${route.page.collection === "events" ? this.#ui.t("timeline.back") : route.page.plural}</a>
+          <a href=${route.returnTo ?? (route.page.collection === "events" ? "#/timeline" : collectionHash(route.page))} class="breadcrumb-link">${route.returnTo ? uiText("creation.backPage") : route.page.collection === "events" ? this.#ui.t("timeline.back") : route.page.plural}</a>
           ${this.#editorForm(record, route)}
           ${this.coreSaved ? html`<p role="status">${this.#ui.t("recordAddons.coreSaved")}</p>` : nothing}
           <codex-record-contributions .registry=${this.registry} .actorRole=${this.actorRole}
@@ -267,7 +277,8 @@ export class CodexRecordPage extends LitElement {
       <article class="record-article" aria-labelledby="record-title">
         ${this.#linkFailure()}
         ${twins}
-        <a href=${route.page.collection === "events" ? "#/timeline" : collectionHash(route.page)} class="breadcrumb-link">${route.page.collection === "events" ? this.#ui.t("timeline.back") : route.page.plural}</a>
+        <a href=${route.returnTo ?? (route.page.collection === "events" ? "#/timeline" : collectionHash(route.page))} class="breadcrumb-link">${route.returnTo ? uiText("creation.backPage") : route.page.collection === "events" ? this.#ui.t("timeline.back") : route.page.plural}</a>
+        ${this.#contextCreationLinks(route)}
         <div class="record-reading-layout">
           <aside class="record-side">
             <header class="record-masthead">
@@ -346,6 +357,13 @@ export class CodexRecordPage extends LitElement {
     `;
   }
 
+  #contextCreationLinks(route: Extract<RecordRoute, {kind: "record"}>) {
+    const labels = {"character-here":"creation.character", "event-here":"creation.event", "sub-location":"creation.child", "faction-member":"creation.member"} as const;
+    const actions = (Object.keys(contextCreationActions) as ContextCreationAction[]).filter(action => contextCreationActions[action].source === route.page.collection);
+    return actions.length ? html`<nav class="context-create-actions" aria-label=${uiText("creation.related")}>${actions.map(action =>
+      html`<a class="record-action" href=${contextualCreateHash(action, route.key)}>${uiText(labels[action])}</a>`)}</nav>` : nothing;
+  }
+
   readonly #changeCollectionView = (event: CustomEvent<CollectionView>): void => {
     event.stopPropagation();
     if (this.route?.kind !== "collection") return;
@@ -357,7 +375,9 @@ export class CodexRecordPage extends LitElement {
   #editorForm(record: CampaignRecord | undefined, route: RecordRoute) {
     const fields = editorFieldsFor(route.page.collection, this.canManageVisibility);
     const statusField = fields.find(({ key }) => key === "status");
-    const value: Readonly<Record<string, unknown>> = record === undefined && route.kind === "create" && route.preset === "party"
+    const value: Readonly<Record<string, unknown>> = record === undefined && route.kind === "create" && route.context
+      ? contextualCreationFields(route, this.#editorCampaign)
+      : record === undefined && route.kind === "create" && route.preset === "party"
       ? { faction: "party", knowledge: 4, status: statusField !== undefined &&
           editorOptionsFor(this.#editorCampaign, statusField, "").some(({ value }) => value === "alive") ? "alive" : "" }
       : record === undefined && route.kind === "create" && route.preset === "event" ? { sitting: route.sitting ?? 1 } : recordValue(record);
@@ -546,11 +566,12 @@ export class CodexRecordPage extends LitElement {
     const edits = this.registry?.edits.state();
     if (!this.saving && !edits?.saving && confirmDiscardUnsavedEdit(this.#dirty || edits?.dirty === true, (message) => window.confirm(message))) {
       this.querySelectorAll<CodexMarkdownEditor>("codex-markdown-editor").forEach(editor => editor.discardDraft());
+      this.dispatchEvent(new CustomEvent("campaign-record-reset", {bubbles: true, composed: true}));
       this.#setDirty(false);
       this.editor = "closed";
       this.#resetEditors();
-      if (this.route?.kind === "create") window.location.hash = createReturnHash(this.route);
-      else if (this.route?.kind === "record" && this.route.editing) window.location.hash = "#/timeline";
+      if (this.route?.kind === "create") window.location.hash = creationBackHash(this.route, this.campaign!);
+      else if (this.route?.kind === "record" && this.route.editing) window.location.hash = this.route.returnTo ?? (this.route.page.collection === "events" ? "#/timeline" : recordHash(this.route.page, this.route.key));
     }
   };
 
@@ -668,8 +689,8 @@ export class CodexRecordPage extends LitElement {
   };
 }
 
-function recordRow(entity: EntitySummary, fallback: string) {
-  return html`
+function recordRow(entity: EntitySummary, fallback: string, editHref?: string) {
+  return html`<div class="record-row-shell">
     <a class="record-row" href=${entity.route}>
       ${entity.portrait === undefined
         ? recordPlaceholder(entity, fallback, "record-row-mark")
@@ -686,8 +707,8 @@ function recordRow(entity: EntitySummary, fallback: string) {
         ${entity.excerpt === "" || entity.route.startsWith("#/characters/") ? nothing : html`<small>${entity.excerpt}</small>`}
       </span>
       ${entity.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
-    </a>
-  `;
+    </a>${editHref ? html`<a class="record-row-edit record-action" href=${editHref} aria-label=${uiText("Edit {0}", {"0": entity.name})}>${uiText("Edit")}</a>` : nothing}
+  </div>`;
 }
 
 function recordPlaceholder(entity: EntitySummary, fallback: string, className: string) {

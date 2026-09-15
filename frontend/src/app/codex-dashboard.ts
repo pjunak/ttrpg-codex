@@ -7,9 +7,9 @@ import {
   type DashboardModel,
   type EntitySummary,
 } from "./campaign-projection.js";
-import { campaignPages } from "./routes.js";
+import { campaignPages, parseAppRoute, recordEditHash } from "./routes.js";
 import { describeActivity } from "./campaign-activity.js";
-import { UiLocalizationController } from "./ui-localization.js";
+import { uiText, UiLocalizationController } from "./ui-localization.js";
 import { campaignIdentityRecord, type CampaignIdentityField, type CampaignIdentitySaveDetail } from "./campaign-identity.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 
@@ -18,7 +18,7 @@ export class CodexDashboard extends LitElement {
     campaign: { attribute: false },
     partyOnly: { type: Boolean },
     canManageCampaign: { type: Boolean },
-    authenticated: { type: Boolean },
+    authenticated: { type: Boolean }, canEdit: { type: Boolean },
     saving: { type: Boolean },
     editCompletion: { type: Number },
     editing: { state: true },
@@ -28,6 +28,7 @@ export class CodexDashboard extends LitElement {
   declare partyOnly: boolean;
   declare canManageCampaign: boolean;
   declare authenticated: boolean;
+  declare canEdit: boolean;
   declare saving: boolean;
   declare editCompletion: number;
   declare private editing: CampaignIdentityField | undefined;
@@ -42,7 +43,7 @@ export class CodexDashboard extends LitElement {
     this.campaign = undefined;
     this.partyOnly = false;
     this.canManageCampaign = false;
-    this.authenticated = false;
+    this.authenticated = false; this.canEdit = false;
     this.saving = false;
     this.editCompletion = 0;
     this.editing = undefined;
@@ -211,26 +212,32 @@ export class CodexDashboard extends LitElement {
     `;
   }
 
+  #cardEdit(entity: EntitySummary) {
+    const route = parseAppRoute(entity.route);
+    return this.canEdit && route.kind === "record" ? html`<a class="record-action party-card-edit"
+      href=${recordEditHash(route.page, route.key, this.partyOnly ? "#/party" : "#/")} aria-label=${uiText("Edit {0}", {"0":entity.name})}>${uiText("Edit")}</a>` : nothing;
+  }
+
   #partyMember(member: EntitySummary) {
-    return html`
+    return html`<div class="party-record-card">
       <a class="party-member" href=${member.route}>
         ${portrait(member)}
         <span class="party-member-copy">
           <strong>${member.status === "" ? nothing : html`<i class=${`status-mark status-${safeToken(member.status)}`} title=${member.statusLabel}></i>`}${member.name}</strong>
           ${member.title === "" ? nothing : html`<span>${member.title}</span>`}
         </span>
-      </a>
-    `;
+      </a>${this.#cardEdit(member)}
+    </div>`;
   }
 
   #companion(companion: EntitySummary) {
-    return html`
+    return html`<div class="party-record-card">
       <a class="companion" href=${companion.route}>
         <span class="companion-mark" aria-hidden="true">${companion.portrait === undefined ? companion.icon ?? "🐾" : html`<img src=${previewResourceURL(companion.portrait)} alt="" loading="lazy" />`}</span>
         <strong>${companion.name}</strong>
         ${companion.title === "" ? nothing : html`<span>${companion.title}</span>`}
-      </a>
-    `;
+      </a>${this.#cardEdit(companion)}
+    </div>`;
   }
 
   #lastSession(model: DashboardModel) {

@@ -86,6 +86,7 @@ import { AddonLinksController } from "./addon-links-controller.js";
 import { bindRuleDetails } from "./codex-addon-rule-details.js";
 import "./codex-search.js";
 import { rememberRecentRecord } from "./recent-records.js";
+import { creationBackHash, creationSource } from "./context-creation.js";
 import { containDialogTab } from "./dialog-focus.js";
 import "./codex-settings.js";
 import "./codex-addon-markdown.js";
@@ -978,7 +979,7 @@ export class CodexApp extends LitElement {
       case "dashboard":
       case "party":
         return html`<codex-dashboard .campaign=${campaign} .partyOnly=${this.route.kind === "party"}
-          .authenticated=${this.#authenticated()} .canManageCampaign=${this.#canManageCampaign()}
+          .authenticated=${this.#authenticated()} .canManageCampaign=${this.#canManageCampaign()} .canEdit=${this.#canEdit()}
           .saving=${this.busy} .editCompletion=${this.editCompletion}
           @campaign-edit-dirty=${this.#onEditDirty} @campaign-identity-save=${this.#saveCampaignIdentity}
           @campaign-sign-in=${this.#showSignIn}
@@ -1022,6 +1023,7 @@ export class CodexApp extends LitElement {
           .saving=${this.busy}
           .editCompletion=${this.editCompletion}
           @campaign-edit-dirty=${this.#onEditDirty}
+          @campaign-record-reset=${() => { this.errorMessage = ""; }}
           @campaign-record-save=${this.#saveCampaignRecord}
           @campaign-twin=${this.#mutateTwin}
           @campaign-collection-view=${(event: CustomEvent<{ hash: string }>) => {
@@ -1152,6 +1154,11 @@ export class CodexApp extends LitElement {
     if (this.busy || this.#request === undefined || !this.#canEdit() ||
       this.authority.state !== "known" || !this.authority.auth.authenticated ||
       this.campaignState.state !== "ready") return;
+    const creationRoute = this.route.kind === "create" && this.route.context ? this.route : undefined;
+    const returnTo = this.route.kind === "record" && this.route.editing ? this.route.returnTo : undefined;
+    if (creationRoute && !creationSource(creationRoute, this.campaignState.campaign)?.record) {
+      this.errorMessage = uiText("creation.unavailable"); return;
+    }
     let prepared: PreparedCampaignRecordTransaction;
     try {
       prepared = prepareCampaignRecordSave(
@@ -1180,7 +1187,7 @@ export class CodexApp extends LitElement {
       await this.#loadCampaign(this.#request.signal, true);
       this.#editDirty = false;
       this.editCompletion += 1;
-      if (!this.#addons?.contributions.edits.state().dirty && !this.#addons?.contributions.edits.state().saving) window.location.hash = recordHash(prepared.page, event.detail.key);
+      if (!this.#addons?.contributions.edits.state().dirty && !this.#addons?.contributions.edits.state().saving) window.location.hash = creationRoute && this.campaignState.state === "ready" ? creationBackHash(creationRoute, this.campaignState.campaign) : returnTo ?? recordHash(prepared.page, event.detail.key);
     } catch (cause: unknown) {
       if (!this.#request.signal.aborted) {
         this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409
@@ -1562,6 +1569,7 @@ function anonymousAuth(): AuthState {
 
 function preferredCharacterView(hash: string): "profile" | "addons" {
   const route = parseAppRoute(hash);
+  if (route.kind === "record" && route.editing) return "profile";
   try {
     if (route.kind === "record" && route.page.collection === "characters" &&
       window.sessionStorage.getItem(`codex:character-view:${route.key}`) === "addons") return "addons";
