@@ -1,5 +1,5 @@
 import { investigationStatus } from "./campaign-investigation.js";
-import { characterReadingValue } from "./character-reading.js";
+import { characterKnowledge, characterReadingValue } from "./character-reading.js";
 import { groupTwinRecords } from "./campaign-twins.js";
 import { isRecord } from "../core/boundary.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
@@ -53,6 +53,7 @@ export function collectionModel(dataset: CampaignDataset, page: CampaignPageDefi
     const entity = page.collection === "characters" ? { ...original, raw: characterReadingValue(original.raw) }
       : page.collection === "mysteries" ? { ...original, raw: { ...original.raw, solved: investigationStatus(original.raw).solved } } : original;
     const facets = new Map<string, readonly string[]>();
+    if (page.collection === "characters") facets.set("roster", characterKnowledge(original.raw) < 2 ? [""] : [entity.partyIdentity ? "party" : "npc"]);
     const sortValues = new Map<string, string | number | undefined>([["name", entity.name], ["updatedAt", entity.updatedAt ? Date.parse(entity.updatedAt) : undefined]]);
     const labels: string[] = [];
     for (const field of facetFields) {
@@ -80,6 +81,9 @@ export function collectionModel(dataset: CampaignDataset, page: CampaignPageDefi
     multiple: ["references", "tags", "attitudes"].includes(field.kind),
     choices: [...choices.get(field.key)!].map(([value, label]) => ({ value, label, count: counts.get(field.key)!.get(value) ?? 0 }))
       .sort((a, b) => collator.compare(a.label, b.label) || a.value.localeCompare(b.value)) })) };
+  if (page.collection === "characters") result.facets.push({key:"roster", label:uiText("browse.roster"), multiple:false,
+    choices: ["npc","party",""].map(value => ({value, label:uiText(value === "party" ? "browse.rosterParty" : value === "npc" ? "browse.rosterNPC" : "browse.rosterUnknown"),
+      count:entries.filter(entry => entry.facets.get("roster")?.includes(value)).length}))});
   const cache = models.get(dataset) ?? new Map<string, CollectionModel>();
   cache.set(key, result); models.set(dataset, cache);
   return result;

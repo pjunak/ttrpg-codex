@@ -137,6 +137,43 @@ shapes, source immutability, effective facet counts, Czech search, knowledge and
 twin links. Real-host desktop/phone tests cover articles, cards, source editing
 and Cancel, manual overrides, answers, role filtering and Czech labels.
 
+## Compact reading and save feedback
+
+Missing artwork uses a compact identity mark in articles and collection cards.
+Real portraits retain their 3:4 presentation. Character cards show their authored
+summary, status and visible party identity. Filled profile facts stay directly
+editable; missing facts and connections are grouped under **Add details and
+connections**. They keep their opening snapshots while editing and return focus
+to their field control after Save or Escape.
+
+The character collection intentionally defaults to **All characters**. Explicit
+**NPCs** and **Party members** controls use the same saved filter state as the
+other facets. Unrevealed character membership is not used by either restricted
+roster filter; those entries remain available under All characters. Source
+records and the dedicated Party page are unchanged.
+
+Search and filter access stay visible. Sort/direction/group controls are inside
+**Sort and group**, whose summary describes the applied view and opens for a
+saved nondefault view. Applying preserves focus and open record drafts. Mysteries
+also has a keyboard-accessible shortcut to the combined question queue.
+
+Host forms label unsaved changes, pending saves and failures near Save/Cancel;
+a confirmed record transaction shows a campaign-save confirmation at its return
+destination. It clears on subsequent editing or navigation. Profile feedback
+prioritizes any pending write, failed write or unsaved text over an older success
+message. Local Markdown recovery continues to describe a device copy separately.
+Cancelling a failed field, panel or wiki edit clears its abandoned error state;
+a cancelled wiki conflict no longer prevents a fresh edit from saving.
+
+Real-host tests compare sparse/rich articles and collection cards at 390px and
+desktop in Classic/Moonlit and English/Czech, with valid uploaded artwork,
+keyboard disclosures, retained views, focus, and 200% CSS zoom. Existing
+navigation/stale/pending/uncertain-response editor suites remain required.
+The new save-feedback cases cover delayed writes, stale failure, retained drafts
+and Cancel; fixture regressions cover cancelling a wiki conflict and saving a
+fresh draft. Human screen-reader and physical-touch acceptance remain part of
+T18-HOST; these automated checks do not claim to replace them.
+
 ## Local Markdown recovery
 
 Every host record Markdown field, including the character profile wiki and
@@ -204,7 +241,8 @@ draft formats are not read or deleted.
 All nine core record collections use one browsing component. The default is
 all accessible entries, name ascending, with no grouping or filters. A native
 search input, sort and direction menus, and optional group menu form the common
-toolbar. Additional filters are collapsed initially. Users choose a category
+toolbar; sort, direction and grouping are disclosed under **Sort and group**.
+Additional filters are collapsed initially. Users choose a category
 and value, add visible removable chips, then **Apply view**. Applying preserves
 keyboard focus and an open new-entry form. Removing a chip or clearing filters
 applies that change immediately. Clear removes query and filters while keeping

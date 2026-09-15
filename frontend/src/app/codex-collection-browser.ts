@@ -43,6 +43,16 @@ export class CodexCollectionBrowser extends LitElement {
         <div class="collection-query"><label for=${`${this.#id}-query`}>${uiText("browse.search")}</label><input id=${`${this.#id}-query`} aria-describedby=${`${this.#id}-hint`} type="search" maxlength="512" .value=${this.pending.query}
           @input=${(event: Event) => { this.pending = { ...this.pending, query: (event.target as HTMLInputElement).value }; }} />
           <small id=${`${this.#id}-hint`}>${uiText("browse.searchHint")}</small></div>
+      </div>
+      ${this.model.facets.some(facet => facet.key === "roster") ? html`<div class="collection-roster" role="group" aria-label=${uiText("browse.roster")}>
+        ${["all", "npc", "party"].map(scope => html`<button type="button" class="record-action"
+          aria-pressed=${scope === "all" ? !this.pending.filters.some(filter => filter.field === "roster") : this.pending.filters.some(filter => filter.field === "roster" && filter.value === scope)}
+          @click=${() => { this.pending = {...this.pending, filters: [...this.pending.filters.filter(filter => filter.field !== "roster"), ...(scope === "all" ? [] : [{field:"roster", value:scope}])]}; this.#apply(); }}
+          >${uiText(scope === "all" ? "browse.rosterAll" : scope === "npc" ? "browse.rosterNPC" : "browse.rosterParty")}</button>`)}
+      </div>` : nothing}
+      <details class="collection-view-options" ?open=${this.view.sort !== "name" || this.view.direction !== "asc" || this.view.group !== ""}>
+        <summary>${uiText("browse.viewOptions")} <span>${this.model.sorts.find(sort => sort.key === this.view.sort)?.label ?? uiText("Name")} · ${uiText(this.view.direction === "desc" ? "browse.descending" : "browse.ascending")}${group ? ` · ${group.label}` : ""}</span></summary>
+        <div class="collection-control-row">
         <label><span>${uiText("browse.sort")}</span><select .value=${this.model.sorts.some(sort => sort.key === this.pending.sort) ? this.pending.sort : "name"}
           @change=${(event: Event) => { this.pending = { ...this.pending, sort: (event.target as HTMLSelectElement).value }; }}>
           ${selectOptions(this.model.sorts.map(sort => ({ value: sort.key, label: sort.label })), this.model.sorts.some(sort => sort.key === this.pending.sort) ? this.pending.sort : "name")}</select></label>
@@ -52,7 +62,8 @@ export class CodexCollectionBrowser extends LitElement {
         <label><span>${uiText("browse.group")}</span><select .value=${this.model.facets.some(facet => facet.key === this.pending.group) ? this.pending.group : ""}
           @change=${(event: Event) => { this.pending = { ...this.pending, group: (event.target as HTMLSelectElement).value }; }}>
           ${selectOptions([{ value: "", label: uiText("browse.ungrouped") }, ...this.model.facets.map(facet => ({ value: facet.key, label: facet.label }))], this.pending.group)}</select></label>
-      </div>
+        </div>
+      </details>
       ${this.model.facets.length ? html`<details class="collection-filter-picker"><summary>${uiText("browse.filters")} (${this.pending.filters.length})</summary>
         <p class="field-help">${uiText("browse.logic")}</p>
         <div class="collection-control-row">

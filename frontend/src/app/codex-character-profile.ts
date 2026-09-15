@@ -86,9 +86,9 @@ export class CodexCharacterProfile extends LitElement {
     const revealed = inspecting || characterKnowledge(original) >= 2;
     const entity = inspecting ? projectEntity(this.campaign, this.record, campaignPages.find(page => page.collection === "characters")!, true) : this.entity;
     const wiki = parseCampaignMarkdown(text(value["description"]));
-    return html`<article class=${`record-article character-profile direct-character${revealed ? "" : " knowledge-limited"}`} aria-labelledby="record-title">
+    return html`<article class=${`record-article character-profile direct-character${entity.portrait ? "" : " no-artwork"}${revealed ? "" : " knowledge-limited"}`} aria-labelledby="record-title">
       <div class="character-page-heading"><a href="#/characters" class="breadcrumb-link">${uiText("Characters")}</a>
-        ${this.canEdit ? html`<div class="character-save-status"><span role="status">${this.status}</span>${this.#undo ? html`<button type="button" ?disabled=${this.#saves > 0} @click=${this.#undoSave}>${uiText("Undo")}</button>` : nothing}
+        ${this.canEdit ? html`<div class="character-save-status"><span role="status">${this.#feedback()}</span>${this.#undo ? html`<button type="button" ?disabled=${this.#saves > 0} @click=${this.#undoSave}>${uiText("Undo")}</button>` : nothing}
         <details class="character-more"><summary aria-label=${uiText("More actions")}>⋯</summary><div>
           <button type="button" @click=${this.#editAll}>${uiText("Edit all fields")}</button>
           <button type="button" @click=${() => this.#openPanel("portrait")}>${uiText("Portrait")}</button>
@@ -102,17 +102,18 @@ export class CodexCharacterProfile extends LitElement {
           ${entity.portrait ? html`<img class="record-portrait" src=${previewResourceURL(entity.portrait)} alt="" style=${entity.attitudeRing ? `--attitude-ring: ${entity.attitudeRing}` : nothing} />`
             : html`<span class="record-portrait record-portrait-placeholder" aria-hidden="true" style=${entity.attitudeRing ? `--attitude-ring: ${entity.attitudeRing}` : nothing}><span class="record-visual-glyph">${entity.icon || "♟"}</span></span>`}
           <div><span class="record-kind">${uiText("Character")}</span><h1 id="record-title" aria-label=${text(value["name"])}>${this.#inline("name")}</h1>
-            ${revealed ? html`<div class="character-subtitle">${this.#inline("title")}</div>` : nothing}
+            ${revealed && this.#hasValue("title") ? html`<div class="character-subtitle">${this.#inline("title")}</div>` : nothing}
             <div class="record-badges">${entity.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
               ${entity.partyIdentity ? html`<span class="party-identity-badge" style=${`background:${entity.partyIdentity.color};color:${entity.partyIdentity.textColor}`}>${entity.partyIdentity.badge} ${entity.partyIdentity.name}</span>` : nothing}
               ${entity.attitudes.map(attitude => html`<span class="attitude-badge" style=${`--attitude-color:${attitude.color}`}>${attitude.label}</span>`)}</div>
           </div></header>
-          <dl class="record-facts">${(revealed ? ["species", "gender", "age", "status", "knowledge", "tags"] : ["knowledge"]).map(key => this.#fact(key))}</dl>
-          ${revealed ? html`<section class="character-connections"><h2 class="record-section-title">${uiText("Connections")}</h2>
-            <dl class="record-facts">${["faction", "location"].map(key => this.#fact(key))}<div><dt>${uiText("Faction rank")}</dt><dd>${this.#panelValue("rankAssignment", this.#rankLabel())}</dd></div>
-            <div><dt>${uiText("Attitudes toward the party")}</dt><dd>${this.#panelValue("attitudes", entity.attitudes.map(item => item.label).join(", "))}</dd></div></dl>
-          </section>
-          <section class="character-circumstances"><h2 class="record-section-title">${uiText("Current circumstances")}</h2>${this.#inline("circumstances")}</section>` : nothing}
+          <dl class="record-facts">${(revealed ? ["species", "gender", "age", "status", "knowledge", "tags"] : ["knowledge"]).filter(key => this.#hasValue(key)).map(key => this.#fact(key))}</dl>
+          ${revealed ? html`${["faction", "location", "rank"].some(key => this.#hasValue(key)) || entity.attitudes.length ? html`<section class="character-connections"><h2 class="record-section-title">${uiText("Connections")}</h2>
+            <dl class="record-facts">${["faction", "location"].filter(key => this.#hasValue(key)).map(key => this.#fact(key))}${this.#rankLabel() ? html`<div><dt>${uiText("Faction rank")}</dt><dd>${this.#panelValue("rankAssignment", this.#rankLabel())}</dd></div>` : nothing}
+            ${entity.attitudes.length ? html`<div><dt>${uiText("Attitudes toward the party")}</dt><dd>${this.#panelValue("attitudes", entity.attitudes.map(item => item.label).join(", "))}</dd></div>` : nothing}</dl>
+          </section>` : nothing}
+          ${this.#hasValue("circumstances") ? html`<section class="character-circumstances"><h2 class="record-section-title">${uiText("Current circumstances")}</h2>${this.#inline("circumstances")}</section>` : nothing}
+          ${this.canEdit ? this.#emptyDetails() : nothing}` : nothing}
           ${wiki.outline.length ? html`<aside class="record-outline" aria-label=${uiText("Article contents")}><p>${uiText("In this entry")}</p><ol>${wiki.outline.map(item => html`<li class=${`outline-depth-${item.depth}`}><button type="button" @click=${() => this.querySelector<HTMLElement>(`#${item.id}`)?.scrollIntoView({ block: "start" })}>${item.text}</button></li>`)}</ol></aside>` : nothing}
         </aside>
         <div class="record-reading">${revealed ? html`<section class="character-wiki"><div class="character-section-heading"><h2 class="record-section-title">${uiText("Overview")}</h2>
@@ -149,6 +150,19 @@ export class CodexCharacterProfile extends LitElement {
     </article>`;
   }
 
+  #hasValue(key: string): boolean {
+    const value = recordValue(this.#drafts.get(key)?.base ?? this.record)[key];
+    return typeof value === "string" ? value.trim() !== "" : Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null;
+  }
+  #emptyDetails() {
+    const keys = ["title", "species", "gender", "age", "status", "knowledge", "tags", "faction", "location", "circumstances"].filter(key => !this.#hasValue(key));
+    return html`<details class="character-empty-details"><summary>${uiText("details.add")}</summary>
+      <dl class="record-facts">${keys.map(key => this.#fact(key))}
+        ${!this.#rankLabel() ? html`<div><dt>${uiText("Faction rank")}</dt><dd>${this.#panelValue("rankAssignment", "")}</dd></div>` : nothing}
+        ${!this.entity.attitudes.length ? html`<div><dt>${uiText("Attitudes toward the party")}</dt><dd>${this.#panelValue("attitudes", "")}</dd></div>` : nothing}
+      </dl>
+    </details>`;
+  }
   #field(key: string): CampaignEditorField { return editorFieldsFor("characters").find(field => field.key === key)!; }
   #initial(key: string, record = this.record): unknown {
     const value = recordValue(record);
@@ -233,7 +247,24 @@ export class CodexCharacterProfile extends LitElement {
     if (e.key === "Enter" && !auto) { e.preventDefault(); void this.#saveField(key, true); }
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); if (auto) void this.#saveField(key, true); else this.#cancelField(key); }
   }
-  #cancelField(key: string): void { const draft = this.#drafts.get(key); if (draft?.pending) return; clearTimeout(draft?.timer); this.#drafts.delete(key); this.#dirty(); this.requestUpdate(); }
+  #cancelField(key: string): void {
+    const draft = this.#drafts.get(key); if (draft?.pending) return;
+    const focused = this.#focusedField(key);
+    clearTimeout(draft?.timer); this.#drafts.delete(key); this.status = ""; this.#dirty(); this.requestUpdate();
+    if (draft?.row === undefined) this.#restoreFieldFocus(key, focused);
+  }
+  #focusedField(key: string): Element | null {
+    const active = document.activeElement;
+    return this.querySelector(`[data-field="${key}"]`)?.contains(active) ? active : null;
+  }
+  #restoreFieldFocus(key: string, previous: Element | null): void {
+    if (!previous) return;
+    void this.updateComplete.then(() => {
+      if (document.activeElement === previous || document.activeElement === document.body) {
+        this.querySelector<HTMLButtonElement>(`[data-edit-field="${key}"]`)?.focus({preventScroll:true});
+      }
+    });
+  }
   async #saveField(key: string, close: boolean): Promise<void> {
     const draft = this.#drafts.get(key); if (!draft || !this.canEdit || draft.conflict) return;
     clearTimeout(draft.timer); draft.closeAfter = close;
@@ -242,6 +273,7 @@ export class CodexCharacterProfile extends LitElement {
     if (this.#field(key).required && !String(draft.value).trim()) { draft.error = uiText("A name is required."); this.requestUpdate(); return; }
     draft.pending = true; const submitted = structuredClone(draft.value); const before = structuredClone(draft.original); const base = draft.base;
     const editedRow = draft.row, editedPart = draft.part;
+    const focused = this.#focusedField(key);
     this.requestUpdate();
     const result = await this.#send({ base: draft.base, fields: { [key]: submitted } });
     draft.pending = false;
@@ -261,6 +293,7 @@ export class CodexCharacterProfile extends LitElement {
       this.status = uiText("{0} saved", { "0": this.#field(key).label });
     } else { draft.error = result.message; draft.conflict = result.conflict === true; this.status = uiText("Changes not saved"); }
     this.#dirty(); this.requestUpdate();
+    if (result.ok && editedRow === undefined && !this.#drafts.has(key)) this.#restoreFieldFocus(key, focused);
     if (result.ok && draft.again && this.#drafts.has(key)) { draft.again = false; void this.#saveField(key, draft.closeAfter); }
   }
   #send(patch: CampaignCharacterPatch): Promise<CampaignCharacterSaveResult> {
@@ -280,10 +313,19 @@ export class CodexCharacterProfile extends LitElement {
     return result;
   }
   #accept(result: Extract<CampaignCharacterSaveResult, { ok: true }>): void { this.record = result.record; this.campaign = result.campaign; }
-  #dirty(): void {
-    const dirty = [...this.#drafts.values()].some(draft => !sameCampaignValue(draft.value, draft.original)) ||
+  #unsaved(): boolean {
+    return [...this.#drafts.values()].some(draft => !sameCampaignValue(draft.value, draft.original)) ||
       this.#wikiBase !== undefined && this.#wikiValue !== text(recordValue(this.#wikiBase)["description"]) || this.#panelDirty;
-    this.dispatchEvent(new CustomEvent("campaign-edit-dirty", { detail: { dirty, saving: this.#saves > 0 }, bubbles: true, composed: true }));
+  }
+  #feedback(): string {
+    if (this.#saves > 0) return uiText("Saving…");
+    if ([...this.#drafts.values()].some(draft => draft.error) || this.#wikiError || this.#panelError) return uiText("save.failed");
+    if (this.#unsaved()) return uiText("save.draft");
+    return this.status || uiText("save.saved");
+  }
+  #dirty(): void {
+    this.requestUpdate();
+    this.dispatchEvent(new CustomEvent("campaign-edit-dirty", { detail: { dirty: this.#unsaved(), saving: this.#saves > 0 }, bubbles: true, composed: true }));
   }
   readonly #undoSave = async (): Promise<void> => {
     const undo = this.#undo; if (!undo) return; this.#undo = undefined;
@@ -295,7 +337,7 @@ export class CodexCharacterProfile extends LitElement {
 
   readonly #openWiki = (): void => { if (!this.#wikiBase) { this.#wikiBase = this.record; this.#wikiValue = text(recordValue(this.record)["description"]); } this.wikiOpen = true; this.#wikiError = ""; };
   readonly #wikiChanged = (e: CustomEvent<{ value: string }>): void => { this.#wikiValue = e.detail.value; this.#dirty(); };
-  readonly #cancelWiki = (): void => { if (this.wikiSaving) return; if (this.#wikiBase && this.#wikiValue !== text(recordValue(this.#wikiBase)["description"]) && !window.confirm(uiText("Discard the unsaved wiki changes?"))) return; this.querySelector<CodexMarkdownEditor>("codex-markdown-editor")?.discardDraft(); this.#wikiBase = undefined; this.wikiOpen = false; this.#wikiError = ""; this.#dirty(); };
+  readonly #cancelWiki = (): void => { if (this.wikiSaving) return; if (this.#wikiBase && this.#wikiValue !== text(recordValue(this.#wikiBase)["description"]) && !window.confirm(uiText("Discard the unsaved wiki changes?"))) return; this.querySelector<CodexMarkdownEditor>("codex-markdown-editor")?.discardDraft(); this.#wikiBase = undefined; this.wikiOpen = false; this.#wikiError = ""; this.#wikiConflict = false; this.status = ""; this.#dirty(); };
   readonly #saveWiki = async (): Promise<void> => {
     if (!this.#wikiBase || this.wikiSaving || this.#wikiConflict) return;
     this.wikiSaving = true; const source = this.#wikiValue;
@@ -321,7 +363,7 @@ export class CodexCharacterProfile extends LitElement {
     </fieldset></section>`;
   }
   readonly #panelChanged = (): void => { this.#panelDirty = true; this.#dirty(); };
-  readonly #cancelPanel = (): void => { if (this.#panelSaving) return; this.panel = ""; this.#panelDirty = false; this.#dirty(); };
+  readonly #cancelPanel = (): void => { if (this.#panelSaving) return; this.panel = ""; this.#panelDirty = false; this.#panelError = ""; this.status = ""; this.#dirty(); };
   readonly #savePanel = async (): Promise<void> => {
     if (!this.#panelBase || this.#panelSaving) return;
     const section = this.querySelector<HTMLElement>(".character-section-editor")!;

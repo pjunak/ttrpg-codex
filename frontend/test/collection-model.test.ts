@@ -86,3 +86,22 @@ describe("shared collection browsing", () => {
     expect(parseCollectionView("x".repeat(64_001))).toEqual(defaultCollectionView);
   });
 });
+
+it("keeps all characters as the default and persists explicit NPC/party filtering", () => {
+  const model = collectionModel(data, characters);
+  expect(queryCollection(model, defaultCollectionView).count).toBe(3);
+  const party = {...defaultCollectionView, filters:[{field:"roster",value:"party"}]};
+  expect(queryCollection(model,parseCollectionView(serializeCollectionView(party))).groups[0]?.entries.map(entry=>entry.key)).toEqual(["ada"]);
+  expect(queryCollection(model,{...party,filters:[{field:"roster",value:"npc"}]}).count).toBe(2);
+  expect(collectionFacetChoices(model,defaultCollectionView,"roster").find(choice=>choice.value==="party")?.count).toBe(1);
+});
+
+it("does not infer unrevealed party membership in restricted roster filters", () => {
+  const hidden = collectionModel(dataset({characters:[
+    record("unknown", {name:"Not revealed",knowledge:1,faction:"party"}),
+  ]}),characters);
+  expect(queryCollection(hidden,defaultCollectionView).count).toBe(1);
+  expect(queryCollection(hidden,{...defaultCollectionView,group:"roster"}).groups[0]?.entries.map(entry=>entry.key)).toEqual(["unknown"]);
+  expect(collectionFacetChoices(hidden,defaultCollectionView,"roster").find(choice=>choice.value==="")?.count).toBe(1);
+  for (const value of ["npc","party"]) expect(queryCollection(hidden,{...defaultCollectionView,filters:[{field:"roster",value}]}).count).toBe(0);
+});

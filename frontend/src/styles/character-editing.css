@@ -41,3 +41,8 @@ codex-character-profile { display: block; }
 .character-section-editor > fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .character-checkbox { display: flex; gap: .5rem; align-items: center; padding: .4rem 0; }
 @media (max-width: 700px) { .character-knowledge-grid { grid-template-columns: minmax(0, 1fr); } .character-save-status { flex-wrap: wrap; } .direct-character .record-masthead { overflow: visible; } }
+
+.character-empty-details > summary { min-height: 44px; padding: .35rem 0; box-sizing: border-box; cursor: pointer; color: var(--accent-gold); font: .85rem/1.5 var(--font-ui); }
+.character-empty-details > .record-facts { margin-top: .5rem; }
+.character-save-status > span { overflow-wrap: anywhere; }
+@media (max-width: 700px) { .character-page-heading { align-items: start; flex-wrap: wrap; } .character-save-status { max-width: 100%; } }

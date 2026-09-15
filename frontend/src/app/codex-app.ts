@@ -138,6 +138,7 @@ export class CodexApp extends LitElement {
     route: { state: true },
     busy: { state: true },
     errorMessage: { state: true },
+    recordSaveState: { state: true },
     contributionCount: { state: true },
     navigationCount: { state: true },
     routeCount: { state: true },
@@ -157,6 +158,8 @@ export class CodexApp extends LitElement {
   declare private route: AppRoute;
   declare private busy: boolean;
   declare private errorMessage: string;
+  declare private recordSaveState: "idle" | "saved" | "failed";
+  #recordSaveDestination = "";
   declare private contributionCount: number;
   declare private navigationCount: number;
   declare private routeCount: number;
@@ -205,6 +208,7 @@ export class CodexApp extends LitElement {
     this.articleCount = 0;
     this.characterView = preferredCharacterView(window.location.hash);
     this.editCompletion = 0;
+    this.recordSaveState = "idle";
     this.menuOpen = false;
     this.quickSearchOpen = false;
     this.mobileViewport = this.#mobileMedia.matches;
@@ -287,6 +291,7 @@ export class CodexApp extends LitElement {
               <button type="button" @click=${this.#dismissError}>${this.#ui.t("shell.dismiss")}</button>
             </p>
           `}
+          ${this.recordSaveState === "saved" && this.#canEdit() ? html`<p class="record-save-confirmation" role="status">${uiText("save.entrySaved")}</p>` : nothing}
           ${this.#characterTabs()}
           <div id="character-profile-panel" role=${this.#hasCharacterTabs ? "tabpanel" : nothing}
             aria-labelledby=${this.#hasCharacterTabs ? "character-view-profile" : nothing}
@@ -1023,7 +1028,8 @@ export class CodexApp extends LitElement {
           .saving=${this.busy}
           .editCompletion=${this.editCompletion}
           @campaign-edit-dirty=${this.#onEditDirty}
-          @campaign-record-reset=${() => { this.errorMessage = ""; }}
+          .saveState=${this.recordSaveState}
+          @campaign-record-reset=${() => { this.errorMessage = ""; this.recordSaveState = "idle"; }}
           @campaign-record-save=${this.#saveCampaignRecord}
           @campaign-twin=${this.#mutateTwin}
           @campaign-collection-view=${(event: CustomEvent<{ hash: string }>) => {
@@ -1154,10 +1160,11 @@ export class CodexApp extends LitElement {
     if (this.busy || this.#request === undefined || !this.#canEdit() ||
       this.authority.state !== "known" || !this.authority.auth.authenticated ||
       this.campaignState.state !== "ready") return;
+    this.recordSaveState = "idle";
     const creationRoute = this.route.kind === "create" && this.route.context ? this.route : undefined;
     const returnTo = this.route.kind === "record" && this.route.editing ? this.route.returnTo : undefined;
     if (creationRoute && !creationSource(creationRoute, this.campaignState.campaign)?.record) {
-      this.errorMessage = uiText("creation.unavailable"); return;
+      this.errorMessage = uiText("creation.unavailable"); this.recordSaveState = "failed"; return;
     }
     let prepared: PreparedCampaignRecordTransaction;
     try {
@@ -1172,6 +1179,7 @@ export class CodexApp extends LitElement {
         : cause instanceof CampaignRecordEditError && cause.kind === "portrait-visibility"
           ? uiText("Save visibility changes first, then replace the portrait. Your draft is kept.")
           : uiText("The entry contains a value that cannot be saved.");
+      this.recordSaveState = "failed";
       return;
     }
     this.busy = true;
@@ -1187,12 +1195,15 @@ export class CodexApp extends LitElement {
       await this.#loadCampaign(this.#request.signal, true);
       this.#editDirty = false;
       this.editCompletion += 1;
-      if (!this.#addons?.contributions.edits.state().dirty && !this.#addons?.contributions.edits.state().saving) window.location.hash = creationRoute && this.campaignState.state === "ready" ? creationBackHash(creationRoute, this.campaignState.campaign) : returnTo ?? recordHash(prepared.page, event.detail.key);
+      this.recordSaveState = "saved";
+      this.#recordSaveDestination = creationRoute && this.campaignState.state === "ready" ? creationBackHash(creationRoute, this.campaignState.campaign) : returnTo ?? recordHash(prepared.page, event.detail.key);
+      if (!this.#addons?.contributions.edits.state().dirty && !this.#addons?.contributions.edits.state().saving) window.location.hash = this.#recordSaveDestination;
     } catch (cause: unknown) {
       if (!this.#request.signal.aborted) {
         this.errorMessage = cause instanceof CampaignMutationHTTPError && cause.status === 409
           ? uiText("The entry changed while saving. Reload its current version and try again.")
           : uiText("The entry could not be saved: {0}", { "0": errorMessage(cause) });
+        this.recordSaveState = "failed";
       }
     } finally {
       this.busy = false;
@@ -1521,6 +1532,7 @@ export class CodexApp extends LitElement {
     if (nextHash === this.#acceptedHash) return;
     this.menuOpen = false;
     this.#acceptedHash = nextHash;
+    if (nextHash !== this.#recordSaveDestination) this.recordSaveState = "idle";
     if (this.quickSearchOpen) this.#closeQuickSearch(false);
     this.route = parseAppRoute(nextHash);
     this.characterView = preferredCharacterView(nextHash);
@@ -1530,6 +1542,7 @@ export class CodexApp extends LitElement {
   readonly #onEditDirty = (event: CustomEvent<CampaignEditDirtyDetail>): void => {
     if (typeof event.detail?.dirty === "boolean") this.#editDirty = event.detail.dirty;
     this.#editSaving = event.detail?.saving === true;
+    if (event.detail?.dirty && this.recordSaveState === "saved") this.recordSaveState = "idle";
   };
 
   readonly #onBeforeUnload = (event: BeforeUnloadEvent): void => {

@@ -14,7 +14,7 @@ export class CodexInvestigationQueue extends LitElement {
     if (!this.campaign) return nothing;
     const questions = investigationQueue(this.campaign, this.query);
     const open = questions.filter(item => !item.answer), answered = questions.filter(item => item.answer);
-    return html`<section class="investigation-queue" aria-label=${uiText("investigation.queue")}>
+    return html`<section class="investigation-queue" tabindex="-1" aria-label=${uiText("investigation.queue")}>
       <h2 class="record-section-title">${uiText("investigation.queue")}</h2>
       <label class="investigation-search"><span>${uiText("investigation.search")}</span>
         <input type="search" maxlength="512" .value=${this.query}

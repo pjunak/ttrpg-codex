@@ -303,6 +303,14 @@ and [save handler](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7adec98569
 
 These are observed design concerns, not additional confirmed functional losses.
 
+**Host U01–U03 resolved September 15 (T28):** missing artwork and empty facts
+are compact, collection view controls disclose secondary options, roster scope
+is explicit, and save feedback distinguishes drafts from confirmed writes.
+[Implementation and tests](EDITOR_BROWSING.md#compact-reading-and-save-feedback)
+cover desktop/phone, both themes/languages, keyboard and 200% CSS zoom. The
+observations below record the original review; Sheets' separate saving work
+remains T33, and broader human workflow acceptance remains T18-HOST.
+
 | ID | Observation and consequence | Proposed direction and acceptance |
 | --- | --- | --- |
 | U01 | The 390px character fixture places a large empty portrait and numerous empty/editable facts before prose. A sparse faction has a large emblem card beside an almost empty page. | T28: use a compact identity header for missing artwork and summarize secondary/empty facts. Keep real portraits and the established palette. Review sparse and rich pages so the title, purpose and primary action are easy to reach on a phone. |

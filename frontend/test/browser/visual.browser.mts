@@ -92,7 +92,9 @@ for (const [name, viewport] of Object.entries({ desktop: { width: 1440, height: 
     await compare(page, reference, '.record-row', '.char-card', ['background-color','border-radius','border-top-color']);
     await compare(page, reference, '.record-row-copy strong', '.char-card-name', ['font-family','font-size','color']);
     const card = await page.locator('.record-row-mark').first().boundingBox().then(required);
-    assert.ok(Math.abs(card.width / card.height - .75) < .01, 'character portraits keep the original 3:4 card proportions');
+    const hasArtwork = await page.locator('.record-row-mark').first().evaluate(node => node.tagName === 'IMG');
+    assert.ok(hasArtwork ? Math.abs(card.width / card.height - .75) < .01 : card.width <= 48 && card.height <= 48,
+      'real portraits keep 3:4 proportions; absent artwork uses a compact identity mark');
     await fits(page);
     await page.screenshot({ animations: "disabled", path: `${artifacts}${name}-characters.png`, fullPage: true });
     await page.locator('.record-row').first().click();

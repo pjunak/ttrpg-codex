@@ -1264,7 +1264,7 @@ campaign-relationship-editor {
 
 .context-create-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1rem; }
 .context-create-actions a, .record-row-edit, .party-card-edit { min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
-.record-row-shell { display: flex; flex-direction: column; align-items: stretch; gap: .25rem; min-width: 0; }
+.record-row-shell { display: flex; flex-direction: column; align-items: stretch; align-self: start; gap: .25rem; min-width: 0; }
 .record-row-shell > .record-row { flex: 1; min-width: 0; }
 .record-row-edit { flex: 0 0 auto; align-self: flex-end; }
 .party-record-card { display: flex; flex-direction: column; align-items: center; gap: .25rem; }
@@ -1284,3 +1284,17 @@ campaign-relationship-editor {
 .investigation-badge, .investigation-count { display: inline-block; font: .8rem/1.5 var(--font-ui); }
 .investigation-badge { border: 1px solid currentColor; padding: .1rem .4rem; border-radius: .3rem; margin-right: .4rem; }
 .investigation-badge.is-solved { color: var(--text-parchment); }
+
+.record-article.no-artwork .record-masthead { display: grid; grid-template-columns: 3rem minmax(0, 1fr); align-items: start; }
+.record-article.no-artwork .record-portrait-placeholder { width: 3rem; height: 3rem; aspect-ratio: 1; font-size: 1.8rem; align-self: start; }
+.record-article.no-artwork .record-masthead > .record-action { grid-column: 1 / -1; justify-self: start; }
+.record-facts:empty { display: none; }
+.record-row.no-artwork { display: grid; grid-template-columns: 3rem minmax(0, 1fr); align-content: start; gap: .75rem; padding: .75rem; }
+.collection-page .record-row.no-artwork .record-row-mark { width: 3rem; height: 3rem; aspect-ratio: 1; border-radius: var(--radius); font-size: 1.8rem; }
+.record-row.no-artwork .record-row-copy { padding: 0; min-width: 0; overflow-wrap: anywhere; }
+.record-row.no-artwork > .dm-badge { position: static; grid-column: 2; justify-self: start; }
+.record-form-status { font: .8rem/1.5 var(--font-ui); color: var(--text-muted); overflow-wrap: anywhere; }
+.record-save-confirmation { padding: .65rem 1rem; border: 1px solid var(--chrome-field-border); border-radius: var(--radius); font: .85rem/1.5 var(--font-ui); color: var(--text-parchment); }
+.investigation-jump { margin-bottom: 1rem; }
+.investigation-search input { padding: .55rem .65rem; border: 1px solid var(--chrome-field-border); border-radius: var(--radius); color: var(--text-parchment); background: var(--bg-surface); font: inherit; }
+@media (max-width: 700px) { .record-form-status { grid-column: 1 / -1; } .record-ledger { grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); } }

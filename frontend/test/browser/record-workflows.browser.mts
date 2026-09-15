@@ -478,3 +478,115 @@ for (const mobile of [false, true]) test(`investigations share effective status 
   assert.ok(await player.page.locator('a.record-row[href="#/mysteries/'+key+'"]').getByText('Vyřešeno',{exact:true}).count());
   assert.ok(await player.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
 });
+
+for (const mobile of [false,true]) for (const locale of ['en','cs']) for (const theme of ['classic','moonlit']) {
+  test(`compact profiles and collection controls work on ${mobile?'phone':'desktop'} in ${locale}/${theme}`, async t => {
+    const suffix = [mobile?'phone':'desktop',locale,theme].join('-'), key = 'compact-'+suffix;
+    await put(admin,csrf,key,{name:'Sparse '+suffix,description:'A clear purpose near the top.'},0,'characters');
+    await put(admin,csrf,key+'-rich',{name:'Rich '+suffix,title:'Scout',description:'A detailed campaign member.',species:'Elf',age:120,status:'alive',faction:'party',known:['Guards the northern road.']},0,'characters');
+    await put(admin,csrf,key+'-faction',{name:'Faction '+suffix,description:'Protect the northern road.'},0,'factions');
+    const dm = await open(t,'dm',mobile);
+    const portrait = Buffer.from(await dm.page.evaluate(() => {
+      const canvas=document.createElement('canvas'); canvas.width=90; canvas.height=120;
+      const ctx=canvas.getContext('2d')!; ctx.fillStyle='#729ca5'; ctx.fillRect(0,0,90,120);
+      ctx.fillStyle='#213e49'; ctx.fillRect(15,20,60,100);
+      return canvas.toDataURL('image/png').split(',')[1]!;
+    }),'base64');
+    const uploaded=await jsonResponse(await admin.post('/api/media/character-portrait/'+key+'-rich',{
+      headers:{'X-Codex-CSRF':csrf,'Content-Type':'image/png','X-Codex-Filename':'portrait.png'},data:portrait}));
+    const rich=await record(key+'-rich','characters');
+    await put(admin,csrf,key+'-rich',{...rich.value,portrait:uploaded.url},rich.revision,'characters');
+    const currentAppearance=await record('appearance','settings');
+    await jsonResponse(await admin.post('/api/campaign/transactions',{headers:{'X-Codex-CSRF':csrf},data:{
+      contractVersion:'campaign-mutation.v1',mutations:[{operation:'put',collection:'settings',key:'appearance',expectedRevision:currentAppearance?.revision??0,value:{theme}}],
+    }}));
+    await dm.page.evaluate(locale=>localStorage.setItem('codex_lang',locale),locale);
+    await dm.page.goto('/#/characters/'+key); await dm.page.reload();
+    await dm.page.locator('#record-title').waitFor();
+    assert.equal(await dm.page.locator('html').getAttribute('data-theme'),theme);
+    const mark=await dm.page.locator('.record-portrait-placeholder').boundingBox(); assert.ok(mark && mark.height<=48 && mark.width<=48);
+    const overview=await dm.page.locator('.character-wiki').boundingBox(); assert.ok(overview && (!mobile || overview.y<650),'sparse prose is reachable in the first phone screen');
+    const extra=dm.page.locator('.character-empty-details');
+    assert.equal(await extra.getAttribute('open'),null);
+    await extra.locator('summary').focus(); await dm.page.keyboard.press('Enter');
+    await extra.getByRole('button',{name:locale==='en'?'Edit Age':'Upravit: Věk',exact:true}).waitFor();
+    await extra.locator('summary').click();
+    if(process.env['CODEX_UI_SCREENSHOTS']==='1') await dm.page.screenshot({path:resolve(output,'compact-profile-'+suffix+'.png')});
+    await dm.page.goto('/#/characters/'+key+'-rich'); await dm.page.locator('img.record-portrait').waitFor();
+    const art=await dm.page.locator('img.record-portrait').boundingBox(); assert.ok(art && Math.abs(art.width/art.height-.75)<.02);
+    await dm.page.goto('/#/factions/'+key+'-faction'); await dm.page.locator('#record-title').waitFor();
+    const emblem=await dm.page.locator('.record-portrait-placeholder').boundingBox(); assert.ok(emblem && emblem.height<=48);
+    await dm.page.goto('/#/characters?q='+encodeURIComponent(suffix));
+    const list=dm.page.locator('codex-collection-browser');
+    const roster=list.locator('.collection-roster');
+    await roster.waitFor(); assert.equal(await roster.locator('[aria-pressed="true"]').textContent(),locale==='en'?'All characters':'Všechny postavy');
+    assert.equal(await list.locator('.collection-view-options').getAttribute('open'),null);
+    assert.equal(await list.locator('a.record-row').count(),2);
+    await roster.getByRole('button',{name:locale==='en'?'NPCs':'Cizí postavy',exact:true}).click();
+    assert.equal(await list.locator('a.record-row').count(),1);
+    await dm.page.reload(); await list.locator('a.record-row').waitFor();
+    assert.equal(await list.locator('a.record-row').count(),1);
+    await roster.getByRole('button',{name:locale==='en'?'All characters':'Všechny postavy',exact:true}).click();
+    await list.locator('img.record-row-mark').waitFor();
+    const cardArt=await list.locator('img.record-row-mark').boundingBox(); assert.ok(cardArt && Math.abs(cardArt.width/cardArt.height-.75)<.02);
+    if(process.env['CODEX_UI_SCREENSHOTS']==='1') await dm.page.screenshot({path:resolve(output,'compact-collection-default-'+suffix+'.png')});
+    const options=list.locator('.collection-view-options');
+    await options.locator('summary').focus(); await dm.page.keyboard.press('Enter');
+    await options.getByRole('combobox').first().selectOption('updatedAt');
+    await list.getByRole('button',{name:locale==='en'?'Apply view':'Použít zobrazení',exact:true}).click();
+    assert.equal(await dm.page.evaluate(()=>document.activeElement?.textContent?.trim()),locale==='en'?'Apply view':'Použít zobrazení');
+    await dm.page.reload(); await options.getByRole('combobox').first().waitFor();
+    assert.equal(await options.getByRole('combobox').first().inputValue(),'updatedAt');
+    if(process.env['CODEX_UI_SCREENSHOTS']==='1') await dm.page.screenshot({path:resolve(output,'compact-collection-'+suffix+'.png')});
+    await dm.page.evaluate(()=>{document.documentElement.style.zoom='2';});
+    assert.ok(await dm.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'collection fits at 200% zoom');
+    await dm.page.goto('/#/characters/'+key);
+    await dm.page.locator('#record-title').waitFor();
+    assert.ok(await dm.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'profile fits at 200% zoom');
+  });
+}
+
+test('campaign save feedback distinguishes dirty, pending, confirmed and failed edits', async t => {
+  await put(admin,csrf,'feedback-town',{name:'Feedback town'});
+  const dm=await open(t,'dm'); await dm.page.goto('/#/locations/feedback-town');
+  await dm.page.getByRole('button',{name:'Edit',exact:true}).click();
+  await dm.page.getByLabel('Name',{exact:true}).fill('Feedback saved');
+  await dm.page.locator('.record-form-status').getByText('Unsaved changes',{exact:true}).waitFor();
+  let release!:()=>void; const gate=new Promise<void>(resolve=>{release=resolve;}); t.after(()=>release());
+  await dm.page.route('**/api/campaign/transactions',async route=>{await gate; await route.continue();});
+  await dm.page.getByRole('button',{name:'Save entry',exact:true}).last().click();
+  await dm.page.locator('.record-form-status').getByText('Saving…',{exact:true}).waitFor();
+  assert.equal(await dm.page.locator('.record-save-confirmation').count(),0);
+  assert.ok(await dm.page.getByRole('button',{name:'Cancel',exact:true}).isDisabled());
+  release(); await dm.page.getByRole('heading',{name:'Feedback saved',exact:true}).waitFor();
+  await dm.page.locator('.record-save-confirmation').getByText('Entry saved to campaign.',{exact:true}).waitFor();
+  await dm.page.unroute('**/api/campaign/transactions');
+  await dm.page.getByRole('button',{name:'Edit',exact:true}).click();
+  await dm.page.getByLabel('Name',{exact:true}).fill('A later draft');
+  assert.equal(await dm.page.locator('.record-save-confirmation').count(),0);
+  const current=await record('feedback-town');
+  await put(admin,csrf,'feedback-town',{...current.value,name:'Remote change'},current.revision);
+  await dm.page.getByRole('button',{name:'Save entry',exact:true}).last().click();
+  await dm.page.locator('.record-form-status').getByText('Changes not saved. Your draft is kept.',{exact:true}).waitFor();
+  assert.equal(await dm.page.getByLabel('Name',{exact:true}).inputValue(),'A later draft');
+  dm.page.once('dialog',dialog=>dialog.accept());
+  await dm.page.getByRole('button',{name:'Cancel',exact:true}).click();
+  assert.equal(await dm.page.locator('.application-alert').count(),0);
+  await dm.page.getByRole('heading',{name:'Remote change',exact:true}).waitFor();
+});
+
+test('empty profile fields keep keyboard focus when saved or cancelled', async t => {
+  await put(admin,csrf,'focus-character',{name:'Focus character',description:'Short overview.'},0,'characters');
+  const dm=await open(t,'dm',true); await dm.page.goto('/#/characters/focus-character');
+  await dm.page.locator('.character-empty-details > summary').click();
+  await dm.page.getByRole('button',{name:'Edit Age',exact:true}).click();
+  const age=dm.page.getByRole('textbox',{name:'Age',exact:true});
+  await age.fill('30'); await age.press('Escape');
+  assert.equal(await dm.page.evaluate(()=>document.activeElement?.getAttribute('data-edit-field')),'age');
+  assert.equal((await record('focus-character','characters')).value.age,undefined);
+  await dm.page.getByRole('button',{name:'Edit Age',exact:true}).click();
+  await age.fill('31'); await age.press('Enter');
+  await dm.page.getByRole('button',{name:'Edit Age',exact:true}).filter({hasText:'31'}).waitFor();
+  await dm.page.waitForFunction(()=>document.activeElement?.getAttribute('data-edit-field')==='age');
+  assert.equal(await dm.page.locator('.character-empty-details [data-edit-field="age"]').count(),0);
+});

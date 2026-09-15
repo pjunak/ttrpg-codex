@@ -220,6 +220,7 @@ test("collection views apply compound filters and persist sorting/grouping witho
   await page.getByRole('combobox', { name: 'Filter by', exact: true }).selectOption('faction');
   await page.getByRole('combobox', { name: 'Value', exact: true }).selectOption('watch');
   await page.getByRole('button', { name: 'Add filter', exact: true }).click();
+  await page.locator('.collection-view-options > summary').click();
   await page.getByRole('combobox', { name: 'Group by', exact: true }).selectOption('faction');
   await page.getByRole('combobox', { name: 'Sort direction', exact: true }).selectOption('desc');
   await page.getByRole('button', { name: 'Apply view', exact: true }).click();
@@ -333,6 +334,7 @@ test("direct character edits confirm with Enter, cancel with Escape and preserve
   await page.getByRole('textbox', { name: 'Title', exact: true }).fill('Unconfirmed');
   await page.getByRole('textbox', { name: 'Title', exact: true }).press('Escape');
   assert.equal(await page.getByRole('button', { name: 'Edit Title', exact: true }).textContent(), 'Scout');
+  await page.locator('.character-empty-details > summary').click();
   await page.getByRole('button', { name: 'Edit Gender', exact: true }).click();
   await page.getByRole('combobox', { name: 'Gender', exact: true }).selectOption('unspecified');
   await page.getByRole('button', { name: 'Edit Gender', exact: true }).filter({ hasText: 'Unspecified' }).waitFor();
@@ -345,6 +347,7 @@ test("circumstances autosave while wiki text remains an explicit draft, and Undo
   await sourceView(page);
   const source = page.getByRole('textbox', { name: 'Overview Markdown', exact: true });
   await source.fill('## An unsaved wiki draft');
+  await page.locator('.character-empty-details > summary').click();
   await page.getByRole('button', { name: 'Edit Current circumstances', exact: true }).click();
   await page.getByRole('textbox', { name: 'Current circumstances', exact: true }).fill('Travelling north');
   await page.waitForFunction(() => window.editorFixture.submissions.length === 1);
@@ -686,4 +689,26 @@ test("unrelated live changes allow saving and reopening loads the latest record"
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await editRecordOrDefinition(page);
   assert.equal(await page.locator('[name="name"]').inputValue(), "Latest name");
+});
+
+test("cancelling a conflicted wiki draft resets feedback and allows a fresh save", async t => {
+  const page = await fixture(t, dataset({characters:[character()]}), '#/characters/ryn');
+  await page.getByRole('button',{name:'Edit wiki',exact:true}).click(); await sourceView(page);
+  const source = page.getByRole('textbox',{name:'Overview Markdown',exact:true});
+  await source.fill('Abandoned wiki draft');
+  await page.locator('.character-save-status').getByText('Unsaved changes',{exact:true}).waitFor();
+  const remote = character(2); remote.value.description = 'Remote wiki';
+  await refresh(page,dataset({characters:[remote]}));
+  await page.getByRole('button',{name:'Save text',exact:true}).click();
+  await page.getByRole('alert').filter({hasText:'field changed: description'}).waitFor();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button',{name:'Cancel',exact:true}).click();
+  await page.locator('.character-save-status').getByText('Saved to campaign',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Edit wiki',exact:true}).click(); await sourceView(page);
+  await source.fill('Fresh wiki draft');
+  await page.getByRole('button',{name:'Save text',exact:true}).click();
+  await page.locator('.character-save-status').getByText('Wiki saved',{exact:true}).waitFor();
+  assert.equal(required(await submission(page)).mutation?.mutations[0].value.description,'Fresh wiki draft');
+  await source.fill('Another unsaved change');
+  await page.locator('.character-save-status').getByText('Unsaved changes',{exact:true}).waitFor();
 });

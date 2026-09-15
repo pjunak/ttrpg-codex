@@ -65,3 +65,9 @@ codex-local-drafts { display: block; margin-top: 2rem; font: .85rem/1.5 var(--fo
   .collection-control-row .collection-query, .collection-control-row .collection-filter-value { flex-basis: 100%; }
   .writer-recovery-actions { align-items: stretch; flex-direction: column; }
 }
+
+.collection-view-options > summary { cursor: pointer; min-height: 44px; padding: .45rem 0; box-sizing: border-box; }
+.collection-view-options > summary span { display: block; color: var(--text-muted); font-size: .8rem; padding-left: 1rem; }
+.collection-view-options .collection-control-row { margin-top: .5rem; }
+.collection-roster { display: flex; flex-wrap: wrap; gap: .4rem; }
+.collection-roster [aria-pressed="true"] { border-color: var(--accent-gold); box-shadow: inset 0 -2px var(--accent-gold); }

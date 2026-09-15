@@ -72,6 +72,7 @@ export class CodexRecordPage extends LitElement {
     canEdit: { type: Boolean, attribute: "can-edit" },
     canManageVisibility: { type: Boolean, attribute: "can-manage-visibility" },
     saving: { type: Boolean },
+    saveState: { attribute: false },
     editCompletion: { type: Number, attribute: false },
     collectionView: { state: true }, viewStorageUnavailable: { state: true },
     editor: { state: true }, coreSaved: { state: true },
@@ -86,6 +87,7 @@ export class CodexRecordPage extends LitElement {
   declare canEdit: boolean;
   declare canManageVisibility: boolean;
   declare saving: boolean;
+  declare saveState: "idle" | "saved" | "failed";
   declare editCompletion: number;
   declare private collectionView: CollectionView;
   declare private viewStorageUnavailable: boolean;
@@ -109,6 +111,7 @@ export class CodexRecordPage extends LitElement {
     this.canEdit = false;
     this.canManageVisibility = false;
     this.saving = false;
+    this.saveState = "idle";
     this.editCompletion = 0; this.coreSaved = false;
     this.collectionView = defaultCollectionView; this.viewStorageUnavailable = false;
     this.editor = "closed";
@@ -212,6 +215,7 @@ export class CodexRecordPage extends LitElement {
           ` : nothing}
         </header>
         ${this.editor === "create" ? this.#editorForm(undefined, route) : nothing}
+        ${route.page.collection === "mysteries" ? html`<button type="button" class="record-action investigation-jump" @click=${() => { const queue = this.querySelector<HTMLElement>(".investigation-queue"); queue?.scrollIntoView({block:"start"}); queue?.focus({preventScroll:true}); }}>${uiText("investigation.queue")}</button>` : nothing}
         <codex-collection-browser .model=${collectionModel(this.campaign!, route.page)} .view=${this.collectionView}
           .renderEntry=${(entity: EntitySummary) => recordRow(entity, route.page.icon, this.canEdit ? recordEditHash(route.page, entity.key, route.view === undefined ? collectionHash(route.page) : `${collectionHash(route.page)}?${route.view}`) : undefined)} .storageUnavailable=${this.viewStorageUnavailable}
           @collection-view-change=${this.#changeCollectionView}></codex-collection-browser>
@@ -278,7 +282,7 @@ export class CodexRecordPage extends LitElement {
       .canEdit=${this.canEdit} .canManageVisibility=${this.canManageVisibility}
       @campaign-character-edit-all=${this.#startEdit}></codex-character-profile>`;
     return html`
-      <article class="record-article" aria-labelledby="record-title">
+      <article class=${`record-article${entity.portrait ? "" : " no-artwork"}`} aria-labelledby="record-title">
         ${this.#linkFailure()}
         ${twins}
         <a href=${route.returnTo ?? (route.page.collection === "events" ? "#/timeline" : collectionHash(route.page))} class="breadcrumb-link">${route.returnTo ? uiText("creation.backPage") : route.page.collection === "events" ? this.#ui.t("timeline.back") : route.page.plural}</a>
@@ -424,7 +428,7 @@ export class CodexRecordPage extends LitElement {
           ${record === undefined ? nothing : html`
             <button class="danger-record-action" type="button" @click=${this.#deleteRecord} ?disabled=${this.saving}>${uiText("Delete")}</button>
           `}
-          <span></span>
+          <span class="record-form-status" role=${this.saveState === "failed" ? "alert" : "status"}>${uiText(this.saving ? "Saving…" : this.saveState === "failed" ? "save.failed" : this.#dirty ? "save.draft" : "save.explicit")}</span>
           <button type="button" @click=${this.#closeEditor} ?disabled=${this.saving}>${uiText("Cancel")}</button>
           <button class="primary-record-action" type="submit" ?disabled=${this.saving}>
             ${this.saving ? uiText("Saving…") : uiText("Save entry")}
@@ -605,6 +609,7 @@ export class CodexRecordPage extends LitElement {
   #setDirty(dirty: boolean): void {
     if (this.#dirty === dirty) return;
     this.#dirty = dirty;
+    this.requestUpdate();
     this.dispatchEvent(new CustomEvent<CampaignEditDirtyDetail>("campaign-edit-dirty", {
       detail: Object.freeze({ dirty }),
       bubbles: true,
@@ -696,7 +701,7 @@ export class CodexRecordPage extends LitElement {
 
 function recordRow(entity: EntitySummary, fallback: string, editHref?: string) {
   return html`<div class="record-row-shell">
-    <a class="record-row" href=${entity.route}>
+    <a class=${`record-row${entity.portrait ? "" : " no-artwork"}`} href=${entity.route}>
       ${entity.portrait === undefined
         ? recordPlaceholder(entity, fallback, "record-row-mark")
         : html`<img
@@ -710,7 +715,9 @@ function recordRow(entity: EntitySummary, fallback: string, editHref?: string) {
         <strong>${entity.name}</strong>
         ${entity.title === "" ? nothing : html`<span>${entity.title}</span>`}
         ${entity.route.startsWith("#/mysteries/") ? investigationBadge(entity.raw) : nothing}
-        ${entity.excerpt === "" || entity.route.startsWith("#/characters/") ? nothing : html`<small>${entity.excerpt}</small>`}
+        ${entity.route.startsWith("#/characters/") && entity.statusLabel ? html`<span>${entity.statusLabel}</span>` : nothing}
+        ${entity.partyIdentity ? html`<span class="party-identity-badge">${entity.partyIdentity.badge} ${entity.partyIdentity.name}</span>` : nothing}
+        ${entity.excerpt === "" ? nothing : html`<small>${entity.excerpt}</small>`}
       </span>
       ${entity.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
     </a>${editHref ? html`<a class="record-row-edit record-action" href=${editHref} aria-label=${uiText("Edit {0}", {"0": entity.name})}>${uiText("Edit")}</a>` : nothing}
