@@ -50,7 +50,7 @@ for (const mobile of [false, true]) test(`GitHub installation, token management 
     } else if (path.endsWith('/addon-github/discover')) {
       checks++; if (heldDiscovery) { const held = heldDiscovery; heldDiscovery = undefined; await held; }
       if (failDiscovery) { await route.fulfill({ status: 502, json: { error: { kind: discoveryError } } }); return; }
-      value = { source, candidates: [{ id: target, name: 'reviewed-package', version: target, digest: '', active: target === active }] };
+      value = { source, candidates: [{ id: target, name: 'reviewed-package', version: target, digest: '', active: target === active, provenance: { commit: target.slice(0, 40), runId: '1234', runAttempt: 2, publishedAt: '2026-09-15T10:00:00Z', notes: '', notesTruncated: false } }] };
     } else if (path.endsWith('/addon-github/stage')) {
       downloads++; assert.equal(body.candidateId, target);
       const generation = { addonId: 'example', generationId: target, version: '1.0.0', installedAt: '2026-09-10T10:00:00Z' };
@@ -133,8 +133,11 @@ for (const mobile of [false, true]) test(`GitHub installation, token management 
   failDiscovery = true; await check.click(); await sourceRow.getByRole('alert').filter({ hasText: 'GitHub could not be reached' }).waitFor();
   discoveryError = 'GITHUB_TLS'; await check.click(); await sourceRow.getByRole('alert').filter({ hasText: 'trusted certificates' }).waitFor();
   failDiscovery = false; await check.click(); await sourceRow.getByText('Up to date', { exact: true }).waitFor();
+  await sourceRow.getByText('Build #1234 · attempt 2', { exact: true }).waitFor();
+  assert.equal(await sourceRow.getByRole('link', { name: 'Open build on GitHub' }).getAttribute('href'), 'https://github.com/owner/private/actions/runs/1234');
+  assert.equal(await sourceRow.locator('code').filter({ hasText: target.slice(0, 40) }).first().isVisible(), true);
   // Source editing and token replacement stay attached to the installed add-on.
-  await sourceRow.locator('summary').click(); await sourceRow.getByRole('button', { name: 'Edit GitHub source' }).click();
+  await sourceRow.locator(':scope > details > summary').click(); await sourceRow.getByRole('button', { name: 'Edit GitHub source' }).click();
   await connect.locator('input[name="repo"]').waitFor(); assert.equal(await connect.locator('input[name="repo"]').inputValue(), 'owner/private');
   assert.equal(await connect.getByLabel('Package source').inputValue(), 'actions', 'existing linked sources keep their selected channel');
   lostTokenResponse = true; await connect.locator('input[name="token"]').fill('replacement-private-token');
@@ -159,7 +162,7 @@ for (const mobile of [false, true]) test(`GitHub installation, token management 
   await manager.screenshot({ path: `${output}/${mobile ? 'phone' : 'desktop'}.png` });
   await page.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await page.reload(); await page.locator('[data-category="addons"]').click();
   await manager.getByRole('button', { name: 'Zkontrolovat aktualizace', exact: true }).waitFor();
-  await sourceRow.locator('summary').click(); await sourceRow.getByRole('button', { name: 'Odpojit repozitář', exact: true }).click();
+  await sourceRow.locator(':scope > details > summary').click(); await sourceRow.getByRole('button', { name: 'Odpojit repozitář', exact: true }).click();
   await sourceRow.getByRole('button', { name: 'Připojit GitHub', exact: true }).waitFor(); assert.equal(active, target);
   assert.equal(await manager.locator('[data-addon-id="example"]').count(), 1, 'unlinking preserves the installed row');
 });
@@ -271,4 +274,58 @@ for (const mobile of [false,true]) test(`historical packages download into the e
  assert.equal(downloads,2);assert.equal(activations,1);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.screenshot({path:fileURLToPath(new URL(`../../test-results/addon-github/history-${mobile?'phone':'desktop'}.png`,import.meta.url)),fullPage:true});
+});
+
+for (const mobile of [false, true]) test('release details distinguish same-version packages and explain incompatibility (' + (mobile ? 'Czech phone' : 'English desktop') + ')', async t => {
+  const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1400, height: 1000 }, extraHTTPHeaders: { 'X-Fixture-Role': 'dm' } });
+  t.after(() => context.close());
+  const page = await context.newPage(); page.setDefaultTimeout(7000);
+  await page.addInitScript(cs => localStorage.setItem('codex_lang', cs ? 'cs' : 'en'), mobile);
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message)); t.after(() => assert.deepEqual(errors, []));
+  const active = 'a'.repeat(64), next = 'b'.repeat(64);
+  let target = active, downloads = 0, approvals = 0;
+  const source: GitHubSource = { repo: 'owner/releases', channel: 'release', branch: '', artifact: '' };
+  const generation = (id: string) => ({ addonId: 'example', generationId: id, version: '1.0.0', installedAt: '2026-09-15T10:00:00Z' });
+  const reason = 'host version is incompatible: host 2.0.0 does not satisfy "^9.0.0"';
+  const notes = 'Fixed editor focus.\n<script>throw new Error("unsafe notes")</script>\n[Unsafe](javascript:alert(1))';
+  await page.route('**/api/admin/**', async route => {
+    const path = new URL(route.request().url()).pathname;
+    let value: unknown;
+    if (path === '/api/admin/addon-github') value = { contractVersion: 'addon-github.v1', sources: [{ addonId: 'example', revision: 1, source }], credentials: { defaultSource: 'none', environmentConfigured: false, repositories: [] } };
+    else if (path.endsWith('/addon-github/discover')) value = { source, candidates: [{ id: target, name: 'example.zip', version: 'v1.0.0', active: target === active, digest: 'sha256:' + target, provenance: { commit: target.slice(0, 40), runId: '', runAttempt: 0, publishedAt: '2026-09-15T10:00:00Z', notes, notesTruncated: true } }] };
+    else if (path.endsWith('/addon-github/stage')) { downloads++; assert.equal(route.request().postDataJSON().candidateId, next); value = generation(next); }
+    else if (path === '/api/admin/addons') value = { contractVersion: 'addon-inventory.v1', addonIds: ['example'] };
+    else if (path === '/api/admin/addons/example') value = { state: { addonId: 'example', revision: 1, activeGenerationId: active }, generations: downloads ? [generation(active), generation(next)] : [generation(active)], events: [] };
+    else if (path.endsWith('/activation-reviews')) value = { reviewId: 'blocked-review', addonId: 'example', generationId: next, proposalSha256: 'c'.repeat(64), status: 'prepared', proposal: { addonId: 'example', generationId: next, targetManifest: { id: 'example', name: 'Release test', version: '1.0.0', permissions: [] }, currentManifest: { version: '1.0.0' }, changes: { runtimeChanged: false }, requiredPermissionIds: [], restartedAddonIds: [], blockers: [{ code: 'COMPATIBILITY', message: reason }] } };
+    else { if (path.endsWith('/approval') || path.endsWith('/activation')) approvals++; await route.fulfill({ status: 404, json: {} }); return; }
+    await route.fulfill({ json: value });
+  });
+  await page.goto(origin + '/#/settings'); await page.locator('[data-category="addons"]').click();
+  const manager = page.locator('codex-addon-manager'), row = manager.locator('[data-github-addon="example"]');
+  const check = manager.getByRole('button', { name: mobile ? 'Zkontrolovat aktualizace' : 'Check for updates', exact: true });
+  await check.click();
+  await row.getByText(mobile ? 'Aktuální verze' : 'Up to date', { exact: true }).waitFor();
+  await row.getByText(active.slice(0, 40), { exact: true }).waitFor();
+  assert.equal(downloads, 0);
+  target = next; await check.click();
+  await row.getByText(next.slice(0, 40), { exact: true }).waitFor();
+  await row.getByText('example.zip · v1.0.0', { exact: true }).waitFor();
+  const summary = row.locator('summary').filter({ hasText: mobile ? 'Změny ve vydání' : 'Release changes' });
+  await summary.focus(); await page.keyboard.press('Enter');
+  assert.equal(await row.locator('.github-release-notes').textContent(), notes);
+  assert.equal(await row.locator('.github-release-notes script, .github-release-notes a').count(), 0);
+  const upstream = row.getByRole('link', { name: mobile ? 'Otevřít vydání na GitHubu' : 'Open release on GitHub' });
+  assert.equal(await upstream.getAttribute('href'), 'https://github.com/owner/releases/releases/tag/v1.0.0');
+  assert.equal(await upstream.getAttribute('rel'), 'noreferrer');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await row.screenshot({ path: output + '/release-' + (mobile ? 'phone-cs' : 'desktop-en') + '.png' });
+  await row.getByRole('button', { name: mobile ? 'Stáhnout a zkontrolovat' : 'Download and review' }).click();
+  const dialog = manager.getByRole('dialog');
+  await dialog.locator('.addon-blocker-reason').filter({ hasText: reason }).waitFor();
+  assert.equal(await dialog.getByRole('button', { name: mobile ? 'Schválit a aktivovat' : 'Approve and activate' }).isDisabled(), true);
+  assert.equal(await dialog.locator('details[open]').count(), 0, 'the specific incompatibility is visible without technical disclosures');
+  assert.equal(downloads, 1); assert.equal(approvals, 0);
+  await dialog.screenshot({ path: output + '/incompatible-' + (mobile ? 'phone-cs' : 'desktop-en') + '.png' });
+  await dialog.getByRole('button', { name: mobile ? 'Zrušit kontrolu' : 'Cancel review' }).click();
+  assert.equal(approvals, 0);
 });

@@ -46,12 +46,23 @@ type LinkedSource struct {
 	Revision int64  `json:"revision"`
 }
 type Candidate struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Version      string `json:"version"`
-	Digest       string `json:"digest"`
-	Active       bool   `json:"active"`
+	ID           string      `json:"id"`
+	Name         string      `json:"name"`
+	Version      string      `json:"version"`
+	Digest       string      `json:"digest"`
+	Active       bool        `json:"active"`
+	Provenance   *Provenance `json:"provenance,omitempty"`
 	downloadPath string
+}
+
+// Provenance is bounded display metadata, never package or activation authority.
+type Provenance struct {
+	Commit         string `json:"commit"`
+	RunID          string `json:"runId"`
+	RunAttempt     int    `json:"runAttempt"`
+	PublishedAt    string `json:"publishedAt"`
+	Notes          string `json:"notes"`
+	NotesTruncated bool   `json:"notesTruncated"`
 }
 type Discovery struct {
 	Source     Source      `json:"source"`

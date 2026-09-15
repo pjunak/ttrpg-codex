@@ -13,8 +13,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
+	"time"
+	"unicode"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 )
@@ -79,10 +82,12 @@ func (s *Service) discover(ctx context.Context, source Source, token string) ([]
 	prefix := "/repos/" + source.Repo
 	if source.Channel == "release" {
 		var release struct {
-			Tag        string `json:"tag_name"`
-			Draft      bool   `json:"draft"`
-			Prerelease bool   `json:"prerelease"`
-			Assets     []struct {
+			Tag         string `json:"tag_name"`
+			Body        string `json:"body"`
+			PublishedAt string `json:"published_at"`
+			Draft       bool   `json:"draft"`
+			Prerelease  bool   `json:"prerelease"`
+			Assets      []struct {
 				ID        int64  `json:"id"`
 				Name      string `json:"name"`
 				State     string `json:"state"`
@@ -97,12 +102,27 @@ func (s *Service) discover(ctx context.Context, source Source, token string) ([]
 		if release.Draft || release.Prerelease {
 			return nil, ErrNoPackage
 		}
+		provenance := &Provenance{PublishedAt: displayTime(release.PublishedAt)}
+		provenance.Notes, provenance.NotesTruncated = releaseNotes(release.Body)
+		// target_commitish may be a branch, or stale after a tag move. Resolve
+		// the tag itself; optional provenance failure must not hide packages.
+		if release.Tag != "" && len(release.Tag) <= 300 {
+			var commit struct {
+				SHA string `json:"sha"`
+			}
+			lookup, cancel := context.WithTimeout(ctx, 3*time.Second)
+			lookupErr := s.getJSON(lookup, prefix+"/commits/"+url.PathEscape("tags/"+release.Tag), token, &commit)
+			cancel()
+			if lookupErr == nil {
+				provenance.Commit = displayCommit(commit.SHA)
+			}
+		}
 		candidates := []Candidate{}
 		for _, asset := range release.Assets {
 			if asset.ID <= 0 || asset.State != "uploaded" || !strings.HasSuffix(strings.ToLower(asset.Name), ".zip") || asset.Size <= 0 || asset.Size > packageinspect.DefaultLimits.MaxArchiveBytes {
 				continue
 			}
-			candidates = append(candidates, Candidate{ID: remoteID(asset.ID, asset.Digest, asset.UpdatedAt), Name: asset.Name, Version: release.Tag, Digest: asset.Digest,
+			candidates = append(candidates, Candidate{ID: remoteID(asset.ID, asset.Digest, asset.UpdatedAt), Name: asset.Name, Version: release.Tag, Digest: asset.Digest, Provenance: provenance,
 				downloadPath: prefix + "/releases/assets/" + strconv.FormatInt(asset.ID, 10)})
 		}
 		if len(candidates) == 0 {
@@ -132,6 +152,8 @@ func (s *Service) discover(ctx context.Context, source Source, token string) ([]
 			Conclusion string `json:"conclusion"`
 			Branch     string `json:"head_branch"`
 			SHA        string `json:"head_sha"`
+			RunAttempt int    `json:"run_attempt"`
+			CreatedAt  string `json:"created_at"`
 			Repository struct {
 				ID int64 `json:"id"`
 			} `json:"head_repository"`
@@ -170,6 +192,7 @@ func (s *Service) discover(ctx context.Context, source Source, token string) ([]
 				continue
 			}
 			candidates = append(candidates, Candidate{ID: remoteID(artifact.ID, artifact.Digest, artifact.UpdatedAt), Name: artifact.Name, Version: run.SHA, Digest: artifact.Digest,
+				Provenance:   &Provenance{Commit: displayCommit(run.SHA), RunID: strconv.FormatInt(run.ID, 10), RunAttempt: max(0, min(run.RunAttempt, 1_000_000)), PublishedAt: displayTime(run.CreatedAt)},
 				downloadPath: prefix + "/actions/artifacts/" + strconv.FormatInt(artifact.ID, 10) + "/zip"})
 		}
 		if len(candidates) > 0 {
@@ -177,6 +200,35 @@ func (s *Service) discover(ctx context.Context, source Source, token string) ([]
 		}
 	}
 	return nil, ErrNoPackage
+}
+
+var commitPattern = regexp.MustCompile(`^(?:[a-f0-9]{40}|[a-f0-9]{64})$`)
+
+func displayCommit(value string) string {
+	if commitPattern.MatchString(value) {
+		return value
+	}
+	return ""
+}
+func displayTime(value string) string {
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return ""
+	}
+	return parsed.UTC().Format(time.RFC3339)
+}
+func releaseNotes(value string) (string, bool) {
+	value = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) && r != '\n' && r != '\t' {
+			return -1
+		}
+		return r
+	}, strings.ReplaceAll(value, "\r\n", "\n"))
+	runes := []rune(strings.TrimSpace(value))
+	if len(runes) > 4000 {
+		return string(runes[:4000]), true
+	}
+	return string(runes), false
 }
 
 func (s *Service) download(ctx context.Context, candidate Candidate, channel, token string) (_ *os.File, resultErr error) {

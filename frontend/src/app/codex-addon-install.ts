@@ -2,6 +2,7 @@ import { LitElement, html, nothing } from "lit";
 import { AddonAdminClient, type InstalledGeneration } from "../core/addon-admin.js";
 import { AddonGitHubClient, type GitHubDiscovery, type GitHubLink, type GitHubStatus } from "../core/addon-github.js";
 import { githubError } from "./addon-github-controller.js";
+import { githubCandidateDetails } from "./github-candidate-details.js";
 import { githubTokenHelp, hasGitHubAccess } from "./github-access.js";
 import { UiLocalizationController } from "./ui-localization.js";
 
@@ -82,7 +83,7 @@ export class CodexAddonInstall extends LitElement {
     </form>
     ${this.discovery ? html`<section class="github-candidates"><h4 tabindex="-1">${t("github.choosePackage")}</h4><p>${t("github.reviewHint")}</p>
       ${!this.discovery.candidates.length ? html`<p role="status">${t("github.noPackage")}</p>` : nothing}
-      <ul>${this.discovery.candidates.map(candidate => html`<li><div><strong>${candidate.name}</strong><small>${candidate.version}</small></div>
+      <ul>${this.discovery.candidates.map(candidate => html`<li><div class="github-candidate-info">${githubCandidateDetails(candidate, this.discovery!.source, t, this.#ui.locale)}</div>
         <button ?disabled=${this.#busy} @click=${() => this.#stage(candidate.id)}>${t("github.download")}</button></li>`)}</ul></section>` : nothing}`;
   }
   readonly #upload = (event: SubmitEvent): void => {

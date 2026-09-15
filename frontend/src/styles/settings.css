@@ -145,6 +145,10 @@ codex-addon-settings { display: block; min-width: 0; }
 .addon-source-form { display: flex; flex-wrap: wrap; align-items: end; gap: .7rem; margin: 1rem 0; }
 .addon-source-form label { flex: 1 1 11rem; min-width: 0; font-size: .8rem; }
 .addon-source-form input, .addon-source-form select { display: block; box-sizing: border-box; width: 100%; margin-top: .4rem; padding: .5rem; border: 1px solid var(--chrome-field-border); border-radius: var(--radius); background: var(--bg-raised); color: var(--text-parchment); font: inherit; }
+.github-candidate-info { min-width: 0; flex: 1 1 16rem; }
+.github-candidate-info p { margin: .4rem 0; }
+.github-release-notes { white-space: pre-wrap; max-height: 16rem; overflow: auto; overflow-wrap: anywhere; font: inherit; }
+.github-candidate-info code { overflow-wrap: anywhere; }
 .github-candidates { flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; }
 .github-source, .github-tokens { overflow-wrap: anywhere; }
 .github-tokens { margin: 1rem 0; }

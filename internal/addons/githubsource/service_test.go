@@ -216,6 +216,9 @@ func TestReleaseStagesReviewedUpdatesAndTracksActiveGeneration(t *testing.T) {
 		if r.URL.Path == "/repos/owner/repo/releases/latest" {
 			return response(jsonBody(map[string]any{"tag_name": "v1", "assets": []any{map[string]any{"id": assetID, "name": "example.zip", "size": len(body), "state": "uploaded", "digest": digest(body)}}})), nil
 		}
+		if strings.HasPrefix(r.URL.Path, "/repos/owner/repo/commits/") {
+			return response(jsonBody(map[string]string{"sha": strings.Repeat("a", 40)})), nil
+		}
 		downloadCalls++
 		return response(body), nil
 	})
@@ -331,6 +334,9 @@ func TestUpdateCompletingAfterUninstallCannotReinstallOrRelink(t *testing.T) {
 		if r.URL.Path == "/repos/owner/repo/releases/latest" {
 			return response(jsonBody(map[string]any{"tag_name": "v1", "assets": []any{map[string]any{"id": 1, "name": "example.zip", "size": len(body), "state": "uploaded", "digest": digest(body)}}})), nil
 		}
+		if strings.HasPrefix(r.URL.Path, "/repos/owner/repo/commits/") {
+			return response(jsonBody(map[string]string{"sha": strings.Repeat("a", 40)})), nil
+		}
 		review, err := manager.PrepareUninstall(ctx, "example")
 		if err != nil {
 			t.Fatal(err)
@@ -377,7 +383,7 @@ func TestActionsSelectsSuccessfulSameRepositoryBuildAndUnwrapsPackage(t *testing
               {"id":90,"event":"pull_request","status":"completed","conclusion":"success","head_branch":"main","head_repository":{"id":2}},
               {"id":91,"event":"push","status":"completed","conclusion":"failure","head_branch":"main","head_repository":{"id":1}},
               {"id":92,"event":"push","status":"completed","conclusion":"success","head_branch":"other","head_repository":{"id":1}},
-              {"id":93,"event":"push","status":"completed","conclusion":"success","head_branch":"main","head_sha":"abc123","head_repository":{"id":1}}
+              {"id":93,"event":"push","status":"completed","conclusion":"success","head_branch":"main","head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","run_attempt":2,"created_at":"2026-09-15T10:00:00Z","head_repository":{"id":1}}
             ]}`)), nil
 		case "/repos/owner/repo/actions/runs/93/artifacts":
 			return response(jsonBody(map[string]any{"artifacts": []any{map[string]any{"id": 7, "name": "reviewed-package", "size_in_bytes": len(body), "digest": digest(body), "expired": expired}}})), nil
@@ -391,6 +397,9 @@ func TestActionsSelectsSuccessfulSameRepositoryBuildAndUnwrapsPackage(t *testing
 	found, err := s.Discover(ctx, source, "")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if p := found.Candidates[0].Provenance; p == nil || p.Commit != strings.Repeat("a", 40) || p.RunID != "93" || p.RunAttempt != 2 || p.PublishedAt != "2026-09-15T10:00:00Z" {
+		t.Fatalf("missing build identity: %+v", p)
 	}
 	generation, err := s.Stage(ctx, source, "", found.Candidates[0].ID)
 	if err != nil || generation.AddonID != "example" {

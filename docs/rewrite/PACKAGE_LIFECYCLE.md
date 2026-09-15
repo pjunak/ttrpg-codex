@@ -56,6 +56,24 @@ Two sources are supported:
   unexpired artifact must contain exactly one prebuilt package ZIP. Build
   failures do not replace the last successful package.
 
+The candidate list shows the release tag, resolved source commit when available,
+Actions run ID/attempt, publication time, and exact remote digest or candidate
+identity. Installed rows also show their active package fingerprint, so matching
+manifest versions do not make distinct builds indistinguishable. Release notes
+are plain text behind a disclosure, limited to 4,000 Unicode characters with an
+explicit truncation notice and a link to the complete release. Missing notes or
+commit metadata have explicit fallback states. The install wizard and update
+cards share these details in English and Czech, including already-current results.
+
+Release commits resolve the actual tag through GitHub's
+[commit endpoint](https://docs.github.com/en/rest/commits/commits#get-a-commit);
+a branch-valued `target_commitish` is not a commit identity. This optional lookup
+has a three-second deadline; its failure leaves package discovery available.
+These source details are informational, not proof of package contents or
+compatibility. Downloading still enters exact-package inspection and review.
+Compatibility, ruleset, dependency and service reasons are visible directly
+in the activation review, and blockers prevent approval.
+
 Checks only read GitHub metadata. Download requests re-resolve the source and
 require the selected asset/artifact identity, digest and update timestamp to
 remain unchanged. Available GitHub SHA-256 digests are verified on download.
@@ -109,7 +127,11 @@ desktop/phone ZIP and GitHub installation through the popup wizard, modal focus
 and cancellation, source-edit invalidation, private-token guidance and replacement,
 lost responses without secret replay, consecutive add-on updates from one check,
 reload and Czech labels
-with synthetic GitHub responses. The installed-package fixtures exercise the
+with synthetic GitHub responses. Metadata regressions cover same-version packages,
+tag resolution/failure, Actions build identity, bounded Unicode notes, inert
+release text, visible incompatibility and disabled approval. GitHub responses
+never supply navigable URLs: upstream links are built from validated repository,
+tag and run identities. The installed-package fixtures exercise the
 same wizard and review against the actual host lifecycle. Actual account access
 and production network connectivity remain operator integration checks.
 

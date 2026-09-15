@@ -9,7 +9,8 @@ export interface GitHubStatus {
   contractVersion: "addon-github.v1"; sources: GitHubLink[];
   credentials: { defaultSource: "none" | "stored" | "environment"; environmentConfigured: boolean; repositories: string[] };
 }
-export interface GitHubCandidate { id: string; name: string; version: string; digest: string; active: boolean }
+export interface GitHubProvenance { commit: string; runId: string; runAttempt: number; publishedAt: string; notes: string; notesTruncated: boolean }
+export interface GitHubCandidate { id: string; name: string; version: string; digest: string; active: boolean; provenance?: GitHubProvenance }
 export interface GitHubDiscovery { source: GitHubSource; candidates: GitHubCandidate[] }
 const fail = (): never => { throw new BoundaryValidationError("GitHub add-ons", "invalid server response"); };
 const record = (value: unknown, keys: string[]): Record<string, unknown> => isRecord(value) && hasOnlyKeys(value, new Set(keys)) ? value : fail();
@@ -32,12 +33,21 @@ export function parseGitHubStatus(value: unknown): GitHubStatus {
     return { addonId, source: parseSource(link["source"]), revision };
   }), credentials: { defaultSource: c["defaultSource"] as GitHubStatus["credentials"]["defaultSource"], environmentConfigured: boolean(c["environmentConfigured"]), repositories: list(c["repositories"]).map(repo) } };
 }
+function parseProvenance(value: unknown): GitHubProvenance {
+  const p = record(value, ["commit", "runId", "runAttempt", "publishedAt", "notes", "notesTruncated"]);
+  const commit = text(p["commit"], 64), runId = text(p["runId"], 20), publishedAt = text(p["publishedAt"], 30), runAttempt = p["runAttempt"];
+  if (commit !== "" && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(commit) ||
+      runId !== "" && !/^[1-9][0-9]{0,18}$/u.test(runId) ||
+      publishedAt !== "" && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(publishedAt) || !Number.isFinite(Date.parse(publishedAt))) ||
+      typeof runAttempt !== "number" || !Number.isSafeInteger(runAttempt) || runAttempt < 0 || runAttempt > 1_000_000) return fail();
+  return { commit, runId, runAttempt, publishedAt, notes: text(p["notes"], 8000), notesTruncated: boolean(p["notesTruncated"]) };
+}
 export function parseGitHubDiscovery(value: unknown): GitHubDiscovery {
   const r = record(value, ["source", "candidates"]);
   return { source: parseSource(r["source"]), candidates: list(r["candidates"]).map(value => {
-    const c = record(value, ["id", "name", "version", "digest", "active"]), digest = text(c["digest"]);
+    const c = record(value, ["id", "name", "version", "digest", "active", "provenance"]), digest = text(c["digest"]);
     if (digest !== "" && !/^sha256:[a-f0-9]{64}$/u.test(digest)) return fail();
-    return { id: hash(c["id"]), name: text(c["name"]), version: text(c["version"]), digest, active: boolean(c["active"]) };
+    return { id: hash(c["id"]), name: text(c["name"]), version: text(c["version"]), digest, active: boolean(c["active"]), ...(c["provenance"] === undefined ? {} : { provenance: parseProvenance(c["provenance"]) }) };
   }) };
 }
 export class GitHubRequestError extends HostRequestError {

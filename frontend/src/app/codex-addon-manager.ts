@@ -13,6 +13,7 @@ import "./codex-package-storage.js";
 import { AddonGitHubController } from "./addon-github-controller.js";
 import { AddonGitHubClient, type GitHubDiscovery } from "../core/addon-github.js";
 import { githubTokenHelp } from "./github-access.js";
+import { githubCandidateDetails } from "./github-candidate-details.js";
 import { containDialogTab } from "./dialog-focus.js";
 import { type CodexAddonConfiguration, type ConfigurationAddon } from "./codex-addon-configuration.js";
 import "./codex-addon-configuration.js";
@@ -210,7 +211,7 @@ export class CodexAddonManager extends LitElement {
   #candidates(result: GitHubDiscovery, addonId: string) {
     const t = this.#ui.t.bind(this.#ui);
     return html`<div class="github-candidates">${!result.candidates.length ? html`<p role="status">${t("github.noPackage")}</p>` : nothing}
-      <ul>${result.candidates.map(candidate => html`<li>${candidate.active ? html`<p role="status">${t("github.current")}</p>` : html`<div><strong>${t("github.available")}</strong><small>${candidate.name} · ${candidate.version}</small></div>
+      <ul>${result.candidates.map(candidate => html`<li><div class="github-candidate-info"><strong>${t(candidate.active ? "github.current" : "github.available")}</strong>${githubCandidateDetails(candidate, result.source, t, this.#ui.locale)}</div>${candidate.active ? nothing : html`
         <button ?disabled=${this.#busy} @click=${() => {
           this.#openInstall(); void this.#run(async client => {
             this.staged = await new AddonGitHubClient(this.csrfToken, this.#request.signal).stage(result.source, candidate.id, addonId);
@@ -245,7 +246,7 @@ export class CodexAddonManager extends LitElement {
     const t = this.#ui.t.bind(this.#ui), state = snapshot.state;
     const active = snapshot.generations.find(generation => generation.generationId === state.activeGenerationId);
     return html`<article class="addon-row" data-addon-id=${state.addonId}>
-      <header><div><h3>${state.addonId}</h3><p>${active ? html`${active.version} · ${t("addons.active")}` : t("addons.inactive")}${snapshot.runtimeState ? ` · ${uiSourceLabel(snapshot.runtimeState)}` : ""}</p></div>
+      <header><div><h3>${state.addonId}</h3><p>${active ? html`${active.version} · ${t("addons.active")}` : t("addons.inactive")}${snapshot.runtimeState ? ` · ${uiSourceLabel(snapshot.runtimeState)}` : ""}</p>${active ? html`<small>${t("addons.generation")}: <code title=${active.generationId}>${active.generationId.slice(0, 12)}</code></small>` : nothing}</div>
       <div class="addon-actions">${active ? html`<button ?disabled=${this.#busy} @click=${() => this.#action(snapshot, "reload")}>${t("addons.reload")}</button><button ?disabled=${this.#busy} @click=${() => this.#action(snapshot, "disable")}>${t("addons.disable")}</button>` : nothing}
         <button ?disabled=${this.#busy} @click=${() => this.#prepareUninstall(state.addonId)}>${t("addons.uninstall")}</button></div></header>
       ${this.#source(state.addonId)}
@@ -274,7 +275,7 @@ export class CodexAddonManager extends LitElement {
           @change=${(event: Event) => { this.grants = (event.target as HTMLInputElement).checked ? [...this.grants, permission.id] : this.grants.filter(id => id !== permission.id); }}>
           <span><strong>${permission.id}</strong> ${review.required.includes(permission.id) ? `(${t("addons.required")})` : ""}<small>${permission.resources.join(", ")}</small><span>${permission.reason}</span></span></label>`) : html`<p>${t("addons.noPermissions")}</p>`}
       </fieldset>
-      ${review.blockers.length ? html`<div role="alert"><h4>${t("addons.blocked")}</h4><ul>${review.blockers.map(blocker => html`<li>${blockerMessage(blocker.code)}<details><summary>${uiText("Technical details")}</summary><code>${blocker.code}</code><p>${blocker.message}</p></details></li>`)}</ul></div>` : nothing}
+      ${review.blockers.length ? html`<div role="alert"><h4>${t("addons.blocked")}</h4><ul>${review.blockers.map(blocker => html`<li>${blockerMessage(blocker.code)}${["COMPATIBILITY", "RULESET", "DEPENDENCY", "SERVICE"].includes(blocker.code) ? html`<p class="addon-blocker-reason">${blocker.message}</p>` : nothing}<details><summary>${uiText("Technical details")}</summary><code>${blocker.code}</code>${["COMPATIBILITY", "RULESET", "DEPENDENCY", "SERVICE"].includes(blocker.code) ? nothing : html`<p>${blocker.message}</p>`}</details></li>`)}</ul></div>` : nothing}
       <div class="addon-actions"><button ?disabled=${this.#busy || review.blockers.length > 0 || review.required.some(id => !this.grants.includes(id))}
         @click=${() => this.#activate(review)}>${t("addons.approve")}</button><button ?disabled=${this.#busy} @click=${() => this.#closeInstall()}>${t("addons.cancel")}</button></div>
     </section>`;
@@ -361,7 +362,7 @@ customElements.define("codex-addon-manager", CodexAddonManager);
 function blockerMessage(code: string): string {
   switch (code) {
     case "RULESET": return uiText("Review the package compatibility before activation.");
-    case "COMPATIBILITY": return uiText("Review the package compatibility before activation.");
+    case "COMPATIBILITY": return uiText("github.incompatible");
     case "DEPENDENCY": case "DEPENDENT_INCOMPATIBLE": return uiText("Resolve the required add-on dependencies before activation.");
     case "SERVICE": return uiText("Resolve service-provider conflicts before activation.");
     case "DATA_REVIEW": return uiText("Review the stored data and the package data definitions.");
