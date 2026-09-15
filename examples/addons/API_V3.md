@@ -221,15 +221,19 @@ reports failure; it does not guarantee uninterrupted previous workers or
 silently select an older package. Browser generations also restart as a whole.
 
 Rollback reuses exact-package review and current data compatibility checks.
-Disable refuses active dependents outside a coordinated transition. Reviewed
-uninstall disables required dependents, unregisters the package and preserves
+Reviewed disable previews transitive required dependents, optional consumers,
+stop order and remaining restart attempts, then commits the exact disabled set
+through the cold coordinator. It preserves packages, grants, sources and authored
+data; re-enabling uses activation review. The single-package expected-revision
+primitive still refuses live dependents. Reviewed uninstall disables required
+dependents, unregisters the package and preserves
 its data/history and saved generations. Restaging requires ordinary review.
 See [the lifecycle owner](../../docs/rewrite/PACKAGE_LIFECYCLE.md).
 
 Stored schema incompatibility currently blocks activation; there is no automatic
-migration plan/apply step. Dedicated quarantine and permanent archive/namespace
-deletion are also absent. T04–T10 in [the backlog](../../docs/BACKLOG.md) record
-those gaps. Never simulate them by changing package files or database rows.
+migration plan/apply step. Dedicated quarantine and permanent namespace deletion
+also remain planned under T05, T08 and T10 in [the backlog](../../docs/BACKLOG.md).
+Saved package archives have a separate reviewed cleanup flow in the lifecycle owner. Never simulate them by changing package files or database rows.
 
 ## Browser SDK
 

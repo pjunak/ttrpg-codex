@@ -96,15 +96,30 @@ func (manager *Manager) uninstallReviewLocked(ctx context.Context, addonID strin
 	if err := manager.store.uninstallDetails(ctx, &review); err != nil {
 		return UninstallReview{}, err
 	}
-	states, err := manager.store.activeStates(ctx)
+	review.Effects, err = manager.removalEffectsLocked(ctx, addonID, manifest)
 	if err != nil {
 		return UninstallReview{}, err
+	}
+	body, err := json.Marshal(review)
+	if err != nil {
+		return UninstallReview{}, err
+	}
+	digest := sha256.Sum256(body)
+	review.ReviewSHA256 = hex.EncodeToString(digest[:])
+	return review, nil
+}
+
+func (manager *Manager) removalEffectsLocked(ctx context.Context, addonID string, manifest packageinspect.Manifest) ([]UninstallEffect, error) {
+	effects := []UninstallEffect{}
+	states, err := manager.store.activeStates(ctx)
+	if err != nil {
+		return nil, err
 	}
 	manifests := map[string]packageinspect.Manifest{addonID: manifest}
 	for _, state := range states {
 		item, err := manager.store.manifest(ctx, state.AddonID, state.ActiveGenerationID)
 		if err != nil {
-			return UninstallReview{}, err
+			return nil, err
 		}
 		manifests[state.AddonID] = item
 	}
@@ -118,7 +133,7 @@ func (manager *Manager) uninstallReviewLocked(ctx context.Context, addonID strin
 			}
 			mustDisable, _, err := manager.removalEffect(ctx, manifests[state.AddonID], manifests, excluded)
 			if err != nil {
-				return UninstallReview{}, err
+				return nil, err
 			}
 			if mustDisable {
 				excluded = append(excluded, state.AddonID)
@@ -136,19 +151,13 @@ func (manager *Manager) uninstallReviewLocked(ctx context.Context, addonID strin
 		}
 		_, reasons, err := manager.removalEffect(ctx, manifests[state.AddonID], manifests, excluded)
 		if err != nil {
-			return UninstallReview{}, err
+			return nil, err
 		}
 		if len(reasons) > 0 {
-			review.Effects = append(review.Effects, UninstallEffect{AddonID: state.AddonID, Name: manifests[state.AddonID].Name, Disabled: disabled[state.AddonID], Reasons: reasons})
+			effects = append(effects, UninstallEffect{AddonID: state.AddonID, Name: manifests[state.AddonID].Name, Disabled: disabled[state.AddonID], Reasons: reasons})
 		}
 	}
-	body, err := json.Marshal(review)
-	if err != nil {
-		return UninstallReview{}, err
-	}
-	digest := sha256.Sum256(body)
-	review.ReviewSHA256 = hex.EncodeToString(digest[:])
-	return review, nil
+	return effects, nil
 }
 
 func (manager *Manager) removalEffect(ctx context.Context, manifest packageinspect.Manifest, manifests map[string]packageinspect.Manifest, excluded []string) (bool, []string, error) {

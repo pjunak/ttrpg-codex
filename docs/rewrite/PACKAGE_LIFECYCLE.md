@@ -298,12 +298,50 @@ the add-on generation and catalog revisions do not change, so already-issued
 consumer handles remain valid. The state revision and `reloaded` event still
 advance, invalidating any review prepared against the older operational state.
 
-Disable deactivates generation routing before clearing the durable active
-pointer. Installed generations, provider declarations, bindings, grants, and
-add-on data remain preserved. A failed or unrecovered generation can therefore
-be disabled without starting its code. Live dependents block disable until a
-coordinated transition is available. Successful disable increments the state
-revision, records `disabled`, and then performs bounded worker cleanup.
+Settings → Add-ons uses an explicit **Review disable** panel in English and
+Czech. It lists required dependents that will also be disabled, affected consumers
+that can remain enabled, the consumer-before-provider stop order, and every
+remaining active add-on whose restart will be attempted. A required service
+consumer with another valid selected provider remains enabled. Optional
+consumers retain their standalone behavior and operator bindings are preserved.
+Cancel has no lifecycle effect and returns focus to the initiating control.
+
+`PrepareDisable` shares uninstall's transitive dependency analysis and hashes
+the exact target generations/state revisions, dependency effects, configuration
+revision, browser graph revision, stop order and remaining restart set.
+`DisableReviewed` reconstructs this proposal under the manager lock and accepts
+only its matching fingerprint. Reload, changed bindings/configuration, activation,
+or a changed dependent set requires a fresh review. No client-supplied target list
+can expand the operation.
+
+Confirmation uses the existing cold coordinator: stop live consumers before
+providers, clear all reviewed active pointers and append their `disabled` events
+in one SQLite transaction, then recover the remaining graph in dependency order.
+Unrelated active add-ons also restart; the review exposes this deliberately
+bounded design. A stop or write failure retains the original durable selection
+and attempts to restore its runtime graph. A restart failure after commit is
+reported separately and never silently re-enables a disabled package.
+
+Installed generations, provider declarations, bindings, permission grants,
+GitHub sources, instance configuration, campaign records and recovery points
+remain preserved. A failed or corrupt generation can be disabled using its
+durable inspected manifest without starting its code. Each disabled state's
+revision advances once. Re-enabling a saved package uses the normal activation
+review; it does not automatically re-enable its previously disabled dependents.
+
+Accepted transitions have a bounded context detached from a browser disconnect.
+The UI discards stale/uncertain confirmations and directs the operator to refresh;
+it never retries them automatically. Reusing an applied fingerprint is stale.
+The older expected-revision `Disable` primitive remains available for single-package
+administrative callers and still refuses live dependents; it never cascades.
+
+Coverage: `disable_review_test.go` verifies transitive and optional dependencies,
+alternative selected providers, stop order, data/package/grant/source retention,
+stale reviews, atomic rollback, stop failure, disconnected callers, corrupt
+packages and explicit restart failures. HTTP and client tests cover authority,
+closed request bodies and no automatic retry. Installed desktop/Czech phone
+browser tests cover review/cancel/focus, stale dependents, lost responses,
+generation disposal, retained data on reactivation and role/CSRF denial.
 
 ## Reviewed uninstall
 
@@ -533,7 +571,9 @@ CSRF token for mutations.
 | `POST /api/admin/addon-activation-reviews/{reviewId}/approval` | Approve an exact complete grant set |
 | `POST /api/admin/addon-activation-reviews/{reviewId}/activation` | Consume an approved review and switch generation |
 | `POST /api/admin/addons/{addonId}/reload` | Reload the active generation at an expected state revision |
-| `POST /api/admin/addons/{addonId}/disable` | Disable at an expected state revision without deleting files or data |
+| `POST /api/admin/addons/{addonId}/disable-review` | Read the current `addon-disable-review.v1` proposal with body `{}` |
+| `POST /api/admin/addons/{addonId}/disable-reviewed` | Confirm `{reviewSha256}`; disable the exact reviewed set and report remaining recovery outcomes |
+| `POST /api/admin/addons/{addonId}/disable` | Single-package expected-revision primitive; refuses live dependents and preserves files/data |
 | `POST /api/admin/addons/{addonId}/uninstall-review` | Read the current `addon-uninstall-review.v1` proposal with body `{}` |
 | `POST /api/admin/addons/{addonId}/uninstall` | Confirm `{reviewSha256}`; return the configuration/recovery result with `addonId` and `alreadyRemoved` |
 
@@ -573,14 +613,14 @@ payloads are not stored in the event log.
 
 ## Remaining lifecycle work
 
-Current review, activation, configuration, uninstall, basic diagnostics and
+Current review, activation, configuration, coordinated disable/uninstall, basic diagnostics and
 browser calls to an add-on's own service are implemented. Browser self-calls
 use explicit `includeOwn` and do not imply planned self-binding during native
 worker initialization.
 
 The actionable work is consolidated in [the suite backlog](../BACKLOG.md):
 namespace cleanup (T05), migration orchestration
-(T08), dependent disable (T09), worker monitoring/restart/quarantine (T10), and
+(T08), worker monitoring/restart/quarantine (T10), and
 richer redacted diagnostics (T11). Planned native self-binding and other new
 worker capabilities require a concrete consumer under C07; WASI and OS limits
 are conditional under C08. Extend the existing coordinator and preserve exact

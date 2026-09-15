@@ -16,6 +16,7 @@ import { exercisePlannerLive } from './installed-planner-live-fixture.mts';
 import { exerciseImportCenter } from './installed-import-center-fixture.mts';
 import { exerciseAddonManager } from './installed-addon-manager-fixture.mts';
 import { exerciseConfiguration } from './installed-configuration-fixture.mts';
+import { exerciseDisable } from './installed-disable-fixture.mts';
 import { exerciseUninstall } from './installed-uninstall-fixture.mts';
 import { exerciseSettings, exerciseSettingsFailure, exerciseSettingsCardStability } from './installed-settings-fixture.mts';
 import assert from 'node:assert/strict';
@@ -654,6 +655,10 @@ test('contributed settings retry preserves other panels', async t => {
 
 test('contributed settings cards stay stable when another add-on changes panel order', async t => {
   await exerciseSettingsCardStability({ t, open, admin, csrf, output, mobile: false });
+});
+
+for (const mobile of [false, true]) test(`disable reviews dependencies and preserves optional add-ons on ${mobile ? 'Czech phone' : 'English desktop'}`, async t => {
+  await exerciseDisable({ t, open, admin, csrf, output, mobile });
 });
 
 for (const mobile of [false, true]) test(`uninstall reviews dependencies and preserves records through reinstall on ${mobile ? 'phone' : 'desktop'}`, async t => {

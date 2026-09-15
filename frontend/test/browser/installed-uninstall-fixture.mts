@@ -5,7 +5,7 @@ import type { InstalledFixture } from './fixture-types.mts';
 import { installDmPackage } from './installed-dm-fixture.mts';
 import { installReviewedPackage, jsonResponse, zip } from './installed-graph-fixture.mts';
 
-function dependentPackage(id: string, provider: string, required: boolean, incompatibleData = false): Buffer {
+export function dependentPackage(id: string, provider: string, required: boolean, incompatibleData = false): Buffer {
   const files: Record<string, string> = { 'addon.json': JSON.stringify({ packageFormat: 1, id, name: id, version: '1.0.0',
     compatibility: { host: '^2.0.0', addonApi: '^3.0.0' }, capabilities: { required: [], optional: [] }, permissions: [],
     ...(incompatibleData ? { collections: [{ id: 'notes', keyed: true, visibility: 'dm', schema: 'contracts/notes.json', schemaVersion: '2.0.0' }] } : { dependencies: [{ id: provider, range: '^1.0.0', required }] }) }) };

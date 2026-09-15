@@ -37,7 +37,8 @@ export async function exerciseAddonManager({ t, open, admin, csrf, output, mobil
   await row.locator(`[data-generation="${original}"]`).getByText('Inactive', { exact: false }).waitFor();
   await row.locator(`[data-generation="${original}"]`).getByRole('button', { name: 'Review rollback', exact: true }).click(); await approve();
   snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`)); assert.equal(snapshot.state.activeGenerationId, original);
-  page.once('dialog', dialog => dialog.accept()); await row.getByRole('button', { name: 'Disable', exact: true }).click();
+  await row.getByRole('button', { name: 'Disable', exact: true }).click();
+  await manager.locator('.addon-disable-review').getByRole('button', { name: 'Disable reviewed add-ons', exact: true }).click();
   await row.getByText('Disabled or awaiting activation', { exact: true }).waitFor();
   await page.reload(); await page.locator('[data-category="addons"]').click(); await row.waitFor();
   assert.equal(await row.locator('[data-generation]').count(), 2);
@@ -52,9 +53,10 @@ export async function exerciseAddonManager({ t, open, admin, csrf, output, mobil
   await manager.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
   await manager.getByRole('button', { name: 'Check for updates', exact: true }).click(); await row.getByRole('button', { name: 'Disable', exact: true }).waitFor();
   // Retained generation data and status survive a lost response; refresh reads the result.
-  const pattern = `**/api/admin/addons/${id}/disable`;
+  const pattern = `**/api/admin/addons/${id}/disable-reviewed`;
   await page.route(pattern, async route => { await route.fetch(); await route.abort('failed'); });
-  page.once('dialog', dialog => dialog.accept()); await row.getByRole('button', { name: 'Disable', exact: true }).click();
+  await row.getByRole('button', { name: 'Disable', exact: true }).click();
+  await manager.locator('.addon-disable-review').getByRole('button', { name: 'Disable reviewed add-ons', exact: true }).click();
   await manager.getByRole('alert').filter({ hasText: /could not be confirmed/u }).waitFor(); await page.unroute(pattern);
   await manager.getByRole('button', { name: 'Check for updates', exact: true }).click(); await row.getByText('Disabled or awaiting activation', { exact: true }).waitFor();
   await openUpload();

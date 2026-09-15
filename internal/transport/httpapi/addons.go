@@ -53,6 +53,8 @@ func (s *server) registerAddonAdminRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/admin/addons/{addonID}", s.requireAdmin(http.HandlerFunc(s.addonSnapshot)))
 	mux.Handle("POST /api/admin/addons/{addonID}/activation-reviews", s.requireAdmin(http.HandlerFunc(s.prepareActivationReview)))
 	mux.Handle("POST /api/admin/addons/{addonID}/reload", s.requireAdmin(http.HandlerFunc(s.reloadAddon)))
+	mux.Handle("POST /api/admin/addons/{addonID}/disable-review", s.requireAdmin(http.HandlerFunc(s.reviewAddonDisable)))
+	mux.Handle("POST /api/admin/addons/{addonID}/disable-reviewed", s.requireAdmin(http.HandlerFunc(s.disableAddonReviewed)))
 	mux.Handle("POST /api/admin/addons/{addonID}/disable", s.requireAdmin(http.HandlerFunc(s.disableAddon)))
 	mux.Handle("POST /api/admin/addons/{addonID}/uninstall-review", s.requireAdmin(http.HandlerFunc(s.reviewAddonUninstall)))
 	mux.Handle("POST /api/admin/addons/{addonID}/uninstall", s.requireAdmin(http.HandlerFunc(s.uninstallAddon)))

@@ -3,6 +3,7 @@ import { BoundaryValidationError, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
 import { HostRequestError } from "./api.js";
 import { parseRulesPolicy, parseServiceSelections, parseConfigurationResult, type ConfigurationSnapshot, type SourceTarget, type ServiceSelection } from "./addon-configuration.js";
+import { parseAddonDisableReview, type AddonDisableReview } from "./addon-disable.js";
 import { parseAddonUninstallReview, type AddonUninstallReview } from "./addon-uninstall.js";
 
 export interface InstalledGeneration { addonId: string; generationId: string; version: string; installedAt: string; lastError: string }
@@ -65,6 +66,12 @@ export class AddonAdminClient {
   async reviewCleanup(scope: CleanupScope) { return parseCleanupReview(await this.#request("addon-package-cleanup/review", cleanupScope(scope)), scope); }
   async cleanup(review: CleanupReview) { return parseCleanupResult(await this.#request("addon-package-cleanup/apply", { scope: cleanupScope(review.scope), reviewSha256: hash(review.reviewSha256) }), review); }
   async retryCleanups() { return parseCleanupResult(await this.#request("addon-package-cleanup/retry", {})); }
+  async reviewDisable(addonId: string): Promise<AddonDisableReview> { return parseAddonDisableReview(await this.#request(`addons/${id(addonId)}/disable-review`, {}), addonId); }
+  async disable(review: AddonDisableReview) {
+    const result = object(await this.#request(`addons/${id(review.addonId)}/disable-reviewed`, { reviewSha256: hash(review.reviewSha256) }));
+    if (result["addonId"] !== review.addonId || result["applied"] !== true) fail();
+    return parseConfigurationResult(result);
+  }
   async reviewUninstall(addonId: string): Promise<AddonUninstallReview> { return parseAddonUninstallReview(await this.#request(`addons/${id(addonId)}/uninstall-review`, {}), addonId); }
   async uninstall(review: AddonUninstallReview) {
     const result = object(await this.#request(`addons/${id(review.addonId)}/uninstall`, { reviewSha256: hash(review.reviewSha256) }));

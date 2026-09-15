@@ -1,5 +1,6 @@
 import { recordWorkflowEn, recordWorkflowCs } from "./record-workflow-messages.js";
 import { storageEn, storageCs } from "./storage-messages.js";
+import { disableEn, disableCs } from "./disable-messages.js";
 import { cleanupEn, cleanupCs } from "./cleanup-messages.js";
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import { sourceEn, sourceCs } from "./ui-source-messages.js";
@@ -28,6 +29,7 @@ const enCatalog = {
   ...contextEn,
   ...configurationEn,
   ...cleanupEn,
+  ...disableEn,
   ...storageEn,
   ...ruleDetailsEn,
   "settings.usedRecords": { one: "Used by {n} record", other: "Used by {n} records" },
@@ -124,7 +126,6 @@ const enCatalog = {
   "addons.done": "Add-on state updated.",
   "addons.failed": "The action could not be confirmed. Review the current state before trying again.",
   "addons.fileRequired": "Choose a nonempty release ZIP up to 128 MiB.",
-  "addons.disableConfirm": "Disable this add-on? Its saved campaign data and installed versions will remain.",
   "addons.generation": "Package fingerprint",
   "addons.grantHint": "Select the access you approve for this exact package.",
   "addons.capabilities": "Capabilities",
@@ -498,6 +499,7 @@ const csCatalog = {
   ...contextCs,
   ...configurationCs,
   ...cleanupCs,
+  ...disableCs,
   ...storageCs,
   ...ruleDetailsCs,
   "settings.usedRecords": { one: "Používá {n} záznam", few: "Používají {n} záznamy", other: "Používá {n} záznamů" },
@@ -594,7 +596,6 @@ const csCatalog = {
   "addons.done": "Stav doplňku byl aktualizován.",
   "addons.failed": "Akci se nepodařilo potvrdit. Před dalším pokusem zkontrolujte aktuální stav.",
   "addons.fileRequired": "Vyberte neprázdný vydaný ZIP balíček do 128 MiB.",
-  "addons.disableConfirm": "Vypnout tento doplněk? Uložená data kampaně a nainstalované verze zůstanou zachovány.",
   "addons.generation": "Otisk balíčku",
   "addons.grantHint": "Vyberte oprávnění, která schvalujete pro tento konkrétní balíček.",
   "addons.capabilities": "Schopnosti",
