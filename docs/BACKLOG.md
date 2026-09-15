@@ -1,6 +1,6 @@
 # Project backlog
 
-Work for the five repositories, reviewed September 15, 2026. This remains
+Work for the five repositories, reviewed September 16, 2026. This remains
 one suite backlog; each task belongs to the repository that owns its change.
 Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
@@ -37,10 +37,12 @@ not mean it has been pushed, deployed, or installed on a live site.
 - [x] ~~**T28 — Compact reading, collection controls and save feedback**~~ — `44053df`.
 - [x] ~~**T12 — GitHub package/build identity, release notes and compatibility reasons**~~ — `1905469`.
 - [x] ~~**T13 — Full-backup verification and offline restore guidance**~~ — `301bd9e`.
+- [x] ~~**T09 — Reviewed dependency-aware disabling and recovery**~~ — `9997306`.
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
 [backup recovery](rewrite/BACKUP_RESTORE.md#deliberate-boundary),
+[reviewed disabling](rewrite/PACKAGE_LIFECYCLE.md#reload-and-disable),
 and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 
 ### Backend and core workflows
@@ -79,7 +81,6 @@ All rows below remain open; completed archive-pruning implementation is omitted.
 | T06 | P2 | Offline unused-blob collection with live/recovery reference accounting, preview and resumability; shared media and restore must survive. [Blob store](../internal/storage/blobstore/store.go). |
 | T07 | P2 | Measure and bound stored SSE/lifecycle/audit logs separately; test replay/reset across retention boundaries. No silent expiry of authored data or existing archives. [Events](rewrite/EVENT_STREAM.md). |
 | T08 | P2, triggered | Implement reviewed migration orchestration when a released schema actually needs preservation: exact snapshot, atomic commit, stale rejection and recovery. The old-sheet reset does not imply a general converter. [Data lifecycle](rewrite/ADDON_DATA.md#remaining-public-surface). |
-| T09 | P2 | Extend the reviewed dependency coordinator to disable: affected-package preview, stop order and rollback. Today disable refuses active dependents. Preserve optional consumers. [Lifecycle](rewrite/PACKAGE_LIFECYCLE.md). |
 | T10 | P2 | Wire production worker monitoring to the existing health/backoff helpers; test crashes, hangs, crash loops and shutdown. Invalidate dependent state and never replay uncertain writes. [Supervision](rewrite/WORKER_SUPERVISION.md). |
 | T11 | P2 | Expose actionable worker health/exit and browser activation/disposal diagnostics; preserve bounded, redacted output and request correlation. Existing review/activation UI stays. [Browser lifecycle](rewrite/BROWSER_ADDONS.md). |
 | T14-HOST | P2 | Coordinate CI/fixture consumers of generated add-on artifacts with each repository's T14 work below. Keep standalone deterministic package builds before removing tracked output. |
@@ -242,7 +243,7 @@ Provider-free saved reading/notes/print/export remain required.
 | --- | --- | --- |
 | 1 | Preserve authored intent: DM T30; finish Engine T32 + Sheets T33. Start T02 alongside them. | Safe role/stale/error behavior; recoverable planning edits; incomplete character saves and bounded play work through the installed contract. |
 | 2 | Everyday use: Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
-| 3 | Imports and resilience: host + DM T19, host T09–T11; T08 only for a real schema-preservation need. | Exact reviewed transactions, understandable failures and safe provider/lifecycle recovery. |
+| 3 | Imports and resilience: host + DM T19, host T10–T11; T08 only for a real schema-preservation need. | Exact reviewed transactions, understandable failures and safe provider/lifecycle recovery. |
 | 4 | Final integration: T02, relevant T18 cases and T29 measurements. | All four inspected ZIPs exercised without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
 | 5 | Authorized delivery T15–T17; independent maintenance T05–T07 and per-repo T14. | Exact served/installed builds verified; per-site data/retention choices recorded and rollback assets retained. |
 

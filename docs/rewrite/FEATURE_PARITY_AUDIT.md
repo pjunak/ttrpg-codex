@@ -333,10 +333,25 @@ healthy host endpoints. They remain linked to their authoritative backlog entrie
 | --- | --- |
 | T19 campaign-bundle imports | No matching production provider/schema/route in host or DM Tools. Restore the host's exact reviewed transaction and reference allocation, exposed through DM Tools' existing Import Center. Planning-only import success is not campaign-bundle support. |
 | T10 worker health/recovery | Production search finds no caller of the supervisor health/restart-policy helpers. Wire coordinator monitoring/backoff and provider invalidation; pair it with T11 diagnostics and truthful retry/reload states. Do not replay uncertain writes. |
-| T08 reviewed migrations; T09 dependent disable | Schema incompatibility and active dependencies are real blockers, not failures to be hidden by a nicer button. Preserve reviewed migration/stop order and exact recovery; add previews and actionable explanations. |
-| T11–T13 diagnostics, build identity and restore guidance | Finish useful worker/browser failure information, tested source/build identity, change details, and the whole-installation recovery route. Recent per-add-on tabs and saved-package cleanup already exist. |
+| T08 reviewed migrations | When a released schema needs preservation, provide an exact reviewed migration, atomic commit, stale rejection and recovery. Explain incompatible schemas without hiding the preservation boundary. |
+| T11 worker/browser diagnostics | Finish actionable worker health/exit and browser activation/disposal information with bounded, redacted output and request correlation. T12 build identity and T13 full-backup guidance are completed in the backlog. |
 | T02 release CI; T18 broader acceptance | Local installed tests now pass, but release CI still does not feed all four ZIPs into the host browser suite. Keep session expiry, large campaigns, native targets and real-device checks explicit. |
 | T05–T07, T14–T17 | Data/blob/log retention, artifact ownership and per-site rollout/retirement stay in the backlog. They are not evidence of a newly lost screen and must not displace restoring core authoring/reading flows. |
+
+T09 is completed in `9997306` (September 16, 2026). Settings now previews required
+and optional dependents, the stop order and every planned restart attempt before
+confirming an exact disable review. The coordinator disables the reviewed targets
+atomically, preserves packages and campaign data, rejects stale reviews, and
+restores the previous graph on pre-commit failure. Post-commit recovery failures
+remain visible; a lost response is never automatically replayed. English desktop
+and Czech phone installed-package tests cover review/cancel, stale confirmation,
+disconnects, retained data and normal reactivation. Backend tests additionally
+cover transitive dependencies, alternate providers, failed runtimes and rollback.
+The full host check passed (385 frontend tests and 248 browser tests; 22 optional
+companion ZIP cases skipped), along with lifecycle/HTTP race tests, all four
+companion contract suites and 33 release-check gates. This closes T09, not T02's
+complete publication matrix or T18's broader acceptance boundary. The
+[lifecycle contract](PACKAGE_LIFECYCLE.md#reload-and-disable) records the details.
 
 ### Coverage and validation from this continuation
 
