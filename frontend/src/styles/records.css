@@ -1270,3 +1270,17 @@ campaign-relationship-editor {
 .party-record-card { display: flex; flex-direction: column; align-items: center; gap: .25rem; }
 .party-card-edit { padding: .3rem .75rem; font-size: .75rem; }
 .creation-context { color: var(--text-muted); font: .85rem/1.5 var(--font-ui); }
+
+.investigation-queue, .investigation-reading { margin-block: 1.5rem; }
+.investigation-search { display: flex; flex-direction: column; gap: .4rem; max-width: 36rem; font-family: var(--font-ui); }
+.investigation-search input { box-sizing: border-box; min-width: 0; width: 100%; min-height: 44px; }
+.investigation-questions { list-style: none; padding: 0; margin: .75rem 0; }
+.investigation-questions > li { padding: .75rem 0; border-bottom: 1px solid var(--border-subtle); overflow-wrap: anywhere; }
+.investigation-questions p { margin: .4rem 0; white-space: pre-wrap; }
+.investigation-source { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; font: .8rem/1.5 var(--font-ui); }
+.investigation-source a, .investigation-history > summary { min-height: 44px; display: inline-flex; align-items: center; }
+.investigation-history > summary { cursor: pointer; text-decoration: underline; }
+.investigation-answer { padding-left: 1rem; border-left: 2px solid var(--accent-gold); }
+.investigation-badge, .investigation-count { display: inline-block; font: .8rem/1.5 var(--font-ui); }
+.investigation-badge { border: 1px solid currentColor; padding: .1rem .4rem; border-radius: .3rem; margin-right: .4rem; }
+.investigation-badge.is-solved { color: var(--text-parchment); }

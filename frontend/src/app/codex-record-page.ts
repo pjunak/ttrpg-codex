@@ -1,3 +1,6 @@
+import "./codex-investigation-queue.js";
+import { investigationStatus } from "./campaign-investigation.js";
+import { investigationBadge, investigationAnswers } from "./investigation-view.js";
 import { contextualCreationFields, creationSource, creationBackHash } from "./context-creation.js";
 import { articleContext, articleOwner, articleReferences } from "./article-context.js";
 import { renderArticleContext, renderArticleReferences } from "./article-context-view.js";
@@ -212,6 +215,7 @@ export class CodexRecordPage extends LitElement {
         <codex-collection-browser .model=${collectionModel(this.campaign!, route.page)} .view=${this.collectionView}
           .renderEntry=${(entity: EntitySummary) => recordRow(entity, route.page.icon, this.canEdit ? recordEditHash(route.page, entity.key, route.view === undefined ? collectionHash(route.page) : `${collectionHash(route.page)}?${route.view}`) : undefined)} .storageUnavailable=${this.viewStorageUnavailable}
           @collection-view-change=${this.#changeCollectionView}></codex-collection-browser>
+        ${route.page.collection === "mysteries" ? html`<codex-investigation-queue .campaign=${this.campaign} .canEdit=${this.canEdit}></codex-investigation-queue>` : nothing}
         ${this.canEdit ? html`<codex-local-drafts .campaign=${this.campaign} .page=${route.page} .actorRole=${this.actorRole}></codex-local-drafts>` : nothing}
       </article>
     `;
@@ -254,7 +258,7 @@ export class CodexRecordPage extends LitElement {
     const twins = this.canManageVisibility && this.actorRole === "dm" ? html`<codex-record-twins
       .campaign=${dataset} .record=${record} .page=${route.page} .disabled=${this.saving}></codex-record-twins>` : nothing;
     const facts = articleFacts(dataset, route.page.collection, value);
-    const sections = [...articleSections(value)];
+    const sections = [...articleSections(route.page.collection === "mysteries" ? {...value, questions: undefined} : value)];
     if (route.page.collection === "locations" && this.actorRole === "dm" && text(value["notes"])) {
       sections.push({ heading: uiText("notes.private"), body: text(value["notes"]) });
     }
@@ -337,6 +341,7 @@ export class CodexRecordPage extends LitElement {
             `}
           </aside>
           <div class="record-reading">
+            ${route.page.collection === "mysteries" ? investigationAnswers(value) : nothing}
             ${sections.length === 0 && contextSections.length === 0
               ? html`<p class="empty-state">${uiText("This entry does not have article text yet.")}</p>`
               : html`<div class="record-prose">
@@ -704,6 +709,7 @@ function recordRow(entity: EntitySummary, fallback: string, editHref?: string) {
       <span class="record-row-copy">
         <strong>${entity.name}</strong>
         ${entity.title === "" ? nothing : html`<span>${entity.title}</span>`}
+        ${entity.route.startsWith("#/mysteries/") ? investigationBadge(entity.raw) : nothing}
         ${entity.excerpt === "" || entity.route.startsWith("#/characters/") ? nothing : html`<small>${entity.excerpt}</small>`}
       </span>
       ${entity.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
@@ -756,7 +762,7 @@ function articleFacts(
   const fields = factDefinitions[collection] ?? [];
   const facts: Array<readonly [string, string | TemplateResult]> = [];
   for (const [label, field, referenceCollection] of fields) {
-    const raw = value[field];
+    const raw = collection === "mysteries" && field === "solved" ? investigationStatus(value).solved : value[field];
     const enumCategory = articleEnumCategory(collection, field);
     const result = enumCategory !== undefined
       ? campaignEnumDisplayLabel(dataset, enumCategory, raw)

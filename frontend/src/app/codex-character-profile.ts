@@ -1,3 +1,4 @@
+import { investigationQuestions } from "./campaign-investigation.js";
 import { articleContext, articleReferences } from "./article-context.js";
 import { renderArticleContext, renderArticleReferences, renderCharacterRelationships, renderCharacterLocationRoles } from "./article-context-view.js";
 import { characterKnowledge, characterReadingValue } from "./character-reading.js";
@@ -130,6 +131,7 @@ export class CodexCharacterProfile extends LitElement {
           <ul class="character-fact-list">${this.#known().map((_item, index) => html`<li>${this.#inline("known", index)}</li>`)}</ul>
           ${this.canEdit ? html`<button class="character-add" type="button" @click=${() => this.#addItem("known")}>+ ${uiText("Add fact")}</button>` : nothing}</section>
           <section><h2 class="record-section-title">${uiText("Open questions")}</h2>
+          <p class="investigation-count">${uiText("investigation.count", {open: investigationQuestions(value["unknown"]).filter(question => !question.answer).length, total: investigationQuestions(value["unknown"]).length})}</p>
           <div class="character-questions">${this.#questions().map((_item, index) => html`<div>${this.#inline("unknown", index, "text")}<div class="character-answer">${this.#inline("unknown", index, "answer")}</div></div>`)}</div>
           ${this.canEdit ? html`<button class="character-add" type="button" @click=${() => this.#addItem("unknown")}>+ ${uiText("Add question")}</button>` : nothing}</section></div>
         <section class="record-structured-section"><h2 class="record-section-title">${uiText("Relationships")}</h2>

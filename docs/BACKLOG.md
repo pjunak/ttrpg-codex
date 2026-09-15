@@ -33,6 +33,7 @@ not mean it has been pushed, deployed, or installed on a live site.
 - [x] ~~**T21 — Saved core URLs and guarded navigation**~~ — `a0bda14`.
 - [x] ~~**T22 — Connected articles, rosters and reference links**~~ — `6758d7f`.
 - [x] ~~**T23 — Contextual creation and direct card editing**~~ — `6db9afc`.
+- [x] ~~**T24 — Investigation status and unanswered question queue**~~ — [contract and tests](rewrite/EDITOR_BROWSING.md#investigations), September 15.
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md)
 and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
@@ -58,11 +59,6 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 The [continuation evidence](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings)
 contains the before/after comparisons for R01–R12 and screenshots for U01–U04.
 
-- [ ] **T24 / P2 — Restore investigation status and the unanswered queue.** R08.
-  Combine mystery/character questions with source navigation, answer history
-  and open/total badges. Derive solved state from a manual override or a nonempty
-  fully answered set. Empty/whitespace answers remain open; filters, counts,
-  Czech search and DM/player/twin views must agree without rewriting stored flags.
 - [ ] **T28 / P2 — Improve sparse profiles, collections and save feedback.** U01–U03,
   design review. Compact absent artwork and empty facts, surface meaningful
   summaries, and decide the NPC/party default. Keep useful filters and secondary
@@ -248,7 +244,7 @@ Provider-free saved reading/notes/print/export remain required.
 | Order | Work | Exit evidence |
 | --- | --- | --- |
 | 1 | Preserve authored intent: DM T30; finish Engine T32 + Sheets T33. Start T02 alongside them. | Safe role/stale/error behavior; recoverable planning edits; incomplete character saves and bounded play work through the installed contract. |
-| 2 | Everyday use: host T24/T28, Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
+| 2 | Everyday use: host T28, Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
 | 3 | Imports and resilience: host + DM T19, host T09–T13; T08 only for a real schema-preservation need. | Exact reviewed transactions, understandable failures and safe provider/lifecycle recovery. |
 | 4 | Final integration: T02, relevant T18 cases and T29 measurements. | All four inspected ZIPs exercised without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
 | 5 | Authorized delivery T15–T17; independent maintenance T05–T07 and per-repo T14. | Exact served/installed builds verified; per-site data/retention choices recorded and rollback assets retained. |

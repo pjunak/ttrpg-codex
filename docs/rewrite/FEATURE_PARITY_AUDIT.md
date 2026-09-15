@@ -196,6 +196,11 @@ and [article/card controls](https://github.com/pjunak/ttrpg-codex/blob/3aeeacfe7
 
 #### R08 — The investigation view lost its working summary
 
+**Resolved September 15 (T24):** effective status is shared by article facts,
+collection cards, facets and search. The combined question queue restores source
+navigation and answered history. [Contract and tests](EDITOR_BROWSING.md#investigations).
+The finding below is historical.
+
 The old mysteries page combined unanswered mystery questions and character
 `unknown` questions, with accent-insensitive filtering, source links and edit
 entry points. Cards showed answered/open counts and derived completion.

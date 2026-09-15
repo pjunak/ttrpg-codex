@@ -1,3 +1,4 @@
+import { investigationStatus } from "./campaign-investigation.js";
 import { characterReadingValue } from "./character-reading.js";
 import { groupTwinRecords } from "./campaign-twins.js";
 import { isRecord } from "../core/boundary.js";
@@ -49,7 +50,8 @@ export function collectionModel(dataset: CampaignDataset, page: CampaignPageDefi
     sorts.push({ key: "members", label: uiText("browse.members") });
   }
   const entries = projectEntities(dataset, page).map(original => {
-    const entity = page.collection === "characters" ? { ...original, raw: characterReadingValue(original.raw) } : original;
+    const entity = page.collection === "characters" ? { ...original, raw: characterReadingValue(original.raw) }
+      : page.collection === "mysteries" ? { ...original, raw: { ...original.raw, solved: investigationStatus(original.raw).solved } } : original;
     const facets = new Map<string, readonly string[]>();
     const sortValues = new Map<string, string | number | undefined>([["name", entity.name], ["updatedAt", entity.updatedAt ? Date.parse(entity.updatedAt) : undefined]]);
     const labels: string[] = [];
@@ -71,7 +73,7 @@ export function collectionModel(dataset: CampaignDataset, page: CampaignPageDefi
       sortValues.set(field.key, (typeof raw === "number" || typeof raw === "string" && raw.trim() !== "") && Number.isFinite(Number(raw)) ? Number(raw) : undefined);
     }
     if (page.collection === "factions") sortValues.set("members", memberCounts.get(entity.key) ?? 0);
-    const source = [entity.name, entity.title, ...labels, ...fields.map(field => field.referenceCollection ? "" : searchText(entity.raw[field.key]))].join(" ");
+    const source = [entity.name, entity.title, ...(page.collection === "mysteries" ? [uiText(investigationStatus(entity.raw).solved ? "investigation.solved" : "investigation.open")] : []), ...labels, ...fields.map(field => field.referenceCollection ? "" : searchText(entity.raw[field.key]))].join(" ");
     return { entity, search: searchable(source), facets, sorts: sortValues };
   });
   const result = { entries, sorts, facets: facetFields.map(field => ({ key: field.key, label: field.label,

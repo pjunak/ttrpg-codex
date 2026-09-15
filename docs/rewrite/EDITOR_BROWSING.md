@@ -110,6 +110,33 @@ and bounded return destinations. Real-host tests cover every preset, sign-in,
 Save/Cancel/Back, source deletion, private factions, keyboard card editing, stale
 edits, preserved collection views, desktop/phone and translated actions.
 
+## Investigations
+
+Mystery cards, article facts and the Solved facet derive the same effective
+status: the manual flag is true, or a nonempty question set has nonblank answers
+for every question. An empty mystery stays open. Whitespace answers stay open,
+and reading never rewrites the stored manual flag. The editor continues to edit
+that manual override independently of derived status.
+
+The Mysteries collection also contains a combined unanswered-question queue from
+mysteries and character unknowns. Its separate, accent-insensitive search matches
+source names, questions and answers; collection filters apply to the mystery
+cards. Answer history expands the currently recorded answers, not a revision
+history. Open/total counts describe the matching questions. A manually solved
+mystery's unanswered questions remain visible in the queue.
+
+Sources link to exact records and signed-in editors can return from the normal
+record form to Mysteries. The queue groups available reciprocal DM/player twins
+using the same representatives as collection cards. It uses only the authorized
+dataset, applies character knowledge reading, and keeps private or unrevealed
+questions out of the player view. Live dataset replacement refreshes the queue
+without replacing its search input.
+
+Pure tests cover derived/manual/empty status, whitespace and historical question
+shapes, source immutability, effective facet counts, Czech search, knowledge and
+twin links. Real-host desktop/phone tests cover articles, cards, source editing
+and Cancel, manual overrides, answers, role filtering and Czech labels.
+
 ## Local Markdown recovery
 
 Every host record Markdown field, including the character profile wiki and
