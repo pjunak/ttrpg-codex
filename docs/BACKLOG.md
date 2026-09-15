@@ -66,6 +66,12 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 The [continuation evidence](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings)
 contains the before/after comparisons for R01–R12 and screenshots for U01–U04.
 
+- [ ] **T34 / P2 — Complete the shared, themeable host UI foundation.** Current
+  reuse is partial; the goal remains [shared controls for host and add-ons](rewrite/UI_FOUNDATIONS.md).
+  Document semantic tokens/variants, factor repeated fields, dialogs and common
+  states into supported primitives, then expose typed public capabilities. Prove
+  a host screen and an installed add-on use the same implementation across both
+  themes, English/Czech, phone, keyboard/focus and zoom before broader adoption.
 - [ ] **T29 / P2 — Measure delivery and interaction costs before optimizing.** U04.
   Record cold/warm load, search, article and spatial interaction with large
   synthetic campaigns and a throttled phone profile. A bundle warning alone is
@@ -122,6 +128,9 @@ not a new generic-planner rewrite. [Product contract](../../addon-dm-tools/docs/
   explain core/planning scope, ID remaps and affected records in preview. Prove
   cancel/stale/lost-response behavior using an installed package, with no duplicate
   provider-owned core import implementation.
+- [ ] **T34-DM / P2 — Adopt shared host controls as T34 makes them available.**
+  Reuse fields, actions, dialogs and common states in planner forms and Import
+  Center; preserve canvas behavior, drafts and host Markdown. Avoid private CSS/DOM.
 - [ ] **T18-DM / P1, review — Audit complete planning sessions, including UX.**
   Exercise large/nested plans, card/flow creation, ownership moves, target
   selection, multi-anchor notes, deletion/undo, reader/editor transitions and
@@ -155,6 +164,9 @@ Standalone browsing must remain useful without Engine or Sheets.
   query, filters or reading position. Verify long class/monster/spell pages,
   Back, keyboard order and 200% zoom; record this as a UX fix, not yet a proven
   historical regression.
+- [ ] **T34-COMP / P2 — Adopt T34 controls in reference browsing.** Share search,
+  filters and loading/empty/error presentation through the public host UI contract;
+  preserve book navigation, long-form reading and provider-free use.
 - [ ] **T18-COMP / P1, review — Complete browsing and reading parity acceptance.**
   Exercise topic/source/class/level navigation, cross-kind search, counted facets,
   reprints, ambiguous typed links, tables/stat blocks, related records and source
@@ -225,6 +237,9 @@ Provider-free saved reading/notes/print/export remain required.
   concurrent edits, session expiry, lost responses and exact retries, navigation
   guards, provider loss, explicit rules adoption and reviewed imports. Do not
   claim pending in-memory edits are durable or restore removed history UI.
+- [ ] **T34-SHEETS / P2 — Adopt T34 controls in building and play.** Share fields,
+  validation, pending/conflict states and details where behavior matches; preserve
+  automatic saving, Compact/Classic and provider-free reading. Keep rules in Engine.
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
   Build, save/reload, advance, equip, prepare/cast, spend resources, rest, amend
   grants, print/export and review an import using the exact installed ZIP. Cover
@@ -242,7 +257,7 @@ Provider-free saved reading/notes/print/export remain required.
 | Order | Work | Exit evidence |
 | --- | --- | --- |
 | 1 | Preserve authored intent: DM T30; finish Engine T32 + Sheets T33. Start T02 alongside them. | Safe role/stale/error behavior; recoverable planning edits; incomplete character saves and bounded play work through the installed contract. |
-| 2 | Everyday use: Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
+| 2 | Everyday use: Sheets T25, Compendium T31; establish host T34 before each add-on's T34 adoption; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
 | 3 | Imports and resilience: host + DM T19, host T10–T11; T08 only for a real schema-preservation need. | Exact reviewed transactions, understandable failures and safe provider/lifecycle recovery. |
 | 4 | Final integration: T02, relevant T18 cases and T29 measurements. | All four inspected ZIPs exercised without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
 | 5 | Authorized delivery T15–T17; independent maintenance T05–T07 and per-repo T14. | Exact served/installed builds verified; per-site data/retention choices recorded and rollback assets retained. |

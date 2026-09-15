@@ -122,6 +122,11 @@ browser add-on composition. Add-ons own specialized campaign experiences. The
 production Go server serves only `index.html` and fingerprinted `/assets/`
 output from Vite; Node.js is absent from the runtime image.
 
+The [shared UI foundations](rewrite/UI_FOUNDATIONS.md) preserve the goal of
+reusable, themeable controls serving both the host and add-ons. Shared tokens,
+contribution framing, Markdown and rule details are implemented; a comprehensive
+public control library and broader styling contract remain T34 in the backlog.
+
 [Markdown recovery and collection browsing](rewrite/EDITOR_BROWSING.md) share
 host editor descriptors, current role projections, and existing record saves.
 IndexedDB holds local text recovery snapshots; small per-role collection-view

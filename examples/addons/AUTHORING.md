@@ -15,6 +15,10 @@ immutable record snapshots, see
 [retained history](../../docs/rewrite/RETAINED_ADDON_HISTORY.md). For contextual
 source links and saved calculation explanations, declare `ui.rule-details` and
 use the [shared rule-details surface](../../docs/rewrite/RULE_DETAILS.md).
+The [shared UI foundations](../../docs/rewrite/UI_FOUNDATIONS.md) distinguish
+currently supplied components/tokens from the planned reusable control library.
+Prefer supported host UI where it fits; private host imports and DOM remain outside
+the add-on contract.
 
 ```text
 addon.json

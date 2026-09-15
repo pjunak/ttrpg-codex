@@ -324,6 +324,23 @@ not a full old application or approval of every authored page. The screenshots
 support U01/U02; they do not constitute a complete contrast, screen-reader,
 physical-touch or aesthetic acceptance review.
 
+### Shared UI direction checked September 16, 2026
+
+The intended reusable, themeable UI has not been replaced by a requirement for
+screen-specific implementations. Current source supplies shared theme tokens,
+contribution framing, Markdown and rule details, but the public browser UI handle
+still lacks a general component library. Host and add-on screens therefore own
+substantial local markup/styles; appearance supports two built-in themes and
+isolated frames do not automatically inherit host controls or tokens. This is a
+confirmed implementation gap against the reiterated design goal, not proof that
+every local style or specialized domain view is a regression.
+
+The [shared UI reference](UI_FOUNDATIONS.md) records the current surfaces and
+ownership boundaries. T34 owns host primitives, semantic styling and public
+contracts; T34-DM, T34-COMP and T34-SHEETS own adoption in their repositories.
+The engine stays headless. These tasks remain open and require real consumer,
+keyboard/focus, responsive, localized and theme acceptance.
+
 ### Backend work carried forward, not counted again
 
 The following existing tasks explain relevant ways the UI can fail despite
