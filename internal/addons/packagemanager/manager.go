@@ -48,6 +48,7 @@ type Config struct {
 	GenerateID            func() (string, error)
 	Logger                *slog.Logger
 	EventPublisher        EventPublisher
+	Monitoring            *MonitoringConfig
 }
 
 type EventPublisher interface {
@@ -81,6 +82,10 @@ type Manager struct {
 	logger                *slog.Logger
 	eventPublisher        EventPublisher
 
+	monitorMu       sync.Mutex
+	monitorCancel   context.CancelFunc
+	monitorDone     chan struct{}
+	monitoring      *workerMonitor
 	mu              sync.Mutex
 	runtimes        map[string]activeRuntime
 	contentRevision int64
@@ -143,7 +148,12 @@ func New(config Config) (*Manager, error) {
 	if config.Logger == nil {
 		config.Logger = slog.Default()
 	}
+	monitoring, err := newWorkerMonitor(config.Monitoring)
+	if err != nil {
+		return nil, fmt.Errorf("configure worker monitoring: %w", err)
+	}
 	return &Manager{
+		monitoring:            monitoring,
 		store:                 store,
 		directory:             directory,
 		stagingDirectory:      stagingDirectory,
@@ -401,6 +411,7 @@ func (manager *Manager) activateLocked(
 		services: append([]servicebroker.Handle(nil), services...),
 	}
 	stopNext = false
+	manager.workerReadyLocked(newState)
 	manager.publishBrowserGraphChangeLocked(ctx, plan.AddonID, eventKind)
 
 	result := ActivationResult{
@@ -456,6 +467,18 @@ func (manager *Manager) Snapshot(ctx context.Context, addonID string, eventLimit
 	if active, exists := manager.runtimes[addonID]; exists && active.runtime != nil {
 		runtimeSnapshot := active.runtime.Snapshot()
 		snapshot.Runtime = &runtimeSnapshot
+	} else if watch := manager.watchForStateLocked(snapshot.State); watch != nil && watch.blocked {
+		identity := workersupervisor.Identity{AddonID: addonID, Generation: watch.generation}
+		for _, generation := range snapshot.Generations {
+			if generation.GenerationID == watch.generation {
+				identity.Version = generation.Version
+				break
+			}
+		}
+		snapshot.Runtime = &workersupervisor.Snapshot{
+			Identity: identity,
+			State:    workersupervisor.StateFailed, LastError: watch.message,
+		}
 	}
 	return snapshot, nil
 }

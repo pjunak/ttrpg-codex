@@ -30,7 +30,8 @@ const BrowserGraphContractVersion = 2
 // BrowserGraph projects only recovered, server-authoritative UI generations.
 // Its opaque revision also includes every durable active add-on state, so a
 // worker-only reload or provider cohort can force browser SDK handles to be
-// rebuilt even when UI package URLs remain unchanged.
+// rebuilt even when UI package URLs remain unchanged. Monitored runtime changes
+// also contribute a boot-scoped revision for same-package automatic recovery.
 func (manager *Manager) BrowserGraph(ctx context.Context) (BrowserGraph, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
@@ -118,9 +119,10 @@ func (manager *Manager) browserGraphLocked(ctx context.Context) (BrowserGraph, e
 	body, err := json.Marshal(struct {
 		ContractVersion       int                 `json:"contractVersion"`
 		ConfigurationRevision int64               `json:"configurationRevision"`
+		RuntimeRevision       string              `json:"runtimeRevision,omitempty"`
 		States                []browserGraphState `json:"states"`
 		Addons                []BrowserGeneration `json:"addons"`
-	}{ContractVersion: BrowserGraphContractVersion, ConfigurationRevision: configuration.Revision, States: revisionStates, Addons: addOns})
+	}{ContractVersion: BrowserGraphContractVersion, ConfigurationRevision: configuration.Revision, States: revisionStates, Addons: addOns, RuntimeRevision: manager.monitoringRevisionLocked()})
 	if err != nil {
 		return BrowserGraph{}, fmt.Errorf("encode browser graph revision: %w", err)
 	}

@@ -14,7 +14,7 @@ dispatcher for generation-scoped package data and brokered service calls.
 | Package inspector | Verifying and extracting a content-addressed package generation |
 | Package manager | Activation, durable generation selection, grants, dependency ordering, rollback, and recovery |
 | Supervisor factory | Selecting the exact native executable for the current target and constructing one supervisor |
-| Restart policy helper | Tested backoff decisions; automatic monitoring and failure accounting are not wired |
+| Package-manager monitor | Periodic health, runtime failure detection, affected-consumer invalidation, bounded retries and stability accounting |
 | Native worker supervisor | Exact process launch, lifecycle negotiation, health, bounded diagnostics, deadlines, and termination |
 | Worker RPC codec | Framing, UTF-8 and JSON-RPC envelope validation, and bounded I/O |
 | Worker RPC peer | Continuous reads, correlated calls, concurrency, cancellation, and transport counters |
@@ -109,18 +109,57 @@ Codec failures keep their more precise framing code as the wrapped cause.
 
 ## Restart policy
 
-The supervisor reports unexpected completion through `Wait`; it never
-restarts itself. The pure `RestartPolicy.Decide` helper describes up to three
-attempts with one-, two- and four-second delays, capped at 30 seconds. It has
-no production caller. The declared five-minute stability reset is also not
-wired to a coordinator-owned failure counter.
+The supervisor reports completion through `Wait` and its snapshot; it never
+restarts itself. The production host enables the package manager's
+[`MonitoringConfig`](../../internal/addons/packagemanager/monitor.go) and starts
+its monitor after composition. Offline/embedded managers can omit monitoring.
 
-The package manager owns initial start, replacement, rollback, shutdown and
-host-start recovery. It does not currently schedule periodic runtime health
-checks or automatic crash restarts. Those primitives must be integrated through
-the package coordinator, including dependent invalidation and crash-loop
-accounting; see T10 in [the backlog](../BACKLOG.md). Manual reload remains the
-operator recovery route when appropriate.
+The coordinator polls runtime state every second and calls runtime health every
+30 seconds, with a five-second health deadline. Probes and lifecycle transitions
+are serialized through the package manager. A valid `degraded` result keeps the
+runtime available but does not count toward stability. A crash, invalid health
+result or timeout withdraws the failed runtime and its affected live consumers.
+All affected service/request-context and data handles are withdrawn before
+consumer-before-provider shutdown. Unrelated runtimes remain running.
+
+Recovery re-inspects the exact durably selected packages and approved grants.
+Required consumers wait for their providers; optional consumers can restart
+without them and reconnect when they return. Declared dependencies are considered
+as well as existing handles, including optional consumers currently using a
+provider-free fallback. Authored data, stored packages, selections and grants are
+not disabled, deleted or reverted by this process.
+
+The coordinator owns per-package/generation/revision failure accounting and uses
+`RestartPolicy.Decide`: at most three automatic attempts, delayed one, two and
+four seconds by default. Failed startup and failed reinspection consume the same
+budget. Five uninterrupted healthy minutes reset it. Exhaustion leaves the
+generation unavailable with an explicit Reload recovery route; it does not keep
+spawning processes. Counters are in memory and reset with a new host process.
+A revision-checked operator Reload resets an unavailable worker's budget and
+attempts recovery of its affected consumers. Once accepted, this bounded
+transition completes even if the browser disconnects; the browser must refresh
+the durable outcome instead of automatically repeating the request. Disabling, uninstalling or replacing a generation
+cancels its obsolete retry state; other coordinator changes respect backoff.
+
+A boot-scoped runtime revision contributes to the opaque browser graph revision,
+so same-package restarts and missed intermediate notifications still invalidate
+browser handles. The existing public graph event carries no worker output.
+The existing browser graph reconciliation can remount add-on views; recovery of
+unsaved DM Tools drafts during forced replacement remains T30. Pending domain
+calls fail with their original outcome; monitoring never replays
+a domain request, import or save. The coordinator records bounded failure
+categories; richer redacted health/exit and browser diagnostics remain T11.
+
+Automatic cohort transitions have a two-minute deadline. Host shutdown cancels
+and joins the monitor before stopping runtimes, including an in-flight health
+probe, and leaves durable activation selected for the next host start.
+
+Regression coverage in `monitor_test.go` and `monitor_native_test.go` includes
+transitive stop order, optional reconnection, untouched unrelated workers,
+same-package browser invalidation, non-replayed writes, startup failure, health
+hangs, backoff/exhaustion, stable/degraded periods, corrupt saved packages,
+generation replacement, explicit recovery and shutdown cancellation. Native
+subprocess tests prove crash/health-timeout termination and fresh-process restart.
 
 Go workers use `workerrpc.RunNativeWorker` rather than reimplementing this
 lifecycle. The helper keeps startup reads serialized, switches the same codec

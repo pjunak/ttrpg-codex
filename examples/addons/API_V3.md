@@ -30,7 +30,7 @@ below describe constraints for a possible implementation, not available APIs.
 | Worker transport | Native lifecycle, brokered service calls and package-data/retained-history callbacks are implemented. No WASI runtime or namespaced `http-endpoint` execution is composed. |
 | Imports | DM Tools exposes format-routed import-adapter v2 planning review/commit through services. A host-owned campaign-bundle provider is missing (T19). No separate `addon/import.*` RPC dispatcher is composed. |
 | Schema upgrades | Incompatible stored definitions block activation. General migration plan/apply orchestration is absent (T08); specific offline retirement is separate. |
-| Recovery/diagnostics | Initial health, manual reload, host-start recovery and basic manager diagnostics work. Periodic health/restart/quarantine and the full redacted Inspector/support bundle are unfinished (T10–T11). |
+| Recovery/diagnostics | Initial/periodic health, bounded automatic worker recovery, affected-consumer invalidation, manual reload, host-start recovery and basic manager diagnostics work. Rich redacted worker/browser diagnostics and support bundles remain unfinished (T11). |
 | Optional host calls/trust | Worker blob, event, network and progress methods, package-signature verification and OS resource enforcement are not implemented. Permissions never create these capabilities. |
 
 The runtime composition in [cmd/codex](../../cmd/codex/main.go),
@@ -231,8 +231,9 @@ its data/history and saved generations. Restaging requires ordinary review.
 See [the lifecycle owner](../../docs/rewrite/PACKAGE_LIFECYCLE.md).
 
 Stored schema incompatibility currently blocks activation; there is no automatic
-migration plan/apply step. Dedicated quarantine and permanent namespace deletion
-also remain planned under T05, T08 and T10 in [the backlog](../../docs/BACKLOG.md).
+migration plan/apply step. Reviewed migrations and permanent namespace deletion
+remain T08 and T05 in [the backlog](../../docs/BACKLOG.md). Crash-loop suppression
+is in memory; there is no separate persistent quarantine command.
 Saved package archives have a separate reviewed cleanup flow in the lifecycle owner. Never simulate them by changing package files or database rows.
 
 ## Browser SDK
@@ -1252,10 +1253,14 @@ non-idempotent requests.
 Idempotent calls may be retried only within the original deadline and with the
 same idempotency key.
 
-A crashed worker fails its process/transport scope. Automatic health monitoring,
-restart/backoff and coordinator-level provider invalidation are not wired; the
-restart decision helper alone does not provide them. Manual reload and host-start
-recovery are implemented. T10 tracks the remaining integration and failure tests.
+A crashed or unhealthy worker fails its process/transport scope. The production
+host monitors health and withdraws affected consumers through the package
+coordinator. It makes up to three automatic recovery attempts with bounded
+backoff, preserves optional-provider fallback, and stops retrying after repeated
+failure. Recovery revalidates the exact selected packages; it never replays a
+save or other domain call. Manual Reload resets an unavailable worker's retry
+budget. See [worker supervision](../../docs/rewrite/WORKER_SUPERVISION.md#restart-policy)
+for timing, stability, shutdown and validation boundaries.
 
 ## Permissions
 

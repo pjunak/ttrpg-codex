@@ -619,9 +619,8 @@ use explicit `includeOwn` and do not imply planned self-binding during native
 worker initialization.
 
 The actionable work is consolidated in [the suite backlog](../BACKLOG.md):
-namespace cleanup (T05), migration orchestration
-(T08), worker monitoring/restart/quarantine (T10), and
-richer redacted diagnostics (T11). Planned native self-binding and other new
+namespace cleanup (T05), migration orchestration (T08), and richer redacted
+diagnostics (T11). Planned native self-binding and other new
 worker capabilities require a concrete consumer under C07; WASI and OS limits
 are conditional under C08. Extend the existing coordinator and preserve exact
 generations, optimistic revisions, broker authority and stored approval.

@@ -30,7 +30,10 @@ func (manager *Manager) Reload(
 		return ActivationResult{}, ErrNotActive
 	}
 	previous, recovered := manager.runtimes[addonID]
-	if !recovered || previous.generation.GenerationID != state.ActiveGenerationID {
+	if !recovered {
+		return manager.reloadUnavailableWorkerLocked(ctx, state)
+	}
+	if previous.generation.GenerationID != state.ActiveGenerationID {
 		return ActivationResult{}, ErrRecoveryRequired
 	}
 	_, generation, report, permissions, services, normalizedGrants, err := manager.prepareActivation(ctx, ActivationPlan{
@@ -79,6 +82,7 @@ func (manager *Manager) Reload(
 		services: append([]servicebroker.Handle(nil), services...),
 	}
 	stopNext = false
+	manager.workerReadyLocked(newState)
 	manager.publishBrowserGraphChangeLocked(ctx, addonID, "reloaded")
 	result := ActivationResult{
 		State: newState, Generation: generation, PreviousGenerationID: generation.GenerationID,

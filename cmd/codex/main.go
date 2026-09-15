@@ -270,6 +270,7 @@ func composeHost(
 		WorkerProtocolVersion: workerProtocolVersion,
 		AvailableCapabilities: []string{"data.history", "data.transactions", "ui.contributions", "ui.markdown", "ui.rule-details", "worker.native"},
 		EventPublisher:        eventBroker, Logger: logger,
+		Monitoring: &packagemanager.MonitoringConfig{},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("configure package manager: %w", err)
@@ -345,5 +346,6 @@ func composeHost(
 		_ = addons.Shutdown(context.Background())
 		return nil, fmt.Errorf("configure HTTP API: %w", err)
 	}
+	addons.StartMonitoring(ctx)
 	return &hostRuntime{handler: handler, addons: addons, campaign: campaignData}, nil
 }

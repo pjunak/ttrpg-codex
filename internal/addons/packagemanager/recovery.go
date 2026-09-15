@@ -9,6 +9,7 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/addons/datalifecycle"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
+	"github.com/pjunak/ttrpg-codex/internal/addons/workersupervisor"
 )
 
 type recoveryCandidate struct {
@@ -39,6 +40,11 @@ func (manager *Manager) recoverLocked(ctx context.Context) ([]RecoveryResult, er
 	if len(manager.runtimes) != 0 {
 		return nil, fmt.Errorf("%w: manager already has live generations", ErrRecoveryRequired)
 	}
+	return manager.recoverMissingLocked(ctx)
+}
+
+// Existing healthy runtimes are retained during targeted worker recovery.
+func (manager *Manager) recoverMissingLocked(ctx context.Context) ([]RecoveryResult, error) {
 	states, err := manager.store.activeStates(ctx)
 	if err != nil {
 		return nil, err
@@ -46,9 +52,17 @@ func (manager *Manager) recoverLocked(ctx context.Context) ([]RecoveryResult, er
 	results := make(map[string]RecoveryResult, len(states))
 	pending := make(map[string]recoveryCandidate, len(states))
 	for _, state := range states {
+		if active, exists := manager.runtimes[state.AddonID]; exists && active.generation.GenerationID == state.ActiveGenerationID {
+			results[state.AddonID] = RecoveryResult{AddonID: state.AddonID, GenerationID: state.ActiveGenerationID, Recovered: true}
+			continue
+		}
+		if manager.workerDeferredLocked(state) {
+			results[state.AddonID] = recoveryFailure(state, errors.New(manager.monitoring.watches[state.AddonID].message))
+			continue
+		}
 		generation, err := manager.store.generation(ctx, state.AddonID, state.ActiveGenerationID)
 		if err != nil {
-			results[state.AddonID] = recoveryFailure(state, err)
+			results[state.AddonID] = manager.recordRecoveryFailureLocked(ctx, state, err)
 			continue
 		}
 		report, err := manager.loadPackage(ctx, state.AddonID, state.ActiveGenerationID)
@@ -74,8 +88,7 @@ func (manager *Manager) recoverLocked(ctx context.Context) ([]RecoveryResult, er
 			)
 		}
 		if err != nil {
-			_ = manager.store.recordFailure(ctx, state.AddonID, state.ActiveGenerationID, "recovery-failed", err)
-			results[state.AddonID] = recoveryFailure(state, err)
+			results[state.AddonID] = manager.recordRecoveryFailureLocked(ctx, state, err)
 			continue
 		}
 		pending[state.AddonID] = recoveryCandidate{
@@ -97,10 +110,10 @@ func (manager *Manager) recoverLocked(ctx context.Context) ([]RecoveryResult, er
 					continue
 				}
 				if err != nil {
-					_ = manager.store.recordFailure(ctx, addonID, candidate.generation.GenerationID, "recovery-failed", err)
-					results[addonID] = recoveryFailure(candidate.state, err)
+					results[addonID] = manager.recordRecoveryFailureLocked(ctx, candidate.state, err)
 				} else {
 					manager.runtimes[addonID] = active
+					manager.workerReadyLocked(candidate.state)
 					if err := manager.store.recordRecovery(ctx, addonID, candidate.generation.GenerationID); err != nil {
 						manager.logger.Error("record recovered add-on generation", "addonId", addonID, "error", err)
 					}
@@ -118,8 +131,7 @@ func (manager *Manager) recoverLocked(ctx context.Context) ([]RecoveryResult, er
 		for _, addonID := range sortedCandidateIDs(pending) {
 			candidate := pending[addonID]
 			cause := manager.recoveryBlocker(ctx, candidate)
-			_ = manager.store.recordFailure(ctx, addonID, candidate.generation.GenerationID, "recovery-failed", cause)
-			results[addonID] = recoveryFailure(candidate.state, cause)
+			results[addonID] = manager.recordRecoveryFailureLocked(ctx, candidate.state, cause)
 			delete(pending, addonID)
 		}
 	}
@@ -144,6 +156,9 @@ func (manager *Manager) recoverCandidate(
 	runtime, err := manager.createRuntime(candidate.report, candidate.generation, candidate.permissions, services)
 	if err == nil && runtime != nil {
 		err = runtime.Start(ctx)
+		if err != nil && !errors.Is(ctx.Err(), context.Canceled) {
+			manager.workerFailureLocked(ctx, candidate.state, &workersupervisor.LifecycleError{Code: workersupervisor.CodeStartupFailed, Cause: err})
+		}
 	}
 	if err == nil {
 		err = manager.activatePublishedServices(ctx, candidate.report, candidate.generation, runtime)
@@ -211,6 +226,19 @@ func (manager *Manager) recoveryBlocker(ctx context.Context, candidate recoveryC
 	return fmt.Errorf("%w: dependency cycle or unavailable provider", ErrRecoveryRequired)
 }
 
+func (manager *Manager) recordRecoveryFailureLocked(ctx context.Context, state State, cause error) RecoveryResult {
+	watch := manager.watchForStateLocked(state)
+	// A scheduled attempt that fails before launch still consumes its budget.
+	if watch != nil && watch.blocked && !watch.retryAt.IsZero() && !manager.store.now().Before(watch.retryAt) && !errors.Is(ctx.Err(), context.Canceled) {
+		manager.workerFailureLocked(ctx, state, &workersupervisor.LifecycleError{Code: workersupervisor.CodeStartupFailed, Cause: cause})
+	}
+	if watch != nil && watch.blocked {
+		cause = errors.New(watch.message)
+	}
+	_ = manager.store.recordFailure(ctx, state.AddonID, state.ActiveGenerationID, "recovery-failed", cause)
+	return recoveryFailure(state, cause)
+}
+
 func recoveryFailure(state State, cause error) RecoveryResult {
 	return RecoveryResult{
 		AddonID: state.AddonID, GenerationID: state.ActiveGenerationID,
@@ -231,19 +259,34 @@ func sortedCandidateIDs(values map[string]recoveryCandidate) []string {
 // pointers remain unchanged so the same exact generations are recovered on
 // the next host start.
 func (manager *Manager) Shutdown(ctx context.Context) error {
+	manager.stopMonitoring()
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 	return manager.shutdownLocked(ctx)
 }
 
 func (manager *Manager) shutdownLocked(ctx context.Context) error {
+	return manager.shutdownSubsetLocked(ctx, nil)
+}
+
+func (manager *Manager) shutdownSubsetLocked(ctx context.Context, subset map[string]bool) error {
 	order := manager.shutdownOrder()
 	var shutdownErrors []error
+	// Revoke every affected route and data handle before any shutdown callback.
 	for _, addonID := range order {
+		if subset != nil && !subset[addonID] {
+			continue
+		}
 		active := manager.runtimes[addonID]
 		dataTransition := manager.dataLifecycle.BeginDeactivation(addonID, active.generation.GenerationID)
 		manager.broker.DeactivateRuntime(addonID, active.generation.GenerationID)
 		dataTransition.Commit()
+	}
+	for _, addonID := range order {
+		if subset != nil && !subset[addonID] {
+			continue
+		}
+		active := manager.runtimes[addonID]
 		if active.runtime != nil {
 			if err := active.runtime.Shutdown(ctx); err != nil {
 				shutdownErrors = append(shutdownErrors, fmt.Errorf("%s: %w", addonID, err))
