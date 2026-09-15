@@ -1,10 +1,9 @@
 # Project backlog
 
-Open work for the five repositories, reviewed September 14, 2026. This remains
+Work for the five repositories, reviewed September 15, 2026. This remains
 one suite backlog; each task belongs to the repository that owns its change.
-Older completed fixes and dated deployment snapshots have been removed. The
-current host batch retains short completion markers for this handoff. Historical
-findings and the unchanged accepted release gates live in the
+Completed fix batches stay in compact checked, struck-through lists with commit
+references; their detailed findings and the unchanged accepted release gates live in the
 [feature-parity audit](rewrite/FEATURE_PARITY_AUDIT.md).
 
 **P1:** preservation, blocked workflows or release confidence. **P2:** usability,
@@ -22,6 +21,21 @@ numbering are completed work. The historical gates do not close these tasks.
 - [Delivery order and completion](#delivery-order-and-completion)
 
 ## ttrpg-codex
+
+### Completed fix batches
+
+These are implemented and validated in the local checkout. A local commit does
+not mean it has been pushed, deployed, or installed on a live site.
+
+- [x] ~~**T20 — DM/player twin management**~~ — `cfa0630`.
+- [x] ~~**T26 — Character knowledge and DM inspection**~~ — `939d4cb`.
+- [x] ~~**T27 — Private location notes**~~ — `b19648f`.
+- [x] ~~**T21 — Saved core URLs and guarded navigation**~~ — `a0bda14`.
+- [x] ~~**T22 — Connected articles, rosters and reference links**~~ — `6758d7f`.
+- [x] ~~**T23 — Contextual creation and direct card editing**~~ — `6db9afc`.
+
+Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md)
+and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 
 ### Backend and core workflows
 
@@ -44,14 +58,6 @@ numbering are completed work. The historical gates do not close these tasks.
 The [continuation evidence](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings)
 contains the before/after comparisons for R01–R12 and screenshots for U01–U04.
 
-- [x] **T21 — Repaired saved core URLs (September 15).** List/article/creation
-  aliases preserve exact IDs, Back, sign-in and dirty drafts. [Contract and tests](rewrite/EDITOR_BROWSING.md#saved-core-urls).
-- [x] **T22 — Restored connected article context (September 15).** Linked facts,
-  complete rosters, location surroundings and owned companions use current
-  role-projected data and preserve drafts. [Contract and tests](rewrite/EDITOR_BROWSING.md#connected-article-context).
-- [x] **T23 — Restored contextual creation and direct editing (September 15).**
-  Presets retain associations, visibility and return pages; source deletion,
-  sign-in, cancellation and stale drafts are covered. [Contract and tests](rewrite/EDITOR_BROWSING.md#contextual-creation-and-direct-editing).
 - [ ] **T24 / P2 — Restore investigation status and the unanswered queue.** R08.
   Combine mystery/character questions with source navigation, answer history
   and open/total badges. Derive solved state from a manual override or a nonempty
@@ -241,8 +247,8 @@ Provider-free saved reading/notes/print/export remain required.
 
 | Order | Work | Exit evidence |
 | --- | --- | --- |
-| 1 | Preserve authored intent: host T20/T26/T27, DM T30; finish Engine T32 + Sheets T33. Start T02 alongside them. | Safe role/stale/error behavior; recoverable planning edits; incomplete character saves and bounded play work through the installed contract. |
-| 2 | Everyday use: host T21–T24/T28, Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
+| 1 | Preserve authored intent: DM T30; finish Engine T32 + Sheets T33. Start T02 alongside them. | Safe role/stale/error behavior; recoverable planning edits; incomplete character saves and bounded play work through the installed contract. |
+| 2 | Everyday use: host T24/T28, Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
 | 3 | Imports and resilience: host + DM T19, host T09–T13; T08 only for a real schema-preservation need. | Exact reviewed transactions, understandable failures and safe provider/lifecycle recovery. |
 | 4 | Final integration: T02, relevant T18 cases and T29 measurements. | All four inspected ZIPs exercised without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
 | 5 | Authorized delivery T15–T17; independent maintenance T05–T07 and per-repo T14. | Exact served/installed builds verified; per-site data/retention choices recorded and rollback assets retained. |
@@ -250,8 +256,10 @@ Provider-free saved reading/notes/print/export remain required.
 T14 suffixes divide the existing generated-artifact task by repository; T18
 suffixes divide workflow acceptance. Cross-repository changes need producer and
 consumer checks and separate compatible commits. A task closes only after its
-changed behavior and relevant owning gates pass; remove it from this document
-and keep evidence in its owning contract/audit or Git history.
+changed behavior and relevant owning gates pass; move it to its repository's
+compact completed list with a checked box and struck-through title. Keep detailed
+evidence in its owning contract/audit or Git history; do not remove these batch
+completion markers during later cleanup.
 
 For changed workflows, cover success, cancel/Back, reload, stale/concurrent edits,
 failed or uncertain responses, session expiry and provider/lifecycle changes as
