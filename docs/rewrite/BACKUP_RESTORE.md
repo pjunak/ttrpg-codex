@@ -119,7 +119,9 @@ are consumed by the separate, narrowly scoped
 directory and database. This keeps legacy shape handling out of normal startup
 and out of the permanent native restore surface.
 
-Settings → Backup & recovery downloads this same full archive. Archive upload
+Settings → Backup & recovery downloads this same full archive and links the
+[verification and offline full-restore procedure](../SELF_HOSTING.md#verify-and-restore-a-full-backup)
+from both English and Czech interfaces. Archive upload
 and publication remain an offline maintenance operation; campaign recovery
 points below are available without restarting the host.
 

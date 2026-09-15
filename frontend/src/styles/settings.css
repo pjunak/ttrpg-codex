@@ -5,6 +5,7 @@ codex-settings {
 codex-recovery-settings { display: block; min-width: 0; }
 .settings-recovery-panel .settings-hint { color: var(--text-muted); font: .8rem/1.6 var(--font-ui); margin-bottom: .8rem; }
 .settings-recovery-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.settings-recovery-panel .settings-hint a { color: var(--gold); text-underline-offset: .15em; }
 .settings-recovery-actions a { text-decoration: none; font: .8rem var(--font-ui); color: var(--accent-gold); }
 .settings-recovery-panel .settings-ledger-heading { flex-wrap: wrap; }
 .settings-recovery-panel .settings-ledger-heading > .settings-recovery-actions { display: flex; }

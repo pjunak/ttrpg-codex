@@ -64,6 +64,11 @@ async function refresh(page: Page, mobile = false) { await panel(page).getByRole
 for (const mobile of [false, true]) test(`recovery points restore the campaign and original Settings layout (${mobile ? 'Czech phone' : 'English desktop'})`, async t => {
   const key = `recovery-${mobile}`; await put(key, 'Before recovery');
   const { page, context } = await open(t, mobile);
+  const guide = panel(page).getByRole('link', { name: mobile ? 'Ověření a obnova úplné zálohy (anglicky, otevře novou kartu)' : 'Verify and restore a full backup (opens in a new tab)' });
+  assert.equal(await guide.getAttribute('href'), 'https://github.com/pjunak/ttrpg-codex/blob/main/docs/SELF_HOSTING.md#verify-and-restore-a-full-backup');
+  assert.equal(await guide.getAttribute('target'), '_blank');
+  assert.equal(await guide.getAttribute('rel'), 'noreferrer');
+  await guide.focus(); assert.equal(await guide.evaluate(node => node === document.activeElement), true);
   const result = await jsonResponse(await mutation(page, () => panel(page).getByRole('button', { name: mobile ? '＋ Vytvořit bod obnovy' : '＋ Create recovery point', exact: true }).click(), '/api/recovery'));
   const id = result.points[0].id; assert.equal(result.points[0].reason, 'manual');
   await put(key, 'Changed campaign', 1);

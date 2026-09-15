@@ -234,6 +234,14 @@ for recovery from disk loss. Restore a point with the same active add-on version
 use full offline restore when recovering packages or the entire host.
 See the [recovery contract](rewrite/BACKUP_RESTORE.md#campaign-recovery-points).
 
+### Verify and restore a full backup
+
+The guide linked from Settings → Backup & recovery covers the whole installation.
+A full restore includes saved passwords and installed add-on packages. GitHub
+access tokens are excluded; configure them again on a new server. Use the
+maintenance binary from the matching host release (or the source commands below),
+and the actual data directory used by that installation.
+
 The DM endpoint `GET /api/backup` downloads the same verified archive contract
 as the maintenance CLI. For command-line operation:
 
@@ -256,7 +264,11 @@ go run ./cmd/codex-maintenance restore `
 ```
 
 Restore verifies the archive and an isolated database before atomically
-publishing it. Never unpack or merge backup contents by hand.
+publishing it. Never unpack or merge backup contents by hand. Keep the verified
+archive and an independent copy of the current data before replacement. After
+restoring, start the host and check login, campaign records, media and active
+add-ons before returning it to use. See the [archive and publication contract](rewrite/BACKUP_RESTORE.md)
+for verification limits and interrupted-restore recovery.
 
 ## Upgrade and rollback
 

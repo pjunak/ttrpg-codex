@@ -31,7 +31,7 @@ export class CodexRecoverySettings extends LitElement {
         </div>
       </header>
       <p class="settings-hint">${this.#ui.t("recovery.intro")}</p>
-      <p class="settings-hint">${this.#ui.t("recovery.offline")}</p>
+      <p class="settings-hint">${this.#ui.t("recovery.offline")} <a href="https://github.com/pjunak/ttrpg-codex/blob/main/docs/SELF_HOSTING.md#verify-and-restore-a-full-backup" target="_blank" rel="noreferrer">${this.#ui.t("recovery.guide")}</a></p>
       ${this.busy ? html`<p role="status">${this.#ui.t("recovery.busy")}</p>` : nothing}
       ${this.message ? html`<p role=${this.#failed ? "alert" : "status"}>${this.#ui.t(this.message)}</p>` : nothing}
       ${this.review ? this.#reviewPanel() : html`
