@@ -48,6 +48,8 @@ not mean it has been pushed, deployed, or installed on a live site.
 - [x] ~~**T19 — Atomic reviewed campaign bundles and receipt reconciliation**~~ — `94544bc`; [contract and validation](decisions/0001-campaign-bundle-imports.md).
 - [x] ~~**T29 — Measured campaign/asset compression and reproducible profiling**~~ — `8d3652a`; [results and measurement limits](rewrite/PERFORMANCE.md).
 - [x] ~~**T18-HOST — Core workflow acceptance and draft-preserving session recovery**~~ — `eb2cb7b`; [action-level evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md).
+- [x] ~~**T35 — Repair deployment reflow checks and unintended reduced-motion transitions**~~ — `484814c`, `c3d0ac1`; [failure and regression evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#deployment-gate-repair-and-engine-follow-up).
+- [x] ~~**T02-LOCAL — Accept all four inspected companion packages with zero skips**~~ — host `c3d0ac1`, Engine `3f9c8e9`; [92/92 cases and exact package hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#installed-companion-matrix).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
@@ -56,15 +58,6 @@ Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITO
 [worker recovery](rewrite/WORKER_SUPERVISION.md#restart-policy),
 and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 
-### Backend and core workflows
-
-- [ ] **T02 / P1 — Accept the publication companion matrix.** Wiring is implemented
-  in `20c719c`: all four inspected ZIPs, exact commit/hash provenance, Sheets SDK
-  checks and zero-skip enforcement. Local full acceptance reached 91/92 passes,
-  zero skips; Engine T32's level-20 artificer still exceeds its deadline. After
-  that fix, rerun the exact candidate matrix and the authorized publication path.
-  Ordinary PR/private-access limits remain explicit.
-
 ### Lifecycle, maintenance and operations
 
 Host implementation and local core UX acceptance are complete. These rows require
@@ -72,6 +65,7 @@ a released schema-preservation need or separate operational authorization.
 
 | ID | Priority | Remaining work and completion condition |
 | --- | --- | --- |
+| T02 | P1, operational | Verify a fresh publication run after publishing the corrected Engine before the host candidate: exact companion commits/hashes and zero skips. Local acceptance is complete (T02-LOCAL); coordinate delivery with T15. Ordinary PR/private-access limits remain explicit. |
 | T08 | P2, triggered | Implement reviewed migration orchestration when a released schema actually needs preservation: exact snapshot, atomic commit, stale rejection and recovery. The old-sheet reset does not imply a general converter. [Data lifecycle](rewrite/ADDON_DATA.md#remaining-public-surface). |
 | T15 | P1, operational | On an authorized release, refresh remote/deployment state, publish the chosen validated host/add-on commits, then verify served build identity, manager and full backup with the matching maintenance binary. Do not rely on old SHA snapshots. [Runbook](SELF_HOSTING.md#publishing-and-deploying-updates). |
 | T16 | P2, operational | Re-inventory Asurai's superseded archives and historical cutover/maintenance copies; use existing reviewed cleanup where eligible and record retention decisions. Preserve independent backups; do not repeat the completed sheet reset. |
@@ -173,19 +167,20 @@ Owns deterministic calculation and validation, not UI or character persistence.
 Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 [Service contract](../../addon-dnd-engine/contract/README.md).
 
+### Completed fix batches
+
+- [x] ~~**T32-PERF — Bound evaluation catalog work and fix the level-20 timeout**~~ — `f5f5ba3`.
+- [x] ~~**T32-FEATS — Validate acquired feat prerequisites and eligible builder options**~~ — `3f9c8e9`; [regression and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#deployment-gate-repair-and-engine-follow-up).
+
+### Remaining work
+
 - [ ] **T32 / P1 — Finish progressive-build and equipment validation acceptance.**
-  In-progress source adds `guidance.canSave`, class/choice eligibility and
-  per-item equipment guidance. Verify legal incomplete builds save while invalid
-  selections fail and play still requires `ready`. Cover point-buy boundaries,
-  prerequisite changes, duplicate/replaced choices, multiclass progressions,
-  equip/attune restrictions and exclusive slots. Outputs must be deterministic,
-  explainable, source-policy aware and leave caller inputs unchanged. Finish
-  against Sheets T33 and the compatible host; source edits alone do not close it.
-  **Confirmed installed failure (September 16):** the all-class test times out
-  evaluating an artificer at level 20 (`context deadline exceeded` / HTTP 500).
-  Reproduced directly through the service without mounting a UI; other provider
-  recovery cases pass. Fix under the existing deadline and retain the case in
-  [installed rules tests](../frontend/test/browser/installed-rules.browser.mts).
+  Verify legal incomplete builds save while invalid selections fail and play
+  still requires `ready`. Cover point-buy boundaries, duplicate/replaced choices,
+  multiclass progressions, equip/attune restrictions and exclusive slots through
+  Sheets T33 and the installed contract. Retain acquisition-level/prerequisite
+  regressions and bounded all-class evaluation. Results must remain deterministic,
+  explainable, source-policy aware and leave caller inputs unchanged.
 - [ ] **T18-ENGINE / P1, review — Close rules/provider evidence gaps.**
   Use representative single/multiclass builds through level changes, spells,
   granted casts, resources/rest, HP, inventory and DM effects. Check missing,
@@ -248,7 +243,7 @@ Provider-free saved reading/notes/print/export remain required.
 
 | Order | Work | Exit evidence |
 | --- | --- | --- |
-| 1 | Preserve authored intent: DM T30; finish Engine T32 + Sheets T33. Start T02 alongside them. | Safe role/stale/error behavior; recoverable planning edits; incomplete character saves and bounded play work through the installed contract. |
+| 1 | Preserve authored intent: DM T30; finish Engine T32 + Sheets T33. | Safe role/stale/error behavior; recoverable planning edits; incomplete character saves and bounded play work through the installed contract. |
 | 2 | Everyday use: Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
 | 3 | Remaining add-on artifact ownership: per-repo T14. T08 only for a real schema-preservation need. | Standalone builds and inspected ZIPs preserve current consumer contracts; any needed migration is reviewed and atomic. |
 | 4 | Final integration: T02 and remaining add-on T18 cases. | All four inspected ZIPs pass without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
