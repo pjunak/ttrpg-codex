@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -296,5 +297,26 @@ func (s *server) campaignDataset(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusServiceUnavailable, "CAMPAIGN_UNAVAILABLE", "campaign data is unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, dataset)
+	w.Header().Add("Vary", "Accept-Encoding")
+	w.Header().Set("Cache-Control", "no-store")
+	useGzip, acceptable := negotiateGzip(r, true)
+	if !acceptable {
+		writeAPIError(w, http.StatusNotAcceptable, "ENCODING_UNAVAILABLE", "no acceptable campaign encoding")
+		return
+	}
+	if !useGzip {
+		writeJSON(w, http.StatusOK, dataset)
+		return
+	}
+	// Only the already projected campaign response is compressed. Session
+	// secrets, authentication replies and event streams do not use this path.
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Encoding", "gzip")
+	w.WriteHeader(http.StatusOK)
+	if r.Method == http.MethodHead {
+		return
+	}
+	writer, _ := gzip.NewWriterLevel(w, gzip.BestSpeed)
+	_ = json.NewEncoder(writer).Encode(dataset)
+	_ = writer.Close()
 }
