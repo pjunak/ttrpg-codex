@@ -6,7 +6,8 @@ remains in [the feature-parity audit](FEATURE_PARITY_AUDIT.md); current remainin
 work belongs only in [the suite backlog](../BACKLOG.md).
 
 Core acceptance began with host `eb2cb7b`; the latest installed candidate is
-`62e8da6`, including the deployment-gate repairs and DM recovery tests below.
+`10ddc3c`, including the deployment-gate repairs, DM recovery and progressive-save
+tests below.
 All campaigns, passwords, packages installed by fixtures and recovery operations
 used disposable local directories. Neither live site was read or modified.
 
@@ -35,7 +36,7 @@ reachable actions and overflow.
 - `npm run check`: passed on the final implementation. Source guard and both
   TypeScript projects passed; 29 tooling tests, 389 frontend unit tests and
   277 browser cases passed; all project Go tests and vet passed.
-- The ordinary browser run reports 26 optional installed-package skips. This
+- The ordinary browser run reports 33 optional installed-package skips. This
   is explicitly not the zero-skip publication matrix.
 - `npm run release-check`: all unchanged historical 33 gates passed. This
   verifies their accepted status, not completion of new add-on work.
@@ -53,24 +54,27 @@ below. No skipped or failed case is converted into a passing acceptance claim.
 
 ## Installed companion matrix
 
-The full candidate run on host `62e8da6` completed **97 cases: 97 passed, zero
-failed, zero skipped** in 137.1 seconds. This includes
+The full candidate rerun on host `10ddc3c` completed **104 cases: 104 passed, zero
+failed, zero skipped** in 146.3 seconds. This includes
 `installed sources evaluate every class with bounded projections and explicit
 incomplete choices`, including level-20 artificer under the unchanged service
 deadline, and all enlarged-text host/add-on theme/language comparisons.
 T02-LOCAL is complete; T02 retains fresh remote publication verification.
 
-The run includes five new planner recovery cases alongside campaign-bundle,
-lifecycle, role, provider and record-panel workflows. All four archives
-passed host inspection before installation. All four companion source repositories
-were clean; host dirtiness in the provenance was documentation only. Runtime source
-and built frontend matched the tested host commit. No remote CI run is claimed.
+The run includes seven new character save cases and the five planner recovery
+cases alongside campaign-bundle, lifecycle, role, provider and record-panel
+workflows. All four archives passed host inspection before installation. The host
+and all four companion source repositories were clean when provenance was
+captured; subsequent host changes are backlog/acceptance documentation only.
+Runtime source and built frontend matched the tested host commit. The initial
+preview timeout and unchanged passing rerun are recorded
+[below](#progressive-save-and-equipment-follow-up). No remote CI run is claimed.
 
 | Package | Source commit | Inspected ZIP SHA-256 |
 | --- | --- | --- |
 | dm-tools | `0eeac9b` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
-| dnd-engine | `3f9c8e9` | `91dac170081052f272f4eb61c1ac4d35800e8a2b994762818f1d6f80a1d3fffa` |
-| dnd-sheets | `99edd12` | `23d008405112b0d032839067ef1f9e3363c6404a6f9f7816cf8a02e6494ae6a5` |
+| dnd-engine | `dfd970b` | `2d8772e46ff7ea7e2f46a17787cddfdaea71445350b45b6366d184c1ef5b9476` |
+| dnd-sheets | `8b3bb30` | `1f127bf1f4c52c7bf5094117200c3892050b5e754aeb645f601ad11963392ec9` |
 | dnd-2024-compendium | `e8cc635` | `02961fd304935e806f66785e5f205226c7b620daa040cba08eef9c4e9b1ac136` |
 
 The runner retains exact full commit IDs and package hashes in ignored
@@ -192,6 +196,63 @@ Go tests/vet, all three native worker builds and host ZIP inspection. The host's
 full check passed 29 tooling, 389 unit and 277 browser cases, with the expected
 26 optional-package skips, plus Go tests/vet. Actual Windows native workers were
 executed; Linux workers were cross-compiled and inspected. The final exact-package
-matrix above passed all 97 cases without skips. Broader DM T18 review,
+DM recovery matrix passed all 97 cases without skips; the current matrix above
+adds subsequent character fixes. Broader DM T18 review,
 physical-device and live-site acceptance remain open; no package was published
 or activated on either site.
+
+## Progressive save and equipment follow-up
+
+Engine `dfd970b` closes T32-EQUIPMENT. Empty inventory can remain carried or
+stored, but cannot stay equipped or attuned. Custom equipment checks matching
+DM mechanics against activation, effective level and expiry. Equip guidance
+tests the proposed equipped state, including equipped-only conditions, without
+mutating input. Additive `guidance.saveIssues` separates actual save blockers
+from required choices that may legally remain unfinished. Pure regressions
+cover partial point buy/array, unavailable origins/unknown abilities, empty
+equipment and current grant eligibility.
+
+Sheets `8b3bb30` closes T33-SAVE. Rejected input, active text focus/caret and
+navigation protection survive failed saves. Retry retains the uncertain
+operation's exact ID, revision and inputs; later edits wait for acknowledgment.
+Newer corrections continue after an older rejection, and accepted choice
+withdrawals do not reappear when other choices change in flight. Reload requires
+explicit discard confirmation. Depleting equipped inventory clears equipment
+and attunement together.
+
+Host `10ddc3c` adds seven
+[installed save regressions](../../frontend/test/browser/installed-character-save-fixture.mts).
+The real Engine and Sheets workers handle validation, transactions and
+idempotency. A client range is deliberately bypassed to exercise server rejection;
+lost replies are injected after the real transaction commits. Independent edits
+rebase, overlapping edits retain their existing conflict protection, and retries
+do not duplicate writes. All 13 character cases pass, including the existing
+build, play, import and provider-loss workflows.
+
+The phone regression exposed a compact-card minimum-width override and a rail
+that squeezed enlarged text into a narrow column. The fix allows cards to shrink
+and stacks vertical navigation above the content when needed. English Compact
+and Czech Classic recovery controls pass at 390 px with 200% text, including
+keyboard discard cancellation; both viewport screenshots were visually checked.
+This is automated text-resize coverage, not physical-device or screen-reader
+acceptance.
+
+Engine Go tests/vet and Sheets `npm run check` pass. Both packages were rebuilt
+through their owning tools and inspected by the host. The host check passes
+29 tooling, 389 frontend unit and 277 browser cases, with 33 expected optional
+package skips, plus Go tests/vet. Actual Windows workers ran; Linux workers were
+cross-compiled and inspected.
+
+The first all-four matrix passed 103 of 104 cases: the existing player-preview
+pop-up/logout case timed out locating “View as player.” Both isolated preview
+cases passed unchanged afterward. This failure is retained in the evidence;
+it is not claimed as a fixed product defect. The unchanged full rerun then passed
+all 104 cases with zero skips, using the exact commits and hashes recorded above.
+
+T32/T33 still retain earlier-decision/multiclass/attunement acceptance and
+pending-edit session/provider transitions. Recovery buttons/notices are localized;
+some returned worker/Engine reasons still fall back to English and remain in T33.
+Direct play/grant and reviewed-import commands have separate uncertain-outcome
+paths. Broader T18 build-and-play,
+physical-device and live-site acceptance remain open. No package was published
+or activated on either live site.

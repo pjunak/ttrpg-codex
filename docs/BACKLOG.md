@@ -49,7 +49,7 @@ not mean it has been pushed, deployed, or installed on a live site.
 - [x] ~~**T29 — Measured campaign/asset compression and reproducible profiling**~~ — `8d3652a`; [results and measurement limits](rewrite/PERFORMANCE.md).
 - [x] ~~**T18-HOST — Core workflow acceptance and draft-preserving session recovery**~~ — `eb2cb7b`; [action-level evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md).
 - [x] ~~**T35 — Repair deployment reflow checks and unintended reduced-motion transitions**~~ — `484814c`, `c3d0ac1`; [failure and regression evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#deployment-gate-repair-and-engine-follow-up).
-- [x] ~~**T02-LOCAL — Accept all four inspected companion packages with zero skips**~~ — host `c3d0ac1`, Engine `3f9c8e9`; [92/92 cases and exact package hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#installed-companion-matrix).
+- [x] ~~**T02-LOCAL — Accept all four inspected companion packages with zero skips**~~ — host `10ddc3c`, Engine `dfd970b`, Sheets `8b3bb30`; [104/104 cases and exact package hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#installed-companion-matrix).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
@@ -164,15 +164,15 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 
 - [x] ~~**T32-PERF — Bound evaluation catalog work and fix the level-20 timeout**~~ — `f5f5ba3`.
 - [x] ~~**T32-FEATS — Validate acquired feat prerequisites and eligible builder options**~~ — `3f9c8e9`; [regression and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#deployment-gate-repair-and-engine-follow-up).
+- [x] ~~**T32-EQUIPMENT — Reject empty equipment and inactive grants; explain save blockers**~~ — `dfd970b`; [Engine/Sheets acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#progressive-save-and-equipment-follow-up).
 
 ### Remaining work
 
 - [ ] **T32 / P1 — Finish progressive-build and equipment validation acceptance.**
-  Verify legal incomplete builds save while invalid selections fail and play
-  still requires `ready`. Cover point-buy boundaries, duplicate/replaced choices,
-  multiclass progressions, equip/attune restrictions and exclusive slots through
-  Sheets T33 and the installed contract. Retain acquisition-level/prerequisite
-  regressions and bounded all-class evaluation. Results must remain deterministic,
+  Extend installed acceptance to earlier-origin/level choice replacement,
+  multiclass progressions, attunement capacity/prerequisites and exclusive
+  armor/shield slots through Sheets T33. Retain the accepted partial/invalid-save,
+  empty-equipment and grant-lifetime regressions. Results must remain deterministic,
   explainable, source-policy aware and leave caller inputs unchanged.
 - [ ] **T18-ENGINE / P1, review — Close rules/provider evidence gaps.**
   Use representative single/multiclass builds through level changes, spells,
@@ -201,6 +201,7 @@ Provider-free saved reading/notes/print/export remain required.
 ### Completed fix batches
 
 - [x] ~~**T34-SHEETS — Shared fields, choices, states, tabs and modal focus**~~ — `99edd12`.
+- [x] ~~**T33-SAVE — Preserve rejected edits, retry uncertain autosaves and guard discard**~~ — `8b3bb30`; host regressions `10ddc3c`. Includes queued corrections/choice withdrawals, concurrent edits and enlarged-text phone recovery; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#progressive-save-and-equipment-follow-up).
 
 ### Remaining work
 
@@ -212,14 +213,14 @@ Provider-free saved reading/notes/print/export remain required.
   announce zero matches. Verify both layouts/languages and provider-free saved
   details/print. Engine remains the calculation authority.
 - [ ] **T33 / P1 — Finish automatic saving and progressive-builder usability.**
-  In-progress source, not accepted completion. Verify new/partial characters,
-  changing origin/earlier levels, point buy, duplicate choices, class selection,
-  equipment and grants against Engine T32. Keep save/pending/failure/conflict
-  states clear, preserve focus and rapid edits, and make the next required choice
-  obvious on phones. Test coalesced writes, independent versus overlapping
-  concurrent edits, session expiry, lost responses and exact retries, navigation
-  guards, provider loss, explicit rules adoption and reviewed imports. Do not
-  claim pending in-memory edits are durable or restore removed history UI.
+  Finish earlier-decision Builder repair and next-required-choice guidance on
+  phones against Engine T32; localize returned save explanations that still fall
+  back to English. Exercise session expiry and provider/generation
+  replacement while edits are pending, then explicit rules adoption. Verify
+  uncertain outcomes for direct play/grant and reviewed-import commands, whose
+  command paths are separate from the accepted autosave queue. Pending in-memory
+  edits must remain visibly unsaved and guarded; do not restore removed history
+  or device-draft UI.
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
   Build, save/reload, advance, equip, prepare/cast, spend resources, rest, amend
   grants, print/export and review an import using the exact installed ZIP. Cover
