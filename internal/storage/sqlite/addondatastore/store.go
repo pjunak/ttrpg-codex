@@ -17,6 +17,7 @@ import (
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/datacontract"
 	"github.com/pjunak/ttrpg-codex/internal/events"
+	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/unitofwork"
 )
 
 const (
@@ -299,11 +300,11 @@ func (store *Store) Transact(ctx context.Context, input Transaction) (Commit, er
 	if err != nil {
 		return Commit{}, err
 	}
-	transaction, err := store.database.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	transaction, cleanup, err := unitofwork.Begin(ctx, store.database)
 	if err != nil {
 		return Commit{}, fmt.Errorf("begin add-on data transaction: %w", err)
 	}
-	defer transaction.Rollback()
+	defer cleanup()
 	if store.beforeWrite != nil {
 		if err := store.beforeWrite(ctx, transaction); err != nil {
 			return Commit{}, err
@@ -509,11 +510,12 @@ func (store *Store) Transact(ctx context.Context, input Transaction) (Commit, er
 	if err := saveOperationReceipt(ctx, transaction, input, commit); err != nil {
 		return Commit{}, err
 	}
-	if err := transaction.Commit(); err != nil {
+	if err := unitofwork.Commit(ctx, transaction, func() {
+		for _, event := range committedEvents {
+			store.events.NotifyCommitted(event)
+		}
+	}); err != nil {
 		return Commit{}, fmt.Errorf("commit add-on data transaction: %w", err)
-	}
-	for _, event := range committedEvents {
-		store.events.NotifyCommitted(event)
 	}
 	return Commit{ID: commitID, OccurredAt: occurredAt, Results: results, DataRevisions: dataRevisions}, nil
 }

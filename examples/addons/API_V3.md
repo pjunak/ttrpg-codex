@@ -29,7 +29,7 @@ below describe constraints for a possible implementation, not available APIs.
 | Browser own service | Explicit `includeOwn` is supported after activation; it does not establish native-worker self-binding during initialization. |
 | UI/model contributions | Routes, sidebar, settings, article actions/sections, independent editor panels, named slots, wiki providers and host graph models work. `kind` enum injection, `record-renderer`, custom `graph-node-kind` and general `context.graphs` are reserved/unavailable. |
 | Worker transport | Native lifecycle, brokered service calls and package-data/retained-history callbacks are implemented. No WASI runtime or namespaced `http-endpoint` execution is composed. |
-| Imports | DM Tools exposes format-routed import-adapter v2 planning review/commit through services. A host-owned campaign-bundle provider is missing (T19). No separate `addon/import.*` RPC dispatcher is composed. |
+| Imports | DM Tools exposes format-routed import-adapter v2 review/commit. The host lends campaign-bundle adapter v3 with scoped contributor v1, atomic publication and receipt status. No separate `addon/import.*` RPC dispatcher is composed. |
 | Schema upgrades | Incompatible stored definitions block activation. General migration plan/apply orchestration is absent (T08); specific offline retirement is separate. |
 | Recovery/diagnostics | Initial/periodic health, bounded automatic worker recovery, affected-consumer invalidation, manual reload, host-start recovery and basic manager diagnostics work. Rich redacted worker/browser diagnostics and support bundles remain unfinished (T11). |
 | Optional host calls/trust | Worker blob, event, network and progress methods, package-signature verification and OS resource enforcement are not implemented. Permissions never create these capabilities. |
@@ -1330,8 +1330,8 @@ created/updated audit metadata, and JSON value.
 Core and add-on mutations currently use separate host application commands.
 Each validates its authorized preconditions and schemas before committing.
 Add-on transactions can guard participating package data sets, but do not grant
-core write authority or implement combined campaign-bundle publication. T19
-tracks that missing host-owned coordinator.
+core write authority. The private host campaign-bundle coordinator can compose
+both stores in one SQLite transaction after an exact reviewed preview.
 
 General migration execution is not implemented. Incompatible definitions fail
 activation review with a data-migration blocker. The reserved two-phase design
@@ -1349,7 +1349,7 @@ current automatic update step. A worker never executes DDL or edits storage file
 
 ## Imports and campaign bundles
 
-DM Tools owns the visible Import Center. It discovers `codex.import-adapter` v2
+DM Tools owns the visible Import Center. It discovers compatible `codex.import-adapter` v2/v3
 services and calls `describe` for exact supported JSON `format` strings.
 Unknown or multiply claimed formats are blocked before preview. There is no
 confidence-based probing or live-object `open(File)` contract.
@@ -1361,13 +1361,23 @@ token and never reconstructs mutations from the submitted source. Worker
 replacement expires outstanding previews; a lost commit response requires
 checking saved data before another attempt. See [the current import guide](../../../addon-dm-tools/docs/IMPORTING.md).
 
-Core campaign transactions and add-on transactions exist, but a host-owned
-campaign-bundle provider and combined publication coordinator do not. Planning
-imports cannot create core characters/locations or assign final core IDs.
-[ADR-0001](../../docs/decisions/0001-campaign-bundle-imports.md) records the old
-workflow and intended ownership; T19 in [the backlog](../../docs/BACKLOG.md)
-tracks implementing it in the current architecture. Full backup restoration is
-a separate offline maintenance operation.
+The host-owned `codex-core` provider advertises adapter 3.0.0 for
+`ttrpg-codex-campaign-bundle` schema 1. It reserves core IDs, shows resulting
+DM/player views and commits the exact retained core and optional add-on plans
+atomically. Optional description `features` include `record-views`, `cancel`
+and `receipt-status`; the consumer checks those capabilities, not provider IDs.
+`cancel` and `status` accept `{contractVersion:"import-cancel.v1"|"import-status.v1",token}`.
+Commit requires the token as idempotency key; it is single-use even after failure.
+Status reads a durable receipt and never reruns a commit. A missing receipt is
+ambiguous while a request may still be in flight.
+
+Scoped contributors provide `codex.campaign-bundle-contributor` v1. They prepare
+only declared collection mutations under host-issued read-only authority,
+including all dataset guards. Nested calls preserve that authority; the host
+validates schemas and namespace ownership again. See
+[ADR-0001](../../docs/decisions/0001-campaign-bundle-imports.md) for the complete
+format, contribution and transaction contract. A standalone planning import
+still cannot create core records. Full backup restoration remains separate.
 
 ## Content and localization
 

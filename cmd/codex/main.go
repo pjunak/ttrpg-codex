@@ -26,6 +26,7 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/addons/workersupervisor"
 	"github.com/pjunak/ttrpg-codex/internal/application/addondata"
 	"github.com/pjunak/ttrpg-codex/internal/application/campaigndata"
+	"github.com/pjunak/ttrpg-codex/internal/application/campaignimport"
 	applicationmedia "github.com/pjunak/ttrpg-codex/internal/application/media"
 	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
 	"github.com/pjunak/ttrpg-codex/internal/backuparchive"
@@ -315,6 +316,12 @@ func composeHost(
 	backupArchives.MaterializePackages = func(ctx context.Context, databasePath, stageRoot string) error {
 		return packagemanager.MaterializePackageBackup(ctx, databasePath, filepath.Join(dataDirectory, "addons"), stageRoot, inspector, githubAddons.FetchPackage)
 	}
+
+	campaignImports, err := campaignimport.New(ctx, db, campaignRecords, addonRecords, addons)
+	if err != nil {
+		_ = addons.Shutdown(context.Background())
+		return nil, fmt.Errorf("configure campaign imports: %w", err)
+	}
 	handler, err := httpapi.New(httpapi.Config{
 		AddonGitHub: githubAddons,
 		Version:     version, DB: db, Logger: logger,
@@ -335,7 +342,7 @@ func composeHost(
 		AddonDataAuthorizer:      httpapi.SessionAddonDataAuthorizer(authentication),
 		AddonContent:             addons,
 		ContentAuthorizer:        httpapi.SessionBrowserAuthorizer,
-		BrowserServices:          addons,
+		BrowserServices:          httpapi.WithCampaignImports(addons, campaignImports),
 		BrowserServiceAuthorizer: httpapi.SessionBrowserServiceAuthorizer(authentication),
 		AddonLifecycle:           addons, AdminAuthorizer: httpapi.SessionAdminAuthorizer(authentication),
 		BrowserAddons: addons, BrowserAuthorizer: httpapi.SessionBrowserAuthorizer,

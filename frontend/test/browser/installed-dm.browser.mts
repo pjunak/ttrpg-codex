@@ -13,6 +13,7 @@ import { exercisePlannerSelection } from './installed-planner-selection-fixture.
 import { exercisePlannerActions, exercisePlannerCreationFailures } from './installed-planner-actions-fixture.mts';
 import { exercisePlannerCanvas } from './installed-planner-canvas-fixture.mts';
 import { exercisePlannerLive } from './installed-planner-live-fixture.mts';
+import { exerciseCampaignBundle } from "./installed-campaign-bundle-fixture.mts";
 import { exerciseImportCenter } from './installed-import-center-fixture.mts';
 import { exerciseAddonManager } from './installed-addon-manager-fixture.mts';
 import { exerciseConfiguration } from './installed-configuration-fixture.mts';
@@ -680,3 +681,8 @@ for (const mode of ["integrated", "isolated"]) test(`installed ${mode} record pa
 if (process.env.CODEX_DM_TOOLS_ZIP) for (const mobile of [false, true]) test(`installed planning reader renders saved prose and related map content on ${mobile ? "phone" : "desktop"}`, async t => { await installReviewedPackage(admin, csrf, "dm-tools", await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))), dmToolsPermissions); t.after(() => disable("dm-tools")); await exercisePlanningReader({ t, open, admin, csrf, output, mobile }); });
 
 for (const mobile of [false, true]) test(`saved package cleanup protects recovery and handles lost responses on ${mobile ? "phone" : "desktop"}`, async t => { await exercisePackageCleanup({ t, open, admin, csrf, output, mobile }); });
+
+if (process.env.CODEX_DM_TOOLS_ZIP) for (const mobile of [false,true]) test(`campaign bundle reviews core and planning writes and reconciles receipts on ${mobile ? 'phone' : 'desktop'}`,async t=>{
+ await installReviewedPackage(admin,csrf,'dm-tools',await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),dmToolsPermissions);
+ t.after(()=>disable('dm-tools'));await exerciseCampaignBundle({t,open,admin,csrf,output,mobile});
+});

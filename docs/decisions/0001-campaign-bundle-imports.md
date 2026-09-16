@@ -1,125 +1,106 @@
 # ADR-0001: Host-owned campaign bundle imports
 
-**Status:** Accepted  
-**Date:** 2026-07-28  
-**Decider:** Project maintainer
+**Status:** Accepted; Go implementation restored September 16, 2026.
+**Original decision:** July 28, 2026, project maintainer.
 
-**Implementation status, September 14, 2026:** The decision records the old host implementation. The current Go host has no campaign-bundle provider or combined import coordinator; T19 in [the backlog](../BACKLOG.md) tracks that missing workflow.
+## Ownership and scope
 
-## Context
+The host owns the campaign-bundle importer. DM Tools owns the visible Import
+Center and discovers it through the existing `codex.import-adapter` service
+handle. Add-ons cannot acquire arbitrary core mutation authority.
 
-The reviewed content-import framework currently accepts deterministic plans
-from server addons, but provider API v1 deliberately permits only reads from
-granted core collections and writes to the provider addon's own collections.
-That boundary prevents an addon from using an import provider as indirect
-authority over campaign data.
+The reserved provider ID `codex-core` advertises adapter version 3.0.0 to
+authenticated DM browser consumers declaring a compatible, cardinality-many
+import-adapter dependency. Packages cannot use this ID. Worker dependency
+resolution does not receive a synthetic installed package. Adapter v3 adds full
+record views and core keys up to 1024 bytes; v2-only consumers are not offered
+this provider. Updated Import Centers consume `>=2.0.0 <4.0.0` to retain existing
+planning/third-party adapters while opting into the expanded review.
 
-Campaign packages generated outside the application need to create related
-characters, locations, map placements, and relationships without knowing the
-host's final persistent IDs. Some packages also contain addon-owned planning
-records that refer to those newly created core records. Applying the core and
-addon portions independently can leave incomplete references and makes retry
-reconciliation manual.
+The preserved input [schema](../../internal/application/campaignimport/campaign-bundle.schema.json)
+uses format `ttrpg-codex-campaign-bundle`, schemaVersion 1 and generatedAt.
+It permits at most 2 MiB, 128 logical core records and 256 total materialized
+writes. Core operations create characters, locations and relationships with
+explicit public/DM visibility. Core updates, deletes, settings, credentials,
+media, backups, twins and unrelated record types are outside this format.
+Ordinary interactive editors retain their existing authority.
 
-The host already has the required durability primitives: a bounded core write
-lock, a reader/writer publication barrier, durable staged-file journals,
-rollback, startup recovery, snapshots, role-scoped hashes, and coherent SSE
-notifications. Core compound mutations also exist, but their current service
-methods combine planning with publication and therefore cannot expose derived
-writes during preview.
+Each operation has a unique local `ref`. Declared reference fields accept
+`{"$ref":"local-name"}` or
+`{"$id":{"collection":"locations","id":"existing-id"}}`.
+The host verifies collection identity and existing targets, reserves final IDs
+during preview and derives relationship keys using the canonical core identity.
 
-## Decision
+## Review and atomic commit
 
-The host will own a built-in `core/campaign-bundle` import provider. It will
-reuse the existing import job lifecycle for strict parsing, owner-bound
-previews, at-most-once commit tokens, expiry, revision conflicts, and
-ambiguous-response recovery. Host providers register through a private
-internal path; addon provider API v1 remains unchanged and cannot request core
-write authority.
+Preview uses the ordinary core mutation planner and closed player projection.
+It lists direct and derived changes, final IDs, complete resulting DM/player
+values and expiry. Read the prose: visibility projection cannot detect secrets
+embedded in otherwise public text.
 
-Campaign bundle schema version 1 is deliberately narrow:
+The host retains the exact plan for 15 minutes, bound to the session, Import
+Center add-on and activation generation. Limits are 128 pending plans, an
+8 MiB review and 32 MiB of aggregate retained review size. Preview does not write
+campaign records. Cancellation discards a known token; abandoned requests expire.
 
-- JSON input no larger than 2 MiB;
-- at most 128 logical input records and 256 materialized writes;
-- create operations for `characters`, `locations`, and `relationships`;
-- explicit visibility on every record;
-- typed references only at fields declared by the owning core schema;
-- preview-time reservation of final persistent IDs;
-- no deletes, media, settings, authentication, backups, twins, events,
-  mysteries, artifacts, or updates.
+Commit consumes the token before attempting publication. It checks the current
+consumer/contributor generations, all reviewed core collection revisions and
+contributor dataset/document revisions. A conflict requires a new preview.
+It never reparses source, allocates IDs again or reruns contributor code.
 
-Core normalization and compound mutation behavior will be extracted into pure
-server-owned planners. The same planners will become the compatibility target
-for ordinary interactive saves. Preview stores direct and derived writes,
-reference-to-ID mappings, and DM/player projections in the exact server-held
-plan.
+Core and add-on stores join one host-owned SQLite transaction. Records, audit,
+normal role-scoped events and the success receipt commit together. Notifications
+are published only after the transaction commits. A failure in any participant
+rolls everything back; ordinary pre-write recovery-point capture remains active.
 
-Core-only publication will use the existing campaign staged-file publisher.
-Unified core/addon publication will use a host-owned bundle publication
-service over the same journal and publication barrier. It will resolve an
-explicit allowlist of core and enabled addon collection paths; it will not
-relax the addon transaction manager, whose recovery journal is intentionally
-bound to one addon's data directory.
+Receipt status resolves an ambiguous response without retrying writes.
+`status` returns `committing`, `committed`, `failed` or `missing`; missing
+does not prove that an in-flight request cannot still arrive. Receipts store
+only a token hash and counts/status, not imported prose. Any authenticated DM
+with the unguessable token and an authorized active Import Center can reconcile
+a receipt, including after a restart. Pending plans expire on restart; an
+interrupted noncommitted attempt becomes failed. There is no automatic retry.
 
-Addons may optionally register a restricted bundle contributor. Contributors
-run only during preview, outside the write lock, against cloned candidate
-snapshots and a typed reference resolver. They return operations only for
-their declared collections. Commit never reruns contributor code.
+## Scoped add-on contributions
 
-## Options considered
+Up to eight `addonImports` entries may name an installed add-on, its
+`contributorId`, and an owner-defined `document`; only one entry per namespace
+is allowed. Exact `{"$ref":"local-name"}` objects in that document resolve to
+the reserved core ID. Other document semantics belong to the contributor.
 
-### Grant DM Tools core collection writes
+A contributor provides nonexclusive `codex.campaign-bundle-contributor` v1,
+worker method `preview` (15 seconds). Its closed request is
+`{contractVersion:"campaign-contribution.v1", contributorId, document}`.
+Its closed result is `campaign-contribution-plan.v1`, with:
 
-| Dimension | Assessment |
-|---|---|
-| Complexity | Low initially |
-| Security | Poor |
-| Compatibility | Couples core authority to one optional addon |
-| Maintenance | Creates a second core mutation API |
+- `expectedDataSets`: collection kind, dataId and exact revision;
+- `mutations`: put/delete, collection, key, expectedRevision and optional value.
 
-Rejected because the host would no longer be the sole authority for core
-validation and derived mutations.
+The host resolves that exact active provider and schema, permits only its own
+declared collections, validates document schemas, rejects duplicate targets and
+requires dataset guards. It supplies namespace, schema identity, visibility and
+actor itself. A contributor cannot return core writes or extension writes.
 
-### Extend addon transaction journals to arbitrary core paths
+Preview request authority is read-only and propagates through nested service
+calls. The worker dispatcher defaults to denying host callbacks unless their
+method explicitly permits reads. It still applies normal actor, permission and
+generation checks. This is an RPC authority boundary, not an OS sandbox.
 
-| Dimension | Assessment |
-|---|---|
-| Complexity | High |
-| Security | Requires a new authority model in a public addon API |
-| Durability | Requires a journal schema and recovery migration |
-| Maintenance | Conflates addon-owned and host-owned transactions |
+DM Tools contributes as `planning-json`, using its existing schema-3 planning
+document and pure semantic validation. Merge/replacement semantics remain owned
+by DM Tools; replacement deletions appear in the combined review. The contributor
+returns a plan without retaining a second token or publishing its own commit.
 
-Rejected for version 1. The existing addon journal reconstructs targets from
-`addonId` and collection name; widening it would add risk without improving the
-public addon transaction use case.
+## Alternatives and validation
 
-### Host-owned provider and scoped staged-file publication
+Granting core writes to DM Tools or accepting arbitrary collection paths was
+rejected: either creates a second core authority. The old file-journal publisher
+has been replaced by the current SQLite transaction boundary while preserving
+the original format and review contract.
 
-| Dimension | Assessment |
-|---|---|
-| Complexity | Medium to high |
-| Security | Preserves current addon authority |
-| Durability | Reuses proven host primitives |
-| Maintenance | Keeps one canonical core planning path |
-
-Accepted.
-
-## Consequences
-
-- External generators can create portable reference graphs without inventing
-  persistent IDs.
-- Preview remains read-only and commit publishes the exact reviewed plan.
-- Existing DM Tools planning imports remain compatible.
-- Core record validation becomes server-authoritative instead of relying on
-  browser forms.
-- Import plans distinguish logical inputs from materialized and derived
-  writes.
-- A crash after the durable commit point may recover to the complete new
-  state. The guarantee is old-or-new atomicity, never forced rollback after
-  every failure.
-- Preview tokens remain consumed before a commit attempt. A lost response is
-  resolved by querying the owner-bound job rather than replaying the token.
-- Free-text secret detection is not a structural invariant. Review instead
-  includes the resulting player projection so the DM can inspect prose.
-- Version 1 pin placement is review-only. Moving a pin requires editing the
-  source and creating a new preview.
+Backend regression tests cover closed schemas, typed references, exact IDs/views,
+session ownership, expiry, cancellation, stale data/generations, concurrent
+double commit, durable receipts and injected add-on/receipt failures. Installed
+package tests exercise review and scoped planning publication, desktop/phone
+layout, safe text rendering, cancel, stale review and lost-response reconciliation.
+Full backups remain a separate offline maintenance workflow.

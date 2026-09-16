@@ -174,7 +174,7 @@ func New(config Config) (*workerbroker.Dispatcher, error) {
 
 func dataGetMethod(data Data) workerbroker.Method {
 	return workerbroker.Method{
-		Name: "host/data.get", Permission: "addon.data",
+		Name: "host/data.get", Permission: "addon.data", ReadOnlySafe: true,
 		ValidateRequest: func(body json.RawMessage) error {
 			request, err := decodeExact[getRequest](body)
 			if err != nil || request.ContractVersion != dataGetVersion ||
@@ -202,7 +202,7 @@ func dataGetMethod(data Data) workerbroker.Method {
 
 func dataQueryMethod(data Data) workerbroker.Method {
 	return workerbroker.Method{
-		Name: "host/data.query", Permission: "addon.data",
+		Name: "host/data.query", Permission: "addon.data", ReadOnlySafe: true,
 		ValidateRequest: func(body json.RawMessage) error {
 			request, err := decodeExact[queryRequest](body)
 			if err != nil || request.ContractVersion != dataQueryVersion ||

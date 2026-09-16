@@ -49,7 +49,7 @@ func TestWorkerServiceCallUsesBoundHandleAndAuthoritativeContext(t *testing.T) {
 	if !ok || string(params) != `{"kind":"spell"}` {
 		t.Fatalf("service params = %T %s", service.call.Params, params)
 	}
-	if service.call.Context.CorrelationID != "authoritative-correlation" ||
+	if !service.call.Context.ReadOnly || service.call.Context.CorrelationID != "authoritative-correlation" ||
 		service.call.Context.Actor.Role != "player" || service.call.Context.Actor.ID != "player-7" ||
 		service.call.Context.IdempotencyKey != "lookup-1" ||
 		service.call.Context.Traceparent != "00-11111111111111111111111111111111-2222222222222222-01" {
@@ -151,7 +151,7 @@ func serviceDispatcher(
 			context.Context, workerbroker.ContextRequest,
 		) (workerbroker.Authority, error) {
 			return workerbroker.Authority{
-				RequestID: "verified", CorrelationID: "authoritative-correlation",
+				ReadOnly: true, RequestID: "verified", CorrelationID: "authoritative-correlation",
 				Deadline: time.Now().Add(time.Minute), Actor: workerrpc.Actor{Role: "player", ID: "player-7"},
 				Traceparent: "00-11111111111111111111111111111111-2222222222222222-01",
 			}, nil

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pjunak/ttrpg-codex/internal/addons/requestcontext"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicecontract"
 	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
 )
@@ -24,6 +25,10 @@ func TestOwnBrowserServiceKeepsWorkerExclusionAndValidatedCalls(t *testing.T) {
 	calls := 0
 	caller := runtimeCallerFunc(func(_ context.Context, _ string, _ any, meta *workerrpc.Meta) (json.RawMessage, error) {
 		calls++
+		authority, err := broker.contexts.ResolveContext(ctx, requestcontext.ResolveRequest{AddonID: "dm-tools", Generation: "generation-1", Method: "host/data.get", WireMeta: *meta})
+		if err != nil || !authority.ReadOnly {
+			t.Fatalf("read-only lineage lost: %+v %v", authority, err)
+		}
 		if meta.Actor.Role != "dm" || meta.Actor.ID != "session-dm" || meta.IdempotencyKey != "review-token" {
 			t.Errorf("authority = %+v", meta)
 		}
@@ -40,7 +45,7 @@ func TestOwnBrowserServiceKeepsWorkerExclusionAndValidatedCalls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := MethodCall{Method: "evaluate-character", Params: map[string]any{"value": 1}, Context: CallContext{Actor: workerrpc.Actor{Role: "dm", ID: "session-dm"}, IdempotencyKey: "review-token"}}
+	call := MethodCall{Method: "evaluate-character", Params: map[string]any{"value": 1}, Context: CallContext{ReadOnly: true, Actor: workerrpc.Actor{Role: "dm", ID: "session-dm"}, IdempotencyKey: "review-token"}}
 	if _, err := broker.Call(ctx, handle, call); err != nil {
 		t.Fatal(err)
 	}

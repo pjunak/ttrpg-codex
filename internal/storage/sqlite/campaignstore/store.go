@@ -15,6 +15,7 @@ import (
 
 	"github.com/pjunak/ttrpg-codex/internal/domain/campaign"
 	"github.com/pjunak/ttrpg-codex/internal/events"
+	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/unitofwork"
 )
 
 const MaximumMutations = 500
@@ -213,11 +214,11 @@ func (store *Store) Transact(ctx context.Context, input Transaction) (Commit, er
 	if err != nil {
 		return Commit{}, err
 	}
-	transaction, err := store.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	transaction, cleanup, err := unitofwork.Begin(ctx, store.db)
 	if err != nil {
 		return Commit{}, fmt.Errorf("begin campaign transaction: %w", err)
 	}
-	defer transaction.Rollback()
+	defer cleanup()
 	if store.beforeWrite != nil {
 		if err := store.beforeWrite(ctx, transaction); err != nil {
 			return Commit{}, err
@@ -400,11 +401,12 @@ func (store *Store) Transact(ctx context.Context, input Transaction) (Commit, er
 		committedEvents = append(committedEvents, event)
 	}
 
-	if err := transaction.Commit(); err != nil {
+	if err := unitofwork.Commit(ctx, transaction, func() {
+		for _, event := range committedEvents {
+			store.events.NotifyCommitted(event)
+		}
+	}); err != nil {
 		return Commit{}, fmt.Errorf("commit campaign transaction: %w", err)
-	}
-	for _, event := range committedEvents {
-		store.events.NotifyCommitted(event)
 	}
 	return Commit{
 		ID:                  commitID,

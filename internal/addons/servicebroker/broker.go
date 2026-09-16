@@ -60,6 +60,7 @@ type Broker struct {
 }
 
 type CallContext struct {
+	ReadOnly       bool
 	CorrelationID  string
 	Deadline       time.Time
 	Actor          workerrpc.Actor
@@ -548,6 +549,7 @@ func (broker *Broker) prepareCall(
 	}
 	callContext, cancel := context.WithDeadline(ctx, deadline)
 	lease, err := broker.contexts.Issue(requestcontext.IssueRequest{
+		ReadOnly:       call.Context.ReadOnly,
 		AddonID:        provider.AddonID,
 		Generation:     provider.ActiveGeneration,
 		CorrelationID:  call.Context.CorrelationID,

@@ -115,3 +115,8 @@ default remains no queue.
 Revisit the peer abstraction if a future WASI runtime cannot present equivalent
 ordered byte streams, or if measurements show a single framed connection is a
 bottleneck. Neither condition is currently demonstrated.
+
+Campaign contribution previews carry host-issued read-only lineage. Data get,
+query, history and nested service calls are explicitly read-safe; data writes
+and future methods default to denied. Nested calls retain the restriction.
+This does not change the reviewed native-worker OS trust model.

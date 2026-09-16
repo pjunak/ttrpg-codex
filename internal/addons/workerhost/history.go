@@ -31,7 +31,7 @@ type historyResponse struct {
 
 func dataHistoryMethod(data historyData) workerbroker.Method {
 	return workerbroker.Method{
-		Name: "host/data.history", Permission: "addon.data",
+		Name: "host/data.history", Permission: "addon.data", ReadOnlySafe: true,
 		ValidateRequest: func(body json.RawMessage) error {
 			r, err := decodeExact[historyRequest](body)
 			if err != nil || r.ContractVersion != "host-data-history.v1" || r.Kind != datacontract.RecordExtension || !validReference(r.Kind, r.DataID) || !validKey(r.Key) || r.Before < 0 || r.Revision < 0 || r.Limit < 1 || r.Limit > 100 || r.Revision > 0 && (r.Limit != 1 || r.Before != 0) {

@@ -159,3 +159,15 @@ network, progress, or migration transports are added only with a real package
 requirement and must reuse this broker and authoritative request contexts
 rather than holding provider objects, choosing official add-on IDs, or
 reconstructing actor authority from wire metadata.
+
+## Built-in campaign importer and read-only preview lineage
+
+The authenticated browser transport lends the reserved `codex-core` import
+adapter to compatible cardinality-many consumers. It is host-owned and does not
+create an installed package or widen worker core-write permissions. Its exact
+contract is [ADR-0001](../decisions/0001-campaign-bundle-imports.md).
+
+Contribution preview leases additionally retain a host-private `ReadOnly` flag.
+It cannot be set or cleared by wire metadata. Nested service calls propagate it,
+and the worker dispatcher permits only explicitly read-safe host methods while
+still enforcing ordinary permission, actor and generation checks.

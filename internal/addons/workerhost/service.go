@@ -93,7 +93,7 @@ func (services boundServices) selectHandle(contract, providerAddonID string) (se
 
 func serviceCallMethod(services ServiceCaller, bindings boundServices) workerbroker.Method {
 	return workerbroker.Method{
-		Name: "host/service.call", Permission: "addon.services",
+		Name: "host/service.call", Permission: "addon.services", ReadOnlySafe: true,
 		ValidateRequest: func(body json.RawMessage) error {
 			request, err := decodeExact[serviceCallRequest](body)
 			if err != nil || !validServiceRequest(request) {
@@ -115,6 +115,7 @@ func serviceCallMethod(services ServiceCaller, bindings boundServices) workerbro
 				Method: request.Method,
 				Params: append(json.RawMessage(nil), request.Params...),
 				Context: servicebroker.CallContext{
+					ReadOnly:      invocation.Authority.ReadOnly,
 					CorrelationID: invocation.Authority.CorrelationID,
 					Deadline:      invocation.Authority.Deadline,
 					Actor: workerrpc.Actor{

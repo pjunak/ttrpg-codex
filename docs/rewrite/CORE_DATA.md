@@ -506,9 +506,10 @@ package descriptors are unchanged.
 [Authentication and password settings](AUTHENTICATION.md) and campaign recovery
 points are implemented by their owning application services. Planning import
 publication is coordinated by the DM Tools worker through host add-on
-transactions. A combined core/add-on campaign-bundle importer is not implemented;
-T19 in the [suite backlog](../BACKLOG.md) records that gap. These policies do not
-belong in the generic record store.
+transactions. The [campaign-bundle coordinator](../decisions/0001-campaign-bundle-imports.md)
+retains a host-owned reviewed plan and composes both stores inside one SQLite
+transaction with deferred event notifications. These policies remain above the
+generic record store.
 
 Add-on collection migration and additional relational query indexes remain
 separate extensions, tracked in the [suite backlog](../BACKLOG.md). Domain

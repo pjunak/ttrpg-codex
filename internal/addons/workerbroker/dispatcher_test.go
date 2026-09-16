@@ -420,3 +420,35 @@ func assertBrokerError(t *testing.T, err error, wantKind string) {
 		t.Fatalf("kind = %s, want %s: %v", failure.Data.Kind, wantKind, err)
 	}
 }
+
+func TestReadOnlyAuthorityDeniesWritesAndStillAuthorizesReads(t *testing.T) {
+	for _, safe := range []bool{false, true} {
+		config := validConfig()
+		config.Methods[0].ReadOnlySafe = safe
+		config.ContextResolver = ContextResolverFunc(func(context.Context, ContextRequest) (Authority, error) {
+			authority := validAuthority()
+			authority.ReadOnly = true
+			return authority, nil
+		})
+		called := false
+		config.Methods[0].Handle = func(context.Context, Invocation) (any, error) {
+			called = true
+			return map[string]any{"revision": 1, "record": "one"}, nil
+		}
+		dispatcher, err := New(config)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = dispatcher.HandleRPC(context.Background(), validRequest())
+		if safe {
+			if err != nil || !called {
+				t.Fatalf("read failed: %v", err)
+			}
+		} else {
+			var rpc *workerrpc.RPCError
+			if called || !errors.As(err, &rpc) || rpc.Data.Kind != workerrpc.KindUnauthorized {
+				t.Fatalf("write passed: %v", err)
+			}
+		}
+	}
+}

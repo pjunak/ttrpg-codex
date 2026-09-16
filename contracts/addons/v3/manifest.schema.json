@@ -22,7 +22,8 @@
       "const": 1
     },
     "id": {
-      "$ref": "#/$defs/addonId"
+      "$ref": "#/$defs/addonId",
+      "not": { "const": "codex-core" }
     },
     "name": {
       "type": "string",

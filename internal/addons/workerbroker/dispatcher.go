@@ -49,6 +49,7 @@ func (authorize AuthorizerFunc) Authorize(ctx context.Context, invocation Invoca
 type HandlerFunc func(context.Context, Invocation) (any, error)
 
 type Method struct {
+	ReadOnlySafe     bool
 	Name             string
 	Permission       string
 	ValidateRequest  ValidateFunc
@@ -168,6 +169,9 @@ func (dispatcher *Dispatcher) HandleRPC(ctx context.Context, request workerrpc.R
 		return nil, workerrpc.NewRPCError(workerrpc.JSONRPCInternalError, workerrpc.KindInternal, "The host request context is invalid.", false, nil)
 	}
 	invocation.Authority = cloneAuthority(authority)
+	if authority.ReadOnly && !method.ReadOnlySafe {
+		return nil, workerrpc.NewRPCError(workerrpc.JSONRPCApplication, workerrpc.KindUnauthorized, "Preview cannot perform host writes.", false, nil)
+	}
 	if !authority.Deadline.After(time.Now()) {
 		return nil, workerrpc.ErrorFromContext(context.DeadlineExceeded)
 	}

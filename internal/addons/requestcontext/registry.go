@@ -27,6 +27,7 @@ var (
 )
 
 type Authority struct {
+	ReadOnly       bool
 	RequestID      string
 	CorrelationID  string
 	Deadline       time.Time
@@ -60,6 +61,7 @@ type Config struct {
 }
 
 type IssueRequest struct {
+	ReadOnly       bool
 	AddonID        string
 	Generation     string
 	CorrelationID  string
@@ -157,6 +159,7 @@ func (registry *Registry) Issue(request IssueRequest) (*Lease, error) {
 		return nil, ErrInvalidContext
 	}
 	authority := Authority{
+		ReadOnly:       request.ReadOnly,
 		RequestID:      requestID,
 		CorrelationID:  correlationID,
 		Deadline:       request.Deadline,

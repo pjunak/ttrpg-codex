@@ -46,7 +46,7 @@ export async function exerciseImportCenter({ t, root, output, open, admin, csrf,
   await page.getByRole('heading', { name: 'External notes', exact: true }).waitFor();
   await page.getByRole('alert').filter({ hasText: 'broken-importer' }).waitFor();
   await page.getByRole('button', { name: 'Refresh available formats', exact: true }).click(); await page.locator('.dm-import-shell[aria-busy="false"]').waitFor();
-  assert.equal(await page.locator('.dm-import-adapter').count(), 2);
+  assert.equal(await page.locator('.dm-import-adapter').count(), 3);
   assert.equal(await page.locator('.dm-import-dropzone').evaluate(e => getComputedStyle(e).minHeight), '256px');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.screenshot({ path: resolve(output, `import-chooser-${mobile ? 'phone' : 'desktop'}.png`), fullPage: true });
