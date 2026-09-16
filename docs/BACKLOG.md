@@ -1,6 +1,6 @@
 # Project backlog
 
-Work for the five repositories, reviewed September 16, 2026. This remains
+Work for the five repositories, reviewed September 17, 2026. This remains
 one suite backlog; each task belongs to the repository that owns its change.
 Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
@@ -36,6 +36,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T24 — Investigation status and unanswered question queue**~~ — `2a8e867`.
 - [x] ~~**T28 — Compact reading, collection controls and save feedback**~~ — `44053df`.
 - [x] ~~**T40-HOST — Restore full-size entity cards and shared pencil actions**~~ — `16155a7`; [shared UI and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#shared-entity-card-sizing-and-editing).
+- [x] ~~**T41-HOST — Wrap enlarged character headings and accept repeated feat workflows**~~ — [package and phone acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeatable-skilled-choices-and-acquisition-ownership).
 - [x] ~~**T12 — GitHub package/build identity, release notes and compatibility reasons**~~ — `1905469`.
 - [x] ~~**T13 — Full-backup verification and offline restore guidance**~~ — `301bd9e`.
 - [x] ~~**T09 — Reviewed dependency-aware disabling and recovery**~~ — `9997306`.
@@ -132,14 +133,16 @@ Standalone browsing must remain useful without Engine or Sheets.
 - [x] ~~**T34-COMP — Shared search, filters and browsing feedback**~~ — `e8cc635`.
 - [x] ~~**T38-COMP — Restore structured class Expertise grants**~~ — `8cb7e43`; [source audit and installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-expertise-grants-and-dependent-choice-repair).
 - [x] ~~**T39-COMP — Repair PHB skill feats and Rogue language grants**~~ — `46e78a2`; [source facts and installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#phb-skill-feats-and-rogue-languages).
+- [x] ~~**T41-COMP — Structure Skilled choices and later Origin-feat eligibility**~~ — `8e1e9d7`; [sources and installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeatable-skilled-choices-and-acquisition-ownership).
 
 ### Remaining work
 
-- [ ] **T41-COMP / P1 — Structure Skilled's repeatable skill/tool choices.**
-  [Skilled](../../addon-dnd-2024-compendium/data/phb/feats/skilled.json) still stores
-  `any (3)` as a fixed skill name and declares no choices. Supply three mixed
-  skill/tool slots; coordinate separate ownership for repeated acquisitions
-  with Engine T32 and Sheets T33, including replacement, removal and reload.
+- [ ] **T42-COMP / P1 — Finish PHB origin skill, feat and tool choices.**
+  Confirmed: [Human](../../addon-dnd-2024-compendium/data/phb/species/human.json)
+  has only prose for Skillful/Versatile; Musician stores `Musical Instrument (3)`;
+  Noble/Entertainer store tool-choice prose as fixed proficiencies. Publish
+  canonical choices, verify primary sources and test combinations with Skilled,
+  origin replacement, distinct selections and reload through Engine/Sheets.
 - [ ] **T31 / P2 — Keep library navigation reachable on phones.** Source-backed
   UX concern: at 768px and below, [the reading pane is ordered before the library
   drawer](../../addon-dnd-2024-compendium/src/index.css). A long detail/list can
@@ -151,9 +154,11 @@ Standalone browsing must remain useful without Engine or Sheets.
 - [ ] **T18-COMP / P1, review — Complete browsing and reading parity acceptance.**
   Exercise topic/source/class/level navigation, cross-kind search, counted facets,
   reprints, ambiguous typed links, tables/stat blocks, related records and source
-  links with representative long content. Test English/Czech, missing/disabled
-  books, empty results, Retry and generation replacement. Separate missing data,
-  misleading presentation and unsupported mechanics in the resulting findings.
+  links with representative long content. Review remaining advancement feat
+  categories, including Fighting Style and level-19 alternatives. Test
+  English/Czech, missing/disabled books, empty results, Retry and generation
+  replacement. Separate missing data, misleading presentation and unsupported
+  mechanics in the resulting findings.
 - [ ] **T14-COMP / P2 — Move generated browser output to build ownership.**
   Update independent build/package/tests and host fixtures before removing tracked
   `web/`. Normalize ZIP timestamps and verify repeated builds from unchanged inputs
@@ -180,13 +185,15 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T32-EQUIPMENT — Reject empty equipment and inactive grants; explain save blockers**~~ — `dfd970b`; [Engine/Sheets acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#progressive-save-and-equipment-follow-up).
 - [x] ~~**T32-GUIDANCE — Count required choices and expose invalid advancements for repair**~~ — `dd51374`; [Builder acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#progressive-builder-repair-and-navigation).
 - [x] ~~**T32-EXPERTISE — Validate acquisition, distinct skills and dependent slot repair**~~ — `41e26c1`; [Engine and installed evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-expertise-grants-and-dependent-choice-repair).
+- [x] ~~**T32-REPEATABLE — Keep declared feat choices independent by acquisition**~~ — `e5f1027`; prerequisite checks, legacy assignment and faster option evaluation; [contract and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeatable-skilled-choices-and-acquisition-ownership).
 
 ### Remaining work
 
 - [ ] **T32 / P1 — Finish progressive-build and equipment validation acceptance.**
-  Extend installed acceptance to remaining origin-grant replacements, repeatable
-  feat acquisitions (T41-COMP), deeper multiclass progressions, attunement
-  capacity/prerequisites and exclusive armor/shield slots through Sheets T33. Retain accepted first-class/count
+  Extend installed acceptance to remaining origin-grant replacements (T42-COMP),
+  conditional repeatability and repeated spell/resource effects, deeper multiclass
+  progressions, attunement capacity/prerequisites and exclusive armor/shield slots
+  through Sheets T33. Retain accepted first-class/count
   changes, later-level withdrawal, partial/invalid saves, empty equipment and
   grant-lifetime regressions. Results must remain deterministic,
   explainable, source-policy aware and leave caller inputs unchanged.
@@ -219,6 +226,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T34-SHEETS — Shared fields, choices, states, tabs and modal focus**~~ — `99edd12`.
 - [x] ~~**T33-SAVE — Preserve rejected edits, retry uncertain autosaves and guard discard**~~ — `8b3bb30`; host regressions `10ddc3c`. Includes queued corrections/choice withdrawals, concurrent edits and enlarged-text phone recovery; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#progressive-save-and-equipment-follow-up).
 - [x] ~~**T33-BUILDER — Preserve valid slots and guide unfinished choices on phones**~~ — `dff6c0b`; [Builder acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#progressive-builder-repair-and-navigation).
+- [x] ~~**T33-REPEATABLE — Render independent choices and repair withdrawn DM grants**~~ — `e066de3`; explicit historical assignment and usable enlarged-text ability fields; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeatable-skilled-choices-and-acquisition-ownership).
 
 ### Remaining work
 
@@ -253,7 +261,7 @@ Provider-free saved reading/notes/print/export remain required.
 
 | Order | Work | Exit evidence |
 | --- | --- | --- |
-| 1 | Preserve authored intent: finish Engine T32 + Sheets T33 and repeatable provider grants T41-COMP. | Safe role/stale/error behavior; incomplete character saves and bounded play work through the installed contract. |
+| 1 | Preserve authored intent: finish Engine T32 + Sheets T33 and remaining origin choices T42-COMP. | Safe role/stale/error behavior; incomplete character saves and bounded play work through the installed contract. |
 | 2 | Everyday use: Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
 | 3 | Remaining add-on artifact ownership: per-repo T14. T08 only for a real schema-preservation need. | Standalone builds and inspected ZIPs preserve current consumer contracts; any needed migration is reviewed and atomic. |
 | 4 | Final integration after remaining add-on T18 fixes; retain completed T02 coverage. | All four inspected ZIPs pass without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |

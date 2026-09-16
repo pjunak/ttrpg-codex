@@ -4,11 +4,11 @@ import { resolve } from 'node:path';
 import type { APIRequestContext, Browser, Locator } from 'playwright';
 import { jsonResponse } from './installed-graph-fixture.mts';
 
-interface Fixture {
+export interface Fixture {
   admin: APIRequestContext; browser: Browser; csrf: string; origin: string; output: string;
   call(method: string, params: Record<string, unknown>): ReturnType<typeof jsonResponse>;
 }
-async function createCharacter(f: Fixture, key: string) {
+export async function createCharacter(f: Fixture, key: string) {
   await jsonResponse(await f.admin.post('/api/campaign/transactions', {
     headers: { 'X-Codex-CSRF': f.csrf }, data: { contractVersion: 'campaign-mutation.v1', mutations: [{
       operation: 'put', collection: 'characters', key, expectedRevision: 0,
@@ -19,13 +19,13 @@ async function createCharacter(f: Fixture, key: string) {
   inputs.build.method = 'array'; inputs.build.baseScores = { STR: 15, DEX: 14, CON: 13, INT: 12, WIS: 10, CHA: 8 };
   return inputs;
 }
-async function save(f: Fixture, key: string, inputs: Record<string, unknown>, revision: number, suffix: string) {
+export async function save(f: Fixture, key: string, inputs: Record<string, unknown>, revision: number, suffix: string) {
   const result = await f.call('save', { key, operation: 'build', operationId: key + '-' + suffix,
     summary: 'Builder acceptance', expectedRevision: revision, inputs });
   assert.equal(result.status, 'ready', JSON.stringify({ status: result.status, issues: result.evaluation?.guidance.saveIssues }));
   return result;
 }
-async function openBuilder(t: TestContext, f: Fixture, key: string, locale = 'en') {
+export async function openBuilder(t: TestContext, f: Fixture, key: string, locale = 'en') {
   const context = await f.browser.newContext({ storageState: await f.admin.storageState(), viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
   t.after(() => context.close()); await context.addInitScript(locale => localStorage.setItem('codex_lang', locale), locale);
   const page = await context.newPage(), errors: string[] = [];
@@ -40,7 +40,7 @@ async function focused(control: Locator) {
   assert.equal(await control.evaluate(node => node === document.activeElement), true, 'Navigation must focus the visible editable control');
   assert.equal(await control.isVisible(), true);
 }
-async function choose(sheet: Locator, name: string, value: string) {
+export async function choose(sheet: Locator, name: string, value: string) {
   const combo = sheet.getByRole('combobox', { name, exact: true });
   await combo.fill(value); await sheet.getByRole('option', { name: value, exact: true }).click();
 }

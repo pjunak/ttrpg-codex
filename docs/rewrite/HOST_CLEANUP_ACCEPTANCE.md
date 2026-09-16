@@ -595,10 +595,10 @@ host gate passed 32 tooling, 389 unit and 353 browser cases with zero skips plus
 Go tests/vet. The new cases also passed separately against real installed ZIPs.
 All checks use disposable local campaigns; no live packages were activated.
 
-The nearby Skilled record still uses a fixed `any (3)` placeholder. Its three
-mixed skill/tool selections and repeatable acquisition ownership are tracked
-separately as T41-COMP with Engine T32 / Sheets T33. T39 completion does not claim
-that every PHB mechanic is structured.
+T39 left Skilled's fixed `any (3)` placeholder for a coordinated follow-up.
+Its mixed choices and acquisition ownership are now covered by
+[T41 acceptance below](#repeatable-skilled-choices-and-acquisition-ownership).
+Neither batch claims that every PHB mechanic is structured.
 
 The final committed companion sources were rebuilt/reinspected and passed
 `node scripts/companion-suite.mts test full`: **113/113**, zero skips.
@@ -617,3 +617,73 @@ bytes are identical, and the final archive itself passed the installed gate.
 Companion worktrees were clean at final inspection. Host acceptance used
 `16155a7` plus this batch's installed fixtures and documentation. These local
 results do not establish publication, deployment or live add-on activation.
+
+## Repeatable Skilled choices and acquisition ownership
+
+September 17, 2026. T41-COMP, T32-REPEATABLE, T33-REPEATABLE and T41-HOST
+complete this coordinated batch. Source commits: Engine `e5f1027`,
+Sheets `e066de3`, Compendium `8e1e9d7`.
+[Provider coverage and primary sources](../../../addon-dnd-2024-compendium/data/COVERAGE.md#character-rules-and-contextual-details)
+document Skilled's three mixed skill/tool slots, all 18 skills and 37 individual
+tool proficiencies. Origin feats are now eligible at later class advancements;
+the level-19 Epic Boon policy remains unchanged.
+
+The Engine derives acquisition IDs from declared background/species grants,
+feat choices, class advancements and DM grants. Each repeat keeps independent
+choices and a source label. Removing an earlier source never renumbers another.
+Parents resolve before dependent choices; arbitrary input-key suffixes cannot
+create grants. Nonrepeatable duplicates and invalid prerequisites block saving.
+Mixed proficiency pools exclude fixed and earlier selected proficiencies while
+retaining the current acquisition's choices.
+
+Sheets renders this through the existing borrowed comboboxes and generic Builder
+panels. Changing an origin, advancement, level or DM grant withdraws only the
+previously saved slots that become invalid, preserving valid siblings, notes and
+current HP. Historical unscoped choices bind only to a sole owner in detached
+evaluation; loading never writes. Ambiguous choices remain visible for explicit
+assignment to an empty source or discard and block saving until resolved.
+
+Six [installed regressions](../../frontend/test/browser/installed-character-repeatable-fixture.mts)
+exercise repeated background/advancement choices in English/Czech, keyboard
+selection, autosave/reload, source replacement, level removal, DM grant
+revocation/amendment and historical assignment. The ambiguity UI case simulates
+a historical snapshot at the read boundary; its evaluation and subsequent save
+use the real installed workers. The other cases use real package-owned state.
+At 390 pixels and 200% text, the tests exposed an overflowing host character
+heading and squeezed Builder ability fields. Shared heading wrapping,
+adaptive ability columns and bounded steppers fix both. Final phone screenshots
+were visually reviewed.
+
+The first complete host run exposed a 60-second timeout in the existing
+level-19 Boon of Skill case. Feat-option filtering repeatedly hydrated full
+progression for simple level/waiver predicates. Those options now use the same
+prerequisite interpreter at their acquisition level; ability/feature predicates
+and dependent feat replacement retain full candidate validation. New synthetic
+regressions cover ordered multiclass levels, waiver timing and nested source
+replacement. The focused Boon case then passed in about 16 seconds; no test
+timeouts, concurrency limits or coverage were relaxed.
+
+Validation: Engine tests/vet, native race checks and all three worker targets;
+Sheets build, five TypeScript tests, Go tests/vet and coordinator race checks;
+Compendium build/types and 61 tests; all four package inspections. The complete
+host gate passed 32 tooling, 389 unit and 359 browser tests with zero failures,
+cancellations or skips, plus Go tests/vet. After the companion commits,
+`node scripts/companion-suite.mts test full` passed **119/119**, zero skips.
+
+| Add-on | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools | `0eeac9b` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine | `e5f1027` | `54b5bc72b5607488a7f023dd4542d7df256915fc09532bd26c40e97351a7aaa9` |
+| Sheets | `e066de3` | `ca34fc804f70795e0344670684bf22d202195fdf590e7df27fbf122d4a127d99` |
+| Compendium | `8e1e9d7` | `58ad68af87015d55ca8a875bd54ad188878b7a9d7fc3f41c80654bb9c824a71b` |
+
+Host acceptance used `17b3224` plus this batch's heading styles and installed
+fixtures. Companion worktrees were clean at final inspection. Workers executed
+natively on Windows; Linux workers were cross-compiled and inspected. These
+results establish local acceptance, not publication, deployment or activation
+on either site. Physical touch, screen-reader and live-site checks remain open.
+
+This closes declared repeatable Builder choices, not repeated spell/resource
+effects or conditional-repeat mechanics. Human and instrument/game origin
+choices remain T42-COMP; the broader Engine T32, Sheets T33 and T18 acceptance
+tasks remain open.

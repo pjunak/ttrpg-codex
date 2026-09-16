@@ -1082,7 +1082,7 @@ campaign-relationship-editor {
 .record-tabs button:hover { color: var(--text-parchment); background: var(--bg-raised); }
 .record-tabs button:focus-visible { outline: 2px solid var(--gold); outline-offset: -3px; }
 .character-view-tabs { margin-bottom: 1.5rem; }
-.character-sheet-heading h1 { margin: 0 0 1.25rem; color: var(--gold); font: 600 2rem var(--font-title); }
+.character-sheet-heading h1 { margin: 0 0 1.25rem; color: var(--gold); font: 600 2rem var(--font-title); overflow-wrap: anywhere; }
 .character-profile .record-side { position: static; max-height: none; overflow: visible; }
 .character-profile .record-prose { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
 .character-profile .record-prose > section:not(.character-knowledge-section) { grid-column: 1 / -1; }
