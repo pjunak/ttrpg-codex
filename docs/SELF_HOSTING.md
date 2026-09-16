@@ -437,6 +437,29 @@ checks but skips publication and deployment, with an explanatory summary.
 GitHub orders this queue by arrival, so the revision check also protects against
 rerunning an old push. See [GitHub's concurrency documentation](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
 
+### Coordinate host and companion commits
+
+The [compatibility workflow](../.github/workflows/addon-compatibility.yml) builds
+companions from each repository's remote default branch against the candidate
+host. A passing local run can include companion commits that GitHub does not yet
+have. Pushing `ttrpg-codex` does not push the four independent add-on repositories;
+package versions can also stay unchanged across multiple source commits.
+
+Before publishing a host change that depends on companion fixes, publish those
+compatible companion commits to their default branches. Compare the exact source
+commits in the CI `companion-provenance` artifact with the locally accepted
+`release/companions/provenance.json`, including all four repositories. Keep shared
+API changes compatible at each delivery boundary. The manual **Addon
+compatibility** workflow can verify the complete installed suite without
+publishing or deploying the host; confirm full private coverage and zero skips.
+
+If **Run test suite** passes but installed companion acceptance fails, inspect
+that job and its source commits first. A skipped **Build image** means there is
+no new image to recover through **Deploy published release**. After the source
+mismatch or test failure is fixed, retry the current host candidate. A retry of a
+`main` push can publish the image and deploy both sites, so it carries the same
+operational authorization as the original release.
+
 ### Configure deployment once
 
 In the **ttrpg-codex** repository, open **Settings → Secrets and variables →

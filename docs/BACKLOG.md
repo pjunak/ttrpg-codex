@@ -49,6 +49,7 @@ not mean it has been pushed, deployed, or installed on a live site.
 - [x] ~~**T29 — Measured campaign/asset compression and reproducible profiling**~~ — `8d3652a`; [results and measurement limits](rewrite/PERFORMANCE.md).
 - [x] ~~**T18-HOST — Core workflow acceptance and draft-preserving session recovery**~~ — `eb2cb7b`; [action-level evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md).
 - [x] ~~**T35 — Repair deployment reflow checks and unintended reduced-motion transitions**~~ — `484814c`, `c3d0ac1`; [failure and regression evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#deployment-gate-repair-and-engine-follow-up).
+- [x] ~~**T36 — Preserve Linux worker permissions in replacement-package tests**~~ — `325cf13`; [CI diagnosis and regression evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#linux-compatibility-failure-and-companion-delivery).
 - [x] ~~**T02-LOCAL — Accept all four inspected companion packages with zero skips**~~ — host `10ddc3c`, Engine `dfd970b`, Sheets `8b3bb30`; [104/104 cases and exact package hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#installed-companion-matrix).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
@@ -65,7 +66,7 @@ a released schema-preservation need or separate operational authorization.
 
 | ID | Priority | Remaining work and completion condition |
 | --- | --- | --- |
-| T02 | P1, operational | Verify a fresh publication run after publishing the corrected Engine before the host candidate: exact companion commits/hashes and zero skips. Local acceptance is complete (T02-LOCAL); coordinate delivery with T15. Ordinary PR/private-access limits remain explicit. |
+| T02 | P1, operational | Publish all four accepted companion revisions and the host fixture correction, then verify a fresh Linux run with exact commits/hashes and zero skips. Run `35121526361` used older companion sources; [diagnosis and delivery order](rewrite/HOST_CLEANUP_ACCEPTANCE.md#linux-compatibility-failure-and-companion-delivery). Local acceptance is complete (T02-LOCAL); coordinate delivery with T15. |
 | T08 | P2, triggered | Implement reviewed migration orchestration when a released schema actually needs preservation: exact snapshot, atomic commit, stale rejection and recovery. The old-sheet reset does not imply a general converter. [Data lifecycle](rewrite/ADDON_DATA.md#remaining-public-surface). |
 | T15 | P1, operational | On an authorized release, refresh remote/deployment state, publish the chosen validated host/add-on commits, then verify served build identity, manager and full backup with the matching maintenance binary. Do not rely on old SHA snapshots. [Runbook](SELF_HOSTING.md#publishing-and-deploying-updates). |
 | T16 | P2, operational | Re-inventory Asurai's superseded archives and historical cutover/maintenance copies; use existing reviewed cleanup where eligible and record retention decisions. Preserve independent backups; do not repeat the completed sheet reset. |

@@ -64,11 +64,12 @@ T02-LOCAL is complete; T02 retains fresh remote publication verification.
 The run includes seven new character save cases and the five planner recovery
 cases alongside campaign-bundle, lifecycle, role, provider and record-panel
 workflows. All four archives passed host inspection before installation. The host
-and all four companion source repositories were clean when provenance was
-captured; subsequent host changes are backlog/acceptance documentation only.
+and all four companion source repositories were clean when that provenance was
+captured. Later fixture validation is recorded in the CI follow-up below.
 Runtime source and built frontend matched the tested host commit. The initial
 preview timeout and unchanged passing rerun are recorded
-[below](#progressive-save-and-equipment-follow-up). No remote CI run is claimed.
+[below](#progressive-save-and-equipment-follow-up). No passing remote CI run is
+claimed for these package revisions.
 
 | Package | Source commit | Inspected ZIP SHA-256 |
 | --- | --- | --- |
@@ -256,3 +257,58 @@ Direct play/grant and reviewed-import commands have separate uncertain-outcome
 paths. Broader T18 build-and-play,
 physical-device and live-site acceptance remain open. No package was published
 or activated on either live site.
+
+## Linux compatibility failure and companion delivery
+
+[Build run 35121526361](https://github.com/pjunak/ttrpg-codex/actions/runs/35121526361)
+on host `64cd3f8` passed the ordinary host gate but failed installed companion
+acceptance: 73 passed, 31 failed, zero skipped. **Build image** and deployments
+were skipped. Two independent causes were identified:
+
+1. CI checked out older companion default branches, missing nine locally
+   committed fixes. The following remote heads were also verified during the
+   investigation on September 16; they are an incident snapshot, not a moving
+   release target.
+
+   | Repository | CI/remote source | Locally accepted source | Missing commits |
+   | --- | --- | --- | --- |
+   | DM Tools | `40fe452` | `0eeac9b` | 3: shared controls, campaign bundles, draft recovery |
+   | Engine | `8c0c9a1` | `dfd970b` | 3: bounded evaluation, prerequisites, equipment/save guidance |
+   | Character Sheets | `5e82fd6` | `8b3bb30` | 2: shared controls, retained edits/exact retry |
+   | Compendium | `d03af34` | `e8cc635` | 1: shared search/filter controls |
+
+2. The host's `replacementImportPackage` test helper rebuilt ZIPs without Unix
+   creator/permission metadata. The production extractor consequently wrote the
+   Linux workers without executable permissions. Replacement activation returned
+   `ACTIVATION_FAILED`; later manager cases also saw retained failure alerts.
+   Windows worker execution did not expose the missing Unix metadata.
+
+The replacement helper now preserves each original Unix permission mode, and
+synthetic ZIPs encode regular-file modes explicitly. Worker bytes, package
+checksums and production extraction rules retain their existing behavior. The
+[cross-platform regression](../../scripts/installed-package-fixtures.test.mts)
+uses an independently generated Go ZIP with different Linux executable modes and
+ordinary non-executable entries. It failed before the change and passed after it;
+a separate case verifies unchanged payloads and refreshed manifest checksums.
+Go's standard ZIP reader independently verified all 51 modes of a rewritten real
+DM Tools package, including both `0755` Linux workers. Host inspection accepted
+that replacement archive.
+
+The fix is committed as `325cf13` and closes T36. The full host gate passed:
+31 tooling tests, 389 unit tests, 277 browser cases with the ordinary 33 optional
+package skips, plus Go tests and vet. Full installed acceptance then passed
+**104/104, zero failures and zero skips**, in 142.5 seconds. This exercised the
+worktree patch subsequently committed as `325cf13`; provenance correctly records
+base host `64cd3f8` with working-tree changes. All four companion repositories
+were clean and used the same exact commits/hashes as the
+[installed companion matrix](#installed-companion-matrix). Native Windows workers
+ran; Linux ZIP metadata was verified independently. Fresh native
+Linux CI remains an explicit validation boundary.
+
+The remaining operational step is to push all four accepted companion revisions
+and the host fixture fix, then verify a fresh Linux compatibility run and the
+intended host release. Rerunning the old host commit alone cannot include the
+fixture correction. Follow the [coordinated delivery procedure](../SELF_HOSTING.md#coordinate-host-and-companion-commits).
+A host main push can publish and deploy both sites; add-on publication does not
+install or activate a package on either site. No push, publication, deployment or
+live-data change was performed during this investigation.
