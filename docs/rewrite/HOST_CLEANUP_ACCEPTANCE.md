@@ -568,3 +568,52 @@ failures/skips, plus Go tests/vet, using all four inspected companion ZIPs.
 Two earlier full runs each hit a different fixture-startup timeout before the
 affected workflow began. Both cases passed in isolation and the unchanged final
 gate passed; no concurrency, timeout or coverage settings were relaxed.
+
+## PHB skill feats and Rogue languages
+
+September 16, 2026. T39-COMP is complete in Compendium `46e78a2`.
+[Coverage and sources](../../../addon-dnd-2024-compendium/data/COVERAGE.md#character-rules-and-contextual-details)
+document the 2024 facts and retained prose. Skill Expert supplies a canonical
+skill choice and a dependent Expertise choice, level-4 prerequisite and
+six-ability +1 grant capped at 20. Boon of Skill supplies all 18 skills, one
+nonduplicate Expertise choice, level-19 prerequisite and a +1 grant capped at
+30. Thieves' Cant supplies its fixed language plus one different standard/rare
+table language; obsolete tools text is removed. Permanent record IDs and public
+grant shapes remain stable.
+
+Three installed Engine/Sheets regressions cover the actual rebuilt provider:
+Skill Expert autosave repairs when proficiency changes, choosing Expertise in
+the newly granted skill, reload, feat replacement and preserved notes/current
+HP; the boon retaining earlier Expertise, correct totals and cap, rejected
+early acquisition and withdrawal after its source level is removed; and Rogue
+language selection/replacement/reload followed by replacing Rogue with Fighter.
+The existing generic Engine and Sheets implementations need no changes.
+
+Compendium passed 60 tests, build/tool types and packaging. Engine tests/vet
+and Sheets build, five unit tests and Go tests/vet passed. The final complete
+host gate passed 32 tooling, 389 unit and 353 browser cases with zero skips plus
+Go tests/vet. The new cases also passed separately against real installed ZIPs.
+All checks use disposable local campaigns; no live packages were activated.
+
+The nearby Skilled record still uses a fixed `any (3)` placeholder. Its three
+mixed skill/tool selections and repeatable acquisition ownership are tracked
+separately as T41-COMP with Engine T32 / Sheets T33. T39 completion does not claim
+that every PHB mechanic is structured.
+
+The final committed companion sources were rebuilt/reinspected and passed
+`node scripts/companion-suite.mts test full`: **113/113**, zero skips.
+The final Compendium packaging refresh adds the committed coverage note;
+archive-content comparison confirmed that only `data/COVERAGE.md` and
+`checksums.json` differ from the archive used by the full host gate. All runtime
+bytes are identical, and the final archive itself passed the installed gate.
+
+| Add-on | Source commit | Final ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools | `0eeac9b` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine | `41e26c1` | `f058838a1a6f47408ceb26d87ea13ba714c4dd00cf8154cc216d04a7ea544f8a` |
+| Sheets | `dff6c0b` | `cec7fb51c7379f9171cbad59d75f644d246b3bec9b6d761e72a52c5eae0f26a4` |
+| Compendium | `46e78a2` | `abffab476350ab5845487d97140a717ed78cc259d5a96835f2fa21a6c8e9cc18` |
+
+Companion worktrees were clean at final inspection. Host acceptance used
+`16155a7` plus this batch's installed fixtures and documentation. These local
+results do not establish publication, deployment or live add-on activation.

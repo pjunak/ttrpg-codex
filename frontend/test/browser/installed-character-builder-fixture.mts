@@ -260,3 +260,115 @@ export function registerCharacterBuilderTests(enabled: boolean, fixture: () => F
   });
 
 }
+
+export function registerSkillGrantTests(enabled: boolean, fixture: () => Fixture) {
+  test('Skill Expert grants and dependent repairs work through installed Builder autosave', { skip: !enabled, timeout: 60000 }, async t => {
+    const f = fixture(), key = 'feat-skill-expert', inputs = await createCharacter(f, key);
+    inputs.build.species = 'dwarf'; inputs.build.background = 'soldier';
+    inputs.build.levels = Array.from({ length: 4 }, (_, index) => ({ id: 'fighter-' + index, classId: 'fighter' }));
+    inputs.notes = 'Keep authored notes through feat replacement'; inputs.play.hp = 5;
+    inputs.build.choices = [
+      { id: 'asi:fighter:4', slot: 0, value: 'feat' }, { id: 'asi:fighter:4:feat', slot: 0, value: 'skill-expert' },
+      { id: 'asi:fighter:4:featability', slot: 0, value: { STR: 1 } },
+      { id: 'feat:skill-expert:skill', slot: 0, value: 'nature' },
+      { id: 'feat:skill-expert:expertise', slot: 0, value: 'nature' },
+    ];
+    const seeded = await save(f, key, inputs, 0, 'seed');
+    assert.equal(seeded.evaluation.sheet.skills.nature.proficient, true);
+    assert.equal(seeded.evaluation.sheet.skills.nature.expertise, true);
+    assert.equal(seeded.evaluation.sheet.skills.nature.total, 5);
+    assert.equal(seeded.evaluation.sheet.abilities.STR.score, 16);
+    assert.equal(seeded.evaluation.sheet.abilities.STR.cap, 20);
+    assert.equal(seeded.evaluation.guidance.choices['feat:skill-expert:skill'].options.length, 18);
+    const advancement = seeded.evaluation.plan.classChoices.find((choice: Descriptor) => choice.id === 'asi:fighter:4');
+    assert.deepEqual(advancement.feat.ability.eligible, ['STR','DEX','CON','INT','WIS','CHA']);
+
+    const { page, sheet, status, read } = await openBuilder(t, f, key);
+    const group = (id: string) => sheet.locator('[id="character-choice-' + encodeURIComponent(id) + '"]');
+    await sheet.locator('#dnd-builder-tab-character').click();
+    await choose(group('feat:skill-expert:skill'), 'Selection 1', 'Medicine');
+    await status.filter({ hasText: /^Saved$/ }).waitFor();
+    let stored = await read();
+    assert.equal(stored.state.inputs.build.choices.some((choice: { id: string }) => choice.id === 'feat:skill-expert:expertise'), false);
+    assert.equal(stored.evaluation.sheet.skills.nature.expertise, false);
+    assert.equal(stored.evaluation.sheet.skills.nature.proficient, false);
+    assert.equal(stored.evaluation.sheet.skills.medicine.proficient, true);
+    await choose(group('feat:skill-expert:expertise'), 'Selection 1', 'Medicine');
+    await status.filter({ hasText: /^Saved$/ }).waitFor();
+    await page.reload(); await page.locator('#character-view-addons').click(); await sheet.locator('#dnd-tab-builder').click();
+    await sheet.locator('#dnd-builder-tab-character').click();
+    assert.equal(await group('feat:skill-expert:expertise').getByRole('combobox').inputValue(), 'Medicine');
+    stored = await read();
+    const changed = structuredClone(stored.state.inputs);
+    changed.build.choices = changed.build.choices.filter((choice: { id: string }) => !choice.id.startsWith('asi:fighter:4'));
+    changed.build.choices.push({ id: 'asi:fighter:4', slot: 0, value: 'asi' }, { id: 'asi:fighter:4:ability', slot: 0, value: { DEX: 2 } });
+    const removed = await save(f, key, changed, stored.revision, 'replace-feat');
+    assert.equal(removed.state.inputs.build.choices.some((choice: { id: string }) => choice.id.startsWith('feat:skill-expert:')), false);
+    assert.equal(removed.evaluation.sheet.skills.medicine.proficient, false);
+    assert.equal(removed.evaluation.sheet.skills.medicine.expertise, false);
+    assert.equal(removed.evaluation.sheet.abilities.STR.score, 15);
+    assert.equal(removed.state.inputs.notes, inputs.notes); assert.equal(removed.state.inputs.play.hp, 5);
+  });
+
+  test('Boon of Skill grants every skill at level nineteen and withdraws its dependent effects', { skip: !enabled, timeout: 60000 }, async () => {
+    const f = fixture(), key = 'feat-boon-skill', inputs = await createCharacter(f, key);
+    inputs.build.species = 'dwarf'; inputs.build.background = 'soldier';
+    inputs.build.levels = Array.from({ length: 19 }, (_, index) => ({ id: 'fighter-' + index, classId: 'fighter' }));
+    inputs.build.choices = [
+      { id: 'asi:fighter:4', slot: 0, value: 'feat' }, { id: 'asi:fighter:4:feat', slot: 0, value: 'skill-expert' },
+      { id: 'asi:fighter:4:featability', slot: 0, value: { STR: 1 } },
+      { id: 'feat:skill-expert:skill', slot: 0, value: 'nature' }, { id: 'feat:skill-expert:expertise', slot: 0, value: 'nature' },
+      { id: 'asi:fighter:19', slot: 0, value: 'feat' }, { id: 'asi:fighter:19:feat', slot: 0, value: 'boon-of-skill' },
+      { id: 'asi:fighter:19:featability', slot: 0, value: { STR: 1 } },
+      { id: 'feat:boon-of-skill:expertise', slot: 0, value: 'arcana' },
+    ];
+    const seeded = await save(f, key, inputs, 0, 'seed');
+    assert.equal(Object.values(seeded.evaluation.sheet.skills).filter((value: unknown) => (value as {proficient:boolean}).proficient).length, 18);
+    assert.equal(seeded.evaluation.sheet.skills.arcana.expertise, true);
+    assert.equal(seeded.evaluation.sheet.skills.arcana.total, 13);
+    assert.equal(seeded.evaluation.sheet.abilities.STR.score, 17);
+    assert.equal(seeded.evaluation.sheet.abilities.STR.cap, 30);
+    const options = seeded.evaluation.guidance.choices['feat:boon-of-skill:expertise'].options as Option[];
+    assert.equal(options.length, 17); assert.equal(options.some(option => option.id === 'nature'), false);
+    const tooEarly = structuredClone(inputs);
+    tooEarly.build.choices.find((choice: {id:string}) => choice.id === 'asi:fighter:4:feat').value = 'boon-of-skill';
+    const invalid = await f.call('evaluate', { key, operation: 'build', inputs: tooEarly, expectedRevision: seeded.revision });
+    assert.equal(invalid.evaluation.guidance.canSave, false, 'later levels cannot qualify an earlier epic boon');
+    const changed = structuredClone(seeded.state.inputs);
+    changed.build.levels.pop();
+    const removed = await save(f, key, changed, seeded.revision, 'remove-source-level');
+    assert.equal(removed.state.inputs.build.choices.some((choice: { id: string }) => choice.id.startsWith('feat:boon-of-skill:')), false);
+    assert.equal(removed.evaluation.sheet.skills.arcana.proficient, false);
+    assert.equal(removed.evaluation.sheet.skills.arcana.expertise, false);
+    assert.equal(removed.evaluation.sheet.skills.nature.expertise, true, 'the earlier feat remains');
+    assert.equal(removed.evaluation.sheet.abilities.STR.cap, 20);
+    assert.equal(removed.evaluation.sheet.abilities.STR.score, 16);
+  });
+
+  test("Thieves' Cant languages survive reload and follow Rogue source removal", { skip: !enabled, timeout: 60000 }, async t => {
+    const f = fixture(), key = 'rogue-languages', inputs = await createCharacter(f, key);
+    inputs.build.species = 'dwarf'; inputs.build.background = 'soldier';
+    inputs.build.levels = [{ id: 'rogue-one', classId: 'rogue' }];
+    inputs.build.choices = [{ id: 'rogue-thieves-cant-language', slot: 0, value: 'druidic' }];
+    const seeded = await save(f, key, inputs, 0, 'seed');
+    const options = seeded.evaluation.guidance.choices['rogue-thieves-cant-language'].options as Option[];
+    assert.equal(options.length, 18); assert.equal(options.some(option => option.id === 'thieves-cant'), false);
+    assert.ok(seeded.evaluation.sheet.proficiencies.languages.includes('thieves-cant'));
+    assert.ok(seeded.evaluation.sheet.proficiencies.languages.includes('druidic'));
+    const { page, sheet, status, read } = await openBuilder(t, f, key);
+    await sheet.locator('#dnd-builder-tab-rogue').click();
+    const group = sheet.locator('[id="character-choice-rogue-thieves-cant-language"]');
+    await choose(group, 'Selection 1', 'Undercommon'); await status.filter({ hasText: /^Saved$/ }).waitFor();
+    let stored = await read();
+    assert.ok(stored.evaluation.sheet.proficiencies.languages.includes('undercommon'));
+    assert.equal(stored.evaluation.sheet.proficiencies.languages.includes('druidic'), false);
+    await page.reload(); await page.locator('#character-view-addons').click(); await sheet.locator('#dnd-tab-builder').click(); await sheet.locator('#dnd-builder-tab-rogue').click();
+    assert.equal(await group.getByRole('combobox').inputValue(), 'Undercommon');
+    stored = await read();
+    const changed = structuredClone(stored.state.inputs); changed.build.levels = [{ id: 'fighter-one', classId: 'fighter' }];
+    const removed = await save(f, key, changed, stored.revision, 'remove-rogue');
+    assert.equal(removed.evaluation.sheet.proficiencies.languages.includes('thieves-cant'), false);
+    assert.equal(removed.evaluation.sheet.proficiencies.languages.includes('undercommon'), false);
+    assert.equal(removed.state.inputs.build.choices.some((choice: {id:string}) => choice.id === 'rogue-thieves-cant-language'), false);
+  });
+}
