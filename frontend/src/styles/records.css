@@ -16,10 +16,13 @@
 
 .collection-heading {
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   align-items: center;
   justify-content: space-between;
 }
+
+.collection-heading > div { min-width: 0; overflow-wrap: anywhere; }
 
 .page-heading h1 {
   margin: 0 0 .25rem;
@@ -117,7 +120,9 @@
 }
 
 .record-row-copy {
+  min-width: 0;
   padding: .75rem;
+  overflow-wrap: anywhere;
 }
 
 .record-row-copy strong {
@@ -157,7 +162,7 @@
 .record-row > .dm-badge {
   position: absolute;
   top: .5rem;
-  right: .5rem;
+  inset-inline-start: .5rem;
   background: var(--bg-surface);
 }
 
@@ -1263,12 +1268,10 @@ campaign-relationship-editor {
 @media (max-width: 700px) { .article-reference { min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; } }
 
 .context-create-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1rem; }
-.context-create-actions a, .record-row-edit, .party-card-edit { min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
-.record-row-shell { display: flex; flex-direction: column; align-items: stretch; align-self: start; gap: .25rem; min-width: 0; }
+.context-create-actions a { min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
+.record-row-shell { display: flex; min-width: 0; }
 .record-row-shell > .record-row { flex: 1; min-width: 0; }
-.record-row-edit { flex: 0 0 auto; align-self: flex-end; }
-.party-record-card { display: flex; flex-direction: column; align-items: center; gap: .25rem; }
-.party-card-edit { padding: .3rem .75rem; font-size: .75rem; }
+.party-record-card { display: flex; flex-direction: column; align-items: center; align-self: start; }
 .creation-context { color: var(--text-muted); font: .85rem/1.5 var(--font-ui); }
 
 .investigation-queue, .investigation-reading { margin-block: 1.5rem; }
@@ -1289,10 +1292,6 @@ campaign-relationship-editor {
 .record-article.no-artwork .record-portrait-placeholder { width: 3rem; height: 3rem; aspect-ratio: 1; font-size: 1.8rem; align-self: start; }
 .record-article.no-artwork .record-masthead > .record-action { grid-column: 1 / -1; justify-self: start; }
 .record-facts:empty { display: none; }
-.record-row.no-artwork { display: grid; grid-template-columns: 3rem minmax(0, 1fr); align-content: start; gap: .75rem; padding: .75rem; }
-.collection-page .record-row.no-artwork .record-row-mark { width: 3rem; height: 3rem; aspect-ratio: 1; border-radius: var(--radius); font-size: 1.8rem; }
-.record-row.no-artwork .record-row-copy { padding: 0; min-width: 0; overflow-wrap: anywhere; }
-.record-row.no-artwork > .dm-badge { position: static; grid-column: 2; justify-self: start; }
 .record-form-status { font: .8rem/1.5 var(--font-ui); color: var(--text-muted); overflow-wrap: anywhere; }
 .record-save-confirmation { padding: .65rem 1rem; border: 1px solid var(--chrome-field-border); border-radius: var(--radius); font: .85rem/1.5 var(--font-ui); color: var(--text-parchment); }
 .investigation-jump { margin-bottom: 1rem; }

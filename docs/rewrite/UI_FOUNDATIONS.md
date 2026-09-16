@@ -31,6 +31,25 @@ not a claim that automated tests establish full WCAG conformance.
 | Dialogs and confirmations | Native showModal supplies the top layer, inert background and normal focus return. Shared Tab containment includes visible controls only. Owners supply a title, close action, initial focus and any dirty/pending close guard. An open combo consumes the first Escape. | [APG dialog](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/), [W3C native dialog technique](https://www.w3.org/WAI/WCAG21/Techniques/html/H102) |
 | Skins, focus and responsive layout | Semantic colors, visible focus, wrapping controls and viewport-bounded popups. Default buttons are 40 CSS px high, 44 on coarse pointers; checkbox/radio labels provide the larger target. Support forced colors without animation dependence. | [WCAG contrast](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html), [target size](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html), [reflow](https://www.w3.org/WAI/WCAG22/Understanding/reflow.html) |
 
+## Entity card actions
+
+Collection, party and companion cards use the same `ui-card` wrapper and
+`ui-card-action` presentation from the shared stylesheet. The host's
+`ui/card-actions.ts` renders the pencil once; entity views supply only the
+destination and localized accessible name. Integrated add-ons can use the same
+classes in their owned DOM with a native link (or a button for an in-place
+operation), an accessible name, and a decorative icon. No host DOM access or
+additional interaction controller is needed.
+
+The edit link is a sibling of the main card link, anchored at the upper trailing
+corner, with a visible focus ring and a target of at least 44 CSS pixels. It uses
+the semantic UI colors in each skin; a localized title supplements its accessible
+name. This follows the [native link pattern](https://www.w3.org/WAI/ARIA/apg/patterns/link/)
+and [enhanced target-size guidance](https://www.w3.org/WAI/WCAG22/Understanding/target-size-enhanced.html).
+Visibility badges occupy the opposite corner. Artwork and fallback marks reserve
+the same media area (3:4 for character collection cards); artwork presence never
+selects a smaller card layout.
+
 ## Public integration
 
 Declare required capability `ui.controls.v1`. The capability adds no data or

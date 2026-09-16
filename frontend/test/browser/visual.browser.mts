@@ -1,5 +1,5 @@
 import { required } from './fixture-types.mts';
-import type { Browser, Page } from 'playwright';
+import type { Browser, Page, Locator } from 'playwright';
 import type { TestContext } from 'node:test';
 import type { PreviewServer, ViteDevServer } from 'vite';
 import type { AddressInfo } from 'node:net';
@@ -9,7 +9,7 @@ import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { createServer, preview } from 'vite';
-import { visualFixturePlugin } from './visual-fixture.mts';
+import { visualCampaign, visualFixturePlugin } from './visual-fixture.mts';
 
 let server: PreviewServer, referenceServer: ViteDevServer, browser: Browser, origin: string, referenceOrigin: string;
 const artifacts = fileURLToPath(new URL('../../test-results/visual/', import.meta.url));
@@ -58,7 +58,8 @@ async function compare(page: Page, reference: Page, actual: string, original: st
   assert.deepEqual(await style(page, actual, properties), await style(reference, original, properties), `${actual} must retain v1 appearance`);
 }
 async function fits(page: Page) {
-  const size = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: innerWidth }));
+  const size = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: innerWidth,
+    overflow: [...document.querySelectorAll('.campaign-content *')].filter(node => node.getBoundingClientRect().right > innerWidth + 1).slice(-8).map(node => node.className) }));
   assert.ok(size.content <= size.viewport, `horizontal overflow: ${JSON.stringify(size)}`);
 }
 
@@ -92,9 +93,8 @@ for (const [name, viewport] of Object.entries({ desktop: { width: 1440, height: 
     await compare(page, reference, '.record-row', '.char-card', ['background-color','border-radius','border-top-color']);
     await compare(page, reference, '.record-row-copy strong', '.char-card-name', ['font-family','font-size','color']);
     const card = await page.locator('.record-row-mark').first().boundingBox().then(required);
-    const hasArtwork = await page.locator('.record-row-mark').first().evaluate(node => node.tagName === 'IMG');
-    assert.ok(hasArtwork ? Math.abs(card.width / card.height - .75) < .01 : card.width <= 48 && card.height <= 48,
-      'real portraits keep 3:4 proportions; absent artwork uses a compact identity mark');
+    assert.ok(Math.abs(card.width / card.height - .75) < .01,
+      'portraits and fallback artwork preserve the same 3:4 card geometry');
     await fits(page);
     await page.screenshot({ animations: "disabled", path: `${artifacts}${name}-characters.png`, fullPage: true });
     await page.locator('.record-row').first().click();
@@ -239,4 +239,93 @@ test('skip link moves focus into the campaign without changing its route', async
   assert.equal(await page.locator('#campaign-content').evaluate(element => element === document.activeElement), true);
   assert.equal(new URL(page.url()).hash, '');
   assert.equal(await page.locator('#campaign-title').textContent().then(required), 'Asurai');
+});
+
+async function assertCardAction(card: Locator, page: Page) {
+  const primary = card.locator(':scope > a').first(), edit = card.locator('.ui-card-action');
+  const bounds = required(await primary.boundingBox()), action = required(await edit.boundingBox());
+  assert.ok(action.width >= 44 && action.height >= 44, 'pencil keeps a full touch target');
+  assert.ok(action.y >= bounds.y && action.y - bounds.y <= 10, 'edit stays at the card top');
+  assert.ok(Math.abs(bounds.x + bounds.width - action.x - action.width) <= 10, 'edit stays at the card right edge');
+  assert.equal((await edit.textContent())?.trim(), '', 'the pencil replaces the visible Edit text');
+  assert.equal(await edit.locator('svg[aria-hidden="true"]').count(), 1);
+  assert.equal(await primary.locator('a, button').count(), 0, 'card navigation and editing are sibling links');
+  assert.match(required(await edit.getAttribute('aria-label')), /^(Edit|Upravit)/);
+  assert.equal(await edit.getAttribute('title'), await edit.getAttribute('aria-label'));
+  const badge = card.locator('.dm-badge');
+  if (await badge.count()) {
+    const b = required(await badge.boundingBox());
+    assert.ok(b.x + b.width <= action.x || b.y >= action.y + action.height, 'visibility never overlaps edit');
+  }
+  await primary.focus(); await page.keyboard.press('Tab');
+  assert.ok(await edit.evaluate(node => node === document.activeElement), 'native tab order reaches the pencil');
+  assert.notEqual(await edit.evaluate(node => getComputedStyle(node).outlineStyle), 'none');
+}
+
+for (const scenario of [
+  { width: 1440, locale: 'en', theme: 'classic' },
+  { width: 1440, locale: 'cs', theme: 'moonlit' },
+  { width: 320, locale: 'cs', theme: 'classic' },
+  { width: 320, locale: 'en', theme: 'moonlit' },
+]) test(`all entity cards preserve artwork geometry and top-right editing in ${scenario.width}/${scenario.locale}/${scenario.theme}`, async t => {
+  const page = await fixture(t, { width: scenario.width, height: 1000 }, 'dm');
+  const campaign = structuredClone(visualCampaign);
+  const collections = [
+    ['characters', 'characters'], ['locations', 'locations'], ['events', 'events'],
+    ['mysteries', 'mysteries'], ['factions', 'factions'], ['pantheon', 'pantheon'],
+    ['artifacts', 'artifacts'], ['history', 'historicalEvents'], ['companions', 'pets'],
+  ];
+  const portrait = '/api/media/b_' + '7'.repeat(32);
+  for (const [, collection] of collections) {
+    required(campaign.collections.find(c => c.name === collection)).records = ['art', 'fallback'].map(key => ({
+      key, revision: 1, value: { id: key, name: 'Card ' + key, visibility: 'dm', faction: 'party',
+        ownerType: 'party', ...(key === 'art' ? { portrait } : {}) },
+    }));
+  }
+  required(campaign.collections.find(c => c.name === 'settings')).records.push({
+    key: 'appearance', revision: 1, value: { theme: scenario.theme },
+  });
+  await page.route('**/api/campaign', route => route.fulfill({ json: campaign }));
+  await page.route('**' + portrait, route => route.fulfill({ contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="90" height="120"><rect width="90" height="120" fill="#729ca5"/></svg>' }));
+  await page.evaluate(locale => localStorage.setItem('codex_lang', locale), scenario.locale);
+  await page.reload(); await page.locator('.party-record-card').first().waitFor();
+  for (const card of await page.locator('.party-record-card').all()) await assertCardAction(card, page);
+  await fits(page);
+  await page.locator('.party-roster').screenshot({ animations: 'disabled', path: artifacts + `entity-party-${scenario.width}-${scenario.theme}.png` });
+  for (const [route] of collections) {
+    await page.goto(origin + '/#/' + route);
+    const cards = page.locator('.record-row-shell');
+    await cards.nth(1).waitFor();
+    const image = page.locator('img.record-row-mark'), fallback = page.locator('span.record-row-mark');
+    await image.evaluate((node: HTMLImageElement) => node.decode());
+    const art = required(await image.boundingBox()), mark = required(await fallback.boundingBox());
+    assert.ok(Math.abs(mark.width - art.width) < 1, route + ' fallback has full card width');
+    assert.ok(Math.abs(mark.height - art.height) < 1, route + ' fallback has full artwork height');
+    const first = required(await cards.nth(0).boundingBox()), second = required(await cards.nth(1).boundingBox());
+    assert.ok(Math.abs(first.height - second.height) < 1, route + ' equal content has equal card height');
+    for (const card of await cards.all()) await assertCardAction(card, page);
+    await fits(page);
+    if (route === 'characters') await page.screenshot({ animations: 'disabled',
+      path: artifacts + `entity-cards-${scenario.width}-${scenario.theme}.png`, fullPage: true });
+    const edit = cards.nth(1).locator('.ui-card-action');
+    await edit.press('Enter'); await page.locator('.record-editor').waitFor();
+    assert.match(page.url(), /edit/);
+  }
+  await page.goto(origin + '/#/characters');
+  await page.locator('.record-row-shell').nth(1).waitFor();
+  await page.addStyleTag({ content: 'html { font-size: 200%; }' });
+  for (const card of await page.locator('.record-row-shell').all()) await assertCardAction(card, page);
+  await fits(page);
+});
+
+test('card editing retains existing public and player permissions', async t => {
+  for (const role of ['', 'player']) {
+    const page = await fixture(t, { width: 390, height: 844 }, role);
+    for (const route of ['/', '/party', '/characters', '/companions']) {
+      await page.goto(origin + '/#' + route);
+      await page.locator(route.includes('characters') || route.includes('companions') ? '.record-row' : '.party-member').first().waitFor();
+      assert.equal(await page.locator('.ui-card-action').count() > 0, role === 'player');
+    }
+  }
 });

@@ -75,3 +75,16 @@ dialog[data-ui-dialog]::backdrop { background: rgb(0 0 0 / 65%); }
   [data-codex-ui] { --ui-border: ButtonText; --ui-focus: Highlight; --ui-text: CanvasText; --ui-muted: CanvasText; --ui-field: Canvas; --ui-surface: Canvas; --ui-accent: Highlight; --ui-on-accent: HighlightText; --ui-danger: CanvasText; }
   .ui-option.ui-active { outline: 2px solid Highlight; }
 }
+
+/* A secondary native link overlays any card without changing its content flow. */
+.ui-card { position: relative; }
+.ui-card-action {
+  position: absolute; inset-block-start: .25rem; inset-inline-end: .25rem; z-index: 1;
+  box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center;
+  width: max(2.75rem, var(--ui-target)); height: max(2.75rem, var(--ui-target)); padding: .5rem;
+  border: 1px solid var(--ui-border); border-radius: var(--ui-radius);
+  background: var(--ui-surface); color: var(--ui-text); text-decoration: none;
+}
+.ui-card-action:hover { border-color: var(--ui-accent); color: var(--ui-accent); }
+.ui-card-action:focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 3px; }
+.ui-card-action > svg { width: 1.25rem; height: 1.25rem; pointer-events: none; }

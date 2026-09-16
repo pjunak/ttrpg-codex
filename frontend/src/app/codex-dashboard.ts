@@ -1,4 +1,5 @@
 import { previewResourceURL } from "../core/player-preview.js";
+import { cardEditLink } from "../ui/card-actions.js";
 import { LitElement, html, nothing } from "lit";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import {
@@ -214,12 +215,13 @@ export class CodexDashboard extends LitElement {
 
   #cardEdit(entity: EntitySummary) {
     const route = parseAppRoute(entity.route);
-    return this.canEdit && route.kind === "record" ? html`<a class="record-action party-card-edit"
-      href=${recordEditHash(route.page, route.key, this.partyOnly ? "#/party" : "#/")} aria-label=${uiText("Edit {0}", {"0":entity.name})}>${uiText("Edit")}</a>` : nothing;
+    return this.canEdit && route.kind === "record"
+      ? cardEditLink(recordEditHash(route.page, route.key, this.partyOnly ? "#/party" : "#/"), uiText("Edit {0}", {"0": entity.name}))
+      : nothing;
   }
 
   #partyMember(member: EntitySummary) {
-    return html`<div class="party-record-card">
+    return html`<div class="party-record-card ui-card">
       <a class="party-member" href=${member.route}>
         ${portrait(member)}
         <span class="party-member-copy">
@@ -231,7 +233,7 @@ export class CodexDashboard extends LitElement {
   }
 
   #companion(companion: EntitySummary) {
-    return html`<div class="party-record-card">
+    return html`<div class="party-record-card ui-card">
       <a class="companion" href=${companion.route}>
         <span class="companion-mark" aria-hidden="true">${companion.portrait === undefined ? companion.icon ?? "🐾" : html`<img src=${previewResourceURL(companion.portrait)} alt="" loading="lazy" />`}</span>
         <strong>${companion.name}</strong>

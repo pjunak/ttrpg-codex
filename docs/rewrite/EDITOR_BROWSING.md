@@ -95,7 +95,8 @@ collection otherwise. A confirmed save returns to the source and its derived
 context shows the created record. Creation does not add a separate data store or
 copy source text into the new entry.
 
-Collection rows and party/companion cards provide separate accessible edit links.
+Collection rows and party/companion cards share an accessible pencil link in
+the top-right corner through the [shared card-action pattern](UI_FOUNDATIONS.md#entity-card-actions).
 The shared record form supports all record collections, keeps the starting
 collection's filter/sort URL or party/overview destination, and returns there
 after Save or Cancel. Cancelling also clears the abandoned form’s save warning.
@@ -139,8 +140,9 @@ and Cancel, manual overrides, answers, role filtering and Czech labels.
 
 ## Compact reading and save feedback
 
-Missing artwork uses a compact identity mark in articles and collection cards.
-Real portraits retain their 3:4 presentation. Character cards show their authored
+Missing artwork uses a compact identity mark in article mastheads. Collection
+cards reserve the same artwork area for images and fallback marks; character
+cards retain their 3:4 presentation in either case. Character cards show their authored
 summary, status and visible party identity. Filled profile facts stay directly
 editable; missing facts and connections are grouped under **Add details and
 connections**. They keep their opening snapshots while editing and return focus

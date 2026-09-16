@@ -538,3 +538,33 @@ these results establish no new CI publication or live-site activation.
 T39-COMP records the separate Skill Expert, Boon of Skill and Thieves' Cant
 data gaps discovered during the audit. Remaining T32/T33 workflow acceptance
 and human device/screen-reader checks stay open.
+
+## Shared entity-card sizing and editing
+
+September 16, 2026. T40-HOST repairs the reported portraitless-character shrink
+and the edit action placed below the card. Collection fallback marks now reserve
+the same media area as artwork, including the character 3:4 ratio. Grid cards
+stretch together; long names wrap. Article mastheads retain their compact
+identity treatment.
+
+All nine collection types, party members and companions call the same pencil
+link renderer and use the shared semantic-token card-action styles. The action
+stays at the top-right with a localized accessible name, tooltip, visible
+keyboard focus and 44-pixel default target. The main card link and pencil are
+siblings, preserving native navigation and existing DM/player permissions.
+DM badges occupy the opposite corner. Collection headings also wrap correctly
+when text is enlarged. Add-on reuse is documented in
+[UI foundations](UI_FOUNDATIONS.md#entity-card-actions).
+
+The visual fixture covers artwork/fallback geometry in every collection,
+dashboard/party cards, action bounds, badge separation, icon labels, keyboard
+activation into each record editor, anonymous/player permissions, English/Czech,
+Classic/Moonlit, desktop/320-pixel layouts and 200% text. All 13 visual cases
+passed; existing real-host contextual editing and return-route coverage remains.
+Desktop and phone card screenshots were visually reviewed.
+
+The final host gate passed 32 tooling, 389 unit and 353 browser tests with zero
+failures/skips, plus Go tests/vet, using all four inspected companion ZIPs.
+Two earlier full runs each hit a different fixture-startup timeout before the
+affected workflow began. Both cases passed in isolation and the unchanged final
+gate passed; no concurrency, timeout or coverage settings were relaxed.

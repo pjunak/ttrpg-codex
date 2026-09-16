@@ -1,5 +1,6 @@
 import "./codex-investigation-queue.js";
 import { UIControlsController } from "../ui/controller.js";
+import { cardEditLink } from "../ui/card-actions.js";
 import { investigationStatus } from "./campaign-investigation.js";
 import { investigationBadge, investigationAnswers } from "./investigation-view.js";
 import { contextualCreationFields, creationSource, creationBackHash } from "./context-creation.js";
@@ -701,7 +702,7 @@ export class CodexRecordPage extends LitElement {
 }
 
 function recordRow(entity: EntitySummary, fallback: string, editHref?: string) {
-  return html`<div class="record-row-shell">
+  return html`<div class="record-row-shell ui-card">
     <a class=${`record-row${entity.portrait ? "" : " no-artwork"}`} href=${entity.route}>
       ${entity.portrait === undefined
         ? recordPlaceholder(entity, fallback, "record-row-mark")
@@ -721,7 +722,7 @@ function recordRow(entity: EntitySummary, fallback: string, editHref?: string) {
         ${entity.excerpt === "" ? nothing : html`<small>${entity.excerpt}</small>`}
       </span>
       ${entity.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
-    </a>${editHref ? html`<a class="record-row-edit record-action" href=${editHref} aria-label=${uiText("Edit {0}", {"0": entity.name})}>${uiText("Edit")}</a>` : nothing}
+    </a>${editHref ? cardEditLink(editHref, uiText("Edit {0}", {"0": entity.name})) : nothing}
   </div>`;
 }
 

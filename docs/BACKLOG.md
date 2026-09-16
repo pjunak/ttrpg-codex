@@ -35,6 +35,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T23 — Contextual creation and direct card editing**~~ — `6db9afc`.
 - [x] ~~**T24 — Investigation status and unanswered question queue**~~ — `2a8e867`.
 - [x] ~~**T28 — Compact reading, collection controls and save feedback**~~ — `44053df`.
+- [x] ~~**T40-HOST — Restore full-size entity cards and shared pencil actions**~~ — [shared UI and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#shared-entity-card-sizing-and-editing).
 - [x] ~~**T12 — GitHub package/build identity, release notes and compatibility reasons**~~ — `1905469`.
 - [x] ~~**T13 — Full-backup verification and offline restore guidance**~~ — `301bd9e`.
 - [x] ~~**T09 — Reviewed dependency-aware disabling and recovery**~~ — `9997306`.
