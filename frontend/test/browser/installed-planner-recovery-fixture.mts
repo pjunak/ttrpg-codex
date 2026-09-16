@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import type { Page } from 'playwright';
+import type { Locator, Page } from 'playwright';
 import type { FixtureRecord, InstalledFixture } from './fixture-types.mts';
 import { required } from './fixture-types.mts';
 import { jsonResponse, installReviewedPackage } from './installed-graph-fixture.mts';
@@ -33,6 +33,17 @@ async function fixtureData({ admin, csrf }: Fixture, prefix: string) {
   ]);
   return { a, b, c, parent, flow, reference, consequence, note, transact, records };
 }
+async function choose(root: Page | Locator, name: string, value: string) {
+  const select = root.getByLabel(name, { exact: true }).and(root.locator('select'));
+  if (await select.isVisible()) { await select.selectOption(value); return; }
+  const target = await select.evaluate((node, value) => {
+    const options = [...(node as HTMLSelectElement).options], option = options.find(option => option.value === value);
+    if (!option) throw new Error('Missing fixture choice: ' + value);
+    return { label: option.label, duplicate: options.filter(candidate => candidate.label === option.label).indexOf(option) };
+  }, value);
+  await root.getByRole('combobox', { name, exact: true }).fill(target.label);
+  await root.getByRole('option', { name: target.label, exact: true }).nth(target.duplicate).click();
+}
 async function edit(page: Page, id: string) {
   await page.goto(`/#/addons/dm-tools/planner?item=${id}`);
   await page.getByRole('button', { name: 'Edit item', exact: true }).click();
@@ -58,6 +69,8 @@ async function copiedDrafts(page: Page, output: string, name: string): Promise<s
 
 export async function exercisePlannerRecovery(fixture: Fixture & { mobile: boolean }) {
   const { t, open, output, mobile } = fixture, data = await fixtureData(fixture, 'recover-' + (mobile ? 'phone' : 'desktop'));
+  // Exercise the real searchable parent control even when this case runs alone.
+  if (mobile) await data.transact(Array.from({ length: 12 }, (_, index) => put('planning_items', item(`recover-phone-choice-${index}`, 'quest'))));
   const page = await open(t, 'dm', mobile); await edit(page, data.a);
   let writes = 0; page.on('request', request => { if (request.url().endsWith('/data/transactions')) writes++; });
   await page.getByLabel('Body', { exact: true }).fill('Retained item prose');
@@ -70,7 +83,7 @@ export async function exercisePlannerRecovery(fixture: Fixture & { mobile: boole
   const consequence = page.locator(`[data-consequence-id="${data.consequence}"]`);
   await consequence.getByLabel('Details', { exact: true }).fill('Retained consequence prose');
   const createFlow = page.getByRole('form', { name: 'Create story flow', exact: true });
-  await createFlow.getByLabel('Flow target', { exact: true }).selectOption(data.c);
+  await choose(createFlow, 'Flow target', data.c);
   await createFlow.getByLabel('Flow label', { exact: true }).fill('Retained new flow');
   await plannerTab(page, 'Notes');
   const note = page.locator(`[data-note-id="${data.note}"]`);
@@ -78,7 +91,8 @@ export async function exercisePlannerRecovery(fixture: Fixture & { mobile: boole
   await closePlannerEditor(page);
   await page.getByRole('button', { name: '+ Quest', exact: true }).click();
   await page.getByLabel('Title', { exact: true }).fill('Retained provisional quest');
-  await page.getByLabel('Parent', { exact: true }).selectOption(data.parent);
+  if (mobile) await page.getByRole('combobox', { name: 'Parent', exact: true }).locator('xpath=self::input').waitFor();
+  await choose(page, 'Parent', data.parent);
   const before = JSON.parse(required(await page.evaluate(key => sessionStorage.getItem(key), recoveryKey)));
   const provisionalId = before.provisional.id;
   await replace(fixture, page);
@@ -103,7 +117,7 @@ export async function exercisePlannerRecovery(fixture: Fixture & { mobile: boole
   }
   const resume = page.getByRole('button', { name: 'Resume drafts', exact: true }); await resume.focus(); await resume.press('Enter');
   assert.equal(await page.getByLabel('Title', { exact: true }).inputValue(), 'Retained provisional quest');
-  assert.equal(await page.getByLabel('Parent', { exact: true }).inputValue(), data.parent);
+  assert.equal(await page.locator('select[name="parentId"]').inputValue(), data.parent);
   assert.equal(writes, 0); assert.equal((await data.records('planning_items')).some(record => record.key === provisionalId), false);
   await page.getByRole('button', { name: 'Cancel creation', exact: true }).click();
   await editPlannerCard(page, page.locator(`[data-item-id="${data.a}"]`));
@@ -130,7 +144,7 @@ export async function exercisePlannerRecoveryConflicts(fixture: Fixture) {
   const { t, open, admin, csrf, archive } = fixture, data = await fixtureData(fixture, 'recover-conflict');
   const page = await open(t); await edit(page, data.c); await plannerTab(page, 'Links');
   const newFlow = page.getByRole('form', { name: 'Create story flow', exact: true });
-  await newFlow.getByLabel('Flow target', { exact: true }).selectOption(data.a);
+  await choose(newFlow, 'Flow target', data.a);
   await newFlow.getByLabel('Flow label', { exact: true }).fill('Orphaned new flow text');
   await editPlannerCard(page, page.locator(`[data-item-id="${data.a}"]`));
   await page.getByLabel('Body', { exact: true }).fill('Older unsent draft');
@@ -179,8 +193,8 @@ export async function exercisePlannerRecoveryWrites(fixture: Fixture) {
   assert.equal(await page.getByLabel('Body', { exact: true }).inputValue(), 'Confirmed before read failure');
   await plannerTab(page, 'Links'); await page.getByText('Add reference', { exact: true }).first().click();
   const create = page.getByRole('form', { name: 'Create reference', exact: true });
-  await create.getByLabel('Target type', { exact: true }).selectOption('core');
-  await create.getByLabel('Campaign target', { exact: true }).selectOption('["events","arrival"]');
+  await choose(create, 'Target type', 'core');
+  await choose(create, 'Campaign target', '["events","arrival"]');
   await create.getByLabel('Reference name (optional)', { exact: true }).fill('Uncertain reference');
   const { promise: held, resolve: release } = Promise.withResolvers<void>(), { promise: written, resolve: arrived } = Promise.withResolvers<void>();
   t.after(() => release());
