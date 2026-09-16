@@ -4,7 +4,9 @@ The host owns profiles, portraits and campaign relationships. Character Sheets
 adds a rules-calculated workspace with a vertical left rail: Sheet, Combat,
 Spells, Builder and Tools. Tools sits at the bottom, with Builder just above it.
 The workspace is capped at 1,120 px; Compact uses denser ability cards and keeps
-currency next to inventory. The host character heading is not repeated.
+currency next to inventory. The host character heading is not repeated. When
+space is too narrow relative to text size, the vertical navigation stacks above
+the sheet so enlarged text and recovery controls remain readable.
 
 <a id="character-model"></a>
 <a id="f16-f19-and-f20-first-complete-play-slice"></a>
@@ -44,15 +46,23 @@ schema-4 state. The host's `workerOnly` extension policy keeps browsers from
 bypassing authenticated commands without retaining snapshots.
 
 The engine remains stateless. `guidance.canSave` distinguishes a legal incomplete
-build from an illegal value; `ready` requires completion for play. Source
+build from an illegal value; `guidance.saveIssues` explains actual save blockers
+without listing every unfinished choice. `ready` requires completion for play. Source
 identity, saved projections and evidence remain explicit. DM grants require the
 current DM's authority, and amendments/revocations replace/remove the current
 grant instead of accumulating superseded entries.
 
 Autosave coalesces input and serializes writes. Disjoint concurrent fields can
-merge; overlapping edits stay pending with a visible conflict. Network failures
-never claim a successful save. Pending input stays in the open page and the host
-navigation guard remains active until it is saved. No device draft is written.
+merge; overlapping edits stay pending with a visible conflict. Rejected values
+stay editable with their save blockers. Retry reuses the exact uncertain request
+before submitting newer edits, and Reload asks before discarding pending input.
+Network failures never claim a successful save. Pending input stays in the open
+page and the host navigation guard remains active until it is saved or explicitly
+discarded. No device draft is written.
+
+Empty inventory cannot remain equipped or attuned. Setting quantity to zero in
+Sheets moves equipped items to carried and clears attunement in the same save.
+The Engine owns eligibility, including active DM mechanics and grant expiry.
 
 Tools contains the only export option, plus reviewed import, printing, layout,
 and rules status. A transfer contains the current character only. Import

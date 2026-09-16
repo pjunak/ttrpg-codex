@@ -11,6 +11,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import type { Readable } from 'node:stream';
 import { chromium, request, type APIRequestContext, type Browser } from 'playwright';
 import { jsonResponse, installReviewedPackage, enableAllRuleSources } from './installed-graph-fixture.mts';
+import { registerCharacterSaveTests } from './installed-character-save-fixture.mts';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const output = resolve(root, 'frontend/test-results/installed-character');
@@ -135,8 +136,10 @@ test('autosave queues item typing during an in-flight request and preserves over
  await page.route('**/services/call',async route=>{if(hold&&route.request().postDataJSON()?.method==='save'){hold=false;conflictStarted();await conflictGate;}await route.continue();});
  await name.fill('Pending local edit');await conflictEntered;const before=await call('load',{});before.state.inputs.play.inventory[0].name='Saved in other editor';await call('save',{operation:'build',operationId:'competing-editor',summary:'Other editor',expectedRevision:before.revision,inputs:before.state.inputs});releaseConflict();
  await sheet.locator('[data-character-status]').filter({hasText:'edited elsewhere'}).waitFor();assert.equal(await name.inputValue(),'Pending local edit');assert.equal((await call('load',{})).state.inputs.play.inventory[0].name,'Saved in other editor');
- await sheet.locator('#dnd-tab-tools').click();await sheet.getByRole('button',{name:'Reload character',exact:true}).click();await sheet.locator('#dnd-tab-sheet').click();await sheet.locator('.dse-item-notes summary').first().click();assert.equal(await name.inputValue(),'Saved in other editor');
+ await sheet.locator('#dnd-tab-tools').click();page.once('dialog',dialog=>dialog.accept());await sheet.getByRole('button',{name:'Reload character',exact:true}).click();await sheet.locator('#dnd-tab-sheet').click();await sheet.locator('.dse-item-notes summary').first().click();assert.equal(await name.inputValue(),'Saved in other editor');
 });
+
+registerCharacterSaveTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 
 test('source adoption remains explicit and absent rules freeze mechanics without a sheet Notes surface', {skip:!enabled},async t=>{
  const before=await call('load',{}),policy=await jsonResponse(await admin.get('/api/admin/rules-policy'));
