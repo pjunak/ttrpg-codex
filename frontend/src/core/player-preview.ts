@@ -47,11 +47,22 @@ function sameOriginAPI(input: RequestInfo | URL): URL | undefined {
 }
 
 /** Shared default transport for core clients and host-issued add-on facades. */
-export const sessionFetch: typeof fetch = (input, init) => {
-  if (token === undefined || sameOriginAPI(input) === undefined) return fetch(input, init);
+export const authorityRejectedEvent = "codex-authority-rejected";
+export const sessionFetch: typeof fetch = async (input, init) => {
+  const api = sameOriginAPI(input);
   const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
-  headers.set(header, token);
-  return fetch(input, { ...init, headers, credentials: "omit", redirect: "error", cache: "no-store", referrerPolicy: "no-referrer" });
+  if (token !== undefined && api !== undefined) {
+    headers.set(header, token);
+    return fetch(input, { ...init, headers, credentials: "omit", redirect: "error", cache: "no-store", referrerPolicy: "no-referrer" });
+  }
+  const response = await fetch(input, init);
+  // A rejected authorized operation prompts a fresh authority check, never an
+  // automatic write retry. Preview tabs must never acquire the cookie session.
+  if (token === undefined && api !== undefined && typeof window !== "undefined" &&
+      headers.has("X-Codex-CSRF") && (response.status === 401 || response.status === 403)) {
+    window.dispatchEvent(new Event(authorityRejectedEvent));
+  }
+  return response;
 };
 
 // EventSource and image requests cannot attach the preview header. Apply this

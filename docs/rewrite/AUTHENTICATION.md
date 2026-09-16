@@ -162,6 +162,32 @@ from the environment under the same exclusive data-directory lock as the host,
 then exits without changing campaign data. See the
 [operator steps](../SELF_HOSTING.md#password-changes-and-access-recovery).
 
+## Recovering a session during core editing
+
+A rejected authorized request triggers an authority read, never an automatic
+retry of the write. Retained campaign refreshes also recheck the session before
+replacing data, so an expired DM session cannot replace a private record's open
+editor with a public snapshot. Concurrent checks are coalesced and transport
+listeners end with the application component.
+
+When the previous role is no longer available, an English/Czech sign-in form
+appears in the current page using the shared field, button and status styles.
+Core editors remain mounted with their original values and opening revisions.
+Reauthentication must restore the same real/effective role; wrong credentials
+or a different role leave the draft and recovery form intact. A successful
+sign-in refreshes campaign data and add-on bindings, announces recovery and
+returns keyboard focus to the campaign content. The user reviews and saves
+again explicitly. A concurrent record change still fails the original revision
+check; reauthentication never grants permission to overwrite it.
+
+Player-preview tabs keep their separate fail-closed contract and never fall
+back to the browser's DM cookie through this recovery path. Add-on-local drafts
+remain governed by their own lifecycle contract; this does not close DM Tools
+T30. Browser tests cover DM/player, desktop/phone, rejected credentials, role
+mismatch, stale edits, live expiry before Save, preserved private drafts and
+the absence of automatic write replay. Browser fixtures revoke real sessions
+through logout; clock-based expiration is also covered by the Go session tests.
+
 ## Authentication follow-ups
 
 - Persistent sessions and individual session-management UI remain optional.

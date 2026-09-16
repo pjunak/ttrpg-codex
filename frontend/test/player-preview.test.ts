@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { initializePlayerPreview, isPlayerPreview, playerPreviewURL, previewResourceURL, sessionFetch } from "../src/core/player-preview.js";
+import { authorityRejectedEvent, initializePlayerPreview, isPlayerPreview, playerPreviewURL, previewResourceURL, sessionFetch } from "../src/core/player-preview.js";
 import { createPlayerPreview } from "../src/core/api.js";
 
 const credential = "preview_" + "a".repeat(32);
@@ -18,6 +18,22 @@ function scope(href: string, stored: string | null = null, blocked = false) {
 afterEach(() => { initializePlayerPreview(scope("https://codex.test/")); vi.unstubAllGlobals(); });
 
 describe("tab-scoped player preview", () => {
+  it("announces rejected same-origin authorized calls without replaying or escalating preview tabs", async () => {
+    vi.stubGlobal("location", new URL("https://codex.test/"));
+    const events = new EventTarget(), rejected = vi.fn();
+    events.addEventListener(authorityRejectedEvent, rejected); vi.stubGlobal("window", events);
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response("forbidden", {status:403}));
+    vi.stubGlobal("fetch", fetch);
+    const init={method:"POST",headers:{"X-Codex-CSRF":"c".repeat(32)}};
+    const response=await sessionFetch("/api/campaign/transactions",init);
+    expect(response.status).toBe(403); expect(rejected).toHaveBeenCalledTimes(1); expect(fetch).toHaveBeenCalledTimes(1);
+    await sessionFetch("https://elsewhere.test/api/records",init);
+    await sessionFetch("/api/login",{method:"POST"});
+    initializePlayerPreview(scope(playerPreviewURL(credential,location.href)));
+    await sessionFetch("/api/campaign/transactions",init);
+    expect(rejected).toHaveBeenCalledTimes(1); expect(fetch).toHaveBeenCalledTimes(4);
+  });
+
   it("removes bootstrap credentials and keeps the preview tab scoped across same-site navigation", () => {
     const opened = scope(playerPreviewURL(credential, "https://codex.test/#/dm"));
     initializePlayerPreview(opened);

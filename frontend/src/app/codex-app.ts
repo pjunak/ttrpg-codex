@@ -34,7 +34,7 @@ import {
   type CampaignAppearanceSaveDetail,
 } from "./campaign-appearance.js";
 import { SharedEventStream, type EventRefresh } from "../core/event-stream.js";
-import { isPlayerPreview, playerPreviewURL, previewResourceURL } from "../core/player-preview.js";
+import { authorityRejectedEvent, isPlayerPreview, playerPreviewURL, previewResourceURL } from "../core/player-preview.js";
 import {
   createBrowserAddonComposition,
   type BrowserAddonComposition,
@@ -149,6 +149,9 @@ export class CodexApp extends LitElement {
     menuOpen: { state: true },
     mobileViewport: { state: true },
     quickSearchOpen: { state: true },
+    sessionRecovery: { state: true },
+    sessionRecoveryError: { state: true },
+    sessionRestored: { state: true },
   };
 
   declare private readiness: Readiness;
@@ -171,6 +174,10 @@ export class CodexApp extends LitElement {
   declare private menuOpen: boolean;
   declare private mobileViewport: boolean;
   declare private quickSearchOpen: boolean;
+  declare private sessionRecovery: boolean;
+  declare private sessionRecoveryError: string;
+  declare private sessionRestored: boolean;
+  #sessionCheck: Promise<boolean> | undefined;
   #searchReturnFocus: HTMLElement | undefined;
   readonly #mobileMedia = window.matchMedia("(max-width: 768px)");
   #request: AbortController | undefined;
@@ -212,6 +219,9 @@ export class CodexApp extends LitElement {
     this.recordSaveState = "idle";
     this.menuOpen = false;
     this.quickSearchOpen = false;
+    this.sessionRecovery = false;
+    this.sessionRecoveryError = "";
+    this.sessionRestored = false;
     this.mobileViewport = this.#mobileMedia.matches;
   }
 
@@ -230,6 +240,7 @@ export class CodexApp extends LitElement {
     window.addEventListener("keydown", this.#onKeyDown);
     this.#mobileMedia.addEventListener("change", this.#onViewportChange);
     this.#request = new AbortController();
+    window.addEventListener(authorityRejectedEvent, this.#onAuthorityRejected, { signal: this.#request.signal });
     void this.#bootstrap(this.#request.signal);
   }
 
@@ -287,6 +298,8 @@ export class CodexApp extends LitElement {
             <button class="text-button" type="button" @click=${this.#closePreview}>${this.#ui.t("preview.close")}</button>
           </div>` : nothing}
           ${this.liveState === "reconnecting" ? html`<p class="connection-alert" role="status">${this.#ui.t("shell.reconnecting")}</p>` : nothing}
+          ${this.#sessionRecoveryTemplate()}
+          ${this.sessionRestored && this.recordSaveState !== "saved" ? html`<p class="record-save-confirmation" role="status">${this.#ui.t("session.restored")}</p>` : nothing}
           ${this.errorMessage === "" ? nothing : html`
             <p class="application-alert" role="alert">
               <span>${this.errorMessage}</span>
@@ -421,6 +434,7 @@ export class CodexApp extends LitElement {
   }
 
   async #loadCampaign(signal: AbortSignal, retainCurrent = false): Promise<void> {
+    if (this.sessionRecovery || (retainCurrent && this.#authenticated() && !isPlayerPreview() && !await this.#checkSession())) return;
     if (!retainCurrent || this.campaignState.state !== "ready") {
       this.campaignState = { state: "loading" };
     }
@@ -485,6 +499,92 @@ export class CodexApp extends LitElement {
     await this.#addons?.session.handleEvent(event);
   }
 
+  readonly #onAuthorityRejected = (): void => { void this.#checkSession(); };
+
+  #checkSession(): Promise<boolean> {
+    if (this.#sessionCheck) return this.#sessionCheck;
+    if (isPlayerPreview() || this.sessionRecovery || !this.#request ||
+        this.authority.state !== "known" || !this.authority.auth.authenticated) return Promise.resolve(false);
+    const previous = this.authority.auth, signal = this.#request.signal;
+    this.#sessionCheck = (async () => {
+      try {
+        const current = await getAuth(signal);
+        if (signal.aborted || this.authority.state !== "known" || this.authority.auth !== previous) return false;
+        if (current.authenticated && current.realRole === previous.realRole && current.role === previous.role) {
+          if (current.csrfToken !== previous.csrfToken) this.authority = { state: "known", auth: current };
+          return true;
+        }
+      } catch {
+        if (signal.aborted) return false;
+      }
+      if (this.authority.state !== "known" || this.authority.auth !== previous) return false;
+      // Keep core components and their opening revisions mounted. A public
+      // refresh here could remove a private record underneath its unsaved form.
+      this.sessionRecovery = true;
+      this.sessionRestored = false;
+      this.#events.close();
+      this.liveState = "reconnecting";
+      browserDiagnostics.enable(false);
+      return false;
+    })().finally(() => { this.#sessionCheck = undefined; });
+    return this.#sessionCheck;
+  }
+
+  #sessionRecoveryTemplate() {
+    if (!this.sessionRecovery) return nothing;
+    return html`<section class="session-recovery" data-codex-ui data-ui-state="error" aria-labelledby="session-recovery-title">
+      <h2 id="session-recovery-title">${this.#ui.t("session.recoverTitle")}</h2>
+      <p role="status">${this.#ui.t("session.recoverHint")}</p>
+      <form @submit=${this.#resumeSession}>
+        <div data-ui-toolbar>
+          <div data-ui-field>
+            <label for="session-recovery-password">${this.#ui.t("shell.passwordLabel")}</label>
+            <input class="ui-control" id="session-recovery-password" name="password" type="password"
+              autocomplete="current-password" required ?disabled=${this.busy} />
+          </div>
+          <button class="ui-button" data-ui-variant="primary" type="submit" ?disabled=${this.busy}>${this.#ui.t("session.resume")}</button>
+        </div>
+      </form>
+      ${this.sessionRecoveryError ? html`<p role="alert">${this.sessionRecoveryError}</p>` : nothing}
+    </section>`;
+  }
+
+  readonly #resumeSession = async (event: SubmitEvent): Promise<void> => {
+    event.preventDefault();
+    if (this.busy || !this.sessionRecovery || !this.#request ||
+        this.authority.state !== "known" || !this.authority.auth.authenticated) return;
+    const previous = this.authority.auth, signal = this.#request.signal;
+    const form = event.currentTarget as HTMLFormElement;
+    this.busy = true; this.sessionRecoveryError = "";
+    try {
+      let current = await loginSession(String(new FormData(form).get("password") ?? ""), signal);
+      if (!current.authenticated || current.realRole !== previous.realRole) {
+        this.sessionRecoveryError = this.#ui.t("session.sameRole");
+        return;
+      }
+      if (current.role !== previous.role) current = await switchSessionRole(previous.role, current.csrfToken, signal);
+      if (signal.aborted) return;
+      this.authority = { state: "known", auth: current };
+      this.sessionRecovery = false;
+      this.sessionRestored = true;
+      this.errorMessage = "";
+      form.reset();
+      await this.#loadCampaign(signal, true);
+      if (!this.sessionRecovery) {
+        this.#startEventStream();
+        await this.#recoverAddons();
+      }
+    } catch {
+      if (!signal.aborted) this.sessionRecoveryError = this.#ui.t("session.resumeFailed");
+    } finally {
+      this.busy = false;
+    }
+    if (!this.sessionRecovery) {
+      await this.updateComplete;
+      this.querySelector<HTMLElement>("#campaign-content")?.focus();
+    }
+  };
+
   async #login(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     if (this.busy || this.#request === undefined) return;
@@ -513,7 +613,10 @@ export class CodexApp extends LitElement {
       await this.#stopAddons();
       await logoutSession(this.#request.signal);
       this.authority = { state: "known", auth: anonymousAuth() };
-        browserDiagnostics.enable(false);
+      this.sessionRecovery = false;
+      this.sessionRecoveryError = "";
+      this.sessionRestored = false;
+      browserDiagnostics.enable(false);
       this.#campaignData.reset();
       await this.#loadCampaign(this.#request.signal);
       this.#startEventStream();
@@ -553,6 +656,7 @@ export class CodexApp extends LitElement {
   }
 
   async #reloadForAuthority(): Promise<void> {
+    this.sessionRestored = false;
     browserDiagnostics.enable(false);
     if (this.#request === undefined) return;
     this.#campaignData.reset();
@@ -612,6 +716,11 @@ export class CodexApp extends LitElement {
         if (owner !== this.#addonOwner) return;
         this.#addons = undefined;
         this.#disposeOutlets();
+        if (!isPlayerPreview() && (this.#editDirty || this.#editSaving)) {
+          this.addonState = { state: "idle" };
+          void this.#checkSession().then(available => { if (available) void this.#recoverAddons(); });
+          return;
+        }
         this.authority = { state: "known", auth: anonymousAuth() };
         browserDiagnostics.enable(false);
         this.addonState = { state: "idle" };

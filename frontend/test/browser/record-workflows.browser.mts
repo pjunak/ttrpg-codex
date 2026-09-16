@@ -68,6 +68,70 @@ async function record(key: string, name = 'locations') {
   return data.collections.find((collection: FixtureCollection) => collection.name === name).records.find((record: FixtureRecord) => record.key === key);
 }
 
+for (const scenario of [
+  {role:'dm',mobile:false,stale:false},
+  {role:'dm',mobile:true,stale:true},
+  {role:'player',mobile:true,stale:false},
+]) test(`expired ${scenario.role} sessions recover core drafts without replay (${scenario.mobile?'phone':'desktop'}, stale=${scenario.stale})`,async t=>{
+  const key=`session-recovery-${scenario.role}-${scenario.mobile}`;
+  const value={name:'Session recovery place',description:'Saved description',visibility:scenario.role==='dm'?'dm':'public'};
+  await put(admin,csrf,key,value);
+  const editing=await open(t,scenario.role,scenario.mobile);
+  await editing.page.goto('/#/locations/'+key);
+  await editing.page.getByRole('button',{name:'Edit',exact:true}).click();
+  const name=editing.page.getByLabel('Name',{exact:true});
+  await name.fill('Unsaved recovery name');
+  let writes=0;
+  editing.page.on('request',request=>{if(request.method()==='POST'&&new URL(request.url()).pathname==='/api/campaign/transactions')writes++});
+  await jsonResponse(await editing.client.post('/api/logout'));
+  await editing.page.getByRole('button',{name:'Save entry',exact:true}).last().click();
+  const recovery=editing.page.locator('.session-recovery'); await recovery.waitFor();
+  assert.equal(await name.inputValue(),'Unsaved recovery name');
+  assert.equal((await record(key)).value.name,value.name);
+  assert.equal(writes,1);
+  assert.ok(await editing.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await recovery.screenshot({path:resolve(output,`session-recovery-${scenario.role}-${scenario.mobile}.png`)});
+  const password=recovery.getByLabel('DM or player password',{exact:true});
+  await password.fill('incorrect-local-password');
+  await recovery.getByRole('button',{name:'Resume editing',exact:true}).click();
+  await recovery.getByRole('alert').filter({hasText:'Sign-in could not be confirmed'}).waitFor();
+  const wrongRole=scenario.role==='dm'?'player':'dm';
+  await password.fill('local-record-workflows-'+wrongRole);
+  await recovery.getByRole('button',{name:'Resume editing',exact:true}).click();
+  await recovery.getByRole('alert').filter({hasText:'same role'}).waitFor();
+  assert.equal(await name.inputValue(),'Unsaved recovery name');
+  if(scenario.stale)await put(admin,csrf,key,{...value,name:'Changed while signed out'},(await record(key)).revision);
+  await password.fill('local-record-workflows-'+scenario.role);
+  await recovery.getByRole('button',{name:'Resume editing',exact:true}).click();
+  await recovery.waitFor({state:'detached'});
+  const save=editing.page.getByRole('button',{name:'Save entry',exact:true}).last();
+  await editing.page.getByRole('status').filter({hasText:'Signed in again'}).waitFor();
+  await editing.page.waitForFunction(()=>document.activeElement?.id==='campaign-content');
+  assert.equal(await name.inputValue(),'Unsaved recovery name'); assert.equal(writes,1,'reauthentication must not replay the failed save');
+  await save.click();
+  if(scenario.stale){
+    await editing.page.getByRole('alert').filter({hasText:'changed'}).waitFor();
+    assert.equal(await name.inputValue(),'Unsaved recovery name');
+    assert.equal((await record(key)).value.name,'Changed while signed out');
+  }else{
+    await editing.page.getByRole('heading',{name:'Unsaved recovery name',exact:true}).waitFor();
+    assert.equal((await record(key)).value.name,'Unsaved recovery name'); assert.equal(writes,2);
+  }
+});
+
+test('live session loss preserves a private core draft before any save attempt',async t=>{
+  const key='session-live-private';
+  await put(admin,csrf,key,{name:'Private session place',visibility:'dm'});
+  const editing=await open(t,'dm',true); await editing.page.goto('/#/locations/'+key);
+  await editing.page.getByRole('button',{name:'Edit',exact:true}).click();
+  const name=editing.page.getByLabel('Name',{exact:true}); await name.fill('Unsaved after live loss');
+  await jsonResponse(await editing.client.post('/api/logout'));
+  await put(admin,csrf,'session-live-signal',{name:'Public live signal',visibility:'public'});
+  await editing.page.locator('.session-recovery').waitFor();
+  assert.equal(await name.inputValue(),'Unsaved after live loss');
+  assert.equal((await record(key)).value.name,'Private session place');
+});
+
 test('DM location notes round-trip privately through the real editor and public API', async t => {
   const secret = '# Hidden arrangement\n\nKeep this apart from public prose.';
   await put(admin, csrf, 'private-notes-town', {name:'Private notes town', description:'Public overview', mapNotes:'Public map notes', notes:secret});
