@@ -129,16 +129,18 @@ Standalone browsing must remain useful without Engine or Sheets.
 ### Completed fix batches
 
 - [x] ~~**T34-COMP — Shared search, filters and browsing feedback**~~ — `e8cc635`.
+- [x] ~~**T38-COMP — Restore structured class Expertise grants**~~ — `8cb7e43`; [source audit and installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-expertise-grants-and-dependent-choice-repair).
 
 ### Remaining work
 
-- [ ] **T38-COMP / P1 — Supply missing structured Rogue Expertise choices.**
-  Confirmed during installed Builder acceptance: [level-1 Expertise](../../addon-dnd-2024-compendium/data/phb/features/rogue/rogue-expertise.json)
-  has descriptive text but no structured grant, so Engine/Sheets offer no
-  corresponding choice. Audit the level-6 feature and related class grants, add
-  source-backed records using the public grant schema, and verify acquisition
-  levels, eligible skills and earlier-choice replacement through installed
-  Engine/Sheets. Keep edition rules in the provider records.
+- [ ] **T39-COMP / P1 — Repair remaining PHB skill and language grants.**
+  Confirmed source gaps: [Skill Expert](../../addon-dnd-2024-compendium/data/phb/feats/skill-expert.json)
+  and [Boon of Skill](../../addon-dnd-2024-compendium/data/phb/feats/boon-of-skill.json)
+  use unsupported Expertise objects and `any/ANY` placeholders; Boon also omits
+  its fixed all-skill proficiencies. [Thieves' Cant](../../addon-dnd-2024-compendium/data/phb/features/rogue/rogue-thieves-cant.json)
+  retains stale text and lacks its language grants. Supply typed choices,
+  prerequisites and ability caps from verified sources; accept grant/replacement
+  and source-removal behavior through Engine/Sheets.
 - [ ] **T31 / P2 — Keep library navigation reachable on phones.** Source-backed
   UX concern: at 768px and below, [the reading pane is ordered before the library
   drawer](../../addon-dnd-2024-compendium/src/index.css). A long detail/list can
@@ -178,6 +180,7 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T32-FEATS — Validate acquired feat prerequisites and eligible builder options**~~ — `3f9c8e9`; [regression and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#deployment-gate-repair-and-engine-follow-up).
 - [x] ~~**T32-EQUIPMENT — Reject empty equipment and inactive grants; explain save blockers**~~ — `dfd970b`; [Engine/Sheets acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#progressive-save-and-equipment-follow-up).
 - [x] ~~**T32-GUIDANCE — Count required choices and expose invalid advancements for repair**~~ — `dd51374`; [Builder acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#progressive-builder-repair-and-navigation).
+- [x] ~~**T32-EXPERTISE — Validate acquisition, distinct skills and dependent slot repair**~~ — `41e26c1`; [Engine and installed evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-expertise-grants-and-dependent-choice-repair).
 
 ### Remaining work
 
@@ -251,7 +254,7 @@ Provider-free saved reading/notes/print/export remain required.
 
 | Order | Work | Exit evidence |
 | --- | --- | --- |
-| 1 | Preserve authored intent: finish Engine T32 + Sheets T33 and provider grant correction T38-COMP. | Safe role/stale/error behavior; incomplete character saves and bounded play work through the installed contract. |
+| 1 | Preserve authored intent: finish Engine T32 + Sheets T33 and remaining provider skill/language grants T39-COMP. | Safe role/stale/error behavior; incomplete character saves and bounded play work through the installed contract. |
 | 2 | Everyday use: Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
 | 3 | Remaining add-on artifact ownership: per-repo T14. T08 only for a real schema-preservation need. | Standalone builds and inspected ZIPs preserve current consumer contracts; any needed migration is reviewed and atomic. |
 | 4 | Final integration after remaining add-on T18 fixes; retain completed T02 coverage. | All four inspected ZIPs pass without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |

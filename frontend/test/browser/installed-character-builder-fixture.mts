@@ -161,4 +161,102 @@ export function registerCharacterBuilderTests(enabled: boolean, fixture: () => F
     assert.deepEqual(stored.state.inputs.build.choices.filter((choice: { id: string }) => choice.id === skills.id), before);
     assert.equal(stored.state.inputs.notes, inputs.notes);
   });
+
+  test('packaged class Expertise choices use the correct acquisition levels and skill pools', { skip: !enabled, timeout: 60000 }, async () => {
+    const f = fixture();
+    const cases = [
+      { classId: 'rogue', levels: [1, 5, 6], grants: [['rogue-expertise', 1, 2], ['rogue-expertise-6', 6, 2]] },
+      { classId: 'bard', levels: [1, 2, 8, 9], grants: [['bard-expertise', 2, 2], ['bard-expertise-9', 9, 2]] },
+      { classId: 'ranger', levels: [1, 2, 8, 9], grants: [['ranger-deft-explorer-expertise', 2, 1], ['ranger-expertise', 9, 2]] },
+      { classId: 'wizard', levels: [1, 2], grants: [['wizard-scholar', 2, 1]] },
+    ] as const;
+    for (const scenario of cases) {
+      const key = 'expertise-levels-' + scenario.classId, inputs = await createCharacter(f, key);
+      inputs.build.species = 'dwarf'; inputs.build.background = 'sage';
+      for (const level of scenario.levels) {
+        inputs.build.levels = Array.from({ length: level }, (_, index) => ({ id: 'level-' + index, classId: scenario.classId }));
+        const { evaluation } = await f.call('evaluate', { key, operation: 'build', inputs, expectedRevision: 0 });
+        const descriptors = evaluation.plan.classChoices as (Descriptor & { source: { level: number } })[];
+        for (const [id, acquired, count] of scenario.grants) {
+          const descriptor = descriptors.find(choice => choice.id === id);
+          if (level < acquired) { assert.equal(descriptor, undefined, id + ' acquired too early'); continue; }
+          assert.equal(descriptor?.kind, 'expertise', id);
+          assert.equal(descriptor.count, count, id);
+          assert.equal(descriptor.source.level, acquired, id);
+          const options = evaluation.guidance.choices[id].options as Option[];
+          assert.deepEqual(options.map(option => option.id).sort(), ['arcana', 'history'], id + ' must use proficient skills');
+        }
+        if (scenario.classId === 'ranger' && level >= 2) {
+          const languages = descriptors.find(choice => choice.id === 'ranger-deft-explorer-languages');
+          assert.equal(languages?.count, 2);
+          assert.ok(evaluation.guidance.choices[languages.id].options.some((option: Option) => option.id === 'druidic'));
+        }
+      }
+    }
+    const key = 'expertise-multiclass', inputs = await createCharacter(f, key);
+    inputs.build.species = 'dwarf'; inputs.build.background = 'soldier';
+    inputs.build.levels = [...Array.from({ length: 5 }, (_, index) => ({ id: 'rogue-' + index, classId: 'rogue' })), { id: 'fighter-one', classId: 'fighter' }];
+    const { evaluation } = await f.call('evaluate', { key, operation: 'build', inputs, expectedRevision: 0 });
+    assert.equal(evaluation.guidance.choices['rogue-expertise-6'], undefined, 'Character level six is not Rogue level six');
+  });
+
+  test('installed Expertise repairs preserve sibling slots, update totals and survive reload', { skip: !enabled, timeout: 60000 }, async t => {
+    const f = fixture(), key = 'expertise-repair', inputs = await createCharacter(f, key);
+    inputs.build.species = 'dwarf'; inputs.build.background = 'soldier';
+    inputs.build.levels = Array.from({ length: 6 }, (_, index) => ({ id: 'rogue-' + index, classId: 'rogue' }));
+    inputs.notes = 'Retain these notes while replacing Expertise';
+    inputs.play.hp = 5;
+    const { evaluation } = await f.call('evaluate', { key, operation: 'build', inputs, expectedRevision: 0 });
+    const skills = (evaluation.plan.classChoices as Descriptor[]).find(choice => choice.kind === 'skills'); assert.ok(skills);
+    inputs.build.choices = [
+      ...['acrobatics', 'insight', 'perception', 'stealth'].map((value, slot) => ({ id: skills.id, slot, value })),
+      { id: 'rogue-expertise', slot: 0, value: 'stealth' }, { id: 'rogue-expertise', slot: 1, value: 'athletics' },
+      { id: 'rogue-expertise-6', slot: 0, value: 'insight' }, { id: 'rogue-expertise-6', slot: 1, value: 'perception' },
+    ];
+    const seeded = await save(f, key, inputs, 0, 'seed');
+    assert.equal(seeded.evaluation.sheet.skills.stealth.total, 8);
+    assert.equal(seeded.evaluation.sheet.skills.athletics.total, 8);
+    assert.equal(seeded.evaluation.guidance.choices['rogue-expertise-6'].options.some((option: Option) => option.id === 'stealth'), false);
+    const { page, sheet, status, read } = await openBuilder(t, f, key);
+    await sheet.locator('#dnd-builder-tab-rogue').click();
+    const group = (id: string) => sheet.locator('[id="character-choice-' + encodeURIComponent(id) + '"]');
+    await choose(group(skills.id), 'Selection 4', 'Investigation'); await status.filter({ hasText: /^Saved$/ }).waitFor();
+    let stored = await read();
+    assert.deepEqual(stored.state.inputs.build.choices.filter((choice: { id: string }) => choice.id === 'rogue-expertise'),
+      [{ id: 'rogue-expertise', slot: 1, value: 'athletics' }]);
+    assert.equal(stored.evaluation.sheet.skills.stealth.expertise, false);
+    assert.equal(stored.evaluation.sheet.skills.stealth.proficient, false);
+    assert.equal(stored.evaluation.sheet.skills.insight.expertise, true);
+    assert.equal(stored.state.inputs.play.hp, 5);
+    const issue = stored.evaluation.guidance.sections.flatMap((section: { issues: { id: string; label: string }[] }) => section.issues).find((issue: { id: string }) => issue.id === 'rogue-expertise'); assert.ok(issue);
+    await sheet.locator('.dse-build-rail').getByRole('button', { name: issue.label + ' →', exact: true }).press('Enter');
+    await focused(group('rogue-expertise').getByRole('combobox', { name: 'Selection 1', exact: true }));
+    assert.equal(await group('rogue-expertise').getByRole('combobox', { name: 'Selection 2', exact: true }).inputValue(), 'Athletics');
+    await choose(group('rogue-expertise'), 'Selection 1', 'Investigation'); await status.filter({ hasText: /^Saved$/ }).waitFor();
+    assert.equal((await read()).evaluation.sheet.skills.investigation.total, 7);
+
+    // Moving an earlier grant onto a later skill keeps the earlier decision
+    // and withdraws only the old dependent slot, without erasing its sibling.
+    await choose(group('rogue-expertise'), 'Selection 1', 'Insight'); await status.filter({ hasText: /^Saved$/ }).waitFor();
+    stored = await read();
+    assert.deepEqual(stored.state.inputs.build.choices.filter((choice: { id: string }) => choice.id === 'rogue-expertise-6'),
+      [{ id: 'rogue-expertise-6', slot: 1, value: 'perception' }]);
+    await choose(group('rogue-expertise-6'), 'Selection 1', 'Investigation'); await status.filter({ hasText: /^Saved$/ }).waitFor();
+    assert.equal((await read()).evaluation.sheet.skills.investigation.total, 7);
+    await group('rogue-expertise-6').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: resolve(f.output, 'expertise-choices.png') });
+
+    await sheet.locator('#dnd-builder-tab-levels').click(); await sheet.getByRole('button', { name: 'Remove level', exact: true }).last().click();
+    await status.filter({ hasText: /^Saved$/ }).waitFor();
+    stored = await read();
+    assert.equal(stored.state.inputs.build.choices.some((choice: { id: string }) => choice.id === 'rogue-expertise-6'), false);
+    assert.equal(stored.evaluation.sheet.skills.insight.expertise, true);
+    assert.equal(stored.evaluation.sheet.skills.investigation.expertise, false);
+    assert.equal(stored.state.inputs.notes, inputs.notes);
+    await page.reload(); await page.locator('#character-view-addons').click(); await sheet.locator('#dnd-tab-builder').click(); await sheet.locator('#dnd-builder-tab-rogue').click();
+    assert.equal(await group('rogue-expertise').getByRole('combobox', { name: 'Selection 1', exact: true }).inputValue(), 'Insight');
+    assert.equal(await group('rogue-expertise').getByRole('combobox', { name: 'Selection 2', exact: true }).inputValue(), 'Athletics');
+    assert.equal(await group('rogue-expertise-6').count(), 0);
+  });
+
 }

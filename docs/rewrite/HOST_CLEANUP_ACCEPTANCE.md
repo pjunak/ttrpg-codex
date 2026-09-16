@@ -476,9 +476,65 @@ All companion worktrees were clean at inspection. The host acceptance worktree
 started from `d28221b`. The package lifecycle ran against disposable local data;
 this batch does not establish new CI publication or live-site activation.
 
-A separate confirmed gap is recorded as T38-COMP: the source Rogue Expertise
-feature has descriptive text without a structured grant, so no corresponding
-choice appears in installed Engine/Sheets. Provider records and their acquisition
-tests must supply that rule. Remaining deeper origin/multiclass/equipment
-acceptance, save-explanation localization, session/provider changes and uncertain
-direct-command recovery stay open under T32/T33.
+This acceptance identified the missing Rogue Expertise grant recorded as
+T38-COMP; the [following batch](#class-expertise-grants-and-dependent-choice-repair)
+closes it. Deeper origin/multiclass/equipment acceptance, save-explanation
+localization, session/provider changes and uncertain direct-command recovery
+remain under T32/T33.
+
+
+## Class Expertise grants and dependent choice repair
+
+September 16, 2026. This closes T38-COMP and the T32-EXPERTISE slice.
+
+Compendium now supplies the seven missing core class choices: Rogue at levels
+1 and 6, Bard at 2 and 9, Ranger at 2 and 9, and Wizard Scholar at 2. Scholar
+retains its restricted skill pool. Deft Explorer's stale tracking description
+is corrected and its two language choices are structured. The
+[provider coverage record](../../../addon-dnd-2024-compendium/data/COVERAGE.md#character-rules-and-contextual-details)
+links the official class rules, language tables and Expertise glossary used
+for this audit. Record IDs, book ownership and the public grant schema remain
+stable.
+
+Engine evaluates proficiency eligibility at the acquiring character level.
+Valid earlier Expertise selections and fixed grants exclude duplicate skills
+without making a choice invalidate itself. Combined proficiency/Expertise
+grants and declared replacement timing remain supported. Guidance and exact
+slot validation agree; invalid raw option IDs cannot reserve another choice's
+skill. Catalog enumeration is sorted so multi-feature plans stay deterministic.
+These rules are generic; class names, levels and grant counts remain in
+Compendium data. See the [Engine contract](../../../addon-dnd-engine/contract/README.md#character-evaluation).
+
+The two added
+[installed cases](../../frontend/test/browser/installed-character-builder-fixture.mts)
+check all four classes before/at their grants, distinguish total level from
+Rogue level, and exercise Rogue through shared host comboboxes and autosave.
+Replacing an earlier proficiency withdraws only its dependent Expertise slot.
+Moving early Expertise onto a later selection keeps the early decision and
+withdraws the later duplicate. Valid sibling slots, notes and current HP
+survive; skill totals update; removing level 6 withdraws its grant; reload
+retains the repaired values. The generated desktop screenshot was visually
+inspected. Sheets needs no special class UI or persistence change.
+
+Validation: Compendium build/tool types and 58 tests; Engine tests/vet and
+native race checks for rules/provider/engine; Sheets build, five browser-unit
+tests and Go tests/vet; all four package inspections; and 19 installed
+character cases with zero skips. The complete host gate passed 32 tooling,
+389 unit and 345 browser tests, zero failures/skips, plus Go tests/vet.
+After the final Engine invalid-ID correction and rebuild, the final package
+set was reinspected and passed all 110 installed cases with zero skips through
+`node scripts/companion-suite.mts test full`.
+
+| Add-on | Source commit | ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools | `0eeac9b` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine | `41e26c1` | `f058838a1a6f47408ceb26d87ea13ba714c4dd00cf8154cc216d04a7ea544f8a` |
+| Sheets | `dff6c0b` | `cec7fb51c7379f9171cbad59d75f644d246b3bec9b6d761e72a52c5eae0f26a4` |
+| Compendium | `8cb7e43` | `2f7154f51a69c210d118d52caa5cbbb9350ea2ddf3b9cb9b9f9392dd36d20820` |
+
+All companion worktrees were clean at final inspection. Host acceptance began
+at `0de9ad9` with this batch's fixture changes. Tests use disposable local data;
+these results establish no new CI publication or live-site activation.
+T39-COMP records the separate Skill Expert, Boon of Skill and Thieves' Cant
+data gaps discovered during the audit. Remaining T32/T33 workflow acceptance
+and human device/screen-reader checks stay open.
