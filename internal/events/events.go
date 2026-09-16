@@ -56,6 +56,7 @@ type Replay struct {
 	Events    []Event
 	Latest    int64
 	Truncated bool
+	Expired   bool
 }
 
 type Config struct {
@@ -194,11 +195,26 @@ func (broker *Broker) Replay(ctx context.Context, audience Audience, after int64
 	if limit < 1 || limit > MaximumReplayLimit {
 		return Replay{}, ErrInvalidPublication
 	}
-	latest, err := broker.latest(ctx, audience)
+	// Retention and replay must share one snapshot; otherwise cleanup could
+	// erase events between the checkpoint check and the row query.
+	tx, err := broker.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return Replay{}, err
 	}
-	rows, err := broker.db.QueryContext(ctx, `
+	defer tx.Rollback()
+	var latest, checkpoint int64
+	err = tx.QueryRowContext(ctx, `
+		SELECT max(COALESCE((SELECT MAX(sequence) FROM change_log
+		WHERE audience = 'public' OR audience = ?), 0),
+		COALESCE(MAX(sequence), 0)), COALESCE(MAX(sequence), 0)
+		FROM event_replay_checkpoints WHERE audience = 'public' OR audience = ?`, audience, audience).Scan(&latest, &checkpoint)
+	if err != nil {
+		return Replay{}, err
+	}
+	if after < checkpoint {
+		return Replay{Events: []Event{}, Latest: latest, Expired: true}, nil
+	}
+	rows, err := tx.QueryContext(ctx, `
 		SELECT sequence, audience, topic, COALESCE(resource_id, ''), revision, occurred_at, metadata_json
 		FROM change_log
 		WHERE sequence > ? AND (audience = 'public' OR audience = ?)
@@ -235,9 +251,10 @@ func (broker *Broker) Latest(ctx context.Context, audience Audience) (int64, err
 
 func (broker *Broker) latest(ctx context.Context, audience Audience) (int64, error) {
 	row := broker.db.QueryRowContext(ctx, `
-		SELECT COALESCE(MAX(sequence), 0)
-		FROM change_log
-		WHERE audience = 'public' OR audience = ?`, audience)
+		SELECT COALESCE(MAX(sequence), 0) FROM (
+		SELECT sequence FROM change_log WHERE audience = 'public' OR audience = ?
+		UNION ALL SELECT sequence FROM event_replay_checkpoints WHERE audience = 'public' OR audience = ?
+		)`, audience, audience)
 	var sequence int64
 	if err := row.Scan(&sequence); err != nil {
 		return 0, fmt.Errorf("read latest event sequence: %w", err)

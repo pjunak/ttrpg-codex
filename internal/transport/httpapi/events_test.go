@@ -205,3 +205,20 @@ func testEventBroker(t *testing.T) *events.Broker {
 func stringInteger(value int64) string {
 	return strconv.FormatInt(value, 10)
 }
+
+type expiredEventSource struct{ EventSource }
+
+func (source expiredEventSource) Replay(context.Context, events.Audience, int64, int) (events.Replay, error) {
+	return events.Replay{Latest: 42, Expired: true, Events: []events.Event{}}, nil
+}
+func TestEventStreamResetsExpiredRetentionCursor(t *testing.T) {
+	broker := testEventBroker(t)
+	handler, err := New(Config{Events: expiredEventSource{broker}, EventAuthorizer: SessionEventAuthorizer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := serveOneFlush(handler, "17")
+	if !strings.Contains(response.Body.String(), "event: reset") || !strings.Contains(response.Body.String(), "id: 42") {
+		t.Fatalf("expired cursor did not reset: %s", response.Body.String())
+	}
+}

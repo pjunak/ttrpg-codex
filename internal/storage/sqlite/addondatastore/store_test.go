@@ -256,8 +256,8 @@ func testStore(t *testing.T) (*Store, *events.Broker, *sql.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.CurrentVersion != 18 {
-		t.Fatalf("migration version = %d, want 18", result.CurrentVersion)
+	if result.CurrentVersion != 19 {
+		t.Fatalf("migration version = %d, want 19", result.CurrentVersion)
 	}
 	now := func() time.Time { return time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC) }
 	broker, err := events.New(events.Config{DB: database, Now: now})

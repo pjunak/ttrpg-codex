@@ -28,11 +28,27 @@ The store writes and hashes a private same-volume stage, syncs it, publishes
 the immutable object, verifies its complete hash and size, and only then commits
 the object metadata and new handle in SQLite. Therefore the database never
 points at a partial file. A crash may leave an unreferenced immutable object,
-which is safe and can be reclaimed by a future offline garbage collector.
+which is safe and can be reclaimed by the reviewed offline collector.
 
 Deletion is revision-checked and logical. It invalidates that handle without
 removing shared bytes or breaking another handle. Physical collection must be
 offline and prove that no live or recovery database references an object.
+
+## Reviewed offline collection
+
+`codex-maintenance collect-blobs` previews exact hashes, bytes and deleted
+handles while holding the exclusive stopped-host lock. Live handles, media
+assets, authored core/add-on JSON, retained field payloads and active handles or
+authored references in every local recovery image protect shared objects.
+Unknown fields are scanned conservatively. Existing full backups are
+self-contained and remain untouched.
+
+Apply requires the preview hash and a fresh verified full backup. A transaction
+removes eligible deleted handles and object metadata and records durable unlink
+intent. `collect-blobs -resume` finishes only that intent after interruption;
+already absent files are harmless and objects recreated by a restarted host
+cancel their old intent. Hash mismatches, links and noncanonical object paths
+fail closed. The collector does not remove staging files or directories.
 
 ## Deliberate boundaries
 

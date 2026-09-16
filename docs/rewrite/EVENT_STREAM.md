@@ -82,7 +82,24 @@ publication failure is logged without claiming that an already committed
 transition failed; every new or reset connection reloads the graph. Campaign
 and browser graph payloads are runtime-validated in TypeScript.
 
-Stored-event retention/checkpoint policy is not implemented (T07 in the
-[suite backlog](../BACKLOG.md)). Import and background-job progress topics are
-conditional extensions (C07); ordinary import writes already publish the
-owning data invalidations. Neither gap means existing replay is absent.
+Stored operational history has an explicit offline retention operation:
+`codex-maintenance prune-logs`. It reports row counts and encoded payload sizes
+separately for SSE, lifecycle and core/add-on commit audits, and retains operator
+selected newest-row limits (10,000 per category by default; SSE per audience).
+Applying requires the exact preview hash, a stopped host and a newly created,
+verified full backup. Normal host activity does not expire records.
+
+Pruning advances a durable checkpoint for each audience in the same transaction
+as deletion. Replay reads checkpoints and events in one SQLite snapshot. A cursor
+older than a visible checkpoint receives `reset`; a cursor exactly at the
+checkpoint can continue. Latest cursors never regress even when all visible rows
+are removed, and private/system checkpoints never enter public cursors.
+AUTOINCREMENT sequences are never reset.
+
+Retained field history, authored records, idempotency receipts, recovery images
+and package archives are outside log retention. SQLite reuses freed pages; the
+encoded row measurements do not claim immediate on-disk file shrinkage. See the
+[maintenance commands](../SELF_HOSTING.md#reviewed-offline-storage-maintenance).
+
+Import and background-job progress topics remain conditional extensions (C07);
+ordinary import writes already publish the owning data invalidations.

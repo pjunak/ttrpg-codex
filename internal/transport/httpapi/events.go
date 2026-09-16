@@ -169,7 +169,7 @@ func (s *server) startEventStream(
 	if err != nil {
 		return 0, err
 	}
-	if cursor > replay.Latest || replay.Truncated {
+	if cursor > replay.Latest || replay.Truncated || replay.Expired {
 		if err := writeSSE(w, flusher, "reset", replay.Latest, map[string]any{
 			"cursor": replay.Latest, "reason": "replay-unavailable",
 		}); err != nil {

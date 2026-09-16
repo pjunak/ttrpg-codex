@@ -270,6 +270,47 @@ restoring, start the host and check login, campaign records, media and active
 add-ons before returning it to use. See the [archive and publication contract](rewrite/BACKUP_RESTORE.md)
 for verification limits and interrupted-restore recovery.
 
+## Reviewed offline storage maintenance
+
+Use the maintenance binary built from the same commit as the host. These
+commands require a database already migrated by that host, and refuse while
+the host or another maintenance operation holds the data-directory lock.
+They are separate from uninstall and saved-package cleanup in Settings.
+
+1. Stop the host and run a preview. Choose exactly one operation:
+
+   ```console
+   codex-maintenance delete-addon-data -data-dir ./data/rewrite -addon retired-addon
+   codex-maintenance collect-blobs -data-dir ./data/rewrite
+   codex-maintenance prune-logs -data-dir ./data/rewrite -keep-events 10000 -keep-lifecycle 10000 -keep-audit 10000
+   ```
+
+2. Read the counts, byte estimates, recovery implications and `reviewSHA256`.
+   Namespace removal includes that add-on's retained field history and its
+   contents inside local recovery points. It preserves core records, unrelated
+   namespaces and package archives. Existing external backups remain unchanged.
+   Disable or uninstall the selected add-on before stopping the host.
+3. Repeat the **same command and options** with
+   `-apply <reviewSHA256> -backup <new-backup.zip>`. The CLI creates and fully
+   verifies this new backup before applying the exact reviewed operation. A
+   changed preview or failed backup leaves data untouched. Pruned package files
+   are materialized through their normal verified sources for the backup;
+   unavailable package bytes prevent cleanup.
+4. If blob unlinking was interrupted after its intent committed, run
+   `codex-maintenance collect-blobs -data-dir ./data/rewrite -resume`.
+   This completes only previously reviewed removal intent. It never chooses
+   additional objects or requires deleting recovery points.
+5. Restart and check representative campaign records, media and add-ons. Keep
+   the verified backup independently until the operator accepts the result.
+
+Log retention is explicit, not automatic. Review it again as storage grows.
+SSE retention is per audience; lifecycle rows and each commit audit have
+separate newest-row limits. Preview reports encoded row payload sizes rather
+than SQLite page allocation, and cleanup need not shrink the database file.
+Authoring history, idempotency receipts, recovery points and package archives
+are never expired by log retention. Clients reconnecting behind a pruned event
+window receive a reset and reload authoritative state.
+
 ## Upgrade and rollback
 
 1. Download a current `codex-backup.v2` archive and verify it.

@@ -784,8 +784,8 @@ func testStore(t *testing.T) (*Store, *sql.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.CurrentVersion != 18 {
-		t.Fatalf("migration version = %d, want 18", result.CurrentVersion)
+	if result.CurrentVersion != 19 {
+		t.Fatalf("migration version = %d, want 19", result.CurrentVersion)
 	}
 	store, err := NewStore(db)
 	if err != nil {

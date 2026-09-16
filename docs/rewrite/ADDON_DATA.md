@@ -165,6 +165,25 @@ The Go SDK exposes `AddonDataQuery.IncludeDataRevision`,
 the existing `Transact` remains available for document-only writes. Both HTTP
 and worker transports authorize guard references and preserve revision zero.
 
+## Reviewed permanent namespace removal
+
+Uninstall and package-archive cleanup preserve add-on campaign data. The separate
+offline `codex-maintenance delete-addon-data -addon <id>` operation requires a
+disabled/uninstalled add-on, the exact preview hash and a fresh verified full
+backup. The preview counts collections/extensions, revision markers, retained
+history, requests, audit rows and affected recovery points.
+
+Apply atomically removes that namespace and its values from local recovery
+images, so normal campaign recovery cannot silently recreate it. Shared retained
+payloads and all other namespaces remain intact. Package archives and external
+backup ZIPs remain; restoring a full older backup deliberately restores its old
+namespace too. Core character/profile records are preserved. Add-on-owned blob
+handles are refused pending a separate ownership-aware retirement.
+
+This operation is deliberately separate from the ordinary Settings uninstall
+and archive-cleanup controls. See the
+[operator procedure](../SELF_HOSTING.md#reviewed-offline-storage-maintenance).
+
 ## Remaining public surface
 
 The package/storage/application contract, package lifecycle integration, and
