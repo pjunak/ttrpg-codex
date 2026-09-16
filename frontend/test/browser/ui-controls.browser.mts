@@ -100,6 +100,29 @@ test('theme changes, forced colors and abort keep focus and dispose popups', asy
  assert.notEqual(await combo.evaluate(node=>getComputedStyle(node).outlineStyle),'none');
  await page.evaluate(()=>window.uiControlsFixture.abort()); assert.equal(await page.locator('.ui-popup').count(),0); assert.equal(await page.locator('[name=origin]').isVisible(),true);
 });
+test('reduced motion applies text enlargement and control changes immediately', async t => {
+ const page = await fixture(t, 390);
+ await page.emulateMedia({ reducedMotion: 'reduce' });
+ const state = await page.evaluate(() => {
+  const search = document.querySelector<HTMLInputElement>('[name=query]')!;
+  const button = document.querySelector<HTMLButtonElement>('[data-ui-variant=primary]')!;
+  button.style.transition = 'transform 1s';
+  const before = { font: getComputedStyle(search).fontSize, transform: getComputedStyle(button).transform };
+  document.documentElement.style.fontSize = '200%';
+  button.style.transform = 'translateX(2px)';
+  return {
+   before,
+   font: getComputedStyle(search).fontSize,
+   transform: getComputedStyle(button).transform,
+   transitions: document.getAnimations().filter(animation => animation instanceof CSSTransition).length,
+  };
+ });
+ assert.deepEqual(state.before, { font: '16px', transform: 'none' });
+ assert.equal(state.font, '32px');
+ assert.equal(state.transform, 'matrix(1, 0, 0, 1, 2, 0)');
+ assert.equal(state.transitions, 0);
+});
+
 test('semantic skin colors maintain readable fields, focus and primary actions', async t => {
  const page=await fixture(t);
  const contrast=(a:number[],b:number[])=>{const luminance=(rgb:number[])=>rgb.map(value=>value/255).map(value=>value<=.04045?value/12.92:((value+.055)/1.055)**2.4).reduce((total,value,index)=>total+value*[.2126,.7152,.0722][index]!,0);const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};

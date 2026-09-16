@@ -140,6 +140,7 @@ for (const theme of ['classic', 'moonlit']) for (const locale of ['en', 'cs']) t
   const hostSearch = page.locator('.campaign-search-field input');
   await hostSearch.fill('aboleth'); await skin(); await fits(page);
   const hostStyle = await hostSearch.evaluate(node => ({ background: getComputedStyle(node).backgroundColor, color: getComputedStyle(node).color, font: getComputedStyle(node).fontSize }));
+  assert.equal(hostStyle.font, '32px', 'host comparison uses enlarged text');
   await go(page, '?kind=monster'); await skin();
   const pane = page.locator('.comp-reading-pane'), search = pane.locator('[data-compendium-search]');
   await search.fill('aboleth'); await pane.locator('.codex-link-row').first().waitFor(); await skin();

@@ -147,6 +147,13 @@ Theme changes affect CSS without replacing controls or authored values. Do not
 target generated popup/input class names or depend on their DOM structure.
 Domain styles may set layout widths, spacing and specialized illustrations.
 
+Reduced-motion preferences disable transitions, including during text-size and
+skin changes. Do not set a tiny positive transition duration on every element:
+[the default transition property is `all`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/transition-property),
+so doing so introduces font and layout transitions on otherwise static controls.
+The browser regression changes text size and a declared transform in one frame
+and requires their final values without an active transition.
+
 ## Consumers and boundaries
 
 - **Host:** collection search/filter/sort, campaign search, common record fields,
