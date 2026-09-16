@@ -312,3 +312,36 @@ fixture correction. Follow the [coordinated delivery procedure](../SELF_HOSTING.
 A host main push can publish and deploy both sites; add-on publication does not
 install or activate a package on either site. No push, publication, deployment or
 live-data change was performed during this investigation.
+
+## Coordinated publication verification
+
+The authorized follow-up on September 16 found all five reviewed commits already
+on their remote main branches. Each companion's test/package workflow succeeded
+and published its inspected ZIP to the immutable commit release below. Publication
+does not install or activate these packages on either campaign.
+
+| Companion | Tested source and release | Workflow run | Published ZIP SHA-256 |
+| --- | --- | --- | --- |
+| dm-tools | [`0eeac9b`](https://github.com/pjunak/addon-dm-tools/releases/tag/build-0eeac9bc84f50836fa30f134b5edee9358656676) | [35124716442](https://github.com/pjunak/addon-dm-tools/actions/runs/35124716442) | `05eb3b6f5a081b89640f4c862c97a2a61166cc2796d46a57a703d4f6da7a5fdc` |
+| dnd-engine | [`dfd970b`](https://github.com/pjunak/addon-dnd-engine/releases/tag/build-dfd970bd07d42f74735f55150bfe86ebe07a9c3f) | [35124732892](https://github.com/pjunak/addon-dnd-engine/actions/runs/35124732892) | `172060443d0a6081e635bd72aeeeccec3042e6a99d6961ff93d9c6a4cc349a03` |
+| dnd-sheets | [`8b3bb30`](https://github.com/pjunak/addon-dnd-character-sheets/releases/tag/build-8b3bb30ce9ae06135fc6e40b7a9a8a6621c1a1a8) | [35124721493](https://github.com/pjunak/addon-dnd-character-sheets/actions/runs/35124721493) | `e4f1163db61de9055d421b13930b40ba5cdbf8113cd158066391e3d4b5b13229` |
+| dnd-2024-compendium | [`e8cc635`](https://github.com/pjunak/addon-dnd-2024-compendium/releases/tag/build-e8cc6353b0f357a89d661f3458dff98e594cd32f) | [35124733108](https://github.com/pjunak/addon-dnd-2024-compendium/actions/runs/35124733108) | `1fc3e387075480e74710a7595d5fba7cc6cfd640d173998030446a6298ad3304` |
+
+The first host follow-up, [run 35124703185](https://github.com/pjunak/ttrpg-codex/actions/runs/35124703185)
+on `c8216c4`, passed the main host gate but finished compatibility at 93/104.
+Its checkout timestamps show a delivery race: Engine was fetched at 16:53:10 UTC
+before its 16:53:17 push, and Compendium at 16:53:14 before its push. Those jobs
+therefore still used `8c0c9a1` and `d03af34`. The published revisions above were
+subsequently verified on every remote branch before the corrected host push.
+
+The same run exposed a separate synthetic Import Center provider whose fresh ZIP
+also omitted its worker's execute bit. Its builder now explicitly packages the
+native entrypoint as `0755`; a regression calls that actual builder and catches
+`0644` on Windows as well as Linux. The test failed before the fix and passed
+afterward. Error assertions now target the active review dialog, direct operation
+feedback or the exact configuration failure, allowing unrelated retained
+generation alerts to coexist. No coverage or deadlines were relaxed.
+
+The corrected candidate passed `npm run check` with all four inspected companion
+ZIP inputs: 32 tooling tests, 389 unit tests and all 339 browser cases, zero
+failures/skips, plus Go tests/vet. Release readiness passed all 33 gates.

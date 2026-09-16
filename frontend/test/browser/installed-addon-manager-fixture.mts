@@ -53,7 +53,7 @@ export async function exerciseAddonManager({ t, open, admin, csrf, output, mobil
   await jsonResponse(await admin.post(`/api/admin/addon-activation-reviews/${concurrent.reviewId}/approval`, { headers: { 'X-Codex-CSRF': csrf }, data: { grantedPermissionIds: ['core.data.read'] } }));
   await jsonResponse(await admin.post(`/api/admin/addon-activation-reviews/${concurrent.reviewId}/activation`, { headers: { 'X-Codex-CSRF': csrf } }));
   await review.getByRole('checkbox', { name: /core.data.read/u }).check(); await review.getByRole('button', { name: 'Approve and activate', exact: true }).click();
-  await manager.getByRole('alert').filter({ hasText: /could not be confirmed/u }).waitFor();
+  await manager.getByRole('dialog').getByRole('alert').filter({ hasText: /could not be confirmed/u }).waitFor();
   await manager.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
   await manager.getByRole('button', { name: 'Check for updates', exact: true }).click(); await row.getByRole('button', { name: 'Disable', exact: true }).waitFor();
   // Retained generation data and status survive a lost response; refresh reads the result.
@@ -61,11 +61,11 @@ export async function exerciseAddonManager({ t, open, admin, csrf, output, mobil
   await page.route(pattern, async route => { await route.fetch(); await route.abort('failed'); });
   await row.getByRole('button', { name: 'Disable', exact: true }).click();
   await manager.locator('.addon-disable-review').getByRole('button', { name: 'Disable reviewed add-ons', exact: true }).click();
-  await manager.getByRole('alert').filter({ hasText: /could not be confirmed/u }).waitFor(); await page.unroute(pattern);
+  await manager.locator('.addon-manager > [role="alert"]').filter({ hasText: /could not be confirmed/u }).waitFor(); await page.unroute(pattern);
   await manager.getByRole('button', { name: 'Check for updates', exact: true }).click(); await row.getByText('Disabled or awaiting activation', { exact: true }).waitFor();
   await openUpload();
   await manager.locator('input[type="file"]').setInputFiles({ name: 'invalid.zip', mimeType: 'application/zip', buffer: Buffer.from('not a package') });
-  await manager.getByRole('button', { name: 'Inspect ZIP', exact: true }).click(); await manager.getByRole('alert').waitFor();
+  await manager.getByRole('button', { name: 'Inspect ZIP', exact: true }).click(); await manager.getByRole('dialog').getByRole('alert').waitFor();
   assert.equal((await jsonResponse(await admin.get(`/api/admin/addons/${id}`))).generations.length, 2);
   await manager.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
   await manager.getByRole('button', { name: 'Check for updates', exact: true }).click(); await manager.locator('.addon-manager[aria-busy="false"]').waitFor();

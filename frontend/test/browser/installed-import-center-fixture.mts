@@ -11,7 +11,7 @@ import { installReviewedPackage, jsonResponse, zip } from './installed-graph-fix
 import { dmToolsPermissions } from './installed-dm-fixture.mts';
 
 let workerBytes: Buffer;
-async function providerPackage({ id, root, output, archive }: { id: string; root: string; output: string; archive: Buffer }) {
+export async function providerPackage({ id, root, output, archive }: { id: string; root: string; output: string; archive: Buffer }) {
   if (!workerBytes) {
     const path = resolve(output, process.platform === 'win32' ? 'import-provider.exe' : 'import-provider');
     await promisify(execFile)('go', ['build', '-o', path, './frontend/test/fixtures/import-provider'], { cwd: root, windowsHide: true, timeout: 120_000 });
@@ -28,7 +28,7 @@ async function providerPackage({ id, root, output, archive }: { id: string; root
   files['addon.json'] = JSON.stringify(manifest); files[entrypoint] = workerBytes;
   files['contracts/fixture-note.json'] = JSON.stringify({ type: 'object', required: ['text'], additionalProperties: false, properties: { text: { type: 'string' } } });
   files['checksums.json'] = JSON.stringify({ algorithm: 'sha256', files: Object.fromEntries(Object.entries(files).map(([name, value]) => [name, createHash('sha256').update(value).digest('hex')])) });
-  return zip(files);
+  return zip(files, { [entrypoint]: 0o755 });
 }
 
 export async function exerciseImportCenter({ t, root, output, open, admin, csrf, disable, mobile }: InstalledFixture & {

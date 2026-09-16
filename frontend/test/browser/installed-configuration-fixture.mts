@@ -54,7 +54,7 @@ export async function exerciseConfiguration({ t, open, admin, csrf, output, mobi
     await route.continue();
   });
   await page.goto('/#/settings'); await page.locator('[data-category="addons"]').click();
-  await page.locator('.addon-manager').getByRole('alert').waitFor();
+  await page.locator('.addon-manager').getByRole('alert').filter({ hasText: /^The server is unavailable\. Try again shortly\.$/u }).waitFor();
   rejectDiscovery = false;
   await page.getByRole('button', { name: 'Refresh configuration', exact: true }).click();
   const config = page.locator('codex-addon-configuration');

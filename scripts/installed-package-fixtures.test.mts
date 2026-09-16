@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { providerPackage } from '../frontend/test/browser/installed-import-center-fixture.mts';
 import { importPackageFiles, replacementImportPackage } from '../frontend/test/browser/installed-import-fixture.mts';
 
 // Written independently with Go archive/zip, Deflate and FileHeader.SetMode.
@@ -55,4 +60,15 @@ test('replacement packages change only the manifest version and matching checksu
     if (path !== 'addon.json' && path !== 'checksums.json') assert.deepEqual(body, original[path], path);
     if (path !== 'checksums.json') assert.equal(checksums.files[path], createHash('sha256').update(body).digest('hex'), path);
   }
+});
+
+test('synthetic import-provider packages declare an executable native entrypoint on every platform', async t => {
+  const output = await mkdtemp(join(tmpdir(), 'codex-import-provider-mode-'));
+  t.after(() => rm(output, { recursive: true, force: true }));
+  const packaged = await providerPackage({ id: 'fixture-importer', root: fileURLToPath(new URL('../', import.meta.url)), output, archive });
+  const files = importPackageFiles(packaged), manifest = JSON.parse(files['addon.json']!.toString());
+  const entrypoint = Object.values(manifest.runtime.worker.entrypoints)[0] as string;
+  assert.ok(files[entrypoint]);
+  assert.equal(unixMode(packaged, entrypoint), 0o755, 'the production extractor must retain worker execute permission');
+  for (const path of Object.keys(files).filter(path => path !== entrypoint)) assert.equal(unixMode(packaged, path), 0o644, path);
 });
