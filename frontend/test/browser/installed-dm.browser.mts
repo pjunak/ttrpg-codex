@@ -1,3 +1,4 @@
+import { exercisePlannerRecovery, exercisePlannerRecoveryConflicts, exercisePlannerRecoveryWrites, exercisePlannerRecoveryStorage } from "./installed-planner-recovery-fixture.mts";
 import { exercisePackageCleanup } from "./installed-cleanup-fixture.mts";
 import { exercisePlanningReader } from "./installed-planning-reader-fixture.mts";
 import { exerciseRecordPanels } from "./installed-record-panels-fixture.mts";
@@ -345,6 +346,21 @@ if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner selects and moves gr
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner and overview update live without losing edits or canvas state', async t => {
   await installReviewedPackage(admin, csrf, 'dm-tools', await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))), dmToolsPermissions);
   t.after(() => disable('dm-tools')); await exercisePlannerLive({ t, open, admin, csrf });
+});
+
+if (process.env.CODEX_DM_TOOLS_ZIP) for (const mobile of [false, true]) test(`installed planner recovers every draft after replacement on ${mobile ? 'phone' : 'desktop'}`, async t => {
+  const archive = await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP)));
+  await installReviewedPackage(admin, csrf, 'dm-tools', archive, dmToolsPermissions); t.after(() => disable('dm-tools'));
+  await exercisePlannerRecovery({ t, open, admin, csrf, output, archive, mobile });
+});
+if (process.env.CODEX_DM_TOOLS_ZIP) for (const [name, exercise] of [
+  ['stale and removed drafts after disabling', exercisePlannerRecoveryConflicts],
+  ['confirmed and interrupted save outcomes', exercisePlannerRecoveryWrites],
+  ['blocked storage, malformed copies and player isolation', exercisePlannerRecoveryStorage],
+] as const) test('installed planner recovery preserves ' + name, async t => {
+  const archive = await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP)));
+  await installReviewedPackage(admin, csrf, 'dm-tools', archive, dmToolsPermissions); t.after(() => disable('dm-tools'));
+  await exercise({ t, open, admin, csrf, output, archive });
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP) test('installed planner protects drafts on navigation, Back, sign-out and reload', async t => {

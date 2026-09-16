@@ -110,5 +110,16 @@ export async function exercisePlannerNavigation({ t, open, admin, csrf }: Pick<I
     await details.getByLabel('Body', { exact: true }).fill('Temporary');
     await details.getByRole('button', { name: 'Discard edits', exact: true }).click();
     assert.equal(await unloadBlocked(page), false);
+    if (!mobile) {
+      await details.getByLabel('Body', { exact: true }).fill('Discard on sign-out');
+      assert.equal(await unloadBlocked(page), true);
+      await closePlannerEditor(page);
+      if (await page.locator('.account-menu').getAttribute('open') === null) await page.locator('.account-menu > summary').click();
+      const discarded = page.waitForEvent('dialog'); page.once('dialog', dialog => dialog.accept());
+      await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+      assert.match((await discarded).message(), /Discard the unsaved changes/u);
+      await page.locator('.dm-tools-planner').waitFor({ state: 'detached' });
+      assert.equal(await page.evaluate(() => sessionStorage.getItem(JSON.stringify(['dm-tools-planner-drafts.v1', 'dm-tools', 'dm']))), null);
+    }
   }
 }
