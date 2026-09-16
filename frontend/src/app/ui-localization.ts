@@ -1,3 +1,4 @@
+import { diagnosticsEn, diagnosticsCs } from "./diagnostic-messages.js";
 import { recordWorkflowEn, recordWorkflowCs } from "./record-workflow-messages.js";
 import { storageEn, storageCs } from "./storage-messages.js";
 import { disableEn, disableCs } from "./disable-messages.js";
@@ -29,6 +30,7 @@ const enCatalog = {
   ...contextEn,
   ...configurationEn,
   ...cleanupEn,
+  ...diagnosticsEn,
   ...disableEn,
   ...storageEn,
   ...ruleDetailsEn,
@@ -499,6 +501,7 @@ const csCatalog = {
   ...contextCs,
   ...configurationCs,
   ...cleanupCs,
+  ...diagnosticsCs,
   ...disableCs,
   ...storageCs,
   ...ruleDetailsCs,

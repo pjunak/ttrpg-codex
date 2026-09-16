@@ -1,3 +1,4 @@
+import "./codex-runtime-diagnostics.js";
 import type { CleanupReview, CleanupScope, CleanupResult } from "../core/addon-cleanup.js";
 import { LitElement, html, nothing } from "lit";
 import { repeat } from "lit/directives/repeat.js";
@@ -258,6 +259,7 @@ export class CodexAddonManager extends LitElement {
         <div><strong>${generation.version}</strong> ${t(generation.generationId === state.activeGenerationId ? "addons.active" : "addons.savedInactive")}<small>${this.#ui.relativeDate(generation.installedAt)}</small>
           ${generation.lastError ? html`<p role="alert">${t("addons.failed")}</p><details><summary>${uiText("Technical details")}</summary><p>${generation.lastError}</p></details>` : nothing}<details><summary>${t("addons.generation")}</summary><code>${generation.generationId}</code></details></div>
         ${generation.generationId !== state.activeGenerationId ? html`<button ?disabled=${this.#busy} @click=${() => this.#prepare(state.addonId, generation.generationId)}>${t(active ? "addons.rollback" : "addons.review")}</button><button ?disabled=${this.#busy} @click=${() => this.#prepareCleanup({ addonId: state.addonId, generationId: generation.generationId })}>${t("cleanup.single")}</button>` : nothing}</li>`)}</ul></details>
+      <codex-runtime-diagnostics .snapshot=${snapshot}></codex-runtime-diagnostics>
       ${snapshot.events.length ? html`<details><summary>${t("addons.history")}</summary><ul>${snapshot.events.map(event => html`<li><div>${uiSourceLabel(event.kind)}<small>${this.#ui.relativeDate(event.occurredAt)}</small>${event.message ? html`<details><summary>${uiText("Technical details")}</summary><p>${event.message}</p></details>` : nothing}</div></li>`)}</ul></details>` : nothing}
     </article>`;
   }

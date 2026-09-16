@@ -42,10 +42,20 @@ supervisor factory supplies that reviewed environment, the normalized
 permission grants, and exact generation-bound service handles; it does not
 leak host secrets or machine configuration by default.
 
-Stderr is retained as a bounded newest-byte tail for the Inspector. Stdout is
-protocol-only. The tail is raw process output at this layer; structured-log
-parsing and secret redaction belong in the future diagnostic pipeline before
-output is persisted or exposed outside trusted administration.
+Stderr is retained only as a bounded newest-byte tail inside the supervisor.
+Stdout is protocol-only. Administrative snapshots deliberately omit this raw
+tail, negotiated worker text and free-form exception/transition messages.
+Stable failure categories replace raw errors; pattern-based redaction is not
+assumed to remove arbitrary secrets or campaign content.
+
+Settings → Add-ons exposes observed health and time, start/exit times, process
+exit code where available, and the latest 32 worker requests with method, outcome,
+duration and hashed request/correlation references. References correlate related
+calls without retaining raw identifiers. Parameter/result bodies and health
+detail objects are never captured. The monitor retains a detached sanitized
+snapshot when a failed worker is withdrawn, so its evidence remains available
+during backoff or after retry exhaustion. Browser failures use a separate bounded
+tab-local history, cleared on authority changes.
 
 Native workers provide crash isolation, not a security sandbox. CPU and
 memory enforcement and any operating-system sandbox remain follow-up work.
@@ -148,7 +158,8 @@ The existing browser graph reconciliation can remount add-on views; recovery of
 unsaved DM Tools drafts during forced replacement remains T30. Pending domain
 calls fail with their original outcome; monitoring never replays
 a domain request, import or save. The coordinator records bounded failure
-categories; richer redacted health/exit and browser diagnostics remain T11.
+categories and detached redacted health/exit/request snapshots; Settings shows
+these alongside tab-local browser diagnostics.
 
 Automatic cohort transitions have a two-minute deadline. Host shutdown cancels
 and joins the monitor before stopping runtimes, including an in-flight health

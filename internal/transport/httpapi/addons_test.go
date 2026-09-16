@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
+	"github.com/pjunak/ttrpg-codex/internal/addons/workersupervisor"
 )
 
 func TestAddonAdminConfigurationFailsClosed(t *testing.T) {
@@ -399,4 +400,26 @@ func (lifecycle *recordingLifecycle) Disable(
 ) (packagemanager.DisableResult, error) {
 	lifecycle.disablePlan = plan
 	return packagemanager.DisableResult{State: packagemanager.State{AddonID: plan.AddonID}}, nil
+}
+
+type diagnosticLifecycle struct{ recordingLifecycle }
+
+func (lifecycle *diagnosticLifecycle) Snapshot(context.Context, string, int) (packagemanager.Snapshot, error) {
+	return packagemanager.Snapshot{
+		State:       packagemanager.State{AddonID: "example-addon"},
+		Generations: []packagemanager.Generation{{LastError: "SPAWN_FAILED: private-token"}},
+		Events:      []packagemanager.Event{{Message: "private-token"}},
+		Runtime:     &workersupervisor.Snapshot{State: workersupervisor.StateFailed, LastError: "HEALTH_FAILED: private-token", StderrTail: "private-token"},
+	}, nil
+}
+func TestAddonAdministrativeSnapshotRedactsUnstructuredProcessOutput(t *testing.T) {
+	handler, err := New(Config{AddonLifecycle: &diagnosticLifecycle{}, AdminAuthorizer: func(*http.Request) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := serveAdminRequest(handler, http.MethodGet, "/api/admin/addons/example-addon", "")
+	body := response.Body.String()
+	if response.Code != http.StatusOK || strings.Contains(body, "private-token") || strings.Contains(body, "stderrTail") || !strings.Contains(body, "HEALTH_FAILED") {
+		t.Fatalf("unsafe or missing diagnostics: %d %s", response.Code, body)
+	}
 }

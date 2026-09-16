@@ -14,6 +14,7 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
+	"github.com/pjunak/ttrpg-codex/internal/addons/workersupervisor"
 )
 
 const (
@@ -135,6 +136,20 @@ func (s *server) addonSnapshot(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.writeLifecycleError(w, r, err)
 		return
+	}
+	// Raw process output and exception messages may contain campaign data or
+	// credentials; only stable categories and structured counters leave the host.
+	if snapshot.Runtime != nil {
+		value := workersupervisor.AdministrativeSnapshot(*snapshot.Runtime)
+		snapshot.Runtime = &value
+	}
+	snapshot.Generations = append([]packagemanager.Generation{}, snapshot.Generations...)
+	for i := range snapshot.Generations {
+		snapshot.Generations[i].LastError = workersupervisor.SafeFailureCode(snapshot.Generations[i].LastError)
+	}
+	snapshot.Events = append([]packagemanager.Event{}, snapshot.Events...)
+	for i := range snapshot.Events {
+		snapshot.Events[i].Message = workersupervisor.SafeFailureCode(snapshot.Events[i].Message)
 	}
 	writeJSON(w, http.StatusOK, snapshot)
 }

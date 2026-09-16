@@ -475,10 +475,13 @@ func (manager *Manager) Snapshot(ctx context.Context, addonID string, eventLimit
 				break
 			}
 		}
-		snapshot.Runtime = &workersupervisor.Snapshot{
-			Identity: identity,
-			State:    workersupervisor.StateFailed, LastError: watch.message,
+		value := workersupervisor.Snapshot{Identity: identity}
+		if watch.snapshot != nil {
+			value = workersupervisor.AdministrativeSnapshot(*watch.snapshot)
 		}
+		value.State = workersupervisor.StateFailed
+		value.LastError = watch.message
+		snapshot.Runtime = &value
 	}
 	return snapshot, nil
 }

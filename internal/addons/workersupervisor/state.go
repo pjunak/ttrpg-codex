@@ -76,12 +76,15 @@ type Negotiated struct {
 }
 
 type Snapshot struct {
+	Health      *HealthDiagnostic       `json:"health,omitempty"`
+	Requests    []RequestDiagnostic     `json:"requests,omitempty"`
 	Identity    Identity                `json:"identity"`
 	State       State                   `json:"state"`
 	PID         int                     `json:"pid,omitempty"`
 	StartedAt   *time.Time              `json:"startedAt,omitempty"`
 	ExitedAt    *time.Time              `json:"exitedAt,omitempty"`
 	LastError   string                  `json:"lastError,omitempty"`
+	ExitCode    *int                    `json:"exitCode,omitempty"`
 	ExitError   string                  `json:"exitError,omitempty"`
 	StderrTail  string                  `json:"stderrTail,omitempty"`
 	Negotiated  *Negotiated             `json:"negotiated,omitempty"`

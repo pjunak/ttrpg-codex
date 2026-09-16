@@ -32,6 +32,10 @@ export async function exerciseAddonManager({ t, open, admin, csrf, output, mobil
   await row.getByRole('button', { name: 'Reload', exact: true }).click(); await manager.getByText('Add-on state updated.', { exact: true }).waitFor();
   await upload('1.1.0'); await approve();
   snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`)); assert.notEqual(snapshot.state.activeGenerationId, original);
+  await row.getByText('Runtime diagnostics', { exact: true }).click();
+  await row.getByText('This browser tab', { exact: true }).waitFor();
+  await row.getByText('No browser failures recorded in this session.', { exact: true }).waitFor();
+  assert.equal(await row.locator('codex-runtime-diagnostics pre').count(), 0);
   await row.getByText('Saved packages', { exact: true }).click();
   await row.getByText('Only the active package runs. Other packages are kept for review or rollback; they do not run alongside it.', { exact: true }).waitFor();
   await row.locator(`[data-generation="${original}"]`).getByText('Inactive', { exact: false }).waitFor();

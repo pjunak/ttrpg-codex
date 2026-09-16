@@ -3,6 +3,7 @@ import { uiText } from "./ui-localization.js";
 import { attachCharacterPortrait } from "./character-portrait.js";
 import { uiRequestError } from "./ui-errors.js";
 import { isRecord } from "../core/boundary.js";
+import { browserDiagnostics } from "../addons/browser-diagnostics.js";
 import { LitElement, html, nothing } from "lit";
 import { routeRecordReferences } from "./route-record-references.js";
 import {
@@ -241,6 +242,7 @@ export class CodexApp extends LitElement {
     window.removeEventListener("beforeunload", this.#onBeforeUnload);
     window.removeEventListener("keydown", this.#onKeyDown);
     this.#mobileMedia.removeEventListener("change", this.#onViewportChange);
+    browserDiagnostics.enable(false);
     void this.#stopAddons();
     super.disconnectedCallback();
   }
@@ -402,6 +404,7 @@ export class CodexApp extends LitElement {
     } catch (cause: unknown) {
       if (signal.aborted) return;
       this.authority = { state: "known", auth: anonymousAuth() };
+        browserDiagnostics.enable(false);
       this.errorMessage = uiText("Session check failed: {0}", { "0": errorMessage(cause) });
     }
 
@@ -510,6 +513,7 @@ export class CodexApp extends LitElement {
       await this.#stopAddons();
       await logoutSession(this.#request.signal);
       this.authority = { state: "known", auth: anonymousAuth() };
+        browserDiagnostics.enable(false);
       this.#campaignData.reset();
       await this.#loadCampaign(this.#request.signal);
       this.#startEventStream();
@@ -549,6 +553,7 @@ export class CodexApp extends LitElement {
   }
 
   async #reloadForAuthority(): Promise<void> {
+    browserDiagnostics.enable(false);
     if (this.#request === undefined) return;
     this.#campaignData.reset();
     await this.#loadCampaign(this.#request.signal);
@@ -575,11 +580,14 @@ export class CodexApp extends LitElement {
     await this.#stopAddons();
     const owner = ++this.#addonOwner;
     const auth = this.authority.state === "known" ? this.authority.auth : anonymousAuth();
+    browserDiagnostics.enable(auth.authenticated && auth.role === "dm" && auth.realRole === "dm");
     if (!auth.authenticated) return;
     this.addonState = { state: "loading" };
     const composition = createBrowserAddonComposition(document, auth.csrfToken, {
       onRefresh: (_cause, result) => {
         if (owner !== this.#addonOwner) return;
+        for (const failure of result.lifecycle.activationFailures) browserDiagnostics.record(failure.kind, failure);
+        for (const failure of result.lifecycle.disposalFailures) browserDiagnostics.record("disposal", failure);
         this.#dmAddonHealth = [
           ...result.lifecycle.active.map(addon => ({ id: addon.addonId, version: addon.addonVersion, state: "ready" as const })),
           ...result.lifecycle.activationFailures.map(failure => ({ id: failure.addonId,
@@ -596,7 +604,8 @@ export class CodexApp extends LitElement {
       },
       onDiagnostic: (cause) => {
         if (owner === this.#addonOwner) {
-          this.addonState = { state: "degraded", message: errorMessage(cause) };
+          browserDiagnostics.record("refresh", cause);
+          this.addonState = { state: "degraded", message: this.#ui.t("dm.failed") };
         }
       },
       onAuthorityLost: () => {
@@ -604,6 +613,7 @@ export class CodexApp extends LitElement {
         this.#addons = undefined;
         this.#disposeOutlets();
         this.authority = { state: "known", auth: anonymousAuth() };
+        browserDiagnostics.enable(false);
         this.addonState = { state: "idle" };
         this.#campaignData.reset();
         this.#startEventStream();
@@ -623,7 +633,8 @@ export class CodexApp extends LitElement {
       }
       const onError = (cause: unknown): void => {
         if (owner === this.#addonOwner) {
-          this.addonState = { state: "degraded", message: errorMessage(cause) };
+          browserDiagnostics.record("contribution", cause);
+          this.addonState = { state: "degraded", message: this.#ui.t("dm.failed") };
         }
       };
       this.#navigationOutlet = new BrowserNavigationOutlet({
@@ -695,6 +706,7 @@ export class CodexApp extends LitElement {
     this.addonState = { state: "idle" };
     if (addons !== undefined) {
       const failures = await addons.session.stop();
+      for (const failure of failures) browserDiagnostics.record("disposal", failure);
       if (failures.length > 0) {
         this.errorMessage = uiText("Failed to clean up {0} browser add-on resource(s).", { "0": failures.length });
       }

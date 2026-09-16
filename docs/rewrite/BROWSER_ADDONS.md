@@ -561,7 +561,13 @@ Contribution contexts supply navigation, host settings context and edit guards;
 `context.imports/events/settings/navigation/log` APIs.
 
 The current availability table is in [the public API](../../examples/addons/API_V3.md#current-implementation-status).
-The [suite backlog](../BACKLOG.md) tracks richer activation/disposal diagnostics
-(T11), broader editor/renderer integration (C02), graph extensions (C03), and
-consumer-driven additional SDK handles (C07). Separate editor panels, settings
-panels, graph models and basic manager diagnostics are already implemented.
+Settings → Add-ons includes a bounded diagnostics view for each add-on. This tab
+retains the last 32 activation, dependency, disposal, refresh and contribution
+failures with phase, generation, time and a local reference. Exception text,
+stack traces, URLs and campaign payloads are not retained. Authority loss,
+logout, role changes and application disposal clear this local history. Worker
+health and request diagnostics use the separate DM-only administrative snapshot.
+
+The [suite backlog](../BACKLOG.md) tracks broader editor/renderer integration
+(C02), graph extensions (C03), and consumer-driven additional SDK handles (C07).
+Separate editor panels, settings panels and graph models are implemented.

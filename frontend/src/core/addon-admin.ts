@@ -1,3 +1,4 @@
+import { parseWorkerDiagnostics, type WorkerDiagnostics } from "./worker-diagnostics.js";
 import { cleanupScope, parseCleanupReview, parseCleanupResult, type CleanupScope, type CleanupReview } from "./addon-cleanup.js";
 import { BoundaryValidationError, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
@@ -12,6 +13,7 @@ export interface AddonSnapshot {
   generations: InstalledGeneration[];
   events: { kind: string; message: string; occurredAt: string }[];
   runtimeState: string;
+  runtime?: WorkerDiagnostics | undefined;
 }
 export interface AddonReview {
   rulesetName: string; supportedRulesets: string[]; disabledSources: string[];
@@ -41,6 +43,7 @@ function parseAddonSnapshot(value: unknown): AddonSnapshot {
   return { state: { addonId: id(state["addonId"]), revision: revision as number, activeGenerationId: state["activeGenerationId"] === undefined ? "" : hash(state["activeGenerationId"]) },
     generations: list(record["generations"]).map(parseInstalledGeneration),
     events: list(record["events"]).map(value => { const event = object(value); return { kind: text(event["kind"]), message: optionalText(event["message"]), occurredAt: text(event["occurredAt"]) }; }),
+    runtime: parseWorkerDiagnostics(record["runtime"]),
     runtimeState: record["runtime"] ? optionalText(object(record["runtime"])["state"]) : "" };
 }
 function parseAddonReview(value: unknown): AddonReview {

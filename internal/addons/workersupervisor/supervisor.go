@@ -38,6 +38,8 @@ type Supervisor struct {
 	lastError   error
 	negotiated  *Negotiated
 	nextID      uint64
+	health      *HealthDiagnostic
+	requests    []RequestDiagnostic
 }
 
 func New(config Config) (*Supervisor, error) {
@@ -159,6 +161,7 @@ func (supervisor *Supervisor) Start(ctx context.Context) error {
 		}
 		return supervisor.fail(CodeHealthFailed, err)
 	}
+	supervisor.recordHealth(status.Status)
 	peer, err := workerrpc.NewPeer(codec, workerrpc.PeerConfig{
 		IDPrefix:            "host-runtime",
 		Generation:          supervisor.config.Identity.Generation,
@@ -188,7 +191,14 @@ type Health struct {
 	Details map[string]any `json:"details,omitempty"`
 }
 
-func (supervisor *Supervisor) Health(ctx context.Context) (Health, error) {
+func (supervisor *Supervisor) Health(ctx context.Context) (health Health, resultErr error) {
+	defer func() {
+		if resultErr != nil {
+			supervisor.recordHealth("failed")
+		} else {
+			supervisor.recordHealth(health.Status)
+		}
+	}()
 	if err := supervisor.acquireOperation(ctx); err != nil {
 		return Health{}, err
 	}
@@ -224,7 +234,9 @@ func (supervisor *Supervisor) Call(
 	method string,
 	params any,
 	meta *workerrpc.Meta,
-) (json.RawMessage, error) {
+) (result json.RawMessage, resultErr error) {
+	started := time.Now()
+	defer func() { supervisor.recordRequest(method, meta, started, resultErr) }()
 	if meta == nil || meta.Generation != supervisor.config.Identity.Generation {
 		return nil, workerrpc.NewRPCError(
 			workerrpc.JSONRPCApplication,
@@ -369,6 +381,11 @@ func (supervisor *Supervisor) Snapshot() Snapshot {
 		ExitedAt:    cloneTime(supervisor.exitedAt),
 		StderrTail:  supervisor.stderr.String(),
 		Transitions: append([]Transition(nil), supervisor.transitions...),
+		Requests:    append([]RequestDiagnostic(nil), supervisor.requests...),
+	}
+	if supervisor.health != nil {
+		value := *supervisor.health
+		snapshot.Health = &value
 	}
 	if supervisor.command != nil && supervisor.command.Process != nil {
 		snapshot.PID = supervisor.command.Process.Pid
@@ -378,6 +395,11 @@ func (supervisor *Supervisor) Snapshot() Snapshot {
 	}
 	if supervisor.waitError != nil {
 		snapshot.ExitError = supervisor.waitError.Error()
+		var exited *exec.ExitError
+		if errors.As(supervisor.waitError, &exited) {
+			code := exited.ExitCode()
+			snapshot.ExitCode = &code
+		}
 	}
 	if supervisor.negotiated != nil {
 		value := *supervisor.negotiated

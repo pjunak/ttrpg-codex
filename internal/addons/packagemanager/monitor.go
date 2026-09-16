@@ -32,6 +32,7 @@ type workerWatch struct {
 	readySince    time.Time
 	nextHealth    time.Time
 	message       string
+	snapshot      *workersupervisor.Snapshot
 }
 type workerMonitor struct {
 	config   MonitoringConfig
@@ -140,6 +141,10 @@ func (manager *Manager) workerFailureLocked(ctx context.Context, state State, ca
 	now := manager.store.now()
 	if !watch.readySince.IsZero() && now.Sub(watch.readySince) >= manager.monitoring.config.RestartPolicy.StableAfter {
 		watch.failures = 0
+	}
+	if active, ok := manager.runtimes[state.AddonID]; ok && active.runtime != nil {
+		value := workersupervisor.AdministrativeSnapshot(active.runtime.Snapshot())
+		watch.snapshot = &value
 	}
 	watch.failures++
 	watch.blocked, watch.readySince, watch.retryAt = true, time.Time{}, time.Time{}

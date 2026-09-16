@@ -127,6 +127,10 @@ func TestSupervisorRoutesGenerationScopedServiceCall(t *testing.T) {
 	if string(result) != `{"result":8}` {
 		t.Fatalf("service result = %s", result)
 	}
+	diagnostic := supervisor.Snapshot()
+	if len(diagnostic.Requests) != 1 || diagnostic.Requests[0].Outcome != "OK" || diagnostic.Requests[0].CorrelationRef != reference(meta.CorrelationID) || diagnostic.Health == nil || diagnostic.Health.Status != "ok" {
+		t.Fatalf("missing request/health evidence: %+v", diagnostic)
+	}
 	stale := *meta
 	stale.Generation = "generation-old"
 	if _, err := supervisor.Call(context.Background(), "service/dnd5e.rules-engine/evaluate-character", map[string]any{}, &stale); err == nil {
