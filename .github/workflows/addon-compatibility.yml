@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       require_private:
-        description: Require the private compendium suite before publication
+        description: Require the private compendium and installed suite before publication
         type: boolean
         default: false
   workflow_dispatch:
@@ -17,35 +17,64 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
-  public-addons:
-    name: Public addon suite
+  companions:
+    name: Build, inspect and exercise installed companions
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
+      - name: Resolve private coverage
+        id: coverage
+        env:
+          ADDON_SUITE_TOKEN: ${{ secrets.ADDON_SUITE_TOKEN }}
+          REQUIRED: ${{ inputs.require_private }}
+        run: |
+          if [[ -n "$ADDON_SUITE_TOKEN" ]]; then
+            echo "mode=full" >> "$GITHUB_OUTPUT"
+          elif [[ "$REQUIRED" == true ]]; then
+            echo '::error::Publication requires ADDON_SUITE_TOKEN and the complete installed companion suite.'
+            exit 1
+          else
+            echo "mode=public" >> "$GITHUB_OUTPUT"
+            echo '::warning::Private content is unavailable. This public-only run cannot establish publication coverage.'
+          fi
+
       - uses: actions/checkout@v7
         with:
           path: ttrpg-codex
+          persist-credentials: false
 
       - uses: actions/checkout@v7
         with:
           repository: pjunak/addon-dm-tools
           path: addon-dm-tools
+          persist-credentials: false
 
       - uses: actions/checkout@v7
         with:
           repository: pjunak/addon-dnd-engine
           path: addon-dnd-engine
+          persist-credentials: false
 
       - uses: actions/checkout@v7
         with:
           repository: pjunak/addon-dnd-character-sheets
           path: addon-dnd-character-sheets
+          persist-credentials: false
+
+      - uses: actions/checkout@v7
+        if: steps.coverage.outputs.mode == 'full'
+        with:
+          repository: pjunak/addon-dnd-2024-compendium
+          token: ${{ secrets.ADDON_SUITE_TOKEN }}
+          path: addon-dnd-2024-compendium
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:
           node-version-file: ttrpg-codex/.nvmrc
           cache: npm
           cache-dependency-path: |
+            ttrpg-codex/package-lock.json
             addon-dm-tools/package-lock.json
             addon-dnd-character-sheets/package-lock.json
 
@@ -57,79 +86,49 @@ jobs:
             ttrpg-codex/go.sum
             addon-*/go.sum
 
-      - name: Install DM Tools test dependencies
+      - name: Install host and browser dependencies
         run: npm ci && npx playwright install --with-deps chromium
+        working-directory: ttrpg-codex
+
+      - name: Test and package DM Tools against the candidate host
+        run: npm ci && npm run check && go test ./... && go vet ./... && go run ./cmd/build-package
         working-directory: addon-dm-tools
 
-      - name: Test DM Tools against this host revision
-        run: npm run check && go test ./... && go vet ./... && go run ./cmd/build-package
-        working-directory: addon-dm-tools
-
-      - name: Test D&D Engine against this host revision
+      - name: Test and package D&D Engine against the candidate host
         run: go test ./... && go vet ./... && go run ./cmd/build-package
         working-directory: addon-dnd-engine
 
-      - name: Test Character Sheets against this host revision
-        run: npm ci && npm run package && npm test
+      - name: Test and package Character Sheets against the candidate host
+        run: npm ci && npm run package && npm test && go test ./... && go vet ./...
         working-directory: addon-dnd-character-sheets
 
-      - name: Inspect public release packages
-        run: |
-          node scripts/inspect-addon-builds.mts ../addon-dm-tools ../addon-dnd-engine ../addon-dnd-character-sheets
-        working-directory: ttrpg-codex
-
-  private-compendium:
-    name: Private compendium suite
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      ADDON_SUITE_TOKEN: ${{ secrets.ADDON_SUITE_TOKEN }}
-    steps:
-      - name: Report unavailable private suite
-        if: env.ADDON_SUITE_TOKEN == ''
-        env:
-          REQUIRED: ${{ inputs.require_private }}
-        run: |
-          if [[ "$REQUIRED" == true ]]; then
-            echo '::error::Publishing requires ADDON_SUITE_TOKEN and a passing private compendium suite.'
-            exit 1
-          fi
-          echo '::warning::Private compendium compatibility is unavailable; this run cannot establish private-suite coverage.'
-
-      - uses: actions/checkout@v7
-        if: env.ADDON_SUITE_TOKEN != ''
-        with:
-          path: ttrpg-codex
-
-      - uses: actions/checkout@v7
-        if: env.ADDON_SUITE_TOKEN != ''
-        with:
-          repository: pjunak/addon-dnd-2024-compendium
-          token: ${{ env.ADDON_SUITE_TOKEN }}
-          path: addon-dnd-2024-compendium
-
-      - uses: actions/setup-node@v7
-        if: env.ADDON_SUITE_TOKEN != ''
-        with:
-          node-version-file: ttrpg-codex/.nvmrc
-          cache: npm
-          cache-dependency-path: addon-dnd-2024-compendium/package-lock.json
-
-      - uses: actions/setup-go@v7
-        if: env.ADDON_SUITE_TOKEN != ''
-        with:
-          go-version-file: ttrpg-codex/go.mod
-          cache: true
-          cache-dependency-path: |
-            ttrpg-codex/go.sum
-            addon-*/go.sum
-
-      - name: Test Compendium against this host revision
-        if: env.ADDON_SUITE_TOKEN != ''
+      - name: Test and package Compendium against the candidate host
+        if: steps.coverage.outputs.mode == 'full'
         run: npm ci && npm run package && npm run typecheck:tools && npm test
         working-directory: addon-dnd-2024-compendium
 
-      - name: Inspect private release package
-        if: env.ADDON_SUITE_TOKEN != ''
-        run: node scripts/inspect-addon-builds.mts ../addon-dnd-2024-compendium
+      - name: Inspect exact built ZIPs and record source provenance
+        env:
+          SUITE_MODE: ${{ steps.coverage.outputs.mode }}
+        run: |
+          repositories=(../addon-dm-tools ../addon-dnd-engine ../addon-dnd-character-sheets)
+          if [[ "$SUITE_MODE" == full ]]; then
+            repositories+=(../addon-dnd-2024-compendium)
+          fi
+          node scripts/companion-suite.mts prepare "${repositories[@]}"
         working-directory: ttrpg-codex
+
+      - name: Build host UI and run installed companion acceptance
+        env:
+          SUITE_MODE: ${{ steps.coverage.outputs.mode }}
+        run: npm --workspace @ttrpg-codex/frontend run build && node scripts/companion-suite.mts test "$SUITE_MODE"
+        working-directory: ttrpg-codex
+
+      # Private package contents stay in this job, never in public artifacts.
+      - name: Preserve exact commit and inspected-hash evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: companion-provenance
+          path: ttrpg-codex/release/companions/provenance.json
+          if-no-files-found: ignore

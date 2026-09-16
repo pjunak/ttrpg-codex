@@ -65,6 +65,31 @@ builds browser assets, and runs all project-owned Go tests and vet. TypeScript
 also rejects unused locals and parameters. Node `.mts` tools execute through
 built-in type stripping, so their separate type check remains mandatory.
 
+The compatibility workflow builds each companion in its own checkout and
+inspects the current manifest's ZIP. It runs Sheets Go tests/vet against the
+candidate host SDK as well as its browser checks. All packages remain in the
+same job; private package contents are never uploaded as CI artifacts.
+`release/companions/provenance.json` records exact host/sibling commits and ZIP
+hashes and is retained as the job artifact.
+
+For installed acceptance after building the four adjacent repositories:
+
+```text
+node scripts/companion-suite.mts prepare ../addon-dm-tools ../addon-dnd-engine ../addon-dnd-character-sheets ../addon-dnd-2024-compendium
+npm --workspace @ttrpg-codex/frontend run build
+node scripts/companion-suite.mts test full
+```
+
+The runner verifies every copied ZIP against its inspected hash, supplies all
+four `CODEX_*_ZIP` inputs, and rejects any test failure or skip. Publication
+requires the private token and this full suite. A PR without private access runs
+the public packages and explicitly reports incomplete publication coverage.
+Repository T14 work may remove generated tracked outputs only after each
+producer retains its standalone deterministic package build.
+
+Browser files run four at a time to bound Chromium resource usage without
+changing individual test deadlines or coverage.
+
 Focused checks are useful during development:
 
 ```text
