@@ -2,7 +2,9 @@
 
 Initial audit September 10–11, 2026; continuation audit September 14, 2026. This compares preserved source revisions with current local source and synthetic/installed browser evidence, not a production-site inspection.
 
-**Latest continuation:** 12 additional confirmed workflow/presentation findings and four design concerns are documented below. The current execution plan is [the repository fixup sections in the backlog](../BACKLOG.md).
+**Latest implementation update, September 16:** remaining actionable host code and local core workflow acceptance are complete, including campaign bundles, offline maintenance, runtime diagnostics, shared controls, measured delivery improvements and session recovery. See [current host acceptance evidence](HOST_CLEANUP_ACCEPTANCE.md) and [the repository backlog](../BACKLOG.md). Publication acceptance remains blocked by Engine T32; deployment and physical-device checks have not been performed.
+
+The historical continuation below documented 12 additional workflow/presentation findings and four design concerns. Its dated observations and counts are preserved as the comparison baseline.
 
 **Original September 10–11 baseline: 21 confirmed missing or reduced capabilities, six documented transition/design differences, and four verification gaps.** Every item below includes an assessment of its usefulness and a recommended direction. Missing does not automatically mean worth restoring in its old form. The original audit made no runtime or deployment changes; subsequent implementation is recorded below. These proposals do not create new deployment gates.
 
@@ -326,6 +328,11 @@ physical-touch or aesthetic acceptance review.
 
 ### Shared UI direction checked September 16, 2026
 
+**Resolved by T34:** the researched shared controls, semantic theme tokens and
+public capability are implemented in `d957bfd`, with companion adoption recorded
+in each backlog section. [UI foundations](UI_FOUNDATIONS.md) owns the current
+contract and verification. The following paragraphs describe the initial gap.
+
 The intended reusable, themeable UI has not been replaced by a requirement for
 screen-specific implementations. Current source supplies shared theme tokens,
 contribution framing, Markdown and rule details, but the public browser UI handle
@@ -338,8 +345,9 @@ every local style or specialized domain view is a regression.
 The [shared UI reference](UI_FOUNDATIONS.md) records the current surfaces and
 ownership boundaries. T34 owns host primitives, semantic styling and public
 contracts; T34-DM, T34-COMP and T34-SHEETS own adoption in their repositories.
-The engine stays headless. These tasks remain open and require real consumer,
-keyboard/focus, responsive, localized and theme acceptance.
+The engine stays headless. That initial review required real consumer,
+keyboard/focus, responsive, localized and theme acceptance, now recorded in the
+shared UI reference rather than treated as an open host task.
 
 ### Backend work carried forward, not counted again
 

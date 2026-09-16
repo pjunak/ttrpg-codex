@@ -9,9 +9,9 @@ references; their detailed findings and the unchanged accepted release gates liv
 **P1:** preservation, blocked workflows or release confidence. **P2:** usability,
 resilience and maintenance. **Confirmed** means source/browser evidence exists;
 **review** means an unresolved acceptance or design question, not a proven bug.
-Uncommitted implementation is not completion: current Engine/Sheets work still
-needs its final package and workflow checks. Task IDs remain stable; gaps in
-numbering are completed work. The historical gates do not close these tasks.
+Implementation is not release acceptance: remaining Engine/Sheets work still
+needs its package and workflow checks. Task IDs remain stable; gaps in numbering
+are completed work. Historical gates do not close the remaining tasks.
 
 - [Host](#ttrpg-codex)
 - [DM Tools](#addon-dm-tools)
@@ -40,6 +40,14 @@ not mean it has been pushed, deployed, or installed on a live site.
 - [x] ~~**T09 — Reviewed dependency-aware disabling and recovery**~~ — `9997306`.
 - [x] ~~**T10 — Worker monitoring, bounded retries and dependent recovery**~~ — `b74a30c`.
 - [x] ~~**T34 — Shared themeable UI library and typed add-on capability**~~ — `d957bfd`; [researched controls and validation](rewrite/UI_FOUNDATIONS.md).
+- [x] ~~**T05 — Reviewed permanent add-on namespace removal**~~ — `31ebabb`.
+- [x] ~~**T06 — Offline shared/recovery-aware blob collection and resumable unlink**~~ — `31ebabb`.
+- [x] ~~**T07 — Measured, separately reviewed log retention and replay checkpoints**~~ — `31ebabb`; [operator procedure](SELF_HOSTING.md#reviewed-offline-storage-maintenance).
+- [x] ~~**T11 — Bounded, redacted worker and browser diagnostics**~~ — `9012bf6`.
+- [x] ~~**T14-HOST — Build/inspect companion artifacts before installed acceptance**~~ — `20c719c`.
+- [x] ~~**T19 — Atomic reviewed campaign bundles and receipt reconciliation**~~ — `94544bc`; [contract and validation](decisions/0001-campaign-bundle-imports.md).
+- [x] ~~**T29 — Measured campaign/asset compression and reproducible profiling**~~ — `8d3652a`; [results and measurement limits](rewrite/PERFORMANCE.md).
+- [x] ~~**T18-HOST — Core workflow acceptance and draft-preserving session recovery**~~ — `eb2cb7b`; [action-level evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
@@ -50,46 +58,24 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 
 ### Backend and core workflows
 
-- [ ] **T19 / P1 — Restore reviewed campaign-bundle imports.** Confirmed omission.
-  The [intended host provider](decisions/0001-campaign-bundle-imports.md) is absent;
-  the planning adapter alone does not import core campaign bundles. Implement
-  current-format ID/reference review, optional scoped planning contributions and
-  atomic publication of the exact retained plan. Prove stale/cancel/lost-response
-  and core/add-on rollback behavior. DM Tools owns the visible Import Center.
-- [ ] **T02 / P1 — Require installed companion tests on the publication path.**
-  [Compatibility CI](../.github/workflows/addon-compatibility.yml) builds/inspects
-  packages but does not feed all four ZIPs to installed host tests. Supply all
-  `CODEX_*_ZIP` inputs, require private content for publication, and test/vet the
-  Sheets worker against the candidate host. Record exact sibling commits and
-  inspected hashes; completion requires a release-path run with no companion
-  skips. Ordinary PR/private-access limitations remain explicit.
-
-### UX/UI
-
-The [continuation evidence](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings)
-contains the before/after comparisons for R01–R12 and screenshots for U01–U04.
-
-- [ ] **T29 / P2 — Measure delivery and interaction costs before optimizing.** U04.
-  Record cold/warm load, search, article and spatial interaction with large
-  synthetic campaigns and a throttled phone profile. A bundle warning alone is
-  not a regression. Optimize demonstrated costs, preserving workflow/error gates.
+- [ ] **T02 / P1 — Accept the publication companion matrix.** Wiring is implemented
+  in `20c719c`: all four inspected ZIPs, exact commit/hash provenance, Sheets SDK
+  checks and zero-skip enforcement. Local full acceptance reached 91/92 passes,
+  zero skips; Engine T32's level-20 artificer still exceeds its deadline. After
+  that fix, rerun the exact candidate matrix and the authorized publication path.
+  Ordinary PR/private-access limits remain explicit.
 
 ### Lifecycle, maintenance and operations
 
-All rows below remain open; completed archive-pruning implementation is omitted.
+Host implementation and local core UX acceptance are complete. These rows require
+a released schema-preservation need or separate operational authorization.
 
 | ID | Priority | Remaining work and completion condition |
 | --- | --- | --- |
-| T05 | P2 | Separate reviewed permanent add-on namespace deletion: counts, recovery/archive implications and backup requirements. Uninstall/archive cleanup must not silently delete campaign data. [Data ownership](rewrite/ADDON_DATA.md). |
-| T06 | P2 | Offline unused-blob collection with live/recovery reference accounting, preview and resumability; shared media and restore must survive. [Blob store](../internal/storage/blobstore/store.go). |
-| T07 | P2 | Measure and bound stored SSE/lifecycle/audit logs separately; test replay/reset across retention boundaries. No silent expiry of authored data or existing archives. [Events](rewrite/EVENT_STREAM.md). |
 | T08 | P2, triggered | Implement reviewed migration orchestration when a released schema actually needs preservation: exact snapshot, atomic commit, stale rejection and recovery. The old-sheet reset does not imply a general converter. [Data lifecycle](rewrite/ADDON_DATA.md#remaining-public-surface). |
-| T11 | P2 | Expose actionable worker health/exit and browser activation/disposal diagnostics; preserve bounded, redacted output and request correlation. Existing review/activation UI stays. [Browser lifecycle](rewrite/BROWSER_ADDONS.md). |
-| T14-HOST | P2 | Coordinate CI/fixture consumers of generated add-on artifacts with each repository's T14 work below. Keep standalone deterministic package builds before removing tracked output. |
 | T15 | P1, operational | On an authorized release, refresh remote/deployment state, publish the chosen validated host/add-on commits, then verify served build identity, manager and full backup with the matching maintenance binary. Do not rely on old SHA snapshots. [Runbook](SELF_HOSTING.md#publishing-and-deploying-updates). |
 | T16 | P2, operational | Re-inventory Asurai's superseded archives and historical cutover/maintenance copies; use existing reviewed cleanup where eligible and record retention decisions. Preserve independent backups; do not repeat the completed sheet reset. |
 | T17 | P2, operational | Recheck Tiamat's intended add-on state, stored data and wanted packages before activation/retirement. Asurai's reset authorization does not apply to Tiamat. |
-| T18-HOST | P2, review | Fill action-level gaps for core editing, role preview, settings, maps/timeline/graphs, recovery and lifecycle using [browser fixtures](../frontend/test/browser/) and relevant backend tests. Apply the completion criteria below. |
 
 ### Conditional host extensions
 
@@ -114,6 +100,7 @@ not a new generic-planner rewrite. [Product contract](../../addon-dm-tools/docs/
 ### Completed fix batches
 
 - [x] ~~**T34-DM — Shared controls in planner forms and Import Center**~~ — `9dac1bd`.
+- [x] ~~**T19-DM — Scoped bundle contributions, DM/player review and durable receipt checks**~~ — `da116c3`.
 
 ### Remaining work
 
@@ -125,11 +112,6 @@ not a new generic-planner rewrite. [Product contract](../../addon-dm-tools/docs/
   recovery across replacement/provider loss with explicit stale-revision and
   discard behavior; never reuse old-generation handles. Prove item, flow,
   reference, consequence and note drafts survive or can be recovered.
-- [ ] **T19-DM / P1 — Integrate the restored campaign-bundle provider.** Depends on
-  host T19. Route the advertised format through the existing Import Center;
-  explain core/planning scope, ID remaps and affected records in preview. Prove
-  cancel/stale/lost-response behavior using an installed package, with no duplicate
-  provider-owned core import implementation.
 - [ ] **T18-DM / P1, review — Audit complete planning sessions, including UX.**
   Exercise large/nested plans, card/flow creation, ownership moves, target
   selection, multi-anchor notes, deletion/undo, reader/editor transitions and
@@ -268,9 +250,9 @@ Provider-free saved reading/notes/print/export remain required.
 | --- | --- | --- |
 | 1 | Preserve authored intent: DM T30; finish Engine T32 + Sheets T33. Start T02 alongside them. | Safe role/stale/error behavior; recoverable planning edits; incomplete character saves and bounded play work through the installed contract. |
 | 2 | Everyday use: Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
-| 3 | Imports and resilience: host + DM T19, host T11; T08 only for a real schema-preservation need. | Exact reviewed transactions, understandable failures and safe provider/lifecycle recovery. |
-| 4 | Final integration: T02, relevant T18 cases and T29 measurements. | All four inspected ZIPs exercised without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
-| 5 | Authorized delivery T15–T17; independent maintenance T05–T07 and per-repo T14. | Exact served/installed builds verified; per-site data/retention choices recorded and rollback assets retained. |
+| 3 | Remaining add-on artifact ownership: per-repo T14. T08 only for a real schema-preservation need. | Standalone builds and inspected ZIPs preserve current consumer contracts; any needed migration is reviewed and atomic. |
+| 4 | Final integration: T02 and remaining add-on T18 cases. | All four inspected ZIPs pass without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
+| 5 | Authorized delivery T15–T17 and representative device/site acceptance. | Exact served/installed builds verified; per-site data/retention choices recorded and rollback assets retained. |
 
 T14 suffixes divide the existing generated-artifact task by repository; T18
 suffixes divide workflow acceptance. Cross-repository changes need producer and
