@@ -1,15 +1,17 @@
 # Host cleanup acceptance
 
-Local acceptance, September 16, 2026. This closes T18-HOST's actionable core
+Local and publication acceptance, September 16, 2026. This closes T18-HOST's actionable core
 workflow review and links the completed backend work. The historical comparison
 remains in [the feature-parity audit](FEATURE_PARITY_AUDIT.md); current remaining
 work belongs only in [the suite backlog](../BACKLOG.md).
 
-Core acceptance began with host `eb2cb7b`; the latest installed candidate is
-`10ddc3c`, including the deployment-gate repairs, DM recovery and progressive-save
-tests below.
-All campaigns, passwords, packages installed by fixtures and recovery operations
-used disposable local directories. Neither live site was read or modified.
+Core acceptance began with host `eb2cb7b`; the latest accepted runtime is
+`5cc4945`, including the deployment-gate repairs, DM recovery, progressive-save
+and Linux worker fixture tests below. The authorized publication follow-up passed
+Linux installed acceptance and deployed both sites; see
+[release evidence](#coordinated-publication-verification).
+All test campaigns, passwords, installed fixtures and recovery operations used
+disposable directories. The release did not activate add-ons or edit live campaign data.
 
 ## Action-level evidence
 
@@ -59,7 +61,8 @@ failed, zero skipped** in 146.3 seconds. This includes
 `installed sources evaluate every class with bounded projections and explicit
 incomplete choices`, including level-20 artificer under the unchanged service
 deadline, and all enlarged-text host/add-on theme/language comparisons.
-T02-LOCAL is complete; T02 retains fresh remote publication verification.
+This completed T02-LOCAL. The later [Linux publication verification](#coordinated-publication-verification)
+closes T02.
 
 The run includes seven new character save cases and the five planner recovery
 cases alongside campaign-bundle, lifecycle, role, provider and record-panel
@@ -68,8 +71,8 @@ and all four companion source repositories were clean when that provenance was
 captured. Later fixture validation is recorded in the CI follow-up below.
 Runtime source and built frontend matched the tested host commit. The initial
 preview timeout and unchanged passing rerun are recorded
-[below](#progressive-save-and-equipment-follow-up). No passing remote CI run is
-claimed for these package revisions.
+[below](#progressive-save-and-equipment-follow-up). These hashes identify the
+local archives; later CI and published archive hashes are recorded separately.
 
 | Package | Source commit | Inspected ZIP SHA-256 |
 | --- | --- | --- |
@@ -103,8 +106,10 @@ Rebuild and reinspect any changed package before a subsequent run.
 
 ## Acceptance boundaries
 
-No publication, deployment, live cleanup or data conversion was authorized or
-performed. T15–T17 retain the supervised site/device/retention decisions. Actual
+The initial local acceptance did not publish or deploy. The authorized follow-up
+published packages and deployed the host to both sites, as recorded below.
+T15–T17 retain live UI/backup/package acceptance and site/device/retention decisions;
+no live cleanup or data conversion was performed. Actual
 screen-reader speech, physical touch, real campaign scale/content and non-Chromium
 browsers were not tested here. Those are not represented by emulated touch,
 keyboard assertions or viewport/text-size checks.
@@ -294,7 +299,8 @@ Go's standard ZIP reader independently verified all 51 modes of a rewritten real
 DM Tools package, including both `0755` Linux workers. Host inspection accepted
 that replacement archive.
 
-The fix is committed as `325cf13` and closes T36. The full host gate passed:
+The replacement fix is committed as `325cf13`; the follow-up below completes T36
+for freshly constructed native-worker packages as well. The full host gate passed:
 31 tooling tests, 389 unit tests, 277 browser cases with the ordinary 33 optional
 package skips, plus Go tests and vet. Full installed acceptance then passed
 **104/104, zero failures and zero skips**, in 142.5 seconds. This exercised the
@@ -303,15 +309,15 @@ base host `64cd3f8` with working-tree changes. All four companion repositories
 were clean and used the same exact commits/hashes as the
 [installed companion matrix](#installed-companion-matrix). Native Windows workers
 ran; Linux ZIP metadata was verified independently. Fresh native
-Linux CI remains an explicit validation boundary.
+Linux CI was still pending at this stage and is verified in the follow-up below.
 
-The remaining operational step is to push all four accepted companion revisions
+The next operational step was to push all four accepted companion revisions
 and the host fixture fix, then verify a fresh Linux compatibility run and the
 intended host release. Rerunning the old host commit alone cannot include the
 fixture correction. Follow the [coordinated delivery procedure](../SELF_HOSTING.md#coordinate-host-and-companion-commits).
 A host main push can publish and deploy both sites; add-on publication does not
 install or activate a package on either site. No push, publication, deployment or
-live-data change was performed during this investigation.
+live-data change was performed during that initial investigation.
 
 ## Coordinated publication verification
 
@@ -345,3 +351,41 @@ generation alerts to coexist. No coverage or deadlines were relaxed.
 The corrected candidate passed `npm run check` with all four inspected companion
 ZIP inputs: 32 tooling tests, 389 unit tests and all 339 browser cases, zero
 failures/skips, plus Go tests/vet. Release readiness passed all 33 gates.
+
+The corrected host commit `5cc49456092bf4042e584680a74373c9de6a030d` passed
+[run 35126440334](https://github.com/pjunak/ttrpg-codex/actions/runs/35126440334):
+the host suite, deployment configuration, all **104 installed compatibility
+cases with zero failures/skips**, image build and both deployments succeeded.
+The installed suite executed the native Linux workers. Its
+[companion provenance artifact](https://github.com/pjunak/ttrpg-codex/actions/runs/35126440334/artifacts/10460160282)
+records the exact four source commits in the release table above and a clean
+host checkout. This closes T02 and completes the T36 Linux verification.
+
+DM Tools, Engine and Sheets used ZIP hashes identical to their published packages
+in the table. Compendium's independently built CI ZIP instead has SHA-256
+`6f0aca4f1543fb78c06891fa81fc820c93afe9ca96d6058fbcb0673d25b76dce`
+(2,854,109 bytes), from the same `e8cc635` source. Its
+[packager](../../../addon-dnd-2024-compendium/tools/package.ts) leaves ZIP
+timestamps variable: two clean local builds preserved all 3,268 entry payloads
+and permission modes while changing 181 timestamps and the archive hash.
+The CI and published Compendium payloads were not directly compared; these
+separate hashes do not establish byte-identical artifacts. Reproducible packaging
+is recorded under T14-COMP. Post-build provenance also reports `sourceDirty: true`
+for DM Tools, Engine and Sheets, and `false` for Compendium; generated-artifact
+ownership remains the per-repository T14 follow-up.
+
+The image startup and GitHub HTTPS checks passed before publication. Both sites
+received the immutable image
+`ghcr.io/pjunak/ttrpg-codex@sha256:89ce99616b2c9579f09e7b958263cabc35dc29c2ff9dff41e3d87ee66cede564`:
+
+| Site | Exact infrastructure run | Result |
+| --- | --- | --- |
+| Asurai | [35127386396](https://github.com/pjunak/infra/actions/runs/35127386396) | Successful rollout and health verification |
+| Tiamat | [35127386310](https://github.com/pjunak/infra/actions/runs/35127386310) | Successful rollout and health verification |
+
+The host parent waited for both exact results and completed successfully at
+17:24:50 UTC. The infrastructure jobs each passed their validated-infrastructure
+gate and `Stage configuration, deploy under lock, and verify health` step.
+T15-DELIVERY is complete. Live frontend/manager/backup acceptance, site-specific
+add-on review/activation and device checks remain under T15–T17; workflow health
+checks do not substitute for those operations.
