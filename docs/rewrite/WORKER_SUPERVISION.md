@@ -94,6 +94,9 @@ Graceful shutdown sends `codex/shutdown` and waits for a zero exit within the
 shutdown deadline. A remote error, non-zero exit, or timeout marks the
 generation failed; timeout also forces termination. Shutdown before launch is
 a clean stop. Shutdown of an already stopped or failed instance is idempotent.
+The supervisor records ownership of transport closure before closing its pipes,
+so a delayed reader's closed-file error cannot mark a graceful exit failed.
+Unexpected pipe closure and protocol failures still fail the generation.
 
 ## Diagnostics and stable failures
 
@@ -171,6 +174,9 @@ same-package browser invalidation, non-replayed writes, startup failure, health
 hangs, backoff/exhaustion, stable/degraded periods, corrupt saved packages,
 generation replacement, explicit recovery and shutdown cancellation. Native
 subprocess tests prove crash/health-timeout termination and fresh-process restart.
+`transport_cleanup_test.go` drives the real peer reader with an OS pipe to verify
+that intentional cleanup does not race a clean shutdown into failure, while
+unexpected closure and protocol errors retain their failure category.
 
 Go workers use `workerrpc.RunNativeWorker` rather than reimplementing this
 lifecycle. The helper keeps startup reads serialized, switches the same codec

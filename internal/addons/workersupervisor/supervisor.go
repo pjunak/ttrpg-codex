@@ -21,25 +21,26 @@ type Supervisor struct {
 	stderr      *tailBuffer
 	operation   chan struct{}
 
-	mu          sync.Mutex
-	rpc         sync.Mutex
-	state       State
-	transitions []Transition
-	command     *exec.Cmd
-	codec       *workerrpc.Codec
-	peer        *workerrpc.Peer
-	stdin       *os.File
-	stdout      *os.File
-	closeOnce   sync.Once
-	done        chan struct{}
-	waitError   error
-	startedAt   *time.Time
-	exitedAt    *time.Time
-	lastError   error
-	negotiated  *Negotiated
-	nextID      uint64
-	health      *HealthDiagnostic
-	requests    []RequestDiagnostic
+	mu               sync.Mutex
+	rpc              sync.Mutex
+	state            State
+	transitions      []Transition
+	command          *exec.Cmd
+	codec            *workerrpc.Codec
+	peer             *workerrpc.Peer
+	stdin            *os.File
+	stdout           *os.File
+	closeOnce        sync.Once
+	transportClosing bool
+	done             chan struct{}
+	waitError        error
+	startedAt        *time.Time
+	exitedAt         *time.Time
+	lastError        error
+	negotiated       *Negotiated
+	nextID           uint64
+	health           *HealthDiagnostic
+	requests         []RequestDiagnostic
 }
 
 func New(config Config) (*Supervisor, error) {
@@ -592,6 +593,14 @@ func (supervisor *Supervisor) handlePeerTerminal(err error) {
 	if errors.Is(err, io.EOF) || errors.Is(err, workerrpc.ErrPeerClosed) {
 		return
 	}
+	if errors.Is(err, os.ErrClosed) {
+		supervisor.mu.Lock()
+		closing := supervisor.transportClosing
+		supervisor.mu.Unlock()
+		if closing {
+			return
+		}
+	}
 	failure := lifecycleError(CodeTransportFailed, fmt.Errorf("worker RPC peer failed: %w", err))
 	supervisor.markFailed(failure)
 	supervisor.terminate()
@@ -657,6 +666,9 @@ func (supervisor *Supervisor) terminate() {
 func (supervisor *Supervisor) closeTransport() {
 	supervisor.closeOnce.Do(func() {
 		supervisor.mu.Lock()
+		// Closing stdout can wake the peer before Shutdown records StateStopped.
+		// That local pipe error must not turn a clean exit into a worker failure.
+		supervisor.transportClosing = true
 		stdin := supervisor.stdin
 		stdout := supervisor.stdout
 		supervisor.mu.Unlock()
