@@ -167,7 +167,8 @@ a cancelled wiki conflict no longer prevents a fresh edit from saving.
 
 Real-host tests compare sparse/rich articles and collection cards at 390px and
 desktop in Classic/Moonlit and English/Czech, with valid uploaded artwork,
-keyboard disclosures, retained views, focus, and 200% CSS zoom. Existing
+keyboard disclosures, retained views, focus, and reflow at 720 and 320 CSS pixels
+with both bundled and unavailable web fonts. Existing
 navigation/stale/pending/uncertain-response editor suites remain required.
 The new save-feedback cases cover delayed writes, stale failure, retained drafts
 and Cancel; fixture regressions cover cancelling a wiki conflict and saving a

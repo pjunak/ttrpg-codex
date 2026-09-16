@@ -189,3 +189,16 @@ then checks keyboard selection, clear behavior, focus and retained filters.
 Automated Chromium checks and inspected screenshots are the evidence boundary.
 Manual NVDA/VoiceOver, physical-touch and full browser/OS zoom combinations have
 not been performed; the per-repository T18 acceptance work still owns those checks.
+
+## Reflow verification
+
+Profile and collection acceptance reduces the actual CSS viewport to 720 px
+(desktop 1440 px at 200% page zoom) and 320 px (the standard reflow boundary).
+It repeats the locale/theme/device matrix with bundled and unavailable web fonts.
+CSS `zoom: 2` is not a substitute: it magnifies elements without selecting the
+same responsive breakpoints, and an inline setting can be lost on navigation.
+The test asserts the viewport width after navigation and reports overflowing
+elements on failure. This follows the [W3C reflow viewport guidance](https://www.w3.org/WAI/WCAG22/Understanding/reflow.html);
+[CSS zoom](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/zoom)
+remains an element magnification property. Actual browser zoom and assistive
+technology still belong to manual acceptance.

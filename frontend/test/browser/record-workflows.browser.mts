@@ -1,4 +1,4 @@
-import type { APIRequestContext, Browser } from 'playwright';
+import type { APIRequestContext, Browser, Page } from 'playwright';
 import type { TestContext } from 'node:test';
 import type { AddressInfo } from 'node:net';
 import type { ChildProcessByStdio } from 'node:child_process';
@@ -48,16 +48,27 @@ after(async () => {
   }
 });
 
-async function open(t: TestContext, role: string | undefined = undefined, mobile = false) {
+async function open(t: TestContext, role: string | undefined = undefined, mobile = false, fallbackFonts = false) {
   const context = await browser.newContext({ baseURL: origin, locale: 'en-US', reducedMotion: 'reduce',
     viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 } });
   t.after(() => context.close());
   const auth = role ? await jsonResponse(await context.request.post('/api/login', { data: { password: `local-record-workflows-${role}` } })) : undefined;
+  if (fallbackFonts) await context.route('**/*.woff2', route => route.abort());
   const page = await context.newPage(); page.setDefaultTimeout(12_000);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message)); t.after(() => assert.deepEqual(errors, []));
   await page.goto('/#/'); await page.locator('.session-section').waitFor();
   return { page, client: context.request, token: auth?.csrfToken };
 }
+async function assertViewportReflow(page: Page, subject: string, width: number) {
+  const layout = await page.evaluate(() => ({
+    viewport: innerWidth, width: document.documentElement.scrollWidth,
+    overflow: [...document.querySelectorAll('body *')].filter(element => element.getBoundingClientRect().right > innerWidth)
+      .map(element => ({ tag: element.tagName, class: element.className, text: element.textContent?.slice(0, 60) })).slice(-8),
+  }));
+  assert.equal(layout.viewport, width);
+  assert.ok(layout.width <= width, subject+' reflows at '+width+' CSS pixels: '+JSON.stringify(layout));
+}
+
 async function put(client: APIRequestContext, token: string, key: string, value: Record<string, unknown>, revision = 0, collection = 'locations') {
   return jsonResponse(await client.post('/api/campaign/transactions', { headers: { 'X-Codex-CSRF': token }, data: {
     contractVersion: 'campaign-mutation.v1', mutations: [{ operation: 'put', collection, key, expectedRevision: revision, value: { id: key, ...value } }],
@@ -543,13 +554,13 @@ for (const mobile of [false, true]) test(`investigations share effective status 
   assert.ok(await player.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
 });
 
-for (const mobile of [false,true]) for (const locale of ['en','cs']) for (const theme of ['classic','moonlit']) {
-  test(`compact profiles and collection controls work on ${mobile?'phone':'desktop'} in ${locale}/${theme}`, async t => {
-    const suffix = [mobile?'phone':'desktop',locale,theme].join('-'), key = 'compact-'+suffix;
+for (const mobile of [false,true]) for (const locale of ['en','cs']) for (const theme of ['classic','moonlit']) for (const fonts of ['bundled','fallback']) {
+  test(`compact profiles and collection controls work on ${mobile?'phone':'desktop'} in ${locale}/${theme} with ${fonts} fonts`, async t => {
+    const suffix = [mobile?'phone':'desktop',locale,theme,fonts].join('-'), key = 'compact-'+suffix;
     await put(admin,csrf,key,{name:'Sparse '+suffix,description:'A clear purpose near the top.'},0,'characters');
     await put(admin,csrf,key+'-rich',{name:'Rich '+suffix,title:'Scout',description:'A detailed campaign member.',species:'Elf',age:120,status:'alive',faction:'party',known:['Guards the northern road.']},0,'characters');
     await put(admin,csrf,key+'-faction',{name:'Faction '+suffix,description:'Protect the northern road.'},0,'factions');
-    const dm = await open(t,'dm',mobile);
+    const dm = await open(t,'dm',mobile,fonts === 'fallback');
     const portrait = Buffer.from(await dm.page.evaluate(() => {
       const canvas=document.createElement('canvas'); canvas.width=90; canvas.height=120;
       const ctx=canvas.getContext('2d')!; ctx.fillStyle='#729ca5'; ctx.fillRect(0,0,90,120);
@@ -602,11 +613,17 @@ for (const mobile of [false,true]) for (const locale of ['en','cs']) for (const 
     await dm.page.reload(); await options.getByRole('combobox').first().waitFor();
     assert.equal(await options.getByRole('combobox').first().inputValue(),'updatedAt');
     if(process.env['CODEX_UI_SCREENSHOTS']==='1') await dm.page.screenshot({path:resolve(output,'compact-collection-'+suffix+'.png')});
-    await dm.page.evaluate(()=>{document.documentElement.style.zoom='2';});
-    assert.ok(await dm.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'collection fits at 200% zoom');
-    await dm.page.goto('/#/characters/'+key);
-    await dm.page.locator('#record-title').waitFor();
-    assert.ok(await dm.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'profile fits at 200% zoom');
+    // Page zoom reduces the CSS viewport and changes responsive breakpoints.
+    // CSS zoom only magnifies elements and can disappear on full navigation.
+    for (const width of [720, 320]) {
+      await dm.page.setViewportSize({ width, height: 800 });
+      await dm.page.goto('/#/characters?q='+encodeURIComponent(suffix));
+      await list.locator('a.record-row').first().waitFor();
+      await assertViewportReflow(dm.page, 'collection', width);
+      await dm.page.goto('/#/characters/'+key);
+      await dm.page.locator('#record-title').waitFor();
+      await assertViewportReflow(dm.page, 'profile', width);
+    }
   });
 }
 
