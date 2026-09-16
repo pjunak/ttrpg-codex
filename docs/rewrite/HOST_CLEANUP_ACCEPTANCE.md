@@ -414,3 +414,71 @@ repetitions. The full `npm run check` passed with all four inspected ZIP inputs:
 tests/vet. `go test -race` passed both supervisor and package-manager packages with
 `-count=10`; release readiness passed all 33 unchanged gates. This closes T37.
 The worker protocol, lifecycle state graph and deadlines are unchanged.
+
+## Progressive Builder repair and navigation
+
+Engine `dd51374` and Sheets `dff6c0b` close T32-GUIDANCE and T33-BUILDER.
+Earlier edits now withdraw only the exact previously saved selection identified
+by `<choice ID>#<slot>`; the issue's group target no longer deletes valid
+siblings. Reduced choice counts and dependency chains longer than four steps
+settle without silently accepting newly supplied invalid choices.
+
+Engine counts the required first class and class cantrips/spellbook choices.
+Invalid ability arrays and acquired feat prerequisites no longer appear complete;
+repair guidance keeps the authored decision available for correction. English
+fallback labels have additive translation templates, preserving authored names
+and unchanged public service/schema versions.
+
+Sheets exposes a next-choice action even with the progress rail collapsed.
+Navigation reaches first-class, lineage, subclass, advancement and spell
+controls; it opens the relevant disclosure, reveals the selected tab and focuses
+the first unfinished visible control. Immediate host enhancement avoids focusing
+the hidden native select. Stable level IDs preserve repeated field focus, and
+detached disclosure events no longer reset the current rail state.
+Engine wording and the previously missing Background field label are localized
+in English/Czech. Catalog text and untranslated save explanations retain their
+separate ownership and remaining backlog scope.
+
+The interaction follows the existing host controls contract, checked against the
+[W3C combobox pattern](https://www.w3.org/WAI/ARIA/apg/patterns/combobox/),
+[focus-order guidance](https://www.w3.org/WAI/WCAG22/Understanding/focus-order.html)
+and [reduced-motion technique](https://www.w3.org/WAI/WCAG22/Techniques/css/C39).
+These references informed focus placement and motion behavior; automated browser
+checks do not establish screen-reader or physical-device acceptance.
+
+Validation includes Engine tests/vet and native race checks for rules, provider
+and engine; Sheets `npm run check`, package build and native coordinator race
+checks; host inspection of all four ZIPs; and all 17 installed character cases
+with zero skips. Four added
+[installed Builder cases](../../frontend/test/browser/installed-character-builder-fixture.mts)
+cover keyboard navigation at 390px with 200% text in English/Czech, collapsed
+progress retention, visible active tabs, subclass/spell targets, first-class
+changes reducing four skill slots to one, expansion focusing the next empty
+slot, recorded HP field focus, and later advancement withdrawal while preserving
+other selections and notes. Phone screenshots were visually inspected.
+
+The final host `npm run check` passed with all four inspected packages:
+32 tooling tests, 389 unit tests and 343 browser cases, with zero failures/skips,
+plus Go tests/vet. An intermediate rerun hit Chromium
+`ERR_NO_BUFFER_SPACE` while opening an unrelated Settings fixture; the unchanged
+gate subsequently passed. No test coverage or concurrency setting was weakened.
+
+The tested package set is:
+
+| Add-on | Source commit | ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools | `0eeac9b` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine | `dd51374` | `81f7fe068588ba0c73b91e984c2c3f490a55575830fe7a3b14a238cd13184a03` |
+| Sheets | `dff6c0b` | `cec7fb51c7379f9171cbad59d75f644d246b3bec9b6d761e72a52c5eae0f26a4` |
+| Compendium | `e8cc635` | `2a5a0a19f7116a380470e26e99232d82567cb4e4b6c98113c750e5ff447a323c` |
+
+All companion worktrees were clean at inspection. The host acceptance worktree
+started from `d28221b`. The package lifecycle ran against disposable local data;
+this batch does not establish new CI publication or live-site activation.
+
+A separate confirmed gap is recorded as T38-COMP: the source Rogue Expertise
+feature has descriptive text without a structured grant, so no corresponding
+choice appears in installed Engine/Sheets. Provider records and their acquisition
+tests must supply that rule. Remaining deeper origin/multiclass/equipment
+acceptance, save-explanation localization, session/provider changes and uncertain
+direct-command recovery stay open under T32/T33.

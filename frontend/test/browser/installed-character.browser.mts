@@ -12,6 +12,7 @@ import type { Readable } from 'node:stream';
 import { chromium, request, type APIRequestContext, type Browser } from 'playwright';
 import { jsonResponse, installReviewedPackage, enableAllRuleSources } from './installed-graph-fixture.mts';
 import { registerCharacterSaveTests } from './installed-character-save-fixture.mts';
+import { registerCharacterBuilderTests } from './installed-character-builder-fixture.mts';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const output = resolve(root, 'frontend/test-results/installed-character');
@@ -140,6 +141,7 @@ test('autosave queues item typing during an in-flight request and preserves over
 });
 
 registerCharacterSaveTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerCharacterBuilderTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 
 test('source adoption remains explicit and absent rules freeze mechanics without a sheet Notes surface', {skip:!enabled},async t=>{
  const before=await call('load',{}),policy=await jsonResponse(await admin.get('/api/admin/rules-policy'));

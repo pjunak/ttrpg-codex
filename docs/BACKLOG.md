@@ -132,6 +132,13 @@ Standalone browsing must remain useful without Engine or Sheets.
 
 ### Remaining work
 
+- [ ] **T38-COMP / P1 — Supply missing structured Rogue Expertise choices.**
+  Confirmed during installed Builder acceptance: [level-1 Expertise](../../addon-dnd-2024-compendium/data/phb/features/rogue/rogue-expertise.json)
+  has descriptive text but no structured grant, so Engine/Sheets offer no
+  corresponding choice. Audit the level-6 feature and related class grants, add
+  source-backed records using the public grant schema, and verify acquisition
+  levels, eligible skills and earlier-choice replacement through installed
+  Engine/Sheets. Keep edition rules in the provider records.
 - [ ] **T31 / P2 — Keep library navigation reachable on phones.** Source-backed
   UX concern: at 768px and below, [the reading pane is ordered before the library
   drawer](../../addon-dnd-2024-compendium/src/index.css). A long detail/list can
@@ -170,14 +177,16 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T32-PERF — Bound evaluation catalog work and fix the level-20 timeout**~~ — `f5f5ba3`.
 - [x] ~~**T32-FEATS — Validate acquired feat prerequisites and eligible builder options**~~ — `3f9c8e9`; [regression and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#deployment-gate-repair-and-engine-follow-up).
 - [x] ~~**T32-EQUIPMENT — Reject empty equipment and inactive grants; explain save blockers**~~ — `dfd970b`; [Engine/Sheets acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#progressive-save-and-equipment-follow-up).
+- [x] ~~**T32-GUIDANCE — Count required choices and expose invalid advancements for repair**~~ — `dd51374`; [Builder acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#progressive-builder-repair-and-navigation).
 
 ### Remaining work
 
 - [ ] **T32 / P1 — Finish progressive-build and equipment validation acceptance.**
-  Extend installed acceptance to earlier-origin/level choice replacement,
+  Extend installed acceptance to remaining origin-grant replacements, deeper
   multiclass progressions, attunement capacity/prerequisites and exclusive
-  armor/shield slots through Sheets T33. Retain the accepted partial/invalid-save,
-  empty-equipment and grant-lifetime regressions. Results must remain deterministic,
+  armor/shield slots through Sheets T33. Retain accepted first-class/count
+  changes, later-level withdrawal, partial/invalid saves, empty equipment and
+  grant-lifetime regressions. Results must remain deterministic,
   explainable, source-policy aware and leave caller inputs unchanged.
 - [ ] **T18-ENGINE / P1, review — Close rules/provider evidence gaps.**
   Use representative single/multiclass builds through level changes, spells,
@@ -207,6 +216,7 @@ Provider-free saved reading/notes/print/export remain required.
 
 - [x] ~~**T34-SHEETS — Shared fields, choices, states, tabs and modal focus**~~ — `99edd12`.
 - [x] ~~**T33-SAVE — Preserve rejected edits, retry uncertain autosaves and guard discard**~~ — `8b3bb30`; host regressions `10ddc3c`. Includes queued corrections/choice withdrawals, concurrent edits and enlarged-text phone recovery; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#progressive-save-and-equipment-follow-up).
+- [x] ~~**T33-BUILDER — Preserve valid slots and guide unfinished choices on phones**~~ — `dff6c0b`; [Builder acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#progressive-builder-repair-and-navigation).
 
 ### Remaining work
 
@@ -218,9 +228,8 @@ Provider-free saved reading/notes/print/export remain required.
   announce zero matches. Verify both layouts/languages and provider-free saved
   details/print. Engine remains the calculation authority.
 - [ ] **T33 / P1 — Finish automatic saving and progressive-builder usability.**
-  Finish earlier-decision Builder repair and next-required-choice guidance on
-  phones against Engine T32; localize returned save explanations that still fall
-  back to English. Exercise session expiry and provider/generation
+  Localize returned save explanations that still fall back to English.
+  Exercise session expiry and provider/generation
   replacement while edits are pending, then explicit rules adoption. Verify
   uncertain outcomes for direct play/grant and reviewed-import commands, whose
   command paths are separate from the accepted autosave queue. Pending in-memory
@@ -242,7 +251,7 @@ Provider-free saved reading/notes/print/export remain required.
 
 | Order | Work | Exit evidence |
 | --- | --- | --- |
-| 1 | Preserve authored intent: finish Engine T32 + Sheets T33. | Safe role/stale/error behavior; incomplete character saves and bounded play work through the installed contract. |
+| 1 | Preserve authored intent: finish Engine T32 + Sheets T33 and provider grant correction T38-COMP. | Safe role/stale/error behavior; incomplete character saves and bounded play work through the installed contract. |
 | 2 | Everyday use: Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
 | 3 | Remaining add-on artifact ownership: per-repo T14. T08 only for a real schema-preservation need. | Standalone builds and inspected ZIPs preserve current consumer contracts; any needed migration is reviewed and atomic. |
 | 4 | Final integration after remaining add-on T18 fixes; retain completed T02 coverage. | All four inspected ZIPs pass without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
