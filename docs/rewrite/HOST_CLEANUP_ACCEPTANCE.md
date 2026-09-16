@@ -5,8 +5,8 @@ workflow review and links the completed backend work. The historical comparison
 remains in [the feature-parity audit](FEATURE_PARITY_AUDIT.md); current remaining
 work belongs only in [the suite backlog](../BACKLOG.md).
 
-Core acceptance began with host `eb2cb7b`; the latest source candidate is
-`c3d0ac1`, including the deployment-gate repairs recorded below.
+Core acceptance began with host `eb2cb7b`; the latest installed candidate is
+`62e8da6`, including the deployment-gate repairs and DM recovery tests below.
 All campaigns, passwords, packages installed by fixtures and recovery operations
 used disposable local directories. Neither live site was read or modified.
 
@@ -43,7 +43,7 @@ reachable actions and overflow.
   package manager, HTTP, campaign imports, request context, service/worker
   brokers, worker host and the campaign/add-on stores. HTTP race checks were
   repeated after the compression change.
-- DM Tools' required integration passed its full check (49 unit tests and
+- DM Tools' required integration passed its full check (56 unit tests and
   28 browser render checks at each of DPR 1 and 2), Go tests/vet, all three worker
   builds and host ZIP inspection. Windows workers were exercised; the other
   targets were built/inspected. Installed cases were included in host acceptance.
@@ -53,22 +53,22 @@ below. No skipped or failed case is converted into a passing acceptance claim.
 
 ## Installed companion matrix
 
-The full candidate run on host `c3d0ac1` completed **92 cases: 92 passed, zero
-failed, zero skipped** in 126.4 seconds. This includes
+The full candidate run on host `62e8da6` completed **97 cases: 97 passed, zero
+failed, zero skipped** in 137.1 seconds. This includes
 `installed sources evaluate every class with bounded projections and explicit
 incomplete choices`, including level-20 artificer under the unchanged service
 deadline, and all enlarged-text host/add-on theme/language comparisons.
 T02-LOCAL is complete; T02 retains fresh remote publication verification.
 
-The run includes both newly added installed campaign-bundle cases and the
-existing lifecycle/role/provider/record-panel workflows. All four archives
+The run includes five new planner recovery cases alongside campaign-bundle,
+lifecycle, role, provider and record-panel workflows. All four archives
 passed host inspection before installation. All four companion source repositories
 were clean; host dirtiness in the provenance was documentation only. Runtime source
 and built frontend matched the tested host commit. No remote CI run is claimed.
 
 | Package | Source commit | Inspected ZIP SHA-256 |
 | --- | --- | --- |
-| dm-tools | `da116c3` | `9b7d07384eeb051ff04d80549715f5bb81680d77504e3ca161a17efd0248d08d` |
+| dm-tools | `0eeac9b` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
 | dnd-engine | `3f9c8e9` | `91dac170081052f272f4eb61c1ac4d35800e8a2b994762818f1d6f80a1d3fffa` |
 | dnd-sheets | `99edd12` | `23d008405112b0d032839067ef1f9e3363c6404a6f9f7816cf8a02e6494ae6a5` |
 | dnd-2024-compendium | `e8cc635` | `02961fd304935e806f66785e5f205226c7b620daa040cba08eef9c4e9b1ac136` |
@@ -93,6 +93,8 @@ Rebuild and reinspect any changed package before a subsequent run.
 | Engine | `f5f5ba3` | Bound per-evaluation catalog decoding while preserving isolation |
 | Engine | `3f9c8e9` | Validate normalized feat references and builder prerequisites |
 | DM Tools | `da116c3` | Compatible import adapter v3 consumption, scoped planning contribution and receipt UI |
+| DM Tools | `0eeac9b` | Bounded planner draft recovery with original revisions and explicit review/discard |
+| Host | `88e7bea`, `62e8da6` | Installed recovery, navigation and native/searchable choice acceptance |
 
 ## Acceptance boundaries
 
@@ -104,8 +106,10 @@ keyboard assertions or viewport/text-size checks.
 
 T08 and the conditional API extensions still require a concrete released-data
 preservation need or consumer; they are not unexplained missing host fixes.
-DM Tools T30 still owns recovery of add-on-local drafts across forced lifecycle
-replacement. The host's core session recovery does not claim to implement it.
+DM Tools now owns recovery of its drafts across forced lifecycle replacement,
+recorded in the [T30 follow-up](#dm-tools-draft-recovery-follow-up). It uses the
+existing public lifecycle/edit contracts and shared host controls. Broader
+DM workflow acceptance remains under T18-DM.
 
 ## Deployment-gate repair and Engine follow-up
 
@@ -146,7 +150,7 @@ ability advances, acquisition levels, unsupported requirements and exact DM
 waivers. All Engine Go tests/vet, rules/provider/engine race tests, sheet worker
 Go tests/vet, three worker target builds and host ZIP inspection passed.
 
-The exact installed rerun above passed after both fixes. Windows native workers
+The earlier 92-case installed rerun passed after both fixes. Windows native workers
 were executed locally; Linux targets were cross-compiled and inspected, without
 local native Linux execution. Broader Engine T32 and Sheets T33 workflow acceptance
 remains open and is not implied by the 92 passing cases.
@@ -155,3 +159,39 @@ These are local commits. The corrected Engine source must reach its main branch
 before the host publication matrix is run, because that job builds companions
 from their repositories. A fresh authorized Actions run and subsequent live
 rollout remain operational acceptance; neither was triggered here.
+
+## DM Tools draft recovery follow-up
+
+DM Tools `0eeac9b` closes T30 with a bounded tab-local recovery copy. Forced
+replacement or disable/re-enable offers Resume, Download and Discard through
+the existing shared host controls. Item, flow, reference, consequence and note
+text, new-flow/reference values and provisional item identity/parent survive.
+Recovery retains opening revisions; concurrent updates still reject stale saves,
+and deleted records or owners leave copyable text. Recovered unconfirmed saves
+cannot be submitted again, while confirmed writes leave no stale copy even if
+their confirming read fails. Old-generation replies cannot clear current drafts.
+
+Host `88e7bea` adds the [installed recovery fixture](../../frontend/test/browser/installed-planner-recovery-fixture.mts)
+and extends accepted navigation/sign-out discard checks. It covers no automatic
+writes, keyboard resume, fresh-generation saves, stale/deleted records,
+confirmed/held replies, blocked read/write storage, malformed copies, separate
+tabs and player UI isolation. Desktop and 390 px phone views pass; Czech phone
+controls also retain 200% text without horizontal page overflow. Recovery phone
+screenshots were visually inspected. Storage lifetime and limitations remain in
+the [owning add-on contract](../../../addon-dm-tools/docs/GRAPH.md#recovery-across-generations).
+
+The first full run exposed a fixture assumption: enough accumulated parent
+choices activate the shared searchable combobox, so the native-select locator
+was ambiguous. Host `62e8da6` exercises either public control and deliberately
+seeds enough phone choices to cover the searchable case independently. The
+focused six lifecycle/navigation cases and the standalone searchable-phone case
+pass, alongside both TypeScript projects. This does not change host controls.
+
+DM Tools passed 56 unit tests, all 28 rendering checks at both DPR 1 and 2,
+Go tests/vet, all three native worker builds and host ZIP inspection. The host's
+full check passed 29 tooling, 389 unit and 277 browser cases, with the expected
+26 optional-package skips, plus Go tests/vet. Actual Windows native workers were
+executed; Linux workers were cross-compiled and inspected. The final exact-package
+matrix above passed all 97 cases without skips. Broader DM T18 review,
+physical-device and live-site acceptance remain open; no package was published
+or activated on either site.

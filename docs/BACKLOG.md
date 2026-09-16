@@ -95,17 +95,10 @@ not a new generic-planner rewrite. [Product contract](../../addon-dm-tools/docs/
 
 - [x] ~~**T34-DM — Shared controls in planner forms and Import Center**~~ — `9dac1bd`.
 - [x] ~~**T19-DM — Scoped bundle contributions, DM/player review and durable receipt checks**~~ — `da116c3`.
+- [x] ~~**T30 — Recover unsaved planning work across forced replacement**~~ — `0eeac9b`; explicit resume/download/discard, original revisions and uncertain-save protection. [Contract](../../addon-dm-tools/docs/GRAPH.md#recovery-across-generations) · [installed evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#dm-tools-draft-recovery-follow-up).
 
 ### Remaining work
 
-- [ ] **T30 / P1 — Preserve unsaved planning work during forced replacement.**
-  Confirmed limitation, promoted from C01. Drafts are
-  [view-local](../../addon-dm-tools/src/planner-drafts.ts), and reconnection
-  [clears them](../../addon-dm-tools/src/planner-element.ts). Ordinary navigation
-  guards do not cover externally forced add-on graph replacement. Design scoped
-  recovery across replacement/provider loss with explicit stale-revision and
-  discard behavior; never reuse old-generation handles. Prove item, flow,
-  reference, consequence and note drafts survive or can be recovered.
 - [ ] **T18-DM / P1, review — Audit complete planning sessions, including UX.**
   Exercise large/nested plans, card/flow creation, ownership moves, target
   selection, multi-anchor notes, deletion/undo, reader/editor transitions and
@@ -243,7 +236,7 @@ Provider-free saved reading/notes/print/export remain required.
 
 | Order | Work | Exit evidence |
 | --- | --- | --- |
-| 1 | Preserve authored intent: DM T30; finish Engine T32 + Sheets T33. | Safe role/stale/error behavior; recoverable planning edits; incomplete character saves and bounded play work through the installed contract. |
+| 1 | Preserve authored intent: finish Engine T32 + Sheets T33. | Safe role/stale/error behavior; incomplete character saves and bounded play work through the installed contract. |
 | 2 | Everyday use: Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
 | 3 | Remaining add-on artifact ownership: per-repo T14. T08 only for a real schema-preservation need. | Standalone builds and inspected ZIPs preserve current consumer contracts; any needed migration is reviewed and atomic. |
 | 4 | Final integration: T02 and remaining add-on T18 cases. | All four inspected ZIPs pass without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
