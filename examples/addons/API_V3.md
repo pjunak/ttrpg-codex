@@ -16,7 +16,7 @@ requirements. Machine-readable definitions live in
 
 ## Current implementation status
 
-Checked against the September 14, 2026 host source. Manifest acceptance and a
+Checked against the September 16, 2026 host source. Manifest acceptance and a
 reserved protocol name do not establish a callable runtime surface. The
 [suite backlog](../../docs/BACKLOG.md) owns future work. Sections labeled reserved
 below describe constraints for a possible implementation, not available APIs.
@@ -25,6 +25,7 @@ below describe constraints for a possible implementation, not available APIs.
 | --- | --- |
 | Package lifecycle | ZIP inspection/staging, exact review/approval, activation/cohort restart, rollback, reload, disable, uninstall and startup recovery are implemented. Inactive archives/data do not expire. |
 | Browser SDK | `addon`, `signal`, `capabilities`, `permissions`, `ui`, `data`, `content` and `services` exist. Navigation/host context/edit guards are supplied to contributions; broader standalone handles are unavailable. |
+| Shared integrated controls | `ui.controls.v1` lends `ui.enhance(ownRoot)` for native fields, search/comboboxes, states, actions, tabs and modal focus. [Markers, tokens and lifetime](../../docs/rewrite/UI_FOUNDATIONS.md); DOM enhancement is unavailable in isolated frames. |
 | Browser own service | Explicit `includeOwn` is supported after activation; it does not establish native-worker self-binding during initialization. |
 | UI/model contributions | Routes, sidebar, settings, article actions/sections, independent editor panels, named slots, wiki providers and host graph models work. `kind` enum injection, `record-renderer`, custom `graph-node-kind` and general `context.graphs` are reserved/unavailable. |
 | Worker transport | Native lifecycle, brokered service calls and package-data/retained-history callbacks are implemented. No WASI runtime or namespaced `http-endpoint` execution is composed. |

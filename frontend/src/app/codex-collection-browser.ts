@@ -1,4 +1,5 @@
 import { LitElement, html, nothing, type TemplateResult } from "lit";
+import { UIControlsController } from "../ui/controller.js";
 import { repeat } from "lit/directives/repeat.js";
 import type { EntitySummary } from "./campaign-projection.js";
 import { collectionFacetChoices, queryCollection, type CollectionModel } from "./collection-model.js";
@@ -22,7 +23,7 @@ export class CodexCollectionBrowser extends LitElement {
   readonly #ui = new UiLocalizationController(this);
   readonly #id = `collection-browser-${++browserId}`;
   constructor() {
-    super(); this.view = defaultCollectionView; this.pending = this.view; this.facetKey = ""; this.choice = ""; this.storageUnavailable = false;
+    super(); new UIControlsController(this); this.view = defaultCollectionView; this.pending = this.view; this.facetKey = ""; this.choice = ""; this.storageUnavailable = false;
   }
   protected override createRenderRoot() { return this; }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
@@ -39,9 +40,9 @@ export class CodexCollectionBrowser extends LitElement {
     const choices = facet ? collectionFacetChoices(this.model, this.pending, facet.key) : [];
     const group = this.model.facets.find(facet => facet.key === this.view.group);
     return html`<form class="collection-controls" lang=${this.#ui.locale} @submit=${(event: SubmitEvent) => { event.preventDefault(); this.#apply(); }}>
-      <div class="collection-control-row">
-        <div class="collection-query"><label for=${`${this.#id}-query`}>${uiText("browse.search")}</label><input id=${`${this.#id}-query`} aria-describedby=${`${this.#id}-hint`} type="search" maxlength="512" .value=${this.pending.query}
-          @input=${(event: Event) => { this.pending = { ...this.pending, query: (event.target as HTMLInputElement).value }; }} />
+      <div class="collection-control-row" data-ui-toolbar>
+        <div class="collection-query" data-ui-field><label for=${`${this.#id}-query`}>${uiText("browse.search")}</label><input id=${`${this.#id}-query`} aria-describedby=${`${this.#id}-hint`} type="search" data-ui="search" maxlength="512" .value=${this.pending.query}
+          @codex-query=${(event: Event) => { this.pending = { ...this.pending, query: (event.target as HTMLInputElement).value }; }} />
           <small id=${`${this.#id}-hint`}>${uiText("browse.searchHint")}</small></div>
       </div>
       ${this.model.facets.some(facet => facet.key === "roster") ? html`<div class="collection-roster" role="group" aria-label=${uiText("browse.roster")}>
@@ -52,25 +53,25 @@ export class CodexCollectionBrowser extends LitElement {
       </div>` : nothing}
       <details class="collection-view-options" ?open=${this.view.sort !== "name" || this.view.direction !== "asc" || this.view.group !== ""}>
         <summary>${uiText("browse.viewOptions")} <span>${this.model.sorts.find(sort => sort.key === this.view.sort)?.label ?? uiText("Name")} · ${uiText(this.view.direction === "desc" ? "browse.descending" : "browse.ascending")}${group ? ` · ${group.label}` : ""}</span></summary>
-        <div class="collection-control-row">
-        <label><span>${uiText("browse.sort")}</span><select .value=${this.model.sorts.some(sort => sort.key === this.pending.sort) ? this.pending.sort : "name"}
+        <div class="collection-control-row" data-ui-toolbar>
+        <label data-ui-field><span>${uiText("browse.sort")}</span><select .value=${this.model.sorts.some(sort => sort.key === this.pending.sort) ? this.pending.sort : "name"}
           @change=${(event: Event) => { this.pending = { ...this.pending, sort: (event.target as HTMLSelectElement).value }; }}>
           ${selectOptions(this.model.sorts.map(sort => ({ value: sort.key, label: sort.label })), this.model.sorts.some(sort => sort.key === this.pending.sort) ? this.pending.sort : "name")}</select></label>
-        <label><span>${uiText("browse.direction")}</span><select .value=${this.pending.direction}
+        <label data-ui-field><span>${uiText("browse.direction")}</span><select .value=${this.pending.direction}
           @change=${(event: Event) => { this.pending = { ...this.pending, direction: (event.target as HTMLSelectElement).value === "desc" ? "desc" : "asc" }; }}>
           ${selectOptions([{ value: "asc", label: uiText("browse.ascending") }, { value: "desc", label: uiText("browse.descending") }], this.pending.direction)}</select></label>
-        <label><span>${uiText("browse.group")}</span><select .value=${this.model.facets.some(facet => facet.key === this.pending.group) ? this.pending.group : ""}
+        <label data-ui-field><span>${uiText("browse.group")}</span><select .value=${this.model.facets.some(facet => facet.key === this.pending.group) ? this.pending.group : ""}
           @change=${(event: Event) => { this.pending = { ...this.pending, group: (event.target as HTMLSelectElement).value }; }}>
           ${selectOptions([{ value: "", label: uiText("browse.ungrouped") }, ...this.model.facets.map(facet => ({ value: facet.key, label: facet.label }))], this.pending.group)}</select></label>
         </div>
       </details>
       ${this.model.facets.length ? html`<details class="collection-filter-picker"><summary>${uiText("browse.filters")} (${this.pending.filters.length})</summary>
         <p class="field-help">${uiText("browse.logic")}</p>
-        <div class="collection-control-row">
-          <label><span>${uiText("browse.filterBy")}</span><select .value=${this.facetKey} @change=${(event: Event) => { this.facetKey = (event.target as HTMLSelectElement).value; }}>
+        <div class="collection-control-row" data-ui-toolbar>
+          <label data-ui-field><span>${uiText("browse.filterBy")}</span><select .value=${this.facetKey} @change=${(event: Event) => { this.facetKey = (event.target as HTMLSelectElement).value; }}>
             ${selectOptions(this.model.facets.map(facet => ({ value: facet.key, label: facet.label })), this.facetKey)}</select></label>
-          <label class="collection-filter-value"><span>${uiText("browse.value")}</span><select .value=${this.choice} @change=${(event: Event) => { this.choice = (event.target as HTMLSelectElement).value; }}>
-            ${selectOptions(choices.map(choice => ({ value: choice.value, label: `${choice.label} (${choice.count})` })), this.choice)}</select></label>
+          <div class="collection-filter-value" data-ui-field><label for=${`${this.#id}-filter-value`}>${uiText("browse.value")}</label><select id=${`${this.#id}-filter-value`} data-ui=${choices.length >= 12 ? "combobox" : nothing} .value=${this.choice} @change=${(event: Event) => { this.choice = (event.target as HTMLSelectElement).value; }}>
+            ${selectOptions(choices.map(choice => ({ value: choice.value, label: `${choice.label} (${choice.count})` })), this.choice)}</select></div>
           <button type="button" class="record-action" ?disabled=${!facet?.choices.length || this.pending.filters.length >= 32 || this.pending.filters.some(filter => filter.field === this.facetKey && filter.value === this.choice)}
             @click=${() => { this.pending = { ...this.pending, filters: [...this.pending.filters, { field: this.facetKey, value: this.choice }] }; }}>${uiText("browse.add")}</button>
         </div>
@@ -80,7 +81,7 @@ export class CodexCollectionBrowser extends LitElement {
           @click=${() => { this.pending = { ...this.pending, filters: this.pending.filters.filter(item => item !== filter) }; this.#apply(); }}>
           ${this.#filterLabel(filter).field}: ${this.#filterLabel(filter).value} <span aria-hidden="true">×</span></button></li>`)}
       </ul>` : nothing}
-      <div class="collection-view-actions"><button type="submit" class="record-action primary-record-action">${uiText("browse.apply")}</button>
+      <div class="collection-view-actions" data-ui-actions><button type="submit" data-ui-variant="primary" class="record-action primary-record-action">${uiText("browse.apply")}</button>
         <button type="button" class="record-action" ?disabled=${!this.pending.query && !this.pending.filters.length && !this.view.query && !this.view.filters.length}
           @click=${() => { this.pending = { ...this.pending, query: "", filters: [] }; this.#apply(); }}>${uiText("browse.clear")}</button></div>
     </form>

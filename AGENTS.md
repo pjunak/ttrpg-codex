@@ -57,6 +57,7 @@ there instead of expanding this always-loaded file.
 | [`docs/rewrite/RULES_SOURCES.md`](docs/rewrite/RULES_SOURCES.md) | Instance ruleset, sourcebook eligibility, provider settings and preserved character values |
 | [`docs/rewrite/ADDON_DATA.md`](docs/rewrite/ADDON_DATA.md) and [`CONTENT.md`](docs/rewrite/CONTENT.md) | Package collections, extensions, content, and migrations |
 | [`docs/rewrite/BROWSER_ADDONS.md`](docs/rewrite/BROWSER_ADDONS.md) | Integrated and isolated TypeScript UI lifecycles |
+| [`docs/rewrite/UI_FOUNDATIONS.md`](docs/rewrite/UI_FOUNDATIONS.md) | Shared host/add-on controls, researched interaction patterns, semantic skin tokens and focus/lifetime behavior |
 | [`docs/rewrite/BACKUP_RESTORE.md`](docs/rewrite/BACKUP_RESTORE.md) and [`LEGACY_CONVERSION.md`](docs/rewrite/LEGACY_CONVERSION.md) | Current backups and the one-time v1 conversion boundary |
 
 Public add-on guidance lives in [`examples/addons/AGENTS.md`](examples/addons/AGENTS.md),

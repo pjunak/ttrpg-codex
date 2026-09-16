@@ -123,9 +123,13 @@ production Go server serves only `index.html` and fingerprinted `/assets/`
 output from Vite; Node.js is absent from the runtime image.
 
 The [shared UI foundations](rewrite/UI_FOUNDATIONS.md) preserve the goal of
-reusable, themeable controls serving both the host and add-ons. Shared tokens,
-contribution framing, Markdown and rule details are implemented; a comprehensive
-public control library and broader styling contract remain T34 in the backlog.
+reusable, themeable controls serving both the host and add-ons. The versioned
+`ui.controls.v1` capability lends one implementation of fields, search/comboboxes,
+buttons, states, tabs and modal focus to integrated contributions. Semantic tokens
+style that implementation. DM Tools, Compendium and Character Sheets use it;
+records, rules, saving and specialized layouts remain with their owners.
+Contribution framing, Markdown and serializable rule details are separate public
+surfaces. Isolated frames retain the documented bridge boundary.
 
 [Markdown recovery and collection browsing](rewrite/EDITOR_BROWSING.md) share
 host editor descriptors, current role projections, and existing record saves.

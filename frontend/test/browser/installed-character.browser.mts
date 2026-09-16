@@ -72,10 +72,10 @@ test('incomplete builds autosave with bounded steppers, searchable choices and n
  for(const ability of ['STR','DEX','CON'])await sheet.getByLabel(ability,{exact:true}).press('End');
  assert.match(await sheet.locator('.dnd-builder-progress').innerText(),/27 \/ 27.*0/);assert.equal(await sheet.getByLabel('INT',{exact:true}).inputValue(),'8');assert.equal(await sheet.locator('.character-stepper').nth(3).getByRole('button',{name:'Increase',exact:true}).isDisabled(),true);
  for(const ability of ['STR','DEX','CON'])await sheet.getByLabel(ability,{exact:true}).press('Home');await sheet.getByLabel('STR',{exact:true}).press('ArrowUp');await sheet.getByLabel('STR',{exact:true}).press('ArrowUp');await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();
- const species=sheet.getByLabel('Species',{exact:true});await species.fill('dwa');await sheet.getByRole('option',{name:'Dwarf',exact:true}).hover();
- assert.equal(await sheet.locator('.character-option-hint:visible').count(),1);await sheet.getByRole('option',{name:'Dwarf',exact:true}).click();
+ const species=sheet.getByRole('combobox',{name:'Species',exact:true});await species.fill('dwa');await sheet.getByRole('option',{name:'Dwarf',exact:true}).hover();
+ assert.ok(await sheet.getByRole('option',{name:'Dwarf',exact:true}).getAttribute('aria-describedby')); assert.ok((await sheet.getByRole('option',{name:'Dwarf',exact:true}).locator('small').innerText()).length > 0);await sheet.getByRole('option',{name:'Dwarf',exact:true}).click();
  await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.build.species,'dwarf');
- await sheet.getByLabel('Background',{exact:true}).fill('sold');await sheet.getByRole('option',{name:'Soldier',exact:true}).click();await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();
+ await sheet.getByRole('combobox',{name:'Background',exact:true}).fill('sold');await sheet.getByRole('option',{name:'Soldier',exact:true}).click();await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();
  await sheet.locator('#dnd-builder-tab-add-class').click();await sheet.getByRole('combobox',{name:'Add class',exact:true}).fill('fight');await sheet.getByRole('option',{name:'Fighter',exact:true}).click();
  await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.build.levels[0].classId,'fighter');
  await sheet.locator('#dnd-builder-tab-fighter').click();await sheet.getByRole('button',{name:'Add level',exact:true}).click();await sheet.locator('[data-character-status]').filter({hasText:/^Saved$/}).waitFor();assert.equal((await call('load',{})).state.inputs.build.levels.length,2);
@@ -85,7 +85,7 @@ test('incomplete builds autosave with bounded steppers, searchable choices and n
  await sheet.locator('#dnd-builder-tab-levels').click();await sheet.getByRole('heading',{name:'Levels',exact:true}).waitFor();await sheet.locator('#dnd-builder-tab-character').click();
  await page.screenshot({path:resolve(output,'autosave-builder-desktop.png'),fullPage:true});
  for(const width of [1920,1440,390]){await page.setViewportSize({width,height:1000});await page.waitForFunction(()=>window.innerWidth>=768||(document.querySelector('.campaign-sidebar')?.getBoundingClientRect().right??0)<=1);assert.ok(await sheet.evaluate(element=>element.scrollWidth<=document.documentElement.clientWidth&&element.getBoundingClientRect().width<=1120));await page.screenshot({path:resolve(output,`autosave-builder-${width}.png`),fullPage:true});}
- await page.reload();await page.locator('#character-view-addons').click();await sheet.locator('#dnd-tab-builder').click();await sheet.getByLabel('Species',{exact:true}).waitFor();assert.equal(await sheet.getByLabel('Species',{exact:true}).inputValue(),'Dwarf');assert.equal(await sheet.locator('#dnd-tab-notes').count(),0);
+ await page.reload();await page.locator('#character-view-addons').click();await sheet.locator('#dnd-tab-builder').click();await sheet.getByRole('combobox',{name:'Species',exact:true}).waitFor();assert.equal(await sheet.getByRole('combobox',{name:'Species',exact:true}).inputValue(),'Dwarf');assert.equal(await sheet.locator('#dnd-tab-notes').count(),0);
  assert.deepEqual(errors,[]);
 });
 

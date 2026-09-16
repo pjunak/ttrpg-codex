@@ -11,6 +11,7 @@ import type { BrowserContentAPI } from "./content-client.js";
 import type { BrowserServiceAPI } from "./service-client.js";
 import { BrowserContributionEdits, type BrowserContributionEditHandle } from "./edit-state.js";
 import { showRuleDetails, type RuleDetails } from "./rule-details.js";
+import { enhanceControls, type UIControlsHandle } from "../ui/controls.js";
 
 const customElementPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$/;
 
@@ -65,6 +66,7 @@ export interface BrowserContributionHandle {
 }
 
 export interface BrowserUIAPI {
+  enhance(root: HTMLElement): UIControlsHandle;
   showRuleDetails(details: RuleDetails): Promise<void>;
   declarations(): readonly BrowserContributionDescriptor[];
   bind(contributionId: string, binding: BrowserContributionBinding): BrowserContributionHandle;
@@ -237,6 +239,7 @@ class RegistrySession {
   readonly #changed: BrowserContributionListener;
   readonly #active = new Map<string, RegisteredContribution>();
   #closed = false;
+  readonly #uiHandles = new Set<UIControlsHandle>();
 
   constructor(
     global: Map<string, RegisteredContribution>,
@@ -274,6 +277,12 @@ class RegistrySession {
       content,
       services,
       ui: Object.freeze({
+        enhance: (root: HTMLElement): UIControlsHandle => {
+          this.#assertOpen(); this.context.capabilities.require("ui.controls.v1");
+          if (descriptor.mode !== "integrated") throw new BrowserSDKAuthorityError("DOM controls require an integrated contribution.");
+          const handle = enhanceControls(root, { signal }); this.#uiHandles.add(handle);
+          return Object.freeze({ refresh: () => { this.#assertOpen(); handle.refresh(); }, dispose: () => { handle.dispose(); this.#uiHandles.delete(handle); } });
+        },
         showRuleDetails: (details: RuleDetails) => { this.#assertOpen(); this.context.capabilities.require("ui.rule-details"); return showRuleDetails(details, signal); },
         declarations: () => {
           this.#assertOpen();
@@ -290,6 +299,7 @@ class RegistrySession {
       return;
     }
     this.#closed = true;
+    for (const handle of this.#uiHandles) handle.dispose(); this.#uiHandles.clear();
     let changed = false;
     for (const active of this.#active.values()) {
       if (this.#global.get(active.key) === active) {

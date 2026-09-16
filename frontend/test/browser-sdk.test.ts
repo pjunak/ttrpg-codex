@@ -22,6 +22,15 @@ const sidebar = contribution("planner.sidebar", "sidebar", 200);
 const graphView = contribution("planner.graph", "graph-view", 300);
 
 describe("BrowserContributionRegistry", () => {
+  it("requires the controls capability, integrated mode and a live SDK session", () => {
+    const root = {} as HTMLElement, registry = new BrowserContributionRegistry();
+    const absent = registry.open(descriptor("controls", []), new GenerationScope("controls@absent"));
+    expect(() => absent.context.ui.enhance(root)).toThrow("ui.controls.v1");
+    const isolated = registry.open({ ...descriptor("controls", []), mode: "isolated", capabilities: ["ui.controls.v1"] }, new GenerationScope("controls@isolated"));
+    expect(() => isolated.context.ui.enhance(root)).toThrow("integrated");
+    isolated.dispose(); expect(() => isolated.context.ui.enhance(root)).toThrow();
+    absent.dispose();
+  });
   it("binds wiki providers as generation-scoped callbacks rather than visual elements", () => {
     const registry = new BrowserContributionRegistry();
     const declaration = { ...contribution("library.wiki", "wiki-kind", 0), config: { contractVersion: 1, kinds: ["spell"] } };

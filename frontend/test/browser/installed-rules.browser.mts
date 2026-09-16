@@ -85,7 +85,7 @@ test('installed sources evaluate every class with bounded projections and explic
   const classes = await call('query-records', { contractVersion: 'rules-engine-query.v1', kind: 'class', limit: 200 });
   assert.ok(classes.records.length >= 12);
   for (const record of classes.records) for (const level of [1,5,20]) {
-    const result = await evaluate(inputs(record.id,level)), evaluation = result.evaluation;
+    const result = await evaluate(inputs(record.id,level)).catch(error => { throw new Error(`${record.id} at level ${level}`, { cause: error }); }), evaluation = result.evaluation;
     assert.equal(result.identity.providerGeneration, context.identity.providerGeneration);
     assert.ok(evaluation.sheet.derived.maxHp > 0, record.id); assert.equal(evaluation.sheet.totalLevel, level);
     assert.ok(evaluation.sheet.resources.some((resource: Record<string, unknown>) => resource.kind === 'hitdice'), record.id);

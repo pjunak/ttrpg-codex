@@ -7,6 +7,7 @@ boundaries validate browser models.
 
 ## Files
 
+- `ui-controls.d.ts` is the public integrated DOM UI handle and query-event type contract; see [shared UI](../../../docs/rewrite/UI_FOUNDATIONS.md) for markers and tokens.
 - `manifest.schema.json` validates the declarative package manifest.
 - `checksums.schema.json` validates the complete SHA-256 file inventory.
 - `protocol.schema.json` validates individual JSON-RPC worker messages after

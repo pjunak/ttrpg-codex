@@ -1,4 +1,5 @@
 import "./codex-investigation-queue.js";
+import { UIControlsController } from "../ui/controller.js";
 import { investigationStatus } from "./campaign-investigation.js";
 import { investigationBadge, investigationAnswers } from "./investigation-view.js";
 import { contextualCreationFields, creationSource, creationBackHash } from "./context-creation.js";
@@ -105,7 +106,7 @@ export class CodexRecordPage extends LitElement {
   #disposeRuleDetails: (() => void) | undefined;
 
   constructor() {
-    super();
+    super(); new UIControlsController(this);
     this.campaign = undefined;
     this.route = undefined;
     this.canEdit = false;

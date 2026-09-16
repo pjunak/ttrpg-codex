@@ -1,0 +1,77 @@
+/* Public semantic tokens. Skins override values, never interaction code. */
+:root {
+  --ui-surface: var(--bg-surface); --ui-field: var(--bg-base);
+  --ui-text: var(--text-parchment); --ui-muted: var(--text-light);
+  --ui-border: #9a8660; --ui-accent: var(--accent-gold); --ui-on-accent: var(--color-on-accent);
+  --ui-danger: var(--color-danger); --ui-focus: var(--accent-gold);
+  --ui-radius: var(--radius); --ui-font: var(--font-ui); --ui-gap: .65rem; --ui-target: 2.5rem;
+}
+:root[data-theme="moonlit"] { --ui-border: #849aa0; }
+[data-ui-tone="paper"] {
+  --ui-surface: var(--bg-card); --ui-field: #fffaf0; --ui-text: var(--text-ink); --ui-muted: var(--text-ink-light);
+  --ui-border: #897349; --ui-accent: #74520d; --ui-on-accent: #fffaf0; --ui-danger: #9b2020; --ui-focus: #74520d;
+}
+[data-codex-ui] { min-width: 0; }
+[data-codex-ui] .ui-control, [data-codex-ui] .ui-button {
+  box-sizing: border-box; max-width: 100%; min-width: 0; min-height: var(--ui-target);
+  border: 1px solid var(--ui-border); border-radius: var(--ui-radius);
+  background: var(--ui-field); color: var(--ui-text); padding: .5rem .7rem;
+  font: 1rem/1.4 var(--ui-font);
+}
+[data-codex-ui] .ui-button { cursor: pointer; white-space: normal; overflow-wrap: anywhere; }
+[data-codex-ui] .ui-button:hover:enabled { background: var(--ui-surface); border-color: var(--ui-accent); }
+[data-codex-ui] .ui-button[data-ui-variant="primary"] { background: var(--ui-accent); color: var(--ui-on-accent); }
+[data-codex-ui] .ui-button[data-ui-variant="danger"] { border-color: var(--ui-danger); color: var(--ui-danger); }
+[data-codex-ui] .ui-button[data-ui-variant="quiet"] { background: transparent; border-color: transparent; }
+[data-codex-ui] :is(.ui-control, .ui-button):focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 3px; }
+[data-codex-ui] :is(.ui-control, .ui-button):disabled,
+[data-codex-ui] .ui-button[aria-disabled="true"] { cursor: not-allowed; opacity: .65; }
+[data-codex-ui] .ui-button[aria-busy="true"] { cursor: progress; border-style: dashed; }
+[data-codex-ui] .ui-control[aria-invalid="true"] { border: 2px solid var(--ui-danger); }
+[data-codex-ui] textarea.ui-control { resize: vertical; min-height: 6rem; }
+[data-codex-ui] input.ui-control:is([type="checkbox"], [type="radio"]) { accent-color: var(--ui-accent); min-height: 1.15rem; width: 1.15rem; padding: 0; flex: 0 0 auto; }
+[data-codex-ui] input.ui-control[type="range"] { padding-inline: 0; accent-color: var(--ui-accent); }
+[data-codex-ui] input.ui-control[type="file"] { white-space: normal; width: 100%; }
+[data-codex-ui] input.ui-control[type="search"]::-webkit-search-cancel-button { appearance: none; }
+[data-ui-field] { font: 1rem/1.5 var(--ui-font); display: grid; gap: .3rem; min-width: 0; align-content: start; }
+[data-ui-field] > :is(.ui-control, .ui-combobox) { width: 100%; }
+[data-ui-field]:has(> input:is([type="checkbox"], [type="radio"])),
+[data-codex-ui] label:has(> input.ui-control:is([type="checkbox"], [type="radio"])) { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .5rem; min-height: var(--ui-target); font: 1rem/1.5 var(--ui-font); }
+[data-codex-ui] legend { font: 1rem/1.5 var(--ui-font); }
+[data-ui-field].ui-search-field { grid-template-columns: minmax(0, 1fr) auto; }
+.ui-search-field > :is(label, small, [data-ui-help], [data-ui-error]) { grid-column: 1 / -1; }
+.ui-search-field > input { grid-column: 1; }
+[data-codex-ui] .ui-search-clear { min-width: var(--ui-target); padding-inline: .5rem; }
+[data-ui-help], .ui-help, [data-ui-field] > small { font: .875rem/1.5 var(--ui-font); color: var(--ui-muted); overflow-wrap: anywhere; }
+[data-ui-error], .ui-error { color: var(--ui-danger) !important; font: .875rem/1.5 var(--ui-font); overflow-wrap: anywhere; }
+[data-ui-actions], [data-ui-toolbar] { display: flex; flex-wrap: wrap; gap: var(--ui-gap); align-items: end; min-width: 0; }
+[data-ui-toolbar] > [data-ui-field] { flex: 1 1 12rem; }
+[data-ui-state] { font: 1rem/1.5 var(--ui-font); padding: .7rem 1rem; border-inline-start: 3px solid var(--ui-border); color: var(--ui-text); background: var(--ui-surface); overflow-wrap: anywhere; }
+[data-ui-state="error"] { border-color: var(--ui-danger); }
+[data-ui-state="loading"] { border-style: dashed; }
+.ui-combobox { display: grid; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; gap: 0; }
+[data-codex-ui] .ui-combobox > input { width: 100%; border-start-end-radius: 0; border-end-end-radius: 0; }
+[data-codex-ui] .ui-combo-toggle { border-start-start-radius: 0; border-end-start-radius: 0; min-width: var(--ui-target); }
+.ui-combobox > .ui-error { grid-column: 1 / -1; }
+.ui-popup {
+  box-sizing: border-box; position: fixed; inset: auto; margin: 0; padding: .3rem; overflow: auto; overscroll-behavior: contain;
+  border: 2px solid var(--ui-border); border-radius: var(--ui-radius); box-shadow: var(--shadow-md);
+  background: var(--ui-surface); color: var(--ui-text); font: 1rem/1.5 var(--ui-font);
+}
+.ui-option { padding: .55rem .65rem; min-height: var(--ui-target); overflow-wrap: anywhere; cursor: pointer; border: 2px solid transparent; border-radius: var(--ui-radius); }
+.ui-option small { display: block; color: inherit; font-size: .875rem; }
+.ui-option.ui-active { border-color: var(--ui-focus); background: var(--ui-field); }
+.ui-option[aria-disabled="true"] { opacity: .65; cursor: not-allowed; }
+.ui-popup .ui-help { margin: .5rem; }
+[data-ui-tabs] { display: flex; flex-wrap: wrap; gap: .3rem; border-block-end: 1px solid var(--ui-border); }
+[data-ui-tabs][aria-orientation="vertical"] { flex-direction: column; }
+[data-codex-ui] [data-ui-tabs] .ui-button { border: 0; border-block-end: 3px solid transparent; border-radius: 0; background: transparent; }
+[data-codex-ui] [data-ui-tabs] [aria-selected="true"] { border-block-end-color: var(--ui-accent); color: var(--ui-accent); font-weight: 600; }
+dialog[data-ui-dialog] { max-width: calc(100vw - 2rem); max-height: calc(100dvh - 2rem); overflow: auto; background: var(--ui-surface); color: var(--ui-text); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); }
+dialog[data-ui-dialog]::backdrop { background: rgb(0 0 0 / 65%); }
+@media (pointer: coarse) { :root { --ui-target: 2.75rem; } }
+@media (max-width: 480px) { [data-ui-toolbar] > [data-ui-field] { flex-basis: 100%; } }
+@media (forced-colors: active) {
+  [data-codex-ui] { --ui-border: ButtonText; --ui-focus: Highlight; --ui-text: CanvasText; --ui-muted: CanvasText; --ui-field: Canvas; --ui-surface: Canvas; --ui-accent: Highlight; --ui-on-accent: HighlightText; --ui-danger: CanvasText; }
+  .ui-option.ui-active { outline: 2px solid Highlight; }
+}

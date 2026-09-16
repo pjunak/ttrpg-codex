@@ -32,6 +32,14 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output }:
         positions: { [id(scope === 'home' ? 'box' : 'child-a')]: { x: 72, y: 72 } }, updatedAt: 1 })),
     ]);
     const page = await open(t, 'dm', mobile), details = page.getByRole('form', { name: 'Planning item details' });
+    const parent = details.locator('select[name="parentId"]');
+    const chooseParent = async (value: string) => {
+      if (await parent.isVisible()) { await parent.selectOption(value); return; }
+      const label = await parent.evaluate((element, value) => [...(element as HTMLSelectElement).options].find(option => option.value === value)!.label, value);
+      await details.getByRole('combobox', { name: 'Parent', exact: true }).fill(label);
+      const duplicate = await parent.evaluate((element, value) => { const options = [...(element as HTMLSelectElement).options], target = options.find(option => option.value === value)!; return options.filter(option => option.label === target.label).indexOf(target); }, value);
+      await details.getByRole('option', { name: label, exact: true }).nth(duplicate).click();
+    };
     const card = (name: string) => page.locator(`.dm-plan-card[data-item-id="${id(name)}"]`);
     const scope = async (name?: string) => {
       await page.goto(`/#/addons/dm-tools/planner${name ? `?item=${id(name)}` : ''}`);
@@ -44,14 +52,14 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output }:
 
     await scope('home'); await editPlannerCard(page, card('free')); await details.getByLabel('Body', { exact: true }).fill('Keep the other item draft');
     await editPlannerCard(page, card('box'));
-    for (const excluded of ['box', 'nested', 'child-a', 'free']) assert.equal(await details.getByLabel('Parent', { exact: true }).locator(`option[value="${id(excluded)}"]`).count(), 0);
+    for (const excluded of ['box', 'nested', 'child-a', 'free']) assert.equal(await parent.locator(`option[value="${id(excluded)}"]`).count(), 0);
     const preserved: Record<string, unknown> = {};
     for (const collection of ['planning_flow_links', 'planning_references', 'planning_consequences', 'dm_notes', 'planning_views']) preserved[collection] = await records(collection);
     await details.getByLabel('Kind', { exact: true }).selectOption('plotline');
-    await details.getByLabel('Parent', { exact: true }).selectOption(id('destination'));
+    await chooseParent(id('destination'));
     await details.getByLabel('Body', { exact: true }).fill('Moved with all its children'); await save();
     await page.waitForURL(`**/#/addons/dm-tools/planner?item=${id('destination')}`);
-    await card('box').waitFor(); assert.equal(await details.getByLabel('Parent', { exact: true }).inputValue(), id('destination'));
+    await card('box').waitFor(); assert.equal(await parent.inputValue(), id('destination'));
     assert.equal((await stored('box')).value.kind, 'plotline');
     for (const child of ['nested', 'child-a', 'child-b']) assert.deepEqual((await stored(child)).value, seed.find(value => value.id === id(child)));
     for (const [collection, previous] of Object.entries(preserved)) assert.deepEqual(await records(collection), previous);
@@ -71,7 +79,7 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output }:
     await editPlannerCard(page, card('branch')); await editPlannerCard(page, card('free'));
     assert.equal(await details.getByLabel('Kind', { exact: true }).inputValue(), 'branch');
     assert.equal(await details.getByLabel('Branch type').inputValue(), 'random');
-    await details.getByLabel('Parent', { exact: true }).selectOption(id('destination')); await save();
+    await chooseParent(id('destination')); await save();
     await card('free').waitFor(); assert.equal((await stored('free')).value.eventType, undefined);
     assert.equal((await stored('free')).value.branchType, 'random');
     await page.reload(); await page.getByRole('button', { name: 'Edit item', exact: true }).click(); await details.getByLabel('Branch type').waitFor();
@@ -80,7 +88,7 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output }:
     assert.equal((await stored('free')).value.branchType, undefined); assert.equal((await stored('free')).value.eventType, 'encounter');
 
     await scope('home'); await editPlannerCard(page, card('branch')); previousWrites = writes;
-    await details.getByLabel('Parent', { exact: true }).selectOption(id('destination'));
+    await chooseParent(id('destination'));
     await details.getByRole('button', { name: 'Save details', exact: true }).click();
     await page.getByText(/This item has story flows on its current canvas/u).waitFor(); assert.equal(writes, previousWrites); await discard();
     await details.getByLabel('Kind', { exact: true }).selectOption('event');
@@ -89,18 +97,18 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output }:
     assert.ok((await records('planning_flow_links')).some((record: FixtureRecord) => record.key === id('option')));
 
     // A deleted destination remains an unavailable draft choice, never Campaign.
-    await scope('free'); await page.getByRole('button', { name: 'Edit item', exact: true }).click(); await details.getByLabel('Parent', { exact: true }).selectOption(id('vanishing'));
+    await scope('free'); await page.getByRole('button', { name: 'Edit item', exact: true }).click(); await chooseParent(id('vanishing'));
     await details.getByLabel('Body', { exact: true }).fill('Keep the missing-parent draft');
     const vanishing = await stored('vanishing');
     await transact([{ operation: 'delete', kind: 'collection', dataId: 'planning_items', key: vanishing.key, expectedRevision: vanishing.revision }]);
     await page.getByRole('button', { name: 'Reload planner', exact: true }).click();
     await page.locator('.dm-planner-shell[aria-busy="false"]').waitFor();
-    assert.equal(await details.getByLabel('Parent', { exact: true }).inputValue(), id('vanishing'));
-    assert.match(await details.getByLabel('Parent', { exact: true }).locator('option:checked').textContent().then(required), /Unavailable/u);
+    assert.equal(await parent.inputValue(), id('vanishing'));
+    assert.match(await parent.locator('option:checked').textContent().then(required), /Unavailable/u);
     previousWrites = writes;
     await details.getByRole('button', { name: 'Save details', exact: true }).click(); await page.getByText(/has a missing parent/u).waitFor();
     assert.equal(writes, previousWrites); assert.equal((await stored('free')).value.parentId, id('destination'));
-    await details.getByLabel('Parent', { exact: true }).selectOption(id('home')); await save();
+    await chooseParent(id('home')); await save();
     assert.equal((await stored('free')).value.body, 'Keep the missing-parent draft');
 
     // A concurrently added child must prevent converting its parent to a leaf.
@@ -117,7 +125,7 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output }:
 
     if (!mobile) {
       // A confirmed move with a failed follow-up read is recovered without resubmitting.
-      await scope('free'); await page.getByRole('button', { name: 'Edit item', exact: true }).click(); await details.getByLabel('Parent', { exact: true }).selectOption(id('destination'));
+      await scope('free'); await page.getByRole('button', { name: 'Edit item', exact: true }).click(); await chooseParent(id('destination'));
       const queryPattern = '**/api/addons/dm-tools/generations/*/data/query';
       await page.route(queryPattern, route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
       await details.getByRole('button', { name: 'Save details', exact: true }).click();
@@ -126,7 +134,7 @@ export async function exercisePlannerStructure({ t, open, admin, csrf, output }:
       previousWrites = writes; await page.unroute(queryPattern);
       await page.getByRole('button', { name: 'Reload planner', exact: true }).click(); await page.locator('.dm-planner-shell[aria-busy="false"]').waitFor();
       await card('free').waitFor(); await page.locator('.dm-planner-breadcrumbs .active').filter({ hasText: /^destination$/u }).waitFor();
-      assert.equal(await details.getByLabel('Parent', { exact: true }).inputValue(), id('destination'));
+      assert.equal(await parent.inputValue(), id('destination'));
       assert.equal(writes, previousWrites); assert.equal((await stored('free')).revision, moved.revision);
     }
   }

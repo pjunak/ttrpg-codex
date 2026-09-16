@@ -51,28 +51,39 @@ after(async () => {
   }
 });
 
-// Rules-dependent creation and saved-revision workflows are exercised by
-// installed-character.browser.mts. These cases cover the independent package.
-for (const role of ['dm','player']) test(`standalone character package preserves drafts for ${role}`,{skip:!archivePath},async t=>{
-  const key=`standalone-${role}`;
-  await jsonResponse(await admin.post('/api/campaign/transactions',{headers:{'X-Codex-CSRF':csrf},data:{contractVersion:'campaign-mutation.v1',mutations:[{operation:'put',collection:'characters',key,expectedRevision:0,value:{id:key,name:'Standalone hero',visibility:'public',knowledge:4}}]}}));
-  const context=await browser.newContext({baseURL:origin,viewport:{width:390,height:850}});t.after(()=>context.close());
-  await jsonResponse(await context.request.post('/api/login',{data:{password:`local-sheets-${role}`}}));
-  const page=await context.newPage();await page.goto(`/#/characters/${key}`);await page.locator('#character-view-addons').click();
-  const sheet=page.locator('.addon-dnd-character');await sheet.locator('#dnd-tab-notes').click();await sheet.getByLabel('Character notes',{exact:true}).waitFor();
-  assert.match(await sheet.innerText(),/Compatible rules are unavailable/);
-  await sheet.getByLabel('Character notes',{exact:true}).fill('Standalone draft survives');
-  assert.equal(await unloadBlocked(page),true);
-  await sheet.locator('#dnd-tab-builder').click();await sheet.getByRole('button',{name:'Review build changes',exact:true}).click();
-  await sheet.getByRole('dialog').waitFor();assert.equal(await sheet.getByRole('button',{name:'Save new revision',exact:true}).count(),0);
-  await sheet.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
-  page.once('dialog',dialog=>dialog.accept());await page.reload();await page.locator('#character-view-addons').click();
-  await sheet.locator('#dnd-tab-notes').click();assert.equal(await sheet.getByLabel('Character notes',{exact:true}).inputValue(),'Standalone draft survives');
+// Installed-character covers automatic saving with rules and saved projections
+// after provider loss. This suite checks the independent package with no engine.
+for (const role of ['dm', 'player']) test(`standalone character package retains safe controls for ${role}`, { skip: !archivePath }, async t => {
+  const key = `standalone-${role}`;
+  await jsonResponse(await admin.post('/api/campaign/transactions', { headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'campaign-mutation.v1', mutations: [{ operation: 'put', collection: 'characters', key, expectedRevision: 0, value: { id: key, name: 'Standalone hero', visibility: 'public', knowledge: 4 } }] } }));
+  const context = await browser.newContext({ baseURL: origin, viewport: { width: 390, height: 850 } }); t.after(() => context.close());
+  await jsonResponse(await context.request.post('/api/login', { data: { password: `local-sheets-${role}` } }));
+  const page = await context.newPage(); await page.goto(`/#/characters/${key}`); await page.locator('#character-view-addons').click();
+  const sheet = page.locator('.addon-dnd-character');
+  await sheet.locator('#dnd-tab-tools').click();
+  assert.match(await sheet.innerText(), /Compatible rules are unavailable/);
+  assert.equal(await sheet.getByRole('combobox', { name: 'Sheet layout', exact: true }).isEnabled(), true);
+  await sheet.getByRole('combobox', { name: 'Sheet layout', exact: true }).selectOption('classic');
+  assert.equal(await unloadBlocked(page), false);
   await sheet.locator('#dnd-tab-builder').click();
-  assert.equal(await sheet.getByRole('button',{name:'Give a DM grant',exact:true}).count(),role==='dm'?1:0);
-  await sheet.locator('#dnd-tab-tools').click();await sheet.getByRole('button',{name:'Import character',exact:true}).click();
-  await sheet.getByLabel('Or paste the export').fill('{"v":3,"hp":21}');
-  await sheet.getByRole('button',{name:'Review import',exact:true}).click();
-  assert.match(await sheet.locator('[data-character-status]').textContent()??'',/Retired sheets and raw objects are not supported/);
-  assert.equal(await sheet.getByRole('button',{name:'Save new revision',exact:true}).count(),0);
+  const species = sheet.getByRole('combobox', { name: 'Species', exact: true });
+  assert.equal(await species.isDisabled(), true);
+  await sheet.getByRole('tab', { name: 'DM given', exact: true }).click();
+  const grant = sheet.getByRole('button', { name: 'Give a DM grant', exact: true });
+  assert.equal(await grant.count(), role === 'dm' ? 1 : 0);
+  if (role === 'dm') assert.equal(await grant.isDisabled(), true);
+  await sheet.locator('#dnd-tab-tools').click(); await sheet.getByRole('button', { name: 'Import character', exact: true }).click();
+  const dialog = sheet.getByRole('dialog');
+  assert.equal(await dialog.getByRole('checkbox', { name: 'Authorize imported DM grants as the current DM', exact: true }).count(), role === 'dm' ? 1 : 0);
+  await dialog.getByLabel('Or paste the export', { exact: true }).fill('{"v":3,"hp":21}');
+  await dialog.getByRole('button', { name: 'Review import', exact: true }).click();
+  assert.match(await sheet.locator('[data-character-status]').textContent() ?? '', /Choose a current character export without history\./);
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  assert.equal(await sheet.getByRole('button', { name: 'Import character', exact: true }).evaluate(node => node === document.activeElement), true);
+  assert.equal(await unloadBlocked(page), false);
+  await page.reload(); await page.locator('#character-view-addons').click(); await sheet.locator('#dnd-tab-tools').click();
+  assert.equal(await sheet.getByRole('combobox', { name: 'Sheet layout', exact: true }).inputValue(), 'classic');
+  assert.equal(await sheet.locator('#dnd-tab-notes').count(), 0);
+  assert.equal(await sheet.getByRole('button', { name: /Save new revision|Review build changes/ }).count(), 0);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= 390), true);
 });

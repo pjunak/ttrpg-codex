@@ -1,4 +1,5 @@
 import { uiText } from "./ui-localization.js";
+import { UIControlsController } from "../ui/controller.js";
 import { LitElement, html, nothing } from "lit";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import { searchCampaign } from "./campaign-search.js";
@@ -26,7 +27,7 @@ export class CodexSearch extends LitElement {
   readonly #ui = new UiLocalizationController(this);
 
   constructor() {
-    super();
+    super(); new UIControlsController(this);
     this.campaign = undefined;
     this.query = "";
     this.quick = false;
@@ -52,19 +53,19 @@ export class CodexSearch extends LitElement {
         <header class="search-heading">
           ${this.quick ? html`<h2 id="quick-search-title">${this.#ui.t("jump.title")}</h2><p id="quick-search-help">${this.#ui.t("jump.help")}</p>` : html`
             <p class="page-kicker">${this.#ui.t("search.kicker")}</p><h1 id="search-title">${this.#ui.t("search.title")}</h1><p>${this.#ui.t("search.intro")}</p>`}
-          <label class="campaign-search-field">
-            <span class="visually-hidden">${this.#ui.t("search.label")}</span>
+          <div class="campaign-search-field">
+            <label class="visually-hidden" for=${this.quick ? "quick-campaign-query" : "campaign-query"}>${this.#ui.t("search.label")}</label>
             <span aria-hidden="true">⌕</span>
             <input
-              type="search"
+              type="search" data-ui="search" id=${this.quick ? "quick-campaign-query" : "campaign-query"}
               .value=${this.query}
               placeholder=${this.#ui.t("search.placeholder")}
               autocomplete="off"
               maxlength="200"
               aria-describedby=${this.quick ? "quick-search-help" : nothing}
-              @input=${this.#onInput}
+              @codex-query=${this.#onInput}
             />
-          </label>
+          </div>
         </header>
         <div class="search-results">
           ${!searched

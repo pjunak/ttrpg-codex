@@ -544,6 +544,15 @@ and isolated contexts, grants, role visibility and independent save failures;
 `installed-planning-reader-fixture.mts` exercises the rebuilt DM Tools ZIP,
 safe rendered prose, annotations and desktop/phone reading and editing.
 
+## Shared control library
+
+The integrated `ui.controls.v1` capability lends `context.ui.enhance(ownRoot)`.
+The [UI foundation contract](UI_FOUNDATIONS.md) owns researched interaction
+choices, typed markers/events, semantic style tokens, root/session cleanup and
+the implementation/test inventory. Host views and all three visual companion
+add-ons use this implementation. Isolated frames retain their own DOM and the
+existing serializable bridge; no host DOM access is introduced.
+
 ## Remaining integration
 
 The browser SDK already supplies data, content, services and UI handles.

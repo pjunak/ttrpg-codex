@@ -6,10 +6,10 @@ import { uiText } from "./ui-localization.js";
 
 export function recordFieldControl(campaign: CampaignDataset, field: CampaignEditorField, value: Readonly<Record<string, unknown>>, currentKey: string, onFactionChange?: (event: Event) => void) {
     const wide = ["text", "string-list", "references", "attitudes"].includes(field.kind);
-    const help = field.help === undefined ? nothing : html`<small class="field-help">${field.help}</small>`;
+    const help = field.help === undefined ? nothing : html`<small data-ui-help class="field-help">${field.help}</small>`;
     if (field.kind === "text" || field.kind === "string-list") {
       return html`
-        <label class=${wide ? "wide-field" : ""}>
+        <label data-ui-field class=${wide ? "wide-field" : ""}>
           <span>${field.label}</span>
           <textarea
             name=${field.key}
@@ -29,7 +29,7 @@ export function recordFieldControl(campaign: CampaignDataset, field: CampaignEdi
       const selected = currentKey === "" && field.key === "faction" && stored === "" ? "neutral" : stored;
       const orphaned = selected !== "" && !options.some(({ value: option }) => option === selected);
       return html`
-        <label>
+        <label data-ui-field>
           <span>${field.label}</span>
           <select name=${field.key} @change=${field.key === "faction" ? onFactionChange : nothing}>
             ${field.kind === "reference" || field.kind === "enum"
@@ -49,7 +49,7 @@ export function recordFieldControl(campaign: CampaignDataset, field: CampaignEdi
         ? editorAttitudes(value[field.key])
         : editorStringList(value[field.key]));
       return html`
-        <label class="wide-field structured-picker">
+        <label data-ui-field class="wide-field structured-picker">
           <span>${field.label}</span>
           <select name=${field.key} multiple size=${Math.min(8, Math.max(3, options.length))}>
             ${options.map((option) => html`
@@ -57,14 +57,14 @@ export function recordFieldControl(campaign: CampaignDataset, field: CampaignEdi
             `)}
           </select>
           ${field.help === undefined
-            ? html`<small class="field-help">${uiText("Use Ctrl or Command to select more than one entry.")}</small>`
+            ? html`<small data-ui-help class="field-help">${uiText("Use Ctrl or Command to select more than one entry.")}</small>`
             : help}
         </label>
       `;
     }
     if (field.kind === "boolean") {
       return html`
-        <label class="boolean-field">
+        <label data-ui-field class="boolean-field">
           <input name=${field.key} type="checkbox" .checked=${value[field.key] === true} />
           <span>${field.label}</span>
           ${help}
@@ -72,7 +72,7 @@ export function recordFieldControl(campaign: CampaignDataset, field: CampaignEdi
       `;
     }
     return html`
-      <label>
+      <label data-ui-field>
         <span>${field.label}</span>
         <input
           name=${field.key}

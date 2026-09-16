@@ -106,6 +106,9 @@ different semantics. Display names may change.
   handles. Register only contributions declared by stable manifest ID.
 - Treat all external data as untrusted. Prefer DOM nodes and `textContent`;
   never inject raw package, translation, service, or record HTML.
+- For common integrated controls, declare `ui.controls.v1` and use `ui.enhance`
+  on your contribution root. Follow [shared UI](../../docs/rewrite/UI_FOUNDATIONS.md)
+  for markers, semantic skin tokens and cleanup; keep domain behavior in the add-on.
 - Use host design tokens and accessible semantic interaction. Keep source UI
   strings in English and catalogs declarative.
 - Isolated entry modules must be self-contained: no relative imports or network
