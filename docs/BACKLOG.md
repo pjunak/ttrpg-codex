@@ -39,6 +39,7 @@ not mean it has been pushed, deployed, or installed on a live site.
 - [x] ~~**T13 — Full-backup verification and offline restore guidance**~~ — `301bd9e`.
 - [x] ~~**T09 — Reviewed dependency-aware disabling and recovery**~~ — `9997306`.
 - [x] ~~**T10 — Worker monitoring, bounded retries and dependent recovery**~~ — `b74a30c`.
+- [x] ~~**T34 — Shared themeable UI library and typed add-on capability**~~ — `d957bfd`; [researched controls and validation](rewrite/UI_FOUNDATIONS.md).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
@@ -68,12 +69,6 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 The [continuation evidence](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings)
 contains the before/after comparisons for R01–R12 and screenshots for U01–U04.
 
-- [ ] **T34 / P2 — Complete the shared, themeable host UI foundation.** Current
-  reuse is partial; the goal remains [shared controls for host and add-ons](rewrite/UI_FOUNDATIONS.md).
-  Document semantic tokens/variants, factor repeated fields, dialogs and common
-  states into supported primitives, then expose typed public capabilities. Prove
-  a host screen and an installed add-on use the same implementation across both
-  themes, English/Czech, phone, keyboard/focus and zoom before broader adoption.
 - [ ] **T29 / P2 — Measure delivery and interaction costs before optimizing.** U04.
   Record cold/warm load, search, article and spatial interaction with large
   synthetic campaigns and a throttled phone profile. A bundle warning alone is
@@ -116,6 +111,12 @@ Owns planner interaction, planning data and the visible Import Center. Existing
 card/flow/annotation editing is implemented; this section tracks remaining work,
 not a new generic-planner rewrite. [Product contract](../../addon-dm-tools/docs/PLANNER.md).
 
+### Completed fix batches
+
+- [x] ~~**T34-DM — Shared controls in planner forms and Import Center**~~ — `9dac1bd`.
+
+### Remaining work
+
 - [ ] **T30 / P1 — Preserve unsaved planning work during forced replacement.**
   Confirmed limitation, promoted from C01. Drafts are
   [view-local](../../addon-dm-tools/src/planner-drafts.ts), and reconnection
@@ -129,9 +130,6 @@ not a new generic-planner rewrite. [Product contract](../../addon-dm-tools/docs/
   explain core/planning scope, ID remaps and affected records in preview. Prove
   cancel/stale/lost-response behavior using an installed package, with no duplicate
   provider-owned core import implementation.
-- [ ] **T34-DM / P2 — Adopt shared host controls as T34 makes them available.**
-  Reuse fields, actions, dialogs and common states in planner forms and Import
-  Center; preserve canvas behavior, drafts and host Markdown. Avoid private CSS/DOM.
 - [ ] **T18-DM / P1, review — Audit complete planning sessions, including UX.**
   Exercise large/nested plans, card/flow creation, ownership moves, target
   selection, multi-anchor notes, deletion/undo, reader/editor transitions and
@@ -157,6 +155,12 @@ Owns reference content, search/library/bestiary UI and `dnd5e.rules-data` v3.
 Standalone browsing must remain useful without Engine or Sheets.
 [Current scope](../../addon-dnd-2024-compendium/README.md).
 
+### Completed fix batches
+
+- [x] ~~**T34-COMP — Shared search, filters and browsing feedback**~~ — `e8cc635`.
+
+### Remaining work
+
 - [ ] **T31 / P2 — Keep library navigation reachable on phones.** Source-backed
   UX concern: at 768px and below, [the reading pane is ordered before the library
   drawer](../../addon-dnd-2024-compendium/src/index.css). A long detail/list can
@@ -165,9 +169,6 @@ Standalone browsing must remain useful without Engine or Sheets.
   query, filters or reading position. Verify long class/monster/spell pages,
   Back, keyboard order and 200% zoom; record this as a UX fix, not yet a proven
   historical regression.
-- [ ] **T34-COMP / P2 — Adopt T34 controls in reference browsing.** Share search,
-  filters and loading/empty/error presentation through the public host UI contract;
-  preserve book navigation, long-form reading and provider-free use.
 - [ ] **T18-COMP / P1, review — Complete browsing and reading parity acceptance.**
   Exercise topic/source/class/level navigation, cross-kind search, counted facets,
   reprints, ambiguous typed links, tables/stat blocks, related records and source
@@ -198,6 +199,11 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
   equip/attune restrictions and exclusive slots. Outputs must be deterministic,
   explainable, source-policy aware and leave caller inputs unchanged. Finish
   against Sheets T33 and the compatible host; source edits alone do not close it.
+  **Confirmed installed failure (September 16):** the all-class test times out
+  evaluating an artificer at level 20 (`context deadline exceeded` / HTTP 500).
+  Reproduced directly through the service without mounting a UI; other provider
+  recovery cases pass. Fix under the existing deadline and retain the case in
+  [installed rules tests](../frontend/test/browser/installed-rules.browser.mts).
 - [ ] **T18-ENGINE / P1, review — Close rules/provider evidence gaps.**
   Use representative single/multiclass builds through level changes, spells,
   granted casts, resources/rest, HP, inventory and DM effects. Check missing,
@@ -222,6 +228,12 @@ review-every-save, browsable history and device-draft work are not to be restore
 Provider-free saved reading/notes/print/export remain required.
 [Current contract](../../addon-dnd-character-sheets/docs/RULES_EDGE_CASES.md).
 
+### Completed fix batches
+
+- [x] ~~**T34-SHEETS — Shared fields, choices, states, tabs and modal focus**~~ — `99edd12`.
+
+### Remaining work
+
 - [ ] **T25 / P2 — Restore complete Combat details and consistent spell filters.**
   Confirmed R09/R10, still present in current source. Show damage type, versatile
   damage, mastery and senses with units/conditions using saved explanations in
@@ -238,9 +250,6 @@ Provider-free saved reading/notes/print/export remain required.
   concurrent edits, session expiry, lost responses and exact retries, navigation
   guards, provider loss, explicit rules adoption and reviewed imports. Do not
   claim pending in-memory edits are durable or restore removed history UI.
-- [ ] **T34-SHEETS / P2 — Adopt T34 controls in building and play.** Share fields,
-  validation, pending/conflict states and details where behavior matches; preserve
-  automatic saving, Compact/Classic and provider-free reading. Keep rules in Engine.
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
   Build, save/reload, advance, equip, prepare/cast, spend resources, rest, amend
   grants, print/export and review an import using the exact installed ZIP. Cover
@@ -258,7 +267,7 @@ Provider-free saved reading/notes/print/export remain required.
 | Order | Work | Exit evidence |
 | --- | --- | --- |
 | 1 | Preserve authored intent: DM T30; finish Engine T32 + Sheets T33. Start T02 alongside them. | Safe role/stale/error behavior; recoverable planning edits; incomplete character saves and bounded play work through the installed contract. |
-| 2 | Everyday use: Sheets T25, Compendium T31; establish host T34 before each add-on's T34 adoption; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
+| 2 | Everyday use: Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
 | 3 | Imports and resilience: host + DM T19, host T11; T08 only for a real schema-preservation need. | Exact reviewed transactions, understandable failures and safe provider/lifecycle recovery. |
 | 4 | Final integration: T02, relevant T18 cases and T29 measurements. | All four inspected ZIPs exercised without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
 | 5 | Authorized delivery T15–T17; independent maintenance T05–T07 and per-repo T14. | Exact served/installed builds verified; per-site data/retention choices recorded and rollback assets retained. |
