@@ -5,11 +5,12 @@ workflow review and links the completed backend work. The historical comparison
 remains in [the feature-parity audit](FEATURE_PARITY_AUDIT.md); current remaining
 work belongs only in [the suite backlog](../BACKLOG.md).
 
-Core acceptance began with host `eb2cb7b`; the latest accepted runtime is
+Core acceptance began with host `eb2cb7b`. The coordinated publication used
 `5cc4945`, including the deployment-gate repairs, DM recovery, progressive-save
-and Linux worker fixture tests below. The authorized publication follow-up passed
-Linux installed acceptance and deployed both sites; see
-[release evidence](#coordinated-publication-verification).
+and Linux worker fixture tests below. It passed Linux installed acceptance and
+deployed both sites; see [release evidence](#coordinated-publication-verification).
+A later publication run exposed the [native shutdown race](#native-shutdown-race-follow-up)
+corrected in `07482f0`.
 All test campaigns, passwords, installed fixtures and recovery operations used
 disposable directories. The release did not activate add-ons or edit live campaign data.
 
@@ -389,3 +390,27 @@ gate and `Stage configuration, deploy under lock, and verify health` step.
 T15-DELIVERY is complete. Live frontend/manager/backup acceptance, site-specific
 add-on review/activation and device checks remain under T15–T17; workflow health
 checks do not substitute for those operations.
+
+## Native shutdown race follow-up
+
+The documentation publication [run 35128522454](https://github.com/pjunak/ttrpg-codex/actions/runs/35128522454)
+on `294823a` again passed all 104 installed cases with zero skips, but its ordinary
+Go gate exposed an intermittent `TestWorkerMonitoringWithNativeCrashAndHealthHang/crash`
+failure. Shutting down the healthy replacement returned
+`INVALID_STATE: transition failed -> stopped is forbidden`. Image publication and
+deployments were skipped; the previously successful release remained in place.
+
+After an accepted shutdown and zero process exit, closing the host-owned stdout
+pipe could wake the peer reader before the final stopped transition. The reader's
+closed-file error was mistaken for an independent transport failure.
+Commit `07482f0` records closure ownership under the supervisor mutex before
+closing descriptors. Only the resulting `os.ErrClosed` callback is ignored;
+unexpected closure and other protocol errors still fail the generation.
+
+The [real-pipe regression](../../internal/addons/workersupervisor/transport_cleanup_test.go)
+reproduced the exact CI error before the fix and passed afterward, including 50
+repetitions. The full `npm run check` passed with all four inspected ZIP inputs:
+32 tooling tests, 389 unit tests, 339 browser cases, zero failures/skips, plus Go
+tests/vet. `go test -race` passed both supervisor and package-manager packages with
+`-count=10`; release readiness passed all 33 unchanged gates. This closes T37.
+The worker protocol, lifecycle state graph and deadlines are unchanged.
