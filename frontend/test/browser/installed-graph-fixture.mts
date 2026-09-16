@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { crc32 } from 'node:zlib';
 
 // Small deterministic stored ZIPs exercise the real inspector without a package build dependency.
-export function zip(files: Record<string, string | Buffer>) {
+export function zip(files: Record<string, string | Buffer>, modes: Readonly<Record<string, number>> = {}) {
   const local = [], central = []; let offset = 0;
   for (const [path, source] of Object.entries(files)) {
     const name = Buffer.from(path), body = Buffer.from(source), checksum = crc32(body);
@@ -13,7 +13,9 @@ export function zip(files: Record<string, string | Buffer>) {
     header.writeUInt16LE(33, 12); header.writeUInt32LE(checksum, 14);
     header.writeUInt32LE(body.length, 18); header.writeUInt32LE(body.length, 22); header.writeUInt16LE(name.length, 26);
     local.push(header, name, body);
-    const entry = Buffer.alloc(46); entry.writeUInt32LE(0x02014b50); entry.writeUInt16LE(20, 4); entry.writeUInt16LE(20, 6);
+    // Unix creator + regular-file permissions retain native worker execute bits.
+    const entry = Buffer.alloc(46); entry.writeUInt32LE(0x02014b50); entry.writeUInt16LE(0x0314, 4); entry.writeUInt16LE(20, 6);
+    entry.writeUInt32LE(((0o100000 | ((modes[path] ?? 0o644) & 0o777)) << 16) >>> 0, 38);
     entry.writeUInt16LE(33, 14); entry.writeUInt32LE(checksum, 16); entry.writeUInt32LE(body.length, 20);
     entry.writeUInt32LE(body.length, 24); entry.writeUInt16LE(name.length, 28); entry.writeUInt32LE(offset, 42);
     central.push(entry, name); offset += header.length + name.length + body.length;

@@ -6,17 +6,22 @@ import { zip } from './installed-graph-fixture.mts';
 // Repackage a locally built test archive with a new manifest version; never
 // extract it or alter its worker binaries. The real inspector reviews the ZIP.
 export function replacementImportPackage(archive: Buffer) {
-  const files = importPackageFiles(archive);
+  const { files, modes } = importPackageEntries(archive);
   const manifest = JSON.parse(files['addon.json'].toString()); manifest.version = '3.0.1';
   files['addon.json'] = JSON.stringify(manifest); delete files['checksums.json'];
   files['checksums.json'] = JSON.stringify({ algorithm: 'sha256', files: Object.fromEntries(Object.entries(files).map(([name, body]) => [name, createHash('sha256').update(body).digest('hex')])) });
-  return zip(files);
+  return zip(files, modes);
 }
 
 export function importPackageFiles(archive: Buffer) {
+  return importPackageEntries(archive).files;
+}
+
+function importPackageEntries(archive: Buffer) {
   const end = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
   assert.ok(end >= 0);
   const count = archive.readUInt16LE(end + 10), files: Record<string, string | Buffer> = Object.create(null);
+  const modes: Record<string, number> = Object.create(null);
   let cursor = archive.readUInt32LE(end + 16), expanded = 0;
   assert.ok(count < 1000);
   for (let i = 0; i < count; i++) {
@@ -29,9 +34,11 @@ export function importPackageFiles(archive: Buffer) {
     const compressedBody = archive.subarray(start, start + compressed);
     const body = method === 8 ? inflateRawSync(compressedBody, { maxOutputLength: 32 * 1024 * 1024 }) : compressedBody;
     expanded += body.length; assert.ok(expanded < 64 * 1024 * 1024);
+    // ZIP attributes use Unix permission bits only when the creator is Unix.
+    if (archive[cursor + 5] === 3) modes[name] = (archive.readUInt32LE(cursor + 38) >>> 16) & 0o777;
     files[name] = body; cursor += 46 + nameSize + extra + comment;
   }
-  return files;
+  return { files, modes };
 }
 
 export function planningImport(items: unknown[], generatedAt = 1000, mode = 'merge') {
