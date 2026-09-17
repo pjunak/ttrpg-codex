@@ -17,6 +17,7 @@ export interface BrowserAddonSessionCallbacks {
   readonly onRefresh?: (cause: "initial" | EventRefresh["cause"], result: BrowserAddonRefreshResult) => void;
   readonly onDiagnostic?: (error: unknown) => void;
   readonly onAuthorityLost?: () => void;
+  readonly onRecoveryRequested?: () => Promise<boolean>;
 }
 
 /** Owns one authenticated browser add-on runtime; the application owns SSE. */
@@ -25,6 +26,7 @@ export class BrowserAddonSession {
   readonly #callbacks: BrowserAddonSessionCallbacks;
   #controller: AbortController | undefined;
   #authorityLoss: Promise<void> | undefined;
+  #retained = false;
 
   constructor(
     runtime: BrowserAddonRuntimePort | BrowserAddonRuntime,
@@ -40,6 +42,7 @@ export class BrowserAddonSession {
       return;
     }
     const controller = new AbortController();
+    this.#retained = false;
     this.#controller = controller;
     await this.#refresh("initial", controller);
   }
@@ -56,7 +59,9 @@ export class BrowserAddonSession {
     const controller = this.#controller;
     if (controller === undefined) {
       await this.#authorityLoss;
-      return [];
+      if (!this.#retained) return [];
+      this.#retained = false;
+      return this.#runtime.reset("authority-changed");
     }
     this.#controller = undefined;
     controller?.abort("authority-changed");
@@ -82,8 +87,8 @@ export class BrowserAddonSession {
         return;
       }
       if (error instanceof BrowserGraphHTTPError && (error.status === 401 || error.status === 403)) {
-        this.#authorityLoss ??= this.#loseAuthority(owner);
-        await this.#authorityLoss;
+        const loss = this.#authorityLoss ??= this.#loseAuthority(owner);
+        try { await loss; } finally { if (this.#authorityLoss === loss) this.#authorityLoss = undefined; }
         return;
       }
       this.#callbacks.onDiagnostic?.(error);
@@ -96,11 +101,15 @@ export class BrowserAddonSession {
     }
     this.#controller = undefined;
     owner.abort("authority-changed");
+    try {
+      // The application may retain mounted views for same-role sign-in. This
+      // does not authorize requests; the server still rejects the old session.
+      if (await this.#callbacks.onRecoveryRequested?.()) { this.#retained = true; return; }
+    } catch (error) { this.#callbacks.onDiagnostic?.(error); }
     const failures = await this.#runtime.reset("authority-changed");
     for (const failure of failures) {
       this.#callbacks.onDiagnostic?.(failure);
     }
     this.#callbacks.onAuthorityLost?.();
-    this.#authorityLoss = undefined;
   }
 }

@@ -71,7 +71,7 @@ export class AddonServiceHTTPError extends Error {
 
 export class BrowserAddonServiceClient {
   readonly #baseURL: string;
-  readonly #csrfToken: string;
+  readonly #csrfToken: () => string;
   readonly #signal: AbortSignal;
   readonly #fetchService: AddonServiceFetch;
 
@@ -79,6 +79,7 @@ export class BrowserAddonServiceClient {
     readonly addonId: string;
     readonly generationId: string;
     readonly csrfToken: string;
+    readonly currentCsrfToken?: () => string;
     readonly signal: AbortSignal;
     readonly fetchService?: AddonServiceFetch;
   }) {
@@ -87,7 +88,7 @@ export class BrowserAddonServiceClient {
       throw new TypeError("add-on service client identity is invalid");
     }
     this.#baseURL = `/api/addons/${encodeURIComponent(options.addonId)}/generations/${options.generationId}/services`;
-    this.#csrfToken = options.csrfToken;
+    this.#csrfToken = options.currentCsrfToken ?? (() => options.csrfToken);
     this.#signal = options.signal;
     this.#fetchService = options.fetchService ?? ((input, init) => sessionFetch(input, init));
   }
@@ -179,7 +180,7 @@ export class BrowserAddonServiceClient {
       headers: new Headers({
         Accept: "application/json",
         "Content-Type": "application/json",
-        "X-Codex-CSRF": this.#csrfToken,
+        "X-Codex-CSRF": this.#csrfToken(),
       }),
       credentials: "same-origin",
       cache: "no-store",

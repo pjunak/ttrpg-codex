@@ -6,6 +6,11 @@ Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
 [feature-parity audit](rewrite/FEATURE_PARITY_AUDIT.md).
 
+**Progress estimate, September 17:** about **80% implemented**, or **70–75%**
+including release and complete workflow acceptance. The original organized
+backlog has 23 of 40 rows fully closed; large open tasks contain completed
+slices. [Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-estimate).
+
 **P1:** preservation, blocked workflows or release confidence. **P2:** usability,
 resilience and maintenance. **Confirmed** means source/browser evidence exists;
 **review** means an unresolved acceptance or design question, not a proven bug.
@@ -57,6 +62,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T36 — Preserve Linux worker permissions in installed-package fixtures**~~ — `325cf13`, `5cc4945`; [CI diagnosis and regression evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T37 — Prevent pipe-cleanup races from failing worker shutdown**~~ — `07482f0`; [deterministic regression and race checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#native-shutdown-race-follow-up).
 - [x] ~~**T45-HOST — Pin accepted companion sources and stabilize reader navigation**~~ — [recurring CI diagnosis, source coordination and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeated-compatibility-failures-and-pinned-source-revisions).
+- [x] ~~**T46-HOST — Preserve pending add-on edits through session renewal**~~ — [shared recovery and installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#add-on-session-renewal-without-losing-pending-edits).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -246,10 +252,12 @@ Provider-free saved reading/notes/print/export remain required.
   details/print. Engine remains the calculation authority.
 - [ ] **T33 / P1 — Finish automatic saving and progressive-builder usability.**
   Localize returned save explanations that still fall back to English.
-  Exercise session expiry and provider/generation replacement while edits are
-  pending, then explicit rules adoption. Retain accepted autosave and command
-  recovery coverage. Pending in-memory edits must remain visibly unsaved and
-  guarded; do not restore removed history or device-draft UI.
+  Exercise provider/generation replacement while edits are pending and recover
+  explicit rules adoption after an autosave is rejected by changed rules.
+  Same-generation session renewal is covered by host T46; retain its original
+  request/revision and autosave/command recovery regressions. Pending in-memory
+  edits must remain visibly unsaved and guarded; do not restore removed history
+  or device-draft UI.
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
   Build, save/reload, advance, equip, prepare/cast, spend resources, rest, amend
   grants, print/export and review an import using the exact installed ZIP. Cover

@@ -152,17 +152,25 @@ Transport or boundary-validation failures do not call reconciliation, so the
 last successfully activated generation set keeps running. `reset()` first
 advances the coordinator's authority epoch and invalidates the graph client's
 cache, so queued work and fetched-but-unapplied responses cannot continue. It
-then queues ordered disposal of active generations. Role, session, and
-permission changes use the explicit `authority-changed` stop reason. This
-prevents an old credential context from restoring browser authority while its
-resources are being torn down.
+then queues ordered disposal of active generations. Explicit logout, role and
+permission changes use the `authority-changed` stop reason. This prevents an old
+credential context from restoring browser authority while its resources are
+being torn down.
 
-`BrowserAddonSession` now instantiates the coordinator behind the authenticated
-application shell. It opens the shared stream before its initial graph refresh,
-coalesces every graph signal through the serialized runtime, and preserves live
-generations across transient transport errors. A 401/403 closes the stream,
-aborts the authority scope, clears cached graph authority, tears down active
-generations, and returns the shell to anonymous state.
+`BrowserAddonSession` owns graph refresh behind the authenticated application
+shell, which owns the shared stream. Graph signals pass through the serialized
+runtime; transient transport failures preserve mounted generations. On a graph
+401/403, the shell can retain those views while requesting same-role sign-in.
+Refresh pauses and the stream closes; the server still rejects unauthorized
+operations. Successful recovery renews the host-owned CSRF supplier used by
+existing data/service clients and resumes refresh without rebuilding an unchanged
+graph or replaying writes. The supplier is never exposed to add-on code.
+Declined recovery, explicit stop and player-preview authority loss still clear
+cached authority and dispose generations. Stopping during a pending recovery
+decision also disposes any retained generations.
+
+[Session recovery](AUTHENTICATION.md#recovering-a-session-during-editing) covers
+mounted input only; a real graph change still follows the cold switch below.
 
 ## Cold graph switch
 
@@ -188,8 +196,8 @@ lifecycle. That is appropriate for the current personal deployment and small
 first-party add-on set. The owner accepted this as an expected limitation on
 September 11, 2026. A graph change restarts all browser add-ons, including
 otherwise unchanged ones. Local actions honor published edit guards, but a
-change from another session or authority loss can discard unsaved in-memory
-add-on drafts. Saved data remains under its storage contract. Per-generation
+change from another session or non-recoverable authority loss can discard
+unsaved in-memory add-on drafts. Saved data remains under its storage contract. Per-generation
 rolling replacement and generic draft persistence are not current commitments.
 
 ## Module boundary
@@ -250,7 +258,7 @@ same-route query updates only for views that keep their drafts. The isolated
 bridge validates flag-only `edit-state` messages, including during activation;
 frame closure clears the state. Outlet disposal and generation abort retire
 handles even when the element has no custom disposer. These guards cannot veto
-disable, replacement, or authority loss and do not persist draft contents.
+disable, replacement, or explicit authority teardown and do not persist draft contents.
 
 The current shell instantiates the generic outlet for the `slot` surface under
 Campaign tools and shows a direct empty state when that role has no panels.

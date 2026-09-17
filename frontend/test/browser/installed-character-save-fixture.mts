@@ -13,7 +13,7 @@ function latch() {
   let release!: () => void;
   return { promise: new Promise<void>(resolve => { release = resolve; }), release: () => release() };
 }
-async function openCharacter(t: TestContext, fixture: Fixture, key: string, equipped = false) {
+export async function openCharacter(t: TestContext, fixture: Fixture, key: string, equipped = false, role?: "dm" | "player") {
   const { admin, browser, csrf, origin, call } = fixture;
   await jsonResponse(await admin.post('/api/campaign/transactions', {
     headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'campaign-mutation.v1', mutations: [{
@@ -28,8 +28,9 @@ async function openCharacter(t: TestContext, fixture: Fixture, key: string, equi
     expectedRevision: 0, inputs });
   assert.equal(initial.status, 'ready', JSON.stringify(initial));
   assert.equal(initial.evaluation.ready, false, 'Partial builds may save without enabling play');
-  const context = await browser.newContext({ storageState: await admin.storageState(), viewport: { width: 1440, height: 1000 } });
+  const context = await browser.newContext({ baseURL: origin, ...(role ? {} : { storageState: await admin.storageState() }), viewport: { width: 1440, height: 1000 } });
   t.after(() => context.close());
+  if (role) await jsonResponse(await context.request.post(origin + "/api/login", { data: { password: "local-character-" + role } }));
   const page = await context.newPage(), errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, []));
   await page.goto(origin + '/#/characters/' + key); await page.locator('#character-view-addons').click();
@@ -38,7 +39,7 @@ async function openCharacter(t: TestContext, fixture: Fixture, key: string, equi
   const name = sheet.getByLabel('Name', { exact: true }).first(), status = sheet.locator('[data-character-status]');
   await name.waitFor(); await page.waitForFunction(() => !document.querySelector('.addon-dnd-character')?.hasAttribute('aria-busy'));
   assert.equal(await sheet.getByRole('button', { name: 'Heal', exact: true }).isDisabled(), true);
-  return { page, sheet, name, status, initial, read: () => call('load', { key }) };
+  return { context, page, sheet, name, status, initial, read: () => call('load', { key }) };
 }
 
 // Bypass a stale/client-side range to exercise real worker + Engine rejection,

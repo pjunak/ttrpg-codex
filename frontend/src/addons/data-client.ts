@@ -136,7 +136,7 @@ export function parseExpectedDataSets(value: unknown): readonly AddonDataSetRevi
 
 export class BrowserAddonDataClient {
   readonly #baseURL: string;
-  readonly #csrfToken: string;
+  readonly #csrfToken: () => string;
   readonly #signal: AbortSignal;
   readonly #fetchData: AddonDataFetch;
   readonly #subscribe: AddonDataSubscribe | undefined;
@@ -146,6 +146,7 @@ export class BrowserAddonDataClient {
     readonly addonId: string;
     readonly generationId: string;
     readonly csrfToken: string;
+    readonly currentCsrfToken?: () => string;
     readonly signal: AbortSignal;
     readonly fetchData?: AddonDataFetch;
     readonly subscribe?: AddonDataSubscribe;
@@ -155,7 +156,7 @@ export class BrowserAddonDataClient {
       throw new TypeError("add-on data client identity is invalid");
     }
     this.#baseURL = `/api/addons/${encodeURIComponent(options.addonId)}/generations/${options.generationId}/data`;
-    this.#csrfToken = options.csrfToken;
+    this.#csrfToken = options.currentCsrfToken ?? (() => options.csrfToken);
     this.#signal = options.signal;
     this.#subscribe = options.subscribe;
     this.#fetchData = options.fetchData ?? ((input, init) => sessionFetch(input, init));
@@ -309,7 +310,7 @@ export class BrowserAddonDataClient {
     const combined = combineSignals(this.#signal, signal);
     const headers = new Headers({ Accept: "application/json", "Content-Type": "application/json" });
     if (write) {
-      headers.set("X-Codex-CSRF", this.#csrfToken);
+      headers.set("X-Codex-CSRF", this.#csrfToken());
     }
     const response = await this.#fetchData(`${this.#baseURL}/${operation}`, {
       method: "POST", headers, credentials: "same-origin", cache: "no-store",

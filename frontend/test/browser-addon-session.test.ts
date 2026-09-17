@@ -32,6 +32,60 @@ describe("BrowserAddonSession", () => {
     expect(runtime.resetCalls).toEqual(["authority-changed"]);
   });
 
+  it("retains mounted generations during recovery and refreshes them only after resume", async () => {
+    const runtime = new FakeRuntime(), authorityLost = vi.fn();
+    const session = new BrowserAddonSession(runtime, {
+      onRecoveryRequested: async () => true, onAuthorityLost: authorityLost,
+    });
+    await session.start();
+    runtime.failure = new BrowserGraphHTTPError(401);
+    await session.handleEvent({ cause: "hello", cursor: 1 });
+    expect(runtime.resetCalls).toEqual([]);
+    expect(authorityLost).not.toHaveBeenCalled();
+    const calls = runtime.refreshCalls;
+    await session.handleEvent({ cause: "hello", cursor: 2 });
+    expect(runtime.refreshCalls).toBe(calls);
+    runtime.failure = undefined;
+    await session.start();
+    expect(runtime.refreshCalls).toBe(calls + 1);
+    expect(runtime.resetCalls).toEqual([]);
+    await session.stop();
+    expect(runtime.resetCalls).toEqual(["authority-changed"]);
+  });
+
+  it("explicit stop disposes retained generations even while the recovery decision is pending", async () => {
+    const runtime = new FakeRuntime();
+    let release!: (retain: boolean) => void;
+    const decision = new Promise<boolean>(resolve => { release = resolve; });
+    const requested = vi.fn(() => decision);
+    const session = new BrowserAddonSession(runtime, { onRecoveryRequested: requested });
+    await session.start();
+    runtime.failure = new BrowserGraphHTTPError(403);
+    const rejected = session.handleEvent({ cause: "hello", cursor: 1 });
+    await vi.waitFor(() => expect(requested).toHaveBeenCalledOnce());
+    const stopping = session.stop();
+    release(true);
+    await Promise.all([rejected, stopping]);
+    expect(runtime.resetCalls).toEqual(["authority-changed"]);
+    await session.stop();
+    expect(runtime.resetCalls).toHaveLength(1);
+  });
+
+  it("revokes generations when recovery is declined or its decision fails", async () => {
+    for (const fails of [false, true]) {
+      const runtime = new FakeRuntime(), authorityLost = vi.fn(), diagnostic = vi.fn();
+      const session = new BrowserAddonSession(runtime, {
+        onRecoveryRequested: async () => { if (fails) throw new Error("recovery unavailable"); return false; },
+        onAuthorityLost: authorityLost, onDiagnostic: diagnostic,
+      });
+      runtime.failure = new BrowserGraphHTTPError(401);
+      await session.start();
+      expect(runtime.resetCalls).toEqual(["authority-changed"]);
+      expect(authorityLost).toHaveBeenCalledOnce();
+      expect(diagnostic).toHaveBeenCalledTimes(fails ? 1 : 0);
+    }
+  });
+
   it("tears down authority when the graph endpoint rejects the session", async () => {
     const runtime = new FakeRuntime();
     runtime.failure = new BrowserGraphHTTPError(403);

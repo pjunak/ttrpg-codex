@@ -11,6 +11,27 @@ const providerGeneration = "b".repeat(64);
 const csrfToken = "c".repeat(32);
 
 describe("BrowserAddonServiceClient", () => {
+  it("renews request credentials on an existing binding without replay or reviving disposed authority", async () => {
+    let current = csrfToken;
+    const owner = new AbortController();
+    const fetchService = vi.fn<AddonServiceFetch>(async (_url, init) => JSON.parse(String(init.body)).contractVersion === "addon-service-connect.v1"
+      ? jsonResponse(connection())
+      : jsonResponse({ contractVersion: "addon-service-result.v1", providerAddonId: "rules-engine", providerGeneration, result: { ok: true } }));
+    const client = new BrowserAddonServiceClient({ addonId: "dnd-sheets", generationId, csrfToken,
+      currentCsrfToken: () => current, signal: owner.signal, fetchService });
+    const handle = await client.api().connect("dnd5e.rules-engine", { range: "^3.0.0", cardinality: "one" });
+    current = "n".repeat(32);
+    expect(fetchService).toHaveBeenCalledOnce();
+    await handle.call("hydrate", {});
+    expect(new Headers(fetchService.mock.calls[0]![1].headers).get("X-Codex-CSRF")).toBe(csrfToken);
+    expect(new Headers(fetchService.mock.calls[1]![1].headers).get("X-Codex-CSRF")).toBe(current);
+    expect(JSON.parse(String(fetchService.mock.calls[1]![1].body))).toMatchObject({ providerGeneration, bindingRevision: 0 });
+    owner.abort("generation-replaced");
+    current = "x".repeat(32);
+    await expect(handle.call("hydrate", {})).rejects.toBe("generation-replaced");
+    expect(fetchService).toHaveBeenCalledTimes(2);
+  });
+
   it("sends own-provider discovery only when explicitly requested", async () => {
     const fetchService = vi.fn<AddonServiceFetch>(async () => jsonResponse(connection()));
     const client = createClient(fetchService).api();

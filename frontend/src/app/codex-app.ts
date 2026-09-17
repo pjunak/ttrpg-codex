@@ -511,7 +511,10 @@ export class CodexApp extends LitElement {
         const current = await getAuth(signal);
         if (signal.aborted || this.authority.state !== "known" || this.authority.auth !== previous) return false;
         if (current.authenticated && current.realRole === previous.realRole && current.role === previous.role) {
-          if (current.csrfToken !== previous.csrfToken) this.authority = { state: "known", auth: current };
+          if (current.csrfToken !== previous.csrfToken) {
+            this.authority = { state: "known", auth: current };
+            this.#addons?.renewCsrfToken(current.csrfToken);
+          }
           return true;
         }
       } catch {
@@ -564,7 +567,12 @@ export class CodexApp extends LitElement {
       }
       if (current.role !== previous.role) current = await switchSessionRole(previous.role, current.csrfToken, signal);
       if (signal.aborted) return;
+      if (!current.authenticated || current.realRole !== previous.realRole || current.role !== previous.role) {
+        this.sessionRecoveryError = this.#ui.t("session.sameRole");
+        return;
+      }
       this.authority = { state: "known", auth: current };
+      this.#addons?.renewCsrfToken(current.csrfToken);
       this.sessionRecovery = false;
       this.sessionRestored = true;
       this.errorMessage = "";
@@ -572,7 +580,8 @@ export class CodexApp extends LitElement {
       await this.#loadCampaign(signal, true);
       if (!this.sessionRecovery) {
         this.#startEventStream();
-        await this.#recoverAddons();
+        if (this.#addons) await this.#addons.session.start();
+        else await this.#recoverAddons();
       }
     } catch {
       if (!signal.aborted) this.sessionRecoveryError = this.#ui.t("session.resumeFailed");
@@ -711,6 +720,11 @@ export class CodexApp extends LitElement {
           browserDiagnostics.record("refresh", cause);
           this.addonState = { state: "degraded", message: this.#ui.t("dm.failed") };
         }
+      },
+      onRecoveryRequested: async () => {
+        if (owner !== this.#addonOwner || isPlayerPreview()) return false;
+        await this.#checkSession();
+        return owner === this.#addonOwner && this.sessionRecovery;
       },
       onAuthorityLost: () => {
         if (owner !== this.#addonOwner) return;

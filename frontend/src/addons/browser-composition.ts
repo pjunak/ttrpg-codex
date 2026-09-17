@@ -20,6 +20,7 @@ export interface BrowserAddonComposition {
   readonly dataChanges: BrowserAddonDataChanges;
   readonly session: BrowserAddonSession;
   readonly contributions: BrowserContributionRegistry;
+  renewCsrfToken(token: string): void;
 }
 
 /** Browser-only composition root; add-on modules never receive these owners. */
@@ -35,6 +36,7 @@ export function createBrowserAddonComposition(
       addonId: descriptor.addonId,
       generationId: descriptor.generationId,
       csrfToken,
+      currentCsrfToken: () => csrfToken,
       signal,
       subscribe: dataChanges.scoped(descriptor.addonId, signal),
     }).api(),
@@ -47,6 +49,7 @@ export function createBrowserAddonComposition(
       addonId: descriptor.addonId,
       generationId: descriptor.generationId,
       csrfToken,
+      currentCsrfToken: () => csrfToken,
       signal,
     }).api(),
   );
@@ -70,5 +73,9 @@ export function createBrowserAddonComposition(
     dataChanges,
     session: new BrowserAddonSession(runtime, callbacks),
     contributions,
+    renewCsrfToken(token: string): void {
+      if (token.length < 32) throw new TypeError("invalid renewed session token");
+      csrfToken = token;
+    },
   };
 }

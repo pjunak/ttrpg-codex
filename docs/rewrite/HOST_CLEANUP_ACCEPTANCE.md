@@ -972,3 +972,80 @@ Git. During authorized delivery, publish the pending Sheets commit before the
 host fixes, then require the full pinned Linux suite and both site results.
 Earlier successful rollouts remain historical evidence, not acceptance of this
 candidate. Follow the [coordinated delivery procedure](../SELF_HOSTING.md#coordinate-host-and-companion-commits).
+
+## Add-on session renewal without losing pending edits
+
+September 17, 2026. T46-HOST closes the same-generation session-recovery part of
+Sheets T33 through the shared host runtime. No companion source or package
+revision changed.
+
+The new installed regression first failed against the previous host: after
+revoking a real session, making an unsaved inventory-name edit and signing in
+again, the original character element was disconnected. The shell restarted
+all add-ons during recovery, retiring the element's pending input/request.
+Existing host-issued data/service clients also captured the old CSRF token,
+so a same-role cookie renewal could leave an otherwise valid mounted client
+unable to save.
+
+The host now renews credentials after verifying the same real and effective
+role, retaining unchanged contribution elements and their opening revisions.
+Graph authorization rejection can pause refresh while the existing shared
+sign-in form remains on screen. Explicit logout and unrecoverable authority
+changes still dispose generations, including when stop races the recovery
+decision. A renewed token does not revive an aborted scope or change a service's
+provider generation, binding revision, permissions or a mutation's expected
+revision. Authentication remains server-owned.
+
+The [installed session fixture](../../frontend/test/browser/installed-character-session-fixture.mts)
+covers DM desktop and Czech player phone recovery, wrong passwords, wrong-role
+sign-in, preserved input and unload guards, retained element identity, explicit
+retry with the exact original request, concurrent edits while signed out, and
+same-role cookie renewal without a reload. Signing in sends no replacement save.
+A conflicting retry leaves the local input pending and the newer saved state
+untouched. The interface reuses the host's existing controls and recovery form.
+
+Focused unit tests cover paused refresh/resume, stop during pending recovery,
+declined/failed recovery and credential renewal on both service and data clients.
+The existing generation and optimistic revision checks remain in force.
+
+Validation on host `e6217bc` plus this batch's changes: full `npm run check`
+passed **38 tooling, 394 unit and 380 browser tests**, zero failures/skips,
+plus Go tests/vet. The four companion contract suites passed (DM Tools 56,
+Compendium 64, Sheets 9 browser-module tests plus Go, and Engine Go). All 18
+workflow-policy checks and 33 historical release-readiness gates passed.
+Fresh inspection accepted all four unchanged pinned ZIPs. The separate
+`node scripts/companion-suite.mts test full` run passed **140/140 installed
+package tests**, with zero failures or skips.
+
+Actual provider/package graph replacement remains a cold switch and is not
+closed by this batch. Sheets T33 still needs pending-edit acceptance across
+that replacement, explicit rules adoption after a rejected autosave, and remaining
+returned-message localization. No device-draft storage or history was restored.
+Validation used disposable local hosts and Windows workers; publication,
+Linux CI and live-site acceptance remain separate.
+
+### Cleanup progress estimate
+
+This is an approximate effort assessment, not a count of the growing number of
+completed sub-batches:
+
+| View | Estimate | Basis |
+| --- | --- | --- |
+| Implementation across the five repositories | About **80%**, with a plausible 75–85% range | Most host/backend/shared-UI restoration is complete. Large open Engine T32 and Sheets T33 tasks already contain several accepted slices. |
+| Complete cleanup including release and workflow acceptance | About **70–75%** | Add-on full-session reviews, current publication/site acceptance and physical-device/printer checks remain. |
+| Strict original task-row closure | **23 of 40**, about 58% | The September 14 repository-organized baseline `ed50919`; 23 of 39 (about 59%) if the conditional future-migration task T08 is excluded. Open umbrella tasks receive no partial credit in this count. |
+
+The original September 11 audit (`48d2692`) and September 14 continuation
+(`5b9f7ae`) provide the historical restoration scope; the organized backlog
+provides the stable task IDs. Later shared UI, data corrections and reliability
+batches expanded that scope, and their completion is not counted twice as
+original tasks. Historical 33-gate release readiness is not a current completion
+percentage.
+
+Most remaining development is in Engine/Sheets edge cases and recovery,
+Sheets T25 combat/spell presentation, Compendium T31 phone navigation, full
+add-on workflow reviews, and generated-artifact ownership in all four add-ons.
+T15–T17 retain operational/site work. Conditional C-items and untriggered
+schema migrations are not promises required for cleanup completion. The
+remaining reviews can discover additional defects, so the estimate has
+moderate confidence and should be refreshed after those reviews.

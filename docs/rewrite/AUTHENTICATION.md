@@ -162,7 +162,7 @@ from the environment under the same exclusive data-directory lock as the host,
 then exits without changing campaign data. See the
 [operator steps](../SELF_HOSTING.md#password-changes-and-access-recovery).
 
-## Recovering a session during core editing
+## Recovering a session during editing
 
 A rejected authorized request triggers an authority read, never an automatic
 retry of the write. Retained campaign refreshes also recheck the session before
@@ -172,21 +172,33 @@ listeners end with the application component.
 
 When the previous role is no longer available, an English/Czech sign-in form
 appears in the current page using the shared field, button and status styles.
-Core editors remain mounted with their original values and opening revisions.
-Reauthentication must restore the same real/effective role; wrong credentials
-or a different role leave the draft and recovery form intact. A successful
-sign-in refreshes campaign data and add-on bindings, announces recovery and
-returns keyboard focus to the campaign content. The user reviews and saves
-again explicitly. A concurrent record change still fails the original revision
-check; reauthentication never grants permission to overwrite it.
+Core editors and unchanged add-on contributions remain mounted with their
+original values, revision bases and pending requests. Reauthentication must
+restore the same real/effective role; wrong credentials or a different role
+leave the draft and recovery form intact. A successful sign-in refreshes campaign
+data and renews the CSRF token used by existing host-issued data/service clients.
+It announces recovery and returns keyboard focus to the campaign content.
+The user reviews and retries explicitly; renewing credentials never replays a
+write. A concurrent record change still fails the original revision check.
+An authenticated same-role cookie change in another tab also refreshes the
+existing clients' token after an authority read, without remounting their views.
+
+A graph authorization failure can pause refresh and retain mounted views while
+the shell requests sign-in. Requests still require server-authorized cookies,
+CSRF and current generation/binding identities. Explicit logout, role changes,
+and declined/unavailable recovery retain ordered disposal. Renewed credentials
+cannot revive a disposed generation. An actual provider/package graph change
+still uses the separate cold-switch contract and may dispose the retained view.
 
 Player-preview tabs keep their separate fail-closed contract and never fall
-back to the browser's DM cookie through this recovery path. Add-on-local drafts
-remain governed by their own lifecycle contract; this does not close DM Tools
-T30. Browser tests cover DM/player, desktop/phone, rejected credentials, role
-mismatch, stale edits, live expiry before Save, preserved private drafts and
-the absence of automatic write replay. Browser fixtures revoke real sessions
-through logout; clock-based expiration is also covered by the Go session tests.
+back to the browser's DM cookie through this recovery path. This adds no browser
+draft storage or history. [Installed character regressions](../../frontend/test/browser/installed-character-session-fixture.mts)
+cover pending autosaves, unchanged element identity, exact request retries,
+concurrent edits, same-role cookie renewal, DM/player, English/Czech and phone
+layout. Core browser tests also cover live expiry before Save and private drafts.
+Fixtures revoke real sessions through logout; clock-based expiration is covered
+by Go session tests. Provider/generation replacement remains a separate T33/T18
+acceptance boundary.
 
 ## Authentication follow-ups
 

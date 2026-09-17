@@ -25,6 +25,25 @@ const commit: AddonCommitReceipt = {
 };
 
 describe("BrowserAddonDataClient", () => {
+  it("renews transaction credentials without replaying writes or changing revision and generation guards", async () => {
+    let current = csrfToken;
+    const owner = new AbortController();
+    const fetchData = vi.fn<AddonDataFetch>(async () => jsonResponse(commit));
+    const client = new BrowserAddonDataClient({ addonId: "dm-tools", generationId, csrfToken,
+      currentCsrfToken: () => current, signal: owner.signal, fetchData });
+    const notes = client.api().collection("dm_notes");
+    await notes.put("note-1", { text: "First" }, 0);
+    current = "n".repeat(32);
+    expect(fetchData).toHaveBeenCalledOnce();
+    await notes.put("note-1", { text: "Reviewed retry" }, 0);
+    expect(new Headers(fetchData.mock.calls[1]![1].headers).get("X-Codex-CSRF")).toBe(current);
+    expect(JSON.parse(String(fetchData.mock.calls[1]![1].body)).mutations[0].expectedRevision).toBe(0);
+    expect(fetchData.mock.calls[1]![0]).toContain("/generations/" + generationId + "/");
+    owner.abort("generation-replaced");
+    await expect(notes.put("note-1", {}, 0)).rejects.toBe("generation-replaced");
+    expect(fetchData).toHaveBeenCalledTimes(2);
+  });
+
   it("binds reads to the exact generation without sending the CSRF token", async () => {
     const calls: Array<{ input: string; init: RequestInit }> = [];
     const client = createClient(async (input, init) => {
