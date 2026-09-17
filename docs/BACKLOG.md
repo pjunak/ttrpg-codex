@@ -240,6 +240,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T33-FOCUS — Keep autosave focus on the owning Builder choice**~~ — `f184eda`; stable keys for borrowed UI controls; [English/Czech acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#phb-origin-choices-and-shared-field-focus).
 - [x] ~~**T33-EQUIPMENT — Preserve stored spares and explain accessible equipment choices**~~ — `b015083`; shared transitions, saved slots, keyboard focus and enlarged layouts; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#equipment-preservation-and-attunement-eligibility).
 - [x] ~~**T33-COMMANDS — Recover uncertain play/grant and reviewed-import commands safely**~~ — `6325243`; exact retries, guarded recovery and stale-read protection; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#character-command-recovery-and-uncertain-outcomes).
+- [x] ~~**T33-ADOPTION — Adopt changed rules with pending edits and restore editing**~~ — `a8ff7ce`; explicit recovery, exact retries, conflict protection and readable phone actions; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#explicit-rules-adoption-with-pending-character-edits).
 
 ### Remaining work
 
@@ -252,12 +253,12 @@ Provider-free saved reading/notes/print/export remain required.
   details/print. Engine remains the calculation authority.
 - [ ] **T33 / P1 — Finish automatic saving and progressive-builder usability.**
   Localize returned save explanations that still fall back to English.
-  Exercise provider/generation replacement while edits are pending and recover
-  explicit rules adoption after an autosave is rejected by changed rules.
-  Same-generation session renewal is covered by host T46; retain its original
-  request/revision and autosave/command recovery regressions. Pending in-memory
-  edits must remain visibly unsaved and guarded; do not restore removed history
-  or device-draft UI.
+  Preserve pending input when rules-policy or provider/generation changes
+  refresh the runtime graph. Explicit adoption in a still-mounted sheet is
+  covered by T33-ADOPTION, and same-generation session renewal by host T46;
+  retain their original request/revision and autosave/command recovery regressions.
+  Pending in-memory edits must remain visibly unsaved and guarded; do not restore
+  removed history or device-draft UI.
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
   Build, save/reload, advance, equip, prepare/cast, spend resources, rest, amend
   grants, print/export and review an import using the exact installed ZIP. Cover

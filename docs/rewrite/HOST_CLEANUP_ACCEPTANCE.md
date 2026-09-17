@@ -1049,3 +1049,54 @@ T15–T17 retain operational/site work. Conditional C-items and untriggered
 schema migrations are not promises required for cleanup completion. The
 remaining reviews can discover additional defects, so the estimate has
 moderate confidence and should be refreshed after those reviews.
+
+## Explicit rules adoption with pending character edits
+
+September 17, 2026. T33-ADOPTION (batch T47) repairs three connected defects:
+a rejected autosave did not update the sheet's rules status; adoption waited
+for the blocked autosave; and successful persistence left `rulesChanged` true.
+Both the installed missing-action case and the coordinator acknowledgment test
+failed before the fix.
+
+Sheets now keeps the pending input and opening revision while exposing
+**Review changed rules**. It moves focus to the borrowed Tools control,
+**Adopt rules and save pending changes**, with an explicit explanation.
+Reviewing sends no write. Adoption saves that input directly using the existing
+worker validation and command recovery. Uncertain requests retain their exact
+operation ID and revision; stale adoption never rebases over another editor.
+Successful persistence clears the changed-rules flag, restoring editing without
+requiring a subsequent event. English/Czech controls share the same path.
+Tools actions now wrap at their natural label widths on narrow screens.
+
+The [installed cases](../../frontend/test/browser/installed-character-rules-recovery-fixture.mts)
+use a real source-policy change and worker rejection. The event stream is
+deliberately disconnected to cover a save response arriving before its lifecycle
+event. DM Compact desktop and player Classic Czech at 390 px/200% text retain
+the pending inventory name, navigate recovery by keyboard, save exactly one
+revision and clear the navigation guard. A lost adoption reply retries the
+identical request; a concurrent edit preserves the remote saved value and local
+pending value. The enlarged Tools layout was also inspected visually.
+
+Forced graph replacement remains open in T33: these cases establish recovery
+in a mounted generation, not input transfer between generations. No device
+draft, history, schema, manifest, permission or service-version change was added.
+
+Sheets source: `a8ff7ce1a861f54c2ceb532b1f6ee619c751f504`; inspected ZIP SHA-256:
+`5c776f6ac1fc14a98c12666256e3073131b659b7691fb94390accbaebaea205a`.
+The host's [companion pins](../../companion-revisions.json) record that exact
+source. The other three companion sources and inspected packages are unchanged.
+
+Validation: Sheets `npm run check` passed (9 browser-module tests plus Go
+tests/vet); standalone packaging and host inspection passed. Four focused
+installed recovery cases passed, followed by the enlarged-phone case after the
+Tools layout correction. Against host `1c01bb5` plus this batch, full
+`npm run check` passed **38 tooling, 394 unit and 384 browser tests**, zero
+failures/skips, plus Go tests/vet. The separate
+`node scripts/companion-suite.mts test full` passed **144/144 installed tests**
+with zero failures/skips on the inspected source set. All 33 historical release-
+readiness gates passed.
+
+Checks used disposable local data and native Windows workers. Linux targets
+were cross-compiled and inspected; Linux CI and live-site acceptance were not
+performed. During authorized publication, publish the Sheets commit before
+the host commit that pins it; site owners still review and activate its package.

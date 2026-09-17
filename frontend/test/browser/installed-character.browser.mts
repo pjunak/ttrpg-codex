@@ -16,6 +16,7 @@ import { registerEquipmentTests } from './installed-character-equipment-fixture.
 import { registerRepeatableFeatTests } from './installed-character-repeatable-fixture.mts';
 import { registerCharacterSaveTests } from './installed-character-save-fixture.mts';
 import { registerCharacterSessionTests } from './installed-character-session-fixture.mts';
+import { registerCharacterRulesRecoveryTests } from './installed-character-rules-recovery-fixture.mts';
 import { registerCharacterCommandTests } from './installed-character-command-fixture.mts';
 import { registerCharacterBuilderTests, registerSkillGrantTests } from './installed-character-builder-fixture.mts';
 
@@ -147,6 +148,7 @@ test('autosave queues item typing during an in-flight request and preserves over
 
 registerCharacterSaveTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterSessionTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerCharacterRulesRecoveryTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterCommandTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterBuilderTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerSkillGrantTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));

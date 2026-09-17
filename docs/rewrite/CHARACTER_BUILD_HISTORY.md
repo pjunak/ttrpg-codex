@@ -78,7 +78,12 @@ requires exact replacement confirmation and reauthorization of imported DM
 grants; file and paste use the same limits. Print uses the saved projection.
 
 Without compatible rules, saved values, printing and export remain usable.
-Changed rules require explicit adoption in Tools before mechanical edits.
+Changed rules require explicit adoption in Tools before mechanical edits. When
+an autosave discovers the change, **Review changed rules** opens that action
+without discarding the pending input. **Adopt rules and save pending changes**
+saves both deliberately, using the opening revision; another editor's changes
+still produce a conflict. A successful acknowledgment re-enables editing, and
+a lost acknowledgment retries the exact adoption rather than a fresh save.
 
 <a id="implementation-sequence-and-ownership"></a>
 <a id="verification-result"></a>
@@ -98,8 +103,12 @@ checks real package installation, incremental saves, bounded controls,
 permissions, play, transfer and responsive layouts. The
 [command recovery cases](../../frontend/test/browser/installed-character-command-fixture.mts)
 cover failed delivery, lost acknowledgments, repeated grants/imports, delayed
-reads, concurrent edits and enlarged English/Czech phone recovery. Future work
-belongs in the [suite backlog](../BACKLOG.md).
+reads, concurrent edits and enlarged English/Czech phone recovery. The
+[rules adoption cases](../../frontend/test/browser/installed-character-rules-recovery-fixture.mts)
+cover a real worker rejection before a delayed lifecycle event, explicit pending-
+input adoption, conflict protection and a lost reply. Forced generation replacement
+remains separate from recovery in a mounted view. Future work belongs in the
+[suite backlog](../BACKLOG.md).
 
 ## Retirement and data implications
 
