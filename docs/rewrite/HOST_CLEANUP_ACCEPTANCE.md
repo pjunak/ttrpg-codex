@@ -758,3 +758,79 @@ focus defect. Inspiration, crafting actions/discounts, starting equipment,
 species size choices and the broader Engine T32, Sheets T33 and T18 workflow
 reviews remain outside this completed scope. The remaining Human Small/Medium
 data gap is recorded in T18-COMP.
+
+## Equipment preservation and attunement eligibility
+
+September 17, 2026. T32-EQUIPMENT-SLOTS, T33-EQUIPMENT and T43-HOST
+complete this batch. Source commits: Engine `2d1101e`, Sheets `b015083`.
+
+The backpack's equip action moved every matching armor/shield instance into
+carried inventory, including stored spares. Both entry points now use one
+transition that replaces only the equipped occupant of the Engine-declared slot.
+The Engine shares slot classification across guidance, validation and saved
+projections; Sheets no longer guesses from catalog kind or special item IDs.
+Older saved sheets use retained source facts, and changed/unavailable rules
+continue to freeze mechanical editing.
+
+Attunement guidance now supplies translated rejection reasons and supports
+explicitly authorized custom-item grants. Checks exclude the candidate's own
+attunement benefits and conditional waivers from its prerequisite evaluation.
+Independent active grants can qualify it; expired/revoked prerequisites block
+saving without silently changing authored inventory. Capacity uses the final
+authorized limit, eliminating a misleading warning based on the lower class
+limit. Unsupported predicates still require exact recorded DM adjudication.
+
+The equipment rule boundaries were checked against the official
+[2024 equipment rules](https://www.dndbeyond.com/sources/dnd/br-2024/equipment#Attunement)
+and [magic-item prerequisites](https://www.dndbeyond.com/sources/dnd/br-2024/magic-items).
+The implementation keeps equipped state separate from attunement, enforces
+capacity and duplicate-copy policy, and leaves unmodeled rest timing, distance
+and death events to authored decisions. It does not add class/spellcaster
+predicate vocabulary or infer mechanics from prose.
+
+Four pure Engine regressions cover arbitrary slot IDs/kinds, conflicting
+occupancy, capacity/duplicate rejection, grant withdrawal, custom attunement,
+self-qualification and unknown-prerequisite waivers. Four Sheets regressions
+cover preserved inventory, denied actions and repair, saved slot/evidence
+fallback and both languages' explanations.
+
+Four new [installed cases](../../frontend/test/browser/installed-character-equipment-fixture.mts)
+exercise backpack moves and keyboard slot selection, atomic duplicate/capacity
+rejection, deliberate unattuning, autosave/reload, preserved HP/notes/item
+provenance and rule-derived ability changes. The existing provider-removal case
+also verifies armor/shield grouping without the Compendium.
+
+English Compact and Czech Classic run at 390 pixels with 200% text. Visual
+review exposed intrinsic ability-card overflow, long skill labels, a squeezed
+Add item action and a dialog that initially skipped its explanation. Shared
+layout rules now wrap these elements. The reusable dialog helper focuses its
+heading for long equipment choices and restores focus to the refreshed trigger,
+following the [WAI-ARIA modal-dialog guidance](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/).
+The host's borrowed controls, styling and keyboard containment remain in use.
+
+Validation: Engine tests/vet and three rebuilt worker targets; Sheets build,
+nine browser-module tests, Go tests/vet and a fresh package; all four host ZIP
+inspections. The complete `npm run check` passed **32 tooling, 389 unit and
+368 browser tests**, zero failures/cancellations/skips, plus host Go tests/vet.
+Final English/Czech phone screenshots were visually reviewed.
+
+`node scripts/companion-suite.mts test full` passed **128/128**, zero skips,
+using the clean committed companion sources and inspected ZIPs below.
+
+| Add-on | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| dm-tools | `0eeac9b` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| dnd-engine | `2d1101e` | `69241f9c74e696afbd8a348be0bacd643993a511cb5fffd042b2242e2e04378d` |
+| dnd-sheets | `b015083` | `bb7e2dec30c014fec80bcabfe856b0e041863571facfbccdf880c6cdcdeaaf4a` |
+| dnd-2024-compendium | `87c1402` | `b88bd0335946b27e4660e4db7949ca76c4ea35e9c258eb87008048facb601ef1` |
+
+Host acceptance used `c1350cb` plus this batch's fixtures. Companion worktrees
+were clean at final inspection. Native workers ran on Windows; Linux targets
+were cross-compiled and inspected. These results establish local acceptance;
+publication, deployment, live activation, physical touch and human screen-reader
+checks remain separate.
+
+This closes inventory preservation, shared slot behavior and the exercised
+attunement capacity/repair paths. Source-specific installed prerequisite cases,
+conditional repeats, repeated spell/resource effects, deeper multiclass builds
+and the remaining T33 command/session failure cases stay open in the backlog.

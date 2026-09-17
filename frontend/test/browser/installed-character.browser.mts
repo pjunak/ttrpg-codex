@@ -12,6 +12,7 @@ import type { Readable } from 'node:stream';
 import { chromium, request, type APIRequestContext, type Browser } from 'playwright';
 import { jsonResponse, installReviewedPackage, enableAllRuleSources } from './installed-graph-fixture.mts';
 import { registerOriginChoiceTests } from './installed-character-origin-fixture.mts';
+import { registerEquipmentTests } from './installed-character-equipment-fixture.mts';
 import { registerRepeatableFeatTests } from './installed-character-repeatable-fixture.mts';
 import { registerCharacterSaveTests } from './installed-character-save-fixture.mts';
 import { registerCharacterBuilderTests, registerSkillGrantTests } from './installed-character-builder-fixture.mts';
@@ -147,6 +148,7 @@ registerCharacterBuilderTests(enabled, () => ({ admin, browser, csrf, origin, ou
 registerSkillGrantTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerRepeatableFeatTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerOriginChoiceTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerEquipmentTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 
 test('source adoption remains explicit and absent rules freeze mechanics without a sheet Notes surface', {skip:!enabled},async t=>{
  const before=await call('load',{}),policy=await jsonResponse(await admin.get('/api/admin/rules-policy'));
@@ -162,4 +164,11 @@ test('source adoption remains explicit and absent rules freeze mechanics without
  const context=await browser.newContext({storageState:await admin.storageState()});t.after(()=>context.close());const page=await context.newPage();await page.goto(origin+'/#/characters/new-hero');await page.locator('#character-view-addons').click();const sheet=page.locator('.addon-dnd-character');await sheet.getByRole('button',{name:'Heal',exact:true}).waitFor();assert.equal(await sheet.getByRole('button',{name:'Heal',exact:true}).isDisabled(),true);
  assert.equal(await sheet.locator('#dnd-tab-notes').count(),0);assert.equal(await sheet.getByLabel('Character notes',{exact:true}).count(),0);
  await sheet.locator('#dnd-tab-tools').click();const downloadEvent=page.waitForEvent('download');await sheet.getByRole('button',{name:'Export character',exact:true}).click();const download=await downloadEvent,path=await download.path();assert.ok(path);const exported=JSON.parse(await readFile(path,'utf8'));assert.equal(exported.inputs.notes,adopted.state.inputs.notes);assert.equal(exported.externalHistory,undefined);
+ const equipment=await call('load',{key:'equipment-slots-en'});assert.equal(equipment.status,'unavailable');
+ await page.goto(origin+'/#/characters/equipment-slots-en');await page.locator('#character-view-addons').click();await sheet.locator('#dnd-tab-sheet').click();
+ for(const [slot,id] of [['armor','new-armor'],['shield','new-shield']]) {
+  assert.equal(equipment.state.projection.sheet.equipment[id!].slot,slot);
+  await sheet.locator('[data-equipment-slot="'+slot+'"]').getByRole('button',{name:id!,exact:true}).waitFor();
+ }
+ assert.equal(await sheet.getByRole('button',{name:'+ Shield',exact:true}).count(),0);
 });

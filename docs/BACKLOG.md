@@ -38,6 +38,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T40-HOST — Restore full-size entity cards and shared pencil actions**~~ — `16155a7`; [shared UI and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#shared-entity-card-sizing-and-editing).
 - [x] ~~**T41-HOST — Wrap enlarged character headings and accept repeated feat workflows**~~ — [package and phone acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeatable-skilled-choices-and-acquisition-ownership).
 - [x] ~~**T42-HOST — Accept origin choices, replacements and autosave focus**~~ — [installed package acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#phb-origin-choices-and-shared-field-focus).
+- [x] ~~**T43-HOST — Accept equipment preservation, attunement repair and phone layouts**~~ — [installed package acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#equipment-preservation-and-attunement-eligibility).
 - [x] ~~**T12 — GitHub package/build identity, release notes and compatibility reasons**~~ — `1905469`.
 - [x] ~~**T13 — Full-backup verification and offline restore guidance**~~ — `301bd9e`.
 - [x] ~~**T09 — Reviewed dependency-aware disabling and recovery**~~ — `9997306`.
@@ -188,17 +189,16 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T32-EXPERTISE — Validate acquisition, distinct skills and dependent slot repair**~~ — `41e26c1`; [Engine and installed evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-expertise-grants-and-dependent-choice-repair).
 - [x] ~~**T32-REPEATABLE — Keep declared feat choices independent by acquisition**~~ — `e5f1027`; prerequisite checks, legacy assignment and faster option evaluation; [contract and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeatable-skilled-choices-and-acquisition-ownership).
 - [x] ~~**T32-ORIGINS — Share eligibility across origin skill and tool choices**~~ — `1faa785`; ordered training, distinct picks and dependent repair; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#phb-origin-choices-and-shared-field-focus).
+- [x] ~~**T32-EQUIPMENT-SLOTS — Share slot facts and correct attunement eligibility**~~ — `2d1101e`; capacity, prerequisites and custom grants; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#equipment-preservation-and-attunement-eligibility).
 
 ### Remaining work
 
 - [ ] **T32 / P1 — Finish progressive-build and equipment validation acceptance.**
-  Extend installed acceptance to conditional repeatability and repeated
-  spell/resource effects, deeper multiclass progressions, attunement
-  capacity/prerequisites and exclusive armor/shield slots
-  through Sheets T33. Retain accepted first-class/count
-  changes, later-level withdrawal, partial/invalid saves, empty equipment and
-  grant-lifetime regressions. Results must remain deterministic,
-  explainable, source-policy aware and leave caller inputs unchanged.
+  Extend installed acceptance to conditional repeatability, repeated
+  spell/resource effects, deeper multiclass progressions and source-specific
+  attunement prerequisites through Sheets T33. Retain accepted regression
+  coverage. Results must remain deterministic, explainable, source-policy aware
+  and leave caller inputs unchanged.
 - [ ] **T18-ENGINE / P1, review — Close rules/provider evidence gaps.**
   Use representative single/multiclass builds through level changes, spells,
   granted casts, resources/rest, HP, inventory and DM effects. Check missing,
@@ -230,6 +230,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T33-BUILDER — Preserve valid slots and guide unfinished choices on phones**~~ — `dff6c0b`; [Builder acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#progressive-builder-repair-and-navigation).
 - [x] ~~**T33-REPEATABLE — Render independent choices and repair withdrawn DM grants**~~ — `e066de3`; explicit historical assignment and usable enlarged-text ability fields; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeatable-skilled-choices-and-acquisition-ownership).
 - [x] ~~**T33-FOCUS — Keep autosave focus on the owning Builder choice**~~ — `f184eda`; stable keys for borrowed UI controls; [English/Czech acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#phb-origin-choices-and-shared-field-focus).
+- [x] ~~**T33-EQUIPMENT — Preserve stored spares and explain accessible equipment choices**~~ — `b015083`; shared transitions, saved slots, keyboard focus and enlarged layouts; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#equipment-preservation-and-attunement-eligibility).
 
 ### Remaining work
 
