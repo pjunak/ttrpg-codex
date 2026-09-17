@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { companionInputs, requireNoSkips, verifyPackages, type SuiteEvidence } from "./companion-suite.mts";
+import { companionInputs, requireNoSkips, suiteSummary, verifyPackages, type SuiteEvidence } from "./companion-suite.mts";
 
 function sample(t: test.TestContext) {
  const directory=mkdtempSync(join(tmpdir(),"companion-proof-"));t.after(()=>rmSync(directory,{recursive:true,force:true}));
@@ -34,4 +34,15 @@ test("changed, duplicate and escaped artifact paths cannot replace an inspected 
 test("missing or skipped installed acceptance cannot pass publication",()=>{
  requireNoSkips("TAP version 13\n# tests 23\n# skipped 0\n");
  for(const text of ["", "# skipped 1\n", "# skipped 0\n# skipped 2\n"]){assert.throws(()=>requireNoSkips(text),/zero skipped/);}
+});
+
+test("failed acceptance still identifies exact sources without claiming publication success", t => {
+ const {evidence}=sample(t),failed=suiteSummary(evidence,true,false);
+ assert.match(failed,/acceptance failed; publication is blocked/);
+ assert.doesNotMatch(failed,/passed/);
+ for(const item of evidence.packages) {
+  assert.ok(failed.includes(item.id));assert.ok(failed.includes(item.sourceCommit));assert.ok(failed.includes(item.sha256));
+ }
+ assert.match(suiteSummary(evidence,true,true),/zero skipped tests/);
+ assert.match(suiteSummary(evidence,false,true),/does not establish publication coverage/);
 });

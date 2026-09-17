@@ -74,3 +74,22 @@ test('automatic and manual releases share a non-cancelling queue; PRs cannot blo
   for (const workflow of [build, manual]) assert.match(workflow, /cancel-in-progress: false\s+queue: max/);
   assert.match(build, /if: \$\{\{ needs.build.outputs.image_ref != '' && needs.resolve-targets.outputs.services != '' \}\}/);
 });
+
+test('companion checkouts use verified immutable refs before any package build', () => {
+  const workflow = readFileSync(new URL('../workflows/addon-compatibility.yml', import.meta.url), 'utf8');
+  const resolver = workflow.indexOf('node scripts/companion-revisions.mts github');
+  const check = workflow.indexOf('node scripts/companion-revisions.mts check');
+  assert.ok(resolver > 0 && resolver < check);
+  for (const [repository, output] of [
+    ['addon-dm-tools', 'dm_tools'], ['addon-dnd-engine', 'dnd_engine'],
+    ['addon-dnd-character-sheets', 'dnd_sheets'], ['addon-dnd-2024-compendium', 'dnd_2024_compendium'],
+  ]) {
+    const checkout = workflow.indexOf('repository: pjunak/' + repository);
+    const options = workflow.slice(checkout).split('\n      - ')[0]!;
+    assert.ok(checkout > resolver && checkout < check, repository + ' must resolve before checkout and verify before build');
+    assert.ok(options.includes('ref: ${{ steps.companions.outputs.' + output + ' }}'), repository + ' must use its exact validated SHA');
+  }
+  assert.ok(check < workflow.indexOf('name: Test and package'));
+  assert.ok(workflow.indexOf('actions/setup-node') < resolver);
+  assert.match(workflow, /node scripts\/companion-suite\.mts test "\$SUITE_MODE"/);
+});

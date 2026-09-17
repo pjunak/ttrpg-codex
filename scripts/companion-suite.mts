@@ -4,6 +4,7 @@ import { appendFileSync, copyFileSync, mkdirSync, readFileSync, readdirSync, sta
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { builtAddonArchive } from "./inspect-addon-builds.mts";
+import { readRevisions, readSourceRevision, verifyRevisions } from "./companion-revisions.mts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 export const companionInputs = {
@@ -45,18 +46,21 @@ export function verifyPackages(evidence: SuiteEvidence, directory: string, requi
 
 export function prepareSuite(repositories: string[], directory = join(root, "release", "companions")): SuiteEvidence {
   if (!repositories.length) throw new Error("Companion repositories are required");
+  const sources = repositories.map(repository => ({ repository, ...readSourceRevision(repository) }));
+  verifyRevisions(sources, readRevisions(), "public");
   mkdirSync(directory, { recursive: true });
   const evidence: SuiteEvidence = { contractVersion: "companion-suite.v1", hostCommit: git(root, ["rev-parse", "HEAD"]),
     hostDirty: !!git(root, ["status", "--porcelain", "--untracked-files=no"]), packages: [] };
-  for (const repository of repositories) {
+  for (const source of sources) {
+    const { repository } = source;
     const archive = builtAddonArchive(repository);
     const report = JSON.parse(execFileSync("go", ["run", "./cmd/codex-addon-inspect", "-compact", archive],
       { cwd: root, encoding: "utf8", windowsHide: true, maxBuffer: 32 << 20 })) as { ok?: boolean; archiveSha256?: string; manifest?: { id?: string; version?: string } };
     const id = report.manifest?.id;
-    if (!report.ok || !id || !Object.hasOwn(companionInputs, id) || !report.manifest?.version || report.archiveSha256 !== digest(archive)) throw new Error("Unexpected inspected companion");
+    if (!report.ok || !id || id !== source.id || !Object.hasOwn(companionInputs, id) || !report.manifest?.version || report.archiveSha256 !== digest(archive)) throw new Error("Unexpected inspected companion");
     const file = id + ".zip"; copyFileSync(archive, join(directory, file));
     evidence.packages.push({ id: id as AddonId, version: report.manifest.version, file, sha256: report.archiveSha256,
-      bytes: statSync(archive).size, sourceCommit: git(repository, ["rev-parse", "HEAD"]),
+      bytes: statSync(archive).size, sourceCommit: source.sourceCommit,
       sourceDirty: !!git(repository, ["status", "--porcelain", "--untracked-files=no"]) });
   }
   verifyPackages(evidence, directory, false);
@@ -75,6 +79,7 @@ function runSuite(required: boolean): void {
   const evidence = JSON.parse(readFileSync(join(directory, "provenance.json"), "utf8")) as SuiteEvidence;
   if (evidence.hostCommit !== git(root, ["rev-parse", "HEAD"])) throw new Error("Companions were inspected against a different host commit");
   const inputs = verifyPackages(evidence, directory, required);
+  verifyRevisions(evidence.packages, readRevisions(), required ? "full" : "public");
   if (process.env.CI && (evidence.hostDirty || evidence.packages.some(item => item.sourceDirty))) {
     // Generated files are still tracked in some companions (T14). Their build
     // dirtiness is evidence, never a reason to claim a different source commit.
@@ -86,20 +91,27 @@ function runSuite(required: boolean): void {
   Object.assign(env, inputs);
   const result = spawnSync(process.execPath, ["--test", "--test-concurrency=4", "--test-reporter=tap", ...files.map(file => "test/browser/" + file)],
     { cwd: join(root, "frontend"), env, encoding: "utf8", windowsHide: true, maxBuffer: 32 << 20 });
-  if (result.error) throw result.error;
   writeFileSync(join(directory, "installed.tap"), result.stdout ?? "");
   process.stdout.write(result.stdout ?? ""); process.stderr.write(result.stderr ?? "");
-  if (result.status !== 0) throw new Error("Installed companion acceptance failed");
-  if (required) requireNoSkips(result.stdout);
-  const summary = [
+  let failure = result.error ?? (result.status !== 0 ? new Error("Installed companion acceptance failed") : undefined);
+  if (!failure && required) {
+    try { requireNoSkips(result.stdout); } catch (error) { failure = error instanceof Error ? error : new Error(String(error)); }
+  }
+  const summary = suiteSummary(evidence, required, !failure);
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+  else console.log(summary);
+  if (failure) throw failure;
+}
+
+export function suiteSummary(evidence: SuiteEvidence, required: boolean, passed: boolean): string {
+  return [
     "### Installed companion acceptance", "",
-    required ? "Full publication suite passed with zero skipped tests." : "Public compatibility passed; missing private content does not establish publication coverage.",
+    !passed ? "Installed acceptance failed; publication is blocked. Check the test log against these exact sources." :
+      required ? "Full publication suite passed with zero skipped tests." : "Public compatibility passed; missing private content does not establish publication coverage.",
     "", "| Add-on | Source commit | Inspected ZIP SHA-256 | Working-tree changes after build |", "| --- | --- | --- | --- |",
     ...evidence.packages.map(item => `| ${item.id} | ${item.sourceCommit} | ${item.sha256} | ${item.sourceDirty} |`),
     "", `Host: ${evidence.hostCommit}; working-tree changes: ${evidence.hostDirty}.`, "",
   ].join("\n");
-  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
-  else console.log(summary);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -440,18 +440,38 @@ rerunning an old push. See [GitHub's concurrency documentation](https://docs.git
 ### Coordinate host and companion commits
 
 The [compatibility workflow](../.github/workflows/addon-compatibility.yml) builds
-companions from each repository's remote default branch against the candidate
-host. A passing local run can include companion commits that GitHub does not yet
-have. Pushing `ttrpg-codex` does not push the four independent add-on repositories;
-package versions can also stay unchanged across multiple source commits.
+the four exact commits in [`companion-revisions.json`](../companion-revisions.json)
+against the candidate host. Local inspection and installed acceptance enforce
+the same source set. CI first checks that each commit is accessible, then checks
+out that SHA and verifies the checkout before packaging. Missing commits fail
+with repository/SHA diagnostics; CI never substitutes the latest default branch.
 
-Before publishing a host change that depends on companion fixes, publish those
-compatible companion commits to their default branches. Compare the exact source
-commits in the CI `companion-provenance` artifact with the locally accepted
-`release/companions/provenance.json`, including all four repositories. Keep shared
-API changes compatible at each delivery boundary. The manual **Addon
-compatibility** workflow can verify the complete installed suite without
-publishing or deploying the host; confirm full private coverage and zero skips.
+This prevents a passing local source set from silently becoming a different CI
+source set. Previously the companion checkouts omitted `ref`, which
+[defaults to each other repository's default branch](https://github.com/actions/checkout/blob/main/action.yml).
+Add-on package versions can stay unchanged across source commits, so version
+numbers alone do not identify accepted behavior.
+
+1. Commit companion fixes after their owning gates. From clean adjacent
+   checkouts, run `node scripts/companion-revisions.mts record` in the host when
+   deliberately changing the source set; otherwise retain the existing pins.
+2. Rebuild the changed packages, inspect all four, and run full installed
+   acceptance using the [contributor procedure](../CONTRIBUTING.md#choose-validation-for-the-change).
+   Commit the accepted revision file with the dependent host changes.
+3. During an authorized release, publish the pinned companion commits before
+   publishing the host. Pushing `ttrpg-codex` does not push sibling repositories.
+   Keep shared API changes compatible at each delivery boundary.
+4. Compare the CI `companion-provenance` artifact/summary with local
+   `release/companions/provenance.json`. Source SHAs must match the pins;
+   platform-specific package hashes remain explicit. The manual **Addon
+   compatibility** workflow can verify full private coverage and zero skips
+   without publishing or deploying the host.
+
+The availability check can also run locally with
+`node scripts/companion-revisions.mts github full` when `GITHUB_TOKEN` and
+`ADDON_SUITE_TOKEN` are already provided securely. It only reads commit
+availability; it does not push or activate add-ons. A 404 may mean an unpublished
+commit or missing repository access. Verify both before changing pins.
 
 If **Run test suite** passes but installed companion acceptance fails, inspect
 that job and its source commits first. A skipped **Build image** means there is

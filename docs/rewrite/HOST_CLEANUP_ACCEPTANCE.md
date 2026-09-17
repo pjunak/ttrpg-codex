@@ -897,3 +897,78 @@ physical touch, printer or human screen-reader check was performed.
 This closes T33-COMMANDS and T44-HOST. Session expiry, provider/generation
 replacement with pending edits, remaining returned-message localization and
 broader Engine/Sheets workflow acceptance stay open in the backlog.
+
+## Repeated compatibility failures and pinned source revisions
+
+September 17, 2026. T45-HOST addresses the recurring publication failure.
+The latest [run 35173540840](https://github.com/pjunak/ttrpg-codex/actions/runs/35173540840)
+on host `a00c3de` passed **Run test suite** and deployment configuration, but
+installed compatibility failed **11 of 128** tests. **Build image** and deployment
+were skipped. This failure did not reach either production server.
+
+The last three failed runs tested different companion sources from the locally
+accepted batches:
+
+| Run / host | Engine in CI | Sheets in CI | Compendium in CI | Installed result |
+| --- | --- | --- | --- | --- |
+| [35156730360](https://github.com/pjunak/ttrpg-codex/actions/runs/35156730360) / `17b3224` | `41e26c1` | `8b3bb30` | `e8cc635` | 104 passed, 9 failed |
+| [35162568876](https://github.com/pjunak/ttrpg-codex/actions/runs/35162568876) / `e7aea00` | `41e26c1` | `8b3bb30` | `8e1e9d7` | 107 passed, 12 failed |
+| [35173540840](https://github.com/pjunak/ttrpg-codex/actions/runs/35173540840) / `a00c3de` | `e5f1027` | `e066de3` | `8e1e9d7` | 117 passed, 11 failed |
+
+All three used DM Tools `0eeac9b`. The latest run lacked Engine `1faa785` /
+`2d1101e`, Sheets `f184eda` / `b015083`, and Compendium `87c1402`.
+Its failures covered dependent Skill Expert repair, Human/background/tool
+choices, equipment slots, attunement reasons and source adoption. Those features
+were already accepted locally with the newer matching packages.
+
+The compatibility workflow omitted checkout refs, so GitHub selected each
+companion's moving remote default branch. Local acceptance used adjacent local
+checkouts. A host push could therefore arrive before its dependencies, and a
+rerun could silently test a different source set. The runbook described delivery
+order but did not enforce it. These were coordination failures; the earlier
+[Linux ZIP permissions](#linux-compatibility-failure-and-companion-delivery),
+[native shutdown race](#native-shutdown-race-follow-up) and
+[reflow checks](#deployment-gate-repair-and-engine-follow-up) were separate defects.
+
+The fix makes [`companion-revisions.json`](../../companion-revisions.json) the
+explicit source set. The new [revision tool](../../scripts/companion-revisions.mts)
+records clean committed checkouts, rejects mutable/unknown/duplicate pins, checks
+exact remote commit availability and supplies the four checkout refs. CI verifies
+the resulting clean checkouts before packaging. Local inspection and installed
+acceptance reject packages attributed to different source revisions. Missing
+commits produce an early repository/SHA error with no default-branch fallback.
+Failed acceptance now includes safe source/hash evidence in the job summary;
+private package contents remain outside public artifacts. The existing full
+compatibility, zero-skip, package and publication gates remain in force.
+
+Run 35162568876 also independently failed the desktop reader-inspection test.
+It navigated from an inspected character to Locations and immediately back,
+without waiting for the intermediate hash route to render. Same-document
+navigation completion did not establish that the character component had
+unmounted. The fixture now waits for the Locations heading and character-view
+detachment before returning, then asserts the normal reader view. Desktop and
+phone regressions passed; no timeout or product visibility rule was relaxed.
+
+Validation for the host worktree based on `17a3d2f`:
+
+- Strict TypeScript and **27 focused tooling/policy regressions** passed,
+  including all **18 workflow-policy checks**.
+- Full `npm run check` passed **38 tooling, 389 unit and 376 browser tests**,
+  zero failures or skips, plus Go tests/vet.
+- Release readiness passed all **33 historical product-parity gates**.
+- All four existing packages passed fresh inspection against their pins.
+  `node scripts/companion-suite.mts test full` passed **136/136**, zero skips.
+
+The pinned sources and ZIP hashes are unchanged from the
+[T44 acceptance table](#character-command-recovery-and-uncertain-outcomes):
+DM Tools `0eeac9b`, Engine `2d1101e`, Sheets `6325243`, Compendium `87c1402`.
+Companion worktrees were clean at inspection. Native workers ran on Windows;
+this change has not yet run in Linux CI or published/deployed a new image.
+
+A live availability check accepted the pinned public DM/Engine commits and
+correctly rejected Sheets `6325243` with HTTP 404. Its remote main was still
+`b015083`; the private Compendium remote main was verified as `87c1402` using
+Git. During authorized delivery, publish the pending Sheets commit before the
+host fixes, then require the full pinned Linux suite and both site results.
+Earlier successful rollouts remain historical evidence, not acceptance of this
+candidate. Follow the [coordinated delivery procedure](../SELF_HOSTING.md#coordinate-host-and-companion-commits).

@@ -56,6 +56,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T35 — Repair deployment reflow checks and unintended reduced-motion transitions**~~ — `484814c`, `c3d0ac1`; [failure and regression evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#deployment-gate-repair-and-engine-follow-up).
 - [x] ~~**T36 — Preserve Linux worker permissions in installed-package fixtures**~~ — `325cf13`, `5cc4945`; [CI diagnosis and regression evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T37 — Prevent pipe-cleanup races from failing worker shutdown**~~ — `07482f0`; [deterministic regression and race checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#native-shutdown-race-follow-up).
+- [x] ~~**T45-HOST — Pin accepted companion sources and stabilize reader navigation**~~ — [recurring CI diagnosis, source coordination and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeated-compatibility-failures-and-pinned-source-revisions).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -74,7 +75,7 @@ a released schema-preservation need or separate operational authorization.
 | ID | Priority | Remaining work and completion condition |
 | --- | --- | --- |
 | T08 | P2, triggered | Implement reviewed migration orchestration when a released schema actually needs preservation: exact snapshot, atomic commit, stale rejection and recovery. The old-sheet reset does not imply a general converter. [Data lifecycle](rewrite/ADDON_DATA.md#remaining-public-surface). |
-| T15 | P1, operational | Complete live UI/package acceptance: verify served frontend identity, manager and full backup with the matching maintenance binary; review intended add-on activation per site. Package publication and both host rollouts are complete (T15-DELIVERY); refresh deployment state before site work. [Runbook](SELF_HOSTING.md#publishing-and-deploying-updates). |
+| T15 | P1, operational | Publish the latest cleanup candidate in pinned companion/host order, then verify both site rollouts, served frontend identity, manager and full backup with the matching maintenance binary; review intended add-on activation per site. T15-DELIVERY records an earlier successful release. [Current delivery boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeated-compatibility-failures-and-pinned-source-revisions); [runbook](SELF_HOSTING.md#publishing-and-deploying-updates). |
 | T16 | P2, operational | Re-inventory Asurai's superseded archives and historical cutover/maintenance copies; use existing reviewed cleanup where eligible and record retention decisions. Preserve independent backups; do not repeat the completed sheet reset. |
 | T17 | P2, operational | Recheck Tiamat's intended add-on state, stored data and wanted packages before activation/retirement. Asurai's reset authorization does not apply to Tiamat. |
 

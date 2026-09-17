@@ -43,21 +43,41 @@ jobs:
           path: ttrpg-codex
           persist-credentials: false
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ttrpg-codex/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            ttrpg-codex/package-lock.json
+            ttrpg-codex/companion-revisions.json
+
+      - name: Resolve published companion commits
+        id: companions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ADDON_SUITE_TOKEN: ${{ secrets.ADDON_SUITE_TOKEN }}
+          SUITE_MODE: ${{ steps.coverage.outputs.mode }}
+        run: node scripts/companion-revisions.mts github "$SUITE_MODE"
+        working-directory: ttrpg-codex
+
       - uses: actions/checkout@v7
         with:
           repository: pjunak/addon-dm-tools
+          ref: ${{ steps.companions.outputs.dm_tools }}
           path: addon-dm-tools
           persist-credentials: false
 
       - uses: actions/checkout@v7
         with:
           repository: pjunak/addon-dnd-engine
+          ref: ${{ steps.companions.outputs.dnd_engine }}
           path: addon-dnd-engine
           persist-credentials: false
 
       - uses: actions/checkout@v7
         with:
           repository: pjunak/addon-dnd-character-sheets
+          ref: ${{ steps.companions.outputs.dnd_sheets }}
           path: addon-dnd-character-sheets
           persist-credentials: false
 
@@ -65,18 +85,16 @@ jobs:
         if: steps.coverage.outputs.mode == 'full'
         with:
           repository: pjunak/addon-dnd-2024-compendium
+          ref: ${{ steps.companions.outputs.dnd_2024_compendium }}
           token: ${{ secrets.ADDON_SUITE_TOKEN }}
           path: addon-dnd-2024-compendium
           persist-credentials: false
 
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: ttrpg-codex/.nvmrc
-          cache: npm
-          cache-dependency-path: |
-            ttrpg-codex/package-lock.json
-            addon-dm-tools/package-lock.json
-            addon-dnd-character-sheets/package-lock.json
+      - name: Verify clean pinned checkouts before building
+        env:
+          SUITE_MODE: ${{ steps.coverage.outputs.mode }}
+        run: node scripts/companion-revisions.mts check "$SUITE_MODE"
+        working-directory: ttrpg-codex
 
       - uses: actions/setup-go@v7
         with:

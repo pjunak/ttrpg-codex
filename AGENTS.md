@@ -149,7 +149,12 @@ go run ./cmd/codex-addon-inspect <path-to-addon.zip>
 ```
 
 Integration testing uses the actual staged-package lifecycle. Never copy a
-source checkout into a runtime generation.
+source checkout into a runtime generation. The host's `companion-revisions.json`
+pins the source set used by local installed acceptance and CI. Follow the
+[contributor procedure](CONTRIBUTING.md#choose-validation-for-the-change) to
+update pins deliberately after companion commits, and the
+[delivery procedure](docs/SELF_HOSTING.md#coordinate-host-and-companion-commits)
+to publish them before the dependent host revision.
 
 ## Deployment and package delivery
 
