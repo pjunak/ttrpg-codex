@@ -685,5 +685,76 @@ on either site. Physical touch, screen-reader and live-site checks remain open.
 
 This closes declared repeatable Builder choices, not repeated spell/resource
 effects or conditional-repeat mechanics. Human and instrument/game origin
-choices remain T42-COMP; the broader Engine T32, Sheets T33 and T18 acceptance
-tasks remain open.
+choices were completed in [T42 below](#phb-origin-choices-and-shared-field-focus);
+the broader Engine T32, Sheets T33 and T18 acceptance tasks remain open.
+
+## PHB origin choices and shared field focus
+
+September 17, 2026. T42-COMP, T32-ORIGINS, T33-FOCUS and T42-HOST
+complete this batch. Source commits: Engine `1faa785`, Sheets `f184eda`,
+Compendium `87c1402`.
+[Provider coverage and sources](../../../addon-dnd-2024-compendium/data/COVERAGE.md#character-rules-and-contextual-details)
+document Human's explicit skill and eligible Origin-feat choices, Musician's
+three instruments, Crafter's three tools from its eight-entry table, and
+individual tool choices for Noble, Guard, Soldier, Entertainer and Artisan.
+Skilled remains a recommendation for Human, never an automatic selection.
+
+The Engine applies one canonical eligibility policy to typed skills, typed tools
+and mixed proficiency choices. Fixed and earlier valid proficiencies are
+excluded while each acquisition retains its own selections. Class and direct
+origin training precede feats granted at that level. Combined skill/Expertise
+training can improve an existing proficiency; rest-replaceable training checks
+current fixed and permanent training without invalidating earlier choices.
+Six synthetic regressions cover ordering, aliases, input immutability, feat
+eligibility, dependent ownership, later grants and replaceable training.
+
+Five [installed regressions](../../frontend/test/browser/installed-character-origin-fixture.mts)
+exercise independent background/Human Skilled acquisitions, explicit feat
+selection, source replacement, duplicate rejection, targeted slot repair,
+autosave and reload. Tool coverage uses every changed background and both
+changed tool feats. Invalid requests leave the saved revision unchanged; valid
+replacement preserves unrelated acquisitions, notes and current HP. The existing
+Skill Expert case now also asserts that its pool excludes the two skills
+already granted by its background while retaining its own selected skill.
+
+Screenshot review exposed a focus collision between repeated Selection labels.
+Sheets now supplies source-scoped field keys before the host enhances the tree,
+using the existing `ui.controls.v1` contract. The same shared controls render
+these provider declarations without species- or feat-specific UI. The installed
+English desktop and Czech 390-pixel/200%-text cases assert focus after each
+autosave, keyboard feat selection, saved values after reload and no horizontal
+page overflow. Final screenshots were visually reviewed.
+
+Validation: Engine tests/vet, native race checks and all three worker targets;
+Sheets build, five TypeScript tests, Go tests/vet and a fresh package;
+Compendium build/types and 64 tests; all four package inspections. The final
+complete `npm run check` passed 32 tooling, 389 unit and 364 browser tests with
+zero failures, cancellations or skips, followed by all host Go tests and vet.
+
+`node scripts/companion-suite.mts test full` passed **124/124**, zero skips,
+using the clean committed companion sources below.
+
+An earlier full-host attempt passed the character regressions but timed out
+waiting for `selection-a` before the first action in the existing installed
+planner group-selection case. That case passed in the subsequent complete
+installed suite and final full host gate with unchanged DM Tools bytes. No cause
+or repair is established; the intermittent startup failure remains an
+investigation under T18-DM.
+
+| Add-on | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools | `0eeac9b` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine | `1faa785` | `b570f3f913445615ae40aeded885f0767a221719c4da855ee86ffab2144b0b4b` |
+| Sheets | `f184eda` | `706750b7954d5eb677bcf409d407e71ba16340407bacfa5d9ff69b890bd4ea2e` |
+| Compendium | `87c1402` | `b88bd0335946b27e4660e4db7949ca76c4ea35e9c258eb87008048facb601ef1` |
+
+Host acceptance used `e7aea00` plus this batch's installed fixtures. Native
+workers ran on Windows; Linux targets were cross-compiled and inspected.
+Physical touch, screen-reader and live-site checks remain separate. These local
+results do not establish publication, deployment or live add-on activation.
+
+This closes the declared PHB origin skill/feat/tool choices and the observed
+focus defect. Inspiration, crafting actions/discounts, starting equipment,
+species size choices and the broader Engine T32, Sheets T33 and T18 workflow
+reviews remain outside this completed scope. The remaining Human Small/Medium
+data gap is recorded in T18-COMP.

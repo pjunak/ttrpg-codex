@@ -279,7 +279,11 @@ export function registerSkillGrantTests(enabled: boolean, fixture: () => Fixture
     assert.equal(seeded.evaluation.sheet.skills.nature.total, 5);
     assert.equal(seeded.evaluation.sheet.abilities.STR.score, 16);
     assert.equal(seeded.evaluation.sheet.abilities.STR.cap, 20);
-    assert.equal(seeded.evaluation.guidance.choices['feat:skill-expert:skill'].options.length, 18);
+    const skillOptions = seeded.evaluation.guidance.choices['feat:skill-expert:skill'].options.map((option: Option) => option.id);
+    assert.equal(skillOptions.length, 16);
+    assert.equal(skillOptions.includes('athletics'), false, 'Soldier already grants Athletics');
+    assert.equal(skillOptions.includes('intimidation'), false, 'Soldier already grants Intimidation');
+    assert.equal(skillOptions.includes('nature'), true, 'the current acquisition retains its selection');
     const advancement = seeded.evaluation.plan.classChoices.find((choice: Descriptor) => choice.id === 'asi:fighter:4');
     assert.deepEqual(advancement.feat.ability.eligible, ['STR','DEX','CON','INT','WIS','CHA']);
 
