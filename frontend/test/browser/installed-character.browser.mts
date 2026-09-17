@@ -15,6 +15,7 @@ import { registerOriginChoiceTests } from './installed-character-origin-fixture.
 import { registerEquipmentTests } from './installed-character-equipment-fixture.mts';
 import { registerRepeatableFeatTests } from './installed-character-repeatable-fixture.mts';
 import { registerCharacterSaveTests } from './installed-character-save-fixture.mts';
+import { registerCharacterCommandTests } from './installed-character-command-fixture.mts';
 import { registerCharacterBuilderTests, registerSkillGrantTests } from './installed-character-builder-fixture.mts';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -144,6 +145,7 @@ test('autosave queues item typing during an in-flight request and preserves over
 });
 
 registerCharacterSaveTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerCharacterCommandTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterBuilderTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerSkillGrantTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerRepeatableFeatTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));

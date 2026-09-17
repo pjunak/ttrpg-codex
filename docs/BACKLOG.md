@@ -39,6 +39,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T41-HOST — Wrap enlarged character headings and accept repeated feat workflows**~~ — [package and phone acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeatable-skilled-choices-and-acquisition-ownership).
 - [x] ~~**T42-HOST — Accept origin choices, replacements and autosave focus**~~ — [installed package acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#phb-origin-choices-and-shared-field-focus).
 - [x] ~~**T43-HOST — Accept equipment preservation, attunement repair and phone layouts**~~ — [installed package acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#equipment-preservation-and-attunement-eligibility).
+- [x] ~~**T44-HOST — Accept guarded command retries, import approval and delayed reads**~~ — [installed package acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#character-command-recovery-and-uncertain-outcomes).
 - [x] ~~**T12 — GitHub package/build identity, release notes and compatibility reasons**~~ — `1905469`.
 - [x] ~~**T13 — Full-backup verification and offline restore guidance**~~ — `301bd9e`.
 - [x] ~~**T09 — Reviewed dependency-aware disabling and recovery**~~ — `9997306`.
@@ -231,6 +232,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T33-REPEATABLE — Render independent choices and repair withdrawn DM grants**~~ — `e066de3`; explicit historical assignment and usable enlarged-text ability fields; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeatable-skilled-choices-and-acquisition-ownership).
 - [x] ~~**T33-FOCUS — Keep autosave focus on the owning Builder choice**~~ — `f184eda`; stable keys for borrowed UI controls; [English/Czech acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#phb-origin-choices-and-shared-field-focus).
 - [x] ~~**T33-EQUIPMENT — Preserve stored spares and explain accessible equipment choices**~~ — `b015083`; shared transitions, saved slots, keyboard focus and enlarged layouts; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#equipment-preservation-and-attunement-eligibility).
+- [x] ~~**T33-COMMANDS — Recover uncertain play/grant and reviewed-import commands safely**~~ — `6325243`; exact retries, guarded recovery and stale-read protection; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#character-command-recovery-and-uncertain-outcomes).
 
 ### Remaining work
 
@@ -243,12 +245,10 @@ Provider-free saved reading/notes/print/export remain required.
   details/print. Engine remains the calculation authority.
 - [ ] **T33 / P1 — Finish automatic saving and progressive-builder usability.**
   Localize returned save explanations that still fall back to English.
-  Exercise session expiry and provider/generation
-  replacement while edits are pending, then explicit rules adoption. Verify
-  uncertain outcomes for direct play/grant and reviewed-import commands, whose
-  command paths are separate from the accepted autosave queue. Pending in-memory
-  edits must remain visibly unsaved and guarded; do not restore removed history
-  or device-draft UI.
+  Exercise session expiry and provider/generation replacement while edits are
+  pending, then explicit rules adoption. Retain accepted autosave and command
+  recovery coverage. Pending in-memory edits must remain visibly unsaved and
+  guarded; do not restore removed history or device-draft UI.
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
   Build, save/reload, advance, equip, prepare/cast, spend resources, rest, amend
   grants, print/export and review an import using the exact installed ZIP. Cover

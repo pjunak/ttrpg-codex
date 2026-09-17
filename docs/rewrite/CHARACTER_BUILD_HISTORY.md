@@ -60,6 +60,14 @@ Network failures never claim a successful save. Pending input stays in the open
 page and the host navigation guard remains active until it is saved or explicitly
 discarded. No device draft is written.
 
+If a play action, DM grant or approved import loses its reply, further changes
+pause and the same navigation guard stays active. Retry sends the exact action
+again without duplicating its saved effect; imports keep their original approved
+review. **Check saved character** asks before ending the retry, then reloads the
+saved result without undoing any action. A failed check keeps recovery available.
+When another editor has already changed the character, check that result before
+deciding whether to repeat the action; commands do not merge automatically.
+
 Empty inventory cannot remain equipped or attuned. Setting quantity to zero in
 Sheets moves equipped items to carried and clears attunement in the same save.
 The Engine owns eligibility, including active DM mechanics and grant expiry.
@@ -87,8 +95,11 @@ See the [sheet save contract](../../../addon-dnd-character-sheets/docs/RULES_EDG
 and [engine contract](../../../addon-dnd-engine/contract/README.md). The
 [installed character suite](../../frontend/test/browser/installed-character.browser.mts)
 checks real package installation, incremental saves, bounded controls,
-permissions, play, transfer and responsive layouts. Future work belongs in the
-[suite backlog](../BACKLOG.md).
+permissions, play, transfer and responsive layouts. The
+[command recovery cases](../../frontend/test/browser/installed-character-command-fixture.mts)
+cover failed delivery, lost acknowledgments, repeated grants/imports, delayed
+reads, concurrent edits and enlarged English/Czech phone recovery. Future work
+belongs in the [suite backlog](../BACKLOG.md).
 
 ## Retirement and data implications
 

@@ -834,3 +834,66 @@ This closes inventory preservation, shared slot behavior and the exercised
 attunement capacity/repair paths. Source-specific installed prerequisite cases,
 conditional repeats, repeated spell/resource effects, deeper multiclass builds
 and the remaining T33 command/session failure cases stay open in the backlog.
+
+## Character command recovery and uncertain outcomes
+
+The autosave queue retained uncertain requests, but direct play/grant commands
+lost their request after a failed reply. Their generic error also left editing
+and navigation unguarded. Reviewed import commits retained their token in a
+modal closure, without a shared recovery path. An older background read could
+also replace the result displayed after a completed command.
+
+Sheets now holds one exact command until a response confirms it or the user
+explicitly checks saved state. Play, grant/amend/revoke and rules-adoption saves
+share this path with approved import commits. Retry preserves the operation ID,
+expected revision, payload and approved import token. It never creates or
+approves another import preview and never rebases a command onto another
+editor's revision. Conflicting responses require an explicit check and decision.
+
+While an outcome is unresolved, mechanical changes and background refresh pause,
+the host navigation guard stays active, and shared controls show recovery in
+English/Czech. The review dialog closes when committing so it cannot hide Retry.
+Checking saved state requires confirmation and clears the pending command only
+after a successful read; it does not undo an action. Grant name/reason remain
+visible during recovery. Saved export remains available. Acknowledgments that
+omit evaluation refresh the current guidance through a read, without another
+write. Reads started before the command cannot overwrite its newer result.
+
+The native coordinator's existing current-state deduplication is retained.
+Three worker regressions simulate a durable write followed by a lost reply,
+restart the coordinator without its transient previews, and acknowledge play,
+grant and import operations even with the Engine unavailable. They also verify
+host read authorization and rejection of an older request after a later write.
+No persisted history, device drafts, schema or service contract was introduced.
+
+Eight new [installed cases](../../frontend/test/browser/installed-character-command-fixture.mts)
+cover failed delivery and lost acknowledgments for play/import, grant amendment
+and revocation, exact request reuse, one saved effect, original import approval,
+delayed reads, competing edits, and failed/cancelled/successful checks of saved
+state. Both Compact English and Classic Czech exercise keyboard recovery at
+390 pixels with 200% text; both screenshots were visually reviewed. Recovery
+uses the existing host controls and state styling.
+
+Validation: Sheets passed its build, nine browser-module tests and Go tests/vet,
+then rebuilt its package. All four companion ZIPs passed host inspection with
+clean companion worktrees. The full host `npm run check` passed **32 tooling,
+389 unit and 376 browser tests**, zero failures/cancellations/skips, plus Go
+tests/vet. The host guide now links the command recovery fixtures.
+
+`node scripts/companion-suite.mts test full` passed **136/136**, zero skips,
+using the clean committed companion sources and inspected ZIPs below.
+
+| Add-on | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| dm-tools | `0eeac9b` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| dnd-engine | `2d1101e` | `69241f9c74e696afbd8a348be0bacd643993a511cb5fffd042b2242e2e04378d` |
+| dnd-sheets | `6325243` | `95b4b07293b5ddd12399a3cc07a4c1c942daf19d994753cb3cfe5a7b92edd84c` |
+| dnd-2024-compendium | `87c1402` | `b88bd0335946b27e4660e4db7949ca76c4ea35e9c258eb87008048facb601ef1` |
+
+Host acceptance used `a00c3de` plus this batch's fixtures. Native workers ran on
+Windows; Linux binaries were cross-compiled and inspected. No live activation,
+physical touch, printer or human screen-reader check was performed.
+
+This closes T33-COMMANDS and T44-HOST. Session expiry, provider/generation
+replacement with pending edits, remaining returned-message localization and
+broader Engine/Sheets workflow acceptance stay open in the backlog.
