@@ -289,6 +289,10 @@ for (const mobile of [false,true]) test(`knowledge reading and explicit DM inspe
     await dm.page.screenshot({path:resolve(output,`knowledge-${mobile?'phone':'desktop'}.png`),fullPage:true});
   }
   await dm.page.goto('/#/locations');
+  // Same-document navigation resolves before the router renders its new page.
+  // Let the character view unmount before testing a fresh reader session.
+  await dm.page.getByRole('heading',{name:'Locations',exact:true}).waitFor();
+  await dm.page.locator('codex-character-profile').waitFor({state:'detached'});
   await dm.page.goto('/#/characters/'+key);
   await dm.page.getByRole('heading',{name:'Unknown character',exact:true}).waitFor();
   assert.equal(await dm.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),false);
