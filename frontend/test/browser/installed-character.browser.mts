@@ -14,6 +14,7 @@ import { jsonResponse, installReviewedPackage, enableAllRuleSources } from './in
 import { registerOriginChoiceTests } from './installed-character-origin-fixture.mts';
 import { registerEquipmentTests } from './installed-character-equipment-fixture.mts';
 import { registerRepeatableFeatTests } from './installed-character-repeatable-fixture.mts';
+import { registerConditionalFeatTests } from './installed-character-conditional-feat-fixture.mts';
 import { registerCharacterSaveTests } from './installed-character-save-fixture.mts';
 import { registerCharacterSessionTests } from './installed-character-session-fixture.mts';
 import { registerCharacterRulesRecoveryTests } from './installed-character-rules-recovery-fixture.mts';
@@ -157,6 +158,7 @@ registerCharacterFeedbackTests(enabled, () => ({ admin, browser, csrf, origin, o
 registerCharacterBuilderTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerSkillGrantTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerRepeatableFeatTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerConditionalFeatTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerOriginChoiceTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerEquipmentTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 

@@ -107,7 +107,11 @@ reads, concurrent edits and enlarged English/Czech phone recovery. The
 [rules adoption cases](../../frontend/test/browser/installed-character-rules-recovery-fixture.mts)
 cover a real worker rejection before a delayed lifecycle event, explicit pending-
 input adoption, conflict protection and a lost reply. Forced generation replacement
-remains separate from recovery in a mounted view. Future work belongs in the
+remains separate from recovery in a mounted view. The
+[conditional feat cases](../../frontend/test/browser/installed-character-conditional-feat-fixture.mts)
+check repeated source choices, rejected duplicates, keyboard correction, dependent
+withdrawal, independent ability increases and bounded DM grants through the same
+Builder controls in English/Czech at 390 px and 200% text. Future work belongs in the
 [suite backlog](../BACKLOG.md).
 
 ## Retirement and data implications

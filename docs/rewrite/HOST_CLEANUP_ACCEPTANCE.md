@@ -1229,3 +1229,56 @@ were cross-compiled and inspected; Linux execution and live-site acceptance
 remain separate. No commits were pushed or deployed. During authorized
 publication, publish Sheets before the host revision that pins it; site owners
 still review and activate its package.
+
+## Conditional feat choices and repetition limits
+
+September 23, 2026. T50 closes the finite-choice part of T32. The source marked
+Elemental Adept freely repeatable and omitted its damage-type choice; the Engine
+also treated every object-shaped repetition policy as unrestricted. Four initial
+synthetic regressions failed before the correction.
+
+The provider now declares the existing Energy Mastery options and a distinct
+choice per acquisition, checked against the
+[licensed 2024 reference](https://roll20.net/compendium/dnd5e/Feats%3AElemental%20Adept?expansion=32231).
+The Engine interprets the generic finite-choice policy, preserving acquisition
+IDs and caller inputs. Earlier valid choices reserve their values; later
+duplicates receive ordinary slot-specific repair guidance. Unfinished choices
+can save. Exhausted or unsupported repetition blocks saving and is excluded
+from eligible feat options.
+
+Sheets uses the existing borrowed Builder controls and dependent-choice
+withdrawal. Only the two new diagnostic translations and generated catalogs
+changed there. The [installed cases](../../frontend/test/browser/installed-character-conditional-feat-fixture.mts)
+verify rejected writes preserve the saved revision, keyboard correction,
+removal of only the invalid later pick, both ability increases, DM pool
+exhaustion/revocation, reload, notes and HP. Both languages pass at 390 px/200%
+text with retained focus and no horizontal overflow; the Czech screenshot was
+visually reviewed. Six synthetic Engine cases also cover deterministic,
+detached evaluation, unknown policies, acquisition order across classes and
+changed source facts.
+
+| Repository | Source commit | Inspected ZIP SHA-256 |
+|---|---|---|
+| Engine | `a5ffae95e8be31228cbb7bb1d277ad5cdf7ac13b` | `03c1f9d100418e94f4be33f2bb8b7e40b530518b9dd091e6cef9b56a0806a20f` |
+| Sheets | `eab091da89aa1e10995cb564de055e122f605ceb` | `85c183a336f3dee8b8b3386bf214424e24ff9a31fbe27c240ed59f4e77b2ef4f` |
+| Compendium | `014ed02c15d31e7bd41f4151ff0f9b2f3d3417ca` | `55e333c422d41c8e420adf69b0fb8f529d1ab6becaac76b2f3fe637bd2667d41` |
+
+The [host pins](../../companion-revisions.json) record these exact sources;
+DM Tools is unchanged. Engine Go tests/vet, Compendium `npm run check`
+(**65 tests**), Sheets `npm run check` (**15 module tests** plus Go tests/vet),
+all three package builds/inspections and **3/3 focused installed cases** passed.
+Against host `e8bb8ff` plus this batch, full `npm run check` passed **38 tooling,
+400 unit and 399 browser tests**, zero failures/skips, plus Go tests/vet.
+All **33 release-readiness gates** and **166 local document links/anchors** passed.
+The separate `node scripts/companion-suite.mts test full` passed **159/159
+installed tests**, zero failures/skips, on the inspected source set.
+
+Magic Initiate's repeated spell-list choices, repeated spell/resource effects,
+deeper multiclass acceptance and source-specific attunement remain in T32.
+Elemental Adept's narrative prerequisite still needs explicit authenticated DM
+adjudication; encounter damage resolution remains prose. Checks use disposable
+local data and native Windows workers. Linux workers are cross-compiled and
+inspected, with Linux execution and live-site acceptance separate. No publication
+or deployment was performed. During authorized publication, make the companion
+commits available before the dependent host revision; activate the supporting
+Engine before the new source package through ordinary review.
