@@ -7,9 +7,10 @@ references; their detailed findings and the unchanged accepted release gates liv
 [feature-parity audit](rewrite/FEATURE_PARITY_AUDIT.md).
 
 **Progress estimate, September 17:** about **80% implemented**, or **70–75%**
-including release and complete workflow acceptance. The original organized
-backlog has 23 of 40 rows fully closed; large open tasks contain completed
-slices. [Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-estimate).
+including release and complete workflow acceptance.
+[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-estimate).
+**Rows closed, September 23:** 24 of the original 40; large open tasks contain
+completed slices.
 
 **P1:** preservation, blocked workflows or release confidence. **P2:** usability,
 resilience and maintenance. **Confirmed** means source/browser evidence exists;
@@ -150,6 +151,7 @@ Standalone browsing must remain useful without Engine or Sheets.
 - [x] ~~**T41-COMP — Structure Skilled choices and later Origin-feat eligibility**~~ — `8e1e9d7`; [sources and installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeatable-skilled-choices-and-acquisition-ownership).
 - [x] ~~**T42-COMP — Finish PHB origin skill, feat and tool choices**~~ — `87c1402`; Human, Musician/Crafter and five backgrounds; [sources and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#phb-origin-choices-and-shared-field-focus).
 - [x] ~~**T50-COMP — Declare distinct Elemental Adept damage choices**~~ — `014ed02`; [source facts and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#conditional-feat-choices-and-repetition-limits).
+- [x] ~~**T51-COMP — Declare Magic Initiate spell lists and origin presets**~~ — `736f95a`; [source facts and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#acquisition-owned-spell-grants-and-complete-combat-details).
 
 ### Remaining work
 
@@ -201,15 +203,16 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T32-ORIGINS — Share eligibility across origin skill and tool choices**~~ — `1faa785`; ordered training, distinct picks and dependent repair; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#phb-origin-choices-and-shared-field-focus).
 - [x] ~~**T32-EQUIPMENT-SLOTS — Share slot facts and correct attunement eligibility**~~ — `2d1101e`; capacity, prerequisites and custom grants; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#equipment-preservation-and-attunement-eligibility).
 - [x] ~~**T32-CONDITIONAL — Enforce distinct finite feat choices per acquisition**~~ — `a5ffae9`; capacity, repair, source changes and DM withdrawal; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#conditional-feat-choices-and-repetition-limits).
+- [x] ~~**T32-SPELLS — Preserve acquisition-owned spells/resources and correct multiclass skills**~~ — `9f90e4b`; casts, rests, replacement and saved aliases; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#acquisition-owned-spell-grants-and-complete-combat-details).
 
 ### Remaining work
 
 - [ ] **T32 / P1 — Finish progressive-build and equipment validation acceptance.**
-  Extend installed acceptance to Magic Initiate's spell-list repetition and
-  repeated spell/resource effects, deeper multiclass progressions and source-specific
-  attunement prerequisites through Sheets. Retain accepted regression
-  coverage. Results must remain deterministic, explainable, source-policy aware
-  and leave caller inputs unchanged.
+  Extend installed acceptance to deeper multiclass progressions and
+  source-specific attunement prerequisites through Sheets. Retain accepted
+  spell, resource, feat, proficiency and equipment regression coverage. Results
+  must remain deterministic, explainable, source-policy aware and leave caller
+  inputs unchanged.
 - [ ] **T18-ENGINE / P1, review — Close rules/provider evidence gaps.**
   Use representative single/multiclass builds through level changes, spells,
   granted casts, resources/rest, HP, inventory and DM effects. Check missing,
@@ -247,16 +250,10 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T33-LIFECYCLE — Keep pending inputs and exact retries through rules/provider changes**~~ — `89f8666`; fresh services, original merge bases, guarded recovery and expired-review handling; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#pending-character-edits-across-graph-replacement).
 - [x] ~~**T33 — Finish automatic saving and progressive-builder usability**~~ — `fce458b`, `4696ae7`; localized save explanations, correctable HP and provider-free feedback; prior save/command/lifecycle regressions retained; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#localized-save-feedback-and-correctable-hp).
 - [x] ~~**T50-SHEETS — Explain conditional feat limits in both locales**~~ — `eab091d`; existing shared controls and feedback; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#conditional-feat-choices-and-repetition-limits).
+- [x] ~~**T25 — Restore Combat details and shared spell filters**~~ — `23d63d7`; saved-state repair, both layouts/locales, phone and provider-free print; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#acquisition-owned-spell-grants-and-complete-combat-details).
 
 ### Remaining work
 
-- [ ] **T25 / P2 — Restore complete Combat details and consistent spell filters.**
-  Confirmed R09/R10, still present in current source. Show damage type, versatile
-  damage, mastery and senses with units/conditions using saved explanations in
-  [Combat](../../addon-dnd-character-sheets/src/character-sheet.ts). Share name/level
-  filtering across class, ritual and [granted rows](../../addon-dnd-character-sheets/src/character-play.ts);
-  announce zero matches. Verify both layouts/languages and provider-free saved
-  details/print. Engine remains the calculation authority.
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
   Build, save/reload, advance, equip, prepare/cast, spend resources, rest, amend
   grants, print/export and review an import using the exact installed ZIP. Cover
@@ -274,7 +271,7 @@ Provider-free saved reading/notes/print/export remain required.
 | Order | Work | Exit evidence |
 | --- | --- | --- |
 | 1 | Preserve authored intent: finish Engine T32 acceptance using the completed Sheets T33 workflow. | Safe role/stale/error behavior; incomplete character saves and bounded play work through the installed contract. |
-| 2 | Everyday use: Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
+| 2 | Everyday use: Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
 | 3 | Remaining add-on artifact ownership: per-repo T14. T08 only for a real schema-preservation need. | Standalone builds and inspected ZIPs preserve current consumer contracts; any needed migration is reviewed and atomic. |
 | 4 | Final integration after remaining add-on T18 fixes; retain completed T02 coverage. | All four inspected ZIPs pass without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
 | 5 | Authorized delivery T15–T17 and representative device/site acceptance. | Exact served/installed builds verified; per-site data/retention choices recorded and rollback assets retained. |

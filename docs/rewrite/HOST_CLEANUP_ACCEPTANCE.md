@@ -1282,3 +1282,98 @@ inspected, with Linux execution and live-site acceptance separate. No publicatio
 or deployment was performed. During authorized publication, make the companion
 commits available before the dependent host revision; activate the supporting
 Engine before the new source package through ordinary review.
+
+## Acquisition-owned spell grants and complete Combat details
+
+September 23, 2026. T51 closes T25 and the repeated spell/resource part of
+T32. It keeps the existing progressive build, current-state save and reusable
+host UI contracts.
+
+Repeated feats previously shared spell choices, casting abilities and resource
+keys. Two acquisitions could therefore overwrite one another's choices or
+share a free cast. The Engine now carries the existing acquisition identity
+through grant evaluation, activations and resources. Each grant retains its
+own casting ability, pool and rest behavior. A chosen spell's free allowance
+belongs to its choice, so replacing or temporarily clearing the spell cannot
+refresh a spent cast. Unambiguous old keys move to one unoccupied owner in
+detached evaluation; ambiguous state remains available for explicit assignment.
+A play command uses the normalized inputs, preserving previously spent uses
+on the first command after an update. The
+[Engine contract](../../../addon-dnd-engine/contract/README.md) records these
+generic source and identity rules.
+
+Magic Initiate now declares one cleric, druid or wizard list for all three
+selected spells and different lists on repetition. Five existing backgrounds
+declare their source-owned origin preset. The existing prose and record IDs
+are preserved. These mechanics were checked against the
+[official 2024 feat](https://www.dndbeyond.com/sources/dnd/br-2024/feats#MagicInitiate);
+the [provider schema](../../../addon-dnd-2024-compendium/data/SCHEMA.md) owns the
+preset field. No feat ID or edition-specific rule was added to Sheets controls.
+
+The broader spell fixture exposed a separate multiclass defect: adding Wizard
+after Fighter incorrectly requested the Wizard's starting skill choices.
+Only the initial class now uses its starting proficiency declaration; every
+later class uses the reduced multiclass declaration, including an empty one.
+Synthetic cases cover class order and absent, empty and smaller skill pools.
+This follows the official
+[multiclass proficiency rule](https://www.dndbeyond.com/sources/dnd/br-2024/creating-a-character#Multiclassing)
+and [Wizard entry](https://www.dndbeyond.com/sources/dnd/br-2024/character-classes#BecomingaWizard).
+
+Sheets removes invalid dependent spell selections only when they still equal
+the previously saved values. New invalid input remains a visible save blocker;
+valid sibling selections and still-present spent pools survive structural
+changes. Autosave reconciliation preserves newer browser edits. Ambiguous
+saved choices, abilities, resources and activations use explicit assignment
+or discard through the existing borrowed controls.
+
+One shared name/level filter now serves Builder, class, ritual, granted and
+saved provider-free spell views. It announces empty results, preserves selected
+values, uses stable field identities and performs no save. Granted rows name
+their source and casting ability. Combat restores damage type, versatile
+damage, mastery and conditional senses with units and saved rule explanations.
+Print includes the same sense details and granted spells. Enlarged phone
+acceptance exposed overlapping resource labels; the shared Combat layout now
+wraps them above their counters. Compact and Classic remain on the host's
+semantic styling and controls.
+
+The [installed cases](../../frontend/test/browser/installed-character-spell-fixture.mts)
+exercise three repeated grants, independent casts, short/long rests, grant
+withdrawal, reload, historical aliases and three PHB background presets. The
+English/Czech phone cases use Fighter/Wizard with class, ritual and granted
+versions of the same spell, both layouts and 390 px/200% text. They assert name
+and level filtering, zero matches, no filter writes, weapon/sense details,
+no horizontal overflow and no resource-label overlap. The English spell-filter
+and Czech Combat screenshots were visually inspected. The existing
+provider-free case now also checks saved spell filtering, Combat and print
+after removing the provider, without changing the saved revision.
+
+| Repository | Source commit | Inspected ZIP SHA-256 |
+|---|---|---|
+| Engine | `9f90e4b305d0a166987cb4588eaadee2b54a0aff` | `fcc4ef1a6e8cf1d0036d480f73a85e0523c59e53cbd91d6b5d37c1bcbed6f776` |
+| Sheets | `23d63d7c94841b521d9b5f783e1f6f50ae1919f5` | `5a0d564ec967611723d8d9cf9222d1c57510e5f778e4c70ea7d92f427f51620f` |
+| Compendium | `736f95a4dfb1a248443cf3414f7536be911b0d62` | `1084cf7f3b7aec13daaf4af86e2a0f7a5d96d75ca0ea248239f9fb081f70d8ae` |
+
+The [host pins](../../companion-revisions.json) record these sources; DM Tools
+is unchanged. Engine Go tests/vet, Compendium `npm run check`
+(**66 tests**), Sheets `npm run check` (**17 module tests** plus Go tests/vet),
+and all three standalone package builds/host inspections passed. Seven
+synthetic spell-grant regressions additionally cover detached inputs, repeated
+activation costs, bonus slots, and retained free allowances during repair.
+Captured historical parity oracles remain unchanged; their comparison explicitly
+records the corrected grant resource identities and pending allowance.
+
+Against host `71da8f0` plus this batch, full `npm run check` passed
+**38 tooling, 400 unit and 404 browser tests**, zero failures/skips, plus Go
+tests/vet. The separate `node scripts/companion-suite.mts test full` passed
+**164/164 installed tests**, zero failures/skips, against the exact committed
+source set and inspected hashes above. All **33 release-readiness gates** and
+**160 local document links/anchors** passed.
+
+Deeper multiclass progressions and source-specific attunement acceptance remain
+in T32; whole-session/device acceptance remains in T18. Checks use disposable
+local data and native Windows workers. Linux workers are cross-compiled and
+inspected; Linux execution, human assistive-technology checks, physical printing
+and live-site acceptance are separate. No publication or deployment was
+performed. During authorized publication, make the companion commits available
+before the dependent host revision and activate the supporting Engine before
+the new source package through ordinary review.

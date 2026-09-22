@@ -14,6 +14,7 @@ import { jsonResponse, installReviewedPackage, enableAllRuleSources } from './in
 import { registerOriginChoiceTests } from './installed-character-origin-fixture.mts';
 import { registerEquipmentTests } from './installed-character-equipment-fixture.mts';
 import { registerRepeatableFeatTests } from './installed-character-repeatable-fixture.mts';
+import { registerSpellOwnershipTests, verifyFrozenSpellDetails } from './installed-character-spell-fixture.mts';
 import { registerConditionalFeatTests } from './installed-character-conditional-feat-fixture.mts';
 import { registerCharacterSaveTests } from './installed-character-save-fixture.mts';
 import { registerCharacterSessionTests } from './installed-character-session-fixture.mts';
@@ -159,6 +160,7 @@ registerCharacterBuilderTests(enabled, () => ({ admin, browser, csrf, origin, ou
 registerSkillGrantTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerRepeatableFeatTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerConditionalFeatTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerSpellOwnershipTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerOriginChoiceTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerEquipmentTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 
@@ -193,4 +195,5 @@ test('source adoption remains explicit and absent rules freeze mechanics without
   await sheet.locator('[data-equipment-slot="'+slot+'"]').getByRole('button',{name:id!,exact:true}).waitFor();
  }
  assert.equal(await sheet.getByRole('button',{name:'+ Shield',exact:true}).count(),0);
+ await verifyFrozenSpellDetails(t,{admin,browser,csrf,origin,output,call});
 });
