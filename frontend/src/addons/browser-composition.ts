@@ -71,7 +71,10 @@ export function createBrowserAddonComposition(
   const runtime = new BrowserAddonRuntime(new BrowserGraphClient(), manager);
   return {
     dataChanges,
-    session: new BrowserAddonSession(runtime, callbacks),
+    session: new BrowserAddonSession(runtime, { ...callbacks, onRefresh: (cause, result) => {
+      contributions.settleGraph(result.transport.graph);
+      callbacks.onRefresh?.(cause, result);
+    } }),
     contributions,
     renewCsrfToken(token: string): void {
       if (token.length < 32) throw new TypeError("invalid renewed session token");

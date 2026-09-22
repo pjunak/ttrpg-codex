@@ -1077,9 +1077,10 @@ revision and clear the navigation guard. A lost adoption reply retries the
 identical request; a concurrent edit preserves the remote saved value and local
 pending value. The enlarged Tools layout was also inspected visually.
 
-Forced graph replacement remains open in T33: these cases establish recovery
-in a mounted generation, not input transfer between generations. No device
-draft, history, schema, manifest, permission or service-version change was added.
+These T47 cases establish recovery in a mounted generation. Input transfer
+between generations is accepted separately in
+[T48](#pending-character-edits-across-graph-replacement). No device draft,
+history, schema, manifest, permission or service-version change was added.
 
 Sheets source: `a8ff7ce1a861f54c2ceb532b1f6ee619c751f504`; inspected ZIP SHA-256:
 `5c776f6ac1fc14a98c12666256e3073131b659b7691fb94390accbaebaea205a`.
@@ -1100,3 +1101,71 @@ Checks used disposable local data and native Windows workers. Linux targets
 were cross-compiled and inspected; Linux CI and live-site acceptance were not
 performed. During authorized publication, publish the Sheets commit before
 the host commit that pins it; site owners still review and activate its package.
+
+## Pending character edits across graph replacement
+
+September 22, 2026. T48-HOST and T33-LIFECYCLE address pending character input
+lost when a rules-policy or provider change cold-restarts the browser graph.
+The unchanged package's cached custom-element class also captured its first
+activation's aborted services. New instances now take current services while
+old instances keep their expired handles.
+
+The host exposes an optional, typed
+[record edit handoff](../../examples/addons/API_V3.md#pending-record-edits-during-generation-replacement)
+through the existing shared edit handle. It copies bounded plain JSON, keeps
+the navigation guard through a reload/update gap and scopes recovery to the
+same outlet, add-on, contribution and record. Failed mounts retain the copy
+and a localized waiting notice. Ordinary departure, authority/outlet disposal,
+disable/uninstall and removal from the settled graph clear it. Other outlets
+and isolated frames retain the existing flag-only contract.
+
+Sheets transfers pending inputs, their original saved base/revision and queued
+version, and exact uncertain autosave or approved command requests. It reloads
+current saved state through fresh handles, verifies the actor/role, restores
+pending input visibly and focuses its translated recovery status. Recovery
+does not automatically write or adopt rules. Retry keeps the original request;
+independent edits merge against the original base, while overlapping changes
+remain guarded conflicts. An import already committed before a lost reply is
+acknowledged once after replacement; a definitively expired review requires
+checking saved state before a new import review.
+
+The [nine installed cases](../../frontend/test/browser/installed-character-generation-fixture.mts)
+use real SSE delivery, reviewed ZIPs and native workers. They cover DM/player
+source-policy changes, same-package provider reload, lost save replies,
+overlapping edits, a failed replacement load, deliberate record departure,
+rejected input with a concurrent independent edit, and delivered/undelivered
+approved imports across package replacement. They assert exact operation IDs,
+opening revisions, no automatic replay, current saved values, dirty guards
+and keyboard focus. The failed-load case explicitly identifies the replacement
+instance so it cannot accidentally click the outgoing sheet's similarly named
+reload control.
+
+The Czech Classic phone case at 390 px/200% text uses the borrowed shared
+controls; its screenshot was visually inspected and horizontal overflow is
+checked. Host unit tests cover bounded JSON, detached copies, stale handles,
+one-time retrieval, guard continuity, failed mounting, contribution removal
+and context/outlet disposal. A regression also proves an older replacement that
+only publishes edit flags cannot silently discard an unclaimed handoff. Sheets
+tests cover pending schema and request validation. No durable schema, manifest,
+permission or service-version change was needed.
+
+Sheets source: `89f86660014147096d9f1d17a20ce3bbe5c0e1d1`; inspected ZIP SHA-256:
+`edfe63a285b7586eb9195295aac81d553c2ad52083ea5cba747887c2669f3a81`.
+The host's [companion pins](../../companion-revisions.json) record that exact
+source; the other three companions are unchanged.
+
+Validation: Sheets `npm run check` passed (11 browser-module tests plus Go
+tests/vet); packaging and host inspection passed. All nine focused installed
+cases passed. Against host `3fe7376` plus this batch, full `npm run check`
+passed **38 tooling, 400 unit and 393 browser tests**, zero failures/skips,
+plus Go tests/vet. The separate `node scripts/companion-suite.mts test full`
+passed **153/153 installed tests** with zero failures/skips on the inspected
+source set. All 33 historical release-readiness gates passed.
+
+This is page-memory recovery, not device drafts or character history.
+Page reload/closure and unsubmitted dialog-only fields are outside the handoff.
+Checks use disposable local data and native Windows workers. Linux binaries
+were cross-compiled and inspected; Linux execution and live-site acceptance
+remain separate. No commits were pushed or deployed. During authorized
+publication, publish the Sheets commit before the dependent host commit;
+site owners still review and activate its package.

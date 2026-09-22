@@ -794,6 +794,8 @@ export class CodexApp extends LitElement {
         include: (active) => this.route.kind === "record" &&
           active.descriptor.config["collection"] === this.route.page.collection,
         hostContext: () => this.#recordContext(),
+        handoffKey: () => this.route.kind === "record" && this.#recordContext() !== null
+          ? JSON.stringify([this.route.page.collection, this.route.key]) : undefined,
         onError,
         onCountChange: (count) => { if (owner === this.#addonOwner) this.articleCount = count; },
       });

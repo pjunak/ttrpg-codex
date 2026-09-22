@@ -12,7 +12,7 @@ interface Fixture {
 }
 type Source = { addonId: string; setId: string; id: string; enabled: boolean };
 
-async function changeUnusedSource(t: TestContext, f: Fixture, initial: Awaited<ReturnType<Fixture["call"]>>) {
+export async function changeUnusedSource(t: TestContext, f: Fixture, initial: Awaited<ReturnType<Fixture["call"]>>) {
   const policy = await jsonResponse(await f.admin.get("/api/admin/rules-policy"));
   const sources = policy.sources as Source[];
   const unused = sources.find(source => source.enabled && !initial.state.projection.evidence.some((entry: { book: string }) => entry.book === source.id));

@@ -68,6 +68,12 @@ navigation contributions. Isolated visual contributions run in an opaque
 iframe and communicate only through the host bridge. Either mode must tolerate
 empty data, missing optional services, abort, reload, and repeated disposal.
 
+Integrated record article sections can use the optional
+[pending edit handoff](API_V3.md#pending-record-edits-during-generation-replacement)
+to transfer detached pending input across a graph restart. Keep all SDK handles
+generation-scoped, validate the current actor and saved state before restoring
+input, and retain original revisions and uncertain command IDs.
+
 Use a `settings` contribution for options belonging to your add-on. The host
 groups these panels inside a Settings disclosure on that add-on's card in
 Settings → Add-ons, filtered by effective role. Label whether your controls

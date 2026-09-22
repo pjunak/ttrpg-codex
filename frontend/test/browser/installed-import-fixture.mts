@@ -5,9 +5,9 @@ import { zip } from './installed-graph-fixture.mts';
 
 // Repackage a locally built test archive with a new manifest version; never
 // extract it or alter its worker binaries. The real inspector reviews the ZIP.
-export function replacementImportPackage(archive: Buffer) {
+export function replacementImportPackage(archive: Buffer, version = "3.0.1") {
   const { files, modes } = importPackageEntries(archive);
-  const manifest = JSON.parse(files['addon.json'].toString()); manifest.version = '3.0.1';
+  const manifest = JSON.parse(files['addon.json'].toString()); manifest.version = version;
   files['addon.json'] = JSON.stringify(manifest); delete files['checksums.json'];
   files['checksums.json'] = JSON.stringify({ algorithm: 'sha256', files: Object.fromEntries(Object.entries(files).map(([name, body]) => [name, createHash('sha256').update(body).digest('hex')])) });
   return zip(files, modes);

@@ -314,8 +314,9 @@ edits.set({ dirty: true, saving: false, retainOnQueryChange: true });
 ```
 
 Only `dirty`, `saving`, and optional `retainOnQueryChange` booleans are accepted.
-The host retains flags, never draft values. Publish state when a draft changes,
-is saved or discarded, and when a write starts or finishes. The shell asks
+The guard retains flags; optional transient handoffs are described below.
+Publish state when a draft changes, is saved or discarded, and when a write
+starts or finishes. The shell asks
 before leaving or signing out with dirty views and blocks those actions while
 a write is in progress. Browser reload/close uses the browser's own unsaved-edit
 prompt; it is a warning, not draft persistence or a guarantee against closure.
@@ -328,6 +329,53 @@ default a route query change also requires confirmation. A route may set
 `retainOnQueryChange: true` only when it preserves all drafts across its query
 updates, including invalid targets. This exemption applies only to that same
 route's dirty state; it never exempts a pending write or another mounted view.
+
+### Pending record edits during generation replacement
+
+Integrated `article-section` elements mounted for a campaign record may
+feature-detect `edits.handoff`. Its
+[public types](../../contracts/addons/v3/contribution-edits.d.ts) are additive;
+other outlets, isolated frames and older hosts may omit this handle.
+
+```ts
+const recovered = edits.handoff?.take(); // detached, once per mounted instance
+edits.set({ dirty: true, saving: false });
+edits.handoff?.checkpoint({ version: "my-edit.v1", revision, inputs, request });
+```
+
+Checkpoint only pending domain input, the original saved base/revision, and exact
+uncertain request identities. The host copies plain JSON immediately and rejects
+non-finite numbers, executable/accessor values, non-plain objects, cycles, sparse
+arrays, forbidden prototype keys, more than 2 MiB of UTF-8 JSON, depth above 40,
+or more than 100,000 values. `undefined` clears the checkpoint. Invalid updates
+leave the previous valid checkpoint unchanged. Clear the checkpoint and flags
+after saving or deliberate discard.
+
+A dirty or saving instance transfers its latest checkpoint only when its
+generation stops for reload or update. The same outlet, add-on, contribution
+and record can receive it, including when the package generation is unchanged.
+The navigation guard stays dirty, with saving reset to false, between mounts;
+a failed mount retains the copy and shows a localized waiting notice. A replacement
+that only understands edit flags cannot clear an unclaimed handoff: the guard
+and notice remain until it explicitly takes, replaces or clears the checkpoint.
+A successful `take()` does not confirm a save. Keep the inherited guard and
+checkpoint while checking saved state, including when that read fails.
+
+The replacement must validate its own checkpoint version, check the current
+actor/role and record through fresh authorized handles, and visibly distinguish
+pending input from saved state. Preserve original revisions and uncertain
+operation IDs. Do not silently replay commands, approve a new import preview,
+or rebase non-idempotent actions onto another editor's revision. An old
+generation's SDK handles remain aborted and cannot read or update the handoff.
+
+Copies exist only in the current page's memory. They clear on ordinary removal,
+record departure, outlet/authority disposal, disable/uninstall, or removal of
+the contribution from the settled graph. They do not survive page reload,
+closure, another tab, or another actor, and do not replace add-on persistence,
+history or backup. Unsubmitted dialog-only values must be explicitly included
+by the owning add-on if it wants them covered.
+
+### Route and record contexts
 
 Route elements in either UI mode receive a frozen `codexContribution.host`:
 

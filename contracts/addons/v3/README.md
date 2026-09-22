@@ -19,6 +19,8 @@ boundaries validate browser models.
 - `wiki-links.schema.json` describes reference resolution, legacy bookmarks,
   and library search. The browser also checks response bytes, request-relative
   indices and same-generation, role-visible route targets.
+- `contribution-edits.d.ts` defines mounted edit guards and the optional
+  in-memory handoff for integrated record article sections.
 - `examples/reference-addon.json` exercises the main manifest features.
 - `examples/import-adapter.service.json` shows a package-owned service
   document.

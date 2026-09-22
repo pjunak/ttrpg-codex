@@ -257,3 +257,38 @@ function contribution(
     config: {},
   };
 }
+
+it("keeps recovery visible through a graph gap and clears it when the record or outlet changes", async () => {
+  const registry = new BrowserContributionRegistry(), root = new FakeElement("div");
+  let key: string | undefined = "characters:ryn";
+  const outlet = new BrowserContributionOutlet({
+    document: new FakeDocument() as unknown as Document, root: root as unknown as HTMLElement,
+    registry, surface: "slot", role: "dm", compact: true, handoffKey: () => key,
+    hostContext: () => ({ locale: "cs" }),
+  });
+  const mount = () => {
+    const scope = new GenerationScope("test"), sdk = registry.open(descriptor("sheets", contribution("sheet", 0)), scope);
+    sdk.context.ui.bind("sheet", { kind: "element", tag: "test-sheet" });
+    const element = root.children[0]!.children[0] as FakeElement & { codexContribution: { edits: BrowserContributionEditHandle } };
+    return { scope, edits: element.codexContribution.edits };
+  };
+  const first = mount();
+  first.edits.set({ dirty: true, saving: true }); first.edits.handoff!.checkpoint({ revision: 2, draft: "Ryn" });
+  await first.scope.dispose("reload");
+  expect(root.children[0]!.textContent).toContain("Neuložené změny");
+  expect(registry.edits.state()).toEqual({ dirty: true, saving: false });
+  const second = mount();
+  second.edits.set({ dirty: false, saving: false }); outlet.refresh();
+  expect(root.children[1]!.textContent).toContain("Neuložené změny");
+  expect(second.edits.handoff!.take()).toEqual({ revision: 2, draft: "Ryn" });
+  await Promise.resolve();
+  expect(root.children).toHaveLength(1);
+  expect(registry.edits.state().dirty).toBe(true);
+  await second.scope.dispose("updated");
+  key = "characters:another"; outlet.refresh();
+  expect(registry.edits.state().dirty).toBe(false);
+  const third = mount(); expect(third.edits.handoff!.take()).toBeUndefined();
+  third.edits.set({ dirty: true, saving: false }); third.edits.handoff!.checkpoint({ draft: "Another" });
+  await third.scope.dispose("reload"); outlet.dispose();
+  expect(registry.edits.state()).toEqual({ dirty: false, saving: false });
+});

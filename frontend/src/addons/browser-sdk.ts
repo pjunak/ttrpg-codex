@@ -2,6 +2,7 @@ import type {
   BrowserContributionDescriptor,
   BrowserContributionSurface,
   BrowserGenerationDescriptor,
+  BrowserGenerationSet,
   BrowserPermissionGrant,
   BrowserRole,
 } from "./generation-manager.js";
@@ -205,6 +206,12 @@ export class BrowserContributionRegistry {
       )
       .sort(compareActiveContributions)
       .map(({ key: _key, ...active }) => active);
+  }
+
+  settleGraph(graph: BrowserGenerationSet): void {
+    this.edits.retain(new Set(graph.addons.filter(addon => addon.mode === "integrated").flatMap(addon =>
+      addon.contributions.map(contribution => `${addon.addonId}:${contribution.id}`))));
+    this.#changed();
   }
 
   subscribe(listener: BrowserContributionListener): Disposer {

@@ -195,10 +195,27 @@ This trades a brief full contribution refresh for one small, deterministic
 lifecycle. That is appropriate for the current personal deployment and small
 first-party add-on set. The owner accepted this as an expected limitation on
 September 11, 2026. A graph change restarts all browser add-ons, including
-otherwise unchanged ones. Local actions honor published edit guards, but a
-change from another session or non-recoverable authority loss can discard
-unsaved in-memory add-on drafts. Saved data remains under its storage contract. Per-generation
-rolling replacement and generic draft persistence are not current commitments.
+otherwise unchanged ones. Local actions honor published edit guards. Integrated
+record article sections may now opt into the
+[transient edit handoff](../../examples/addons/API_V3.md#pending-record-edits-during-generation-replacement):
+`BrowserContributionEdits` copies bounded JSON and preserves the dirty guard
+while `BrowserContributionOutlet` replaces the instance. Handoff identity is the
+host outlet plus add-on, contribution and record, not a caller-supplied storage
+key. The settled graph clears removed owners; a failed replacement mount keeps
+the copy and a localized waiting notice. Authority loss and record departure
+clear it. Other contribution surfaces and uncheckpointed values retain the
+original teardown behavior.
+
+The host never transfers handles or callbacks, waits for a save, writes a
+checkpoint to device storage, or replays it as a command. A replacement checks
+current authority/saved state and owns explicit recovery. A cached custom-element
+definition must obtain the current activation's services for each new instance;
+capturing the first activation's SDK permanently leaves it unusable after a
+same-package graph restart. Installed character tests cover real source-policy
+events, provider reload, package replacement, failed recovery reads, concurrency
+and uncertain reviewed imports. Saved data remains under its storage contract.
+Per-generation rolling replacement and generic draft persistence remain outside
+this implementation.
 
 ## Module boundary
 

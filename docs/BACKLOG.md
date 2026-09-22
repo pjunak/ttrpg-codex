@@ -1,6 +1,6 @@
 # Project backlog
 
-Work for the five repositories, reviewed September 17, 2026. This remains
+Work for the five repositories, reviewed September 22, 2026. This remains
 one suite backlog; each task belongs to the repository that owns its change.
 Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
@@ -63,6 +63,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T37 — Prevent pipe-cleanup races from failing worker shutdown**~~ — `07482f0`; [deterministic regression and race checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#native-shutdown-race-follow-up).
 - [x] ~~**T45-HOST — Pin accepted companion sources and stabilize reader navigation**~~ — [recurring CI diagnosis, source coordination and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeated-compatibility-failures-and-pinned-source-revisions).
 - [x] ~~**T46-HOST — Preserve pending add-on edits through session renewal**~~ — [shared recovery and installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#add-on-session-renewal-without-losing-pending-edits).
+- [x] ~~**T48-HOST — Hand off pending record edits across add-on graph replacement**~~ — bounded shared API, guarded teardown and fresh service ownership; [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#pending-character-edits-across-graph-replacement).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -241,6 +242,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T33-EQUIPMENT — Preserve stored spares and explain accessible equipment choices**~~ — `b015083`; shared transitions, saved slots, keyboard focus and enlarged layouts; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#equipment-preservation-and-attunement-eligibility).
 - [x] ~~**T33-COMMANDS — Recover uncertain play/grant and reviewed-import commands safely**~~ — `6325243`; exact retries, guarded recovery and stale-read protection; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#character-command-recovery-and-uncertain-outcomes).
 - [x] ~~**T33-ADOPTION — Adopt changed rules with pending edits and restore editing**~~ — `a8ff7ce`; explicit recovery, exact retries, conflict protection and readable phone actions; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#explicit-rules-adoption-with-pending-character-edits).
+- [x] ~~**T33-LIFECYCLE — Keep pending inputs and exact retries through rules/provider changes**~~ — `89f8666`; fresh services, original merge bases, guarded recovery and expired-review handling; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#pending-character-edits-across-graph-replacement).
 
 ### Remaining work
 
@@ -253,12 +255,8 @@ Provider-free saved reading/notes/print/export remain required.
   details/print. Engine remains the calculation authority.
 - [ ] **T33 / P1 — Finish automatic saving and progressive-builder usability.**
   Localize returned save explanations that still fall back to English.
-  Preserve pending input when rules-policy or provider/generation changes
-  refresh the runtime graph. Explicit adoption in a still-mounted sheet is
-  covered by T33-ADOPTION, and same-generation session renewal by host T46;
-  retain their original request/revision and autosave/command recovery regressions.
-  Pending in-memory edits must remain visibly unsaved and guarded; do not restore
-  removed history or device-draft UI.
+  Retain the completed save, command, adoption and generation-handoff regressions;
+  pending input stays visibly unsaved and guarded, with no history/device-draft UI.
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
   Build, save/reload, advance, equip, prepare/cast, spend resources, rest, amend
   grants, print/export and review an import using the exact installed ZIP. Cover

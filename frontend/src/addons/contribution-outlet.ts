@@ -10,6 +10,7 @@ import type {
 import type { BrowserContributionEditHandle, BrowserContributionEditRegistration } from "./edit-state.js";
 import { contributionLabel } from "./contribution-label.js";
 import { isRecord } from "../core/boundary.js";
+import { contextEn, contextCs } from "../app/context-messages.js";
 
 export interface BrowserContributionElementContext {
   readonly edits: BrowserContributionEditHandle;
@@ -37,6 +38,8 @@ export interface BrowserContributionOutletOptions {
   readonly hostContext?: (active: ActiveBrowserContribution) => unknown;
   readonly isolatedHostContext?: boolean;
   readonly compact?: boolean;
+  /** Host-owned instance identity, independent of package generation and revision. */
+  readonly handoffKey?: () => string | undefined;
   readonly onError?: (cause: unknown) => void;
   readonly onCountChange?: (count: number) => void;
 }
@@ -65,6 +68,8 @@ export class BrowserContributionOutlet {
   readonly #onError: (cause: unknown) => void;
   readonly #onCountChange: (count: number) => void;
   readonly #mounted = new Map<string, MountedContribution>();
+  readonly #handoffKey: () => string | undefined;
+  readonly #handoffs = new Map<string, { slot: symbol; key: string; active: ActiveBrowserContribution }>();
   readonly #unsubscribe: () => void;
   #disposed = false;
 
@@ -78,6 +83,7 @@ export class BrowserContributionOutlet {
     this.#hostContext = options.hostContext ?? (() => null);
     this.#isolatedHostContext = options.isolatedHostContext ?? false;
     this.#compact = options.compact ?? false;
+    this.#handoffKey = options.handoffKey ?? (() => undefined);
     this.#onError = options.onError ?? (() => undefined);
     this.#onCountChange = options.onCountChange ?? (() => undefined);
     this.#unsubscribe = this.#registry.subscribe(() => this.refresh());
@@ -87,6 +93,12 @@ export class BrowserContributionOutlet {
   refresh(): void {
     if (this.#disposed) {
       return;
+    }
+    const handoffKey = this.#handoffKey();
+    for (const [id, handoff] of this.#handoffs) {
+      if (handoff.key !== handoffKey || !this.#include(handoff.active)) {
+        this.#registry.edits.forget(handoff.slot); this.#handoffs.delete(id);
+      }
     }
     const ordered: HTMLElement[] = [];
     const retained = new Set<string>();
@@ -103,7 +115,7 @@ export class BrowserContributionOutlet {
       }
       const key = contributionKey(active);
       const identity = active.binding.kind === "element"
-        ? `element:${active.binding.tag}`
+        ? `element:${active.binding.tag}:${handoffKey ?? ""}`
         : "isolated-frame";
       let mounted = this.#mounted.get(key);
       if (mounted === undefined || mounted.identity !== identity) {
@@ -113,7 +125,7 @@ export class BrowserContributionOutlet {
           mounted = undefined;
         }
         try {
-          mounted = this.#create(active);
+          mounted = this.#create(active, identity, handoffKey);
           this.#mounted.set(key, mounted);
         } catch (cause: unknown) {
           this.#onError(cause);
@@ -136,6 +148,16 @@ export class BrowserContributionOutlet {
         this.#release(this.#mounted.get(key));
         this.#mounted.delete(key);
       }
+    }
+    for (const [id, handoff] of this.#handoffs) {
+      if (this.#registry.edits.pending(handoff.slot)) {
+        const notice = this.#document.createElement("section"), context = this.#hostContext(handoff.active);
+        const cs = isRecord(context) && context["locale"] === "cs";
+        notice.className = "addon-contribution"; notice.dataset["uiState"] = "unavailable"; notice.setAttribute("role", "status");
+        notice.textContent = contributionLabel(handoff.active.descriptor, cs ? "cs" : "en") + ": " +
+          (cs ? contextCs : contextEn)["recordAddons.pendingRestart"];
+        ordered.push(notice);
+      } else if (handoff.active.signal.aborted) this.#handoffs.delete(id);
     }
     try {
       // Keep unchanged frames and custom elements connected during refresh.
@@ -164,17 +186,25 @@ export class BrowserContributionOutlet {
       this.#release(mounted);
     }
     this.#mounted.clear();
+    for (const handoff of this.#handoffs.values()) this.#registry.edits.forget(handoff.slot);
+    this.#handoffs.clear();
     this.#root.replaceChildren();
     this.#root.hidden = true;
     this.#onCountChange(0);
   }
 
-  #create(active: ActiveBrowserContribution): MountedContribution {
-    const edits = this.#registry.edits.open(active);
+  #create(active: ActiveBrowserContribution, identity: string, handoffKey: string | undefined): MountedContribution {
+    let slot: symbol | undefined;
+    if (handoffKey !== undefined && active.binding.kind === "element") {
+      const key = `${active.addonId}:${active.descriptor.id}`;
+      const handoff = this.#handoffs.get(key) ?? { slot: Symbol(), key: handoffKey, active };
+      handoff.active = active; this.#handoffs.set(key, handoff); slot = handoff.slot;
+    }
+    const edits = this.#registry.edits.open(active, slot, () => { queueMicrotask(() => this.refresh()); });
     try {
-      return this.#mount(active, edits);
+      return { ...this.#mount(active, edits), identity };
     } catch (cause: unknown) {
-      edits.dispose();
+      edits.dispose("mount-failed");
       throw cause;
     }
   }
