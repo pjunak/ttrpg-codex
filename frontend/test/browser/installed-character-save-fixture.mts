@@ -98,6 +98,8 @@ export function registerCharacterSaveTests(enabled: boolean, fixture: () => Fixt
     await invalidCurrency(page, 'Zachované jméno');
     await status.getByRole('button', { name: 'Zkusit znovu', exact: true }).waitFor();
     assert.match(await status.innerText(), /Vaše změny jsou stále na této stránce/);
+    assert.match(await status.innerText(), /Tato změna neodpovídá pravidlům postavy\./);
+    assert.match(await status.innerText(), /Použijte podporované mince a nezáporné částky\./);
     await page.setViewportSize({ width: 390, height: 1000 });
     await page.waitForFunction(() => (document.querySelector('.campaign-sidebar')?.getBoundingClientRect().right ?? 0) <= 1);
     await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });

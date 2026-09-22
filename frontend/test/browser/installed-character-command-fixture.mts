@@ -5,7 +5,7 @@ import type { Locator, Page } from 'playwright';
 import { createCharacter, openBuilder, save, type Fixture } from './installed-character-builder-fixture.mts';
 import { unloadBlocked } from './installed-planner-navigation-fixture.mts';
 
-async function readyCharacter(f: Fixture, key: string) {
+export async function readyCharacter(f: Fixture, key: string) {
   const inputs = await createCharacter(f, key);
   inputs.build.species = 'dwarf'; inputs.build.background = 'soldier';
   inputs.build.levels = [{ id: 'one', classId: 'fighter' }]; inputs.build.choices = [];

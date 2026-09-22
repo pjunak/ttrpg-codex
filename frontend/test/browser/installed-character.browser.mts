@@ -19,6 +19,7 @@ import { registerCharacterSessionTests } from './installed-character-session-fix
 import { registerCharacterRulesRecoveryTests } from './installed-character-rules-recovery-fixture.mts';
 import { registerCharacterGenerationTests } from './installed-character-generation-fixture.mts';
 import { registerCharacterCommandTests } from './installed-character-command-fixture.mts';
+import { registerCharacterFeedbackTests } from './installed-character-feedback-fixture.mts';
 import { registerCharacterBuilderTests, registerSkillGrantTests } from './installed-character-builder-fixture.mts';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -152,6 +153,7 @@ registerCharacterSessionTests(enabled, () => ({ admin, browser, csrf, origin, ou
 registerCharacterRulesRecoveryTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterGenerationTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterCommandTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerCharacterFeedbackTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterBuilderTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerSkillGrantTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerRepeatableFeatTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
@@ -172,6 +174,16 @@ test('source adoption remains explicit and absent rules freeze mechanics without
  const context=await browser.newContext({storageState:await admin.storageState()});t.after(()=>context.close());const page=await context.newPage();await page.goto(origin+'/#/characters/new-hero');await page.locator('#character-view-addons').click();const sheet=page.locator('.addon-dnd-character');await sheet.getByRole('button',{name:'Heal',exact:true}).waitFor();assert.equal(await sheet.getByRole('button',{name:'Heal',exact:true}).isDisabled(),true);
  assert.equal(await sheet.locator('#dnd-tab-notes').count(),0);assert.equal(await sheet.getByLabel('Character notes',{exact:true}).count(),0);
  await sheet.locator('#dnd-tab-tools').click();const downloadEvent=page.waitForEvent('download');await sheet.getByRole('button',{name:'Export character',exact:true}).click();const download=await downloadEvent,path=await download.path();assert.ok(path);const exported=JSON.parse(await readFile(path,'utf8'));assert.equal(exported.inputs.notes,adopted.state.inputs.notes);assert.equal(exported.externalHistory,undefined);
+ let frozenCatalogCalls = 0;
+ await page.route('**/services/call', async route => { if (route.request().postDataJSON()?.method === 'query-records') frozenCatalogCalls++; await route.continue(); });
+ await page.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await page.reload(); await page.locator('#character-view-addons').click();
+ await sheet.locator('[data-character-status]').waitFor();
+ await page.waitForFunction(() => !document.querySelector('.addon-dnd-character')?.hasAttribute('aria-busy'));
+ assert.equal(frozenCatalogCalls, 0, 'Unavailable evaluation must use the saved projection without live catalog requests');
+ await sheet.locator('[data-character-status]').getByText('Kompatibilní pravidla nejsou dostupná. Uloženou postavu lze nadále číst, tisknout a exportovat.', { exact: true }).waitFor();
+ assert.equal((await call('load', {})).revision, frozen.revision);
+ assert.equal(await sheet.getByLabel('Aktuální životy', { exact: true }).isDisabled(), true);
+ await page.evaluate(() => localStorage.setItem('codex_lang', 'en')); await page.reload();
  const equipment=await call('load',{key:'equipment-slots-en'});assert.equal(equipment.status,'unavailable');
  await page.goto(origin+'/#/characters/equipment-slots-en');await page.locator('#character-view-addons').click();await sheet.locator('#dnd-tab-sheet').click();
  for(const [slot,id] of [['armor','new-armor'],['shield','new-shield']]) {

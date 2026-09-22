@@ -1169,3 +1169,63 @@ were cross-compiled and inspected; Linux execution and live-site acceptance
 remain separate. No commits were pushed or deployed. During authorized
 publication, publish the Sheets commit before the dependent host commit;
 site owners still review and activate its package.
+
+## Localized save feedback and correctable HP
+
+September 23, 2026. T49 completes T33's remaining save-feedback localization.
+The installed Czech currency-rejection regression failed before the fix:
+the surrounding recovery controls were translated, but both the coordinator
+summary and the actual rule blocker remained in English.
+
+Sheets now translates known coordinator responses and Engine blockers in the
+existing shared status area. The current string-based contract uses exact
+catalog entries and 14 bounded, complete-message templates. Numeric limits
+come from the Engine; captured names, IDs, source wording and literal
+placeholders remain unchanged. Unknown or changed diagnostics remain readable
+plain text. No rules calculation, save schema, API or worker change was needed.
+The [feedback contract](../../../addon-dnd-character-sheets/docs/RULES_EDGE_CASES.md#service-feedback)
+records that boundary.
+
+Installed acceptance also exposed a blocked correction: an HP rejection made
+the entire character unready, disabling the same input that needed repair.
+A pending HP blocker now keeps that field editable under the existing
+permissions, while play commands remain blocked. The shared vitals control
+uses a stable focus identity in both layouts, preserving keyboard focus after
+rejection and successful correction. Incomplete builds and unavailable rules
+still cannot enable ordinary HP editing.
+
+A separate provider-free regression failed after loading settled: failed live
+catalog requests replaced the worker's unavailable-rules explanation. Frozen
+reading now uses the saved projection without those requests, keeping the
+translated explanation visible. The installed check waits for loading to finish,
+asserts zero catalog calls, preserves the saved revision and keeps HP disabled.
+
+The [installed feedback cases](../../frontend/test/browser/installed-character-feedback-fixture.mts)
+use real worker rejection, English/Czech, DM/player, Compact/Classic and
+390 px/200% text. They check the exact returned limit, unsaved value, original
+revision, focus and navigation guard; keyboard retry does not write, and
+correction saves once. The existing Czech currency-recovery case now checks the
+summary and blocker text as well as its translated actions. The Czech Classic
+phone screenshot was inspected visually with no horizontal overflow.
+
+Sheets commits: `fce458b` and `4696ae7`. Final source:
+`4696ae7df38e80809d97f578f1bed1e0839174c9`; inspected ZIP SHA-256:
+`027869562ac01f635d5cefec754a7cefc42608d495ddd88c0dd5a85d758f9a42`.
+The host's [companion pins](../../companion-revisions.json) record that exact
+source; the other three companion sources and packages are unchanged.
+
+Validation: Sheets `npm run check` passed **15 module tests** plus Go tests/vet.
+Standalone packaging and host inspection passed. Four focused feedback cases
+passed; after the provider-free correction, five focused creation, play,
+equipment and unavailable-rules cases passed. Against host `452c863` plus this
+batch, full `npm run check` passed **38 tooling, 400 unit and 396 browser tests**,
+zero failures/skips, plus Go tests/vet. The separate
+`node scripts/companion-suite.mts test full` passed **156/156 installed tests**
+with zero failures/skips on the inspected source set. All 33 historical
+release-readiness gates passed.
+
+Checks use disposable local data and native Windows workers. Linux binaries
+were cross-compiled and inspected; Linux execution and live-site acceptance
+remain separate. No commits were pushed or deployed. During authorized
+publication, publish Sheets before the host revision that pins it; site owners
+still review and activate its package.

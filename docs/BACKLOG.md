@@ -1,6 +1,6 @@
 # Project backlog
 
-Work for the five repositories, reviewed September 22, 2026. This remains
+Work for the five repositories, reviewed September 23, 2026. This remains
 one suite backlog; each task belongs to the repository that owns its change.
 Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
@@ -205,7 +205,7 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [ ] **T32 / P1 — Finish progressive-build and equipment validation acceptance.**
   Extend installed acceptance to conditional repeatability, repeated
   spell/resource effects, deeper multiclass progressions and source-specific
-  attunement prerequisites through Sheets T33. Retain accepted regression
+  attunement prerequisites through Sheets. Retain accepted regression
   coverage. Results must remain deterministic, explainable, source-policy aware
   and leave caller inputs unchanged.
 - [ ] **T18-ENGINE / P1, review — Close rules/provider evidence gaps.**
@@ -243,6 +243,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T33-COMMANDS — Recover uncertain play/grant and reviewed-import commands safely**~~ — `6325243`; exact retries, guarded recovery and stale-read protection; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#character-command-recovery-and-uncertain-outcomes).
 - [x] ~~**T33-ADOPTION — Adopt changed rules with pending edits and restore editing**~~ — `a8ff7ce`; explicit recovery, exact retries, conflict protection and readable phone actions; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#explicit-rules-adoption-with-pending-character-edits).
 - [x] ~~**T33-LIFECYCLE — Keep pending inputs and exact retries through rules/provider changes**~~ — `89f8666`; fresh services, original merge bases, guarded recovery and expired-review handling; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#pending-character-edits-across-graph-replacement).
+- [x] ~~**T33 — Finish automatic saving and progressive-builder usability**~~ — `fce458b`, `4696ae7`; localized save explanations, correctable HP and provider-free feedback; prior save/command/lifecycle regressions retained; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#localized-save-feedback-and-correctable-hp).
 
 ### Remaining work
 
@@ -253,10 +254,6 @@ Provider-free saved reading/notes/print/export remain required.
   filtering across class, ritual and [granted rows](../../addon-dnd-character-sheets/src/character-play.ts);
   announce zero matches. Verify both layouts/languages and provider-free saved
   details/print. Engine remains the calculation authority.
-- [ ] **T33 / P1 — Finish automatic saving and progressive-builder usability.**
-  Localize returned save explanations that still fall back to English.
-  Retain the completed save, command, adoption and generation-handoff regressions;
-  pending input stays visibly unsaved and guarded, with no history/device-draft UI.
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
   Build, save/reload, advance, equip, prepare/cast, spend resources, rest, amend
   grants, print/export and review an import using the exact installed ZIP. Cover
@@ -273,7 +270,7 @@ Provider-free saved reading/notes/print/export remain required.
 
 | Order | Work | Exit evidence |
 | --- | --- | --- |
-| 1 | Preserve authored intent: finish Engine T32 + Sheets T33. | Safe role/stale/error behavior; incomplete character saves and bounded play work through the installed contract. |
+| 1 | Preserve authored intent: finish Engine T32 acceptance using the completed Sheets T33 workflow. | Safe role/stale/error behavior; incomplete character saves and bounded play work through the installed contract. |
 | 2 | Everyday use: Sheets T25, Compendium T31; execute each repository's T18 review and fix its concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
 | 3 | Remaining add-on artifact ownership: per-repo T14. T08 only for a real schema-preservation need. | Standalone builds and inspected ZIPs preserve current consumer contracts; any needed migration is reviewed and atomic. |
 | 4 | Final integration after remaining add-on T18 fixes; retain completed T02 coverage. | All four inspected ZIPs pass without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
