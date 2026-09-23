@@ -1377,3 +1377,86 @@ and live-site acceptance are separate. No publication or deployment was
 performed. During authorized publication, make the companion commits available
 before the dependent host revision and activate the supporting Engine before
 the new source package through ordinary review.
+
+## Multiclass progression and source-specific attunement
+
+September 23, 2026. T52 completes T32's remaining progressive-build and
+equipment validation acceptance. Whole-session and device acceptance stays in
+T18; this is not an exhaustive proof of every rules combination.
+
+Three calculation defects were reproduced with synthetic source records.
+Pact Magic incorrectly made one Spellcasting class use the combined table,
+reducing an Eldritch Knight's slots. An ordinary subclass feature table could
+replace its class's spell progression. A later class without a reduced
+proficiency declaration received its starting armor, weapon and tool training.
+The Engine now selects the owning spell table, counts only Spellcasting
+classes for the combined pool, and shares the initial-versus-later proficiency
+decision across skills, equipment training and weapon attacks. Per-class
+preparation limits remain independent of shared slots. These decisions follow
+the [official multiclass rules](https://www.dndbeyond.com/sources/dnd/br-2024/creating-a-character#Multiclassing)
+and the generic [Engine contract](../../../addon-dnd-engine/contract/README.md).
+
+The Compendium declares existing restrictions on 21 DMG items: 13 named-class
+requirements, seven intrinsic-spellcaster requirements, and Dwarven Thrower's
+unsupported species/item condition as an explicit adjudication requirement.
+The Engine interprets generic class minimums and intrinsic spell capability,
+including trait/feat casting; item-granted spells cannot qualify another item,
+and spent uses do not remove eligibility. This follows the
+[official attunement rules](https://www.dndbeyond.com/sources/dnd/br-2024/magic-items).
+Record IDs and prose are unchanged. These declarations do not implement item
+charges, actions or effects; those still require typed source mechanics or
+authenticated DM adjudication. See the
+[source schema](../../../addon-dnd-2024-compendium/data/SCHEMA.md#item-attunement-prerequisites).
+
+Five [installed acceptance cases](../../frontend/test/browser/installed-character-multiclass-fixture.mts)
+cover:
+
+- Eldritch Knight 4/Warlock 1 advancing to Knight 7/Warlock 1/Wizard 3,
+  separate and shared slots, cross-pool casting, higher-level preparation
+  rejection, upcasting, short/long rests and preserved spent uses and notes.
+- Named-class versus Magic Initiate qualification, rejected loss of a required
+  trait, and unchanged stored state after rejection.
+- An exact independent DM waiver for an unsupported requirement, blocked
+  withdrawal while attuned, then explicit unattunement and withdrawal while
+  retaining the item's other grant and notes.
+- English/Czech keyboard attunement and class-removal repair in Compact/Classic
+  at 390 px and 200% text, retained inventory metadata, reload and no horizontal
+  overflow. These use explicit manual-effect grants, not automated item powers.
+
+The phone cases exposed focus falling to the document body after a repair
+disabled its own action. The shared Sheets focus helper now moves to the next
+usable control within the same declared item row, or the preceding control if
+necessary. It retains host controls, semantic styling and Engine eligibility.
+Both locales assert focus on the same item's location field after unattunement;
+the Czech before/after screenshots were visually inspected. The approach
+preserves a related [keyboard focus order](https://www.w3.org/WAI/WCAG22/Understanding/focus-order.html)
+without introducing an item-specific widget.
+
+| Repository | Source commit | Inspected ZIP SHA-256 |
+|---|---|---|
+| Engine | `a3c5d0a66c945443be4db6fa25be2a12d54a5f9b` | `caaa1aaa4a2617e076986be2b00ad665807a05c11615cbb72216165b07dfe281` |
+| Sheets | `28bc2ea900bbc2844dc02781b08eeda2b7f6a8af` | `9862d847d3440d9236e10b266d423fb36184b802aafcc1a7da0a8995b907e484` |
+| Compendium | `00495d31446e7f4a9bc13a3e1279d1d002d03d2c` | `e5a6bbc9876d26f7f03c9d214239b70038aa247a38b142bd5f49f87451291dc4` |
+
+The [host pins](../../companion-revisions.json) record these sources; DM Tools
+is unchanged. Engine Go tests/vet, Compendium `npm run check` (**67 tests**),
+Sheets `npm run check` (**17 module tests** plus Go tests/vet), and all three
+standalone package builds/host inspections passed. Synthetic regressions
+cover missing proficiency declarations, class/subclass spell-table ownership,
+Pact class order, per-class preparation and detached attunement inputs.
+The historical parity data remains unchanged; comparisons explicitly record
+the corrected source-owned spell table and absent reduced proficiencies.
+
+Against host `8543f07` plus this batch, full `npm run check` passed
+**38 tooling, 400 unit and 409 browser tests**, zero failures/skips, plus Go
+tests/vet. The separate `node scripts/companion-suite.mts test full` passed
+**169/169 installed tests**, zero failures/skips, against the exact committed
+source set and inspected packages above. All **33 release-readiness gates**
+and **178 local document links/anchors** passed.
+
+Checks use disposable local data and native Windows workers. Linux workers
+are cross-compiled and inspected; native Linux execution, human assistive
+technology, physical touch/printing and live-site acceptance remain separate.
+No publication or deployment occurred. During authorized delivery, publish
+the companion commits before the dependent host revision and activate the
+supporting Engine before the new source package through ordinary review.

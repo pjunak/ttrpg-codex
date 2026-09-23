@@ -13,6 +13,7 @@ import { chromium, request, type APIRequestContext, type Browser } from 'playwri
 import { jsonResponse, installReviewedPackage, enableAllRuleSources } from './installed-graph-fixture.mts';
 import { registerOriginChoiceTests } from './installed-character-origin-fixture.mts';
 import { registerEquipmentTests } from './installed-character-equipment-fixture.mts';
+import { registerMulticlassAcceptanceTests } from './installed-character-multiclass-fixture.mts';
 import { registerRepeatableFeatTests } from './installed-character-repeatable-fixture.mts';
 import { registerSpellOwnershipTests, verifyFrozenSpellDetails } from './installed-character-spell-fixture.mts';
 import { registerConditionalFeatTests } from './installed-character-conditional-feat-fixture.mts';
@@ -163,6 +164,7 @@ registerConditionalFeatTests(enabled, () => ({ admin, browser, csrf, origin, out
 registerSpellOwnershipTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerOriginChoiceTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerEquipmentTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerMulticlassAcceptanceTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 
 test('source adoption remains explicit and absent rules freeze mechanics without a sheet Notes surface', {skip:!enabled},async t=>{
  const before=await call('load',{}),policy=await jsonResponse(await admin.get('/api/admin/rules-policy'));

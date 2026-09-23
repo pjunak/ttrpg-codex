@@ -111,8 +111,11 @@ remains separate from recovery in a mounted view. The
 [conditional feat cases](../../frontend/test/browser/installed-character-conditional-feat-fixture.mts)
 check repeated source choices, rejected duplicates, keyboard correction, dependent
 withdrawal, independent ability increases and bounded DM grants through the same
-Builder controls in English/Czech at 390 px and 200% text. Future work belongs in the
-[suite backlog](../BACKLOG.md).
+Builder controls in English/Czech at 390 px and 200% text. The
+[multiclass and attunement cases](../../frontend/test/browser/installed-character-multiclass-fixture.mts)
+cover deeper progression, separate Pact/Spellcasting pools, per-class preparation,
+source prerequisites, explicit DM waiver withdrawal and keyboard repair without
+losing the current item. Future work belongs in the [suite backlog](../BACKLOG.md).
 
 ## Retirement and data implications
 
