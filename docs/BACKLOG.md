@@ -214,8 +214,9 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
   Combine complex progression and DM effects with missing, changed or incompatible
   providers, sourcebook removal and stale generations. Preserve authored play
   through recalculation and separate narrative adjudication (C10) from bugs.
-  T53 accepts representative session/transfer preservation; retain pure, service
-  and exact-package evidence without claiming exhaustive rules correctness.
+  T53/T55 accept session/transfer preservation, amended DM effects, provider
+  restart and source adoption; retain pure, service and exact-package evidence
+  without claiming exhaustive rules correctness.
   Investigate the one unexplained rules-availability loss during T53 validation;
   character setup captures provider diagnostics if it recurs. T54's 13-case
   diagnostic replay passed without reproducing it; no cause is established.
@@ -252,16 +253,17 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T52-SHEETS — Keep keyboard focus within repaired inventory items**~~ — `28bc2ea`; shared focus fallback after actions become disabled, both layouts/locales and enlarged phones; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-progression-and-source-specific-attunement).
 - [x] ~~**T53-SHEETS — Preserve reviewed transfers and complete saved print output**~~ — `3931526`; grant-owned choices/resources, visible import errors/focus and printed currency/identity; [session acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#character-session-transfer-and-saved-output).
 - [x] ~~**T54-SHEETS — Complete UI creation and preserve spell selection context**~~ — `29838b2`, `93396af`; shared picker focus/filters, readable enlarged ability cards and Fighter/Wizard creation-to-play; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#blank-to-ready-creation-and-stable-spell-selection).
+- [x] ~~**T55-SHEETS — Preserve amended grants and usable effect editing**~~ — `b9319d3`; detached saved state, stable grant/item ownership, shared searches and keyboard/phone editing through provider restart and source adoption; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#dm-grant-amendments-and-provider-transitions).
 
 ### Remaining work
 
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
-  Extend accepted creation/play into complex amended-grant and provider/schema
-  transitions, retaining worker-only extension and archive-preservation gates.
-  T54 accepts blank-to-ready Fighter/Wizard UI creation, preparation/casting/rest,
-  both roles/layouts/locales, enlarged phone/keyboard use and frozen state; T53
-  accepts seeded-session transfers and output. Human screen-reader, physical
-  touch and printer checks remain separate from browser/PDF evidence.
+  Extend accepted sessions into incompatible-provider and schema transitions,
+  retaining worker-only extension and archive-preservation gates. T55 accepts
+  multi-grant amendments, item rebinding, spent uses, provider restart and source
+  adoption; T54 covers creation and first play, T53 transfer/output. Human
+  screen-reader, physical touch and printer checks remain separate from
+  browser/PDF evidence.
 - [ ] **T14-SHEETS / P2 — Remove generated browser/worker output from source ownership.**
   Migrate schema/type generation, package/test and host fixture consumers first;
   preserve deterministic standalone packaging and host inspection with T14-HOST.

@@ -11,6 +11,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import type { Readable } from 'node:stream';
 import { chromium, request, type APIRequestContext, type Browser } from 'playwright';
 import { jsonResponse, installReviewedPackage, enableAllRuleSources } from './installed-graph-fixture.mts';
+import { registerCharacterGrantTests } from './installed-character-grant-fixture.mts';
 import { registerCharacterCreationTests, verifyFrozenCreatedCharacters } from './installed-character-creation-fixture.mts';
 import { registerOriginChoiceTests } from './installed-character-origin-fixture.mts';
 import { registerEquipmentTests } from './installed-character-equipment-fixture.mts';
@@ -169,6 +170,7 @@ registerEquipmentTests(enabled, () => ({ admin, browser, csrf, origin, output, c
 registerMulticlassAcceptanceTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterOutputTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterCreationTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerCharacterGrantTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 
 test('source adoption remains explicit and absent rules freeze mechanics without a sheet Notes surface', {skip:!enabled},async t=>{
  const before=await call('load',{}),policy=await jsonResponse(await admin.get('/api/admin/rules-policy'));

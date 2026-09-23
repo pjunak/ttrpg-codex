@@ -1623,3 +1623,80 @@ remain cross-compiled and inspected rather than natively exercised here.
 Broader amended-grant/provider/schema combinations and human assistive-technology,
 physical touch/printing and live-site acceptance remain open under T18.
 No publication, deployment or production data change occurred.
+
+## DM grant amendments and provider transitions
+
+September 23, 2026. T55 covers amended multi-grant sessions within T18-SHEETS
+and T18-ENGINE using installed, reviewed packages and disposable campaign data.
+
+The coordinator decoded a copy over existing Go slices/maps, which could change
+the saved snapshot while preparing an amendment. Rejected or unavailable
+commands could then return proposed values as though they were saved.
+A fresh detached input now protects both saved and supplied values. Amendments
+retain grant identity and list position, update current DM provenance, and
+clear obsolete item links when moved or revoked. Unrelated grants and authored
+inventory remain intact. Coordinator regressions cover rebinding, detaching,
+revocation and unchanged rejection/unavailability responses.
+
+The shared create/amend form previously rebuilt every effect control after a
+target change, losing keyboard position. It now retains each row and gives it a
+unique field identity and named group. Adding an effect focuses its target;
+removing one focuses a surviving row or Add effect. Required controls use
+native form validation, leaving incomplete effects editable in the dialog.
+Feat and item choices borrow the existing host ui.controls.v1 combobox.
+The Sheets worker retains DM authorization; the Engine retains mechanical
+validation.
+
+This treatment follows the logical focus flow described by the
+[WAI dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/)
+and the browser constraint-validation behavior documented by
+[MDN](https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Forms/Form_validation).
+No replacement combobox or rules calculation was added to the sheet UI.
+Phone screenshot review also found that repeated panel padding squeezed action
+labels into broken words. Shared dialog spacing now adapts to available width,
+and effect headings expose the full selected name with wrapping text even when
+the native select's single-line value is clipped at 200% text.
+
+[Installed grant acceptance](../../frontend/test/browser/installed-character-grant-fixture.mts)
+runs English Compact and Czech Classic sessions. Each starts with two independent
+Magic Initiate acquisitions and spends both free casts, then performs the
+following through the installed grant editor:
+
+- Add, change and remove typed effects while retaining focus and sibling values.
+- Reject an incomplete effect without a command or saved revision.
+- Search an item, apply an ability/speed amendment, and retain acquisition IDs,
+  other grants, spell choices and spent uses.
+- Rebind that grant to another item and clear its old item reference.
+- Restart the rules worker without rewriting the saved snapshot or rules identity.
+- Change an unused allowed source, explicitly adopt that rules revision, and
+  preserve every authored input apart from the evaluation timestamp.
+- Revoke the amended grant, reverse its effects, and retain the surviving
+  acquisition's spent cast, inventory, notes and current HP through reopening.
+
+The fixture checks 390 px / 200% dialog overflow, readable action wrapping,
+complete effect headings and both language layouts. Both final screenshots
+were visually inspected. Existing uncertain grant/amendment/revocation retry
+cases also pass, preserving exactly one action after a lost acknowledgment.
+
+Sheets commit `b9319d30f6e24964ab3958a070a9c9c3caa242b8` includes the code,
+coordinator regressions, localized labels and regenerated web/native workers.
+Its inspected ZIP SHA-256 is
+`744007cc711a230edf68e4c11b58ef9ea4e53a5fab6432e1a25e181a3dc166cf`.
+Sheets `npm run check` passed its 17 module tests, Go tests and vet; standalone
+packaging, host inspection and focused installed acceptance passed. The host
+pins that source. Other companion revisions and archive hashes are unchanged
+from T54; all four companion worktrees are clean.
+
+Against host `cff6c4c` plus this batch, complete `npm run check` passed
+**38 tooling, 400 unit and 417 browser tests**, zero failures/skips, plus Go
+tests and vet. Local documentation links and anchors passed (**166 checks**).
+Strict installed acceptance passed **177/177 tests**, zero failures/skips,
+against the four pinned sources and inspected archives above. All **33
+release-readiness gates** passed. The earlier unexplained availability loss did
+not recur in either full run; its cause remains unproven.
+
+These checks exercise native Windows workers. Linux workers are cross-compiled
+and inspected, with native Linux acceptance left to CI. Incompatible-provider
+and schema transitions, broader progression combinations, the unexplained T53
+availability loss and human assistive-technology/physical-device acceptance
+remain in T18. No publication, deployment or production data change occurred.
