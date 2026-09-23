@@ -15,7 +15,15 @@ export async function createCharacter(f: Fixture, key: string) {
       value: { id: key, name: key, knowledge: 4, visibility: 'public' },
     }] },
   }));
-  const loaded = await f.call('load', { key }), inputs = loaded.evaluation.inputs;
+  const loaded = await f.call('load', { key });
+  if (loaded.status !== 'ready' || !loaded.evaluation) {
+    const providers = await Promise.all(['dnd-sheets', 'dnd-engine', 'dnd-2024-compendium'].map(async id => {
+      const snapshot = await jsonResponse(await f.admin.get('/api/admin/addons/' + id));
+      return { id, state: snapshot.state, runtime: snapshot.runtime };
+    }));
+    assert.fail('Character creation requires connected rules: ' + JSON.stringify({ key, loaded, providers }));
+  }
+  const inputs = loaded.evaluation.inputs;
   inputs.build.method = 'array'; inputs.build.baseScores = { STR: 15, DEX: 14, CON: 13, INT: 12, WIS: 10, CHA: 8 };
   return inputs;
 }

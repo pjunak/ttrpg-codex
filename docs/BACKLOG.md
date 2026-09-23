@@ -206,17 +206,18 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T32-CONDITIONAL — Enforce distinct finite feat choices per acquisition**~~ — `a5ffae9`; capacity, repair, source changes and DM withdrawal; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#conditional-feat-choices-and-repetition-limits).
 - [x] ~~**T32-SPELLS — Preserve acquisition-owned spells/resources and correct multiclass skills**~~ — `9f90e4b`; casts, rests, replacement and saved aliases; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#acquisition-owned-spell-grants-and-complete-combat-details).
 - [x] ~~**T32 — Complete progressive-build and equipment validation acceptance**~~ — `a3c5d0a`; deeper multiclass progressions, source-owned attunement and preserved inputs; prior feat, spell, resource and equipment regressions retained; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-progression-and-source-specific-attunement).
+- [x] ~~**T53-ENGINE — Preserve acquired state during grant reauthorization**~~ — `c5a9be7`; detached identity remapping, unchanged spent uses and rejected collisions; [session acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#character-session-transfer-and-saved-output).
 
 ### Remaining work
 
 - [ ] **T18-ENGINE / P1, review — Close rules/provider evidence gaps.**
-  Use representative single/multiclass builds through level changes, spells,
-  granted casts, resources/rest, HP, inventory and DM effects. Check missing,
-  changed and incompatible providers, sourcebook removal, stale generations and
-  unsupported prerequisites. Preserve saved play values through recalculation;
-  separate unsupported narrative effects (C10) from calculation bugs. Run pure,
-  service and installed consumer checks on exact packages; no exhaustive rules
-  correctness claim from a small set of happy-path fixtures.
+  Combine complex progression and DM effects with missing, changed or incompatible
+  providers, sourcebook removal and stale generations. Preserve authored play
+  through recalculation and separate narrative adjudication (C10) from bugs.
+  T53 accepts representative session/transfer preservation; retain pure, service
+  and exact-package evidence without claiming exhaustive rules correctness.
+  Investigate the one unexplained rules-availability loss during T53 validation;
+  character setup now captures provider diagnostics if it recurs.
 - [ ] **T14-ENGINE / P2 — Move native binaries to generated/release artifacts.**
   Replace worker/package/host-fixture consumers before removing tracked binaries;
   preserve reproducible target builds and record actual native execution apart
@@ -248,17 +249,17 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T50-SHEETS — Explain conditional feat limits in both locales**~~ — `eab091d`; existing shared controls and feedback; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#conditional-feat-choices-and-repetition-limits).
 - [x] ~~**T25 — Restore Combat details and shared spell filters**~~ — `23d63d7`; saved-state repair, both layouts/locales, phone and provider-free print; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#acquisition-owned-spell-grants-and-complete-combat-details).
 - [x] ~~**T52-SHEETS — Keep keyboard focus within repaired inventory items**~~ — `28bc2ea`; shared focus fallback after actions become disabled, both layouts/locales and enlarged phones; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-progression-and-source-specific-attunement).
+- [x] ~~**T53-SHEETS — Preserve reviewed transfers and complete saved print output**~~ — `3931526`; grant-owned choices/resources, visible import errors/focus and printed currency/identity; [session acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#character-session-transfer-and-saved-output).
 
 ### Remaining work
 
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
-  Build, save/reload, advance, equip, prepare/cast, spend resources, rest, amend
-  grants, print/export and review an import using the exact installed ZIP. Cover
-  Compact/Classic, sparse/complex characters, DM/player, English/Czech, phone,
-  keyboard and 200% zoom. Check provider-free reading and clearly disabled
-  mechanics. Verify the host worker-only extension boundary, provider/schema
-  incompatibility and preserved existing archives during upgrades. Record human
-  screen-reader, physical touch and printer checks separately from browser/PDF tests.
+  Complete blank-to-ready UI creation followed by complex play, preparation,
+  amended grants and provider/schema transitions. Cover sparse/complex characters,
+  both roles/layouts, English/Czech and enlarged phone/keyboard use. Retain
+  worker-only extension and archive-preservation gates. T53 accepts the seeded
+  session, transfer and frozen output; human screen-reader, physical touch and
+  printer checks remain separate from browser/PDF evidence.
 - [ ] **T14-SHEETS / P2 — Remove generated browser/worker output from source ownership.**
   Migrate schema/type generation, package/test and host fixture consumers first;
   preserve deterministic standalone packaging and host inspection with T14-HOST.

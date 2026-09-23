@@ -75,7 +75,10 @@ The Engine owns eligibility, including active DM mechanics and grant expiry.
 Tools contains the only export option, plus reviewed import, printing, layout,
 and rules status. A transfer contains the current character only. Import
 requires exact replacement confirmation and reauthorization of imported DM
-grants; file and paste use the same limits. Print uses the saved projection.
+grants; their acquired choices, spells, spent counters and item links retain the
+same values under fresh authenticated identities. File and paste use the same
+limits, with correctable local errors kept inside the dialog. Print uses the
+saved projection and includes origin, class/level and currency by default.
 
 Without compatible rules, saved values, printing and export remain usable.
 Changed rules require explicit adoption in Tools before mechanical edits. When
@@ -115,7 +118,12 @@ Builder controls in English/Czech at 390 px and 200% text. The
 [multiclass and attunement cases](../../frontend/test/browser/installed-character-multiclass-fixture.mts)
 cover deeper progression, separate Pact/Spellcasting pools, per-class preparation,
 source prerequisites, explicit DM waiver withdrawal and keyboard repair without
-losing the current item. Future work belongs in the [suite backlog](../BACKLOG.md).
+losing the current item. The
+[session transfer and output cases](../../frontend/test/browser/installed-character-output-fixture.mts)
+exercise advancement, equipment, HP, granted casts/rests, reload, real export,
+review cancellation/replacement and saved printing as a continuous journey.
+They also check player authorization and frozen output after provider removal.
+Future work belongs in the [suite backlog](../BACKLOG.md).
 
 ## Retirement and data implications
 

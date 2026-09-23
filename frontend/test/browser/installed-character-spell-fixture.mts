@@ -6,7 +6,7 @@ import { readyCharacter } from './installed-character-command-fixture.mts';
 
 type Row = Record<string, any>;
 const owner = (id: string) => 'feat:magic-initiate@' + encodeURIComponent('grant:' + id);
-async function spellCharacter(f: Fixture, key: string, count = 3) {
+export async function spellCharacter(f: Fixture, key: string, count = 3) {
   let stored = await readyCharacter(f,key);
   for(const [index,list] of ['wizard','cleric','druid'].slice(0,count).entries()) {
     const previous=new Set(stored.state.inputs.grants.map((grant:Row)=>grant.id));

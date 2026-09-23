@@ -1460,3 +1460,98 @@ technology, physical touch/printing and live-site acceptance remain separate.
 No publication or deployment occurred. During authorized delivery, publish
 the companion commits before the dependent host revision and activate the
 supporting Engine before the new source package through ordinary review.
+
+## Character session transfer and saved output
+
+September 23, 2026. T53 completes a continuous-session transfer/output slice
+of T18-ENGINE and T18-SHEETS. The broader acceptance rows remain open.
+
+A real export containing a DM-granted feat and its chosen spells failed import:
+reauthorization replaced the grant ID but left its acquired choices and spent
+resources pointing to the old owner. The coordinator also modified slices
+belonging to the supplied export. The Engine now owns one acquisition encoder
+and a pure, detached reference remapper. Sheets authenticates the current DM,
+rejects ambiguous grant IDs, remaps the acquired state and stamps fresh grant
+provenance before the existing exact review/commit path. Counters retain their
+spent amounts; imports cannot refresh allowances by changing identity.
+
+[Engine regressions](../../../addon-dnd-engine/character/grant_references_test.go)
+cover nested owners, all supported reference fields, simultaneous ID swaps,
+collisions, invalid encoding and unchanged authored values/caller input.
+[Coordinator regressions](../../../addon-dnd-character-sheets/internal/character/import_inputs_test.go)
+cover authenticated provenance, preserved acquired choices/resources/item links,
+imported claim markers and rejected empty/duplicate identities.
+
+Printed sheets omitted currency, and basic character identity appeared only
+when extra provenance was selected. Print now includes saved species/lineage/background,
+class levels and every stored currency value. Turning off equipment or spells
+does not hide currency or identity. Labels come from saved evidence and mechanics
+from the saved projection; neither printing nor export recalculates or saves.
+
+Local import errors previously appeared behind the modal. File parsing/size and
+missing-DM-authorization errors now remain visible inside it with input preserved.
+The replacement review focuses its heading, and cancellation returns focus to
+the current Import action after rendering. This uses the existing shared dialog,
+notice and focus conventions, following the
+[WAI-ARIA modal-dialog guidance](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/).
+Server authorization remains mandatory; a forged player approval is rejected.
+
+Four [installed acceptance cases](../../frontend/test/browser/installed-character-output-fixture.mts)
+cover:
+
+- English Compact and Czech Classic journeys starting from an API-seeded ready
+  Fighter with an authenticated Magic Initiate grant. UI actions advance a level,
+  equip a shield, change currency, take damage, cast, rest and reload. Raising
+  maximum HP does not heal; short/long rest preserve/reset the declared allowance.
+- Actual downloaded exports, canceled and confirmed replacement reviews, fresh
+  grant provenance, unchanged choice/spell/resource values and inventory notes.
+  Cancellation writes nothing and restores the Import button's focus.
+- Default and reduced print options, literal item-note text, saved identity and
+  currency, PDF generation and phone Tools at 390 px with 200% text.
+- Player export, in-dialog authorization feedback with preserved input, absence
+  of the DM approval control and rejection of a forged server request.
+
+The existing [standalone-package cases](../../frontend/test/browser/installed-sheets.browser.mts)
+now verify malformed pasted/file input, oversized-file rejection, retained text,
+visible error focus and return to Import for DM/player without an Engine.
+Full English print-media and enlarged Czech phone screenshots were visually
+inspected; the output remains readable without horizontal overflow.
+
+The final provider-removal case also reopens both session characters, exports
+their frozen inputs and prints their saved details without changing revisions.
+This is a continuous play/transfer journey after a seeded ready character,
+not an end-to-end UI creation test from a blank sheet.
+
+| Repository | Source commit | Inspected ZIP SHA-256 |
+|---|---|---|
+| Engine | `c5a9be713512472287479f045ebbabaf928b7648` | `1376e1d672e40a43b190d5097dc0429eafb41c0688ffbcea02401be13230cdea` |
+| Sheets | `3931526d50b9c982b48afd5522f1558340aafff5` | `5defd40d878ad845ac431833451ef3643f7e6bb7c6e914c13532e7c1733c9a2d` |
+| Compendium (unchanged) | `00495d31446e7f4a9bc13a3e1279d1d002d03d2c` | `e5a6bbc9876d26f7f03c9d214239b70038aa247a38b142bd5f49f87451291dc4` |
+| DM Tools (unchanged) | `0eeac9bc84f50836fa30f134b5edee9358656676` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+
+The [host source pins](../../companion-revisions.json) record this compatible set.
+Engine Go tests/vet and Sheets `npm run check` (**17 module tests** plus Go
+tests/vet) passed. Both standalone builds and host inspections passed.
+
+The strict installed publication suite passed **173/173 tests**, zero failures
+or skips, against the exact committed source set above. All four companion
+worktrees were clean after package preparation. **33 release-readiness gates**
+passed.
+
+One intermediate full host run unexpectedly lost rules availability during
+character setup; its later failures followed from the absent evaluation. The
+previous fixture dereferenced that result without recording provider state, so
+the cause was not established. Setup now emits bounded administrative lifecycle
+and worker diagnostics on unexpected unavailability. Both the final strict and complete host runs passed
+without recurrence; T18 retains follow-up if the outage recurs. No production
+timeout, retry or health policy was weakened.
+
+Against host `38f5314` plus this batch, final `npm run check` passed
+**38 tooling, 400 unit and 413 browser tests**, zero failures/skips, plus Go
+tests/vet. **174 local document links/anchors** passed.
+
+Checks use disposable local data and native Windows workers. Linux workers
+are cross-compiled and inspected; native Linux execution, human assistive
+technology, physical touch/printing and live-site acceptance remain separate.
+T18 retains blank-to-ready UI creation and broader complex-session/provider
+combinations. No publication, deployment or production data change occurred.

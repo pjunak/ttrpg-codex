@@ -75,11 +75,23 @@ for (const role of ['dm', 'player']) test(`standalone character package retains 
   await sheet.locator('#dnd-tab-tools').click(); await sheet.getByRole('button', { name: 'Import character', exact: true }).click();
   const dialog = sheet.getByRole('dialog');
   assert.equal(await dialog.getByRole('checkbox', { name: 'Authorize imported DM grants as the current DM', exact: true }).count(), role === 'dm' ? 1 : 0);
-  await dialog.getByLabel('Or paste the export', { exact: true }).fill('{"v":3,"hp":21}');
+  const invalid = '{"v":3,"hp":21}', area = dialog.getByLabel('Or paste the export', { exact: true });
+  if (role === 'dm') await area.fill(invalid);
+  else {
+    await dialog.getByLabel('Choose a file', { exact: true }).setInputFiles({ name: 'legacy.json', mimeType: 'application/json', buffer: Buffer.from(invalid) });
+    await page.waitForFunction(value => document.querySelector<HTMLTextAreaElement>('dialog[open] textarea')?.value === value, invalid);
+  }
   await dialog.getByRole('button', { name: 'Review import', exact: true }).click();
-  assert.match(await sheet.locator('[data-character-status]').textContent() ?? '', /Choose a current character export without history\./);
+  const error = dialog.getByRole('alert');
+  assert.match(await error.innerText(), /Choose a current character export without history\./);
+  assert.equal(await error.evaluate(node => node === document.activeElement), true);
+  assert.equal(await area.inputValue(), invalid);
+  await dialog.getByLabel('Choose a file', { exact: true }).setInputFiles({ name: 'oversized.json', mimeType: 'application/json', buffer: Buffer.alloc(1000001, ' ') });
+  await error.filter({ hasText: 'This character file exceeds the import limit.' }).waitFor();
+  assert.equal(await area.inputValue(), invalid, 'Rejected files must preserve the entered text');
+  assert.equal(await error.evaluate(node => node === document.activeElement), true);
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
-  assert.equal(await sheet.getByRole('button', { name: 'Import character', exact: true }).evaluate(node => node === document.activeElement), true);
+  await page.waitForFunction(() => document.activeElement?.getAttribute('data-focus-key') === 'import-character');
   assert.equal(await unloadBlocked(page), false);
   await page.reload(); await page.locator('#character-view-addons').click(); await sheet.locator('#dnd-tab-tools').click();
   assert.equal(await sheet.getByRole('combobox', { name: 'Sheet layout', exact: true }).inputValue(), 'classic');
