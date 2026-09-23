@@ -217,7 +217,8 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
   T53 accepts representative session/transfer preservation; retain pure, service
   and exact-package evidence without claiming exhaustive rules correctness.
   Investigate the one unexplained rules-availability loss during T53 validation;
-  character setup now captures provider diagnostics if it recurs.
+  character setup captures provider diagnostics if it recurs. T54's 13-case
+  diagnostic replay passed without reproducing it; no cause is established.
 - [ ] **T14-ENGINE / P2 — Move native binaries to generated/release artifacts.**
   Replace worker/package/host-fixture consumers before removing tracked binaries;
   preserve reproducible target builds and record actual native execution apart
@@ -250,16 +251,17 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T25 — Restore Combat details and shared spell filters**~~ — `23d63d7`; saved-state repair, both layouts/locales, phone and provider-free print; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#acquisition-owned-spell-grants-and-complete-combat-details).
 - [x] ~~**T52-SHEETS — Keep keyboard focus within repaired inventory items**~~ — `28bc2ea`; shared focus fallback after actions become disabled, both layouts/locales and enlarged phones; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-progression-and-source-specific-attunement).
 - [x] ~~**T53-SHEETS — Preserve reviewed transfers and complete saved print output**~~ — `3931526`; grant-owned choices/resources, visible import errors/focus and printed currency/identity; [session acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#character-session-transfer-and-saved-output).
+- [x] ~~**T54-SHEETS — Complete UI creation and preserve spell selection context**~~ — `29838b2`, `93396af`; shared picker focus/filters, readable enlarged ability cards and Fighter/Wizard creation-to-play; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#blank-to-ready-creation-and-stable-spell-selection).
 
 ### Remaining work
 
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
-  Complete blank-to-ready UI creation followed by complex play, preparation,
-  amended grants and provider/schema transitions. Cover sparse/complex characters,
-  both roles/layouts, English/Czech and enlarged phone/keyboard use. Retain
-  worker-only extension and archive-preservation gates. T53 accepts the seeded
-  session, transfer and frozen output; human screen-reader, physical touch and
-  printer checks remain separate from browser/PDF evidence.
+  Extend accepted creation/play into complex amended-grant and provider/schema
+  transitions, retaining worker-only extension and archive-preservation gates.
+  T54 accepts blank-to-ready Fighter/Wizard UI creation, preparation/casting/rest,
+  both roles/layouts/locales, enlarged phone/keyboard use and frozen state; T53
+  accepts seeded-session transfers and output. Human screen-reader, physical
+  touch and printer checks remain separate from browser/PDF evidence.
 - [ ] **T14-SHEETS / P2 — Remove generated browser/worker output from source ownership.**
   Migrate schema/type generation, package/test and host fixture consumers first;
   preserve deterministic standalone packaging and host inspection with T14-HOST.

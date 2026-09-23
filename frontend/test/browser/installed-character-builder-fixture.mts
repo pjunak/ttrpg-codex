@@ -8,7 +8,7 @@ export interface Fixture {
   admin: APIRequestContext; browser: Browser; csrf: string; origin: string; output: string;
   call(method: string, params: Record<string, unknown>): ReturnType<typeof jsonResponse>;
 }
-export async function createCharacter(f: Fixture, key: string) {
+export async function createCharacterRecord(f: Fixture, key: string) {
   await jsonResponse(await f.admin.post('/api/campaign/transactions', {
     headers: { 'X-Codex-CSRF': f.csrf }, data: { contractVersion: 'campaign-mutation.v1', mutations: [{
       operation: 'put', collection: 'characters', key, expectedRevision: 0,
@@ -23,6 +23,10 @@ export async function createCharacter(f: Fixture, key: string) {
     }));
     assert.fail('Character creation requires connected rules: ' + JSON.stringify({ key, loaded, providers }));
   }
+  return loaded;
+}
+export async function createCharacter(f: Fixture, key: string) {
+  const loaded = await createCharacterRecord(f, key);
   const inputs = loaded.evaluation.inputs;
   inputs.build.method = 'array'; inputs.build.baseScores = { STR: 15, DEX: 14, CON: 13, INT: 12, WIS: 10, CHA: 8 };
   return inputs;

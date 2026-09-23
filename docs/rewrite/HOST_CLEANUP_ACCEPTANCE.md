@@ -1555,3 +1555,71 @@ are cross-compiled and inspected; native Linux execution, human assistive
 technology, physical touch/printing and live-site acceptance remain separate.
 T18 retains blank-to-ready UI creation and broader complex-session/provider
 combinations. No publication, deployment or production data change occurred.
+
+## Blank-to-ready creation and stable spell selection
+
+September 23, 2026. T54 accepts representative UI creation followed by saved
+play within T18-SHEETS. The host creates only an empty public character article;
+all sheet inputs, origin choices, abilities, class choices and spell selections
+are entered through the installed UI. Service reads verify the results without
+seeding a ready sheet or writing decisions behind the controls.
+
+[Installed acceptance](../../frontend/test/browser/installed-character-creation-fixture.mts)
+covers an English Compact Fighter as DM using point buy, and a Czech Classic
+Wizard as player using the standard array and Sage origin. Guided next-choice
+navigation completes the required tool, ability, skill, cantrip, spellbook and
+origin spell/casting-ability selections. The player has no DM-grant action.
+Both characters enter play, rest, change currency and preserve their exact saved
+state and layout on reload. The Wizard additionally prepares/unprepares a spell,
+casts with an ordinary slot and an origin allowance, and recovers both on a long
+rest. The final provider-removal case preserves both characters' complete inputs,
+saved projections and revisions.
+
+Creation exposed a real UI regression: selecting a spell replaced its checkbox
+and reset the expanded group on autosave. Search and level filters were also
+recreated empty. The new shared
+[spell picker](../../../addon-dnd-character-sheets/src/character-spells.ts)
+serves class cantrips, spellbooks, preparation and origin/feat/granted selections
+in both Builder and Manage spells. Stable field keys use the host's existing
+ui.controls.v1 focus restoration. Per-character view state retains filters and
+expanded groups through saves and tab changes; it is not persisted as authored
+character state. The enclosing Manage spells disclosure also retains its state.
+
+Screenshot review found a second issue at 390 px with 200% text: a score tile
+left too little horizontal room for skill labels, splitting words into a few
+letters per line. All ability cards now share a container-width rule that stacks
+scores and skills when necessary, retaining the heading first in Classic.
+The browser regression checks readable skill-label height and no page overflow
+in both layouts/locales. Focused ability-card screenshots are visually inspected.
+
+The earlier T53 rules-availability outage did not recur in the diagnostic replay:
+all 13 selected graph-handoff, import-retry, stale-read and uncertain-command
+cases passed. Worker health, cancellation and provider-cache paths were traced,
+but no root cause was demonstrated. T18-ENGINE retains the unexplained outage;
+production timeouts, health checks, retries and admission limits are unchanged.
+Empty-record setup now shares the existing bounded provider diagnostics.
+
+Sheets commits `29838b23479b5f4920669a9f5ca5d96a5a1043ae` (spell picker) and
+`93396af1803b86e780548af469289a2946f58a3d` (ability reflow) form the final package.
+Its inspected SHA-256 is
+`1e1814875493e72893e30826b2cbf1ee85e00c5b93cd9bdccc2c1a09f292e535`.
+The host pins that final source; the Engine, Compendium and DM Tools revisions
+and archive hashes are unchanged from T53. Sheets `npm run check` passed all
+17 module tests plus its build, Go tests and vet; standalone packaging and host
+inspection passed. Both final ability-card screenshots were visually inspected.
+
+Against host `2e8dab6` plus this batch, complete `npm run check` passed
+**38 tooling, 400 unit and 415 browser tests**, zero failures/skips, plus Go
+tests and vet. Local documentation links and anchors passed (**169 checks**).
+The full run again passed the former outage scenario without recurrence.
+
+Strict installed acceptance passed **175/175 tests**, zero failures/skips,
+against those exact pinned source revisions and inspected ZIP hashes. All four
+companion worktrees remained clean. The earlier outage did not recur in this
+run either. All **33 release-readiness gates** passed.
+
+Checks use disposable local data and native Windows workers. Linux workers
+remain cross-compiled and inspected rather than natively exercised here.
+Broader amended-grant/provider/schema combinations and human assistive-technology,
+physical touch/printing and live-site acceptance remain open under T18.
+No publication, deployment or production data change occurred.
