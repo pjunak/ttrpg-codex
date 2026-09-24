@@ -2019,5 +2019,120 @@ no Linux CI, physical-device, live-site or printer acceptance is claimed.
 No push, release or deployment was performed. T57-VERIFY remains open because
 a passing timeline run does not explain its earlier startup timeout.
 
-The remaining T18-COMP work is advancement feat categories, including Fighting
-Style and level-19 alternatives; species-size work is covered by T58.
+At T58, advancement feat categories and level-19 alternatives remained open;
+T59 below closes that slice. Class-granted choices and passive-stat gaps remain
+listed in the current backlog.
+
+
+## Legal advancement feats and saved feat details
+
+T59, September 24, addresses advancement eligibility and the defects found while
+exercising it through real packages. It preserves Compendium book/kind/record
+identity, shared host controls, rules-data v3, Engine v4 and saved schema 4.
+No sourcebook-specific rules were added to Sheets controls.
+
+### Reviewed source declarations
+
+The [official feat rules](https://www.dndbeyond.com/sources/dnd/br-2024/feats)
+and [class advancement rules](https://www.dndbeyond.com/sources/dnd/br-2024/character-classes)
+confirm unrestricted qualifying advancement categories. The Engine already added
+level-specific categories to its base list, so ordinary alternatives at class
+level 19 were not broken. The actual exclusions were Fighting Styles and Epic
+Boons earned at a later multiclass advancement.
+
+Compendium now leaves categories unrestricted and applies source prerequisites:
+all ten PHB Fighting Styles require the feature, and all twelve PHB Epic Boons
+have a structured character-level prerequisite and explicit ability pools/caps.
+Two-Weapon Fighting keeps its record ID with its category corrected. Spell Recall
+requires an acquired Spellcasting feature, including the two spellcasting
+subclasses; Pact Magic or innate spells alone do not qualify. See the owning
+[coverage](../../../addon-dnd-2024-compendium/data/COVERAGE.md#character-rules-and-contextual-details)
+and [schema](../../../addon-dnd-2024-compendium/data/SCHEMA.md) references.
+
+A semantic comparison verified all 21 changed feat records preserve unrelated
+fields, identity, book placement and prose. The only prose change corrects Spell
+Recall's prerequisite header. Boon of Skill already had the intended declaration.
+The content revision is 3.0.3; package/service major versions are unchanged.
+A targeted audit also confirmed that the 39 non-PHB feats in the special
+categories retain narrative prerequisites requiring explicit adjudication.
+
+### Shared Engine and display repairs
+
+- The fast option filter evaluated class/spellcaster predicates without the
+  acquired sheet, hiding options that passed validation. Those predicates now
+  use the same complete progression check as feature/ability predicates.
+- Subclass feature tables use local IDs. Hydration now resolves them to canonical
+  IDs within their owning class/subclass, with record levels authoritative.
+  Earlier, Eldritch Knight and Arcane Trickster could not satisfy an exact
+  Spellcasting prerequisite. Future and unrelated features remain excluded.
+- Replacing an ability-granting feat with one without an increase left a hidden
+  assignment blocking autosave. The Engine now reports the removed budget as
+  an unavailable choice. Existing coordinator repair removes only its previously
+  saved assignment; it does not accept a newly forged choice or reset play.
+- Acquired feats were missing from Combat details and print. The additive saved
+  `sheet.feats` list retains identities and acquisition counts, separate from
+  unselected catalog options. Sheets uses one renderer in both views, shared
+  rule-detail controls and exact kind/ID evidence. Older projections remain
+  readable and need deliberate recalculation to obtain the additive list.
+
+Synthetic regressions cover predicate agreement, ordered multiclass eligibility,
+canonical/inline/future feature identities, withdrawn assignments, detached inputs
+and repeated acquisitions. The 144 preserved arithmetic/Builder vectors remain
+unchanged: the new feat list belongs to character evaluation, not legacy hydration.
+
+### Installed acceptance
+
+The [advancement fixture](../../frontend/test/browser/installed-character-advancement-fixture.mts)
+adds five cases and extends the existing provider-free final case:
+
+- Actual Fighter/Paladin/Ranger advancements offer the ten qualified styles;
+  Wizard cannot forge one. Ordinary and Origin alternatives remain available.
+- Fighter 3 / Rogue 15 / Fighter 4 can select an Epic Boon at character level 19.
+  Reordering the fourth Fighter level earlier rejects retroactive eligibility;
+  removing it withdraws only its feat and ability increase.
+- All ten currently declared Spellcasting feature sources qualify for Spell
+  Recall. Pact Magic, innate spells and a caster level acquired afterward do not.
+- English Compact and Czech Classic exercise keyboard selection, enlarged phone
+  reflow, ability steps, feat replacement, focused autosave, reload, Combat
+  details, export and print. Notes, HP, currency and other authored play survive;
+  the coordinator's save timestamp may advance normally.
+- After rules-provider removal, Combat details, print and export retain exact
+  saved state without live record queries.
+
+Desktop and enlarged Czech phone screenshots were visually reviewed. The phone
+capture follows text reflow and scrolling to the feat section; long feat names
+remain readable within the viewport. The existing Combat proficiency summary still exposes raw values;
+that separate usability defect is now explicitly retained under T18-SHEETS.
+
+### Exact sources and validation
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools, unchanged | `0eeac9bc84f50836fa30f134b5edee9358656676` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine | `a3ba0df37200bbd667aaf4ba959c39af64b2987f` | `d15f03e22f98e949651b946197ef42903096cdb5f576c043bf916c8d9376433a` |
+| Sheets | `0626c3e060e23db5ae6a01957cb8597480cedfe5` | `840fb9c9d0b0e43f2c54c37693f0aa6545148b505ccbe9fceb1301cc76af8a46` |
+| Compendium | `7d44bd8eebe4de2c1537fc3461556825dc2a56bd` | `20248f4e491f497b71ad9c2e9fa1f57e4f54f21b327614bcd97c48ea0c52775b` |
+
+Compendium **78/78** tests, build and tool typechecking passed. Sheets **18/18**
+module tests, build, Go tests/vet and package build passed. Engine Go tests/vet,
+regressions and preserved parity passed. All changed ZIPs passed host inspection;
+the four-package preparation records the clean source commits above.
+
+Host `npm run check` passed source/type checks, **38 tooling** and **400 unit**
+tests, its browser run (**282 passed**, **127 optional installed cases skipped**),
+and all Go tests/vet. All **33 release-readiness gates** passed. The changed
+seven documents have **127 distinct local targets and anchors** verified.
+
+Strict installed acceptance passed **198/198**, with zero failures or skips,
+against this exact package set, including the extended provider-free final case.
+
+Package provenance records host `506be14` plus this batch's working changes.
+Native execution was Windows AMD64; Linux AMD64/ARM64 workers were cross-compiled.
+No Linux CI, physical-device, screen-reader, printer or live-site acceptance is
+claimed. No push, release or deployment occurred. T57-VERIFY remains open.
+
+Remaining work is explicit: class-granted Fighting Style/Champion choices,
+Blessed/Druidic Warrior alternatives and replacement, the named passive sheet
+benefits, and the existing Combat proficiency presentation. Encounter resolution
+remains outside this character workflow. This closes a T18 slice without claiming
+exhaustive rules correctness or changing the suite's overall progress estimate.

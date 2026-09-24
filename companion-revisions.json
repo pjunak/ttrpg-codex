@@ -9,17 +9,17 @@
     {
       "id": "dnd-engine",
       "repository": "pjunak/addon-dnd-engine",
-      "revision": "50eebb29cf40b4c8f90c63a8a2235289111c8051"
+      "revision": "a3ba0df37200bbd667aaf4ba959c39af64b2987f"
     },
     {
       "id": "dnd-sheets",
       "repository": "pjunak/addon-dnd-character-sheets",
-      "revision": "dd435a85b45f5400ae0652269e0809aacf0fb6d9"
+      "revision": "0626c3e060e23db5ae6a01957cb8597480cedfe5"
     },
     {
       "id": "dnd-2024-compendium",
       "repository": "pjunak/addon-dnd-2024-compendium",
-      "revision": "173ac3182fd24e605a4fab214079b96faf04af67"
+      "revision": "7d44bd8eebe4de2c1537fc3461556825dc2a56bd"
     }
   ]
 }

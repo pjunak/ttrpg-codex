@@ -68,6 +68,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T56-HOST — Accept incompatible packages and enable sticky add-on route controls**~~ — shared route clipping, denied schema replacement and portable saved-state preservation; [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#incompatible-providers-schema-preservation-and-reachable-libraries).
 - [x] ~~**T57-HOST — Delay hover previews and restore keyboard reopening**~~ — shared cancellable hover intent and scoped focus restoration; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compendium-source-policy-and-readable-class-tables).
 - [x] ~~**T58-HOST — Accept species choices, saved size and provider-free output**~~ — five installed cases, exact source pins and response-synchronized recovery; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
+- [x] ~~**T59-HOST — Accept qualifying advancements and saved feat output**~~ — five installed cases and frozen-output coverage; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -167,15 +168,18 @@ Standalone browsing must remain useful without Engine or Sheets.
 - [x] ~~**T31 — Keep library navigation reachable on phones**~~ — `f875133`; preserved reader, working disclosures, focus and readable enlarged titles/counts; [English/Czech acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#incompatible-providers-schema-preservation-and-reachable-libraries).
 - [x] ~~**T57-COMP — Repair class tables and finish source-policy browsing acceptance**~~ — `8d46929`, `d189995`, `0c3e5d7`; 24 preserved source tables, readable enlarged cells and enabled-book/reprint navigation; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compendium-source-policy-and-readable-class-tables).
 - [x] ~~**T58-COMP — Declare selectable sizes for fourteen species**~~ — `173ac31`; source choices, corrected PHB summaries and preserved book/reprint identity; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
+- [x] ~~**T59-COMP — Restore qualifying advancement categories and PHB feat declarations**~~ — `7d44bd8`; ten Fighting Styles, twelve Epic Boons and preserved source identities; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
 
 ### Remaining work
 
 - [ ] **T18-COMP / P1, review — Complete remaining source-mechanics acceptance.**
-  Review advancement feat categories, including Fighting Style and level-19
-  alternatives. Verify source declarations with their Engine/Sheets consumers
-  and preserve saved choices. T31/T57 close reading, source-policy and table
-  formatting; T58 closes selectable species sizes. Retain that regression evidence.
-  Separate missing data, misleading presentation and unsupported mechanics.
+  Structure class-granted Fighting Style choices, Champion's extra style,
+  Blessed/Druidic Warrior alternatives and permitted replacement. Then cover
+  the confirmed sheet-stat gaps: Blind Fighting senses, armor-dependent Defense,
+  and Epic Boon fixed HP/speed/truesight benefits. Validate source declarations
+  with Engine/Sheets and preserve saved choices. T59 closes advancement category,
+  prerequisite and ability-pool acceptance; T58 covers species sizes and T31/T57
+  cover reading/source-policy/tables. Encounter resolution remains C10.
 - [ ] **T14-COMP / P2 — Move generated browser output to build ownership.**
   Update independent build/package/tests and host fixtures before removing tracked
   `web/`. Normalize ZIP timestamps and verify repeated builds from unchanged inputs
@@ -210,6 +214,7 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T32 — Complete progressive-build and equipment validation acceptance**~~ — `a3c5d0a`; deeper multiclass progressions, source-owned attunement and preserved inputs; prior feat, spell, resource and equipment regressions retained; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-progression-and-source-specific-attunement).
 - [x] ~~**T53-ENGINE — Preserve acquired state during grant reauthorization**~~ — `c5a9be7`; detached identity remapping, unchanged spent uses and rejected collisions; [session acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#character-session-transfer-and-saved-output).
 - [x] ~~**T58-ENGINE — Evaluate species size and prevent redundant spell evidence growth**~~ — `04a1973`, `50eebb2`; generic choices, explicit repair, saved explanations and a multiclass snapshot fix; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
+- [x] ~~**T59-ENGINE — Align acquired prerequisites and repair withdrawn feat increases**~~ — `a3ba0df`; canonical subclass features, matching picker/validation and saved feat counts; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
 
 ### Remaining work
 
@@ -220,8 +225,9 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
   T53/T55 accept session/transfer preservation, amended DM effects, provider
   restart and source adoption. T56 adds incompatible engine majors/responses and
   restoration with independent grant uses intact. Extend these into representative
-  multiclass sessions; retain pure, service and exact-package evidence without
-  claiming exhaustive rules correctness.
+  multiclass sessions; T59 covers acquired feat timing, canonical subclass
+  prerequisites and frozen feat output. Retain pure, service and exact-package
+  evidence without claiming exhaustive rules correctness.
   Investigate the one unexplained rules-availability loss during T53 validation;
   character setup captures provider diagnostics if it recurs. T54's 13-case
   diagnostic replay passed without reproducing it; no cause is established.
@@ -261,6 +267,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T55-SHEETS — Preserve amended grants and usable effect editing**~~ — `b9319d3`; detached saved state, stable grant/item ownership, shared searches and keyboard/phone editing through provider restart and source adoption; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#dm-grant-amendments-and-provider-transitions).
 - [x] ~~**T56-SHEETS — Keep saved characters readable through incompatible providers**~~ — `d489533`; authoritative edit rejection, frozen outputs, original-provider restoration and schema/backup preservation; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#incompatible-providers-schema-preservation-and-reachable-libraries).
 - [x] ~~**T58-SHEETS — Reuse shared size controls and keep enlarged stat grids readable**~~ — `dd435a8`; localized saved/printed sizes, both layouts and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
+- [x] ~~**T59-SHEETS — Show saved feats in Combat and print**~~ — `0626c3e`; one shared renderer, repeated counts, both locales/layouts and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
 
 ### Remaining work
 
@@ -270,7 +277,9 @@ Provider-free saved reading/notes/print/export remain required.
   T56 accepts schema-replacement refusal, worker-only writes and exact archive
   preservation; T54 covers creation and first play, T53 transfer/output. Human
   screen-reader, physical touch and printer checks remain separate from
-  browser/PDF evidence.
+  browser/PDF evidence. The Combat proficiency summary still exposes raw
+  true/false/none values and IDs; present readable trained proficiencies through
+  shared saved-data UI (confirmed during T59 visual review).
 - [ ] **T14-SHEETS / P2 — Remove generated browser/worker output from source ownership.**
   Migrate schema/type generation, package/test and host fixture consumers first;
   preserve deterministic standalone packaging and host inspection with T14-HOST.

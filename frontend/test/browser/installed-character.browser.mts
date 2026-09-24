@@ -16,6 +16,7 @@ import { registerCharacterGrantTests } from './installed-character-grant-fixture
 import { registerCharacterCreationTests, verifyFrozenCreatedCharacters } from './installed-character-creation-fixture.mts';
 import { registerOriginChoiceTests } from './installed-character-origin-fixture.mts';
 import { registerCharacterSizeTests, verifyFrozenSizes } from './installed-character-size-fixture.mts';
+import { registerCharacterAdvancementTests, verifyFrozenAdvancements } from './installed-character-advancement-fixture.mts';
 import { registerEquipmentTests } from './installed-character-equipment-fixture.mts';
 import { registerMulticlassAcceptanceTests } from './installed-character-multiclass-fixture.mts';
 import { registerCharacterOutputTests, verifyFrozenSessionOutputs } from './installed-character-output-fixture.mts';
@@ -169,6 +170,7 @@ registerConditionalFeatTests(enabled, () => ({ admin, browser, csrf, origin, out
 registerSpellOwnershipTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerOriginChoiceTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterSizeTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerCharacterAdvancementTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerEquipmentTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerMulticlassAcceptanceTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterOutputTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
@@ -210,5 +212,6 @@ test('source adoption remains explicit and absent rules freeze mechanics without
  await verifyFrozenSessionOutputs(t, { admin, browser, csrf, origin, output, call });
  await verifyFrozenCreatedCharacters({ admin, browser, csrf, origin, output, call });
  await verifyFrozenSizes(t, { admin, browser, csrf, origin, output, call });
+ await verifyFrozenAdvancements(t, { admin, browser, csrf, origin, output, call });
  await verifyFrozenSpellDetails(t,{admin,browser,csrf,origin,output,call});
 });
