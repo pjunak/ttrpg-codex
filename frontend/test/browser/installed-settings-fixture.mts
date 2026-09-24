@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
+import { writeFile } from 'node:fs/promises';
 import type { InstalledFixture } from './fixture-types.mts';
 import { installReviewedPackage, jsonResponse, zip } from './installed-graph-fixture.mts';
 
@@ -81,6 +82,9 @@ export async function exerciseSettings({ t, open, admin, csrf, output, mobile, m
   await install(); t.after(disable);
   const page = await open(t, 'dm', mobile); page.setDefaultTimeout(10000);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message)); t.after(() => assert.deepEqual(errors, []));
+  let releaseStartup = () => undefined as void;
+  const startupHeld = new Promise<void>(resolve => { releaseStartup = resolve; }); t.after(releaseStartup);
+  await page.route('**/api/admin/addon-github', async route => { await startupHeld; await route.continue(); });
   await page.goto('/#/settings/addons');
   const row = page.locator(`.addon-row[data-addon-id="${id}"]`), dropdown = page.locator(`[data-addon-settings="${id}"] codex-addon-settings`);
   const tab = page.getByRole('tab', { name: id, exact: true }), management = page.getByRole('tab', { name: 'Management', exact: true });
@@ -96,13 +100,34 @@ export async function exerciseSettings({ t, open, admin, csrf, output, mobile, m
   await view.getByText('Options ready', { exact: true }).waitFor();
   assert.deepEqual(await dropdown.locator('.addon-contribution').evaluateAll(elements => elements.map(element => (element as HTMLElement).dataset.contributionId)), ['preferences', 'campaign']);
   assert.deepEqual(JSON.parse((await view.getByLabel('Settings context').textContent())!), { contractVersion: 'addon-settings-context.v1', locale: 'en', role: 'dm' });
+  type SettingsElement = HTMLElement & { registry?: { edits: { state(): { dirty: boolean; saving: boolean } } } };
+  assert.equal(await dropdown.getAttribute('inert'), '', 'Management loading keeps contributed controls inert');
+  releaseStartup();
+  // A visible field may still be inert: Playwright fill can return without typing.
+  await page.locator('.addon-manager[aria-busy="false"]').waitFor();
+  await dropdown.locator(':scope:not([inert])').waitFor();
   await view.getByLabel('Saved option').fill('Keep this draft');
+  assert.equal(await view.getByLabel('Saved option').inputValue(), 'Keep this draft');
   await tab.press('Home');
   assert.equal(await management.getAttribute('aria-selected'), 'true');
   assert.equal(await management.evaluate(element => element === document.activeElement), true);
   assert.equal(await dropdown.isVisible(), false);
   page.once('dialog', dialog => dialog.dismiss()); await page.locator('[data-category="language"]').click();
-  assert.equal(await tab.count(), 1, 'category navigation respects drafts in hidden tabs');
+  try {
+    assert.equal(await tab.count(), 1, 'category navigation respects drafts in hidden tabs');
+  } catch (cause) {
+    const state = await page.evaluate(() => ({
+      hash: location.hash, edits: document.querySelector<SettingsElement>('codex-settings')?.registry?.edits.state(),
+      selectedCategory: document.querySelector('[data-category][aria-current=page]')?.getAttribute('data-category'),
+      contributions: [...document.querySelectorAll('.addon-contribution')].map(node => ({
+        id: (node as HTMLElement).dataset.contributionId, text: node.textContent?.slice(0, 500),
+      })),
+    }));
+    const artifact = resolve(output, id + '-draft-guard');
+    await writeFile(artifact + '.json', JSON.stringify({ state, errors }, null, 2) + '\n');
+    await page.screenshot({ path: artifact + '.png' });
+    throw new Error(String(cause) + '\nSettings draft diagnostics: ' + JSON.stringify(state), { cause });
+  }
   page.once('dialog', dialog => dialog.dismiss()); await row.getByRole('button', { name: 'Reload', exact: true }).click();
   await tab.click(); assert.equal(await view.getByLabel('Saved option').inputValue(), 'Keep this draft');
   await management.click();
