@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net';
 import type { FixtureCampaign, FixtureRecord, FixtureMutation, FixtureTransaction } from './fixture-types.mts';
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { preview } from 'vite';
 import { chromium } from 'playwright';
@@ -43,6 +43,10 @@ async function fixture(t: TestContext, { role = 'player', mobile = false, locale
   const page = await context.newPage(); page.setDefaultTimeout(7000);
   const errors: string[] = [], writes: FixtureMutation[][] = [], requests: FixtureTransaction[] = []; let failure: number | undefined;
   page.on('pageerror', error => errors.push(error.message)); t.after(() => assert.deepEqual(errors, []));
+  const startup = new Map<string, string>();
+  page.on('request', request => { if (startup.size < 80) startup.set(new URL(request.url()).pathname, 'pending'); });
+  page.on('response', response => { const path = new URL(response.url()).pathname; if (startup.has(path)) startup.set(path, String(response.status())); });
+  page.on('requestfailed', request => { const path = new URL(request.url()).pathname; if (startup.has(path)) startup.set(path, request.failure()?.errorText ?? 'failed'); });
   await page.route('**/api/campaign/transactions', async route => {
     const body: FixtureTransaction = route.request().postDataJSON(); requests.push(body);
     assert.equal(route.request().headers()['x-codex-csrf'], 'x'.repeat(32)); assert.equal(body.contractVersion, 'campaign-mutation.v1');
@@ -61,8 +65,16 @@ async function fixture(t: TestContext, { role = 'player', mobile = false, locale
     await route.fulfill({ json: { contractVersion: 'campaign-commit.v1', commitId: writes.length, occurredAt: '2026-09-05T12:00:00Z', results,
       collectionRevisions: { events: collection('events').revision } } });
   });
-  await page.goto(`${origin}/#/timeline`); await page.locator('.tl-board').waitFor();
-  await page.waitForFunction(() => document.querySelector<HTMLElement>('.live-connected'));
+  try {
+    await page.goto(`${origin}/#/timeline`); await page.locator('.tl-board').waitFor();
+    await page.waitForFunction(() => document.querySelector<HTMLElement>('.live-connected'));
+  } catch (cause) {
+    const artifact = output + 'startup-' + t.name.replace(/[^a-z0-9]+/giu, '-').slice(0, 100);
+    const state = { url: page.url(), errors, requests: Object.fromEntries(startup), body: (await page.locator('body').innerText()).slice(0, 4000) };
+    await writeFile(artifact + '.json', JSON.stringify(state, null, 2) + '\n');
+    await page.screenshot({ path: artifact + '.png' });
+    throw new Error(String(cause) + '\nTimeline startup diagnostics: ' + JSON.stringify(state), { cause });
+  }
   return { page, writes, requests, failNext: (status: number) => { failure = status; } };
 }
 async function publish(page: Page, change: () => void) {
