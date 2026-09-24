@@ -15,6 +15,7 @@ import { registerCharacterCompatibilityTests } from "./installed-character-compa
 import { registerCharacterGrantTests } from './installed-character-grant-fixture.mts';
 import { registerCharacterCreationTests, verifyFrozenCreatedCharacters } from './installed-character-creation-fixture.mts';
 import { registerOriginChoiceTests } from './installed-character-origin-fixture.mts';
+import { registerCharacterSizeTests, verifyFrozenSizes } from './installed-character-size-fixture.mts';
 import { registerEquipmentTests } from './installed-character-equipment-fixture.mts';
 import { registerMulticlassAcceptanceTests } from './installed-character-multiclass-fixture.mts';
 import { registerCharacterOutputTests, verifyFrozenSessionOutputs } from './installed-character-output-fixture.mts';
@@ -167,6 +168,7 @@ registerRepeatableFeatTests(enabled, () => ({ admin, browser, csrf, origin, outp
 registerConditionalFeatTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerSpellOwnershipTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerOriginChoiceTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerCharacterSizeTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerEquipmentTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerMulticlassAcceptanceTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterOutputTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
@@ -207,5 +209,6 @@ test('source adoption remains explicit and absent rules freeze mechanics without
  assert.equal(await sheet.getByRole('button',{name:'+ Shield',exact:true}).count(),0);
  await verifyFrozenSessionOutputs(t, { admin, browser, csrf, origin, output, call });
  await verifyFrozenCreatedCharacters({ admin, browser, csrf, origin, output, call });
+ await verifyFrozenSizes(t, { admin, browser, csrf, origin, output, call });
  await verifyFrozenSpellDetails(t,{admin,browser,csrf,origin,output,call});
 });

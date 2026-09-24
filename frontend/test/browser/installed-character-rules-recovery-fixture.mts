@@ -67,7 +67,17 @@ export function registerCharacterRulesRecoveryTests(enabled: boolean, fixture: (
           await route.abort("failed");
         } else await route.continue();
       });
+      // The interception performs a real graph transition before forwarding the
+      // save. Start the UI feedback deadline only after that rejected response.
+      const firstSave = page.waitForResponse(response => {
+        if (!response.url().endsWith("/services/call")) return false;
+        const body = response.request().postDataJSON();
+        return body?.method === "save" && body.params?.key === key;
+      });
       await input.fill("Keep pending rules edit");
+      const rejectedSave = await firstSave;
+      assert.equal(rejectedSave.ok(), true);
+      assert.equal((await rejectedSave.json()).result.status, "rules-changed");
       await status.filter({ hasText: cs ? /Pravidla nebo povolené zdroje/ : /Rules or allowed sources changed/ }).waitFor({ timeout: 10000 }).catch(async error => {
         const current = await read();
         throw new Error(String(error) + "\n" + await status.allTextContents() + "\n" + JSON.stringify({ status: current.status, rulesChanged: current.rulesChanged, issues: current.evaluation?.issues, writes }));

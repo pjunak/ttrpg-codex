@@ -34,7 +34,7 @@ export async function createCharacter(f: Fixture, key: string) {
 export async function save(f: Fixture, key: string, inputs: Record<string, unknown>, revision: number, suffix: string) {
   const result = await f.call('save', { key, operation: 'build', operationId: key + '-' + suffix,
     summary: 'Builder acceptance', expectedRevision: revision, inputs });
-  assert.equal(result.status, 'ready', JSON.stringify({ status: result.status, issues: result.evaluation?.guidance.saveIssues }));
+  assert.equal(result.status, 'ready', JSON.stringify({ status: result.status, message: result.message, issues: result.evaluation?.guidance.saveIssues }));
   return result;
 }
 export async function openBuilder(t: TestContext, f: Fixture, key: string, locale = 'en') {

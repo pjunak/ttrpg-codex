@@ -67,6 +67,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T48-HOST — Hand off pending record edits across add-on graph replacement**~~ — bounded shared API, guarded teardown and fresh service ownership; [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#pending-character-edits-across-graph-replacement).
 - [x] ~~**T56-HOST — Accept incompatible packages and enable sticky add-on route controls**~~ — shared route clipping, denied schema replacement and portable saved-state preservation; [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#incompatible-providers-schema-preservation-and-reachable-libraries).
 - [x] ~~**T57-HOST — Delay hover previews and restore keyboard reopening**~~ — shared cancellable hover intent and scoped focus restoration; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compendium-source-policy-and-readable-class-tables).
+- [x] ~~**T58-HOST — Accept species choices, saved size and provider-free output**~~ — five installed cases, exact source pins and response-synchronized recovery; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -165,15 +166,15 @@ Standalone browsing must remain useful without Engine or Sheets.
 - [x] ~~**T52-COMP — Declare source-specific attunement prerequisites**~~ — `00495d3`; 21 existing items, class/trait distinctions and explicit narrative adjudication; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-progression-and-source-specific-attunement).
 - [x] ~~**T31 — Keep library navigation reachable on phones**~~ — `f875133`; preserved reader, working disclosures, focus and readable enlarged titles/counts; [English/Czech acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#incompatible-providers-schema-preservation-and-reachable-libraries).
 - [x] ~~**T57-COMP — Repair class tables and finish source-policy browsing acceptance**~~ — `8d46929`, `d189995`, `0c3e5d7`; 24 preserved source tables, readable enlarged cells and enabled-book/reprint navigation; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compendium-source-policy-and-readable-class-tables).
+- [x] ~~**T58-COMP — Declare selectable sizes for fourteen species**~~ — `173ac31`; source choices, corrected PHB summaries and preserved book/reprint identity; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
 
 ### Remaining work
 
 - [ ] **T18-COMP / P1, review — Complete remaining source-mechanics acceptance.**
-  Review selectable species sizes (Human still declares fixed Medium despite its
-  Small/Medium source choice) and remaining advancement feat categories, including
-  Fighting Style and level-19 alternatives. Verify source declarations with their
-  Engine/Sheets consumers and preserve saved choices. T31/T57 close the reading,
-  source-policy and table-formatting work; retain that regression evidence.
+  Review advancement feat categories, including Fighting Style and level-19
+  alternatives. Verify source declarations with their Engine/Sheets consumers
+  and preserve saved choices. T31/T57 close reading, source-policy and table
+  formatting; T58 closes selectable species sizes. Retain that regression evidence.
   Separate missing data, misleading presentation and unsupported mechanics.
 - [ ] **T14-COMP / P2 — Move generated browser output to build ownership.**
   Update independent build/package/tests and host fixtures before removing tracked
@@ -208,6 +209,7 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T32-SPELLS — Preserve acquisition-owned spells/resources and correct multiclass skills**~~ — `9f90e4b`; casts, rests, replacement and saved aliases; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#acquisition-owned-spell-grants-and-complete-combat-details).
 - [x] ~~**T32 — Complete progressive-build and equipment validation acceptance**~~ — `a3c5d0a`; deeper multiclass progressions, source-owned attunement and preserved inputs; prior feat, spell, resource and equipment regressions retained; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-progression-and-source-specific-attunement).
 - [x] ~~**T53-ENGINE — Preserve acquired state during grant reauthorization**~~ — `c5a9be7`; detached identity remapping, unchanged spent uses and rejected collisions; [session acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#character-session-transfer-and-saved-output).
+- [x] ~~**T58-ENGINE — Evaluate species size and prevent redundant spell evidence growth**~~ — `04a1973`, `50eebb2`; generic choices, explicit repair, saved explanations and a multiclass snapshot fix; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
 
 ### Remaining work
 
@@ -258,6 +260,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T54-SHEETS — Complete UI creation and preserve spell selection context**~~ — `29838b2`, `93396af`; shared picker focus/filters, readable enlarged ability cards and Fighter/Wizard creation-to-play; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#blank-to-ready-creation-and-stable-spell-selection).
 - [x] ~~**T55-SHEETS — Preserve amended grants and usable effect editing**~~ — `b9319d3`; detached saved state, stable grant/item ownership, shared searches and keyboard/phone editing through provider restart and source adoption; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#dm-grant-amendments-and-provider-transitions).
 - [x] ~~**T56-SHEETS — Keep saved characters readable through incompatible providers**~~ — `d489533`; authoritative edit rejection, frozen outputs, original-provider restoration and schema/backup preservation; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#incompatible-providers-schema-preservation-and-reachable-libraries).
+- [x] ~~**T58-SHEETS — Reuse shared size controls and keep enlarged stat grids readable**~~ — `dd435a8`; localized saved/printed sizes, both layouts and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
 
 ### Remaining work
 

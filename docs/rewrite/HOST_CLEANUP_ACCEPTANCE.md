@@ -1889,6 +1889,135 @@ provenance records host `afb91e9` plus this batch's working
 changes and the exact companion sources/hashes above. These are local Windows
 checks, not Linux CI, physical-device or live-site acceptance.
 
-The remaining T18-COMP work concerns selectable species sizes and advancement
-feat categories, including Fighting Style and level-19 alternatives. Physical
-touch/screen-reader review and live-site acceptance remain separate.
+T58 below resolves the selectable-species-size finding. Advancement feat
+categories, including Fighting Style and level-19 alternatives, remain open.
+Physical touch/screen-reader review and live-site acceptance remain separate.
+
+## Source-defined species sizes and saved character display
+
+September 24, 2026: T58 follows the remaining T18-COMP source-mechanics review.
+Three PHB records (Human, Aasimar and Tiefling) declared fixed Medium despite
+their retained prose allowing a Small/Medium choice. Eleven other species
+already displayed alternatives without a structured selection: Changeling,
+Khoravar, Shifter, Warforged, Flamekin, Lorwyn Changeling, Rimekin, Dhampir,
+Hexblood, Lupin and Reborn.
+
+### Source and consumer contracts
+
+Compendium content revision `3.0.2` adds `sizeOptions` to those fourteen
+records. The three PHB display summaries now agree with their source text.
+Human/Tiefling were checked against the
+[official species rules](https://www.dndbeyond.com/sources/dnd/br-2024/character-origins);
+the other declarations preserve existing reviewed source facts. A Git comparison
+verified every other JSON field unchanged, including English prose, canonical
+`(kind,id)`, book provenance and Dhampir's alternate `aboh` membership.
+The book → kind → record browser structure remains intact.
+
+The Engine interprets the source field through one ordinary creation descriptor,
+`species:<id>:size`. Generic option/count validation and exact-slot repair IDs
+apply. Choices remain in the existing `build.choices` array. Fixed-size species
+need no extra choice, and no default is invented for earlier characters.
+Missing picks can save as incomplete builds; undeclared values and extra slots
+cannot. Evaluation is detached, and invalid old selections remain inputs until
+the coordinator handles an explicit save or adoption.
+
+The saved projection includes `derived.size` and species evidence. Unselected
+declared choices are null; old unstructured compound summaries omit the field
+instead of suggesting an impossible selection. This is base species size, not
+temporary transformation or encounter automation. Stored schema 4, public
+Engine v4 and rules-data v3 identities remain unchanged.
+
+Sheets uses the existing shared Builder combobox. Optional option `labelKey`
+values translate UI labels without translating authored record names. Both
+layouts and print read the saved value and evidence; older projections without
+size still render. No provider lookup or recalculation is required for frozen
+reading/printing.
+
+### Reflow and workflow acceptance
+
+The new stat exposed the old grid's two-row assumption: at 200% text on a
+390px Czech phone, Classic created a third column outside the viewport.
+The shared stat grid now wraps by available space, with readable labels and a
+single column when needed. The design follows
+[W3C reflow guidance](https://www.w3.org/WAI/WCAG22/Understanding/reflow.html);
+the checked viewport/text-size combinations are not a blanket WCAG claim.
+Generated screenshots were visually reviewed after the fix.
+
+The [installed size fixture](../../frontend/test/browser/installed-character-size-fixture.mts)
+adds five cases and extends the existing provider-free final case:
+
+- Both size options from all fourteen actual package records resolve with their
+  source evidence; forged values and extra slots cannot change stored state.
+- English Compact and Czech Classic use keyboard selection through borrowed
+  controls, keep focus through autosave, survive reload, and show/export/print
+  the saved choice. Enlarged-phone controls and stats stay within the viewport.
+- Changing Human to fixed-size Dwarf removes only Human-owned choices. Other
+  choices, HP, inventory, notes, currency and spent resources survive. Returning
+  to Human does not resurrect a retired size.
+- Dhampir retains its saved size when canonical Ravenloft is disabled and its
+  reprint is adopted. Removing both eligible sources refuses recalculation
+  without rewriting saved state; restoring sources retains the selection.
+- After provider removal, both localized saved sheets and print retain size and
+  exact inputs/revision without querying live rule records.
+
+Pure Engine regressions independently use synthetic Tiny/Large options,
+unknown/extra slots, changed option pools, fixed-size replacement, detached
+inputs and unsupported compound summaries. The 144 preserved arithmetic/Builder
+vectors remain unchanged.
+
+### Failures found by the full suite
+
+The first strict run passed 191 of 193 cases. Its multiclass progression case
+reached a real snapshot limit: Fighter 7 / Warlock 1 / Wizard 3 could not save.
+Every learned/prepared spell reference was copied into unrelated statistic
+explanations. The new fixed-size explanation exposed a snapshot already close
+to the unchanged 250,000-byte storage limit. The assertion now includes the
+coordinator's message, which previously disappeared behind an empty issue list.
+
+Engine commit `50eebb2` captures calculation sources before retaining the
+additional spellbook/preparation records. Full spell summaries, mechanical
+facts, hashes and package provenance remain in evidence for offline reading.
+Spells actually read by a calculated grant remain calculation sources. No
+authored input or storage limit changes. A synthetic 32-spell regression failed
+before the fix and passed afterward, proving unrelated explanations stay
+constant while every spell's evidence and authored state survive. The exact
+installed multiclass progression then passed, including casts, independent
+spent pools, both rests and reload.
+
+The second failure came from the rules-recovery fixture starting its ten-second
+UI deadline while the intercepted save was still applying a real source-policy
+graph change. It now awaits and asserts that save's `rules-changed` response
+before timing UI feedback. The existing UI deadline, whole-case timeout,
+pending-edit preservation, lost-reply and conflict assertions are unchanged.
+All four focused recovery cases passed. This fixture correction does not close
+the unrelated T57 timeline-startup investigation.
+
+### Exact sources and validation
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools, unchanged | `0eeac9bc84f50836fa30f134b5edee9358656676` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine | `50eebb29cf40b4c8f90c63a8a2235289111c8051` | `12911216b5f90aebd8cc33234fe8d02f2dfdb3cb3ca14feca1d2c9424cb3deea` |
+| Sheets | `dd435a85b45f5400ae0652269e0809aacf0fb6d9` | `397a3798e258358dcfdbebec89eef237274636aa834b9f1ceffe8c7577d5d638` |
+| Compendium | `173ac3182fd24e605a4fab214079b96faf04af67` | `bf01ce55a1d4bf6b9a4b07bae0a9547837651490416d2a47c1c81ba574dac295` |
+
+Owning gates passed: Compendium **76/76** tests plus build/tool typechecking,
+Sheets **18/18** browser-module tests plus build and Go tests/vet, and complete
+Engine Go tests/vet. All rebuilt packages passed host inspection; native
+execution was Windows AMD64, while Linux AMD64/ARM64 were cross-compiled.
+
+Host `npm run check` passed source-language and type checks, **38 tooling** and
+**400 unit** tests, its browser run (**282 passed**, **122 optional installed
+cases skipped**), and all Go tests/vet. All **33 release-readiness gates** passed.
+Final strict installed acceptance passed **193/193**, with zero failures or
+skips, against the exact source set above. All **197 local document targets and
+anchors** were verified.
+
+The pinned package provenance records clean companion commits and host
+`6a77578` plus this batch's working changes. These are local Windows checks;
+no Linux CI, physical-device, live-site or printer acceptance is claimed.
+No push, release or deployment was performed. T57-VERIFY remains open because
+a passing timeline run does not explain its earlier startup timeout.
+
+The remaining T18-COMP work is advancement feat categories, including Fighting
+Style and level-19 alternatives; species-size work is covered by T58.
