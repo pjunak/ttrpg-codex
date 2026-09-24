@@ -2261,3 +2261,110 @@ benefits remain open. DM build editing can revise current choices, but is not a
 replacement ledger. Combat proficiency presentation and broader multiclass
 session acceptance also remain in T18. This completes a concrete slice without
 changing the suite's overall progress estimate.
+
+## Passive feat bonuses and automatic armor conditions
+
+Reviewed September 25, 2026 (T61). This closes the five named passive-stat gaps
+in T18-COMP while preserving the book -> kind -> record structure and the
+existing shared sheet controls. It does not close bounded level-up replacement
+or the broader whole-session acceptance tasks.
+
+### Source and calculation changes
+
+The Compendium now declares Blind Fighting's blindsight, Defense's worn-armor
+bonus, and the fixed HP, Speed and truesight benefits of their Epic Boons.
+Record IDs, categories, prerequisites, ability choices, book tags and prose are
+unchanged. Content revision is 3.0.5. The
+[source coverage record](../../../addon-dnd-2024-compendium/data/COVERAGE.md#character-rules-and-contextual-details)
+links the publisher research; the
+[grant vocabulary](../../../addon-dnd-2024-compendium/data/SCHEMA.md)
+owns the exact fields.
+
+The Engine previously read speed bonuses only from lineages and had no
+fixed-HP grant path. It now sums selected source grants once, adds fixed HP
+after recorded level gains, and applies typed item/DM adjustments afterwards.
+This also makes the existing Mark of Passage speed declaration effective.
+Sense ranges retain their existing greatest-range semantics.
+
+Passive AC declarations test worn body armor automatically. Carried/stored
+armor, zero-quantity equipment and a shield alone do not qualify. Applied and
+inactive terms retain their source and condition. A synthetic regression also
+exposed an older mismatch: equipment guidance accepted armor declared in
+another catalog kind while hydration searched only the armor catalog.
+Hydration now honors the exact reference kind and declared armor type; a
+colliding ID in another kind cannot silently substitute different equipment.
+
+Sheets needs no special feat code or new controls. Its existing shared stat,
+rule-detail, Combat, print and export surfaces consume the resulting projection.
+Recalculation preserves authored HP, temporary HP, currency, notes and inventory.
+The existing coordinator policy clamps current HP when a lower maximum demands
+it; raising maximum HP never heals.
+
+### Acceptance
+
+Six pure regression cases cover detached/deterministic evaluation, recorded
+dice, per-level/fixed stacking, lineage and typed effects, class-choice package
+withdrawal, armor conditions, unsupported conditions and catalog-kind collisions.
+All 144 preserved parity vectors remain unchanged and pass.
+
+Four new installed cases exercise:
+
+- light/medium/heavy body armor, shields, carried/stored gear and style withdrawal;
+- the three Epic Boons, exact source explanations, replacement, reload and HP bounds;
+- English Compact desktop and Czech Classic at 390px with 200% text;
+- host rule details, focused equipment autosave, all five feat grants together,
+  readable sense ranges, exact printed stat values, export and unchanged saved inputs.
+
+Both desktop and phone screenshots were inspected. The final provider-removal
+workflow additionally opens saved Defense evidence, checks its exact source hash,
+prints the exact saved numeric values and exports unchanged inputs in both locales.
+It makes no live record queries and closes each completed browser context.
+
+### Exact sources and validation
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools, unchanged | `0eeac9bc84f50836fa30f134b5edee9358656676` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine | `eb2f2f023b819b6ec919f17dd6a1a886e761244f` | `d75dadd2ccb28a1119aca8abeffbf49d97a96baba322da715c8c856de5a29211` |
+| Sheets, unchanged | `e415b0a91c1c765cf32d7b89b9e083bb8ff0ac0c` | `1da20e58bf2ffed4fde48fe0c42d3055a59b6010b9e818be042bcfc818836c72` |
+| Compendium | `87f79ad6470a027003f7e97a20734205482414dc` | `0f0777159ac4c1074fb59d1662aa4f3bf27d70f53e154ff5a1b4725a31abad3c` |
+
+Engine Go tests/vet and the cross-platform package build passed. Compendium
+build, tool checks and **80/80** tests passed; its package was rebuilt.
+Sheets build, **18/18** module tests and Go tests/vet passed. The changed packages
+passed host inspection, and preparation verified all four exact package hashes
+and clean source commits above.
+
+Host `npm run check` passed: **38 tooling, 400 unit and 282 browser tests**,
+plus Go tests/vet. Its **137 optional installed skips** are covered by the
+separate strict suite. Release readiness passed all **33 product-parity gates**.
+The isolated five-case passive/provider-removal replay passed. The final strict
+suite passed **208/208 with zero skips**, including the provider-free evidence,
+print/export and context-release assertions.
+
+The first strict run passed **207/208** with zero skips. Its one failure was
+the new frozen-stat test matching 30 hidden nested source-evidence sections
+inside the shared detail control. Scoping the selector to the opened dialog's
+direct evidence section preserved the intended source-hash assertion; the
+isolated replay then passed both locales, numeric print/export and context cleanup.
+No product behavior or deadline changed for this correction.
+
+The first focused run timed out after 30 seconds fetching the rules-policy
+endpoint during fixture setup, before any new feat assertion. The subsequent
+run passed that setup unchanged; no root cause or connection to T57/T60 is
+established. The fixture now retains a bounded host-log/process-state capture
+on a recurrence without changing deadlines. T57-VERIFY remains open.
+Two UI test setup errors were corrected during iteration: explicitly focusing
+the equipment control before asserting focus retention, and locating Senses
+from its heading instead of searching for the outer sheet inside a section.
+The final checks retain all intended behavior assertions.
+
+Provenance records host `496eeeb` plus this batch's working changes. Native
+execution was Windows AMD64; Linux workers were cross-compiled. No human
+screen-reader, physical touch, printer, Linux-runtime or live-site acceptance
+is claimed. No push, release or deployment occurred.
+
+Remaining work includes bounded Fighter-style/Blessed/Druidic Warrior
+replacement, readable Combat proficiency summaries, representative multiclass
+sessions across provider changes and generated-output ownership. This slice
+does not change the overall suite estimate.

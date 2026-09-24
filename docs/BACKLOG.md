@@ -70,6 +70,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T58-HOST — Accept species choices, saved size and provider-free output**~~ — five installed cases, exact source pins and response-synchronized recovery; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
 - [x] ~~**T59-HOST — Accept qualifying advancements and saved feat output**~~ — five installed cases and frozen-output coverage; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
 - [x] ~~**T60-HOST — Accept class styles and correct the settings readiness test**~~ — six installed cases, saved outputs and delayed-startup draft guards (`7cf4b9b`); [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
+- [x] ~~**T61-HOST — Accept passive feats through installed shared views**~~ — `5dccbcf`; exact pins, 208/208 cases and bounded startup diagnostics; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -82,12 +83,12 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 
 ### Validation follow-up
 
-- [ ] **T57-VERIFY / P2 — Explain intermittent browser startup timeouts.**
-  T57 timed out before the timeline board mounted; T60 hit one phone-settings
-  startup timeout. Focused reruns passed; no shared cause is established.
-  Retain the [timeline diagnostics](../frontend/test/browser/timeline.browser.mts)
-  and capture page/network state on a settings recurrence. Preserve deadlines
-  and assertions; [T60 evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
+- [ ] **T57-VERIFY / P2 — Explain intermittent startup timeouts.**
+  T57 timed out before the timeline mounted; T60 hit one phone-settings timeout;
+  T61 timed out fetching rules policy during installed-fixture setup.
+  Subsequent runs passed; no shared cause is established. Retain bounded
+  timeline/settings page captures and character-fixture host diagnostics.
+  Preserve deadlines and assertions; [T61 evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
 
 ### Lifecycle, maintenance and operations
 
@@ -172,16 +173,13 @@ Standalone browsing must remain useful without Engine or Sheets.
 - [x] ~~**T58-COMP — Declare selectable sizes for fourteen species**~~ — `173ac31`; source choices, corrected PHB summaries and preserved book/reprint identity; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
 - [x] ~~**T59-COMP — Restore qualifying advancement categories and PHB feat declarations**~~ — `7d44bd8`; ten Fighting Styles, twelve Epic Boons and preserved source identities; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
 - [x] ~~**T60-COMP — Declare class styles and conditional cantrip alternatives**~~ — `0b351ba`; four source-owned features, unchanged IDs/prose and class/list/ability facts; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
+- [x] ~~**T61-COMP — Restore five passive Fighting Style/Epic Boon grants**~~ — `87f79ad`; preserved IDs, prose and book structure; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
 
 ### Remaining work
 
-- [ ] **T18-COMP / P1, review — Complete remaining source-mechanics acceptance.**
+- [ ] **T18-COMP / P1, review — Complete bounded class-level replacements.**
   Add bounded level-up replacement for Fighter's style and Blessed/Druidic
-  Warrior cantrips. Cover the confirmed sheet-stat gaps: Blind Fighting senses,
-  armor-dependent Defense and Epic Boon fixed HP/speed/truesight benefits.
-  Validate with Engine/Sheets and preserve saved choices. T60 closes initial
-  class/subclass styles and cantrip alternatives; T59 closes advancement
-  eligibility, T58 species sizes and T31/T57 source-policy browsing/tables.
+  Warrior cantrips. Validate allowances and preserved choices with Engine/Sheets.
   Encounter resolution remains C10.
 - [ ] **T14-COMP / P2 — Move generated browser output to build ownership.**
   Update independent build/package/tests and host fixtures before removing tracked
@@ -219,6 +217,7 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T58-ENGINE — Evaluate species size and prevent redundant spell evidence growth**~~ — `04a1973`, `50eebb2`; generic choices, explicit repair, saved explanations and a multiclass snapshot fix; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
 - [x] ~~**T59-ENGINE — Align acquired prerequisites and repair withdrawn feat increases**~~ — `a3ba0df`; canonical subclass features, matching picker/validation and saved feat counts; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
 - [x] ~~**T60-ENGINE — Resolve conditional class choices and preserve spell ownership**~~ — `ceaa19a`; shared package resolution, dependency order and source-scoped withdrawal; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
+- [x] ~~**T61-ENGINE — Calculate passive HP, Speed and armor-conditioned AC**~~ — `eb2f2f0`; generic grants, exact armor references and saved explanations; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
 
 ### Remaining work
 
@@ -273,6 +272,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T58-SHEETS — Reuse shared size controls and keep enlarged stat grids readable**~~ — `dd435a8`; localized saved/printed sizes, both layouts and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
 - [x] ~~**T59-SHEETS — Show saved feats in Combat and print**~~ — `0626c3e`; one shared renderer, repeated counts, both locales/layouts and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
 - [x] ~~**T60-SHEETS — Repair shared spell pickers and provider-free rule details**~~ — `28e2281`, `e415b0a`; wrapping/focus and one saved-evidence adapter for readable spell details; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
+- [x] ~~**T61-SHEETS — Accept passive stats in shared saved-data UI**~~ — host fixture `5dccbcf`; existing controls, both locales/layouts and exact provider-free outputs; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
 
 ### Remaining work
 
