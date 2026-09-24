@@ -406,7 +406,12 @@ frames use the same boundary and ten-second deadline.
 roles, core priority, search, old hashes, replacement, disable and reactivation.
 With `CODEX_COMPENDIUM_ZIP`, `installed-compendium.browser.mts` also checks real
 typed spell/armor identities, Markdown previews, failed-load Retry and classic
-bookmarks on desktop/phone. See the [public contract](../../examples/addons/API_V3.md#wiki-references-and-library-search).
+bookmarks on desktop/phone. Long-record cases also check English/Czech library
+reachability, keyboard disclosure/focus, preserved reading position, responsive
+resizing and enlarged title/count wrapping. Route contribution containers clip
+content without establishing a scroll container, so add-ons can use native
+sticky controls without inspecting host DOM. See the
+[public contract](../../examples/addons/API_V3.md#wiki-references-and-library-search).
 
 ## Mind Palace graph models
 

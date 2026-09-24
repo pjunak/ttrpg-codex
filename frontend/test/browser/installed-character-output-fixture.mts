@@ -24,7 +24,7 @@ const messages = (locale: string) => locale === 'cs' ? {
   currency: 'Currency', level: 'Level 2: Fighter', layout: 'Sheet layout',
 };
 
-async function exported(page: Page, sheet: Locator, locale: string) {
+export async function exported(page: Page, sheet: Locator, locale: string) {
   const downloadEvent = page.waitForEvent('download');
   await sheet.getByRole('button', { name: messages(locale).export, exact: true }).click();
   const download = await downloadEvent, path = await download.path(); assert.ok(path);
@@ -39,7 +39,7 @@ async function review(sheet: Locator, locale: string, envelope: Row, authorize: 
   await sheet.page().waitForFunction(() => !document.querySelector('.addon-dnd-character')?.hasAttribute('aria-busy'));
   assert.equal(await sheet.getByRole('button', { name: text.replace, exact: true }).count(), 1, await sheet.locator('[data-character-status]').innerText());
 }
-async function printOutput(page: Page, sheet: Locator, locale: string, include = true) {
+export async function printOutput(page: Page, sheet: Locator, locale: string, include = true) {
   const text = messages(locale);
   await sheet.getByRole('button', { name: text.print, exact: true }).click();
   if (!include) for (const name of [text.equipment, text.spells]) await sheet.getByRole('checkbox', { name, exact: true }).uncheck();

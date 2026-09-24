@@ -1,15 +1,15 @@
 # Project backlog
 
-Work for the five repositories, reviewed September 23, 2026. This remains
+Work for the five repositories, reviewed September 24, 2026. This remains
 one suite backlog; each task belongs to the repository that owns its change.
 Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
 [feature-parity audit](rewrite/FEATURE_PARITY_AUDIT.md).
 
-**Progress estimate, September 17:** about **80% implemented**, or **70–75%**
+**Progress estimate, September 24:** about **90% implemented**, or **80–85%**
 including release and complete workflow acceptance.
-[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-estimate).
-**Rows closed, September 23:** 25 of the original 40; large open tasks contain
+[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-update-september-24).
+**Rows closed, September 24:** 26 of the original 40; large open tasks contain
 completed slices.
 
 **P1:** preservation, blocked workflows or release confidence. **P2:** usability,
@@ -65,6 +65,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T45-HOST — Pin accepted companion sources and stabilize reader navigation**~~ — [recurring CI diagnosis, source coordination and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeated-compatibility-failures-and-pinned-source-revisions).
 - [x] ~~**T46-HOST — Preserve pending add-on edits through session renewal**~~ — [shared recovery and installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#add-on-session-renewal-without-losing-pending-edits).
 - [x] ~~**T48-HOST — Hand off pending record edits across add-on graph replacement**~~ — bounded shared API, guarded teardown and fresh service ownership; [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#pending-character-edits-across-graph-replacement).
+- [x] ~~**T56-HOST — Accept incompatible packages and enable sticky add-on route controls**~~ — shared route clipping, denied schema replacement and portable saved-state preservation; [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#incompatible-providers-schema-preservation-and-reachable-libraries).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -153,21 +154,16 @@ Standalone browsing must remain useful without Engine or Sheets.
 - [x] ~~**T50-COMP — Declare distinct Elemental Adept damage choices**~~ — `014ed02`; [source facts and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#conditional-feat-choices-and-repetition-limits).
 - [x] ~~**T51-COMP — Declare Magic Initiate spell lists and origin presets**~~ — `736f95a`; [source facts and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#acquisition-owned-spell-grants-and-complete-combat-details).
 - [x] ~~**T52-COMP — Declare source-specific attunement prerequisites**~~ — `00495d3`; 21 existing items, class/trait distinctions and explicit narrative adjudication; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-progression-and-source-specific-attunement).
+- [x] ~~**T31 — Keep library navigation reachable on phones**~~ — `f875133`; preserved reader, working disclosures, focus and readable enlarged titles/counts; [English/Czech acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#incompatible-providers-schema-preservation-and-reachable-libraries).
 
 ### Remaining work
 
-- [ ] **T31 / P2 — Keep library navigation reachable on phones.** Source-backed
-  UX concern: at 768px and below, [the reading pane is ordered before the library
-  drawer](../../addon-dnd-2024-compendium/src/index.css). A long detail/list can
-  push topic/source navigation far below the reading content. Review in-browser
-  and provide a readily reachable library control without resetting the current
-  query, filters or reading position. Verify long class/monster/spell pages,
-  Back, keyboard order and 200% zoom; record this as a UX fix, not yet a proven
-  historical regression.
 - [ ] **T18-COMP / P1, review — Complete browsing and reading parity acceptance.**
-  Exercise topic/source/class/level navigation, cross-kind search, counted facets,
-  reprints, ambiguous typed links, tables/stat blocks, related records and source
-  links with representative long content. Review selectable species sizes
+  Complete source-policy/reprint combinations across topic/class/level browsing,
+  cross-kind search, facets and typed references. T31 covers long class/monster/
+  spell reading, phone library controls, Back, keyboard and enlarged text in both
+  locales; retain that evidence. Repair confirmed malformed Core Traits Markdown
+  in seven PHB class records ([source details](rewrite/HOST_CLEANUP_ACCEPTANCE.md#incompatible-providers-schema-preservation-and-reachable-libraries)). Review selectable species sizes
   (Human still declares fixed Medium despite its Small/Medium source choice) and
   remaining advancement feat categories, including Fighting Style and level-19
   alternatives. Test English/Czech, missing/disabled books, empty results, Retry
@@ -215,8 +211,10 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
   providers, sourcebook removal and stale generations. Preserve authored play
   through recalculation and separate narrative adjudication (C10) from bugs.
   T53/T55 accept session/transfer preservation, amended DM effects, provider
-  restart and source adoption; retain pure, service and exact-package evidence
-  without claiming exhaustive rules correctness.
+  restart and source adoption. T56 adds incompatible engine majors/responses and
+  restoration with independent grant uses intact. Extend these into representative
+  multiclass sessions; retain pure, service and exact-package evidence without
+  claiming exhaustive rules correctness.
   Investigate the one unexplained rules-availability loss during T53 validation;
   character setup captures provider diagnostics if it recurs. T54's 13-case
   diagnostic replay passed without reproducing it; no cause is established.
@@ -254,14 +252,15 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T53-SHEETS — Preserve reviewed transfers and complete saved print output**~~ — `3931526`; grant-owned choices/resources, visible import errors/focus and printed currency/identity; [session acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#character-session-transfer-and-saved-output).
 - [x] ~~**T54-SHEETS — Complete UI creation and preserve spell selection context**~~ — `29838b2`, `93396af`; shared picker focus/filters, readable enlarged ability cards and Fighter/Wizard creation-to-play; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#blank-to-ready-creation-and-stable-spell-selection).
 - [x] ~~**T55-SHEETS — Preserve amended grants and usable effect editing**~~ — `b9319d3`; detached saved state, stable grant/item ownership, shared searches and keyboard/phone editing through provider restart and source adoption; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#dm-grant-amendments-and-provider-transitions).
+- [x] ~~**T56-SHEETS — Keep saved characters readable through incompatible providers**~~ — `d489533`; authoritative edit rejection, frozen outputs, original-provider restoration and schema/backup preservation; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#incompatible-providers-schema-preservation-and-reachable-libraries).
 
 ### Remaining work
 
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
-  Extend accepted sessions into incompatible-provider and schema transitions,
-  retaining worker-only extension and archive-preservation gates. T55 accepts
-  multi-grant amendments, item rebinding, spent uses, provider restart and source
-  adoption; T54 covers creation and first play, T53 transfer/output. Human
+  Finish representative multiclass sessions across provider/source changes,
+  combining T55 amended grants with T56 incompatibility and restoration coverage.
+  T56 accepts schema-replacement refusal, worker-only writes and exact archive
+  preservation; T54 covers creation and first play, T53 transfer/output. Human
   screen-reader, physical touch and printer checks remain separate from
   browser/PDF evidence.
 - [ ] **T14-SHEETS / P2 — Remove generated browser/worker output from source ownership.**
@@ -273,7 +272,7 @@ Provider-free saved reading/notes/print/export remain required.
 | Order | Work | Exit evidence |
 | --- | --- | --- |
 | 1 | Whole character sessions: execute Engine and Sheets T18 using the completed T32/T33 workflows. | Representative builds and play preserve authored values through provider changes; package evidence and remaining human/device checks are explicit. |
-| 2 | Everyday use: Compendium T31; execute DM Tools and Compendium T18 reviews and fix their concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
+| 2 | Everyday use: execute remaining DM Tools and Compendium T18 reviews and fix their concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
 | 3 | Remaining add-on artifact ownership: per-repo T14. T08 only for a real schema-preservation need. | Standalone builds and inspected ZIPs preserve current consumer contracts; any needed migration is reviewed and atomic. |
 | 4 | Final integration after remaining add-on T18 fixes; retain completed T02 coverage. | All four inspected ZIPs pass without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
 | 5 | Authorized delivery T15–T17 and representative device/site acceptance. | Exact served/installed builds verified; per-site data/retention choices recorded and rollback assets retained. |

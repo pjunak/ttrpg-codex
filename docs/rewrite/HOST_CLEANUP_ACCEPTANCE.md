@@ -1700,3 +1700,117 @@ and inspected, with native Linux acceptance left to CI. Incompatible-provider
 and schema transitions, broader progression combinations, the unexplained T53
 availability loss and human assistive-technology/physical-device acceptance
 remain in T18. No publication, deployment or production data change occurred.
+
+## Incompatible providers, schema preservation and reachable libraries
+
+September 24, 2026. T56 completes Compendium T31 and adds installed compatibility
+and preservation evidence to T18-SHEETS and T18-ENGINE. The existing ownership
+boundaries remain: the host owns lifecycle and shared UI; Sheets owns saved
+character state; Engine owns calculations; Compendium owns book-partitioned
+reference content. No record IDs, book/kind directories, source membership,
+reprint representation or public service versions changed.
+
+A provider validation error previously escaped a sheet load before its saved
+state reached the browser. Loads now return that unchanged state with unavailable
+rules when a provider rejects the request contract or returns an incompatible
+response. Edit validation still fails authoritatively. Coordinator regressions
+cover malformed results, incompatible outer/evaluation versions and both broker
+validation/request failures, checking unchanged saved bytes and revisions.
+Offline notes preserve the accepted projection and rules identity.
+
+[Installed compatibility acceptance](../../frontend/test/browser/installed-character-compatibility-fixture.mts)
+uses real inspected packages and workers. Two independent Magic Initiate grants
+are saved and one free cast is spent before replacing the engine with either an
+incompatible response schema or an incompatible service major. Both cases retain
+the exact saved state, disable mechanical controls, and allow saved English/Czech
+export and print. Reactivating the original immutable engine restores compatible
+evaluation without adoption, revision changes or reset spent uses.
+
+A separate real package changes the Sheets extension schema version. The
+activation review reports DATA_MIGRATION_REQUIRED; approval and activation are
+refused, the existing generation remains active, and browser writes remain
+forbidden. A downloaded host backup contains the exact schema-4 character and
+revision, verified through a read-only SQLite connection. This tests preservation
+at the current migration boundary; it neither adds a migration nor treats the
+synthetic future schema as a released product requirement.
+
+Compendium previously placed its library after the entire reading pane on
+phones. Its native disclosure now stays above the reader with a bounded
+scrollable panel. Tree organization and branch changes retain the reading DOM,
+URL and scroll position. Explicit collapse overrides automatic active-path
+expansion; opening another record reveals its path. Escape returns focus to the
+disclosure, leaving the panel closes it, and following a library link closes the
+panel and focuses the new heading. Desktop/phone resizing retains usable
+navigation and never leaves focus in hidden content.
+
+The host route container now clips overflow without creating an unintended
+scroll container that traps sticky add-on controls. This is a shared route fix;
+the Compendium does not reach into host DOM. Existing borrowed controls and
+theme tokens remain in use. Navigation stays semantic HTML rather than adding
+ARIA tree/menu keyboard obligations. This follows the rationale in the
+[WAI disclosure navigation example](https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/examples/disclosure-navigation/).
+Closing overlays on navigation/focus departure and returning focus follows the
+[WAI focus-not-obscured guidance](https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-minimum.html).
+
+[Installed navigation acceptance](../../frontend/test/browser/installed-compendium-navigation-fixture.mts)
+reads Wizard, Aboleth and Wish on phones in English and Czech, with Czech text
+enlarged to 200%. It checks immediate/deep-scroll library reachability, retained
+reading DOM and position, keyboard disclosures, Escape, viewport transitions and
+focus departure. Screenshot review found overlapping enlarged book titles and
+counts; responsive rows now place counts below wrapping titles, with explicit
+overflow/overlap assertions. Both final open-library screenshots were visually
+inspected. Existing desktop/phone browsing checks retain search/facets through
+Back and reload, follow typed cross-record links, use source groups, and exercise
+Retry and package replacement.
+
+Remaining content finding: seven PHB class `text` fields contain flattened Core
+Traits tables with standalone pipes and no valid Markdown table separators:
+Barbarian, Cleric, Druid, Monk, Sorcerer, Warlock and
+[Wizard](../../../addon-dnd-2024-compendium/data/phb/classes/wizard.json).
+This was visible in the long-reading screenshot and confirmed in unchanged
+source JSON. T18-COMP retains source-prose repair and installed table-reading
+acceptance; structural class facts and stable record identities must be preserved.
+
+Sheets commit `d4895336f78aa57bd86c5a3ce598022557b3f64f` includes the coordinator
+fix, regression tests, contract documentation and regenerated native workers.
+Its inspected ZIP SHA-256 is
+`cfb9d4df373d8889ce264ae9b33858762b87e6460ed33ed20b4d2ffb346113d9`.
+
+Compendium commit `f87513366c605585d60c621f84c4c0e6534c5ff7` includes the UI,
+navigation contract and regenerated browser assets. Its inspected ZIP SHA-256 is
+`ae26bff58a8bc6dd0ab466798f4010d86a141cc6e9796732b3bb010027c955ba`.
+The Engine and DM Tools sources/ZIPs are unchanged from T55. All four companion
+worktrees are clean and the host pins these exact sources.
+
+Owning checks passed: Sheets' 17 module tests, Go tests and vet; Compendium's
+67 tests, build and tools typecheck; both package inspections; all three new
+installed provider/schema cases and both long-reading cases. Against host
+`0318942` plus this batch, complete `npm run check` passed **38 tooling, 400 unit
+and 422 browser tests**, zero failures/skips, plus Go tests and vet. All **33
+release-readiness gates** passed. Strict installed acceptance passed **182/182**
+tests with zero failures/skips against all four pinned packages. Local document
+links and anchors passed **189 checks**. The earlier unexplained availability
+loss did not recur in either full run; its cause remains unproven.
+
+These checks use disposable local data and native Windows workers. Linux
+workers are cross-compiled and inspected; native Linux execution remains a CI
+boundary. Broader multiclass/provider combinations, source-policy browsing and
+content gaps, human assistive-technology/physical-device acceptance, and live
+publication/activation remain open. The unexplained T53 availability loss remains
+unproven; this batch does not attribute it to the newly reproduced load failure.
+No publication, deployment or production data change occurred.
+
+### Cleanup progress update, September 24
+
+The implementation estimate is now about **90%** (roughly 85–95%), or **80–85%**
+including remaining workflow, release and site acceptance. These are effort
+estimates, not equal-weight counts of completed sub-batches. The original
+September 14 baseline has **26 of 40 tasks closed (65%)** after closing T31;
+large T18 and T14 umbrella tasks receive no partial credit in that count.
+The [earlier counting method](#cleanup-progress-estimate) remains the basis.
+
+Host restoration, Engine T32, Sheets T25/T33 and Compendium T31 are complete.
+Remaining work is concentrated in the explicit T18 acceptance/content gaps,
+generated-artifact ownership across the add-ons (T14), human/device checks and
+authorized operations (T15–T17). Conditional extensions and an untriggered
+future schema migration are not additional cleanup promises.

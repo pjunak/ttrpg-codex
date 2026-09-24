@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 import type { ChildProcessByStdio } from 'node:child_process';
 import type { Readable } from 'node:stream';
 import assert from 'node:assert/strict';
+import { registerCompendiumNavigationTests } from "./installed-compendium-navigation-fixture.mts";
 import { before, after, test } from 'node:test';
 import { mkdir, mkdtemp, rm, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -65,6 +66,8 @@ async function open(t: TestContext, role = 'dm', mobile = false, locale = 'en', 
   if (navigate) { await page.goto(`/${route}`); await page.locator('.comp-reading-pane h1').waitFor().catch(async () => assert.fail(await page.locator('body').innerText())); }
   return page;
 }
+registerCompendiumNavigationTests(!!archivePath, { open, go, fits, output });
+
 async function fits(page: Page) { assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true); }
 async function go(page: Page, query: string) { await page.goto(`/${route}${query}`); await page.locator('.comp-reading-pane h1').waitFor(); }
 
@@ -119,6 +122,10 @@ for (const mobile of [false, true]) for (const role of ['dm', 'player']) test(`i
   await page.getByRole('button', { name: 'By source', exact: true }).click();
   await page.locator('.comp-tree a').filter({ hasText: 'Player' }).first().click();
   await pane.getByRole('heading', { name: /Player/ }).waitFor();
+  if (mobile) {
+    assert.equal(await page.locator('.comp-tree-drawer').evaluate((node: HTMLDetailsElement) => node.open), false);
+    assert.equal(await pane.locator('h1').evaluate(node => node === document.activeElement), true);
+  }
   await pane.getByRole('link', { name: /Spells/ }).click(); assert.equal(await pane.locator('[data-filter="book"]').inputValue(), 'phb');
   await fits(page);
 });

@@ -68,7 +68,11 @@ codex-record-contributions, codex-addon-markdown { display: block; min-width: 0;
 }
 
 .route-addon .addon-contribution,
-.addon-route .addon-contribution { min-height: calc(100vh - 6rem); }
+.addon-route .addon-contribution {
+  min-height: calc(100vh - 6rem);
+  /* Clip route content without creating a scroll container that traps sticky controls. */
+  overflow: clip;
+}
 
 @media (max-width: 58rem) {
   .addon-dashboard,

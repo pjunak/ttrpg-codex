@@ -3,11 +3,12 @@ import { createHash } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
 import { zip } from './installed-graph-fixture.mts';
 
-// Repackage a locally built test archive with a new manifest version; never
-// extract it or alter its worker binaries. The real inspector reviews the ZIP.
-export function replacementImportPackage(archive: Buffer, version = "3.0.1") {
+// Repackage a local fixture with a new version and optional contract changes.
+// Preserve worker permissions and rebuild checksums for the real inspector.
+export function replacementImportPackage(archive: Buffer, version = "3.0.1", mutate?: (files: Record<string, string | Buffer>, manifest: Record<string, any>) => void) {
   const { files, modes } = importPackageEntries(archive);
   const manifest = JSON.parse(files['addon.json'].toString()); manifest.version = version;
+  mutate?.(files, manifest);
   files['addon.json'] = JSON.stringify(manifest); delete files['checksums.json'];
   files['checksums.json'] = JSON.stringify({ algorithm: 'sha256', files: Object.fromEntries(Object.entries(files).map(([name, body]) => [name, createHash('sha256').update(body).digest('hex')])) });
   return zip(files, modes);
