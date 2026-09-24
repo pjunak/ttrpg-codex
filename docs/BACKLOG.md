@@ -1,6 +1,6 @@
 # Project backlog
 
-Work for the five repositories, reviewed September 24, 2026. This remains
+Work for the five repositories, reviewed September 25, 2026. This remains
 one suite backlog; each task belongs to the repository that owns its change.
 Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
@@ -69,6 +69,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T57-HOST — Delay hover previews and restore keyboard reopening**~~ — shared cancellable hover intent and scoped focus restoration; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compendium-source-policy-and-readable-class-tables).
 - [x] ~~**T58-HOST — Accept species choices, saved size and provider-free output**~~ — five installed cases, exact source pins and response-synchronized recovery; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
 - [x] ~~**T59-HOST — Accept qualifying advancements and saved feat output**~~ — five installed cases and frozen-output coverage; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
+- [x] ~~**T60-HOST — Accept class styles and correct the settings readiness test**~~ — six installed cases, saved outputs and delayed-startup draft guards (`7cf4b9b`); [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -81,11 +82,12 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 
 ### Validation follow-up
 
-- [ ] **T57-VERIFY / P2 — Identify the isolated timeline startup timeout.**
-  One Windows full-suite run timed out before the timeline board mounted.
-  The standalone suite and concurrent reproduction passed; no root cause is
-  proven. Use the [startup diagnostics](../frontend/test/browser/timeline.browser.mts) to explain a recurrence, without
-  extending the timeout or weakening the drag/revision assertions.
+- [ ] **T57-VERIFY / P2 — Explain intermittent browser startup timeouts.**
+  T57 timed out before the timeline board mounted; T60 hit one phone-settings
+  startup timeout. Focused reruns passed; no shared cause is established.
+  Retain the [timeline diagnostics](../frontend/test/browser/timeline.browser.mts)
+  and capture page/network state on a settings recurrence. Preserve deadlines
+  and assertions; [T60 evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
 
 ### Lifecycle, maintenance and operations
 
@@ -169,17 +171,18 @@ Standalone browsing must remain useful without Engine or Sheets.
 - [x] ~~**T57-COMP — Repair class tables and finish source-policy browsing acceptance**~~ — `8d46929`, `d189995`, `0c3e5d7`; 24 preserved source tables, readable enlarged cells and enabled-book/reprint navigation; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compendium-source-policy-and-readable-class-tables).
 - [x] ~~**T58-COMP — Declare selectable sizes for fourteen species**~~ — `173ac31`; source choices, corrected PHB summaries and preserved book/reprint identity; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
 - [x] ~~**T59-COMP — Restore qualifying advancement categories and PHB feat declarations**~~ — `7d44bd8`; ten Fighting Styles, twelve Epic Boons and preserved source identities; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
+- [x] ~~**T60-COMP — Declare class styles and conditional cantrip alternatives**~~ — `0b351ba`; four source-owned features, unchanged IDs/prose and class/list/ability facts; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
 
 ### Remaining work
 
 - [ ] **T18-COMP / P1, review — Complete remaining source-mechanics acceptance.**
-  Structure class-granted Fighting Style choices, Champion's extra style,
-  Blessed/Druidic Warrior alternatives and permitted replacement. Then cover
-  the confirmed sheet-stat gaps: Blind Fighting senses, armor-dependent Defense,
-  and Epic Boon fixed HP/speed/truesight benefits. Validate source declarations
-  with Engine/Sheets and preserve saved choices. T59 closes advancement category,
-  prerequisite and ability-pool acceptance; T58 covers species sizes and T31/T57
-  cover reading/source-policy/tables. Encounter resolution remains C10.
+  Add bounded level-up replacement for Fighter's style and Blessed/Druidic
+  Warrior cantrips. Cover the confirmed sheet-stat gaps: Blind Fighting senses,
+  armor-dependent Defense and Epic Boon fixed HP/speed/truesight benefits.
+  Validate with Engine/Sheets and preserve saved choices. T60 closes initial
+  class/subclass styles and cantrip alternatives; T59 closes advancement
+  eligibility, T58 species sizes and T31/T57 source-policy browsing/tables.
+  Encounter resolution remains C10.
 - [ ] **T14-COMP / P2 — Move generated browser output to build ownership.**
   Update independent build/package/tests and host fixtures before removing tracked
   `web/`. Normalize ZIP timestamps and verify repeated builds from unchanged inputs
@@ -215,6 +218,7 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T53-ENGINE — Preserve acquired state during grant reauthorization**~~ — `c5a9be7`; detached identity remapping, unchanged spent uses and rejected collisions; [session acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#character-session-transfer-and-saved-output).
 - [x] ~~**T58-ENGINE — Evaluate species size and prevent redundant spell evidence growth**~~ — `04a1973`, `50eebb2`; generic choices, explicit repair, saved explanations and a multiclass snapshot fix; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
 - [x] ~~**T59-ENGINE — Align acquired prerequisites and repair withdrawn feat increases**~~ — `a3ba0df`; canonical subclass features, matching picker/validation and saved feat counts; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
+- [x] ~~**T60-ENGINE — Resolve conditional class choices and preserve spell ownership**~~ — `ceaa19a`; shared package resolution, dependency order and source-scoped withdrawal; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
 
 ### Remaining work
 
@@ -268,6 +272,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T56-SHEETS — Keep saved characters readable through incompatible providers**~~ — `d489533`; authoritative edit rejection, frozen outputs, original-provider restoration and schema/backup preservation; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#incompatible-providers-schema-preservation-and-reachable-libraries).
 - [x] ~~**T58-SHEETS — Reuse shared size controls and keep enlarged stat grids readable**~~ — `dd435a8`; localized saved/printed sizes, both layouts and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-defined-species-sizes-and-saved-character-display).
 - [x] ~~**T59-SHEETS — Show saved feats in Combat and print**~~ — `0626c3e`; one shared renderer, repeated counts, both locales/layouts and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
+- [x] ~~**T60-SHEETS — Repair shared spell pickers and provider-free rule details**~~ — `28e2281`, `e415b0a`; wrapping/focus and one saved-evidence adapter for readable spell details; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
 
 ### Remaining work
 

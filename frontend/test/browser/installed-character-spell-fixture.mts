@@ -159,4 +159,5 @@ export async function verifyFrozenSpellDetails(t:TestContext,f:Fixture) {
  assert.match(await popup.locator('body').innerText(),/Touching stone; ends after 10 minutes/);
  await popup.close();
  assert.equal((await read()).revision,frozen.revision);
+ await page.context().close();
 }

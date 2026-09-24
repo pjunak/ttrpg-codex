@@ -180,5 +180,6 @@ export async function verifyFrozenSessionOutputs(t: TestContext, f: Fixture) {
     const envelope = await exported(page, sheet, locale); assert.deepEqual(envelope.inputs, frozen.state.inputs);
     const popup = await printOutput(page, sheet, locale); await assertPrint(popup, locale, frozen.state, true); await popup.close();
     assert.equal((await read()).revision, frozen.revision);
+    await page.context().close();
   }
 }

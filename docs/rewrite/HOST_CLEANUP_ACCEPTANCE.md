@@ -2136,3 +2136,128 @@ Blessed/Druidic Warrior alternatives and replacement, the named passive sheet
 benefits, and the existing Combat proficiency presentation. Encounter resolution
 remains outside this character workflow. This closes a T18 slice without claiming
 exhaustive rules correctness or changing the suite's overall progress estimate.
+
+## Class-granted styles and conditional cantrips
+
+T60, September 24–25, 2026, restores the missing Fighter, Paladin, Ranger and
+Champion style choices and the Blessed/Druidic Warrior alternatives. The
+Compendium keeps its book -> kind -> record organization, four feature IDs,
+class progression and original prose. A semantic comparison confirmed the
+four records change only by adding structured grants; content revision is 3.0.4.
+The [source coverage](../../../addon-dnd-2024-compendium/data/COVERAGE.md#character-rules-and-contextual-details)
+records the official rules reference and the remaining replacement boundary.
+
+### Shared behavior and preserved state
+
+Class/subclass/feature choice packages now use one selection resolver for the
+Builder and calculation. Enumerated parent choices are resolved before their
+dependent feats even when the child ID sorts first. Source levels, subclasses,
+feat categories and nonrepeatable acquisition rules continue to apply. An
+inactive branch grants neither its former feat nor its spells.
+
+Cantrip alternatives retain their source list, fixed casting ability and explicit
+class membership without renaming the granting source. Existing coordinator
+repair removes only previously saved selections that become unavailable;
+newly forged choices are rejected. This uses existing schema-4 choices and spell
+grants without a new UI rule implementation or automatic source adoption.
+
+Visual review found spell names running directly into their Details controls
+on desktop. The common spell picker now uses its existing wrapping control
+layout and skin spacing tokens. Builder and Manage spells share the repair;
+borrowed host comboboxes, checkboxes, search and rule details retain their
+existing focus behavior.
+
+Provider-free acceptance also found that saved spell details sent full record
+metadata into the host's closed evidence contract. The host rejected the payload,
+so spell labels disappeared although their saved grants and names were intact.
+Spell, sheet and projection details now share one adapter that supplies only
+reference, name, summary and hash. Stored facts and provenance remain unchanged.
+
+### Installed acceptance
+
+The [class-style fixture](../../frontend/test/browser/installed-character-class-style-fixture.mts)
+adds six cases and extends the existing provider-free final case:
+
+- Fighter's style is available at class level 1; Paladin/Ranger at class level 2.
+  Their feat slots offer all ten styles and reject an ordinary feat.
+- Champion's class-level-7 style remains a separate acquisition. Duplicate
+  nonrepeatable styles are rejected; removing the seventh level withdraws
+  only the additional style.
+- Both cantrip alternatives enforce their own list, level and count, retain
+  their casting ability and class membership, and reject an ineligible spell.
+  Branch or level removal withdraws only the affected saved choices/spells.
+- English Compact desktop and Czech Classic at 390px/200% text exercise shared
+  keyboard controls, focused autosave, branch switches, spell selection,
+  reload, print and export. Notes, HP, temporary HP and currency survive;
+  the ordinary save timestamp can advance.
+- Spell checkbox labels and Details have visible separation both inline and
+  wrapped. Desktop and enlarged Czech phone screenshots were inspected.
+- Provider-free saved spell display, export and print retain exact state and
+  make no live record queries. Both locales open Guidance's detail dialog and
+  display its exact saved source hash through the host's shared control.
+
+### Exact sources and validation
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools, unchanged | `0eeac9bc84f50836fa30f134b5edee9358656676` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine | `ceaa19aea8990faad104137e285f516c3d1679ba` | `7077565c723226b654f12a76e4b8baa2ed6a240246a7d12167f2d43b37e19b28` |
+| Sheets | `e415b0a91c1c765cf32d7b89b9e083bb8ff0ac0c` | `1da20e58bf2ffed4fde48fe0c42d3055a59b6010b9e818be042bcfc818836c72` |
+| Compendium | `0b351ba24f4c61f33dcd6dbaae98ea2d6878badf` | `b8b3c143de3ef86be76b513038f24f8a031e76f27807fbb8b588ab151561e9da` |
+
+Compendium **79/79** tests, build and tool checks passed. Engine Go tests/vet,
+synthetic branch/ownership regressions and the **144 preserved parity vectors**
+passed. Sheets **18/18** module tests, build and Go tests/vet passed. All three
+changed packages were built and host-inspected; preparation records the clean
+companion source commits above. The six focused installed cases passed; both
+UI cases also passed after the shared spacing repair. An isolated real-package
+run passed all six cases plus provider removal, saved-source details, export and
+print after the evidence-adapter fix.
+
+Host `npm run check` passed: **38 tooling, 400 unit and 282 browser tests**,
+plus Go tests/vet. The **133 optional installed skips** in that gate are covered
+by the separately required suite below. `npm run release-check` passed all
+**33 product-parity gates**.
+
+The final strict installed suite passed **204/204 with zero skips** against
+the exact package set above. Provider-free spell labels, saved source dialogs,
+export/print and the context-release assertions all passed.
+
+The first host gate hit a 7-second phone-settings startup timeout before
+`.settings-page` mounted. The two sidebar cases passed unchanged in isolation.
+No application error or root cause was established; T57-VERIFY retains this
+observation alongside the earlier timeline timeout, without asserting a shared
+cause or increasing deadlines. Bounded settings startup page/request captures
+now preserve evidence on a recurrence.
+
+A second early host run failed the hidden-settings draft assertion. The failure
+also occurred once in three isolated repetitions. Holding the initial GitHub
+inventory response proved the cause: the visible contribution was still `inert`,
+and Playwright's `fill` returned while its input remained empty. No edit had been
+created for the navigation guard to protect. The fixture now deliberately holds
+startup, checks the inert state, releases it, waits for management readiness and
+checks the typed value before testing navigation. All four integrated/isolated
+desktop/phone cases and the subsequent complete host gate passed. Failure
+snapshots remain available. This explains the draft assertion, not the separate
+startup timeout; no deadlines, assertions or coverage were relaxed.
+
+The first strict installed run passed **203/204**, exposing the saved-spell
+evidence defect above. Its provider-free regression stays in the final suite.
+A second run passed **203/204**, but Chromium returned `ERR_NO_BUFFER_SPACE`
+while opening the final Czech provider-free page. The combined verification
+retained each completed browser context until the parent test ended. Each phase
+now closes its completed contexts promptly, and the parent asserts that no phase
+leaves extra contexts behind. This bounds fixture resource use without retries,
+longer timeouts or removed behavior checks; it does not establish the cause of
+the separate startup timeout.
+
+Package provenance records host `8ca42ee` plus this batch's working changes.
+Native execution was Windows AMD64; Linux workers were cross-compiled. Human
+screen-reader, physical touch, printer, Linux CI and live-site checks are not
+claimed. No push, release or deployment occurred.
+
+Dedicated bounded level-up replacement actions and the named passive feat
+benefits remain open. DM build editing can revise current choices, but is not a
+replacement ledger. Combat proficiency presentation and broader multiclass
+session acceptance also remain in T18. This completes a concrete slice without
+changing the suite's overall progress estimate.

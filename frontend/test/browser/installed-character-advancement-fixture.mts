@@ -181,5 +181,6 @@ export async function verifyFrozenAdvancements(t: TestContext, f: Fixture) {
     const envelope = await exported(page, sheet, locale); assert.deepEqual(envelope.inputs, expected.state.inputs);
     const popup = await printOutput(page, sheet, locale); assert.match(await popup.locator('body').innerText(), /Boon of Combat Prowess/); await popup.close();
     assert.equal(queries, 0); assert.deepEqual((await read()).state, expected.state);
+    await page.context().close();
   }
 }

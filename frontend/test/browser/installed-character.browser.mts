@@ -17,6 +17,7 @@ import { registerCharacterCreationTests, verifyFrozenCreatedCharacters } from '.
 import { registerOriginChoiceTests } from './installed-character-origin-fixture.mts';
 import { registerCharacterSizeTests, verifyFrozenSizes } from './installed-character-size-fixture.mts';
 import { registerCharacterAdvancementTests, verifyFrozenAdvancements } from './installed-character-advancement-fixture.mts';
+import { registerClassStyleTests, verifyFrozenClassStyles } from './installed-character-class-style-fixture.mts';
 import { registerEquipmentTests } from './installed-character-equipment-fixture.mts';
 import { registerMulticlassAcceptanceTests } from './installed-character-multiclass-fixture.mts';
 import { registerCharacterOutputTests, verifyFrozenSessionOutputs } from './installed-character-output-fixture.mts';
@@ -171,6 +172,7 @@ registerSpellOwnershipTests(enabled, () => ({ admin, browser, csrf, origin, outp
 registerOriginChoiceTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterSizeTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterAdvancementTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerClassStyleTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerEquipmentTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerMulticlassAcceptanceTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterOutputTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
@@ -209,9 +211,13 @@ test('source adoption remains explicit and absent rules freeze mechanics without
   await sheet.locator('[data-equipment-slot="'+slot+'"]').getByRole('button',{name:id!,exact:true}).waitFor();
  }
  assert.equal(await sheet.getByRole('button',{name:'+ Shield',exact:true}).count(),0);
- await verifyFrozenSessionOutputs(t, { admin, browser, csrf, origin, output, call });
- await verifyFrozenCreatedCharacters({ admin, browser, csrf, origin, output, call });
- await verifyFrozenSizes(t, { admin, browser, csrf, origin, output, call });
- await verifyFrozenAdvancements(t, { admin, browser, csrf, origin, output, call });
- await verifyFrozenSpellDetails(t,{admin,browser,csrf,origin,output,call});
+ await context.close();
+ const fixture = { admin, browser, csrf, origin, output, call };
+ await verifyFrozenCreatedCharacters(fixture);
+ // Finished workflows must not retain browser sessions until this parent ends.
+ for (const verify of [verifyFrozenSessionOutputs, verifyFrozenSizes, verifyFrozenAdvancements, verifyFrozenClassStyles, verifyFrozenSpellDetails]) {
+  const retained = browser.contexts().length;
+  await verify(t, fixture);
+  assert.equal(browser.contexts().length, retained, verify.name + ' must release its browser contexts');
+ }
 });

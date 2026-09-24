@@ -146,5 +146,6 @@ export async function verifyFrozenSizes(t: TestContext, f: Fixture) {
     const popup = await printOutput(page, sheet, locale);
     assert.match(await popup.locator('body').innerText(), locale === 'cs' ? /Velikost\s+Malá/u : /Size\s+Small/u); await popup.close();
     assert.equal(queries, 0); assert.deepEqual((await read()).state, expected.state);
+    await page.context().close();
   }
 }
