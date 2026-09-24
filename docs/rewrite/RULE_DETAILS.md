@@ -23,7 +23,10 @@ disabled book.
 
 ## Interaction
 
-Hover/focus offers a preview. Click, tap, Enter or Space pins a named non-modal
+Mouse hover offers a preview after a 300 ms dwell, so crossing a trigger or
+refreshing nearby results does not immediately cover neighboring controls.
+Pointer departure, activation, dismissal and disposal cancel pending previews.
+Keyboard focus remains immediate. Click, tap, Enter or Space pins a named non-modal
 dialog, with a visible close action and full-entry navigation inside. Escape
 closes it and restores the initiating control when appropriate. Moving onto the
 panel keeps it open; related references use one panel with a back path. Position
@@ -34,6 +37,8 @@ use English/Czech catalogs; source-authored prose retains its source language.
 This follows the [WCAG hover/focus requirements](https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html),
 the [APG distinction between tooltips and interactive dialogs](https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/)
 and the [native Popover API](https://developer.mozilla.org/en-US/docs/Web/API/Popover_API/Using).
+The APG describes a short hover delay; 300 ms is this application's interaction
+choice, not a WCAG timing requirement. The panel remains an interactive dialog.
 
 ## F18 surface inventory
 

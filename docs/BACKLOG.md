@@ -66,6 +66,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T46-HOST — Preserve pending add-on edits through session renewal**~~ — [shared recovery and installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#add-on-session-renewal-without-losing-pending-edits).
 - [x] ~~**T48-HOST — Hand off pending record edits across add-on graph replacement**~~ — bounded shared API, guarded teardown and fresh service ownership; [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#pending-character-edits-across-graph-replacement).
 - [x] ~~**T56-HOST — Accept incompatible packages and enable sticky add-on route controls**~~ — shared route clipping, denied schema replacement and portable saved-state preservation; [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#incompatible-providers-schema-preservation-and-reachable-libraries).
+- [x] ~~**T57-HOST — Delay hover previews and restore keyboard reopening**~~ — shared cancellable hover intent and scoped focus restoration; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compendium-source-policy-and-readable-class-tables).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -75,6 +76,14 @@ Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITO
 [reviewed disabling](rewrite/PACKAGE_LIFECYCLE.md#reload-and-disable),
 [worker recovery](rewrite/WORKER_SUPERVISION.md#restart-policy),
 and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
+
+### Validation follow-up
+
+- [ ] **T57-VERIFY / P2 — Identify the isolated timeline startup timeout.**
+  One Windows full-suite run timed out before the timeline board mounted.
+  The standalone suite and concurrent reproduction passed; no root cause is
+  proven. Use the [startup diagnostics](../frontend/test/browser/timeline.browser.mts) to explain a recurrence, without
+  extending the timeout or weakening the drag/revision assertions.
 
 ### Lifecycle, maintenance and operations
 
@@ -155,21 +164,17 @@ Standalone browsing must remain useful without Engine or Sheets.
 - [x] ~~**T51-COMP — Declare Magic Initiate spell lists and origin presets**~~ — `736f95a`; [source facts and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#acquisition-owned-spell-grants-and-complete-combat-details).
 - [x] ~~**T52-COMP — Declare source-specific attunement prerequisites**~~ — `00495d3`; 21 existing items, class/trait distinctions and explicit narrative adjudication; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-progression-and-source-specific-attunement).
 - [x] ~~**T31 — Keep library navigation reachable on phones**~~ — `f875133`; preserved reader, working disclosures, focus and readable enlarged titles/counts; [English/Czech acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#incompatible-providers-schema-preservation-and-reachable-libraries).
+- [x] ~~**T57-COMP — Repair class tables and finish source-policy browsing acceptance**~~ — `8d46929`, `d189995`, `0c3e5d7`; 24 preserved source tables, readable enlarged cells and enabled-book/reprint navigation; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compendium-source-policy-and-readable-class-tables).
 
 ### Remaining work
 
-- [ ] **T18-COMP / P1, review — Complete browsing and reading parity acceptance.**
-  Complete source-policy/reprint combinations across topic/class/level browsing,
-  cross-kind search, facets and typed references. T31 covers long class/monster/
-  spell reading, phone library controls, Back, keyboard and enlarged text in both
-  locales; retain that evidence. Repair confirmed malformed Core Traits Markdown
-  in seven PHB class records ([source details](rewrite/HOST_CLEANUP_ACCEPTANCE.md#incompatible-providers-schema-preservation-and-reachable-libraries)). Review selectable species sizes
-  (Human still declares fixed Medium despite its Small/Medium source choice) and
-  remaining advancement feat categories, including Fighting Style and level-19
-  alternatives. Test English/Czech, missing/disabled books, empty results, Retry
-  and generation
-  replacement. Separate missing data, misleading presentation and unsupported
-  mechanics in the resulting findings.
+- [ ] **T18-COMP / P1, review — Complete remaining source-mechanics acceptance.**
+  Review selectable species sizes (Human still declares fixed Medium despite its
+  Small/Medium source choice) and remaining advancement feat categories, including
+  Fighting Style and level-19 alternatives. Verify source declarations with their
+  Engine/Sheets consumers and preserve saved choices. T31/T57 close the reading,
+  source-policy and table-formatting work; retain that regression evidence.
+  Separate missing data, misleading presentation and unsupported mechanics.
 - [ ] **T14-COMP / P2 — Move generated browser output to build ownership.**
   Update independent build/package/tests and host fixtures before removing tracked
   `web/`. Normalize ZIP timestamps and verify repeated builds from unchanged inputs

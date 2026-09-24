@@ -6,6 +6,7 @@ import type { ChildProcessByStdio } from 'node:child_process';
 import type { Readable } from 'node:stream';
 import assert from 'node:assert/strict';
 import { registerCompendiumNavigationTests } from "./installed-compendium-navigation-fixture.mts";
+import { registerCompendiumSourceTests } from "./installed-compendium-sources-fixture.mts";
 import { before, after, test } from 'node:test';
 import { mkdir, mkdtemp, rm, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -67,6 +68,7 @@ async function open(t: TestContext, role = 'dm', mobile = false, locale = 'en', 
   return page;
 }
 registerCompendiumNavigationTests(!!archivePath, { open, go, fits, output });
+registerCompendiumSourceTests(!!archivePath, () => ({ open, go, fits, output, admin, csrf }));
 
 async function fits(page: Page) { assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true); }
 async function go(page: Page, query: string) { await page.goto(`/${route}${query}`); await page.locator('.comp-reading-pane h1').waitFor(); }

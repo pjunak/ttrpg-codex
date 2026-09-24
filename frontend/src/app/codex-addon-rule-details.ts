@@ -47,7 +47,8 @@ export class CodexAddonRuleDetails extends LitElement {
   readonly #ui = new UiLocalizationController(this);
   declare details: RuleDetails; declare private link: AddonLinkState; declare private opened: boolean;
   #dispose: (() => void) | undefined; #pinned = false; #hide: ReturnType<typeof setTimeout> | undefined;
-  #dismissed = false;
+  #restoringFocus = false;
+  #preview: ReturnType<typeof setTimeout> | undefined;
   #trail: RuleDetails[] = [];
   readonly #id = `rule-detail-${crypto.randomUUID()}`;
   static override styles = css`
@@ -57,10 +58,10 @@ export class CodexAddonRuleDetails extends LitElement {
     h3,p{margin:.25rem 0 .7rem}h3{font-size:1.1rem}button.close{float:right;min-width:32px;min-height:32px;margin-left:1rem}dl{display:grid;grid-template-columns:1fr 1fr;gap:.4rem}dd{margin:0;overflow-wrap:anywhere}.sources{display:flex;gap:.5rem;flex-wrap:wrap}a{display:block;margin-top:.8rem;min-height:24px}small{display:block}
   `;
   constructor() { super(); this.details = { label: "Rule details" }; this.link = { status: "missing" }; this.opened = false; this.compact = false;
-    this.addEventListener("keydown", event => { if (event.key === "Escape" && this.opened) { event.preventDefault(); event.stopPropagation(); this.#close(); this.renderRoot.querySelector<HTMLButtonElement>(".trigger")?.focus(); } });
+    this.addEventListener("keydown", event => { if (event.key === "Escape" && this.opened) { event.preventDefault(); event.stopPropagation(); this.#close(); this.#focusTrigger(); } });
     this.addEventListener("rule-details-follow", event => { if(event.target===this||!(event instanceof CustomEvent))return; event.preventDefault(); event.stopPropagation(); const data=event.detail as {details:RuleDetails;pin:boolean}; if(data.pin){this.#trail.push(this.details);this.details=parseRuleDetails(data.details);this.#pinned=true;void this.updateComplete.then(()=>this.renderRoot.querySelector<HTMLElement>("h3")?.focus());} });
   }
-  override disconnectedCallback(): void { this.#dispose?.(); this.#dispose = undefined; clearTimeout(this.#hide); this.#stopPositioning(); super.disconnectedCallback(); }
+  override disconnectedCallback(): void { this.#dispose?.(); this.#dispose = undefined; clearTimeout(this.#hide); clearTimeout(this.#preview); this.#stopPositioning(); super.disconnectedCallback(); }
   show(): void { this.#show(true); }
   protected override updated(changed: Map<PropertyKey, unknown>): void {
     if (changed.has("details")) {
@@ -71,9 +72,9 @@ export class CodexAddonRuleDetails extends LitElement {
     if (this.opened) this.#position();
   }
   #show(pin: boolean): void {
+    clearTimeout(this.#preview); this.#preview = undefined;
     if(!this.dispatchEvent(new CustomEvent("rule-details-follow",{bubbles:true,composed:true,cancelable:true,detail:{details:this.details,pin}})))return;
-    if (this.#dismissed && !pin) return;
-    this.#dismissed = false;
+    if (this.#restoringFocus && !pin) return;
     clearTimeout(this.#hide); this.#pinned ||= pin;
     const popover = this.renderRoot.querySelector<HTMLElement>("[popover]"); if (!popover) return;
     if (!popover.matches(":popover-open")) popover.showPopover();
@@ -95,18 +96,33 @@ export class CodexAddonRuleDetails extends LitElement {
     popover.style.top = `${Math.max(8, useBelow ? trigger.bottom + 6 : trigger.top - bounds.height - 6)}px`;
   };
   #stopPositioning(): void { window.removeEventListener("resize", this.#position); window.removeEventListener("scroll", this.#position, true); }
-  #close = (): void => { this.#dismissed = true; this.#stopPositioning(); this.renderRoot.querySelector<HTMLElement>("[popover]")?.hidePopover(); this.#pinned = false; this.opened = false; this.dispatchEvent(new Event("rule-details-closed")); };
-  #leave = (): void => { clearTimeout(this.#hide); this.#hide = setTimeout(() => { if (!this.#pinned && !this.matches(":focus-within")) this.#close(); }, 180); };
+  #close = (): void => { clearTimeout(this.#preview); this.#preview = undefined; this.#stopPositioning(); this.renderRoot.querySelector<HTMLElement>("[popover]")?.hidePopover(); this.#pinned = false; this.opened = false; this.dispatchEvent(new Event("rule-details-closed")); };
+  #focusTrigger(): void {
+    // Restoring focus after dismissal must not immediately reopen the preview.
+    this.#restoringFocus = true;
+    try { this.renderRoot.querySelector<HTMLButtonElement>(".trigger")?.focus(); }
+    finally { this.#restoringFocus = false; }
+  }
+  #hover = (event: PointerEvent): void => {
+    if (event.pointerType !== "mouse" || this.#pinned) return;
+    clearTimeout(this.#preview); clearTimeout(this.#hide);
+    // Let the pointer settle before a preview can cover neighboring controls.
+    this.#preview = setTimeout(() => {
+      this.#preview = undefined;
+      if (this.isConnected && this.renderRoot.querySelector(".trigger")?.matches(":hover")) this.#show(false);
+    }, 300);
+  };
+  #leave = (): void => { clearTimeout(this.#preview); this.#preview = undefined; clearTimeout(this.#hide); this.#hide = setTimeout(() => { if (!this.#pinned && !this.matches(":focus-within")) this.#close(); }, 180); };
   protected override render() {
     let data: RuleDetails;
     try { data=parseRuleDetails(this.details); } catch { return html`<span>${this.#ui.t("ruleDetails.unavailable")}</span>`; }
     const explanation = data.explanation, summary = data.summary ?? (this.link.status === "resolved" ? this.link.description : "");
     return html`<button type="button" class="trigger" aria-label=${this.compact ? this.#ui.t("ruleDetails.for", { name: data.label }) : data.label} aria-haspopup="dialog" aria-expanded=${this.opened} aria-controls=${this.#id}
-      @pointerenter=${(event: PointerEvent) => { if (event.pointerType === "mouse") { this.#dismissed = false; this.#show(false); } }} @pointerleave=${this.#leave}
+      @pointerenter=${this.#hover} @pointerleave=${this.#leave}
       @focus=${() => this.#show(false)} @blur=${this.#leave} @click=${() => this.#show(true)}>${this.compact ? "ⓘ" : data.label}</button>
       <div id=${this.#id} popover="auto" role="dialog" aria-labelledby=${`${this.#id}-title`} @pointerenter=${() => clearTimeout(this.#hide)} @pointerleave=${this.#leave}
         @toggle=${(event: ToggleEvent) => { const wasOpen = this.opened; this.opened = event.newState === "open"; if (!this.opened) { this.#pinned = false; this.#stopPositioning(); if (wasOpen) this.dispatchEvent(new Event("rule-details-closed")); } }}>
-        <button type="button" class="close" aria-label=${this.#ui.t("ruleDetails.close")} @click=${() => { this.#close(); this.renderRoot.querySelector<HTMLButtonElement>(".trigger")?.focus(); }}>×</button>
+        <button type="button" class="close" aria-label=${this.#ui.t("ruleDetails.close")} @click=${() => { this.#close(); this.#focusTrigger(); }}>×</button>
         <h3 id=${`${this.#id}-title`} tabindex="-1">${explanation?.label ?? data.label}</h3>
         ${this.#trail.length ? html`<button type="button" @click=${()=>{this.details=this.#trail.pop()!;}}>${this.#ui.t("ruleDetails.back")}</button>` : nothing}
         ${summary ? html`<p>${summary}</p>` : nothing}

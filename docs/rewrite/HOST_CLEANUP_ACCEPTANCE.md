@@ -1763,13 +1763,9 @@ inspected. Existing desktop/phone browsing checks retain search/facets through
 Back and reload, follow typed cross-record links, use source groups, and exercise
 Retry and package replacement.
 
-Remaining content finding: seven PHB class `text` fields contain flattened Core
-Traits tables with standalone pipes and no valid Markdown table separators:
-Barbarian, Cleric, Druid, Monk, Sorcerer, Warlock and
-[Wizard](../../../addon-dnd-2024-compendium/data/phb/classes/wizard.json).
-This was visible in the long-reading screenshot and confirmed in unchanged
-source JSON. T18-COMP retains source-prose repair and installed table-reading
-acceptance; structural class facts and stable record identities must be preserved.
+T56 exposed flattened Core Traits tables in seven PHB class records.
+[T57 repairs those tables and the affected progression/subclass lists](#compendium-source-policy-and-readable-class-tables),
+with preserved source facts and installed reading acceptance.
 
 Sheets commit `d4895336f78aa57bd86c5a3ce598022557b3f64f` includes the coordinator
 fix, regression tests, contract documentation and regenerated native workers.
@@ -1814,3 +1810,85 @@ Remaining work is concentrated in the explicit T18 acceptance/content gaps,
 generated-artifact ownership across the add-ons (T14), human/device checks and
 authorized operations (T15–T17). Conditional extensions and an untriggered
 future schema migration are not additional cleanup promises.
+
+## Compendium source policy and readable class tables
+
+T57 closes the remaining source-policy browsing matrix and the confirmed class
+table formatting defect. It preserves the book-first record tree, typed
+(kind, id) identities, canonical book provenance and genuine reprint membership.
+
+The source formatting repair covers 24 tables in Barbarian, Cleric, Druid, Monk,
+Sorcerer, Warlock and Wizard: seven Core Traits tables, eleven progression
+tables and six included subclass lists. Direct comparison with the previous
+commit verifies unchanged structured fields and unchanged prose/cell text.
+No rules facts are inferred or added. Data regressions check each trait value,
+all 20 progression levels and the retained subclass lists. The content revision
+advances to 3.0.1; the rules-data service remains v3.
+
+Source filters and book links now use the host's effective book catalog.
+Disabled canonical books retain a plain provenance label on readable reprints,
+without a dead book link. A stale source filter stays selected with zero matches
+and an English/Czech recovery explanation; clearing it restores eligible results.
+The obsolete Ravenloft empty-book note now agrees with the documented conversion
+and canonical Dhampir reprint.
+
+[Installed source and reading acceptance](../../frontend/test/browser/installed-compendium-sources-fixture.mts)
+covers canonical-only, reprint-only, both-enabled and neither-enabled states for
+Dhampir, Domestic Wonder and Windskiff in English desktop and Czech phone views.
+It checks exact source-tree membership, book-to-kind navigation, cross-kind
+search without duplicate identities, source facets, missing books, typed
+rule-details links and refreshed generations without losing the requested route.
+Separate class/subclass/level checks toggle Heroes of Faerûn while browsing
+Wizard, Bladesinger, Arcane Recovery and a filtered spell list, including Back.
+Existing installed cases retain Retry, replacement, roles, themes and ambiguous
+versus typed references.
+
+All seven class pages exercise real semantic table headers and trait cells in
+English and Czech, with Czech at 200% text size. Screenshot review exposed words
+fragmenting inside narrow table cells. The shared Compendium table styling now
+preserves whole words and keeps wide tables in keyboard-scrollable containers;
+the page itself remains bounded. This keeps the table relationship while
+following the [WAI reflow guidance for data tables](https://www.w3.org/WAI/WCAG22/Understanding/reflow.html).
+Regression checks measure word fragments and exercise ArrowRight scrolling. The final enlarged table and source-recovery screenshots were visually reviewed.
+
+The matrix also exposed an immediate hover preview covering a neighboring
+details action. The shared host control now uses a cancellable 300 ms dwell
+for mouse previews while keyboard focus, click and touch remain immediate.
+Focus restoration after dismissal suppresses only that restoration event;
+a later keyboard visit can reopen the preview. Deterministic browser timing
+checks cover brief crossings, leaving/re-entering, hoverable content, pinning,
+Escape, keyboard reopening and navigation disposal. This uses the existing
+[shared interaction contract and research](RULE_DETAILS.md#interaction).
+
+Compendium commits `8d46929` and `d189995` repair the content and source UI;
+`0c3e5d7380b08a0f78195d6fe15f8656d62c244f` adds the final table styling and is
+the pinned source. The inspected ZIP SHA-256 is
+`a7631cf58139546ed1177ff5da31f5c486f224e9973ddd3f237ebc7d128ffc01`.
+Engine, Sheets and DM Tools sources and packages are unchanged from T56.
+
+Owning Compendium checks passed **74 tests**, build and tools typecheck, and the
+final package passed host inspection. An initial complete `npm run check`
+passed **38 tooling, 400 unit and 428 browser tests**, plus Go tests and vet.
+A repeat with the final table styling passed 427/428 browser cases but hit one
+seven-second wait for the initial timeline board, before the drag case started.
+The original fixture did not capture enough startup state to establish a cause.
+
+Commit `bb93e65` adds bounded request/page diagnostics and a failure screenshot
+to the [timeline fixture](../../frontend/test/browser/timeline.browser.mts).
+It changes neither the timeout nor the drag/revision assertions. Standalone
+timeline checks passed **11/11**, concurrent reproduction passed **68/68**, and
+the final host-browser group passed **240/240** with the diagnostics enabled.
+The isolated failure remains open as T57-VERIFY; a passing retry is not a root
+cause or a claimed runtime fix.
+
+Final strict installed acceptance passed **188/188** against the four pinned
+packages, with zero failures/skips. Together, the final host and installed
+groups exercise all **428 browser cases**. All **33 release-readiness gates**
+passed, and **191 local document links/anchors** were verified. The strict
+provenance records host `afb91e9` plus this batch's working
+changes and the exact companion sources/hashes above. These are local Windows
+checks, not Linux CI, physical-device or live-site acceptance.
+
+The remaining T18-COMP work concerns selectable species sizes and advancement
+feat categories, including Fighting Style and level-19 alternatives. Physical
+touch/screen-reader review and live-site acceptance remain separate.
