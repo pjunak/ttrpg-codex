@@ -9,7 +9,7 @@
     {
       "id": "dnd-engine",
       "repository": "pjunak/addon-dnd-engine",
-      "revision": "ceaa19aea8990faad104137e285f516c3d1679ba"
+      "revision": "eb2f2f023b819b6ec919f17dd6a1a886e761244f"
     },
     {
       "id": "dnd-sheets",
@@ -19,7 +19,7 @@
     {
       "id": "dnd-2024-compendium",
       "repository": "pjunak/addon-dnd-2024-compendium",
-      "revision": "0b351ba24f4c61f33dcd6dbaae98ea2d6878badf"
+      "revision": "87f79ad6470a027003f7e97a20734205482414dc"
     }
   ]
 }

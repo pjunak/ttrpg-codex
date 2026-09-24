@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
-import { readFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { resolve, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile, spawn, type ChildProcessByStdio } from 'node:child_process';
@@ -18,6 +18,7 @@ import { registerOriginChoiceTests } from './installed-character-origin-fixture.
 import { registerCharacterSizeTests, verifyFrozenSizes } from './installed-character-size-fixture.mts';
 import { registerCharacterAdvancementTests, verifyFrozenAdvancements } from './installed-character-advancement-fixture.mts';
 import { registerClassStyleTests, verifyFrozenClassStyles } from './installed-character-class-style-fixture.mts';
+import { registerPassiveFeatTests, verifyFrozenPassiveFeats } from './installed-character-passive-fixture.mts';
 import { registerEquipmentTests } from './installed-character-equipment-fixture.mts';
 import { registerMulticlassAcceptanceTests } from './installed-character-multiclass-fixture.mts';
 import { registerCharacterOutputTests, verifyFrozenSessionOutputs } from './installed-character-output-fixture.mts';
@@ -50,7 +51,14 @@ before(async () => {
   assert.ok(ready, hostOutput); csrf = (await jsonResponse(await admin.post('/api/login', { data: { password: 'local-character-dm' } }))).csrfToken;
   const ids = ['dnd-engine', 'dnd-sheets', 'dnd-2024-compendium'];
   for (let index = 0; index < paths.length; index++) await installReviewedPackage(admin, csrf, ids[index]!, await readFile(resolve(paths[index]!)), []);
-  await enableAllRuleSources(admin, csrf);
+  try { await enableAllRuleSources(admin, csrf); }
+  catch (cause) {
+    await writeFile(resolve(output, 'startup-failure.json'), JSON.stringify({
+      stage: 'enable-rule-sources', hostExitCode: host.exitCode, hostSignal: host.signalCode,
+      hostOutput: hostOutput.slice(-16000),
+    }, null, 2));
+    throw cause;
+  }
   await jsonResponse(await admin.post('/api/campaign/transactions', { headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'campaign-mutation.v1', mutations: [{ operation: 'put', collection: 'characters', key: 'new-hero', expectedRevision: 0, value: { id: 'new-hero', name: 'New Hero', knowledge: 4, visibility: 'public' } }] } }));
   browser = await chromium.launch({ headless: true });
 });
@@ -173,6 +181,7 @@ registerOriginChoiceTests(enabled, () => ({ admin, browser, csrf, origin, output
 registerCharacterSizeTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterAdvancementTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerClassStyleTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerPassiveFeatTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerEquipmentTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerMulticlassAcceptanceTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterOutputTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
@@ -215,7 +224,7 @@ test('source adoption remains explicit and absent rules freeze mechanics without
  const fixture = { admin, browser, csrf, origin, output, call };
  await verifyFrozenCreatedCharacters(fixture);
  // Finished workflows must not retain browser sessions until this parent ends.
- for (const verify of [verifyFrozenSessionOutputs, verifyFrozenSizes, verifyFrozenAdvancements, verifyFrozenClassStyles, verifyFrozenSpellDetails]) {
+ for (const verify of [verifyFrozenSessionOutputs, verifyFrozenSizes, verifyFrozenAdvancements, verifyFrozenClassStyles, verifyFrozenSpellDetails, verifyFrozenPassiveFeats]) {
   const retained = browser.contexts().length;
   await verify(t, fixture);
   assert.equal(browser.contexts().length, retained, verify.name + ' must release its browser contexts');
