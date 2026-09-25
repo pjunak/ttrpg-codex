@@ -492,7 +492,9 @@ export class CodexApp extends LitElement {
       }
       return;
     }
-    if ((event.cause === "campaign-data-changed" || event.cause === "reset") &&
+    // A hello cursor can include writes made after our HTTP snapshot but before
+    // subscription. Reconcile on every connection, including reconnects.
+    if ((event.cause === "hello" || event.cause === "campaign-data-changed" || event.cause === "reset") &&
       this.#request !== undefined) {
       await this.#loadCampaign(this.#request.signal, true);
     }

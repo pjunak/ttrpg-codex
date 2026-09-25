@@ -23,8 +23,12 @@ bounded to 256 visible events per connection. If the cursor is ahead of the
 current database or the replay window is too large, the server emits a
 `reset` event at the latest visible sequence; clients must refresh their
 authoritative HTTP resources. A new connection receives `hello` at the latest
-visible cursor and performs its normal initial HTTP loads instead of replaying
-the complete history.
+visible cursor instead of replaying the complete history. On every `hello`,
+including reconnections, the browser refreshes the authoritative campaign
+snapshot while keeping the current view and drafts. An initial HTTP load may
+precede subscription; writes in that interval are already included in the
+`hello` cursor and would otherwise never invalidate that snapshot. Campaign
+refreshes are serialized so an older response cannot replace a newer one.
 
 The server subscribes before reading the replay window. Live events that race
 with replay therefore enter the bounded subscriber queue, and sequence

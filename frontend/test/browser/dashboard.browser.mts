@@ -82,6 +82,32 @@ async function publish(page: Page, name: string, change: () => void) {
   await refreshed;
 }
 
+test('stream hello reconciles campaign changes before initial connection and reconnection', async t => {
+  campaign = structuredClone(visualCampaign);
+  collection('events').records = [{ key: 'hello-race', revision: 1, value: {
+    id: 'hello-race', name: 'Visibility changed during connection', visibility: 'dm', sitting: 1, order: 1,
+  } }];
+  const context = await browser.newContext({ extraHTTPHeaders: { 'x-fixture-role': 'dm' } });
+  t.after(() => context.close());
+  const page = await context.newPage(); page.setDefaultTimeout(7000);
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  t.after(() => release());
+  await page.route('**/api/events', async route => { await gate; await route.continue(); });
+  await page.goto(origin + '/#/dm');
+  const hidden = page.locator('[data-dm-collection="events"] .dm-count-numbers strong');
+  await hidden.filter({ hasText: /^1$/ }).waitFor();
+  // This write precedes the stream's cursor and therefore has no live publication.
+  fixtureRecord(collection('events'), 'hello-race').value.visibility = 'public';
+  collection('events').revision++;
+  release();
+  await hidden.filter({ hasText: /^0$/ }).waitFor();
+  fixtureRecord(collection('events'), 'hello-race').value.visibility = 'dm';
+  collection('events').revision++;
+  for (const response of [...streams]) response.end();
+  await hidden.filter({ hasText: /^1$/ }).waitFor();
+});
+
 test('DM edits either hero field through an optimistic save and preserves the rest', async t => {
   const { page, writes } = await fixture(t);
   await page.getByRole('button', { name: 'Edit campaign name', exact: true }).click();
