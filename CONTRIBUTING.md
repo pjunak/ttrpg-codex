@@ -128,6 +128,28 @@ machine, build the frontend once and run the same suite from `frontend/` with
 add-on archive variables and complete the other full-gate checks separately.
 This limits simultaneous processes without dropping cases.
 
+### Check secret-scanning changes
+
+**Secret scan** runs separately from the application tests. `npm run check`
+does not run Gitleaks. Before publication, use the Gitleaks version pinned in
+[the workflow](.github/workflows/secret-scan.yml) to scan the outgoing commits:
+
+```text
+gitleaks git --redact --log-opts="origin/main..HEAD" .
+npm run test:secret-scan
+```
+
+Choose the actual base revision when checking a different commit range. The
+scanner must be on `PATH`; the regression command also accepts an absolute
+`GITLEAKS_BINARY` path. Its fixtures are generated in a temporary directory and
+prove that the reviewed exception still detects other generic and
+provider-specific credentials.
+
+Keep [.gitleaks.toml](.gitleaks.toml) exceptions limited to the matching rule,
+exact value and file. The current exception is a static browser focus selector;
+it does not exclude the test directory, file contents or historical commits.
+See [Gitleaks rule allowlists](https://github.com/gitleaks/gitleaks/blob/v8.30.1/README.md#configuration).
+
 ### Inspect companion package builds
 
 After building the companion ZIPs, run the same inspection command as the host

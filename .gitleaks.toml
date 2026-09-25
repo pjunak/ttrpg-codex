@@ -1,0 +1,14 @@
+title = "TTRPG Codex secret scanning"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+  [[rules.allowlists]]
+  description = "Static equipment-move focus selector in the installed storage test; not a credential"
+  condition = "AND"
+  regexTarget = "secret"
+  paths = ['''^frontend[/\\]test[/\\]browser[/\\]installed-character-storage-fixture\.mts$''']
+  regexes = ['''^inventory/dagger/move$''']

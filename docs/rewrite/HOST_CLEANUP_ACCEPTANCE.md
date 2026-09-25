@@ -2970,3 +2970,45 @@ separate. No push, publication, deployment or live-data operation occurred.
 T63 remains open for body placement, hands/grip/suspension, conditions,
 frame/Builder changes and the complete Equipment/Backpack workflow. Later T18
 whole-session acceptance remains open.
+
+## Storage selector secret-scan repair
+
+September 25, 2026. [Run 36149089661](https://github.com/pjunak/ttrpg-codex/actions/runs/36149089661)
+failed in **Secret scan**, on host `004bcef`. Gitleaks 8.30.1 reported one
+`generic-api-key` finding at line 56 of
+`frontend/test/browser/installed-character-storage-fixture.mts`. The value is the
+static DOM focus selector for moving a dagger between equipment locations.
+The generic rule interpreted the attribute's `key=` and slash-separated value
+as a credential. Inspection and reproduction confirmed a false positive.
+
+The scan examined twelve commits, from `df8d453^` through `004bcef`. Changing
+the current selector alone would not repair that historical scan. The new
+[`.gitleaks.toml`](../../.gitleaks.toml) extends the default rules and permits
+only the exact selector value, in that exact file, for that rule. Both path and
+value must match. Other values in the file and the same value elsewhere remain
+subject to detection.
+
+Five [scanner regressions](../../.github/scripts/secret-scan.test.mts) reproduce
+the original finding, accept the reviewed exception, and detect generic and
+GitHub credentials plus mismatched paths/values. They run against the scanner
+installed by the existing CI action, after the repository scan. Test credentials
+are generated only in disposable fixtures. The
+[contributor preflight](../../CONTRIBUTING.md#check-secret-scanning-changes)
+now makes the validation gap explicit: application checks and secret scanning
+are separate gates.
+
+Validation passed with the pinned scanner: the exact failed Git range and a
+snapshot of current source, excluding runtime data and ignored local files.
+All five scanner regressions, eighteen workflow-policy cases and thirty-three
+release-readiness gates passed. Final `npm run check` passed 38 tooling,
+402 frontend unit and 284 browser cases, plus Go tests/vet. Its 174 optional
+installed cases remained skipped; no package behavior changed. The first local
+full run had one dashboard-startup timeout in a compact-profile browser case;
+its focused rerun and the complete unchanged gate then passed.
+
+The [separate Build and dispatch run](https://github.com/pjunak/ttrpg-codex/actions/runs/36149090308)
+had passed host tests and deployment configuration when inspected; installed
+companion acceptance was still running. That is not evidence of a completed
+deployment. This repair was validated locally; no push, workflow retry,
+publication or production operation was performed. Rerunning the original
+commit would still use its original scanner configuration.

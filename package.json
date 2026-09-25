@@ -13,6 +13,7 @@
     "test": "npm --workspace @ttrpg-codex/frontend test && go test ./cmd/... ./contracts/... ./internal/... ./sdk/...",
     "typecheck": "npm --workspace @ttrpg-codex/frontend run typecheck",
     "check:source": "node scripts/check-source.mts",
+    "test:secret-scan": "node --test .github/scripts/secret-scan.test.mts",
     "check": "npm run check:source && npm run typecheck && node --test scripts/*.test.mts && npm --workspace @ttrpg-codex/frontend test && npm --workspace @ttrpg-codex/frontend run test:browser && go test ./cmd/... ./contracts/... ./internal/... ./sdk/... && go vet ./cmd/... ./contracts/... ./internal/... ./sdk/...",
     "release-check": "node scripts/check-release-readiness.mts"
   },
