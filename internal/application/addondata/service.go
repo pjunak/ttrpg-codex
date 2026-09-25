@@ -440,6 +440,19 @@ func (service *Service) reviewActivationLocked(
 		if err != nil {
 			return nil, err
 		}
+		if hasUniqueIndex(description.Indexes) {
+			values := make(map[string]json.RawMessage)
+			for _, document := range snapshot.Documents {
+				if document.Kind == state.Kind && document.DataID == state.DataID {
+					values[document.Key] = document.Value
+				}
+			}
+			if err := validateUniqueValues(description, values); errors.Is(err, ErrUniqueIndexConflict) {
+				appendIssue(datalifecycle.Issue{Code: "UNIQUE_INDEX_CONFLICT", Kind: state.Kind, DataID: state.DataID, Message: "Saved values conflict with a target unique index."})
+			} else if err != nil {
+				return nil, err
+			}
+		}
 		if state.SchemaVersion != description.SchemaVersion || state.SchemaSHA256 != description.SchemaSHA256 ||
 			state.Target != description.Target || state.Keyed != description.Keyed {
 			appendIssue(datalifecycle.Issue{
@@ -555,29 +568,8 @@ func (service *Service) validateUniqueIndexes(
 				prospective[mutation.Key] = mutation.Value
 			}
 		}
-		for _, index := range definition.Indexes {
-			if !index.Unique {
-				continue
-			}
-			seen := make(map[string]string)
-			for key, body := range prospective {
-				value, found, err := jsonPointer(body, index.Path)
-				if err != nil {
-					return fmt.Errorf("%w: index %q", ErrInvalidRequest, index.Path)
-				}
-				if !found {
-					continue
-				}
-				canonical, err := json.Marshal(value)
-				if err != nil {
-					return ErrInvalidRequest
-				}
-				identity := string(canonical)
-				if previous, duplicate := seen[identity]; duplicate && previous != key {
-					return fmt.Errorf("%w: %s %q conflicts for %s and %s", ErrUniqueIndexConflict, definition.ID, index.Path, previous, key)
-				}
-				seen[identity] = key
-			}
+		if err := validateUniqueValues(definition, prospective); err != nil {
+			return err
 		}
 	}
 	return nil
