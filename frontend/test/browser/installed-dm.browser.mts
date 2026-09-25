@@ -1,4 +1,5 @@
 import { exercisePlannerRecovery, exercisePlannerRecoveryConflicts, exercisePlannerRecoveryWrites, exercisePlannerRecoveryStorage } from "./installed-planner-recovery-fixture.mts";
+import { exerciseSchemaUpgrade } from "./installed-schema-upgrade-fixture.mts";
 import { exercisePackageCleanup } from "./installed-cleanup-fixture.mts";
 import { exercisePlanningReader } from "./installed-planning-reader-fixture.mts";
 import { exerciseRecordPanels } from "./installed-record-panels-fixture.mts";
@@ -672,6 +673,10 @@ test('contributed settings retry preserves other panels', async t => {
 
 test('contributed settings cards stay stable when another add-on changes panel order', async t => {
   await exerciseSettingsCardStability({ t, open, admin, csrf, output, mobile: false });
+});
+
+for (const mobile of [false, true]) test(`saved-data schema review preserves values and resolves lost responses on ${mobile ? "Czech phone" : "English desktop"}`, async t => {
+  await exerciseSchemaUpgrade({ t, open, admin, csrf, output, mobile });
 });
 
 for (const mobile of [false, true]) test(`disable reviews dependencies and preserves optional add-ons on ${mobile ? 'Czech phone' : 'English desktop'}`, async t => {

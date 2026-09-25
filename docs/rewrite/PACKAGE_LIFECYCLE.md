@@ -611,6 +611,21 @@ Migrations `0003_addon_package_lifecycle.sql` and
 worker exists. Package bytes, process handles, service registries, and request
 payloads are not stored in the event log.
 
+## Saved-data compatibility reviews
+
+A schema mismatch in activation review can open the host's
+[reviewed compatible schema upgrade](ADDON_DATA.md#reviewed-compatible-schema-upgrades).
+The add-on must be disabled through the ordinary dependency review first.
+The host inspects a staged target and validates every saved value without
+executing package code. An immutable metadata-only plan is applied atomically
+against the exact snapshot; activation still needs a fresh permission review.
+
+The Settings panel preserves its review on an uncertain apply response and
+offers **Check saved result**. The server returns the durable receipt for an
+exact retry. Private recovery snapshots survive package cleanup and are included
+in full backups; they are evidence rather than an automatic downgrade path.
+Removed definitions or values requiring conversion remain blocked.
+
 ## Remaining lifecycle work
 
 Current review, activation, configuration, coordinated disable/uninstall, basic diagnostics and
@@ -619,8 +634,8 @@ use explicit `includeOwn` and do not imply planned self-binding during native
 worker initialization.
 
 The actionable work is consolidated in [the suite backlog](../BACKLOG.md):
-namespace cleanup (T05), migration orchestration (T08), and richer redacted
-diagnostics (T11). Planned native self-binding and other new
+remaining value-transforming migration orchestration (T08). Completed cleanup
+and diagnostics are recorded there. Planned native self-binding and other new
 worker capabilities require a concrete consumer under C07; WASI and OS limits
 are conditional under C08. Extend the existing coordinator and preserve exact
 generations, optimistic revisions, broker authority and stored approval.

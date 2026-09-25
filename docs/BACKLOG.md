@@ -76,6 +76,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T62-HOST — Accept saved training through multiclass and provider changes**~~ — `df8d453`; exact pins, keyboard details and provider-free print/export; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#readable-saved-proficiencies-and-saving-throw-indicators).
 - [x] ~~**T64-HOST — Accept whole multiclass sessions through source/provider loss**~~ — `2184554`; real casts, recovery, rest, level-up and frozen outputs; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-snapshots-and-provider-session-recovery).
 - [x] ~~**T63-ATTUNEMENT-HOST — Accept equipped choices and atomic stowing**~~ — six installed workflows, exact package pins and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#equipped-only-selection-and-preserved-attunement).
+- [x] ~~**T08-COMPATIBLE — Review compatible schema upgrades without rewriting saved values**~~ — `d1ec1eb`, `2ef6846`; atomic plans, recovery receipts, shared Settings UI and unique-index activation checks; [222/222 installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#reviewed-compatible-saved-data-schema-upgrades).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -103,12 +104,12 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 
 ### Lifecycle, maintenance and operations
 
-Host implementation and local core UX acceptance are complete. These rows require
-a released schema-preservation need or separate operational authorization.
+Core host cleanup and compatible schema reviews are implemented. Value-changing
+migrations need a concrete preservation case; site operations need separate authorization.
 
 | ID | Priority | Remaining work and completion condition |
 | --- | --- | --- |
-| T08 | P2, triggered | Implement reviewed migration orchestration when a released schema actually needs preservation: exact snapshot, atomic commit, stale rejection and recovery. The old-sheet reset does not imply a general converter. [Data lifecycle](rewrite/ADDON_DATA.md#remaining-public-surface). |
+| T08 | P2, partial | Compatible schema-only upgrades are complete. Remaining: reviewed value-transforming operations when existing JSON cannot satisfy a released target schema, with exact plans, atomic commits, stale rejection and recovery. No reset or startup converter. [Boundary](rewrite/ADDON_DATA.md#remaining-public-surface). |
 | T15 | P1, operational | Publish the latest cleanup candidate in pinned companion/host order, then verify both site rollouts, served frontend identity, manager and full backup with the matching maintenance binary; review intended add-on activation per site. T15-DELIVERY records an earlier successful release. [Current delivery boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeated-compatibility-failures-and-pinned-source-revisions); [runbook](SELF_HOSTING.md#publishing-and-deploying-updates). |
 | T16 | P2, operational | Re-inventory Asurai's superseded archives and historical cutover/maintenance copies; use existing reviewed cleanup where eligible and record retention decisions. Preserve independent backups; do not repeat the completed sheet reset. |
 | T17 | P2, operational | Recheck Tiamat's intended add-on state, stored data and wanted packages before activation/retirement. Asurai's reset authorization does not apply to Tiamat. |
@@ -343,8 +344,10 @@ documentation or marking T63 complete.
 The first model audit confirms that schema 4 already supports atomic location
 and attunement changes, but has no typed body placement, container membership,
 main/off-hand or suspended-instance references, quick-use pins, Inspiration or
-conditions. Those fields still need agreed Engine/worker DTOs and a reviewed
-preservation path under T08 before their UI can write them. Keep display
+conditions. Those fields still need agreed Engine/worker DTOs and demonstrated
+preservation before their UI can write them. T08-COMPATIBLE now provides the
+reviewed path when existing JSON already fits the target; value-changing
+conversions remain open under T08. Keep display
 placement separate from armor/shield mechanics; do not encode the new state in
 notes, resource counters or active-feature keys. The attunement slice below
 uses existing fields and leaves the released schema and service unchanged.

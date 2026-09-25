@@ -2643,3 +2643,74 @@ containers, hands/grip/suspension, quick-use references, Inspiration, conditions
 and remaining workspace/Builder layout. The audit in the backlog identifies
 which fields need reviewed schema evolution under T08; no reset or ad hoc
 conversion is introduced by this slice.
+
+## Reviewed compatible saved-data schema upgrades
+
+T08-COMPATIBLE completes the host path needed before compatible typed-state
+extensions can be adopted. It does not complete general value-transforming
+migrations or the remaining T63 character-sheet fields.
+
+### Behavior and preservation
+
+Settings reuses the existing add-on activation dialog and shared review,
+button, status, disclosure and focus patterns. A disabled add-on can review an
+inspected target against every saved document. The English/Czech panel shows
+counts, schema transitions, blockers, expiry and fingerprints, offers the
+private pre-upgrade download, and applies only the exact stored plan. Uncertain
+responses retain the review and offer Check saved result. Activation and its
+permission review remain separate.
+
+The SQLite transaction preserves raw JSON bytes, document revisions, order,
+timestamps, detached target identity and tombstones. It advances changed
+data-set and package-state revisions and commits the durable receipt, lifecycle
+audit and DM-only event together. Pending reviews are bounded and expire after
+30 minutes; stale state, deleted/tampered targets, wrong fingerprints and
+incompatible values cannot apply. Applied receipts survive process restarts
+and later activation. Permanent namespace deletion also removes that namespace's
+private review snapshots.
+
+The batch also closes a discovered activation gap: adding a unique index
+without changing the JSON schema previously skipped validation of existing
+duplicates. Ordinary writes, schema reviews and activation now share the same
+unique-index check.
+
+### Acceptance
+
+- Storage tests cover byte preservation, empty materialized sets, private data,
+  detached extensions, order, revision markers, lost-response receipts, expiry,
+  active/state/data/tombstone/generation changes, superseded reviews, wrong
+  fingerprints, bounded snapshots and injected transactional rollback.
+- Service and manager tests cover optional-field compatibility, required-value
+  conversion, removed definitions, changed key mode, duplicate index values,
+  active-addon rejection, inspected package tampering, stale activation review,
+  generation revocation and explicit activation after applying.
+- HTTP tests reject unreviewed operations and unauthorized access; recovery
+  responses are uncached. The strict frontend parser rejects identity changes,
+  invalid counts/dates and contradictory receipts.
+- Two installed-package cases stage actual synthetic ZIPs, preserve authored
+  values through reviewed schema changes, keep activation separate, reject an
+  incompatible follow-up and exercise player, effective player-preview and CSRF
+  boundaries. English desktop at 200% zoom and Czech phone retain heading focus
+  and page reflow; screenshots were inspected. The phone case deliberately
+  loses the successful apply response and resolves it without a second write.
+
+Final host gates: **38 tooling tests, 402 frontend unit tests, 284 browser tests**,
+all Go tests and vet. The host browser gate has **149 optional installed skips**;
+the strict package suite below supplies the required companion coverage.
+Race-enabled tests passed for package management, add-on application/storage,
+HTTP and namespace cleanup. All **33 release-readiness gates** passed.
+
+Companion source commits and ZIP hashes are unchanged from the preceding
+[attunement acceptance](#equipped-only-selection-and-preserved-attunement).
+All four archives were reinspected against this host candidate. DM Tools passed
+its unit/Chromium rendering/Go/vet gates; Engine passed Go/vet; Sheets passed
+24 module tests and Go/vet; Compendium passed 80 tests, build and tool types.
+
+Strict installed acceptance passed **222/222, zero skips** in 827,927 ms.
+The run records host base `73afeff` plus this batch's working-tree changes.
+The activation guard is committed as `d1ec1eb`; the review backend as
+`2ef6846`. Only host source changed; companion pins and worktrees are unchanged.
+
+Native execution was Windows AMD64. Human screen-reader, physical touch,
+Linux-runtime and live-site verification remain outside this local acceptance.
+No push, release publication, deployment or campaign-data operation occurred.

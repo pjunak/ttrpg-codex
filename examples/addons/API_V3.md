@@ -1381,9 +1381,17 @@ Add-on transactions can guard participating package data sets, but do not grant
 core write authority. The private host campaign-bundle coordinator can compose
 both stores in one SQLite transaction after an exact reviewed preview.
 
-General migration execution is not implemented. Incompatible definitions fail
-activation review with a data-migration blocker. The reserved two-phase design
-for T08 is:
+The host provides a reviewed **compatible schema upgrade** in Settings. After
+the add-on is disabled, it validates all saved JSON against an inspected target
+package and stores an exact, bounded snapshot and immutable metadata-only plan.
+An accepted plan changes schema identities atomically, preserves authored bytes
+and revision tombstones, rejects stale state, retains recovery evidence and
+returns a durable result after a lost reply. Activation and permission review
+remain separate. See [the host contract](../../docs/rewrite/ADDON_DATA.md#reviewed-compatible-schema-upgrades).
+
+General value transformation is not implemented. Removed definitions, changed
+key/core-target identity, invalid values and conflicting unique indexes remain
+blocked. The reserved worker two-phase design for the remaining T08 scope is:
 
 1. `addon/migration.plan` reads an exact snapshot and returns counts, warnings,
    schema transitions, destructive effects, and a digest.
@@ -1392,8 +1400,8 @@ for T08 is:
    transactionally or rejects the plan as stale.
 
 An implementation must retain a suitable recovery snapshot through accepted
-commit. This is a requirement for the future migration coordinator, not a
-current automatic update step. A worker never executes DDL or edits storage files.
+commit. No migration is an automatic update step. Worker conversion methods
+remain reserved; a worker never executes DDL or edits storage files.
 
 ## Imports and campaign bundles
 

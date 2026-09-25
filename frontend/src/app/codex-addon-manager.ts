@@ -10,6 +10,7 @@ import { AddonAdminClient, type AddonReview, type AddonSnapshot } from "../core/
 import { UiLocalizationController, uiSourceLabel, uiText, type MessageKey } from "./ui-localization.js";
 import { uiRequestError } from "./ui-errors.js";
 import "./codex-addon-install.js";
+import "./codex-addon-schema-upgrade.js";
 import "./codex-package-storage.js";
 import { AddonGitHubController } from "./addon-github-controller.js";
 import { AddonGitHubClient, type GitHubDiscovery } from "../core/addon-github.js";
@@ -282,6 +283,12 @@ export class CodexAddonManager extends LitElement {
           <span><strong>${permission.id}</strong> ${review.required.includes(permission.id) ? `(${t("addons.required")})` : ""}<small>${permission.resources.join(", ")}</small><span>${permission.reason}</span></span></label>`) : html`<p>${t("addons.noPermissions")}</p>`}
       </fieldset>
       ${review.blockers.length ? html`<div role="alert"><h4>${t("addons.blocked")}</h4><ul>${review.blockers.map(blocker => html`<li>${blockerMessage(blocker.code)}${["COMPATIBILITY", "RULESET", "DEPENDENCY", "SERVICE"].includes(blocker.code) ? html`<p class="addon-blocker-reason">${blocker.message}</p>` : nothing}<details><summary>${uiText("Technical details")}</summary><code>${blocker.code}</code>${["COMPATIBILITY", "RULESET", "DEPENDENCY", "SERVICE"].includes(blocker.code) ? nothing : html`<p>${blocker.message}</p>`}</details></li>`)}</ul></div>` : nothing}
+      ${review.blockers.some(blocker => ["DATA_MIGRATION_REQUIRED", "INVALID_STORED_DOCUMENT", "DATA_DEFINITION_REMOVED"].includes(blocker.code)) ? html`<codex-addon-schema-upgrade
+        .csrfToken=${this.csrfToken} .addonId=${review.addonId} .generationId=${review.generationId}
+        .active=${!!this.snapshots.find(snapshot => snapshot.state.addonId === review.addonId)?.state.activeGenerationId}
+        .disabled=${this.pending || this.#github.pending}
+        @addon-schema-busy=${(event: CustomEvent<boolean>) => { this.#installBusy = event.detail; this.requestUpdate(); this.dispatchEvent(new CustomEvent("addon-admin-busy", { detail: event.detail, bubbles: true, composed: true })); }}
+        @schema-upgrade-applied=${() => this.#loadReview()}></codex-addon-schema-upgrade>` : nothing}
       <div class="addon-actions"><button ?disabled=${this.#busy || review.blockers.length > 0 || review.required.some(id => !this.grants.includes(id))}
         @click=${() => this.#activate(review)}>${t("addons.approve")}</button><button ?disabled=${this.#busy} @click=${() => this.#closeInstall()}>${t("addons.cancel")}</button></div>
     </section>`;

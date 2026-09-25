@@ -1,3 +1,4 @@
+import { schemaUpgradeEn, schemaUpgradeCs } from "./schema-upgrade-messages.js";
 import { diagnosticsEn, diagnosticsCs } from "./diagnostic-messages.js";
 import { recordWorkflowEn, recordWorkflowCs } from "./record-workflow-messages.js";
 import { storageEn, storageCs } from "./storage-messages.js";
@@ -30,6 +31,7 @@ const enCatalog = {
   ...contextEn,
   ...configurationEn,
   ...cleanupEn,
+  ...schemaUpgradeEn,
   ...diagnosticsEn,
   ...disableEn,
   ...storageEn,
@@ -507,6 +509,7 @@ const csCatalog = {
   ...contextCs,
   ...configurationCs,
   ...cleanupCs,
+  ...schemaUpgradeCs,
   ...diagnosticsCs,
   ...disableCs,
   ...storageCs,

@@ -184,13 +184,77 @@ This operation is deliberately separate from the ordinary Settings uninstall
 and archive-cleanup controls. See the
 [operator procedure](../SELF_HOSTING.md#reviewed-offline-storage-maintenance).
 
+## Reviewed compatible schema upgrades
+
+Settings -> Add-ons -> saved package -> Review activation offers **Review saved
+data** when saved schema identity blocks activation. Disable the add-on first
+through its ordinary dependency review. No package code runs during this check.
+
+This host-owned path accepts only an identity change for existing JSON that
+already validates against the inspected target schema. Every materialized
+collection and extension must keep its kind, key mode and core target. Removed
+definitions, invalid values and conflicting target unique indexes block the
+whole review, including private and detached documents. Optional fields can be
+introduced without fabricating values. This is not a worker transformation or
+a way to skip validation.
+
+The immutable SQLite plan records the exact target package, package-state
+revision, ordered metadata, raw JSON bytes and all tombstone revisions. Reviews
+expire after 30 minutes. A new pending review replaces the previous pending
+review for that namespace; applied reviews remain. Snapshot limits are 256 data
+sets, 10,000 current documents, 10,000 revision markers and 16 MiB of raw JSON
+(32 MiB encoded envelope). Larger namespaces require a separately designed
+bounded conversion path.
+
+Apply reinspects the target archive and extracted files, checks the reviewed
+fingerprint, disabled state and exact current snapshot, then executes the stored
+metadata changes in one transaction. It advances affected data-set and package
+state revisions; JSON values, document revisions, ordering, creation/update
+timestamps, core-target lifetimes and tombstones are unchanged. The receipt,
+lifecycle audit and DM-only invalidation commit together. Any failure rolls back
+all changes. An exact retry returns the original applied receipt, including
+after restart or later activation. Activation still requires a fresh ordinary
+permission/compatibility review.
+
+### Recovery and retention
+
+The authenticated DM download returns the retained pre-upgrade
+`codex-addon-schema-snapshot.v1` envelope. Its ordered `documents` metadata
+matches `bodiesBase64` byte-for-byte by array position; `states` and `versions`
+retain set metadata and revision markers. Downloads are private and uncached.
+Ordinary full backups include these SQLite records. Package removal does not
+delete them; reviewed permanent namespace deletion does.
+
+The snapshot is recovery evidence, not a `codex-backup.v2` archive or a one-click
+restore. Keep a full backup before activating a package that can write new data.
+A reverse schema-only review is possible only when current values also validate
+against the older package. Otherwise recovery needs a separately reviewed
+conversion or a supervised full-backup restore. Campaign recovery points with
+incompatible schema identities remain blocked.
+
+### Host administration boundary
+
+These routes require real and effective DM authority, with CSRF on POST:
+
+- `POST /api/admin/addons/{addonID}/schema-reviews`: `{generationId}`.
+- `GET /api/admin/addon-schema-reviews/{reviewID}`: stored status and receipt.
+- `POST /api/admin/addon-schema-reviews/{reviewID}/apply`: `{reviewSha256}`.
+- `GET /api/admin/addon-schema-reviews/{reviewID}/recovery`: private snapshot.
+
+Responses use `addon-schema-review.v1`, with schema transitions, counts,
+blockers, fingerprints and expiry. Review responses contain no document bodies
+or document keys. These are host administration endpoints, not add-on-granted
+permissions or public worker methods.
+
 ## Remaining public surface
 
 The package/storage/application contract, package lifecycle integration, and
 the deliberately narrow first-party v1 backup conversion are implemented. The
 following still sits above this boundary:
 
-- reviewed `addon/migration.plan` and `addon/migration.apply` orchestration.
+- reviewed value-transforming migration orchestration. The reserved worker
+  `addon/migration.plan` and `addon/migration.apply` methods are not implemented;
+  the compatible schema-only workflow above does not implement them.
 
 The offline converter strips migrated `dnd-sheets` data from core JSON only
 after the matching extension write succeeds in the same fresh output build.
