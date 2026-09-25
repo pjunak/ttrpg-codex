@@ -21,6 +21,7 @@ import { registerClassStyleTests, verifyFrozenClassStyles } from './installed-ch
 import { registerPassiveFeatTests, verifyFrozenPassiveFeats } from './installed-character-passive-fixture.mts';
 import { registerProficiencyTests, verifyFrozenProficiencies } from './installed-character-proficiency-fixture.mts';
 import { registerEquipmentTests } from './installed-character-equipment-fixture.mts';
+import { registerMulticlassProviderTests, verifyFrozenMulticlassSessions } from './installed-character-multiclass-provider-fixture.mts';
 import { registerMulticlassAcceptanceTests } from './installed-character-multiclass-fixture.mts';
 import { registerCharacterOutputTests, verifyFrozenSessionOutputs } from './installed-character-output-fixture.mts';
 import { registerRepeatableFeatTests } from './installed-character-repeatable-fixture.mts';
@@ -72,7 +73,9 @@ async function call(method: string, params: Record<string, unknown>) {
   const base = `/api/addons/dnd-sheets/generations/${state.state.activeGenerationId}/services`, headers = { 'X-Codex-CSRF': csrf };
   const connection = await jsonResponse(await admin.post(`${base}/connect`, { headers, data: { contractVersion: 'addon-service-connect.v1', contract: 'dnd5e.character', range: '^2.0.0', cardinality: 'many', includeOwn: true } }));
   const target = connection.providers.find((provider: { addonId: string }) => provider.addonId === 'dnd-sheets'); assert.ok(target);
-  return (await jsonResponse(await admin.post(`${base}/call`, { headers, data: { contractVersion: 'addon-service-call.v1', contract: 'dnd5e.character', providerAddonId: target.addonId, providerVersion: target.contractVersion, providerGeneration: target.generation, bindingRevision: target.bindingRevision, method, params: { contractVersion: 'character.v2', key: 'new-hero', ...params }, deadlineMs: 30000 } }))).result;
+  const response = await admin.post(`${base}/call`, { headers, data: { contractVersion: 'addon-service-call.v1', contract: 'dnd5e.character', providerAddonId: target.addonId, providerVersion: target.contractVersion, providerGeneration: target.generation, bindingRevision: target.bindingRevision, method, params: { contractVersion: 'character.v2', key: 'new-hero', ...params }, deadlineMs: 30000 } });
+  if (!response.ok()) await writeFile(resolve(output, 'service-failure.json'), JSON.stringify({ method, key: params['key'] ?? 'new-hero', status: response.status(), hostOutput: hostOutput.slice(-16000) }, null, 2));
+  return (await jsonResponse(response)).result;
 }
 
 test('installed character coordinator loads typed creation policy and rejects browser head writes', { skip: !enabled }, async () => {
@@ -190,6 +193,7 @@ registerCharacterOutputTests(enabled, () => ({ admin, browser, csrf, origin, out
 registerCharacterCreationTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterGrantTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterCompatibilityTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerMulticlassProviderTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 
 test('source adoption remains explicit and absent rules freeze mechanics without a sheet Notes surface', {skip:!enabled},async t=>{
  const before=await call('load',{}),policy=await jsonResponse(await admin.get('/api/admin/rules-policy'));
@@ -226,7 +230,7 @@ test('source adoption remains explicit and absent rules freeze mechanics without
  const fixture = { admin, browser, csrf, origin, output, call };
  await verifyFrozenCreatedCharacters(fixture);
  // Finished workflows must not retain browser sessions until this parent ends.
- for (const verify of [verifyFrozenSessionOutputs, verifyFrozenSizes, verifyFrozenAdvancements, verifyFrozenClassStyles, verifyFrozenSpellDetails, verifyFrozenPassiveFeats, verifyFrozenProficiencies]) {
+ for (const verify of [verifyFrozenSessionOutputs, verifyFrozenSizes, verifyFrozenAdvancements, verifyFrozenClassStyles, verifyFrozenSpellDetails, verifyFrozenPassiveFeats, verifyFrozenProficiencies, verifyFrozenMulticlassSessions]) {
   const retained = browser.contexts().length;
   await verify(t, fixture);
   assert.equal(browser.contexts().length, retained, verify.name + ' must release its browser contexts');

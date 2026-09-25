@@ -6,10 +6,10 @@ import { readyCharacter } from './installed-character-command-fixture.mts';
 
 type Row = Record<string, any>;
 const levels = (classId: string, count: number) => Array.from({length:count},(_,i)=>({id:classId+'-'+i,classId}));
-const spellbook = ['detect-magic','alarm','shield','magic-missile','mage-armor','sleep','feather-fall','identify','mirror-image','misty-step'];
-const cantrips: Record<string,string[]> = {fighter:['light','mage-hand'],warlock:['eldritch-blast','minor-illusion'],wizard:['light','mage-hand','minor-illusion']};
+const spellbook = ['detect-magic','alarm','shield','magic-missile','mage-armor','sleep','feather-fall','identify','mirror-image','misty-step','see-invisibility','web'];
+const cantrips: Record<string,string[]> = {fighter:['light','mage-hand'],warlock:['eldritch-blast','minor-illusion'],wizard:['light','mage-hand','minor-illusion','ray-of-frost']};
 
-async function complete(f: Fixture, key: string, inputs: Row, revision: number, suffix: string) {
+export async function complete(f: Fixture, key: string, inputs: Row, revision: number, suffix: string) {
  for(let round=0;round<10;round++) {
   const {evaluation:e}=await f.call('evaluate',{key,operation:'build',inputs,expectedRevision:revision});
   if(e.ready)break;
@@ -31,8 +31,8 @@ async function complete(f: Fixture, key: string, inputs: Row, revision: number, 
    if(id==='wizard')inputs.build.spells.spellbook[id]=spellbook.slice(0,caster.spellbookKnown);
    inputs.play.preparedSpells[id]=id==='warlock'?['armor-of-agathys','hellish-rebuke']:['shield','magic-missile'];
   }
-  for(const choice of e.spellOptions.pendingChoices)inputs.build.spells.grantChoices[choice.key]=choice.eligibleSpellIds.slice(0,choice.choose);
-  for(const choice of e.spellOptions.castingAbilityChoices)inputs.build.spells.castingAbilities[choice.key]=choice.options[0];
+  for(const choice of e.spellOptions.pendingChoices)inputs.build.spells.grantChoices[choice.key]??=choice.eligibleSpellIds.slice(0,choice.choose);
+  for(const choice of e.spellOptions.castingAbilityChoices)inputs.build.spells.castingAbilities[choice.key]??=choice.options[0];
  }
  const stored=await save(f,key,inputs,revision,suffix);
  assert.equal(stored.evaluation.ready,true,JSON.stringify(stored.evaluation.issues));

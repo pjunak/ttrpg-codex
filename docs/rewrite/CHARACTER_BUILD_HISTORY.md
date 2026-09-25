@@ -129,6 +129,12 @@ losing the current item. The
 exercise advancement, equipment, HP, granted casts/rests, reload, real export,
 review cancellation/replacement and saved printing as a continuous journey.
 They also check player authorization and frozen output after provider removal.
+The [multiclass provider sessions](../../frontend/test/browser/installed-character-multiclass-provider-fixture.mts)
+combine Fighter/Warlock/Wizard progression, distinct spell pools, amended and
+withdrawn grants, selected-source loss, incompatible/stale providers, recovery,
+rest and level-up. Both locales retain exact saved inputs and readable print/
+export output when providers are unavailable. First-import cases verify complete,
+localized review groups and cancellation without writing an empty sheet.
 Future work belongs in the [suite backlog](../BACKLOG.md).
 
 ## Retirement and data implications

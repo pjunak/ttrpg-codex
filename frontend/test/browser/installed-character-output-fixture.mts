@@ -30,7 +30,7 @@ export async function exported(page: Page, sheet: Locator, locale: string) {
   const download = await downloadEvent, path = await download.path(); assert.ok(path);
   return JSON.parse(await readFile(path, 'utf8')) as Row;
 }
-async function review(sheet: Locator, locale: string, envelope: Row, authorize: boolean) {
+export async function review(sheet: Locator, locale: string, envelope: Row, authorize: boolean) {
   const text = messages(locale);
   await sheet.getByRole('button', { name: text.import, exact: true }).click();
   await sheet.getByLabel(text.paste, { exact: true }).fill(JSON.stringify(envelope));
