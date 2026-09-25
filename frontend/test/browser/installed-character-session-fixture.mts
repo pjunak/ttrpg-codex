@@ -65,6 +65,8 @@ export function registerCharacterSessionTests(enabled: boolean, fixture: () => F
       assert.equal(saved.revision, initial.revision + 1);
       assert.equal(saved.state.inputs.play.inspiration, scenario.stale ? undefined : true);
       assert.deepEqual(saved.state.inputs.play.quickUse, scenario.stale ? undefined : ["keepsake"]);
+      assert.equal(saved.state.inputs.play.containers?.[0].name, scenario.stale ? undefined : "Pending pack");
+      assert.equal(saved.state.inputs.play.inventory[0].containerId, saved.state.inputs.play.containers?.[0].id);
       assert.equal(requests.length, 2); assert.deepEqual(requests[1], requests[0], "Retry keeps the exact operation and revision");
       assert.equal(await unloadBlocked(page), scenario.stale);
       if (scenario.stale) assert.equal(await input.inputValue(), "Keep this through sign-in");

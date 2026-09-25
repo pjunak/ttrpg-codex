@@ -48,6 +48,16 @@ export async function editInspiredName(sheet: Locator, name: string): Promise<vo
     const pin = root.querySelector<HTMLButtonElement>('[data-focus-key="inventory/keepsake/quick-use"]')!;
     if (!pin || pin.disabled) throw new Error("Quick-use pinning must be editable");
     if (pin.getAttribute("aria-pressed") !== "true") pin.click();
+    if (!root.querySelector('[data-container]')) {
+      const add = root.querySelector<HTMLButtonElement>('[data-focus-key="storage/add"]')!;
+      if (!add || add.disabled) throw new Error("Storage must be editable");
+      add.click();
+      const container = root.querySelector<HTMLElement>('[data-container]')!;
+      const containerName = container.querySelector<HTMLInputElement>('input')!;
+      containerName.value = "Pending pack"; containerName.dispatchEvent(new Event("input", { bubbles: true }));
+      const destination = root.querySelector<HTMLSelectElement>('[data-focus-key="inventory/keepsake/container"]')!;
+      destination.value = container.dataset.container!; destination.dispatchEvent(new Event("change", { bubbles: true }));
+    }
     const inspiration = root.querySelector<HTMLInputElement>('[data-focus-key="vitals/inspiration"]')!;
     if (!inspiration || inspiration.disabled) throw new Error("Inspiration must be editable");
     inspiration.checked = true; inspiration.dispatchEvent(new Event("change", { bubbles: true }));

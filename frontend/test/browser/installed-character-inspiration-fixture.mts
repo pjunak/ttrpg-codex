@@ -18,29 +18,36 @@ const text = (locale: string) => locale === "cs"
   : { inspiration: "Inspiration", available: "Available", saved: /^Saved$/, layout: "Sheet layout", replace: "Replace character", close: "Close" };
 
 export function registerInspirationSchemaTest(enabled: boolean, fixture: () => Fixture): void {
-  test("Optional play-field schema reviews preserve both prior schema-4 generations", { skip: !enabled, timeout: 90000 }, async t => {
+  test("Optional play-field schema reviews preserve all three prior schema-4 generations", { skip: !enabled, timeout: 90000 }, async t => {
     const f = fixture(), archive = await readFile(resolve(process.env.CODEX_SHEETS_ZIP!));
     // Prior data schemas are reconstructed byte-for-byte. Workers/UI remain
     // current; this is stored-data preservation, not an old-native-binary claim.
-    const prior = (inspiration: boolean) => replacementImportPackage(archive, "4.0.0", (files, manifest) => {
+    const prior = (inspiration: boolean, quickUse = false) => replacementImportPackage(archive, "4.0.0", (files, manifest) => {
       const path = manifest.recordExtensions[0].schema, schema = JSON.parse(files[path]!.toString());
-      delete schema.properties.inputs.properties.play.properties.quickUse;
+      delete schema.properties.inputs.properties.play.properties.containers;
+      delete schema.properties.inputs.properties.play.properties.inventory.items.properties.containerId;
+      if (!quickUse) delete schema.properties.inputs.properties.play.properties.quickUse;
       if (!inspiration) delete schema.properties.inputs.properties.play.properties.inspiration;
       const body = JSON.stringify(schema, null, 2) + "\n";
-      assert.equal(createHash("sha256").update(body).digest("hex"), inspiration
+      assert.equal(createHash("sha256").update(body).digest("hex"), quickUse ? "9e775d6054fb803b1b5bf87c874a20e7d4c3d039e8abbb2062dd646bc1bed0d5" : inspiration
         ? "cf799a12adb9aac840e5349732d79d34226f72bc9b866e438e61400071efb373"
         : "d50dd66156a2a9e9aa1c25f20f069d6b86eeacb2d8d206b0aee461c3351ae317");
       files[path] = body;
     });
     const saved = new Map<string, Awaited<ReturnType<Fixture["call"]>>>();
-    const seed = async (key: string, inspiration?: boolean) => {
+    const seed = async (key: string, inspiration?: boolean, pinned = false) => {
       const inputs = await createCharacter(f, key);
       inputs.notes = "Retain authored notes without adding defaults";
       inputs.play.currency = { cp: 1, sp: 2, ep: 3, gp: 4, pp: 5 };
       if (inspiration !== undefined) inputs.play.inspiration = inspiration;
+      if (pinned) {
+        inputs.play.inventory = [{ id: "empty", name: "Keep depleted entry", quantity: 0, location: "stored", attuned: false, acquisition: "Before storage", notes: "Retain exact bytes" }];
+        inputs.play.quickUse = ["empty"];
+      }
       const result = await save(f, key, inputs, 0, "old-schema"); saved.set(key, result);
       assert.equal(result.state.inputs.play.inspiration, inspiration);
-      assert.equal(Object.hasOwn(result.state.inputs.play, "quickUse"), false);
+      assert.equal(Object.hasOwn(result.state.inputs.play, "quickUse"), pinned);
+      assert.equal(Object.hasOwn(result.state.inputs.play, "containers"), false);
     };
     const upgrade = async (target: Buffer, suffix: string) => {
       const headers = { "X-Codex-CSRF": f.csrf };
@@ -79,7 +86,9 @@ export function registerInspirationSchemaTest(enabled: boolean, fixture: () => F
     await upgrade(prior(true), "inspiration");
     await seed("quick-use-preserved-available", true);
     await seed("quick-use-preserved-spent", false);
-    await upgrade(archive, "quick-use");
+    await upgrade(prior(true, true), "quick-use");
+    await seed("storage-preserved-pinned", false, true);
+    await upgrade(archive, "storage");
   });
 }
 

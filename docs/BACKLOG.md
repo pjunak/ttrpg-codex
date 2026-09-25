@@ -79,6 +79,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T08-COMPATIBLE — Review compatible schema upgrades without rewriting saved values**~~ — `d1ec1eb`, `2ef6846`; atomic plans, recovery receipts, shared Settings UI and unique-index activation checks; [222/222 installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#reviewed-compatible-saved-data-schema-upgrades).
 - [x] ~~**T63-INSPIRATION-HOST — Preserve current characters through the reviewed schema upgrade**~~ — exact prior schema, unchanged JSON/revisions, shared controls and recovery paths; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-inspiration-and-character-schema-preservation).
 - [x] ~~**T63-QUICK-USE-HOST — Accept owned-item pins and atomic consumption**~~ — shared quantities, exact retries, provider-free output and both prior schemas; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#quick-use-inventory-and-preserved-characters).
+- [x] ~~**T63-STORAGE-HOST — Accept container membership and all prior schemas**~~ — exact retries, concurrent repair, transfer and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#storage-containers-and-preserved-inventory).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -244,13 +245,14 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T64-ENGINE — Stop repeated references from blocking multiclass saves**~~ — `093472f`; scoped calculation references with full saved evidence retained; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-snapshots-and-provider-session-recovery).
 - [x] ~~**T63-INSPIRATION-ENGINE — Preserve authored Inspiration through calculation and play**~~ — `c0d2984`; optional DTO, support guidance and saved explanation; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-inspiration-and-character-schema-preservation).
 - [x] ~~**T63-QUICK-USE-ENGINE — Validate inventory references and consume exact instances**~~ — `a4763ca`; optional pins, live guidance and preserved depleted state; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#quick-use-inventory-and-preserved-characters).
+- [x] ~~**T63-STORAGE-ENGINE — Validate named groups and owned-item membership**~~ — `b15fcb8`; optional DTOs, unchanged mechanics and strict references; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#storage-containers-and-preserved-inventory).
 
 ### Remaining work
 
 - [ ] **T63-ENGINE / P2 — Define and evaluate the new equipment and play state.**
   Establish the [T63](#t63-character-sheet-design) data/eligibility contract before
   Sheets persists new fields: worn placement, held items and grip, suspended
-  off-hand effects, containers and conditions
+  off-hand effects and conditions
   as needed after auditing existing representations. Return saved explanations
   and option guidance; preserve input identity and authored state. Coordinate
   schema/service compatibility with the Sheets worker; do not implement these
@@ -308,6 +310,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T63-ATTUNEMENT — Preserve allocations and add explicit Stow & unattune**~~ — `d85bc8a`, `6a0a75c`; equipped-only selection, repair explanations, atomic autosave and keyboard focus; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#equipped-only-selection-and-preserved-attunement).
 - [x] ~~**T63-INSPIRATION-SHEETS — Autosave shared Inspiration and retain saved output**~~ — `11d56aa`; one native control, explicit false values, provider compatibility and reviewed transfer/print; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-inspiration-and-character-schema-preservation).
 - [x] ~~**T63-QUICK-USE-SHEETS — Share pinned items across Sheet and Combat**~~ — `3ee2ccd`; real quantities, safe removal, keyboard focus and saved output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#quick-use-inventory-and-preserved-characters).
+- [x] ~~**T63-STORAGE-SHEETS — Edit containers and share item destinations**~~ — `250c442`; safe group removal, preserved control keys, worker checks and saved output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#storage-containers-and-preserved-inventory).
 
 ### Remaining work
 
@@ -348,10 +351,11 @@ mockups. Implement and validate those differences before updating current-state
 documentation or marking T63 complete.
 
 Schema 4 supports atomic location/attunement changes, optional authored
-Inspiration and ordered quick-use pins with shared inventory quantities.
-[Quick-use acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#quick-use-inventory-and-preserved-characters)
-includes unchanged JSON/revisions through both prior schema upgrades.
-It still has no typed body placement, container membership, main/off-hand or
+Inspiration, ordered quick-use pins with shared inventory quantities, and flat
+named containers with item membership.
+[Storage acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#storage-containers-and-preserved-inventory)
+includes unchanged JSON/revisions through all three prior schema upgrades.
+It still has no typed body placement, main/off-hand or
 suspended-instance references or conditions. Those fields need
 agreed Engine/worker DTOs and demonstrated preservation before their UI writes
 them. T08-COMPATIBLE provides the reviewed path when existing JSON fits the
@@ -405,9 +409,11 @@ counters or active-feature keys. The complete shared-card layout remains open.
   accessories outside the dedicated fields. No fixed ten-ring grid or arbitrary
   empty spaces. Equipped items retain stable inventory instance IDs and can be
   returned to storage without duplication or loss of quantities, grants or notes.
-- **Storage** provides general backpack/pouch organization, without mandatory
-  top straps, side straps, map-case geometry or the reference image's homebrew
-  capacity/Strength rules. Opening Backpack shows a structured floating dialog
+- [x] ~~**Storage identity and membership**~~ — named groups, safe removal and
+  shared inventory/picker destinations preserve owned instances; [accepted behavior](rewrite/HOST_CLEANUP_ACCEPTANCE.md#storage-containers-and-preserved-inventory).
+- **Storage workspace** still needs the general backpack/pouch layout, without
+  mandatory straps, map-case geometry or homebrew capacity/Strength rules.
+  Opening Backpack shows a structured floating dialog
   with search, compartment filtering and category/name/quantity sorting. It may
   exceed the sheet's width, but must fit the viewport; scroll only where a long
   dialog/list actually needs it, not inside every character tab.
@@ -446,7 +452,7 @@ counters or active-feature keys. The complete shared-card layout remains open.
 
 | Step | Owners and work | Required evidence before closing the step |
 | --- | --- | --- |
-| 1. Model and contracts | T63-ENGINE with the Sheets worker, and T63-COMP for missing source facts. Audit existing representations before adding closed fields for body placement, containers, hand/grip/suspension, quick-use references, Inspiration and conditions. Separate display organization from mechanical rules. | Agreed serializable inputs, eligibility, saved projections/explanations and worker commands; stable instance identity, atomic transitions and exact retries. Regenerate owning schemas/types. Demonstrate current-character preservation and version compatibility; use T08 only if an actual released-schema migration is required, never another sheet reset or ad hoc startup converter. |
+| 1. Model and contracts | T63-ENGINE with the Sheets worker, and T63-COMP for missing source facts. Finish closed fields for body placement, hand/grip/suspension and conditions. Preserve accepted Inspiration, quick-use references and container membership. Separate display organization from mechanical rules. | Agreed serializable inputs, eligibility, saved projections/explanations and worker commands; stable instance identity, atomic transitions and exact retries. Regenerate owning schemas/types. Demonstrate current-character preservation and version compatibility; use T08 only if an actual released-schema migration is required, never another sheet reset or ad hoc startup converter. |
 | 2. Frame and Builder | T63-SHEETS; extend shared host controls only for a demonstrated gap. Implement navigation, sizing/density, remove Levels and remap its repair/navigation targets. | Tab and class controls work with keyboard/touch, both locales and enlarged text. Earlier progression remains editable, class-zero removal picks a valid destination, and invalid options cannot be selected. Existing incomplete-build autosave, conflicts and DM authorization regressions pass. |
 | 3. Equipment and storage | T63-SHEETS consumes step 1 for mannequin/Other worn, shared item addition, Backpack dialog, bottom currency and equipped-only attunement selection. | Add, equip, replace, stow, unattune, consume and remove flows preserve identity and authored fields. New Face/Legs items are correctly filtered; no arbitrary ring/body limits or invented item bonuses. Search/sort/compartment and focus survive additions, cancellation, retries and tab changes. |
 | 4. Sheet and Combat | T63-SHEETS/ENGINE implement shared cards, explanations, attribute arrangements, conditions, Inspiration, hands and quick use. | Both tabs show identical shared-card geometry and authored values. Demonstrate occupied-shield two-handing, gray suspended off hand, changed AC/damage and exact restoration; also missing/ineligible off-hand cases and duplicate item copies. Verify current/max HP, hit-dice details, differing spellcasting sources and resource/consumable preservation. |

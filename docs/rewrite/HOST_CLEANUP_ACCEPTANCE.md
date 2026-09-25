@@ -2879,3 +2879,94 @@ No push, publication, deployment or live-data operation occurred.
 T63 remains open for body placement, containers, hands/grip/suspension, bounded
 conditions and the final workspace/Builder layout. This slice does not close
 the final shared-card geometry or the later T18 whole-session acceptance.
+
+## Storage containers and preserved inventory
+
+Recorded September 25, 2026 for T63-STORAGE-ENGINE, T63-STORAGE-SHEETS and
+T63-STORAGE-HOST. This accepts flat named organization and membership, while
+the final Equipment tab and searchable floating Backpack dialog remain open.
+
+### Behavior accepted
+
+- Optional `play.containers` and inventory `containerId` keep owned instance
+  identity. Creating/renaming/removing groups and choosing destinations never
+  creates equipment, imposes physical capacity or changes carried/stored
+  location. Duplicate labels remain distinct by ID. Equipped assignments,
+  missing groups, duplicate IDs and invalid names are rejected without
+  normalization. Depleted entries and empty groups remain representable.
+- Backpack uses native labelled fields, selectors and actions through the
+  existing host controls. Catalog and narrative additions share destination
+  options and create separate instances; adding another dagger preserves the
+  equipped copy's identity and authored name. Removing a group unassigns only
+  its contents. Equipping clears only that item's membership.
+- The reusable renderer preserves control-owned focus keys and generates
+  fallbacks only for controls without keys. The installed test first exposed
+  overwritten keys; the fixed controls focus a newly created name, retain
+  identity across saves and select a valid focus target after removal.
+- Engine inputs/results are detached. Evaluation, use and rests preserve
+  containers and membership, with no equipment bonuses from organization.
+  Sheets rejects an Engine response that drops, renames, reorders or substitutes
+  groups or changes membership. Legal unfinished builds support organization.
+- Installed autosave covers lost acknowledgment with an identical retry,
+  disjoint edits, overlapping inventory conflicts and a remotely removed
+  destination. A now-invalid merged assignment stays pending for explicit
+  unassignment; it neither recreates the group nor overwrites the saved item.
+  Existing session, rules-adoption and provider-generation recovery fixtures
+  now carry pending container names and membership alongside Inspiration/pins.
+- English/Czech editing, reload, reviewed replacement import and print/export
+  preserve organization. The final provider-free pass retains saved names,
+  membership and depleted contents with no editing controls. Pure/worker/client
+  tests also cover strict field decoding, preservation, restart/retry and merges.
+- Automated layout checks cover 1,360/1,024/390/320 px, Compact/Classic,
+  both skins and 200% text at narrow widths. Desktop and enlarged Czech phone
+  screenshots in `frontend/test-results/installed-character/storage-*.png`
+  were visually inspected.
+
+### Schema preservation
+
+The existing namespace/version remains `dnd-sheets` / `4.0.0`; the closed
+schema changes to SHA-256
+`41929bb042c3a538d5c08603b787bfb5f7c957c988af5e60baa714be8d3fe2d5`.
+The [compatible review procedure](../../../addon-dnd-character-sheets/docs/RULES_EDGE_CASES.md#inspiration-and-compatible-schema-upgrades)
+is required on materialized installations. A rollback can be blocked after
+new fields are authored. This adds no reset, startup conversion or history.
+
+Installed acceptance reconstructs all three prior stored schemas byte-for-byte:
+pre-Inspiration `d50dd66156a2a9e9aa1c25f20f069d6b86eeacb2d8d206b0aee461c3351ae317`,
+pre-quick-use `cf799a12adb9aac840e5349732d79d34226f72bc9b866e438e61400071efb373`,
+and pre-storage `9e775d6054fb803b1b5bf87c874a20e7d4c3d039e8abbb2062dd646bc1bed0d5`.
+The real disable/review/apply/separate-activation path preserves exact stored
+JSON bytes and revisions, checked through recovery bodies and a portable SQLite
+backup. Fixtures include absent/false/true Inspiration and depleted quick-use
+entries. Workers/UI remain current; this proves data preservation rather than
+execution of historical native binaries.
+
+### Exact packages and validation
+
+| Repository | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools | `0eeac9bc84f50836fa30f134b5edee9358656676` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine | `b15fcb83cc4161a5fefa92db589a42952aaf4089` | `3541bf471878b8efafeff749fb8aef9b601742d6ea957c8268e95b50e677401e` |
+| Sheets | `250c442ab5977e32e6c14d081881d5812c483539` | `efe0a63afdba6e2680dfd9ea85c8afa095fcec93c97f4595f2e4a908d3a3f651` |
+| Compendium | `87f79ad6470a027003f7e97a20734205482414dc` | `0f0777159ac4c1074fb59d1662aa4f3bf27d70f53e154ff5a1b4725a31abad3c` |
+
+Engine tests/vet and Sheets `npm run check` passed (30 module tests plus Go/vet);
+both packages were rebuilt and inspected. Nine focused installed cases passed
+across the final reruns. Unchanged DM Tools/Compendium source gates are reused
+from their accepted revisions. No source-data mechanics or host API changed.
+
+Host `npm run check` passed 38 tooling, 402 frontend unit and 284 browser tests
+plus Go tests/vet. Its 174 optional installed skips are covered by the separate
+strict package suite. All 33 release-readiness gates passed.
+
+Strict installed acceptance passed **247/247, zero skips**, in 1,001,489 ms.
+The final full run passed on the pinned revisions after the focused UI fixes.
+
+The run records host base `9532973` plus this batch's fixtures/pins. Native
+execution was Windows AMD64; Linux workers were cross-compiled. Human
+screen-reader, physical touch, printer, Linux-runtime and live-site checks remain
+separate. No push, publication, deployment or live-data operation occurred.
+
+T63 remains open for body placement, hands/grip/suspension, conditions,
+frame/Builder changes and the complete Equipment/Backpack workflow. Later T18
+whole-session acceptance remains open.

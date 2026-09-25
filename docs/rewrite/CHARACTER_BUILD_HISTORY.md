@@ -43,6 +43,13 @@ pins owned inventory entries in a shared Sheet/Combat panel. Use one spends the
 actual quantity through an atomic worker command, without applying item effects.
 Stored/depleted entries and their pins survive; unpinning keeps inventory,
 while deleting an entry also removes its pin. Print/export retains those values.
+Named storage containers group carried/stored instances, including depleted
+entries. The Backpack editor creates, renames and removes groups; inventory and
+the existing item picker share destination options. Removing a group keeps its
+items, and equipping explicitly clears membership. These groups add no physical
+items or carrying-capacity rules. Their names and contents remain readable in
+saved output and print without a rules provider. The final Equipment tab and
+searchable floating Backpack dialog remain T63 work.
 Inventory,
 equipment, currency, HP, spells and resources remain editable in their ordinary
 tabs, without an edit-mode toggle. Character notes belong to the host profile and have no sheet tab or printed sheet section.
