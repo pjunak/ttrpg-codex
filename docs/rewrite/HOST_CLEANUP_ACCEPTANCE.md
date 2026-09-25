@@ -2368,3 +2368,95 @@ Remaining work includes bounded Fighter-style/Blessed/Druidic Warrior
 replacement, readable Combat proficiency summaries, representative multiclass
 sessions across provider changes and generated-output ownership. This slice
 does not change the overall suite estimate.
+
+## Readable saved proficiencies and saving-throw indicators
+
+Reviewed September 25, 2026 (T62). This closes the confirmed Combat proficiency
+display defect in T18-SHEETS and adds a complete Fighter/Rogue training workflow.
+It preserves the compendium's book -> kind -> record structure and the Engine's
+existing calculation and stored-state contracts.
+
+### Findings and changes
+
+Combat passed the whole saved proficiency dictionary through a generic formatter.
+It displayed trained and untrained saves/skills together as raw booleans, status
+strings and IDs. Print omitted this training summary. Saving-throw shields also
+remained unfilled because their CSS expected an attribute the renderer never set.
+
+Sheets now uses one saved-data renderer in Combat and print, grouping saving
+throws, ordinary skills, Expertise, armor, weapons, tools and languages.
+Expertise appears once, separately from ordinary proficiency. Explicit empty
+groups and unavailable saved data have different localized messages; languages
+are no longer repeated elsewhere. Known UI/category labels are translated, exact
+kind-and-ID evidence supplies saved record names when available, and unmatched
+saved text remains readable without current-catalog lookups.
+
+The existing host rule-details control presents available saved explanations and
+sources. Native description/unordered lists retain group/value relationships and
+individual entries; layouts wrap by available space and relative text size.
+[W3C content structure](https://www.w3.org/WAI/tutorials/page-structure/content/)
+and [reflow](https://www.w3.org/WAI/WCAG22/Understanding/reflow.html) informed these
+choices. No new interaction widget, renderer boundary or rule calculation was
+introduced. Shared ability labels feed both views. Saving-throw markers now
+use their actual saved flag for fill and an accessible name containing the
+ability, save and training status.
+
+### Acceptance
+
+Four module regressions cover trained-only selection, distinct Expertise,
+exact evidence identity despite colliding IDs, detached references, unknown or
+missing values, and English/Czech labels without translating authored names.
+
+Two installed workflows start from a ready Fighter, show the explicit empty
+Expertise group, add a Rogue level and complete its training, then authorize
+Wisdom-save and Medicine proficiency through a DM grant. They verify:
+
+- exact trained-save and equipment lists, distinct skill/Expertise groups,
+  tools/languages and absence of raw status/identifier text;
+- unchanged authored HP, temporary HP, inventory/provenance/notes, currency,
+  resource counters and other play values through grant and withdrawal;
+- an Engine restart preserving the exact saved state and rules identity;
+- active/inactive saving-throw shield fill and accessible labels;
+- shared explanation dialogs opened with the keyboard and returning focus;
+- English Compact desktop and Czech Classic at 390px with 200% text,
+  individual group wrapping and no horizontal page overflow;
+- identical summary values in print even with equipment/spell output unchecked,
+  unchanged export, grant withdrawal through the UI, and reload.
+
+The final provider-removal workflow reopens both saved characters, reads exact
+Rogue source hashes through the shared explanation control, prints the same
+training groups, exports unchanged inputs and makes no live record queries.
+Each workflow releases its browser context. Desktop and enlarged phone
+screenshots were inspected; no human screen-reader or physical-print claim is made.
+
+### Exact packages and validation
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools, unchanged | `0eeac9bc84f50836fa30f134b5edee9358656676` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine, unchanged | `eb2f2f023b819b6ec919f17dd6a1a886e761244f` | `d75dadd2ccb28a1119aca8abeffbf49d97a96baba322da715c8c856de5a29211` |
+| Sheets | `951d7ef43d14e6b6080586a6a44d7761bc30d4ef` | `9ca47a9ab23f5bb46fa94be0032e0ed50b0a78a6c504b8e2e2188e0058009a76` |
+| Compendium, unchanged | `87f79ad6470a027003f7e97a20734205482414dc` | `0f0777159ac4c1074fb59d1662aa4f3bf27d70f53e154ff5a1b4725a31abad3c` |
+
+Sheets build, **22/22** module tests, Go tests and vet passed. The package was
+rebuilt through its owning command and inspected by the host. Companion
+preparation verified all four clean source commits and exact hashes above.
+The isolated installed replay passed **3/3 with zero skips**.
+
+Host `npm run check` passed: **38 tooling, 400 unit and 282 browser tests**,
+plus Go tests/vet. Its **139 optional installed skips** are covered separately
+by the strict suite, which passed **210/210 with zero skips**. All **33
+product-parity release gates** passed.
+
+Fixture iteration corrected shadow-DOM text/focus assertions, closed the print
+options dialog before subsequent navigation, and excluded only the coordinator's
+advancing `asOf` clock from authored-play comparisons. Exact saved-state
+comparisons still include that clock after read/print/export and provider
+removal. No product deadlines or behavior assertions were weakened.
+
+Provenance records host `8e0f619` plus this batch's working changes. Native
+execution was Windows AMD64; Linux workers remain cross-compiled. T18's broader
+multiclass/source-change sessions, bounded class-level replacements, generated
+artifact ownership and T57's unexplained startup investigation remain open.
+This slice does not change the overall suite estimate. No push, publication,
+deployment or live data change occurred.

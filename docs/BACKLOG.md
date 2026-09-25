@@ -71,6 +71,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T59-HOST — Accept qualifying advancements and saved feat output**~~ — five installed cases and frozen-output coverage; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
 - [x] ~~**T60-HOST — Accept class styles and correct the settings readiness test**~~ — six installed cases, saved outputs and delayed-startup draft guards (`7cf4b9b`); [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
 - [x] ~~**T61-HOST — Accept passive feats through installed shared views**~~ — `5dccbcf`; exact pins, 208/208 cases and bounded startup diagnostics; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
+- [x] ~~**T62-HOST — Accept saved training through multiclass and provider changes**~~ — `df8d453`; exact pins, keyboard details and provider-free print/export; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#readable-saved-proficiencies-and-saving-throw-indicators).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -273,6 +274,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T59-SHEETS — Show saved feats in Combat and print**~~ — `0626c3e`; one shared renderer, repeated counts, both locales/layouts and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
 - [x] ~~**T60-SHEETS — Repair shared spell pickers and provider-free rule details**~~ — `28e2281`, `e415b0a`; wrapping/focus and one saved-evidence adapter for readable spell details; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
 - [x] ~~**T61-SHEETS — Accept passive stats in shared saved-data UI**~~ — host fixture `5dccbcf`; existing controls, both locales/layouts and exact provider-free outputs; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
+- [x] ~~**T62-SHEETS — Present readable saved proficiencies and active save markers**~~ — `951d7ef`; one Combat/print renderer, localized training groups and accessible indicators; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#readable-saved-proficiencies-and-saving-throw-indicators).
 
 ### Remaining work
 
@@ -280,11 +282,10 @@ Provider-free saved reading/notes/print/export remain required.
   Finish representative multiclass sessions across provider/source changes,
   combining T55 amended grants with T56 incompatibility and restoration coverage.
   T56 accepts schema-replacement refusal, worker-only writes and exact archive
-  preservation; T54 covers creation and first play, T53 transfer/output. Human
-  screen-reader, physical touch and printer checks remain separate from
-  browser/PDF evidence. The Combat proficiency summary still exposes raw
-  true/false/none values and IDs; present readable trained proficiencies through
-  shared saved-data UI (confirmed during T59 visual review).
+  preservation; T54 covers creation and first play, T53 transfer/output. T62 adds
+  Fighter/Rogue training, DM proficiency withdrawal, provider restart and frozen
+  output. Human screen-reader, physical touch and printer checks remain separate
+  from browser/PDF evidence.
 - [ ] **T14-SHEETS / P2 — Remove generated browser/worker output from source ownership.**
   Migrate schema/type generation, package/test and host fixture consumers first;
   preserve deterministic standalone packaging and host inspection with T14-HOST.
