@@ -52,6 +52,22 @@ async function loseReply(page: Page, method: string, delivered: boolean, operati
   return attempts;
 }
 
+async function holdGuidanceRefresh(page: Page, key: string) {
+  let started!: () => void, release!: () => void;
+  const entered = new Promise<void>(resolve => { started = resolve; }), held = new Promise<void>(resolve => { release = resolve; });
+  let hold = true;
+  await page.route('**/services/call', async route => {
+    const body = route.request().postDataJSON();
+    if (hold && body?.method === 'load' && body.params.key === key) {
+      hold = false; const response = await route.fetch();
+      assert.equal(response.ok(), true);
+      assert.equal((await response.json()).result.evaluation.ready, true);
+      started(); await held; await route.fulfill({ response });
+    } else await route.fallback();
+  });
+  return { entered, release };
+}
+
 async function retry(page: Page, status: Locator, attempts: unknown[], locale = 'en') {
   assert.equal(await status.getAttribute('data-ui-state'), 'error');
   assert.equal(await unloadBlocked(page), true);
@@ -72,12 +88,23 @@ export function registerCharacterCommandTests(enabled: boolean, fixture: () => F
     assert.equal((await read()).revision, initial.revision + (delivered ? 1 : 0));
     assert.equal(await sheet.getByRole('button', { name: 'Damage', exact: true }).isDisabled(), true);
     assert.equal(await sheet.getByLabel('Current HP', { exact: true }).isDisabled(), true);
-    await retry(page, status, attempts);
-    const saved = await read();
-    assert.equal(saved.revision, initial.revision + 1); assert.equal(saved.state.inputs.play.hp, initial.state.inputs.play.hp - 2);
-    await sheet.getByRole('button', { name: 'Damage', exact: true }).waitFor();
-    assert.equal(await sheet.getByRole('button', { name: 'Damage', exact: true }).isEnabled(), true, 'Acknowledgment refresh must restore current play guidance');
-    assert.equal(await sheet.getByLabel('Current HP', { exact: true }).inputValue(), String(saved.state.inputs.play.hp));
+    // An idempotent receipt confirms persistence before the browser reloads guidance.
+    const refresh = delivered ? await holdGuidanceRefresh(page, key) : undefined;
+    try {
+      await retry(page, status, attempts);
+      const saved = await read();
+      assert.equal(saved.revision, initial.revision + 1); assert.equal(saved.state.inputs.play.hp, initial.state.inputs.play.hp - 2);
+      const damageButton = sheet.getByRole('button', { name: 'Damage', exact: true });
+      if (refresh) {
+        await refresh.entered;
+        assert.equal(await damageButton.isDisabled(), true, 'A receipt must not reuse stale play guidance');
+        assert.equal(await sheet.getByLabel('Current HP', { exact: true }).isDisabled(), true);
+        refresh.release();
+      }
+      await damageButton.and(sheet.locator(':enabled')).waitFor();
+      assert.equal(await damageButton.isEnabled(), true, 'Acknowledgment refresh must restore current play guidance');
+      assert.equal(await sheet.getByLabel('Current HP', { exact: true }).inputValue(), String(saved.state.inputs.play.hp));
+    } finally { refresh?.release(); }
   });
 
   for (const locale of ['en', 'cs']) test('uncertain grant, amendment and revocation retain one action (' + locale + ')', { skip: !enabled, timeout: 60000 }, async t => {

@@ -3140,8 +3140,55 @@ preservation, provider-free saved sessions and DM fallback counts passed in that
 same full run.
 
 The evidence records host base `77aa425` with this batch's pin/document changes;
-all four companion trees are clean. Native execution is Windows AMD64; Linux
-workers were cross-compiled, so the repaired source set still needs its GitHub
-Linux run. Publish the engine commit before the dependent host commit when
-publication is authorized. No push, workflow retry, deployment or live-data
-operation was performed.
+all four companion trees were clean. Initial native execution was Windows AMD64.
+The subsequent Linux [run 36186563290](https://github.com/pjunak/ttrpg-codex/actions/runs/36186563290)
+confirmed both multiclass sessions in **105,989 / 94,957 ms**, plus their
+provider-free saved output. Its sole failure was a separate
+[acknowledgment-readiness assertion](#acknowledged-commands-and-browser-readiness).
+No push, workflow retry, deployment or live-data operation was performed during
+the local repair.
+
+## Acknowledged commands and browser readiness
+
+September 25, 2026. [Build and dispatch run 36186563290](https://github.com/pjunak/ttrpg-codex/actions/runs/36186563290)
+on `c23a5e7` passed host checks and all package builds/inspection. Installed
+acceptance had **246 passed, one failed, zero cancellations or skips**. The
+multiclass, backup and live-count repairs passed Linux. The remaining failure
+was **uncertain play command retries once after a lost acknowledgment**;
+image publication and deployment were skipped.
+
+The retry receipt confirms the already-persisted action without an evaluation.
+Sheets accepts that receipt, shows **Saved**, and separately loads fresh guidance.
+The test waited for **Saved** and for the already-visible Damage button, then
+immediately required that button to be enabled. Its separate API read of the
+saved character did not wait for the browser's own request. Depending on response
+ordering, this checked the correctly disabled control before guidance arrived.
+
+The fixture now holds the actual browser guidance response. With the original
+assertion this deterministically reproduced the same failure. The repaired
+case checks that damage/HP controls remain disabled while the response is held,
+releases it, waits for the Damage button to become enabled, and checks the exact
+saved HP. Both delivery variants retain exact command/revision equality, two
+attempts, one saved effect, recovery focus and navigation-guard assertions.
+No sleep, timeout increase, assertion removal, runtime change or package-pin
+change is involved.
+
+All eight focused command-recovery cases passed, including grant amendments,
+reviewed imports, delayed reads and later-editor conflicts. The
+[workflow reference](CHARACTER_BUILD_HISTORY.md) now states the distinction
+between persistence acknowledgment and current mechanical eligibility.
+
+Host `npm run check` passed **42 tooling, 402 frontend unit and 285 browser
+cases**, plus all Go tests/vet. Its 174 optional installed skips are covered by
+the separate strict suite. Release readiness passed all 33 gates.
+
+Strict installed acceptance passed **247/247, zero failures, cancellations or
+skips**, in **786,385 ms**, including the held-response case and all previous
+multiclass, backup and live-count repairs.
+
+Exact companion revisions and inspected ZIP hashes are unchanged from the
+[engine repair](#multiclass-editor-calculation-cost). Provenance records host
+base `c23a5e7` plus this fixture/document change, with all companion trees clean.
+Native execution is Windows AMD64. The corrected fixture still needs its Linux
+CI run; local acceptance is not deployment verification. No push, workflow
+retry, publication, deployment or live-data operation was performed.

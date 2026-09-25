@@ -87,6 +87,9 @@ review. **Check saved character** asks before ending the retry, then reloads the
 saved result without undoing any action. A failed check keeps recovery available.
 When another editor has already changed the character, check that result before
 deciding whether to repeat the action; commands do not merge automatically.
+A retry receipt can confirm the saved action without returning an evaluation.
+In that case, **Saved** confirms persistence while a separate read restores
+current play guidance; mechanical controls stay disabled until it arrives.
 
 Empty inventory cannot remain equipped or attuned. Setting quantity to zero in
 Sheets moves equipped items to carried and clears attunement in the same save.
@@ -134,7 +137,9 @@ checks real package installation, incremental saves, bounded controls,
 permissions, play, transfer and responsive layouts. The
 [command recovery cases](../../frontend/test/browser/installed-character-command-fixture.mts)
 cover failed delivery, lost acknowledgments, repeated grants/imports, delayed
-reads, concurrent edits and enlarged English/Czech phone recovery. The
+reads, concurrent edits and enlarged English/Czech phone recovery. A held real
+guidance response verifies that an acknowledged action stays saved while play
+controls await fresh eligibility, then recover without another write. The
 [rules adoption cases](../../frontend/test/browser/installed-character-rules-recovery-fixture.mts)
 cover a real worker rejection before a delayed lifecycle event, explicit pending-
 input adoption, conflict protection and a lost reply. Forced generation replacement
