@@ -2568,3 +2568,78 @@ provider changes. Coordinate its typed-state design with T63 and reviewed T08
 migration if the released schema changes; this batch adds no new state fields.
 Generated-artifact ownership remains separate. This slice does not change the
 dated overall estimate.
+
+## Equipped-only selection and preserved attunement
+
+September 25, 2026, T63-ATTUNEMENT. Sheets commits `d85bc8a` and `6a0a75c`
+implement the first compatible equipment slice. New attunement selections use
+positive-quantity equipped instances and Engine eligibility. Equipped
+candidates blocked by prerequisites or capacity retain readable explanations;
+otherwise eligible inventory items explain that they must first be equipped.
+
+Existing carried/stored allocations remain visible with their location and
+count toward the Engine's saved capacity. Ordinary moves still preserve
+attunement. **Stow & unattune** moves the same instance to Stored and clears
+its allocation in one optimistic autosave, preserving quantity, reference,
+identity, acquisition, grant links and notes. The action returns keyboard focus
+to that item's Move control. Explicit repair retains prerequisite diagnostics
+even when the existing allocation no longer qualifies.
+
+The implementation reuses native buttons/selects, the host's borrowed controls,
+shared inventory transitions and current worker save/retry/conflict handling.
+There is no new stored field, service version, permission or rules calculation.
+Engine eligibility continues to accept existing carried/stored allocations;
+the equipped-only requirement is a new-selection UI rule.
+
+### Acceptance
+
+Six additional installed workflows cover both locales, old allocations,
+ordinary moves, equipped-only choices, stowing, zero-quantity cleanup and
+reload; requests lost before delivery and after commit retry their exact
+operation, revision and complete inputs; disjoint edits rebase while overlapping
+inventory edits remain visibly conflicted without partial writes. The existing
+capacity, duplicate, prerequisite and class-removal repair cases remain intact.
+
+Final provider-free acceptance reads both saved retry sessions, displays their
+stored allocations, disables mutations, prints item names/notes and exports
+exact authored inputs. Reading, printing and export compare the complete saved
+state before/after and never write the character. Browser contexts are released.
+
+Two focused helper regressions cover all three existing locations, exhausted
+quantities, Engine-denied actions and preservation of item/reference/grant
+identity, quantity, acquisition, notes and other allocations. Both layouts use
+the same transitions and rendering. English Compact at 390 px and Czech Classic
+at 320 px, both with 200% text, retain keyboard focus and have no horizontal page
+overflow. Corrected unobstructed screenshots were inspected.
+
+### Exact packages and validation
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools, unchanged | `0eeac9bc84f50836fa30f134b5edee9358656676` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine, unchanged | `093472f5a723d86464f4a3ce08a7137aae8973eb` | `518966cb341e9a60b82075bf7f69c61a1fed0d0d0b19de8d2d858b533dda3c32` |
+| Sheets | `6a0a75cf3715506eab0c7482a3277ce6fb044ff6` | `61a6ba4361de5a5bbe7d77b3780901fa16a811185e5bbb04acb43ace94fe6472` |
+| Compendium, unchanged | `87f79ad6470a027003f7e97a20734205482414dc` | `0f0777159ac4c1074fb59d1662aa4f3bf27d70f53e154ff5a1b4725a31abad3c` |
+
+Sheets `npm run check` passes **24/24** module tests plus Go tests/vet.
+The owning package build and host inspection passed. Focused installed
+acceptance passed **14/14**, followed by both corrected phone captures.
+Host `npm run check` passed **38 tooling, 400 unit and 282 browser tests** plus
+Go tests/vet. Its **149 optional installed skips** are covered by the strict
+final package suite: **220/220, zero skips**. All **33 release gates** passed.
+
+The first host gate hit Chromium `ERR_NO_BUFFER_SPACE` while navigating an
+unchanged map fixture. The complete gate passed on repeat with the same
+concurrency, assertions and deadlines. This does not establish a product defect
+or a cause for the earlier unexplained T53/T57 failures.
+
+Provenance records host `cdbf4b0` plus this batch's tests/pins. Native execution
+was Windows AMD64; Linux workers were cross-compiled. Human screen-reader,
+physical touch, printer, Linux-runtime and live-site checks remain unclaimed.
+No push, publication, deployment or live-data change occurred.
+
+T63 remains open for its typed-state preservation design, body placement,
+containers, hands/grip/suspension, quick-use references, Inspiration, conditions
+and remaining workspace/Builder layout. The audit in the backlog identifies
+which fields need reviewed schema evolution under T08; no reset or ad hoc
+conversion is introduced by this slice.

@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test, type TestContext } from 'node:test';
 import { resolve } from 'node:path';
 import { createCharacter, openBuilder, save, type Fixture } from './installed-character-builder-fixture.mts';
+import { exported, printOutput } from './installed-character-output-fixture.mts';
+
+const frozenAttunements = new Map<string, Awaited<ReturnType<Fixture['call']>>>();
 
 type Item = { id: string; name: string; reference: { kind: string; id: string }; quantity: number; location: string; attuned: boolean; acquisition: string; notes: string };
 const item = (id: string, kind: string, ref: string, location = 'carried', attuned = false): Item => ({
@@ -20,6 +23,7 @@ const text = (locale: string) => locale === 'cs'
     capacity: 'All attunement slots are in use. Unattune an item first.' };
 
 export function registerEquipmentTests(enabled: boolean, fixture: () => Fixture) {
+  registerAttunementTransitionTests(enabled, fixture);
   for (const locale of ['en', 'cs']) {
     test('equipment slot replacement preserves stored inventory through both controls (' + locale + ')', { skip: !enabled, timeout: 60000 }, async t => {
       const f = fixture(), key = 'equipment-slots-' + locale, messages = text(locale);
@@ -118,5 +122,161 @@ export function registerEquipmentTests(enabled: boolean, fixture: () => Fixture)
       assert.equal(await amulet.getAttribute('aria-pressed'), 'true');
       assert.equal(await sheet.getByRole('button', { name: messages.attune + 'ring', exact: true }).getAttribute('aria-pressed'), 'false');
     });
+  }
+}
+
+function registerAttunementTransitionTests(enabled: boolean, fixture: () => Fixture) {
+  for (const locale of ['en', 'cs']) {
+    test('equipped attunement selection preserves old allocations and atomic stowing (' + locale + ')', { skip: !enabled, timeout: 60000 }, async t => {
+      const f = fixture(), key = 'attunement-locations-' + locale, messages = text(locale);
+      const inventory = [
+        item('old-ring', 'magic-item', 'ring-of-protection', 'stored', true),
+        item('old-amulet', 'magic-item', 'amulet-of-health', 'carried', true),
+        item('spare-ring', 'magic-item', 'ring-of-protection'),
+      ], expected = structuredClone(inventory);
+      const initial = await equipmentCharacter(f, key, inventory), { page, sheet, status, read } = await openBuilder(t, f, key, locale);
+      if (locale === 'cs') { await sheet.locator('#dnd-tab-tools').click(); await sheet.getByRole('combobox', { name: messages.layout, exact: true }).selectOption('classic'); }
+      await sheet.locator('#dnd-tab-sheet').click();
+      const allocations = sheet.locator('[data-equipment-slot="attuned"]');
+      assert.equal(await allocations.locator('.dse-equipment-slot').count(), 2);
+      assert.equal(await allocations.locator('.dse-equipment-location').allTextContents().then(values => values.sort()).then(values => values.join('|')),
+        (locale === 'cs' ? ['V batohu', 'Uložené'] : ['Carried', 'Stored']).sort().join('|'));
+      assert.equal((await read()).state.projection.sheet.attunement.count, 2);
+      const move = (id: string) => sheet.getByRole('combobox', { name: messages.move + id, exact: true });
+      const stow = (id: string) => sheet.getByRole('button', { name: (locale === 'cs' ? 'Uložit a zrušit sladění: ' : 'Stow & unattune ') + id, exact: true });
+      await move('old-ring').selectOption('carried'); await status.filter({ hasText: messages.saved }).waitFor();
+      expected[0]!.location = 'carried'; assert.deepEqual((await read()).state.inputs.play.inventory, expected, 'Ordinary moves retain allocations');
+      await move('old-ring').selectOption('equipped'); await status.filter({ hasText: messages.saved }).waitFor();
+      const beforeStow = await read();
+      await stow('old-ring').focus(); await stow('old-ring').press('Enter'); await status.filter({ hasText: messages.saved }).waitFor();
+      expected[0]!.location = 'stored'; expected[0]!.attuned = false;
+      const stowed = await read();
+      assert.equal(stowed.revision, beforeStow.revision + 1);
+      assert.deepEqual(stowed.state.inputs.play.inventory, expected);
+      assert.equal(await move('old-ring').evaluate(node => node === document.activeElement), true, 'A disappearing action keeps focus on the same item');
+      const spare = sheet.getByRole('button', { name: messages.attune + 'spare-ring', exact: true });
+      assert.equal(stowed.evaluation.guidance.equipment['spare-ring'].canAttune, true);
+      assert.equal(await spare.isDisabled(), true);
+      assert.equal(await spare.getAttribute('aria-description'), locale === 'cs' ? 'Před sladěním si tento předmět vybavte.' : 'Equip this item before attuning it.');
+      await sheet.getByRole('button', { name: '+ ' + messages.attuned, exact: true }).click();
+      const dialog = sheet.getByRole('dialog');
+      assert.equal(await dialog.getByRole('button', { name: 'old-ring', exact: true }).count(), 0);
+      assert.equal(await dialog.getByRole('button', { name: 'spare-ring', exact: true }).count(), 0);
+      await dialog.getByRole('button', { name: messages.close, exact: true }).click();
+      await move('spare-ring').selectOption('equipped'); await status.filter({ hasText: messages.saved }).waitFor();
+      expected[2]!.location = 'equipped';
+      await sheet.getByRole('button', { name: '+ ' + messages.attuned, exact: true }).click();
+      await dialog.getByRole('button', { name: 'spare-ring', exact: true }).press('Enter'); await status.filter({ hasText: messages.saved }).waitFor();
+      expected[2]!.attuned = true; assert.deepEqual((await read()).state.inputs.play.inventory, expected);
+      await page.setViewportSize({ width: locale === 'cs' ? 320 : 390, height: 1000 });
+      await page.addStyleTag({ content: 'html { font-size:200% !important; }' });
+      await page.mouse.move(0, 0); await page.keyboard.press('Escape');
+      await stow('spare-ring').focus(); await stow('spare-ring').scrollIntoViewIfNeeded();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.screenshot({ path: resolve(f.output, 'attunement-stow-phone-' + locale + '.png') });
+      await stow('spare-ring').press('Enter'); await status.filter({ hasText: messages.saved }).waitFor();
+      expected[2]!.location = 'stored'; expected[2]!.attuned = false;
+      assert.deepEqual((await read()).state.inputs.play.inventory, expected);
+      await move('spare-ring').selectOption('equipped'); await status.filter({ hasText: messages.saved }).waitFor();
+      await spare.click(); await status.filter({ hasText: messages.saved }).waitFor();
+      await sheet.getByRole('spinbutton', { name: locale === 'cs' ? 'Množství: spare-ring' : 'spare-ring quantity', exact: true }).fill('0');
+      await status.filter({ hasText: messages.saved }).waitFor();
+      expected[2]!.quantity = 0; expected[2]!.location = 'carried';
+      const saved = await read();
+      assert.deepEqual(saved.state.inputs.play.inventory, expected);
+      assert.equal(saved.state.projection.sheet.attunement.count, 1);
+      assert.deepEqual(saved.state.inputs.grants, initial.state.inputs.grants); assert.equal(saved.state.inputs.notes, initial.state.inputs.notes);
+      assert.equal(saved.state.inputs.play.hp, initial.state.inputs.play.hp);
+      await page.reload(); await page.locator('#character-view-addons').click(); await sheet.locator('#dnd-tab-sheet').click();
+      assert.equal(await allocations.locator('.dse-equipment-slot').count(), 1);
+      assert.equal(await allocations.getByRole('button', { name: 'old-amulet', exact: true }).count(), 1);
+      assert.deepEqual((await read()).state, saved.state);
+    });
+
+    test('stow and unattune retries the complete transition once (' + locale + ')', { skip: !enabled, timeout: 60000 }, async t => {
+      const f = fixture(), key = 'attunement-retry-' + locale, messages = text(locale), delivered = locale === 'cs';
+      const inventory = [item('ring', 'magic-item', 'ring-of-protection', 'equipped', true), item('amulet', 'magic-item', 'amulet-of-health', 'stored', true)];
+      const initial = await equipmentCharacter(f, key, inventory), { page, sheet, status, read } = await openBuilder(t, f, key, locale);
+      const requests: unknown[] = [];
+      await page.route('**/services/call', async route => {
+        const body = route.request().postDataJSON();
+        if (body?.method !== 'save') { await route.continue(); return; }
+        requests.push(body.params);
+        if (requests.length === 1) { if (delivered) await route.fetch(); await route.abort('failed'); }
+        else await route.continue();
+      });
+      await sheet.locator('#dnd-tab-sheet').click();
+      await sheet.getByRole('button', { name: (locale === 'cs' ? 'Uložit a zrušit sladění: ' : 'Stow & unattune ') + 'ring', exact: true }).click();
+      const retry = status.getByRole('button', { name: locale === 'cs' ? 'Zkusit znovu' : 'Retry', exact: true });
+      await retry.waitFor();
+      const expected = inventory.map(row => row.id === 'ring' ? { ...row, location: 'stored', attuned: false } : row);
+      const uncertain = await read();
+      assert.equal(uncertain.revision, initial.revision + (delivered ? 1 : 0));
+      assert.deepEqual(uncertain.state.inputs.play.inventory, delivered ? expected : inventory, 'The worker commits both fields or neither');
+      await retry.click(); await status.filter({ hasText: messages.saved }).waitFor();
+      assert.equal(requests.length, 2); assert.deepEqual(requests[1], requests[0], 'Exact operation, revision and complete inputs are retried');
+      const saved = await read(); assert.equal(saved.revision, initial.revision + 1);
+      assert.deepEqual(saved.state.inputs.play.inventory, expected);
+      assert.equal(saved.state.projection.sheet.attunement.count, 1);
+      assert.equal(await sheet.getByRole('button', { name: messages.attune + 'ring', exact: true }).isDisabled(), true);
+      await page.reload(); await page.locator('#character-view-addons').click(); await sheet.locator('#dnd-tab-sheet').click();
+      assert.deepEqual((await read()).state, saved.state); frozenAttunements.set(key, saved);
+    });
+  }
+
+  for (const conflict of [false, true]) test('stow and unattune preserves ' + (conflict ? 'conflicting inventory changes' : 'independent concurrent edits'), { skip: !enabled, timeout: 60000 }, async t => {
+    const f = fixture(), key = 'attunement-concurrent-' + conflict;
+    const initial = await equipmentCharacter(f, key, [item('ring', 'magic-item', 'ring-of-protection', 'equipped', true)]);
+    const { page, sheet, status, read } = await openBuilder(t, f, key);
+    let enter!: () => void, release!: () => void, hold = true;
+    const entered = new Promise<void>(resolve => { enter = resolve; }), held = new Promise<void>(resolve => { release = resolve; });
+    t.after(() => release());
+    await page.route('**/services/call', async route => {
+      if (hold && route.request().postDataJSON()?.method === 'save') { hold = false; enter(); await held; }
+      await route.continue();
+    });
+    await sheet.locator('#dnd-tab-sheet').click();
+    await sheet.getByRole('button', { name: 'Stow & unattune ring', exact: true }).click(); await entered;
+    const remoteInputs = structuredClone(initial.state.inputs);
+    if (conflict) remoteInputs.play.inventory[0].location = 'carried';
+    else remoteInputs.play.currency.gp = 42;
+    const remote = await save(f, key, remoteInputs, initial.revision, 'remote'); release();
+    if (conflict) {
+      await status.getByRole('button', { name: 'Reload saved character', exact: true }).waitFor();
+      assert.deepEqual((await read()).state, remote.state, 'No partial local stow or unattune overwrites the remote item');
+      page.once('dialog', dialog => dialog.accept());
+      await status.getByRole('button', { name: 'Reload saved character', exact: true }).click();
+      await sheet.getByRole('button', { name: 'Stow & unattune ring', exact: true }).waitFor();
+      assert.equal(await sheet.getByRole('combobox', { name: 'Move ring', exact: true }).inputValue(), 'carried');
+      assert.equal(await sheet.getByRole('button', { name: 'Attune ring', exact: true }).getAttribute('aria-pressed'), 'true');
+    } else {
+      await status.filter({ hasText: /^Saved$/ }).waitFor();
+      const saved = await read(); assert.equal(saved.revision, initial.revision + 2);
+      assert.deepEqual(saved.state.inputs.play.inventory, [{ ...initial.state.inputs.play.inventory[0], location: 'stored', attuned: false }]);
+      assert.equal(saved.state.inputs.play.currency.gp, 42);
+    }
+  });
+}
+
+export async function verifyFrozenAttunements(t: TestContext, f: Fixture) {
+  assert.equal(frozenAttunements.size, 2, 'Both equipment retry sessions must precede provider-free acceptance');
+  for (const [key, expected] of frozenAttunements) {
+    const locale = key.endsWith('-cs') ? 'cs' : 'en', { page, sheet, read } = await openBuilder(t, f, key, locale);
+    const loaded = await read(); assert.equal(loaded.status, 'unavailable'); assert.deepEqual(loaded.state, expected.state);
+    await sheet.locator('#dnd-tab-sheet').click();
+    const allocations = sheet.locator('[data-equipment-slot="attuned"]');
+    assert.equal(await allocations.locator('.dse-equipment-slot').count(), 1);
+    assert.equal(await allocations.getByRole('button', { name: 'amulet', exact: true }).count(), 1);
+    assert.equal(await allocations.locator('.dse-equipment-location').innerText(), locale === 'cs' ? 'Uložené' : 'Stored');
+    assert.equal(await sheet.locator('.dse-attunement-actions').count(), 0);
+    assert.equal(await sheet.getByRole('button', { name: '+ ' + text(locale).attuned, exact: true }).count(), 0);
+    await sheet.locator('#dnd-tab-tools').click();
+    assert.deepEqual((await exported(page, sheet, locale)).inputs, expected.state.inputs);
+    const popup = await printOutput(page, sheet, locale);
+    const body = await popup.locator('body').innerText();
+    for (const row of expected.state.inputs.play.inventory as Item[]) { assert.ok(body.includes(row.name)); assert.ok(body.includes(row.notes)); }
+    await popup.close();
+    assert.deepEqual((await read()).state, expected.state, 'Reading, printing and export never rewrite allocations');
+    await page.context().close();
   }
 }

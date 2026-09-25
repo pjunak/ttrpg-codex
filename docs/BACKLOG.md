@@ -75,6 +75,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T61-HOST — Accept passive feats through installed shared views**~~ — `5dccbcf`; exact pins, 208/208 cases and bounded startup diagnostics; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
 - [x] ~~**T62-HOST — Accept saved training through multiclass and provider changes**~~ — `df8d453`; exact pins, keyboard details and provider-free print/export; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#readable-saved-proficiencies-and-saving-throw-indicators).
 - [x] ~~**T64-HOST — Accept whole multiclass sessions through source/provider loss**~~ — `2184554`; real casts, recovery, rest, level-up and frozen outputs; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-snapshots-and-provider-session-recovery).
+- [x] ~~**T63-ATTUNEMENT-HOST — Accept equipped choices and atomic stowing**~~ — six installed workflows, exact package pins and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#equipped-only-selection-and-preserved-attunement).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -299,6 +300,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T61-SHEETS — Accept passive stats in shared saved-data UI**~~ — host fixture `5dccbcf`; existing controls, both locales/layouts and exact provider-free outputs; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
 - [x] ~~**T62-SHEETS — Present readable saved proficiencies and active save markers**~~ — `951d7ef`; one Combat/print renderer, localized training groups and accessible indicators; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#readable-saved-proficiencies-and-saving-throw-indicators).
 - [x] ~~**T64-SHEETS — Acknowledge large saves and bound complete import reviews**~~ — `424a0d0`, `e37549b`; bounded complete comparisons, localized review labels and exact retries; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-snapshots-and-provider-session-recovery).
+- [x] ~~**T63-ATTUNEMENT — Preserve allocations and add explicit Stow & unattune**~~ — `d85bc8a`, `6a0a75c`; equipped-only selection, repair explanations, atomic autosave and keyboard focus; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#equipped-only-selection-and-preserved-attunement).
 
 ### Remaining work
 
@@ -337,6 +339,15 @@ Current Engine slot guidance is `armor`/`shield`/`worn`; current saved Play/Item
 types do not provide all the distinct presentation and active-hand state in the
 mockups. Implement and validate those differences before updating current-state
 documentation or marking T63 complete.
+
+The first model audit confirms that schema 4 already supports atomic location
+and attunement changes, but has no typed body placement, container membership,
+main/off-hand or suspended-instance references, quick-use pins, Inspiration or
+conditions. Those fields still need agreed Engine/worker DTOs and a reviewed
+preservation path under T08 before their UI can write them. Keep display
+placement separate from armor/shield mechanics; do not encode the new state in
+notes, resource counters or active-feature keys. The attunement slice below
+uses existing fields and leaves the released schema and service unchanged.
 
 #### Preserve the completed baseline
 
@@ -400,14 +411,10 @@ documentation or marking T63 complete.
   Remove currency from Sheet, Combat and the separate Storage coin-purse block.
   Tab/content changes keep that row at the bottom without overlap. Currency
   stays authored state, and existing print/export includes all denominations.
-- **Attuned items** offers only eligible, currently equipped inventory instances;
-  available capacity and prerequisites remain Engine-owned, not a fixed demo
-  count. This new selection filter must not silently rewrite existing
-  attunements: the current contract permits carried/stored attuned items and
-  ordinary unequip does not unattune. Show/count preserved allocations and give
-  explicit repair or **Stow & unattune** actions where appropriate. Quantity-zero
-  cleanup retains its atomic behavior. Record any required contract change
-  before implementation; do not hide unresolved saved allocations.
+- [x] ~~**Attuned items — equipped selection and explicit repair**~~ — existing
+  allocations, Engine capacity/prerequisites and atomic quantity cleanup are
+  preserved; **Stow & unattune** saves both changes together. [Current contract](../../addon-dnd-character-sheets/docs/RULES_EDGE_CASES.md#equipment-and-attunement)
+  and [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#equipped-only-selection-and-preserved-attunement).
 - Main/off hand belong only in Sheet and Combat. Use one joined two-hand area
   with a central, clearly labelled grip switch and fitting hand/link icon.
   Allow a compatible main-hand weapon to use both hands even with an occupied

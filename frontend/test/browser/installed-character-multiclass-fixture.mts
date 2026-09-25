@@ -141,6 +141,8 @@ export function registerMulticlassAcceptanceTests(enabled:boolean,fixture:()=>Fi
   const input=structuredClone(stored.state.inputs);input.build.baseScores={STR:14,DEX:12,CON:13,INT:15,WIS:10,CHA:8};input.build.levels.push({id:'wizard-entry',classId:'wizard'});
   stored=await complete(f,key,input,stored.revision,'wizard');
   await page.reload();await page.locator('#character-view-addons').click();await sheet.locator('#dnd-tab-sheet').click();await staff.waitFor();
+  await sheet.getByRole('combobox',{name:(locale==='cs'?'Přesunout: ':'Move ')+'staff-of-power',exact:true}).selectOption('equipped');
+  await status.filter({hasText:saved}).waitFor();
   assert.equal(await staff.isDisabled(),false);await staff.focus();await staff.press('Enter');await status.filter({hasText:saved}).waitFor();
   stored=await read();assert.equal(stored.state.inputs.play.inventory[0].attuned,true);
   await sheet.locator('#dnd-tab-builder').click();await sheet.locator('#dnd-builder-tab-wizard').click();
@@ -148,6 +150,7 @@ export function registerMulticlassAcceptanceTests(enabled:boolean,fixture:()=>Fi
   await status.filter({hasText:locale==='cs'?'Předpoklad není splněn.':'The prerequisite is not met.'}).waitFor();
   assert.equal((await read()).revision,stored.revision);
   await sheet.locator('#dnd-tab-sheet').click();assert.equal(await staff.isDisabled(),false,'an attuned item must remain available for explicit repair');
+  assert.equal(await staff.getAttribute('aria-description'),locale==='cs'?'Splňte předpoklad tohoto předmětu nebo zaznamenejte rozhodnutí DM.':"Meet this item's prerequisite or record a DM ruling.");
   await page.setViewportSize({width:390,height:1000});await page.addStyleTag({content:'html {font-size:200% !important;}'});
   await staff.scrollIntoViewIfNeeded();await page.screenshot({path:resolve(f.output,'attunement-repair-'+locale+'.png')});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);

@@ -77,6 +77,10 @@ deciding whether to repeat the action; commands do not merge automatically.
 Empty inventory cannot remain equipped or attuned. Setting quantity to zero in
 Sheets moves equipped items to carried and clears attunement in the same save.
 The Engine owns eligibility, including active DM mechanics and grant expiry.
+New attunement selections require equipped items. Existing carried/stored
+allocations stay visible, count toward capacity, and survive ordinary moves.
+**Stow & unattune** moves the same instance to Stored and releases its allocation
+in one autosave; it preserves quantity, provenance, grants and notes.
 
 Tools contains the only export option, plus reviewed import, printing, layout,
 and rules status. A transfer contains the current character only. Import

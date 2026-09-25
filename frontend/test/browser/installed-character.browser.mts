@@ -20,7 +20,7 @@ import { registerCharacterAdvancementTests, verifyFrozenAdvancements } from './i
 import { registerClassStyleTests, verifyFrozenClassStyles } from './installed-character-class-style-fixture.mts';
 import { registerPassiveFeatTests, verifyFrozenPassiveFeats } from './installed-character-passive-fixture.mts';
 import { registerProficiencyTests, verifyFrozenProficiencies } from './installed-character-proficiency-fixture.mts';
-import { registerEquipmentTests } from './installed-character-equipment-fixture.mts';
+import { registerEquipmentTests, verifyFrozenAttunements } from './installed-character-equipment-fixture.mts';
 import { registerMulticlassProviderTests, verifyFrozenMulticlassSessions } from './installed-character-multiclass-provider-fixture.mts';
 import { registerMulticlassAcceptanceTests } from './installed-character-multiclass-fixture.mts';
 import { registerCharacterOutputTests, verifyFrozenSessionOutputs } from './installed-character-output-fixture.mts';
@@ -230,7 +230,7 @@ test('source adoption remains explicit and absent rules freeze mechanics without
  const fixture = { admin, browser, csrf, origin, output, call };
  await verifyFrozenCreatedCharacters(fixture);
  // Finished workflows must not retain browser sessions until this parent ends.
- for (const verify of [verifyFrozenSessionOutputs, verifyFrozenSizes, verifyFrozenAdvancements, verifyFrozenClassStyles, verifyFrozenSpellDetails, verifyFrozenPassiveFeats, verifyFrozenProficiencies, verifyFrozenMulticlassSessions]) {
+ for (const verify of [verifyFrozenSessionOutputs, verifyFrozenSizes, verifyFrozenAdvancements, verifyFrozenClassStyles, verifyFrozenSpellDetails, verifyFrozenPassiveFeats, verifyFrozenProficiencies, verifyFrozenMulticlassSessions, verifyFrozenAttunements]) {
   const retained = browser.contexts().length;
   await verify(t, fixture);
   assert.equal(browser.contexts().length, retained, verify.name + ' must release its browser contexts');
