@@ -8,6 +8,12 @@ currency next to inventory. The host character heading is not repeated. When
 space is too narrow relative to text size, the vertical navigation stacks above
 the sheet so enlarged text and recovery controls remain readable.
 
+The next user-directed workspace design is tracked in
+[T63 in the suite backlog](../BACKLOG.md#t63-character-sheet-design), including
+Equipment, body/hand placement and revised Sheet/Combat layouts. It is planned
+work; the behavior described here remains the current implementation contract
+until its owning changes and installed acceptance land.
+
 <a id="character-model"></a>
 <a id="f16-f19-and-f20-first-complete-play-slice"></a>
 <a id="f18-rules-details-everywhere"></a>

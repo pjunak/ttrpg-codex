@@ -11,6 +11,8 @@ including release and complete workflow acceptance.
 [Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-update-september-24).
 **Rows closed, September 24:** 26 of the original 40; large open tasks contain
 completed slices.
+These dated estimates predate the additional T63 character-sheet design below;
+they do not measure implementation or acceptance of that new scope.
 
 **P1:** preservation, blocked workflows or release confidence. **P2:** usability,
 resilience and maintenance. **Confirmed** means source/browser evidence exists;
@@ -84,6 +86,12 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 
 ### Validation follow-up
 
+- [ ] **T63-HOST / P2 — Accept the agreed character-sheet workspace through installed packages.**
+  Own the shared-control integration and installed acceptance for
+  [T63](#t63-character-sheet-design). Extend the existing character fixtures with
+  the new Equipment tab, shared frame, hand transitions and saved play fields.
+  Record exact companion pins and package hashes; expand the host UI contract
+  only if a required interaction cannot use `ui.controls.v1`.
 - [ ] **T57-VERIFY / P2 — Explain intermittent startup timeouts.**
   T57 timed out before the timeline mounted; T60 hit one phone-settings timeout;
   T61 timed out fetching rules policy during installed-fixture setup.
@@ -178,6 +186,12 @@ Standalone browsing must remain useful without Engine or Sheets.
 
 ### Remaining work
 
+- [ ] **T63-COMP / P2 — Supply source facts needed by the agreed equipment UI.**
+  Audit existing item declarations for [T63](#t63-character-sheet-design).
+  Add only missing source-owned placement, hand/grip or filtering facts with
+  schema/provenance checks and Engine consumption. Preserve item IDs, books,
+  custom-item authority and standalone browsing. A visual body field does not
+  establish an edition rule, slot limit or armor bonus.
 - [ ] **T18-COMP / P1, review — Complete bounded class-level replacements.**
   Add bounded level-up replacement for Fighter's style and Blessed/Druidic
   Warrior cantrips. Validate allowances and preserved choices with Engine/Sheets.
@@ -222,6 +236,14 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 
 ### Remaining work
 
+- [ ] **T63-ENGINE / P2 — Define and evaluate the new equipment and play state.**
+  Establish the [T63](#t63-character-sheet-design) data/eligibility contract before
+  Sheets persists new fields: worn placement, held items and grip, suspended
+  off-hand effects, containers, quick-use references, Inspiration and conditions
+  as needed after auditing existing representations. Return saved explanations
+  and option guidance; preserve input identity and authored state. Coordinate
+  schema/service compatibility with the Sheets worker; do not implement these
+  mechanics as browser arithmetic or broaden this into a combat resolver.
 - [ ] **T18-ENGINE / P1, review — Close rules/provider evidence gaps.**
   Combine complex progression and DM effects with missing, changed or incompatible
   providers, sourcebook removal and stale generations. Preserve authored play
@@ -278,6 +300,11 @@ Provider-free saved reading/notes/print/export remain required.
 
 ### Remaining work
 
+- [ ] **T63-SHEETS / P2 — Implement the agreed Sheet, Combat, Equipment and Builder design.**
+  Follow the [implementation sequence and acceptance criteria](#t63-character-sheet-design)
+  below. The mockups are design references, not shipped behavior or production
+  code. Preserve completed T32/T33/T34/T53–T62 behavior while replacing the
+  remaining layout and workflow differences.
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
   Finish representative multiclass sessions across provider/source changes,
   combining T55 amended grants with T56 incompatibility and restoration coverage.
@@ -285,24 +312,154 @@ Provider-free saved reading/notes/print/export remain required.
   preservation; T54 covers creation and first play, T53 transfer/output. T62 adds
   Fighter/Rogue training, DM proficiency withdrawal, provider restart and frozen
   output. Human screen-reader, physical touch and printer checks remain separate
-  from browser/PDF evidence.
+  from browser/PDF evidence. Run the final session against the implemented T63
+  workspace; earlier workflow passes do not accept the new design.
 - [ ] **T14-SHEETS / P2 — Remove generated browser/worker output from source ownership.**
   Migrate schema/type generation, package/test and host fixture consumers first;
   preserve deterministic standalone packaging and host inspection with T14-HOST.
+
+<a id="t63-character-sheet-design"></a>
+
+### T63 — Agreed character-sheet design and implementation sequence
+
+Added September 25, 2026 from the September 14–25 mockup review. The final visual
+reference is `equipment-body-slots.html` in local visualization task
+`01a0a087-6e2a-78a3-9928-435fdea0e377`; it includes all character tabs. The
+requirements below are self-contained so implementation does not depend on that
+local file. Use its layout and interactions, not its sample character values,
+hard-coded rules, local widget persistence, duplicate hidden sizing DOM or
+standalone application chrome. Reuse the host controls and add-on lifetime.
+
+This is planned work, not a replacement description of current behavior.
+The current [workflow reference](rewrite/CHARACTER_BUILD_HISTORY.md) and
+[Sheets README](../../addon-dnd-character-sheets/README.md) still describe a
+1,120 px frame, a Levels tab and inventory/currency in the existing workspace.
+Current Engine slot guidance is `armor`/`shield`/`worn`; current saved Play/Item
+types do not provide all the distinct presentation and active-hand state in the
+mockups. Implement and validate those differences before updating current-state
+documentation or marking T63 complete.
+
+#### Preserve the completed baseline
+
+- Builder remains the ordered progression of the character, editable as a
+  campaign advances and retroactively. Do not restore character change logs,
+  history services/storage, snapshots, undo/restore UI, device drafts, manual
+  Save/Apply buttons or an edit-mode toggle. Ordered levels and acquired choices
+  are character facts, not a log. Keep current-state concurrency and exact retry
+  identifiers, authenticated DM commands and reviewed replacement imports.
+- Valid changes, including an incomplete but legal build, save automatically.
+  Offer only eligible values with immediate bounds/budgets, but retain worker
+  and Engine validation, conflict/retry handling and honest save status.
+  Network, permission and changed-rule failures are still possible; do not
+  discard pending input or claim it saved. Preserve provider-free saved reading,
+  explanations, print/export and the existing rules-adoption boundary.
+- Use `ui.controls.v1`, shared skin tokens, native semantic controls and stable
+  focus keys. Searchable comboboxes combine typing with browsing; option details
+  work on hover and keyboard/touch without blocking selection. Do not repeat
+  selected values beneath fields solely as decorative text.
+
+#### Target layout and behavior
+
+| Area | Required result |
+| --- | --- |
+| Navigation and identity | Vertical left tabs: Sheet, Combat, Equipment, Spells, then Builder immediately above Tools at the bottom. Use the host-owned character identity once; no repeated character-sheet headings or nested application frame. Character Notes remain in the profile; preserve item notes in inventory. Tools alone owns export, plus existing print/import, layout and rules recovery. |
+| Width, density and frame | Start from the mockup's approximately 1,360 px desktop maximum instead of 1,120 px, bounded by the available host article width. Keep form widths readable and Compact denser. At a given width, text scale and density, tab changes retain the same outer width/height and navigation position. Fit the tallest content and recompute when content, class details or density change; do not clip or introduce fixed-height tab scrollers. Allow normal document flow on small screens; preserve enlarged text and touch controls rather than squeezing to a desktop height. |
+| Shared top cards | Sheet and Combat use the same HP, AC, Speed, Proficiency and Inspiration row with identical card positions and dimensions. Narrow Speed/Proficiency to make room for Inspiration. In Sheet this row stays left of the right-hand attributes, aligned with their top; it must not push the attributes down. Inspiration is editable authored state shared by both tabs, not a mockup-only toggle. |
+| HP and explanations | Current HP is directly rewritable within Engine bounds; no damage-instance workflow is required. Use a shorter, thicker health bar whose color changes with HP percentage while keeping numeric health readable. Max-HP hover/click details include the calculation and hit dice by class. Clicking any displayed modifier opens a calculation card from saved Engine explanations, with keyboard/touch equivalents. Preserve temporary HP, rest/resource behavior and the existing max-HP change policy. |
+| Sheet | Keep the ability/skill column on the right, including scores, modifiers and shield saving-throw indicators. Include Initiative with Dexterity, passive Perception with Wisdom, and spell DC/attack with the applicable casting ability when present; preserve distinct casting sources when they differ. The left side contains hands, quick-use items, resources and useful exploration information. Main inventory and all currency move to Equipment. Do not show weapon hit/damage values in Sheet's hand fields. |
+| Combat | Keep conditions visible and editable near the top. Show a compact six-ability row containing only modifier bonuses and saving-throw bonuses; remove absolute ability scores and the word Save, using the same accessible shield/training markers as Sheet. Also show Initiative, passive Perception and conditional spell DC/attack beside the top values. Keep hand attacks/damage, quick use and resources. Preserve already accepted feat, proficiency, spell and saved-detail access; this layout change must not retire them. |
+| Builder | Character, one tab per selected class, + Class, existing spell choices and a separate DM given tab. Remove the standalone Levels tab. Add/remove levels inside their class; reaching zero removes that tab. Preserve global level order and acquisition ownership when editing multiclass levels. Remap progress/repair links formerly targeting Levels to the owning class/choice, including empty-class and removed-class focus fallback. Progress starts expanded on the left and reflows on narrow screens. |
+| Builder choices | Point buy updates used/remaining cost during distribution, with up/down controls and Engine-provided minima/maxima. Apply the same bounded controls to other numeric choices. Granted selections enforce count, duplicates, prerequisites and source eligibility; + Class offers only eligible classes. Preserve dependent-choice repair, per-class spell ownership, focus and existing search/filter state through autosave. |
+
+#### Equipment, storage and hands
+
+- Equipment has a taller plain-body mannequin with ten clickable fields, five
+  on each side. The final layout is left: **Head, Body, Wrists, Legs, Feet**;
+  right: **Face, Neck, Shoulders, Waist, Gloves**. Neck stays above Shoulders.
+  Legs supports compatible trousers/greaves; Face supports compatible
+  goggles/masks. Keep these fields distinct from engine-enforced mechanical
+  exclusivity. Compatibility and bonuses come from source/Engine facts, not a
+  hard-coded humanoid slot rule or the mockup's sample items. Class-specific
+  silhouette artwork is not required for this iteration.
+- **Other worn** is a dynamic list with **+ Add item**, covering rings and other
+  accessories outside the dedicated fields. No fixed ten-ring grid or arbitrary
+  empty spaces. Equipped items retain stable inventory instance IDs and can be
+  returned to storage without duplication or loss of quantities, grants or notes.
+- **Storage** provides general backpack/pouch organization, without mandatory
+  top straps, side straps, map-case geometry or the reference image's homebrew
+  capacity/Strength rules. Opening Backpack shows a structured floating dialog
+  with search, compartment filtering and category/name/quantity sorting. It may
+  exceed the sheet's width, but must fit the viewport; scroll only where a long
+  dialog/list actually needs it, not inside every character tab.
+- Storage and the open Backpack both expose **+ Add item**, invoking the same
+  searchable/browsable picker with source-backed filters (including type/magic),
+  quantity steppers and destination. Preserve parent search, filters, sort,
+  focus and the route back to Backpack. Handle an existing stack versus a new
+  instance explicitly; adding another copy must not rename or replace the
+  equipped instance. Equipment pickers and the catalog agree on new item types.
+- Put **CP, SP, EP, GP and PP** in one editable row at the bottom of Equipment.
+  Remove currency from Sheet, Combat and the separate Storage coin-purse block.
+  Tab/content changes keep that row at the bottom without overlap. Currency
+  stays authored state, and existing print/export includes all denominations.
+- **Attuned items** offers only eligible, currently equipped inventory instances;
+  available capacity and prerequisites remain Engine-owned, not a fixed demo
+  count. This new selection filter must not silently rewrite existing
+  attunements: the current contract permits carried/stored attuned items and
+  ordinary unequip does not unattune. Show/count preserved allocations and give
+  explicit repair or **Stow & unattune** actions where appropriate. Quantity-zero
+  cleanup retains its atomic behavior. Record any required contract change
+  before implementation; do not hide unresolved saved allocations.
+- Main/off hand belong only in Sheet and Combat. Use one joined two-hand area
+  with a central, clearly labelled grip switch and fitting hand/link icon.
+  Allow a compatible main-hand weapon to use both hands even with an occupied
+  off hand: keep that exact off-hand item visible but gray/inactive, temporarily
+  unequip it, and exclude its attacks, AC and other active equipment effects.
+  Turning two-handing off restores the same item when still available/eligible.
+  Do not silently clear attunement allocation, delete inventory or recreate a
+  missing item. If it was consumed, removed, moved by another editor or made
+  ineligible, leave the hand free and explain why it was not restored.
+- Derive grip options, versatile/required-two-hand damage, shields, capacity
+  and active effects through the Engine. Persist the main/off-hand references,
+  chosen grip and suspended-item identity through autosave/reload/transfer.
+  Sheet omits hit/damage numbers; Combat and explanation cards update together.
+  Quick-use pins reference owned instances, share quantities with Storage and
+  preserve consumed/spent state. Conditions are authored play state with bounded
+  supported effects; T63 does not authorize an encounter/combat-resolution engine.
+
+#### Ordered implementation and exit checks
+
+| Step | Owners and work | Required evidence before closing the step |
+| --- | --- | --- |
+| 1. Model and contracts | T63-ENGINE with the Sheets worker, and T63-COMP for missing source facts. Audit existing representations before adding closed fields for body placement, containers, hand/grip/suspension, quick-use references, Inspiration and conditions. Separate display organization from mechanical rules. | Agreed serializable inputs, eligibility, saved projections/explanations and worker commands; stable instance identity, atomic transitions and exact retries. Regenerate owning schemas/types. Demonstrate current-character preservation and version compatibility; use T08 only if an actual released-schema migration is required, never another sheet reset or ad hoc startup converter. |
+| 2. Frame and Builder | T63-SHEETS; extend shared host controls only for a demonstrated gap. Implement navigation, sizing/density, remove Levels and remap its repair/navigation targets. | Tab and class controls work with keyboard/touch, both locales and enlarged text. Earlier progression remains editable, class-zero removal picks a valid destination, and invalid options cannot be selected. Existing incomplete-build autosave, conflicts and DM authorization regressions pass. |
+| 3. Equipment and storage | T63-SHEETS consumes step 1 for mannequin/Other worn, shared item addition, Backpack dialog, bottom currency and equipped-only attunement selection. | Add, equip, replace, stow, unattune, consume and remove flows preserve identity and authored fields. New Face/Legs items are correctly filtered; no arbitrary ring/body limits or invented item bonuses. Search/sort/compartment and focus survive additions, cancellation, retries and tab changes. |
+| 4. Sheet and Combat | T63-SHEETS/ENGINE implement shared cards, explanations, attribute arrangements, conditions, Inspiration, hands and quick use. | Both tabs show identical shared-card geometry and authored values. Demonstrate occupied-shield two-handing, gray suspended off hand, changed AC/damage and exact restoration; also missing/ineligible off-hand cases and duplicate item copies. Verify current/max HP, hit-dice details, differing spellcasting sources and resource/consumable preservation. |
+| 5. Installed acceptance | T63-HOST with all affected producer/consumer gates, then T18-ENGINE/T18-SHEETS session acceptance. Update current workflow/README/edge-case contracts only as behavior lands. | Record exact commits, inspected ZIPs, schema/service compatibility and screenshots at desktop 1,360/1,024 px and narrow 390/320 px, Compact/Classic, English/Czech, both skins and 200% text as applicable. Tab height and shared card positions remain stable; long/dynamic content, expanded class details and larger inventories neither clip nor create unnecessary inner scrollbars. Preserve keyboard/dialog focus, screen-reader labels and touch targets. |
+
+Every state-changing slice must cover reload, disjoint/conflicting edits,
+lost replies/exact retry, session expiry, source adoption and provider/generation
+loss/restoration as applicable, using the actual worker/package path. Validate
+saved provider-free display, printing and replacement export/import of new
+fields, including suspended hands and currency. Do not substitute mockup
+interaction tests, screenshots or a generic technical check for installed
+workflow acceptance. Keep the existing validation gates and record outstanding
+human screen-reader, physical-device and printer checks separately.
 
 ## Delivery order and completion
 
 | Order | Work | Exit evidence |
 | --- | --- | --- |
-| 1 | Whole character sessions: execute Engine and Sheets T18 using the completed T32/T33 workflows. | Representative builds and play preserve authored values through provider changes; package evidence and remaining human/device checks are explicit. |
-| 2 | Everyday use: execute remaining DM Tools and Compendium T18 reviews and fix their concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
-| 3 | Remaining add-on artifact ownership: per-repo T14. T08 only for a real schema-preservation need. | Standalone builds and inspected ZIPs preserve current consumer contracts; any needed migration is reviewed and atomic. |
-| 4 | Final integration after remaining add-on T18 fixes; retain completed T02 coverage. | All four inspected ZIPs pass without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
-| 5 | Authorized delivery T15–T17 and representative device/site acceptance. | Exact served/installed builds verified; per-site data/retention choices recorded and rollback assets retained. |
+| 1 | Implement the agreed T63 character-sheet design in its ordered producer/consumer slices. | New data and equipment semantics, final layout and shared controls pass their owning gates and exact-package acceptance; completed T32/T33 workflows remain intact. |
+| 2 | Whole character sessions: finish Engine and Sheets T18 on the T63 workspace. | Representative builds and play preserve authored values through provider changes; package evidence and remaining human/device checks are explicit. |
+| 3 | Everyday use: execute remaining DM Tools and Compendium T18 reviews and fix their concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
+| 4 | Remaining add-on artifact ownership: per-repo T14. T08 only for a real schema-preservation need. | Standalone builds and inspected ZIPs preserve current consumer contracts; any needed migration is reviewed and atomic. |
+| 5 | Final integration after T63 and remaining add-on T18 fixes; retain completed T02 coverage. | All four inspected ZIPs pass without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
+| 6 | Authorized delivery T15–T17 and representative device/site acceptance. | Exact served/installed builds verified; per-site data/retention choices recorded and rollback assets retained. |
 
 T14 suffixes divide the existing generated-artifact task by repository; T18
-suffixes divide workflow acceptance. Cross-repository changes need producer and
-consumer checks and separate compatible commits. A task closes only after its
+suffixes divide workflow acceptance; T63 suffixes share the design and ordered
+acceptance above without duplicating its requirements. Cross-repository changes
+need producer and consumer checks and separate compatible commits. A task closes only after its
 changed behavior and relevant owning gates pass; move it to its repository's
 compact completed list with a checked box and struck-through title. Keep detailed
 evidence in its owning contract/audit or Git history; do not remove these batch
