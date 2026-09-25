@@ -2714,3 +2714,81 @@ The activation guard is committed as `d1ec1eb`; the review backend as
 Native execution was Windows AMD64. Human screen-reader, physical touch,
 Linux-runtime and live-site verification remain outside this local acceptance.
 No push, release publication, deployment or campaign-data operation occurred.
+
+## Authored Inspiration and character schema preservation
+
+T63-INSPIRATION adds optional authored play state without rewriting current
+characters. Engine `c0d2984` owns the boolean input, support guidance and saved
+projection/explanation. Sheets `11d56aa` owns automatic saving, one shared native
+checkbox, transfer, print and rejection of Engine responses that lose or change
+the value. English/Czech controls reuse `ui.controls.v1` and semantic skin tokens.
+
+An absent value displays as unavailable and remains absent until deliberately
+edited. Explicit false records spending Inspiration. Incomplete legal builds can
+save it; calculation, rest and other play operations preserve it. This slice
+does not automate awards, rerolls or encounter resolution.
+
+### Preservation and acceptance
+
+- The installed fixture reconstructs the exact pre-Inspiration schema
+  (SHA-256 `d50dd66156a2a9e9aa1c25f20f069d6b86eeacb2d8d206b0aee461c3351ae317`).
+  It uses current workers/UI, not archived executable behavior. It creates an
+  ordinary worker-owned character without the optional field, verifies that
+  direct activation of the changed schema is blocked, then disables Sheets,
+  reviews/applies compatibility and separately reviews/activates the new ZIP.
+  The recovery download and portable SQLite backup prove byte-identical stored
+  JSON and an unchanged character revision.
+- Six new installed cases cover the schema review, keyboard focus, shared
+  Sheet/Combat state, explicit spending, reload, reviewed replacement import,
+  printing, lost save replies, exact retries and disjoint/conflicting edits.
+  Both locales and Compact/Classic layouts are exercised at 1,360, 1,024, 390 and
+  320 px. Narrow layouts use 200% text; Classic and Moonlit skins retain shared
+  label targets and document reflow. Desktop and enlarged phone screenshots
+  under `frontend/test-results/installed-character/inspiration-*.png` were inspected.
+- Existing session-renewal, source-adoption and provider-restart cases now carry
+  pending Inspiration together with item text. They verify the original request,
+  explicit adoption, conflicting revisions and preservation after reconnecting.
+- The final provider-free pass verifies saved checkbox values with editing
+  disabled and unchanged export/print for both locales.
+- Engine tests cover optional input, explicit true/false, detached values,
+  incomplete builds, damage/rest preservation and non-boolean request rejection.
+  Worker regressions cover dropped/changed provider values, exact retry after
+  restart and unavailable rules. Client tests cover merge and transfer semantics.
+
+The namespace/schema version remain `dnd-sheets` / `4.0.0`, with a changed
+schema hash. Existing materialized installations need the updated host and its
+[reviewed upgrade workflow](../../../addon-dnd-character-sheets/docs/RULES_EDGE_CASES.md#inspiration-and-compatible-schema-upgrades).
+No new data reset or startup converter is introduced. The optional v4 Engine
+input retains old requests; UI editing requires explicit support guidance.
+Older providers rejecting the field leave saved reading/output usable.
+
+### Exact packages and validation
+
+| Repository | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools | `0eeac9bc84f50836fa30f134b5edee9358656676` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine | `c0d2984f8946a8bdb0685a00ea02a8a5b54640e3` | `9b933366d55ed1ba8b6e06011f7c607ed72aab32a1105c72145731593d87ce2a` |
+| Sheets | `11d56aaac69bc5b077e884a57e705a5c6a212b4e` | `8e2fa55250f89b1775aecea7fd1cc29b85ead40f2a9ecb62318bd9b6f58dddcf` |
+| Compendium | `87f79ad6470a027003f7e97a20734205482414dc` | `0f0777159ac4c1074fb59d1662aa4f3bf27d70f53e154ff5a1b4725a31abad3c` |
+
+Engine Go tests/vet and Sheets `npm run check` passed (25 module tests plus
+Go/vet). Both packages were rebuilt and inspected. Unchanged DM Tools and
+Compendium source gates are reused from the preceding accepted batch.
+
+The host passed 38 tooling, 402 frontend unit and 284 browser tests, Go tests/vet,
+and all 33 release-readiness gates. Its browser gate has 155 optional installed
+skips; strict exact-package acceptance supplies that coverage below.
+
+Strict exact-package acceptance passed **228/228, zero skips**, in 934,552 ms.
+All expanded session/adoption/restart cases and the provider-free output pass
+ran against the pinned packages above.
+
+The run records host base `6676217` plus this batch's fixtures/pins. Native
+execution was Windows AMD64; Linux workers were cross-compiled. Human screen-reader,
+physical touch, printer, Linux-runtime and live-site checks remain separate.
+No push, publication, deployment or live-data operation occurred.
+
+T63 remains open for body placement, containers, hands/grip/suspension, quick-use
+references, bounded conditions and the remaining workspace/Builder layout.
+Inspiration acceptance does not close the final shared-card geometry or T18
+whole-session acceptance for that future workspace.

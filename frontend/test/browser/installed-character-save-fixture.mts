@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { resolve } from 'node:path';
-import type { APIRequestContext, Browser, Page } from 'playwright';
+import type { APIRequestContext, Browser, Page, Locator } from 'playwright';
 import { jsonResponse } from './installed-graph-fixture.mts';
 import { unloadBlocked } from './installed-planner-navigation-fixture.mts';
 
@@ -40,6 +40,17 @@ export async function openCharacter(t: TestContext, fixture: Fixture, key: strin
   await name.waitFor(); await page.waitForFunction(() => !document.querySelector('.addon-dnd-character')?.hasAttribute('aria-busy'));
   assert.equal(await sheet.getByRole('button', { name: 'Heal', exact: true }).isDisabled(), true);
   return { context, page, sheet, name, status, initial, read: () => call('load', { key }) };
+}
+
+// Coalesce two ordinary input events before the same autosave deadline.
+export async function editInspiredName(sheet: Locator, name: string): Promise<void> {
+  await sheet.evaluate((root, name) => {
+    const inspiration = root.querySelector<HTMLInputElement>('[data-focus-key="vitals/inspiration"]')!;
+    if (!inspiration || inspiration.disabled) throw new Error("Inspiration must be editable");
+    inspiration.checked = true; inspiration.dispatchEvent(new Event("change", { bubbles: true }));
+    const title = root.querySelector<HTMLInputElement>(".dse-item-notes input")!;
+    title.value = name; title.dispatchEvent(new Event("input", { bubbles: true })); title.focus();
+  }, name);
 }
 
 // Bypass a stale/client-side range to exercise real worker + Engine rejection,

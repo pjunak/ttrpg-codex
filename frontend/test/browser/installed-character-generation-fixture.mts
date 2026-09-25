@@ -6,7 +6,7 @@ import type { APIRequestContext, Browser, Page } from "playwright";
 import { jsonResponse, installReviewedPackage } from "./installed-graph-fixture.mts";
 import { replacementImportPackage } from "./installed-import-fixture.mts";
 import { changeUnusedSource } from "./installed-character-rules-recovery-fixture.mts";
-import { openCharacter } from "./installed-character-save-fixture.mts";
+import { openCharacter, editInspiredName } from "./installed-character-save-fixture.mts";
 import { unloadBlocked } from "./installed-planner-navigation-fixture.mts";
 
 interface Fixture {
@@ -52,7 +52,7 @@ export function registerCharacterGenerationTests(enabled: boolean, fixture: () =
         writes.push(body.params);
         if (writes.length === 1) await route.abort("failed"); else await route.continue();
       });
-      await sheet.getByLabel(cs ? "Název" : "Name", { exact: true }).first().fill("Keep graph change input");
+      await editInspiredName(sheet, "Keep graph change input");
       await status.getByRole("button", { name: cs ? "Zkusit znovu" : "Retry", exact: true }).waitFor();
       const tag = await markInstance(page);
       await changeUnusedSource(t, f, initial); await reconnected(page, cs);
@@ -72,6 +72,7 @@ export function registerCharacterGenerationTests(enabled: boolean, fixture: () =
       await adopt.click(); await status.filter({ hasText: cs ? /^Uloženo$/ : /^Saved$/ }).waitFor();
       const saved = await read(); assert.equal(saved.revision, initial.revision + 1);
       assert.equal(saved.state.inputs.play.inventory[0].name, "Keep graph change input");
+      assert.equal(saved.state.inputs.play.inspiration, true);
       assert.equal(writes[2]!.expectedRevision, initial.revision); assert.equal(writes.length, 3);
       assert.equal(await unloadBlocked(page), false);
     });
@@ -91,7 +92,7 @@ export function registerCharacterGenerationTests(enabled: boolean, fixture: () =
           await route.abort("failed");
         } else await route.continue();
       });
-      await name.fill("Pending across reload"); await status.getByRole("button", { name: "Retry", exact: true }).waitFor();
+      await editInspiredName(sheet, "Pending across reload"); await status.getByRole("button", { name: "Retry", exact: true }).waitFor();
       if (outcome === "conflict") {
         const remote = await read(); remote.state.inputs.play.inventory[0].name = "Other editor";
         assert.equal((await f.call("save", { key, operation: "build", operationId: key + "-remote", summary: "Other edit",
@@ -123,6 +124,7 @@ export function registerCharacterGenerationTests(enabled: boolean, fixture: () =
       assert.deepEqual(writes[1], writes[0]); assert.equal(writes.length, 2);
       const saved = await read(); assert.equal(saved.revision, initial.revision + 1);
       assert.equal(saved.state.inputs.play.inventory[0].name, outcome === "conflict" ? "Other editor" : "Pending across reload");
+      assert.equal(saved.state.inputs.play.inspiration, outcome === "conflict" ? undefined : true);
       assert.equal(await unloadBlocked(page), outcome === "conflict");
     });
 

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import type { APIRequestContext, Browser } from "playwright";
 import { jsonResponse } from "./installed-graph-fixture.mts";
 import { unloadBlocked } from "./installed-planner-navigation-fixture.mts";
-import { openCharacter } from "./installed-character-save-fixture.mts";
+import { openCharacter, editInspiredName } from "./installed-character-save-fixture.mts";
 
 interface Fixture {
   admin: APIRequestContext; browser: Browser; csrf: string; origin: string; output: string;
@@ -32,7 +32,7 @@ export function registerCharacterSessionTests(enabled: boolean, fixture: () => F
         if (request.url().endsWith("/services/call") && request.postDataJSON()?.method === "save") requests.push(request.postDataJSON());
       });
       await jsonResponse(await context.request.post("/api/logout"));
-      await input.fill("Keep this through sign-in");
+      await editInspiredName(sheet, "Keep this through sign-in");
       const recovery = page.locator(".session-recovery"); await recovery.waitFor();
       const retry = status.getByRole("button", { name: scenario.locale === "cs" ? "Zkusit znovu" : "Retry", exact: true });
       await retry.waitFor();
@@ -63,6 +63,7 @@ export function registerCharacterSessionTests(enabled: boolean, fixture: () => F
       const saved = await read();
       assert.equal(saved.state.inputs.play.inventory[0].name, scenario.stale ? "Saved in the other editor" : "Keep this through sign-in");
       assert.equal(saved.revision, initial.revision + 1);
+      assert.equal(saved.state.inputs.play.inspiration, scenario.stale ? undefined : true);
       assert.equal(requests.length, 2); assert.deepEqual(requests[1], requests[0], "Retry keeps the exact operation and revision");
       assert.equal(await unloadBlocked(page), scenario.stale);
       if (scenario.stale) assert.equal(await input.inputValue(), "Keep this through sign-in");

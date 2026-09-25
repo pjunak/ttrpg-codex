@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import type { APIRequestContext, Browser, Page } from "playwright";
 import { jsonResponse } from "./installed-graph-fixture.mts";
 import { unloadBlocked } from "./installed-planner-navigation-fixture.mts";
-import { openCharacter } from "./installed-character-save-fixture.mts";
+import { openCharacter, editInspiredName } from "./installed-character-save-fixture.mts";
 
 interface Fixture {
   admin: APIRequestContext; browser: Browser; csrf: string; origin: string; output: string;
@@ -74,7 +74,7 @@ export function registerCharacterRulesRecoveryTests(enabled: boolean, fixture: (
         const body = response.request().postDataJSON();
         return body?.method === "save" && body.params?.key === key;
       });
-      await input.fill("Keep pending rules edit");
+      await editInspiredName(sheet, "Keep pending rules edit");
       const rejectedSave = await firstSave;
       assert.equal(rejectedSave.ok(), true);
       assert.equal((await rejectedSave.json()).result.status, "rules-changed");
@@ -111,6 +111,8 @@ export function registerCharacterRulesRecoveryTests(enabled: boolean, fixture: (
       await status.filter({ hasText: scenario.outcome === "conflict" ? /changed in another session/ : cs ? /^Uloženo$/ : /^Saved$/ }).waitFor();
       const saved = await read();
       assert.equal(saved.revision, initial.revision + 1);
+      assert.equal(saved.state.inputs.play.inspiration, scenario.outcome === "conflict" ? undefined : true);
+      assert.equal(writes[1]!.inputs.play.inspiration, true);
       assert.equal(saved.state.inputs.play.inventory[0].name, scenario.outcome === "conflict" ? "Another editor's accepted name" : "Keep pending rules edit");
       assert.equal(writes.length, scenario.outcome === "lost-reply" ? 3 : 2, "Adoption must not retry the rejected autosave first");
       assert.equal(writes[1]!.operation, "adopt-rules"); assert.equal(writes[1]!.adoptRules, true);

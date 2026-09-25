@@ -36,9 +36,11 @@ selections and show nonblocking descriptions while browsing.
 Changing an origin or level recalculates dependent results. Previously granted
 choices withdrawn by that edit are removed; illegal new selections are rejected.
 Reducing maximum HP clamps current HP; raising it does not heal. Other authored
-play state is preserved. Inventory, equipment, currency, HP, spells, resources
-remain editable in their ordinary tabs, without an edit-mode toggle. Character
-notes belong to the host profile and have no sheet tab or printed sheet section.
+play state is preserved. Sheet and Combat share an authored Inspiration checkbox,
+with automatic saving even for legal unfinished builds. Rest and recalculation
+preserve it; saved print/export includes its current availability. Inventory,
+equipment, currency, HP, spells and resources remain editable in their ordinary
+tabs, without an edit-mode toggle. Character notes belong to the host profile and have no sheet tab or printed sheet section.
 Existing saved notes remain in the compatible stored schema and transfers.
 
 <a id="transfer-and-printing"></a>
@@ -103,11 +105,15 @@ a lost acknowledgment retries the exact adoption rather than a fresh save.
 
 ## Installation and validation
 
-Install the host with worker-only extension support before the updated sheet
-ZIP, then use the ordinary package review and activation lifecycle. The stored
-schema and permanent namespace remain unchanged. Existing archived snapshots
-and prior installation backups are not erased, exposed by the new character
-service, or extended by new character saves.
+Install the host with worker-only extension and compatible schema-review support
+before the updated sheet ZIP. The permanent namespace and schema version remain
+unchanged, but optional Inspiration changes the closed schema hash. Materialized
+installations must disable Sheets, review and apply saved-data compatibility for
+the inspected package, then review and activate it. The metadata-only upgrade
+preserves existing JSON and character revisions without adding defaults. See the
+[owning upgrade contract](../../../addon-dnd-character-sheets/docs/RULES_EDGE_CASES.md#inspiration-and-compatible-schema-upgrades).
+Existing archived snapshots and prior installation backups are not erased,
+exposed by the character service, or extended by new character saves.
 
 See the [sheet save contract](../../../addon-dnd-character-sheets/docs/RULES_EDGE_CASES.md)
 and [engine contract](../../../addon-dnd-engine/contract/README.md). The

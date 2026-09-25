@@ -12,7 +12,7 @@ import { exported, printOutput } from "./installed-character-output-fixture.mts"
 
 // Read a single bounded entry from a host-created backup, without extracting
 // package paths or loading all immutable content into memory.
-function backupEntry(archive: Buffer, wanted: string): Buffer {
+export function backupEntry(archive: Buffer, wanted: string): Buffer {
   const end = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
   assert.ok(end >= 0);
   const count = archive.readUInt16LE(end + 10);
