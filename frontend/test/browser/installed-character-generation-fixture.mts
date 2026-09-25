@@ -73,6 +73,7 @@ export function registerCharacterGenerationTests(enabled: boolean, fixture: () =
       const saved = await read(); assert.equal(saved.revision, initial.revision + 1);
       assert.equal(saved.state.inputs.play.inventory[0].name, "Keep graph change input");
       assert.equal(saved.state.inputs.play.inspiration, true);
+      assert.deepEqual(saved.state.inputs.play.quickUse, ["keepsake"]);
       assert.equal(writes[2]!.expectedRevision, initial.revision); assert.equal(writes.length, 3);
       assert.equal(await unloadBlocked(page), false);
     });
@@ -125,6 +126,7 @@ export function registerCharacterGenerationTests(enabled: boolean, fixture: () =
       const saved = await read(); assert.equal(saved.revision, initial.revision + 1);
       assert.equal(saved.state.inputs.play.inventory[0].name, outcome === "conflict" ? "Other editor" : "Pending across reload");
       assert.equal(saved.state.inputs.play.inspiration, outcome === "conflict" ? undefined : true);
+      assert.deepEqual(saved.state.inputs.play.quickUse, outcome === "conflict" ? undefined : ["keepsake"]);
       assert.equal(await unloadBlocked(page), outcome === "conflict");
     });
 

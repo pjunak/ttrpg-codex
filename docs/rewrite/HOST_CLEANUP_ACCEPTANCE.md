@@ -2792,3 +2792,90 @@ T63 remains open for body placement, containers, hands/grip/suspension, quick-us
 references, bounded conditions and the remaining workspace/Builder layout.
 Inspiration acceptance does not close the final shared-card geometry or T18
 whole-session acceptance for that future workspace.
+
+## Quick-use inventory and preserved characters
+
+T63-QUICK-USE adds ordered pins to owned inventory instances, one shared
+Sheet/Combat panel and an Engine-owned `consume-item` action. Engine `a4763ca`
+owns eligibility, closed optional input, saved facts and validation. Sheets
+`3ee2ccd` owns persistence, shared controls, transfer/print and rejection of
+provider responses that lose or substitute pins.
+
+Pins never copy an item or its quantity. Use one reduces the exact carried or
+equipped instance; the last unit clears its equipment/attunement allocation
+atomically while retaining its ID, pin, source/grant references, notes and
+acquisition. Stored and depleted pins remain visible. Unpinning leaves
+inventory intact; explicit deletion removes that instance's pin in the same
+save. Rests/recalculation do not replenish quantities. Item effects and encounter
+resolution remain outside this action.
+
+### Preservation and workflow evidence
+
+- The schema fixture now crosses both exact prior schemas: pre-Inspiration
+  `d50dd66156a2a9e9aa1c25f20f069d6b86eeacb2d8d206b0aee461c3351ae317`
+  and pre-quick-use
+  `cf799a12adb9aac840e5349732d79d34226f72bc9b866e438e61400071efb373`.
+  It covers absent/true/false Inspiration, blocked direct activation, disabled
+  compatibility review, exact application and separate package activation.
+  Recovery evidence and portable SQLite backups prove unchanged JSON bytes
+  and document revisions for all three saved characters. Workers/UI are current;
+  this does not claim execution of archived native binaries.
+- Eleven new installed cases exercise keyboard pin/unpin, matching item names
+  with distinct instance IDs, depletion, shared quantities, explicit deletion,
+  reload, reviewed replacement import, invalid missing/duplicate references,
+  printing, disjoint/conflicting saves and a remotely removed inventory entry.
+  Failed delivery and lost acknowledgment retry the exact consumption request
+  once. Stale commands cannot spend against another editor's revision.
+- The asynchronous command guard now restores a blurred initiating control by
+  its stable focus key. Last-use focus falls back within the same item row.
+  A separate case proves that focus moved outside the sheet is not stolen.
+- The existing DM/player session-renewal, rules-adoption and generation-recovery
+  cases also carry pending quick-use pins. Failed/disputed saves retain their
+  original request and explicit recovery choice.
+- Both locales, Compact/Classic and Classic/Moonlit skins run at 1,360, 1,024,
+  390 and 320 px; narrow cases use 200% text. Native action targets, document
+  reflow, notes and readable quantity/location state are checked. Final desktop
+  and enlarged Czech phone screenshots under
+  `frontend/test-results/installed-character/quick-use-*.png` were inspected.
+- The final provider-free pass checks disabled actions, unchanged saved state,
+  readable item notes and preserved export/print, including depleted pins.
+  Pure/worker/client regressions cover detached inputs, illegal references,
+  last-item allocation cleanup, incompatible providers, transfer and merges.
+
+Schema/namespace remain `dnd-sheets` / `4.0.0`; its hash changes. Existing
+materialized installations use the host's
+[compatible schema review](../../../addon-dnd-character-sheets/docs/RULES_EDGE_CASES.md#inspiration-and-compatible-schema-upgrades).
+Optional v4 inputs keep old requests valid, and controls require explicit
+support guidance. No reset, startup conversion or automatic publication occurs.
+
+### Exact packages and validation
+
+| Repository | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools | `0eeac9bc84f50836fa30f134b5edee9358656676` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine | `a4763ca6b674ae9ec8cfaad8a04c79918458b005` | `6f2c207d212b224e90949a99066d0588ed4d5344d07f2657e9a10824bd8ad718` |
+| Sheets | `3ee2ccdcf9b8ed7d1b3f4c2cba10445a01aac370` | `a241c8fe153ee88ea7dcd72c17b2d8154ed199b1027d44bbaa363bde2d86e043` |
+| Compendium | `87f79ad6470a027003f7e97a20734205482414dc` | `0f0777159ac4c1074fb59d1662aa4f3bf27d70f53e154ff5a1b4725a31abad3c` |
+
+Engine Go tests/vet and Sheets `npm run check` passed (27 module tests plus
+Go/vet); both archives were rebuilt and inspected. Seventeen focused installed
+cases passed before pinning. Unchanged DM Tools/Compendium source gates are
+reused from their preceding accepted commits.
+
+The host passed 38 tooling, 402 frontend unit and 284 browser tests, Go tests/vet,
+and all 33 release-readiness gates. The ordinary browser gate has 166 optional
+installed skips; strict package acceptance supplies that coverage separately.
+
+Strict exact-package acceptance passed **239/239, zero skips**, in 878,259 ms.
+The first full run caught two browser contexts retained by the new provider-free
+verifier after its behavior checks. Its cleanup now runs in `finally`; the
+existing leak assertion remains unchanged, and the complete rerun passed.
+
+The run records host base `508a6b3` plus this batch's fixtures/pins. Native
+execution was Windows AMD64; Linux workers were cross-compiled. Human screen-reader,
+physical touch, printer, Linux-runtime and live-site checks remain separate.
+No push, publication, deployment or live-data operation occurred.
+
+T63 remains open for body placement, containers, hands/grip/suspension, bounded
+conditions and the final workspace/Builder layout. This slice does not close
+the final shared-card geometry or the later T18 whole-session acceptance.

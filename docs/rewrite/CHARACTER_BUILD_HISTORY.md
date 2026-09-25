@@ -38,7 +38,12 @@ choices withdrawn by that edit are removed; illegal new selections are rejected.
 Reducing maximum HP clamps current HP; raising it does not heal. Other authored
 play state is preserved. Sheet and Combat share an authored Inspiration checkbox,
 with automatic saving even for legal unfinished builds. Rest and recalculation
-preserve it; saved print/export includes its current availability. Inventory,
+preserve it; saved print/export includes its current availability. Quick use
+pins owned inventory entries in a shared Sheet/Combat panel. Use one spends the
+actual quantity through an atomic worker command, without applying item effects.
+Stored/depleted entries and their pins survive; unpinning keeps inventory,
+while deleting an entry also removes its pin. Print/export retains those values.
+Inventory,
 equipment, currency, HP, spells and resources remain editable in their ordinary
 tabs, without an edit-mode toggle. Character notes belong to the host profile and have no sheet tab or printed sheet section.
 Existing saved notes remain in the compatible stored schema and transfers.

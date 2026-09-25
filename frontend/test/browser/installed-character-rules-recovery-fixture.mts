@@ -112,7 +112,9 @@ export function registerCharacterRulesRecoveryTests(enabled: boolean, fixture: (
       const saved = await read();
       assert.equal(saved.revision, initial.revision + 1);
       assert.equal(saved.state.inputs.play.inspiration, scenario.outcome === "conflict" ? undefined : true);
+      assert.deepEqual(saved.state.inputs.play.quickUse, scenario.outcome === "conflict" ? undefined : ["keepsake"]);
       assert.equal(writes[1]!.inputs.play.inspiration, true);
+      assert.deepEqual(writes[1]!.inputs.play.quickUse, ["keepsake"]);
       assert.equal(saved.state.inputs.play.inventory[0].name, scenario.outcome === "conflict" ? "Another editor's accepted name" : "Keep pending rules edit");
       assert.equal(writes.length, scenario.outcome === "lost-reply" ? 3 : 2, "Adoption must not retry the rejected autosave first");
       assert.equal(writes[1]!.operation, "adopt-rules"); assert.equal(writes[1]!.adoptRules, true);

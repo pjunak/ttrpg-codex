@@ -42,9 +42,12 @@ export async function openCharacter(t: TestContext, fixture: Fixture, key: strin
   return { context, page, sheet, name, status, initial, read: () => call('load', { key }) };
 }
 
-// Coalesce two ordinary input events before the same autosave deadline.
+// Coalesce ordinary play and inventory input events before the same autosave deadline.
 export async function editInspiredName(sheet: Locator, name: string): Promise<void> {
   await sheet.evaluate((root, name) => {
+    const pin = root.querySelector<HTMLButtonElement>('[data-focus-key="inventory/keepsake/quick-use"]')!;
+    if (!pin || pin.disabled) throw new Error("Quick-use pinning must be editable");
+    if (pin.getAttribute("aria-pressed") !== "true") pin.click();
     const inspiration = root.querySelector<HTMLInputElement>('[data-focus-key="vitals/inspiration"]')!;
     if (!inspiration || inspiration.disabled) throw new Error("Inspiration must be editable");
     inspiration.checked = true; inspiration.dispatchEvent(new Event("change", { bubbles: true }));

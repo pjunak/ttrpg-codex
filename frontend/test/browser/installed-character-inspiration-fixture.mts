@@ -18,49 +18,68 @@ const text = (locale: string) => locale === "cs"
   : { inspiration: "Inspiration", available: "Available", saved: /^Saved$/, layout: "Sheet layout", replace: "Replace character", close: "Close" };
 
 export function registerInspirationSchemaTest(enabled: boolean, fixture: () => Fixture): void {
-  test("Inspiration schema review preserves the exact previous schema-4 character", { skip: !enabled, timeout: 90000 }, async t => {
-    const f = fixture(), key = "inspiration-preserved", archive = await readFile(resolve(process.env.CODEX_SHEETS_ZIP!));
-    // The old data schema is byte-for-byte the committed pre-Inspiration schema.
-    // Workers/UI remain the current package so this fixture is not an old-binary claim.
-    const previous = replacementImportPackage(archive, "4.0.0", (files, manifest) => {
+  test("Optional play-field schema reviews preserve both prior schema-4 generations", { skip: !enabled, timeout: 90000 }, async t => {
+    const f = fixture(), archive = await readFile(resolve(process.env.CODEX_SHEETS_ZIP!));
+    // Prior data schemas are reconstructed byte-for-byte. Workers/UI remain
+    // current; this is stored-data preservation, not an old-native-binary claim.
+    const prior = (inspiration: boolean) => replacementImportPackage(archive, "4.0.0", (files, manifest) => {
       const path = manifest.recordExtensions[0].schema, schema = JSON.parse(files[path]!.toString());
-      delete schema.properties.inputs.properties.play.properties.inspiration;
+      delete schema.properties.inputs.properties.play.properties.quickUse;
+      if (!inspiration) delete schema.properties.inputs.properties.play.properties.inspiration;
       const body = JSON.stringify(schema, null, 2) + "\n";
-      assert.equal(createHash("sha256").update(body).digest("hex"), "d50dd66156a2a9e9aa1c25f20f069d6b86eeacb2d8d206b0aee461c3351ae317");
+      assert.equal(createHash("sha256").update(body).digest("hex"), inspiration
+        ? "cf799a12adb9aac840e5349732d79d34226f72bc9b866e438e61400071efb373"
+        : "d50dd66156a2a9e9aa1c25f20f069d6b86eeacb2d8d206b0aee461c3351ae317");
       files[path] = body;
     });
-    await installReviewedPackage(f.admin, f.csrf, "dnd-sheets", previous, []);
-    const inputs = await createCharacter(f, key);
-    inputs.notes = "Retain authored notes without adding defaults";
-    inputs.play.currency = { cp: 1, sp: 2, ep: 3, gp: 4, pp: 5 };
-    const saved = await save(f, key, inputs, 0, "old-schema");
-    assert.equal(Object.hasOwn(saved.state.inputs.play, "inspiration"), false);
-    const headers = { "X-Codex-CSRF": f.csrf };
-    const staged = await jsonResponse(await f.admin.post("/api/admin/addons/generations", { headers: { ...headers, "Content-Type": "application/zip" }, data: archive }));
-    const activation = await jsonResponse(await f.admin.post("/api/admin/addons/dnd-sheets/activation-reviews", { headers, data: { generationId: staged.generationId } }));
-    assert.ok(activation.proposal.blockers.some((row: { code: string }) => row.code === "DATA_MIGRATION_REQUIRED"));
-    const current = await jsonResponse(await f.admin.get("/api/admin/addons/dnd-sheets"));
-    await jsonResponse(await f.admin.post("/api/admin/addons/dnd-sheets/disable", { headers, data: { expectedStateRevision: current.state.revision } }));
-    const plan = await jsonResponse(await f.admin.post("/api/admin/addons/dnd-sheets/schema-reviews", { headers, data: { generationId: staged.generationId } }));
-    assert.deepEqual(plan.blockers, []); assert.equal(plan.changes.length, 1);
-    const recovery = await jsonResponse(await f.admin.get("/api/admin/addon-schema-reviews/" + plan.reviewId + "/recovery"));
-    assert.equal(recovery.bodiesBase64.length, 1);
-    const original = Buffer.from(recovery.bodiesBase64[0], "base64").toString();
-    assert.deepEqual(JSON.parse(original), saved.state);
-    const applied = await jsonResponse(await f.admin.post("/api/admin/addon-schema-reviews/" + plan.reviewId + "/apply", { headers, data: { reviewSha256: plan.reviewSha256 } }));
-    assert.equal(applied.status, "applied");
-    await installReviewedPackage(f.admin, f.csrf, "dnd-sheets", archive, []);
-    const loaded = await f.call("load", { key });
-    assert.equal(loaded.revision, saved.revision); assert.deepEqual(loaded.state, saved.state);
-    const directory = await mkdtemp(resolve(f.output, "inspiration-backup-"));
-    t.after(async () => { const child = relative(f.output, directory); assert.ok(child && !child.startsWith("..") && !isAbsolute(child)); await rm(directory, { recursive: true, force: true }); });
-    const backup = await f.admin.get("/api/backup"); assert.equal(backup.status(), 200);
-    const path = resolve(directory, "codex.db"); await writeFile(path, backupEntry(await backup.body(), "codex.db"));
-    const db = new DatabaseSync(path, { readOnly: true });
-    try {
-      const row = db.prepare("SELECT body_json, revision FROM addon_documents WHERE addon_id=? AND data_kind='record-extension' AND data_id=? AND document_key=?").get("dnd-sheets", "dnd-sheets", key);
-      assert.ok(row); assert.equal(row.body_json, original); assert.equal(row.revision, saved.revision);
-    } finally { db.close(); }
+    const saved = new Map<string, Awaited<ReturnType<Fixture["call"]>>>();
+    const seed = async (key: string, inspiration?: boolean) => {
+      const inputs = await createCharacter(f, key);
+      inputs.notes = "Retain authored notes without adding defaults";
+      inputs.play.currency = { cp: 1, sp: 2, ep: 3, gp: 4, pp: 5 };
+      if (inspiration !== undefined) inputs.play.inspiration = inspiration;
+      const result = await save(f, key, inputs, 0, "old-schema"); saved.set(key, result);
+      assert.equal(result.state.inputs.play.inspiration, inspiration);
+      assert.equal(Object.hasOwn(result.state.inputs.play, "quickUse"), false);
+    };
+    const upgrade = async (target: Buffer, suffix: string) => {
+      const headers = { "X-Codex-CSRF": f.csrf };
+      const staged = await jsonResponse(await f.admin.post("/api/admin/addons/generations", { headers: { ...headers, "Content-Type": "application/zip" }, data: target }));
+      const activation = await jsonResponse(await f.admin.post("/api/admin/addons/dnd-sheets/activation-reviews", { headers, data: { generationId: staged.generationId } }));
+      assert.ok(activation.proposal.blockers.some((row: { code: string }) => row.code === "DATA_MIGRATION_REQUIRED"));
+      const current = await jsonResponse(await f.admin.get("/api/admin/addons/dnd-sheets"));
+      await jsonResponse(await f.admin.post("/api/admin/addons/dnd-sheets/disable", { headers, data: { expectedStateRevision: current.state.revision } }));
+      const plan = await jsonResponse(await f.admin.post("/api/admin/addons/dnd-sheets/schema-reviews", { headers, data: { generationId: staged.generationId } }));
+      assert.deepEqual(plan.blockers, []); assert.equal(plan.changes.length, 1);
+      const recovery = await jsonResponse(await f.admin.get("/api/admin/addon-schema-reviews/" + plan.reviewId + "/recovery"));
+      assert.equal(recovery.bodiesBase64.length, saved.size);
+      const original = new Map<string, string>(recovery.bodiesBase64.map((body: string) => {
+        const text = Buffer.from(body, "base64").toString(); return [JSON.parse(text).operationId, text];
+      }));
+      const applied = await jsonResponse(await f.admin.post("/api/admin/addon-schema-reviews/" + plan.reviewId + "/apply", { headers, data: { reviewSha256: plan.reviewSha256 } }));
+      assert.equal(applied.status, "applied");
+      await installReviewedPackage(f.admin, f.csrf, "dnd-sheets", target, []);
+      const directory = await mkdtemp(resolve(f.output, "play-schema-" + suffix + "-"));
+      t.after(async () => { const child = relative(f.output, directory); assert.ok(child && !child.startsWith("..") && !isAbsolute(child)); await rm(directory, { recursive: true, force: true }); });
+      const backup = await f.admin.get("/api/backup"); assert.equal(backup.status(), 200);
+      const path = resolve(directory, "codex.db"); await writeFile(path, backupEntry(await backup.body(), "codex.db"));
+      const db = new DatabaseSync(path, { readOnly: true });
+      try {
+        for (const [key, expected] of saved) {
+          const loaded = await f.call("load", { key });
+          assert.equal(loaded.revision, expected.revision); assert.deepEqual(loaded.state, expected.state);
+          const row = db.prepare("SELECT body_json, revision FROM addon_documents WHERE addon_id=? AND data_kind='record-extension' AND data_id=? AND document_key=?").get("dnd-sheets", "dnd-sheets", key);
+          assert.ok(row); assert.equal(row.body_json, original.get(expected.state.operationId)); assert.equal(row.revision, expected.revision);
+          assert.deepEqual(JSON.parse(String(row.body_json)), expected.state);
+        }
+      } finally { db.close(); }
+    };
+    await installReviewedPackage(f.admin, f.csrf, "dnd-sheets", prior(false), []);
+    await seed("inspiration-preserved");
+    await upgrade(prior(true), "inspiration");
+    await seed("quick-use-preserved-available", true);
+    await seed("quick-use-preserved-spent", false);
+    await upgrade(archive, "quick-use");
   });
 }
 
