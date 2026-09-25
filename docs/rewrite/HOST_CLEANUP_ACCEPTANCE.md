@@ -2460,3 +2460,111 @@ multiclass/source-change sessions, bounded class-level replacements, generated
 artifact ownership and T57's unexplained startup investigation remain open.
 This slice does not change the overall suite estimate. No push, publication,
 deployment or live data change occurred.
+
+## Multiclass snapshots and provider-session recovery
+
+Reviewed September 25, 2026 (T64). Engine `093472f`, Sheets `424a0d0` /
+`e37549b` and host `2184554` close two confirmed save failures
+and unclear import-review headings found while extending
+T18's installed whole-session coverage. Stored schema 4, service versions,
+compendium records and the host's shared controls remain unchanged. This
+accepts the existing workspace; the separately agreed T63 design remains open.
+
+### Findings and changes
+
+A mechanically ready Fighter 7 / Warlock 1 / Wizard 3 with independent Magic
+Initiate grants could not save: its roughly 297 KB snapshot exceeded the
+existing 250,000-byte limit. About 208 KB was calculation explanations, largely
+from repeating all 36 selected source references on every statistic.
+Engine now links abilities, training, HP, caster statistics and resource
+counters to their contributing source groups. Typed item/effect sources remain
+attached to their calculation terms and references. The full source evidence,
+hashes, prose, formulas, values and authored inputs are retained. The original
+representative snapshot fell to about 195 KB; the extended installed session,
+including an optional-book feat and spent resource, saved at 202,281 bytes.
+The storage limit was not raised.
+
+The next save exposed a separate failure after the write had succeeded:
+Sheets returned 525 comparison entries against the service schema's maximum
+of 500. Ordinary saves no longer generate an unused import-review comparison.
+Import previews compare authored inputs, rules identity and calculated sheet
+values; large subtrees become one complete before/after entry. Values are
+grouped, never truncated, and exact reviewed commits, revisions and retries
+retain their existing behavior. Whole-character comparison roots also receive
+localized Character, Rules and Calculated values labels, replacing empty or
+path-fragment headings in the existing native disclosure UI.
+
+### Acceptance
+
+Two Engine regressions cover deterministic contributing-source references,
+independent acquisition resources, typed item effects and 48 extra narrative
+features without multiplying unrelated calculation references or dropping full
+source evidence. Two Sheets regressions cover a 600-value generated projection,
+acknowledged saves and exact retry, bounded import preview/commit, and three
+simultaneously large comparison groups with every value preserved.
+
+Two installed English/Czech sessions use the real package-review lifecycle.
+They start with a ready multiclass character and combine:
+
+- Pact and ordinary spell-slot casts through the shared UI, two independent
+  Magic Initiate free casts, and a spent optional-book feat resource;
+- a DM grant amendment preserving existing spells, counters and authored play;
+- removal of a used sourcebook, blocked adoption without silent choice loss,
+  read-only mechanics, and restoration of the exact source identity without
+  rewriting the character;
+- incompatible Engine response and major-version packages, rejected stale
+  handles and writes, saved print/export, and original-provider restoration;
+- a short rest through Combat resetting only the intended pool, Wizard level-up,
+  grant withdrawal, surviving acquisition uses, equipment/notes and reload;
+- final provider-free reading, print and exact export of both saved sessions
+  after the rules-data provider is disabled.
+
+Two additional first-import workflows verify meaningful localized group and
+change headings, complete nested item/notes values, no writes during review or
+cancellation, and enlarged Czech phone reflow.
+
+English Compact desktop and Czech Classic at 390 px with 200% text retain
+readable saved values without horizontal page overflow. Screenshots were
+inspected. Read/print/export and provider transitions compare exact stored
+state; authored-play comparisons exclude only the coordinator's advancing
+`asOf` clock. Each workflow releases its browser context.
+
+### Exact packages and validation
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools, unchanged | `0eeac9bc84f50836fa30f134b5edee9358656676` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine | `093472f5a723d86464f4a3ce08a7137aae8973eb` | `518966cb341e9a60b82075bf7f69c61a1fed0d0d0b19de8d2d858b533dda3c32` |
+| Sheets | `e37549b553fe7fad1b18ebe1ec6ed1b7a7fc2dde` | `229651fa37672802eb2f03f25bcc0cce898c38f54bf6db98301391488f33b69a` |
+| Compendium, unchanged | `87f79ad6470a027003f7e97a20734205482414dc` | `0f0777159ac4c1074fb59d1662aa4f3bf27d70f53e154ff5a1b4725a31abad3c` |
+
+Engine Go tests/vet and its owning package build passed. Sheets `npm run check`
+passed, including **22/22** module tests and Go tests/vet; its final
+package was rebuilt and host-inspected. Both focused multiclass sessions and
+both focused first-import reviews passed. Companion preparation verified the
+four clean source commits and exact hashes above.
+
+Host `npm run check` passed: **38 tooling, 400 unit and 282 browser tests**,
+plus Go tests/vet. Its **143 optional installed skips** are covered separately
+by the final strict suite, which passed **214/214 with zero skips**. All **33
+product-parity release gates** passed.
+
+The fixture retains bounded host diagnostics on failed service calls. Iteration
+corrected test assumptions about restored source identity, print-dialog closure,
+Combat rest controls and acquisition ordering; deadlines and product assertions
+were retained. These two confirmed save defects do not establish a cause for
+the earlier unexplained T53 rules-availability loss or T57 startup timeouts.
+
+Provenance records host `4a57c17` plus this batch's working changes. Native
+execution was Windows AMD64; Linux workers were cross-compiled. Human
+screen-reader, physical touch, printer, Linux-runtime and live-site checks are
+not claimed. No push, publication, deployment or live-data change occurred.
+
+T18-ENGINE/SHEETS stay open for final sessions on the implemented T63 workspace.
+Bounded class-feature replacements also remain open: existing spell swaps track
+ordinary class spell replacement only. A durable, acquisition/class-level
+allowance must preserve already spent opportunities across saves, imports and
+provider changes. Coordinate its typed-state design with T63 and reviewed T08
+migration if the released schema changes; this batch adds no new state fields.
+Generated-artifact ownership remains separate. This slice does not change the
+dated overall estimate.

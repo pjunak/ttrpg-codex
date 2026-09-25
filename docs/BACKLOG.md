@@ -74,6 +74,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T60-HOST — Accept class styles and correct the settings readiness test**~~ — six installed cases, saved outputs and delayed-startup draft guards (`7cf4b9b`); [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
 - [x] ~~**T61-HOST — Accept passive feats through installed shared views**~~ — `5dccbcf`; exact pins, 208/208 cases and bounded startup diagnostics; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
 - [x] ~~**T62-HOST — Accept saved training through multiclass and provider changes**~~ — `df8d453`; exact pins, keyboard details and provider-free print/export; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#readable-saved-proficiencies-and-saving-throw-indicators).
+- [x] ~~**T64-HOST — Accept whole multiclass sessions through source/provider loss**~~ — `2184554`; real casts, recovery, rest, level-up and frozen outputs; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-snapshots-and-provider-session-recovery).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -194,8 +195,11 @@ Standalone browsing must remain useful without Engine or Sheets.
   establish an edition rule, slot limit or armor bonus.
 - [ ] **T18-COMP / P1, review — Complete bounded class-level replacements.**
   Add bounded level-up replacement for Fighter's style and Blessed/Druidic
-  Warrior cantrips. Validate allowances and preserved choices with Engine/Sheets.
-  Encounter resolution remains C10.
+  Warrior cantrips. First define a durable acquisition/class-level allowance
+  with Engine/Sheets; the existing spell-swap ledger cannot represent these
+  choices. Coordinate typed state with T63 and reviewed T08 migration if the
+  released schema changes. Preserve spent allowances through save/import and
+  provider transitions. Encounter resolution remains C10.
 - [ ] **T14-COMP / P2 — Move generated browser output to build ownership.**
   Update independent build/package/tests and host fixtures before removing tracked
   `web/`. Normalize ZIP timestamps and verify repeated builds from unchanged inputs
@@ -233,6 +237,7 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T59-ENGINE — Align acquired prerequisites and repair withdrawn feat increases**~~ — `a3ba0df`; canonical subclass features, matching picker/validation and saved feat counts; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#legal-advancement-feats-and-saved-feat-details).
 - [x] ~~**T60-ENGINE — Resolve conditional class choices and preserve spell ownership**~~ — `ceaa19a`; shared package resolution, dependency order and source-scoped withdrawal; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
 - [x] ~~**T61-ENGINE — Calculate passive HP, Speed and armor-conditioned AC**~~ — `eb2f2f0`; generic grants, exact armor references and saved explanations; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
+- [x] ~~**T64-ENGINE — Stop repeated references from blocking multiclass saves**~~ — `093472f`; scoped calculation references with full saved evidence retained; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-snapshots-and-provider-session-recovery).
 
 ### Remaining work
 
@@ -245,15 +250,11 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
   schema/service compatibility with the Sheets worker; do not implement these
   mechanics as browser arithmetic or broaden this into a combat resolver.
 - [ ] **T18-ENGINE / P1, review — Close rules/provider evidence gaps.**
-  Combine complex progression and DM effects with missing, changed or incompatible
-  providers, sourcebook removal and stale generations. Preserve authored play
-  through recalculation and separate narrative adjudication (C10) from bugs.
-  T53/T55 accept session/transfer preservation, amended DM effects, provider
-  restart and source adoption. T56 adds incompatible engine majors/responses and
-  restoration with independent grant uses intact. Extend these into representative
-  multiclass sessions; T59 covers acquired feat timing, canonical subclass
-  prerequisites and frozen feat output. Retain pure, service and exact-package
-  evidence without claiming exhaustive rules correctness.
+  T64 completes the representative Fighter/Warlock/Wizard session through
+  sourcebook removal, incompatible responses/majors, stale handles and restoration,
+  retaining DM effects and authored play. Repeat final session acceptance on the
+  implemented T63 state/workspace. Keep pure, service and exact-package evidence;
+  narrative adjudication remains C10, not a claim of exhaustive correctness.
   Investigate the one unexplained rules-availability loss during T53 validation;
   character setup captures provider diagnostics if it recurs. T54's 13-case
   diagnostic replay passed without reproducing it; no cause is established.
@@ -297,6 +298,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T60-SHEETS — Repair shared spell pickers and provider-free rule details**~~ — `28e2281`, `e415b0a`; wrapping/focus and one saved-evidence adapter for readable spell details; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
 - [x] ~~**T61-SHEETS — Accept passive stats in shared saved-data UI**~~ — host fixture `5dccbcf`; existing controls, both locales/layouts and exact provider-free outputs; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
 - [x] ~~**T62-SHEETS — Present readable saved proficiencies and active save markers**~~ — `951d7ef`; one Combat/print renderer, localized training groups and accessible indicators; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#readable-saved-proficiencies-and-saving-throw-indicators).
+- [x] ~~**T64-SHEETS — Acknowledge large saves and bound complete import reviews**~~ — `424a0d0`, `e37549b`; bounded complete comparisons, localized review labels and exact retries; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-snapshots-and-provider-session-recovery).
 
 ### Remaining work
 
@@ -306,14 +308,11 @@ Provider-free saved reading/notes/print/export remain required.
   code. Preserve completed T32/T33/T34/T53–T62 behavior while replacing the
   remaining layout and workflow differences.
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
-  Finish representative multiclass sessions across provider/source changes,
-  combining T55 amended grants with T56 incompatibility and restoration coverage.
-  T56 accepts schema-replacement refusal, worker-only writes and exact archive
-  preservation; T54 covers creation and first play, T53 transfer/output. T62 adds
-  Fighter/Rogue training, DM proficiency withdrawal, provider restart and frozen
-  output. Human screen-reader, physical touch and printer checks remain separate
-  from browser/PDF evidence. Run the final session against the implemented T63
-  workspace; earlier workflow passes do not accept the new design.
+  T64 completes the existing workspace's representative multiclass play,
+  amended grants, source/provider loss, restoration, rest, advancement and frozen
+  output. Run the final session against the implemented T63 workspace; earlier
+  passes do not accept that new design. Human screen-reader, physical touch and
+  printer checks remain separate from browser/PDF evidence.
 - [ ] **T14-SHEETS / P2 — Remove generated browser/worker output from source ownership.**
   Migrate schema/type generation, package/test and host fixture consumers first;
   preserve deterministic standalone packaging and host inspection with T14-HOST.
