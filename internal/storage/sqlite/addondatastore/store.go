@@ -256,8 +256,19 @@ func (store *Store) SnapshotAddon(ctx context.Context, addonID string) (Snapshot
 		return Snapshot{}, fmt.Errorf("begin add-on data snapshot: %w", err)
 	}
 	defer transaction.Rollback()
+	snapshot, err := snapshotAddonTx(ctx, transaction, addonID)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	if err := transaction.Commit(); err != nil {
+		return Snapshot{}, err
+	}
+	return snapshot, nil
+}
+
+func snapshotAddonTx(ctx context.Context, transaction *sql.Tx, addonID string) (Snapshot, error) {
 	rows, err := transaction.QueryContext(ctx, `
-		SELECT addon_id, data_kind, data_id, materialized, revision,
+  SELECT addon_id, data_kind, data_id, materialized, revision,
 		       schema_version, schema_sha256, target_collection, keyed, updated_at
 		FROM addon_data_sets WHERE addon_id = ?
 		ORDER BY data_kind, data_id`, addonID)
@@ -285,9 +296,6 @@ func (store *Store) SnapshotAddon(ctx context.Context, addonID string) (Snapshot
 			return Snapshot{}, err
 		}
 		documents = append(documents, values...)
-	}
-	if err := transaction.Commit(); err != nil {
-		return Snapshot{}, fmt.Errorf("commit add-on data snapshot: %w", err)
 	}
 	return Snapshot{States: states, Documents: documents}, nil
 }

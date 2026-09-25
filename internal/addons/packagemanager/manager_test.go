@@ -1201,6 +1201,7 @@ func TestContentServiceActivatesWithoutAWorkerAndRoutesThroughBroker(t *testing.
 }
 
 type packageSpec struct {
+	Collections          []map[string]any
 	ID                   string
 	Version              string
 	Contract             string
@@ -1266,6 +1267,9 @@ func writeAddonPackage(t *testing.T, spec packageSpec) string {
 		"permissions": []any{},
 	}
 	files := make(map[string][]byte)
+	if len(spec.Collections) > 0 {
+		manifest["collections"] = spec.Collections
+	}
 	if spec.Permission {
 		manifest["permissions"] = []any{map[string]any{
 			"id": "core.data.read", "resources": []string{"characters"}, "reason": "Evaluate character state.",
@@ -1440,8 +1444,8 @@ func testDatabase(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.CurrentVersion != 20 {
-		t.Fatalf("migration version = %d, want 20", result.CurrentVersion)
+	if result.CurrentVersion != 21 {
+		t.Fatalf("migration version = %d, want 21", result.CurrentVersion)
 	}
 	return db
 }

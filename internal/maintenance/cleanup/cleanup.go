@@ -53,7 +53,7 @@ func targets(options Options) ([]target, error) {
 			return nil, errors.New("a valid add-on ID is required")
 		}
 		result := []target{}
-		for _, name := range []string{"addon_data_sets", "addon_documents", "addon_document_versions", "addon_history_revisions", "addon_data_requests", "addon_data_commits"} {
+		for _, name := range []string{"addon_data_sets", "addon_documents", "addon_document_versions", "addon_history_revisions", "addon_data_requests", "addon_data_commits", "addon_schema_reviews"} {
 			result = append(result, target{name, "addon_id = ?", []any{options.AddonID}})
 		}
 		result = append(result,
@@ -232,7 +232,7 @@ func Apply(ctx context.Context, db *sql.DB, options Options, reviewed string) (R
 			options.AddonID, options.AddonID, options.AddonID, options.AddonID); err != nil {
 			return report, err
 		}
-		for _, table := range []string{"addon_history_revisions", "addon_data_requests", "addon_data_commits", "addon_data_sets"} {
+		for _, table := range []string{"addon_schema_reviews", "addon_history_revisions", "addon_data_requests", "addon_data_commits", "addon_data_sets"} {
 			if _, err = tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE addon_id=?", options.AddonID); err != nil {
 				return report, err
 			}

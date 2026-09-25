@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pjunak/ttrpg-codex/internal/addons/datalifecycle"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
@@ -42,6 +43,10 @@ type AdminAuthorizer func(*http.Request) error
 var _ AddonLifecycle = (*packagemanager.Manager)(nil)
 
 func (s *server) registerAddonAdminRoutes(mux *http.ServeMux) {
+	mux.Handle("POST /api/admin/addons/{addonID}/schema-reviews", s.requireAdmin(http.HandlerFunc(s.addonSchemaReview)))
+	mux.Handle("GET /api/admin/addon-schema-reviews/{reviewID}", s.requireAdmin(http.HandlerFunc(s.addonSchemaReview)))
+	mux.Handle("GET /api/admin/addon-schema-reviews/{reviewID}/{operation}", s.requireAdmin(http.HandlerFunc(s.addonSchemaReview)))
+	mux.Handle("POST /api/admin/addon-schema-reviews/{reviewID}/apply", s.requireAdmin(http.HandlerFunc(s.addonSchemaReview)))
 	mux.Handle("GET /api/admin/addon-package-storage", s.requireAdmin(http.HandlerFunc(s.packageStorage)))
 	mux.Handle("POST /api/admin/addon-package-storage/{operation}", s.requireAdmin(http.HandlerFunc(s.packageStorage)))
 	mux.Handle("POST /api/admin/addon-package-cleanup/{operation}", s.requireAdmin(http.HandlerFunc(s.packageCleanup)))
@@ -367,6 +372,12 @@ func classifyLifecycleError(err error) (int, string, string) {
 		kind    string
 		message string
 	}{
+		{datalifecycle.ErrUpgradeUnavailable, http.StatusServiceUnavailable, "SCHEMA_UPGRADE_UNAVAILABLE", datalifecycle.ErrUpgradeUnavailable.Error()},
+		{datalifecycle.ErrUpgradeNotFound, http.StatusNotFound, "SCHEMA_REVIEW_NOT_FOUND", datalifecycle.ErrUpgradeNotFound.Error()},
+		{datalifecycle.ErrUpgradeStale, http.StatusConflict, "SCHEMA_REVIEW_STALE", datalifecycle.ErrUpgradeStale.Error()},
+		{datalifecycle.ErrUpgradeActive, http.StatusConflict, "SCHEMA_UPGRADE_ACTIVE", datalifecycle.ErrUpgradeActive.Error()},
+		{datalifecycle.ErrUpgradeBlocked, http.StatusUnprocessableEntity, "SCHEMA_UPGRADE_BLOCKED", datalifecycle.ErrUpgradeBlocked.Error()},
+		{datalifecycle.ErrUpgradeLimit, http.StatusUnprocessableEntity, "SCHEMA_UPGRADE_LIMIT", datalifecycle.ErrUpgradeLimit.Error()},
 		{packagemanager.ErrConfigurationConflict, http.StatusConflict, "CONFIGURATION_CONFLICT", packagemanager.ErrConfigurationConflict.Error()},
 		{packagemanager.ErrRulesetCompatibility, http.StatusUnprocessableEntity, "RULESET_INCOMPATIBLE", err.Error()},
 		{servicebroker.ErrInvalidSelection, http.StatusUnprocessableEntity, "INVALID_SELECTION", "Select compatible available providers for this service."},

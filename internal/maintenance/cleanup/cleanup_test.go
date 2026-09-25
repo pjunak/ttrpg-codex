@@ -55,6 +55,7 @@ func TestNamespaceDeletionIsReviewedAtomicAndCannotBeUndoneByLocalRecovery(t *te
 	ctx := context.Background()
 	for _, id := range []string{"retired-addon", "kept-addon"} {
 		document(t, db, id)
+		execute(t, db, "INSERT INTO addon_schema_reviews(review_id,addon_id,status,plan_json,snapshot_json) VALUES(?,?,'applied','{}','{}')", id, id)
 	}
 	execute(t, db, "INSERT INTO recovery_points(created_at,reason,image_json) SELECT 'now','manual',image_json FROM recovery_image")
 	options := Options{Kind: "delete-addon-data", AddonID: "retired-addon"}
@@ -86,6 +87,9 @@ func TestNamespaceDeletionIsReviewedAtomicAndCannotBeUndoneByLocalRecovery(t *te
 	}
 	if count(t, db, "SELECT count(*) FROM addon_documents WHERE addon_id='retired-addon'") != 0 {
 		t.Fatal("namespace survived")
+	}
+	if count(t, db, "SELECT count(*) FROM addon_schema_reviews WHERE addon_id='retired-addon'") != 0 || count(t, db, "SELECT count(*) FROM addon_schema_reviews WHERE addon_id='kept-addon'") != 1 {
+		t.Fatal("schema recovery cleanup crossed namespace")
 	}
 	if count(t, db, "SELECT count(*) FROM addon_documents WHERE addon_id='kept-addon'") != 1 {
 		t.Fatal("unrelated data changed")
