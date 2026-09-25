@@ -60,13 +60,37 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
   for (const locale of ['en', 'cs']) test('whole multiclass session survives selected-source loss and incompatible rules (' + locale + ')',
     { skip: !enabled, timeout: 120000 }, async t => {
       const f = fixture(), key = 'multiclass-provider-' + locale, cs = locale === 'cs';
+      const start = performance.now();
+      const checkpoint = (phase: string) => t.diagnostic(phase + ': ' + Math.round(performance.now() - start) + ' ms');
       let stored = await builtSession(f, key);
+      checkpoint('Character prepared');
       t.diagnostic('Saved multiclass state bytes: ' + Buffer.byteLength(JSON.stringify(stored.state)));
       const { page, sheet, status, read } = await openBuilder(t, f, key, locale);
       const saved = cs ? /^Uloženo$/ : /^Saved$/;
-      const reopen = async (tab = 'spells') => {
-        await page.reload(); await page.locator('#character-view-addons').click(); await sheet.locator('#dnd-tab-' + tab).click();
+      const selectTab = async (tab: string) => {
+        await sheet.locator('#dnd-tab-' + tab).click();
         await page.waitForFunction(() => !document.querySelector('.addon-dnd-character')?.hasAttribute('aria-busy'));
+      };
+      // Observe each real transition instead of reloading every catalog and
+      // hiding whether the open character actually responds to changed rules.
+      const transition = async (change: () => Promise<unknown>, state: 'changed' | 'connected' | 'unavailable') => {
+        const refreshed = page.waitForResponse(async response => {
+          if (!response.url().endsWith('/services/call') || !response.ok()) return false;
+          const request = response.request().postDataJSON();
+          if (request?.method !== 'load' || request.params?.key !== key) return false;
+          const result = (await response.json()).result;
+          return state === 'unavailable' ? result?.status === 'unavailable' :
+            result?.status === 'ready' && Boolean(result.rulesChanged) === (state === 'changed');
+        });
+        const [response] = await Promise.all([refreshed, change()]);
+        await selectTab('tools');
+        const message = state === 'unavailable'
+          ? cs ? 'Kompatibilní pravidla nejsou dostupná. Uložené hodnoty a poznámky jsou nadále přístupné.' : 'Compatible rules are unavailable. Saved values and notes remain accessible.'
+          : state === 'changed'
+            ? cs ? 'Pravidla se změnila. Pro další úpravy je nejprve přijměte.' : 'The rules changed. Adopt them to continue editing.'
+            : cs ? 'Pravidla jsou připojena.' : 'Rules are connected.';
+        await sheet.getByText(message, { exact: true }).waitFor();
+        return (await response.json()).result as Row;
       };
       if (cs) {
         await sheet.locator('#dnd-tab-tools').click(); await sheet.getByLabel('Rozložení deníku', { exact: true }).selectOption('classic');
@@ -90,6 +114,7 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
       }
       stored = await read();
       for (const key of ['pact-slot', 'slot-1', 'slot-3', ...grantKeys]) assert.equal(stored.state.inputs.play.resourceUses[key], 1);
+      checkpoint('Casts saved');
       const beforeAmend = structuredClone(stored), grant = structuredClone(stored.state.inputs.grants[0]);
       grant.reason = 'Preserve acquired spells while adding speed'; grant.effects = [{ target: 'speed', mode: 'add', value: 5 }];
       stored = await command(f, key, stored, 'amend', { operation: 'amend-grant', grantId: grant.id, grant });
@@ -99,25 +124,27 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
 
       const policy = await jsonResponse(await f.admin.get('/api/admin/rules-policy')), sources = (policy.sources as Source[]).filter(row => row.enabled);
       assert.ok(stored.state.projection.evidence.some((row: Row) => row.book === 'hof' && row.reference.id === 'spellfire-spark'));
-      t.after(() => setSources(f, sources));
-      await setSources(f, sources.filter(row => row.id !== 'hof'));
-      let changed = await read();
+      let restoreSources = true;
+      t.after(async () => { if (restoreSources) await setSources(f, sources); });
+      let changed = await transition(() => setSources(f, sources.filter(row => row.id !== 'hof')), 'changed');
       assert.equal(changed.rulesChanged, true); assert.deepEqual(changed.state, stored.state); assert.equal(changed.revision, stored.revision);
       assert.ok(changed.evaluation.issues.some((row: Row) => row.severity === 'blocker' && JSON.stringify(row).includes('spellfire-spark')));
       const denied = await f.call('save', { key, operation: 'adopt-rules', operationId: key + '-deny-missing-source',
         summary: 'Cannot silently erase selected source choices', expectedRevision: stored.revision, adoptRules: true });
       assert.equal(denied.status, 'invalid'); assert.deepEqual((await read()).state, stored.state);
-      await reopen('sheet');
+      await selectTab('sheet');
       assert.equal(await sheet.getByLabel(cs ? 'Aktuální životy' : 'Current HP', { exact: true }).isDisabled(), true);
 
-      await setSources(f, sources); await reopen('tools');
-      changed = await read(); assert.deepEqual(changed.state, stored.state);
+      changed = await transition(() => setSources(f, sources), 'connected'); restoreSources = false;
+      assert.deepEqual(changed.state, stored.state);
       assert.equal(changed.rulesChanged, false, 'Restoring the exact source set restores its identity without a write');
       assert.equal(changed.revision, stored.revision);
       assert.equal(await sheet.getByRole('button', { name: cs ? 'Použít aktuální pravidla' : 'Adopt current rules', exact: true }).count(), 0);
 
+      checkpoint('Selected sources restored');
       const archive = await readFile(resolve(process.env.CODEX_ENGINE_ZIP!));
-      t.after(() => installReviewedPackage(f.admin, f.csrf, 'dnd-engine', archive, []));
+      let restoreProvider = true;
+      t.after(async () => { if (restoreProvider) await installReviewedPackage(f.admin, f.csrf, 'dnd-engine', archive, []); });
       const consumer = await jsonResponse(await f.admin.get('/api/admin/addons/dnd-sheets'));
       const base = '/api/addons/dnd-sheets/generations/' + consumer.state.activeGenerationId + '/services';
       const connection = await jsonResponse(await f.admin.post(base + '/connect', { headers: { 'X-Codex-CSRF': f.csrf },
@@ -134,7 +161,8 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
           files['contracts/character.response.schema.json'] = JSON.stringify(schema);
         }
       });
-      await installReviewedPackage(f.admin, f.csrf, 'dnd-engine', replacement, []);
+      await transition(() => installReviewedPackage(f.admin, f.csrf, 'dnd-engine', replacement, []), 'unavailable');
+      checkpoint('Incompatible provider installed');
       const stale = await f.admin.post(base + '/call', { headers: { 'X-Codex-CSRF': f.csrf }, data: {
         contractVersion: 'addon-service-call.v1', contract: 'dnd5e.rules-engine', providerAddonId: old.addonId,
         providerVersion: old.contractVersion, providerGeneration: old.generation, bindingRevision: old.bindingRevision,
@@ -146,7 +174,7 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
       const blocked = await f.call('save', { key, operation: 'play', operationId: key + '-blocked-rest', summary: 'No compatible rules',
         expectedRevision: stored.revision, change: { operation: 'rest', rest: 'long' } });
       assert.equal(blocked.status, 'unavailable'); assert.deepEqual((await read()).state, stored.state);
-      await reopen('tools');
+      await selectTab('tools');
       assert.deepEqual((await exported(page, sheet, locale)).inputs, stored.state.inputs);
       const popup = await printOutput(page, sheet, locale), printed = await popup.locator('body').innerText();
       for (const name of ['Fighter', 'Warlock', 'Wizard', 'Spellfire Spark', 'Detect Magic', 'Retain notes']) assert.ok(printed.includes(name), name);
@@ -158,16 +186,19 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
       await page.screenshot({ path: resolve(f.output, 'multiclass-frozen-' + locale + '.png') });
       assert.deepEqual((await read()).state, stored.state);
 
-      await installReviewedPackage(f.admin, f.csrf, 'dnd-engine', archive, []);
-      const restored = await read(); assert.equal(restored.status, 'ready'); assert.equal(restored.rulesChanged, false);
+      checkpoint('Frozen session checked');
+      const restored = await transition(() => installReviewedPackage(f.admin, f.csrf, 'dnd-engine', archive, []), 'connected'); restoreProvider = false;
+      checkpoint('Original provider restored');
+      assert.equal(restored.status, 'ready'); assert.equal(restored.rulesChanged, false);
       assert.deepEqual(restored.state, stored.state); assert.equal(restored.revision, stored.revision);
-      await reopen('combat');
+      await selectTab('combat');
       await sheet.getByRole('button', { name: cs ? 'Krátký odpočinek' : 'Short rest', exact: true }).click();
       await status.filter({ hasText: saved }).waitFor(); stored = await read();
       assert.equal(stored.state.inputs.play.resourceUses['pact-slot'], 0);
       for (const key of ['slot-1', 'slot-3', ...grantKeys]) assert.equal(stored.state.inputs.play.resourceUses[key], 1);
       const spentSource = stored.evaluation.sheet.resources.find((row: Row) => row.name === 'Spellfire Flame');
       assert.equal(stored.state.inputs.play.resourceUses[spentSource.key], 1);
+      checkpoint('Short rest saved');
       const beforeLevel = structuredClone(stored), input = structuredClone(stored.state.inputs);
       input.build.levels.push({ id: 'wizard-four', classId: 'wizard' });
       input.build.spells.spellbook.wizard.push('see-invisibility', 'web');
@@ -175,6 +206,7 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
       assert.equal(stored.state.inputs.play.hp, beforeLevel.state.inputs.play.hp);
       assert.deepEqual(stored.state.inputs.play.resourceUses, beforeLevel.state.inputs.play.resourceUses);
       assert.equal(stored.state.inputs.build.levels.length, 12);
+      checkpoint('Level twelve saved');
       const beforeRevoke = structuredClone(stored);
       stored = await command(f, key, stored, 'revoke', { operation: 'revoke-grant', grantId: grant.id });
       const surviving = beforeRevoke.evaluation.spellOptions.granted.find((row: Row) => row.ref === 'detect-magic' && row.source.acquisition.id !== 'grant:' + grant.id);
@@ -184,8 +216,10 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
       assert.equal(stored.evaluation.sheet.derived.speed, beforeRevoke.evaluation.sheet.derived.speed - 5);
       assert.deepEqual(stored.state.inputs.play.inventory, beforeRevoke.state.inputs.play.inventory);
       assert.equal(stored.state.inputs.notes, beforeRevoke.state.inputs.notes);
-      await reopen('sheet'); assert.deepEqual((await read()).state, stored.state);
+      await page.reload(); await page.locator('#character-view-addons').click();
+      await selectTab('sheet'); assert.deepEqual((await read()).state, stored.state);
       accepted.set(key, structuredClone(stored.state));
+      checkpoint('Restored session accepted');
     });
 
   for (const locale of ['en', 'cs']) test('first character import labels complete review groups (' + locale + ')',

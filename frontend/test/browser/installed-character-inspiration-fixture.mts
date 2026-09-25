@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
+import { readFile, mkdtemp, rm } from "node:fs/promises";
 import { resolve, relative, isAbsolute } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test, type TestContext } from "node:test";
 import { createCharacter, openBuilder, save, type Fixture } from "./installed-character-builder-fixture.mts";
 import { readyCharacter } from "./installed-character-command-fixture.mts";
-import { backupEntry } from "./installed-character-compatibility-fixture.mts";
+import { writeBackupEntry } from "./backup-fixture.mts";
 import { exported, printOutput, review } from "./installed-character-output-fixture.mts";
 import { jsonResponse, installReviewedPackage } from "./installed-graph-fixture.mts";
 import { replacementImportPackage } from "./installed-import-fixture.mts";
@@ -69,7 +69,7 @@ export function registerInspirationSchemaTest(enabled: boolean, fixture: () => F
       const directory = await mkdtemp(resolve(f.output, "play-schema-" + suffix + "-"));
       t.after(async () => { const child = relative(f.output, directory); assert.ok(child && !child.startsWith("..") && !isAbsolute(child)); await rm(directory, { recursive: true, force: true }); });
       const backup = await f.admin.get("/api/backup"); assert.equal(backup.status(), 200);
-      const path = resolve(directory, "codex.db"); await writeFile(path, backupEntry(await backup.body(), "codex.db"));
+      const path = resolve(directory, "codex.db"); await writeBackupEntry(await backup.body(), "codex.db", path);
       const db = new DatabaseSync(path, { readOnly: true });
       try {
         for (const [key, expected] of saved) {

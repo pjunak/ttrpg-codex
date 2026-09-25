@@ -3012,3 +3012,54 @@ companion acceptance was still running. That is not evidence of a completed
 deployment. This repair was validated locally; no push, workflow retry,
 publication or production operation was performed. Rerunning the original
 commit would still use its original scanner configuration.
+
+
+## Installed acceptance limits and stream reconciliation
+
+September 25, 2026. [Build and dispatch run 36152373564](https://github.com/pjunak/ttrpg-codex/actions/runs/36152373564)
+on `a95679d` passed host tests and deployment configuration, but failed
+installed acceptance: **242 passed, 3 failed, 2 cancelled, zero skipped**.
+Image publication and deployment were skipped. The separate
+[secret scan](https://github.com/pjunak/ttrpg-codex/actions/runs/36152373299)
+passed, confirming T65's repair. The preceding
+[build 36149090308](https://github.com/pjunak/ttrpg-codex/actions/runs/36149090308)
+also failed the backup check and both multiclass sessions; its final status
+supersedes the in-progress observation above.
+
+| Failed check | Cause and repair |
+| --- | --- |
+| Incompatible sheet schema and backup preservation | The test inflated the database into a buffer capped at 64 MiB. The growing full-suite database exceeded that fixture limit; the host allows a 1 GiB database entry. A shared test reader now streams the selected entry to an exclusive temporary file, checking the declared size, host bound and CRC. Exact SQLite body/revision assertions remain. |
+| Whole multiclass session, English and Czech | Both exceeded the existing 120-second deadline. The fixture repeatedly reloaded the entire host and all sheet catalogs after source/provider changes. It now observes the open sheet's real load response and localized state, reuses that response for assertions, and avoids already-completed cleanup restores. The final persistence reload, casts, rest, level-up, print/export and preservation checks remain. Phase timings expose where any future timeout occurs. |
+| Provider-free saved sessions | This was a consequence of the two cancelled sessions never reaching their final saved-state assertions. The requirement for both completed sessions remains unchanged. |
+| DM fallback live counts | Core campaign state ignored stream `hello`. A write after the initial HTTP snapshot but before subscription was already included in the new cursor, so its live invalidation was lost to that browser. The shared host now refreshes on every `hello`, including reconnects, through the existing serialized, draft-preserving refresh path. |
+
+The stream regression holds the initial connection until after a visibility
+change, then disconnects after a second change. It failed before the runtime
+repair and passed afterward. Four backup-reader regressions cover an exact
+65 MiB extraction, stored/deflated entries, declared bounds, checksums, truncated
+archives and preserving an existing destination.
+
+These failures were missed by smaller checks: `npm run check` skips installed
+package cases unless their inputs are supplied. Earlier Windows full-suite
+passes also did not establish timing margin or connection ordering on Linux.
+This repair adds deterministic coverage and removes repeated setup; no test
+deadline, assertion requirement or publication gate is relaxed.
+
+Validation: host `npm run check` passed **42 tooling, 402 frontend unit and
+285 browser cases**, plus Go tests/vet. Its 174 optional installed skips require
+the separate strict suite. Release readiness passed all 33 gates; workflow
+policy passed 18 cases and the pinned Gitleaks 8.30.1 regressions passed five.
+
+Strict installed acceptance passed **247/247, zero failures, cancellations or
+skips**, in **850,961 ms**. English/Czech multiclass sessions completed in
+**79,604 / 71,423 ms** with the unchanged 120,000 ms deadline; backup preservation,
+provider-free sessions and the DM fallback all passed in that same full run.
+The exact source revisions and inspected ZIP hashes are the same as the
+[storage batch](#storage-containers-and-preserved-inventory); no companion
+source or pin changes are needed. Evidence records host base `a95679d` plus
+this repair's working-tree changes.
+
+Native execution is Windows AMD64. The repaired revision still needs its
+GitHub Linux run; local success does not establish publication or live-site
+deployment. No push, workflow retry, production data operation or deployment
+was performed.

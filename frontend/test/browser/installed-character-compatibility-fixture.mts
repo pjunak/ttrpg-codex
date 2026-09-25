@@ -1,37 +1,14 @@
 import assert from "node:assert/strict";
-import { readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
+import { readFile, mkdtemp, rm } from "node:fs/promises";
 import { resolve, relative, isAbsolute } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { inflateRawSync } from "node:zlib";
+import { writeBackupEntry } from "./backup-fixture.mts";
 import { test } from "node:test";
 import { jsonResponse, installReviewedPackage } from "./installed-graph-fixture.mts";
 import { replacementImportPackage } from "./installed-import-fixture.mts";
 import { openBuilder, type Fixture } from "./installed-character-builder-fixture.mts";
 import { spellCharacter } from "./installed-character-spell-fixture.mts";
 import { exported, printOutput } from "./installed-character-output-fixture.mts";
-
-// Read a single bounded entry from a host-created backup, without extracting
-// package paths or loading all immutable content into memory.
-export function backupEntry(archive: Buffer, wanted: string): Buffer {
-  const end = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
-  assert.ok(end >= 0);
-  const count = archive.readUInt16LE(end + 10);
-  let cursor = archive.readUInt32LE(end + 16);
-  for (let i = 0; i < count; i++) {
-    assert.equal(archive.readUInt32LE(cursor), 0x02014b50);
-    const nameSize = archive.readUInt16LE(cursor + 28), extra = archive.readUInt16LE(cursor + 30), comment = archive.readUInt16LE(cursor + 32);
-    const name = archive.subarray(cursor + 46, cursor + 46 + nameSize).toString();
-    if (name === wanted) {
-      const local = archive.readUInt32LE(cursor + 42), method = archive.readUInt16LE(cursor + 10);
-      const length = archive.readUInt32LE(cursor + 20), start = local + 30 + archive.readUInt16LE(local + 26) + archive.readUInt16LE(local + 28);
-      assert.ok(method === 0 || method === 8);
-      const body = archive.subarray(start, start + length);
-      return method === 8 ? inflateRawSync(body, { maxOutputLength: 64 * 1024 * 1024 }) : body;
-    }
-    cursor += 46 + nameSize + extra + comment;
-  }
-  throw new Error("Missing backup entry: " + wanted);
-}
 
 export function registerCharacterCompatibilityTests(enabled: boolean, fixture: () => Fixture) {
   for (const variant of ["response", "major"] as const) test("incompatible rules preserve saved reading, outputs and spent grants (" + variant + ")",
@@ -99,7 +76,7 @@ export function registerCharacterCompatibilityTests(enabled: boolean, fixture: (
       const backup = await f.admin.get("/api/backup"); assert.equal(backup.status(), 200);
       const directory = await mkdtemp(resolve(f.output, "schema-backup-"));
       t.after(async () => { const child = relative(f.output, directory); assert.ok(child && !child.startsWith("..") && !isAbsolute(child)); await rm(directory, { recursive: true, force: true }); });
-      const path = resolve(directory, "codex.db"); await writeFile(path, backupEntry(await backup.body(), "codex.db"));
+      const path = resolve(directory, "codex.db"); await writeBackupEntry(await backup.body(), "codex.db", path);
       const db = new DatabaseSync(path, { readOnly: true });
       try {
         const row = db.prepare("SELECT body_json, revision, schema_version FROM addon_documents WHERE addon_id=? AND data_kind='record-extension' AND data_id=? AND document_key=?").get("dnd-sheets", "dnd-sheets", key);
