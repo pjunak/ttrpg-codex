@@ -3059,7 +3059,89 @@ The exact source revisions and inspected ZIP hashes are the same as the
 source or pin changes are needed. Evidence records host base `a95679d` plus
 this repair's working-tree changes.
 
-Native execution is Windows AMD64. The repaired revision still needs its
-GitHub Linux run; local success does not establish publication or live-site
-deployment. No push, workflow retry, production data operation or deployment
-was performed.
+Native execution was Windows AMD64. The subsequent Linux
+[run 36174839540](https://github.com/pjunak/ttrpg-codex/actions/runs/36174839540)
+confirmed the backup and live-count repairs, but both multiclass sessions still
+timed out. This local pass did not close the session-performance defect; its
+[measured engine follow-up](#multiclass-editor-calculation-cost) is recorded below.
+No push, workflow retry, production data operation or deployment was performed.
+
+
+## Multiclass editor calculation cost
+
+September 25, 2026. [Build and dispatch run 36174839540](https://github.com/pjunak/ttrpg-codex/actions/runs/36174839540)
+on `77aa425` passed host tests and deployment configuration. Installed acceptance
+reported **244 passed, 1 failed, 2 cancelled, zero skipped**. Both multiclass
+sessions exhausted the unchanged 120-second deadline; the provider-free check
+then correctly rejected their missing completed snapshots. Backup/schema
+preservation and DM live counts passed. Image publication and deployment never
+started.
+
+The previous fixture change removed repeated cold page loads, but did not
+address repeated engine work. Every calculation builds editor guidance, including
+calculations triggered by play commands. For each possible class and complex
+feat option, the engine reran the entire progression validator, then discarded
+all issues except those relevant to that option. Even feats with no prerequisites
+caused prior-state sheet hydration. Larger source catalogs and accumulated
+multiclass choices exposed this cost beyond the smaller host checks.
+
+Temporary per-stage timing of the actual installed English session measured
+47 level-11/12 evaluations before and after the repair:
+
+| Mean time per evaluation | Before | After |
+| --- | ---: | ---: |
+| Complete calculation | 1,991 ms | 1,092 ms |
+| Editor guidance | 1,870 ms | 987 ms |
+
+Editor guidance accounted for about 94% of the original calculation time.
+The change reduces total measured calculation time by about 45%. These are
+local instrumented measurements, not Linux benchmarks; temporary probes are
+excluded from the release package.
+
+Engine `66b5bfb115238199641e6023633828f2134fa2ee` reuses the acquisition-order
+validator with private class-only or candidate-feat selection for editor options.
+Full saved-character validation still checks every class and feat. Empty
+prerequisites skip unnecessary hydration after repetition checks. No
+cross-request eligibility cache, source-specific branch, schema change or public
+service change was introduced.
+
+Synthetic regressions compare selected issues with full validation, including
+earlier ability increases, self-qualification, exact waivers, repeated and nested
+feat acquisition, and input/source immutability. Empty prerequisites still enforce
+source-owned repetition policy. Existing arithmetic, progression and provider
+regressions remain required.
+
+### Package and acceptance evidence
+
+All engine tests/vet and rules/provider/engine race tests passed. Sheets
+`npm run check` passed 30 module tests plus Go tests/vet without tracked changes.
+The three standard workers were regenerated and the release ZIP passed host
+inspection. Its SHA-256 is
+`8c836f6110bb7632eaff56e1ecdc0fb3d7c96c52ba6600ec37612ef9e23475c8`.
+Only the engine pin changes; the other source revisions and package hashes remain
+those of the [storage batch](#storage-containers-and-preserved-inventory).
+
+Both focused sessions passed against the normal release ZIP: English session
+body **63,231 ms** (Node reports **78,044 ms** including initial fixture setup),
+Czech **57,982 ms**. Casts, source withdrawal/restoration, incompatible provider
+replacement, rest, level-up and the final persistence reload all remain. No
+deadline, assertion, concurrency setting or publication gate was relaxed.
+
+Host `npm run check` passed **42 tooling, 402 frontend unit and 285 browser
+cases**, plus Go tests/vet. Its 174 optional installed skips are covered only by
+the separate strict suite. Release readiness passed all 33 gates, workflow
+policy all 18 cases, and pinned Gitleaks 8.30.1 regressions all five. The engine
+staged diff also passed the scanner.
+
+Strict installed acceptance passed **247/247, zero failures, cancellations or
+skips**, in **781,774 ms**. English/Czech multiclass sessions completed in
+**63,676 / 58,434 ms** against the unchanged 120,000 ms deadline. Backup/schema
+preservation, provider-free saved sessions and DM fallback counts passed in that
+same full run.
+
+The evidence records host base `77aa425` with this batch's pin/document changes;
+all four companion trees are clean. Native execution is Windows AMD64; Linux
+workers were cross-compiled, so the repaired source set still needs its GitHub
+Linux run. Publish the engine commit before the dependent host commit when
+publication is authorized. No push, workflow retry, deployment or live-data
+operation was performed.

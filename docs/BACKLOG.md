@@ -81,7 +81,8 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T63-QUICK-USE-HOST — Accept owned-item pins and atomic consumption**~~ — shared quantities, exact retries, provider-free output and both prior schemas; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#quick-use-inventory-and-preserved-characters).
 - [x] ~~**T63-STORAGE-HOST — Accept container membership and all prior schemas**~~ — exact retries, concurrent repair, transfer and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#storage-containers-and-preserved-inventory).
 - [x] ~~**T65-HOST — Repair the storage-selector secret-scan false positive**~~ — exact rule/file/value exception and real-scanner regression checks; [diagnosis and validation](rewrite/HOST_CLEANUP_ACCEPTANCE.md#storage-selector-secret-scan-repair).
-- [x] ~~**T66-HOST — Repair installed backup/session checks and reconnect refresh**~~ — streamed backup inspection, live source/provider transitions and reconciled campaign counts; [247/247 installed cases and CI diagnosis](rewrite/HOST_CLEANUP_ACCEPTANCE.md#installed-acceptance-limits-and-stream-reconciliation).
+- [x] ~~**T66-HOST — Repair backup inspection and reconnect refresh**~~ — both confirmed by the next Linux run; [evidence and remaining session-performance diagnosis](rewrite/HOST_CLEANUP_ACCEPTANCE.md#installed-acceptance-limits-and-stream-reconciliation).
+- [x] ~~**T66-PERF-HOST — Accept the optimized engine in the full installed suite**~~ — exact engine pin and 247/247 local cases; [evidence and Linux boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-editor-calculation-cost).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -248,6 +249,7 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T63-INSPIRATION-ENGINE — Preserve authored Inspiration through calculation and play**~~ — `c0d2984`; optional DTO, support guidance and saved explanation; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-inspiration-and-character-schema-preservation).
 - [x] ~~**T63-QUICK-USE-ENGINE — Validate inventory references and consume exact instances**~~ — `a4763ca`; optional pins, live guidance and preserved depleted state; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#quick-use-inventory-and-preserved-characters).
 - [x] ~~**T63-STORAGE-ENGINE — Validate named groups and owned-item membership**~~ — `b15fcb8`; optional DTOs, unchanged mechanics and strict references; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#storage-containers-and-preserved-inventory).
+- [x] ~~**T66-ENGINE — Avoid redundant editor progression calculations**~~ — `66b5bfb`; unchanged validation rules, rebuilt workers and about 45% less measured calculation time; [regressions and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-editor-calculation-cost).
 
 ### Remaining work
 
