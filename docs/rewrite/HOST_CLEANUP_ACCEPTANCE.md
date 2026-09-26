@@ -3279,3 +3279,49 @@ cross-compiled. This new source set still needs Linux CI. Human screen-reader,
 physical touch and printer acceptance remain separate. This work neither
 pushes nor deploys; new add-on schema installation still requires the site's
 reviewed saved-data compatibility and activation steps.
+
+## Asurai saved packages and recovery retention
+
+September 26, 2026. The supplied Asurai screenshot shows four inactive builds
+retained by recovery points 1–10: DM Tools 3.0.0, Compendium 3.0.0, Engine 3.0.0
+and Sheets 3.0.0. DM Tools' active build also declares version 3.0.0; its exact
+generation hash distinguishes the build. This is screenshot evidence, not a
+fresh authenticated inventory of the live site.
+
+The current implementation explains the retention: runtime recovery loads only
+the selected active generations; reviewed cleanup protects every package named
+by a recovery point. Automatic file eviction also preserves recovery-required
+uploads without a durable release source. Inactive packages are not running
+alongside the current build. The screenshot alone does not establish that they
+cause a gameplay or add-on defect.
+
+The requested latest-version-only policy would also need to retire the recovery
+points that require superseded builds. Those points contain whole-campaign
+snapshots, including core records, rather than just add-on saves. That broader
+retention change was authorized, with the additional requirement that campaign
+and add-on recovery become independent. T16 remains open until that behavior
+is implemented and verified. This selection/UI repair alone leaves automatic
+deletion and recovery protection unchanged. Current campaign records and
+independent full backup ZIPs are outside the deletion scope.
+
+A separate confirmed cleanup defect is repaired: when an add-on is disabled,
+the latest disable event identifies the protected package. A newer uploaded
+but unactivated version cannot replace that selection. A regression installs,
+disables, uploads, reviews and cleans the unselected build, then successfully
+enables the retained package. A never-enabled add-on still retains its newest
+staged package; explicit uninstall retains its existing cleanup semantics.
+
+The shared cleanup review shows a short build ID next to each version and
+explains that only the active build runs. The full hash stays under Package
+details. English/Czech desktop/phone workflows retain recovery protection,
+stale-review rejection and exact lost-response retries. The phone capture was
+visually inspected, and the existing no-horizontal-overflow check passes.
+
+Host `npm run check` passes **42 tooling, 402 unit and 285 browser cases**, plus
+all Go tests/vet. The two real installed cleanup workflows run in that gate;
+181 unrelated optional companion cases are skipped. Focused cleanup tests also
+pass with `go test -race`; release readiness passes all **33 gates**.
+
+The browser helper failed to start twice with a Windows sandbox ACL error, so
+no live Asurai cleanup was attempted. This repair is local; it does not claim
+a deployment or removal of the four historical builds.

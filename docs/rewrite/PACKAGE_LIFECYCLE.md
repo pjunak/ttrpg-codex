@@ -495,12 +495,21 @@ and effective DM with CSRF authority can review, apply or retry cleanup.
 
 A count selection retains zero to five additional inactive packages per add-on,
 newest installation first (generation hash breaks timestamp ties). Active
-packages, every generation named by a campaign recovery point, and the newest
+packages, every generation named by a campaign recovery point, and the selected
 package of a still-installed but disabled add-on are protected independently of
-that count. Uninstall first to remove the last installed package. Recovery-point
+that count. The latest disable event identifies that selection; a newer staged
+upload does not replace it. An add-on that has never been enabled retains its
+newest staged package. Uninstall first to remove the last installed package. Recovery-point
 IDs are shown; managing those points is a separate explicit action under
 Backup & recovery. This is a one-time reviewed retention rule, not automatic
 expiry. A future installation requires another review.
+
+Saved inactive packages are not running alongside the active build. Two builds
+can have the same declared version but different contents; cleanup shows the
+short build ID beside each version and the full hash under Package details.
+Recovery points contain whole-campaign snapshots, including core records and
+add-on documents. Removing a required point to release its packages therefore
+also removes that historical campaign restore option, not just an add-on save.
 
 The review lists exact generation hashes, eligibility, file counts, byte sizes,
 activation-review counts and retained character-history counts. Its fingerprint

@@ -153,6 +153,46 @@ func TestCleanupProtectsRecoveryAndLastInstalledPackage(t *testing.T) {
 	}
 }
 
+func TestCleanupKeepsDisabledSelectionInsteadOfNewerUnactivatedUpload(t *testing.T) {
+	ctx := context.Background()
+	m, _ := testManager(t, testDatabase(t), filepath.Join(t.TempDir(), "addons"), &fakeRuntimeFactory{})
+	m.store.now = time.Now
+	selected := installUninstallFixture(t, m, packageSpec{ID: "example", Version: "1.0.0"})
+	state, err := m.store.state(ctx, "example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = m.Disable(ctx, DisablePlan{AddonID: "example", ExpectedStateRevision: state.Revision}); err != nil {
+		t.Fatal(err)
+	}
+	upload, err := m.Stage(ctx, writeAddonPackage(t, packageSpec{ID: "example", Version: "2.0.0"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	review := mustCleanupReview(t, m, cleanupScope(0))
+	if review.RemoveCount != 1 {
+		t.Fatalf("unexpected cleanup: %+v", review)
+	}
+	for _, generation := range review.Generations {
+		if generation.GenerationID == selected.GenerationID && (generation.Remove || generation.Protection != "last-installed") {
+			t.Fatal("disabled selected package is not protected", generation)
+		}
+		if generation.GenerationID == upload.GenerationID && !generation.Remove {
+			t.Fatal("unactivated upload replaced the retained selection", generation)
+		}
+	}
+	if result, err := m.Cleanup(ctx, review.Scope, review.ReviewSHA256); err != nil || !result.Complete {
+		t.Fatalf("cleanup: %+v %v", result, err)
+	}
+	state, err = m.store.state(ctx, "example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = m.Activate(ctx, ActivationPlan{AddonID: "example", GenerationID: selected.GenerationID, ExpectedStateRevision: state.Revision}); err != nil {
+		t.Fatal("retained selection cannot be enabled", err)
+	}
+}
+
 func TestCleanupRetentionAndStaleReview(t *testing.T) {
 	ctx := context.Background()
 	m, _ := testManager(t, testDatabase(t), filepath.Join(t.TempDir(), "addons"), &fakeRuntimeFactory{})

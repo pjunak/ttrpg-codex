@@ -98,7 +98,8 @@ func (manager *Manager) cleanupReviewLocked(ctx context.Context, tx *sql.Tx, sco
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT g.addon_id, g.generation_id, g.addon_version, g.installed_at, s.revision,
   COALESCE(s.active_generation_id, ''), EXISTS(SELECT 1 FROM addon_package_uninstalls u WHERE u.addon_id=g.addon_id),
-  g.generation_id=(SELECT newest.generation_id FROM addon_package_generations newest WHERE newest.addon_id=g.addon_id ORDER BY newest.installed_at DESC,newest.generation_id LIMIT 1)
+  g.generation_id=COALESCE((SELECT e.generation_id FROM addon_lifecycle_events e WHERE e.addon_id=g.addon_id AND e.kind='disabled' ORDER BY e.sequence DESC LIMIT 1),
+    (SELECT newest.generation_id FROM addon_package_generations newest WHERE newest.addon_id=g.addon_id ORDER BY newest.installed_at DESC,newest.generation_id LIMIT 1))
   FROM addon_package_generations g JOIN addon_package_states s USING(addon_id)
   WHERE NOT EXISTS(SELECT 1 FROM addon_package_files f WHERE f.addon_id=g.addon_id AND f.generation_id=g.generation_id AND f.status<>'local') AND (? = '' OR g.addon_id = ?) AND (? = '' OR g.generation_id = ?) ORDER BY g.addon_id, g.installed_at DESC, g.generation_id`, scope.AddonID, scope.AddonID, scope.GenerationID, scope.GenerationID)
 	if err != nil {
@@ -108,12 +109,12 @@ func (manager *Manager) cleanupReviewLocked(ctx context.Context, tx *sql.Tx, sco
 		generation  CleanupGeneration
 		active      string
 		uninstalled bool
-		newest      bool
+		selected    bool
 	}
 	var items []item
 	for rows.Next() {
 		var next item
-		if err := rows.Scan(&next.generation.AddonID, &next.generation.GenerationID, &next.generation.Version, &next.generation.InstalledAt, &next.generation.StateRevision, &next.active, &next.uninstalled, &next.newest); err != nil {
+		if err := rows.Scan(&next.generation.AddonID, &next.generation.GenerationID, &next.generation.Version, &next.generation.InstalledAt, &next.generation.StateRevision, &next.active, &next.uninstalled, &next.selected); err != nil {
 			rows.Close()
 			return CleanupReview{}, err
 		}
@@ -131,7 +132,7 @@ func (manager *Manager) cleanupReviewLocked(ctx context.Context, tx *sql.Tx, sco
 	retained := map[string]int{}
 	for _, item := range items {
 		generation := item.generation
-		lastInstalled := item.newest && item.active == "" && !item.uninstalled
+		lastInstalled := item.selected && item.active == "" && !item.uninstalled
 		generation.RecoveryPointIDs, generation.ActivationReviewIDs = []int64{}, []string{}
 		if err := cleanupReferences(ctx, tx, &generation); err != nil {
 			return CleanupReview{}, err

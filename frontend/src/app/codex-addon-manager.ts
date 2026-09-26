@@ -333,11 +333,12 @@ export class CodexAddonManager extends LitElement {
     return html`<section class="addon-review addon-cleanup-review" aria-labelledby="addon-review-title">
       <h3 id="addon-review-title" tabindex="-1">${t("cleanup.title")}</h3>
       <p>${t("cleanup.help")}</p>
+      <p>${t("cleanup.builds")}</p>
       ${review.scope.generationId ? nothing : html`<label>${t("cleanup.keep")} <select ?disabled=${this.#busy} .value=${String(review.scope.keepInactive)} @change=${(event: Event) => this.#prepareCleanup({ keepInactive: Number((event.target as HTMLSelectElement).value) })}>${[0,1,2,3,4,5].map(n => html`<option value=${n}>${n}</option>`)}</select></label><p>${t("cleanup.policy")}</p>`}
       <p>${t("cleanup.summary", { count: review.removeCount, bytes: review.reclaimableBytes })}</p>
       ${review.pendingCleanups ? html`<p role="status">${t("cleanup.pending")}</p><button ?disabled=${this.#busy} @click=${() => this.#retryCleanup()}>${t("cleanup.retry")}</button>` : nothing}
       ${!review.removeCount ? html`<p>${t("cleanup.empty")}</p>` : nothing}
-      <ul>${review.generations.map(g => html`<li data-cleanup-generation=${g.generationId}><div><strong>${g.addonId} · ${g.version}</strong>
+      <ul>${review.generations.map(g => html`<li data-cleanup-generation=${g.generationId}><div><strong>${g.addonId} · ${g.version}</strong> <code>${g.generationId.slice(0, 12)}</code>
         <p>${g.remove ? t("cleanup.remove") : t(`cleanup.${g.protection}` as MessageKey, { points: g.recoveryPointIds.join(", ") })}</p>
         <details><summary>${t("cleanup.details")}</summary><code>${g.generationId}</code>${g.remove ? html`<p>${t("cleanup.files", { count: g.files, bytes: g.bytes })}</p><p>${t("cleanup.effects", { reviews: g.activationReviewIds.length, history: g.historyRecords })}</p>` : nothing}</details>
       </div></li>`)}</ul>

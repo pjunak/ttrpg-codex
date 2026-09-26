@@ -23,6 +23,8 @@ export async function exercisePackageCleanup({ t, open, admin, csrf, output, mob
   await row.getByText('Saved packages', { exact: true }).click();
   const remove = (generation: string) => row.locator(`[data-generation="${generation}"]`).getByRole('button', { name: 'Remove saved package', exact: true });
   await remove(one).click(); await review.getByText(/Keep: required by recovery points/u).waitFor();
+  await review.getByText(one.slice(0, 12), { exact: true }).waitFor();
+  await review.getByText(/Only the active build runs/u).waitFor();
   assert.equal(await review.getByRole('button', { name: 'Remove reviewed packages', exact: true }).isDisabled(), true);
   await review.getByRole('button', { name: 'Cancel review', exact: true }).click();
   await manager.getByRole('button', { name: 'Clean up saved packages', exact: true }).click();
@@ -46,6 +48,8 @@ export async function exercisePackageCleanup({ t, open, admin, csrf, output, mob
   await page.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await page.reload(); await page.locator('[data-category="addons"]').click();
   await manager.getByRole('button', { name: 'Vyčistit uložené balíčky', exact: true }).click(); await review.getByRole('heading', { name: 'Kontrola vyčištění uložených balíčků', exact: true }).waitFor();
   await review.locator(`[data-cleanup-generation="${one}"]`).getByText(/Zachovat: vyžadují body obnovy/u).waitFor();
+  await review.getByText(one.slice(0, 12), { exact: true }).waitFor();
+  await review.getByText(/Spouští se pouze aktivní sestavení/u).waitFor();
   const player = await open(t, 'player');
   for (const operation of ['review', 'apply', 'retry']) {
     const path = `/api/admin/addon-package-cleanup/${operation}`;
