@@ -13,7 +13,7 @@ Transient add-on and blob `.staging` content is excluded. Blob archive paths
 must match their content hash, and verification proves every object referenced
 by the restored database exists with the expected size and digest. The database
 also retains [immutable add-on history payloads](RETAINED_ADDON_HISTORY.md) and
-their revision/operation records. Campaign recovery appends a retained head;
+their revision/operation records. Add-on recovery appends a retained head;
 it does not erase later revisions. Browser device drafts are outside backups.
 The database
 includes versioned DM/player password hashes, never clear-text passwords.
@@ -57,9 +57,11 @@ snapshot through archive publication, so reviewed package cleanup, staging and
 activation wait for it. Offline maintenance instead holds the host-process lock.
 Blob objects are not physically collected. Existing backup ZIPs own their copies
 of package files and do not prevent cleanup of an inactive live generation.
-Campaign recovery points retain exact package identities. With
-[automatic retention](PACKAGE_LIFECYCLE.md#automatic-package-file-retention),
-superseded files may be downloaded again when needed. Before publishing a full
+Add-on recovery contexts retain exact package identities. Default
+[latest-only retention](PACKAGE_LIFECYCLE.md#automatic-package-file-retention)
+retires only obsolete add-on contexts, preserving their campaign snapshots.
+With `CODEX_ADDON_KEEP_RECOVERY_PACKAGES=true`, superseded files may instead be
+downloaded again when needed. Before publishing a full
 backup, online and offline creators materialize every missing recovery package
 into temporary staging and verify its exact add-on ID and archive SHA-256.
 The snapshot records those files as local; the running installation is unchanged.
@@ -71,9 +73,11 @@ Missing or changed historical packages fail the backup before an output archive
 is published. The web response directs the operator to check GitHub access or
 upload the matching ZIP. Verification and restore also require every active and
 recovery-referenced package ZIP and its extracted files to be complete and
-correct. A restored full backup can therefore start offline and retains its
-included recovery packages through startup; subsequent successful updates
-apply the automatic retention policy again.
+correct. A restored full backup can therefore start offline. Default latest-only
+retention also runs after healthy startup of a restored directory; to retain
+the archive's historical add-on contexts, set `CODEX_ADDON_AUTO_CLEANUP=false`
+before starting it, or choose the recoverable-package policy above. The input
+backup ZIP itself is never modified.
 An archive may include an approved pending cleanup receipt and remaining files;
 the restored host resumes that approved cleanup at startup.
 
@@ -129,12 +133,15 @@ points below are available without restarting the host.
 
 The original Settings history workflow is available in English and Czech:
 manual points, coalesced automatic points, reviewed restore/delete, and revert
-of the last N retained automatic edit groups. The newest 50 points are retained
+of the last N retained automatic edit groups in the selected scope. The newest 50 snapshots are retained
 across all three kinds (`manual`, `save`, `pre-restore`). A point contains at
 most 64 MiB of campaign metadata, not copies of the immutable file bytes.
 Manual points do not delay the next automatic group. After a restore, the next
 edit starts a new group. Revert counts automatic groups, not individual field
 changes, manual points or safety points; its review shows the selected date.
+Each snapshot holds independently selectable campaign and per-add-on contexts.
+Deleting one context preserves all others; only an empty envelope is removed.
+Campaign recovery remains available when add-on context or packages are absent.
 
 Migration 0012 stores core collection materialization, ordered records with
 unknown fields and creation identities, add-on datasets/documents and their
@@ -153,33 +160,51 @@ snapshots. Offline conversion does not capture partly converted states;
 package lifecycle transitions use the full backup/rollback boundary.
 
 Restore acquires the SQLite write transaction with the exact reviewed revision,
-checks the point's format, active add-on generations and existing dataset
-definitions, and first captures a `pre-restore` safety point. All campaign,
-add-on and media changes, the payload-free restore audit, and the durable
+checks the point's format and selected scope, and captures a `pre-restore`
+safety point. Campaign restore changes only core records and core-owned media;
+it never checks add-on package compatibility or rewinds current add-on saves.
+An add-on restore changes only that owner's datasets, documents and logical
+file handles. It requires that owner's exact active generation and compatible
+dataset definitions, regardless of other active or missing add-ons. Saved
+record extensions must match the current target record's creation identity;
+restore the campaign first if necessary. A reused record key is insufficient.
+
+All selected data changes, the payload-free restore audit (including scope
+and add-on ID from migration 0022), and the durable
 `campaign-restored` publication commit together. A failure rolls back all of
 them. Restored live records get fresh revisions; removed keys keep deletion
 tombstones, so stale editors and reviewed import plans cannot overwrite the
-recovered data. Collection/dataset revisions also advance, including empty
-collections. Immutable record creation identities are restored with their
-extensions. Recovery across different active add-on versions or data schemas
-is refused; use matching package versions or a full offline backup restore.
+recovered data. Only the selected scope's collection/dataset revisions advance,
+including empty collections. Campaign restore preserves saved extensions even
+if their targets are temporarily absent; normal ownership checks prevent them
+from attaching to a different record. Add-on recovery across different package
+or schema identities is refused; campaign recovery is independent.
 
 The HTTP surface requires a real and effective DM, plus CSRF for writes:
 
 | Route | Request / response |
 | --- | --- |
-| `GET /api/recovery` | `recovery-points.v1`: review revision and newest-first metadata only |
+| `GET /api/recovery` | `recovery-points.v2`: review revision, newest-first metadata, `campaignAvailable`, `campaignMedia`, and per-owner `addons` summaries with exact generation and compatibility; no saved bodies |
 | `POST /api/recovery` | Exact `{}` creates a manual point and returns the list |
-| `POST /api/recovery/restore` | `expectedRevision` plus either positive `id` or `count` (1–50) |
-| `POST /api/recovery/delete` | Positive `id` and `expectedRevision` |
+| `POST /api/recovery/restore` | `scope: "campaign"` or `scope: "addon"` with `addonId`; `expectedRevision` plus either positive `id` or `count` (1–50) |
+| `POST /api/recovery/delete` | Same explicit scope, positive `id` and `expectedRevision` |
+
+For existing clients, an omitted scope retains the original combined operation.
+Combined restore requires the exact complete package set and refuses snapshots
+whose contexts have been retired. New clients always send a scope. Original
+version-1 snapshot envelopes remain readable; context retirement marks them
+partial without rewriting unknown record fields.
 
 All responses are no-store. A changed campaign/list returns `RECOVERY_CONFLICT`;
-different add-on versions/definitions return `RECOVERY_COMPATIBILITY`. Missing
+incompatible add-on packages, definitions or linked records return `RECOVERY_COMPATIBILITY`. Missing
 retained points/groups return 404. After an uncertain network result the UI
 requires a fresh list and review before another restore/delete.
 
 Storage regression tests cover failed writes/restores, concurrent reviews,
 retention, tombstones, unknown fields, empty datasets, extensions and media.
+`scopes_test.go` adds independent values/revisions/media, reused record IDs,
+partial deletion and retirement rollback. `latest_retention_test.go` proves
+campaign recovery and backup references survive obsolete package removal.
 `recovery.browser.mts` covers desktop/phone Settings, English/Czech copy, stale
 reviews, uncertain responses, pending navigation, undo and private ZIP download.
 `installed-sheets.browser.mts` verifies recovery in a real installed package and

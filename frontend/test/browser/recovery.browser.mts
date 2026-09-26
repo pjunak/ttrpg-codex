@@ -75,8 +75,8 @@ for (const mobile of [false, true]) test(`recovery points restore the campaign a
   await page.locator(`[data-point-id="${id}"] .settings-btn-edit`).click();
   assert.equal(await page.locator('#recovery-review-title').evaluate(node => document.activeElement === node), true);
   const confirm = () => page.locator('.settings-recovery-review').getByRole('button', { name: mobile ? 'Obnovit' : 'Restore', exact: true }).click();
-  await page.locator('codex-package-storage [role=alert]').waitFor();
-  assert.equal(await page.locator('.settings-recovery-review').getByRole('button', { name: mobile ? 'Obnovit' : 'Restore', exact: true }).isDisabled(), true, 'stale package review blocks restoration before submission');
+  const stale = await mutation(page, confirm, '/api/recovery/restore');
+  assert.equal(stale.status(), 409, 'the transaction rejects a stale campaign review without needing package preparation');
   await panel(page).getByRole('alert').waitFor(); await refresh(page, mobile);
   const observer = await context.newPage(); await observer.goto(`/#/characters/${key}`); await observer.getByRole('heading', { name: 'Changed campaign', exact: true }).waitFor();
   await page.locator(`[data-point-id="${id}"] .settings-btn-edit`).click();
@@ -129,7 +129,7 @@ test('revert selects a reviewed automatic edit group', async t => {
   assert.equal(restored.collections.reduce((total: number, collection: FixtureCollection) => total + collection.records.length, 0), target.records);
 });
 
-for (const mobile of [false,true]) test(`automatic updates remove old files and explain offline recovery retention (${mobile ? 'phone' : 'desktop'})`,async t=>{
+for (const mobile of [false,true]) test(`latest-only updates preserve independent campaign and add-on recovery (${mobile ? 'Czech phone' : 'English desktop'})`,async t=>{
  const id=`automatic-${mobile ? 'phone' : 'desktop'}`,headers={'X-Codex-CSRF':csrf};
  const perms=[{id:'core.data.read',resources:['characters'],reason:'Link clues to visible characters.'}];
  const first=await installReviewedPackage(admin,csrf,id,graphPackage({id,mode:'integrated',version:'1.0.0'}),perms);
@@ -141,12 +141,35 @@ for (const mobile of [false,true]) test(`automatic updates remove old files and 
  const {page}=await open(t,mobile);
  await page.locator('[data-category=addons]').click();
  const storage=page.locator('codex-addon-manager codex-package-storage');
- await storage.getByText(mobile?'Staré soubory balíčků se po úspěšné aktualizaci automaticky odstraní.':'Old package files are removed automatically after a successful update.',{exact:false}).waitFor();
- await jsonResponse(await admin.post('/api/recovery',{headers,data:{}}));
+ await storage.getByText(mobile?'Po úspěšné aktualizaci a při spuštění serveru zůstane pouze vybrané sestavení.':'Only the selected build is kept after a successful update and at startup.',{exact:false}).waitFor();
+ const saved = await jsonResponse(await admin.post('/api/recovery',{headers,data:{}}));
+ const pointId = saved.points[0].id;
  await installReviewedPackage(admin,csrf,id,graphPackage({id,mode:'integrated',version:'3.0.0'}),perms);
  await page.reload(); await page.locator('[data-category=addons]').click();
- await storage.locator('summary').filter({hasText:mobile?'Předchozí sestavení':'Previous builds'}).click();
- await storage.locator('li').filter({hasText:id+' · 2.0.0'}).getByText(mobile?'Uloženo místně:':'Kept locally:',{exact:false}).waitFor();
- assert.equal((await stat(resolve(generationPath(second.state.activeGenerationId),'package.zip'))).isFile(),true);
+ await assert.rejects(stat(generationPath(second.state.activeGenerationId)),{code:'ENOENT'});
+ const latestInventory=await jsonResponse(await admin.get(`/api/admin/addons/${id}`)); assert.equal(latestInventory.generations.length,1);
+ await page.locator('[data-category=backup]').click();
+ await page.locator(`[data-point-id="${pointId}"] .settings-btn-edit`).click();
+ const confirm = page.locator('.settings-recovery-review').getByRole('button',{name:mobile?'Obnovit':'Restore',exact:true});
+ assert.equal(await confirm.isEnabled(),true,'obsolete add-on cannot block campaign recovery');
+ assert.equal(await page.locator('codex-recovery-settings codex-package-storage').count(),0);
+ await page.locator('.settings-recovery-review').screenshot({path:resolve(output,`independent-campaign-${mobile?'phone-cs':'desktop-en'}.png`)});
+ const restored = await mutation(page,()=>confirm.click(),'/api/recovery/restore');
+ assert.equal(restored.request().postDataJSON().scope,'campaign'); await jsonResponse(restored);
+ const fresh=await jsonResponse(await admin.post('/api/recovery',{headers,data:{}})); const freshId=fresh.points[0].id;
+ await refresh(page,mobile);
+ const selector=panel(page).getByRole('combobox',{name:mobile?'Obnovovaná data':'Recovery data'});
+ await selector.selectOption(`addon:${id}`);
+ assert.equal(await page.locator(`[data-point-id="${pointId}"]`).count(),0,'retired add-on context is not offered');
+ await page.locator(`[data-point-id="${freshId}"] .settings-btn-edit`).click();
+ await page.locator('.settings-recovery-review').getByText(`${mobile?'Doplněk':'Add-on'}: ${id}`,{exact:true}).waitFor();
+ const addonRestored=await mutation(page,()=>confirm.click(),'/api/recovery/restore');
+ assert.equal(addonRestored.request().postDataJSON().scope,'addon'); assert.equal(addonRestored.request().postDataJSON().addonId,id); await jsonResponse(addonRestored);
+ await page.locator(`[data-point-id="${freshId}"] .settings-btn-del`).click();
+ const deleted=await mutation(page,()=>page.locator('.settings-recovery-review').getByRole('button',{name:mobile?'Smazat':'Delete',exact:true}).click(),'/api/recovery/delete');
+ assert.equal(deleted.request().postDataJSON().scope,'addon'); await jsonResponse(deleted);
+ await selector.selectOption('campaign'); await page.locator(`[data-point-id="${freshId}"]`).waitFor();
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await panel(page).screenshot({path:resolve(output,`independent-recovery-${mobile?'phone-cs':'desktop-en'}.png`)});
  const backup=await admin.get('/api/backup');assert.equal(backup.status(),200);assert.equal((await backup.body()).subarray(0,2).toString(),'PK');
 });

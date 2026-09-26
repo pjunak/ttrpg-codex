@@ -247,7 +247,7 @@ func TestAutomaticRetentionLeavesFailedAndCancelledUpdatesUntouched(t *testing.T
 	dir := filepath.Join(t.TempDir(), "addons")
 	factory := &fakeRuntimeFactory{failVersions: map[string]error{"2.0.0": errors.New("failed startup")}}
 	manager, _ := testManager(t, db, dir, factory)
-	if err := manager.ConfigurePackageRetention(ctx, true, nil); err != nil {
+	if err := manager.ConfigureLatestPackageRetention(ctx, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	old := stageServicePackage(t, manager, "engine-addon", "1.0.0", "3.1.0")

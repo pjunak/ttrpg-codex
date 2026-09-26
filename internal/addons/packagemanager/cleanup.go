@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/recoverystore"
 )
 
 var ErrCleanupPending = errors.New("approved package cleanup still has pending files")
@@ -20,9 +22,10 @@ var ErrCleanupPending = errors.New("approved package cleanup still has pending f
 // CleanupScope selects one exact package, or a bounded number of additional
 // inactive packages to retain per add-on, besides active/recovery protections.
 type CleanupScope struct {
-	AddonID      string `json:"addonId,omitempty"`
-	GenerationID string `json:"generationId,omitempty"`
-	KeepInactive *int   `json:"keepInactive,omitempty"`
+	AddonID              string `json:"addonId,omitempty"`
+	GenerationID         string `json:"generationId,omitempty"`
+	KeepInactive         *int   `json:"keepInactive,omitempty"`
+	DiscardAddonRecovery bool   `json:"discardAddonRecovery,omitempty"`
 }
 
 type CleanupGeneration struct {
@@ -101,7 +104,7 @@ func (manager *Manager) cleanupReviewLocked(ctx context.Context, tx *sql.Tx, sco
   g.generation_id=COALESCE((SELECT e.generation_id FROM addon_lifecycle_events e WHERE e.addon_id=g.addon_id AND e.kind='disabled' ORDER BY e.sequence DESC LIMIT 1),
     (SELECT newest.generation_id FROM addon_package_generations newest WHERE newest.addon_id=g.addon_id ORDER BY newest.installed_at DESC,newest.generation_id LIMIT 1))
   FROM addon_package_generations g JOIN addon_package_states s USING(addon_id)
-  WHERE NOT EXISTS(SELECT 1 FROM addon_package_files f WHERE f.addon_id=g.addon_id AND f.generation_id=g.generation_id AND f.status<>'local') AND (? = '' OR g.addon_id = ?) AND (? = '' OR g.generation_id = ?) ORDER BY g.addon_id, g.installed_at DESC, g.generation_id`, scope.AddonID, scope.AddonID, scope.GenerationID, scope.GenerationID)
+  WHERE (? OR NOT EXISTS(SELECT 1 FROM addon_package_files f WHERE f.addon_id=g.addon_id AND f.generation_id=g.generation_id AND f.status<>'local')) AND (? = '' OR g.addon_id = ?) AND (? = '' OR g.generation_id = ?) ORDER BY g.addon_id, g.installed_at DESC, g.generation_id`, scope.DiscardAddonRecovery, scope.AddonID, scope.AddonID, scope.GenerationID, scope.GenerationID)
 	if err != nil {
 		return CleanupReview{}, err
 	}
@@ -137,13 +140,21 @@ func (manager *Manager) cleanupReviewLocked(ctx context.Context, tx *sql.Tx, sco
 		if err := cleanupReferences(ctx, tx, &generation); err != nil {
 			return CleanupReview{}, err
 		}
+		var pendingReview bool
+		if scope.DiscardAddonRecovery {
+			if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM addon_activation_reviews WHERE addon_id=? AND generation_id=? AND status IN ('prepared','approved') AND expected_state_revision=?)`, generation.AddonID, generation.GenerationID, generation.StateRevision).Scan(&pendingReview); err != nil {
+				return CleanupReview{}, err
+			}
+		}
 		switch {
 		case generation.GenerationID == item.active:
 			generation.Protection = "active"
-		case len(generation.RecoveryPointIDs) > 0:
+		case len(generation.RecoveryPointIDs) > 0 && !scope.DiscardAddonRecovery:
 			generation.Protection = "recovery"
 		case lastInstalled:
 			generation.Protection = "last-installed"
+		case pendingReview:
+			generation.Protection = "review"
 		case scope.KeepInactive != nil && retained[generation.AddonID] < *scope.KeepInactive:
 			generation.Protection = "retention"
 			retained[generation.AddonID]++
@@ -225,20 +236,28 @@ func (manager *Manager) Cleanup(ctx context.Context, scope CleanupScope, reviewS
 	if !scope.valid() || !validGenerationID(reviewSHA256) {
 		return CleanupResult{}, ErrInvalidPackage
 	}
-	previous, complete, err := manager.store.cleanupReceipt(ctx, reviewSHA256)
-	if err == nil {
-		before, _ := json.Marshal(previous.Scope)
-		supplied, _ := json.Marshal(scope)
-		if string(before) != string(supplied) {
-			return CleanupResult{}, ErrReviewStale
+	return manager.cleanupLocked(ctx, scope, reviewSHA256)
+}
+
+// Only the configured automatic policy may omit a review hash. Its exact
+// inventory and context retirement are still journaled in the same transaction.
+func (manager *Manager) cleanupLocked(ctx context.Context, scope CleanupScope, reviewSHA256 string) (CleanupResult, error) {
+	if reviewSHA256 != "" {
+		previous, complete, err := manager.store.cleanupReceipt(ctx, reviewSHA256)
+		if err == nil {
+			before, _ := json.Marshal(previous.Scope)
+			supplied, _ := json.Marshal(scope)
+			if string(before) != string(supplied) {
+				return CleanupResult{}, ErrReviewStale
+			}
+			if complete {
+				return cleanupResult(previous, true), nil
+			}
+			return manager.finishCleanupLocked(ctx, previous)
 		}
-		if complete {
-			return cleanupResult(previous, true), nil
+		if !errors.Is(err, sql.ErrNoRows) {
+			return CleanupResult{}, err
 		}
-		return manager.finishCleanupLocked(ctx, previous)
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return CleanupResult{}, err
 	}
 	tx, err := manager.store.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -254,15 +273,19 @@ func (manager *Manager) Cleanup(ctx context.Context, scope CleanupScope, reviewS
 	if err != nil {
 		return CleanupResult{}, err
 	}
-	if review.ReviewSHA256 != reviewSHA256 {
+	if reviewSHA256 != "" && review.ReviewSHA256 != reviewSHA256 {
 		return CleanupResult{}, ErrReviewStale
 	}
 	if review.PendingCleanups != 0 {
 		return CleanupResult{}, ErrCleanupPending
 	}
 	if review.RemoveCount == 0 {
+		if reviewSHA256 == "" {
+			return CleanupResult{ContractVersion: "addon-package-cleanup-result.v1", Complete: true}, nil
+		}
 		return CleanupResult{}, ErrReviewBlocked
 	}
+	reviewSHA256 = review.ReviewSHA256
 	body, err := json.Marshal(review)
 	if err != nil {
 		return CleanupResult{}, err
@@ -275,6 +298,11 @@ func (manager *Manager) Cleanup(ctx context.Context, scope CleanupScope, reviewS
 		if !generation.Remove {
 			continue
 		}
+		if scope.DiscardAddonRecovery {
+			if err := recoverystore.RetireAddonContext(ctx, tx, generation.AddonID, generation.GenerationID); err != nil {
+				return CleanupResult{}, err
+			}
+		}
 		for _, table := range []string{"addon_activation_reviews", "addon_github_generations", "addon_package_generations"} {
 			if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE addon_id=? AND generation_id=?", generation.AddonID, generation.GenerationID); err != nil {
 				return CleanupResult{}, err
@@ -283,6 +311,11 @@ func (manager *Manager) Cleanup(ctx context.Context, scope CleanupScope, reviewS
 		affected[generation.AddonID] = true
 	}
 	for addonID := range affected {
+		// Latest-only retention preserves still-valid activation reviews. Their
+		// selected active package and permission diff have not changed.
+		if scope.DiscardAddonRecovery {
+			continue
+		}
 		if _, err := tx.ExecContext(ctx, `UPDATE addon_package_states SET revision=revision+1, updated_at=? WHERE addon_id=?`, manager.store.now().UTC().Format(time.RFC3339Nano), addonID); err != nil {
 			return CleanupResult{}, err
 		}
@@ -365,7 +398,7 @@ func validateCleanupReceipt(review CleanupReview, hash string) error {
 		if !g.Remove {
 			continue
 		}
-		if g.Protection != "" || len(g.RecoveryPointIDs) != 0 || review.Scope.AddonID != "" && review.Scope.AddonID != g.AddonID || review.Scope.GenerationID != "" && review.Scope.GenerationID != g.GenerationID {
+		if g.Protection != "" || len(g.RecoveryPointIDs) != 0 && !review.Scope.DiscardAddonRecovery || review.Scope.AddonID != "" && review.Scope.AddonID != g.AddonID || review.Scope.GenerationID != "" && review.Scope.GenerationID != g.GenerationID {
 			return ErrInvalidPackage
 		}
 		count++

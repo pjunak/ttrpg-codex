@@ -229,8 +229,9 @@ The snapshot is recovery evidence, not a `codex-backup.v2` archive or a one-clic
 restore. Keep a full backup before activating a package that can write new data.
 A reverse schema-only review is possible only when current values also validate
 against the older package. Otherwise recovery needs a separately reviewed
-conversion or a supervised full-backup restore. Campaign recovery points with
-incompatible schema identities remain blocked.
+conversion or a supervised full-backup restore. Only the affected add-on's
+recovery is blocked by incompatible schema identities; campaign recovery
+remains independent and preserves current add-on saves.
 
 ### Host administration boundary
 

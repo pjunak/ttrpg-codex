@@ -29,13 +29,16 @@ type Store struct {
 	Events Journal
 }
 type Point struct {
-	ID        int64  `json:"id"`
-	CreatedAt string `json:"createdAt"`
-	Reason    string `json:"reason"`
-	Bytes     int64  `json:"bytes"`
-	Records   int64  `json:"records"`
-	Documents int64  `json:"documents"`
-	Media     int64  `json:"media"`
+	ID                int64        `json:"id"`
+	CreatedAt         string       `json:"createdAt"`
+	Reason            string       `json:"reason"`
+	Bytes             int64        `json:"bytes"`
+	Records           int64        `json:"records"`
+	Documents         int64        `json:"documents"`
+	Media             int64        `json:"media"`
+	CampaignAvailable bool         `json:"campaignAvailable"`
+	CampaignMedia     int64        `json:"campaignMedia"`
+	Addons            []AddonPoint `json:"addons"`
 }
 type Listing struct {
 	ContractVersion string  `json:"contractVersion"`
@@ -43,6 +46,7 @@ type Listing struct {
 	Points          []Point `json:"points"`
 }
 type RestoreRequest struct {
+	Scope
 	ID               int64 `json:"id"`
 	Count            int   `json:"count"`
 	ExpectedRevision int64 `json:"expectedRevision"`
@@ -64,7 +68,7 @@ func (s *Store) List(ctx context.Context) (Listing, error) {
 		return Listing{}, err
 	}
 	defer tx.Rollback()
-	result := Listing{ContractVersion: "recovery-points.v1", Points: []Point{}}
+	result := Listing{ContractVersion: "recovery-points.v2", Points: []Point{}}
 	if err := tx.QueryRowContext(ctx, `SELECT revision FROM recovery_control WHERE singleton = 1`).Scan(&result.Revision); err != nil {
 		return Listing{}, err
 	}
@@ -88,6 +92,15 @@ func (s *Store) List(ctx context.Context) (Listing, error) {
 	}
 	if err := rows.Close(); err != nil {
 		return Listing{}, err
+	}
+	for i := range result.Points {
+		var image string
+		if err := tx.QueryRowContext(ctx, `SELECT image_json FROM recovery_points WHERE point_id=?`, result.Points[i].ID).Scan(&image); err != nil {
+			return Listing{}, err
+		}
+		if err := listContexts(ctx, tx, image, &result.Points[i]); err != nil {
+			return Listing{}, err
+		}
 	}
 	return result, tx.Commit()
 }
@@ -135,7 +148,7 @@ func claim(ctx context.Context, tx *sql.Tx, revision int64) error {
 }
 
 func (s *Store) Restore(ctx context.Context, request RestoreRequest, actorID string) error {
-	if request.ExpectedRevision < 0 || actorID == "" || len(actorID) > 200 ||
+	if !request.Scope.valid() || request.ExpectedRevision < 0 || actorID == "" || len(actorID) > 200 ||
 		(request.ID > 0) == (request.Count > 0) || request.ID < 0 || request.Count < 0 || request.Count > 50 {
 		return ErrInvalid
 	}
@@ -151,7 +164,12 @@ func (s *Store) Restore(ctx context.Context, request RestoreRequest, actorID str
 	id := request.ID
 	// Revert counts automatic edit groups, not manual or pre-restore points.
 	if request.Count > 0 {
-		err = tx.QueryRowContext(ctx, `SELECT point_id, image_json FROM recovery_points WHERE reason = 'save' ORDER BY point_id DESC LIMIT 1 OFFSET ?`, request.Count-1).Scan(&id, &image)
+		err = tx.QueryRowContext(ctx, `SELECT point_id, image_json FROM recovery_points WHERE reason = 'save' AND
+ CASE WHEN @scope = 'addon' THEN EXISTS(SELECT 1 FROM json_each(image_json, '$.packages') WHERE value ->> 'addon_id' = @addon)
+ OR EXISTS(SELECT 1 FROM json_each(image_json, '$.sets') WHERE value ->> 'addon_id' = @addon)
+ OR EXISTS(SELECT 1 FROM json_each(image_json, '$.blobs') j JOIN blobs b ON b.blob_id = j.value ->> 'blob_id' WHERE b.owner_kind = 'addon' AND b.owner_id = @addon)
+ ELSE COALESCE(json_extract(image_json, '$.campaignAvailable'), 1) END
+ ORDER BY point_id DESC LIMIT 1 OFFSET @offset`, sql.Named("scope", request.Scope.Scope), sql.Named("addon", request.AddonID), sql.Named("offset", request.Count-1)).Scan(&id, &image)
 	} else {
 		err = tx.QueryRowContext(ctx, `SELECT image_json FROM recovery_points WHERE point_id = ?`, id).Scan(&image)
 	}
@@ -161,22 +179,22 @@ func (s *Store) Restore(ctx context.Context, request RestoreRequest, actorID str
 	if err != nil {
 		return err
 	}
-	var compatible bool
-	if err := tx.QueryRowContext(ctx, `SELECT json_extract(?, '$.version') = 1 AND
-        json_extract(?, '$.packages') = json_extract(image_json, '$.packages') FROM recovery_image`, image, image).Scan(&compatible); err != nil {
+	var validImage bool
+	if err := tx.QueryRowContext(ctx, `SELECT json_extract(?, '$.version') = 1`, image).Scan(&validImage); err != nil {
 		return err
 	}
-	if !compatible {
+	if !validImage {
 		return ErrCompatibility
 	}
-	// Dataset ownership must still describe the same schema. Missing sets can
-	// be recreated because the exact active package generations also match.
-	if err := tx.QueryRowContext(ctx, `SELECT NOT EXISTS (
-        SELECT 1 FROM json_each(?, '$.sets') AS old JOIN addon_data_sets AS live
-        ON live.addon_id = old.value ->> 'addon_id' AND live.data_kind = old.value ->> 'data_kind' AND live.data_id = old.value ->> 'data_id'
-        WHERE live.schema_version IS NOT old.value ->> 'schema_version' OR live.schema_sha256 IS NOT old.value ->> 'schema_sha256'
-            OR live.target_collection IS NOT old.value ->> 'target_collection' OR live.keyed IS NOT old.value ->> 'keyed'
-    )`, image).Scan(&compatible); err != nil {
+	exists, err := contextExists(ctx, tx, image, request.Scope)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrNotFound
+	}
+	compatible, err := compatibleContext(ctx, tx, image, request.Scope)
+	if err != nil {
 		return err
 	}
 	if !compatible {
@@ -191,16 +209,29 @@ func (s *Store) Restore(ctx context.Context, request RestoreRequest, actorID str
 	if err != nil {
 		return err
 	}
-	for index, statement := range restoreStatements {
-		if _, err := tx.ExecContext(ctx, statement, sql.Named("image", image)); err != nil {
+	var statements []string
+	if request.Scope.Scope != "addon" {
+		statements = append(statements, campaignRestoreStatements...)
+	}
+	if request.Scope.Scope != "campaign" {
+		statements = append(statements, addonRestoreStatements...)
+	}
+	statements = append(statements, blobRestoreStatement)
+	if request.Scope.Scope != "addon" {
+		statements = append(statements, campaignMediaRestoreStatements...)
+	}
+	for index, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement, sql.Named("image", image), sql.Named("addon", request.AddonID), sql.Named("scope", request.Scope.Scope)); err != nil {
 			return fmt.Errorf("restore campaign step %d: %w", index, err)
 		}
 	}
-	if err := addondatastore.RetainRecovery(ctx, tx, actorID, fmt.Sprintf("recovery-%d", safetyID)); err != nil {
-		return err
+	if request.Scope.Scope != "campaign" {
+		if err := addondatastore.RetainRecovery(ctx, tx, actorID, fmt.Sprintf("recovery-%d", safetyID), request.AddonID); err != nil {
+			return err
+		}
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO recovery_restores(point_id, safety_point_id, actor_id, occurred_at)
-        VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`, id, safetyID, actorID); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO recovery_restores(point_id, safety_point_id, actor_id, occurred_at, scope, addon_id)
+        VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?, ?)`, id, safetyID, actorID, request.Scope.Scope, request.AddonID); err != nil {
 		return err
 	}
 	var revision int64

@@ -3,8 +3,8 @@ import { parseRecoveryListing } from "../src/core/recovery.js";
 import { parseCampaignRestored } from "../src/core/event-stream.js";
 
 describe("campaign recovery boundaries", () => {
-  const point = { id: 2, createdAt: "2026-09-08T12:00:00.000Z", reason: "manual", bytes: 512, records: 4, documents: 2, media: 1 };
-  const listing = { contractVersion: "recovery-points.v1", revision: 7, points: [point] };
+  const point = { id: 2, createdAt: "2026-09-08T12:00:00.000Z", reason: "manual", bytes: 512, records: 4, documents: 2, media: 1, campaignAvailable: true, campaignMedia: 1, addons: [] };
+  const listing = { contractVersion: "recovery-points.v2", revision: 7, points: [point] };
   it("accepts a bounded newest-first list with no campaign bodies", () => {
     expect(parseRecoveryListing(listing)).toEqual(listing);
     expect(parseRecoveryListing({ ...listing, revision: 0, points: [] }).points).toEqual([]);
@@ -15,5 +15,12 @@ describe("campaign recovery boundaries", () => {
     const message = (body: unknown) => Object.assign(new Event("campaign-restored"), { data: JSON.stringify(body), lastEventId: "9" });
     expect(parseCampaignRestored(message(value))).toEqual({ cause: "campaign-restored", cursor: 9 });
     for (const invalid of [{ ...value, metadata: { privateKey: "dm-secret" } }, { ...value, sequence: 8 }, { ...value, revision: "-1" }, { ...value, resourceId: "private" }]) expect(() => parseCampaignRestored(message(invalid))).toThrow();
+  });
+  it("keeps independent add-on summaries closed and uniquely identified", () => {
+    const addon = { addonId: "sheets", generationId: "a".repeat(64), documents: 1, media: 0, compatible: false };
+    const valid = { ...listing, points: [{ ...point, addons: [addon] }] };
+    expect(parseRecoveryListing(valid)).toEqual(valid);
+    for (const addons of [[addon, addon], [{ ...addon, body: { private: true } }], [{ ...addon, compatible: "yes" }], [{ ...addon, generationId: "latest" }], [{ ...addon, addonId: "../sheets" }]]) expect(() => parseRecoveryListing({ ...listing, points: [{ ...point, addons }] })).toThrow();
+    expect(() => parseRecoveryListing({ ...listing, contractVersion: "recovery-points.v1" })).toThrow();
   });
 });

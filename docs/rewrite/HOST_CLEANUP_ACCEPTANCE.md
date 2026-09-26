@@ -3288,21 +3288,16 @@ and Sheets 3.0.0. DM Tools' active build also declares version 3.0.0; its exact
 generation hash distinguishes the build. This is screenshot evidence, not a
 fresh authenticated inventory of the live site.
 
-The current implementation explains the retention: runtime recovery loads only
+The implementation before this fix explains the retention: runtime recovery loads only
 the selected active generations; reviewed cleanup protects every package named
 by a recovery point. Automatic file eviction also preserves recovery-required
 uploads without a durable release source. Inactive packages are not running
 alongside the current build. The screenshot alone does not establish that they
 cause a gameplay or add-on defect.
 
-The requested latest-version-only policy would also need to retire the recovery
-points that require superseded builds. Those points contain whole-campaign
-snapshots, including core records, rather than just add-on saves. That broader
-retention change was authorized, with the additional requirement that campaign
-and add-on recovery become independent. T16 remains open until that behavior
-is implemented and verified. This selection/UI repair alone leaves automatic
-deletion and recovery protection unchanged. Current campaign records and
-independent full backup ZIPs are outside the deletion scope.
+The owner authorized removal and required campaign recovery to remain independent
+of add-on recovery. The first repair, `18d7b5c`, fixes package selection and build
+identity; the September 27 continuation implements the new retention policy.
 
 A separate confirmed cleanup defect is repaired: when an add-on is disabled,
 the latest disable event identifies the protected package. A newer uploaded
@@ -3317,7 +3312,7 @@ details. English/Czech desktop/phone workflows retain recovery protection,
 stale-review rejection and exact lost-response retries. The phone capture was
 visually inspected, and the existing no-horizontal-overflow check passes.
 
-Host `npm run check` passes **42 tooling, 402 unit and 285 browser cases**, plus
+For the initial selection repair, host `npm run check` passes **42 tooling, 402 unit and 285 browser cases**, plus
 all Go tests/vet. The two real installed cleanup workflows run in that gate;
 181 unrelated optional companion cases are skipped. Focused cleanup tests also
 pass with `go test -race`; release readiness passes all **33 gates**.
@@ -3325,3 +3320,59 @@ pass with `go test -race`; release readiness passes all **33 gates**.
 The browser helper failed to start twice with a Windows sandbox ACL error, so
 no live Asurai cleanup was attempted. This repair is local; it does not claim
 a deployment or removal of the four historical builds.
+
+### Independent recovery and latest-only retention — September 27
+
+With automatic cleanup enabled, healthy startup and successful version changes
+now keep only the selected build. This includes upgrading from installations
+which already initialized the previous file-only policy. A deliberate version
+downgrade keeps the selected older version. Disabled selections and valid pending
+activation reviews are protected; failed/cancelled activation and incomplete
+cohort recovery do not trigger retirement.
+
+Cleanup retires each obsolete build's recovery context in the same transaction
+as its package metadata, then removes files through the existing confined,
+resumable cleanup journal. It preserves the campaign portion and every other
+add-on's portion of those snapshots. Current saves, character history, schema
+recovery evidence and independent backup archives stay intact. An injected
+metadata failure proves that context retirement rolls back before file deletion.
+
+Recovery Settings now chooses Campaign or one add-on. Each can be restored or
+deleted independently. Campaign restore never requires matching add-on packages;
+add-on restore checks only its own package/schema and linked record creation
+identities. Reusing a character ID cannot attach an older character sheet to the
+new record. Safety copies, optimistic revisions, private authorization and
+payload-free refresh events remain transactional. The legacy combined restore
+API rejects partially retired snapshots.
+
+The English/Czech controls use `UIControlsController`, native labeled selects,
+shared theme tokens, touch-sized actions and focus return. Real-host desktop and
+phone cases restore a campaign after package deletion, restore/delete an add-on
+context independently, preserve the campaign context, and download a complete
+ZIP. Phone review and list captures were visually inspected. Storage regressions
+also cover isolated values/revisions/media, missing providers, disabled builds,
+pending review validity, stale requests and rollback. Add-on recovery also scopes
+retained-history writes to that owner, so another add-on's history gap cannot
+be filled or block recovery. Operators needing historical
+add-on contexts can explicitly select `CODEX_ADDON_KEEP_RECOVERY_PACKAGES=true`;
+the default retires them with superseded builds.
+
+The initial full installed run was invalidated locally by rebuilding the shared
+frontend while fixture hosts were open. Those hosts cache `index.html`; the old
+bundle URL returned HTTP 404 after Vite replaced the assets. That run was stopped
+and is not acceptance evidence. The replacement run holds the final build
+unchanged; no product deadline, assertion or skip policy was weakened.
+
+Final host gates pass **42 tooling, 403 unit and 285 browser cases**, plus all
+Go tests and vet. The standard host gate skips 181 optional companion cases;
+the final full installed suite passes **254/254 cases with zero skips** using
+all four inspected ZIPs and the unchanged companion commits listed above.
+Its provenance records host base `18d7b5c` plus this recovery/retention patch,
+with all companion source trees clean. The final build stayed unchanged
+throughout that run.
+Race checks pass for recovery, add-on storage, package lifecycle and HTTP.
+All four companion repositories' own gates pass without source changes, and
+release readiness passes **33 gates**. The staged patch passes Gitleaks 8.30.1.
+
+T16-RETENTION is implemented locally. T16 now tracks only live rollout and Asurai
+verification; no production cleanup or deployment is claimed here.

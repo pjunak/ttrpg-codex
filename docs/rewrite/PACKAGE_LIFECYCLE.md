@@ -413,36 +413,54 @@ DM/CSRF boundaries, revoked access, retained records and incompatible reinstall.
 
 ## Automatic package file retention
 
-The host defaults to `CODEX_ADDON_AUTO_CLEANUP=true`. A successful activation
-removes superseded ZIPs and extracted files for that add-on after the new
-runtime and any restarted dependency cohort have recovered. The selected build
-keeps its ZIP as well as its extracted runtime: startup re-verifies both.
+The host defaults to `CODEX_ADDON_AUTO_CLEANUP=true` and
+`CODEX_ADDON_KEEP_RECOVERY_PACKAGES=false`: retain the selected build only.
+A successful activation removes superseded ZIPs, extracted files, generation
+metadata and old activation reviews after the new runtime and any restarted
+dependency cohort have recovered. The selected build keeps its ZIP and extracted
+runtime: startup re-verifies both. "Selected" includes a deliberately chosen
+older semantic version; the host never substitutes the numerically newest one.
 Staging, cancelled requests, failed activation and degraded cohort recovery
 never trigger cleanup. A valid pending activation review also protects its
 files. A disabled add-on keeps the build recorded by its latest disable event,
 so equal timestamps or a newer staged download cannot change the retained build.
 
-On the first healthy startup with this policy enabled, the host applies it to
-eligible existing installations. Completed initialization is recorded, so
-ordinary restarts do not discard intentionally re-downloaded recovery files.
+On every healthy startup, the host applies latest-only retention to existing
+installations, including ones initialized under the previous retention policy.
 Set the variable to `false` to stop new automatic removals; already journaled
 removals still finish. This setting does not download or activate updates.
 
-Migration `0018_addon_package_files.sql` separates package identity from file
-residency (`local`, `pending`, `remote`). Automatic cleanup keeps generation
-metadata, manifests, exact archive hashes, provenance, recovery points and
-campaign history. The local package list excludes removed files. Previous
-builds appear in a separate bounded history panel, with exact download/review
-actions and an explicit explanation for retained offline copies.
+Old packages no longer pin whole campaign snapshots. In the same SQLite
+transaction as metadata retirement, cleanup removes only the affected add-on's
+documents, dataset definitions, file references and package reference from
+snapshots requiring that exact build. Core campaign data and every other
+add-on's recovery context remain. Current campaign records, current add-on
+saves, retained character history, schema-upgrade evidence and full backup ZIPs
+are untouched. A partial snapshot cannot be restored through the old combined
+API; the independently scoped campaign restore stays available.
 
-If a recovery point needs a package with no recorded release source, its local
-copy is preserved. This includes ZIP-only uploads and expiring Actions artifacts.
-Removing that recovery point is a separate deliberate action;
-a later successful update can then clean the unreferenced files. A package with
-a recorded release source can be removed despite recovery references. Retained
-source metadata is not a guarantee of remote availability: deleted releases, expired
-Actions artifacts, changed bytes and unavailable credentials require the
-matching original ZIP. No historical request substitutes the newest release.
+The exact cleanup inventory is journaled before any file removal. Automatic
+retention includes previously evicted generations' metadata. Valid pending
+activation reviews remain usable: pruning unrelated obsolete builds does not
+advance their selected-package revision. A disabled add-on's selected build is
+also protected. Cleanup receipts use the explicit `discardAddonRecovery` scope;
+the default manual review below retains its recovery protection.
+
+Operators who need historical add-on recovery can set
+`CODEX_ADDON_KEEP_RECOVERY_PACKAGES=true`. This selects the previous recoverable
+file policy: migration 0018 tracks residency (`local`, `pending`, `remote`),
+while metadata, exact hashes, provenance and recovery contexts remain. A
+recovery-required upload without a durable release source stays local; a build
+with a recorded release source can be downloaded later. This includes the
+offline-copy protection for ZIP uploads and expiring Actions artifacts. Only
+the first healthy startup performs initial eviction under this optional policy,
+so manually re-downloaded history survives subsequent restarts.
+Changing the policy does not recreate contexts already retired; those require
+an independent backup containing the earlier state.
+
+Historical metadata is not a guarantee of remote availability: deleted releases,
+expired artifacts, changed bytes or unavailable credentials require the matching
+original ZIP. No historical request substitutes the newest release.
 
 Historical downloads use the recorded repository and asset/artifact API path,
 server-side repository credentials, existing redirect/download limits, and
@@ -451,14 +469,12 @@ provenance without an asset path uses bounded historical metadata lookup by its
 original candidate fingerprint. Downloading stages an inert package; approval,
 permissions, schema and dependency checks still use ordinary activation review.
 
-Backup & recovery lists every exact package required by a selected point.
-**Prepare required packages** stages the missing set before exposing review
-links. Preparation can partially stage inert files if a later download fails;
-it never restores campaign data or approves packages. Review and activate each
-required build in Add-ons, then return and refresh the recovery review.
-Reinstalling a previously uninstalled package also requires a refreshed review.
-The existing recovery transaction still checks the entire current package set
-and saved data definitions, including any extra active add-ons.
+Backup & recovery offers Campaign or one add-on as separate scopes. Campaign
+recovery never requires package preparation. For an incompatible add-on context,
+restore its exact package through Add-ons and refresh the recovery list; linked
+campaign records must also match. Other add-ons need not match that snapshot.
+The storage review/prepare endpoints still support historical tooling: preparation
+can stage inert files but never approves packages or restores campaign data.
 
 File eviction is journaled before deletion under the lifecycle coordinator.
 Deletion uses the confined package root, rejects symbolic-link paths, bounds
@@ -473,16 +489,16 @@ also require CSRF authority and closed JSON bodies.
 
 | Method and path | Body / result |
 |---|---|
-| `GET /api/admin/addon-package-storage` | `addon-package-storage.v1`: policy, pending count and up to 512 previous/retained builds |
+| `GET /api/admin/addon-package-storage` | `addon-package-storage.v1`: `automatic` and `latestOnly` policy flags, pending count and up to 512 previous/retained builds |
 | `POST /api/admin/addon-package-storage/restore` | `{addonId, generationId}`; stages one exact generation |
 | `POST /api/admin/addon-package-storage/review` | `{pointId, expectedRevision}`; required package availability |
 | `POST /api/admin/addon-package-storage/prepare` | Same reviewed identity; stages the required set without activation |
-| `POST /api/admin/addon-package-storage/retry` | `{}`; finishes journaled file removals |
+| `POST /api/admin/addon-package-storage/retry` | `{}`; finishes journaled removals and retries the enabled latest-only policy after checking active runtimes |
 
 Full backups materialize required historical files into isolated staging and
 verify them before publication; see [backup package completeness](BACKUP_RESTORE.md).
 Existing backup ZIPs remain unchanged. Regression coverage includes
-`package_files_test.go`, `history_test.go`, `addon_storage_test.go`, strict
+`latest_retention_test.go`, `package_files_test.go`, `history_test.go`, `addon_storage_test.go`, strict
 client/route tests, and desktop/phone installed-update and historical-review
 browser scenarios.
 
@@ -495,21 +511,23 @@ and effective DM with CSRF authority can review, apply or retry cleanup.
 
 A count selection retains zero to five additional inactive packages per add-on,
 newest installation first (generation hash breaks timestamp ties). Active
-packages, every generation named by a campaign recovery point, and the selected
+packages, every generation named by an add-on recovery context, and the selected
 package of a still-installed but disabled add-on are protected independently of
 that count. The latest disable event identifies that selection; a newer staged
 upload does not replace it. An add-on that has never been enabled retains its
 newest staged package. Uninstall first to remove the last installed package. Recovery-point
-IDs are shown; managing those points is a separate explicit action under
+IDs are shown; deleting only that add-on's context is a separate explicit action under
 Backup & recovery. This is a one-time reviewed retention rule, not automatic
 expiry. A future installation requires another review.
 
 Saved inactive packages are not running alongside the active build. Two builds
 can have the same declared version but different contents; cleanup shows the
 short build ID beside each version and the full hash under Package details.
-Recovery points contain whole-campaign snapshots, including core records and
-add-on documents. Removing a required point to release its packages therefore
-also removes that historical campaign restore option, not just an add-on save.
+Recovery snapshots contain independent campaign and add-on contexts. Selecting
+the add-on in Backup & recovery and deleting its context releases the package
+reference while preserving the historical campaign restore option. Default
+latest-only retention performs that retirement automatically for superseded
+builds; it never deletes campaign context to free a package.
 
 The review lists exact generation hashes, eligibility, file counts, byte sizes,
 activation-review counts and retained character-history counts. Its fingerprint

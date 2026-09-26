@@ -99,7 +99,7 @@ export class CodexPackageStorage extends LitElement {
       ${storage ? html`
         ${this.pointId ? html`<h4>${t("storage.required")}</h4><p>${t("storage.prepareHelp")}</p>${rows}
           ${missing ? html`<button ?disabled=${blocked || packages.some(item => !item.available && !item.downloadable)} @click=${() => void this.#prepare()}>${t("storage.prepare")}</button>` : nothing}
-        ` : html`<p class="settings-hint">${t(storage.automatic ? "storage.automatic" : "storage.manual")}</p>
+        ` : html`<p class="settings-hint">${t(storage.automatic ? storage.latestOnly ? "storage.latestOnly" : "storage.automatic" : "storage.manual")}</p>
           ${packages.length ? html`<details class="addon-package-history"><summary>${t("storage.history")}</summary><p>${t("storage.historyHelp")}</p>${rows}</details>` : nothing}`}
         ${storage.pending ? html`<p role="status">${t("storage.pending")}</p><button ?disabled=${blocked} @click=${() => void this.#retry()}>${t("storage.retry")}</button>` : nothing}
       ` : nothing}`;

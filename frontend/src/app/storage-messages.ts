@@ -1,4 +1,5 @@
 export const storageEn = {
+ "storage.latestOnly": "Only the selected build is kept after a successful update and at startup. Superseded packages and their add-on recovery data are deleted. Campaign recovery points, current saves and existing backup ZIPs stay intact. Packages awaiting activation review are kept until that review is resolved.",
  "storage.preserved": "Kept locally: a recovery point needs this build and no durable release source is recorded.",
  "storage.automatic": "Old package files are removed automatically after a successful update. The current build and recovery records are kept.",
  "storage.manual": "Automatic package cleanup is disabled by the server configuration.",
@@ -20,6 +21,7 @@ export const storageEn = {
  "storage.prepareFirst": "Prepare or upload the exact package before reviewing its activation.",
 } as const;
 export const storageCs: Record<keyof typeof storageEn, string> = {
+ "storage.latestOnly": "Po úspěšné aktualizaci a při spuštění serveru zůstane pouze vybrané sestavení. Nahrazené balíčky a jejich data obnovy doplňků se odstraní. Body obnovy kampaně, současná uložená data a existující zálohy ZIP zůstanou zachovány. Balíčky čekající na kontrolu aktivace zůstanou do vyřešení kontroly.",
  "storage.preserved": "Uloženo místně: bod obnovy vyžaduje toto sestavení a trvalý zdroj vydání není zaznamenán.",
  "storage.automatic": "Staré soubory balíčků se po úspěšné aktualizaci automaticky odstraní. Aktuální sestavení a záznamy obnovy zůstanou zachovány.",
  "storage.manual": "Automatické čištění balíčků je vypnuté v konfiguraci serveru.",

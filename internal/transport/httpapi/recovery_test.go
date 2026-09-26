@@ -18,10 +18,13 @@ type recordingRecovery struct {
 
 func (r *recordingRecovery) List(context.Context) (recoverystore.Listing, error) {
 	r.calls++
-	return recoverystore.Listing{ContractVersion: "recovery-points.v1", Points: []recoverystore.Point{}}, r.err
+	return recoverystore.Listing{ContractVersion: "recovery-points.v2", Points: []recoverystore.Point{}}, r.err
 }
-func (r *recordingRecovery) Create(context.Context) error               { r.calls++; return r.err }
-func (r *recordingRecovery) Delete(context.Context, int64, int64) error { r.calls++; return r.err }
+func (r *recordingRecovery) Create(context.Context) error { r.calls++; return r.err }
+func (r *recordingRecovery) DeleteContext(context.Context, recoverystore.DeleteRequest) error {
+	r.calls++
+	return r.err
+}
 func (r *recordingRecovery) Restore(_ context.Context, _ recoverystore.RestoreRequest, actor string) error {
 	r.calls++
 	r.actor = actor

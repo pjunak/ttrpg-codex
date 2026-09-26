@@ -32,6 +32,7 @@ type PackageReference struct {
 type PackageStorage struct {
 	ContractVersion string             `json:"contractVersion"`
 	Automatic       bool               `json:"automatic"`
+	LatestOnly      bool               `json:"latestOnly"`
 	Pending         int                `json:"pending"`
 	Packages        []PackageReference `json:"packages"`
 }
@@ -117,9 +118,20 @@ func packageLocators(ctx context.Context, db *sql.DB, addonID, generationID stri
 // ConfigurePackageRetention is called after healthy startup recovery and before
 // serving requests. Existing superseded files get the same policy as later updates.
 func (manager *Manager) ConfigurePackageRetention(ctx context.Context, enabled bool, fetch PackageFetcher) error {
+	return manager.configurePackageRetention(ctx, enabled, false, fetch)
+}
+
+// ConfigureLatestPackageRetention retires obsolete packages and only their
+// add-on recovery contexts. Campaign snapshots and current saves stay intact.
+func (manager *Manager) ConfigureLatestPackageRetention(ctx context.Context, enabled bool, fetch PackageFetcher) error {
+	return manager.configurePackageRetention(ctx, enabled, true, fetch)
+}
+
+func (manager *Manager) configurePackageRetention(ctx context.Context, enabled, latestOnly bool, fetch PackageFetcher) error {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 	manager.automaticCleanup = enabled
+	manager.latestPackageOnly = latestOnly
 	manager.packageFetcher = fetch
 	if err := manager.retryPackageEvictionsLocked(ctx); err != nil {
 		return err
@@ -131,7 +143,7 @@ func (manager *Manager) ConfigurePackageRetention(ctx context.Context, enabled b
 	if err := manager.store.db.QueryRowContext(ctx, `SELECT initial_cleanup_complete FROM addon_package_retention WHERE singleton=1`).Scan(&initialized); err != nil {
 		return err
 	}
-	if initialized {
+	if initialized && !latestOnly {
 		return nil
 	}
 	states, err := manager.store.activeStates(ctx)
@@ -176,14 +188,29 @@ func (manager *Manager) PackageStorage(ctx context.Context, pointID int64, expec
 	if err != nil {
 		return PackageStorage{}, err
 	}
-	result := PackageStorage{ContractVersion: "addon-package-storage.v1", Automatic: manager.automaticCleanup, Packages: refs}
-	err = manager.store.db.QueryRowContext(ctx, `SELECT count(*) FROM addon_package_files WHERE status='pending'`).Scan(&result.Pending)
+	result := PackageStorage{ContractVersion: "addon-package-storage.v1", Automatic: manager.automaticCleanup, LatestOnly: manager.latestPackageOnly, Packages: refs}
+	err = manager.store.db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM addon_package_files WHERE status='pending') + (SELECT count(*) FROM addon_package_cleanups WHERE status='pending')`).Scan(&result.Pending)
 	return result, err
 }
 
 func (manager *Manager) evictSupersededLocked(ctx context.Context, addonID string) error {
 	if !manager.automaticCleanup {
 		return nil
+	}
+	if manager.latestPackageOnly {
+		pending, err := manager.retryCleanupsLocked(ctx)
+		if err != nil {
+			return err
+		}
+		if !pending.Complete {
+			return ErrCleanupPending
+		}
+		keep := 0
+		result, err := manager.cleanupLocked(ctx, CleanupScope{AddonID: addonID, KeepInactive: &keep, DiscardAddonRecovery: true}, "")
+		if err == nil && !result.Complete {
+			return ErrCleanupPending
+		}
+		return err
 	}
 	tx, err := manager.store.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -261,7 +288,37 @@ func (manager *Manager) retryPackageEvictionsLocked(ctx context.Context) error {
 func (manager *Manager) RetryPackageEvictions(ctx context.Context) error {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
-	return manager.retryPackageEvictionsLocked(ctx)
+	if err := manager.retryPackageEvictionsLocked(ctx); err != nil {
+		return err
+	}
+	result, err := manager.retryCleanupsLocked(ctx)
+	if err != nil {
+		return err
+	}
+	if !result.Complete {
+		return ErrCleanupPending
+	}
+	if manager.latestPackageOnly && manager.automaticCleanup {
+		states, err := manager.store.activeStates(ctx)
+		if err != nil {
+			return err
+		}
+		for _, state := range states {
+			if active, ok := manager.runtimes[state.AddonID]; !ok || active.generation.GenerationID != state.ActiveGenerationID {
+				return ErrCleanupPending
+			}
+		}
+		ids, err := manager.store.installedAddonIDs(ctx)
+		if err != nil {
+			return err
+		}
+		for _, id := range ids {
+			if err := manager.evictSupersededLocked(ctx, id); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (manager *Manager) fetchPackage(ctx context.Context, ref PackageReference, destination string) error {

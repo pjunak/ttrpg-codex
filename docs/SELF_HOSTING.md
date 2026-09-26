@@ -29,7 +29,8 @@ Copy `.env.example` to `.env` and set:
 | `CODEX_SECURE_COOKIES` | Set `true` behind HTTPS |
 | `CODEX_LOCALE` | Locale reported to add-on workers; default `en` |
 | `CODEX_TIME_ZONE` | IANA time zone reported to workers |
-| `CODEX_ADDON_AUTO_CLEANUP` | `true` by default; remove superseded add-on files after healthy activation. Set `false` for manual retention. See [package retention](rewrite/PACKAGE_LIFECYCLE.md#automatic-package-file-retention). |
+| `CODEX_ADDON_AUTO_CLEANUP` | `true` by default; retain only the selected add-on build after healthy startup and activation. Superseded packages and their add-on recovery contexts are removed; campaign recovery and current saves remain. Set `false` for manual retention. See [package retention](rewrite/PACKAGE_LIFECYCLE.md#automatic-package-file-retention). |
+| `CODEX_ADDON_KEEP_RECOVERY_PACKAGES` | `false` by default. Set `true` to retain historical add-on recovery contexts and package metadata, evicting only recoverable files. Has no effect while automatic cleanup is disabled. |
 
 The host has no default credential. Password bootstrap values initialize saved password
 hashes once and are not imported from v1 backups. Later starts use the saved
@@ -230,8 +231,11 @@ restore/delete review, revert-last-N, and full ZIP download. Points cover
 campaign records, add-on documents and uploaded media; they preserve current
 passwords and installed add-ons. Each restore keeps a safety copy. Points live
 in the same database and retain only the newest 50, so keep an independent ZIP
-for recovery from disk loss. Restore a point with the same active add-on versions;
-use full offline restore when recovering packages or the entire host.
+for recovery from disk loss. Choose Campaign or one add-on in the recovery panel.
+Campaign restore works without matching add-ons and leaves their current saves
+untouched. Add-on restore requires its own matching build, schema and linked
+record identities. Deleting its recovery context leaves the campaign snapshot
+available. Use full offline restore when recovering packages or the entire host.
 See the [recovery contract](rewrite/BACKUP_RESTORE.md#campaign-recovery-points).
 
 ### Verify and restore a full backup

@@ -310,7 +310,16 @@ func composeHost(
 		}
 		retentionEnabled = configured == "true"
 	}
-	if err := addons.ConfigurePackageRetention(ctx, retentionEnabled, githubAddons.FetchPackage); err != nil {
+	keepRecoveryPackages := os.Getenv("CODEX_ADDON_KEEP_RECOVERY_PACKAGES")
+	if keepRecoveryPackages != "" && keepRecoveryPackages != "true" && keepRecoveryPackages != "false" {
+		_ = addons.Shutdown(context.Background())
+		return nil, fmt.Errorf("CODEX_ADDON_KEEP_RECOVERY_PACKAGES must be true or false")
+	}
+	configureRetention := addons.ConfigureLatestPackageRetention
+	if keepRecoveryPackages == "true" {
+		configureRetention = addons.ConfigurePackageRetention
+	}
+	if err := configureRetention(ctx, retentionEnabled, githubAddons.FetchPackage); err != nil {
 		logger.Warn("automatic package cleanup will retry", "error", err)
 	}
 	backupArchives.MaterializePackages = func(ctx context.Context, databasePath, stageRoot string) error {

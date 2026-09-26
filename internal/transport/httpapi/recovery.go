@@ -12,7 +12,7 @@ import (
 type RecoveryPoints interface {
 	List(context.Context) (recoverystore.Listing, error)
 	Create(context.Context) error
-	Delete(context.Context, int64, int64) error
+	DeleteContext(context.Context, recoverystore.DeleteRequest) error
 	Restore(context.Context, recoverystore.RestoreRequest, string) error
 }
 
@@ -67,14 +67,11 @@ func (s *server) recoveryDelete(w http.ResponseWriter, r *http.Request) {
 	if !s.authorizeRecovery(w, r) {
 		return
 	}
-	var request struct {
-		ID               int64 `json:"id"`
-		ExpectedRevision int64 `json:"expectedRevision"`
-	}
+	var request recoverystore.DeleteRequest
 	if !decodeBoundedJSON(w, r, &request, 1024, "recovery") {
 		return
 	}
-	if err := s.recoveryPoints.Delete(r.Context(), request.ID, request.ExpectedRevision); err != nil {
+	if err := s.recoveryPoints.DeleteContext(r.Context(), request); err != nil {
 		s.recoveryError(w, err)
 		return
 	}
@@ -100,7 +97,7 @@ func (s *server) recoveryError(w http.ResponseWriter, err error) {
 	case errors.Is(err, recoverystore.ErrConflict):
 		writeAPIError(w, http.StatusConflict, "RECOVERY_CONFLICT", "campaign or recovery points changed; refresh and review again")
 	case errors.Is(err, recoverystore.ErrCompatibility):
-		writeAPIError(w, http.StatusConflict, "RECOVERY_COMPATIBILITY", "restore requires the same active add-on versions and data definitions")
+		writeAPIError(w, http.StatusConflict, "RECOVERY_COMPATIBILITY", "add-on recovery requires its matching active package, schema and linked campaign records; campaign recovery remains independent")
 	case errors.Is(err, recoverystore.ErrNotFound):
 		writeAPIError(w, http.StatusNotFound, "RECOVERY_NOT_FOUND", "recovery point is no longer available")
 	case errors.Is(err, recoverystore.ErrInvalid):

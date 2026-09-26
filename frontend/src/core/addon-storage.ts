@@ -4,14 +4,15 @@ import { parseInstalledGeneration, type InstalledGeneration } from "./addon-admi
 import { HostRequestError } from "./api.js";
 
 export interface StoredPackage { addonId: string; generationId: string; version: string; available: boolean; active: boolean; downloadable: boolean }
-export interface PackageStorage { contractVersion: "addon-package-storage.v1"; automatic: boolean; pending: number; packages: StoredPackage[] }
+export interface PackageStorage { contractVersion: "addon-package-storage.v1"; automatic: boolean; latestOnly?: boolean; pending: number; packages: StoredPackage[] }
 export class PackageStorageError extends HostRequestError { constructor(status: number, readonly code: string) { super(status, "Package storage"); } }
 const id = (value: unknown): value is string => typeof value === "string" && value.length <= 80 && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u.test(value);
 const hash = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
 const fail = (): never => { throw new BoundaryValidationError("Package storage", "invalid response"); };
 export function parsePackageStorage(value: unknown): PackageStorage {
-  if (!isRecord(value) || !hasOnlyKeys(value, new Set(["contractVersion", "automatic", "pending", "packages"])) ||
+  if (!isRecord(value) || !hasOnlyKeys(value, new Set(["contractVersion", "automatic", "latestOnly", "pending", "packages"])) ||
     value["contractVersion"] !== "addon-package-storage.v1" || typeof value["automatic"] !== "boolean" ||
+    value["latestOnly"] !== undefined && typeof value["latestOnly"] !== "boolean" ||
     !Number.isSafeInteger(value["pending"]) || Number(value["pending"]) < 0 || !Array.isArray(value["packages"]) || value["packages"].length > 512) return fail();
   const packages = value["packages"].map((item: unknown): StoredPackage => {
     if (!isRecord(item) || !hasOnlyKeys(item, new Set(["addonId", "generationId", "version", "available", "active", "downloadable"])) ||
@@ -20,7 +21,7 @@ export function parsePackageStorage(value: unknown): PackageStorage {
     return { addonId: item["addonId"], generationId: item["generationId"], version: item["version"], available: item["available"], active: item["active"], downloadable: item["downloadable"] };
   });
   if (new Set(packages.map(item => item.addonId + ":" + item.generationId)).size !== packages.length) return fail();
-  return { contractVersion: "addon-package-storage.v1", automatic: value["automatic"], pending: Number(value["pending"]), packages };
+  return { contractVersion: "addon-package-storage.v1", automatic: value["automatic"], ...(typeof value["latestOnly"] === "boolean" ? { latestOnly: value["latestOnly"] } : {}), pending: Number(value["pending"]), packages };
 }
 export class AddonStorageClient {
   constructor(readonly csrf: string, readonly signal: AbortSignal) {}

@@ -9,10 +9,10 @@ codex-recovery-settings { display: block; min-width: 0; }
 .settings-recovery-actions a { text-decoration: none; font: .8rem var(--font-ui); color: var(--accent-gold); }
 .settings-recovery-panel .settings-ledger-heading { flex-wrap: wrap; }
 .settings-recovery-panel .settings-ledger-heading > .settings-recovery-actions { display: flex; }
-.settings-recovery-panel button, .settings-recovery-panel .inline-create-btn { min-height: 2.3rem; padding: .5rem .7rem; border: 1px solid var(--chrome-field-border); border-radius: var(--radius); color: var(--text-light); background: var(--bg-raised); font: .75rem var(--font-ui); cursor: pointer; }
+.settings-recovery-panel .inline-create-btn { min-height: var(--ui-target); box-sizing: border-box; padding: .5rem .7rem; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); color: var(--ui-text); background: var(--ui-field); font: 1rem/1.4 var(--ui-font); cursor: pointer; }
 .settings-recovery-panel .inline-create-btn { display: inline-flex; align-items: center; }
-.settings-recovery-panel .settings-snapshot-row button { min-height: 26px; width: 28px; height: 26px; padding: 0; background: transparent; color: var(--text-muted); border-radius: 4px; }
-.settings-recovery-panel button:hover, .settings-recovery-panel .inline-create-btn:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
+.settings-recovery-panel .settings-snapshot-row button { min-height: var(--ui-target); width: var(--ui-target); padding: 0; background: transparent; }
+.settings-recovery-panel .inline-create-btn:hover { border-color: var(--ui-accent); color: var(--ui-accent); }
 .settings-recovery-panel .settings-btn-del:hover { color: var(--color-danger); }
 .settings-revert-row { display: flex; align-items: end; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; font: .8rem var(--font-ui); }
 .settings-revert-row label { display: grid; gap: .4rem; }
