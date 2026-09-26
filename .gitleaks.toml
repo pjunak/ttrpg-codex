@@ -12,3 +12,10 @@ id = "generic-api-key"
   regexTarget = "secret"
   paths = ['''^frontend[/\\]test[/\\]browser[/\\]installed-character-storage-fixture\.mts$''']
   regexes = ['''^inventory/dagger/move$''']
+
+  [[rules.allowlists]]
+  description = "Static placement-quantity focus selector in the installed placement test; not a credential"
+  condition = "AND"
+  regexTarget = "secret"
+  paths = ['''^frontend[/\\]test[/\\]browser[/\\]installed-character-placement-fixture\.mts$''']
+  regexes = ['''^inventory/armor/quantity$''']

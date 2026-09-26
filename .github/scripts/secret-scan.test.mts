@@ -10,9 +10,12 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const config = resolve(root, '.gitleaks.toml');
 const binary = process.env['GITLEAKS_BINARY'] || 'gitleaks';
-const fixture = 'frontend/test/browser/installed-character-storage-fixture.mts';
-const focus = ['inventory', 'dagger', 'move'].join('/');
-const selector = `const move = sheet.locator('[data-focus-key="${focus}"]');`;
+const selectors = [
+  { name: 'storage move', fixture: 'frontend/test/browser/installed-character-storage-fixture.mts',
+    focus: ['inventory', 'dagger', 'move'].join('/') },
+  { name: 'placement quantity', fixture: 'frontend/test/browser/installed-character-placement-fixture.mts',
+    focus: ['inventory', 'armor', 'quantity'].join('/') },
+];
 // This deterministic value exists only in disposable scanner fixtures.
 const synthetic = createHash('sha256').update('Codex scanner regression, never a credential').digest('hex');
 
@@ -40,24 +43,29 @@ function scan(path: string, source: string, useRepositoryConfig: boolean) {
   }
 }
 
-test('the production scanner still reproduces the original selector false positive', () => {
-  assert.deepEqual(scan(fixture, selector, false), ['generic-api-key']);
-});
+for (const { name, fixture, focus } of selectors) {
+  const selector = `const control = sheet.locator('[data-focus-key="${focus}"]');`;
 
-test('only the reviewed selector is allowed in its storage fixture', () => {
-  assert.deepEqual(scan(fixture, selector, true), []);
-});
+  test(`${name}: the production scanner reproduces the selector false positive`, () => {
+    assert.deepEqual(scan(fixture, selector, false), ['generic-api-key']);
+  });
 
-test('other generic credentials in the same file are still detected', () => {
-  assert.deepEqual(scan(fixture, selector + '\nconst api_key = "' + synthetic + '";', true), ['generic-api-key']);
-});
+  test(`${name}: only the reviewed selector is allowed in its fixture`, () => {
+    assert.deepEqual(scan(fixture, selector, true), []);
+  });
 
-test('the selector exception does not exempt a different path or value', () => {
-  assert.deepEqual(scan('frontend/src/credentials.mts', selector, true), ['generic-api-key']);
-  assert.deepEqual(scan(fixture, selector.replace(focus, focus + '/' + synthetic), true), ['generic-api-key']);
-});
+  test(`${name}: other generic credentials in the same file are still detected`, () => {
+    assert.deepEqual(scan(fixture, selector + '\nconst api_key = "' + synthetic + '";', true), ['generic-api-key']);
+  });
 
-test('provider-specific credential rules remain enabled in the same file', () => {
-  const token = 'ghp_' + synthetic.slice(0, 36);
-  assert.ok(scan(fixture, selector + '\nconst credential = "' + token + '";', true).includes('github-pat'));
-});
+  test(`${name}: the exception does not exempt a different path or value`, () => {
+    assert.deepEqual(scan('frontend/src/credentials.mts', selector, true), ['generic-api-key']);
+    assert.deepEqual(scan(selectors.find(other => other.fixture !== fixture)!.fixture, selector, true), ['generic-api-key']);
+    assert.deepEqual(scan(fixture, selector.replace(focus, focus + '/' + synthetic), true), ['generic-api-key']);
+  });
+
+  test(`${name}: provider-specific credential rules remain enabled in the same file`, () => {
+    const token = 'ghp_' + synthetic.slice(0, 36);
+    assert.ok(scan(fixture, selector + '\nconst credential = "' + token + '";', true).includes('github-pat'));
+  });
+}

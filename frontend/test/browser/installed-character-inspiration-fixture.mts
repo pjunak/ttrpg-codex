@@ -18,18 +18,21 @@ const text = (locale: string) => locale === "cs"
   : { inspiration: "Inspiration", available: "Available", saved: /^Saved$/, layout: "Sheet layout", replace: "Replace character", close: "Close" };
 
 export function registerInspirationSchemaTest(enabled: boolean, fixture: () => Fixture): void {
-  test("Optional play-field schema reviews preserve all three prior schema-4 generations", { skip: !enabled, timeout: 90000 }, async t => {
+  test("Optional play-field schema reviews preserve all four prior schema-4 generations", { skip: !enabled, timeout: 90000 }, async t => {
     const f = fixture(), archive = await readFile(resolve(process.env.CODEX_SHEETS_ZIP!));
     // Prior data schemas are reconstructed byte-for-byte. Workers/UI remain
     // current; this is stored-data preservation, not an old-native-binary claim.
-    const prior = (inspiration: boolean, quickUse = false) => replacementImportPackage(archive, "4.0.0", (files, manifest) => {
+    const prior = (inspiration: boolean, quickUse = false, storage = false) => replacementImportPackage(archive, "4.0.0", (files, manifest) => {
       const path = manifest.recordExtensions[0].schema, schema = JSON.parse(files[path]!.toString());
-      delete schema.properties.inputs.properties.play.properties.containers;
-      delete schema.properties.inputs.properties.play.properties.inventory.items.properties.containerId;
+      delete schema.properties.inputs.properties.play.properties.inventory.items.properties.bodyPlacement;
+      if (!storage) {
+        delete schema.properties.inputs.properties.play.properties.containers;
+        delete schema.properties.inputs.properties.play.properties.inventory.items.properties.containerId;
+      }
       if (!quickUse) delete schema.properties.inputs.properties.play.properties.quickUse;
       if (!inspiration) delete schema.properties.inputs.properties.play.properties.inspiration;
       const body = JSON.stringify(schema, null, 2) + "\n";
-      assert.equal(createHash("sha256").update(body).digest("hex"), quickUse ? "9e775d6054fb803b1b5bf87c874a20e7d4c3d039e8abbb2062dd646bc1bed0d5" : inspiration
+      assert.equal(createHash("sha256").update(body).digest("hex"), storage ? "41929bb042c3a538d5c08603b787bfb5f7c957c988af5e60baa714be8d3fe2d5" : quickUse ? "9e775d6054fb803b1b5bf87c874a20e7d4c3d039e8abbb2062dd646bc1bed0d5" : inspiration
         ? "cf799a12adb9aac840e5349732d79d34226f72bc9b866e438e61400071efb373"
         : "d50dd66156a2a9e9aa1c25f20f069d6b86eeacb2d8d206b0aee461c3351ae317");
       files[path] = body;
@@ -88,7 +91,12 @@ export function registerInspirationSchemaTest(enabled: boolean, fixture: () => F
     await seed("quick-use-preserved-spent", false);
     await upgrade(prior(true, true), "quick-use");
     await seed("storage-preserved-pinned", false, true);
-    await upgrade(archive, "storage");
+    await upgrade(prior(true, true, true), "storage");
+    const containerInput = await createCharacter(f, "placement-preserved-storage");
+    containerInput.play.containers = [{ id: "pack", name: "Kept pack" }];
+    containerInput.play.inventory = [{ id: "supplies", name: "Supplies", quantity: 2, location: "carried", containerId: "pack", attuned: false, acquisition: "Before placement", notes: "Retain exact bytes" }];
+    saved.set("placement-preserved-storage", await save(f, "placement-preserved-storage", containerInput, 0, "stored"));
+    await upgrade(archive, "placement");
   });
 }
 

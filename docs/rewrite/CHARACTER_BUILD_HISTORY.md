@@ -50,6 +50,14 @@ items, and equipping explicitly clears membership. These groups add no physical
 items or carrying-capacity rules. Their names and contents remain readable in
 saved output and print without a rules provider. The final Equipment tab and
 searchable floating Backpack dialog remain T63 work.
+
+Body placement is an optional per-instance assignment in inventory, using live
+Engine source options and the shared native field. It adds no mechanical slots
+or bonuses. Stowing, zero quantity and final-unit consumption clear placement
+atomically; ordinary stowing preserves attunement. Old characters gain no
+default assignments, and saved display, print/export and replacement imports
+retain the field without a provider. The mannequin and hand/grip work remain T63.
+
 Inventory,
 equipment, currency, HP, spells and resources remain editable in their ordinary
 tabs, without an edit-mode toggle. Character notes belong to the host profile and have no sheet tab or printed sheet section.

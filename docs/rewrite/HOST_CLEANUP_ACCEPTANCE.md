@@ -3189,6 +3189,93 @@ multiclass, backup and live-count repairs.
 Exact companion revisions and inspected ZIP hashes are unchanged from the
 [engine repair](#multiclass-editor-calculation-cost). Provenance records host
 base `c23a5e7` plus this fixture/document change, with all companion trees clean.
-Native execution is Windows AMD64. The corrected fixture still needs its Linux
-CI run; local acceptance is not deployment verification. No push, workflow
-retry, publication, deployment or live-data operation was performed.
+Native execution was Windows AMD64. Subsequent [Linux run 36193428172](https://github.com/pjunak/ttrpg-codex/actions/runs/36193428172)
+on `dcac524` passed host checks, installed acceptance and image publication,
+with successful Deploy and verify jobs for both tiamat and asurai. That run
+closes the previous Linux gate; it is not acceptance of later development.
+This repair task performed no push, workflow retry, deployment or live-data operation.
+
+## Source-backed body placement and preserved equipment
+
+September 26, 2026. T63 placement is implemented across Compendium, Engine and
+Sheets. This accepts the data and inventory-control slice; the mannequin,
+Equipment workspace, hand/grip/suspension and conditions remain open.
+
+The optional per-instance `bodyPlacement` is separate from mechanical
+armor/shield occupancy. Sources declare bounded `bodyPlacements`; the Engine
+validates membership and returns live options, saved facts and explanations.
+Several items can share a display group without new slot limits or bonuses.
+Unknown/mixed/duplicate declarations fail closed. Custom items retain the
+existing active linked-DM-mechanics requirement. Invalid assignments remain
+available for explicit repair; old characters gain no automatic placement.
+
+Compendium annotates 12 PHB body-armors and 87 DMG worn items. An exact comparison
+confirmed that every prior JSON field in all 99 records is unchanged. Source
+IDs, books, reprints, prose and unsupported-mechanics boundaries remain intact.
+Face uses existing lenses/goggles; Legs support is tested with synthetic source
+facts rather than fabricated catalog items. Rings use Other worn.
+[Source rationale and coverage](../../../addon-dnd-2024-compendium/data/COVERAGE.md#worn-equipment-organization)
+records the official reference and the bounded initial content scope.
+
+Sheets reuses the host's native labelled controls, focus keys and semantic
+styles, with English/Czech options and provider-free display/print/export.
+The browser regression exposed a pre-existing 32-pixel inventory override;
+inventory controls now use the shared `--ui-target` token. Explicit stowing,
+exclusive-slot replacement and zero quantity clear placement atomically.
+Ordinary stowing preserves attunement. Consuming the final unit clears only that
+instance's placement while retaining its identity and quick-use pin.
+
+The worker rejects a provider that drops or changes placements, except the
+exact final-unit consumption transition. Disjoint edits retain both changes;
+competing inventory edits and remote deletion preserve pending input without
+recreating an item. Invalid direct saves and reviewed imports leave saved
+state and revision unchanged. Lost responses retry the identical request and
+produce exactly one revision increment.
+
+Pure tests cover Face/Legs choices, repeated accessory copies, unchanged
+statistics, incomplete builds, active/withdrawn custom authority, malformed
+declarations and armor exclusivity. Worker tests cover incompatible results
+and narrowly bounded consumption. All Engine Go tests/vet, Sheets checks
+(**32 module cases**, Go tests/vet) and Compendium checks (**81 cases**, browser
+and tool type checks) pass.
+
+Real installed tests exercise EN/CS automatic saves, reload, stow, depletion,
+duplicate instances, import/export and print; retry, disjoint/conflicting
+edits, remote deletion and rejected saves/imports also pass. The compatibility
+case reconstructs all four preceding schema-4 generations by exact hash, then
+checks unchanged JSON bytes and document revisions through reviewed upgrades.
+Optional fields stay absent until authored. The Engine now has a schema
+freshness gate to reject packaged contracts that no longer match public DTOs.
+
+Layout checks cover 1,360/1,024/390/320 px, Compact/Classic, Classic/Moonlit skins
+and 200% text on narrow viewports, with retained focus, target size and no
+horizontal overflow. Desktop EN and narrow enlarged CS captures were visually
+inspected. These are the existing inventory controls; they do not accept the
+future T63 mannequin or fixed shared-card geometry.
+
+Host `npm run check` passes **42 tooling, 402 unit and 285 browser cases**, plus
+Go tests/vet. Its 181 optional installed skips are covered by the strict package
+suite: **254/254 tests pass, zero failures, cancellations or skips**, in
+**797,764 ms**. This includes provider-free placement in both locales and all
+previous session, import and recovery regressions. Release readiness passes all
+**33 gates**.
+
+The workflow-pinned Gitleaks 8.30.1 flagged the new static quantity-control
+selector as a generic API key. Its exception is limited to that exact value,
+file and rule. All **10 real-scanner regression tests** pass: both known false
+positives reproduce without the configuration, while other values, other files,
+crossed fixture paths and generic/provider-specific credentials stay detected.
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools 3.0.0 | `0eeac9bc84f50836fa30f134b5edee9358656676` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| Engine 4.0.0 | `69e3d050a971a6b711ce35cf047d29bfb32d2301` | `79192597de1a05e943e50c8b8bc8e1f0b9d793dd411deee752edcf05c9ad798e` |
+| Sheets 4.0.0 | `460c72870bc50480d66e713779d09e8f94d37261` | `33d90628595ea50b2bafb16bbca1a4c12d0bdf6b9343a7f963c70048d0bab70c` |
+| Compendium 3.1.0 | `d826a6defee00193640359ffd3128eb6d32e52b0` | `cc666f31c4a82118c2829e90cbffbb0a8937e126eaf9d3953545731237901195` |
+
+Provenance records host base `dcac524` plus the new fixtures/pins/docs, with all
+companion trees clean. Native execution is Windows AMD64; Linux workers were
+cross-compiled. This new source set still needs Linux CI. Human screen-reader,
+physical touch and printer acceptance remain separate. This work neither
+pushes nor deploys; new add-on schema installation still requires the site's
+reviewed saved-data compatibility and activation steps.
