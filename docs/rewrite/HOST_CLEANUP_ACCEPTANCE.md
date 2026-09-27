@@ -3662,3 +3662,88 @@ package hashes remain identical.
 Frame sizing for unvisited tabs and final T18 sessions remain open. Physical
 touch, spoken screen-reader, printer and non-Chromium acceptance remain separate.
 No push, publication, deployment or live campaign change was performed.
+
+## Source-owned add-on builds and reproducible packages
+
+September 27, 2026. T14 is complete across all four companions. Browser output
+and native workers now belong to ignored build directories and reviewed ZIPs.
+Public schemas and generated TypeScript source interfaces remain versioned;
+package paths, permissions, services and saved-data contracts are unchanged.
+The host still installs inspected packages and never compiles deployed source.
+
+DM Tools previously required browser output from an earlier command even when
+its standalone package command rebuilt workers. That command now builds both
+parts, including through the Windows npm command script. Its CI removes browser
+output before invoking the package command. All owner workflows and host
+compatibility CI require builds to leave tracked source unchanged and reject
+tracked runtime artifacts. Host preparation continues to inspect the exact ZIPs
+and record source and package identities before installed acceptance.
+
+Compendium's archive inherited staging timestamps and directory entries, so
+unchanged content could have a different package hash. A regression first
+reproduced that failure. Packaging now sorts file entries, fixes their timestamp
+and permissions, and omits empty directory entries. The test changes timestamps
+and adds an empty folder without changing the archive, then changes file content
+and verifies a different identity. DM Tools also checks stable metadata and
+Linux executable permissions in its archive test.
+
+Before building, the previously tracked output was moved to an ignored comparison
+directory. Each repository's standalone package command recreated its output
+with no existing `web/` or `worker/` directory, and two builds produced identical
+ZIP hashes per repository. All **82 previously tracked runtime files** retained
+the same bytes: DM Tools 30, Compendium 17, Engine 3 and Sheets 32. No generated
+runtime files remain tracked. Sheets' ZIP is byte-identical to the preceding
+accepted package; DM Tools and Engine also carry updated README content, while
+Compendium's archive metadata/checksum ordering changed without altering rules
+records or browser assets.
+
+DM Tools passes **56 unit cases**, **28 Chromium cases at each of DPR 1 and 2**,
+all Go tests and vet. Engine passes all Go tests and vet. Sheets passes **36 unit
+cases**, Go tests and vet. Compendium passes **83 cases** and tooling type checks.
+All four archives pass host inspection. Host `npm run check` passes **42 tooling,
+406 unit and 285 browser cases**, plus Go tests and vet; its 191 optional
+companion skips are accounted for by the separate installed suite. Release
+readiness passes **33 gates**. Gitleaks 8.30.1 passes all ten scanner regressions
+and all four companion staged scans report no leaks.
+
+The exact source set uses host base `b0ea09b` plus this build-ownership and
+acceptance patch. Every companion reports `sourceDirty: false` after rebuilding:
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| dm-tools | `7f1d02b` | `0aef61147fd6cbae22b5e2768767025f7d8305ff08a45e2a5275596e397a039c` |
+| dnd-engine | `0e8747f` | `eb76485d2e66e9b726493995315f0b200061d6d96c890ce745bc65cbd08989d2` |
+| dnd-sheets | `a1ce463` | `a1386a13882fa25490ae6c975e99e0824f59532d7dda006a8502374ec893f0dc` |
+| dnd-2024-compendium | `e0d9040` | `1c7294060de5323745a08e086f65b53be854f6625698091dc7b7b55700c12572` |
+
+The full installed suite passes **264/264 cases, zero failures and zero skips**,
+in 966.2 seconds. The frontend and inspected archives stayed unchanged throughout
+the run. `release/companions/provenance.json` and `installed.tap` retain the exact
+local evidence; the final host staged scan also reports no leaks.
+Native execution is Windows amd64. Linux amd64/arm64 workers were cross-built
+and inspected; Linux CI execution and publication of these commits remain
+separate. No push, publication, deployment or live campaign change was performed.
+
+### Cleanup progress update, September 27
+
+The whole audit is now approximately **90% complete**, with a plausible **85–90%**
+range when remaining workflow, release and site acceptance are included.
+Implementation alone is approximately **95%** (90–95%). These remain effort
+estimates, following the [original counting method](#cleanup-progress-estimate),
+and do not treat passing automated tests as human/device acceptance.
+
+The September 14 baseline `ed50919` now has **31 of 40 task rows closed (78%)**.
+This batch closes the four per-repository T14 rows; host T14 was already closed.
+The original T02 row includes its completed T02-LOCAL slice and is counted once.
+The nine still-open original rows are T08, T15, T15-DM, T16, T17 and the four
+T18 workflow rows. Excluding the conditional value-transforming migration T08
+gives **31 of 39 (79%)**. Large workflow rows receive no partial credit here;
+later T63 and reliability slices do not inflate this original-row denominator.
+
+Remaining work is bounded class-level style/cantrip replacement, complete
+planning and current character build/play acceptance, unexplained intermittent
+startup/provider failures, smaller frame refinements and source-fact review,
+and authorized site/device verification. The maintainer accepts the new compact
+layout as a step forward and wants its remaining details improved in smaller
+steps. Conditional host extensions, narrative adjudication and an untriggered
+value-transforming migration are not new requirements for finishing this audit.

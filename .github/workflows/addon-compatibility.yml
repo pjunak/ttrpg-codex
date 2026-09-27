@@ -133,6 +133,10 @@ jobs:
           if [[ "$SUITE_MODE" == full ]]; then
             repositories+=(../addon-dnd-2024-compendium)
           fi
+          for repository in "${repositories[@]}"; do
+            git -C "$repository" diff --exit-code
+            test -z "$(git -C "$repository" ls-files -- web worker)"
+          done
           node scripts/companion-suite.mts prepare "${repositories[@]}"
         working-directory: ttrpg-codex
 

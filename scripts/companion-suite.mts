@@ -81,8 +81,8 @@ function runSuite(required: boolean): void {
   const inputs = verifyPackages(evidence, directory, required);
   verifyRevisions(evidence.packages, readRevisions(), required ? "full" : "public");
   if (process.env.CI && (evidence.hostDirty || evidence.packages.some(item => item.sourceDirty))) {
-    // Generated files are still tracked in some companions (T14). Their build
-    // dirtiness is evidence, never a reason to claim a different source commit.
+    // Dirtiness is evidence, never a reason to claim a different source commit.
+    // Publication CI separately rejects tracked source changed by a build.
     console.log("Builds changed tracked files; provenance records this explicitly.");
   }
   const files = readdirSync(join(root, "frontend", "test", "browser")).filter(file => /^installed-.*\.browser\.mts$/.test(file)).sort();

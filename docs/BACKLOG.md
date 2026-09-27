@@ -6,13 +6,13 @@ Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
 [feature-parity audit](rewrite/FEATURE_PARITY_AUDIT.md).
 
-**Progress estimate, September 24:** about **90% implemented**, or **80–85%**
-including release and complete workflow acceptance.
-[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-update-september-24).
-**Rows closed, September 24:** 26 of the original 40; large open tasks contain
-completed slices.
-These dated estimates predate the additional T63 character-sheet design below;
-they do not measure implementation or acceptance of that new scope.
+**Progress estimate, September 27:** about **95% implemented**, or **90%**
+including remaining workflow, release and site acceptance. These are approximate
+effort estimates, with plausible ranges of 90–95% and 85–90%, respectively.
+[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-update-september-27).
+**Original rows closed:** 31 of 40 (78%); open workflow tasks contain completed
+slices. The later T63 layout and authored state are implemented; smaller UI
+refinements and complete session acceptance remain separately visible below.
 
 **P1:** preservation, blocked workflows or release confidence. **P2:** usability,
 resilience and maintenance. **Confirmed** means source/browser evidence exists;
@@ -105,9 +105,9 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 
 - [ ] **T63-HOST / P2 — Accept the agreed character-sheet workspace through installed packages.**
   Compact layout fixtures now cover the Equipment dialog, body fields, shared
-  cards and frame, class navigation and preserved play. Finish the remaining
-  [T63 frame boundary](#t63-character-sheet-design), then accept
-  the complete workflow with exact companion pins and inspected package hashes.
+  cards and frame, class navigation and preserved play. Accept the complete
+  workflow with exact companion pins and inspected package hashes; continue
+  [T63 frame refinements](#t63-character-sheet-design) in smaller follow-ups.
 - [ ] **T57-VERIFY / P2 — Explain intermittent startup timeouts.**
   T57 timed out before the timeline mounted; T60 hit one phone-settings timeout;
   T61 timed out fetching rules policy during installed-fixture setup.
@@ -152,6 +152,7 @@ not a new generic-planner rewrite. [Product contract](../../addon-dm-tools/docs/
 - [x] ~~**T34-DM — Shared controls in planner forms and Import Center**~~ — `9dac1bd`.
 - [x] ~~**T19-DM — Scoped bundle contributions, DM/player review and durable receipt checks**~~ — `da116c3`.
 - [x] ~~**T30 — Recover unsaved planning work across forced replacement**~~ — `0eeac9b`; explicit resume/download/discard, original revisions and uncertain-save protection. [Contract](../../addon-dm-tools/docs/GRAPH.md#recovery-across-generations) · [installed evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#dm-tools-draft-recovery-follow-up).
+- [x] ~~**T14-DM — Build browser assets and workers from source-only checkouts**~~ — `7f1d02b`; standalone packaging, ignored output and source-clean CI; [build and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-owned-add-on-builds-and-reproducible-packages).
 
 ### Remaining work
 
@@ -169,9 +170,6 @@ not a new generic-planner rewrite. [Product contract](../../addon-dm-tools/docs/
   implemented. Check the intended site's data after a verified backup; report
   and explicitly repair dangling references, then activate the chosen ZIP under
   T15. No automatic rewriting or separate duplicate release task.
-- [ ] **T14-DM / P2 — Remove tracked generated web/worker ownership safely.**
-  Migrate this repository's package/test consumers to built artifacts, preserve
-  its standalone package gate, then remove obsolete tracked output with T14-HOST.
 
 **C05, optional UX:** rapid Atlas placement and wheel preferences may be revisited
 through a concrete product decision. Explicit forms and Ctrl/Command-wheel are
@@ -201,6 +199,7 @@ Standalone browsing must remain useful without Engine or Sheets.
 - [x] ~~**T61-COMP — Restore five passive Fighting Style/Epic Boon grants**~~ — `87f79ad`; preserved IDs, prose and book structure; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
 - [x] ~~**T63-PLACEMENT-COMP — Declare source-backed worn-item placements**~~ — `d826a6d`; 99 PHB/DMG records with prior fields preserved; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-backed-body-placement-and-preserved-equipment).
 - [x] ~~**T63-CONDITIONS-COMP — Correct and declare published condition facts**~~ — `2809098`; fifteen source-owned definitions, attributed summaries and preserved PHB record identity; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-conditions-and-preserved-character-state).
+- [x] ~~**T14-COMP — Build browser output and reproducible ZIPs from source**~~ — `e0d9040`; fixed archive metadata/order, ignored output and unchanged content; [build and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-owned-add-on-builds-and-reproducible-packages).
 
 ### Remaining work
 
@@ -217,12 +216,6 @@ Standalone browsing must remain useful without Engine or Sheets.
   choices. Coordinate typed state with T63 and reviewed T08 migration if the
   released schema changes. Preserve spent allowances through save/import and
   provider transitions. Encounter resolution remains C10.
-- [ ] **T14-COMP / P2 — Move generated browser output to build ownership.**
-  Update independent build/package/tests and host fixtures before removing tracked
-  `web/`. Normalize ZIP timestamps and verify repeated builds from unchanged inputs
-  produce the same archive hash; [publication verification](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification)
-  reproduced metadata-only hash changes. Preserve content identity, checksums and
-  standalone browsing.
 
 **C10, consumer-triggered:** [structured coverage gaps](../../addon-dnd-2024-compendium/data/GAPS.md)
 remain in narrative effects and reference-only renown/facilities/Circle Magic.
@@ -262,6 +255,7 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T63-PLACEMENT-ENGINE — Validate body placement independently of mechanics**~~ — `69e3d05`; source-owned options, saved explanations and schema freshness; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-backed-body-placement-and-preserved-equipment).
 - [x] ~~**T63-HANDS-ENGINE — Preserve owned hands, grip and exact suspension**~~ — `495ca51`; source-owned damage/effects, restoration fingerprints and detached validation; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#hands-grip-and-preserved-off-hand-instances).
 - [x] ~~**T63-ENGINE — Define authored conditions and their supported effects**~~ — `c62e358`; closed optional inputs, source eligibility, bounded Speed/D20 effects and preserved explanations; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-conditions-and-preserved-character-state).
+- [x] ~~**T14-ENGINE — Build native workers as release artifacts**~~ — `0e8747f`; ignored binaries, versioned schemas and reproducible target packages; [build and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-owned-add-on-builds-and-reproducible-packages).
 
 ### Remaining work
 
@@ -274,10 +268,6 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
   Investigate the one unexplained rules-availability loss during T53 validation;
   character setup captures provider diagnostics if it recurs. T54's 13-case
   diagnostic replay passed without reproducing it; no cause is established.
-- [ ] **T14-ENGINE / P2 — Move native binaries to generated/release artifacts.**
-  Replace worker/package/host-fixture consumers before removing tracked binaries;
-  preserve reproducible target builds and record actual native execution apart
-  from cross-compilation. Coordinate T14-HOST.
 
 Engine fixes must expose results/guidance through the versioned contract; no
 edition rules in Sheets controls, provider-ID special cases or combat resolver.
@@ -323,22 +313,21 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T63-HANDS-SHEETS — Share hand and grip controls across Sheet and Combat**~~ — `1dbb048`; exact suspension, guarded worker writes, responsive controls and saved output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#hands-grip-and-preserved-off-hand-instances).
 - [x] ~~**T63-COMPACT-SHEETS — Adopt the final compact character workspace**~~ — `d00da27`, `9a99722`; shared cards, right attributes, Equipment/mannequin, Backpack dialog, explicit stacks, localized saved values and class-owned levels; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-character-sheet-workspace).
 - [x] ~~**T63-CONDITIONS-SHEETS — Share authored conditions across both Combat layouts**~~ — `40f11a8`; localized host controls, worker preservation, automatic saving and provider-free reading/transfer/print; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-conditions-and-preserved-character-state).
+- [x] ~~**T14-SHEETS — Build browser assets and workers as package artifacts**~~ — `a1ce463`; ignored runtime output, versioned schemas/interfaces and unchanged package bytes; [build and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-owned-add-on-builds-and-reproducible-packages).
 
 ### Remaining work
 
-- [ ] **T63-SHEETS / P2 — Finish frame acceptance.**
+- [ ] **T63-SHEETS / P2 — Refine the compact frame in smaller follow-ups.**
   Compact follows the final standalone mockup and both layouts share authored
-  conditions. Resolve the unvisited-tab sizing boundary, then complete final
-  workflow acceptance. See the [remaining sequence](#t63-character-sheet-design).
+  conditions. Resolve the unvisited-tab sizing boundary while retaining the
+  accepted working layout. Complete session acceptance under T18; see the
+  [remaining work](#t63-character-sheet-design).
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
   T64 completes the existing workspace's representative multiclass play,
   amended grants, source/provider loss, restoration, rest, advancement and frozen
   output. Run the final session against the implemented T63 workspace; earlier
   passes do not accept that new design. Human screen-reader, physical touch and
   printer checks remain separate from browser/PDF evidence.
-- [ ] **T14-SHEETS / P2 — Remove generated browser/worker output from source ownership.**
-  Migrate schema/type generation, package/test and host fixture consumers first;
-  preserve deterministic standalone packaging and host inspection with T14-HOST.
 
 <a id="t63-character-sheet-design"></a>
 
@@ -363,7 +352,9 @@ The subsequent [condition slice](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-con
 adds optional authored state through the existing reviewed compatible upgrade;
 all six preceding schema generations retain their JSON and revisions.
 
-Remaining work, in order:
+The maintainer accepts this layout as a step forward and wants remaining UI
+details finished in smaller steps. These refinements do not block unrelated
+audit fixes. Remaining work:
 
 1. **Frame acceptance.** Compact retains the largest measured tab at the current
    width, grows for new/expanded content and uses normal flow on narrow screens.
@@ -387,12 +378,11 @@ Record exact source pins and inspected package hashes before closing acceptance.
 
 | Order | Work | Exit evidence |
 | --- | --- | --- |
-| 1 | Implement the agreed T63 character-sheet design in its ordered producer/consumer slices. | New data and equipment semantics, final layout and shared controls pass their owning gates and exact-package acceptance; completed T32/T33 workflows remain intact. |
-| 2 | Whole character sessions: finish Engine and Sheets T18 on the T63 workspace. | Representative builds and play preserve authored values through provider changes; package evidence and remaining human/device checks are explicit. |
-| 3 | Everyday use: execute remaining DM Tools and Compendium T18 reviews and fix their concrete failures. | Representative complete workflows on desktop/phone, with original interaction comparisons and explicit remaining manual checks. |
-| 4 | Remaining add-on artifact ownership: per-repo T14. T08 only for a real schema-preservation need. | Standalone builds and inspected ZIPs preserve current consumer contracts; any needed migration is reviewed and atomic. |
-| 5 | Final integration after T63 and remaining add-on T18 fixes; retain completed T02 coverage. | All four inspected ZIPs pass without installed-suite skips on the publication path; exact host/sibling commits and package hashes recorded. |
-| 6 | Authorized delivery T15–T17 and representative device/site acceptance. | Exact served/installed builds verified; per-site data/retention choices recorded and rollback assets retained. |
+| 1 | Finish bounded class-level replacements across Compendium, Engine and Sheets. | Source-owned allowances survive advancement, save/import and provider transitions; any needed T08 migration is reviewed and atomic. |
+| 2 | Whole character sessions: finish Engine and Sheets T18 on the current T63 workspace. | Representative builds and play preserve authored values through provider changes; package evidence and remaining human/device checks are explicit. |
+| 3 | Everyday planning and reliability: finish DM Tools T18 and investigate recurring startup failures. | Complete desktop/phone workflows and concrete failures have action-level evidence; successful retries alone do not establish a fix. |
+| 4 | Continue smaller T63 frame refinements and the remaining source-fact review. | Shared controls, saved state, focus and responsive layouts remain intact; missing facts have owner/provenance evidence. |
+| 5 | Final integration and authorized delivery T15–T17; retain completed T02 coverage. | All four inspected packages pass without suite skips; exact served/installed builds, site data/retention, device checks and rollback assets are recorded. |
 
 T14 suffixes divide the existing generated-artifact task by repository; T18
 suffixes divide workflow acceptance; T63 suffixes share the design and ordered

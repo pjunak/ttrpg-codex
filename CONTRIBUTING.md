@@ -78,8 +78,7 @@ When companion source changes, run its owning gates and commit it first. From
 clean adjacent checkouts, explicitly update the host's source set with
 `node scripts/companion-revisions.mts record`. This changes only the revision
 file; it does not publish commits or establish acceptance. Otherwise use the
-already pinned commits. Check before building (some builds modify tracked
-generated outputs):
+already pinned commits. Check clean source before building:
 
 ```text
 node scripts/companion-revisions.mts check full
@@ -102,8 +101,10 @@ follow the [delivery procedure](docs/SELF_HOSTING.md#coordinate-host-and-compani
 
 Publication requires the private token and the full suite. A PR without private
 access runs the pinned public packages and explicitly reports incomplete
-publication coverage. Repository T14 work may remove generated tracked outputs
-only after each producer retains its standalone deterministic package build.
+publication coverage. Browser output and worker binaries belong to ignored build
+directories in every companion. Their standalone package commands rebuild from
+source; owner and integration CI reject tracked artifacts or source changes left
+by a build. Public schemas and generated source interfaces remain versioned.
 
 Browser files run four at a time to bound Chromium resource usage without
 changing individual test deadlines or coverage.
