@@ -18,7 +18,7 @@ const text = (locale: string) => locale === "cs"
   : { inspiration: "Inspiration", available: "Available", saved: /^Saved$/, layout: "Sheet layout", replace: "Replace character", close: "Close" };
 
 export function registerInspirationSchemaTest(enabled: boolean, fixture: () => Fixture): void {
-  test("Optional play-field schema reviews preserve all four prior schema-4 generations", { skip: !enabled, timeout: 90000 }, async t => {
+  test("Optional play-field schema reviews and guided updates preserve all four prior schema-4 generations", { skip: !enabled, timeout: 90000 }, async t => {
     const f = fixture(), archive = await readFile(resolve(process.env.CODEX_SHEETS_ZIP!));
     // Prior data schemas are reconstructed byte-for-byte. Workers/UI remain
     // current; this is stored-data preservation, not an old-native-binary claim.
@@ -58,17 +58,29 @@ export function registerInspirationSchemaTest(enabled: boolean, fixture: () => F
       const activation = await jsonResponse(await f.admin.post("/api/admin/addons/dnd-sheets/activation-reviews", { headers, data: { generationId: staged.generationId } }));
       assert.ok(activation.proposal.blockers.some((row: { code: string }) => row.code === "DATA_MIGRATION_REQUIRED"));
       const current = await jsonResponse(await f.admin.get("/api/admin/addons/dnd-sheets"));
-      await jsonResponse(await f.admin.post("/api/admin/addons/dnd-sheets/disable", { headers, data: { expectedStateRevision: current.state.revision } }));
-      const plan = await jsonResponse(await f.admin.post("/api/admin/addons/dnd-sheets/schema-reviews", { headers, data: { generationId: staged.generationId } }));
+      const guided = suffix === "placement";
+      if (!guided) await jsonResponse(await f.admin.post("/api/admin/addons/dnd-sheets/disable", { headers, data: { expectedStateRevision: current.state.revision } }));
+      const plan = await jsonResponse(await f.admin.post(guided
+        ? `/api/admin/addon-activation-reviews/${activation.reviewId}/update/saved-data`
+        : "/api/admin/addons/dnd-sheets/schema-reviews", { headers, data: guided ? {} : { generationId: staged.generationId } }));
       assert.deepEqual(plan.blockers, []); assert.equal(plan.changes.length, 1);
       const recovery = await jsonResponse(await f.admin.get("/api/admin/addon-schema-reviews/" + plan.reviewId + "/recovery"));
       assert.equal(recovery.bodiesBase64.length, saved.size);
       const original = new Map<string, string>(recovery.bodiesBase64.map((body: string) => {
         const text = Buffer.from(body, "base64").toString(); return [JSON.parse(text).operationId, text];
       }));
-      const applied = await jsonResponse(await f.admin.post("/api/admin/addon-schema-reviews/" + plan.reviewId + "/apply", { headers, data: { reviewSha256: plan.reviewSha256 } }));
-      assert.equal(applied.status, "applied");
-      await installReviewedPackage(f.admin, f.csrf, "dnd-sheets", target, []);
+      if (guided) {
+        assert.equal((await jsonResponse(await f.admin.get("/api/admin/addons/dnd-sheets"))).state.activeGenerationId, current.state.activeGenerationId);
+        const applied = await jsonResponse(await f.admin.post(`/api/admin/addon-activation-reviews/${activation.reviewId}/update/resolve`, { headers, data: {
+          proposalSha256: activation.proposalSha256, schemaReviewId: plan.reviewId, schemaReviewSha256: plan.reviewSha256, action: "heal", grantedPermissionIds: [],
+        } }));
+        assert.equal(applied.state.activeGenerationId, staged.generationId);
+        assert.ok(applied.recoveryResults.every((result: { recovered: boolean }) => result.recovered), "Native workers and their provider graph recovered automatically");
+      } else {
+        const applied = await jsonResponse(await f.admin.post("/api/admin/addon-schema-reviews/" + plan.reviewId + "/apply", { headers, data: { reviewSha256: plan.reviewSha256 } }));
+        assert.equal(applied.status, "applied");
+        await installReviewedPackage(f.admin, f.csrf, "dnd-sheets", target, []);
+      }
       const directory = await mkdtemp(resolve(f.output, "play-schema-" + suffix + "-"));
       t.after(async () => { const child = relative(f.output, directory); assert.ok(child && !child.startsWith("..") && !isAbsolute(child)); await rm(directory, { recursive: true, force: true }); });
       const backup = await f.admin.get("/api/backup"); assert.equal(backup.status(), 200);

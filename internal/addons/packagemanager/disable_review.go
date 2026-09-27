@@ -38,6 +38,9 @@ func (manager *Manager) PrepareDisable(ctx context.Context, addonID string) (Dis
 	return manager.disableReviewLocked(ctx, addonID)
 }
 func (manager *Manager) disableReviewLocked(ctx context.Context, addonID string) (DisableReview, error) {
+	if err := manager.requireSettledUpdate(ctx); err != nil {
+		return DisableReview{}, err
+	}
 	state, err := manager.store.state(ctx, addonID)
 	if err != nil {
 		return DisableReview{}, err

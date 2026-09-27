@@ -10,46 +10,42 @@ function archive(id: string, version: string): Buffer {
   return zip(files);
 }
 export async function exercisePackageCleanup({ t, open, admin, csrf, output, mobile }: InstalledFixture): Promise<void> {
+  // This host deliberately keeps historical builds for rollback acceptance.
+  // The operator API remains available, but neither retention policy exposes
+  // manual housekeeping controls to users. Automatic retention has Go and
+  // installed recovery coverage against a separate disposable host.
   const id = `cleanup-${mobile ? 'phone' : 'desktop'}`, headers = { 'X-Codex-CSRF': csrf };
   const first = await installReviewedPackage(admin, csrf, id, archive(id, '1.0.0'), []);
   await jsonResponse(await admin.post('/api/recovery', { headers, data: {} }));
   const second = await installReviewedPackage(admin, csrf, id, archive(id, '2.0.0'), []);
   const third = await installReviewedPackage(admin, csrf, id, archive(id, '3.0.0'), []);
   const one = first.state.activeGenerationId, two = second.state.activeGenerationId;
-  const page = await open(t, 'dm', mobile); page.setDefaultTimeout(15000);
-  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message)); t.after(() => assert.deepEqual(errors, []));
-  await page.goto('/#/settings'); await page.locator('[data-category="addons"]').click();
-  const manager = page.locator('codex-addon-manager'), row = manager.locator(`[data-addon-id="${id}"]`), review = manager.locator('.addon-cleanup-review');
-  await row.getByText('Saved packages', { exact: true }).click();
-  const remove = (generation: string) => row.locator(`[data-generation="${generation}"]`).getByRole('button', { name: 'Remove saved package', exact: true });
-  await remove(one).click(); await review.getByText(/Keep: required by recovery points/u).waitFor();
-  await review.getByText(one.slice(0, 12), { exact: true }).waitFor();
-  await review.getByText(/Only the active build runs/u).waitFor();
-  assert.equal(await review.getByRole('button', { name: 'Remove reviewed packages', exact: true }).isDisabled(), true);
-  await review.getByRole('button', { name: 'Cancel review', exact: true }).click();
-  await manager.getByRole('button', { name: 'Clean up saved packages', exact: true }).click();
-  await review.getByRole('combobox').selectOption('1');
-  await review.locator(`[data-cleanup-generation="${two}"]`).getByText('Keep: selected retention count', { exact: true }).waitFor();
-  await review.getByRole('button', { name: 'Cancel review', exact: true }).click();
-  await remove(two).click(); await review.getByRole('heading', { name: 'Review saved package cleanup', exact: true }).waitFor();
-  await review.screenshot({ path: resolve(output, `package-cleanup-${mobile ? 'phone' : 'desktop'}.png`) });
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  const review = async (scope: unknown) => jsonResponse(await admin.post('/api/admin/addon-package-cleanup/review', { headers, data: scope }));
+  const protectedBuild = await review({ addonId: id, generationId: one });
+  assert.equal(protectedBuild.removeCount, 0); assert.equal(protectedBuild.generations[0].protection, 'recovery');
+  const retained = await review({ addonId: id, keepInactive: 1 });
+  assert.equal(retained.generations.find((g: { generationId: string }) => g.generationId === two).protection, 'retention');
+  const scope = { addonId: id, generationId: two }, stale = await review(scope);
   await jsonResponse(await admin.post(`/api/admin/addons/${id}/activation-reviews`, { headers, data: { generationId: two } }));
-  await review.getByRole('button', { name: 'Remove reviewed packages', exact: true }).click(); await manager.getByRole('alert').waitFor(); assert.equal(await review.count(), 0);
-  assert.equal((await admin.get(`/api/admin/addons/${id}`)).status(), 200);
-  await remove(two).click(); await review.getByRole('heading').waitFor();
-  const pattern = '**/api/admin/addon-package-cleanup/apply'; let receipt: unknown;
-  await page.route(pattern, async route => { receipt = route.request().postDataJSON() as unknown; await route.fetch(); await route.abort('failed'); });
-  await review.getByRole('button', { name: 'Remove reviewed packages', exact: true }).click(); await manager.getByRole('alert').waitFor(); await page.unroute(pattern);
-  const retry = await jsonResponse(await admin.post('/api/admin/addon-package-cleanup/apply', { headers, data: receipt })); assert.equal(retry.complete, true);
-  await manager.getByRole('button', { name: 'Check for updates', exact: true }).click(); await manager.locator('.addon-manager[aria-busy="false"]').waitFor();
-  assert.equal(await row.locator(`[data-generation="${two}"]`).count(), 0);
-  const snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`)); assert.equal(snapshot.state.activeGenerationId, third.state.activeGenerationId); assert.equal(snapshot.generations.length, 2);
-  await page.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await page.reload(); await page.locator('[data-category="addons"]').click();
-  await manager.getByRole('button', { name: 'Vyčistit uložené balíčky', exact: true }).click(); await review.getByRole('heading', { name: 'Kontrola vyčištění uložených balíčků', exact: true }).waitFor();
-  await review.locator(`[data-cleanup-generation="${one}"]`).getByText(/Zachovat: vyžadují body obnovy/u).waitFor();
-  await review.getByText(one.slice(0, 12), { exact: true }).waitFor();
-  await review.getByText(/Spouští se pouze aktivní sestavení/u).waitFor();
+  assert.equal((await admin.post('/api/admin/addon-package-cleanup/apply', { headers, data: { scope, reviewSha256: stale.reviewSha256 } })).status(), 409);
+  const fresh = await review(scope), receipt = { scope, reviewSha256: fresh.reviewSha256 };
+  assert.equal((await jsonResponse(await admin.post('/api/admin/addon-package-cleanup/apply', { headers, data: receipt }))).complete, true);
+  assert.equal((await jsonResponse(await admin.post('/api/admin/addon-package-cleanup/apply', { headers, data: receipt }))).complete, true);
+  const snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`));
+  assert.equal(snapshot.state.activeGenerationId, third.state.activeGenerationId); assert.equal(snapshot.generations.length, 2);
+
+  const page = await open(t, 'dm', mobile); page.setDefaultTimeout(15000);
+  await page.goto('/#/settings'); await page.locator('[data-category="addons"]').click();
+  const manager = page.locator('codex-addon-manager');
+  for (const cs of [false, true]) {
+    await page.evaluate(cs => localStorage.setItem('codex_lang', cs ? 'cs' : 'en'), cs);
+    await page.reload(); await page.locator('[data-category="addons"]').click();
+    await manager.locator('.addon-manager[aria-busy="false"]').waitFor();
+    assert.equal(await manager.getByRole('button', { name: /Clean up saved packages|Remove saved package|Vyčistit uložené balíčky|Odstranit uložený balíček/u }).count(), 0);
+    assert.equal(await manager.locator('.addon-cleanup-review').count(), 0);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  }
+  await manager.screenshot({ path: resolve(output, `package-storage-${mobile ? 'phone' : 'desktop'}.png`) });
   const player = await open(t, 'player');
   for (const operation of ['review', 'apply', 'retry']) {
     const path = `/api/admin/addon-package-cleanup/${operation}`;

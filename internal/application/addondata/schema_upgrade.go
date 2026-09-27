@@ -16,6 +16,8 @@ type schemaRepository interface {
 	GetSchemaReview(context.Context, string) (datalifecycle.SchemaReview, error)
 	ApplySchemaReview(context.Context, string, string) (datalifecycle.SchemaReview, error)
 	SchemaReviewRecovery(context.Context, string) ([]byte, error)
+	ApplySchemaResolution(context.Context, string, string, string) (datalifecycle.SchemaReview, error)
+	RestoreSchemaSnapshot(context.Context, string) error
 }
 
 var _ datalifecycle.SchemaUpgrades = (*Service)(nil)
@@ -23,7 +25,7 @@ var _ datalifecycle.SchemaUpgrades = (*Service)(nil)
 func (service *Service) PrepareSchemaReview(ctx context.Context, input datalifecycle.SchemaReviewRequest, registry *datacontract.Registry) (datalifecycle.SchemaReview, error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
-	if _, active := service.active[input.AddonID]; active {
+	if _, active := service.active[input.AddonID]; active && !input.ForActivation {
 		return datalifecycle.SchemaReview{}, datalifecycle.ErrUpgradeActive
 	}
 	repository, ok := service.repository.(schemaRepository)
@@ -78,6 +80,36 @@ func (service *Service) PrepareSchemaReview(ctx context.Context, input datalifec
 		}
 		return changes, issues, nil
 	})
+}
+
+func (service *Service) BlockUpdateWrites(addon string, blocked bool) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if blocked {
+		service.updating[addon] = true
+	} else {
+		delete(service.updating, addon)
+	}
+}
+
+func (service *Service) ApplySchemaResolution(ctx context.Context, id, digest, action string) (datalifecycle.SchemaReview, error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	repository, ok := service.repository.(schemaRepository)
+	if !ok {
+		return datalifecycle.SchemaReview{}, datalifecycle.ErrUpgradeUnavailable
+	}
+	return repository.ApplySchemaResolution(ctx, id, digest, action)
+}
+
+func (service *Service) RestoreSchemaSnapshot(ctx context.Context, id string) error {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	repository, ok := service.repository.(schemaRepository)
+	if !ok {
+		return datalifecycle.ErrUpgradeUnavailable
+	}
+	return repository.RestoreSchemaSnapshot(ctx, id)
 }
 func (service *Service) GetSchemaReview(ctx context.Context, id string) (datalifecycle.SchemaReview, error) {
 	repository, ok := service.repository.(schemaRepository)

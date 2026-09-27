@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 )
@@ -57,6 +58,9 @@ func (manager *Manager) ApproveActivationReview(
 	}
 	if review.Status != ReviewPrepared && review.Status != ReviewApproved {
 		return ActivationReview{}, ErrReviewState
+	}
+	if manager.store.now().Sub(review.CreatedAt) >= 30*time.Minute {
+		return ActivationReview{}, ErrReviewStale
 	}
 	if review.Status == ReviewApproved {
 		_, normalizedGrants, err := approvedPermissions(
@@ -110,6 +114,9 @@ func (manager *Manager) ActivateReviewed(
 ) (ActivationResult, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
+	if err := manager.requireSettledUpdate(ctx); err != nil {
+		return ActivationResult{}, err
+	}
 	review, err := manager.store.review(ctx, reviewID)
 	if err != nil {
 		return ActivationResult{}, err
@@ -135,6 +142,9 @@ func (manager *Manager) ActivateReviewed(
 	}
 	if review.Status != ReviewApproved {
 		return ActivationResult{}, ErrReviewState
+	}
+	if manager.store.now().Sub(review.CreatedAt) >= 30*time.Minute {
+		return ActivationResult{}, ErrReviewStale
 	}
 	proposal, err := manager.buildReviewProposal(ctx, review.AddonID, review.GenerationID)
 	if err != nil {
@@ -257,6 +267,12 @@ func (manager *Manager) buildReviewProposal(
 		proposal.RestartedAddonIDs = manager.liveAddonIDs()
 		proposal.Blockers = append(proposal.Blockers,
 			manager.dependentCompatibilityBlockers(report.Manifest, proposal.AffectedAddonIDs)...)
+	}
+	for _, blocker := range proposal.Blockers {
+		if dataResolutionBlocker(blocker.Code) {
+			proposal.RestartedAddonIDs = manager.liveAddonIDs()
+			break
+		}
 	}
 	return proposal, nil
 }

@@ -1,8 +1,15 @@
 # Retiring old character sheets
 
 The replacement uses the permanent `dnd-sheets` namespace with schema 4.0.0.
-The owner approved retirement of old sheet values. Their removal remains an
-explicit offline operation, separate from deploying the code or installing ZIPs.
+The owner approved retirement of old sheet values. Current hosts offer the
+generic [update confirmation](../SELF_HOSTING.md#add-on-installation):
+download the add-on data snapshot if wanted, then choose **Remove data and
+update** when the new schema cannot safely accept the old values. This requires
+explicit confirmation and preserves campaign profiles and other add-ons.
+
+The stopped-host procedure below remains available for the specific schema-3
+retirement. Its narrower conditions differ from a current-save reset; it is no
+longer a prerequisite for updating through Settings.
 
 **Data loss boundary:** applying this procedure deletes schema-3 sheet documents,
 their revision markers and that extension's schema metadata. Core character

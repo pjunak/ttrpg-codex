@@ -23,4 +23,12 @@ describe("saved-data review boundary", () => {
       expect(() => parseSchemaReview({ ...fixture(), ...patch }, target)).toThrow();
     }
   });
+  it("accepts a confirmed reset of incompatible values only in the combined update flow", () => {
+    const reset = { ...fixture(), forActivation: true, resolution: "remove", status: "applied", appliedAt: "2026-09-25T10:01:00Z", changes: [],
+      blockers: [{ kind: "collection", dataId: "notes", code: "INVALID_STORED_DOCUMENT", message: "Cannot adopt these values" }] };
+    expect(parseSchemaReview(reset, target).resolution).toBe("remove");
+    for (const patch of [{ forActivation: false }, { resolution: "heal" }, { resolution: "guess" }, { status: "prepared", appliedAt: undefined }]) {
+      expect(() => parseSchemaReview({ ...reset, ...patch }, target)).toThrow();
+    }
+  });
 });

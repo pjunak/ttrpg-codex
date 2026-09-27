@@ -118,15 +118,16 @@ type Service struct {
 
 	// Writes and lifecycle transitions are deliberately serialized. This makes
 	// unique indexes deterministic and lets a package switch quiesce all calls.
-	mu     sync.RWMutex
-	active map[string]activeRegistry
+	mu       sync.RWMutex
+	active   map[string]activeRegistry
+	updating map[string]bool
 }
 
 func New(repository Repository, core CoreRecords) (*Service, error) {
 	if repository == nil || core == nil {
 		return nil, ErrInvalidConfig
 	}
-	return &Service{repository: repository, core: core, active: make(map[string]activeRegistry)}, nil
+	return &Service{repository: repository, core: core, active: make(map[string]activeRegistry), updating: make(map[string]bool)}, nil
 }
 
 func (service *Service) Get(
@@ -289,7 +290,7 @@ func (service *Service) Transact(ctx context.Context, input Transaction) (addond
 		return addondatastore.Commit{}, ErrInvalidRequest
 	}
 	active, exists := service.active[input.Access.AddonID]
-	if !exists || active.generation != input.Access.Generation {
+	if !exists || active.generation != input.Access.Generation || service.updating[input.Access.AddonID] {
 		return addondatastore.Commit{}, ErrInactiveGeneration
 	}
 	if len(input.ExpectedDataSets) > addondatastore.MaximumOperations {

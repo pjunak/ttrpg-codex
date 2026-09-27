@@ -141,7 +141,7 @@ for (const mobile of [false,true]) test(`latest-only updates preserve independen
  const {page}=await open(t,mobile);
  await page.locator('[data-category=addons]').click();
  const storage=page.locator('codex-addon-manager codex-package-storage');
- await storage.getByText(mobile?'Po úspěšné aktualizaci a při spuštění serveru zůstane pouze vybrané sestavení.':'Only the selected build is kept after a successful update and at startup.',{exact:false}).waitFor();
+ await storage.getByText(mobile?'Server automaticky':'The server automatically removes superseded packages',{exact:false}).waitFor();
  const saved = await jsonResponse(await admin.post('/api/recovery',{headers,data:{}}));
  const pointId = saved.points[0].id;
  await installReviewedPackage(admin,csrf,id,graphPackage({id,mode:'integrated',version:'3.0.0'}),perms);

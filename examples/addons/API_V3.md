@@ -30,7 +30,7 @@ below describe constraints for a possible implementation, not available APIs.
 | UI/model contributions | Routes, sidebar, settings, article actions/sections, independent editor panels, named slots, wiki providers and host graph models work. `kind` enum injection, `record-renderer`, custom `graph-node-kind` and general `context.graphs` are reserved/unavailable. |
 | Worker transport | Native lifecycle, brokered service calls and package-data/retained-history callbacks are implemented. No WASI runtime or namespaced `http-endpoint` execution is composed. |
 | Imports | DM Tools exposes format-routed import-adapter v2 review/commit. The host lends campaign-bundle adapter v3 with scoped contributor v1, atomic publication and receipt status. No separate `addon/import.*` RPC dispatcher is composed. |
-| Schema upgrades | Incompatible stored definitions block activation. General migration plan/apply orchestration is absent (T08); specific offline retirement is separate. |
+| Schema upgrades | The host's update confirmation offers validated healing or explicit current-save removal with optional backup. General value-transforming plan/apply orchestration is absent (T08). |
 | Recovery/diagnostics | Initial/periodic health, bounded automatic worker recovery, affected-consumer invalidation, manual reload, host-start recovery and basic manager diagnostics work. Rich redacted worker/browser diagnostics and support bundles remain unfinished (T11). |
 | Optional host calls/trust | Worker blob, event, network and progress methods, package-signature verification and OS resource enforcement are not implemented. Permissions never create these capabilities. |
 
@@ -235,7 +235,7 @@ Stored schema incompatibility currently blocks activation; there is no automatic
 migration plan/apply step. Reviewed migrations and permanent namespace deletion
 remain T08 and T05 in [the backlog](../../docs/BACKLOG.md). Crash-loop suppression
 is in memory; there is no separate persistent quarantine command.
-Saved package archives have a separate reviewed cleanup flow in the lifecycle owner. Never simulate them by changing package files or database rows.
+Saved package archives are cleaned up automatically by the lifecycle owner. Never simulate lifecycle changes by changing package files or database rows.
 
 ## Browser SDK
 
@@ -1381,13 +1381,14 @@ Add-on transactions can guard participating package data sets, but do not grant
 core write authority. The private host campaign-bundle coordinator can compose
 both stores in one SQLite transaction after an exact reviewed preview.
 
-The host provides a reviewed **compatible schema upgrade** in Settings. After
-the add-on is disabled, it validates all saved JSON against an inspected target
-package and stores an exact, bounded snapshot and immutable metadata-only plan.
-An accepted plan changes schema identities atomically, preserves authored bytes
-and revision tombstones, rejects stale state, retains recovery evidence and
-returns a durable result after a lost reply. Activation and permission review
-remain separate. See [the host contract](../../docs/rewrite/ADDON_DATA.md#reviewed-compatible-schema-upgrades).
+The host's Settings update review checks compatibility, requirements and grants.
+Saved-data conflicts open one confirmation with an optional scoped backup,
+validated **Heal and update**, explicit **Remove data and update**, and Exit.
+The host owns stopping/restarting runtimes, the immutable data plan, atomic
+package selection, stale checks, rollback and retry receipts. Healing preserves
+exact saved values; removal never includes core records or other add-ons.
+No worker migration method or browser add-on permission is introduced.
+See [the host contract](../../docs/rewrite/ADDON_DATA.md#reviewed-compatible-schema-upgrades).
 
 General value transformation is not implemented. Removed definitions, changed
 key/core-target identity, invalid values and conflicting unique indexes remain

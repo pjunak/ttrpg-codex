@@ -344,6 +344,9 @@ func (manager *Manager) activateLocked(
 	eventKind string,
 	reviewID string,
 ) (ActivationResult, error) {
+	if err := manager.requireSettledUpdate(ctx); err != nil {
+		return ActivationResult{}, err
+	}
 	state, generation, report, permissions, services, normalizedIDs, err := manager.prepareActivation(ctx, plan, true)
 	if err != nil {
 		return ActivationResult{}, err

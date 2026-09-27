@@ -63,6 +63,7 @@ for (const mobile of [false, true]) test(`GitHub installation, token management 
     else if (path === '/api/admin/addons') value = { contractVersion: 'addon-inventory.v1', addonIds: generations.length ? ['example'] : [] };
     else if (path === '/api/admin/addons/example') value = { state: { addonId: 'example', revision, ...(active ? { activeGenerationId: active } : {}) }, generations, events: [] };
     else if (path === '/api/admin/addons/example/activation-reviews') { reviewed = String(body.generationId); value = review(); }
+    else if (path.endsWith('/update/cancel')) value = { cancelled: true };
     else if (path.endsWith('/approval')) value = review('approved');
     else if (path.endsWith('/activation')) { active = reviewed; revision++; value = { state: { addonId: 'example', activeGenerationId: active } }; }
     else { await route.fulfill({ status: 404, json: { error: { kind: 'NOT_FOUND' } } }); return; }
@@ -124,10 +125,10 @@ for (const mobile of [false, true]) test(`GitHub installation, token management 
   await check.click(); await sourceRow.getByText('Up to date', { exact: true }).waitFor();
   // A new commit remains an update even when the package version is unchanged.
   target = 'b'.repeat(64); await check.click();
-  await sourceRow.getByRole('button', { name: 'Download and review' }).click();
+  await sourceRow.getByRole('button', { name: 'Update', exact: true }).click();
   await reviewPanel.getByRole('heading', { name: 'Review activation: GitHub test' }).waitFor(); assert.equal(active, 'a'.repeat(64));
   await reviewPanel.getByRole('button', { name: 'Cancel review' }).click(); assert.equal(active, 'a'.repeat(64));
-  await check.click(); await sourceRow.getByRole('button', { name: 'Download and review' }).click();
+  await check.click(); await sourceRow.getByRole('button', { name: 'Update', exact: true }).click();
   await reviewPanel.getByRole('button', { name: 'Approve and activate' }).click();
   await dialog.waitFor({ state: 'detached' }); await manager.getByText('Add-on state updated.', { exact: true }).waitFor(); assert.equal(active, target);
   failDiscovery = true; await check.click(); await sourceRow.getByRole('alert').filter({ hasText: 'GitHub could not be reached' }).waitFor();
@@ -202,6 +203,7 @@ for (const mobile of [false, true]) test(`one update check supports consecutive 
       value = generation;
     } else if (path === '/api/admin/addons') value = { contractVersion: 'addon-inventory.v1', addonIds: ids };
     else if (path.endsWith('/activation-reviews')) value = review(addonId);
+    else if (path.endsWith('/update/cancel')) value = { cancelled: true };
     else if (path.endsWith('/approval')) value = review(addonId, 'approved');
     else if (path.endsWith('/activation')) {
       active[addonId] = target[addonId]!; value = { state: { addonId, activeGenerationId: active[addonId] } };
@@ -212,7 +214,7 @@ for (const mobile of [false, true]) test(`one update check supports consecutive 
   await page.goto(`${origin}/#/settings`); await page.locator('[data-category="addons"]').click();
   const manager = page.locator('codex-addon-manager'), dialog = manager.getByRole('dialog');
   const first = manager.locator('[data-github-addon="first"]'), second = manager.locator('[data-github-addon="second"]');
-  const download = (row: typeof first) => row.getByRole('button', { name: 'Download and review' });
+  const download = (row: typeof first) => row.getByRole('button', { name: 'Update', exact: true });
   await manager.getByRole('button', { name: 'Check for updates', exact: true }).click();
   await download(second).waitFor(); assert.deepEqual(checked, ids);
   await download(first).click();
@@ -250,6 +252,7 @@ for (const mobile of [false,true]) test(`historical packages download into the e
   else if(path==='/api/admin/addon-github')value={contractVersion:'addon-github.v1',sources:[],credentials:{defaultSource:'none',environmentConfigured:false,repositories:[]}};
   else if(path==='/api/admin/addons')value={contractVersion:'addon-inventory.v1',addonIds:['example']};
   else if(path==='/api/admin/addons/example')value={state:{addonId:'example',revision:1,activeGenerationId:active},generations:staged?[generation(old),generation(current)]:[generation(current)],events:[]};
+  else if(path.endsWith('/update/cancel'))value={cancelled:true};
   else if(path.endsWith('/activation-reviews')||path.endsWith('/approval')){
    if(path.endsWith('/activation-reviews'))assert.equal(req.postDataJSON().generationId,old);
    value={reviewId:'history-review',addonId:'example',generationId:old,proposalSha256:'c'.repeat(64),status:path.endsWith('/approval')?'approved':'prepared',proposal:{addonId:'example',generationId:old,targetManifest:{id:'example',name:'Historical test',version:'1.0.0',permissions:[]},currentManifest:{version:'2.0.0'},changes:{runtimeChanged:false},requiredPermissionIds:[],restartedAddonIds:[],blockers:[]}};
@@ -319,7 +322,7 @@ for (const mobile of [false, true]) test('release details distinguish same-versi
   assert.equal(await upstream.getAttribute('rel'), 'noreferrer');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await row.screenshot({ path: output + '/release-' + (mobile ? 'phone-cs' : 'desktop-en') + '.png' });
-  await row.getByRole('button', { name: mobile ? 'Stáhnout a zkontrolovat' : 'Download and review' }).click();
+  await row.getByRole('button', { name: mobile ? 'Aktualizovat' : 'Update', exact: true }).click();
   const dialog = manager.getByRole('dialog');
   await dialog.locator('.addon-blocker-reason').filter({ hasText: reason }).waitFor();
   assert.equal(await dialog.getByRole('button', { name: mobile ? 'Schválit a aktivovat' : 'Approve and activate' }).isDisabled(), true);

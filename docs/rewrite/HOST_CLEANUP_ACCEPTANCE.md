@@ -3376,3 +3376,72 @@ release readiness passes **33 gates**. The staged patch passes Gitleaks 8.30.1.
 
 T16-RETENTION is implemented locally. T16 now tracks only live rollout and Asurai
 verification; no production cleanup or deployment is claimed here.
+
+## Guided updates and automatic housekeeping
+
+September 27, 2026. T69-HOST replaces manual disable, schema application and
+reactivation with one host-owned confirmation. **Update** opens the package's
+compatibility, dependency/service and privilege review. Saved-data conflicts
+offer an optional scoped JSON backup, **Heal and update**, **Remove data and
+update**, or **Exit upgrade**. Healing validates every saved value and preserves
+its exact bytes and revision; unavailable healing is explained. Removal clears
+only that add-on's current saves. Neither operation changes core campaign
+records, other add-on namespaces, retained history/media or existing backups.
+The shared native dialog and control controller provide nested focus containment,
+keyboard exit and responsive English/Czech actions. Desktop and phone captures
+were visually inspected.
+
+The server owns quiescing and restoring the running graph. Migration 0023 commits
+the immutable data resolution, exact package selection and pending update journal
+together. Failed worker startup restores the previous namespace, package and
+grants; interrupted startup restores pending operations before starting workers.
+A failed rollback retains its journal, blocks competing lifecycle transitions
+and is retried by server maintenance. A repeated confirmation returns its original
+receipt, including after newly written saves, rather than clearing data again.
+Stale saves require fresh data confirmation; stale activation proposals offer a
+fresh compatibility/privilege review directly. The scoped backup is recovery
+evidence and supports automatic failed-update rollback; it is not a full-backup
+ZIP or a general user import format. Value-transforming worker migrations remain
+outside this implementation.
+
+Settings no longer has saved-package cleanup, per-build removal, retention-count
+or file-retry controls. The server retires obsolete builds after success, expires
+unfinished reviews after 30 minutes and retries pending cleanup every minute.
+Cancelled candidates can be removed immediately. Selected disabled builds and
+pending rollback packages remain protected. Campaign recovery stays independent.
+The diagnostic/operator cleanup API retains its exact-review contract.
+
+Focused regressions cover healing, incompatible removal, another namespace's
+preservation, exact backup bytes, stale saves, transactional rollback, failed
+workers, interrupted startup, rollback storage failure, cancellation/expiry,
+stage-to-review grace, unique-index conflicts and rollback-package retention.
+Real browser cases cover active review, backup authorization, Exit, nested Tab focus, stale parent reviews,
+5xx and lost responses, incompatible healing, and new saves after a confirmed
+reset. Existing uninstall and recovery acceptance follows the new dialog while
+retaining its data-preservation assertions.
+
+The host gate passes **42 tooling, 406 unit and 285 browser cases**, plus all Go
+tests and vet. Its 181 optional companion cases are covered separately by full
+installed acceptance. Affected lifecycle, application, storage, maintenance and
+HTTP race checks pass. All four companion repositories' own gates pass; Sheets'
+obsolete instructions are replaced by the canonical host guide in `5d8a264`,
+with no add-on runtime changes. Host pins match that source set.
+
+Full installed acceptance passes **254/254 cases with zero skips** against host
+base `103c2b2` plus this update patch, using all four inspected packages with
+clean source trees. The final unique-index classification and confirmation
+regression are covered by a subsequent complete host gate and lifecycle race
+check; package contents remain unchanged.
+Release readiness passes all **33 gates**, and the staged patch passes Gitleaks
+8.30.1 with no leaks.
+
+The real native Character Sheets preservation fixture additionally passes the
+guided heal-and-activate operation with Engine/Compendium installed. It verifies
+automatic provider/worker recovery, exact saved JSON/revisions and a complete
+backup after the fourth prior-schema transition. The first three transitions
+retain coverage of the older schema-only operator API. This added fixture was
+type-checked and run separately against the final host build and the same
+inspected ZIPs, with **1/1 passing and zero skips**.
+
+This work is local. T15–T17 retain the publication and live-site verification
+boundary; no Asurai/Tiamat deployment or data removal was performed.

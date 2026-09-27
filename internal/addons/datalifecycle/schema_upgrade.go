@@ -27,6 +27,8 @@ type SchemaChange struct {
 	Documents   int               `json:"documents"`
 }
 type SchemaReview struct {
+	ForActivation         bool           `json:"forActivation,omitempty"`
+	Resolution            string         `json:"resolution,omitempty"`
 	ContractVersion       string         `json:"contractVersion"`
 	ReviewID              string         `json:"reviewId"`
 	AddonID               string         `json:"addonId"`
@@ -45,6 +47,7 @@ type SchemaReview struct {
 type SchemaReviewRequest struct {
 	ReviewID, AddonID, GenerationID string
 	ExpectedStateRevision           int64
+	ForActivation                   bool
 }
 
 // SchemaUpgrades only changes schema identity for values already accepted by
@@ -54,4 +57,13 @@ type SchemaUpgrades interface {
 	GetSchemaReview(context.Context, string) (SchemaReview, error)
 	ApplySchemaReview(context.Context, string, string) (SchemaReview, error)
 	SchemaReviewRecovery(context.Context, string) ([]byte, error)
+}
+
+// UpdateData keeps the reviewed data change within the package-selection
+// transaction. Writes stay blocked until the new runtime has recovered.
+type UpdateData interface {
+	SchemaUpgrades
+	ApplySchemaResolution(context.Context, string, string, string) (SchemaReview, error)
+	RestoreSchemaSnapshot(context.Context, string) error
+	BlockUpdateWrites(string, bool)
 }

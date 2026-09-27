@@ -216,6 +216,21 @@ Automated Chromium checks and inspected screenshots are the evidence boundary.
 Manual NVDA/VoiceOver, physical-touch and full browser/OS zoom combinations have
 not been performed; the per-repository T18 acceptance work still owns those checks.
 
+## Add-on update confirmation
+
+The add-on update confirmation uses the same `UIControlsController`, labelled
+native `dialog`, skin tokens and action styles as other host/add-on dialogs.
+Its scope, backup link and consequences precede the healing/removal choices;
+initial focus goes to the heading, avoiding a destructive default. The native
+top layer makes the parent review inert, shared Tab containment stays within the
+innermost dialog, and Exit/Escape returns through the existing review owner.
+This follows the [WAI modal-dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/)
+and [WCAG data-error prevention guidance](https://www.w3.org/WAI/WCAG22/Understanding/error-prevention-legal-financial-data.html).
+An uncertain response preserves the exact confirmation for checking its result;
+it never silently substitutes another action or fresh data snapshot. English
+desktop and Czech phone acceptance cover nesting, focus, backup, stale data,
+5xx/lost replies, cancellation, unavailable healing and confirmed removal.
+
 ## Reflow verification
 
 Profile and collection acceptance reduces the actual CSS viewport to 720 px

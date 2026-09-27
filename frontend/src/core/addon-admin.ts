@@ -8,6 +8,10 @@ import { parseRulesPolicy, parseServiceSelections, parseConfigurationResult, typ
 import { parseAddonDisableReview, type AddonDisableReview } from "./addon-disable.js";
 import { parseAddonUninstallReview, type AddonUninstallReview } from "./addon-uninstall.js";
 
+export class AddonAdminRequestError extends HostRequestError {
+  constructor(status: number, readonly code: string, message?: string) { super(status, "Add-on management", message); }
+}
+
 export interface InstalledGeneration { addonId: string; generationId: string; version: string; installedAt: string; lastError: string }
 export interface AddonSnapshot {
   state: { addonId: string; revision: number; activeGenerationId: string };
@@ -17,6 +21,9 @@ export interface AddonSnapshot {
   runtime?: WorkerDiagnostics | undefined;
 }
 export interface AddonReview {
+  suggested: string[];
+  dependencies: { id: string; range: string; required: boolean }[];
+  services: { contract: string; range: string; required: boolean }[];
   rulesetName: string; supportedRulesets: string[]; disabledSources: string[];
   reviewId: string; addonId: string; generationId: string; proposalSha256: string;
   status: string; name: string; version: string; currentVersion: string;
@@ -51,15 +58,17 @@ function parseAddonReview(value: unknown): AddonReview {
   const record = object(value), proposal = object(record["proposal"]), manifest = object(proposal["targetManifest"]), changes = object(proposal["changes"]);
   const reviewId = text(record["reviewId"]), addonId = id(record["addonId"]), generationId = hash(record["generationId"]);
   if (!/^[a-zA-Z0-9._-]{1,128}$/u.test(reviewId) || proposal["addonId"] !== addonId || proposal["generationId"] !== generationId || manifest["id"] !== addonId || !["prepared", "approved", "consumed"].includes(text(record["status"]))) fail();
-  const required = strings(proposal["requiredPermissionIds"]);
+  const required = strings(proposal["requiredPermissionIds"]), suggested = strings(proposal["suggestedPermissionIds"]);
   const permissions = list(manifest["permissions"] ?? []).map(value => { const permission = object(value); return { id: text(permission["id"]), reason: text(permission["reason"]), resources: strings(permission["resources"]) }; });
-  if (required.some(required => !permissions.some(permission => permission.id === required))) fail();
+  if ([...required, ...suggested].some(id => !permissions.some(permission => permission.id === id))) fail();
   return { reviewId, addonId, generationId, proposalSha256: hash(record["proposalSha256"]), status: text(record["status"]), name: text(manifest["name"]), version: text(manifest["version"]),
     rulesetName: manifest["rules"] && object(manifest["rules"])["defines"] ? text(object(object(manifest["rules"])["defines"])["name"]) : "",
     supportedRulesets: manifest["rules"] ? strings(object(manifest["rules"])["supports"]) : [],
     disabledSources: list(proposal["sourceChoices"] ?? []).filter(value => object(value)["enabled"] === false).map(value => text(object(value)["name"])),
     currentVersion: proposal["currentManifest"] ? text(object(proposal["currentManifest"])["version"]) : "",
-    permissions, required, restarted: strings(proposal["restartedAddonIds"]),
+    permissions, required, suggested, restarted: strings(proposal["restartedAddonIds"]),
+    dependencies: list(manifest["dependencies"] ?? []).map(v => { const d = object(v); return { id: id(d["id"]), range: text(d["range"]), required: typeof d["required"] === "boolean" ? d["required"] : fail() }; }),
+    services: list(manifest["services"] ? object(manifest["services"])["consumes"] ?? [] : []).map(v => { const d = object(v); return { contract: text(d["contract"]), range: text(d["range"]), required: typeof d["required"] === "boolean" ? d["required"] : fail() }; }),
     runtimeChanged: typeof changes["runtimeChanged"] === "boolean" ? changes["runtimeChanged"] : fail(),
     changes: Object.entries(changes).filter(([key]) => key !== "runtimeChanged").map(([category, value]) => { const change = object(value); return { category, added: strings(change["added"]), changed: strings(change["changed"]), removed: strings(change["removed"]) }; }),
     blockers: list(proposal["blockers"] ?? []).map(value => { const blocker = object(value); return { code: text(blocker["code"]), message: text(blocker["message"]) }; }) };
@@ -67,6 +76,22 @@ function parseAddonReview(value: unknown): AddonReview {
 
 export class AddonAdminClient {
   constructor(readonly csrfToken: string, readonly signal: AbortSignal) {}
+  async reviewUpdateData(review: AddonReview): Promise<SchemaReview> {
+    const result = parseSchemaReview(await this.#request(`addon-activation-reviews/${encodeURIComponent(review.reviewId)}/update/saved-data`, {}), review);
+    if (!result.forActivation || result.status !== "prepared") fail();
+    return result;
+  }
+  async resolveUpdate(review: AddonReview, schema: SchemaReview, action: "heal" | "remove", grants: readonly string[]): Promise<void> {
+    const result = object(await this.#request(`addon-activation-reviews/${encodeURIComponent(review.reviewId)}/update/resolve`, {
+      proposalSha256: review.proposalSha256, schemaReviewId: schema.reviewId, schemaReviewSha256: schema.reviewSha256, action, grantedPermissionIds: grants,
+    }));
+    const state = object(result["state"]);
+    if (result["reviewId"] !== review.reviewId || state["addonId"] !== review.addonId || state["activeGenerationId"] !== review.generationId) fail();
+  }
+  async cancelReview(review: AddonReview): Promise<void> {
+    const result = object(await this.#request(`addon-activation-reviews/${encodeURIComponent(review.reviewId)}/update/cancel`, {}));
+    if (result["cancelled"] !== true) fail();
+  }
   async reviewSchema(target: { addonId: string; generationId: string }): Promise<SchemaReview> {
     return parseSchemaReview(await this.#request(`addons/${id(target.addonId)}/schema-reviews`, { generationId: hash(target.generationId) }), target);
   }
@@ -106,7 +131,7 @@ export class AddonAdminClient {
       headers: { Accept: "application/json", "X-Codex-CSRF": this.csrfToken, ...(archive ? { "Content-Type": "application/zip" } : body !== undefined ? { "Content-Type": "application/json" } : {}) },
       ...(archive ? { body: archive } : body !== undefined ? { body: JSON.stringify(body) } : {}) });
     const value: unknown = await response.json();
-    if (!response.ok) { const error = isRecord(value) && isRecord(value["error"]) ? value["error"] : undefined; throw new HostRequestError(response.status, "Add-on management", typeof error?.["message"] === "string" ? error["message"] : undefined); }
+    if (!response.ok) { const error = isRecord(value) && isRecord(value["error"]) ? value["error"] : undefined; throw new AddonAdminRequestError(response.status, typeof error?.["kind"] === "string" ? error["kind"] : "", typeof error?.["message"] === "string" ? error["message"] : undefined); }
     return value;
   }
   async inventory(): Promise<AddonSnapshot[]> {

@@ -5,6 +5,8 @@ export interface SchemaChange {
   fromVersion: string; fromSha256: string; toVersion: string; toSha256: string; documents: number;
 }
 export interface SchemaReview {
+  forActivation?: boolean;
+  resolution?: "heal" | "remove";
   reviewId: string; addonId: string; generationId: string; expectedStateRevision: number;
   snapshotSha256: string; reviewSha256: string; status: "prepared" | "applied";
   createdAt: string; expiresAt: string; appliedAt?: string;
@@ -21,10 +23,14 @@ const kind = (v: unknown): SchemaChange["kind"] => v === "collection" || v === "
 const localId = (v: unknown): string => /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/u.test(text(v)) ? text(v) : fail();
 export function parseSchemaReview(value: unknown, target: { addonId: string; generationId: string }, previous?: SchemaReview): SchemaReview {
   const r = object(value);
+  if (r["forActivation"] !== undefined && typeof r["forActivation"] !== "boolean" ||
+    r["resolution"] !== undefined && !["heal", "remove"].includes(text(r["resolution"]))) fail();
   if (r["contractVersion"] !== "addon-schema-review.v1" || r["addonId"] !== target.addonId || r["generationId"] !== target.generationId ||
     !/^[a-zA-Z0-9._-]{1,128}$/u.test(text(r["reviewId"])) ||
     (r["status"] !== "prepared" && r["status"] !== "applied")) fail();
   const result: SchemaReview = {
+    ...(r["forActivation"] === undefined ? {} : { forActivation: r["forActivation"] as boolean }),
+    ...(r["resolution"] === undefined ? {} : { resolution: r["resolution"] as "heal" | "remove" }),
     reviewId: text(r["reviewId"]), addonId: text(r["addonId"]), generationId: hash(r["generationId"]),
     expectedStateRevision: count(r["expectedStateRevision"]), snapshotSha256: hash(r["snapshotSha256"]),
     reviewSha256: hash(r["reviewSha256"]), status: r["status"] as SchemaReview["status"],
@@ -38,7 +44,8 @@ export function parseSchemaReview(value: unknown, target: { addonId: string; gen
     Date.parse(result.expiresAt) <= Date.parse(result.createdAt) ||
     new Set(result.changes.map(c => c.kind + "/" + c.dataId)).size !== result.changes.length ||
     result.changes.reduce((n, c) => n + c.documents, 0) > result.documents ||
-    (result.status === "applied" && (result.blockers.length || !result.changes.length))) fail();
+    (result.resolution !== undefined && (!result.forActivation || result.status !== "applied")) ||
+    (result.status === "applied" && result.resolution !== "remove" && (result.blockers.length || !result.changes.length))) fail();
   if (previous && (result.reviewId !== previous.reviewId || result.reviewSha256 !== previous.reviewSha256 ||
     result.snapshotSha256 !== previous.snapshotSha256 || (previous.status === "applied" && result.status !== "applied"))) fail();
   return result;

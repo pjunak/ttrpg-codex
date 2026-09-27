@@ -180,15 +180,17 @@ backup ZIPs remain; restoring a full older backup deliberately restores its old
 namespace too. Core character/profile records are preserved. Add-on-owned blob
 handles are refused pending a separate ownership-aware retirement.
 
-This operation is deliberately separate from the ordinary Settings uninstall
-and archive-cleanup controls. See the
+This operation is separate from ordinary Settings uninstall, confirmed update
+resets and automatic package cleanup. See the
 [operator procedure](../SELF_HOSTING.md#reviewed-offline-storage-maintenance).
 
 ## Reviewed compatible schema upgrades
 
-Settings -> Add-ons -> saved package -> Review activation offers **Review saved
-data** when saved schema identity blocks activation. Disable the add-on first
-through its ordinary dependency review. No package code runs during this check.
+Settings -> Add-ons -> **Update** shows compatibility, requirements and privileges.
+When saved data blocks activation, **Continue update** opens one confirmation
+offering **Heal and update**, **Remove data and update**, or **Exit upgrade**.
+Both data actions offer an optional scoped JSON backup download first. The
+current runtime remains active during review; the target package does not run.
 
 This host-owned path accepts only an identity change for existing JSON that
 already validates against the inspected target schema. Every materialized
@@ -206,15 +208,24 @@ sets, 10,000 current documents, 10,000 revision markers and 16 MiB of raw JSON
 (32 MiB encoded envelope). Larger namespaces require a separately designed
 bounded conversion path.
 
-Apply reinspects the target archive and extracted files, checks the reviewed
-fingerprint, disabled state and exact current snapshot, then executes the stored
-metadata changes in one transaction. It advances affected data-set and package
-state revisions; JSON values, document revisions, ordering, creation/update
-timestamps, core-target lifetimes and tombstones are unchanged. The receipt,
-lifecycle audit and DM-only invalidation commit together. Any failure rolls back
-all changes. An exact retry returns the original applied receipt, including
-after restart or later activation. Activation still requires a fresh ordinary
-permission/compatibility review.
+Confirmation reinspects the target archive and extracted files, verifies the
+activation proposal, grants and exact saved snapshot, then quiesces the running
+graph. Healing advances schema identities and affected set/package revisions;
+JSON values, document revisions, ordering, timestamps, target lifetimes and
+tombstones are unchanged. Removal instead clears current documents, marks sets
+unmaterialized and advances tombstone revisions so stale saves cannot recreate
+removed values. It preserves core records, other add-ons, retained history/media
+and existing backups. Incompatible values never become guessed replacements.
+
+Migration `0023_addon_update_resolution.sql` journals the data resolution and
+package switch in the same transaction. Target writes remain blocked until
+worker recovery succeeds. The coordinator restarts the graph automatically;
+failure restores the exact previous data, selected package, grants and any
+changed ruleset selection. Startup restores interrupted pending operations before
+workers start. The journal protects rollback packages from cleanup. An exact
+retry returns the recorded result rather than repeating a reset, including
+after later saves or restart. Different actions or grants require a fresh review.
+Unrelated already-unavailable add-ons are not counted as update failures.
 
 ### Recovery and retention
 
@@ -225,8 +236,10 @@ retain set metadata and revision markers. Downloads are private and uncached.
 Ordinary full backups include these SQLite records. Package removal does not
 delete them; reviewed permanent namespace deletion does.
 
-The snapshot is recovery evidence, not a `codex-backup.v2` archive or a one-click
-restore. Keep a full backup before activating a package that can write new data.
+The coordinator uses the retained snapshot to restore failed/interrupted updates.
+The download is recovery evidence, not a `codex-backup.v2` archive or a general
+import/one-click restore file. A full backup is still needed for a complete site
+restore after a successfully updated package writes new data.
 A reverse schema-only review is possible only when current values also validate
 against the older package. Otherwise recovery needs a separately reviewed
 conversion or a supervised full-backup restore. Only the affected add-on's
@@ -237,13 +250,25 @@ remains independent and preserves current add-on saves.
 
 These routes require real and effective DM authority, with CSRF on POST:
 
+- `POST /api/admin/addon-activation-reviews/{reviewID}/update/saved-data`: `{}`;
+  prepares an active-safe data review for the exact prepared activation review.
+- `POST /api/admin/addon-activation-reviews/{reviewID}/update/resolve`:
+  `{proposalSha256, schemaReviewId, schemaReviewSha256, action, grantedPermissionIds}`;
+  `action` is `heal` or `remove`, returning the durable activation result.
+- `POST /api/admin/addon-activation-reviews/{reviewID}/update/cancel`: `{}`;
+  releases the pending review and its candidate for automatic cleanup.
+- `GET /api/admin/addon-schema-reviews/{reviewID}/recovery`: private snapshot.
+
+The older schema-only operator endpoints remain compatible and still require a
+disabled add-on. They cannot apply a review prepared for combined activation:
+
 - `POST /api/admin/addons/{addonID}/schema-reviews`: `{generationId}`.
 - `GET /api/admin/addon-schema-reviews/{reviewID}`: stored status and receipt.
 - `POST /api/admin/addon-schema-reviews/{reviewID}/apply`: `{reviewSha256}`.
-- `GET /api/admin/addon-schema-reviews/{reviewID}/recovery`: private snapshot.
 
 Responses use `addon-schema-review.v1`, with schema transitions, counts,
-blockers, fingerprints and expiry. Review responses contain no document bodies
+blockers, fingerprints and expiry. Combined reviews include `forActivation` and
+an applied `resolution`; legacy reviews omit them. Review responses contain no document bodies
 or document keys. These are host administration endpoints, not add-on-granted
 permissions or public worker methods.
 

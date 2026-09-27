@@ -75,10 +75,6 @@ export class CodexPackageStorage extends LitElement {
     const result = await this.#run(client => client.recovery(this.pointId, this.expectedRevision, true), true);
     if (result) this.#accept(result);
   }
-  async #retry(): Promise<void> {
-    const result = await this.#run(client => client.retry(), true);
-    if (result) { if (this.pointId) await this.#load(); else this.#accept(result); }
-  }
   protected override render() {
     const t = this.#ui.t.bind(this.#ui), storage = this.storage;
     const blocked = this.pending || this.disabled, packages = storage?.packages ?? [];
@@ -101,7 +97,7 @@ export class CodexPackageStorage extends LitElement {
           ${missing ? html`<button ?disabled=${blocked || packages.some(item => !item.available && !item.downloadable)} @click=${() => void this.#prepare()}>${t("storage.prepare")}</button>` : nothing}
         ` : html`<p class="settings-hint">${t(storage.automatic ? storage.latestOnly ? "storage.latestOnly" : "storage.automatic" : "storage.manual")}</p>
           ${packages.length ? html`<details class="addon-package-history"><summary>${t("storage.history")}</summary><p>${t("storage.historyHelp")}</p>${rows}</details>` : nothing}`}
-        ${storage.pending ? html`<p role="status">${t("storage.pending")}</p><button ?disabled=${blocked} @click=${() => void this.#retry()}>${t("storage.retry")}</button>` : nothing}
+        ${storage.pending ? html`<p role="status">${t("storage.pending")}</p>` : nothing}
       ` : nothing}`;
   }
 }

@@ -19,6 +19,8 @@ export async function exerciseAddonManager({ t, open, admin, csrf, output, mobil
     await review.getByRole('heading', { name: 'Review activation: Graph test', exact: true }).waitFor();
   };
   const approve = async () => {
+    assert.equal(await review.getByRole('checkbox', { name: /core.data.read/u }).isChecked(), true);
+    await review.getByRole('checkbox', { name: /core.data.read/u }).uncheck();
     assert.equal(await review.getByRole('button', { name: 'Approve and activate', exact: true }).isDisabled(), true);
     await review.getByRole('checkbox', { name: /core.data.read/u }).check();
     await review.getByRole('button', { name: 'Approve and activate', exact: true }).click();

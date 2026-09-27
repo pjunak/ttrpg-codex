@@ -175,6 +175,9 @@ func (manager *Manager) SetServiceSelection(ctx context.Context, plan ServiceSel
 // A failed restart leaves the accepted configuration visible and recoverable;
 // it never reports a silent fallback to another provider or touches campaign data.
 func (manager *Manager) reconfigureLocked(ctx context.Context, save func() error) (ConfigurationResult, error) {
+	if err := manager.requireSettledUpdate(ctx); err != nil {
+		return ConfigurationResult{}, err
+	}
 	result := ConfigurationResult{ContractVersion: "addon-configuration-result.v1", RestartedAddonIDs: manager.liveAddonIDs(), RecoveryResults: []RecoveryResult{}}
 	if err := manager.shutdownLocked(ctx); err != nil {
 		_, recoveryErr := manager.recoverLocked(ctx)

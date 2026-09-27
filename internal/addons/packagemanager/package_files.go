@@ -133,6 +133,9 @@ func (manager *Manager) configurePackageRetention(ctx context.Context, enabled, 
 	manager.automaticCleanup = enabled
 	manager.latestPackageOnly = latestOnly
 	manager.packageFetcher = fetch
+	if err := manager.expirePackageReviewsLocked(ctx); err != nil {
+		return err
+	}
 	if err := manager.retryPackageEvictionsLocked(ctx); err != nil {
 		return err
 	}
@@ -228,6 +231,7 @@ func (manager *Manager) evictSupersededLocked(ctx context.Context, addonID strin
  AND (EXISTS(SELECT 1 FROM addon_github_generations gh WHERE gh.addon_id=g.addon_id AND gh.generation_id=g.generation_id AND gh.source_json->>'channel'='release') OR NOT EXISTS(SELECT 1 FROM recovery_points p,json_each(p.image_json,'$.packages') j WHERE j.value->>'addon_id'=g.addon_id AND j.value->>'active_generation_id'=g.generation_id))
  AND NOT EXISTS(SELECT 1 FROM addon_package_files f WHERE f.addon_id=g.addon_id AND f.generation_id=g.generation_id AND f.status<>'local')
  AND NOT EXISTS(SELECT 1 FROM addon_activation_reviews r WHERE r.addon_id=g.addon_id AND r.generation_id=g.generation_id AND r.status IN ('prepared','approved') AND r.expected_state_revision=s.revision)
+ AND NOT EXISTS(SELECT 1 FROM addon_update_attempts u WHERE u.addon_id=g.addon_id AND u.status='pending')
  ON CONFLICT(addon_id,generation_id) DO UPDATE SET status='pending',updated_at=excluded.updated_at`, manager.store.now().UTC().Format(time.RFC3339Nano), addonID)
 	if err != nil {
 		return err
@@ -239,7 +243,7 @@ func (manager *Manager) evictSupersededLocked(ctx context.Context, addonID strin
 }
 func (manager *Manager) retryPackageEvictionsLocked(ctx context.Context) error {
 	for {
-		rows, err := manager.store.db.QueryContext(ctx, `SELECT addon_id,generation_id FROM addon_package_files WHERE status='pending' ORDER BY addon_id,generation_id LIMIT 128`)
+		rows, err := manager.store.db.QueryContext(ctx, `SELECT addon_id,generation_id FROM addon_package_files f WHERE status='pending' AND NOT EXISTS(SELECT 1 FROM addon_update_attempts u WHERE u.addon_id=f.addon_id AND u.status='pending') ORDER BY addon_id,generation_id LIMIT 128`)
 		if err != nil {
 			return err
 		}
@@ -288,6 +292,10 @@ func (manager *Manager) retryPackageEvictionsLocked(ctx context.Context) error {
 func (manager *Manager) RetryPackageEvictions(ctx context.Context) error {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
+	return manager.retryPackageStorageLocked(ctx)
+}
+
+func (manager *Manager) retryPackageStorageLocked(ctx context.Context) error {
 	if err := manager.retryPackageEvictionsLocked(ctx); err != nil {
 		return err
 	}
@@ -404,7 +412,7 @@ func (manager *Manager) cleanupAfterActivationLocked(ctx context.Context, result
 	// Activation is already committed. Cleanup failure must not turn a successful
 	// activation into a retryable activation error.
 	if err := manager.evictSupersededLocked(ctx, result.State.AddonID); err != nil {
-		result.CleanupError = "Package file cleanup is pending; it will retry at startup or the next update."
+		result.CleanupError = "Package file cleanup is pending; the server will retry automatically."
 		manager.logger.Error("automatic package cleanup pending", "addonId", result.State.AddonID, "error", err)
 	}
 }

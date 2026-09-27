@@ -141,9 +141,26 @@ func (manager *Manager) cleanupReviewLocked(ctx context.Context, tx *sql.Tx, sco
 			return CleanupReview{}, err
 		}
 		var pendingReview bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM addon_update_attempts WHERE addon_id=? AND status='pending')`, generation.AddonID).Scan(&pendingReview); err != nil {
+			return CleanupReview{}, err
+		}
 		if scope.DiscardAddonRecovery {
-			if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM addon_activation_reviews WHERE addon_id=? AND generation_id=? AND status IN ('prepared','approved') AND expected_state_revision=?)`, generation.AddonID, generation.GenerationID, generation.StateRevision).Scan(&pendingReview); err != nil {
+			if err := tx.QueryRowContext(ctx, `SELECT ? OR EXISTS(SELECT 1 FROM addon_activation_reviews WHERE addon_id=? AND generation_id=? AND status IN ('prepared','approved') AND expected_state_revision=?)`, pendingReview, generation.AddonID, generation.GenerationID, generation.StateRevision).Scan(&pendingReview); err != nil {
 				return CleanupReview{}, err
+			}
+			if lastInstalled {
+				// A staged first installation has no selected disabled runtime.
+				// Abandoned first-time downloads expire just like update candidates.
+				if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM addon_lifecycle_events WHERE addon_id=? AND generation_id=? AND kind='disabled')`, generation.AddonID, generation.GenerationID).Scan(&lastInstalled); err != nil {
+					return CleanupReview{}, err
+				}
+			}
+			if !pendingReview {
+				// Protect the short gap between a completed download and its review.
+				// Explicit cancellation ends this grace period immediately.
+				if err := tx.QueryRowContext(ctx, `SELECT last_activated_at IS NULL AND julianday(installed_at)>julianday(?) AND NOT EXISTS(SELECT 1 FROM addon_lifecycle_events e WHERE e.addon_id=g.addon_id AND e.generation_id=g.generation_id AND e.kind='review-cancelled') FROM addon_package_generations g WHERE addon_id=? AND generation_id=?`, manager.store.now().UTC().Add(-30*time.Minute).Format(time.RFC3339Nano), generation.AddonID, generation.GenerationID).Scan(&pendingReview); err != nil {
+					return CleanupReview{}, err
+				}
 			}
 		}
 		switch {
@@ -473,6 +490,9 @@ func (manager *Manager) retryCleanupsLocked(ctx context.Context) (CleanupResult,
 func (manager *Manager) WithPackageSnapshot(ctx context.Context, snapshot func() error) error {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
+	if err := manager.requireSettledUpdate(ctx); err != nil {
+		return err
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}

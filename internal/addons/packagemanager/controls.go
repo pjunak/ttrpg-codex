@@ -19,6 +19,9 @@ func (manager *Manager) Reload(
 ) (ActivationResult, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
+	if err := manager.requireSettledUpdate(ctx); err != nil {
+		return ActivationResult{}, err
+	}
 	state, err := manager.store.state(ctx, addonID)
 	if err != nil {
 		return ActivationResult{}, err
@@ -102,6 +105,9 @@ func (manager *Manager) Reload(
 func (manager *Manager) Disable(ctx context.Context, plan DisablePlan) (DisableResult, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
+	if err := manager.requireSettledUpdate(ctx); err != nil {
+		return DisableResult{}, err
+	}
 	state, err := manager.store.state(ctx, plan.AddonID)
 	if err != nil {
 		return DisableResult{}, err

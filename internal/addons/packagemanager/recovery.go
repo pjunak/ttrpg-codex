@@ -26,6 +26,9 @@ type recoveryCandidate struct {
 func (manager *Manager) Recover(ctx context.Context) ([]RecoveryResult, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
+	if err := manager.restorePendingUpdatesLocked(ctx); err != nil {
+		return nil, err
+	}
 	if cleanup, err := manager.retryCleanupsLocked(ctx); err != nil || !cleanup.Complete {
 		manager.logger.Error("package cleanup remains pending at startup", "pending", cleanup.PendingCleanups, "error", err)
 	}

@@ -420,9 +420,13 @@ metadata and old activation reviews after the new runtime and any restarted
 dependency cohort have recovered. The selected build keeps its ZIP and extracted
 runtime: startup re-verifies both. "Selected" includes a deliberately chosen
 older semantic version; the host never substitutes the numerically newest one.
-Staging, cancelled requests, failed activation and degraded cohort recovery
-never trigger cleanup. A valid pending activation review also protects its
-files. A disabled add-on keeps the build recorded by its latest disable event,
+Failed activation and degraded cohort recovery never retire the selected old
+package. A valid pending activation review protects its candidate for 30 minutes;
+the same grace period covers staging before review. Explicit cancellation ends
+that protection. The server monitor expires abandoned reviews and retries cleanup
+every minute. Pending update journals protect every build needed for rollback
+under both automatic and operator cleanup policies.
+A disabled add-on keeps the build recorded by its latest disable event,
 so equal timestamps or a newer staged download cannot change the retained build.
 
 On every healthy startup, the host applies latest-only retention to existing
@@ -479,8 +483,9 @@ can stage inert files but never approves packages or restores campaign data.
 File eviction is journaled before deletion under the lifecycle coordinator.
 Deletion uses the confined package root, rejects symbolic-link paths, bounds
 each file inventory, and drains pending work in small batches. Interrupted
-deletion retries at startup, the next successful update, or **Retry file
-cleanup**. Verified publication interrupted before the residency update can be
+deletion retries at startup, the next successful update and every minute through
+the host monitor. Settings exposes status, with no manual cleanup controls.
+Verified publication interrupted before the residency update can be
 completed offline. Cleanup failure is reported separately from activation
 success. Live backup creation shares the same coordinator lock.
 
@@ -504,10 +509,10 @@ browser scenarios.
 
 ## Reviewed saved package cleanup
 
-Settings → Add-ons → **Clean up saved packages** reviews the complete saved
-inventory, including archives of uninstalled add-ons. Each inactive package also
-has **Remove saved package** for a review of that exact generation. Only a real
-and effective DM with CSRF authority can review, apply or retry cleanup.
+The retained operator API reviews the complete saved
+inventory, including archives of uninstalled add-ons. Settings no longer exposes
+cleanup controls; the server owns normal housekeeping. Only a real and effective
+DM with CSRF authority can use these diagnostic/operator endpoints.
 
 A count selection retains zero to five additional inactive packages per add-on,
 newest installation first (generation hash breaks timestamp ties). Active
@@ -521,8 +526,8 @@ Backup & recovery. This is a one-time reviewed retention rule, not automatic
 expiry. A future installation requires another review.
 
 Saved inactive packages are not running alongside the active build. Two builds
-can have the same declared version but different contents; cleanup shows the
-short build ID beside each version and the full hash under Package details.
+can have the same declared version but different contents; generation hashes
+identify the exact package throughout storage and review responses.
 Recovery snapshots contain independent campaign and add-on contexts. Selecting
 the add-on in Backup & recovery and deleting its context releases the package
 reference while preserving the historical campaign restore option. Default
@@ -576,8 +581,9 @@ have separate operational/data ownership; this action does not erase them.
 Regression coverage: `cleanup_test.go` exercises reference protection, retention,
 file and review conflicts, transaction rollback, interruption/restart, confinement,
 reinstallation and self-contained backups. HTTP/client tests reject unauthorized
-and malformed requests. Installed desktop/phone tests cover English/Czech review,
-retention, recovery protection and a lost response after a successful removal.
+and malformed requests. Installed desktop/phone tests verify that English/Czech
+Settings has no cleanup controls; the operator API retains reference protection,
+retention, stale-plan rejection and exact receipt retries.
 
 
 ## Administrative HTTP boundary
@@ -640,18 +646,23 @@ payloads are not stored in the event log.
 
 ## Saved-data compatibility reviews
 
-A schema mismatch in activation review can open the host's
-[reviewed compatible schema upgrade](ADDON_DATA.md#reviewed-compatible-schema-upgrades).
-The add-on must be disabled through the ordinary dependency review first.
-The host inspects a staged target and validates every saved value without
-executing package code. An immutable metadata-only plan is applied atomically
-against the exact snapshot; activation still needs a fresh permission review.
+A schema mismatch opens the host's [saved-data confirmation](ADDON_DATA.md#reviewed-compatible-schema-upgrades).
+The user may download a scoped backup, then heal, remove current add-on data, or
+exit. The target must pass every other compatibility, dependency and privilege
+check. Healing is enabled only when every saved value can be kept unchanged.
 
-The Settings panel preserves its review on an uncertain apply response and
-offers **Check saved result**. The server returns the durable receipt for an
-exact retry. Private recovery snapshots survive package cleanup and are included
-in full backups; they are evidence rather than an automatic downgrade path.
-Removed definitions or values requiring conversion remain blocked.
+The server owns quiescing, data resolution, package selection and runtime recovery
+as one operation. Migration 0023 retains the pre-change snapshot and a pending
+update journal; failures and interrupted startup restore the previous package and
+data before cleanup can remove it. All previously live runtimes and the target
+must recover for success. Package retirement follows the durable success receipt.
+Campaign records and other namespaces are never part of the reset/rollback.
+
+**Check update result** resends the exact confirmed action after a network/5xx or
+pending-recovery response. The receipt prevents a second reset even if new saves
+already exist. A restored or stale activation proposal requires a fresh review;
+the UI offers that path directly. Private snapshots survive package cleanup and
+are included in full backups. No manual disable or second activation is needed.
 
 ## Remaining lifecycle work
 

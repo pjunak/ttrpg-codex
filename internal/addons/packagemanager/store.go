@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
+	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/unitofwork"
 )
 
 type store struct {
@@ -187,16 +188,28 @@ func (store *store) setActive(
 	if err != nil {
 		return State{}, err
 	}
+	tx, cleanup, err := unitofwork.Begin(ctx, store.db)
+	if err != nil {
+		return State{}, err
+	}
+	defer cleanup()
+	state, err := store.setActiveTx(ctx, tx, manifest, generationID, expectedRevision, grantedPermissions, kind, reviewID)
+	if err != nil {
+		return State{}, err
+	}
+	if err = unitofwork.Commit(ctx, tx, func() {}); err != nil {
+		return State{}, err
+	}
+	return state, nil
+}
+
+func (store *store) setActiveTx(ctx context.Context, tx *sql.Tx, manifest packageinspect.Manifest, generationID string, expectedRevision int64, grantedPermissions []string, kind, reviewID string) (State, error) {
+	addonID := manifest.ID
 	permissionsJSON, err := json.Marshal(grantedPermissions)
 	if err != nil {
 		return State{}, fmt.Errorf("encode granted permissions: %w", err)
 	}
 	now := store.now().UTC()
-	tx, err := store.db.BeginTx(ctx, nil)
-	if err != nil {
-		return State{}, fmt.Errorf("begin active generation update: %w", err)
-	}
-	defer tx.Rollback()
 	result, err := tx.ExecContext(ctx, `
 		UPDATE addon_package_states
 		SET active_generation_id = ?, revision = revision + 1,
@@ -253,10 +266,7 @@ func (store *store) setActive(
 	if err := insertEvent(ctx, tx, addonID, generationID, kind, eventMessage, now); err != nil {
 		return State{}, err
 	}
-	if err := tx.Commit(); err != nil {
-		return State{}, fmt.Errorf("commit active generation: %w", err)
-	}
-	return store.state(ctx, addonID)
+	return scanState(tx.QueryRowContext(ctx, `SELECT addon_id,COALESCE(active_generation_id,''),revision,granted_permissions_json,updated_at FROM addon_package_states WHERE addon_id=?`, addonID))
 }
 
 func (store *store) setDisabled(

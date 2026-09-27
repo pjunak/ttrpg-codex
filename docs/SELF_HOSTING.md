@@ -160,19 +160,31 @@ specific repository, including future update checks.
 **Find package** checks availability without downloading or activating code.
 Select **Download and review**, or **Inspect ZIP** for a local file, to continue
 to the permission and compatibility review in the same popup. Only **Approve
-and activate** changes the active version. Cancelling a review leaves the
-inspected package available under **Saved packages** for later review.
-Only the package marked **Active** runs. Other saved packages are inactive and
-remain available for reviewed activation or rollback; multiple entries do not
-mean multiple versions are running.
+and activate** changes the active version when saved data is compatible.
+For an installed add-on, click **Update** beside the available build. The review
+shows compatibility, required dependencies/services, requested privileges and
+affected running add-ons. Required and previously approved privileges are
+selected for review; new optional privileges remain unchecked.
 
-If activation reports `DATA_MIGRATION_REQUIRED` or `INVALID_STORED_DOCUMENT`,
-the saved add-on data is incompatible with the selected package. Follow that
-add-on's documented upgrade procedure. Reinstalling preserves saved data and
-does not clear these blockers. For Character Sheets 3 to 4, see the
-[retirement procedure](rewrite/CHARACTER_SHEET_CUTOVER.md): it requires a
-separate reviewed backup and removal of old sheet values, not an automatic
-conversion.
+If saved data needs attention, **Continue update** opens a floating confirmation:
+
+- **Download add-on data backup** optionally saves that add-on's exact current
+  values and schema information as private JSON before either action.
+- **Heal and update** preserves values when all of them already satisfy the new
+  schema. It is unavailable if healing would require guessing or changing values.
+- **Remove data and update** clears only this add-on's current saves and starts
+  the selected package with an empty namespace. Core campaign records, other
+  add-ons, retained history/media and existing backups remain intact.
+- **Exit upgrade** keeps the current package and saves.
+
+The server handles stopping/restarting dependencies and activation as one
+confirmed operation. A failed activation restores the previous package and
+saved data. **Check update result** resolves a lost response without repeating
+data removal. A changed package review opens a fresh compatibility/privilege
+review; a changed save requires a fresh data confirmation. No manual disable,
+schema application or second activation step is needed. The downloadable JSON
+is scoped recovery evidence, not a full backup ZIP or a general import file;
+[snapshot details](rewrite/ADDON_DATA.md#recovery-and-retention) explain its use.
 
 Update results appear directly on each installed add-on. Open **Update source**
 on that add-on to connect or edit its repository, replace repository access, or
@@ -542,19 +554,13 @@ those releases; the additional Actions artifacts expire after 14 days.
 Publication does not install anything. Installation still uses the host's
 upload/download, inspect, review, approve and activate lifecycle.
 
-Saved inactive generations are removed through **Settings → Add-ons → Clean up
-saved packages**, or **Remove saved package** beside an inactive version. Review
-the exact packages and reclaimed size, then approve removal. A count of zero
-retains only active/recovery-protected packages and the last installed package
-of a disabled add-on. Uninstall first to remove that last package. Recovery-point
-references are shown and require a separate decision under Backup & recovery.
-Cleanup applies once to the reviewed inventory; it does not schedule expiry.
-
-Keep a verified full backup for rollback before retiring packages you may need
-again. Existing backup ZIPs and campaign/character data are preserved. Interrupted
-approved cleanup can be retried in the same panel and resumes at host startup.
-See [the cleanup contract](rewrite/PACKAGE_LIFECYCLE.md#reviewed-saved-package-cleanup).
-T05–T06 in [the backlog](BACKLOG.md) cover separate namespace and blob cleanup.
-Use these reviewed operations instead of deleting generation directories or
-SQLite rows by hand. Publication/deployment and live archive retirement remain
-separate steps under T15–T17.
+The server handles saved-package cleanup automatically. By default it retains
+the selected build after successful updates and healthy startup, and removes
+obsolete packages with only their add-on recovery context. Campaign recovery,
+current saves and existing backup ZIPs remain intact. Cancelled candidates are
+discarded; abandoned reviews expire after 30 minutes. The server retries pending
+file cleanup every minute. Settings shows storage status without cleanup buttons.
+A disabled add-on retains its selected build. An explicit operator retention
+override can preserve older builds; see [retention policy](rewrite/PACKAGE_LIFECYCLE.md#automatic-package-file-retention).
+No directory or SQLite editing is needed. Permanent namespace/history deletion
+and unused-media cleanup remain separate offline maintenance operations.

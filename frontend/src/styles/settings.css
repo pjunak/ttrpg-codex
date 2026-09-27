@@ -167,6 +167,8 @@ codex-addon-settings { display: block; min-width: 0; }
 .addon-install-dialog h4 { margin: 1rem 0 .5rem; font: 1rem var(--font-ui); }
 .addon-install-dialog h3:focus, .addon-install-dialog h4:focus { outline: none; }
 .addon-install-dialog footer { display: flex; justify-content: end; margin-top: 1.2rem; border-top: 1px solid var(--border-subtle); padding-top: 1rem; }
+.addon-install-dialog .addon-data-actions { flex-wrap: wrap; gap: .75rem; }
+.addon-data-dialog a.ui-button { display: inline-flex; align-items: center; min-height: 44px; }
 .addon-source-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .addon-source-choices button { display: grid; align-content: start; gap: .6rem; text-align: start; padding: 1.2rem; }
 .addon-source-choices span { color: var(--text-muted); font-size: .85rem; line-height: 1.5; }

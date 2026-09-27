@@ -67,6 +67,7 @@ func (s *server) registerAddonAdminRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/admin/addon-activation-reviews/{reviewID}", s.requireAdmin(http.HandlerFunc(s.activationReview)))
 	mux.Handle("POST /api/admin/addon-activation-reviews/{reviewID}/approval", s.requireAdmin(http.HandlerFunc(s.approveActivationReview)))
 	mux.Handle("POST /api/admin/addon-activation-reviews/{reviewID}/activation", s.requireAdmin(http.HandlerFunc(s.activateReviewed)))
+	mux.Handle("POST /api/admin/addon-activation-reviews/{reviewID}/update/{updateOperation}", s.requireAdmin(http.HandlerFunc(s.resolveAddonUpdate)))
 }
 
 func (s *server) installedAddons(w http.ResponseWriter, r *http.Request) {
@@ -390,6 +391,7 @@ func classifyLifecycleError(err error) (int, string, string) {
 		{packagemanager.ErrReviewState, http.StatusConflict, "REVIEW_STATE", packagemanager.ErrReviewState.Error()},
 		{packagemanager.ErrCleanupPending, http.StatusConflict, "CLEANUP_PENDING", packagemanager.ErrCleanupPending.Error()},
 		{packagemanager.ErrReviewStale, http.StatusConflict, "REVIEW_STALE", packagemanager.ErrReviewStale.Error()},
+		{packagemanager.ErrUpdateRestored, http.StatusConflict, "UPDATE_RESTORED", packagemanager.ErrUpdateRestored.Error()},
 		{packagemanager.ErrActivationCohort, http.StatusConflict, "ACTIVATION_COHORT_REQUIRED", packagemanager.ErrActivationCohort.Error()},
 		{packagemanager.ErrRecoveryRequired, http.StatusConflict, "RECOVERY_REQUIRED", packagemanager.ErrRecoveryRequired.Error()},
 		{packagemanager.ErrInvalidPackage, http.StatusUnprocessableEntity, "INVALID_PACKAGE", packagemanager.ErrInvalidPackage.Error()},

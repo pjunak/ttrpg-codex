@@ -67,14 +67,11 @@ export async function exerciseUninstall({ t, open, admin, csrf, output, mobile }
       await page.evaluate(() => localStorage.setItem('codex_lang', 'cs')); await page.reload(); await page.locator('[data-category="addons"]').click();
     }
     await row.locator(`[data-generation="${incompatible.generationId}"]`).getByRole('button', { name: language === 'en' ? 'Review activation' : 'Zkontrolovat aktivaci', exact: true }).click();
-    await activation.getByText(language === 'en'
-      ? "Saved data uses a different format. Follow the add-on's documented upgrade procedure before activating. Uninstalling and reinstalling keeps this data."
-      : 'Uložená data používají jiný formát. Před aktivací postupujte podle dokumentovaného postupu aktualizace doplňku. Odinstalace a opětovná instalace tato data zachová.').waitFor();
-    await activation.getByText(language === 'en'
-      ? "A saved record does not match this package's data format. Review the affected record in the technical details and follow the add-on's upgrade instructions."
-      : 'Uložený záznam neodpovídá datovému formátu tohoto balíčku. Zkontrolujte dotčený záznam v technických podrobnostech a postupujte podle pokynů k aktualizaci doplňku.').waitFor();
-    assert.equal(await activation.getByRole('button', { name: language === 'en' ? 'Approve and activate' : 'Schválit a aktivovat', exact: true }).isDisabled(), true);
-    await activation.getByRole('button', { name: language === 'en' ? 'Cancel review' : 'Zrušit kontrolu', exact: true }).click();
+    await activation.getByRole('button', { name: language === 'en' ? 'Continue update' : 'Pokračovat v aktualizaci', exact: true }).click();
+    const confirmation = activation.locator('codex-addon-schema-upgrade dialog');
+    await confirmation.getByRole('link').waitFor();
+    assert.equal(await confirmation.getByRole('button', { name: language === 'en' ? 'Heal and update' : 'Opravit a aktualizovat', exact: true }).isDisabled(), true);
+    await confirmation.getByRole('button', { name: language === 'en' ? 'Exit upgrade' : 'Ukončit aktualizaci', exact: true }).click();
   }
   await page.evaluate(() => localStorage.setItem('codex_lang', 'en')); await page.reload(); await page.locator('[data-category="addons"]').click();
   await installDmPackage(admin, csrf, { id, live: true });

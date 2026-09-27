@@ -29,7 +29,7 @@ func (store *Store) PrepareSchemaReview(ctx context.Context, input datalifecycle
 		return datalifecycle.SchemaReview{}, err
 	}
 	defer cleanup()
-	if err = checkSchemaState(ctx, tx, input.AddonID, input.GenerationID, input.ExpectedStateRevision); err != nil {
+	if err = checkSchemaState(ctx, tx, input.AddonID, input.GenerationID, input.ExpectedStateRevision, input.ForActivation); err != nil {
 		return datalifecycle.SchemaReview{}, err
 	}
 	snapshot, raw, err := schemaSnapshot(ctx, tx, input.AddonID)
@@ -41,7 +41,7 @@ func (store *Store) PrepareSchemaReview(ctx context.Context, input datalifecycle
 		return datalifecycle.SchemaReview{}, err
 	}
 	now := store.now().UTC()
-	review := datalifecycle.SchemaReview{ContractVersion: "addon-schema-review.v1", ReviewID: input.ReviewID, AddonID: input.AddonID, GenerationID: input.GenerationID, ExpectedStateRevision: input.ExpectedStateRevision,
+	review := datalifecycle.SchemaReview{ForActivation: input.ForActivation, ContractVersion: "addon-schema-review.v1", ReviewID: input.ReviewID, AddonID: input.AddonID, GenerationID: input.GenerationID, ExpectedStateRevision: input.ExpectedStateRevision,
 		SnapshotSHA256: schemaHash(raw), Status: "prepared", CreatedAt: now, ExpiresAt: now.Add(30 * time.Minute), Changes: changes, Blockers: blockers, Documents: len(snapshot.Documents)}
 	encoded, err := json.Marshal(review)
 	if err != nil {
@@ -80,9 +80,9 @@ type schemaQuerier interface {
 }
 
 func readSchemaReview(ctx context.Context, q schemaQuerier, id string) (datalifecycle.SchemaReview, error) {
-	var raw, status string
+	var raw, status, resolution string
 	var applied sql.NullString
-	err := q.QueryRowContext(ctx, "SELECT plan_json,status,applied_at FROM addon_schema_reviews WHERE review_id=?", id).Scan(&raw, &status, &applied)
+	err := q.QueryRowContext(ctx, "SELECT plan_json,status,applied_at,resolution FROM addon_schema_reviews WHERE review_id=?", id).Scan(&raw, &status, &applied, &resolution)
 	if errors.Is(err, sql.ErrNoRows) {
 		return datalifecycle.SchemaReview{}, datalifecycle.ErrUpgradeNotFound
 	}
@@ -104,6 +104,7 @@ func readSchemaReview(ctx context.Context, q schemaQuerier, id string) (datalife
 	}
 	review.ReviewSHA256 = digest
 	review.Status = status
+	review.Resolution = resolution
 	if applied.Valid {
 		value, err := time.Parse(time.RFC3339Nano, applied.String)
 		if err != nil {
@@ -114,6 +115,15 @@ func readSchemaReview(ctx context.Context, q schemaQuerier, id string) (datalife
 	return review, nil
 }
 func (store *Store) ApplySchemaReview(ctx context.Context, id, digest string) (datalifecycle.SchemaReview, error) {
+	return store.applySchemaReview(ctx, id, digest, "")
+}
+func (store *Store) ApplySchemaResolution(ctx context.Context, id, digest, action string) (datalifecycle.SchemaReview, error) {
+	if action != "heal" && action != "remove" {
+		return datalifecycle.SchemaReview{}, ErrInvalidTransaction
+	}
+	return store.applySchemaReview(ctx, id, digest, action)
+}
+func (store *Store) applySchemaReview(ctx context.Context, id, digest, action string) (datalifecycle.SchemaReview, error) {
 	tx, cleanup, err := unitofwork.Begin(ctx, store.database)
 	if err != nil {
 		return datalifecycle.SchemaReview{}, err
@@ -123,20 +133,23 @@ func (store *Store) ApplySchemaReview(ctx context.Context, id, digest string) (d
 	if err != nil {
 		return review, err
 	}
-	if review.ReviewSHA256 != digest {
+	if review.ReviewSHA256 != digest || review.ForActivation != (action != "") {
 		return review, datalifecycle.ErrUpgradeStale
 	}
 	// A lost response can be resolved after restart, even after later activation.
 	if review.Status == "applied" {
+		if review.Resolution != action {
+			return review, datalifecycle.ErrUpgradeStale
+		}
 		return review, nil
 	}
 	if !store.now().Before(review.ExpiresAt) {
 		return review, datalifecycle.ErrUpgradeStale
 	}
-	if len(review.Blockers) > 0 || len(review.Changes) == 0 {
+	if action != "remove" && (len(review.Blockers) > 0 || len(review.Changes) == 0) {
 		return review, datalifecycle.ErrUpgradeBlocked
 	}
-	if err = checkSchemaState(ctx, tx, review.AddonID, review.GenerationID, review.ExpectedStateRevision); err != nil {
+	if err = checkSchemaState(ctx, tx, review.AddonID, review.GenerationID, review.ExpectedStateRevision, review.ForActivation); err != nil {
 		return review, err
 	}
 	_, raw, err := schemaSnapshot(ctx, tx, review.AddonID)
@@ -153,7 +166,23 @@ func (store *Store) ApplySchemaReview(ctx context.Context, id, digest string) (d
 	}
 	now := store.now().UTC()
 	timestamp := now.Format(time.RFC3339Nano)
+	if action == "remove" {
+		// Keep monotonic revision markers and retained history: an old request can
+		// never match a newly created document after the confirmed reset.
+		for _, statement := range []string{
+			"DELETE FROM addon_documents WHERE addon_id=?",
+			"UPDATE addon_document_versions SET revision=revision+1,deleted=1 WHERE addon_id=? AND deleted=0",
+			"UPDATE addon_data_sets SET materialized=0,revision=revision+1 WHERE addon_id=?",
+		} {
+			if _, err = tx.ExecContext(ctx, statement, review.AddonID); err != nil {
+				return review, err
+			}
+		}
+	}
 	for _, change := range review.Changes {
+		if action == "remove" {
+			break
+		}
 		result, err := tx.ExecContext(ctx, `UPDATE addon_data_sets SET schema_version=?,schema_sha256=?,revision=revision+1,updated_at=?
    WHERE addon_id=? AND data_kind=? AND data_id=? AND schema_version=? AND schema_sha256=? AND materialized=1`,
 			change.ToVersion, change.ToSHA256, timestamp, review.AddonID, change.Kind, change.DataID, change.FromVersion, change.FromSHA256)
@@ -174,10 +203,12 @@ func (store *Store) ApplySchemaReview(ctx context.Context, id, digest string) (d
 			return review, err
 		}
 	}
-	if _, err = tx.ExecContext(ctx, "UPDATE addon_package_states SET revision=revision+1,updated_at=? WHERE addon_id=?", timestamp, review.AddonID); err != nil {
-		return review, err
+	if !review.ForActivation {
+		if _, err = tx.ExecContext(ctx, "UPDATE addon_package_states SET revision=revision+1,updated_at=? WHERE addon_id=?", timestamp, review.AddonID); err != nil {
+			return review, err
+		}
 	}
-	if _, err = tx.ExecContext(ctx, "UPDATE addon_schema_reviews SET status='applied',applied_at=? WHERE review_id=?", timestamp, id); err != nil {
+	if _, err = tx.ExecContext(ctx, "UPDATE addon_schema_reviews SET status='applied',applied_at=?,resolution=? WHERE review_id=?", timestamp, action, id); err != nil {
 		return review, err
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO addon_lifecycle_events(addon_id,generation_id,kind,message,occurred_at) VALUES(?,?,'schema-upgraded',?,?)`,
@@ -192,10 +223,11 @@ func (store *Store) ApplySchemaReview(ctx context.Context, id, digest string) (d
 		return review, err
 	}
 	review.Status = "applied"
+	review.Resolution = action
 	review.AppliedAt = &now
 	return review, nil
 }
-func checkSchemaState(ctx context.Context, tx *sql.Tx, addon, generation string, expected int64) error {
+func checkSchemaState(ctx context.Context, tx *sql.Tx, addon, generation string, expected int64, allowActive bool) error {
 	var revision int64
 	var active sql.NullString
 	err := tx.QueryRowContext(ctx, "SELECT revision,active_generation_id FROM addon_package_states WHERE addon_id=?", addon).Scan(&revision, &active)
@@ -205,7 +237,7 @@ func checkSchemaState(ctx context.Context, tx *sql.Tx, addon, generation string,
 	if err != nil {
 		return err
 	}
-	if active.Valid && active.String != "" {
+	if active.Valid && active.String != "" && !allowActive {
 		return datalifecycle.ErrUpgradeActive
 	}
 	if revision != expected {

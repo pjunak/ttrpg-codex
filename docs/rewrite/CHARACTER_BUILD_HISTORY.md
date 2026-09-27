@@ -131,9 +131,9 @@ a lost acknowledgment retries the exact adoption rather than a fresh save.
 Install the host with worker-only extension and compatible schema-review support
 before the updated sheet ZIP. The permanent namespace and schema version remain
 unchanged, but optional Inspiration changes the closed schema hash. Materialized
-installations must disable Sheets, review and apply saved-data compatibility for
-the inspected package, then review and activate it. The metadata-only upgrade
-preserves existing JSON and character revisions without adding defaults. See the
+installations use the host's guided update confirmation and **Heal and update**
+for the inspected package. The host preserves existing JSON and character
+revisions without adding defaults, and handles runtime restart automatically. See the
 [owning upgrade contract](../../../addon-dnd-character-sheets/docs/RULES_EDGE_CASES.md#inspiration-and-compatible-schema-upgrades).
 Existing archived snapshots and prior installation backups are not erased,
 exposed by the character service, or extended by new character saves.

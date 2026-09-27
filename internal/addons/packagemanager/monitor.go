@@ -81,6 +81,7 @@ func (manager *Manager) StartMonitoring(ctx context.Context) {
 	manager.monitorCancel, manager.monitorDone = cancel, done
 	go func() {
 		defer close(done)
+		nextMaintenance := time.Now().Add(time.Minute)
 		ticker := time.NewTicker(manager.monitoring.config.PollInterval)
 		defer ticker.Stop()
 		for {
@@ -90,6 +91,12 @@ func (manager *Manager) StartMonitoring(ctx context.Context) {
 			case <-ticker.C:
 				if err := manager.checkWorkers(monitorCtx); err != nil && monitorCtx.Err() == nil {
 					manager.logger.Error("monitor add-on workers", "error", err)
+				}
+				if !time.Now().Before(nextMaintenance) {
+					nextMaintenance = time.Now().Add(time.Minute)
+					if err := manager.MaintainPackages(monitorCtx); err != nil && monitorCtx.Err() == nil {
+						manager.logger.Warn("automatic package maintenance pending", "error", err)
+					}
 				}
 			}
 		}
