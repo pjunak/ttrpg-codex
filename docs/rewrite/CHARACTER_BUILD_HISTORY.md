@@ -10,11 +10,19 @@ character heading is not repeated. When
 space is too narrow relative to text size, the vertical navigation stacks above
 the sheet so enlarged text and recovery controls remain readable.
 
-Remaining [T63 work](../BACKLOG.md#t63-character-sheet-design) includes authored
-conditions and final acceptance. The current Compact frame retains the largest
+Remaining [T63 work](../BACKLOG.md#t63-character-sheet-design) includes frame
+and final acceptance. The current Compact frame retains the largest
 measured tab height at a given width, growing for new/expanded content. It does
 not render hidden duplicate forms to predict unvisited content, and narrow
 screens use normal document flow.
+
+Both Combat layouts share saved condition controls, source-defined levels and
+condition details. Speed includes supported restrictions; the separate D20
+adjustment applies once to rolls and does not change printed bonuses or spell
+save DCs. Recalculation and rest preserve tracked conditions. Their source
+summaries, levels and adjustments remain readable in saved print/export without
+rules. The [Sheets contract](../../../addon-dnd-character-sheets/docs/RULES_EDGE_CASES.md#authored-conditions)
+owns persistence and the remaining table-adjudication boundary.
 
 <a id="character-model"></a>
 <a id="f16-f19-and-f20-first-complete-play-slice"></a>

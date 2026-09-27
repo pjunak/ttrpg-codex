@@ -87,6 +87,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T63-PLACEMENT-HOST — Accept body placement and four prior schemas**~~ — exact source pins, 254/254 installed cases and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-backed-body-placement-and-preserved-equipment).
 - [x] ~~**T63-HANDS-HOST — Accept hand suspension and five prior schemas**~~ — 257/257 installed cases, exact retries, shared controls and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#hands-grip-and-preserved-off-hand-instances).
 - [x] ~~**T63-COMPACT-HOST — Accept the compact workspace through installed packages**~~ — 259/259 cases with zero skips, exact companion pins, shared cards, body fields, Backpack dialogs, class navigation and preserved play; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-character-sheet-workspace).
+- [x] ~~**T63-CONDITIONS-HOST — Accept shared condition controls and six prior schemas**~~ — 264/264 installed cases, zero skips, exact retries, session/provider recovery and saved output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-conditions-and-preserved-character-state).
 - [x] ~~**T68-HOST — Keep the selected disabled package and distinguish saved builds**~~ — `18d7b5c`; protect the selected version from newer unactivated uploads; explain inactive builds and show build IDs in cleanup; [evidence and retention boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#asurai-saved-packages-and-recovery-retention).
 - [x] ~~**T16-RETENTION — Keep selected builds with independent campaign and add-on recovery**~~ — retire obsolete packages and only their add-on recovery context after healthy startup/updates; preserve campaign recovery, current saves and backups; shared EN/CS recovery controls and atomic rollback tests. [Implementation and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#asurai-saved-packages-and-recovery-retention).
 - [x] ~~**T69-HOST — Complete updates through one saved-data confirmation and automatic housekeeping**~~ — optional scoped backup, validated healing or explicit reset, automatic restart/rollback, durable retry receipts, server review expiry and package cleanup; [implementation and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#guided-updates-and-automatic-housekeeping).
@@ -105,7 +106,7 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 - [ ] **T63-HOST / P2 — Accept the agreed character-sheet workspace through installed packages.**
   Compact layout fixtures now cover the Equipment dialog, body fields, shared
   cards and frame, class navigation and preserved play. Finish the remaining
-  [T63 condition and frame boundaries](#t63-character-sheet-design), then accept
+  [T63 frame boundary](#t63-character-sheet-design), then accept
   the complete workflow with exact companion pins and inspected package hashes.
 - [ ] **T57-VERIFY / P2 — Explain intermittent startup timeouts.**
   T57 timed out before the timeline mounted; T60 hit one phone-settings timeout;
@@ -199,6 +200,7 @@ Standalone browsing must remain useful without Engine or Sheets.
 - [x] ~~**T60-COMP — Declare class styles and conditional cantrip alternatives**~~ — `0b351ba`; four source-owned features, unchanged IDs/prose and class/list/ability facts; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#class-granted-styles-and-conditional-cantrips).
 - [x] ~~**T61-COMP — Restore five passive Fighting Style/Epic Boon grants**~~ — `87f79ad`; preserved IDs, prose and book structure; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
 - [x] ~~**T63-PLACEMENT-COMP — Declare source-backed worn-item placements**~~ — `d826a6d`; 99 PHB/DMG records with prior fields preserved; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-backed-body-placement-and-preserved-equipment).
+- [x] ~~**T63-CONDITIONS-COMP — Correct and declare published condition facts**~~ — `2809098`; fifteen source-owned definitions, attributed summaries and preserved PHB record identity; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-conditions-and-preserved-character-state).
 
 ### Remaining work
 
@@ -259,16 +261,10 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T66-ENGINE — Avoid redundant editor progression calculations**~~ — `66b5bfb`; unchanged validation rules, rebuilt workers and about 45% less measured calculation time; [regressions and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-editor-calculation-cost).
 - [x] ~~**T63-PLACEMENT-ENGINE — Validate body placement independently of mechanics**~~ — `69e3d05`; source-owned options, saved explanations and schema freshness; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-backed-body-placement-and-preserved-equipment).
 - [x] ~~**T63-HANDS-ENGINE — Preserve owned hands, grip and exact suspension**~~ — `495ca51`; source-owned damage/effects, restoration fingerprints and detached validation; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#hands-grip-and-preserved-off-hand-instances).
+- [x] ~~**T63-ENGINE — Define authored conditions and their supported effects**~~ — `c62e358`; closed optional inputs, source eligibility, bounded Speed/D20 effects and preserved explanations; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-conditions-and-preserved-character-state).
 
 ### Remaining work
 
-- [ ] **T63-ENGINE / P2 — Define authored conditions and their supported effects.**
-  Audit existing representations, then establish the remaining
-  [T63](#t63-character-sheet-design) condition state and eligibility contract before
-  Sheets persists it. Return saved explanations
-  and option guidance; preserve input identity and authored state. Coordinate
-  schema/service compatibility with the Sheets worker; do not implement these
-  mechanics as browser arithmetic or broaden this into a combat resolver.
 - [ ] **T18-ENGINE / P1, review — Close rules/provider evidence gaps.**
   T64 completes the representative Fighter/Warlock/Wizard session through
   sourcebook removal, incompatible responses/majors, stale handles and restoration,
@@ -326,13 +322,14 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T63-PLACEMENT-SHEETS — Preserve placement in shared inventory controls**~~ — `460c728`; localized fields, shared targets, atomic transitions and saved output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-backed-body-placement-and-preserved-equipment).
 - [x] ~~**T63-HANDS-SHEETS — Share hand and grip controls across Sheet and Combat**~~ — `1dbb048`; exact suspension, guarded worker writes, responsive controls and saved output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#hands-grip-and-preserved-off-hand-instances).
 - [x] ~~**T63-COMPACT-SHEETS — Adopt the final compact character workspace**~~ — `d00da27`, `9a99722`; shared cards, right attributes, Equipment/mannequin, Backpack dialog, explicit stacks, localized saved values and class-owned levels; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-character-sheet-workspace).
+- [x] ~~**T63-CONDITIONS-SHEETS — Share authored conditions across both Combat layouts**~~ — `40f11a8`; localized host controls, worker preservation, automatic saving and provider-free reading/transfer/print; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-conditions-and-preserved-character-state).
 
 ### Remaining work
 
-- [ ] **T63-SHEETS / P2 — Finish conditions and remaining frame acceptance.**
-  Compact now follows the final standalone mockup. The remaining scope is
-  authored conditions after the Engine/worker contract, the unvisited-tab sizing
-  boundary and final workflow acceptance. See the [remaining sequence](#t63-character-sheet-design).
+- [ ] **T63-SHEETS / P2 — Finish frame acceptance.**
+  Compact follows the final standalone mockup and both layouts share authored
+  conditions. Resolve the unvisited-tab sizing boundary, then complete final
+  workflow acceptance. See the [remaining sequence](#t63-character-sheet-design).
 - [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
   T64 completes the existing workspace's representative multiclass play,
   amended grants, source/provider loss, restoration, rest, advancement and frozen
@@ -360,24 +357,20 @@ The implementation uses real saved projections and Engine eligibility, shared
 host controls/theme tokens, native dialogs and stable instance/focus identities.
 The reference's sample values, simulated saves, hard-coded rules and standalone
 application chrome are not runtime behavior. Inspiration, quick use, containers,
-body placement and hands/grip retain their previously accepted contracts. This
-UI change requires no schema migration, permission change or saved-data reset.
+body placement and hands/grip retain their previously accepted contracts. The
+layout itself requires no schema migration, permission change or saved-data reset.
+The subsequent [condition slice](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-conditions-and-preserved-character-state)
+adds optional authored state through the existing reviewed compatible upgrade;
+all six preceding schema generations retain their JSON and revisions.
 
 Remaining work, in order:
 
-1. **Conditions — Engine and Sheets worker, then UI.** Agree the closed authored
-   condition state, eligibility and bounded supported effects; generate owning
-   DTOs/schemas, preserve existing characters and exact retries, and demonstrate
-   saved reading, transfer and print without a provider. Only then expose the
-   Combat condition controls. Do not hide new state in notes/resource keys or
-   introduce an encounter-resolution engine. T08 applies only when an actual
-   released-schema migration is needed.
-2. **Frame acceptance.** Compact retains the largest measured tab at the current
+1. **Frame acceptance.** Compact retains the largest measured tab at the current
    width, grows for new/expanded content and uses normal flow on narrow screens.
    Predicting an unvisited tab's full height remains different from the mockup's
    duplicate hidden sizing forms. Resolve that remaining design boundary without
    clipping content, imposing inner tab scrollers or duplicating editable forms.
-3. **Final T18 sessions on the complete workspace.** Preserve current automatic
+2. **Final T18 sessions on the complete workspace.** Preserve current automatic
    saving, incomplete builds, retroactive progression, independent DM grants,
    source adoption and provider failure/recovery. Keep physical touch, spoken
    screen-reader and printer acceptance separate from browser/PDF evidence.

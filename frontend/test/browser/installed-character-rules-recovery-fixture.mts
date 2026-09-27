@@ -74,7 +74,7 @@ export function registerCharacterRulesRecoveryTests(enabled: boolean, fixture: (
         const body = response.request().postDataJSON();
         return body?.method === "save" && body.params?.key === key;
       });
-      await editInspiredName(sheet, "Keep pending rules edit");
+      await editInspiredName(sheet, "Keep pending rules edit", true);
       const rejectedSave = await firstSave;
       assert.equal(rejectedSave.ok(), true);
       assert.equal((await rejectedSave.json()).result.status, "rules-changed");
@@ -112,10 +112,12 @@ export function registerCharacterRulesRecoveryTests(enabled: boolean, fixture: (
       const saved = await read();
       assert.equal(saved.revision, initial.revision + 1);
       assert.equal(saved.state.inputs.play.inspiration, scenario.outcome === "conflict" ? undefined : true);
+      assert.deepEqual(saved.state.inputs.play.conditions, scenario.outcome === "conflict" ? undefined : [{id:"exhaustion",level:1}]);
       assert.deepEqual(saved.state.inputs.play.quickUse, scenario.outcome === "conflict" ? undefined : ["keepsake"]);
       assert.equal(saved.state.inputs.play.containers?.[0].name, scenario.outcome === "conflict" ? undefined : "Pending pack");
       assert.equal(saved.state.inputs.play.inventory[0].containerId, saved.state.inputs.play.containers?.[0].id);
       assert.equal(writes[1]!.inputs.play.inspiration, true);
+      assert.deepEqual(writes[1]!.inputs.play.conditions, [{id:"exhaustion",level:1}]);
       assert.deepEqual(writes[1]!.inputs.play.quickUse, ["keepsake"]);
       assert.equal(writes[1]!.inputs.play.containers[0].name, "Pending pack");
       assert.equal(writes[1]!.inputs.play.inventory[0].containerId, writes[1]!.inputs.play.containers[0].id);

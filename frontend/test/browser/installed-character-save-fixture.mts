@@ -48,8 +48,16 @@ export async function openCharacter(t: TestContext, fixture: Fixture, key: strin
 }
 
 // Coalesce ordinary play and inventory input events before the same autosave deadline.
-export async function editInspiredName(sheet: Locator, name: string): Promise<void> {
-  await sheet.evaluate((root, name) => {
+export async function editInspiredName(sheet: Locator, name: string, withConditions = false): Promise<void> {
+  await sheet.evaluate((root, { name, withConditions }) => {
+    if (withConditions) {
+      root.querySelector<HTMLButtonElement>('#dnd-tab-combat')!.click();
+      const condition = root.querySelector<HTMLSelectElement>('[data-focus-key="conditions/add"]');
+      if (!condition || condition.disabled) throw new Error("Conditions must be editable");
+      condition.value = "exhaustion"; condition.dispatchEvent(new Event("change", { bubbles: true }));
+      root.querySelector<HTMLButtonElement>('#dnd-tab-sheet')!.click();
+      root.querySelector<HTMLDetailsElement>('.dse-item-notes')!.open = true;
+    }
     const pin = root.querySelector<HTMLButtonElement>('[data-focus-key="inventory/keepsake/quick-use"]')!;
     if (!pin || pin.disabled) throw new Error("Quick-use pinning must be editable");
     if (pin.getAttribute("aria-pressed") !== "true") pin.click();
@@ -68,7 +76,7 @@ export async function editInspiredName(sheet: Locator, name: string): Promise<vo
     inspiration.checked = true; inspiration.dispatchEvent(new Event("change", { bubbles: true }));
     const title = root.querySelector<HTMLInputElement>(".dse-item-notes input")!;
     title.value = name; title.dispatchEvent(new Event("input", { bubbles: true })); title.focus();
-  }, name);
+  }, { name, withConditions });
 }
 
 // Bypass a stale/client-side range to exercise real worker + Engine rejection,

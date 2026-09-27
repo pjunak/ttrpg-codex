@@ -52,7 +52,7 @@ export function registerCharacterGenerationTests(enabled: boolean, fixture: () =
         writes.push(body.params);
         if (writes.length === 1) await route.abort("failed"); else await route.continue();
       });
-      await editInspiredName(sheet, "Keep graph change input");
+      await editInspiredName(sheet, "Keep graph change input", true);
       await status.getByRole("button", { name: cs ? "Zkusit znovu" : "Retry", exact: true }).waitFor();
       const tag = await markInstance(page);
       await changeUnusedSource(t, f, initial); await reconnected(page, cs);
@@ -73,6 +73,7 @@ export function registerCharacterGenerationTests(enabled: boolean, fixture: () =
       const saved = await read(); assert.equal(saved.revision, initial.revision + 1);
       assert.equal(saved.state.inputs.play.inventory[0].name, "Keep graph change input");
       assert.equal(saved.state.inputs.play.inspiration, true);
+      assert.deepEqual(saved.state.inputs.play.conditions, [{id:"exhaustion",level:1}]);
       assert.deepEqual(saved.state.inputs.play.quickUse, ["keepsake"]);
       assert.equal(saved.state.inputs.play.containers?.[0].name, "Pending pack");
       assert.equal(saved.state.inputs.play.inventory[0].containerId, saved.state.inputs.play.containers[0].id);
@@ -95,7 +96,7 @@ export function registerCharacterGenerationTests(enabled: boolean, fixture: () =
           await route.abort("failed");
         } else await route.continue();
       });
-      await editInspiredName(sheet, "Pending across reload"); await status.getByRole("button", { name: "Retry", exact: true }).waitFor();
+      await editInspiredName(sheet, "Pending across reload", true); await status.getByRole("button", { name: "Retry", exact: true }).waitFor();
       if (outcome === "conflict") {
         const remote = await read(); remote.state.inputs.play.inventory[0].name = "Other editor";
         assert.equal((await f.call("save", { key, operation: "build", operationId: key + "-remote", summary: "Other edit",
@@ -128,6 +129,7 @@ export function registerCharacterGenerationTests(enabled: boolean, fixture: () =
       const saved = await read(); assert.equal(saved.revision, initial.revision + 1);
       assert.equal(saved.state.inputs.play.inventory[0].name, outcome === "conflict" ? "Other editor" : "Pending across reload");
       assert.equal(saved.state.inputs.play.inspiration, outcome === "conflict" ? undefined : true);
+      assert.deepEqual(saved.state.inputs.play.conditions, outcome === "conflict" ? undefined : [{id:"exhaustion",level:1}]);
       assert.deepEqual(saved.state.inputs.play.quickUse, outcome === "conflict" ? undefined : ["keepsake"]);
       assert.equal(saved.state.inputs.play.containers?.[0].name, outcome === "conflict" ? undefined : "Pending pack");
       assert.equal(saved.state.inputs.play.inventory[0].containerId, saved.state.inputs.play.containers?.[0].id);

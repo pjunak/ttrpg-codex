@@ -32,7 +32,7 @@ export function registerCharacterSessionTests(enabled: boolean, fixture: () => F
         if (request.url().endsWith("/services/call") && request.postDataJSON()?.method === "save") requests.push(request.postDataJSON());
       });
       await jsonResponse(await context.request.post("/api/logout"));
-      await editInspiredName(sheet, "Keep this through sign-in");
+      await editInspiredName(sheet, "Keep this through sign-in", true);
       const recovery = page.locator(".session-recovery"); await recovery.waitFor();
       const retry = status.getByRole("button", { name: scenario.locale === "cs" ? "Zkusit znovu" : "Retry", exact: true });
       await retry.waitFor();
@@ -64,6 +64,7 @@ export function registerCharacterSessionTests(enabled: boolean, fixture: () => F
       assert.equal(saved.state.inputs.play.inventory[0].name, scenario.stale ? "Saved in the other editor" : "Keep this through sign-in");
       assert.equal(saved.revision, initial.revision + 1);
       assert.equal(saved.state.inputs.play.inspiration, scenario.stale ? undefined : true);
+      assert.deepEqual(saved.state.inputs.play.conditions, scenario.stale ? undefined : [{id:"exhaustion",level:1}]);
       assert.deepEqual(saved.state.inputs.play.quickUse, scenario.stale ? undefined : ["keepsake"]);
       assert.equal(saved.state.inputs.play.containers?.[0].name, scenario.stale ? undefined : "Pending pack");
       assert.equal(saved.state.inputs.play.inventory[0].containerId, saved.state.inputs.play.containers?.[0].id);

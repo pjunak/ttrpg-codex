@@ -3581,3 +3581,84 @@ or expanded content; predicting unvisited content's height remains a separate
 design boundary. Small screens use normal flow. Physical touch, spoken
 screen-reader, printer and non-Chromium acceptance remain separate. No push,
 publication, deployment or live campaign change was performed.
+
+## Authored conditions and preserved character state
+
+September 27, 2026. Compact and Classic Combat now share condition selection,
+levels, removal and source details. The host supplies the existing controls,
+themes and rule-detail component; the browser does not calculate edition rules.
+Optional `inputs.play.conditions` holds distinct `{id, level}` entries, while
+the Engine validates eligibility and the Sheets worker authorizes every write.
+
+The Compendium profile references its existing PHB Conditions record. Its fifteen
+closed definitions and attributed summaries correct stale playtest content
+against [SRD 5.2.1](https://media.dndbeyond.com/compendium-images/srd/5.2/SRD_CC_v5.2.1.pdf).
+In particular, Exhaustion has six levels and leaves spell save DCs unchanged;
+the 2024 Stunned condition does not set Speed to zero. Existing record IDs and
+book structure are preserved. Engine snapshots fetch only the exact referenced
+rule, retain its provider identity and reject ambiguous source ownership.
+
+Source-declared restrictions apply to walking and other movement after equipment
+and DM effects, with a zero floor and zero-Speed restrictions taking precedence.
+Exhaustion's D20 penalty is explicit roll guidance, applied once by the player;
+it does not alter printed ability/skill/save/attack bonuses or spell save DCs.
+Existing immunities suppress effects and new selection eligibility without
+deleting an authored condition. Missing/malformed definitions remain explicit
+and cannot silently normalize saved state. Incomplete builds may track valid
+conditions. Recalculation, damage and rests preserve the list until the player
+changes it. Situational targeting, Advantage/Disadvantage, concentration,
+implied conditions, ending conditions and terminal outcomes require table
+adjudication; this is not an encounter resolver or automatic expiry system.
+
+The [installed condition fixture](../../frontend/test/browser/installed-character-conditions-fixture.mts)
+checks adding, changing and removing conditions, Speed/D20 results, unchanged
+base values and inventory, focus, reload, reviewed transfer and print. Both
+locales/layouts/skins, 1,360/1,024/390/320 px widths and 200% narrow-screen text
+are covered. Desktop Compact and enlarged Czech phone screenshots were visually
+inspected. Its five focused cases pass. Existing session, rules-adoption and
+generation-handoff fixtures now include pending condition changes: all sixteen
+focused recovery cases pass, including unchanged operation retries, lost
+responses and conflicts. Provider-free acceptance checks frozen state, source
+summaries, transfer, print and unchanged document revisions.
+
+The optional field uses the current service/schema versions and adds no
+permissions. The schema-upgrade fixture now checks all six preceding schema-4
+generations, including the exact hands schema, and passes guided **Heal and
+update** with unchanged saved JSON, revisions and complete backup evidence.
+As with earlier schema fixtures, these use current workers/UI with exact prior
+schemas rather than archived native binaries. No character data reset is needed.
+
+Engine passes all Go tests/vet plus rules/provider/engine race checks. Sheets
+passes `npm run check` (**36 unit cases**, Go tests/vet) and character-worker
+race checks. Compendium passes **82 tests**. All three ZIPs were rebuilt and
+passed host inspection. Host `npm run check` passes **42 tooling, 406 unit and
+285 browser cases**, plus Go tests/vet; 191 optional companion skips are handled
+by the separate installed suite. The updated recovery fixtures also pass the
+Node tooling type check. Release readiness passes **33 gates**, Gitleaks 8.30.1
+passes ten scanner regressions, and all three companion staged scans are clean.
+The host staged patch is also clean. Native installed execution is Windows
+amd64; the Linux workers were cross-built and inspected, not executed locally.
+
+The exact source set uses host base `4fbcede` plus this acceptance patch:
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| dm-tools | `0eeac9b` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| dnd-engine | `c62e358` | `c1709c20189c1225bfe5fdbe2adfaae6525b394bb5f5e529c9842336b24d18ed` |
+| dnd-sheets | `40f11a8` | `a1386a13882fa25490ae6c975e99e0824f59532d7dda006a8502374ec893f0dc` |
+| dnd-2024-compendium | `2809098` | `a5508ff25599d6602c4d78ac9ddcec8cf6559f8e2d57a8d8b70131ec10c58e5e` |
+
+Sheets follow-up `892c77b` only corrects a stale paragraph in
+`docs/RULES_EDGE_CASES.md`. Its package inputs (`addon.json`, `contracts`, `web`
+and `worker`) have no diff from tested runtime commit `40f11a8`, and both the
+source ZIP and inspected suite ZIP retain the SHA-256 above. The final host pin
+includes this documentation correction; it does not change installed behavior.
+
+The full installed suite passes **264/264 cases, zero failures and zero skips**,
+in 949.8 seconds. The frontend and inspected ZIPs stayed unchanged throughout;
+`release/companions/conditions-tested-provenance.json` retains the test-time
+source set before the documentation-only pin advance. The final inspected
+package hashes remain identical.
+Frame sizing for unvisited tabs and final T18 sessions remain open. Physical
+touch, spoken screen-reader, printer and non-Chromium acceptance remain separate.
+No push, publication, deployment or live campaign change was performed.

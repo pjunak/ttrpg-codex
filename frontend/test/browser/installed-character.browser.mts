@@ -41,6 +41,7 @@ import { registerCharacterCommandTests } from './installed-character-command-fix
 import { registerCharacterFeedbackTests } from './installed-character-feedback-fixture.mts';
 import { registerCharacterBuilderTests, registerSkillGrantTests } from './installed-character-builder-fixture.mts';
 import { registerCompactTests } from './installed-character-compact-fixture.mts';
+import { registerConditionTests, verifyFrozenConditions } from './installed-character-conditions-fixture.mts';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const output = resolve(root, 'frontend/test-results/installed-character');
@@ -87,6 +88,7 @@ async function call(method: string, params: Record<string, unknown>) {
 
 registerInspirationSchemaTest(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCompactTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerConditionTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 
 test('installed character coordinator loads typed creation policy and rejects browser head writes', { skip: !enabled }, async () => {
   const loaded = await call('load', {});
@@ -245,7 +247,7 @@ test('source adoption remains explicit and absent rules freeze mechanics without
  const fixture = { admin, browser, csrf, origin, output, call };
  await verifyFrozenCreatedCharacters(fixture);
  // Finished workflows must not retain browser sessions until this parent ends.
- for (const verify of [verifyFrozenSessionOutputs, verifyFrozenSizes, verifyFrozenAdvancements, verifyFrozenClassStyles, verifyFrozenSpellDetails, verifyFrozenPassiveFeats, verifyFrozenProficiencies, verifyFrozenMulticlassSessions, verifyFrozenAttunements, verifyFrozenInspiration, verifyFrozenQuickUse, verifyFrozenStorage, verifyFrozenPlacement, verifyFrozenHands]) {
+ for (const verify of [verifyFrozenSessionOutputs, verifyFrozenSizes, verifyFrozenAdvancements, verifyFrozenClassStyles, verifyFrozenSpellDetails, verifyFrozenPassiveFeats, verifyFrozenProficiencies, verifyFrozenMulticlassSessions, verifyFrozenAttunements, verifyFrozenInspiration, verifyFrozenQuickUse, verifyFrozenStorage, verifyFrozenPlacement, verifyFrozenHands, verifyFrozenConditions]) {
   const retained = browser.contexts().length;
   await verify(t, fixture);
   assert.equal(browser.contexts().length, retained, verify.name + ' must release its browser contexts');
